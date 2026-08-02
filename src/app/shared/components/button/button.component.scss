@@ -16,8 +16,13 @@
   min-block-size: var(--button-h, var(--field-height));
   padding-inline: var(--button-pad-inline, var(--space-3));
   inline-size: var(--button-inline-size, auto);
+  // L'host e' `display: contents`: e' questo <button> a stare nel flusso del
+  // contenitore, quindi e' qui che vanno flex e grid-column. Dichiararli
+  // sull'elemento <app-button> non avrebbe effetto.
+  flex: var(--button-flex, 0 1 auto);
+  grid-column: var(--button-grid-column, auto);
   font-size: var(--button-font-size, var(--text-sm));
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--button-font-weight, var(--font-weight-semibold));
   border-radius: var(--button-radius, var(--radius-md));
   border: var(--border-width) solid transparent;
   transition:

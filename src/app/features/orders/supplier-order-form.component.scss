@@ -1,20 +1,17 @@
 @use 'breakpoints' as bp;
 @use 'responsive-table' as rt;
 
-:host {
-  display: block;
-  inline-size: 100%;
-}
+// Solo il delta rispetto all'anatomia condivisa (styles/_document-form.scss).
+// Prima questo foglio riscriveva l'intera maschera con un blocco proprio
+// (.po-form__*) e un ritmo piu' largo: 519 righe per ridire, con altri numeri,
+// cio' che la base gia' diceva. Restano le regole che descrivono l'ordine
+// fornitore e nessun'altra maschera.
 
-.po-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  inline-size: 100%;
+.doc-form {
   max-inline-size: none;
 }
 
-.po-form__back {
+.doc-form__back {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -23,79 +20,34 @@
   text-decoration: none;
 }
 
-.po-form__back:hover {
+.doc-form__back:hover {
   color: var(--color-text);
 }
 
-.po-form__title {
-  margin: 0;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-}
-
-.po-form__form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+.doc-form__form {
   inline-size: 100%;
-  padding: var(--space-5);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
-}
-
-.po-form__subtitle {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.po-form__grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-4);
 }
 
 @include bp.media-up('md') {
-  .po-form__grid {
+  .doc-form__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-.po-form__field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-
-  app-select-menu,
-  app-date-input {
-    --select-menu-width: 100%;
-  }
-}
-
-.po-form__label {
-  font-size: var(--text-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
-}
-
 // Selettore modalità costo mobile: solo dove la tabella si impila in card
 // (sotto lg). Su desktop il controllo vive nell'intestazione di colonna.
-.po-form__mode-mobile {
+.doc-form__mode-mobile {
   display: none;
 }
 
 @include bp.media-down('lg') {
-  .po-form__mode-mobile {
+  .doc-form__mode-mobile {
     display: flex;
     margin-block-end: var(--space-3);
   }
 }
 
-.po-form__input {
-  block-size: var(--field-height);
+.doc-form__input {
   padding-inline: var(--space-3);
   font-size: var(--text-base);
   font-family: inherit;
@@ -105,173 +57,57 @@
   border-radius: var(--radius-md);
 }
 
-.po-form__input--num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.po-form__input:focus-visible {
+.doc-form__input:focus-visible {
   border-color: var(--color-interactive);
   outline: none;
   box-shadow: var(--field-focus-ring);
 }
 
-.po-form__input[aria-invalid='true'] {
+.doc-form__input[aria-invalid='true'] {
   border-color: var(--status-error-fg);
 }
 
-.po-form__input--readonly {
+.doc-form__input--readonly {
   color: var(--color-text);
   background-color: var(--color-bg);
   cursor: default;
 }
 
-.po-form__input--readonly:focus-visible {
+.doc-form__input--readonly:focus-visible {
   border-color: var(--color-border-strong);
   box-shadow: none;
 }
 
-.po-form__error {
+.doc-form__hint {
   margin: 0;
-  font-size: var(--text-xs);
-  color: var(--status-error-fg);
-}
-
-.po-form__hint {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.po-form__inline-toggle {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0;
-  margin-block-start: var(--space-1);
-  font-size: var(--text-xs);
-  color: var(--color-interactive);
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.po-form__supplier-box {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  background-color: var(--color-surface-sunken);
-  border-radius: var(--radius-md);
-  max-block-size: min(70vh, var(--content-wide));
-  overflow-y: auto;
-}
-
-.po-form__supplier-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-// ── Righe ordine ──────────────────────────────────────────────────────────────
-.po-form__lines {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+} // ── Righe ordine ──────────────────────────────────────────────────────────────
+.doc-form__lines {
   inline-size: 100%;
 }
 
-.po-form__lines-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.po-form__lines-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.po-form__table-wrap {
-  overflow-x: auto;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.po-form__table {
+.doc-form__table {
   inline-size: 100%;
   min-inline-size: calc(var(--space-16) * 6);
-  // Con larghezza definita il fixed rispetta le larghezze del config colonne
-  // (senza, il contenuto decide e i campi numerici si gonfiano — v4).
-  table-layout: fixed;
-  font-size: var(--text-sm);
 }
 
-.po-form__table th,
-.po-form__table td {
-  padding: var(--space-2) var(--space-3);
-  border-inline-end: var(--border-width) solid var(--color-border);
-  vertical-align: top;
-}
-
-.po-form__table th:last-child,
-.po-form__table td:last-child {
-  border-inline-end: none;
-}
-
-.po-form__table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  font-size: var(--text-xs);
-  font-weight: var(--font-weight-semibold);
-  text-align: start;
-  color: var(--color-text-muted);
-  background-color: var(--color-surface-sunken);
-  border-block-end: var(--border-width) solid var(--color-border);
-  white-space: nowrap;
-}
-
-.po-form__table tbody tr {
-  border-block-end: var(--border-width) solid var(--color-border);
-}
-
-.po-form__table tbody tr:last-child {
-  border-block-end: none;
-}
-
-.po-form__num {
-  text-align: end;
-}
-
-.po-form__cell--variant {
+.doc-form__cell--variant {
   min-inline-size: calc(var(--space-16) * 2);
 }
 
-.po-form__cell--actions {
-  inline-size: calc(var(--field-height) + var(--space-2));
-}
-
-.po-form__input--table {
-  min-inline-size: calc(var(--space-16) * 1.5);
-  block-size: var(--field-height);
+.doc-form__input--table {
   padding-inline: var(--space-2);
-  font-size: var(--text-sm);
 }
 
-@include rt.stack-table('po-form__table');
+@include rt.stack-table('doc-form__table');
 
-.po-form__line-list {
+.doc-form__line-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   inline-size: 100%;
 }
 
-.po-form__line {
+.doc-form__line {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-3);
@@ -279,38 +115,38 @@
   padding: var(--space-3);
   background-color: var(--color-surface-sunken);
   border-radius: var(--radius-md);
-  --po-form-line-control-offset: calc(var(--text-xs) * 1.333333 + var(--space-1));
+  --doc-form-line-control-offset: calc(var(--text-xs) * 1.333333 + var(--space-1));
 }
 
 @include bp.media-up('md') {
-  .po-form__line {
+  .doc-form__line {
     grid-template-columns: minmax(0, 3fr) minmax(0, 0.85fr) minmax(0, 1.1fr) minmax(0, 1.1fr) auto;
     align-items: start;
   }
 }
 
-.po-form__line-field {
+.doc-form__line-field {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   min-inline-size: 0;
 }
 
-.po-form__line-field--qty .po-form__input {
+.doc-form__line-field--qty .doc-form__input {
   text-align: start;
   font-variant-numeric: tabular-nums;
 }
 
-.po-form__line-field--variant {
+.doc-form__line-field--variant {
   --select-menu-width: min(100%, calc(var(--select-menu-width-wide) + var(--space-8)));
 }
 
-.po-form__error-placeholder {
+.doc-form__error-placeholder {
   display: block;
   min-block-size: calc(var(--text-xs) * 1.333333);
 }
 
-.po-form__line-remove {
+.doc-form__line-remove {
   block-size: var(--field-height);
   inline-size: var(--field-height);
   display: inline-flex;
@@ -323,189 +159,61 @@
   cursor: pointer;
 
   @include bp.media-up('md') {
-    margin-block-start: var(--po-form-line-control-offset);
+    margin-block-start: var(--doc-form-line-control-offset);
   }
 }
 
-.po-form__line-remove:hover:not(:disabled) {
-  color: var(--status-error-fg);
+.doc-form__line-remove:hover:not(:disabled) {
   border-color: var(--status-error-fg);
 }
 
-.po-form__line-remove:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.po-form__totals {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-1);
-}
-
-.po-form__total {
+.doc-form__total {
   margin: 0;
   text-align: right;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
-.po-form__total--grand {
+.doc-form__total--grand {
   font-size: var(--text-base);
   color: var(--color-text);
 }
 
-.po-form__numbering {
+.doc-form__numbering {
   margin: 0;
 }
 
 // ── Menu intestazione colonna Costo (switch netto/ivato come Arrivo merce) ──
-.po-form__th-menu-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
+.doc-form__th-menu-wrap {
   gap: var(--space-1);
-  inline-size: 100%;
 }
 
-.po-form__th-menu-label {
+.doc-form__th-menu-label {
   font-weight: var(--font-weight-semibold);
 }
 
-.po-form__th-menu-trigger,
-.po-form__th-menu-item {
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.po-form__th-menu-trigger {
-  padding: 0 var(--space-1);
+.doc-form__th-menu-trigger {
   color: inherit;
-
-  &:hover {
-    color: var(--color-primary);
-  }
 }
 
-.po-form__th-menu {
-  position: absolute;
-  inset-block-start: 100%;
-  inset-inline-end: 0;
-  z-index: var(--z-dropdown);
-  display: grid;
-  padding: var(--space-1);
+.doc-form__th-menu {
   min-inline-size: calc(var(--space-16) * 2);
-  background-color: var(--color-surface-raised);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
 }
 
-.po-form__th-menu-item {
+.doc-form__submit-error {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-regular);
-  color: var(--color-text);
-  text-align: start;
-  white-space: nowrap;
-
-  &:hover {
-    background-color: var(--color-surface-sunken);
-  }
-}
-
-.po-form__th-menu-check {
-  inline-size: var(--space-3);
-}
-
-.po-form__submit-error {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--status-error-fg);
-  background-color: var(--status-error-bg);
-  border: var(--border-width) solid var(--status-error-border);
-  border-radius: var(--radius-md);
 }
 
 // Footer azioni sticky in basso (restyle spec §Form).
-.po-form__actions {
-  position: sticky;
-  inset-block-end: 0;
-  z-index: var(--z-sticky);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface-raised);
+.doc-form__actions {
   border-block-start: var(--border-width) solid var(--color-border);
   border-end-start-radius: var(--radius-lg);
   border-end-end-radius: var(--radius-lg);
 }
 
-// ── Dialogo «Modifiche non salvate» (pattern Arrivo merce / Ordine cliente) ──
-.po-form__exit-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-overlay);
-  background-color: var(--color-backdrop);
-}
-
-.po-form__exit-dialog {
-  position: fixed;
-  z-index: var(--z-modal);
-  inset-inline: 50%;
-  inset-block-start: 50%;
-  translate: -50% -50%;
-  inline-size: min(calc(var(--content-narrow) + var(--space-8)), calc(100% - var(--space-6)));
-  padding: var(--space-4);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-}
-
-.po-form__exit-title {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.po-form__exit-message {
-  margin: 0 0 var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  line-height: var(--leading-normal);
-}
-
-.po-form__exit-error {
-  margin: 0 0 var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--color-danger);
-  line-height: var(--leading-normal);
-}
-
-.po-form__exit-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-.po-form__supplier-alert-banner {
+.doc-form__supplier-alert-banner {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);

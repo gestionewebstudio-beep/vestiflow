@@ -131,7 +131,6 @@ type SubmitState =
   ],
   providers: [DocumentEditLockService],
   templateUrl: './sales-document-form.component.html',
-  styleUrl: './goods-receipt-form.component.scss',
 })
 export class SalesDocumentFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);

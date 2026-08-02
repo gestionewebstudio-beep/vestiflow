@@ -60,7 +60,7 @@
   // qui: il rientro si annulla localmente, solo per questo form.
   //
   // Il solo margine negativo non basta: il host ha gia' `inline-size: 100%`
-  // (goods-receipt-form.component.scss, condiviso con l'Arrivo merce) — una
+  // (styles/_document-form.scss) — una
   // percentuale, non `auto`. Un margine negativo su un `width: auto` fa
   // sanguinare il box oltre il contenitore; su un valore fisso non allarga
   // nulla, sposta solo il bordo sinistro, e il browser scarta in silenzio il
@@ -79,7 +79,7 @@
     }
   }
 
-  .co-form.gr-form {
+  .co-form.doc-form {
     padding-inline: var(--co-ref-gutter);
     // Il dock e' fisso: il documento gli lascia sotto lo spazio che occupa,
     // cosi' azioni finali, totali e note restano raggiungibili.
@@ -88,7 +88,7 @@
 
   // Non sticky: nella reference la riga del titolo scorre col documento. Da
   // sticky si sovrapponeva alle righe, che le passavano sopra e sotto.
-  .co-form .gr-form__head-row {
+  .co-form .doc-form__head-row {
     position: static;
     display: flex;
     align-items: center;
@@ -96,24 +96,19 @@
     padding-block: 0 var(--space-3);
   }
 
-  .co-form .gr-form__title {
+  .co-form .doc-form__title {
     min-inline-size: 0;
     font-size: var(--co-ref-text-title);
     line-height: 1.08;
     letter-spacing: -0.035em;
   }
 
-  .co-form ::ng-deep .back-button {
-    flex-shrink: 0;
-    gap: var(--space-1);
-    min-block-size: var(--co-ref-back-h);
-    padding-inline: var(--space-3);
-    color: var(--color-text);
-    background-color: var(--color-surface);
-    border: var(--border-width) solid var(--color-border-strong);
-    border-radius: var(--co-ref-radius-sm);
-    font-size: var(--co-ref-text-body);
-    font-weight: var(--font-weight-semibold);
+  .co-form {
+    --back-button-gap: var(--space-1);
+    --back-button-h: var(--co-ref-back-h);
+    --back-button-radius: var(--co-ref-radius-sm);
+    --back-button-font-size: var(--co-ref-text-body);
+    --back-button-font-weight: var(--font-weight-semibold);
   }
 
   // ── Pannelli della testata ────────────────────────────────────────────────
@@ -122,7 +117,7 @@
   // overflow visible: le tendine di select e date devono poter uscire dalla
   // card, altrimenti si aprono dentro e restano tagliate. La cornice tonda la
   // ottengono i figli, che si arrotondano da soli (vedi toggle e corpo).
-  .co-form .gr-form__header {
+  .co-form .doc-form__header {
     display: grid;
     gap: var(--space-2);
     overflow: visible;
@@ -281,46 +276,40 @@
 
   // In mezza colonna il rientro conta piu' dell'aria: i due controlli lo
   // stringono per lasciare tutto lo spazio al valore.
-  .co-panel__fields--two .co-panel__field ::ng-deep .select-menu__trigger,
-  .co-panel__fields--two .co-panel__field ::ng-deep .date-input__control {
-    gap: var(--space-1);
-    padding-inline: var(--space-2);
-    font-size: var(--text-md);
+  .co-panel__fields--two .co-panel__field {
+    --field-gap: var(--space-1);
+    --field-pad-inline: var(--space-2);
+    --field-font-size: var(--text-md);
   }
 
   // La data e' l'unico valore che non puo' accorciarsi: le si lascia tutto lo
-  // spazio della cella, rientro compreso.
-  .co-panel__fields--two .co-panel__field ::ng-deep .date-input__control {
-    padding-inline: var(--space-1);
-  }
-
-  // Il pulsante del calendario si stringe: resta alto quanto il campo, quindi
-  // comodo da premere, ma smette di rubare larghezza alla data.
-  .co-panel__fields--two ::ng-deep .date-input__toggle {
-    inline-size: var(--space-5);
-    min-inline-size: var(--space-5);
-    padding-inline: 0;
+  // spazio della cella, rientro compreso, e il pulsante del calendario si
+  // stringe — resta alto quanto il campo, quindi comodo da premere, ma smette
+  // di rubare larghezza alla data.
+  .co-panel__fields--two app-date-input {
+    --field-pad-inline: var(--space-1);
+    --date-input-toggle-w: var(--space-5);
+    --date-input-toggle-pad: 0;
   }
 
   // Il calendario non e' piu' largo quanto il campo che lo apre: in mezza
   // colonna sette giorni per riga diventavano illeggibili. Esce dalla colonna
   // e arriva fino al bordo destro dello Stato — due colonne piu' lo stacco,
   // cioe' tutta la riga — restando comunque dentro lo schermo.
-  .co-panel__field ::ng-deep .date-input__panel {
-    inset-inline: 0 auto;
-    max-inline-size: calc(100vw - var(--space-6));
+  .co-panel__field {
+    --date-input-panel-inset: 0 auto;
+    --date-input-panel-max-w: calc(100vw - var(--space-6));
   }
 
-  .co-panel__fields--two .co-panel__field ::ng-deep .date-input__panel {
-    inline-size: calc(200% + var(--space-3));
-    min-inline-size: 100%;
+  .co-panel__fields--two .co-panel__field {
+    --date-input-panel-w: calc(200% + var(--space-3));
   }
 
   // In colonna stretta l'icona calendario davanti alla data e' di troppo: il
   // pulsante che apre il picker dice gia' che campo e', e senza di lei la data
   // ci sta per intero invece di troncarsi a «27/07/2…».
-  .co-panel__fields--two ::ng-deep .date-input__icon {
-    display: none;
+  .co-panel__fields--two {
+    --date-input-icon-display: none;
   }
 
   .co-panel__field {
@@ -384,9 +373,20 @@
   // ── Controlli: stesso riquadro per select, date picker e input di testo ───
   // Nella reference l'area del valore e' incorniciata su tutti i tipi: e' cosi'
   // che si distingue un campo compilabile da un dato scritto.
-  .co-panel__control,
-  .co-panel__field ::ng-deep .select-menu__trigger,
-  .co-panel__field ::ng-deep .date-input__control {
+  // Il riquadro arriva ai controlli condivisi attraverso il vocabolario
+  // --field-*: select e date picker lo leggono entrambi, e il focus lo
+  // disegnano da soli (--field-focus-ring), come ogni altro campo dell'app.
+  .co-panel__field {
+    --field-h: var(--co-ref-control-h);
+    --field-pad-inline: var(--space-3);
+    --field-fg: var(--color-text);
+    --field-bg: var(--color-surface);
+    --field-bg-hover: var(--color-surface);
+    --field-border-color: var(--color-border-strong);
+    --field-radius: var(--co-ref-radius-sm);
+  }
+
+  .co-panel__control {
     inline-size: 100%;
     min-block-size: var(--co-ref-control-h);
     padding-inline: var(--space-3);
@@ -394,15 +394,13 @@
     background-color: var(--color-surface);
     border: var(--border-width) solid var(--color-border-strong);
     border-radius: var(--co-ref-radius-sm);
-    font-size: var(--co-text-touch);
+    font-size: var(--text-lg);
   }
 
-  .co-panel__control:focus-visible,
-  .co-panel__field ::ng-deep .select-menu__trigger:focus-visible,
-  .co-panel__field ::ng-deep .date-input__control:focus-within {
+  .co-panel__control:focus-visible {
     outline: none;
     border-color: var(--color-focus);
-    box-shadow: 0 0 0 3px var(--color-focus-ring-alpha);
+    box-shadow: var(--field-focus-ring);
   }
 
   // Il select apre un picker al tap: non gli serve il 16px anti-zoom iOS che il
@@ -448,7 +446,7 @@
   }
 
   // ── Banner del gate ───────────────────────────────────────────────────────
-  .co-form .gr-form__gate-banner {
+  .co-form .doc-form__gate-banner {
     display: flex;
     align-items: flex-start;
     gap: var(--space-2);
@@ -468,12 +466,12 @@
   // spenti e il banner sopra, mentre titolo e stato vuoto vanno letti — sono
   // proprio loro a spiegare cosa fare. L'attributo disabled resta, quindi
   // niente cambia sul piano funzionale.
-  .co-form .gr-form__gate-fields:disabled,
-  .co-form .gr-form__gate-fields:disabled > * {
+  .co-form .doc-form__gate-fields:disabled,
+  .co-form .doc-form__gate-fields:disabled > * {
     opacity: 1;
   }
 
-  .co-form .gr-form__lines {
+  .co-form .doc-form__lines {
     padding: var(--space-3);
     background-color: var(--co-ref-lines-bg);
     border: var(--border-width) solid var(--color-border);
@@ -483,7 +481,7 @@
   // Titolo a sinistra e «Includi documento» a destra sulla stessa riga: il
   // foglio mobile precedente li impilava per far posto alla toolbar desktop,
   // che qui non c'e' piu'.
-  .co-form .gr-form__lines-head {
+  .co-form .doc-form__lines-head {
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -491,18 +489,18 @@
     gap: var(--space-2);
   }
 
-  .co-form .gr-form__lines-head .gr-form__subtitle {
+  .co-form .doc-form__lines-head .doc-form__subtitle {
     margin: 0;
     font-size: var(--co-ref-text-lines);
     font-weight: var(--font-weight-bold);
     letter-spacing: -0.015em;
   }
 
-  .co-lines__include ::ng-deep .app-button {
-    min-block-size: var(--co-ref-include-h);
-    padding-inline: var(--space-3);
-    border-radius: var(--co-ref-radius-sm);
-    font-size: var(--text-sm);
+  .co-lines__include {
+    --button-h: var(--co-ref-include-h);
+    --button-pad-inline: var(--space-3);
+    --button-radius: var(--co-ref-radius-sm);
+    --button-font-size: var(--text-sm);
   }
 
   .co-lines__empty {
@@ -577,18 +575,18 @@
   // arriva ai bordi da sola, senza doverne uscire con margini negativi. Farla
   // sbordare non funzionava — l'elenco ritaglia (overflow nascosto) e la tinta
   // si fermava prima del bordo, lasciando il bianco che si vedeva intorno.
-  .co-form .gr-form__totals-bar {
+  .co-form .doc-form__totals-bar {
     padding: 0;
     overflow: hidden;
   }
 
-  .co-form .gr-form__totals-row {
+  .co-form .doc-form__totals-row {
     padding-inline: var(--co-ref-totals-pad);
   }
 
   // Margine sopra a zero: la fascia attacca alla riga dell'IVA invece di
   // lasciare una riga di bianco sopra di se'.
-  .co-form .gr-form__totals-row--total {
+  .co-form .doc-form__totals-row--total {
     margin-block: 0;
   }
 
@@ -596,18 +594,18 @@
   // dello sconto su desktop. Su mobile la stessa cella ospita il pulsante
   // «+ Aggiungi sconto», che e' il doppio: si tagliava. Ora la cella si adatta
   // al contenuto e la misura fissa resta al solo campo numerico.
-  .co-form .gr-form__totals-row--field dd {
+  .co-form .doc-form__totals-row--field dd {
     inline-size: auto;
   }
 
-  .co-form .gr-form__totals-input {
+  .co-form .doc-form__totals-input {
     inline-size: var(--space-16);
   }
 
   // ── Note documento ────────────────────────────────────────────────────────
   // A 32px il campo mostrava una riga scarsa e sembrava un input, non un'area
   // per scriverci dentro. Resta trascinabile, con un tetto piu' alto.
-  .co-form .gr-form__footer-notes .gr-form__textarea {
+  .co-form .doc-form__footer-notes .doc-form__textarea {
     min-block-size: var(--co-ref-notes-min);
     max-block-size: var(--co-ref-notes-max);
   }
@@ -622,12 +620,12 @@
     padding-block: var(--space-6) var(--space-1);
   }
 
-  .co-form .co-form__mobile-actions ::ng-deep .app-button {
-    min-block-size: var(--co-ref-control-h);
-    padding-inline: var(--space-4);
-    border-radius: var(--co-ref-radius-sm);
-    font-size: var(--co-ref-text-body);
-    font-weight: var(--font-weight-bold);
+  .co-form .co-form__mobile-actions {
+    --button-h: var(--co-ref-control-h);
+    --button-pad-inline: var(--space-4);
+    --button-radius: var(--co-ref-radius-sm);
+    --button-font-size: var(--co-ref-text-body);
+    --button-font-weight: var(--font-weight-bold);
   }
 
   // ── Dock in basso ─────────────────────────────────────────────────────────
@@ -715,7 +713,7 @@
 
 // Phone stretto (< 360px): le coppie affiancate non ci stanno piu'.
 @include bp.media-down('xs') {
-  .co-form .gr-form__title {
+  .co-form .doc-form__title {
     font-size: var(--text-xl);
   }
 

@@ -117,6 +117,26 @@
   --color-table-row-selected: rgb(37 52 59 / 0.06);
   --color-row-active: rgb(37 52 59 / 0.06);
 
+  // ── Vista card mobile e maschere documento (regole-stile-ui §6, §7) ───────
+  // Nascono come palette privata dell'Ordine cliente. Sono la stessa cosa per
+  // qualunque tabella che sotto lg diventa card: tenerle in una pagina sola
+  // significava che la seconda avrebbe reinventato le proprie.
+  --color-card-open-bg: #fbfcfb;
+  --color-card-open-border: #9ebfb1;
+  --color-card-body-bg: #f3f6f4;
+  --color-metric-bg: #f4f7f5;
+  --color-metric-total-bg: #e5efe9;
+  --color-metric-total-fg: #153b30;
+  --color-readonly-bg: #edf2ef;
+  --color-readonly-border: #e3e9e6;
+  --color-readonly-fg: #425149;
+  --color-group-line: #cbd6d0;
+  --color-group-fg: #56665e;
+  --color-doc-summary-bg: #edf3f0;
+  --color-doc-summary-fg: #46564e;
+  --color-doc-brand-strip: rgb(156 188 199 / 0.4);
+  --color-doc-brand-label: #cbd9de;
+
   // Stato / stock — fg pieno + tinta chiara + bordo al 25%
   --status-ok-fg: var(--color-ok);
   --status-ok-bg: var(--color-ok-subtle);
@@ -277,6 +297,25 @@
   --color-table-row-selected: rgb(207 224 230 / 0.06);
   --color-row-active: rgb(207 224 230 / 0.07);
 
+  // ── Vista card mobile e maschere documento ────────────────────────────────
+  // La pelle chiara non e' leggibile su fondo scuro: qui i ruoli tornano ai
+  // token del tema, la geometria resta quella.
+  --color-card-open-bg: var(--color-surface-hover);
+  --color-card-open-border: var(--color-border-strong);
+  --color-card-body-bg: var(--color-surface-sunken);
+  --color-metric-bg: var(--color-surface-sunken);
+  --color-metric-total-bg: var(--color-primary-subtle);
+  --color-metric-total-fg: var(--color-text);
+  --color-readonly-bg: var(--color-surface-sunken);
+  --color-readonly-border: var(--color-border);
+  --color-readonly-fg: var(--color-text-muted);
+  --color-group-line: var(--color-border);
+  --color-group-fg: var(--color-text-subtle);
+  --color-doc-summary-bg: var(--color-surface-sunken);
+  --color-doc-summary-fg: var(--color-text-muted);
+  --color-doc-brand-strip: var(--color-border-strong);
+  --color-doc-brand-label: var(--color-primary-fg);
+
   // Stato / stock
   --status-ok-fg: var(--color-ok);
   --status-ok-bg: var(--color-ok-subtle);
@@ -423,6 +462,9 @@
   --avatar-preview-size: 20rem; // 320px
 
   // ── 4. CARD — padding interno pannelli e card ───────────────────────────────
+  // §4 «Spaziature mobile»: su phone la card vuole 14px, un valore che la scala
+  // globale non ha (salta da 12 a 16).
+  --card-pad-mobile: 0.875rem; // 14px
   --card-pad-sm: var(--space-3);
   --card-pad-md: var(--space-4);
   --card-pad-lg: var(--space-6);
@@ -486,6 +528,15 @@
   // tipografico, non una misura estemporanea.
   --text-label: 0.59375rem; // 9.5px
   --font-weight-label: 760;
+
+  // Vista card mobile e riepiloghi (regole-stile-ui §3): erano misure private
+  // dell'Ordine cliente, ma descrivono ruoli che tornano in ogni tabella che
+  // sotto lg diventa card e in ogni riepilogo totali.
+  --text-nano: 0.5625rem; // 9px — etichette dei metric chip
+  --text-card-title: 0.90625rem; // 14.5px — nome prodotto sulla card
+  --text-value: 0.9375rem; // 15px — valori dei totali, testata compressa
+  --text-grand-total: 1.0625rem; // 17px — totale documento
+  --font-weight-head: 780; // intestazione tabella: piu' marcata della label
 
   --font-weight-regular: 400;
   --font-weight-medium: 500;

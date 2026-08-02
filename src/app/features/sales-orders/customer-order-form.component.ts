@@ -248,14 +248,12 @@ interface AvailabilityIssue {
     DocumentProductSearchPanelComponent,
   ],
   templateUrl: './customer-order-form.component.html',
-  // Stile riusato dall'Arrivo merce (stesse classi gr-form__*), più la banda
+  // Stile riusato dall'Arrivo merce (stesse classi doc-form__*), più la banda
   // footer condivisa e le aggiunte specifiche di questa maschera. La vista
   // mobile sta in un foglio a parte: insieme sforerebbero il budget CSS
   // per-componente. L'ordine conta — questi due vengono dopo i condivisi e
   // ne sovrascrivono le regole a parità di specificità.
   styleUrls: [
-    '../documents/goods-receipt-form.component.scss',
-    '../documents/document-form-footer.shared.scss',
     './customer-order-form.component.scss',
     './customer-order-form.rows.scss',
     './customer-order-form.mobile.scss',
@@ -1206,7 +1204,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Porta in vista la sezione Allegati (in fondo alla pagina su mobile). */
   protected scrollToAttachments(): void {
     this.host.nativeElement
-      .querySelector('.gr-form__attachments')
+      .querySelector('.doc-form__attachments')
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -1629,7 +1627,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     renderedWidthPx: number,
   ): ReadonlyMap<string, number> | null {
     const tableWidth =
-      this.host.nativeElement.querySelector('.gr-form__table-wrap')?.clientWidth ?? 0;
+      this.host.nativeElement.querySelector('.doc-form__table-wrap')?.clientWidth ?? 0;
     const visible = this.lineColumnDefs.filter((def) => this.isLineColumnVisible(def.id));
     if (tableWidth <= 0 || visible.length < 2) {
       return null;

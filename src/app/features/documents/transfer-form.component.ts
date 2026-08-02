@@ -107,7 +107,6 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
   ],
   providers: [DocumentEditLockService],
   templateUrl: './transfer-form.component.html',
-  styleUrl: './goods-receipt-form.component.scss',
 })
 export class TransferFormComponent {
   private readonly authService = inject(AuthService);

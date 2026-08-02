@@ -1,11 +1,11 @@
 @if (linked()) {
-  <div class="gr-product-cell gr-product-cell--linked">
-    <p class="gr-product-cell__linked-label" [title]="linkedLabel()">
+  <div class="doc-product-cell doc-product-cell--linked">
+    <p class="doc-product-cell__linked-label" [title]="linkedLabel()">
       {{ linkedLabel() || 'Prodotto collegato' }}
     </p>
     <button
       type="button"
-      class="gr-product-cell__search"
+      class="doc-product-cell__search"
       tabindex="-1"
       [disabled]="disabled()"
       aria-label="Cerca un altro prodotto"
@@ -17,7 +17,7 @@
     </button>
     <button
       type="button"
-      class="gr-product-cell__search"
+      class="doc-product-cell__search"
       tabindex="-1"
       [disabled]="disabled()"
       aria-label="Scollega articolo e modifica il testo"
@@ -29,7 +29,7 @@
     </button>
     <button
       type="button"
-      class="gr-product-cell__link-action"
+      class="doc-product-cell__link-action"
       tabindex="-1"
       [disabled]="disabled()"
       (click)="openDetail($event)"
@@ -38,11 +38,11 @@
     </button>
   </div>
 } @else {
-  <div class="gr-product-cell">
-    <div class="gr-product-cell__field" [class.gr-product-cell__field--invalid]="invalid()">
+  <div class="doc-product-cell">
+    <div class="doc-product-cell__field" [class.doc-product-cell__field--invalid]="invalid()">
       <input
         #productInput
-        class="gr-product-cell__input"
+        class="doc-product-cell__input"
         type="text"
         [id]="inputId() || null"
         [disabled]="disabled()"
@@ -60,7 +60,7 @@
       />
       <button
         type="button"
-        class="gr-product-cell__search"
+        class="doc-product-cell__search"
         tabindex="-1"
         [disabled]="disabled()"
         aria-label="Cerca prodotto"
@@ -72,7 +72,7 @@
     </div>
     @if (suggestionsOpen()) {
       <ul
-        class="gr-product-cell__suggestions"
+        class="doc-product-cell__suggestions"
         role="listbox"
         [id]="listboxId()"
         aria-label="Suggerimenti prodotto"
@@ -81,18 +81,18 @@
           <li
             role="option"
             tabindex="0"
-            class="gr-product-cell__suggestion"
-            [class.gr-product-cell__suggestion--active]="i === activeSuggestionIndex()"
+            class="doc-product-cell__suggestion"
+            [class.doc-product-cell__suggestion--active]="i === activeSuggestionIndex()"
             [attr.aria-selected]="i === activeSuggestionIndex()"
             (mousedown)="$event.preventDefault()"
             (click)="pickSuggestion(item.variantId)"
             (keydown)="onSuggestionKeydown($event, item.variantId)"
           >
-            <span class="gr-product-cell__suggestion-title">{{ item.title }}</span>
-            <span class="gr-product-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
+            <span class="doc-product-cell__suggestion-title">{{ item.title }}</span>
+            <span class="doc-product-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
           </li>
         } @empty {
-          <li class="gr-product-cell__suggestion-empty" role="presentation">
+          <li class="doc-product-cell__suggestion-empty" role="presentation">
             Nessun articolo trovato a catalogo.
           </li>
         }
@@ -100,7 +100,7 @@
     }
     <button
       type="button"
-      class="gr-product-cell__link-action"
+      class="doc-product-cell__link-action"
       tabindex="-1"
       [disabled]="disabled()"
       (click)="openAnagraphic($event)"

@@ -12,23 +12,22 @@
 
 @include bp.media-down('lg') {
   // ── Ritmo verticale: le sezioni respirano e si staccano dal fondo ────────
-  .co-form.gr-form {
-    padding-inline: var(--space-3);
+  .co-form.doc-form {
     background-color: var(--color-bg);
   }
 
-  .co-form .gr-form__form {
+  .co-form .doc-form__form {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
   }
 
   // ── Sezioni come card nette (testata, righe, totali, note, allegati) ─────
-  .co-form .gr-form__header,
-  .co-form .gr-form__lines,
-  .co-form .gr-form__totals-bar,
-  .co-form .gr-form__footer-notes,
-  .co-form .gr-form__attachments {
+  .co-form .doc-form__header,
+  .co-form .doc-form__lines,
+  .co-form .doc-form__totals-bar,
+  .co-form .doc-form__footer-notes,
+  .co-form .doc-form__attachments {
     padding: var(--space-4);
     background-color: var(--color-surface);
     border: var(--border-width) solid var(--color-border);
@@ -37,9 +36,8 @@
   }
 
   // La testata gestisce il proprio padding interno (riepilogo + dettagli).
-  .co-form .gr-form__header {
+  .co-form .doc-form__header {
     padding: 0;
-    overflow: hidden;
   }
 
   .co-form .co-form__header-summary {
@@ -48,43 +46,42 @@
   }
 
   // I totali sono una card a sé: niente doppia cornice interna.
-  .co-form .gr-form__totals {
+  .co-form .doc-form__totals {
     border: 0;
     border-radius: 0;
     background-color: transparent;
   }
 
-  .co-form .gr-form__totals-row {
-    padding-inline: 0;
+  .co-form .doc-form__totals-row {
     padding-block: var(--space-2);
     border-inline-end: 0;
     border-block-end: var(--border-width) solid var(--color-border);
   }
 
-  .co-form .gr-form__totals-row:last-child {
+  .co-form .doc-form__totals-row:last-child {
     border-block-end: 0;
   }
 
   // ── Gerarchia tipografica: titolo di sezione leggibile, valori a destra ──
-  .co-form .gr-form__subtitle {
+  .co-form .doc-form__subtitle {
     font-size: var(--text-base);
     font-weight: var(--font-weight-bold);
     color: var(--color-text, var(--color-text));
   }
 
-  .co-form .gr-form__totals dt {
+  .co-form .doc-form__totals dt {
     font-size: var(--text-sm);
     color: var(--color-text, var(--color-text));
   }
 
-  .co-form .gr-form__totals dd {
+  .co-form .doc-form__totals dd {
     font-size: var(--text-sm);
     text-align: end;
   }
 
   // Totale documento: la voce che pesa di più nella lista.
-  .co-form .gr-form__totals-row--total dt,
-  .co-form .gr-form__totals-row--total dd {
+  .co-form .doc-form__totals-row--total dt,
+  .co-form .doc-form__totals-row--total dd {
     font-size: var(--text-lg);
     font-weight: var(--font-weight-bold);
   }
@@ -114,8 +111,7 @@
 
   // Spazio in coda al documento pari all'ingombro della barra, così l'ultima
   // riga non resta nascosta sotto di essa.
-  .co-form.gr-form {
-    padding-block-end: calc(var(--btn-min-height) + var(--space-4) + env(safe-area-inset-bottom));
+  .co-form.doc-form {
   }
 }
 
@@ -129,29 +125,29 @@
     margin-inline: calc(var(--space-1) * -1);
   }
 
-  .co-form.gr-form {
+  .co-form.doc-form {
     padding-inline: 0;
   }
 
-  .co-form .gr-form__form {
+  .co-form .doc-form__form {
     gap: var(--space-2);
   }
 
   // Sezioni e card: padding 14px, nessuna ombra, solo bordo tenue sul grigio.
-  .co-form .gr-form__header,
-  .co-form .gr-form__lines,
-  .co-form .gr-form__totals-bar,
-  .co-form .gr-form__footer-notes,
-  .co-form .gr-form__attachments,
+  .co-form .doc-form__header,
+  .co-form .doc-form__lines,
+  .co-form .doc-form__totals-bar,
+  .co-form .doc-form__footer-notes,
+  .co-form .doc-form__attachments,
   .co-form .co-form__card,
   .co-form .co-form__card--open {
-    padding: var(--co-card-pad-m);
+    padding: var(--card-pad-mobile);
     box-shadow: none;
     border-color: var(--color-border);
   }
 
   // La testata continua a gestire il padding dei propri blocchi interni.
-  .co-form .gr-form__header,
+  .co-form .doc-form__header,
   .co-form .co-form__card,
   .co-form .co-form__card--open {
     padding: 0;
@@ -161,22 +157,22 @@
   .co-form .co-form__card-body,
   .co-form .co-form__header-summary,
   .co-form .co-form__header-include {
-    padding: var(--co-card-pad-m);
+    padding: var(--card-pad-mobile);
   }
 
   // ── Niente card dentro card: sezioni orizzontali nel contenitore ─────────
   // Il contenitore esterno tiene i suoi 4 bordi; le sezioni interne perdono
   // quelli verticali e si separano con un filo orizzontale. Sparisce la doppia
   // parete che teneva il contenuto a ~24px dal bordo schermo.
-  .co-form .gr-form__lines,
-  .co-form .gr-form__totals-bar {
+  .co-form .doc-form__lines,
+  .co-form .doc-form__totals-bar {
     padding-inline: 0;
   }
 
-  .co-form .gr-form__lines-head,
+  .co-form .doc-form__lines-head,
   .co-form .co-form__mobile-tools,
   .co-form .co-form__mobile-add-line,
-  .co-form .gr-form__totals-row {
+  .co-form .doc-form__totals-row {
     padding-inline: var(--space-2);
   }
 
@@ -209,7 +205,7 @@
   // finisce a filo dell'input e ne diventa la sottolineatura, invece di essere
   // una riga che galleggia piu' sotto. Un filo di respiro resta solo in testa,
   // perche' la label non tocchi il divisore del campo precedente.
-  .co-form .gr-form__header .gr-form__field {
+  .co-form .doc-form__header .doc-form__field {
     padding-block: var(--space-1) var(--space-0);
     padding-inline: var(--space-2);
     border-inline: 0;
@@ -222,30 +218,29 @@
   // La classe reale del trigger e' .select-menu__trigger: il nome col prefisso
   // app- non esisteva, quindi la select restava l'unico controllo con il
   // rientro orizzontale suo invece di quello della testata.
-  .co-form .gr-form__header .gr-form__input,
-  .co-form .gr-form__header .gr-form__textarea,
-  .co-form .gr-form__header ::ng-deep .select-menu__trigger,
-  .co-form .gr-form__header {
+  .co-form .doc-form__header .doc-form__input,
+  .co-form .doc-form__header .doc-form__textarea,
+  .co-form .doc-form__header {
     --field-pad-inline: var(--space-3);
   }
 
   // 44px: il minimo touch delle linee guida. Il ritmo si comprime altrove.
-  .co-form .gr-form__header .gr-form__field {
-    --field-height: var(--co-field-h-m);
+  .co-form .doc-form__header .doc-form__field {
+    --field-height: var(--control-h-touch);
   }
 
   // ── Campi testata senza riquadro proprio (spec §7) ───────────────────────
   // Il contenitore ha già il suo bordo: incorniciare anche ogni campo crea una
   // doppia parete e ruba larghezza. Select e date picker seguono lo stesso
   // token, quindi perdono il box senza doverli forzare uno per uno.
-  .co-form .gr-form__header .gr-form__input,
-  .co-form .gr-form__header .gr-form__field app-select-menu,
-  .co-form .gr-form__header .gr-form__field app-date-input {
+  .co-form .doc-form__header .doc-form__input,
+  .co-form .doc-form__header .doc-form__field app-select-menu,
+  .co-form .doc-form__header .doc-form__field app-date-input {
     --color-input-border: transparent;
     --color-input-bg: transparent;
   }
 
-  .co-form .gr-form__header .gr-form__input {
+  .co-form .doc-form__header .doc-form__input {
     background-color: transparent;
     border: 0;
     border-radius: 0;
@@ -254,7 +249,7 @@
   // La seconda fascia della testata nasce con un fondo tenue per staccarsi su
   // desktop. In colonna singola quel fondo non separa piu' due fasce: tinge
   // qualche campo si' e qualcuno no, e quelli tinti sembrano testo statico.
-  .co-form .gr-form__header .co-form__header-row--secondary {
+  .co-form .doc-form__header .co-form__header-row--secondary {
     background-color: transparent;
   }
 
@@ -262,11 +257,11 @@
   // toccato per ultimo si ritrova un fondo grigio che gli altri non hanno.
 
   // L'editabilità la dice il filo sotto la cella; al focus si accende.
-  .co-form .gr-form__header .gr-form__field:focus-within {
+  .co-form .doc-form__header .doc-form__field:focus-within {
     border-block-end-color: var(--color-focus);
   }
 
-  .co-form .gr-form__header .gr-form__input:focus-visible {
+  .co-form .doc-form__header .doc-form__input:focus-visible {
     outline: none;
     box-shadow: none;
   }
@@ -285,13 +280,13 @@
   // Titolo della testata compressa: resta a 15px. Non e' uno dei livelli in
   // gioco qui, e quella riga divide lo spazio con icona, pulsante e chevron.
   .co-form__header-summary-copy strong {
-    font-size: var(--co-text-summary);
+    font-size: var(--text-value);
   }
 
   // Label campo — visibilmente sopra il valore. Interlinea stretta: a 19px
   // quella normale aggiungerebbe altezza a ogni campo proprio mentre il ritmo
   // verticale si comprime.
-  .co-form .gr-form__header .gr-form__label {
+  .co-form .doc-form__header .doc-form__label {
     font-size: var(--co-text-field-label);
     line-height: var(--leading-tight);
     letter-spacing: normal;
@@ -300,22 +295,21 @@
 
   // Valore e placeholder — un solo corpo per ogni tipo di controllo: il valore
   // di una select e quello di un input di testo sono lo stesso contenuto.
-  .co-form .gr-form__header .gr-form__input,
-  .co-form .gr-form__header ::ng-deep .select-menu__trigger,
-  .co-form .gr-form__header {
-    --field-font-size: var(--co-text-touch);
+  .co-form .doc-form__header .doc-form__input,
+  .co-form .doc-form__header {
+    --field-font-size: var(--text-lg);
   }
 
   // Sottotitoli e link secondari — restano i piu' piccoli, ma a 11px erano
   // sotto la soglia di lettura comoda.
-  .co-form .gr-form__header .gr-form__inline-toggle,
+  .co-form .doc-form__header .doc-form__inline-toggle,
   .co-form__header-summary-copy small {
     font-size: var(--text-xs);
   }
 
   // Il campo non ha piu' gap interno: le scorciatoie sotto il cliente si
   // riprendono da sole il filo di stacco dal controllo.
-  .co-form .gr-form__header .co-form__inline-links {
+  .co-form .doc-form__header .co-form__inline-links {
     margin-block-start: var(--space-1);
   }
 }

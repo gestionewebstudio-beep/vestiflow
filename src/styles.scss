@@ -5,6 +5,10 @@
 // Aspetto delle classi applicate dalle direttive di shared/: sta qui perche'
 // una direttiva non puo' avere un proprio styleUrl (vedi il partial).
 @use 'styles/shared-directives';
+// Anatomia della maschera documento: la condividono cinque form, e come
+// stylesheet di componente finiva compilata cinque volte (vedi il partial).
+@use 'styles/document-form';
+@use 'styles/document-form-footer';
 
 // -----------------------------------------------------------------------------
 // RESET MODERNO

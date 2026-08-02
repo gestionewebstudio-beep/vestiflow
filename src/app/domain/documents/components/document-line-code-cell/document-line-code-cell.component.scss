@@ -4,23 +4,25 @@
   min-inline-size: 0;
 }
 
-.gr-code-cell {
+.doc-code-cell {
   position: relative;
   block-size: 100%;
   min-inline-size: 0;
 }
 
-.gr-code-cell__input {
+.doc-code-cell__input {
   inline-size: 100%;
   min-inline-size: 0;
   block-size: 100%;
-  min-block-size: var(--gr-line-row-height, var(--field-height-inline));
+  min-block-size: var(--doc-line-row-height, var(--field-height-inline));
   padding: var(--space-1) var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-variant-numeric: var(--numeric-tabular);
   line-height: var(--leading-normal);
-  color: var(--color-text);
+  // Punto di regolazione: una maschera che tratta il codice come riferimento
+  // navigabile lo colora di accento dichiarando --doc-code-cell-fg.
+  color: var(--doc-code-cell-fg, var(--color-text));
   background: transparent;
   border: none;
   border-radius: 0;
@@ -31,7 +33,7 @@
   }
 }
 
-.gr-code-cell__linked {
+.doc-code-cell__linked {
   margin: 0;
   padding: var(--space-1) var(--space-2);
   font-family: var(--font-mono);
@@ -43,7 +45,7 @@
   white-space: nowrap;
 }
 
-.gr-code-cell__suggestions {
+.doc-code-cell__suggestions {
   position: absolute;
   inset-block-start: 100%;
   inset-inline: 0;
@@ -59,7 +61,7 @@
   box-shadow: var(--shadow-md);
 }
 
-.gr-code-cell__suggestion {
+.doc-code-cell__suggestion {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -73,18 +75,18 @@
   }
 }
 
-.gr-code-cell__suggestion-title,
-.gr-code-cell__suggestion-detail {
+.doc-code-cell__suggestion-title,
+.doc-code-cell__suggestion-detail {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.gr-code-cell__suggestion-title {
+.doc-code-cell__suggestion-title {
   font-size: var(--text-sm);
 }
 
-.gr-code-cell__suggestion-detail {
+.doc-code-cell__suggestion-detail {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }

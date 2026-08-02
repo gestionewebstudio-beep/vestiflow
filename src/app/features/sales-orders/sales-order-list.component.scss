@@ -250,8 +250,6 @@
   max-inline-size: none;
 }
 
-.sales-list__filters--inline .sales-list__field ::ng-deep .select-menu,
-
 // Anche i campi data Dal/Al riempiono la loro cella, così sono larghi come le
 // chip sotto (di serie la date-input fullWidth resta a larghezza fissa).
 .sales-list__filters--inline .sales-list__field app-date-input {

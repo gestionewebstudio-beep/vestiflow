@@ -53,7 +53,7 @@ export async function createGoodsReceiptFromOrderDetail(page: Page): Promise<voi
   await page.getByRole('button', { name: 'Crea arrivo merce' }).click();
   await confirmOpenDialog(page, 'Crea arrivo merce');
   await expect(page).toHaveURL(/\/app\/documents\/goods-receipt\/new/, { timeout: 30_000 });
-  await expect(page.locator('h1.gr-form__title')).toContainText('arrivo merce', {
+  await expect(page.locator('h1.doc-form__title')).toContainText('arrivo merce', {
     timeout: 15_000,
   });
   await expect(page.getByText('Ordine fornitore incluso:')).toBeVisible({ timeout: 15_000 });

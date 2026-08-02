@@ -18,7 +18,7 @@ import {
 
 async function openNewGoodsReceipt(page: Page): Promise<void> {
   await page.goto('/app/documents/goods-receipt/new');
-  await expect(page.locator('h1.gr-form__title')).toHaveText('Nuovo arrivo merce', {
+  await expect(page.locator('h1.doc-form__title')).toHaveText('Nuovo arrivo merce', {
     timeout: 30_000,
   });
 }
@@ -107,10 +107,10 @@ test.describe('Arrivo merce — verifica funzionale', () => {
     await saveGoodsReceiptDocument(page);
 
     // Dopo il salvataggio si resta nella maschera in modifica, non nel registro.
-    await expect(page.locator('h1.gr-form__title')).toHaveText('Modifica documento confermato');
+    await expect(page.locator('h1.doc-form__title')).toHaveText('Modifica documento confermato');
 
     // La sessione è sbloccata: nessun banner "Documento protetto da modifica".
-    await expect(page.locator('.gr-form__unlock-banner')).toHaveCount(0);
+    await expect(page.locator('.doc-form__unlock-banner')).toHaveCount(0);
     await expect(page.locator('#gr-qty-0')).toBeEnabled();
   });
 
@@ -124,7 +124,7 @@ test.describe('Arrivo merce — verifica funzionale', () => {
 
     // Ricarica piena: la sessione di modifica riparte e il documento è protetto.
     await page.goto(editUrl);
-    const unlockBanner = page.locator('.gr-form__unlock-banner');
+    const unlockBanner = page.locator('.doc-form__unlock-banner');
     const lockVisible = await unlockBanner
       .waitFor({ state: 'visible', timeout: 15_000 })
       .then(() => true)

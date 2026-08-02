@@ -11,19 +11,19 @@
 // La fascia colorata copre SOLO indice e colonne di identità: le colonne da
 // Q.tà a Totale restano celle normali con la tinta del proprio gruppo, così i
 // divisori verticali e le bande di colonna proseguono senza interruzioni.
-.co-form .gr-form__table tbody td.co-form__source-cell {
+.co-form .doc-form__table tbody td.co-form__source-cell {
   block-size: 2.125rem; // 34px
   color: #42545d;
   background-color: #f2f5f7;
   overflow: visible;
 }
 
-.co-form .gr-form__table tbody tr:hover td.co-form__source-cell {
+.co-form .doc-form__table tbody tr:hover td.co-form__source-cell {
   background-color: #f2f5f7;
 }
 
 // Accento verticale sulla prima cella della fascia (l'indice).
-.co-form .gr-form__table tbody td.co-form__source-cell:first-child {
+.co-form .doc-form__table tbody td.co-form__source-cell:first-child {
   box-shadow: inset 3px 0 0 #718995;
 }
 
@@ -103,52 +103,41 @@
 }
 
 // ── Riordino righe: la maniglia è il numero ────────────────────────────────
-.co-form .gr-form__table tbody .co-form__drag-handle {
+.co-form .doc-form__table tbody .co-form__drag-handle {
   cursor: grab;
   touch-action: none;
 }
 
-.co-form .gr-form__table tbody .co-form__drag-handle:active {
+.co-form .doc-form__table tbody .co-form__drag-handle:active {
   cursor: grabbing;
 }
 
-.co-form .gr-form__table tbody tr.cdk-drag-dragging {
+.co-form .doc-form__table tbody tr.cdk-drag-dragging {
   opacity: 0.5;
 }
 
 // Segnaposto: la riga si riduce a una linea che indica il punto di rilascio.
-.co-form ::ng-deep .cdk-drag-placeholder {
+// Resta qui, non nel foglio globale: il segnaposto e' la <tr> originale con una
+// classe in piu', quindi porta l'attributo di incapsulamento di questo
+// componente e il selettore la raggiunge senza ::ng-deep.
+.co-form .cdk-drag-placeholder {
   block-size: var(--border-width-strong);
   background-color: var(--color-focus);
   opacity: 1;
 }
 
-.co-form ::ng-deep .cdk-drag-placeholder td {
+.co-form .cdk-drag-placeholder td {
   padding: 0;
   border: 0;
   block-size: var(--border-width-strong);
   overflow: hidden;
 }
 
-// Anteprima trascinata: fuori dalla tabella perde il layout di riga, la si
-// riporta a una striscia leggibile.
-.co-form ::ng-deep .cdk-drag-preview {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-2);
-  font-size: var(--text-xs);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
-  opacity: 0.95;
-}
-
-.co-form ::ng-deep .cdk-drag-preview td {
-  padding-inline: var(--space-1);
-  border: 0;
-}
+// L'anteprima trascinata invece NON e' qui: il CDK la appende al <body>, fuori
+// dall'albero del componente. Le sue regole vivono in styles/_document-form.scss
+// — dove finora c'erano `.co-form ::ng-deep .cdk-drag-preview`, che compilano
+// in `.co-form[_ngcontent] .cdk-drag-preview` e non hanno mai potuto agganciare
+// un elemento che sta nel body.
 
 // ── Mobile/tablet (≤lg): card compatta, non una colonna ───────────────────
 .co-form__mobile-source-row {
@@ -199,7 +188,7 @@
   font-size: 0.78125rem; // 12.5px
 }
 
-.co-form__mobile-source-row .gr-form__line-remove {
+.co-form__mobile-source-row .doc-form__line-remove {
   flex: 0 0 auto;
   inline-size: 2rem;
   block-size: 2rem;

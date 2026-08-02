@@ -98,7 +98,7 @@ export async function confirmGoodsReceiptOnForm(
   }
 
   await saveGoodsReceiptDocument(page);
-  await expect(page.locator('h1.gr-form__title')).toHaveText('Modifica documento confermato', {
+  await expect(page.locator('h1.doc-form__title')).toHaveText('Modifica documento confermato', {
     timeout: 15_000,
   });
 }

@@ -55,21 +55,24 @@
   white-space: nowrap;
 }
 
+// Punti di regolazione `--field-*`: gli stessi di date-input. Select e date
+// picker sono la stessa superficie di campo, e chi ne configura una si aspetta
+// di configurare l'altra con lo stesso vocabolario (regole-stile-ui §5).
 .select-menu__trigger {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--field-gap, var(--space-2));
   min-block-size: var(--field-h, var(--btn-min-height));
   padding-inline: var(--field-pad-inline, var(--space-3));
   inline-size: 100%;
   max-inline-size: 100%;
-  color: var(--color-text);
+  color: var(--field-fg, var(--color-text));
   font-size: var(--field-font-size, var(--text-sm));
   font-weight: var(--font-weight-medium);
   text-align: start;
-  background-color: var(--color-input-bg);
-  border: var(--border-width) solid var(--color-input-border);
-  border-radius: var(--radius-md);
+  background-color: var(--field-bg, var(--color-input-bg));
+  border: var(--border-width) solid var(--field-border-color, var(--color-input-border));
+  border-radius: var(--field-radius, var(--radius-md));
   transition:
     background-color var(--transition-fast) var(--ease-standard),
     border-color var(--transition-fast) var(--ease-standard),
@@ -77,7 +80,13 @@
 }
 
 .select-menu__trigger:hover {
-  background-color: var(--color-surface-hover);
+  background-color: var(--field-bg-hover, var(--color-surface-hover));
+}
+
+.select-menu__trigger:focus-visible {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: var(--field-focus-ring);
 }
 
 .select-menu--open .select-menu__trigger {
@@ -233,8 +242,10 @@
 .select-menu__panel {
   position: absolute;
   inset-block-start: calc(100% + var(--space-1));
-  inset-inline-start: 0;
-  inset-inline-end: auto;
+  // Lato di ancoraggio: sull'ultima colonna di una tabella il pannello
+  // ancorato a sinistra uscirebbe dal bordo. Il contenitore dichiara
+  // `--select-menu-panel-inset: auto 0` e lo ribalta.
+  inset-inline: var(--select-menu-panel-inset, 0 auto);
   // Largo quanto serve alle opzioni (v4): mai meno del trigger, mai oltre il
   // tetto — un trigger stretto (es. IVA 72px) apre comunque una tendina
   // leggibile su una riga.

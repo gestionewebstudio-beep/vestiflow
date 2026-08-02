@@ -38,7 +38,7 @@
 }
 
 .co-form__card--open {
-  border-color: var(--co-card-open-border);
+  border-color: var(--color-card-open-border);
   box-shadow: var(--shadow-md);
 }
 
@@ -73,7 +73,7 @@
 }
 
 .co-form__card--open .co-form__card-head {
-  background-color: var(--co-card-open-bg);
+  background-color: var(--color-card-open-bg);
 }
 
 .co-form__card-main {
@@ -84,7 +84,7 @@
 }
 
 .co-form__card-name {
-  font-size: var(--co-text-card-name);
+  font-size: var(--text-card-title);
   font-weight: var(--font-weight-bold);
   color: var(--color-text);
   white-space: nowrap;
@@ -116,7 +116,7 @@
   min-inline-size: 3.375rem;
   padding: var(--space-1) var(--space-2);
   text-align: end;
-  background-color: var(--co-metric-bg);
+  background-color: var(--color-metric-bg);
   border-radius: var(--radius-sm);
 }
 
@@ -153,7 +153,7 @@
 
 .co-form__metric small {
   display: block;
-  font-size: var(--co-text-nano);
+  font-size: var(--text-nano);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
   color: var(--color-text-muted);
@@ -166,8 +166,8 @@
 }
 
 .co-form__metric--total {
-  color: var(--co-metric-total-fg);
-  background-color: var(--co-metric-total-bg);
+  color: var(--color-metric-total-fg);
+  background-color: var(--color-metric-total-bg);
 }
 
 .co-form__metric--total small {
@@ -177,7 +177,7 @@
 // Totale riga: il dato più marcato della testa-card.
 .co-form__metric--total strong {
   font-size: var(--text-sm);
-  font-weight: var(--co-weight-strong);
+  font-weight: var(--font-weight-label);
 }
 
 .co-form__card-chevron {
@@ -192,7 +192,7 @@
 
 .co-form__card-body {
   padding: var(--space-2) var(--space-3);
-  background-color: var(--co-card-body-bg);
+  background-color: var(--color-card-body-bg);
   border-block-start: var(--border-width) solid var(--color-border);
 }
 
@@ -206,12 +206,12 @@
   grid-column: 1 / -1;
   margin: var(--space-1) 0 0;
   padding-block: var(--space-1) 0;
-  font-size: var(--co-text-nano);
+  font-size: var(--text-nano);
   font-weight: var(--font-weight-bold);
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
-  color: var(--co-group-fg);
-  border-block-start: var(--border-width) solid var(--co-group-line);
+  color: var(--color-group-fg);
+  border-block-start: var(--border-width) solid var(--color-group-line);
 }
 
 .co-form__card-group--first {
@@ -275,7 +275,7 @@
 .co-order-card__name {
   flex: 1;
   min-inline-size: 0;
-  font-size: var(--co-text-card-name);
+  font-size: var(--text-card-title);
   font-weight: var(--font-weight-bold);
   color: var(--color-text);
   white-space: nowrap;
@@ -423,26 +423,26 @@
 .co-form__card-field label,
 .co-form__card-label {
   margin-block-end: var(--space-1);
-  font-size: var(--co-text-nano);
+  font-size: var(--text-nano);
   font-weight: var(--font-weight-bold);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
-.co-form__card-field .gr-form__input,
+.co-form__card-field .doc-form__input,
 .co-form__card-select {
-  block-size: var(--co-card-h);
-  min-block-size: var(--co-card-h);
+  block-size: var(--control-h-touch);
+  min-block-size: var(--control-h-touch);
   padding-inline: var(--space-2);
-  font-size: var(--co-text-touch);
+  font-size: var(--text-lg);
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
 }
 
 .co-form__card-field app-select-menu {
-  --field-height: var(--co-card-h);
+  --field-height: var(--control-h-touch);
   --color-input-bg: var(--color-surface);
   --color-input-border: var(--color-border);
 }
@@ -452,12 +452,12 @@
   display: flex;
   align-items: center;
   margin: 0;
-  block-size: var(--co-card-h);
+  block-size: var(--control-h-touch);
   padding-inline: var(--space-2);
   font-weight: var(--font-weight-semibold);
-  color: var(--co-readonly-fg);
-  background-color: var(--co-readonly-bg);
-  border: var(--border-width) solid var(--co-readonly-border);
+  color: var(--color-readonly-fg);
+  background-color: var(--color-readonly-bg);
+  border: var(--border-width) solid var(--color-readonly-border);
   border-radius: var(--radius-sm);
 }
 
@@ -507,7 +507,7 @@
 .co-form__card-suggestion:hover,
 .co-form__card-suggestion:active,
 .co-form__card-suggestion--active {
-  background-color: var(--color-surface-soft, var(--co-header-alt));
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
 }
 
 .co-form__card-suggestion-title {
@@ -516,19 +516,19 @@
 }
 
 .co-form__card-suggestion-detail {
-  font-size: var(--co-text-nano);
+  font-size: var(--text-nano);
   color: var(--color-text-muted);
 }
 
-.co-form__card-search .gr-form__input {
+.co-form__card-search .doc-form__input {
   flex: 1;
   min-inline-size: 0;
 }
 
 .co-form__card-search-btn {
   flex-shrink: 0;
-  inline-size: var(--co-card-h);
-  block-size: var(--co-card-h);
+  inline-size: var(--control-h-touch);
+  block-size: var(--control-h-touch);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -543,12 +543,12 @@
   display: flex;
   gap: var(--space-2);
   margin-block-start: var(--space-2);
-  --field-height: var(--co-card-h);
+  --field-height: var(--control-h-touch);
 }
 
-.co-form__card-actions ::ng-deep .app-button {
-  flex: 1 1 0;
-  inline-size: 100%;
+.co-form__card-actions {
+  --button-flex: 1 1 0;
+  --button-inline-size: 100%;
 }
 
 // ── Riepilogo di testata apribile ──────────────────────────────────────────
@@ -570,7 +570,7 @@
   flex-shrink: 0;
   inline-size: var(--space-8);
   block-size: var(--space-8);
-  color: var(--co-link);
+  color: var(--color-link);
   background-color: var(--co-brand-soft, var(--color-surface-soft));
   border-radius: var(--radius-sm);
 }
@@ -603,7 +603,7 @@
   flex-shrink: 0;
   font-size: var(--text-2xs);
   font-weight: var(--font-weight-bold);
-  color: var(--co-link);
+  color: var(--color-link);
   white-space: nowrap;
 }
 
@@ -630,7 +630,7 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
-  --field-height: var(--co-btn-h-dock);
+  --field-height: var(--co-ref-control-h);
 }
 
 // Fotocamera: CTA primaria a piena larghezza, in cima alla card.
@@ -638,15 +638,11 @@
   display: block;
 }
 
-.co-form__mobile-scanner ::ng-deep .barcode-scanner__control,
-.co-form__mobile-scanner ::ng-deep .barcode-scanner__control .app-button,
-.co-form__mobile-scanner ::ng-deep .barcode-scanner__viewport {
-  inline-size: 100%;
-}
-
-.co-form__mobile-scanner .barcode-scanner__control {
-  --button-h: var(--co-btn-h-dock);
-  --button-font-size: var(--co-text-touch);
+.co-form__mobile-scanner {
+  --barcode-scanner-w: 100%;
+  --button-inline-size: 100%;
+  --button-h: var(--co-ref-control-h);
+  --button-font-size: var(--text-lg);
 }
 
 // Riga secondaria: ricerca/digitazione manuale + Aggiungi.
@@ -655,11 +651,11 @@
   gap: var(--space-2);
 }
 
-.co-form__mobile-quick .gr-form__input {
+.co-form__mobile-quick .doc-form__input {
   flex: 1;
   min-inline-size: 0;
-  block-size: var(--co-btn-h-dock);
-  font-size: var(--co-text-touch);
+  block-size: var(--co-ref-control-h);
+  font-size: var(--text-lg);
   border-color: var(--color-border-strong);
   border-radius: var(--radius-sm);
 }
@@ -676,24 +672,21 @@
 
   // Testata del form ancorata in cima durante lo scroll (il breadcrumb di shell
   // resta com'è): «Indietro» e titolo sempre raggiungibili col pollice.
-  .co-form .gr-form__head-row {
-    position: sticky;
+  .co-form .doc-form__head-row {
     inset-block-start: 0;
     z-index: var(--z-sticky);
-    padding-block: var(--space-2);
     background-color: var(--color-bg);
   }
 
   // Riga titolo: stato e numero documento su righe proprie.
-  .co-form .gr-form__title {
-    font-size: var(--co-text-title-m);
+  .co-form .doc-form__title {
   }
 
-  .co-form .gr-form__meta {
+  .co-form .doc-form__meta {
     display: contents;
   }
 
-  .co-form .gr-form__internal-ref {
+  .co-form .doc-form__internal-ref {
     order: 2;
     flex: 1 0 100%;
     font-size: var(--text-xs);
@@ -741,33 +734,30 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .co-form .gr-form__header .gr-form__field {
+  .co-form .doc-form__header .doc-form__field {
     padding: var(--space-2);
-    --field-height: var(--co-field-h-m);
+    --field-height: var(--control-h-touch);
   }
 
-  .co-form .gr-form__header .gr-form__input {
-    block-size: var(--co-field-h-m);
-    min-block-size: var(--co-field-h-m);
-    font-size: var(--co-text-touch);
+  .co-form .doc-form__header .doc-form__input {
+    block-size: var(--control-h-touch);
+    min-block-size: var(--control-h-touch);
+    font-size: var(--text-lg);
     border-radius: var(--radius-sm);
   }
 
   // Strumenti righe: titolo sopra, bottoni a griglia sotto.
-  .co-form .gr-form__lines-head {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
+  .co-form .doc-form__lines-head {
   }
 
-  .co-form .gr-form__lines-tools {
+  .co-form .doc-form__lines-tools {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--space-2);
-    --field-height: var(--co-btn-h-m);
+    --field-height: var(--co-tool-h);
   }
 
-  .co-form .gr-form__lines-tools {
+  .co-form .doc-form__lines-tools {
     --button-font-size: var(--text-sm);
 
     app-button {
@@ -775,15 +765,15 @@
     }
   }
 
-  .co-form .gr-form__lines-tools > app-button:last-child ::ng-deep .app-button {
-    grid-column: 1 / -1;
+  .co-form .doc-form__lines-tools > app-button:last-child {
+    --button-grid-column: 1 / -1;
   }
 
   // Finestra «Colonne»: a tutta larghezza, una colonna sola e
   // bottoni di riordino grandi abbastanza per il dito (mockup responsive).
 
   // Tabella fuori, card dentro.
-  .co-form .gr-form__table-wrap,
+  .co-form .doc-form__table-wrap,
   .co-form__table-summary {
     display: none;
   }
@@ -803,109 +793,91 @@
   }
 
   // Totali a due colonne; il totale documento chiude il riepilogo.
-  .co-form .gr-form__footer-grid {
+  .co-form .doc-form__footer-grid {
     gap: var(--space-2);
   }
 
   // Su desktop il riquadro si appoggia a destra a larghezza contenuto: qui
   // deve occupare la riga intera, come le altre card.
-  .co-form .gr-form__totals-bar {
+  .co-form .doc-form__totals-bar {
     display: block;
     padding-block-start: 0;
   }
 
-  .co-form .gr-form__totals {
+  .co-form .doc-form__totals {
     display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 0;
     inline-size: 100%;
     min-inline-size: 0;
     padding: 0;
-    background-color: var(--color-surface);
     border-color: var(--color-border);
-    border-radius: var(--radius-lg);
     overflow: hidden;
   }
 
   // Etichetta in alto a sinistra, valore allineato a destra: gli importi
   // restano incolonnati anche a due colonne.
-  .co-form .gr-form__totals-row {
+  .co-form .doc-form__totals-row {
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: center;
     gap: 0;
     inline-size: auto;
     max-inline-size: none;
     margin-inline-start: 0;
     padding: var(--space-2);
-    border-inline-end: var(--border-width) solid var(--color-border);
-    border-block-end: var(--border-width) solid var(--color-border);
   }
 
-  .co-form .gr-form__totals dd {
-    text-align: end;
+  .co-form .doc-form__totals dd {
   }
 
-  .co-form .gr-form__totals-row--field dd {
+  .co-form .doc-form__totals-row--field dd {
     margin-inline-start: auto;
   }
 
-  .co-form .gr-form__totals-row:nth-child(2n) {
+  .co-form .doc-form__totals-row:nth-child(2n) {
     border-inline-end: 0;
   }
 
   // Con lo sconto documento le voci diventano dispari: l'ultima prende la riga.
-  .co-form .gr-form__totals-row:nth-last-child(2):nth-child(odd) {
-    grid-column: 1 / -1;
+  .co-form .doc-form__totals-row:nth-last-child(2):nth-child(odd) {
     border-inline-end: 0;
   }
 
   // Totale documento: riga a piena larghezza in fondo al riepilogo, il dato
   // piu' marcato della sezione (non esiste piu' la barra fissa in basso).
-  .co-form .gr-form__totals-row--total {
+  .co-form .doc-form__totals-row--total {
     grid-column: 1 / -1;
     border-inline-end: 0;
     border-block-end: 0;
-    background-color: var(--co-metric-total-bg);
-    color: var(--co-metric-total-fg);
+    background-color: var(--color-metric-total-bg);
+    color: var(--color-metric-total-fg);
   }
 
-  .co-form .gr-form__totals-row--total dt,
-  .co-form .gr-form__totals-row--total dd {
-    font-size: var(--text-sm);
-    font-weight: var(--co-weight-strong);
+  .co-form .doc-form__totals-row--total dt,
+  .co-form .doc-form__totals-row--total dd {
     color: inherit;
   }
 
-  .co-form .gr-form__totals dt {
-    font-size: var(--co-text-nano);
+  .co-form .doc-form__totals dt {
   }
 
-  .co-form .gr-form__totals dd {
-    font-size: var(--text-xs);
+  .co-form .doc-form__totals dd {
   }
 
-  .co-form .gr-form__footer-notes {
+  .co-form .doc-form__footer-notes {
     padding: var(--space-2);
   }
 
-  .co-form .gr-form__textarea {
+  .co-form .doc-form__textarea {
     min-block-size: var(--space-8);
     max-block-size: var(--space-16);
   }
 
   // Barra azioni desktop fuori: su mobile la coppia Annulla/Salva ordine vive
   // in fondo al documento (vedi .co-form__mobile-actions).
-  .co-form .gr-form__actions {
+  .co-form .doc-form__actions {
     display: none;
   }
 
   .co-form .co-form__mobile-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    margin-block-start: var(--space-3);
     padding-block-end: env(safe-area-inset-bottom);
     // Touch target pieno sui due pulsanti (regole-stile-ui §4).
     --field-height: var(--btn-min-height);
@@ -919,7 +891,7 @@
     grid-template-columns: 1fr;
   }
 
-  .co-form .gr-form__header .gr-form__field {
+  .co-form .doc-form__header .doc-form__field {
     border-inline-end: 0;
   }
 
@@ -948,12 +920,12 @@
 .co-form__card-head:active,
 .co-form__header-summary:active,
 .co-form__card-search-btn:active {
-  background-color: var(--color-surface-soft, var(--co-header-alt));
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
 }
 
 // Tap target ≥44×44 sui pochi controlli icona ancora sotto soglia (il cestino
 // della riga «documento collegato» usa l'altezza densa da desktop).
-.co-form__mobile-source-row .gr-form__line-remove {
+.co-form__mobile-source-row .doc-form__line-remove {
   min-block-size: 2.75rem;
   min-inline-size: 2.75rem;
 }
@@ -984,7 +956,7 @@
 
 .co-form__header-summary--empty .co-form__header-summary-icon {
   color: var(--color-text-muted);
-  background-color: var(--color-surface-soft, var(--co-header-alt));
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
 }
 
 .co-form__header-summary-required {
@@ -1028,9 +1000,9 @@
 // «+ Aggiungi sconto»: link inline al posto dell'input finché lo sconto è vuoto.
 .co-form__add-discount {
   padding: 0;
-  font-size: var(--co-text-touch);
+  font-size: var(--text-lg);
   font-weight: var(--font-weight-semibold);
-  color: var(--co-link);
+  color: var(--color-link);
   background: none;
   border: 0;
   cursor: pointer;
@@ -1075,7 +1047,7 @@
 
 .co-form__header-menu-group {
   margin: var(--space-1) var(--space-2) 2px;
-  font-size: var(--co-text-nano);
+  font-size: var(--text-nano);
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1099,7 +1071,7 @@
 }
 
 .co-form__header-menu-item:active {
-  background-color: var(--color-surface-soft, var(--co-header-alt));
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
 }
 
 @include bp.media-down('lg') {
@@ -1110,18 +1082,17 @@
   }
 
   // Totali come lista pulita a colonna singola (label a sinistra, valore a destra).
-  .co-form .gr-form__totals {
+  .co-form .doc-form__totals {
     grid-template-columns: 1fr;
   }
 
-  .co-form .gr-form__totals-row {
+  .co-form .doc-form__totals-row {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    border-inline-end: 0;
   }
 
-  .co-form .gr-form__totals-row:nth-last-child(2):nth-child(odd) {
+  .co-form .doc-form__totals-row:nth-last-child(2):nth-child(odd) {
     grid-column: auto;
   }
 }
@@ -1133,20 +1104,20 @@
   // Aspetto chiaramente «in attesa»: opacità ridotta, bordi tenui tratteggiati,
   // testi pallidi. Torna normale quando il gate si sblocca (fieldset non più
   // disabled). Il cosa-fare è nel banner warning sopra la sezione.
-  .co-form .gr-form__gate-fields:disabled {
+  .co-form .doc-form__gate-fields:disabled {
     opacity: 0.6;
   }
 
-  .co-form .gr-form__gate-fields:disabled .co-form__mobile-quick,
-  .co-form .gr-form__gate-fields:disabled .co-form__card {
+  .co-form .doc-form__gate-fields:disabled .co-form__mobile-quick,
+  .co-form .doc-form__gate-fields:disabled .co-form__card {
     border-style: dashed;
     border-color: var(--color-border);
     box-shadow: none;
   }
 
-  .co-form .gr-form__gate-fields:disabled .co-form__card-name,
-  .co-form .gr-form__gate-fields:disabled .co-form__card-sub,
-  .co-form .gr-form__gate-fields:disabled .gr-form__subtitle {
+  .co-form .doc-form__gate-fields:disabled .co-form__card-name,
+  .co-form .doc-form__gate-fields:disabled .co-form__card-sub,
+  .co-form .doc-form__gate-fields:disabled .doc-form__subtitle {
     color: var(--color-text-muted);
   }
 }
@@ -1205,7 +1176,7 @@
 }
 
 .co-form__qty-btn:active:not(:disabled) {
-  background-color: var(--color-surface-soft, var(--co-header-alt));
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
 }
 
 .co-form__qty-btn:disabled {
@@ -1218,7 +1189,7 @@
   min-block-size: 2.75rem;
   padding: 0;
   text-align: center;
-  font-size: var(--co-text-touch);
+  font-size: var(--text-lg);
   color: var(--color-text, var(--color-text));
   background-color: var(--color-surface);
   border: 0;
@@ -1248,7 +1219,7 @@
 
 .co-form__card-remove:active:not(:disabled) {
   color: var(--status-error-fg);
-  background-color: var(--color-surface-soft, var(--co-header-alt));
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
 }
 
 .co-form__card-remove:disabled {
@@ -1292,7 +1263,7 @@
     display: flex;
     justify-content: flex-end;
     margin-block-end: var(--space-2);
-    --field-height: var(--co-btn-h-compact);
+    --field-height: var(--co-ghost-h);
   }
 
   // Riga manuale: chiude la lista, a piena larghezza.
@@ -1302,9 +1273,8 @@
     --field-height: var(--btn-min-height);
   }
 
-  .co-form .co-form__mobile-add-line ::ng-deep .app-button {
-    inline-size: 100%;
-    justify-content: center;
+  .co-form .co-form__mobile-add-line {
+    --button-inline-size: 100%;
   }
 
   // «Includi documento» in coda alla testata: agisce sul documento, non sulle righe.
@@ -1317,27 +1287,12 @@
 
   // Barra azioni sticky: le due azioni di ingresso prodotti sempre a portata.
   .co-form .co-form__sticky-bar {
-    display: flex;
-    position: sticky;
-    inset-block-end: 0;
     z-index: var(--z-sticky);
-    gap: var(--space-2);
-    margin-block-start: var(--space-2);
-    padding: var(--space-1) var(--space-3);
-    padding-block-end: calc(var(--space-1) + env(safe-area-inset-bottom));
-    background-color: var(--color-surface);
-    border-block-start: var(--border-width) solid var(--color-border);
-    box-shadow: var(--shadow-card);
     --field-height: var(--btn-min-height);
   }
 
-  .co-form .co-form__sticky-bar ::ng-deep .app-button {
-    inline-size: 100%;
-    justify-content: center;
-  }
-
-  .co-form .co-form__sticky-bar > app-button {
-    flex: 1 1 0;
-    min-inline-size: 0;
+  .co-form .co-form__sticky-bar {
+    --button-inline-size: 100%;
+    --button-flex: 1 1 0;
   }
 }

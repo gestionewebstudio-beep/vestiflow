@@ -1,8 +1,8 @@
-<section class="gr-form">
+<section class="doc-form">
   <app-back-button />
 
-  <h1 class="gr-form__title">{{ pageTitle() }}</h1>
-  <p class="gr-form__disclaimer" role="note">
+  <h1 class="doc-form__title">{{ pageTitle() }}</h1>
+  <p class="doc-form__disclaimer" role="note">
     @if (isAdjustment()) {
       Rettifica di magazzino documentale: alla conferma vengono generati movimenti di tipo
       adjustment con motivo obbligatorio.
@@ -30,18 +30,18 @@
     />
   } @else {
     <form
-      class="gr-form__form"
-      [class.gr-form__form--readonly]="formReadOnly()"
+      class="doc-form__form"
+      [class.doc-form__form--readonly]="formReadOnly()"
       [formGroup]="form"
       (ngSubmit)="isConfirmedEdit() ? saveDraft() : requestConfirm()"
     >
       @if (formReadOnly()) {
         <app-edit-lock-banner (unlock)="requestUnlock()" />
       }
-      <fieldset class="gr-form__fieldset" [disabled]="formReadOnly()">
-        <div class="gr-form__grid">
-          <div class="gr-form__field">
-            <span class="gr-form__label">Location</span>
+      <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
+        <div class="doc-form__grid">
+          <div class="doc-form__field">
+            <span class="doc-form__label">Location</span>
             <app-select-menu
               [options]="locationOptions()"
               [value]="form.controls.locationId.value"
@@ -54,13 +54,13 @@
               (valueChange)="onLocationSelect($event)"
             />
             @if (fieldInvalid('locationId')) {
-              <p id="so-location-error" class="gr-form__error">Seleziona la location.</p>
+              <p id="so-location-error" class="doc-form__error">Seleziona la location.</p>
             }
           </div>
 
           @if (isAdjustment()) {
-            <div class="gr-form__field">
-              <span class="gr-form__label">Direzione rettifica</span>
+            <div class="doc-form__field">
+              <span class="doc-form__label">Direzione rettifica</span>
               <app-select-menu
                 [options]="directionOptions"
                 [value]="form.controls.adjustmentDirection.value"
@@ -73,13 +73,13 @@
                 (valueChange)="onDirectionSelect($event)"
               />
               @if (fieldInvalid('adjustmentDirection')) {
-                <p id="so-direction-error" class="gr-form__error">Seleziona la direzione.</p>
+                <p id="so-direction-error" class="doc-form__error">Seleziona la direzione.</p>
               }
             </div>
           }
 
-          <div class="gr-form__field">
-            <label class="gr-form__label" for="so-date">Data documento</label>
+          <div class="doc-form__field">
+            <label class="doc-form__label" for="so-date">Data documento</label>
             <app-date-input
               inputId="so-date"
               formControlName="documentDate"
@@ -102,9 +102,9 @@
           />
         </div>
 
-        <section class="gr-form__lines" aria-labelledby="so-lines-title">
-          <div class="gr-form__lines-head">
-            <h2 id="so-lines-title" class="gr-form__subtitle">
+        <section class="doc-form__lines" aria-labelledby="so-lines-title">
+          <div class="doc-form__lines-head">
+            <h2 id="so-lines-title" class="doc-form__subtitle">
               @if (isAdjustment()) {
                 Articoli da rettificare
               } @else {
@@ -117,12 +117,12 @@
             </app-button>
           </div>
 
-          <div class="gr-form__line-list" formArrayName="lines">
+          <div class="doc-form__line-list" formArrayName="lines">
             @for (line of lines.controls; track line; let i = $index) {
-              <div class="gr-form__line-block">
-                <div class="gr-form__line" [formGroupName]="i">
-                  <div class="gr-form__line-field gr-form__line-field--variant">
-                    <span class="gr-form__label">Variante / SKU</span>
+              <div class="doc-form__line-block">
+                <div class="doc-form__line" [formGroupName]="i">
+                  <div class="doc-form__line-field doc-form__line-field--variant">
+                    <span class="doc-form__label">Variante / SKU</span>
                     <app-select-menu
                       [options]="variantOptions()"
                       [value]="line.controls.variantId.value"
@@ -138,25 +138,25 @@
                       (valueChange)="onVariantSelect(i, $event)"
                     />
                     @if (lineFieldInvalid(i, 'variantId')) {
-                      <p class="gr-form__error">Seleziona una variante.</p>
+                      <p class="doc-form__error">Seleziona una variante.</p>
                     }
                   </div>
 
-                  <div class="gr-form__line-field">
-                    <label class="gr-form__label" [for]="'so-desc-' + i">Descrizione</label>
+                  <div class="doc-form__line-field">
+                    <label class="doc-form__label" [for]="'so-desc-' + i">Descrizione</label>
                     <input
                       [id]="'so-desc-' + i"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="description"
                     />
                   </div>
 
-                  <div class="gr-form__line-field gr-form__line-field--qty">
-                    <label class="gr-form__label" [for]="'so-qty-' + i">Quantità</label>
+                  <div class="doc-form__line-field doc-form__line-field--qty">
+                    <label class="doc-form__label" [for]="'so-qty-' + i">Quantità</label>
                     <input
                       [id]="'so-qty-' + i"
-                      class="gr-form__input gr-form__input--qty"
+                      class="doc-form__input doc-form__input--qty"
                       type="number"
                       min="1"
                       step="1"
@@ -164,11 +164,11 @@
                     />
                   </div>
 
-                  <div class="gr-form__line-field gr-form__line-field--serials">
-                    <label class="gr-form__label" [for]="'so-serials-' + i">Seriali</label>
+                  <div class="doc-form__line-field doc-form__line-field--serials">
+                    <label class="doc-form__label" [for]="'so-serials-' + i">Seriali</label>
                     <input
                       [id]="'so-serials-' + i"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="serialNumbersText"
                       placeholder="SN001, SN002"
@@ -187,31 +187,31 @@
           </div>
         </section>
 
-        <div class="gr-form__grid">
-          <div class="gr-form__field gr-form__field--wide">
-            <label class="gr-form__label" for="so-notes">Note</label>
+        <div class="doc-form__grid">
+          <div class="doc-form__field doc-form__field--wide">
+            <label class="doc-form__label" for="so-notes">Note</label>
             <textarea
               id="so-notes"
-              class="gr-form__textarea"
+              class="doc-form__textarea"
               rows="2"
               formControlName="notes"
             ></textarea>
           </div>
-          <div class="gr-form__field gr-form__field--wide">
-            <label class="gr-form__label" for="so-internal">
+          <div class="doc-form__field doc-form__field--wide">
+            <label class="doc-form__label" for="so-internal">
               Motivo (commento interno)
-              <span class="gr-form__required" aria-hidden="true">*</span>
+              <span class="doc-form__required" aria-hidden="true">*</span>
             </label>
             <textarea
               id="so-internal"
-              class="gr-form__textarea"
+              class="doc-form__textarea"
               rows="2"
               formControlName="internalComment"
               [attr.aria-invalid]="fieldInvalid('internalComment')"
               aria-describedby="so-internal-error"
             ></textarea>
             @if (fieldInvalid('internalComment')) {
-              <p id="so-internal-error" class="gr-form__error">
+              <p id="so-internal-error" class="doc-form__error">
                 Il motivo è obbligatorio per tracciabilità operativa.
               </p>
             }
@@ -223,7 +223,7 @@
         }
       </fieldset>
 
-      <div class="gr-form__actions">
+      <div class="doc-form__actions">
         <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
         @if (isConfirmedEdit()) {
           <app-button type="submit" [disabled]="formReadOnly() || saving()"
