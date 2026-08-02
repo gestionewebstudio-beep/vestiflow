@@ -13,6 +13,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 import type {
   InventoryImportPreview,
@@ -26,7 +27,7 @@ type ImportPhase = 'upload' | 'preview' | 'done';
 @Component({
   selector: 'app-inventory-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, BadgeComponent],
+  imports: [ButtonComponent, BadgeComponent, InlineBannerComponent],
   templateUrl: './inventory-import.component.html',
   styleUrl: './inventory-import.component.scss',
 })

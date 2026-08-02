@@ -146,12 +146,10 @@
       <h2 id="settings-shopify" class="settings__panel-title">Integrazione Shopify</h2>
 
       @if (shopifyBanner(); as banner) {
-        <div
-          class="settings__banner"
-          [class.settings__banner--success]="banner === 'connected' || banner === 'connected-warn'"
-          [class.settings__banner--error]="banner === 'error'"
-          [class.settings__banner--warning]="banner === 'connected-warn'"
-          role="status"
+        <app-inline-banner
+          [tone]="shopifyBannerTone()"
+          dismissLabel="Chiudi"
+          (dismissed)="dismissBanner()"
         >
           @switch (banner) {
             @case ('connected') {
@@ -169,10 +167,7 @@
               Connessione Shopify rimossa.
             }
           }
-          <button type="button" class="settings__banner-dismiss" (click)="dismissBanner()">
-            Chiudi
-          </button>
-        </div>
+        </app-inline-banner>
       }
 
       @if (connectionLoading()) {
@@ -353,21 +348,12 @@
         }
 
         @if (actionFeedback(); as feedback) {
-          <div
-            class="settings__action-feedback"
-            [class.settings__action-feedback--success]="feedback.tone === 'success'"
-            [class.settings__action-feedback--warning]="feedback.tone === 'warning'"
-            role="status"
-          >
-            <span>{{ feedback.message }}</span>
-            <button
-              type="button"
-              class="settings__action-feedback-dismiss"
-              (click)="dismissActionFeedback()"
-            >
-              Chiudi
-            </button>
-          </div>
+          <app-inline-banner
+            [tone]="feedback.tone"
+            [message]="feedback.message"
+            dismissLabel="Chiudi"
+            (dismissed)="dismissActionFeedback()"
+          />
         }
 
         @if (canManageShopify()) {

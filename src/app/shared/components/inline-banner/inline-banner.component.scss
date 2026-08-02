@@ -1,0 +1,69 @@
+:host {
+  display: block;
+}
+
+.inline-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.inline-banner__text {
+  min-inline-size: 0;
+}
+
+.inline-banner--error {
+  color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+  border-color: var(--status-error-border);
+}
+
+.inline-banner--success {
+  color: var(--status-success-fg);
+  background-color: var(--status-success-bg);
+  border-color: var(--status-success-border);
+}
+
+.inline-banner--warning {
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+}
+
+// Neutro: un'informazione di servizio (operazione in corso, niente da fare)
+// che non merita un colore di stato.
+.inline-banner--neutral {
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-sunken);
+  border-color: var(--color-border);
+}
+
+.inline-banner--info {
+  color: var(--status-info-fg);
+  background-color: var(--status-info-bg);
+  border-color: var(--status-info-border);
+}
+
+// Chiusura: un link testuale, non un bottone pieno — il banner e' gia' un
+// blocco colorato, un secondo blocco dentro sarebbe rumore.
+.inline-banner__dismiss {
+  flex-shrink: 0;
+  padding: 0;
+  font-size: var(--text-sm);
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.inline-banner__dismiss:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}

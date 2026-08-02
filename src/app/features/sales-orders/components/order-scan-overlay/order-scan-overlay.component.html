@@ -64,10 +64,10 @@
         }
       }
       @case ('notFound') {
-        <p class="scan-overlay__alert" role="alert">
+        <app-inline-banner tone="warning">
           <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
           Codice non trovato: <strong>{{ notFoundEan() }}</strong>
-        </p>
+        </app-inline-banner>
         <div class="scan-overlay__notfound-actions">
           <app-button type="button" variant="secondary" (click)="retry()">Riprova</app-button>
           <app-button type="button" variant="secondary" (click)="startQuickAdd()">

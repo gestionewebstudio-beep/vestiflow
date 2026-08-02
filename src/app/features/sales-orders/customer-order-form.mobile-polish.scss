@@ -1,13 +1,14 @@
 @use 'breakpoints' as bp;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Rifinitura visiva mobile — impostazione «schermata a sezioni» (riferimento:
-// screen Shopify «Crea ordine» mobile). Prende SOLO qualità visive: sezioni
-// come card nette staccate su fondo attenuato, più respiro tra i blocchi,
-// gerarchia dei titoli, valori allineati a destra, totali puliti.
-// Nessun colore/font/icona esterni: solo token --co-* / VestiFlow già in uso.
-// Ultimo foglio dello styleUrls: sovrascrive i precedenti a parità di
-// specificità. Struttura, campi, logiche e testi restano quelli di F1–F6.
+// ORDINE CLIENTE — 4 di 5: ritmo verticale e gerarchia delle sezioni mobile
+// ═══════════════════════════════════════════════════════════════════════════
+// Impostazione «schermata a sezioni»: sezioni come card nette staccate su
+// fondo attenuato, respiro fra i blocchi, gerarchia dei titoli, valori
+// allineati a destra. Nessuna struttura, nessun campo: solo il ritmo con cui
+// si susseguono i blocchi che il foglio 3 ha disegnato.
+//
+// Vedi l'indice dei cinque fogli in customer-order-form.component.scss.
 // ═══════════════════════════════════════════════════════════════════════════
 
 @include bp.media-down('lg') {

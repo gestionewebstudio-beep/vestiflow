@@ -1,15 +1,16 @@
 @use 'breakpoints' as bp;
 
-// Vista mobile/tablet dell'Ordine cliente — secondo foglio del componente
-// (customer-order-form.component.ts, styleUrls). Sta a parte dal foglio
-// principale per restare dentro il budget CSS per-componente di angular.json:
-// la palette e le metriche --co-* arrivano da lì, dichiarate sul :host.
-
 // ═══════════════════════════════════════════════════════════════════════════
-// VISTA MOBILE / TABLET — mockup «Ordine Cliente v3 responsive», sotto lg
-// La tabella non regge il pollice: sotto 1024px la testata si riassume in una
-// riga apribile, ogni riga documento diventa una card espandibile, scansione
-// e azioni si spostano in una card dedicata e nella topbar.
+// ORDINE CLIENTE — 3 di 5: righe a card, testata compressa, scansione
+// ═══════════════════════════════════════════════════════════════════════════
+// La tabella non regge il pollice: sotto lg ogni riga documento diventa una
+// card espandibile, la testata si riassume in una riga apribile, scansione e
+// azioni si spostano in una card dedicata.
+//
+// Colori e misure vengono dai token globali: la palette privata --co-* che
+// stava qui e' stata promossa in _design-tokens.scss (regole-stile-ui §2-§4),
+// perche' descriveva la vista card mobile di qualunque tabella, non di questa
+// pagina. Vedi l'indice dei cinque fogli in customer-order-form.component.scss.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Le tre viste mobili esistono nel DOM ma restano spente su desktop.

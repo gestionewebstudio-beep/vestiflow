@@ -21,14 +21,14 @@
   </header>
 
   @if (error(); as appError) {
-    <div class="inventory-import__alert" role="alert">{{ appError.message }}</div>
+    <app-inline-banner [message]="appError.message" />
   }
 
   @if (loading()) {
-    <div class="inventory-import__notice inventory-import__notice--blocking" role="status">
+    <app-inline-banner tone="neutral">
       Operazione in corso: non lasciare questa pagina finché non vedi l’esito. Se esci, l’import
       verrà annullato.
-    </div>
+    </app-inline-banner>
   }
 
   @if (phase() === 'upload') {
@@ -76,12 +76,12 @@
     </div>
 
     @if (allUnchanged()) {
-      <div class="inventory-import__notice inventory-import__notice--info" role="status">
+      <app-inline-banner tone="neutral">
         Tutte le righe di questo file risultano già allineate alle giacenze a sistema: non c'è nulla
         da aggiornare. Puoi tornare indietro e scegliere un altro file.
-      </div>
+      </app-inline-banner>
     } @else if (data.summary.unchanged > 0 || data.summary.errors > 0) {
-      <div class="inventory-import__notice" role="status">
+      <app-inline-banner tone="warning">
         Verranno aggiornate solo le {{ readyKeys().length }} righe modificate.
         @if (data.summary.unchanged > 0) {
           {{ data.summary.unchanged }} sono già allineate e verranno saltate.
@@ -89,7 +89,7 @@
         @if (data.summary.errors > 0) {
           {{ data.summary.errors }} hanno errori e verranno ignorate.
         }
-      </div>
+      </app-inline-banner>
     }
 
     <div class="inventory-import__actions inventory-import__actions--top">

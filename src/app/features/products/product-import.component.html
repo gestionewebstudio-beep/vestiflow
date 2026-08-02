@@ -15,7 +15,7 @@
   </header>
 
   @if (error(); as appError) {
-    <div class="product-import__alert" role="alert">{{ appError.message }}</div>
+    <app-inline-banner [message]="appError.message" />
   }
 
   @if (phase() === 'upload') {
@@ -64,15 +64,15 @@
     </div>
 
     @if (allAlreadyImported()) {
-      <div class="product-import__notice product-import__notice--info" role="status">
+      <app-inline-banner tone="neutral">
         Tutti i prodotti di questo file risultano già presenti in catalogo: non c'è nulla da
         importare. Puoi tornare indietro e scegliere un altro file.
-      </div>
+      </app-inline-banner>
     } @else if (data.summary.alreadyImported > 0) {
-      <div class="product-import__notice" role="status">
+      <app-inline-banner tone="warning">
         {{ data.summary.alreadyImported }} prodotti sono già presenti in catalogo e verranno
         saltati. Verranno importati solo i {{ readyHandles().length }} nuovi.
-      </div>
+      </app-inline-banner>
     }
 
     <div class="product-import__actions product-import__actions--top">

@@ -24,18 +24,6 @@
   color: var(--color-text-muted);
 }
 
-.location-licensing__notice--footer {
-  margin-block-start: var(--space-8);
-  padding: var(--space-4) var(--space-5);
-  text-align: center;
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
-  color: var(--status-info-fg);
-  background-color: var(--status-info-bg);
-  border: var(--border-width) solid var(--status-info-border);
-  border-radius: var(--radius-md);
-}
-
 .location-licensing__list {
   margin: 0;
   padding: 0;

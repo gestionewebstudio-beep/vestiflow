@@ -171,19 +171,6 @@
   color: var(--color-text-muted);
 }
 
-// Codice non trovato.
-.scan-overlay__alert {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-3);
-  color: var(--status-warning-fg);
-  background-color: var(--status-warning-bg);
-  border: var(--border-width) solid var(--status-warning-border);
-  border-radius: var(--radius-sm);
-}
-
 .scan-overlay__notfound-actions {
   display: flex;
   flex-direction: column;

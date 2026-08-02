@@ -1,10 +1,23 @@
 @use 'breakpoints' as bp;
 
-// Aggiunte specifiche dell'Ordine cliente. La STRUTTURA è riusata dall'Arrivo
-// merce (stesse classi doc-form__*, stesso foglio in styleUrls): qui vivono la
-// pelle «mockup v3» della pagina e le parti che esistono solo in questa
-// maschera — riga di inserimento rapido, avviso disponibilità, menu «Concludi
-// ordine», sezioni DDT.
+// ═══════════════════════════════════════════════════════════════════════════
+// ORDINE CLIENTE — 1 di 5: vista desktop
+// ═══════════════════════════════════════════════════════════════════════════
+// L'anatomia della maschera (testata, tabella righe, totali, azioni) arriva da
+// styles/_document-form.scss, condivisa con le altre cinque maschere documento.
+// Qui vive soltanto cio' che e' dell'Ordine cliente: la riga di inserimento
+// rapido, l'avviso di disponibilita', il menu «Concludi ordine», le sezioni
+// DDT — piu' gli scostamenti desktop rispetto alla base.
+//
+// I cinque fogli e cosa contiene ciascuno (l'ordine e' quello di styleUrls in
+// customer-order-form.component.ts, e conta: chi viene dopo vince):
+//   1. .component        vista desktop e parti solo di questa maschera
+//   2. .rows             righe: riordino, trascinamento, riga collegata
+//   3. .mobile           sotto lg: righe a card, testata compressa, scansione
+//   4. .mobile-polish    sotto lg: ritmo verticale e gerarchia delle sezioni
+//   5. .reference-mobile sotto lg: pannelli di testata, sezione righe, dock
+//                        — la reference approvata dal proprietario
+// ═══════════════════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MISURE DELLA SOLA PAGINA

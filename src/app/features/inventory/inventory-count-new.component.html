@@ -17,7 +17,7 @@
   <app-inventory-tabs />
 
   @if (submitError(); as appError) {
-    <div class="count-new__alert" role="alert">{{ appError.message }}</div>
+    <app-inline-banner [message]="appError.message" />
   }
 
   <form class="count-new__form" [formGroup]="form" (ngSubmit)="submit()" novalidate>

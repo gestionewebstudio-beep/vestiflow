@@ -27,6 +27,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 import { inventoryCountLineDelta } from '@domain/inventory/models/inventory-count.mapper';
 import {
@@ -60,6 +61,7 @@ interface ScanFeedback {
     ErrorStateComponent,
     TableSkeletonComponent,
     RouterLink,
+    InlineBannerComponent,
   ],
   templateUrl: './inventory-count-detail.component.html',
   styleUrl: './inventory-count-detail.component.scss',

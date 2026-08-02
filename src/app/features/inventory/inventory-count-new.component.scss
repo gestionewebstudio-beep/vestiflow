@@ -36,15 +36,6 @@
   color: var(--color-text-muted);
 }
 
-.count-new__alert {
-  padding: var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--status-error-fg);
-  background-color: var(--status-error-bg);
-  border: var(--border-width) solid var(--status-error-border);
-  border-radius: var(--radius-md);
-}
-
 .count-new__form {
   display: flex;
   flex-direction: column;

@@ -38,6 +38,7 @@ import {
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { ProfileAvatarUploadComponent } from '@shared/components/profile-avatar-upload/profile-avatar-upload.component';
 import type { ThemeMode } from '@shared/models/theme.model';
@@ -135,6 +136,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     ErrorStateComponent,
     ReactiveFormsModule,
     RouterLink,
+    InlineBannerComponent,
     TableSkeletonComponent,
     LocationTableComponent,
     LocationLicensingPanelComponent,
@@ -208,6 +210,14 @@ export class SettingsComponent {
   protected readonly connectError = signal<string | null>(null);
   protected readonly actionFeedback = signal<ActionFeedback | null>(null);
   protected readonly shopifyBanner = signal<ShopifyBanner | null>(null);
+  /** Tono del banner d'esito OAuth: prima viveva in tre [class.] nel template. */
+  protected readonly shopifyBannerTone = computed<'error' | 'success' | 'warning'>(() => {
+    const banner = this.shopifyBanner();
+    if (banner === 'error') return 'error';
+    if (banner === 'connected-warn') return 'warning';
+    return 'success';
+  });
+
   protected readonly shopWizardOpen = signal(false);
   protected readonly shopWizardMode = signal<'change' | 'disconnect'>('change');
 

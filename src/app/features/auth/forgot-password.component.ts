@@ -7,6 +7,7 @@ import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 /**
  * Richiesta link di recupero password (Supabase resetPasswordForEmail).
@@ -14,7 +15,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 @Component({
   selector: 'app-forgot-password',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, ButtonComponent],
+  imports: [ReactiveFormsModule, RouterLink, ButtonComponent, InlineBannerComponent],
   templateUrl: './forgot-password.component.html',
   styleUrl: './auth-page.component.scss',
 })

@@ -11,6 +11,7 @@ import type { AppError } from '@core/models/app-error.model';
 import type { User } from '@core/models/user.model';
 import { resolvePlatformOperatorReturnUrl } from '@core/permissions/platform-operator.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 /**
  * Pagina di accesso (smart). Reactive Form tipizzato, validazione inline,
@@ -19,7 +20,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, ButtonComponent, RouterLink],
+  imports: [ReactiveFormsModule, ButtonComponent, RouterLink, InlineBannerComponent],
   templateUrl: './login.component.html',
   styleUrl: './auth-page.component.scss',
 })

@@ -1,18 +1,19 @@
 @use 'breakpoints' as bp;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Testata mobile del form documento — reference approvata
+// ORDINE CLIENTE — 5 di 5: pannelli di testata, sezione righe, dock (mobile)
 // ═══════════════════════════════════════════════════════════════════════════
-// Replica di REFERENCE_DEFINITIVA_ORDINE_CLIENTE_MOBILE.html. Vive in un foglio
-// a parte, ultimo negli styleUrls, per due motivi: vince sulla cascata dei tre
-// fogli mobile precedenti senza doverli smontare uno per uno, e resta isolabile
-// se la reference verra' estesa (o rivista) sulle altre schermate.
+// Replica di REFERENCE_DEFINITIVA_ORDINE_CLIENTE_MOBILE.html, la reference
+// approvata dal proprietario. Resta isolata perche' e' l'unica parte che puo'
+// essere estesa alle altre maschere quando la reference verra' allargata.
 //
-// Le misure della reference non stanno nella scala del progetto (46px per i
-// controlli, 38px per le icone, 23px per il titolo): sono raccolte qui sotto
-// come token locali, cosi' restano in un posto solo invece di finire sparse
-// nelle regole. I colori invece riusano la palette --co-* esistente: la
-// reference e' tonalmente la stessa, e duplicarla romperebbe il tema scuro.
+// Le sue misure non stanno nella scala del progetto (46px per i controlli,
+// 38px per le icone, 23px per il titolo): restano token locali --co-ref-*
+// raccolti qui sotto, perche' descrivono questa reference e non un ruolo
+// dell'app. I colori invece sono quelli globali: la reference e' tonalmente la
+// stessa dell'app, e duplicarli romperebbe il tema scuro.
+//
+// Vedi l'indice dei cinque fogli in customer-order-form.component.scss.
 // ═══════════════════════════════════════════════════════════════════════════
 
 :host {

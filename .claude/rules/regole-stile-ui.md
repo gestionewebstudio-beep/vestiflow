@@ -231,11 +231,27 @@ dal più corretto al più invasivo:
    fallback: `min-block-size: var(--button-h, var(--field-height))`. Il
    contenitore imposta `--button-h` su di sé, non tocca il figlio.
 
-   | Componente    | Punti di regolazione                                                                    |
-   | ------------- | --------------------------------------------------------------------------------------- |
-   | `app-button`  | `--button-h`, `--button-font-size`, `--button-radius`, `--button-pad-inline`            |
-   | `date-input`  | `--field-h`, `--field-font-size`, `--field-pad-inline`, `--field-radius`, `--field-gap` |
-   | `select-menu` | `--field-h`, `--field-font-size`, `--field-pad-inline`, `--select-menu-width`           |
+   `select-menu` e `date-input` condividono il prefisso `--field-*` apposta: sono
+   la stessa superficie di campo, e chi ne configura una si aspetta che l'altra
+   segua senza dover imparare un secondo vocabolario.
+
+   | Componente          | Punti di regolazione                                                                                                                                                  |
+   | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `app-button`        | `--button-h`, `--button-font-size`, `--button-font-weight`, `--button-radius`, `--button-pad-inline`, `--button-inline-size`, `--button-flex`, `--button-grid-column` |
+   |                     | colori: `--button-fg/-bg/-border`, `--button-bg-hover`; varianti `--button-danger-*`, `--button-ghost-*`                                                              |
+   | `date-input`        | `--field-*` (sotto) piu' `--date-input-toggle-w`, `--date-input-toggle-pad`, `--date-input-icon-display`, `--date-input-panel-inset/-w/-min-w/-max-w`                 |
+   | `select-menu`       | `--field-*` (sotto) piu' `--select-menu-width`, `--select-menu-max-width`, `--select-menu-panel-inset`                                                                |
+   | campi (`--field-*`) | `--field-h`, `--field-gap`, `--field-font-size`, `--field-pad-inline`, `--field-radius`, `--field-fg`, `--field-bg`, `--field-bg-hover`, `--field-border-color`       |
+   | `back-button`       | `--back-button-h`, `--back-button-gap`, `--back-button-pad-inline`, `--back-button-radius`, `--back-button-font-size`, `--back-button-font-weight`                    |
+   | `attachments-panel` | `--attachments-gap`, `--attachments-title-size`, `--attachments-item-pad`                                                                                             |
+   | `barcode-scanner`   | `--barcode-scanner-w`                                                                                                                                                 |
+   | `hover-tooltip`     | `--hover-tooltip-inset`                                                                                                                                               |
+   | celle di riga       | `--doc-code-cell-fg`, `--doc-product-cell-weight`                                                                                                                     |
+
+   **`app-button` ha l'host `display: contents`**: e' il `<button>` interno a
+   stare nel flusso del contenitore. `flex` e `grid-column` vanno quindi
+   dichiarati come `--button-flex` / `--button-grid-column`, non sull'elemento
+   `<app-button>` — li' non avrebbero effetto.
 
 3. **Il default del componente stesso** — quando ciò che il chiamante vuole non
    è una sua preferenza ma **il design giusto**. In quel caso non si configura
@@ -249,18 +265,45 @@ dal più corretto al più invasivo:
 un altro componente, quindi smette di funzionare **in silenzio** se quello li
 rinomina — nessun errore, nessun test rosso, lo stile torna al default.
 
-Resta ammesso in due soli casi, entrambi da commentare nel codice:
+**Nell'app non ce n'e' nessuno.** Erano 65; sono zero. Aggiungerne uno è quindi
+sempre una regressione, e c'è sempre un'alternativa fra le tre sopra.
 
-- **Overlay fuori dall'albero del componente**: l'anteprima di trascinamento
-  della CDK (`.cdk-drag-preview`, `.cdk-drag-placeholder`) è resa in un overlay
-  a livello di documento. Non c'è altro modo di raggiungerla.
-- **Posizionamento contestuale**: allineare il pannello di un dropdown al bordo
-  quando cade sull'ultima colonna di una tabella. È il contenitore che conosce
-  il contesto, non il figlio.
+Il caso che sembra un'eccezione — un overlay che la CDK monta fuori dall'albero
+del componente, come `.cdk-drag-preview` — **non è risolvibile con `::ng-deep`**:
+la parte di selettore che precede `::ng-deep` porta comunque l'attributo di
+incapsulamento, quindi `.mia-pagina ::ng-deep .cdk-drag-preview` compila in
+`.mia-pagina[_ngcontent-x] .cdk-drag-preview` e non aggancia un elemento che sta
+nel `<body>`. Quelle regole vanno in un foglio **globale** (`src/styles/`), che
+è dove vive tutto ciò che il framework monta fuori dal componente. Nel progetto
+l'anteprima di riga sta in `styles/_document-form.scss`.
 
-Fuori da questi casi, un `::ng-deep` è un difetto di API del componente
-condiviso: la correzione è aggiungere il punto di regolazione che manca, non
-scavalcarlo.
+Un `::ng-deep` è un difetto di API del componente condiviso: la correzione è
+aggiungere il punto di regolazione che manca, non scavalcarlo.
+
+### Il livello globale — cosa ci sta e cosa no
+
+`src/styles/` non è una discarica: ci sta soltanto ciò che **non può** stare in
+un componente, o che verrebbe compilato più volte se ci stesse.
+
+| File                                                                                     | Contenuto                                                                |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `_design-tokens.scss`                                                                    | i valori. Unica fonte di verità visiva.                                  |
+| `_document-form.scss`                                                                    | l'anatomia della maschera documento, condivisa da sei schermate          |
+| `_document-form-footer.scss`                                                             | la banda finale (note, totali, azioni) della stessa maschera             |
+| `_shared-directives.scss`                                                                | l'aspetto delle classi applicate dalle direttive di `shared/directives/` |
+| `_breakpoints.scss` · `_responsive-table.scss` · `_list-page.scss` · `_detail-page.scss` | librerie di mixin: non emettono CSS finché qualcuno non le include       |
+
+Le due ragioni per promuovere al livello globale, e non ce ne sono altre:
+
+1. **Una direttiva non può avere un `styleUrl`.** La classe che applica all'host
+   resterebbe senza vestito, e ogni feature che la usa se lo ricucirebbe addosso.
+2. **Lo stesso foglio in `styleUrls` di più componenti viene compilato una volta
+   per ciascuno.** `_document-form.scss` era il foglio dell'arrivo merce e cinque
+   componenti lo referenziavano: cinque copie della stessa CSS nel bundle.
+
+Un pattern usato da più schermate ma che sta in **un solo** componente non sale:
+diventa un componente condiviso in `shared/` o `domain/`, che è il livello dove
+markup e stile restano insieme.
 
 ### Card
 
@@ -343,6 +386,17 @@ Componente condiviso, usato dal pulsante «Aggiungi prodotto».
 - **Footer sticky**: «Aggiungi» primary a piena larghezza, disabilitato finché non c'è almeno una variante selezionata
 - **All'aggiunta**: una riga documento per ogni variante selezionata, quantità 1, modificabile poi sulla card
 - **Prodotto con una sola variante**: il tap sul primo livello lo aggiunge subito, senza secondo livello (non c'è nulla da scegliere)
+
+### Messaggio in linea (`app-inline-banner`)
+
+Errore di fetch, esito di un'azione, avviso non bloccante: un solo componente,
+`tone` fra `error · warning · success · info · neutral`, `dismissLabel`
+opzionale. **Il ruolo ARIA segue il tono**, non è una scelta di chi chiama:
+`error` e `warning` interrompono la lettura (`role="alert"`), gli altri
+aspettano la pausa (`role="status"`).
+
+Non va usato per l'errore di un singolo campo: quello sta sotto il campo, come
+testo, ed è un'altra cosa (vedi «Error state» sotto).
 
 ### Stati vuoti / caricamento / errore
 
