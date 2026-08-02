@@ -1,10 +1,25 @@
+// REASON: mirino della fotocamera. Il nero e il bianco qui non sono il tema —
+// sono il contesto fisico: sotto c'e' l'immagine dal vivo della camera, e i
+// comandi devono restare leggibili sopra qualunque cosa l'utente stia
+// inquadrando. In tema chiaro un pannello chiaro sparirebbe sull'inquadratura
+// di un muro bianco. I livelli restano pero' dichiarati qui, in un posto solo,
+// invece che ripetuti otto volte nelle regole.
+:host {
+  --scan-shell: #000;
+  --scan-fg: #fff;
+  --scan-frame: rgb(255 255 255 / 0.85);
+  --scan-mask: rgb(0 0 0 / 0.35);
+  --scan-control-bg: rgb(0 0 0 / 0.5);
+  --scan-error-bg: rgb(0 0 0 / 0.6);
+}
+
 .scan-overlay {
   position: fixed;
   inset: 0;
   z-index: var(--z-modal);
   display: flex;
   flex-direction: column;
-  background-color: #000;
+  background-color: var(--scan-shell);
   overscroll-behavior: contain;
 }
 
@@ -14,7 +29,7 @@
   flex: 1 1 50%;
   min-block-size: 0;
   overflow: hidden;
-  background-color: #000;
+  background-color: var(--scan-shell);
 }
 
 .scan-overlay__video {
@@ -32,9 +47,10 @@
   max-inline-size: 22rem;
   aspect-ratio: 3 / 2;
   transform: translate(-50%, -50%);
-  border: 2px solid rgb(255 255 255 / 0.85);
+  border: var(--border-width-strong) solid var(--scan-frame);
   border-radius: var(--radius-md);
-  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.35);
+  // Il buco nella maschera: l'ombra riempie tutto lo schermo tranne il riquadro.
+  box-shadow: 0 0 0 100vmax var(--scan-mask);
   pointer-events: none;
 }
 
@@ -48,8 +64,8 @@
   inline-size: 2.75rem;
   block-size: 2.75rem;
   font-size: var(--text-lg);
-  color: #fff;
-  background-color: rgb(0 0 0 / 0.5);
+  color: var(--scan-fg);
+  background-color: var(--scan-control-bg);
   border: 0;
   border-radius: 50%;
   cursor: pointer;
@@ -62,8 +78,8 @@
   margin: 0;
   padding: var(--space-2);
   text-align: center;
-  color: #fff;
-  background-color: rgb(0 0 0 / 0.6);
+  color: var(--scan-fg);
+  background-color: var(--scan-error-bg);
   border-radius: var(--radius-sm);
 }
 
@@ -116,7 +132,7 @@
 .scan-overlay__info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-05);
   min-inline-size: 0;
 }
 

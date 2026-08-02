@@ -20,7 +20,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
-  background-color: color-mix(in srgb, var(--color-backdrop, #000000) 45%, transparent);
+  background-color: color-mix(in srgb, var(--color-backdrop) 45%, transparent);
 }
 
 .doc-list__modal {

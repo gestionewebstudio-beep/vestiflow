@@ -1197,7 +1197,7 @@ app-customer-order-form {
   margin-block-start: var(--space-2);
   padding: var(--space-2) var(--space-3);
   background-color: color-mix(in srgb, var(--color-surface) 95%, transparent);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--blur-bar));
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
@@ -1457,7 +1457,7 @@ app-customer-order-form {
     z-index: var(--z-sticky);
     padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom));
     background-color: color-mix(in srgb, var(--color-surface) 96%, transparent);
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--blur-bar));
     border-block-start: var(--border-width) solid var(--color-border);
     box-shadow: var(--shadow-lg);
   }

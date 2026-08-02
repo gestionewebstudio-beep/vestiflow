@@ -35,6 +35,8 @@
 
 // Micro-feedback tattile (polish v2): press visibile su tutti i bottoni.
 .app-button:active:not(:disabled) {
+  // Un pixel, non un token: e' il minimo movimento percepibile, e a due
+  // sparirebbe l'impressione di «premuto» diventando uno spostamento.
   translate: 0 1px;
 }
 

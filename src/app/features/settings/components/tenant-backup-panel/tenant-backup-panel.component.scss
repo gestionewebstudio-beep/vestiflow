@@ -1,3 +1,4 @@
+@use 'a11y';
 .tenant-backup-panel {
   display: flex;
   flex-direction: column;
@@ -52,12 +53,7 @@
 }
 
 .tenant-backup-panel__file-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+  @include a11y.visually-hidden;
 }
 
 .tenant-backup-panel__success {

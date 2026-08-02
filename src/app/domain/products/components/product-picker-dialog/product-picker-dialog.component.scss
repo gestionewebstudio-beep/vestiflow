@@ -173,7 +173,7 @@
 .picker__row-copy {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-05);
   flex: 1 1 auto;
   min-inline-size: 0;
 }

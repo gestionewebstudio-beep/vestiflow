@@ -611,7 +611,7 @@
     padding: var(--space-1) var(--doc-m-gutter) calc(var(--space-1) + env(safe-area-inset-bottom));
     background-color: var(--color-surface);
     border-block-start: var(--border-width) solid var(--color-border);
-    box-shadow: 0 -8px 24px rgb(26 42 47 / 0.08);
+    box-shadow: var(--shadow-footer);
   }
 
   .co-dock__action {
@@ -657,7 +657,7 @@
 
   .co-dock__action--scan .co-dock__icon {
     color: var(--color-text-inverse);
-    background-color: rgb(255 255 255 / 0.12);
+    background-color: var(--color-on-dark-surface);
   }
 
   .co-dock__action--product:disabled {

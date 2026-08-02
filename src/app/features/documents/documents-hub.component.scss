@@ -96,7 +96,7 @@
   border-color: var(--color-border-strong);
   background-color: var(--color-surface-hover);
   box-shadow: var(--shadow-md);
-  translate: 0 -2px;
+  translate: 0 calc(var(--space-05) * -1);
 }
 
 .doc-hub__card--link:hover .doc-hub__card-icon {
@@ -106,7 +106,7 @@
 
 .doc-hub__card--link:hover .doc-hub__card-arrow {
   color: var(--color-primary);
-  translate: 2px 0;
+  translate: var(--space-05) 0;
 }
 
 .doc-hub__card--link:focus-visible {

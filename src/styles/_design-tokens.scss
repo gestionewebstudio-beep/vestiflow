@@ -91,6 +91,9 @@
   --color-brand-subtle: var(--color-shopify-subtle);
 
   --color-backdrop: rgb(21 33 31 / 0.45);
+  // Velo delle barre appoggiate al contenuto (topbar, piede documento): la
+  // stessa sfocatura in quattro punti, cosi' le barre si somigliano davvero.
+  --blur-bar: 12px;
 
   // Navigazione — palette dedicata alla shell, tonalmente distinta dal brand
   // perche' vive in un'area separata della schermata (regole-stile-ui §2).
@@ -136,6 +139,18 @@
   --color-doc-summary-fg: #46564e;
   --color-doc-brand-strip: rgb(156 188 199 / 0.4);
   --color-doc-brand-label: #cbd9de;
+
+  // Velature su fondo scuro (barra azioni massive, dock): bianco in
+  // trasparenza. Non sono superfici del tema — compongono su cio' che hanno
+  // sotto — ma i livelli devono essere gli stessi ovunque.
+  --color-on-dark-surface: rgb(255 255 255 / 0.12);
+  --color-on-dark-border: rgb(255 255 255 / 0.2);
+  --color-on-dark-hover: rgb(255 255 255 / 0.2);
+  --color-on-dark-danger-fg: #ffc9c9;
+  --color-on-dark-danger-fg-hover: #ffe0e0;
+  --color-on-dark-danger-bg: rgb(255 120 120 / 0.16);
+  --color-on-dark-danger-bg-hover: rgb(255 120 120 / 0.26);
+  --color-on-dark-danger-border: rgb(255 120 120 / 0.32);
 
   // Stato / stock — fg pieno + tinta chiara + bordo al 25%
   --status-ok-fg: var(--color-ok);
@@ -197,6 +212,10 @@
   --shadow-raised: 0 6px 18px rgb(20 42 34 / 0.08);
   // Alias della scala storica sui nomi nuovi.
   --shadow-xs: 0 1px 2px rgb(18 42 33 / 0.04);
+  // Filo interno di un ritaglio o di una casella selezionata: non e' un bordo
+  // (non occupa spazio) ed e' l'unica ombra che va verso l'interno.
+  --shadow-inset-hairline: inset 0 0 0 var(--border-width) rgb(0 0 0 / 0.08);
+  --shadow-inset-ring: inset 0 0 0 var(--space-1) rgb(0 0 0 / 0.12);
   --shadow-sm: var(--shadow-card);
   --shadow-md: var(--shadow-raised);
   --shadow-lg: var(--shadow-menu);
@@ -316,6 +335,18 @@
   --color-doc-brand-strip: var(--color-border-strong);
   --color-doc-brand-label: var(--color-primary-fg);
 
+  // Velature su fondo scuro (barra azioni massive, dock): bianco in
+  // trasparenza. Non sono superfici del tema — compongono su cio' che hanno
+  // sotto — ma i livelli devono essere gli stessi ovunque.
+  --color-on-dark-surface: rgb(255 255 255 / 0.12);
+  --color-on-dark-border: rgb(255 255 255 / 0.2);
+  --color-on-dark-hover: rgb(255 255 255 / 0.2);
+  --color-on-dark-danger-fg: #ffc9c9;
+  --color-on-dark-danger-fg-hover: #ffe0e0;
+  --color-on-dark-danger-bg: rgb(255 120 120 / 0.16);
+  --color-on-dark-danger-bg-hover: rgb(255 120 120 / 0.26);
+  --color-on-dark-danger-border: rgb(255 120 120 / 0.32);
+
   // Stato / stock
   --status-ok-fg: var(--color-ok);
   --status-ok-bg: var(--color-ok-subtle);
@@ -375,6 +406,8 @@
   --shadow-menu: 0 12px 35px rgb(0 0 0 / 0.4);
   --shadow-raised: 0 6px 18px rgb(0 0 0 / 0.28);
   --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-inset-hairline: inset 0 0 0 var(--border-width) rgb(255 255 255 / 0.1);
+  --shadow-inset-ring: inset 0 0 0 var(--space-1) rgb(0 0 0 / 0.4);
   --shadow-sm: var(--shadow-card);
   --shadow-md: var(--shadow-raised);
   --shadow-lg: var(--shadow-menu);
@@ -444,7 +477,12 @@
 
   // ── 4. SPACING — scala base 4px ─────────────────────────────────────────────
   --space-0: 0;
+  // I due mezzi passi che regole-stile-ui §4 elenca (0 · 2 · 4 · 6 · 8 …) e che
+  // la scala numerata salta: servono ai chip e alle celle piu' strette, dove il
+  // salto 0 → 4px e' tutto o niente.
+  --space-05: 0.125rem; // 2px
   --space-1: 0.25rem; // 4px
+  --space-1-5: 0.375rem; // 6px
   --space-2: 0.5rem; // 8px
   --space-3: 0.75rem; // 12px
   --space-4: 1rem; // 16px

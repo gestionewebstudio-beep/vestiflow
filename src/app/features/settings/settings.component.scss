@@ -1,3 +1,4 @@
+@use 'a11y';
 @use 'breakpoints' as bp;
 @use 'responsive-table' as rt;
 
@@ -194,14 +195,8 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+// Il radio vero resta raggiungibile da tastiera e leggibile dallo screen
+// reader: a vederlo e' la label che lo avvolge.
 .settings__theme-radio {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  clip-path: inset(50%);
-  overflow: hidden;
-  white-space: nowrap;
+  @include a11y.visually-hidden;
 }

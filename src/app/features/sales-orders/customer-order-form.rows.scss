@@ -7,7 +7,7 @@
 
 .co-form__source-index {
   font-size: 0.6875rem; // 11px
-  color: #7c898e;
+  color: var(--color-text-subtle);
 }
 
 .co-form__source-info-cell {
@@ -17,8 +17,8 @@
 .co-form__source-info {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 2px;
+  gap: var(--space-2);
+  padding: 0 var(--space-05);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -30,7 +30,7 @@
   flex: 0 0 auto;
   inline-size: 1rem; // 16px
   block-size: 1rem;
-  color: #647d89;
+  color: var(--color-info);
 }
 
 .co-form__source-icon i {
@@ -40,15 +40,15 @@
 
 .co-form__source-kind {
   flex: 0 0 auto;
-  padding: 2px 6px;
-  font-size: 0.59375rem; // 9.5px
-  font-weight: 780;
+  padding: var(--space-05) var(--space-1-5);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-head);
   letter-spacing: 0.045em;
   text-transform: uppercase;
-  color: #4b6470;
-  background-color: #e6ecef;
-  border: 1px solid #ccd8dd;
-  border-radius: 4px;
+  color: var(--color-info);
+  background-color: var(--color-info-subtle);
+  border: var(--border-width) solid var(--status-info-border);
+  border-radius: var(--radius-sm);
 }
 
 // Titolo del riferimento: resta un campo modificabile (il testo è libero),
@@ -58,10 +58,10 @@
   min-inline-size: 0;
   inline-size: 100%;
   block-size: var(--control-h-cell);
-  padding: 0 2px;
+  padding: 0 var(--space-05);
   font-size: 0.75rem; // 12px
   font-weight: var(--font-weight-semibold);
-  color: #334850;
+  color: var(--color-text);
   text-overflow: ellipsis;
   background: transparent;
   border: var(--border-width) solid transparent;
@@ -69,7 +69,7 @@
 }
 
 .co-form__source-title:hover {
-  border-color: #ccd8dd;
+  border-color: var(--status-info-border);
   background-color: var(--color-surface);
 }
 
@@ -105,11 +105,11 @@
 .co-form__mobile-source-row {
   display: none;
   align-items: center;
-  gap: 9px;
-  padding: 8px 9px;
-  background-color: #f2f5f7;
-  border: 1px solid #cbd5d9;
-  border-inline-start: 3px solid #718995;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background-color: var(--color-surface-soft);
+  border: var(--border-width) solid var(--color-border);
+  border-inline-start: var(--space-1) solid var(--color-info);
   border-radius: var(--radius-lg);
 }
 
@@ -125,8 +125,8 @@
   flex: 0 0 auto;
   inline-size: 2rem;
   block-size: 2rem;
-  color: #5f7883;
-  background-color: #e4eaed;
+  color: var(--color-info);
+  background-color: var(--color-info-subtle);
   border-radius: var(--radius-sm);
 }
 
@@ -139,10 +139,10 @@
 
 .co-form__mobile-source-copy small {
   font-size: 0.53125rem; // 8.5px
-  font-weight: 780;
+  font-weight: var(--font-weight-head);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #65777f;
+  color: var(--color-text-muted);
 }
 
 .co-form__mobile-source-row .co-form__source-title {

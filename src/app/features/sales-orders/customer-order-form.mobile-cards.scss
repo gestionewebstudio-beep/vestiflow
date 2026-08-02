@@ -117,7 +117,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
+  gap: var(--space-05);
   min-inline-size: 3.375rem;
   padding: var(--space-1) var(--space-2);
   text-align: end;
@@ -361,7 +361,7 @@
 .co-order-card__control {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-05);
   min-inline-size: 0;
 }
 
@@ -501,7 +501,7 @@
 .co-form__card-suggestion {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-05);
   min-block-size: 2.75rem;
   padding: var(--space-2);
   border-radius: var(--radius-sm);

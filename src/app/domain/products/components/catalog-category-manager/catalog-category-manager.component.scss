@@ -109,7 +109,7 @@
   border-radius: var(--radius-md);
 
   &:focus-visible {
-    outline: 2px solid var(--color-focus, var(--color-primary));
-    outline-offset: 1px;
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: var(--focus-ring-offset);
   }
 }

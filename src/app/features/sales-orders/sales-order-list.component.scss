@@ -57,20 +57,20 @@
 // il contenitore debba raggiungerne gli interni (regole-stile-ui §5).
 .sales-list__bulk-bar {
   --button-fg: var(--color-primary-fg);
-  --button-bg: rgb(255 255 255 / 0.12);
-  --button-border: rgb(255 255 255 / 0.2);
-  --button-bg-hover: rgb(255 255 255 / 0.2);
+  --button-bg: var(--color-on-dark-surface);
+  --button-border: var(--color-on-dark-border);
+  --button-bg-hover: var(--color-on-dark-hover);
 
-  --button-danger-fg: #ffc9c9;
-  --button-danger-bg: rgb(255 120 120 / 0.16);
-  --button-danger-border: rgb(255 120 120 / 0.32);
-  --button-danger-fg-hover: #ffe0e0;
-  --button-danger-bg-hover: rgb(255 120 120 / 0.26);
-  --button-danger-border-hover: rgb(255 120 120 / 0.32);
+  --button-danger-fg: var(--color-on-dark-danger-fg);
+  --button-danger-bg: var(--color-on-dark-danger-bg);
+  --button-danger-border: var(--color-on-dark-danger-border);
+  --button-danger-fg-hover: var(--color-on-dark-danger-fg-hover);
+  --button-danger-bg-hover: var(--color-on-dark-danger-bg-hover);
+  --button-danger-border-hover: var(--color-on-dark-danger-border);
 
   --button-ghost-fg: var(--color-primary-fg);
   --button-ghost-fg-hover: var(--color-primary-fg);
-  --button-ghost-bg-hover: rgb(255 255 255 / 0.12);
+  --button-ghost-bg-hover: var(--color-on-dark-surface);
 }
 
 // Modale scelta cliente (Duplica): overlay centrato sopra la lista.
@@ -82,7 +82,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
-  background-color: color-mix(in srgb, var(--color-backdrop, #000000) 45%, transparent);
+  background-color: color-mix(in srgb, var(--color-backdrop) 45%, transparent);
 }
 
 .sales-list__modal {

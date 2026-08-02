@@ -6,6 +6,10 @@
   padding: var(--space-1);
   font-family: var(--font-sans);
   // REASON: etichetta stampata sempre bianca con testo nero ad alto contrasto.
+  // REASON: etichetta destinata alla stampa termica. Nero su bianco non e' una
+  // scelta di tema ma il vincolo del supporto: la carta e' bianca e il
+  // trasferimento e' nero, e in tema scuro un'etichetta a colori del tema
+  // uscirebbe illeggibile o non uscirebbe affatto.
   color: #000;
   background: #fff;
   border: var(--border-width) dashed var(--color-border);
