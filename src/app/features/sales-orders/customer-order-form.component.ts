@@ -89,6 +89,7 @@ import {
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { grossFromNetMinor, netFromGrossMinor } from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
   vatCodeSelectOption,
@@ -1107,21 +1108,20 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected onScanCreateFull(ean: string): void {
     this.scanOverlayOpen.set(false);
     this.scanCreateBarcode.set(ean);
-    this.attachTargetLineIndex.set(null);
-    this.productPanelLineIndex.set(null);
-    this.productPanelEditProductId.set(null);
-    this.productPanelMode.set('create');
-    this.productPanelOpen.set(true);
+    this.productPanel.openForNewProduct();
   }
 
   // ── Pannello anagrafica prodotto (creazione/modifica al volo, come GR) ──
-  protected readonly productPanelOpen = signal(false);
-  protected readonly productPanelLineIndex = signal<number | null>(null);
-  protected readonly productPanelMode = signal<'create' | 'edit'>('create');
-  protected readonly productPanelEditProductId = signal<string | null>(null);
-  protected readonly attachTargetLineIndex = signal<number | null>(null);
-  protected readonly pendingAttachVariantId = signal<string | null>(null);
-  protected readonly attachWithoutAddDialogOpen = signal(false);
+  // Stato del pannello prodotto: la macchina vive in domain, qui restano solo
+  // i riferimenti con i nomi che i template già usano.
+  private readonly productPanel = new DocumentProductPanelStore();
+  protected readonly productPanelOpen = this.productPanel.isOpen;
+  protected readonly productPanelLineIndex = this.productPanel.lineIndex;
+  protected readonly productPanelMode = this.productPanel.mode;
+  protected readonly productPanelEditProductId = this.productPanel.editProductId;
+  protected readonly attachTargetLineIndex = this.productPanel.attachTargetLineIndex;
+  protected readonly attachWithoutAddDialogOpen = this.productPanel.attachDialogOpen;
+  protected readonly pendingAttachVariantId = this.productPanel.pendingAttachVariantId;
 
   // ── Includi documento (logica trasversale, mappa in document-include.util:
   //     l'Ordine cliente include da Preventivo; il DDT vendita da Preventivo
@@ -2744,11 +2744,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   });
 
   protected openNewProduct(): void {
-    this.attachTargetLineIndex.set(null);
-    this.productPanelLineIndex.set(null);
-    this.productPanelEditProductId.set(null);
-    this.productPanelMode.set('create');
-    this.productPanelOpen.set(true);
+    this.productPanel.openForNewProduct();
   }
 
   /** Completa anagrafica dalla riga: serve almeno un dato digitato. */
@@ -2771,11 +2767,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       });
       return;
     }
-    this.attachTargetLineIndex.set(index);
-    this.productPanelLineIndex.set(index);
-    this.productPanelEditProductId.set(null);
-    this.productPanelMode.set('create');
-    this.productPanelOpen.set(true);
+    this.productPanel.openForLine(index);
   }
 
   /** Riga già collegata: apre la scheda del prodotto in modifica nel pannello. */
@@ -2797,11 +2789,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             });
             return;
           }
-          this.attachTargetLineIndex.set(index);
-          this.productPanelLineIndex.set(index);
-          this.productPanelEditProductId.set(productId);
-          this.productPanelMode.set('edit');
-          this.productPanelOpen.set(true);
+          this.productPanel.openForEdit(index, productId);
         },
         error: (err: unknown) => {
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
@@ -2810,10 +2798,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   protected closeProductPanel(): void {
-    this.productPanelOpen.set(false);
-    this.productPanelLineIndex.set(null);
-    this.productPanelEditProductId.set(null);
-    this.productPanelMode.set('create');
+    this.productPanel.close();
   }
 
   protected onProductCreatedFromPanel(event: { readonly variantId: string }): void {
@@ -2841,9 +2826,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /** Articolo creato senza aggiungerlo: si propone l'aggancio alla riga. */
   protected onProductSavedWithoutAttach(event: { readonly variantId: string }): void {
-    this.pendingAttachVariantId.set(event.variantId);
-    this.attachWithoutAddDialogOpen.set(true);
-    this.closeProductPanel();
+    this.productPanel.savedWithoutAttach(event.variantId);
   }
 
   protected attachPendingVariantToLine(): void {
@@ -2862,15 +2845,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       this.onVariantSelect(lineIndex, variantId);
       this.pinVariantSummary(lineIndex, variantId);
     }
-    this.pendingAttachVariantId.set(null);
-    this.attachWithoutAddDialogOpen.set(false);
-    this.attachTargetLineIndex.set(null);
+    this.productPanel.dismissAttach();
   }
 
   protected dismissAttachPendingVariant(): void {
-    this.pendingAttachVariantId.set(null);
-    this.attachWithoutAddDialogOpen.set(false);
-    this.attachTargetLineIndex.set(null);
+    this.productPanel.dismissAttach();
   }
 
   // ── Riga di inserimento rapido: scan/cerca con sintassi qta*codice ──────

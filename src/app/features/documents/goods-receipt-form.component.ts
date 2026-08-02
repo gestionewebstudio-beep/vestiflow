@@ -160,6 +160,7 @@ import {
   type VatLineAmounts,
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
   vatCodeSelectOption,
@@ -348,11 +349,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.unlockedByThisInstance.add(docId);
     }
   }
-  protected readonly productPanelOpen = signal(false);
-  protected readonly productPanelLineIndex = signal<number | null>(null);
-  protected readonly productPanelMode = signal<'create' | 'edit'>('create');
-  protected readonly productPanelEditProductId = signal<string | null>(null);
-  protected readonly attachTargetLineIndex = signal<number | null>(null);
+  // Stato del pannello prodotto: la macchina vive in domain, qui restano solo
+  // i riferimenti con i nomi che i template già usano.
+  private readonly productPanel = new DocumentProductPanelStore();
+  protected readonly productPanelOpen = this.productPanel.isOpen;
+  protected readonly productPanelLineIndex = this.productPanel.lineIndex;
+  protected readonly productPanelMode = this.productPanel.mode;
+  protected readonly productPanelEditProductId = this.productPanel.editProductId;
+  protected readonly attachTargetLineIndex = this.productPanel.attachTargetLineIndex;
+  protected readonly attachWithoutAddDialogOpen = this.productPanel.attachDialogOpen;
+  protected readonly pendingAttachVariantId = this.productPanel.pendingAttachVariantId;
   protected readonly downloadingPdf = signal(false);
   private readonly supplierSkuByVariantId = signal<Map<string, string>>(new Map());
   private readonly variantIdBySupplierSku = signal<Map<string, string>>(new Map());
@@ -365,8 +371,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly codeLookupLineIndex = signal<number | null>(null);
   protected readonly codeLookupField = signal<GoodsReceiptCodeLookupField | null>(null);
   protected readonly codeLookupSuggestions = signal<readonly VariantSummary[]>([]);
-  protected readonly attachWithoutAddDialogOpen = signal(false);
-  protected readonly pendingAttachVariantId = signal<string | null>(null);
   protected readonly exitDialogOpen = signal(false);
   protected readonly includeOrderPanelOpen = signal(false);
   protected readonly receivableOrders = signal<readonly SupplierOrder[]>([]);
@@ -2945,11 +2949,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected openNewProduct(): void {
-    this.attachTargetLineIndex.set(null);
-    this.productPanelLineIndex.set(null);
-    this.productPanelEditProductId.set(null);
-    this.productPanelMode.set('create');
-    this.productPanelOpen.set(true);
+    this.productPanel.openForNewProduct();
   }
 
   protected openProductDetail(index: number): void {
@@ -3708,26 +3708,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected openFullProductCreate(lineIndex: number): void {
-    this.attachTargetLineIndex.set(lineIndex);
-    this.productPanelLineIndex.set(lineIndex);
-    this.productPanelEditProductId.set(null);
-    this.productPanelMode.set('create');
-    this.productPanelOpen.set(true);
+    this.productPanel.openForLine(lineIndex);
   }
 
   private openProductEditInPanel(lineIndex: number, productId: string): void {
-    this.attachTargetLineIndex.set(lineIndex);
-    this.productPanelLineIndex.set(lineIndex);
-    this.productPanelEditProductId.set(productId);
-    this.productPanelMode.set('edit');
-    this.productPanelOpen.set(true);
+    this.productPanel.openForEdit(lineIndex, productId);
   }
 
   protected closeProductPanel(): void {
-    this.productPanelOpen.set(false);
-    this.productPanelLineIndex.set(null);
-    this.productPanelEditProductId.set(null);
-    this.productPanelMode.set('create');
+    this.productPanel.close();
   }
 
   protected onProductCreatedFromPanel(event: { readonly variantId: string }): void {
@@ -3784,9 +3773,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected onProductSavedWithoutAttach(event: { readonly variantId: string }): void {
-    this.pendingAttachVariantId.set(event.variantId);
-    this.attachWithoutAddDialogOpen.set(true);
-    this.closeProductPanel();
+    this.productPanel.savedWithoutAttach(event.variantId);
   }
 
   protected attachPendingVariantToLine(): void {
@@ -3795,15 +3782,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (variantId != null && lineIndex != null) {
       this.onVariantSelect(lineIndex, variantId);
     }
-    this.pendingAttachVariantId.set(null);
-    this.attachWithoutAddDialogOpen.set(false);
-    this.attachTargetLineIndex.set(null);
+    this.productPanel.dismissAttach();
   }
 
   protected dismissAttachPendingVariant(): void {
-    this.pendingAttachVariantId.set(null);
-    this.attachWithoutAddDialogOpen.set(false);
-    this.attachTargetLineIndex.set(null);
+    this.productPanel.dismissAttach();
   }
 
   protected openPrintPreview(): void {
