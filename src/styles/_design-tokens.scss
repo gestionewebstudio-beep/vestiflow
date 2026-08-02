@@ -64,7 +64,9 @@
   --color-focus-ring-alpha: rgb(79 126 141 / 0.12);
   // Alias storico: molti componenti leggono ancora --color-focus-ring.
   --color-focus-ring: var(--color-focus);
-  --color-link: var(--color-focus);
+  // Il teal del prototipo, un passo piu' scuro del focus: su testo piccolo
+  // («Nuovo cliente», «Aggiungi sconto») il focus perde contrasto.
+  --color-link: #3d6875;
   --color-link-hover: var(--color-primary);
   --field-focus-ring: 0 0 0 3px var(--color-focus-ring-alpha);
 
@@ -115,6 +117,27 @@
   --color-input-bg: var(--color-surface);
   --color-input-border: var(--color-border);
   --color-table-header-bg: #e9edee;
+  // ── Ruoli emersi dall'Ordine cliente ──────────────────────────────────────
+  // Sono i tre colori che il prototipo usava e che la palette non aveva: non
+  // sono varianti di --color-text-muted, sono ruoli diversi. Mappandoli su
+  // «muted» l'intestazione della tabella e le label dei campi si erano
+  // schiarite di un passo, ed e' la differenza che si vedeva a schermo.
+  --color-table-header-fg: #3f4c51;
+  --color-table-header-rule: #aebfb7;
+  --color-field-label: #59665f;
+  // ── Riga «Documento collegato» (regole-stile-ui §7) ───────────────────────
+  // Ardesia, non azzurro: e' un riferimento, non un avviso. Mappandola su
+  // --color-info diventava una banda blu in mezzo alle righe del documento.
+  --color-doc-ref-bg: #f2f5f7;
+  --color-doc-ref-fg: #42545d;
+  --color-doc-ref-accent: #718995;
+  --color-doc-ref-line: #cbd5d9;
+  --color-doc-ref-chip-bg: #e6ecef;
+  --color-doc-ref-chip-fg: #4b6470;
+  --color-doc-ref-chip-line: #ccd8dd;
+  --color-doc-ref-title: #334850;
+  --color-doc-ref-muted: #7c898e;
+
   --color-table-row-divider: var(--color-border-cell);
   --color-table-col-divider: var(--color-border-cell);
   --color-table-row-selected: rgb(37 52 59 / 0.06);
@@ -509,7 +532,7 @@
   --card-gap: var(--space-4);
 
   // ── 4. RADIUS — scala invariata (8px controlli/righe, 12px card) ───────────
-  --radius-xs: 0.125rem; // 2px
+  --radius-xs: 0.25rem; // 4px — controlli dentro le righe, piu' stretti di un input
   --radius-sm: 0.375rem; // 6px — input, cella editabile, bottone secondario
   --radius-md: 0.5rem; // 8px — bottone primario, chip, badge
   --radius-lg: 0.5625rem; // 9px — card e pannelli

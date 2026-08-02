@@ -1630,7 +1630,7 @@ app-customer-order-form {
   font-weight: var(--font-weight-label);
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
-  color: var(--color-text-muted);
+  color: var(--color-field-label);
 }
 
 .doc-form .doc-form__header .doc-form__inline-toggle {
@@ -1715,13 +1715,15 @@ app-customer-order-form {
 
 // La select nasce larga --select-menu-width (224px): qui riempie la finestra.
 
-// Spunte del documento e della finestra colonne: quadratino più generoso e
-// tinta brand, come nel mockup (di serie sarebbero ~13px e blu di sistema).
-.doc-form .doc-form__check input[type='checkbox'],
-
-// Niente frecce di riordino in questa finestra (mockup): l'ordine delle
-// colonne del documento è quello del tracciato, si sceglie solo cosa vedere.
-// Le altre tabelle dell'app continuano ad averle: la regola è scoped qui.
+// Spunte del documento: quadratino piu' generoso e tinta brand (di serie
+// sarebbero ~13px e blu di sistema). La finestra colonne ha la stessa regola
+// nel proprio componente, dove e' il suo posto.
+.doc-form .doc-form__check input[type='checkbox'] {
+  inline-size: 1rem;
+  block-size: 1rem;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
 
 // ── Tabella righe ──────────────────────────────────────────────────────────
 .doc-form .doc-form__table-wrap {
@@ -1765,9 +1767,9 @@ app-customer-order-form {
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
-  color: var(--color-text-muted);
+  color: var(--color-table-header-fg);
   background-color: var(--color-table-header-bg);
-  border-block-end: var(--border-width) solid var(--color-table-group-divider);
+  border-block-end: var(--border-width) solid var(--color-table-header-rule);
   white-space: normal;
   overflow-wrap: break-word;
 }
@@ -1888,7 +1890,7 @@ app-customer-order-form {
   block-size: var(--control-h-cell);
   padding: 0 var(--table-cell-pad-inline);
   font-size: var(--text-xs);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
 }
 
 .doc-form .doc-form__input--table:focus-visible {
@@ -1909,7 +1911,7 @@ app-customer-order-form {
 
 .doc-form .doc-form__line-remove,
 .doc-form .doc-form__line-move {
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
 }
 
 .doc-form .doc-form__totals dt {
@@ -1934,7 +1936,7 @@ app-customer-order-form {
   block-size: var(--space-6);
   min-block-size: var(--space-6);
   border-color: var(--color-border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -1952,7 +1954,7 @@ app-customer-order-form {
   font-weight: var(--font-weight-label);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: var(--color-text-muted);
+  color: var(--color-field-label);
 }
 
 .doc-form .doc-form__textarea {

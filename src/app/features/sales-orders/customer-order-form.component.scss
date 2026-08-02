@@ -92,23 +92,23 @@
   }
 
   // Consegna | Pagamento | spazio libero (Preventivo: fascia a tre celle).
-  .co-form .co-form__header-row--secondary > *:nth-child(1) {
+  .co-form .doc-form__header-row--secondary > *:nth-child(1) {
     flex-grow: 0.82;
   }
-  .co-form .co-form__header-row--secondary > *:nth-child(2) {
+  .co-form .doc-form__header-row--secondary > *:nth-child(2) {
     flex-grow: 1.05;
   }
-  .co-form .co-form__header-row--secondary > *:nth-child(3) {
+  .co-form .doc-form__header-row--secondary > *:nth-child(3) {
     flex-grow: 2.13;
   }
 
   // Ordine cliente: niente «Consegna prevista», la fascia ha due sole celle.
   // Il Pagamento tiene la propria quota e lo spazio libero assorbe il resto,
   // così le proporzioni restano quelle del mockup anche senza la prima cella.
-  .co-form .co-form__header-row--secondary > *:nth-child(1):nth-last-child(2) {
+  .co-form .doc-form__header-row--secondary > *:nth-child(1):nth-last-child(2) {
     flex-grow: 1.05;
   }
-  .co-form .co-form__header-row--secondary > *:nth-child(2):nth-last-child(1) {
+  .co-form .doc-form__header-row--secondary > *:nth-child(2):nth-last-child(1) {
     flex-grow: 2.95;
   }
 }
@@ -249,7 +249,7 @@
 } // ── §CONTROLLI: quantità oltre la disponibile ──────────────────────────────
 // Bordo/sfondo ambra sulla cella, testo discreto «disponibili solo N».
 // Mai un blocco.
-.co-form__cell--exceeds {
+.doc-form__cell--exceeds {
   position: relative;
   background: var(--color-warning-subtle);
 

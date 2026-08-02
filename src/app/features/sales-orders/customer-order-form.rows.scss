@@ -7,7 +7,7 @@
 
 .co-form__source-index {
   font-size: 0.6875rem; // 11px
-  color: var(--color-text-subtle);
+  color: var(--color-doc-ref-muted);
 }
 
 .co-form__source-info-cell {
@@ -30,7 +30,7 @@
   flex: 0 0 auto;
   inline-size: 1rem; // 16px
   block-size: 1rem;
-  color: var(--color-info);
+  color: var(--color-doc-ref-accent);
 }
 
 .co-form__source-icon i {
@@ -45,9 +45,9 @@
   font-weight: var(--font-weight-head);
   letter-spacing: 0.045em;
   text-transform: uppercase;
-  color: var(--color-info);
-  background-color: var(--color-info-subtle);
-  border: var(--border-width) solid var(--status-info-border);
+  color: var(--color-doc-ref-chip-fg);
+  background-color: var(--color-doc-ref-chip-bg);
+  border: var(--border-width) solid var(--color-doc-ref-chip-line);
   border-radius: var(--radius-sm);
 }
 
@@ -61,7 +61,7 @@
   padding: 0 var(--space-05);
   font-size: 0.75rem; // 12px
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
+  color: var(--color-doc-ref-title);
   text-overflow: ellipsis;
   background: transparent;
   border: var(--border-width) solid transparent;
@@ -69,7 +69,7 @@
 }
 
 .co-form__source-title:hover {
-  border-color: var(--status-info-border);
+  border-color: var(--color-doc-ref-chip-line);
   background-color: var(--color-surface);
 }
 
@@ -107,9 +107,9 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2);
-  background-color: var(--color-surface-soft);
-  border: var(--border-width) solid var(--color-border);
-  border-inline-start: var(--space-1) solid var(--color-info);
+  background-color: var(--color-doc-ref-bg);
+  border: var(--border-width) solid var(--color-doc-ref-line);
+  border-inline-start: var(--space-1) solid var(--color-doc-ref-accent);
   border-radius: var(--radius-lg);
 }
 
@@ -125,8 +125,8 @@
   flex: 0 0 auto;
   inline-size: 2rem;
   block-size: 2rem;
-  color: var(--color-info);
-  background-color: var(--color-info-subtle);
+  color: var(--color-doc-ref-chip-fg);
+  background-color: var(--color-doc-ref-chip-bg);
   border-radius: var(--radius-sm);
 }
 
@@ -142,7 +142,7 @@
   font-weight: var(--font-weight-head);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--color-text-muted);
+  color: var(--color-doc-ref-muted);
 }
 
 .co-form__mobile-source-row .co-form__source-title {

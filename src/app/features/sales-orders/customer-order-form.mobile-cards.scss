@@ -203,7 +203,7 @@
   }
 
   .co-form .co-form__header-row,
-  .co-form .co-form__header-row--secondary {
+  .co-form .doc-form__header-row--secondary {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -361,7 +361,7 @@
 // Schermi stretti: una colonna sola e Salva su tutta la riga.
 @include bp.media-down('sm') {
   .co-form .co-form__header-row,
-  .co-form .co-form__header-row--secondary {
+  .co-form .doc-form__header-row--secondary {
     grid-template-columns: 1fr;
   }
 

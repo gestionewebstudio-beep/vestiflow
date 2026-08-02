@@ -22,13 +22,15 @@ Nessun colore va scritto direttamente in un componente: sempre `var(--token)`.
 
 ### Superfici
 
-| Uso                                    | Valore    | Token                     |
-| -------------------------------------- | --------- | ------------------------- |
-| Sfondo pagina                          | `#eef0f2` | `--color-bg`              |
-| Superficie card / pannelli             | `#ffffff` | `--color-surface`         |
-| Superficie tenue (row alterne, sunken) | `#f6f7f8` | `--color-surface-soft`    |
-| Superficie tabella hover               | `#f8faf9` | `--color-surface-hover`   |
-| Header tabella                         | `#e9edee` | `--color-table-header-bg` |
+| Uso                                    | Valore    | Token                       |
+| -------------------------------------- | --------- | --------------------------- |
+| Sfondo pagina                          | `#eef0f2` | `--color-bg`                |
+| Superficie card / pannelli             | `#ffffff` | `--color-surface`           |
+| Superficie tenue (row alterne, sunken) | `#f6f7f8` | `--color-surface-soft`      |
+| Superficie tabella hover               | `#f8faf9` | `--color-surface-hover`     |
+| Header tabella                         | `#e9edee` | `--color-table-header-bg`   |
+| Testo header tabella                   | `#3f4c51` | `--color-table-header-fg`   |
+| Filo sotto l'header tabella            | `#aebfb7` | `--color-table-header-rule` |
 
 ### Bordi e divisori
 
@@ -41,23 +43,24 @@ Nessun colore va scritto direttamente in un componente: sempre `var(--token)`.
 
 ### Testo
 
-| Uso                                       | Valore    | Token                  |
-| ----------------------------------------- | --------- | ---------------------- |
-| Testo primario                            | `#20282b` | `--color-text`         |
-| Testo muted (label uppercase, hint, meta) | `#657075` | `--color-text-muted`   |
-| Testo subtle (placeholder, disabled)      | `#8a9498` | `--color-text-subtle`  |
-| Testo su superfici scure                  | `#ffffff` | `--color-text-inverse` |
+| Uso                                  | Valore    | Token                  |
+| ------------------------------------ | --------- | ---------------------- |
+| Testo primario                       | `#20282b` | `--color-text`         |
+| Testo muted (hint, meta)             | `#657075` | `--color-text-muted`   |
+| Label uppercase di campo             | `#59665f` | `--color-field-label`  |
+| Testo subtle (placeholder, disabled) | `#8a9498` | `--color-text-subtle`  |
+| Testo su superfici scure             | `#ffffff` | `--color-text-inverse` |
 
 ### Brand e interazione
 
-| Uso                                         | Valore                                                                           | Token                      |
-| ------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------- |
-| Brand primario (CTA, header attivi, avatar) | `#25343b`                                                                        | `--color-primary`          |
-| Brand hover                                 | `#18262d`                                                                        | `--color-primary-hover`    |
-| Brand tinta chiara (subtle)                 | `#edf2f4`                                                                        | `--color-primary-subtle`   |
-| Focus (bordo campo + anello)                | `#4f7e8d`                                                                        | `--color-focus`            |
-| Focus ring alpha                            | `rgba(79,126,141,.12)`                                                           | `--color-focus-ring-alpha` |
-| Link accento                                | usa `--color-primary` o `--color-focus` — non introdurre un colore link separato | —                          |
+| Uso                                         | Valore                 | Token                      |
+| ------------------------------------------- | ---------------------- | -------------------------- |
+| Brand primario (CTA, header attivi, avatar) | `#25343b`              | `--color-primary`          |
+| Brand hover                                 | `#18262d`              | `--color-primary-hover`    |
+| Brand tinta chiara (subtle)                 | `#edf2f4`              | `--color-primary-subtle`   |
+| Focus (bordo campo + anello)                | `#4f7e8d`              | `--color-focus`            |
+| Focus ring alpha                            | `rgba(79,126,141,.12)` | `--color-focus-ring-alpha` |
+| Link accento                                | `#3d6875`              | `--color-link`             |
 
 ### Navigation (shell)
 
@@ -519,6 +522,10 @@ Vedi §6.
 - Accento laterale sinistro: `border-left: 3px solid var(--color-info)` desktop
 - Background riga: `var(--color-surface-soft)`
 - Contenuto: icona sorgente + tipo documento (pill) + titolo + data + meta (importo, ecc.)
+- Tinte proprie, **ardesia e non azzurro**: è un riferimento, non un avviso.
+  `--color-doc-ref-bg/-fg/-accent/-line/-title/-muted` e, per la pill,
+  `--color-doc-ref-chip-bg/-fg/-line`. Mapparla su `--color-info` la trasforma
+  in una banda blu in mezzo alle righe.
 
 ### Riepilogo totali
 
