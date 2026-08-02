@@ -20,6 +20,7 @@ import { formatMoney } from '@core/utils/money.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductService } from '@domain/products/services/product.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 /** Riga in verifica nella metà inferiore prima di essere aggiunta all'ordine. */
 interface PendingScanLine {
@@ -39,7 +40,7 @@ interface PendingScanLine {
 @Component({
   selector: 'app-order-scan-overlay',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent],
+  imports: [ButtonComponent, InlineBannerComponent],
   templateUrl: './order-scan-overlay.component.html',
   styleUrl: './order-scan-overlay.component.scss',
 })

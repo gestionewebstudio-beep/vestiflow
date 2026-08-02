@@ -1,3 +1,4 @@
+@use 'a11y';
 // Modale allegati: stesse basi di app-confirm-dialog (dialog nativo centrato),
 // contenuto più ampio perché ospita elenco e area di trascinamento.
 .attachments-dialog {
@@ -101,7 +102,7 @@
   cursor: pointer;
 
   &:focus-within {
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
     outline-offset: var(--focus-ring-offset);
   }
 }
@@ -112,14 +113,15 @@
 }
 
 .attachments-dialog__drop--disabled {
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
   cursor: progress;
 }
 
+// Non e' solo nascosto: sta sotto l'area di drop, che intercetta i click al
+// posto suo.
 .attachments-dialog__file-input {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
+  @include a11y.visually-hidden;
+
   opacity: 0;
   pointer-events: none;
 }

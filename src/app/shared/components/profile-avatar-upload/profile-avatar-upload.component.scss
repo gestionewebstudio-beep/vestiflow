@@ -1,3 +1,4 @@
+@use 'a11y';
 .profile-avatar-upload {
   display: flex;
   flex-direction: column;
@@ -21,7 +22,7 @@
 
 .profile-avatar-upload__preview-trigger:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
 }
 
 .profile-avatar-upload__actions {
@@ -32,15 +33,7 @@
 }
 
 .profile-avatar-upload__input {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  padding: 0;
-  margin: calc(-1 * var(--space-1));
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  @include a11y.visually-hidden;
 }
 
 .profile-avatar-upload__hint {

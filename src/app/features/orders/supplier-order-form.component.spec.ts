@@ -165,7 +165,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.clear(qtyInput);
     await user.type(qtyInput, '3');
 
-    await user.click(screen.getByRole('link', { name: /Ordini Fornitori/ }));
+    await user.click(screen.getByRole('button', { name: 'Indietro' }));
 
     expect(await screen.findByRole('dialog')).toBeVisible();
     expect(screen.getByText('Modifiche non salvate')).toBeVisible();
@@ -177,7 +177,7 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     await setup();
 
-    await user.click(screen.getByRole('link', { name: /Ordini Fornitori/ }));
+    await user.click(screen.getByRole('button', { name: 'Indietro' }));
 
     expect(screen.queryByRole('dialog')).toBeNull();
   });

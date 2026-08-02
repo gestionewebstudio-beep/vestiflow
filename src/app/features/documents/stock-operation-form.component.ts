@@ -91,7 +91,6 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
   ],
   providers: [DocumentEditLockService],
   templateUrl: './stock-operation-form.component.html',
-  styleUrl: './goods-receipt-form.component.scss',
 })
 export class StockOperationFormComponent {
   private readonly authService = inject(AuthService);

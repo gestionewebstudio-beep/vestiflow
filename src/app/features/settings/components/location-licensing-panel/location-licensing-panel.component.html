@@ -59,12 +59,12 @@
   }
 
   @if (showGrantedHint()) {
-    <p class="location-licensing__notice location-licensing__notice--footer" role="status">
+    <app-inline-banner tone="info">
       Modifica consentita una sola volta. Salva per confermare le sedi attive.
-    </p>
+    </app-inline-banner>
   } @else if (showLockedMessage()) {
-    <p class="location-licensing__notice location-licensing__notice--footer" role="status">
+    <app-inline-banner tone="info">
       Contatta l'assistenza per modificare le sedi attive.
-    </p>
+    </app-inline-banner>
   }
 </section>

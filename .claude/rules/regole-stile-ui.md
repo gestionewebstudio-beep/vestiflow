@@ -22,13 +22,15 @@ Nessun colore va scritto direttamente in un componente: sempre `var(--token)`.
 
 ### Superfici
 
-| Uso                                    | Valore    | Token                     |
-| -------------------------------------- | --------- | ------------------------- |
-| Sfondo pagina                          | `#eef0f2` | `--color-bg`              |
-| Superficie card / pannelli             | `#ffffff` | `--color-surface`         |
-| Superficie tenue (row alterne, sunken) | `#f6f7f8` | `--color-surface-soft`    |
-| Superficie tabella hover               | `#f8faf9` | `--color-surface-hover`   |
-| Header tabella                         | `#e9edee` | `--color-table-header-bg` |
+| Uso                                    | Valore    | Token                       |
+| -------------------------------------- | --------- | --------------------------- |
+| Sfondo pagina                          | `#eef0f2` | `--color-bg`                |
+| Superficie card / pannelli             | `#ffffff` | `--color-surface`           |
+| Superficie tenue (row alterne, sunken) | `#f6f7f8` | `--color-surface-soft`      |
+| Superficie tabella hover               | `#f8faf9` | `--color-surface-hover`     |
+| Header tabella                         | `#e9edee` | `--color-table-header-bg`   |
+| Testo header tabella                   | `#3f4c51` | `--color-table-header-fg`   |
+| Filo sotto l'header tabella            | `#aebfb7` | `--color-table-header-rule` |
 
 ### Bordi e divisori
 
@@ -41,23 +43,24 @@ Nessun colore va scritto direttamente in un componente: sempre `var(--token)`.
 
 ### Testo
 
-| Uso                                       | Valore    | Token                  |
-| ----------------------------------------- | --------- | ---------------------- |
-| Testo primario                            | `#20282b` | `--color-text`         |
-| Testo muted (label uppercase, hint, meta) | `#657075` | `--color-text-muted`   |
-| Testo subtle (placeholder, disabled)      | `#8a9498` | `--color-text-subtle`  |
-| Testo su superfici scure                  | `#ffffff` | `--color-text-inverse` |
+| Uso                                  | Valore    | Token                  |
+| ------------------------------------ | --------- | ---------------------- |
+| Testo primario                       | `#20282b` | `--color-text`         |
+| Testo muted (hint, meta)             | `#657075` | `--color-text-muted`   |
+| Label uppercase di campo             | `#59665f` | `--color-field-label`  |
+| Testo subtle (placeholder, disabled) | `#8a9498` | `--color-text-subtle`  |
+| Testo su superfici scure             | `#ffffff` | `--color-text-inverse` |
 
 ### Brand e interazione
 
-| Uso                                         | Valore                                                                           | Token                      |
-| ------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------- |
-| Brand primario (CTA, header attivi, avatar) | `#25343b`                                                                        | `--color-primary`          |
-| Brand hover                                 | `#18262d`                                                                        | `--color-primary-hover`    |
-| Brand tinta chiara (subtle)                 | `#edf2f4`                                                                        | `--color-primary-subtle`   |
-| Focus (bordo campo + anello)                | `#4f7e8d`                                                                        | `--color-focus`            |
-| Focus ring alpha                            | `rgba(79,126,141,.12)`                                                           | `--color-focus-ring-alpha` |
-| Link accento                                | usa `--color-primary` o `--color-focus` — non introdurre un colore link separato | —                          |
+| Uso                                         | Valore                 | Token                      |
+| ------------------------------------------- | ---------------------- | -------------------------- |
+| Brand primario (CTA, header attivi, avatar) | `#25343b`              | `--color-primary`          |
+| Brand hover                                 | `#18262d`              | `--color-primary-hover`    |
+| Brand tinta chiara (subtle)                 | `#edf2f4`              | `--color-primary-subtle`   |
+| Focus (bordo campo + anello)                | `#4f7e8d`              | `--color-focus`            |
+| Focus ring alpha                            | `rgba(79,126,141,.12)` | `--color-focus-ring-alpha` |
+| Link accento                                | `#3d6875`              | `--color-link`             |
 
 ### Navigation (shell)
 
@@ -188,11 +191,140 @@ Le card restano contenitori (superficie bianca + radius), ma occupano quasi tutt
 
 **44px** ovunque sia un elemento tappabile su mobile. Su desktop si può scendere a 32–34px per bottoni densi e a 29–30px per input in griglia densa.
 
+### Altezze dei controlli — token
+
+L'altezza di un controllo è una decisione di **sistema**, non di singola maschera:
+vive nei token e non va reimpostata nel foglio di un componente.
+
+| Uso                              | Token                | Desktop | Mobile |
+| -------------------------------- | -------------------- | ------- | ------ |
+| Bottoni e select generici        | `--btn-min-height`   | 34px    | 44px   |
+| Input generici                   | `--field-height`     | 34px    | 44px   |
+| Controlli di testata documento   | `--control-h-field`  | 29px    | 44px   |
+| Bottoni barra strumenti / azioni | `--control-h-button` | 31px    | 44px   |
+| Input dentro le righe            | `--control-h-cell`   | 24px    | 24px   |
+| Riga tabella                     | `--table-row-h`      | 30px    | —      |
+| Intestazione tabella             | `--table-head-h`     | 32px    | —      |
+
+Il passaggio a 44px sotto il breakpoint `md` è centralizzato in
+`_design-tokens.scss`: **non** si ripete nei componenti. Il minimo tappabile è il
+valore mobile, non quello universale — applicarlo anche su desktop rende l'intera
+interfaccia più larga della densità scelta.
+
 ---
 
 ## 5. Componenti condivisi
 
 Ogni componente vive in `src/app/shared/`. Nessuno stile equivalente va replicato nei componenti feature.
+
+### Come si configura un componente condiviso — in ordine di preferenza
+
+Un componente condiviso non si «corregge» dall'esterno: si **configura**. In ordine,
+dal più corretto al più invasivo:
+
+1. **`input()` del componente** — quando è una variante di comportamento o di
+   forma che ha un nome nel dominio: `variant`, `layout`, `fullWidth`, `compact`.
+   Se la variante ha senso per più di un chiamante, è un `input()`.
+2. **Custom property** — quando è una misura che un contenitore vuole cambiare
+   per tutti i figli che ospita (una barra strumenti densa, il piede di un
+   pannello). Le custom property attraversano il confine del componente **per
+   costruzione**: sono il canale previsto dal linguaggio.
+
+   I componenti condivisi espongono i propri punti di regolazione con un
+   fallback: `min-block-size: var(--button-h, var(--field-height))`. Il
+   contenitore imposta `--button-h` su di sé, non tocca il figlio.
+
+   `select-menu` e `date-input` condividono il prefisso `--field-*` apposta: sono
+   la stessa superficie di campo, e chi ne configura una si aspetta che l'altra
+   segua senza dover imparare un secondo vocabolario.
+
+   | Componente          | Punti di regolazione                                                                                                                                                  |
+   | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `app-button`        | `--button-h`, `--button-font-size`, `--button-font-weight`, `--button-radius`, `--button-pad-inline`, `--button-inline-size`, `--button-flex`, `--button-grid-column` |
+   |                     | colori: `--button-fg/-bg/-border`, `--button-bg-hover`; varianti `--button-danger-*`, `--button-ghost-*`                                                              |
+   | `date-input`        | `--field-*` (sotto) piu' `--date-input-toggle-w`, `--date-input-toggle-pad`, `--date-input-icon-display`, `--date-input-panel-inset/-w/-min-w/-max-w`                 |
+   | `select-menu`       | `--field-*` (sotto) piu' `--select-menu-width`, `--select-menu-max-width`, `--select-menu-panel-inset`                                                                |
+   | campi (`--field-*`) | `--field-h`, `--field-gap`, `--field-font-size`, `--field-pad-inline`, `--field-radius`, `--field-fg`, `--field-bg`, `--field-bg-hover`, `--field-border-color`       |
+   | `back-button`       | `--back-button-h`, `--back-button-gap`, `--back-button-pad-inline`, `--back-button-radius`, `--back-button-font-size`, `--back-button-font-weight`                    |
+   | `attachments-panel` | `--attachments-gap`, `--attachments-title-size`, `--attachments-item-pad`                                                                                             |
+   | `barcode-scanner`   | `--barcode-scanner-w`                                                                                                                                                 |
+   | `hover-tooltip`     | `--hover-tooltip-inset`                                                                                                                                               |
+   | celle di riga       | `--doc-code-cell-fg`, `--doc-product-cell-weight`                                                                                                                     |
+
+   **`app-button` ha l'host `display: contents`**: e' il `<button>` interno a
+   stare nel flusso del contenitore. `flex` e `grid-column` vanno quindi
+   dichiarati come `--button-flex` / `--button-grid-column`, non sull'elemento
+   `<app-button>` — li' non avrebbero effetto.
+
+3. **Il default del componente stesso** — quando ciò che il chiamante vuole non
+   è una sua preferenza ma **il design giusto**. In quel caso non si configura
+   nulla: si cambia il componente. Se una maschera ridefinisce un componente
+   condiviso in 15 regole, non sta personalizzando — sta dicendo che il default
+   è sbagliato.
+
+### `::ng-deep` — quando è ammesso
+
+`::ng-deep` è **deprecato** e va evitato: dipende dai nomi di classe interni di
+un altro componente, quindi smette di funzionare **in silenzio** se quello li
+rinomina — nessun errore, nessun test rosso, lo stile torna al default.
+
+**Nell'app non ce n'e' nessuno.** Erano 65; sono zero. Aggiungerne uno è quindi
+sempre una regressione, e c'è sempre un'alternativa fra le tre sopra.
+
+Il caso che sembra un'eccezione — un overlay che la CDK monta fuori dall'albero
+del componente, come `.cdk-drag-preview` — **non è risolvibile con `::ng-deep`**:
+la parte di selettore che precede `::ng-deep` porta comunque l'attributo di
+incapsulamento, quindi `.mia-pagina ::ng-deep .cdk-drag-preview` compila in
+`.mia-pagina[_ngcontent-x] .cdk-drag-preview` e non aggancia un elemento che sta
+nel `<body>`. Quelle regole vanno in un foglio **globale** (`src/styles/`), che
+è dove vive tutto ciò che il framework monta fuori dal componente. Nel progetto
+l'anteprima di riga sta in `styles/_document-form.scss`.
+
+Un `::ng-deep` è un difetto di API del componente condiviso: la correzione è
+aggiungere il punto di regolazione che manca, non scavalcarlo.
+
+### I due controlli automatici sui token
+
+`npm run check:tokens` (dentro `npm run lint`) fa fallire la build su due difetti
+che non si vedono, non rompono nulla in compilazione e non fanno arrossare un test:
+
+1. **Parità fra i temi.** Un token dichiarato in `theme-light` e non in
+   `theme-dark` non ha valore quando il tema è scuro: la dichiarazione che lo usa
+   diventa invalida e il browser la scarta. Il colore sparisce per metà degli
+   utenti, in silenzio. È già successo — tredici token aggiunti al solo tema
+   chiaro.
+2. **Token fantasma.** Un `var(--x)` senza fallback su un nome che nessuno
+   dichiara fa la stessa fine, e capita a ogni rinomina. Ne sono stati trovati
+   undici, tutti preesistenti: `--color-text-primary`, `--space-sm`,
+   `--focus-ring-color`, `--opacity-muted`…
+
+Non controlla i valori: quelli sono una scelta di design, e la fonte di verità è
+questo documento.
+
+### Il livello globale — cosa ci sta e cosa no
+
+`src/styles/` non è una discarica: ci sta soltanto ciò che **non può** stare in
+un componente, o che verrebbe compilato più volte se ci stesse.
+
+| File                                                                                     | Contenuto                                                                |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `_design-tokens.scss`                                                                    | i valori. Unica fonte di verità visiva.                                  |
+| `_document-form.scss`                                                                    | l'anatomia della maschera documento, condivisa da sei schermate          |
+| `_document-form-footer.scss`                                                             | la banda finale (note, totali, azioni) della stessa maschera             |
+| `_shared-directives.scss`                                                                | l'aspetto delle classi applicate dalle direttive di `shared/directives/` |
+| `_breakpoints.scss` · `_responsive-table.scss` · `_list-page.scss` · `_detail-page.scss` | librerie di mixin: non emettono CSS finché qualcuno non le include       |
+
+Le due ragioni per promuovere al livello globale, e non ce ne sono altre:
+
+1. **Una direttiva non può avere un `styleUrl`.** La classe che applica all'host
+   resterebbe senza vestito, e ogni feature che la usa se lo ricucirebbe addosso.
+2. **Lo stesso foglio in `styleUrls` di più componenti viene compilato una volta
+   per ciascuno.** `_document-form.scss` era il foglio dell'arrivo merce e cinque
+   componenti lo referenziavano: cinque copie della stessa CSS nel bundle.
+
+Un pattern usato da più schermate ma che sta in **un solo** componente non sale:
+diventa un componente condiviso in `shared/` o `domain/`, che è il livello dove
+markup e stile restano insieme.
 
 ### Card
 
@@ -276,6 +408,17 @@ Componente condiviso, usato dal pulsante «Aggiungi prodotto».
 - **All'aggiunta**: una riga documento per ogni variante selezionata, quantità 1, modificabile poi sulla card
 - **Prodotto con una sola variante**: il tap sul primo livello lo aggiunge subito, senza secondo livello (non c'è nulla da scegliere)
 
+### Messaggio in linea (`app-inline-banner`)
+
+Errore di fetch, esito di un'azione, avviso non bloccante: un solo componente,
+`tone` fra `error · warning · success · info · neutral`, `dismissLabel`
+opzionale. **Il ruolo ARIA segue il tono**, non è una scelta di chi chiama:
+`error` e `warning` interrompono la lettura (`role="alert"`), gli altri
+aspettano la pausa (`role="status"`).
+
+Non va usato per l'errore di un singolo campo: quello sta sotto il campo, come
+testo, ed è un'altra cosa (vedi «Error state» sotto).
+
 ### Stati vuoti / caricamento / errore
 
 - Empty state: icona in medaglione tondo 48×48px su `--color-surface-soft`, titolo H2, descrizione muted, CTA se ha senso
@@ -310,6 +453,18 @@ Su tabelle documentali (righe ordine, arrivi, ecc.) le colonne si raggruppano pe
 - Calcoli / totali
 
 Separatori verticali forti tra gruppi: `border-right: 2px solid var(--color-table-group-divider)`. Dentro un gruppo, i divisori restano leggeri.
+
+Le tinte dei gruppi sono token globali: ogni tabella documentale usa gli stessi,
+mai una tinta propria per maschera.
+
+| Gruppo           | Fondo intestazione       | Testo                    | Divisore                   | Fondo cella          |
+| ---------------- | ------------------------ | ------------------------ | -------------------------- | -------------------- |
+| Stock            | `--table-group-stock-bg` | `--table-group-stock-fg` | `--table-group-stock-rule` | `--table-cell-stock` |
+| Vendita          | `--table-group-sale-bg`  | `--table-group-sale-fg`  | `--table-group-sale-rule`  | —                    |
+| Calcoli / totali | `--table-group-calc-bg`  | `--table-group-calc-fg`  | `--table-group-calc-rule`  | `--table-cell-calc`  |
+
+Hover di riga per gruppo: `--table-row-hover-stock`, `--table-row-hover-calc`;
+totale di riga `--table-cell-total`.
 
 ### Card view mobile (tabella su schermi ≤1024px)
 
@@ -385,6 +540,10 @@ Vedi §6.
 - Accento laterale sinistro: `border-left: 3px solid var(--color-info)` desktop
 - Background riga: `var(--color-surface-soft)`
 - Contenuto: icona sorgente + tipo documento (pill) + titolo + data + meta (importo, ecc.)
+- Tinte proprie, **ardesia e non azzurro**: è un riferimento, non un avviso.
+  `--color-doc-ref-bg/-fg/-accent/-line/-title/-muted` e, per la pill,
+  `--color-doc-ref-chip-bg/-fg/-line`. Mapparla su `--color-info` la trasforma
+  in una banda blu in mezzo alle righe.
 
 ### Riepilogo totali
 

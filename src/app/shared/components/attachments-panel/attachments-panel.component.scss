@@ -2,10 +2,12 @@
   display: block;
 }
 
+// Punti di regolazione: dentro un documento il pannello e' una riga fra le
+// altre e vuole meno respiro che a pagina intera.
 .attachments-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--attachments-gap, var(--space-3));
 }
 
 .attachments-panel__head {
@@ -18,7 +20,7 @@
 
 .attachments-panel__title {
   margin: 0;
-  font-size: var(--text-base);
+  font-size: var(--attachments-title-size, var(--text-base));
   font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
@@ -42,7 +44,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--attachments-item-pad, var(--space-2) var(--space-3));
   background-color: var(--color-surface-subtle, var(--color-surface));
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);

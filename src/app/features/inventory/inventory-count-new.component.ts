@@ -18,6 +18,7 @@ import type { AppError } from '@core/models/app-error.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 import { InventoryTabsComponent } from './components/inventory-tabs/inventory-tabs.component';
 import { InventoryService } from '@domain/inventory/services/inventory.service';
@@ -26,7 +27,13 @@ import { InventoryService } from '@domain/inventory/services/inventory.service';
 @Component({
   selector: 'app-inventory-count-new',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, ButtonComponent, SelectMenuComponent, InventoryTabsComponent],
+  imports: [
+    ReactiveFormsModule,
+    ButtonComponent,
+    SelectMenuComponent,
+    InventoryTabsComponent,
+    InlineBannerComponent,
+  ],
   templateUrl: './inventory-count-new.component.html',
   styleUrl: './inventory-count-new.component.scss',
 })

@@ -1,48 +1,21 @@
 @use 'breakpoints' as bp;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Testata mobile del form documento — reference approvata
+// ORDINE CLIENTE — 6 di 6: pannelli di testata, sezione righe, dock (mobile)
 // ═══════════════════════════════════════════════════════════════════════════
-// Replica di REFERENCE_DEFINITIVA_ORDINE_CLIENTE_MOBILE.html. Vive in un foglio
-// a parte, ultimo negli styleUrls, per due motivi: vince sulla cascata dei tre
-// fogli mobile precedenti senza doverli smontare uno per uno, e resta isolabile
-// se la reference verra' estesa (o rivista) sulle altre schermate.
+// Replica di REFERENCE_DEFINITIVA_ORDINE_CLIENTE_MOBILE.html, la reference
+// approvata dal proprietario. Resta isolata perche' e' l'unica parte che puo'
+// essere estesa alle altre maschere quando la reference verra' allargata.
 //
-// Le misure della reference non stanno nella scala del progetto (46px per i
-// controlli, 38px per le icone, 23px per il titolo): sono raccolte qui sotto
-// come token locali, cosi' restano in un posto solo invece di finire sparse
-// nelle regole. I colori invece riusano la palette --co-* esistente: la
-// reference e' tonalmente la stessa, e duplicarla romperebbe il tema scuro.
+// Le sue misure non stanno nella scala del progetto (46px per i controlli,
+// 38px per le icone, 23px per il titolo). Vivono come token --doc-m-* sul
+// blocco .doc-form in styles/_document-form.scss: descrivono la maschera
+// documento su mobile, non questa pagina, e le altre cinque le troveranno
+// gia' pronte quando adotteranno la reference. I colori sono quelli globali:
+// la reference e' tonalmente la stessa dell'app.
+//
+// Vedi l'indice dei cinque fogli in customer-order-form.component.scss.
 // ═══════════════════════════════════════════════════════════════════════════
-
-:host {
-  --co-ref-radius: 0.875rem; // 14px — pannelli e sezione righe
-  --co-ref-radius-sm: 0.625rem; // 10px — controlli e bottoni
-  --co-ref-radius-md: 0.75rem; // 12px — banner, stato vuoto, dock
-  --co-ref-control-h: 2.875rem; // 46px — altezza dei controlli
-  --co-ref-dock-h: 3.125rem; // 50px — bottoni del dock
-  --co-ref-toggle-h: 4rem; // 64px — riga di intestazione del pannello
-  --co-ref-icon: 2.375rem; // 38px — medaglione icona del pannello
-  --co-ref-dock-icon: 1.75rem; // 28px — medaglione icona nel dock
-  --co-ref-back-h: 2.625rem; // 42px — pulsante Indietro
-  --co-ref-include-h: 2.5rem; // 40px — «Includi documento»
-  --co-ref-empty-h: 10rem; // 160px — riquadro dello stato vuoto
-  --co-ref-gutter: 0.75rem; // 12px — margine laterale della pagina
-  --co-ref-totals-pad: 0.75rem; // 12px — padding della card totali
-  --co-ref-notes-min: 5rem; // 80px — note documento: altezza di partenza
-  --co-ref-notes-max: 10rem; // 160px — note documento: tetto al trascinamento
-  --co-ref-dock-clear: 7.25rem; // 116px — spazio sotto, per non finire dietro il dock
-
-  --co-ref-text-title: 1.4375rem; // 23px — titolo pagina
-  --co-ref-text-lines: 1.0625rem; // 17px — «Righe documento»
-  --co-ref-text-panel: 0.9375rem; // 15px — titolo pannello e label campo
-  --co-ref-text-body: 0.875rem; // 14px — testo dei bottoni finali
-  --co-ref-text-meta: 0.75rem; // 12px — sottotitoli e stato
-
-  --co-ref-accent-soft: #e9f2f1; // tinta del medaglione icona
-  --co-ref-lines-bg: rgb(255 255 255 / 0.58);
-  --co-ref-empty-bg: rgb(255 255 255 / 0.46);
-}
 
 // Le due viste convivono nel DOM (stesso schema di tabella/card delle righe):
 // i pannelli restano spenti finche' non si scende sotto lg.
@@ -60,7 +33,7 @@
   // qui: il rientro si annulla localmente, solo per questo form.
   //
   // Il solo margine negativo non basta: il host ha gia' `inline-size: 100%`
-  // (goods-receipt-form.component.scss, condiviso con l'Arrivo merce) — una
+  // (styles/_document-form.scss) — una
   // percentuale, non `auto`. Un margine negativo su un `width: auto` fa
   // sanguinare il box oltre il contenitore; su un valore fisso non allarga
   // nulla, sposta solo il bordo sinistro, e il browser scarta in silenzio il
@@ -79,16 +52,16 @@
     }
   }
 
-  .co-form.gr-form {
-    padding-inline: var(--co-ref-gutter);
+  .co-form.doc-form {
+    padding-inline: var(--doc-m-gutter);
     // Il dock e' fisso: il documento gli lascia sotto lo spazio che occupa,
     // cosi' azioni finali, totali e note restano raggiungibili.
-    padding-block-end: var(--co-ref-dock-clear);
+    padding-block-end: var(--doc-m-dock-clear);
   }
 
   // Non sticky: nella reference la riga del titolo scorre col documento. Da
   // sticky si sovrapponeva alle righe, che le passavano sopra e sotto.
-  .co-form .gr-form__head-row {
+  .co-form .doc-form__head-row {
     position: static;
     display: flex;
     align-items: center;
@@ -96,24 +69,19 @@
     padding-block: 0 var(--space-3);
   }
 
-  .co-form .gr-form__title {
+  .co-form .doc-form__title {
     min-inline-size: 0;
-    font-size: var(--co-ref-text-title);
+    font-size: var(--doc-m-text-title);
     line-height: 1.08;
     letter-spacing: -0.035em;
   }
 
-  .co-form ::ng-deep .back-button {
-    flex-shrink: 0;
-    gap: var(--space-1);
-    min-block-size: var(--co-ref-back-h);
-    padding-inline: var(--space-3);
-    color: var(--co-text);
-    background-color: var(--co-surface);
-    border: var(--border-width) solid var(--co-line-strong);
-    border-radius: var(--co-ref-radius-sm);
-    font-size: var(--co-ref-text-body);
-    font-weight: var(--font-weight-semibold);
+  .co-form {
+    --back-button-gap: var(--space-1);
+    --back-button-h: var(--doc-m-back-h);
+    --back-button-radius: var(--doc-m-radius-sm);
+    --back-button-font-size: var(--doc-m-text-body);
+    --back-button-font-weight: var(--font-weight-semibold);
   }
 
   // ── Pannelli della testata ────────────────────────────────────────────────
@@ -122,7 +90,7 @@
   // overflow visible: le tendine di select e date devono poter uscire dalla
   // card, altrimenti si aprono dentro e restano tagliate. La cornice tonda la
   // ottengono i figli, che si arrotondano da soli (vedi toggle e corpo).
-  .co-form .gr-form__header {
+  .co-form .doc-form__header {
     display: grid;
     gap: var(--space-2);
     overflow: visible;
@@ -140,10 +108,10 @@
   .co-panel {
     position: relative;
     overflow: visible;
-    background-color: var(--co-surface);
-    border: var(--border-width) solid var(--co-line);
-    border-radius: var(--co-ref-radius);
-    box-shadow: var(--co-shadow);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--doc-m-radius);
+    box-shadow: var(--shadow-card);
   }
 
   // Il pannello con una tendina aperta passa sopra a quello che segue.
@@ -154,33 +122,33 @@
 
   .co-panel__toggle {
     display: grid;
-    grid-template-columns: var(--co-ref-icon) minmax(0, 1fr) auto;
+    grid-template-columns: var(--doc-m-icon) minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--space-2);
     inline-size: 100%;
-    min-block-size: var(--co-ref-toggle-h);
+    min-block-size: var(--doc-m-toggle-h);
     padding: var(--space-2) var(--space-3);
-    color: var(--co-text);
+    color: var(--color-text);
     text-align: start;
-    background-color: var(--co-surface);
+    background-color: var(--color-surface);
     border: 0;
-    border-start-start-radius: var(--co-ref-radius);
-    border-start-end-radius: var(--co-ref-radius);
+    border-start-start-radius: var(--doc-m-radius);
+    border-start-end-radius: var(--doc-m-radius);
     cursor: pointer;
   }
 
   .co-panel__toggle:active {
-    background-color: var(--co-surface-soft);
+    background-color: var(--color-surface-soft);
   }
 
   .co-panel__icon {
     display: grid;
     place-items: center;
-    inline-size: var(--co-ref-icon);
-    block-size: var(--co-ref-icon);
-    color: var(--co-focus);
-    background-color: var(--co-ref-accent-soft);
-    border-radius: var(--co-ref-radius-sm);
+    inline-size: var(--doc-m-icon);
+    block-size: var(--doc-m-icon);
+    color: var(--color-focus);
+    background-color: var(--doc-m-accent-soft);
+    border-radius: var(--doc-m-radius-sm);
   }
 
   .co-panel__copy {
@@ -190,7 +158,7 @@
   .co-panel__copy strong {
     display: block;
     overflow: hidden;
-    font-size: var(--co-ref-text-panel);
+    font-size: var(--doc-m-text-panel);
     font-weight: var(--font-weight-bold);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -216,7 +184,7 @@
   .co-panel__summary-part:not(:last-child)::after {
     content: '·';
     margin-inline-start: var(--space-2);
-    color: var(--co-subtle);
+    color: var(--color-text-subtle);
   }
 
   // Il riepilogo va a capo invece di troncarsi: «Pagamento non indicato» in
@@ -224,14 +192,14 @@
   .co-panel__copy small {
     display: block;
     margin-block-start: 0.1875rem;
-    color: var(--co-muted);
-    font-size: var(--co-ref-text-meta);
+    color: var(--color-text-muted);
+    font-size: var(--doc-m-text-meta);
     line-height: 1.35;
     overflow-wrap: anywhere;
   }
 
   .co-panel__chevron {
-    color: var(--co-muted);
+    color: var(--color-text-muted);
     transition: transform var(--transition-fast) var(--ease-standard);
   }
 
@@ -244,8 +212,8 @@
   .co-panel__body {
     display: none;
     padding: var(--space-3);
-    background-color: var(--co-surface-soft);
-    border-block-start: var(--border-width) solid var(--co-line);
+    background-color: var(--color-surface-soft);
+    border-block-start: var(--border-width) solid var(--color-border);
   }
 
   .co-panel--open .co-panel__body {
@@ -254,15 +222,15 @@
 
   // Senza overflow: hidden sulla card, gli angoli bassi se li arrotonda il corpo.
   .co-panel__body:last-child {
-    border-end-start-radius: var(--co-ref-radius);
-    border-end-end-radius: var(--co-ref-radius);
+    border-end-start-radius: var(--doc-m-radius);
+    border-end-end-radius: var(--doc-m-radius);
   }
 
   .co-panel__section {
     margin: 0 0 var(--space-2);
-    color: var(--co-muted);
+    color: var(--color-text-muted);
     font-size: var(--text-2xs);
-    font-weight: var(--font-weight-extrabold);
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.065em;
     text-transform: uppercase;
   }
@@ -281,50 +249,40 @@
 
   // In mezza colonna il rientro conta piu' dell'aria: i due controlli lo
   // stringono per lasciare tutto lo spazio al valore.
-  .co-panel__fields--two .co-panel__field ::ng-deep .select-menu__trigger,
-  .co-panel__fields--two .co-panel__field ::ng-deep .date-input__control {
-    gap: var(--space-1);
-    padding-inline: var(--space-2);
-    font-size: var(--text-md);
-  }
-
-  .co-panel__fields--two .co-panel__field ::ng-deep .date-input__field {
-    font-size: var(--text-md);
+  .co-panel__fields--two .co-panel__field {
+    --field-gap: var(--space-1);
+    --field-pad-inline: var(--space-2);
+    --field-font-size: var(--text-md);
   }
 
   // La data e' l'unico valore che non puo' accorciarsi: le si lascia tutto lo
-  // spazio della cella, rientro compreso.
-  .co-panel__fields--two .co-panel__field ::ng-deep .date-input__control {
-    padding-inline: var(--space-1);
-  }
-
-  // Il pulsante del calendario si stringe: resta alto quanto il campo, quindi
-  // comodo da premere, ma smette di rubare larghezza alla data.
-  .co-panel__fields--two ::ng-deep .date-input__toggle {
-    inline-size: var(--space-5);
-    min-inline-size: var(--space-5);
-    padding-inline: 0;
+  // spazio della cella, rientro compreso, e il pulsante del calendario si
+  // stringe — resta alto quanto il campo, quindi comodo da premere, ma smette
+  // di rubare larghezza alla data.
+  .co-panel__fields--two app-date-input {
+    --field-pad-inline: var(--space-1);
+    --date-input-toggle-w: var(--space-5);
+    --date-input-toggle-pad: 0;
   }
 
   // Il calendario non e' piu' largo quanto il campo che lo apre: in mezza
   // colonna sette giorni per riga diventavano illeggibili. Esce dalla colonna
   // e arriva fino al bordo destro dello Stato — due colonne piu' lo stacco,
   // cioe' tutta la riga — restando comunque dentro lo schermo.
-  .co-panel__field ::ng-deep .date-input__panel {
-    inset-inline: 0 auto;
-    max-inline-size: calc(100vw - var(--space-6));
+  .co-panel__field {
+    --date-input-panel-inset: 0 auto;
+    --date-input-panel-max-w: calc(100vw - var(--space-6));
   }
 
-  .co-panel__fields--two .co-panel__field ::ng-deep .date-input__panel {
-    inline-size: calc(200% + var(--space-3));
-    min-inline-size: 100%;
+  .co-panel__fields--two .co-panel__field {
+    --date-input-panel-w: calc(200% + var(--space-3));
   }
 
   // In colonna stretta l'icona calendario davanti alla data e' di troppo: il
   // pulsante che apre il picker dice gia' che campo e', e senza di lei la data
   // ci sta per intero invece di troncarsi a «27/07/2…».
-  .co-panel__fields--two ::ng-deep .date-input__icon {
-    display: none;
+  .co-panel__fields--two {
+    --date-input-icon-display: none;
   }
 
   .co-panel__field {
@@ -333,7 +291,7 @@
     min-inline-size: 0;
     // I campi del pannello portano l'altezza della reference ai controlli
     // condivisi (select e date picker la leggono da qui).
-    --field-height: var(--co-ref-control-h);
+    --field-height: var(--doc-m-control-h);
     // Senza questo select e date restano larghi 14rem di default: in due
     // colonne sforano la propria e finiscono sopra al campo accanto.
     --select-menu-width: 100%;
@@ -350,8 +308,8 @@
   }
 
   .co-panel__label {
-    color: var(--co-text);
-    font-size: var(--co-ref-text-panel);
+    color: var(--color-text);
+    font-size: var(--doc-m-text-panel);
     font-weight: var(--font-weight-semibold);
     line-height: 1.2;
     letter-spacing: normal;
@@ -376,10 +334,10 @@
     inline-size: fit-content;
     min-block-size: var(--space-7, 1.75rem);
     padding: 0;
-    color: var(--co-focus);
+    color: var(--color-focus);
     background: none;
     border: 0;
-    font-size: var(--co-ref-text-meta);
+    font-size: var(--doc-m-text-meta);
     font-weight: var(--font-weight-semibold);
     white-space: nowrap;
     cursor: pointer;
@@ -388,29 +346,34 @@
   // ── Controlli: stesso riquadro per select, date picker e input di testo ───
   // Nella reference l'area del valore e' incorniciata su tutti i tipi: e' cosi'
   // che si distingue un campo compilabile da un dato scritto.
-  .co-panel__control,
-  .co-panel__field ::ng-deep .select-menu__trigger,
-  .co-panel__field ::ng-deep .date-input__control {
+  // Il riquadro arriva ai controlli condivisi attraverso il vocabolario
+  // --field-*: select e date picker lo leggono entrambi, e il focus lo
+  // disegnano da soli (--field-focus-ring), come ogni altro campo dell'app.
+  .co-panel__field {
+    --field-h: var(--doc-m-control-h);
+    --field-pad-inline: var(--space-3);
+    --field-fg: var(--color-text);
+    --field-bg: var(--color-surface);
+    --field-bg-hover: var(--color-surface);
+    --field-border-color: var(--color-border-strong);
+    --field-radius: var(--doc-m-radius-sm);
+  }
+
+  .co-panel__control {
     inline-size: 100%;
-    min-block-size: var(--co-ref-control-h);
+    min-block-size: var(--doc-m-control-h);
     padding-inline: var(--space-3);
-    color: var(--co-text);
-    background-color: var(--co-surface);
-    border: var(--border-width) solid var(--co-line-strong);
-    border-radius: var(--co-ref-radius-sm);
-    font-size: var(--co-text-touch);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border-strong);
+    border-radius: var(--doc-m-radius-sm);
+    font-size: var(--text-lg);
   }
 
-  .co-panel__control:focus-visible,
-  .co-panel__field ::ng-deep .select-menu__trigger:focus-visible,
-  .co-panel__field ::ng-deep .date-input__control:focus-within {
+  .co-panel__control:focus-visible {
     outline: none;
-    border-color: var(--co-focus);
-    box-shadow: 0 0 0 3px var(--co-focus-soft);
-  }
-
-  .co-panel__field ::ng-deep .date-input__field {
-    font-size: var(--co-text-touch);
+    border-color: var(--color-focus);
+    box-shadow: var(--field-focus-ring);
   }
 
   // Il select apre un picker al tap: non gli serve il 16px anti-zoom iOS che il
@@ -418,8 +381,8 @@
   // e si rimpiccioliva aprendo la tendina (opzioni 13px). A 14px la gerarchia
   // torna coerente (15 · 14 · 13); la label del trigger eredita da qui. Input di
   // testo e data digitabile restano a 16px.
-  .co-panel__field ::ng-deep .select-menu__trigger {
-    font-size: var(--text-md);
+  .co-panel__field {
+    --field-font-size: var(--text-md);
   }
 
   // ── Riga di stato dei dati principali ─────────────────────────────────────
@@ -431,41 +394,41 @@
     gap: var(--space-2);
     margin: var(--space-2) 0 0;
     padding-block-start: var(--space-2);
-    color: var(--co-muted);
-    border-block-start: var(--border-width) solid var(--co-line);
-    font-size: var(--co-ref-text-meta);
+    color: var(--color-text-muted);
+    border-block-start: var(--border-width) solid var(--color-border);
+    font-size: var(--doc-m-text-meta);
   }
 
   .co-panel__status-dot {
     flex: 0 0 auto;
     inline-size: var(--space-2);
     block-size: var(--space-2);
-    background-color: var(--co-warn);
+    background-color: var(--color-warning);
     border-radius: var(--radius-full);
   }
 
   .co-panel__status--ready .co-panel__status-dot {
-    background-color: var(--co-ok);
+    background-color: var(--color-ok);
   }
 
   .co-panel__helper {
     margin: var(--space-2) 0 0;
-    color: var(--co-muted);
-    font-size: var(--co-ref-text-meta);
+    color: var(--color-text-muted);
+    font-size: var(--doc-m-text-meta);
     line-height: 1.4;
   }
 
   // ── Banner del gate ───────────────────────────────────────────────────────
-  .co-form .gr-form__gate-banner {
+  .co-form .doc-form__gate-banner {
     display: flex;
     align-items: flex-start;
     gap: var(--space-2);
     margin: 0;
     padding: var(--space-3);
-    color: var(--co-warn-fg);
-    background-color: var(--co-warn-bg);
-    border: var(--border-width) solid var(--co-warn);
-    border-radius: var(--co-ref-radius-md);
+    color: var(--color-warning);
+    background-color: var(--color-warning-subtle);
+    border: var(--border-width) solid var(--color-warning);
+    border-radius: var(--doc-m-radius-md);
     font-size: var(--text-sm);
     line-height: 1.42;
   }
@@ -476,22 +439,22 @@
   // spenti e il banner sopra, mentre titolo e stato vuoto vanno letti — sono
   // proprio loro a spiegare cosa fare. L'attributo disabled resta, quindi
   // niente cambia sul piano funzionale.
-  .co-form .gr-form__gate-fields:disabled,
-  .co-form .gr-form__gate-fields:disabled > * {
+  .co-form .doc-form__gate-fields:disabled,
+  .co-form .doc-form__gate-fields:disabled > * {
     opacity: 1;
   }
 
-  .co-form .gr-form__lines {
+  .co-form .doc-form__lines {
     padding: var(--space-3);
-    background-color: var(--co-ref-lines-bg);
-    border: var(--border-width) solid var(--co-line);
-    border-radius: var(--co-ref-radius);
+    background-color: var(--doc-m-lines-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--doc-m-radius);
   }
 
   // Titolo a sinistra e «Includi documento» a destra sulla stessa riga: il
   // foglio mobile precedente li impilava per far posto alla toolbar desktop,
   // che qui non c'e' piu'.
-  .co-form .gr-form__lines-head {
+  .co-form .doc-form__lines-head {
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -499,43 +462,43 @@
     gap: var(--space-2);
   }
 
-  .co-form .gr-form__lines-head .gr-form__subtitle {
+  .co-form .doc-form__lines-head .doc-form__subtitle {
     margin: 0;
-    font-size: var(--co-ref-text-lines);
+    font-size: var(--doc-m-text-lines);
     font-weight: var(--font-weight-bold);
     letter-spacing: -0.015em;
   }
 
-  .co-lines__include ::ng-deep .app-button {
-    min-block-size: var(--co-ref-include-h);
-    padding-inline: var(--space-3);
-    border-radius: var(--co-ref-radius-sm);
-    font-size: var(--text-sm);
+  .co-lines__include {
+    --button-h: var(--doc-m-include-h);
+    --button-pad-inline: var(--space-3);
+    --button-radius: var(--doc-m-radius-sm);
+    --button-font-size: var(--text-sm);
   }
 
   .co-lines__empty {
     display: grid;
     place-items: center;
-    min-block-size: var(--co-ref-empty-h);
+    min-block-size: var(--doc-m-empty-h);
     margin-block-start: var(--space-3);
     padding: var(--space-4);
-    color: var(--co-subtle);
+    color: var(--color-text-subtle);
     text-align: center;
-    background-color: var(--co-ref-empty-bg);
-    border: var(--border-width) dashed var(--co-line-strong);
-    border-radius: var(--co-ref-radius-md);
+    background-color: var(--doc-m-empty-bg);
+    border: var(--border-width) dashed var(--color-border-strong);
+    border-radius: var(--doc-m-radius-md);
   }
 
   .co-lines__empty strong {
     display: block;
-    color: var(--co-muted);
-    font-size: var(--co-ref-text-body);
+    color: var(--color-text-muted);
+    font-size: var(--doc-m-text-body);
   }
 
   .co-lines__empty p {
     max-inline-size: 17rem;
     margin: var(--space-1) 0 0;
-    font-size: var(--co-ref-text-meta);
+    font-size: var(--doc-m-text-meta);
     line-height: 1.45;
   }
 
@@ -551,9 +514,9 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-1);
-    min-block-size: var(--co-ref-control-h);
+    min-block-size: var(--doc-m-control-h);
     padding-inline: var(--space-2);
-    border-radius: var(--co-ref-radius-sm);
+    border-radius: var(--doc-m-radius-sm);
     font-size: var(--text-sm);
     font-weight: var(--font-weight-bold);
     line-height: 1.15;
@@ -562,21 +525,21 @@
   }
 
   .co-lines__action--empty {
-    color: var(--co-text);
-    background-color: var(--co-surface);
-    border: var(--border-width) solid var(--co-line-strong);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border-strong);
   }
 
   .co-lines__action--product {
-    color: var(--co-focus);
-    background-color: var(--co-ref-accent-soft);
-    border: var(--border-width) solid var(--co-line-strong);
+    color: var(--color-focus);
+    background-color: var(--doc-m-accent-soft);
+    border: var(--border-width) solid var(--color-border-strong);
   }
 
   .co-lines__action:disabled {
-    color: var(--co-subtle);
-    background-color: var(--co-surface-soft);
-    border-color: var(--co-line);
+    color: var(--color-text-subtle);
+    background-color: var(--color-surface-soft);
+    border-color: var(--color-border);
     cursor: not-allowed;
   }
 
@@ -585,18 +548,18 @@
   // arriva ai bordi da sola, senza doverne uscire con margini negativi. Farla
   // sbordare non funzionava — l'elenco ritaglia (overflow nascosto) e la tinta
   // si fermava prima del bordo, lasciando il bianco che si vedeva intorno.
-  .co-form .gr-form__totals-bar {
+  .co-form .doc-form__totals-bar {
     padding: 0;
     overflow: hidden;
   }
 
-  .co-form .gr-form__totals-row {
-    padding-inline: var(--co-ref-totals-pad);
+  .co-form .doc-form__totals-row {
+    padding-inline: var(--doc-m-totals-pad);
   }
 
   // Margine sopra a zero: la fascia attacca alla riga dell'IVA invece di
   // lasciare una riga di bianco sopra di se'.
-  .co-form .gr-form__totals-row--total {
+  .co-form .doc-form__totals-row--total {
     margin-block: 0;
   }
 
@@ -604,20 +567,20 @@
   // dello sconto su desktop. Su mobile la stessa cella ospita il pulsante
   // «+ Aggiungi sconto», che e' il doppio: si tagliava. Ora la cella si adatta
   // al contenuto e la misura fissa resta al solo campo numerico.
-  .co-form .gr-form__totals-row--field dd {
+  .co-form .doc-form__totals-row--field dd {
     inline-size: auto;
   }
 
-  .co-form .gr-form__totals-input {
+  .co-form .doc-form__totals-input {
     inline-size: var(--space-16);
   }
 
   // ── Note documento ────────────────────────────────────────────────────────
   // A 32px il campo mostrava una riga scarsa e sembrava un input, non un'area
   // per scriverci dentro. Resta trascinabile, con un tetto piu' alto.
-  .co-form .gr-form__footer-notes .gr-form__textarea {
-    min-block-size: var(--co-ref-notes-min);
-    max-block-size: var(--co-ref-notes-max);
+  .co-form .doc-form__footer-notes .doc-form__textarea {
+    min-block-size: var(--doc-m-notes-min);
+    max-block-size: var(--doc-m-notes-max);
   }
 
   // ── Azioni finali del documento ───────────────────────────────────────────
@@ -630,12 +593,12 @@
     padding-block: var(--space-6) var(--space-1);
   }
 
-  .co-form .co-form__mobile-actions ::ng-deep .app-button {
-    min-block-size: var(--co-ref-control-h);
-    padding-inline: var(--space-4);
-    border-radius: var(--co-ref-radius-sm);
-    font-size: var(--co-ref-text-body);
-    font-weight: var(--font-weight-bold);
+  .co-form .co-form__mobile-actions {
+    --button-h: var(--doc-m-control-h);
+    --button-pad-inline: var(--space-4);
+    --button-radius: var(--doc-m-radius-sm);
+    --button-font-size: var(--doc-m-text-body);
+    --button-font-weight: var(--font-weight-bold);
   }
 
   // ── Dock in basso ─────────────────────────────────────────────────────────
@@ -645,10 +608,10 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--space-2);
-    padding: var(--space-1) var(--co-ref-gutter) calc(var(--space-1) + env(safe-area-inset-bottom));
-    background-color: var(--co-surface);
-    border-block-start: var(--border-width) solid var(--co-line);
-    box-shadow: 0 -8px 24px rgb(26 42 47 / 0.08);
+    padding: var(--space-1) var(--doc-m-gutter) calc(var(--space-1) + env(safe-area-inset-bottom));
+    background-color: var(--color-surface);
+    border-block-start: var(--border-width) solid var(--color-border);
+    box-shadow: var(--shadow-footer);
   }
 
   .co-dock__action {
@@ -657,9 +620,9 @@
     justify-content: center;
     gap: var(--space-2);
     min-inline-size: 0;
-    min-block-size: var(--co-ref-dock-h);
+    min-block-size: var(--doc-m-dock-h);
     padding-inline: var(--space-3);
-    border-radius: var(--co-ref-radius-md);
+    border-radius: var(--doc-m-radius-md);
     font-size: var(--text-sm);
     font-weight: var(--font-weight-bold);
     line-height: 1.15;
@@ -670,44 +633,44 @@
     display: inline-grid;
     place-items: center;
     flex: 0 0 auto;
-    inline-size: var(--co-ref-dock-icon);
-    block-size: var(--co-ref-dock-icon);
+    inline-size: var(--doc-m-dock-icon);
+    block-size: var(--doc-m-dock-icon);
     border-radius: var(--space-2);
   }
 
   .co-dock__action--product {
-    color: var(--co-focus);
-    background-color: var(--co-surface);
-    border: var(--border-width) solid var(--co-line-strong);
+    color: var(--color-focus);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border-strong);
   }
 
   .co-dock__action--product .co-dock__icon {
-    color: var(--co-focus);
-    background-color: var(--co-ref-accent-soft);
+    color: var(--color-focus);
+    background-color: var(--doc-m-accent-soft);
   }
 
   .co-dock__action--scan {
     color: var(--color-text-inverse);
-    background-color: var(--co-brand);
-    border: var(--border-width) solid var(--co-brand);
+    background-color: var(--color-primary);
+    border: var(--border-width) solid var(--color-primary);
   }
 
   .co-dock__action--scan .co-dock__icon {
     color: var(--color-text-inverse);
-    background-color: rgb(255 255 255 / 0.12);
+    background-color: var(--color-on-dark-surface);
   }
 
   .co-dock__action--product:disabled {
-    color: var(--co-subtle);
-    background-color: var(--co-surface-soft);
-    border-color: var(--co-line);
+    color: var(--color-text-subtle);
+    background-color: var(--color-surface-soft);
+    border-color: var(--color-border);
     box-shadow: none;
     cursor: not-allowed;
   }
 
   .co-dock__action--product:disabled .co-dock__icon {
-    color: var(--co-subtle);
-    background-color: var(--co-surface);
+    color: var(--color-text-subtle);
+    background-color: var(--color-surface);
   }
 
   // «Scansiona» disabilitato tiene lo sfondo brand come «Salva ordine»: solo
@@ -715,7 +678,7 @@
   // componente app-button (opacity .6 senza toccare il colore), applicato qui
   // perche' il dock non e' un app-button ma un bottone HTML proprio.
   .co-dock__action--scan:disabled {
-    opacity: 0.6;
+    opacity: var(--opacity-disabled);
     box-shadow: none;
     cursor: not-allowed;
   }
@@ -723,7 +686,7 @@
 
 // Phone stretto (< 360px): le coppie affiancate non ci stanno piu'.
 @include bp.media-down('xs') {
-  .co-form .gr-form__title {
+  .co-form .doc-form__title {
     font-size: var(--text-xl);
   }
 

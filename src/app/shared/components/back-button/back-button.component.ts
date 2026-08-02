@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -27,6 +27,15 @@ export class BackButtonComponent {
   /** Rotta di ritorno esplicita, quando quella dedotta dall'URL non basta. */
   readonly fallbackLink = input<string | null>(null);
 
+  /**
+   * La freccia non naviga: emette `backRequested` e basta. Serve dove uscire
+   * non e' solo cambiare pagina — una maschera con modifiche non salvate deve
+   * poter chiedere conferma prima, e la guardia di rotta da sola non copre chi
+   * monta il form fuori da una rotta.
+   */
+  readonly deferNavigation = input(false);
+  readonly backRequested = output<void>();
+
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly router = inject(Router);
 
@@ -49,6 +58,10 @@ export class BackButtonComponent {
   );
 
   protected goBack(): void {
+    if (this.deferNavigation()) {
+      this.backRequested.emit();
+      return;
+    }
     if (this.navHistory.canGoBack()) {
       this.navHistory.back();
       return;

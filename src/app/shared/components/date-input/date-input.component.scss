@@ -25,24 +25,29 @@
   max-inline-size: 100%;
 }
 
+// Punti di regolazione: un contenitore piu' denso imposta queste custom
+// property su di se'. Attraversano il confine del componente per costruzione,
+// quindi non serve ::ng-deep per configurarlo dall'esterno.
 .date-input__control {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  min-block-size: var(--btn-min-height);
-  padding-inline-start: var(--space-3);
+  gap: var(--field-gap, var(--space-2));
+  min-block-size: var(--field-h, var(--btn-min-height));
+  padding-inline-start: var(--field-pad-inline, var(--space-3));
   inline-size: 100%;
   max-inline-size: 100%;
-  background-color: var(--color-input-bg);
-  border: var(--border-width) solid var(--color-input-border);
-  border-radius: var(--radius-md);
+  color: var(--field-fg, inherit);
+  font-size: var(--field-font-size, inherit);
+  background-color: var(--field-bg, var(--color-input-bg));
+  border: var(--border-width) solid var(--field-border-color, var(--color-input-border));
+  border-radius: var(--field-radius, var(--radius-md));
   transition:
     background-color var(--transition-fast) var(--ease-standard),
     border-color var(--transition-fast) var(--ease-standard),
     box-shadow var(--transition-fast) var(--ease-standard);
 
   &:focus-within {
-    border-color: var(--color-interactive);
+    border-color: var(--color-focus);
     box-shadow: var(--field-focus-ring);
   }
 }
@@ -73,7 +78,7 @@
   min-inline-size: 0;
   padding: 0;
   color: var(--color-text);
-  font-size: var(--text-sm);
+  font-size: var(--field-font-size, var(--text-sm));
   font-weight: var(--font-weight-medium);
   font-variant-numeric: tabular-nums;
   background: transparent;
@@ -87,7 +92,7 @@
 
   &:disabled {
     cursor: not-allowed;
-    opacity: 0.6;
+    opacity: var(--opacity-disabled);
   }
 }
 
@@ -96,7 +101,9 @@
   align-items: center;
   justify-content: center;
   align-self: stretch;
-  padding-inline: var(--space-2);
+  inline-size: var(--date-input-toggle-w, auto);
+  min-inline-size: var(--date-input-toggle-w, auto);
+  padding-inline: var(--date-input-toggle-pad, var(--space-2));
   background: transparent;
   border: none;
   border-start-end-radius: var(--radius-md);
@@ -115,7 +122,7 @@
 
   &:disabled {
     cursor: not-allowed;
-    opacity: 0.6;
+    opacity: var(--opacity-disabled);
   }
 }
 
@@ -126,7 +133,10 @@
   line-height: var(--leading-normal);
 }
 
+// In una griglia stretta l'icona ruba la larghezza del testo: il contenitore
+// la spegne con `--date-input-icon-display: none`.
 .date-input__icon {
+  display: var(--date-input-icon-display, inline-block);
   flex-shrink: 0;
   color: var(--color-text-subtle);
   font-size: var(--text-sm);
@@ -146,10 +156,12 @@
 .date-input__panel {
   position: absolute;
   inset-block-start: calc(100% + var(--space-1));
-  inset-inline: 0;
-  inline-size: 100%;
-  min-inline-size: 100%;
-  max-inline-size: 100%;
+  // Il calendario e' piu' largo del campo quando il campo sta in mezza
+  // colonna: il contenitore lo lascia debordare dichiarando queste tre.
+  inset-inline: var(--date-input-panel-inset, 0);
+  inline-size: var(--date-input-panel-w, 100%);
+  min-inline-size: var(--date-input-panel-min-w, 100%);
+  max-inline-size: var(--date-input-panel-max-w, 100%);
   z-index: var(--z-dropdown);
   padding: var(--space-3);
   background-color: var(--color-surface);

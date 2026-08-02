@@ -9,15 +9,19 @@
   flex-direction: column;
 }
 
+// Punto di regolazione: in una card mobile lo scanner occupa la riga intera,
+// in un form denso si dimensiona sul contenuto.
 .barcode-scanner__control {
   display: flex;
   align-items: flex-end;
+  inline-size: var(--barcode-scanner-w, auto);
 }
 
 .barcode-scanner__viewport {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  inline-size: var(--barcode-scanner-w, auto);
 }
 
 .barcode-scanner__video {

@@ -1,0 +1,15 @@
+<div class="inline-banner" [class]="'inline-banner--' + tone()" [attr.role]="role()">
+  <span class="inline-banner__text">
+    @if (message()) {
+      {{ message() }}
+    } @else {
+      <ng-content />
+    }
+  </span>
+
+  @if (dismissLabel(); as label) {
+    <button type="button" class="inline-banner__dismiss" (click)="dismissed.emit()">
+      {{ label }}
+    </button>
+  }
+</div>

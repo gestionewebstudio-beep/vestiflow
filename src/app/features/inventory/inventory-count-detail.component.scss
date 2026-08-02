@@ -74,15 +74,6 @@
   gap: var(--space-2);
 }
 
-.count-detail__alert {
-  padding: var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--status-error-fg);
-  background-color: var(--status-error-bg);
-  border: var(--border-width) solid var(--status-error-border);
-  border-radius: var(--radius-md);
-}
-
 .count-detail__review-banner {
   padding: var(--space-3) var(--space-4);
   font-size: var(--text-sm);
@@ -157,12 +148,9 @@
 }
 
 .count-detail__scan-form app-barcode-scanner {
-  align-self: auto;
+  --button-h: var(--field-height);
 
-  ::ng-deep .app-button {
-    block-size: var(--field-height);
-    min-block-size: var(--field-height);
-  }
+  align-self: auto;
 }
 
 @include bp.media-up('sm') {

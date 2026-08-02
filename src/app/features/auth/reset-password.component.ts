@@ -26,6 +26,7 @@ import { APP_CONFIG } from '@core/config/app-config.token';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 function passwordsMatch(control: AbstractControl): ValidationErrors | null {
   if (!(control instanceof FormGroup)) {
@@ -46,7 +47,7 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-reset-password',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, ButtonComponent],
+  imports: [ReactiveFormsModule, RouterLink, ButtonComponent, InlineBannerComponent],
   templateUrl: './reset-password.component.html',
   styleUrl: './auth-page.component.scss',
 })

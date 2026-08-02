@@ -173,7 +173,7 @@
 .picker__row-copy {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-05);
   flex: 1 1 auto;
   min-inline-size: 0;
 }
@@ -261,7 +261,10 @@
   border-block-start: var(--border-width) solid var(--color-border);
 }
 
-.picker__foot app-button,
-.picker__foot ::ng-deep .app-button {
+.picker__foot {
+  --button-inline-size: 100%;
+}
+
+.picker__foot app-button {
   inline-size: 100%;
 }

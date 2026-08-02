@@ -1,10 +1,10 @@
 @if (linked()) {
-  <p class="gr-code-cell__linked" [title]="linkedValue()">{{ linkedValue() || '—' }}</p>
+  <p class="doc-code-cell__linked" [title]="linkedValue()">{{ linkedValue() || '—' }}</p>
 } @else {
-  <div class="gr-code-cell">
+  <div class="doc-code-cell">
     <input
       #codeInput
-      class="gr-code-cell__input"
+      class="doc-code-cell__input"
       type="text"
       [id]="inputId() || null"
       [disabled]="disabled()"
@@ -21,7 +21,7 @@
     />
     @if (suggestionsOpen() && suggestions().length > 0) {
       <ul
-        class="gr-code-cell__suggestions"
+        class="doc-code-cell__suggestions"
         role="listbox"
         [id]="listboxId()"
         [attr.aria-label]="'Suggerimenti ' + ariaLabel()"
@@ -30,15 +30,15 @@
           <li
             role="option"
             tabindex="0"
-            class="gr-code-cell__suggestion"
-            [class.gr-code-cell__suggestion--active]="i === activeSuggestionIndex()"
+            class="doc-code-cell__suggestion"
+            [class.doc-code-cell__suggestion--active]="i === activeSuggestionIndex()"
             [attr.aria-selected]="i === activeSuggestionIndex()"
             (mousedown)="$event.preventDefault()"
             (click)="pickSuggestion(item.variantId)"
             (keydown)="onSuggestionKeydown($event, item.variantId)"
           >
-            <span class="gr-code-cell__suggestion-title">{{ item.title }}</span>
-            <span class="gr-code-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
+            <span class="doc-code-cell__suggestion-title">{{ item.title }}</span>
+            <span class="doc-code-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
           </li>
         }
       </ul>

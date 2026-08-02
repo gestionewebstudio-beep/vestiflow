@@ -1,9 +1,9 @@
-<section class="gr-form co-form">
-  <div class="gr-form__head-row">
+<section class="doc-form co-form">
+  <div class="doc-form__head-row">
     <!-- Ritorno alla schermata precedente: nel mockup è il quadratino col
          chevron a sinistra del titolo, non un link sopra. -->
     <app-back-button />
-    <h1 class="gr-form__title">
+    <h1 class="doc-form__title">
       {{ pageTitle() }}
       <!-- Modifiche non salvate: su mobile un puntino accanto al titolo (la riga
            testuale co-form__save-state resta su desktop, nascosta sotto lg). -->
@@ -18,13 +18,13 @@
     </h1>
 
     @if (isEditMode()) {
-      <div class="gr-form__meta">
+      <div class="doc-form__meta">
         <!-- Preventivo e DDT vendita: nessuno stato documento (resta il numero). -->
         @if (isOrder) {
           <app-badge [tone]="stateBadgeTone()">{{ stateBadgeLabel() }}</app-badge>
         }
         @if (internalReferenceLabel(); as ref) {
-          <span class="gr-form__internal-ref tabular-nums">N. documento: {{ ref }}</span>
+          <span class="doc-form__internal-ref tabular-nums">N. documento: {{ ref }}</span>
         }
       </div>
     }
@@ -106,11 +106,11 @@
   </div>
 
   @if (headerMenuOpen()) {
-    <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="closeHeaderMenu()"></div>
+    <div class="doc-form__menu-backdrop" aria-hidden="true" (click)="closeHeaderMenu()"></div>
   }
 
   @if (saveWarnings().length > 0) {
-    <div class="gr-form__warning-banner" role="status">
+    <div class="doc-form__warning-banner" role="status">
       @for (warning of saveWarnings(); track warning) {
         <p>{{ warning }}</p>
       }
@@ -146,11 +146,15 @@
       (ctaClick)="cancel()"
     />
   } @else {
-    <form class="gr-form__form" [class.gr-form__form--readonly]="formReadOnly()" [formGroup]="form">
+    <form
+      class="doc-form__form"
+      [class.doc-form__form--readonly]="formReadOnly()"
+      [formGroup]="form"
+    >
       @if (formReadOnly()) {
         @if (canUnlockOrder()) {
           <div
-            class="gr-form__unlock-banner"
+            class="doc-form__unlock-banner"
             role="status"
             tabindex="0"
             (click)="requestUnlockEdit()"
@@ -163,21 +167,21 @@
             </app-button>
           </div>
         } @else if (isExternalOrder()) {
-          <div class="gr-form__unlock-banner" role="status">
+          <div class="doc-form__unlock-banner" role="status">
             <p>
               Ordine proveniente da un canale esterno ({{ sourceLabel(loadedOrder()!.source) }}):
               consultabile in sola lettura. Le modifiche vanno gestite dal canale d'origine.
             </p>
           </div>
         } @else {
-          <div class="gr-form__unlock-banner" role="status">
+          <div class="doc-form__unlock-banner" role="status">
             <p>Ordine in sola lettura.</p>
           </div>
         }
       }
 
       @if (isOrder && isSettledOrder()) {
-        <div class="gr-form__unlock-banner" role="status">
+        <div class="doc-form__unlock-banner" role="status">
           <p>
             {{
               isPartiallyConcluded()
@@ -190,15 +194,15 @@
       }
 
       @if (customerAlert(); as alert) {
-        <p class="gr-form__supplier-note-banner" role="status">
+        <p class="doc-form__supplier-note-banner" role="status">
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           {{ alert }}
         </p>
       }
 
-      <fieldset class="gr-form__fieldset" [disabled]="formReadOnly()">
+      <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
         <!-- Testata compatta (stessa impostazione dell'Arrivo merce). -->
-        <div class="gr-form__header">
+        <div class="doc-form__header">
           <!-- Vista mobile: due pannelli apribili, come la reference. Vive nel
                DOM accanto alla griglia desktop e si accende sotto lg — stesso
                schema delle card riga, che convivono con la tabella.
@@ -265,7 +269,7 @@
                     />
 
                     @if (!isManualUnload && fieldInvalid('customerId')) {
-                      <p id="co-m-customer-error" class="gr-form__error">Seleziona un cliente.</p>
+                      <p id="co-m-customer-error" class="doc-form__error">Seleziona un cliente.</p>
                     }
                     @if (isManualUnload && !form.controls.customerId.value) {
                       <!-- Cliente digitato liberamente (prompt Scarico manuale):
@@ -310,13 +314,13 @@
                         (valueChange)="onLocationSelect($event)"
                       />
                     } @else {
-                      <p class="gr-form__error" role="alert">
+                      <p class="doc-form__error" role="alert">
                         Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
                         dell'account.
                       </p>
                     }
                     @if (fieldInvalid('locationId')) {
-                      <p id="co-m-location-error" class="gr-form__error">Seleziona la location.</p>
+                      <p id="co-m-location-error" class="doc-form__error">Seleziona la location.</p>
                     }
                   </div>
                 </div>
@@ -373,7 +377,7 @@
                       <div class="co-panel__field">
                         <span class="co-panel__label">Stato</span>
                         @if (isSettledOrder()) {
-                          <p class="gr-form__readonly">{{ stateBadgeLabel() }}</p>
+                          <p class="doc-form__readonly">{{ stateBadgeLabel() }}</p>
                         } @else {
                           <app-select-menu
                             [options]="stateOptions"
@@ -463,7 +467,7 @@
                       />
                     </div>
 
-                    <label class="gr-form__check gr-form__check--header">
+                    <label class="doc-form__check doc-form__check--header">
                       <input type="checkbox" formControlName="followedBySalesDoc" />
                       <span>Seguirà doc. di vendita</span>
                     </label>
@@ -489,10 +493,10 @@
 
           <div id="co-header-details" class="co-form__header-details">
             <div
-              class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact co-form__header-row"
+              class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact co-form__header-row"
             >
-              <div class="gr-form__field gr-form__field--span2">
-                <span class="gr-form__label" id="co-customer-label">
+              <div class="doc-form__field doc-form__field--span2">
+                <span class="doc-form__label" id="co-customer-label">
                   {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
                 </span>
                 <app-select-menu
@@ -512,13 +516,13 @@
                   (valueChange)="onCustomerSelect($event)"
                 />
                 @if (!isManualUnload && fieldInvalid('customerId')) {
-                  <p id="co-customer-error" class="gr-form__error">Seleziona un cliente.</p>
+                  <p id="co-customer-error" class="doc-form__error">Seleziona un cliente.</p>
                 }
                 @if (isManualUnload && !form.controls.customerId.value) {
                   <!-- Cliente digitato liberamente (prompt Scarico manuale):
                      compare solo in stampa, NON viene salvato in anagrafica. -->
                   <input
-                    class="gr-form__input"
+                    class="doc-form__input"
                     type="text"
                     formControlName="customerFreeText"
                     placeholder="…oppure digita il nome solo per la stampa"
@@ -530,7 +534,7 @@
                 <div class="co-form__inline-links">
                   <button
                     type="button"
-                    class="gr-form__inline-toggle"
+                    class="doc-form__inline-toggle"
                     (click)="toggleCustomerForm()"
                   >
                     <i
@@ -544,7 +548,7 @@
                   @if (form.controls.customerId.value) {
                     <button
                       type="button"
-                      class="gr-form__inline-toggle"
+                      class="doc-form__inline-toggle"
                       (click)="openCustomerDetail()"
                     >
                       <i class="pi pi-external-link" aria-hidden="true"></i>
@@ -554,8 +558,8 @@
                 </div>
               </div>
 
-              <div class="gr-form__field">
-                <span class="gr-form__label">{{
+              <div class="doc-form__field">
+                <span class="doc-form__label">{{
                   isQuote ? 'Location' : 'Location di origine'
                 }}</span>
                 @if (locationOptions().length > 0) {
@@ -574,18 +578,18 @@
                     (valueChange)="onLocationSelect($event)"
                   />
                 } @else {
-                  <p class="gr-form__error" role="alert">
+                  <p class="doc-form__error" role="alert">
                     Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
                     dell'account.
                   </p>
                 }
                 @if (fieldInvalid('locationId')) {
-                  <p id="co-location-error" class="gr-form__error">Seleziona la location.</p>
+                  <p id="co-location-error" class="doc-form__error">Seleziona la location.</p>
                 }
               </div>
 
-              <div class="gr-form__field gr-form__field--end-md">
-                <label class="gr-form__label" for="co-date">Data documento</label>
+              <div class="doc-form__field doc-form__field--end-md">
+                <label class="doc-form__label" for="co-date">Data documento</label>
                 <app-date-input
                   inputId="co-date"
                   formControlName="documentDate"
@@ -613,10 +617,10 @@
 
               <!-- Preventivo e DDT vendita: nessuno stato documento in testata. -->
               @if (isOrder) {
-                <div class="gr-form__field">
-                  <span class="gr-form__label">Stato</span>
+                <div class="doc-form__field">
+                  <span class="doc-form__label">Stato</span>
                   @if (isSettledOrder()) {
-                    <p class="gr-form__readonly">{{ stateBadgeLabel() }}</p>
+                    <p class="doc-form__readonly">{{ stateBadgeLabel() }}</p>
                   } @else {
                     <app-select-menu
                       [options]="stateOptions"
@@ -642,11 +646,11 @@
                 (es. «campionario fiera»), non il numero di un documento.
               -->
               @if (isManualUnload) {
-                <div class="gr-form__field">
-                  <label class="gr-form__label" for="co-external-ref">Rif.</label>
+                <div class="doc-form__field">
+                  <label class="doc-form__label" for="co-external-ref">Rif.</label>
                   <input
                     id="co-external-ref"
-                    class="gr-form__input"
+                    class="doc-form__input"
                     type="text"
                     formControlName="externalRef"
                     placeholder="Es. campionario fiera"
@@ -655,8 +659,8 @@
                 </div>
               }
               @if (isSalesDdt) {
-                <div class="gr-form__field">
-                  <span class="gr-form__label" id="co-payment-method-label">Pagamento</span>
+                <div class="doc-form__field">
+                  <span class="doc-form__label" id="co-payment-method-label">Pagamento</span>
                   <!-- Auto-compilato dal tipo di pagamento dell'anagrafica cliente;
                      voci normative fatturazione elettronica (MP01–MP23),
                      gestibili in Impostazioni → Pagamenti. -->
@@ -674,8 +678,8 @@
                   />
                 </div>
 
-                <div class="gr-form__field gr-form__field--check">
-                  <label class="gr-form__check gr-form__check--header">
+                <div class="doc-form__field doc-form__field--check">
+                  <label class="doc-form__check doc-form__check--header">
                     <input type="checkbox" formControlName="followedBySalesDoc" />
                     <span>Seguirà doc. di vendita</span>
                   </label>
@@ -689,11 +693,11 @@
                prevista» resta al solo Preventivo: sull'Ordine cliente non serve. -->
             @if (!isSalesDdt && !isManualUnload) {
               <div
-                class="gr-form__grid gr-form__grid--header gr-form__grid--header-compact co-form__header-row co-form__header-row--secondary"
+                class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact co-form__header-row doc-form__header-row--secondary"
               >
                 @if (isQuote) {
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="co-delivery">Consegna prevista</label>
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="co-delivery">Consegna prevista</label>
                     <app-date-input
                       inputId="co-delivery"
                       formControlName="expectedDeliveryDate"
@@ -705,11 +709,11 @@
                   </div>
                 }
 
-                <div class="gr-form__field">
-                  <label class="gr-form__label" for="co-payment">Pagamento</label>
+                <div class="doc-form__field">
+                  <label class="doc-form__label" for="co-payment">Pagamento</label>
                   <input
                     id="co-payment"
-                    class="gr-form__input"
+                    class="doc-form__input"
                     type="text"
                     formControlName="paymentTerms"
                     placeholder="Es. 30 gg d.f."
@@ -717,24 +721,24 @@
                   />
                 </div>
 
-                <div class="gr-form__field co-form__header-filler" aria-hidden="true"></div>
+                <div class="doc-form__field co-form__header-filler" aria-hidden="true"></div>
               </div>
             }
           </div>
         </div>
 
         @if (showCustomerForm()) {
-          <div class="gr-form__supplier-box">
-            <h2 class="gr-form__subtitle">Nuovo cliente</h2>
+          <div class="doc-form__supplier-box">
+            <h2 class="doc-form__subtitle">Nuovo cliente</h2>
             @if (customerFormError(); as formError) {
-              <p class="gr-form__submit-error" role="alert">{{ formError }}</p>
+              <p class="doc-form__submit-error" role="alert">{{ formError }}</p>
             }
             <app-customer-form-fields
               idPrefix="co-new-customer"
               [formGroup]="customerForm"
               [paymentOptions]="paymentOptions()"
             />
-            <div class="gr-form__supplier-actions">
+            <div class="doc-form__supplier-actions">
               <app-button
                 type="button"
                 [loading]="savingCustomer()"
@@ -748,20 +752,20 @@
         }
 
         @if (headerGateActive()) {
-          <p class="gr-form__gate-banner co-form__gate-banner--warn" role="status">
+          <p class="doc-form__gate-banner co-form__gate-banner--warn" role="status">
             <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
             {{ gateBannerMessage() }}
           </p>
         }
 
-        <fieldset class="gr-form__gate-fields" [disabled]="headerGateActive()">
-          <section class="gr-form__lines" aria-labelledby="co-lines-title">
-            <div class="gr-form__lines-head">
-              <div class="gr-form__lines-heading">
+        <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
+          <section class="doc-form__lines" aria-labelledby="co-lines-title">
+            <div class="doc-form__lines-head">
+              <div class="doc-form__lines-heading">
                 <!-- Nessun contatore qui su desktop: righe, pezzi e imponibile
                      stanno nel riepilogo in fondo alla tabella, vicino ai totali.
                      Su mobile (Ordine cliente) il conteggio compare sotto il titolo. -->
-                <h2 id="co-lines-title" class="gr-form__subtitle">Righe documento</h2>
+                <h2 id="co-lines-title" class="doc-form__subtitle">Righe documento</h2>
                 @if (isOrder && mobileRowsVisible()) {
                   <span class="co-order-lines__count tabular-nums">
                     {{ documentLineCount() }} {{ documentLineCount() === 1 ? 'riga' : 'righe' }}
@@ -789,7 +793,7 @@
                    blocco qui sotto, Aggiungi riga in fondo alla lista, Scansiona
                    e Aggiungi prodotto nella barra sticky. Il selettore colonne
                    non serve: le card mostrano già ciò che conta. -->
-              <div class="gr-form__lines-tools co-form__lines-tools">
+              <div class="doc-form__lines-tools co-form__lines-tools">
                 <app-table-column-picker [viewId]="lineColumnsView" />
                 @if (includeSourceKinds.length > 0) {
                   <app-button
@@ -835,10 +839,10 @@
               </ul>
             }
 
-            <div class="gr-form__table-wrap">
-              <table class="gr-form__table">
+            <div class="doc-form__table-wrap">
+              <table class="doc-form__table">
                 <colgroup>
-                  <col class="gr-form__col--index" [style.width]="lineIndexColumnWidth()" />
+                  <col class="doc-form__col--index" [style.width]="lineIndexColumnWidth()" />
                   @if (isLineColumnVisible('articleCode')) {
                     <col [style.width]="lineColumnWidth('articleCode')" />
                   }
@@ -890,7 +894,7 @@
                 </colgroup>
                 <thead>
                   <tr>
-                    <th scope="col" class="gr-form__cell--index" aria-label="Numero riga">#</th>
+                    <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
                     @if (isLineColumnVisible('articleCode')) {
                       <th scope="col" [style.width]="lineColumnWidth('articleCode')">
                         Cod. articolo
@@ -930,7 +934,7 @@
                     @if (isLineColumnVisible('product')) {
                       <th
                         scope="col"
-                        class="gr-form__th--product co-form__col--sep"
+                        class="doc-form__th--product doc-form__col--sep"
                         [style.width]="lineColumnWidth('product')"
                       >
                         Nome prodotto
@@ -946,7 +950,7 @@
                     @if (isLineColumnVisible('quantity')) {
                       <th
                         scope="col"
-                        class="gr-form__num co-form__col--stock"
+                        class="doc-form__num doc-form__col--stock"
                         [style.width]="lineColumnWidth('quantity')"
                       >
                         Q.tà
@@ -962,7 +966,7 @@
                     @if (isLineColumnVisible('stockAvailable')) {
                       <th
                         scope="col"
-                        class="gr-form__num co-form__col--stock"
+                        class="doc-form__num doc-form__col--stock"
                         [style.width]="lineColumnWidth('stockAvailable')"
                       >
                         Q.tà disp.
@@ -978,7 +982,7 @@
                     @if (isLineColumnVisible('unitOfMeasure')) {
                       <th
                         scope="col"
-                        class="co-form__col--stock co-form__col--sep"
+                        class="doc-form__col--stock doc-form__col--sep"
                         [style.width]="lineColumnWidth('unitOfMeasure')"
                       >
                         U.m.
@@ -994,7 +998,7 @@
                     @if (isLineColumnVisible('purchaseCost')) {
                       <th
                         scope="col"
-                        class="gr-form__num co-form__col--calc"
+                        class="doc-form__num doc-form__col--calc"
                         [style.width]="lineColumnWidth('purchaseCost')"
                       >
                         Costo
@@ -1010,7 +1014,7 @@
                     @if (isLineColumnVisible('unitPrice')) {
                       <th
                         scope="col"
-                        class="gr-form__num co-form__col--sale gr-form__th--menu"
+                        class="doc-form__num doc-form__col--sale doc-form__th--menu"
                         [style.width]="lineColumnWidth('unitPrice')"
                       >
                         <!-- Modalità prezzo netto/ivato integrata nell'header di
@@ -1021,10 +1025,10 @@
                         @if (isOrder) {
                           Prezzo
                         } @else {
-                          <span class="gr-form__th-menu-wrap">
+                          <span class="doc-form__th-menu-wrap">
                             <button
                               type="button"
-                              class="gr-form__th-sort gr-form__th-sort--num"
+                              class="doc-form__th-sort doc-form__th-sort--num"
                               aria-haspopup="menu"
                               [attr.aria-expanded]="priceModeMenuOpen()"
                               aria-label="Modalità prezzo del documento"
@@ -1034,7 +1038,7 @@
                             </button>
                             <button
                               type="button"
-                              class="gr-form__th-menu-trigger"
+                              class="doc-form__th-menu-trigger"
                               aria-haspopup="menu"
                               [attr.aria-expanded]="priceModeMenuOpen()"
                               aria-label="Modalità prezzo del documento"
@@ -1044,13 +1048,13 @@
                             </button>
                             @if (priceModeMenuOpen()) {
                               <div
-                                class="gr-form__th-menu"
+                                class="doc-form__th-menu"
                                 role="menu"
                                 aria-label="Modalità prezzo"
                               >
                                 <button
                                   type="button"
-                                  class="gr-form__th-menu-item"
+                                  class="doc-form__th-menu-item"
                                   role="menuitemradio"
                                   [attr.aria-checked]="!pricesIncludeVat()"
                                   (click)="setPriceMode(false)"
@@ -1058,13 +1062,13 @@
                                   @if (!pricesIncludeVat()) {
                                     <i class="pi pi-check" aria-hidden="true"></i>
                                   } @else {
-                                    <span class="gr-form__th-menu-check" aria-hidden="true"></span>
+                                    <span class="doc-form__th-menu-check" aria-hidden="true"></span>
                                   }
                                   Usa prezzi netti
                                 </button>
                                 <button
                                   type="button"
-                                  class="gr-form__th-menu-item"
+                                  class="doc-form__th-menu-item"
                                   role="menuitemradio"
                                   [attr.aria-checked]="pricesIncludeVat()"
                                   (click)="setPriceMode(true)"
@@ -1072,7 +1076,7 @@
                                   @if (pricesIncludeVat()) {
                                     <i class="pi pi-check" aria-hidden="true"></i>
                                   } @else {
-                                    <span class="gr-form__th-menu-check" aria-hidden="true"></span>
+                                    <span class="doc-form__th-menu-check" aria-hidden="true"></span>
                                   }
                                   Usa prezzi ivati
                                 </button>
@@ -1092,17 +1096,17 @@
                     @if (isLineColumnVisible('discount')) {
                       <th
                         scope="col"
-                        class="gr-form__num co-form__col--sale"
+                        class="doc-form__num doc-form__col--sale"
                         [style.width]="lineColumnWidth('discount')"
                       >
-                        <span class="gr-form__th-label">
+                        <span class="doc-form__th-label">
                           Sconto
                           <app-hover-tooltip
                             text="Percentuale singola o cascata: «10%», «4+10%» (prima 4%, poi 10% sul residuo)."
                             position="bottom"
                           >
                             <i
-                              class="pi pi-info-circle gr-form__th-info"
+                              class="pi pi-info-circle doc-form__th-info"
                               aria-label="Info sconto"
                             ></i>
                           </app-hover-tooltip>
@@ -1119,7 +1123,7 @@
                     @if (isLineColumnVisible('discountedPrice')) {
                       <th
                         scope="col"
-                        class="gr-form__num co-form__col--calc"
+                        class="doc-form__num doc-form__col--calc"
                         [style.width]="lineColumnWidth('discountedPrice')"
                       >
                         Prezzo scontato
@@ -1135,7 +1139,7 @@
                     @if (isLineColumnVisible('vat')) {
                       <th
                         scope="col"
-                        class="gr-form__num co-form__col--tax co-form__col--sep"
+                        class="doc-form__num doc-form__col--tax doc-form__col--sep"
                         [style.width]="lineColumnWidth('vat')"
                       >
                         IVA
@@ -1150,14 +1154,14 @@
                     }
                     @if (isLineColumnVisible('serials')) {
                       <th scope="col" [style.width]="lineColumnWidth('serials')">
-                        <span class="gr-form__th-label">
+                        <span class="doc-form__th-label">
                           Seriali
                           <app-hover-tooltip
                             text="Numeri seriali consumati dallo scarico, separati da virgola (es. SN001, SN002). Richiesti per i prodotti con tracciamento seriale."
                             position="bottom"
                           >
                             <i
-                              class="pi pi-info-circle gr-form__th-info"
+                              class="pi pi-info-circle doc-form__th-info"
                               aria-label="Info colonna Seriali"
                             ></i>
                           </app-hover-tooltip>
@@ -1174,14 +1178,14 @@
                     @if (isLineColumnVisible('commitsStock')) {
                       <th
                         scope="col"
-                        class="co-form__col--stock"
+                        class="doc-form__col--stock"
                         [style.width]="lineColumnWidth('commitsStock')"
                       >
-                        <span class="gr-form__th-label">
+                        <span class="doc-form__th-label">
                           {{ commitsColumnLabel }}
                           <app-hover-tooltip [text]="commitsStockTooltip" position="bottom">
                             <i
-                              class="pi pi-info-circle gr-form__th-info"
+                              class="pi pi-info-circle doc-form__th-info"
                               [attr.aria-label]="
                                 isSalesDdt || isManualUnload
                                   ? 'Info colonna Scarica magazzino'
@@ -1195,7 +1199,7 @@
                     @if (isLineColumnVisible('lineTotal')) {
                       <th
                         scope="col"
-                        class="gr-form__num co-form__col--total"
+                        class="doc-form__num doc-form__col--total"
                         [style.width]="lineColumnWidth('lineTotal')"
                       >
                         Totale
@@ -1218,25 +1222,25 @@
                 <tbody formArrayName="lines" cdkDropList (cdkDropListDropped)="onLineDrop($event)">
                   @for (line of lines.controls; track line; let i = $index) {
                     <tr
-                      class="gr-form__table-row"
+                      class="doc-form__table-row"
                       cdkDrag
                       [cdkDragStartDelay]="{ touch: 250, mouse: 0 }"
-                      [class.gr-form__table-row--incomplete]="!lineRowComplete(i)"
+                      [class.doc-form__table-row--incomplete]="!lineRowComplete(i)"
                       [class.co-form__row--reference]="lineIsReference(i)"
                       [formGroupName]="i"
                     >
                       <!-- Il numero è la maniglia di trascinamento: il resto
                            della riga resta cliccabile per modificare le celle. -->
                       <td
-                        class="gr-form__cell--index co-form__drag-handle"
-                        [class.co-form__source-cell]="lineIsReference(i)"
+                        class="doc-form__cell--index doc-form__drag-handle"
+                        [class.doc-form__source-cell]="lineIsReference(i)"
                         cdkDragHandle
                       >
                         <span class="tabular-nums co-form__source-index">{{ i + 1 }}</span>
                       </td>
                       @if (lineIsReference(i)) {
                         <td
-                          class="co-form__source-cell co-form__source-info-cell"
+                          class="doc-form__source-cell co-form__source-info-cell"
                           [attr.colspan]="identityColumnCount()"
                         >
                           <div class="co-form__source-info">
@@ -1255,7 +1259,7 @@
                           </div>
                         </td>
                       } @else if (isLineColumnVisible('articleCode')) {
-                        <td class="gr-form__cell gr-form__cell--code">
+                        <td class="doc-form__cell doc-form__cell--code">
                           <app-document-line-code-cell
                             [lineIndex]="i"
                             [inputId]="'co-code-' + i"
@@ -1274,7 +1278,7 @@
                         </td>
                       }
                       @if (!lineIsReference(i) && isLineColumnVisible('sku')) {
-                        <td class="gr-form__cell gr-form__cell--code">
+                        <td class="doc-form__cell doc-form__cell--code">
                           <app-document-line-code-cell
                             [lineIndex]="i"
                             [inputId]="'co-sku-' + i"
@@ -1293,7 +1297,7 @@
                         </td>
                       }
                       @if (!lineIsReference(i) && isLineColumnVisible('barcode')) {
-                        <td class="gr-form__cell gr-form__cell--code">
+                        <td class="doc-form__cell doc-form__cell--code">
                           <app-document-line-code-cell
                             [lineIndex]="i"
                             [inputId]="'co-barcode-' + i"
@@ -1312,7 +1316,7 @@
                         </td>
                       }
                       @if (!lineIsReference(i) && isLineColumnVisible('product')) {
-                        <td class="gr-form__cell gr-form__cell--product co-form__col--sep">
+                        <td class="doc-form__cell doc-form__cell--product doc-form__col--sep">
                           <app-document-line-product-cell
                             [lineIndex]="i"
                             [inputId]="'co-product-' + i"
@@ -1344,14 +1348,14 @@
                       }
                       @if (isLineColumnVisible('quantity')) {
                         <td
-                          class="gr-form__cell gr-form__cell--editable gr-form__num co-form__col--stock"
-                          [class.co-form__cell--exceeds]="lineExceedsAvailability(i)"
+                          class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--stock"
+                          [class.doc-form__cell--exceeds]="lineExceedsAvailability(i)"
                         >
                           @if (!lineIsReference(i)) {
                             <input
                               [id]="'co-qty-' + i"
-                              class="gr-form__input gr-form__input--table gr-form__input--num"
-                              [class.gr-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
+                              class="doc-form__input doc-form__input--table doc-form__input--num"
+                              [class.doc-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
                               type="number"
                               min="0"
                               step="1"
@@ -1373,7 +1377,7 @@
                       }
                       @if (isLineColumnVisible('stockAvailable')) {
                         <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--stock co-form__col--avail"
+                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--stock doc-form__col--avail"
                         >
                           @if (!lineIsReference(i)) {
                             {{ lineStockAvailable(i) }}
@@ -1382,7 +1386,7 @@
                       }
                       @if (isLineColumnVisible('unitOfMeasure')) {
                         <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed co-form__col--stock co-form__col--sep"
+                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__col--stock doc-form__col--sep"
                         >
                           @if (!lineIsReference(i)) {
                             {{ lineUnitOfMeasure(i) }}
@@ -1391,7 +1395,7 @@
                       }
                       @if (isLineColumnVisible('purchaseCost')) {
                         <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--calc"
+                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--calc"
                         >
                           @if (!lineIsReference(i)) {
                             {{ linePurchaseCost(i) }}
@@ -1400,12 +1404,12 @@
                       }
                       @if (isLineColumnVisible('unitPrice')) {
                         <td
-                          class="gr-form__cell gr-form__cell--editable gr-form__num co-form__col--sale"
+                          class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--sale"
                         >
                           @if (!lineIsReference(i)) {
                             <input
                               [id]="'co-price-' + i"
-                              class="gr-form__input gr-form__input--table gr-form__input--num"
+                              class="doc-form__input doc-form__input--table doc-form__input--num"
                               type="text"
                               inputmode="decimal"
                               formControlName="unitPrice"
@@ -1417,12 +1421,12 @@
                       }
                       @if (isLineColumnVisible('discount')) {
                         <td
-                          class="gr-form__cell gr-form__cell--editable gr-form__num co-form__col--sale"
+                          class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--sale"
                         >
                           @if (!lineIsReference(i)) {
                             <input
                               [id]="'co-discount-' + i"
-                              class="gr-form__input gr-form__input--table gr-form__input--num"
+                              class="doc-form__input doc-form__input--table doc-form__input--num"
                               type="text"
                               formControlName="discount"
                               placeholder="0%"
@@ -1434,7 +1438,7 @@
                       }
                       @if (isLineColumnVisible('discountedPrice')) {
                         <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--calc"
+                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--calc"
                         >
                           @if (!lineIsReference(i)) {
                             {{ formatMoney(lineDiscountedUnitMoney(i)) }}
@@ -1443,7 +1447,7 @@
                       }
                       @if (isLineColumnVisible('vat')) {
                         <td
-                          class="gr-form__cell gr-form__cell--editable gr-form__cell--vat co-form__col--tax co-form__col--sep"
+                          class="doc-form__cell doc-form__cell--editable doc-form__cell--vat doc-form__col--tax doc-form__col--sep"
                           [title]="lineVatTooltip(i)"
                         >
                           @if (!lineIsReference(i)) {
@@ -1465,11 +1469,11 @@
                         </td>
                       }
                       @if (isLineColumnVisible('serials')) {
-                        <td class="gr-form__cell gr-form__cell--editable">
+                        <td class="doc-form__cell doc-form__cell--editable">
                           @if (!lineIsReference(i)) {
                             <input
                               [id]="'co-serials-' + i"
-                              class="gr-form__input gr-form__input--table"
+                              class="doc-form__input doc-form__input--table"
                               type="text"
                               formControlName="serialNumbersText"
                               placeholder="SN001, SN002"
@@ -1480,9 +1484,9 @@
                         </td>
                       }
                       @if (isLineColumnVisible('commitsStock')) {
-                        <td class="gr-form__cell gr-form__cell--check co-form__col--stock">
+                        <td class="doc-form__cell doc-form__cell--check doc-form__col--stock">
                           @if (!lineIsReference(i)) {
-                            <label class="gr-form__check">
+                            <label class="doc-form__check">
                               <input type="checkbox" formControlName="commitsStock" />
                               <span class="sr-only">{{
                                 isSalesDdt || isManualUnload
@@ -1495,11 +1499,11 @@
                       }
                       @if (isLineColumnVisible('lineTotal')) {
                         <td
-                          class="gr-form__cell gr-form__cell--readonly gr-form__cell--computed gr-form__num tabular-nums co-form__col--total"
+                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--total"
                         >
                           @if (!lineIsReference(i)) {
                             @if (lineHasDiscount(i)) {
-                              <span class="gr-form__line-total-gross">{{
+                              <span class="doc-form__line-total-gross">{{
                                 formatMoney(lineGrossMoney(i))
                               }}</span>
                             }
@@ -1508,12 +1512,12 @@
                         </td>
                       }
                       @if (isLineColumnVisible('actions')) {
-                        <td class="gr-form__cell gr-form__cell--actions">
-                          <div class="gr-form__line-actions">
+                        <td class="doc-form__cell doc-form__cell--actions">
+                          <div class="doc-form__line-actions">
                             @if (!lineIsReference(i)) {
                               <button
                                 type="button"
-                                class="gr-form__line-move"
+                                class="doc-form__line-move"
                                 tabindex="-1"
                                 [disabled]="formReadOnly()"
                                 aria-label="Duplica riga"
@@ -1524,7 +1528,7 @@
                             }
                             <button
                               type="button"
-                              class="gr-form__line-remove"
+                              class="doc-form__line-remove"
                               tabindex="-1"
                               [disabled]="formReadOnly()"
                               [attr.aria-label]="
@@ -1542,7 +1546,7 @@
                   <!-- Riga di inserimento rapido: sempre in fondo alla tabella
                        (stessa meccanica dell'Arrivo merce, sintassi qta*codice). -->
                   <tr class="co-form__quick-row">
-                    <td class="gr-form__cell--index">
+                    <td class="doc-form__cell--index">
                       <i class="pi pi-barcode" aria-hidden="true"></i>
                     </td>
                     <td [attr.colspan]="99">
@@ -1550,7 +1554,7 @@
                         <input
                           #quickScanInput
                           id="co-quick-scan"
-                          class="gr-form__input co-form__quick-input"
+                          class="doc-form__input co-form__quick-input"
                           type="text"
                           [value]="quickScanDraft()"
                           [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
@@ -1560,11 +1564,11 @@
                           (input)="onQuickScanInput($any($event.target).value)"
                           (keydown.enter)="commitQuickScan(); $event.preventDefault()"
                         />
-                        <p id="co-quick-scan-hint" class="gr-form__scan-hint">
+                        <p id="co-quick-scan-hint" class="doc-form__scan-hint">
                           <kbd>3*</kbd> + codice = quantità (es. 3*8032911100142)
                         </p>
                         @if (quickScanError(); as scanError) {
-                          <p class="gr-form__error" role="alert">{{ scanError }}</p>
+                          <p class="doc-form__error" role="alert">{{ scanError }}</p>
                         }
                       </div>
                     </td>
@@ -1612,7 +1616,7 @@
                       </span>
                       <button
                         type="button"
-                        class="gr-form__line-remove"
+                        class="doc-form__line-remove"
                         [disabled]="formReadOnly()"
                         aria-label="Rimuovi collegamento"
                         (click)="removeLine(i)"
@@ -1621,466 +1625,25 @@
                       </button>
                     </article>
                   } @else {
-                    <article
-                      class="co-form__card"
-                      [class.co-form__card--open]="isLineCardOpen(i)"
-                      [class.co-form__card--incomplete]="!lineRowComplete(i)"
-                      [formGroupName]="i"
-                    >
-                      <!-- Alert disponibilità (non bloccante) sopra la riga. -->
-                      @if (lineAvailabilityHint(i); as hint) {
-                        <p class="co-form__card-alert" role="status">
-                          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                          {{ hint }}
-                        </p>
-                      }
-
-                      <!-- Riga compatta: nome/SKU (tap = espandi) e X sopra, sotto i
-                         tre metric chip Qtà · Prezzo · Totale. Quantità e prezzo si
-                         modificano senza aprire la card; il resto nel corpo. -->
-                      <div class="co-form__card-head">
-                        @if (isOrder) {
-                          <!-- Ordine cliente (isOrder): anatomia card v2. RAMO
-                             TEMPORANEO — quando il layout andrà agli altri documenti
-                             il ramo @else va rimosso e la card torna una sola. -->
-                          <div class="co-order-card__topline">
-                            <button
-                              type="button"
-                              class="co-order-card__remove"
-                              [disabled]="formReadOnly()"
-                              aria-label="Elimina riga"
-                              (click)="requestRemoveLine(i)"
-                            >
-                              <i class="pi pi-trash" aria-hidden="true"></i>
-                            </button>
-                            <button
-                              type="button"
-                              class="co-order-card__expand"
-                              [attr.aria-expanded]="isLineCardOpen(i)"
-                              (click)="toggleLineCard(i)"
-                            >
-                              <span class="co-order-card__name">
-                                {{ line.controls.productName.value || 'Riga senza prodotto' }}
-                              </span>
-                              <i
-                                class="pi pi-chevron-down co-order-card__chevron"
-                                aria-hidden="true"
-                              ></i>
-                            </button>
-                          </div>
-
-                          @if (lineVariantLabel(i); as variant) {
-                            <p class="co-order-card__variant">{{ variant }}</p>
-                          }
-
-                          <p class="co-order-card__meta">
-                            <span class="co-order-card__meta-item">{{
-                              lineArticleCode(i) ? 'Cod. ' + lineArticleCode(i) : 'Nessun codice'
-                            }}</span>
-                            @if (line.controls.sku.value) {
-                              <span class="co-order-card__meta-item"
-                                >SKU {{ line.controls.sku.value }}</span
-                              >
-                            }
-                            <span
-                              class="co-order-card__meta-item co-order-card__avail"
-                              [class.co-order-card__avail--low]="lineAvailabilityCritical(i)"
-                              >Disp. {{ lineStockAvailable(i) }}</span
-                            >
-                          </p>
-
-                          <div class="co-order-card__controls">
-                            <div class="co-order-card__control">
-                              <span class="co-order-card__label">Quantità</span>
-                              <div class="co-form__qty-stepper">
-                                <button
-                                  type="button"
-                                  class="co-form__qty-btn"
-                                  [disabled]="formReadOnly()"
-                                  aria-label="Diminuisci quantità"
-                                  (click)="decrementLineQty(i)"
-                                >
-                                  <i class="pi pi-minus" aria-hidden="true"></i>
-                                </button>
-                                <input
-                                  class="co-form__qty-input tabular-nums"
-                                  type="number"
-                                  min="1"
-                                  step="1"
-                                  inputmode="numeric"
-                                  formControlName="quantity"
-                                  aria-label="Quantità"
-                                />
-                                <button
-                                  type="button"
-                                  class="co-form__qty-btn"
-                                  [disabled]="formReadOnly()"
-                                  aria-label="Aumenta quantità"
-                                  (click)="incrementLineQty(i)"
-                                >
-                                  <i class="pi pi-plus" aria-hidden="true"></i>
-                                </button>
-                              </div>
-                            </div>
-
-                            <div class="co-order-card__control">
-                              <span class="co-order-card__label">{{ priceRowLabel() }}</span>
-                              <input
-                                class="co-order-card__price-input tabular-nums"
-                                type="text"
-                                inputmode="decimal"
-                                formControlName="unitPrice"
-                                placeholder="0,00"
-                                aria-label="Prezzo unitario"
-                              />
-                            </div>
-
-                            <div class="co-order-card__control">
-                              <span class="co-order-card__label">Totale</span>
-                              <span class="co-order-card__total tabular-nums">{{
-                                formatMoney(lineTotalMoney(i))
-                              }}</span>
-                            </div>
-                          </div>
-                        } @else {
-                          <div class="co-form__card-topline">
-                            <button
-                              type="button"
-                              class="co-form__card-expand"
-                              [attr.aria-expanded]="isLineCardOpen(i)"
-                              (click)="toggleLineCard(i)"
-                            >
-                              <i
-                                class="pi pi-chevron-down co-form__card-chevron"
-                                aria-hidden="true"
-                              ></i>
-                              <span class="co-form__card-copy">
-                                <span class="co-form__card-name">
-                                  {{ line.controls.productName.value || 'Riga senza prodotto' }}
-                                </span>
-                                <span class="co-form__card-sub">
-                                  {{
-                                    lineArticleCode(i)
-                                      ? 'Cod. ' + lineArticleCode(i)
-                                      : 'Nessun codice'
-                                  }}
-                                  @if (line.controls.sku.value) {
-                                    · SKU {{ line.controls.sku.value }}
-                                  }
-                                </span>
-                              </span>
-                            </button>
-
-                            <button
-                              type="button"
-                              class="co-form__card-remove"
-                              [disabled]="formReadOnly()"
-                              aria-label="Rimuovi riga"
-                              (click)="removeLine(i)"
-                            >
-                              <i class="pi pi-times" aria-hidden="true"></i>
-                            </button>
-                          </div>
-
-                          <div class="co-form__metrics">
-                            <div class="co-form__metric co-form__metric--qty">
-                              <small>Qtà</small>
-                              <div class="co-form__qty-stepper">
-                                <button
-                                  type="button"
-                                  class="co-form__qty-btn"
-                                  [disabled]="formReadOnly()"
-                                  aria-label="Diminuisci quantità"
-                                  (click)="decrementLineQty(i)"
-                                >
-                                  <i class="pi pi-minus" aria-hidden="true"></i>
-                                </button>
-                                <input
-                                  class="co-form__qty-input tabular-nums"
-                                  type="number"
-                                  min="1"
-                                  step="1"
-                                  inputmode="numeric"
-                                  formControlName="quantity"
-                                  aria-label="Quantità"
-                                />
-                                <button
-                                  type="button"
-                                  class="co-form__qty-btn"
-                                  [disabled]="formReadOnly()"
-                                  aria-label="Aumenta quantità"
-                                  (click)="incrementLineQty(i)"
-                                >
-                                  <i class="pi pi-plus" aria-hidden="true"></i>
-                                </button>
-                              </div>
-                            </div>
-
-                            <div class="co-form__metric co-form__metric--price">
-                              <small>{{ priceRowLabel() }}</small>
-                              <input
-                                class="co-form__metric-input tabular-nums"
-                                type="text"
-                                inputmode="decimal"
-                                formControlName="unitPrice"
-                                placeholder="0,00"
-                                aria-label="Prezzo unitario"
-                              />
-                            </div>
-
-                            <div class="co-form__metric co-form__metric--total">
-                              <small>Totale</small>
-                              <strong class="tabular-nums">{{
-                                formatMoney(lineTotalMoney(i))
-                              }}</strong>
-                            </div>
-                          </div>
-                        }
-                      </div>
-
-                      @if (isLineCardOpen(i)) {
-                        <div class="co-form__card-body">
-                          <div class="co-form__card-grid">
-                            <p class="co-form__card-group co-form__card-group--first">Articolo</p>
-                            <div class="co-form__card-field">
-                              <label [attr.for]="'co-m-code-' + i">Cod. articolo</label>
-                              <input
-                                [id]="'co-m-code-' + i"
-                                class="gr-form__input"
-                                type="text"
-                                formControlName="articleCode"
-                                placeholder="—"
-                                autocomplete="off"
-                                (keydown.enter)="
-                                  commitCodeLookup(i, 'articleCode'); $event.preventDefault()
-                                "
-                              />
-                            </div>
-                            <div class="co-form__card-field">
-                              <label [attr.for]="'co-m-sku-' + i">SKU</label>
-                              <input
-                                [id]="'co-m-sku-' + i"
-                                class="gr-form__input"
-                                type="text"
-                                formControlName="sku"
-                                placeholder="—"
-                                autocomplete="off"
-                                (keydown.enter)="
-                                  commitCodeLookup(i, 'sku'); $event.preventDefault()
-                                "
-                              />
-                            </div>
-                            <div class="co-form__card-field co-form__card-field--full">
-                              <label [attr.for]="'co-m-barcode-' + i">EAN</label>
-                              <input
-                                [id]="'co-m-barcode-' + i"
-                                class="gr-form__input"
-                                type="text"
-                                formControlName="barcode"
-                                placeholder="—"
-                                autocomplete="off"
-                                (keydown.enter)="
-                                  commitCodeLookup(i, 'barcode'); $event.preventDefault()
-                                "
-                              />
-                            </div>
-                            <div class="co-form__card-field co-form__card-field--full">
-                              <label [attr.for]="'co-m-product-' + i">Nome prodotto</label>
-                              <div
-                                class="co-form__card-search"
-                                [class.co-form__card-search--above]="mobileSuggestAbove()"
-                              >
-                                <input
-                                  #coMobileProduct
-                                  [id]="'co-m-product-' + i"
-                                  class="gr-form__input"
-                                  type="text"
-                                  formControlName="productName"
-                                  autocomplete="off"
-                                  [attr.aria-expanded]="lineSuggestionsOpen(i)"
-                                  [attr.aria-controls]="'co-m-suggest-' + i"
-                                  (input)="onMobileProductNameInput(i, coMobileProduct)"
-                                  (focus)="onMobileProductFocus(i, coMobileProduct)"
-                                  (blur)="onLineProductBlur(i)"
-                                />
-                                <button
-                                  type="button"
-                                  class="co-form__card-search-btn"
-                                  aria-label="Cerca prodotto"
-                                  [disabled]="formReadOnly()"
-                                  (mousedown)="$event.preventDefault()"
-                                  (click)="openLineProductSearch(i)"
-                                >
-                                  <i class="pi pi-search" aria-hidden="true"></i>
-                                </button>
-                                <!-- Anteprima live: chiude al pick (onVariantSelect azzera
-                                   l'autocomplete) e al tap fuori (blur → clear ritardato).
-                                   mousedown.preventDefault tiene il focus finché parte il tap. -->
-                                @if (lineSuggestionsOpen(i)) {
-                                  <ul
-                                    [id]="'co-m-suggest-' + i"
-                                    class="co-form__card-suggestions"
-                                    role="listbox"
-                                    aria-label="Suggerimenti prodotto"
-                                  >
-                                    @for (
-                                      item of lineSuggestions(i);
-                                      track item.variantId;
-                                      let idx = $index
-                                    ) {
-                                      <li
-                                        role="option"
-                                        class="co-form__card-suggestion"
-                                        [class.co-form__card-suggestion--active]="
-                                          idx === activeSuggestionIndex()
-                                        "
-                                        [attr.aria-selected]="idx === activeSuggestionIndex()"
-                                        tabindex="0"
-                                        (mousedown)="$event.preventDefault()"
-                                        (click)="onProductSuggestionPick(i, item.variantId)"
-                                        (keydown.enter)="
-                                          onProductSuggestionPick(i, item.variantId);
-                                          $event.preventDefault()
-                                        "
-                                      >
-                                        <span class="co-form__card-suggestion-title">{{
-                                          item.title
-                                        }}</span>
-                                        <span class="co-form__card-suggestion-detail">{{
-                                          mobileSuggestionDetail(item)
-                                        }}</span>
-                                      </li>
-                                    }
-                                  </ul>
-                                }
-                              </div>
-                            </div>
-
-                            <!-- Quantità: solo nello stepper della riga compatta (F4).
-                               Disponibile e «Impegna magazzino» sono sempre a schermo
-                               nella card: non dipendono dal selettore colonne desktop. -->
-                            <p class="co-form__card-group">Magazzino</p>
-                            <div class="co-form__card-field co-form__card-field--readonly">
-                              <span class="co-form__card-label">Disponibile</span>
-                              <p class="tabular-nums">
-                                {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
-                              </p>
-                            </div>
-                            <div class="co-form__card-field co-form__card-field--readonly">
-                              <span class="co-form__card-label">U.m.</span>
-                              <p>{{ lineUnitOfMeasure(i) }}</p>
-                            </div>
-                            @if (!isQuote) {
-                              <div class="co-form__card-field">
-                                <label [attr.for]="'co-m-commits-' + i">{{
-                                  commitsColumnLabel
-                                }}</label>
-                                <select
-                                  [id]="'co-m-commits-' + i"
-                                  class="gr-form__input co-form__card-select"
-                                  [value]="line.controls.commitsStock.value ? 'yes' : 'no'"
-                                  (change)="onLineCommitsSelect(i, $any($event.target).value)"
-                                >
-                                  <option value="yes">Sì</option>
-                                  <option value="no">No</option>
-                                </select>
-                              </div>
-                            }
-                            @if (isLineColumnVisible('serials')) {
-                              <div class="co-form__card-field co-form__card-field--full">
-                                <label [attr.for]="'co-m-serials-' + i">Seriali</label>
-                                <input
-                                  [id]="'co-m-serials-' + i"
-                                  class="gr-form__input"
-                                  type="text"
-                                  formControlName="serialNumbersText"
-                                  placeholder="SN001, SN002"
-                                  autocomplete="off"
-                                />
-                              </div>
-                            }
-
-                            <p class="co-form__card-group">Vendita</p>
-                            @if (isLineColumnVisible('purchaseCost')) {
-                              <div class="co-form__card-field co-form__card-field--readonly">
-                                <span class="co-form__card-label">Costo</span>
-                                <p class="tabular-nums">{{ linePurchaseCost(i) }}</p>
-                              </div>
-                            }
-                            <div class="co-form__card-field">
-                              <label [attr.for]="'co-m-price-' + i">{{ priceRowLabel() }}</label>
-                              <input
-                                [id]="'co-m-price-' + i"
-                                class="gr-form__input"
-                                type="text"
-                                inputmode="decimal"
-                                formControlName="unitPrice"
-                                placeholder="0,00"
-                              />
-                            </div>
-                            <div class="co-form__card-field">
-                              <label [attr.for]="'co-m-discount-' + i">Sconto</label>
-                              <input
-                                [id]="'co-m-discount-' + i"
-                                class="gr-form__input"
-                                type="text"
-                                formControlName="discount"
-                                placeholder="0%"
-                                title="Percentuale singola o cascata: «10%», «4+10%»"
-                              />
-                            </div>
-                            <div class="co-form__card-field co-form__card-field--readonly">
-                              <span class="co-form__card-label">Prezzo scontato</span>
-                              <p class="tabular-nums">
-                                {{ formatMoney(lineDiscountedUnitMoney(i)) }}
-                              </p>
-                            </div>
-                            <div class="co-form__card-field">
-                              <span class="co-form__card-label">IVA</span>
-                              <app-select-menu
-                                [options]="lineVatOptions(i)"
-                                [value]="lineVatValue(i)"
-                                ariaLabel="Codice IVA riga"
-                                placeholder="—"
-                                [compact]="true"
-                                [fullWidth]="true"
-                                [includeEmptyOption]="false"
-                                [searchable]="true"
-                                [inlineDetail]="true"
-                                searchPlaceholder="Codice, aliquota, descrizione…"
-                                searchAriaLabel="Cerca Codice IVA"
-                                (valueChange)="onLineVatSelect(i, $event)"
-                              />
-                            </div>
-                            <div class="co-form__card-field co-form__card-field--readonly">
-                              <span class="co-form__card-label">Totale</span>
-                              <p class="tabular-nums">{{ formatMoney(lineTotalMoney(i)) }}</p>
-                            </div>
-                          </div>
-
-                          <div class="co-form__card-actions">
-                            <app-button
-                              type="button"
-                              variant="secondary"
-                              [disabled]="formReadOnly()"
-                              (click)="duplicateLine(i)"
-                            >
-                              <i class="pi pi-clone" aria-hidden="true"></i>
-                              Duplica
-                            </app-button>
-                            <app-button
-                              type="button"
-                              variant="danger"
-                              [disabled]="formReadOnly()"
-                              (click)="removeLine(i)"
-                            >
-                              <i class="pi pi-trash" aria-hidden="true"></i>
-                              Elimina
-                            </app-button>
-                          </div>
-                        </div>
-                      }
-                    </article>
+                    <app-customer-order-line-card
+                      [line]="line"
+                      [vm]="lineCardVm(i)"
+                      [open]="isLineCardOpen(i)"
+                      [layout]="isOrder ? 'order' : 'registry'"
+                      (toggled)="toggleLineCard(i)"
+                      (removeRequested)="requestRemoveLine(i)"
+                      (removed)="removeLine(i)"
+                      (duplicated)="duplicateLine(i)"
+                      (quantityStepped)="onLineQuantityStep(i, $event)"
+                      (codeCommitted)="commitCodeLookup(i, $event)"
+                      (productNameTyped)="onMobileProductNameInput(i, $event)"
+                      (productNameFocused)="onMobileProductFocus(i, $event)"
+                      (productNameBlurred)="onLineProductBlur(i)"
+                      (productSearchOpened)="openLineProductSearch(i)"
+                      (suggestionPicked)="onProductSuggestionPick(i, $event)"
+                      (commitsChanged)="onLineCommitsSelect(i, $event)"
+                      (vatSelected)="onLineVatSelect(i, $event)"
+                    />
                   }
                 }
               }
@@ -2123,14 +1686,14 @@
           </section>
 
           <!-- Totali sticky in fondo + note documento (stessa banda dell'Arrivo merce). -->
-          <div class="gr-form__footer-grid">
-            <aside class="gr-form__totals-bar" aria-label="Totali documento">
-              <dl class="gr-form__totals">
-                <div class="gr-form__totals-row">
+          <div class="doc-form__footer-grid">
+            <aside class="doc-form__totals-bar" aria-label="Totali documento">
+              <dl class="doc-form__totals">
+                <div class="doc-form__totals-row">
                   <dt>Imponibile righe</dt>
                   <dd class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</dd>
                 </div>
-                <div class="gr-form__totals-row gr-form__totals-row--field">
+                <div class="doc-form__totals-row doc-form__totals-row--field">
                   <dt>
                     <label for="co-doc-discount">Sconto extra</label>
                   </dt>
@@ -2140,7 +1703,7 @@
                     @if (docDiscountActive()) {
                       <input
                         id="co-doc-discount"
-                        class="gr-form__input gr-form__input--num gr-form__totals-input"
+                        class="doc-form__input doc-form__input--num doc-form__totals-input"
                         type="text"
                         formControlName="documentDiscountPercent"
                         placeholder="0%"
@@ -2159,22 +1722,22 @@
                   </dd>
                 </div>
                 @if (documentTotals().documentDiscount.amountMinor > 0) {
-                  <div class="gr-form__totals-row">
+                  <div class="doc-form__totals-row">
                     <dt>Sconto documento</dt>
                     <dd class="tabular-nums">
                       −{{ formatMoney(documentTotals().documentDiscount) }}
                     </dd>
                   </div>
                 }
-                <div class="gr-form__totals-row">
+                <div class="doc-form__totals-row">
                   <dt>Imponibile</dt>
                   <dd class="tabular-nums">{{ formatMoney(documentTotals().subtotal) }}</dd>
                 </div>
-                <div class="gr-form__totals-row">
+                <div class="doc-form__totals-row">
                   <dt>IVA</dt>
                   <dd class="tabular-nums">{{ formatMoney(documentTotals().tax) }}</dd>
                 </div>
-                <div class="gr-form__totals-row gr-form__totals-row--total">
+                <div class="doc-form__totals-row doc-form__totals-row--total">
                   <dt>Totale documento</dt>
                   <dd class="tabular-nums">
                     <strong>{{ formatMoney(documentTotals().total) }}</strong>
@@ -2183,12 +1746,12 @@
               </dl>
             </aside>
 
-            <div class="gr-form__footer-notes">
-              <div class="gr-form__field">
-                <label class="gr-form__label" for="co-notes">Note documento</label>
+            <div class="doc-form__footer-notes">
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="co-notes">Note documento</label>
                 <textarea
                   id="co-notes"
-                  class="gr-form__textarea"
+                  class="doc-form__textarea"
                   rows="2"
                   formControlName="notes"
                 ></textarea>
@@ -2214,26 +1777,26 @@
                   [class.pi-chevron-down]="transportOpen()"
                   aria-hidden="true"
                 ></i>
-                <h2 class="gr-form__subtitle">Trasporto</h2>
+                <h2 class="doc-form__subtitle">Trasporto</h2>
                 <span class="ddt-form__section-hint">Causale, vettore, colli, tracking</span>
               </button>
               @if (transportOpen()) {
-                <div id="ddt-transport-body" class="gr-form__grid ddt-form__grid">
-                  <div class="gr-form__field gr-form__field--span2">
-                    <label class="gr-form__label" for="ddt-transport-causal">
+                <div id="ddt-transport-body" class="doc-form__grid ddt-form__grid">
+                  <div class="doc-form__field doc-form__field--span2">
+                    <label class="doc-form__label" for="ddt-transport-causal">
                       Causale trasporto
                     </label>
                     <input
                       id="ddt-transport-causal"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="causal"
                       placeholder="Es. Vendita"
                       autocomplete="off"
                     />
                   </div>
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="ddt-transport-start-date">
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="ddt-transport-start-date">
                       Data inizio trasporto
                     </label>
                     <app-date-input
@@ -2244,19 +1807,19 @@
                       [fullWidth]="true"
                     />
                   </div>
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="ddt-transport-start-time">
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="ddt-transport-start-time">
                       Ora inizio trasporto
                     </label>
                     <input
                       id="ddt-transport-start-time"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="time"
                       formControlName="startTime"
                     />
                   </div>
-                  <div class="gr-form__field">
-                    <span class="gr-form__label" id="ddt-transport-port-label">Porto</span>
+                  <div class="doc-form__field">
+                    <span class="doc-form__label" id="ddt-transport-port-label">Porto</span>
                     <app-select-menu
                       [options]="[
                         { value: TransportPort.Franco, label: 'Franco' },
@@ -2272,71 +1835,71 @@
                       "
                     />
                   </div>
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="ddt-transport-carrier">
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="ddt-transport-carrier">
                       Incaricato del trasporto
                     </label>
                     <input
                       id="ddt-transport-carrier"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="carrier"
                       placeholder="Es. Vettore BRT"
                       autocomplete="off"
                     />
                   </div>
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="ddt-transport-packages">Numero colli</label>
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="ddt-transport-packages">Numero colli</label>
                     <input
                       id="ddt-transport-packages"
-                      class="gr-form__input gr-form__input--num"
+                      class="doc-form__input doc-form__input--num"
                       type="number"
                       min="0"
                       step="1"
                       formControlName="packagesCount"
                     />
                   </div>
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="ddt-transport-weight">Peso</label>
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="ddt-transport-weight">Peso</label>
                     <input
                       id="ddt-transport-weight"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="weight"
                       placeholder="Es. 12,5 kg"
                       autocomplete="off"
                     />
                   </div>
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="ddt-transport-aspect">Aspetto beni</label>
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="ddt-transport-aspect">Aspetto beni</label>
                     <input
                       id="ddt-transport-aspect"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="goodsAspect"
                       placeholder="Es. Scatole"
                       autocomplete="off"
                     />
                   </div>
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="ddt-transport-shipping-code">
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="ddt-transport-shipping-code">
                       Codice spedizione
                     </label>
                     <input
                       id="ddt-transport-shipping-code"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="shippingCode"
                       autocomplete="off"
                     />
                   </div>
-                  <div class="gr-form__field gr-form__field--span2">
-                    <label class="gr-form__label" for="ddt-transport-tracking">
+                  <div class="doc-form__field doc-form__field--span2">
+                    <label class="doc-form__label" for="ddt-transport-tracking">
                       Tracking spedizione
                     </label>
                     <input
                       id="ddt-transport-tracking"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="trackingCode"
                       placeholder="Codice o link tracking"
@@ -2350,90 +1913,90 @@
             <!-- Sezione Indirizzi (prompt DDT §INDIRIZZI): intestatario
                  auto-compilato dall'anagrafica, destinazione modificabile. -->
             <section class="ddt-form__section" aria-labelledby="ddt-addresses-title">
-              <h2 id="ddt-addresses-title" class="gr-form__subtitle ddt-form__section-title">
+              <h2 id="ddt-addresses-title" class="doc-form__subtitle ddt-form__section-title">
                 Indirizzi
               </h2>
               <div class="ddt-form__addresses">
                 <div class="ddt-form__address-block" formGroupName="recipientAddress">
                   <h3 class="ddt-form__address-title">Intestatario</h3>
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="ddt-rec-name">Nome / Ragione sociale</label>
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="ddt-rec-name">Nome / Ragione sociale</label>
                     <input
                       id="ddt-rec-name"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="name"
                       autocomplete="off"
                     />
                   </div>
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="ddt-rec-address">Indirizzo</label>
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="ddt-rec-address">Indirizzo</label>
                     <input
                       id="ddt-rec-address"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="address"
                       autocomplete="off"
                     />
                   </div>
                   <div class="ddt-form__address-row">
-                    <div class="gr-form__field">
-                      <label class="gr-form__label" for="ddt-rec-zip">CAP</label>
+                    <div class="doc-form__field">
+                      <label class="doc-form__label" for="ddt-rec-zip">CAP</label>
                       <input
                         id="ddt-rec-zip"
-                        class="gr-form__input"
+                        class="doc-form__input"
                         type="text"
                         formControlName="zip"
                         autocomplete="off"
                       />
                     </div>
-                    <div class="gr-form__field">
-                      <label class="gr-form__label" for="ddt-rec-city">Città</label>
+                    <div class="doc-form__field">
+                      <label class="doc-form__label" for="ddt-rec-city">Città</label>
                       <input
                         id="ddt-rec-city"
-                        class="gr-form__input"
+                        class="doc-form__input"
                         type="text"
                         formControlName="city"
                         autocomplete="off"
                       />
                     </div>
-                    <div class="gr-form__field">
-                      <label class="gr-form__label" for="ddt-rec-province">Provincia</label>
+                    <div class="doc-form__field">
+                      <label class="doc-form__label" for="ddt-rec-province">Provincia</label>
                       <input
                         id="ddt-rec-province"
-                        class="gr-form__input"
+                        class="doc-form__input"
                         type="text"
                         formControlName="province"
                         autocomplete="off"
                       />
                     </div>
                   </div>
-                  <div class="gr-form__field">
-                    <label class="gr-form__label" for="ddt-rec-country">Nazione</label>
+                  <div class="doc-form__field">
+                    <label class="doc-form__label" for="ddt-rec-country">Nazione</label>
                     <input
                       id="ddt-rec-country"
-                      class="gr-form__input"
+                      class="doc-form__input"
                       type="text"
                       formControlName="country"
                       autocomplete="off"
                     />
                   </div>
                   <div class="ddt-form__address-row ddt-form__address-row--two">
-                    <div class="gr-form__field">
-                      <label class="gr-form__label" for="ddt-rec-fiscal">Codice fiscale</label>
+                    <div class="doc-form__field">
+                      <label class="doc-form__label" for="ddt-rec-fiscal">Codice fiscale</label>
                       <input
                         id="ddt-rec-fiscal"
-                        class="gr-form__input"
+                        class="doc-form__input"
                         type="text"
                         formControlName="fiscalCode"
                         autocomplete="off"
                       />
                     </div>
-                    <div class="gr-form__field">
-                      <label class="gr-form__label" for="ddt-rec-vat">Partita IVA</label>
+                    <div class="doc-form__field">
+                      <label class="doc-form__label" for="ddt-rec-vat">Partita IVA</label>
                       <input
                         id="ddt-rec-vat"
-                        class="gr-form__input"
+                        class="doc-form__input"
                         type="text"
                         formControlName="vatNumber"
                         autocomplete="off"
@@ -2470,86 +2033,88 @@
                     </p>
                   } @else {
                     <div formGroupName="destinationAddress">
-                      <div class="gr-form__field">
-                        <label class="gr-form__label" for="ddt-dest-name">
+                      <div class="doc-form__field">
+                        <label class="doc-form__label" for="ddt-dest-name">
                           Nome / Ragione sociale
                         </label>
                         <input
                           id="ddt-dest-name"
-                          class="gr-form__input"
+                          class="doc-form__input"
                           type="text"
                           formControlName="name"
                           autocomplete="off"
                         />
                       </div>
-                      <div class="gr-form__field">
-                        <label class="gr-form__label" for="ddt-dest-address">Indirizzo</label>
+                      <div class="doc-form__field">
+                        <label class="doc-form__label" for="ddt-dest-address">Indirizzo</label>
                         <input
                           id="ddt-dest-address"
-                          class="gr-form__input"
+                          class="doc-form__input"
                           type="text"
                           formControlName="address"
                           autocomplete="off"
                         />
                       </div>
                       <div class="ddt-form__address-row">
-                        <div class="gr-form__field">
-                          <label class="gr-form__label" for="ddt-dest-zip">CAP</label>
+                        <div class="doc-form__field">
+                          <label class="doc-form__label" for="ddt-dest-zip">CAP</label>
                           <input
                             id="ddt-dest-zip"
-                            class="gr-form__input"
+                            class="doc-form__input"
                             type="text"
                             formControlName="zip"
                             autocomplete="off"
                           />
                         </div>
-                        <div class="gr-form__field">
-                          <label class="gr-form__label" for="ddt-dest-city">Città</label>
+                        <div class="doc-form__field">
+                          <label class="doc-form__label" for="ddt-dest-city">Città</label>
                           <input
                             id="ddt-dest-city"
-                            class="gr-form__input"
+                            class="doc-form__input"
                             type="text"
                             formControlName="city"
                             autocomplete="off"
                           />
                         </div>
-                        <div class="gr-form__field">
-                          <label class="gr-form__label" for="ddt-dest-province">Provincia</label>
+                        <div class="doc-form__field">
+                          <label class="doc-form__label" for="ddt-dest-province">Provincia</label>
                           <input
                             id="ddt-dest-province"
-                            class="gr-form__input"
+                            class="doc-form__input"
                             type="text"
                             formControlName="province"
                             autocomplete="off"
                           />
                         </div>
                       </div>
-                      <div class="gr-form__field">
-                        <label class="gr-form__label" for="ddt-dest-country">Nazione</label>
+                      <div class="doc-form__field">
+                        <label class="doc-form__label" for="ddt-dest-country">Nazione</label>
                         <input
                           id="ddt-dest-country"
-                          class="gr-form__input"
+                          class="doc-form__input"
                           type="text"
                           formControlName="country"
                           autocomplete="off"
                         />
                       </div>
                       <div class="ddt-form__address-row ddt-form__address-row--two">
-                        <div class="gr-form__field">
-                          <label class="gr-form__label" for="ddt-dest-fiscal">Codice fiscale</label>
+                        <div class="doc-form__field">
+                          <label class="doc-form__label" for="ddt-dest-fiscal"
+                            >Codice fiscale</label
+                          >
                           <input
                             id="ddt-dest-fiscal"
-                            class="gr-form__input"
+                            class="doc-form__input"
                             type="text"
                             formControlName="fiscalCode"
                             autocomplete="off"
                           />
                         </div>
-                        <div class="gr-form__field">
-                          <label class="gr-form__label" for="ddt-dest-vat">Partita IVA</label>
+                        <div class="doc-form__field">
+                          <label class="doc-form__label" for="ddt-dest-vat">Partita IVA</label>
                           <input
                             id="ddt-dest-vat"
-                            class="gr-form__input"
+                            class="doc-form__input"
                             type="text"
                             formControlName="vatNumber"
                             autocomplete="off"
@@ -2566,7 +2131,7 @@
       </fieldset>
 
       @if (isOrder && loadedOrder(); as order) {
-        <section class="gr-form__attachments" aria-label="Allegati ordine">
+        <section class="doc-form__attachments" aria-label="Allegati ordine">
           <app-attachments-panel
             entityType="sales_order"
             [entityId]="order.id"
@@ -2576,14 +2141,14 @@
       }
 
       @if (submitError(); as appError) {
-        <p class="gr-form__submit-error" role="alert">{{ appError.message }}</p>
+        <p class="doc-form__submit-error" role="alert">{{ appError.message }}</p>
       }
 
-      <div class="gr-form__actions">
-        <p class="gr-form__actions-note">
+      <div class="doc-form__actions">
+        <p class="doc-form__actions-note">
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
-          <span class="gr-form__actions-note-sep">·</span>
+          <span class="doc-form__actions-note-sep">·</span>
           {{
             isQuote
               ? 'Il preventivo non impegna e non blocca la disponibilità di magazzino'
@@ -2764,32 +2329,32 @@
 }
 
 @if (concludeMenuOpen()) {
-  <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="toggleConcludeMenu()"></div>
+  <div class="doc-form__menu-backdrop" aria-hidden="true" (click)="toggleConcludeMenu()"></div>
 }
 
 @if (generateMenuOpen()) {
-  <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="toggleGenerateMenu()"></div>
+  <div class="doc-form__menu-backdrop" aria-hidden="true" (click)="toggleGenerateMenu()"></div>
 }
 
 @if (priceModeMenuOpen()) {
-  <div class="gr-form__menu-backdrop" aria-hidden="true" (click)="togglePriceModeMenu()"></div>
+  <div class="doc-form__menu-backdrop" aria-hidden="true" (click)="togglePriceModeMenu()"></div>
 }
 
 @if (incompleteDataDialogOpen()) {
   <div
-    class="gr-form__exit-backdrop"
+    class="doc-form__exit-backdrop"
     aria-hidden="true"
     (click)="dismissIncompleteDataDialog()"
   ></div>
   <div
-    class="gr-form__exit-dialog"
+    class="doc-form__exit-dialog"
     role="dialog"
     aria-modal="true"
     aria-labelledby="ddt-incomplete-title"
   >
-    <h2 id="ddt-incomplete-title" class="gr-form__exit-title">Dati incompleti</h2>
-    <p class="gr-form__exit-message">Dati trasporto/indirizzi incompleti. Procedere lo stesso?</p>
-    <div class="gr-form__exit-actions">
+    <h2 id="ddt-incomplete-title" class="doc-form__exit-title">Dati incompleti</h2>
+    <p class="doc-form__exit-message">Dati trasporto/indirizzi incompleti. Procedere lo stesso?</p>
+    <div class="doc-form__exit-actions">
       <app-button type="button" variant="ghost" (click)="dismissIncompleteDataDialog()">
         Annulla
       </app-button>
@@ -2803,18 +2368,18 @@
 
 @if (partialOrdersDialogOpen()) {
   <div
-    class="gr-form__exit-backdrop"
+    class="doc-form__exit-backdrop"
     aria-hidden="true"
     (click)="dismissPartialOrdersDialog()"
   ></div>
   <div
-    class="gr-form__exit-dialog"
+    class="doc-form__exit-dialog"
     role="dialog"
     aria-modal="true"
     aria-labelledby="ddt-partial-title"
   >
-    <h2 id="ddt-partial-title" class="gr-form__exit-title">Ordine non evaso del tutto</h2>
-    <p class="gr-form__exit-message">
+    <h2 id="ddt-partial-title" class="doc-form__exit-title">Ordine non evaso del tutto</h2>
+    <p class="doc-form__exit-message">
       Non sono stati evasi tutti i prodotti previsti. Forzare lo stato a Concluso?
     </p>
     <ul class="co-form__availability-list">
@@ -2822,7 +2387,7 @@
         <li>{{ orderNumber }} → altrimenti resterà «Parzialmente concluso»</li>
       }
     </ul>
-    <div class="gr-form__exit-actions">
+    <div class="doc-form__exit-actions">
       <app-button type="button" variant="ghost" (click)="dismissPartialOrdersDialog()">
         Annulla
       </app-button>
@@ -2836,20 +2401,20 @@
 
 @if (availabilityDialogOpen()) {
   <div
-    class="gr-form__exit-backdrop"
+    class="doc-form__exit-backdrop"
     aria-hidden="true"
     (click)="dismissAvailabilityDialog()"
   ></div>
   <div
-    class="gr-form__exit-dialog"
+    class="doc-form__exit-dialog"
     role="dialog"
     aria-modal="true"
     aria-labelledby="co-availability-title"
   >
-    <h2 id="co-availability-title" class="gr-form__exit-title">
+    <h2 id="co-availability-title" class="doc-form__exit-title">
       {{ isManualUnload ? 'Scarico oltre la disponibilità' : 'Quantità oltre la disponibilità' }}
     </h2>
-    <p class="gr-form__exit-message">
+    <p class="doc-form__exit-message">
       {{
         isManualUnload
           ? 'Stai scaricando più di quanto disponibile. Continuare?'
@@ -2864,7 +2429,7 @@
         </li>
       }
     </ul>
-    <div class="gr-form__exit-actions">
+    <div class="doc-form__exit-actions">
       <app-button type="button" variant="ghost" (click)="dismissAvailabilityDialog()">
         {{ isManualUnload ? 'Annulla' : 'Correggi subito' }}
       </app-button>
@@ -2876,14 +2441,19 @@
 }
 
 @if (exitDialogOpen()) {
-  <div class="gr-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
-  <div class="gr-form__exit-dialog" role="dialog" aria-modal="true" aria-labelledby="co-exit-title">
-    <h2 id="co-exit-title" class="gr-form__exit-title">Modifiche non salvate</h2>
-    <p class="gr-form__exit-message">{{ exitDialogMessage() }}</p>
+  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
+  <div
+    class="doc-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="co-exit-title"
+  >
+    <h2 id="co-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
+    <p class="doc-form__exit-message">{{ exitDialogMessage() }}</p>
     @if (submitError(); as error) {
-      <p class="gr-form__exit-error" role="alert">{{ error.message }}</p>
+      <p class="doc-form__exit-error" role="alert">{{ error.message }}</p>
     }
-    <div class="gr-form__exit-actions">
+    <div class="doc-form__exit-actions">
       <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
         Annulla
       </app-button>

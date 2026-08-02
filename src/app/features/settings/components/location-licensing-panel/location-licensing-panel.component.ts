@@ -17,13 +17,14 @@ import {
   shouldShowLocationSelectionLockedMessage,
 } from '@core/utils/location-selection-lock.util';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 import { InventoryService } from '@domain/inventory/services/inventory.service';
 
 @Component({
   selector: 'app-location-licensing-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent],
+  imports: [ButtonComponent, InlineBannerComponent],
   templateUrl: './location-licensing-panel.component.html',
   styleUrl: './location-licensing-panel.component.scss',
 })

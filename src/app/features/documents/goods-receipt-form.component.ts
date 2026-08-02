@@ -247,7 +247,6 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
   templateUrl: './goods-receipt-form.component.html',
   // Banda footer sticky (totali orizzontali + azioni) condivisa con
   // l'Ordine cliente: secondo stylesheet, fuori dal budget del principale.
-  styleUrls: ['./goods-receipt-form.component.scss', './document-form-footer.shared.scss'],
 })
 export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);

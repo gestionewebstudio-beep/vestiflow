@@ -47,7 +47,7 @@
 }
 
 .customer-fields__control:disabled {
-  opacity: var(--opacity-muted);
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 

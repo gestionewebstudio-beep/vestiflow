@@ -1,0 +1,460 @@
+                    <article
+                      class="co-form__card"
+                      [class.co-form__card--open]="isLineCardOpen(i)"
+                      [class.co-form__card--incomplete]="!lineRowComplete(i)"
+                      [formGroupName]="i"
+                    >
+                      <!-- Alert disponibilità (non bloccante) sopra la riga. -->
+                      @if (lineAvailabilityHint(i); as hint) {
+                        <p class="co-form__card-alert" role="status">
+                          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                          {{ hint }}
+                        </p>
+                      }
+
+                      <!-- Riga compatta: nome/SKU (tap = espandi) e X sopra, sotto i
+                         tre metric chip Qtà · Prezzo · Totale. Quantità e prezzo si
+                         modificano senza aprire la card; il resto nel corpo. -->
+                      <div class="co-form__card-head">
+                        @if (isOrder) {
+                          <!-- Ordine cliente (isOrder): anatomia card v2. RAMO
+                             TEMPORANEO — quando il layout andrà agli altri documenti
+                             il ramo @else va rimosso e la card torna una sola. -->
+                          <div class="co-order-card__topline">
+                            <button
+                              type="button"
+                              class="co-order-card__remove"
+                              [disabled]="formReadOnly()"
+                              aria-label="Elimina riga"
+                              (click)="requestRemoveLine(i)"
+                            >
+                              <i class="pi pi-trash" aria-hidden="true"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="co-order-card__expand"
+                              [attr.aria-expanded]="isLineCardOpen(i)"
+                              (click)="toggleLineCard(i)"
+                            >
+                              <span class="co-order-card__name">
+                                {{ line.controls.productName.value || 'Riga senza prodotto' }}
+                              </span>
+                              <i
+                                class="pi pi-chevron-down co-order-card__chevron"
+                                aria-hidden="true"
+                              ></i>
+                            </button>
+                          </div>
+
+                          @if (lineVariantLabel(i); as variant) {
+                            <p class="co-order-card__variant">{{ variant }}</p>
+                          }
+
+                          <p class="co-order-card__meta">
+                            <span class="co-order-card__meta-item">{{
+                              lineArticleCode(i) ? 'Cod. ' + lineArticleCode(i) : 'Nessun codice'
+                            }}</span>
+                            @if (line.controls.sku.value) {
+                              <span class="co-order-card__meta-item"
+                                >SKU {{ line.controls.sku.value }}</span
+                              >
+                            }
+                            <span
+                              class="co-order-card__meta-item co-order-card__avail"
+                              [class.co-order-card__avail--low]="lineAvailabilityCritical(i)"
+                              >Disp. {{ lineStockAvailable(i) }}</span
+                            >
+                          </p>
+
+                          <div class="co-order-card__controls">
+                            <div class="co-order-card__control">
+                              <span class="co-order-card__label">Quantità</span>
+                              <div class="co-form__qty-stepper">
+                                <button
+                                  type="button"
+                                  class="co-form__qty-btn"
+                                  [disabled]="formReadOnly()"
+                                  aria-label="Diminuisci quantità"
+                                  (click)="decrementLineQty(i)"
+                                >
+                                  <i class="pi pi-minus" aria-hidden="true"></i>
+                                </button>
+                                <input
+                                  class="co-form__qty-input tabular-nums"
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  inputmode="numeric"
+                                  formControlName="quantity"
+                                  aria-label="Quantità"
+                                />
+                                <button
+                                  type="button"
+                                  class="co-form__qty-btn"
+                                  [disabled]="formReadOnly()"
+                                  aria-label="Aumenta quantità"
+                                  (click)="incrementLineQty(i)"
+                                >
+                                  <i class="pi pi-plus" aria-hidden="true"></i>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div class="co-order-card__control">
+                              <span class="co-order-card__label">{{ priceRowLabel() }}</span>
+                              <input
+                                class="co-order-card__price-input tabular-nums"
+                                type="text"
+                                inputmode="decimal"
+                                formControlName="unitPrice"
+                                placeholder="0,00"
+                                aria-label="Prezzo unitario"
+                              />
+                            </div>
+
+                            <div class="co-order-card__control">
+                              <span class="co-order-card__label">Totale</span>
+                              <span class="co-order-card__total tabular-nums">{{
+                                formatMoney(lineTotalMoney(i))
+                              }}</span>
+                            </div>
+                          </div>
+                        } @else {
+                          <div class="co-form__card-topline">
+                            <button
+                              type="button"
+                              class="co-form__card-expand"
+                              [attr.aria-expanded]="isLineCardOpen(i)"
+                              (click)="toggleLineCard(i)"
+                            >
+                              <i
+                                class="pi pi-chevron-down co-form__card-chevron"
+                                aria-hidden="true"
+                              ></i>
+                              <span class="co-form__card-copy">
+                                <span class="co-form__card-name">
+                                  {{ line.controls.productName.value || 'Riga senza prodotto' }}
+                                </span>
+                                <span class="co-form__card-sub">
+                                  {{
+                                    lineArticleCode(i)
+                                      ? 'Cod. ' + lineArticleCode(i)
+                                      : 'Nessun codice'
+                                  }}
+                                  @if (line.controls.sku.value) {
+                                    · SKU {{ line.controls.sku.value }}
+                                  }
+                                </span>
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              class="co-form__card-remove"
+                              [disabled]="formReadOnly()"
+                              aria-label="Rimuovi riga"
+                              (click)="removeLine(i)"
+                            >
+                              <i class="pi pi-times" aria-hidden="true"></i>
+                            </button>
+                          </div>
+
+                          <div class="co-form__metrics">
+                            <div class="co-form__metric co-form__metric--qty">
+                              <small>Qtà</small>
+                              <div class="co-form__qty-stepper">
+                                <button
+                                  type="button"
+                                  class="co-form__qty-btn"
+                                  [disabled]="formReadOnly()"
+                                  aria-label="Diminuisci quantità"
+                                  (click)="decrementLineQty(i)"
+                                >
+                                  <i class="pi pi-minus" aria-hidden="true"></i>
+                                </button>
+                                <input
+                                  class="co-form__qty-input tabular-nums"
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  inputmode="numeric"
+                                  formControlName="quantity"
+                                  aria-label="Quantità"
+                                />
+                                <button
+                                  type="button"
+                                  class="co-form__qty-btn"
+                                  [disabled]="formReadOnly()"
+                                  aria-label="Aumenta quantità"
+                                  (click)="incrementLineQty(i)"
+                                >
+                                  <i class="pi pi-plus" aria-hidden="true"></i>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div class="co-form__metric co-form__metric--price">
+                              <small>{{ priceRowLabel() }}</small>
+                              <input
+                                class="co-form__metric-input tabular-nums"
+                                type="text"
+                                inputmode="decimal"
+                                formControlName="unitPrice"
+                                placeholder="0,00"
+                                aria-label="Prezzo unitario"
+                              />
+                            </div>
+
+                            <div class="co-form__metric co-form__metric--total">
+                              <small>Totale</small>
+                              <strong class="tabular-nums">{{
+                                formatMoney(lineTotalMoney(i))
+                              }}</strong>
+                            </div>
+                          </div>
+                        }
+                      </div>
+
+                      @if (isLineCardOpen(i)) {
+                        <div class="co-form__card-body">
+                          <div class="co-form__card-grid">
+                            <p class="co-form__card-group co-form__card-group--first">Articolo</p>
+                            <div class="co-form__card-field">
+                              <label [attr.for]="'co-m-code-' + i">Cod. articolo</label>
+                              <input
+                                [id]="'co-m-code-' + i"
+                                class="doc-form__input"
+                                type="text"
+                                formControlName="articleCode"
+                                placeholder="—"
+                                autocomplete="off"
+                                (keydown.enter)="
+                                  commitCodeLookup(i, 'articleCode'); $event.preventDefault()
+                                "
+                              />
+                            </div>
+                            <div class="co-form__card-field">
+                              <label [attr.for]="'co-m-sku-' + i">SKU</label>
+                              <input
+                                [id]="'co-m-sku-' + i"
+                                class="doc-form__input"
+                                type="text"
+                                formControlName="sku"
+                                placeholder="—"
+                                autocomplete="off"
+                                (keydown.enter)="
+                                  commitCodeLookup(i, 'sku'); $event.preventDefault()
+                                "
+                              />
+                            </div>
+                            <div class="co-form__card-field co-form__card-field--full">
+                              <label [attr.for]="'co-m-barcode-' + i">EAN</label>
+                              <input
+                                [id]="'co-m-barcode-' + i"
+                                class="doc-form__input"
+                                type="text"
+                                formControlName="barcode"
+                                placeholder="—"
+                                autocomplete="off"
+                                (keydown.enter)="
+                                  commitCodeLookup(i, 'barcode'); $event.preventDefault()
+                                "
+                              />
+                            </div>
+                            <div class="co-form__card-field co-form__card-field--full">
+                              <label [attr.for]="'co-m-product-' + i">Nome prodotto</label>
+                              <div
+                                class="co-form__card-search"
+                                [class.co-form__card-search--above]="mobileSuggestAbove()"
+                              >
+                                <input
+                                  #coMobileProduct
+                                  [id]="'co-m-product-' + i"
+                                  class="doc-form__input"
+                                  type="text"
+                                  formControlName="productName"
+                                  autocomplete="off"
+                                  [attr.aria-expanded]="lineSuggestionsOpen(i)"
+                                  [attr.aria-controls]="'co-m-suggest-' + i"
+                                  (input)="onMobileProductNameInput(i, coMobileProduct)"
+                                  (focus)="onMobileProductFocus(i, coMobileProduct)"
+                                  (blur)="onLineProductBlur(i)"
+                                />
+                                <button
+                                  type="button"
+                                  class="co-form__card-search-btn"
+                                  aria-label="Cerca prodotto"
+                                  [disabled]="formReadOnly()"
+                                  (mousedown)="$event.preventDefault()"
+                                  (click)="openLineProductSearch(i)"
+                                >
+                                  <i class="pi pi-search" aria-hidden="true"></i>
+                                </button>
+                                <!-- Anteprima live: chiude al pick (onVariantSelect azzera
+                                   l'autocomplete) e al tap fuori (blur → clear ritardato).
+                                   mousedown.preventDefault tiene il focus finché parte il tap. -->
+                                @if (lineSuggestionsOpen(i)) {
+                                  <ul
+                                    [id]="'co-m-suggest-' + i"
+                                    class="co-form__card-suggestions"
+                                    role="listbox"
+                                    aria-label="Suggerimenti prodotto"
+                                  >
+                                    @for (
+                                      item of lineSuggestions(i);
+                                      track item.variantId;
+                                      let idx = $index
+                                    ) {
+                                      <li
+                                        role="option"
+                                        class="co-form__card-suggestion"
+                                        [class.co-form__card-suggestion--active]="
+                                          idx === activeSuggestionIndex()
+                                        "
+                                        [attr.aria-selected]="idx === activeSuggestionIndex()"
+                                        tabindex="0"
+                                        (mousedown)="$event.preventDefault()"
+                                        (click)="onProductSuggestionPick(i, item.variantId)"
+                                        (keydown.enter)="
+                                          onProductSuggestionPick(i, item.variantId);
+                                          $event.preventDefault()
+                                        "
+                                      >
+                                        <span class="co-form__card-suggestion-title">{{
+                                          item.title
+                                        }}</span>
+                                        <span class="co-form__card-suggestion-detail">{{
+                                          mobileSuggestionDetail(item)
+                                        }}</span>
+                                      </li>
+                                    }
+                                  </ul>
+                                }
+                              </div>
+                            </div>
+
+                            <!-- Quantità: solo nello stepper della riga compatta (F4).
+                               Disponibile e «Impegna magazzino» sono sempre a schermo
+                               nella card: non dipendono dal selettore colonne desktop. -->
+                            <p class="co-form__card-group">Magazzino</p>
+                            <div class="co-form__card-field co-form__card-field--readonly">
+                              <span class="co-form__card-label">Disponibile</span>
+                              <p class="tabular-nums">
+                                {{ lineStockAvailable(i) }} {{ lineUnitOfMeasure(i) }}
+                              </p>
+                            </div>
+                            <div class="co-form__card-field co-form__card-field--readonly">
+                              <span class="co-form__card-label">U.m.</span>
+                              <p>{{ lineUnitOfMeasure(i) }}</p>
+                            </div>
+                            @if (!isQuote) {
+                              <div class="co-form__card-field">
+                                <label [attr.for]="'co-m-commits-' + i">{{
+                                  commitsColumnLabel
+                                }}</label>
+                                <select
+                                  [id]="'co-m-commits-' + i"
+                                  class="doc-form__input co-form__card-select"
+                                  [value]="line.controls.commitsStock.value ? 'yes' : 'no'"
+                                  (change)="onLineCommitsSelect(i, $any($event.target).value)"
+                                >
+                                  <option value="yes">Sì</option>
+                                  <option value="no">No</option>
+                                </select>
+                              </div>
+                            }
+                            @if (isLineColumnVisible('serials')) {
+                              <div class="co-form__card-field co-form__card-field--full">
+                                <label [attr.for]="'co-m-serials-' + i">Seriali</label>
+                                <input
+                                  [id]="'co-m-serials-' + i"
+                                  class="doc-form__input"
+                                  type="text"
+                                  formControlName="serialNumbersText"
+                                  placeholder="SN001, SN002"
+                                  autocomplete="off"
+                                />
+                              </div>
+                            }
+
+                            <p class="co-form__card-group">Vendita</p>
+                            @if (isLineColumnVisible('purchaseCost')) {
+                              <div class="co-form__card-field co-form__card-field--readonly">
+                                <span class="co-form__card-label">Costo</span>
+                                <p class="tabular-nums">{{ linePurchaseCost(i) }}</p>
+                              </div>
+                            }
+                            <div class="co-form__card-field">
+                              <label [attr.for]="'co-m-price-' + i">{{ priceRowLabel() }}</label>
+                              <input
+                                [id]="'co-m-price-' + i"
+                                class="doc-form__input"
+                                type="text"
+                                inputmode="decimal"
+                                formControlName="unitPrice"
+                                placeholder="0,00"
+                              />
+                            </div>
+                            <div class="co-form__card-field">
+                              <label [attr.for]="'co-m-discount-' + i">Sconto</label>
+                              <input
+                                [id]="'co-m-discount-' + i"
+                                class="doc-form__input"
+                                type="text"
+                                formControlName="discount"
+                                placeholder="0%"
+                                title="Percentuale singola o cascata: «10%», «4+10%»"
+                              />
+                            </div>
+                            <div class="co-form__card-field co-form__card-field--readonly">
+                              <span class="co-form__card-label">Prezzo scontato</span>
+                              <p class="tabular-nums">
+                                {{ formatMoney(lineDiscountedUnitMoney(i)) }}
+                              </p>
+                            </div>
+                            <div class="co-form__card-field">
+                              <span class="co-form__card-label">IVA</span>
+                              <app-select-menu
+                                [options]="lineVatOptions(i)"
+                                [value]="lineVatValue(i)"
+                                ariaLabel="Codice IVA riga"
+                                placeholder="—"
+                                [compact]="true"
+                                [fullWidth]="true"
+                                [includeEmptyOption]="false"
+                                [searchable]="true"
+                                [inlineDetail]="true"
+                                searchPlaceholder="Codice, aliquota, descrizione…"
+                                searchAriaLabel="Cerca Codice IVA"
+                                (valueChange)="onLineVatSelect(i, $event)"
+                              />
+                            </div>
+                            <div class="co-form__card-field co-form__card-field--readonly">
+                              <span class="co-form__card-label">Totale</span>
+                              <p class="tabular-nums">{{ formatMoney(lineTotalMoney(i)) }}</p>
+                            </div>
+                          </div>
+
+                          <div class="co-form__card-actions">
+                            <app-button
+                              type="button"
+                              variant="secondary"
+                              [disabled]="formReadOnly()"
+                              (click)="duplicateLine(i)"
+                            >
+                              <i class="pi pi-clone" aria-hidden="true"></i>
+                              Duplica
+                            </app-button>
+                            <app-button
+                              type="button"
+                              variant="danger"
+                              [disabled]="formReadOnly()"
+                              (click)="removeLine(i)"
+                            >
+                              <i class="pi pi-trash" aria-hidden="true"></i>
+                              Elimina
+                            </app-button>
+                          </div>
+                        </div>
+                      }
+                    </article>

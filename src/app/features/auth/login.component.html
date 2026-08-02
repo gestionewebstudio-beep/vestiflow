@@ -39,7 +39,7 @@
     }
 
     @if (error(); as appError) {
-      <div class="login__alert" role="alert">{{ appError.message }}</div>
+      <app-inline-banner [message]="appError.message" />
     }
 
     @if (step() === 'mfa') {

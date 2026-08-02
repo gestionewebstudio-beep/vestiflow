@@ -1,5 +1,5 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, waitFor } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
@@ -48,6 +48,9 @@ function operationalLocationsMock() {
     fixedSingleStoreLabel: () => LOCATION.name,
   };
 }
+
+/** La ricerca articolo passa da un debounce: l'attesa predefinita e' troppo corta. */
+const SEARCH_WAIT = { timeout: 5000 };
 
 describe('MovementFormComponent', () => {
   async function setup(queryParams: Record<string, string> = {}) {
@@ -140,13 +143,21 @@ describe('MovementFormComponent', () => {
 
     const search = screen.getByLabelText('Cerca articolo per codice articolo, nome, SKU o EAN');
     await user.type(search, 'mag');
-    await user.click(await screen.findByRole('button', { name: /Aggiungi/ }));
+    // Fra il tasto e il risultato c'e' un debounce: il secondo di attesa
+    // predefinito basta a macchina scarica e non basta a suite piena.
+    await user.click(await screen.findByRole('button', { name: /Aggiungi/ }, SEARCH_WAIT));
 
     const quantity = screen.getByLabelText('Quantità per Maglietta / M / Rosso');
     expect(quantity).toHaveValue(1);
 
-    await user.type(search, 'mag');
-    await user.click(await screen.findByRole('button', { name: /Aggiungi/ }));
-    expect(quantity).toHaveValue(2);
+    // L'aggiunta svuota il campo. Il secondo termine e' DIVERSO dal primo di
+    // proposito: la ricerca passa da `distinctUntilChanged` dopo il debounce, e
+    // ricomporre «mag» prima che scatti farebbe collassare 'mag' → '' → 'mag'
+    // in una sola emissione — nessun aggiornamento della lista, e il click
+    // finirebbe sul bottone della ricerca precedente mentre viene smontato.
+    await waitFor(() => expect(search).toHaveValue(''), SEARCH_WAIT);
+    await user.type(search, 'maglietta');
+    await user.click(await screen.findByRole('button', { name: /Aggiungi/ }, SEARCH_WAIT));
+    await waitFor(() => expect(quantity).toHaveValue(2), SEARCH_WAIT);
   });
 });

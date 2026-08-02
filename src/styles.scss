@@ -2,6 +2,14 @@
 // I design token sono la UNICA fonte di verita' visiva (regole-architettura).
 // Solo base styles fondazionali: nessuno stile da landing, nessun valore hardcoded.
 @use 'design-tokens';
+// Aspetto delle classi applicate dalle direttive di shared/: sta qui perche'
+// una direttiva non puo' avere un proprio styleUrl (vedi il partial).
+@use 'styles/shared-directives';
+// Anatomia della maschera documento: la condividono cinque form, e come
+// stylesheet di componente finiva compilata cinque volte (vedi il partial).
+@use 'styles/document-form';
+@use 'styles/document-form-footer';
+@use 'styles/a11y';
 
 // -----------------------------------------------------------------------------
 // RESET MODERNO
@@ -176,15 +184,7 @@ button:disabled {
 
 // Contenuto per screen reader, invisibile a schermo.
 .sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  @include a11y.visually-hidden;
 }
 
 // Numeri allineati per tabelle, prezzi, quantita', totali (regole-gestionale).

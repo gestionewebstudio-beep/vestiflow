@@ -28,7 +28,7 @@ test.describe('Ordini fornitori', () => {
 
     await createButton.click();
     await expect(page).toHaveURL(/\/app\/orders\/new/);
-    await expect(page.locator('h1.po-form__title')).toHaveText('Nuovo ordine fornitore');
+    await expect(page.locator('h1.doc-form__title')).toHaveText('Nuovo ordine fornitore');
   });
 
   test('ricerca ordini accetta input', async ({ page }) => {

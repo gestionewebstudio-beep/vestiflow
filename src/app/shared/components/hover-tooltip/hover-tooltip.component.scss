@@ -43,7 +43,10 @@
   position: absolute;
   z-index: var(--z-tooltip);
   inset-block-end: calc(100% + var(--space-2));
-  inset-inline-start: 0;
+  // Da che lato si allinea la bolla. Sull'ultima colonna di una tabella
+  // ancorarla a sinistra la manderebbe oltre il bordo: il contenitore
+  // dichiara `--hover-tooltip-inset: auto 0` e la ribalta.
+  inset-inline: var(--hover-tooltip-inset, 0 auto);
   // max-content: il bubble si dimensiona sul TESTO, non sullo spazio del
   // contenitore — da assoluto dentro una colonna stretta, `auto` faceva
   // shrink-to-fit sulla larghezza della cella (striscia verticale ~99px).
@@ -56,7 +59,7 @@
   background: var(--color-bg);
   box-shadow: var(--shadow-md);
   font-size: var(--text-xs);
-  font-weight: var(--font-weight-normal);
+  font-weight: var(--font-weight-regular);
   line-height: var(--leading-snug);
   color: var(--color-text);
   text-align: start;

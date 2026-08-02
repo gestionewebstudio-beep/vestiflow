@@ -18,6 +18,7 @@ import {
 } from '@core/models/tenant-channel-profile.model';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 
 import type {
   ProductImportPreview,
@@ -31,7 +32,7 @@ type ImportPhase = 'upload' | 'preview' | 'done';
 @Component({
   selector: 'app-product-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, BadgeComponent],
+  imports: [ButtonComponent, BadgeComponent, InlineBannerComponent],
   templateUrl: './product-import.component.html',
   styleUrl: './product-import.component.scss',
 })

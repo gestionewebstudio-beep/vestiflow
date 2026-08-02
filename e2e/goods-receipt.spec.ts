@@ -26,7 +26,7 @@ test.describe('Arrivo merce (documenti)', () => {
 
     await newButton.click();
     await expect(page).toHaveURL(/\/app\/documents\/goods-receipt\/new/);
-    await expect(page.locator('h1.gr-form__title')).toHaveText('Nuovo arrivo merce');
+    await expect(page.locator('h1.doc-form__title')).toHaveText('Nuovo arrivo merce');
 
     await fillMinimalGoodsReceiptDraft(page);
     await saveGoodsReceiptDocument(page);
@@ -36,7 +36,7 @@ test.describe('Arrivo merce (documenti)', () => {
     test.setTimeout(90_000);
 
     await page.goto('/app/documents/goods-receipt/new');
-    await expect(page.locator('h1.gr-form__title')).toHaveText('Nuovo arrivo merce', {
+    await expect(page.locator('h1.doc-form__title')).toHaveText('Nuovo arrivo merce', {
       timeout: 30_000,
     });
 

@@ -5,9 +5,13 @@
 .app-badge {
   display: inline-flex;
   align-items: center;
-  padding-block: var(--space-1);
-  padding-inline: var(--space-2);
-  font-size: var(--text-2xs);
+  // Punti di regolazione per i contenitori che usano il badge come controllo
+  // a piena larghezza (vedi regole-stile-ui §5).
+  min-block-size: var(--badge-h, auto);
+  inline-size: var(--badge-inline-size, auto);
+  padding-block: var(--badge-pad-block, var(--space-1));
+  padding-inline: var(--badge-pad-inline, var(--space-2));
+  font-size: var(--badge-font-size, var(--text-2xs));
   font-weight: var(--font-weight-semibold);
   line-height: var(--leading-tight);
   border-radius: var(--radius-full);

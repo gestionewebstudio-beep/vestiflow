@@ -28,6 +28,7 @@ import type { SelectMenuOption } from './select-menu.model';
     '[class.select-menu-host--toolbar]': 'toolbarChip()',
     '[class.select-menu-host--match-input]': 'matchInputHeight()',
     '[class.select-menu-host--chip]': 'filterChip()',
+    '[class.select-menu-host--open]': 'open()',
     '(document:click)': 'onDocumentClick($event)',
     '(document:keydown.escape)': 'close()',
   },

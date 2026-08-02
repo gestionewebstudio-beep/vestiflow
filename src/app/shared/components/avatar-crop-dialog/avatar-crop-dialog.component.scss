@@ -59,7 +59,7 @@
   z-index: 1;
   border: var(--border-width-strong) solid var(--color-border-strong);
   border-radius: var(--radius-full);
-  box-shadow: inset 0 0 0 var(--space-1) rgb(0 0 0 / 12%);
+  box-shadow: var(--shadow-inset-ring);
   pointer-events: none;
 }
 

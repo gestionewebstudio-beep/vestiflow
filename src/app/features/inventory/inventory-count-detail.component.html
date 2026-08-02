@@ -55,7 +55,7 @@
     </header>
 
     @if (actionError(); as err) {
-      <div class="count-detail__alert" role="alert">{{ err.message }}</div>
+      <app-inline-banner [message]="err.message" />
     }
 
     @if (canReview()) {

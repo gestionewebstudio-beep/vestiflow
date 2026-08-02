@@ -30,7 +30,7 @@
   border-block-end: var(--border-width) solid var(--color-border);
   // Superficie traslucida con blur (riferimento v4).
   background-color: color-mix(in srgb, var(--color-surface) 94%, transparent);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--blur-bar));
   min-inline-size: 0;
 }
 
@@ -92,7 +92,7 @@
 }
 
 .shell__support-banner-exit:disabled {
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 
