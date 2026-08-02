@@ -33,11 +33,7 @@ import {
   canViewPurchaseCosts,
 } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError, type AppError } from '@core/models/app-error.model';
-import {
-  documentNumberConflictMessage,
-  documentNumberConflictOf,
-  type DocumentNumberConflict,
-} from '@core/models/document-number-conflict.util';
+import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import type { Money } from '@core/models/common.model';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { ProductStatus } from '@core/models/product.model';
@@ -92,6 +88,7 @@ import {
 } from '@domain/documents/models/document-include.util';
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import { grossFromNetMinor, netFromGrossMinor } from '@domain/documents/utils/document-vat.util';
+import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
   vatCodeSelectOption,
@@ -715,16 +712,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   );
   // ── Numero documento (registro: Preventivo / DDT vendita / Scarico manuale) ──
   /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
-  protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);
-  protected readonly conflictDialogOpen = signal(false);
-  protected readonly conflictMessage = computed(() => {
-    const conflict = this.numberConflict();
-    return conflict ? documentNumberConflictMessage(conflict) : '';
-  });
-  protected readonly conflictConfirmLabel = computed(() => {
-    const conflict = this.numberConflict();
-    return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
-  });
+  // Stato del dialog «numero già assegnato»: la macchina vive in domain, il
+  // form decide solo quale controllo riceve il numero e cosa risalvare.
+  private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
+  protected readonly conflictMessage = this.numberConflictDialog.message;
+  protected readonly conflictConfirmLabel = this.numberConflictDialog.confirmLabel;
   /** Serie configurate per il tipo: con una sola resta una label statica. */
   /** Contatori disponibili per la testata del registro: alimentano la tendina. */
   private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
@@ -3765,8 +3758,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         const conflict = documentNumberConflictOf(err);
         if (conflict) {
           // Numero già preso: si propone il primo libero invece dell'errore.
-          this.numberConflict.set(conflict);
-          this.conflictDialogOpen.set(true);
+          this.numberConflictDialog.open(conflict);
           this._submitState.set({ status: 'idle' });
           return;
         }
@@ -3829,20 +3821,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /** «Usa N»: prende il primo numero libero e risalva. */
   protected confirmConflictNumber(): void {
-    const conflict = this.numberConflict();
-    if (!conflict) {
+    const nextAvailable = this.numberConflictDialog.confirm();
+    if (nextAvailable === null) {
       return;
     }
-    this.form.controls.documentNumber.setValue(conflict.nextAvailable);
+    this.form.controls.documentNumber.setValue(nextAvailable);
     this.form.controls.documentNumber.markAsDirty();
-    this.numberConflict.set(null);
-    this.conflictDialogOpen.set(false);
     this.saveRegistryDocument();
   }
 
   protected dismissConflictDialog(): void {
-    this.numberConflict.set(null);
-    this.conflictDialogOpen.set(false);
+    this.numberConflictDialog.dismiss();
   }
 
   /** POST creazione: i campi vuoti si omettono invece di inviare null. */

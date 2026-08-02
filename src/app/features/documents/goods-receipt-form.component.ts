@@ -61,11 +61,7 @@ import {
   parseMoneyInput,
 } from '@core/utils/money.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
-import {
-  documentNumberConflictMessage,
-  documentNumberConflictOf,
-  type DocumentNumberConflict,
-} from '@core/models/document-number-conflict.util';
+import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
 import type { Supplier } from '@core/models/supplier.model';
@@ -163,6 +159,7 @@ import {
   type VatComputationInput,
   type VatLineAmounts,
 } from '@domain/documents/utils/document-vat.util';
+import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
   vatCodeSelectOption,
@@ -331,16 +328,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly previewReference = signal<string | null>(null);
 
   /** Conflitto protocollo restituito dal server: dialogo «Usa N» / «Annulla». */
-  protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);
-  protected readonly conflictDialogOpen = signal(false);
-  protected readonly conflictMessage = computed(() => {
-    const conflict = this.numberConflict();
-    return conflict ? documentNumberConflictMessage(conflict) : '';
-  });
-  protected readonly conflictConfirmLabel = computed(() => {
-    const conflict = this.numberConflict();
-    return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
-  });
+  // Stato del dialog «protocollo già assegnato»: la macchina vive in domain,
+  // il form decide solo quale controllo riceve il numero e cosa risalvare.
+  private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
+  protected readonly conflictMessage = this.numberConflictDialog.message;
+  protected readonly conflictConfirmLabel = this.numberConflictDialog.confirmLabel;
   protected readonly editUnlocked = signal(false);
   /** Evita il lock immediato dopo auto-save che crea il documento e cambia route. */
   private readonly preserveEditSession = signal(false);
@@ -4230,8 +4223,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           const conflict = documentNumberConflictOf(err);
           if (conflict) {
             this._submitState.set({ status: 'idle' });
-            this.numberConflict.set(conflict);
-            this.conflictDialogOpen.set(true);
+            this.numberConflictDialog.open(conflict);
             return;
           }
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
@@ -4241,20 +4233,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   /** «Usa N»: prende il primo protocollo libero e risalva. */
   protected confirmConflictNumber(): void {
-    const conflict = this.numberConflict();
-    this.conflictDialogOpen.set(false);
-    if (!conflict) {
+    const nextAvailable = this.numberConflictDialog.confirm();
+    if (nextAvailable === null) {
       return;
     }
-    this.form.controls.protocolNumber.setValue(conflict.nextAvailable);
+    this.form.controls.protocolNumber.setValue(nextAvailable);
     this.form.controls.protocolNumber.markAsDirty();
-    this.numberConflict.set(null);
     this.requestSaveDocument();
   }
 
   protected dismissConflictDialog(): void {
-    this.conflictDialogOpen.set(false);
-    this.numberConflict.set(null);
+    this.numberConflictDialog.dismiss();
   }
 
   private reloadSupplierVariantLinks(supplierId: string): void {
