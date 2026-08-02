@@ -93,9 +93,6 @@
   --color-brand-subtle: var(--color-shopify-subtle);
 
   --color-backdrop: rgb(21 33 31 / 0.45);
-  // Velo delle barre appoggiate al contenuto (topbar, piede documento): la
-  // stessa sfocatura in quattro punti, cosi' le barre si somigliano davvero.
-  --blur-bar: 12px;
 
   // Navigazione — palette dedicata alla shell, tonalmente distinta dal brand
   // perche' vive in un'area separata della schermata (regole-stile-ui §2).
@@ -334,6 +331,24 @@
   --color-input-bg: var(--color-surface-soft);
   --color-input-border: var(--color-border-strong);
   --color-table-header-bg: #1f272a;
+  // ── Ruoli emersi dall'Ordine cliente ──────────────────────────────────────
+  // La pelle chiara non regge su fondo scuro: i ruoli tornano ai token del
+  // tema, la gerarchia resta quella.
+  --color-table-header-fg: var(--color-text-muted);
+  --color-table-header-rule: var(--color-border-strong);
+  --color-field-label: var(--color-text-subtle);
+
+  // ── Riga «Documento collegato» ────────────────────────────────────────────
+  --color-doc-ref-bg: var(--color-surface-sunken);
+  --color-doc-ref-fg: var(--color-text-muted);
+  --color-doc-ref-accent: var(--color-border-strong);
+  --color-doc-ref-line: var(--color-border);
+  --color-doc-ref-chip-bg: var(--color-surface-sunken);
+  --color-doc-ref-chip-fg: var(--color-text-muted);
+  --color-doc-ref-chip-line: var(--color-border);
+  --color-doc-ref-title: var(--color-text);
+  --color-doc-ref-muted: var(--color-text-subtle);
+
   --color-table-row-divider: var(--color-border-cell);
   --color-table-col-divider: var(--color-border-cell);
   --color-table-row-selected: rgb(207 224 230 / 0.06);
@@ -506,6 +521,15 @@
   --space-05: 0.125rem; // 2px
   --space-1: 0.25rem; // 4px
   --space-1-5: 0.375rem; // 6px
+  // Velo delle barre appoggiate al contenuto (topbar, piede documento): la
+  // stessa sfocatura in quattro punti, cosi' le barre si somigliano davvero.
+  // Non e' un colore: vale identica nei due temi, e sta con la geometria.
+  --blur-bar: 12px;
+
+  // Smorzamento di un controllo disabilitato: era 0.6 scritto a mano in sei
+  // punti, e un --opacity-muted che nessuno aveva mai dichiarato.
+  --opacity-disabled: 0.6;
+
   --space-2: 0.5rem; // 8px
   --space-3: 0.75rem; // 12px
   --space-4: 1rem; // 16px

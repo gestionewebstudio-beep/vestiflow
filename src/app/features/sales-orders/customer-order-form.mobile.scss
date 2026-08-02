@@ -175,7 +175,7 @@
   // testi pallidi. Torna normale quando il gate si sblocca (fieldset non più
   // disabled). Il cosa-fare è nel banner warning sopra la sezione.
   .co-form .doc-form__gate-fields:disabled {
-    opacity: 0.6;
+    opacity: var(--opacity-disabled);
   }
 
   .co-form .doc-form__gate-fields:disabled .co-form__mobile-quick {

@@ -283,6 +283,24 @@ l'anteprima di riga sta in `styles/_document-form.scss`.
 Un `::ng-deep` è un difetto di API del componente condiviso: la correzione è
 aggiungere il punto di regolazione che manca, non scavalcarlo.
 
+### I due controlli automatici sui token
+
+`npm run check:tokens` (dentro `npm run lint`) fa fallire la build su due difetti
+che non si vedono, non rompono nulla in compilazione e non fanno arrossare un test:
+
+1. **Parità fra i temi.** Un token dichiarato in `theme-light` e non in
+   `theme-dark` non ha valore quando il tema è scuro: la dichiarazione che lo usa
+   diventa invalida e il browser la scarta. Il colore sparisce per metà degli
+   utenti, in silenzio. È già successo — tredici token aggiunti al solo tema
+   chiaro.
+2. **Token fantasma.** Un `var(--x)` senza fallback su un nome che nessuno
+   dichiara fa la stessa fine, e capita a ogni rinomina. Ne sono stati trovati
+   undici, tutti preesistenti: `--color-text-primary`, `--space-sm`,
+   `--focus-ring-color`, `--opacity-muted`…
+
+Non controlla i valori: quelli sono una scelta di design, e la fonte di verità è
+questo documento.
+
 ### Il livello globale — cosa ci sta e cosa no
 
 `src/styles/` non è una discarica: ci sta soltanto ciò che **non può** stare in

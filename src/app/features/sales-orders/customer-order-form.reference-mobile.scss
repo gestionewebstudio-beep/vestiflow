@@ -230,7 +230,7 @@
     margin: 0 0 var(--space-2);
     color: var(--color-text-muted);
     font-size: var(--text-2xs);
-    font-weight: var(--font-weight-extrabold);
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.065em;
     text-transform: uppercase;
   }
@@ -678,7 +678,7 @@
   // componente app-button (opacity .6 senza toccare il colore), applicato qui
   // perche' il dock non e' un app-button ma un bottone HTML proprio.
   .co-dock__action--scan:disabled {
-    opacity: 0.6;
+    opacity: var(--opacity-disabled);
     box-shadow: none;
     cursor: not-allowed;
   }

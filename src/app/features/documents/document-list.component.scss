@@ -60,13 +60,13 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   background: var(--color-surface-muted);
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
   font-size: var(--text-sm);
 }
 
 .doc-list__banner--highlight {
   background: var(--color-warning-subtle);
-  color: var(--color-text-primary);
+  color: var(--color-text);
 }
 
 .doc-list__header {

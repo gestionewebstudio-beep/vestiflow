@@ -913,7 +913,7 @@ app-customer-order-form {
 }
 
 .doc-form__form--readonly .doc-form__actions app-button[type='submit'] {
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
 }
 
 .doc-form__lines {
@@ -1388,7 +1388,7 @@ app-customer-order-form {
   }
 
   &:disabled {
-    opacity: 0.6; // allineato allo stato disabled di app-button
+    opacity: var(--opacity-disabled); // allineato allo stato disabled di app-button
     cursor: default;
   }
 
@@ -1521,7 +1521,7 @@ app-customer-order-form {
   }
 
   .doc-form__dock-save:disabled {
-    opacity: 0.6;
+    opacity: var(--opacity-disabled);
     cursor: not-allowed;
   }
 }

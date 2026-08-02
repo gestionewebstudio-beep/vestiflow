@@ -305,7 +305,7 @@
 
   &:hover,
   &:focus-visible {
-    background: var(--color-surface-hover, var(--color-surface-subtle));
+    background: var(--color-surface-hover, var(--color-surface-soft));
   }
 }
 
@@ -373,7 +373,7 @@
   &:hover,
   &:focus-visible {
     color: var(--color-danger, var(--color-text));
-    background: var(--color-surface-hover, var(--color-surface-subtle));
+    background: var(--color-surface-hover, var(--color-surface-soft));
   }
 }
 

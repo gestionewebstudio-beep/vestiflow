@@ -102,7 +102,7 @@
   cursor: pointer;
 
   &:focus-within {
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
     outline-offset: var(--focus-ring-offset);
   }
 }
@@ -113,7 +113,7 @@
 }
 
 .attachments-dialog__drop--disabled {
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
   cursor: progress;
 }
 
