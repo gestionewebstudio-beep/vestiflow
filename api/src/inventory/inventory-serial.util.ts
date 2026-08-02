@@ -93,7 +93,11 @@ export async function assertSerialNumbersForDocumentLines(
   const variantsById = await loadSerialTrackedVariants(tx, tenantId, lines);
 
   // Righe a tracciamento seriale con i rispettivi seriali digitati.
-  const serialLines: { readonly sku: string; readonly serials: readonly string[] }[] = [];
+  const serialLines: {
+    readonly sku: string;
+    readonly quantity: number;
+    readonly serials: readonly string[];
+  }[] = [];
   for (const line of lines) {
     if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
       continue;
@@ -102,9 +106,11 @@ export async function assertSerialNumbersForDocumentLines(
     if (!variant?.serial) {
       continue;
     }
-    const serials = parseSerialNumbers(line.serialNumbers);
-    assertSerialCountMatchesQuantity(variant.sku, line.quantity, serials);
-    serialLines.push({ sku: variant.sku, serials });
+    serialLines.push({
+      sku: variant.sku,
+      quantity: line.quantity,
+      serials: parseSerialNumbers(line.serialNumbers),
+    });
   }
 
   if (serialLines.length === 0) {
@@ -118,13 +124,14 @@ export async function assertSerialNumbersForDocumentLines(
     where: { tenantId, serialNumber: { in: allSerials } },
     select: { serialNumber: true },
   });
-  if (existing.length === 0) {
-    return;
-  }
-
-  // L'errore resta quello della prima riga in conflitto, come prima.
   const taken = new Set(existing.map((row) => row.serialNumber));
+
+  // I controlli restano nell'ordine originale — per riga, prima il conteggio e
+  // poi l'esistenza — così l'errore segnalato è lo stesso di quando ogni riga
+  // faceva la propria query. È solo la lettura ad essere stata accorpata.
   for (const line of serialLines) {
+    assertSerialCountMatchesQuantity(line.sku, line.quantity, line.serials);
+
     const conflicting = line.serials.filter((serial) => taken.has(serial));
     if (conflicting.length > 0) {
       throw new UnprocessableEntityException(
