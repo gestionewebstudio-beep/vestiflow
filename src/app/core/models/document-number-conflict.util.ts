@@ -50,11 +50,20 @@ export function documentNumberConflictOf(error: unknown): DocumentNumberConflict
   return null;
 }
 
-/** "Il numero 5 della serie A è già stato usato. Vuoi usare il 7?" */
+/**
+ * Avviso di presa d'atto, non una domanda: il numero è già stato aggiornato
+ * nella testata e il documento NON è stato salvato. Il salvataggio resta una
+ * pressione esplicita di Salva da parte dell'operatore.
+ *
+ * "Il numero 5 della serie A nel frattempo è stato assegnato a un altro
+ *  documento. Il numero è stato aggiornato al 7: il documento non è ancora
+ *  salvato, premi Salva per confermare."
+ */
 export function documentNumberConflictMessage(conflict: DocumentNumberConflict): string {
   const seriePart = conflict.series ? ` della serie ${conflict.series}` : '';
   return (
-    `Il numero ${conflict.number}${seriePart} è già stato assegnato a un altro documento. ` +
-    `Il primo numero libero è ${conflict.nextAvailable}.`
+    `Il numero ${conflict.number}${seriePart} nel frattempo è stato assegnato a un altro ` +
+    `documento. Il numero è stato aggiornato al ${conflict.nextAvailable}: il documento non ` +
+    `è ancora salvato, premi Salva per confermare.`
   );
 }

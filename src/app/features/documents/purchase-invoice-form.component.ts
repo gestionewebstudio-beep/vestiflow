@@ -21,11 +21,8 @@ import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import type { AppError } from '@core/models/app-error.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
-import {
-  documentNumberConflictMessage,
-  documentNumberConflictOf,
-  type DocumentNumberConflict,
-} from '@core/models/document-number-conflict.util';
+import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
+import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import type { Money } from '@core/models/common.model';
 import { DocumentType } from '@core/models/document.model';
@@ -287,16 +284,11 @@ export class PurchaseInvoiceFormComponent {
   }
 
   /** Conflitto protocollo restituito dal server: dialogo «Usa N» / «Annulla». */
-  protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);
-  protected readonly conflictDialogOpen = signal(false);
-  protected readonly conflictMessage = computed(() => {
-    const conflict = this.numberConflict();
-    return conflict ? documentNumberConflictMessage(conflict) : '';
-  });
-  protected readonly conflictConfirmLabel = computed(() => {
-    const conflict = this.numberConflict();
-    return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
-  });
+  // Avviso «numero già assegnato»: la macchina a stati vive in domain, qui
+  // resta solo quale controllo della testata riceve il numero aggiornato.
+  private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
+  protected readonly conflictMessage = this.numberConflictDialog.message;
 
   /** Arrivi merce inclusi (righe riepilogative, prompt §5.2). */
   protected readonly includedReceipts = signal<readonly IncludedReceiptRow[]>([]);
@@ -530,20 +522,17 @@ export class PurchaseInvoiceFormComponent {
   }
 
   /** «Usa N»: prende il primo protocollo libero e risalva. */
-  protected confirmConflictNumber(): void {
-    const conflict = this.numberConflict();
-    this.conflictDialogOpen.set(false);
-    if (!conflict) {
+  /**
+   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
+   * ferma. Il salvataggio resta una pressione esplicita di Salva.
+   */
+  protected acknowledgeConflictNumber(): void {
+    const nextAvailable = this.numberConflictDialog.acknowledge();
+    if (nextAvailable === null) {
       return;
     }
-    this.form.controls.protocolNumber.setValue(conflict.nextAvailable);
-    this.numberConflict.set(null);
-    this.save();
-  }
-
-  protected dismissConflictDialog(): void {
-    this.conflictDialogOpen.set(false);
-    this.numberConflict.set(null);
+    this.form.controls.protocolNumber.setValue(nextAvailable);
+    this.form.controls.protocolNumber.markAsDirty();
   }
 
   protected reload(): void {
@@ -934,8 +923,7 @@ export class PurchaseInvoiceFormComponent {
           const conflict = documentNumberConflictOf(err);
           if (conflict) {
             this._submitState.set({ status: 'idle' });
-            this.numberConflict.set(conflict);
-            this.conflictDialogOpen.set(true);
+            this.numberConflictDialog.open(conflict);
             return;
           }
           this._submitState.set({ status: 'error', error: this.toAppError(err) });

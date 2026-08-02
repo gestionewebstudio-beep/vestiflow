@@ -6,16 +6,22 @@ import {
 } from '@core/models/document-number-conflict.util';
 
 /**
- * Stato del dialog «numero già assegnato», condiviso da tutti i form
- * documento. Era duplicato in ogni form: stessi due signal, stessi due
- * computed, stesse transizioni.
+ * Stato dell'avviso «numero già assegnato», condiviso da tutti i form
+ * documento con numerazione. Era duplicato in ogni form: stessi signal,
+ * stesso derivato, stesse transizioni.
+ *
+ * È un AVVISO, non una scelta: quando il vincolo unico del database rifiuta il
+ * numero, l'operatore viene informato che il numero è stato aggiornato al primo
+ * libero — non gli si chiede se vuole usarlo. Il documento NON viene salvato:
+ * il salvataggio resta una pressione esplicita di Salva, coerente con la regola
+ * VestiFlow che nessun documento nasce senza una decisione dell'operatore.
  *
  * Non è un service iniettabile: non ha dipendenze e ogni form ne vuole
  * un'istanza propria, quindi si costruisce come campo del componente
  * (`private readonly conflict = new DocumentNumberConflictStore()`).
  *
- * Il form resta padrone di ciò che è suo: quale controllo riceve il numero
- * e quale salvataggio riparte dopo la conferma.
+ * Il form resta padrone di ciò che è suo: quale controllo della testata riceve
+ * il numero aggiornato.
  */
 export class DocumentNumberConflictStore {
   private readonly _conflict = signal<DocumentNumberConflict | null>(null);
@@ -36,36 +42,25 @@ export class DocumentNumberConflictStore {
     return conflict ? documentNumberConflictMessage(conflict) : '';
   });
 
-  /** «Usa 7» quando il primo libero è noto, altrimenti etichetta generica. */
-  readonly confirmLabel = computed(() => {
-    const conflict = this._conflict();
-    return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
-  });
-
-  /** Il server ha rifiutato il numero: apre il dialog con la proposta. */
+  /** Il server ha rifiutato il numero: apre l'avviso con il primo libero. */
   open(conflict: DocumentNumberConflict): void {
     this._conflict.set(conflict);
     this.isOpen.set(true);
   }
 
   /**
-   * Conferma: chiude, azzera e restituisce il numero da usare — sta al form
-   * scriverlo nel proprio controllo e far ripartire il salvataggio.
-   * `null` se non c'era alcun conflitto aperto.
+   * Presa d'atto: chiude, azzera e restituisce il numero da scrivere nella
+   * testata. Sta al form metterlo nel proprio controllo — e fermarsi lì:
+   * NON deve far ripartire il salvataggio.
+   *
+   * Vale anche per la chiusura con Esc: il messaggio dice che il numero è già
+   * stato aggiornato, quindi va applicato comunque, altrimenti l'avviso
+   * mentirebbe. `null` se non c'era alcun conflitto aperto.
    */
-  confirm(): number | null {
+  acknowledge(): number | null {
     const conflict = this._conflict();
-    this.reset();
-    return conflict?.nextAvailable ?? null;
-  }
-
-  /** Annulla: l'operatore correggerà il numero a mano. */
-  dismiss(): void {
-    this.reset();
-  }
-
-  private reset(): void {
     this._conflict.set(null);
     this.isOpen.set(false);
+    return conflict?.nextAvailable ?? null;
   }
 }

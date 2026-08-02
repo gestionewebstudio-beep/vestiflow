@@ -27,11 +27,8 @@ import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import {
-  documentNumberConflictMessage,
-  documentNumberConflictOf,
-  type DocumentNumberConflict,
-} from '@core/models/document-number-conflict.util';
+import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
+import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { AdjustmentDirection, DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
@@ -252,16 +249,11 @@ export class StockOperationFormComponent {
   protected readonly confirmDialogOpen = signal(false);
 
   /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
-  protected readonly numberConflict = signal<DocumentNumberConflict | null>(null);
-  protected readonly conflictDialogOpen = signal(false);
-  protected readonly conflictMessage = computed(() => {
-    const conflict = this.numberConflict();
-    return conflict ? documentNumberConflictMessage(conflict) : '';
-  });
-  protected readonly conflictConfirmLabel = computed(() => {
-    const conflict = this.numberConflict();
-    return conflict ? `Usa ${conflict.nextAvailable}` : 'Usa il primo libero';
-  });
+  // Avviso «numero già assegnato»: la macchina a stati vive in domain, qui
+  // resta solo quale controllo della testata riceve il numero aggiornato.
+  private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
+  protected readonly conflictMessage = this.numberConflictDialog.message;
 
   /** Contatori disponibili per la testata (tipo + sede): alimentano la tendina. */
   private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
@@ -335,21 +327,17 @@ export class StockOperationFormComponent {
   }
 
   /** «Usa N»: prende il primo numero libero e risalva. */
-  protected confirmConflictNumber(): void {
-    const conflict = this.numberConflict();
-    this.conflictDialogOpen.set(false);
-    if (!conflict) {
+  /**
+   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
+   * ferma. Il salvataggio resta una pressione esplicita di Salva.
+   */
+  protected acknowledgeConflictNumber(): void {
+    const nextAvailable = this.numberConflictDialog.acknowledge();
+    if (nextAvailable === null) {
       return;
     }
-    this.form.controls.documentNumber.setValue(conflict.nextAvailable);
+    this.form.controls.documentNumber.setValue(nextAvailable);
     this.form.controls.documentNumber.markAsDirty();
-    this.numberConflict.set(null);
-    this.saveDraft();
-  }
-
-  protected dismissConflictDialog(): void {
-    this.conflictDialogOpen.set(false);
-    this.numberConflict.set(null);
   }
 
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
@@ -627,8 +615,7 @@ export class StockOperationFormComponent {
         const conflict = documentNumberConflictOf(err);
         if (conflict) {
           this._submitState.set({ status: 'idle' });
-          this.numberConflict.set(conflict);
-          this.conflictDialogOpen.set(true);
+          this.numberConflictDialog.open(conflict);
           return;
         }
         this._submitState.set({ status: 'error', error: this.toAppError(err) });

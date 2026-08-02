@@ -254,15 +254,17 @@
   />
 </section>
 
-<!-- Numero già assegnato: si può solo prendere il primo libero o annullare. -->
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il numero
+     è già stato aggiornato al primo libero; il salvataggio resta una
+     pressione esplicita di Salva. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
   title="Numero già usato"
   [message]="conflictMessage()"
-  [confirmLabel]="conflictConfirmLabel()"
-  cancelLabel="Annulla"
-  (confirmed)="confirmConflictNumber()"
-  (dismissed)="dismissConflictDialog()"
+  confirmLabel="OK"
+  [acknowledge]="true"
+  (confirmed)="acknowledgeConflictNumber()"
+  (dismissed)="acknowledgeConflictNumber()"
 />
 
 <!-- Gestione numerazioni del tipo corrente, aperta dall'ingranaggio del campo

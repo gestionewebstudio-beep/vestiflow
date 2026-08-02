@@ -1,4 +1,5 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { TestBed } from '@angular/core/testing';
 import { render } from '@testing-library/angular';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -133,7 +134,7 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
         at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
         length: number;
       };
-      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      form: { controls: Record<string, { setValue: (v: unknown) => void; value: unknown }> };
       documentTotals: () => {
         linesTotal: { amountMinor: number };
         documentDiscount: { amountMinor: number };
@@ -144,6 +145,11 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
       addLine: () => void;
       buildSavePayload: () => Record<string, unknown>;
       pricesIncludeVat: { set: (v: boolean) => void };
+      numberConflictDialog: {
+        open: (conflict: Record<string, unknown>) => void;
+        isOpen: () => boolean;
+      };
+      acknowledgeConflictNumber: () => void;
     };
 
     return { ...view, component };
@@ -326,6 +332,51 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
       view.component.form.controls['documentDiscountPercent']!.setValue('15');
 
       expect(view.component.buildSavePayload()['documentDiscountPercent']).toBe(15);
+    });
+  });
+
+  /**
+   * Avviso di conflitto sul numero: è una presa d'atto, non una scelta.
+   * Il numero viene aggiornato nella testata e il documento NON viene salvato —
+   * il salvataggio resta una pressione esplicita di Salva.
+   */
+  describe('conflitto sul numero documento', () => {
+    const conflitto = {
+      code: 'document_number_taken',
+      number: 5,
+      nextAvailable: 7,
+      series: 'A',
+    };
+
+    it('la presa d’atto scrive il numero aggiornato nella testata', async () => {
+      view = await setup();
+      view.component.numberConflictDialog.open(conflitto);
+
+      view.component.acknowledgeConflictNumber();
+
+      expect(view.component.form.controls['documentNumber']!.value).toBe(7);
+    });
+
+    it('la presa d’atto NON salva il documento', async () => {
+      view = await setup();
+      const salesOrders = TestBed.inject(SalesOrderService) as unknown as {
+        saveManualOrder: ReturnType<typeof vi.fn>;
+      };
+      view.component.numberConflictDialog.open(conflitto);
+
+      view.component.acknowledgeConflictNumber();
+
+      expect(salesOrders.saveManualOrder).not.toHaveBeenCalled();
+    });
+
+    it('la presa d’atto chiude l’avviso', async () => {
+      view = await setup();
+      view.component.numberConflictDialog.open(conflitto);
+      expect(view.component.numberConflictDialog.isOpen()).toBe(true);
+
+      view.component.acknowledgeConflictNumber();
+
+      expect(view.component.numberConflictDialog.isOpen()).toBe(false);
     });
   });
 });

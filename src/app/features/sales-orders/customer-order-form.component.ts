@@ -718,7 +718,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
-  protected readonly conflictConfirmLabel = this.numberConflictDialog.confirmLabel;
   /** Serie configurate per il tipo: con una sola resta una label statica. */
   /** Contatori disponibili per la testata del registro: alimentano la tendina. */
   private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
@@ -3799,18 +3798,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /** «Usa N»: prende il primo numero libero e risalva. */
-  protected confirmConflictNumber(): void {
-    const nextAvailable = this.numberConflictDialog.confirm();
+  /**
+   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
+   * ferma. Il salvataggio resta una pressione esplicita di Salva.
+   */
+  protected acknowledgeConflictNumber(): void {
+    const nextAvailable = this.numberConflictDialog.acknowledge();
     if (nextAvailable === null) {
       return;
     }
     this.form.controls.documentNumber.setValue(nextAvailable);
     this.form.controls.documentNumber.markAsDirty();
-    this.saveRegistryDocument();
-  }
-
-  protected dismissConflictDialog(): void {
-    this.numberConflictDialog.dismiss();
   }
 
   /** POST creazione: i campi vuoti si omettono invece di inviare null. */

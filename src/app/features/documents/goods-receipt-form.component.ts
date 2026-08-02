@@ -334,7 +334,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
-  protected readonly conflictConfirmLabel = this.numberConflictDialog.confirmLabel;
   protected readonly editUnlocked = signal(false);
   /** Evita il lock immediato dopo auto-save che crea il documento e cambia route. */
   private readonly preserveEditSession = signal(false);
@@ -4215,18 +4214,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /** «Usa N»: prende il primo protocollo libero e risalva. */
-  protected confirmConflictNumber(): void {
-    const nextAvailable = this.numberConflictDialog.confirm();
+  /**
+   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
+   * ferma. Il salvataggio resta una pressione esplicita di Salva.
+   */
+  protected acknowledgeConflictNumber(): void {
+    const nextAvailable = this.numberConflictDialog.acknowledge();
     if (nextAvailable === null) {
       return;
     }
     this.form.controls.protocolNumber.setValue(nextAvailable);
     this.form.controls.protocolNumber.markAsDirty();
-    this.requestSaveDocument();
-  }
-
-  protected dismissConflictDialog(): void {
-    this.numberConflictDialog.dismiss();
   }
 
   private reloadSupplierVariantLinks(supplierId: string): void {
