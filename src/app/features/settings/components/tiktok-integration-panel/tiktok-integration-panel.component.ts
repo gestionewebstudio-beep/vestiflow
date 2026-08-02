@@ -25,6 +25,7 @@ import { TikTokConnectionService } from '@domain/channels/tiktok/services/tiktok
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 type ConnectionState =
@@ -38,7 +39,13 @@ type TikTokBanner = 'connected' | 'connected-warn' | 'error' | 'disconnected';
 @Component({
   selector: 'app-tiktok-integration-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BadgeComponent, ButtonComponent, ErrorStateComponent, TableSkeletonComponent],
+  imports: [
+    BadgeComponent,
+    ButtonComponent,
+    ErrorStateComponent,
+    InlineBannerComponent,
+    TableSkeletonComponent,
+  ],
   templateUrl: './tiktok-integration-panel.component.html',
   styleUrl: './tiktok-integration-panel.component.scss',
 })
@@ -58,6 +65,14 @@ export class TikTokIntegrationPanelComponent {
   protected readonly clearErrorsLoading = signal(false);
   protected readonly connectError = signal<string | null>(null);
   protected readonly tiktokBanner = signal<TikTokBanner | null>(null);
+
+  /** Tono del banner d'esito OAuth: prima viveva in tre `[class.]` nel template. */
+  protected readonly tiktokBannerTone = computed<'error' | 'success' | 'warning'>(() => {
+    const banner = this.tiktokBanner();
+    if (banner === 'error') return 'error';
+    if (banner === 'connected-warn') return 'warning';
+    return 'success';
+  });
 
   private readonly connectionTick = signal(0);
 

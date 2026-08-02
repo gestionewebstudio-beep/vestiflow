@@ -1,14 +1,10 @@
 <h2 id="settings-tiktok" class="tiktok-integration__title">Integrazione TikTok Shop</h2>
 
 @if (tiktokBanner(); as banner) {
-  <div
-    class="tiktok-integration__banner"
-    [class.tiktok-integration__banner--success]="
-      banner === 'connected' || banner === 'connected-warn'
-    "
-    [class.tiktok-integration__banner--error]="banner === 'error'"
-    [class.tiktok-integration__banner--warning]="banner === 'connected-warn'"
-    role="status"
+  <app-inline-banner
+    [tone]="tiktokBannerTone()"
+    dismissLabel="Chiudi"
+    (dismissed)="dismissBanner()"
   >
     @switch (banner) {
       @case ('connected') {
@@ -26,10 +22,7 @@
         Connessione TikTok Shop rimossa.
       }
     }
-    <button type="button" class="tiktok-integration__banner-dismiss" (click)="dismissBanner()">
-      Chiudi
-    </button>
-  </div>
+  </app-inline-banner>
 }
 
 @if (connectionLoading()) {

@@ -70,43 +70,6 @@
   color: var(--status-error-fg);
 }
 
-.tiktok-integration__banner {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  font-size: var(--text-sm);
-  border-radius: var(--radius-md);
-  border: var(--border-width) solid var(--color-border);
-  background-color: var(--color-surface-raised, var(--color-surface));
-}
-
-.tiktok-integration__banner--success {
-  border-color: var(--status-success-border, var(--color-border));
-  color: var(--status-success-fg, var(--color-text));
-}
-
-.tiktok-integration__banner--warning {
-  border-color: var(--status-warning-border, var(--color-border));
-}
-
-.tiktok-integration__banner--error {
-  border-color: var(--status-error-border, var(--color-border));
-  color: var(--status-error-fg);
-}
-
-.tiktok-integration__banner-dismiss {
-  flex-shrink: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
 .tiktok-integration__actions {
   display: flex;
   flex-wrap: wrap;

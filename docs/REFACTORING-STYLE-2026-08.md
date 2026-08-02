@@ -99,6 +99,51 @@ sovrascritte da un foglio successivo. Erano il costo di aver aggiunto un livello
 
 ---
 
+### Il pannello Shopify diventa un componente
+
+Impostazioni era una pagina da 1099 righe di TypeScript in cui il 64% era
+l'integrazione Shopify — mentre TikTok, la stessa cosa fatta due mesi dopo, era
+gia' un componente autonomo nella cartella accanto. Ora sono gemelli:
+`shopify-integration-panel` si inietta i propri service e non riceve stato dalla
+pagina.
+
+Il nodo era che due parti della schermata guardano la stessa connessione: il
+pannello la mostra e la modifica, la sezione Location la usa per decidere quali
+sedi mostrare. Chiederla due volte al server le farebbe divergere. Sopra
+entrambi c'e' ora `ShopifyConnectionStore` (`domain/channels/shopify/state/`),
+unica fonte: un `reload()` dopo una sync aggiorna tutt'e due, e il cancello
+`available` — Shopify nel profilo del tenant **e** permesso di gestirlo — sta
+prima della rete, cosi' senza permesso l'API non viene nemmeno chiamata.
+
+Restano due input dal padre, ed entrambi hanno una ragione: `locationSetupStatus`
+e `mustChooseLocations` dipendono dal piano del tenant, che e' della pagina.
+
+| File                      | Prima | Dopo |
+| ------------------------- | ----- | ---- |
+| `settings.component.ts`   | 1099  | 421  |
+| `settings.component.html` | 646   | 193  |
+| `settings.component.scss` | 569   | 207  |
+
+### La forma dell'Ordine cliente sale alla base
+
+63 regole desktop che l'Ordine cliente scriveva sul markup condiviso — scoped su
+`.co-form` — sono passate in `_document-form.scss`: label in maiuscoletto (§3),
+riga tabella a 30px e intestazione a 32px (§6), campi di testata a 29px (§4).
+Erano gia' le regole di progetto; le rispettava una pagina sola.
+
+Lo scope resta a due livelli (`.doc-form .doc-form__x`), non uno: e' la
+specificita' che avevano prima, e cambiarla sposterebbe chi vince nella cascata.
+
+La vista card mobile passa da `md` a `lg`, come dice §9 — a `md` un tablet in
+verticale si prendeva una tabella documentale da nove colonne. Le misure della
+reference mobile approvata diventano `--doc-m-*` sul blocco condiviso.
+
+**Non e' salita la vista mobile dell'Ordine cliente.** E' agganciata al suo
+markup (`.co-panel`, `.co-order-card`, `.co-dock`) e promuoverla spegnerebbe
+pezzi di schermata nelle maschere che quel markup non hanno: `.doc-form__actions
+{ display: none }` senza la barra che la sostituisce lascia un documento senza
+Salva. Tocca a loro adottarlo, una alla volta.
+
 ## Stato finale
 
 | Misura                                    | Prima | Dopo  |
@@ -106,50 +151,44 @@ sovrascritte da un foglio successivo. Erano il costo di aver aggiunto un livello
 | `::ng-deep` nell'app                      | 65    | 0     |
 | Token globali conformi alle regole        | 3/33  | 31/33 |
 | Copie della maschera documento nel CSS    | 5+1   | 1     |
-| Fogli di stile oltre budget               | 6     | 4     |
+| Fogli di stile oltre budget               | 6     | 1     |
 | Variabili di palette private a una pagina | ~40   | 3     |
+| `settings.component.ts`                   | 1099  | 421   |
 
-Suite: 148 file / 782 test verdi (frontend), 148 file / 1064 verdi (API).
+Suite: 151 file / 793 test verdi (frontend), 148 file / 1064 verdi (API).
 Lint: 0 errori. Build: OK.
 
 ---
 
-## Cosa resta, e perché non l'ho fatto
+## Cosa resta
 
-### `settings.component.scss` — 13.54 kB (budget 12)
+### `customer-order-form.mobile-cards.scss` — 15.2 kB (budget 12)
 
-**Il 74% del foglio è il pannello Shopify**, che nella stessa cartella ha già il
-proprio gemello fatto bene: `components/tiktok-integration-panel/`, componente
-autonomo che si inietta i propri service. Il pannello Shopify invece vive dentro
-la pagina: ~470 righe di template e ~700 di TypeScript su 1099.
+E' la riga documento come card su mobile, ed e' l'unico foglio ancora sopra
+soglia. Ha un gemello gia' scritto altrove:
+`features/documents/components/goods-receipt-line-card/` fa la stessa cosa per
+l'arrivo merce, come componente.
 
-Non l'ho estratto perché **non è un refactor di stile**. Lo stato è intrecciato
-con la sezione Location della stessa pagina: `connection` alimenta
-`showShopifyLocationColumn`, che decide le colonne della tabella location;
-`locationSetupStatus` è letto sia dalla sezione location sia dallo stato di setup
-del pannello Shopify. Estrarre bene richiede prima un
-`ShopifyConnectionStore` in `domain/channels/shopify/` che entrambi leggano —
-altrimenti la connessione viene caricata due volte e i due pezzi possono
-divergere.
+Unirle non e' un'estrazione meccanica. La card dell'Ordine cliente ha **37 punti
+di aggancio** col form (derivati, handler, stati di riga): un componente con
+trenta `input()` non e' un componente, ed e' esattamente l'anti-pattern che le
+regole di progetto vietano («Quando NON estrarre»). Prima serve un **view-model
+di riga** che raccolga i derivati in un oggetto solo — a quel punto la card
+prende due input e diventa condivisibile fra le maschere.
 
-È un lavoro definito e sensato, ma è sulla pagina che gestisce l'OAuth verso
-Shopify: va fatto potendolo provare, non alla cieca dentro un branch di stile.
-
-### I tre fogli dell'Ordine cliente — 16.5 / 22.1 / 12.2 kB
-
-Ridotti dove era dimostrabile. Il resto è il disegno della pagina, e i cinque
-fogli ora **dichiarano ciascuno la propria responsabilità** in testa al file
-(desktop · righe · card mobile · ritmo delle sezioni · reference approvata), con
-l'indice completo nel primo.
-
-Resta una duplicazione vera: la vista card mobile esiste due volte, come
-`.doc-form__cards` nella base (la usa l'arrivo merce) e come `.co-order-card`
-nell'Ordine cliente. Unificarle significa toccare il markup di entrambe le
-maschere, ed è la prossima cosa da fare quando si potrà verificare a schermo.
+E' il pezzo successivo, ed e' un refactor del form, non dello stile.
 
 ### Da verificare a occhio
 
-Il cambio più visibile è che **la sidebar passa da chiara a verde-scura**
-(`--color-nav-bg: #15211f`), come le regole descrivevano da sempre. È voluto.
-Vanno guardate anche le sei maschere documento: l'ordine fornitore ora ha il
-ritmo denso delle altre invece del suo, più largo.
+Il cambio piu' visibile e' che **la sidebar passa da chiara a verde-scura**
+(`--color-nav-bg: #15211f`), come le regole descrivevano da sempre. E' voluto.
+
+Vanno guardate le sei maschere documento: ora condividono la forma decisa
+sull'Ordine cliente (label in maiuscoletto, righe piu' basse, testata piu'
+densa) e passano alla vista card gia' sotto 1024px invece che sotto 768px.
+L'ordine fornitore, che aveva un ritmo tutto suo piu' largo, e' quello che
+cambia di piu'.
+
+E la schermata Impostazioni: il pannello Shopify e' lo stesso, ma ora e' un
+componente — l'esito «Sedi attive aggiornate» compare accanto alla tabella
+Location invece che dentro il pannello Shopify, dove non c'entrava.

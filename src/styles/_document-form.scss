@@ -47,6 +47,39 @@ app-customer-order-form {
   // Altezza della barra azioni su UNA riga a lg+: e' l'aggancio della banda
   // totali sticky, che deve fermarsi appena sopra.
   --doc-actions-height: calc(var(--btn-min-height) + var(--space-2) * 2 + var(--border-width) * 2);
+
+  // ── Misure della reference mobile approvata ───────────────────────────────
+  // Non stanno nella scala del progetto (46px per i controlli, 38px per le
+  // icone, 23px per il titolo): sono le misure di quella reference, e stanno
+  // qui perche' descrivono la maschera documento su mobile — oggi le usa solo
+  // l'Ordine cliente, che la reference ce l'ha; le altre le troveranno pronte.
+
+  --doc-m-radius: 0.875rem; // 14px — pannelli e sezione righe
+  --doc-m-radius-sm: 0.625rem; // 10px — controlli e bottoni
+  --doc-m-radius-md: 0.75rem; // 12px — banner, stato vuoto, dock
+  --doc-m-control-h: 2.875rem; // 46px — altezza dei controlli
+  --doc-m-dock-h: 3.125rem; // 50px — bottoni del dock
+  --doc-m-toggle-h: 4rem; // 64px — riga di intestazione del pannello
+  --doc-m-icon: 2.375rem; // 38px — medaglione icona del pannello
+  --doc-m-dock-icon: 1.75rem; // 28px — medaglione icona nel dock
+  --doc-m-back-h: 2.625rem; // 42px — pulsante Indietro
+  --doc-m-include-h: 2.5rem; // 40px — «Includi documento»
+  --doc-m-empty-h: 10rem; // 160px — riquadro dello stato vuoto
+  --doc-m-gutter: 0.75rem; // 12px — margine laterale della pagina
+  --doc-m-totals-pad: 0.75rem; // 12px — padding della card totali
+  --doc-m-notes-min: 5rem; // 80px — note documento: altezza di partenza
+  --doc-m-notes-max: 10rem; // 160px — note documento: tetto al trascinamento
+  --doc-m-dock-clear: 7.25rem; // 116px — spazio sotto, per non finire dietro il dock
+
+  --doc-m-text-title: 1.4375rem; // 23px — titolo pagina
+  --doc-m-text-lines: 1.0625rem; // 17px — «Righe documento»
+  --doc-m-text-panel: 0.9375rem; // 15px — titolo pannello e label campo
+  --doc-m-text-body: 0.875rem; // 14px — testo dei bottoni finali
+  --doc-m-text-meta: 0.75rem; // 12px — sottotitoli e stato
+
+  --doc-m-accent-soft: #e9f2f1; // tinta del medaglione icona
+  --doc-m-lines-bg: rgb(255 255 255 / 0.58);
+  --doc-m-empty-bg: rgb(255 255 255 / 0.46);
 }
 
 // Titolo + stato/riferimento sulla stessa riga; il back e' il chip standard
@@ -528,12 +561,15 @@ app-customer-order-form {
   flex: 1 1 auto;
 }
 
-/* Vista mobile (§10.10): card al posto della tabella sotto md. */
+// Vista mobile: card al posto della tabella. Il confine e' `lg`, non `md`, come
+// dice regole-stile-ui §9 — «Mobile / Tablet 481-1024px: card view sostituisce
+// tabelle». A `md` un tablet in verticale si prendeva una tabella documentale
+// da nove colonne. L'Ordine cliente lo faceva gia' a `lg` per conto suo.
 .doc-form__cards {
   display: none;
 }
 
-@include bp.media-down('md') {
+@include bp.media-down('lg') {
   .doc-form__table-wrap {
     display: none;
   }
@@ -1526,4 +1562,470 @@ app-customer-order-form {
 .cdk-drag-preview td {
   padding-inline: var(--space-1);
   border: 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LA FORMA DECISA SULL'ORDINE CLIENTE
+// ═══════════════════════════════════════════════════════════════════════════
+// L'Ordine cliente e' il prototipo su cui il proprietario ha scelto l'identita'
+// visiva del gestionale. Queste regole vivevano li', scoped su `.co-form`, e
+// dicevano sul markup condiviso cose che le regole di progetto danno per buone
+// ovunque: label in maiuscoletto (§3), riga tabella a 30px e intestazione a
+// 32px (§6), campi di testata a 29px (§4). Tenendole in una pagina sola, le
+// altre cinque maschere restavano su valori diversi.
+//
+// Lo scope resta a due livelli (`.doc-form .doc-form__x`) e non uno: e' la
+// specificita' che avevano prima, e cambiarla sposterebbe chi vince fra queste
+// e le regole piu' specifiche gia' presenti sopra.
+//
+// NON e' salita la vista mobile dell'Ordine cliente: quella e' agganciata al
+// suo markup (.co-panel, .co-order-card, .co-dock) e promuoverla spegnerebbe
+// pezzi di schermata nelle maschere che quel markup non hanno. Tocca a loro
+// adottarlo, una alla volta.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Impaginato: card separate sul fondo pagina, niente card contenitore ─────
+.doc-form .doc-form__form {
+  padding: 0;
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.doc-form .doc-form__title {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-label);
+}
+
+// ── Testata: una card, due fasce di celle unite ─────────────────────────────
+.doc-form .doc-form__header {
+  gap: 0;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.doc-form .doc-form__header .doc-form__grid--header {
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.doc-form .doc-form__header .doc-form__header-row--secondary {
+  background-color: var(--color-surface-soft);
+  border-block-start: var(--border-width) solid var(--color-border);
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
+}
+
+// I bordi di cella li gestisce il foglio condiviso (e il blocco lg qui sotto):
+// qui cambia solo il respiro interno.
+.doc-form .doc-form__header .doc-form__field {
+  padding: var(--space-1) var(--space-2);
+}
+
+.doc-form .doc-form__header .doc-form__label {
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-label);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.doc-form .doc-form__header .doc-form__inline-toggle {
+  font-size: var(--text-2xs);
+  color: var(--color-link);
+}
+
+.doc-form .doc-form__header .doc-form__field:focus-within {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+// Controlli di testata: riquadro proprio, non più input «nudi» nella cella.
+.doc-form .doc-form__header .doc-form__input,
+.doc-form .doc-form__header .doc-form__field app-select-menu,
+.doc-form .doc-form__header .doc-form__field app-date-input {
+  --field-height: var(--control-h-field);
+  --color-input-bg: var(--color-surface);
+  --color-input-border: var(--color-border);
+}
+
+.doc-form .doc-form__header .doc-form__input {
+  block-size: var(--control-h-field);
+  min-block-size: var(--control-h-field);
+  padding-inline: var(--space-2);
+  font-size: var(--text-xs);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0.3125rem;
+}
+
+.doc-form .doc-form__header .doc-form__input:focus-visible {
+  border-color: var(--color-focus);
+  box-shadow: var(--field-focus-ring);
+}
+
+// ── Riga strumenti sopra la tabella ────────────────────────────────────────
+// P4 — La testata righe dell'Arrivo merce a xl diventa griglia a 3 colonne
+// (titolo | scanner inline | strumenti): qui lo scanner inline non esiste
+// (la scansione vive nella riga rapida in fondo), quindi gli strumenti
+// finirebbero nella colonna centrale e il pannello Colonne (ancorato a
+// destra del suo trigger) uscirebbe dallo schermo a sinistra. Si torna al
+// layout flex: titolo a sinistra, strumenti a destra, pannello nel viewport.
+.doc-form .doc-form__lines-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.doc-form .doc-form__subtitle {
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.doc-form .doc-form__lines-count {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.doc-form .doc-form__lines-tools {
+  gap: var(--space-2);
+}
+
+// Bottoni più bassi e compatti del default app (31px contro 36px).
+.doc-form .doc-form__lines-tools,
+.doc-form .doc-form__actions {
+  --field-height: var(--control-h-button);
+}
+
+.doc-form .doc-form__lines-tools,
+.doc-form .doc-form__actions {
+  --button-font-size: var(--text-xs);
+  --button-radius: var(--radius-sm);
+}
+
+// Finestra compatta con testata, elenco a due colonne e piede separato. Il
+// pannello è di un componente condiviso: le regole restano scoped su .doc-form
+// così il selettore colonne delle altre tabelle non cambia.
+
+// Testata: il titolo del mockup. Niente «Chiudi» perché il pannello si chiude
+// già cliccando fuori — sarebbe un bottone in più che non fa nulla di nuovo.
+
+// La select nasce larga --select-menu-width (224px): qui riempie la finestra.
+
+// Spunte del documento e della finestra colonne: quadratino più generoso e
+// tinta brand, come nel mockup (di serie sarebbero ~13px e blu di sistema).
+.doc-form .doc-form__check input[type='checkbox'],
+
+// Niente frecce di riordino in questa finestra (mockup): l'ordine delle
+// colonne del documento è quello del tracciato, si sceglie solo cosa vedere.
+// Le altre tabelle dell'app continuano ad averle: la regola è scoped qui.
+
+// ── Tabella righe ──────────────────────────────────────────────────────────
+.doc-form .doc-form__table-wrap {
+  margin-inline: 0;
+  border: var(--border-width) solid var(--color-border);
+  border-block-end: 0;
+  border-start-start-radius: var(--radius-lg);
+  border-start-end-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  // Area di lavoro alta almeno 420px anche a documento vuoto: dà spazio a
+  // inserimento e scansione, e i suggerimenti prodotto — assoluti DENTRO
+  // quest'area che scorre — restano visibili invece di finire tagliati.
+  min-block-size: 26.25rem;
+  max-block-size: min(75vh, 31.5rem);
+}
+
+.doc-form .doc-form__table th,
+.doc-form .doc-form__table td {
+  border-inline-end-color: var(--color-border-cell);
+}
+
+.doc-form .doc-form__table tbody tr {
+  block-size: var(--table-row-h);
+  border-block-end-color: var(--color-border-cell);
+}
+
+.doc-form .doc-form__table tbody td {
+  padding: var(--table-cell-pad-block) var(--table-cell-pad-inline);
+  font-size: var(--text-xs);
+}
+
+// Con le colonne a quota percentuale una colonna può farsi stretta: le
+// etichette header vanno a capo invece di troncarsi o traboccare (il
+// foglio condiviso impone nowrap).
+.doc-form .doc-form__table thead th {
+  block-size: var(--table-head-h);
+  padding: var(--space-1) var(--table-cell-pad-inline);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-head);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background-color: var(--color-table-header-bg);
+  border-block-end: var(--border-width) solid var(--color-table-group-divider);
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+// L'etichetta con icona info è inline-flex: senza un tetto alla larghezza
+// si dimensiona a max-content e sfora la cella invece di andare a capo.
+.doc-form .doc-form__th-label {
+  max-inline-size: 100%;
+  flex-wrap: wrap;
+}
+
+// I tooltip delle intestazioni (Sconto, Impegna) si aprono verso SINISTRA:
+// il componente decide da solo in base al bordo dello schermo, ma qui il
+// limite è la tabella — aperti verso destra la farebbero scorrere.
+.doc-form .doc-form__table thead {
+  --hover-tooltip-inset: auto 0;
+}
+
+// Stessa ragione per la tendina IVA: la colonna sta a destra e il pannello è
+// molto più largo della cella. Ancorato al bordo destro si apre verso sinistra
+// e resta dentro la tabella.
+// Posizionamento contestuale: sull\'ultima colonna il pannello va allineato
+// al bordo destro, altrimenti esce dalla tabella. Lo sa il contenitore.
+.doc-form .doc-form__cell--vat {
+  --select-menu-panel-inset: auto 0;
+}
+
+// Bande di gruppo: magazzino, vendita/IVA, calcolati.
+.doc-form .doc-form__table thead th.doc-form__col--stock {
+  color: var(--table-group-stock-fg);
+  background-color: var(--table-group-stock-bg);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--table-group-stock-rule);
+}
+
+.doc-form .doc-form__table thead th.doc-form__col--sale,
+.doc-form .doc-form__table thead th.doc-form__col--tax {
+  color: var(--table-group-sale-fg);
+  background-color: var(--table-group-sale-bg);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--table-group-sale-rule);
+}
+
+.doc-form .doc-form__table thead th.doc-form__col--calc,
+.doc-form .doc-form__table thead th.doc-form__col--total {
+  color: var(--table-group-calc-fg);
+  background-color: var(--table-group-calc-bg);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--table-group-calc-rule);
+}
+
+.doc-form .doc-form__table tbody td.doc-form__col--stock {
+  background-color: var(--table-cell-stock);
+}
+
+.doc-form .doc-form__table tbody td.doc-form__col--calc,
+.doc-form .doc-form__table tbody td.doc-form__col--tax {
+  background-color: var(--table-cell-calc);
+}
+
+.doc-form .doc-form__table tbody td.doc-form__col--total {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  background-color: var(--table-cell-total);
+}
+
+// Disponibilità in evidenza e nome prodotto in grassetto, come nel mockup.
+.doc-form .doc-form__table tbody td.doc-form__col--avail {
+  font-weight: var(--font-weight-label);
+  color: var(--color-ok);
+}
+
+.doc-form .doc-form__cell--product {
+  --doc-product-cell-weight: var(--font-weight-semibold);
+}
+
+.doc-form .doc-form__table tbody .doc-form__cell--index {
+  font-size: var(--text-2xs);
+  color: var(--color-text-subtle);
+  background-color: var(--color-surface);
+}
+
+// Numero riga e spunta al centro esatto della cella: senza padding laterale
+// (che sbilancia le celle strette) e con la spunta centrata dal contenitore
+// flex invece che dall'allineamento del testo.
+.doc-form .doc-form__table th.doc-form__cell--index,
+.doc-form .doc-form__table td.doc-form__cell--index,
+.doc-form .doc-form__table td.doc-form__cell--check {
+  padding-inline: 0;
+  text-align: center;
+}
+
+.doc-form .doc-form__table td.doc-form__cell--check .doc-form__check {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+}
+
+// Separatori di blocco: chiudono nome prodotto, U.m. e IVA.
+.doc-form .doc-form__table th.doc-form__col--sep,
+.doc-form .doc-form__table td.doc-form__col--sep {
+  border-inline-end: var(--border-width-strong) solid var(--color-table-group-divider);
+}
+
+.doc-form .doc-form__table tbody tr:hover td {
+  background-color: var(--color-surface-hover);
+}
+
+.doc-form .doc-form__table tbody tr:hover td.doc-form__col--stock {
+  background-color: var(--table-row-hover-stock);
+}
+
+.doc-form .doc-form__table tbody tr:hover td.doc-form__col--calc,
+.doc-form .doc-form__table tbody tr:hover td.doc-form__col--tax,
+.doc-form .doc-form__table tbody tr:hover td.doc-form__col--total {
+  background-color: var(--table-row-hover-calc);
+}
+
+// Input di cella: 24px, bordo solo su hover/focus.
+.doc-form .doc-form__input--table {
+  block-size: var(--control-h-cell);
+  padding: 0 var(--table-cell-pad-inline);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+}
+
+.doc-form .doc-form__input--table:focus-visible {
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 var(--border-width-strong) var(--color-focus-ring-alpha);
+}
+
+.doc-form .doc-form__cell--code {
+  --doc-code-cell-fg: var(--color-focus);
+}
+
+// Il select IVA di riga nasce con l'altezza touch (44px): dentro la tabella
+// segue la riga, come tutti gli altri controlli di cella.
+.doc-form .doc-form__table tbody {
+  --btn-min-height: var(--control-h-cell);
+  --field-height: var(--control-h-cell);
+}
+
+.doc-form .doc-form__line-remove,
+.doc-form .doc-form__line-move {
+  border-radius: var(--radius-sm);
+}
+
+.doc-form .doc-form__totals dt {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.doc-form .doc-form__totals dd {
+  font-size: var(--text-value);
+  font-weight: var(--font-weight-semibold);
+  color: inherit;
+  white-space: nowrap;
+}
+
+.doc-form .doc-form__totals-row--field dd {
+  inline-size: var(--space-16);
+}
+
+.doc-form .doc-form__totals-input {
+  block-size: var(--space-6);
+  min-block-size: var(--space-6);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+// Le note sono una card come le altre (il contenitore del form non lo è più).
+.doc-form .doc-form__footer-notes {
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.doc-form .doc-form__footer-notes .doc-form__label {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-label);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.doc-form .doc-form__textarea {
+  min-block-size: var(--space-10);
+  max-block-size: var(--space-20);
+  padding: var(--space-2);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+}
+
+// ── Allegati: una riga, non mezza pagina ───────────────────────────────────
+// A documento senza allegati bastava sapere che non ce ne sono: l'empty state
+// a tutta altezza (medaglione + descrizione) diventa una riga compatta sotto
+// il titolo. Con gli allegati resta l'elenco, solo più stretto.
+.doc-form .doc-form__attachments {
+  --attachments-gap: var(--space-2);
+  --attachments-title-size: var(--text-md);
+  --attachments-item-pad: var(--space-1) var(--space-2);
+}
+
+// ── Barra azioni ───────────────────────────────────────────────────────────
+.doc-form .doc-form__actions {
+  background-color: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  border-color: var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 -5px 18px rgb(15 36 28 / 0.055);
+}
+
+.doc-form .doc-form__actions-note {
+  font-size: var(--text-2xs);
+}
+
+.doc-form .doc-form__table tbody tr:hover td.doc-form__cell--exceeds {
+  background-color: var(--color-warning-subtle);
+}
+
+// Riga «documento collegato» e riordino delle righe per trascinamento —
+// terzo foglio del componente (customer-order-form.component.ts, styleUrls).
+// Sta a parte per restare dentro il budget CSS per-componente di angular.json.
+// I valori qui sotto vengono dalle specifiche di design della riga riferimento
+// e restano espliciti (non passano dalle --co-*): sono un contratto col
+// disegno, non la palette della pagina.
+
+// ── Riga «documento collegato» ─────────────────────────────────────────────
+// La fascia colorata copre SOLO indice e colonne di identità: le colonne da
+// Q.tà a Totale restano celle normali con la tinta del proprio gruppo, così i
+// divisori verticali e le bande di colonna proseguono senza interruzioni.
+.doc-form .doc-form__table tbody td.doc-form__source-cell {
+  block-size: 2.125rem; // 34px
+  color: #42545d;
+  background-color: #f2f5f7;
+  overflow: visible;
+}
+
+.doc-form .doc-form__table tbody tr:hover td.doc-form__source-cell {
+  background-color: #f2f5f7;
+}
+
+// Accento verticale sulla prima cella della fascia (l'indice).
+.doc-form .doc-form__table tbody td.doc-form__source-cell:first-child {
+  box-shadow: inset 3px 0 0 #718995;
+}
+
+// ── Riordino righe: la maniglia è il numero ────────────────────────────────
+.doc-form .doc-form__table tbody .doc-form__drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.doc-form .doc-form__table tbody .doc-form__drag-handle:active {
+  cursor: grabbing;
+}
+
+.doc-form .doc-form__table tbody tr.cdk-drag-dragging {
+  opacity: 0.5;
 }

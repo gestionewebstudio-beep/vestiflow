@@ -256,6 +256,7 @@ interface AvailabilityIssue {
   styleUrls: [
     './customer-order-form.component.scss',
     './customer-order-form.rows.scss',
+    './customer-order-form.mobile-cards.scss',
     './customer-order-form.mobile.scss',
     './customer-order-form.mobile-polish.scss',
     './customer-order-form.reference-mobile.scss',
