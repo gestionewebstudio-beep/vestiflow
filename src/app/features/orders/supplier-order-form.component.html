@@ -1,12 +1,10 @@
 <section class="doc-form">
-  <a class="doc-form__back" href="/app/orders" (click)="$event.preventDefault(); cancel()">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Ordini Fornitori
-  </a>
-
-  <h1 class="doc-form__title">
-    {{ isEditMode() ? 'Modifica ordine fornitore' : 'Nuovo ordine fornitore' }}
-  </h1>
+  <div class="doc-form__head-row">
+    <app-back-button [deferNavigation]="true" (backRequested)="cancel()" />
+    <h1 class="doc-form__title">
+      {{ isEditMode() ? 'Modifica ordine fornitore' : 'Nuovo ordine fornitore' }}
+    </h1>
+  </div>
 
   @if (loading()) {
     <app-table-skeleton [columns]="2" [rows]="5" />
@@ -40,73 +38,75 @@
         </p>
       }
 
-      <div class="doc-form__grid">
-        <div class="doc-form__field">
-          <span class="doc-form__label" id="po-supplier-label">Fornitore</span>
-          <app-select-menu
-            [options]="supplierOptions()"
-            [value]="form.controls.supplierId.value"
-            ariaLabel="Fornitore"
-            placeholder="Seleziona un fornitore…"
-            [compact]="true"
-            [fullWidth]="true"
-            [searchable]="true"
-            searchPlaceholder="Cerca fornitore…"
-            searchAriaLabel="Cerca fornitore"
-            [invalid]="fieldInvalid('supplierId')"
-            describedBy="po-supplier-error"
-            (valueChange)="onSupplierSelect($event)"
-          />
-          @if (fieldInvalid('supplierId')) {
-            <p id="po-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
-          }
-          <button type="button" class="doc-form__inline-toggle" (click)="toggleSupplierForm()">
-            <i
-              class="pi"
-              [class.pi-plus]="!showSupplierForm()"
-              [class.pi-minus]="showSupplierForm()"
-              aria-hidden="true"
-            ></i>
-            {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
-          </button>
-        </div>
+      <div class="doc-form__header">
+        <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
+          <div class="doc-form__field doc-form__field--span2">
+            <span class="doc-form__label" id="po-supplier-label">Fornitore</span>
+            <app-select-menu
+              [options]="supplierOptions()"
+              [value]="form.controls.supplierId.value"
+              ariaLabel="Fornitore"
+              placeholder="Seleziona un fornitore…"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca fornitore…"
+              searchAriaLabel="Cerca fornitore"
+              [invalid]="fieldInvalid('supplierId')"
+              describedBy="po-supplier-error"
+              (valueChange)="onSupplierSelect($event)"
+            />
+            @if (fieldInvalid('supplierId')) {
+              <p id="po-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
+            }
+            <button type="button" class="doc-form__inline-toggle" (click)="toggleSupplierForm()">
+              <i
+                class="pi"
+                [class.pi-plus]="!showSupplierForm()"
+                [class.pi-minus]="showSupplierForm()"
+                aria-hidden="true"
+              ></i>
+              {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
+            </button>
+          </div>
 
-        <div class="doc-form__field">
-          <label class="doc-form__label" for="po-order-date">Data</label>
-          <app-date-input
-            inputId="po-order-date"
-            formControlName="orderDate"
-            ariaLabel="Data ordine"
-            [compact]="true"
-            [fullWidth]="true"
-          />
-          @if (fieldInvalid('orderDate')) {
-            <p class="doc-form__error">Indica la data dell'ordine.</p>
-          }
-        </div>
+          <div class="doc-form__field">
+            <label class="doc-form__label" for="po-order-date">Data</label>
+            <app-date-input
+              inputId="po-order-date"
+              formControlName="orderDate"
+              ariaLabel="Data ordine"
+              [compact]="true"
+              [fullWidth]="true"
+            />
+            @if (fieldInvalid('orderDate')) {
+              <p class="doc-form__error">Indica la data dell'ordine.</p>
+            }
+          </div>
 
-        <div class="doc-form__field">
-          <label class="doc-form__label" for="po-expected">Consegna prevista</label>
-          <app-date-input
-            inputId="po-expected"
-            formControlName="expectedAt"
-            ariaLabel="Consegna prevista"
-            placeholder="Nessuna data"
-            [compact]="true"
-            [fullWidth]="true"
-          />
-        </div>
+          <div class="doc-form__field">
+            <label class="doc-form__label" for="po-expected">Consegna prevista</label>
+            <app-date-input
+              inputId="po-expected"
+              formControlName="expectedAt"
+              ariaLabel="Consegna prevista"
+              placeholder="Nessuna data"
+              [compact]="true"
+              [fullWidth]="true"
+            />
+          </div>
 
-        <div class="doc-form__field">
-          <label class="doc-form__label" for="po-supplier-reference">Rif. ordine fornitore</label>
-          <input
-            id="po-supplier-reference"
-            class="doc-form__input"
-            type="text"
-            formControlName="supplierReference"
-            placeholder="Es. conferma d'ordine del fornitore"
-            maxlength="120"
-          />
+          <div class="doc-form__field">
+            <label class="doc-form__label" for="po-supplier-reference">Rif. ordine fornitore</label>
+            <input
+              id="po-supplier-reference"
+              class="doc-form__input"
+              type="text"
+              formControlName="supplierReference"
+              placeholder="Es. conferma d'ordine del fornitore"
+              maxlength="120"
+            />
+          </div>
         </div>
       </div>
 
@@ -210,7 +210,11 @@
                   </th>
                 }
                 @if (isLineColumnVisible('quantity')) {
-                  <th scope="col" class="doc-form__num" [style.width]="lineColumnWidth('quantity')">
+                  <th
+                    scope="col"
+                    class="doc-form__col--stock doc-form__col--sep doc-form__num"
+                    [style.width]="lineColumnWidth('quantity')"
+                  >
                     Q.tà
                     <span
                       appTableColumnResize
@@ -219,7 +223,11 @@
                   </th>
                 }
                 @if (isLineColumnVisible('unitOfMeasure')) {
-                  <th scope="col" [style.width]="lineColumnWidth('unitOfMeasure')">
+                  <th
+                    class="doc-form__col--stock"
+                    scope="col"
+                    [style.width]="lineColumnWidth('unitOfMeasure')"
+                  >
                     U.m.
                     <span
                       appTableColumnResize
@@ -230,7 +238,7 @@
                 @if (isLineColumnVisible('unitCost')) {
                   <th
                     scope="col"
-                    class="doc-form__num doc-form__th--menu"
+                    class="doc-form__col--calc doc-form__col--sep doc-form__num doc-form__th--menu"
                     [style.width]="lineColumnWidth('unitCost')"
                   >
                     <span class="doc-form__th-menu-wrap">
@@ -285,7 +293,11 @@
                   </th>
                 }
                 @if (isLineColumnVisible('discount')) {
-                  <th scope="col" class="doc-form__num" [style.width]="lineColumnWidth('discount')">
+                  <th
+                    scope="col"
+                    class="doc-form__col--calc doc-form__num"
+                    [style.width]="lineColumnWidth('discount')"
+                  >
                     Sconto
                     <span
                       appTableColumnResize
@@ -294,7 +306,7 @@
                   </th>
                 }
                 @if (isLineColumnVisible('vat')) {
-                  <th scope="col" [style.width]="lineColumnWidth('vat')">
+                  <th class="doc-form__col--tax" scope="col" [style.width]="lineColumnWidth('vat')">
                     IVA
                     <span appTableColumnResize (resized)="onLineColumnResize('vat', $event)"></span>
                   </th>
@@ -302,7 +314,7 @@
                 @if (isLineColumnVisible('sellingPrice')) {
                   <th
                     scope="col"
-                    class="doc-form__num"
+                    class="doc-form__col--sale doc-form__col--sep doc-form__num"
                     [style.width]="lineColumnWidth('sellingPrice')"
                   >
                     Prezzo al pubblico
@@ -315,7 +327,7 @@
                 @if (isLineColumnVisible('compareAtPrice')) {
                   <th
                     scope="col"
-                    class="doc-form__num"
+                    class="doc-form__col--sale doc-form__num"
                     [style.width]="lineColumnWidth('compareAtPrice')"
                   >
                     Prezzo barrato
@@ -328,7 +340,7 @@
                 @if (isLineColumnVisible('stockOnHand')) {
                   <th
                     scope="col"
-                    class="doc-form__num"
+                    class="doc-form__col--stock doc-form__col--sep doc-form__num"
                     [style.width]="lineColumnWidth('stockOnHand')"
                   >
                     Q.tà giacenza
@@ -341,7 +353,7 @@
                 @if (isLineColumnVisible('stockAvailable')) {
                   <th
                     scope="col"
-                    class="doc-form__num"
+                    class="doc-form__col--stock doc-form__num"
                     [style.width]="lineColumnWidth('stockAvailable')"
                   >
                     Q.tà disp.
@@ -354,7 +366,7 @@
                 @if (isLineColumnVisible('lineTotal')) {
                   <th
                     scope="col"
-                    class="doc-form__num"
+                    class="doc-form__col--total doc-form__col--sep doc-form__num"
                     [style.width]="lineColumnWidth('lineTotal')"
                   >
                     Totale
@@ -423,7 +435,10 @@
                     </td>
                   }
                   @if (isLineColumnVisible('quantity')) {
-                    <td class="doc-form__cell doc-form__num" data-label="Quantità">
+                    <td
+                      class="doc-form__col--stock doc-form__col--sep doc-form__cell doc-form__num"
+                      data-label="Quantità"
+                    >
                       <input
                         [id]="'po-qty-' + i"
                         class="doc-form__input doc-form__input--table doc-form__input--num"
@@ -440,12 +455,15 @@
                     </td>
                   }
                   @if (isLineColumnVisible('unitOfMeasure')) {
-                    <td class="doc-form__cell" data-label="U.m.">
+                    <td class="doc-form__col--stock doc-form__cell" data-label="U.m.">
                       {{ lineDisplay(i, 'unitOfMeasure') }}
                     </td>
                   }
                   @if (isLineColumnVisible('unitCost')) {
-                    <td class="doc-form__cell doc-form__num" [attr.data-label]="costModeLabel()">
+                    <td
+                      class="doc-form__col--calc doc-form__col--sep doc-form__cell doc-form__num"
+                      [attr.data-label]="costModeLabel()"
+                    >
                       <input
                         [id]="'po-cost-' + i"
                         class="doc-form__input doc-form__input--table doc-form__input--num"
@@ -461,7 +479,10 @@
                     </td>
                   }
                   @if (isLineColumnVisible('discount')) {
-                    <td class="doc-form__cell doc-form__num" data-label="Sconto">
+                    <td
+                      class="doc-form__col--calc doc-form__cell doc-form__num"
+                      data-label="Sconto"
+                    >
                       <input
                         [id]="'po-discount-' + i"
                         class="doc-form__input doc-form__input--table doc-form__input--num"
@@ -477,7 +498,7 @@
                     </td>
                   }
                   @if (isLineColumnVisible('vat')) {
-                    <td class="doc-form__cell" data-label="IVA">
+                    <td class="doc-form__col--tax doc-form__cell" data-label="IVA">
                       <app-select-menu
                         [options]="vatCodeOptions()"
                         [value]="line.controls.vatCodeId.value"
@@ -491,7 +512,7 @@
                   }
                   @if (isLineColumnVisible('sellingPrice')) {
                     <td
-                      class="doc-form__cell doc-form__num tabular-nums"
+                      class="doc-form__col--sale doc-form__col--sep doc-form__cell doc-form__num tabular-nums"
                       data-label="Prezzo al pubblico"
                     >
                       {{ linePrice(i, 'sellingPrice') }}
@@ -499,7 +520,7 @@
                   }
                   @if (isLineColumnVisible('compareAtPrice')) {
                     <td
-                      class="doc-form__cell doc-form__num tabular-nums"
+                      class="doc-form__col--sale doc-form__cell doc-form__num tabular-nums"
                       data-label="Prezzo barrato"
                     >
                       {{ linePrice(i, 'compareAtPrice') }}
@@ -507,19 +528,25 @@
                   }
                   @if (isLineColumnVisible('stockOnHand')) {
                     <td
-                      class="doc-form__cell doc-form__num tabular-nums"
+                      class="doc-form__col--stock doc-form__col--sep doc-form__cell doc-form__num tabular-nums"
                       data-label="Q.tà giacenza"
                     >
                       {{ lineStock(i, 'stockOnHand') }}
                     </td>
                   }
                   @if (isLineColumnVisible('stockAvailable')) {
-                    <td class="doc-form__cell doc-form__num tabular-nums" data-label="Q.tà disp.">
+                    <td
+                      class="doc-form__col--stock doc-form__cell doc-form__num tabular-nums"
+                      data-label="Q.tà disp."
+                    >
                       {{ lineStock(i, 'stockAvailable') }}
                     </td>
                   }
                   @if (isLineColumnVisible('lineTotal')) {
-                    <td class="doc-form__cell doc-form__num tabular-nums" data-label="Totale">
+                    <td
+                      class="doc-form__col--total doc-form__col--sep doc-form__cell doc-form__num tabular-nums"
+                      data-label="Totale"
+                    >
                       {{ formatMoney(lineMoney(i)) }}
                     </td>
                   }
@@ -541,19 +568,30 @@
             </tbody>
           </table>
         </div>
-
-        <div class="doc-form__totals tabular-nums">
-          <p class="doc-form__total">
-            Imponibile: <strong>{{ formatMoney(orderSubtotal()) }}</strong>
-          </p>
-          <p class="doc-form__total">
-            IVA: <strong>{{ formatMoney(orderTax()) }}</strong>
-          </p>
-          <p class="doc-form__total doc-form__total--grand">
-            Totale ordine: <strong>{{ formatMoney(orderTotal()) }}</strong>
-          </p>
-        </div>
       </section>
+
+      <!-- Banda finale: stessa anatomia dell'Ordine cliente — lista etichetta
+           a sinistra, valore a destra, totale in evidenza in coda. -->
+      <div class="doc-form__footer-grid">
+        <aside class="doc-form__totals-bar" aria-label="Totali ordine">
+          <dl class="doc-form__totals">
+            <div class="doc-form__totals-row">
+              <dt>Imponibile</dt>
+              <dd class="tabular-nums">{{ formatMoney(orderSubtotal()) }}</dd>
+            </div>
+            <div class="doc-form__totals-row">
+              <dt>IVA</dt>
+              <dd class="tabular-nums">{{ formatMoney(orderTax()) }}</dd>
+            </div>
+            <div class="doc-form__totals-row doc-form__totals-row--total">
+              <dt>Totale ordine</dt>
+              <dd class="tabular-nums">
+                <strong>{{ formatMoney(orderTotal()) }}</strong>
+              </dd>
+            </div>
+          </dl>
+        </aside>
+      </div>
 
       @if (submitError(); as appError) {
         <p class="doc-form__submit-error" role="alert">

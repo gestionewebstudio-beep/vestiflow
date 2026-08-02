@@ -193,6 +193,31 @@ Condividono i token e i componenti condivisi, non un antenato.
 
 **Nessun foglio di stile e' piu' sopra il budget.**
 
+### L'Ordine fornitore adotta l'impaginato dell'Ordine cliente
+
+Ultimo passo, e solo di forma: le logiche non sono state toccate — 183 dei 184
+agganci del template (eventi, binding, controlli di flusso, interpolazioni) sono
+identici, e l'unico cambiato e' il pulsante «Indietro».
+
+- **Testata di pagina**: il link testuale sopra il titolo diventa il chip con la
+  freccia accanto al titolo, come l'Ordine cliente. La protezione sulle
+  modifiche non salvate resta **sul pulsante** e non delegata alla sola guardia
+  di rotta: `app-back-button` ha ora `deferNavigation` + `backRequested`, cosi'
+  chi lo ospita puo' decidere lui cosa succede.
+- **Testata documento**: i campi passano dentro `doc-form__header` con la
+  griglia a celle bordate (`--header --header-compact`) — la card unica delle
+  regole §7, al posto della griglia sciolta.
+- **Banda finale**: i totali diventano la stessa lista dell'Ordine cliente
+  (`footer-grid` > `totals-bar` > `dl`), con «Totale ordine» in evidenza in coda.
+- **Bande di gruppo** sull'intestazione tabella (§6), applicate **solo dove la
+  famiglia e' contigua**: quantita'/unita' e giacenze come stock, costo e sconto
+  come calcoli, i prezzi al pubblico come vendita, IVA come imposte, il totale
+  in coda. Colorare colonne alternate avrebbe prodotto strisce, non gruppi.
+
+Resta fuori il **riordino delle colonne** per famiglia, che l'Ordine cliente ha
+e questa maschera no: cambia cosa l'utente trova dove, ed e' una decisione del
+proprietario, non un adeguamento di stile.
+
 ### Da verificare a occhio
 
 Il cambio piu' visibile e' che **la sidebar passa da chiara a verde-scura**

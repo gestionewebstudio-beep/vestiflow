@@ -42,6 +42,7 @@ import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { isPurchaseVatCode, vatCodeOptionLabel } from '@core/models/vat-code.model';
 import type { PurchaseCostEntryMode, VatCode } from '@core/models/vat-code.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -110,6 +111,7 @@ function todayIsoDate(): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    BackButtonComponent,
     ButtonComponent,
     DateInputComponent,
     SelectMenuComponent,
