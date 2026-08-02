@@ -1121,17 +1121,41 @@ export class DocumentsService {
     const currentIds = new Set(current.map((order) => order.id));
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
 
-    for (const orderId of uniqueIds.filter((candidate) => !currentIds.has(candidate))) {
-      const order = await tx.salesOrder.findFirst({
-        where: { id: orderId, tenantId },
-        select: {
-          id: true,
-          orderNumber: true,
-          source: true,
-          cancelledAt: true,
-          documentId: true,
-        },
-      });
+    const toLink = uniqueIds.filter((candidate) => !currentIds.has(candidate));
+
+    // Ordini da agganciare e documenti già collegati in due query invece che
+    // due per ordine. La validazione resta in ordine di `toLink`, così il
+    // primo errore segnalato è lo stesso di prima.
+    const ordersToLink = await tx.salesOrder.findMany({
+      where: { id: { in: toLink }, tenantId },
+      select: {
+        id: true,
+        orderNumber: true,
+        source: true,
+        cancelledAt: true,
+        documentId: true,
+      },
+    });
+    const orderById = new Map(ordersToLink.map((order) => [order.id, order]));
+
+    const linkedDocumentIds = [
+      ...new Set(
+        ordersToLink
+          .map((order) => order.documentId)
+          .filter((id): id is string => Boolean(id) && id !== doc.id),
+      ),
+    ];
+    const linkedDocuments =
+      linkedDocumentIds.length > 0
+        ? await tx.document.findMany({
+            where: { id: { in: linkedDocumentIds }, tenantId },
+            select: { id: true, status: true, reference: true },
+          })
+        : [];
+    const documentById = new Map(linkedDocuments.map((document) => [document.id, document]));
+
+    for (const orderId of toLink) {
+      const order = orderById.get(orderId);
       if (!order) {
         throw new UnprocessableEntityException('Un ordine cliente incluso non esiste più.');
       }
@@ -1146,10 +1170,7 @@ export class DocumentsService {
         );
       }
       if (order.documentId && order.documentId !== doc.id) {
-        const other = await tx.document.findFirst({
-          where: { id: order.documentId, tenantId },
-          select: { status: true, reference: true },
-        });
+        const other = documentById.get(order.documentId);
         if (other && other.status !== DocumentStatus.cancelled) {
           throw new ConflictException(
             `L'ordine ${order.orderNumber} è già agganciato a un altro documento${
@@ -2890,12 +2911,34 @@ export class DocumentsService {
       }
     }
 
+    // Impegni attivi di tutti gli ordini in una query: sono disgiunti per
+    // ordine e consumarne uno non tocca gli altri (consumeReservationTx agisce
+    // sul singolo id), quindi leggerli in anticipo non cambia nulla.
+    const activeReservations = await tx.stockReservation.findMany({
+      where: {
+        tenantId,
+        salesOrderId: { in: orders.map((order) => order.id) },
+        status: ReservationStatus.active,
+      },
+    });
+    const reservationsByOrder = new Map<string, typeof activeReservations>();
+    for (const reservation of activeReservations) {
+      const key = reservation.salesOrderId;
+      if (!key) {
+        continue;
+      }
+      const bucket = reservationsByOrder.get(key);
+      if (bucket) {
+        bucket.push(reservation);
+      } else {
+        reservationsByOrder.set(key, [reservation]);
+      }
+    }
+
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
     for (const order of orders) {
       // Impegno rilasciato: il documento scarica le giacenze al posto dell'OC.
-      const active = await tx.stockReservation.findMany({
-        where: { tenantId, salesOrderId: order.id, status: ReservationStatus.active },
-      });
+      const active = reservationsByOrder.get(order.id) ?? [];
       for (const reservation of active) {
         await this.stockReservations.consumeReservationTx(
           tx,

@@ -92,26 +92,43 @@ export async function assertSerialNumbersForDocumentLines(
 ): Promise<void> {
   const variantsById = await loadSerialTrackedVariants(tx, tenantId, lines);
 
+  // Righe a tracciamento seriale con i rispettivi seriali digitati.
+  const serialLines: { readonly sku: string; readonly serials: readonly string[] }[] = [];
   for (const line of lines) {
     if (!line.loadsStock || line.quantity <= 0 || !line.variantId) {
       continue;
     }
-
     const variant = variantsById.get(line.variantId);
     if (!variant?.serial) {
       continue;
     }
-
     const serials = parseSerialNumbers(line.serialNumbers);
     assertSerialCountMatchesQuantity(variant.sku, line.quantity, serials);
+    serialLines.push({ sku: variant.sku, serials });
+  }
 
-    const existing = await tx.inventorySerial.findMany({
-      where: { tenantId, serialNumber: { in: [...serials] } },
-      select: { serialNumber: true },
-    });
-    if (existing.length > 0) {
+  if (serialLines.length === 0) {
+    return;
+  }
+
+  // Un'unica interrogazione per tutti i seriali del documento: la verifica di
+  // esistenza non dipende dalla riga, quindi non serve una query per riga.
+  const allSerials = [...new Set(serialLines.flatMap((line) => [...line.serials]))];
+  const existing = await tx.inventorySerial.findMany({
+    where: { tenantId, serialNumber: { in: allSerials } },
+    select: { serialNumber: true },
+  });
+  if (existing.length === 0) {
+    return;
+  }
+
+  // L'errore resta quello della prima riga in conflitto, come prima.
+  const taken = new Set(existing.map((row) => row.serialNumber));
+  for (const line of serialLines) {
+    const conflicting = line.serials.filter((serial) => taken.has(serial));
+    if (conflicting.length > 0) {
       throw new UnprocessableEntityException(
-        `Seriali già presenti a magazzino: ${existing.map((row) => row.serialNumber).join(', ')}.`,
+        `Seriali già presenti a magazzino: ${conflicting.join(', ')}.`,
       );
     }
   }
