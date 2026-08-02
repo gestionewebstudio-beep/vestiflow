@@ -14,7 +14,7 @@
   // ── Ritmo verticale: le sezioni respirano e si staccano dal fondo ────────
   .co-form.gr-form {
     padding-inline: var(--space-3);
-    background-color: var(--co-bg);
+    background-color: var(--color-bg);
   }
 
   .co-form .gr-form__form {
@@ -30,10 +30,10 @@
   .co-form .gr-form__footer-notes,
   .co-form .gr-form__attachments {
     padding: var(--space-4);
-    background-color: var(--co-surface);
-    border: var(--border-width) solid var(--co-line);
-    border-radius: var(--co-radius);
-    box-shadow: var(--co-shadow);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
   }
 
   // La testata gestisce il proprio padding interno (riepilogo + dettagli).
@@ -58,7 +58,7 @@
     padding-inline: 0;
     padding-block: var(--space-2);
     border-inline-end: 0;
-    border-block-end: var(--border-width) solid var(--co-line);
+    border-block-end: var(--border-width) solid var(--color-border);
   }
 
   .co-form .gr-form__totals-row:last-child {
@@ -69,12 +69,12 @@
   .co-form .gr-form__subtitle {
     font-size: var(--text-base);
     font-weight: var(--font-weight-bold);
-    color: var(--co-text, var(--color-text));
+    color: var(--color-text, var(--color-text));
   }
 
   .co-form .gr-form__totals dt {
     font-size: var(--text-sm);
-    color: var(--co-text, var(--color-text));
+    color: var(--color-text, var(--color-text));
   }
 
   .co-form .gr-form__totals dd {
@@ -147,7 +147,7 @@
   .co-form .co-form__card--open {
     padding: var(--co-card-pad-m);
     box-shadow: none;
-    border-color: var(--co-line);
+    border-color: var(--color-border);
   }
 
   // La testata continua a gestire il padding dei propri blocchi interni.
@@ -188,7 +188,7 @@
   .co-form .co-form__card--open {
     border-inline: 0;
     border-block-start: 0;
-    border-block-end: var(--border-width) solid var(--co-line);
+    border-block-end: var(--border-width) solid var(--color-border);
     border-radius: 0;
   }
 
@@ -213,7 +213,7 @@
     padding-block: var(--space-1) var(--space-0);
     padding-inline: var(--space-2);
     border-inline: 0;
-    border-block-end: var(--border-width) solid var(--co-line);
+    border-block-end: var(--border-width) solid var(--color-border);
     // Label e valore sono un blocco solo, non due elementi accostati.
     gap: var(--space-0);
   }
@@ -225,8 +225,8 @@
   .co-form .gr-form__header .gr-form__input,
   .co-form .gr-form__header .gr-form__textarea,
   .co-form .gr-form__header ::ng-deep .select-menu__trigger,
-  .co-form .gr-form__header ::ng-deep .date-input__field {
-    padding-inline: var(--space-3);
+  .co-form .gr-form__header {
+    --field-pad-inline: var(--space-3);
   }
 
   // 44px: il minimo touch delle linee guida. Il ritmo si comprime altrove.
@@ -260,13 +260,10 @@
 
   // L'hover della select su touch resta appiccicato dopo il tap: il campo
   // toccato per ultimo si ritrova un fondo grigio che gli altri non hanno.
-  .co-form .gr-form__header ::ng-deep .select-menu__trigger:hover {
-    background-color: transparent;
-  }
 
   // L'editabilità la dice il filo sotto la cella; al focus si accende.
   .co-form .gr-form__header .gr-form__field:focus-within {
-    border-block-end-color: var(--co-focus);
+    border-block-end-color: var(--color-focus);
   }
 
   .co-form .gr-form__header .gr-form__input:focus-visible {
@@ -305,8 +302,8 @@
   // di una select e quello di un input di testo sono lo stesso contenuto.
   .co-form .gr-form__header .gr-form__input,
   .co-form .gr-form__header ::ng-deep .select-menu__trigger,
-  .co-form .gr-form__header ::ng-deep .date-input__field {
-    font-size: var(--co-text-touch);
+  .co-form .gr-form__header {
+    --field-font-size: var(--co-text-touch);
   }
 
   // Sottotitoli e link secondari — restano i piu' piccoli, ma a 11px erano

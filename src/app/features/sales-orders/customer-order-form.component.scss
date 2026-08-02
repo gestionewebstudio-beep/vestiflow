@@ -15,7 +15,7 @@
 // La palette vive in variabili --co-* dichiarate sul :host, il remap dei token
 // dell'app su `.co-form`. I due livelli sono separati apposta: se stessero
 // sullo stesso elemento, in tema scuro `--co-surface: var(--color-surface)` e
-// `--color-surface: var(--co-surface)` formerebbero un ciclo e le due
+// `--color-surface: var(--color-surface)` formerebbero un ciclo e le due
 // variabili si annullerebbero a vicenda. Così i componenti annidati dentro
 // `.co-form` (bottoni, select, date, badge) adottano la palette per cascata,
 // mentre pannelli e finestre — che stanno nel template ma FUORI da `.co-form`
@@ -24,90 +24,33 @@
 // ─────────────────────────────────────────────────────────────────────────────
 :host {
   // Superfici, linee, testo
-  --co-bg: #eef0f2;
-  --co-surface: #ffffff;
-  --co-surface-soft: #f6f7f8;
   --co-header-alt: #f7f9f8;
-  --co-line: #d7dddd;
-  --co-line-strong: #b6c0c1;
-  --co-cell-line: #e4ebe8;
   --co-head-line: #aebfb7;
-  --co-sep: #b9c7c0;
-  --co-text: #20282b;
-  --co-muted: #657075;
-  --co-subtle: #8a9498;
   --co-label: #59665f;
   --co-link: #3d6875;
 
   // Accenti
-  --co-brand: #25343b;
-  --co-brand-hover: #18262d;
   --co-brand-strip: rgb(156 188 199 / 0.4);
   --co-brand-label: #cbd9de;
-  --co-ok: #2d7557;
-  --co-ok-bg: #edf6f1;
-  --co-ok-border: #c9e0d4;
-  --co-focus: #4f7e8d;
-  --co-focus-soft: rgb(79 126 141 / 0.12);
-  --co-warn: #c98a2e;
-  --co-warn-bg: #fdf3e0;
-  --co-warn-fg: #7a4f0f;
   --co-code: #385d69;
 
   // Bande di gruppo dell'intestazione tabella
-  --co-head-bg: #e9edee;
   --co-head-fg: #3f4c51;
-  --co-head-stock-bg: #e8edef;
-  --co-head-stock-fg: #405a63;
-  --co-head-stock-rule: #839aa2;
-  --co-head-sale-bg: #eceff1;
-  --co-head-sale-fg: #4c5f67;
-  --co-head-sale-rule: #9baab0;
-  --co-head-calc-bg: #e9ecec;
-  --co-head-calc-fg: #505c60;
-  --co-head-calc-rule: #a5afb1;
 
   // Tinte delle celle per gruppo
-  --co-cell-stock: #f2f5f6;
-  --co-cell-calc: #f4f6f6;
-  --co-cell-total: #eef1f2;
-  --co-row-hover: #f8faf9;
-  --co-row-hover-stock: #eaf0f2;
-  --co-row-hover-calc: #e9edee;
   --co-summary-bg: #edf3f0;
   --co-summary-fg: #46564e;
 
   // Metriche (il mockup ragiona in px assoluti: qui in rem su base 16)
-  --co-radius: 0.5625rem; // 9px — card
-  --co-radius-sm: 0.375rem; // 6px — controlli
-  --co-radius-xs: 0.25rem; // 4px — input di cella
-  --co-field-h: 1.8125rem; // 29px — controlli di testata
-  --co-btn-h: 1.9375rem; // 31px — bottoni barra strumenti/azioni
-  --co-cell-h: 1.5rem; // 24px — input dentro le righe
-  --co-row-h: 1.875rem; // 30px — altezza riga
-  --co-head-h: 2rem; // 32px — intestazione tabella
-  --co-cell-pad-block: 0.125rem; // 2px
-  --co-cell-pad-inline: 0.3125rem; // 5px
   --co-text-micro: 0.59375rem; // 9.5px — etichette uppercase
   --co-text-total: 0.9375rem; // 15px — valori dei totali
   --co-text-grand: 1.0625rem; // 17px — totale documento
   --co-weight-head: 780;
   --co-weight-strong: 760;
-  --co-shadow: 0 1px 2px rgb(18 42 33 / 0.04), 0 4px 14px rgb(18 42 33 / 0.035);
-  --co-primary-subtle: rgb(37 52 59 / 0.07);
 
   // Riga «documento collegato»
-  --co-ref-bg: #f2f5f7;
-  --co-ref-accent: #718995;
-  --co-ref-line: #cbd5d9;
-  --co-ref-badge-bg: #e6ecef;
-  --co-ref-badge-border: #ccd8dd;
-  --co-ref-badge-fg: #4b6470;
-  --co-ref-title: #334850;
-  --co-ref-meta: #68777d;
 
   // ── Vista mobile/tablet (mockup responsive v3) ────────────────────────────
-  --co-radius-card: 0.75rem; // 12px — card riga
   --co-field-h-m: 2.75rem; // 44px — campi testata: il minimo touch, non di piu'
   --co-btn-h-m: 2.625rem; // 42px — bottoni strumenti
   --co-btn-h-dock: 2.875rem; // 46px — bottoni del dock
@@ -122,7 +65,6 @@
   --co-text-field-label: 1.1875rem; // 19px — label dei campi di testata
   --co-text-card-name: 0.90625rem; // 14.5px — nome prodotto sulla card
   --co-text-nano: 0.5625rem; // 9px — etichette dentro le card
-  --co-text-dock-total: 1.25rem; // 20px — totale nel dock
   --co-card-open-border: #9ebfb1;
   --co-card-open-bg: #fbfcfb;
   --co-card-body-bg: #f3f6f4;
@@ -137,95 +79,26 @@
 }
 
 // ── Remap dei token: i componenti annidati seguono la palette del mockup ──
-.co-form {
-  --color-surface: var(--co-surface);
-  --color-surface-raised: var(--co-surface);
-  --color-surface-sunken: var(--co-surface-soft);
-  --color-surface-hover: var(--co-surface-soft);
-  --color-surface-muted: var(--co-surface-soft);
-  --color-border: var(--co-line);
-  --color-border-strong: var(--co-line-strong);
-  --color-table-header-bg: var(--co-head-bg);
-  --color-table-row-divider: var(--co-cell-line);
-  --color-text: var(--co-text);
-  --color-text-muted: var(--co-muted);
-  --color-text-subtle: var(--co-subtle);
-  --color-primary: var(--co-brand);
-  --color-primary-hover: var(--co-brand-hover);
-  --color-primary-active: var(--co-brand-hover);
-  --color-primary-subtle: var(--co-primary-subtle);
-  --color-interactive: var(--co-link);
-  --color-interactive-hover: var(--co-brand);
-  --color-input-bg: var(--co-surface);
-  --color-input-border: var(--co-line);
-  --color-focus-ring: var(--co-focus);
-  --color-focus-ring-alpha: var(--co-focus-soft);
-  --field-focus-ring: 0 0 0 3px var(--co-focus-soft);
-  --status-success-fg: var(--co-ok);
-  --status-success-bg: var(--co-ok-bg);
-  --status-success-border: var(--co-ok-border);
-  --gr-line-row-height: var(--co-cell-h);
-}
+// Il remap dei token dell'app che stava qui non serve piu': le decisioni visive
+// di questa pagina sono diventate i token globali (regole-stile-ui §2), quindi
+// i componenti annidati adottano gia' la palette giusta per cascata. Con il
+// remap sparisce anche il rischio di ciclo fra --co-* e --color-* in tema
+// scuro, che imponeva di tenere i due livelli su elementi separati.
 
 // In tema scuro la pelle del mockup (light-only) non sarebbe leggibile: le
 // --co-* tornano a puntare ai token dell'app (qui valgono ancora quelli di
 // :root, non i remap di `.co-form`), la geometria del mockup resta.
 :host-context([data-theme='dark']) {
-  --co-bg: var(--color-bg);
-  --co-surface: var(--color-surface);
-  --co-surface-soft: var(--color-surface-sunken);
   --co-header-alt: var(--color-surface-sunken);
-  --co-line: var(--color-border);
-  --co-line-strong: var(--color-border-strong);
-  --co-cell-line: var(--color-table-row-divider);
   --co-head-line: var(--color-border-strong);
-  --co-sep: var(--color-border-strong);
-  --co-text: var(--color-text);
-  --co-muted: var(--color-text-muted);
-  --co-subtle: var(--color-text-subtle);
   --co-label: var(--color-text-subtle);
   --co-link: var(--color-interactive);
-  --co-brand: var(--color-primary);
-  --co-brand-hover: var(--color-primary-hover);
   --co-brand-strip: var(--color-border-strong);
   --co-brand-label: var(--color-primary-fg);
-  --co-ok: var(--status-success-fg);
-  --co-ok-bg: var(--status-success-bg);
-  --co-ok-border: var(--status-success-border);
-  --co-focus: var(--color-focus-ring);
-  --co-focus-soft: var(--color-focus-ring-alpha);
-  --co-warn: var(--status-warning-border);
-  --co-warn-bg: var(--status-warning-bg);
-  --co-warn-fg: var(--status-warning-fg);
   --co-code: var(--color-text-muted);
-  --co-head-bg: var(--color-table-header-bg);
   --co-head-fg: var(--color-text-muted);
-  --co-head-stock-bg: var(--color-table-header-bg);
-  --co-head-stock-fg: var(--color-text-muted);
-  --co-head-stock-rule: var(--color-border-strong);
-  --co-head-sale-bg: var(--color-table-header-bg);
-  --co-head-sale-fg: var(--color-text-muted);
-  --co-head-sale-rule: var(--color-border-strong);
-  --co-head-calc-bg: var(--color-table-header-bg);
-  --co-head-calc-fg: var(--color-text-muted);
-  --co-head-calc-rule: var(--color-border-strong);
-  --co-cell-stock: var(--color-surface-sunken);
-  --co-cell-calc: var(--color-surface-sunken);
-  --co-cell-total: var(--color-surface-muted);
-  --co-row-hover: var(--color-surface-hover);
-  --co-row-hover-stock: var(--color-surface-hover);
-  --co-row-hover-calc: var(--color-surface-hover);
   --co-summary-bg: var(--color-surface-sunken);
   --co-summary-fg: var(--color-text-muted);
-  --co-primary-subtle: var(--color-primary-subtle);
-  --co-ref-bg: var(--color-surface-sunken);
-  --co-ref-accent: var(--color-border-strong);
-  --co-ref-line: var(--color-border);
-  --co-ref-badge-bg: var(--color-surface-muted);
-  --co-ref-badge-border: var(--color-border);
-  --co-ref-badge-fg: var(--color-text-muted);
-  --co-ref-title: var(--color-text);
-  --co-ref-meta: var(--color-text-muted);
   --co-card-open-border: var(--color-border-strong);
   --co-card-open-bg: var(--color-surface-hover);
   --co-card-body-bg: var(--color-surface-sunken);
@@ -260,7 +133,7 @@
   margin: 0;
   margin-inline-start: auto;
   font-size: var(--text-xs);
-  color: var(--co-ok);
+  color: var(--color-ok);
 }
 
 .co-form__save-state--dirty {
@@ -271,10 +144,10 @@
 // ── Testata: una card, due fasce di celle unite ─────────────────────────────
 .co-form .gr-form__header {
   gap: 0;
-  background-color: var(--co-surface);
-  border: var(--border-width) solid var(--co-line);
-  border-radius: var(--co-radius);
-  box-shadow: var(--co-shadow);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 
 .co-form .gr-form__header .gr-form__grid--header {
@@ -285,9 +158,9 @@
 
 .co-form .gr-form__header .co-form__header-row--secondary {
   background-color: var(--co-header-alt);
-  border-block-start: var(--border-width) solid var(--co-line);
-  border-end-start-radius: var(--co-radius);
-  border-end-end-radius: var(--co-radius);
+  border-block-start: var(--border-width) solid var(--color-border);
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
 }
 
 // I bordi di cella li gestisce il foglio condiviso (e il blocco lg qui sotto):
@@ -335,7 +208,7 @@
     flex: 1 1 0;
     min-inline-size: 0;
     border-block-end: 0;
-    border-inline-end: var(--border-width) solid var(--co-line);
+    border-inline-end: var(--border-width) solid var(--color-border);
   }
 
   .co-form .co-form__header-row > .gr-form__field:last-child {
@@ -393,23 +266,23 @@
 .co-form .gr-form__header .gr-form__input,
 .co-form .gr-form__header .gr-form__field app-select-menu,
 .co-form .gr-form__header .gr-form__field app-date-input {
-  --field-height: var(--co-field-h);
-  --color-input-bg: var(--co-surface);
-  --color-input-border: var(--co-line);
+  --field-height: var(--control-h-field);
+  --color-input-bg: var(--color-surface);
+  --color-input-border: var(--color-border);
 }
 
 .co-form .gr-form__header .gr-form__input {
-  block-size: var(--co-field-h);
-  min-block-size: var(--co-field-h);
+  block-size: var(--control-h-field);
+  min-block-size: var(--control-h-field);
   padding-inline: var(--space-2);
   font-size: var(--text-xs);
-  background-color: var(--co-surface);
-  border: var(--border-width) solid var(--co-line);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
   border-radius: 0.3125rem;
 }
 
 .co-form .gr-form__header .gr-form__input:focus-visible {
-  border-color: var(--co-focus);
+  border-color: var(--color-focus);
   box-shadow: var(--field-focus-ring);
 }
 
@@ -433,7 +306,7 @@
 
 .co-form .gr-form__lines-count {
   font-size: var(--text-2xs);
-  color: var(--co-muted);
+  color: var(--color-text-muted);
 }
 
 .co-form .gr-form__lines-tools {
@@ -443,126 +316,41 @@
 // Bottoni più bassi e compatti del default app (31px contro 36px).
 .co-form .gr-form__lines-tools,
 .co-form .gr-form__actions {
-  --field-height: var(--co-btn-h);
+  --field-height: var(--control-h-button);
 }
 
 .co-form .gr-form__lines-tools ::ng-deep .app-button,
-.co-form .gr-form__actions ::ng-deep .app-button {
-  font-size: var(--text-xs);
-  border-radius: var(--co-radius-sm);
+.co-form .gr-form__actions {
+  --button-font-size: var(--text-xs);
+  --button-radius: var(--radius-sm);
 }
 
-// ── Finestra «Colonne» come nel mockup ─────────────────────────────────────
 // Finestra compatta con testata, elenco a due colonne e piede separato. Il
 // pannello è di un componente condiviso: le regole restano scoped su .co-form
 // così il selettore colonne delle altre tabelle non cambia.
-.co-form ::ng-deep .table-column-picker__panel {
-  // Il pannello nasce a z-dropdown, sotto la banda totali e la barra azioni
-  // (entrambe sticky a z-sticky): da qui in giù finirebbe coperto.
-  z-index: calc(var(--z-sticky) + 1);
-  gap: var(--space-2);
-  inline-size: min(20.625rem, 92vw);
-  padding: var(--space-2);
-  border-color: var(--co-line-strong);
-  border-radius: 0.625rem;
-  box-shadow: 0 12px 35px rgb(18 40 32 / 0.16);
-}
 
 // Testata: il titolo del mockup. Niente «Chiudi» perché il pannello si chiude
 // già cliccando fuori — sarebbe un bottone in più che non fa nulla di nuovo.
-.co-form ::ng-deep .table-column-picker__panel::before {
-  content: 'Colonne visibili';
-  padding: 0 var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: var(--font-weight-bold);
-  color: var(--co-text);
-  border-block-end: var(--border-width) solid var(--co-line);
-}
-
-.co-form ::ng-deep .table-column-picker__preset {
-  gap: var(--space-1);
-  padding-inline: var(--space-1);
-}
 
 // La select nasce larga --select-menu-width (224px): qui riempie la finestra.
-.co-form ::ng-deep .table-column-picker__preset app-select-menu {
-  --select-menu-width: 100%;
-}
-
-.co-form ::ng-deep .table-column-picker__label {
-  font-size: var(--co-text-micro);
-  font-weight: var(--co-weight-strong);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--co-label);
-}
-
-.co-form ::ng-deep .table-column-picker__list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-1) var(--space-2);
-  max-block-size: 18.125rem;
-}
-
-.co-form ::ng-deep .table-column-picker__item {
-  gap: var(--space-1);
-  min-inline-size: 0;
-  padding: var(--space-1);
-  border-radius: var(--co-radius-sm);
-}
-
-.co-form ::ng-deep .table-column-picker__item:hover {
-  background-color: var(--co-surface-soft);
-}
-
-.co-form ::ng-deep .table-column-picker__check {
-  min-inline-size: 0;
-  font-size: var(--text-xs);
-}
-
-.co-form ::ng-deep .table-column-picker__check span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 // Spunte del documento e della finestra colonne: quadratino più generoso e
 // tinta brand, come nel mockup (di serie sarebbero ~13px e blu di sistema).
 .co-form .gr-form__check input[type='checkbox'],
-.co-form ::ng-deep .table-column-picker__check input {
-  inline-size: 1rem;
-  block-size: 1rem;
-  accent-color: var(--co-brand);
-  cursor: pointer;
-}
 
 // Niente frecce di riordino in questa finestra (mockup): l'ordine delle
 // colonne del documento è quello del tracciato, si sceglie solo cosa vedere.
 // Le altre tabelle dell'app continuano ad averle: la regola è scoped qui.
-.co-form ::ng-deep .table-column-picker__actions {
-  display: none;
-}
-
-.co-form ::ng-deep .table-column-picker__footer {
-  margin-block-start: var(--space-1);
-  padding-block-start: var(--space-2);
-  border-block-start-color: var(--co-line);
-  --field-height: var(--co-btn-h);
-}
-
-.co-form ::ng-deep .table-column-picker__footer .app-button {
-  font-size: var(--text-xs);
-}
 
 // ── Tabella righe ──────────────────────────────────────────────────────────
 .co-form .gr-form__table-wrap {
   margin-inline: 0;
-  border: var(--border-width) solid var(--co-line);
+  border: var(--border-width) solid var(--color-border);
   border-block-end: 0;
-  border-start-start-radius: var(--co-radius);
-  border-start-end-radius: var(--co-radius);
-  background-color: var(--co-surface);
-  box-shadow: var(--co-shadow);
+  border-start-start-radius: var(--radius-lg);
+  border-start-end-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-card);
   // Area di lavoro alta almeno 420px anche a documento vuoto: dà spazio a
   // inserimento e scansione, e i suggerimenti prodotto — assoluti DENTRO
   // quest'area che scorre — restano visibili invece di finire tagliati.
@@ -572,16 +360,16 @@
 
 .co-form .gr-form__table th,
 .co-form .gr-form__table td {
-  border-inline-end-color: var(--co-cell-line);
+  border-inline-end-color: var(--color-border-cell);
 }
 
 .co-form .gr-form__table tbody tr {
-  block-size: var(--co-row-h);
-  border-block-end-color: var(--co-cell-line);
+  block-size: var(--table-row-h);
+  border-block-end-color: var(--color-border-cell);
 }
 
 .co-form .gr-form__table tbody td {
-  padding: var(--co-cell-pad-block) var(--co-cell-pad-inline);
+  padding: var(--table-cell-pad-block) var(--table-cell-pad-inline);
   font-size: var(--text-xs);
 }
 
@@ -589,15 +377,15 @@
 // etichette header vanno a capo invece di troncarsi o traboccare (il
 // foglio condiviso impone nowrap).
 .co-form .gr-form__table thead th {
-  block-size: var(--co-head-h);
-  padding: var(--space-1) var(--co-cell-pad-inline);
+  block-size: var(--table-head-h);
+  padding: var(--space-1) var(--table-cell-pad-inline);
   font-size: var(--co-text-micro);
   font-weight: var(--co-weight-head);
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--co-head-fg);
-  background-color: var(--co-head-bg);
+  background-color: var(--color-table-header-bg);
   border-block-end: var(--border-width) solid var(--co-head-line);
   white-space: normal;
   overflow-wrap: break-word;
@@ -621,6 +409,8 @@
 // Stessa ragione per la tendina IVA: la colonna sta a destra e il pannello è
 // molto più largo della cella. Ancorato al bordo destro si apre verso sinistra
 // e resta dentro la tabella.
+// Posizionamento contestuale: sull\'ultima colonna il pannello va allineato
+// al bordo destro, altrimenti esce dalla tabella. Lo sa il contenitore.
 .co-form .gr-form__cell--vat ::ng-deep .select-menu__panel {
   inset-inline-start: auto;
   inset-inline-end: 0;
@@ -628,44 +418,44 @@
 
 // Bande di gruppo: magazzino, vendita/IVA, calcolati.
 .co-form .gr-form__table thead th.co-form__col--stock {
-  color: var(--co-head-stock-fg);
-  background-color: var(--co-head-stock-bg);
-  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--co-head-stock-rule);
+  color: var(--table-group-stock-fg);
+  background-color: var(--table-group-stock-bg);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--table-group-stock-rule);
 }
 
 .co-form .gr-form__table thead th.co-form__col--sale,
 .co-form .gr-form__table thead th.co-form__col--tax {
-  color: var(--co-head-sale-fg);
-  background-color: var(--co-head-sale-bg);
-  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--co-head-sale-rule);
+  color: var(--table-group-sale-fg);
+  background-color: var(--table-group-sale-bg);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--table-group-sale-rule);
 }
 
 .co-form .gr-form__table thead th.co-form__col--calc,
 .co-form .gr-form__table thead th.co-form__col--total {
-  color: var(--co-head-calc-fg);
-  background-color: var(--co-head-calc-bg);
-  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--co-head-calc-rule);
+  color: var(--table-group-calc-fg);
+  background-color: var(--table-group-calc-bg);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--table-group-calc-rule);
 }
 
 .co-form .gr-form__table tbody td.co-form__col--stock {
-  background-color: var(--co-cell-stock);
+  background-color: var(--table-cell-stock);
 }
 
 .co-form .gr-form__table tbody td.co-form__col--calc,
 .co-form .gr-form__table tbody td.co-form__col--tax {
-  background-color: var(--co-cell-calc);
+  background-color: var(--table-cell-calc);
 }
 
 .co-form .gr-form__table tbody td.co-form__col--total {
   font-weight: var(--font-weight-semibold);
-  color: var(--co-text);
-  background-color: var(--co-cell-total);
+  color: var(--color-text);
+  background-color: var(--table-cell-total);
 }
 
 // Disponibilità in evidenza e nome prodotto in grassetto, come nel mockup.
 .co-form .gr-form__table tbody td.co-form__col--avail {
   font-weight: var(--co-weight-strong);
-  color: var(--co-ok);
+  color: var(--color-ok);
 }
 
 .co-form .gr-form__cell--product ::ng-deep .gr-product-cell__linked-label,
@@ -675,8 +465,8 @@
 
 .co-form .gr-form__table tbody .gr-form__cell--index {
   font-size: var(--text-2xs);
-  color: var(--co-subtle);
-  background-color: var(--co-surface);
+  color: var(--color-text-subtle);
+  background-color: var(--color-surface);
 }
 
 // Numero riga e spunta al centro esatto della cella: senza padding laterale
@@ -698,34 +488,34 @@
 // Separatori di blocco: chiudono nome prodotto, U.m. e IVA.
 .co-form .gr-form__table th.co-form__col--sep,
 .co-form .gr-form__table td.co-form__col--sep {
-  border-inline-end: var(--border-width-strong) solid var(--co-sep);
+  border-inline-end: var(--border-width-strong) solid var(--color-table-group-divider);
 }
 
 .co-form .gr-form__table tbody tr:hover td {
-  background-color: var(--co-row-hover);
+  background-color: var(--color-surface-hover);
 }
 
 .co-form .gr-form__table tbody tr:hover td.co-form__col--stock {
-  background-color: var(--co-row-hover-stock);
+  background-color: var(--table-row-hover-stock);
 }
 
 .co-form .gr-form__table tbody tr:hover td.co-form__col--calc,
 .co-form .gr-form__table tbody tr:hover td.co-form__col--tax,
 .co-form .gr-form__table tbody tr:hover td.co-form__col--total {
-  background-color: var(--co-row-hover-calc);
+  background-color: var(--table-row-hover-calc);
 }
 
 // Input di cella: 24px, bordo solo su hover/focus.
 .co-form .gr-form__input--table {
-  block-size: var(--co-cell-h);
-  padding: 0 var(--co-cell-pad-inline);
+  block-size: var(--control-h-cell);
+  padding: 0 var(--table-cell-pad-inline);
   font-size: var(--text-xs);
-  border-radius: var(--co-radius-xs);
+  border-radius: var(--radius-sm);
 }
 
 .co-form .gr-form__input--table:focus-visible {
-  border-color: var(--co-focus);
-  box-shadow: 0 0 0 var(--border-width-strong) var(--co-focus-soft);
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 var(--border-width-strong) var(--color-focus-ring-alpha);
 }
 
 .co-form .gr-form__cell--code ::ng-deep input {
@@ -736,25 +526,25 @@
 // Il select IVA di riga nasce con l'altezza touch (44px): dentro la tabella
 // segue la riga, come tutti gli altri controlli di cella.
 .co-form .gr-form__table tbody {
-  --btn-min-height: var(--co-cell-h);
-  --field-height: var(--co-cell-h);
+  --btn-min-height: var(--control-h-cell);
+  --field-height: var(--control-h-cell);
 }
 
 .co-form .gr-form__line-remove,
 .co-form .gr-form__line-move {
-  border-radius: var(--co-radius-xs);
+  border-radius: var(--radius-sm);
 }
 
 // ── Riga di inserimento rapido, sempre in fondo alla tabella (§RIGHE) ───────
 .co-form__quick-row td {
-  padding: var(--space-2) var(--co-cell-pad-inline);
-  background: var(--co-surface-soft);
-  border-block-start: 1px dashed var(--co-line);
+  padding: var(--space-2) var(--table-cell-pad-inline);
+  background: var(--color-surface-soft);
+  border-block-start: 1px dashed var(--color-border);
 }
 
 .co-form__quick-row .gr-form__cell--index {
   text-align: center;
-  color: var(--co-muted);
+  color: var(--color-text-muted);
 }
 
 .co-form__quick-cell {
@@ -767,10 +557,10 @@
 .co-form__quick-input {
   flex: 1 1 16rem;
   max-inline-size: 26.875rem;
-  block-size: var(--co-field-h);
-  min-block-size: var(--co-field-h);
-  border-color: var(--co-line-strong);
-  border-radius: var(--co-radius-sm);
+  block-size: var(--control-h-field);
+  min-block-size: var(--control-h-field);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
 }
 
 // ── Piede della tabella: chiude la card delle righe ────────────────────────
@@ -784,15 +574,15 @@
   font-size: var(--text-xs);
   color: var(--co-summary-fg);
   background-color: var(--co-summary-bg);
-  border: var(--border-width) solid var(--co-line);
+  border: var(--border-width) solid var(--color-border);
   border-block-start: var(--border-width) solid var(--co-head-line);
-  border-end-start-radius: var(--co-radius);
-  border-end-end-radius: var(--co-radius);
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
 }
 
 .co-form__table-summary strong {
   font-weight: var(--co-weight-strong);
-  color: var(--co-text);
+  color: var(--color-text);
 }
 
 // ── Note e totali: due card affiancate nella banda in fondo ────────────────
@@ -800,7 +590,7 @@
   .co-form .gr-form__footer-grid {
     gap: var(--space-2);
     padding: 0;
-    background-color: color-mix(in srgb, var(--co-bg) 88%, transparent);
+    background-color: color-mix(in srgb, var(--color-bg) 88%, transparent);
     border: 0;
     border-radius: 0;
     box-shadow: none;
@@ -819,9 +609,9 @@
     align-items: stretch;
     gap: 0;
     padding: 0;
-    background-color: var(--co-surface);
-    border-color: var(--co-line-strong);
-    border-radius: var(--co-radius);
+    background-color: var(--color-surface);
+    border-color: var(--color-border-strong);
+    border-radius: var(--radius-lg);
     overflow: hidden;
     box-shadow: 0 1px 5px rgb(30 43 47 / 0.045);
   }
@@ -834,7 +624,7 @@
     gap: 0;
     min-inline-size: 0;
     padding: var(--space-1) var(--space-3);
-    border-inline-end: var(--border-width) solid var(--co-line);
+    border-inline-end: var(--border-width) solid var(--color-border);
   }
 
   .co-form .gr-form__totals-row:last-child {
@@ -847,7 +637,7 @@
     order: 99;
     padding-inline-start: var(--space-3);
     color: var(--color-primary-fg);
-    background-color: var(--co-brand);
+    background-color: var(--color-primary);
     border-inline-start: 0;
     border-inline-end: 0;
   }
@@ -874,7 +664,7 @@
 .co-form .gr-form__totals dt {
   font-size: var(--text-2xs);
   font-weight: var(--font-weight-regular);
-  color: var(--co-muted);
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 
@@ -892,18 +682,18 @@
 .co-form .gr-form__totals-input {
   block-size: var(--space-6);
   min-block-size: var(--space-6);
-  border-color: var(--co-line-strong);
-  border-radius: var(--co-radius-xs);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
   font-weight: var(--font-weight-semibold);
 }
 
 // Le note sono una card come le altre (il contenitore del form non lo è più).
 .co-form .gr-form__footer-notes {
   padding: var(--space-2) var(--space-3);
-  background-color: var(--co-surface);
-  border: var(--border-width) solid var(--co-line);
-  border-radius: var(--co-radius);
-  box-shadow: var(--co-shadow);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 
 .co-form .gr-form__footer-notes .gr-form__label {
@@ -919,7 +709,7 @@
   max-block-size: var(--space-20);
   padding: var(--space-2);
   font-size: var(--text-xs);
-  border-radius: var(--co-radius-sm);
+  border-radius: var(--radius-sm);
 }
 
 // ── Allegati: una riga, non mezza pagina ───────────────────────────────────
@@ -934,40 +724,15 @@
   font-size: var(--text-md);
 }
 
-.co-form .gr-form__attachments ::ng-deep .empty-state {
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0;
-  text-align: start;
-}
-
-.co-form .gr-form__attachments ::ng-deep .empty-state__icon {
-  inline-size: var(--space-6);
-  block-size: var(--space-6);
-  margin-block-end: 0;
-  font-size: var(--text-sm);
-}
-
-.co-form .gr-form__attachments ::ng-deep .empty-state__title {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-regular);
-  color: var(--co-muted);
-}
-
-.co-form .gr-form__attachments ::ng-deep .empty-state__description {
-  display: none;
-}
-
 .co-form .gr-form__attachments ::ng-deep .attachments-panel__item {
   padding: var(--space-1) var(--space-2);
 }
 
 // ── Barra azioni ───────────────────────────────────────────────────────────
 .co-form .gr-form__actions {
-  background-color: color-mix(in srgb, var(--co-surface) 94%, transparent);
-  border-color: var(--co-line);
-  border-radius: var(--co-radius);
+  background-color: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  border-color: var(--color-border);
+  border-radius: var(--radius-lg);
   box-shadow: 0 -5px 18px rgb(15 36 28 / 0.055);
 }
 
@@ -980,18 +745,18 @@
 // Mai un blocco.
 .co-form__cell--exceeds {
   position: relative;
-  background: var(--co-warn-bg);
+  background: var(--color-warning-subtle);
 
   .gr-form__input--table {
-    color: var(--co-warn-fg);
+    color: var(--color-warning);
     font-weight: var(--font-weight-semibold);
-    border-color: var(--co-warn);
-    background-color: var(--co-warn-bg);
+    border-color: var(--color-warning);
+    background-color: var(--color-warning-subtle);
   }
 }
 
 .co-form .gr-form__table tbody tr:hover td.co-form__cell--exceeds {
-  background-color: var(--co-warn-bg);
+  background-color: var(--color-warning-subtle);
 }
 
 // L'avviso va a capo dentro la cella: su colonne strette restava su una riga
@@ -1000,7 +765,7 @@
   display: block;
   font-size: var(--co-text-micro);
   line-height: var(--leading-tight);
-  color: var(--co-warn-fg);
+  color: var(--color-warning);
   white-space: normal;
   overflow-wrap: anywhere;
 }

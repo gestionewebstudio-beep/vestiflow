@@ -5,7 +5,13 @@
   </app-button>
 
   @if (open()) {
-    <div class="table-column-picker__panel" role="dialog" aria-label="Personalizza colonne">
+    <div
+      class="table-column-picker__panel"
+      role="dialog"
+      aria-labelledby="table-column-picker-title"
+    >
+      <h3 id="table-column-picker-title" class="table-column-picker__title">Colonne visibili</h3>
+
       <div class="table-column-picker__preset">
         <span class="table-column-picker__label">Vista salvata</span>
         <app-select-menu

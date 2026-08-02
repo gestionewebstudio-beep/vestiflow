@@ -79,7 +79,7 @@
   flex: 0 1 auto;
   min-inline-size: 0;
   inline-size: 100%;
-  block-size: var(--co-cell-h);
+  block-size: var(--control-h-cell);
   padding: 0 2px;
   font-size: 0.75rem; // 12px
   font-weight: var(--font-weight-semibold);
@@ -87,19 +87,19 @@
   text-overflow: ellipsis;
   background: transparent;
   border: var(--border-width) solid transparent;
-  border-radius: var(--co-radius-xs);
+  border-radius: var(--radius-sm);
 }
 
 .co-form__source-title:hover {
   border-color: #ccd8dd;
-  background-color: var(--co-surface);
+  background-color: var(--color-surface);
 }
 
 .co-form__source-title:focus-visible {
   outline: none;
-  border-color: var(--co-focus);
-  background-color: var(--co-surface);
-  box-shadow: 0 0 0 var(--border-width-strong) var(--co-focus-soft);
+  border-color: var(--color-focus);
+  background-color: var(--color-surface);
+  box-shadow: 0 0 0 var(--border-width-strong) var(--color-focus-ring-alpha);
 }
 
 // ── Riordino righe: la maniglia è il numero ────────────────────────────────
@@ -119,7 +119,7 @@
 // Segnaposto: la riga si riduce a una linea che indica il punto di rilascio.
 .co-form ::ng-deep .cdk-drag-placeholder {
   block-size: var(--border-width-strong);
-  background-color: var(--co-focus);
+  background-color: var(--color-focus);
   opacity: 1;
 }
 
@@ -138,9 +138,9 @@
   gap: var(--space-2);
   padding: 0 var(--space-2);
   font-size: var(--text-xs);
-  background-color: var(--co-surface);
-  border: var(--border-width) solid var(--co-line-strong);
-  border-radius: var(--co-radius-sm);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
   opacity: 0.95;
 }
@@ -159,7 +159,7 @@
   background-color: #f2f5f7;
   border: 1px solid #cbd5d9;
   border-inline-start: 3px solid #718995;
-  border-radius: var(--co-radius);
+  border-radius: var(--radius-lg);
 }
 
 @include bp.media-down('lg') {
@@ -176,7 +176,7 @@
   block-size: 2rem;
   color: #5f7883;
   background-color: #e4eaed;
-  border-radius: var(--co-radius-sm);
+  border-radius: var(--radius-sm);
 }
 
 .co-form__mobile-source-copy {

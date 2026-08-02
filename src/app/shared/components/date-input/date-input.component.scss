@@ -25,17 +25,20 @@
   max-inline-size: 100%;
 }
 
+// Punti di regolazione: un contenitore piu' denso imposta queste custom
+// property su di se'. Attraversano il confine del componente per costruzione,
+// quindi non serve ::ng-deep per configurarlo dall'esterno.
 .date-input__control {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  min-block-size: var(--btn-min-height);
-  padding-inline-start: var(--space-3);
+  gap: var(--field-gap, var(--space-2));
+  min-block-size: var(--field-h, var(--btn-min-height));
+  padding-inline-start: var(--field-pad-inline, var(--space-3));
   inline-size: 100%;
   max-inline-size: 100%;
   background-color: var(--color-input-bg);
   border: var(--border-width) solid var(--color-input-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--field-radius, var(--radius-md));
   transition:
     background-color var(--transition-fast) var(--ease-standard),
     border-color var(--transition-fast) var(--ease-standard),
@@ -73,7 +76,7 @@
   min-inline-size: 0;
   padding: 0;
   color: var(--color-text);
-  font-size: var(--text-sm);
+  font-size: var(--field-font-size, var(--text-sm));
   font-weight: var(--font-weight-medium);
   font-variant-numeric: tabular-nums;
   background: transparent;

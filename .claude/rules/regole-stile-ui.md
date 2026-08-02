@@ -188,11 +188,79 @@ Le card restano contenitori (superficie bianca + radius), ma occupano quasi tutt
 
 **44px** ovunque sia un elemento tappabile su mobile. Su desktop si può scendere a 32–34px per bottoni densi e a 29–30px per input in griglia densa.
 
+### Altezze dei controlli — token
+
+L'altezza di un controllo è una decisione di **sistema**, non di singola maschera:
+vive nei token e non va reimpostata nel foglio di un componente.
+
+| Uso                              | Token                | Desktop | Mobile |
+| -------------------------------- | -------------------- | ------- | ------ |
+| Bottoni e select generici        | `--btn-min-height`   | 34px    | 44px   |
+| Input generici                   | `--field-height`     | 34px    | 44px   |
+| Controlli di testata documento   | `--control-h-field`  | 29px    | 44px   |
+| Bottoni barra strumenti / azioni | `--control-h-button` | 31px    | 44px   |
+| Input dentro le righe            | `--control-h-cell`   | 24px    | 24px   |
+| Riga tabella                     | `--table-row-h`      | 30px    | —      |
+| Intestazione tabella             | `--table-head-h`     | 32px    | —      |
+
+Il passaggio a 44px sotto il breakpoint `md` è centralizzato in
+`_design-tokens.scss`: **non** si ripete nei componenti. Il minimo tappabile è il
+valore mobile, non quello universale — applicarlo anche su desktop rende l'intera
+interfaccia più larga della densità scelta.
+
 ---
 
 ## 5. Componenti condivisi
 
 Ogni componente vive in `src/app/shared/`. Nessuno stile equivalente va replicato nei componenti feature.
+
+### Come si configura un componente condiviso — in ordine di preferenza
+
+Un componente condiviso non si «corregge» dall'esterno: si **configura**. In ordine,
+dal più corretto al più invasivo:
+
+1. **`input()` del componente** — quando è una variante di comportamento o di
+   forma che ha un nome nel dominio: `variant`, `layout`, `fullWidth`, `compact`.
+   Se la variante ha senso per più di un chiamante, è un `input()`.
+2. **Custom property** — quando è una misura che un contenitore vuole cambiare
+   per tutti i figli che ospita (una barra strumenti densa, il piede di un
+   pannello). Le custom property attraversano il confine del componente **per
+   costruzione**: sono il canale previsto dal linguaggio.
+
+   I componenti condivisi espongono i propri punti di regolazione con un
+   fallback: `min-block-size: var(--button-h, var(--field-height))`. Il
+   contenitore imposta `--button-h` su di sé, non tocca il figlio.
+
+   | Componente    | Punti di regolazione                                                                    |
+   | ------------- | --------------------------------------------------------------------------------------- |
+   | `app-button`  | `--button-h`, `--button-font-size`, `--button-radius`, `--button-pad-inline`            |
+   | `date-input`  | `--field-h`, `--field-font-size`, `--field-pad-inline`, `--field-radius`, `--field-gap` |
+   | `select-menu` | `--field-h`, `--field-font-size`, `--field-pad-inline`, `--select-menu-width`           |
+
+3. **Il default del componente stesso** — quando ciò che il chiamante vuole non
+   è una sua preferenza ma **il design giusto**. In quel caso non si configura
+   nulla: si cambia il componente. Se una maschera ridefinisce un componente
+   condiviso in 15 regole, non sta personalizzando — sta dicendo che il default
+   è sbagliato.
+
+### `::ng-deep` — quando è ammesso
+
+`::ng-deep` è **deprecato** e va evitato: dipende dai nomi di classe interni di
+un altro componente, quindi smette di funzionare **in silenzio** se quello li
+rinomina — nessun errore, nessun test rosso, lo stile torna al default.
+
+Resta ammesso in due soli casi, entrambi da commentare nel codice:
+
+- **Overlay fuori dall'albero del componente**: l'anteprima di trascinamento
+  della CDK (`.cdk-drag-preview`, `.cdk-drag-placeholder`) è resa in un overlay
+  a livello di documento. Non c'è altro modo di raggiungerla.
+- **Posizionamento contestuale**: allineare il pannello di un dropdown al bordo
+  quando cade sull'ultima colonna di una tabella. È il contenitore che conosce
+  il contesto, non il figlio.
+
+Fuori da questi casi, un `::ng-deep` è un difetto di API del componente
+condiviso: la correzione è aggiungere il punto di regolazione che manca, non
+scavalcarlo.
 
 ### Card
 
@@ -310,6 +378,18 @@ Su tabelle documentali (righe ordine, arrivi, ecc.) le colonne si raggruppano pe
 - Calcoli / totali
 
 Separatori verticali forti tra gruppi: `border-right: 2px solid var(--color-table-group-divider)`. Dentro un gruppo, i divisori restano leggeri.
+
+Le tinte dei gruppi sono token globali: ogni tabella documentale usa gli stessi,
+mai una tinta propria per maschera.
+
+| Gruppo           | Fondo intestazione       | Testo                    | Divisore                   | Fondo cella          |
+| ---------------- | ------------------------ | ------------------------ | -------------------------- | -------------------- |
+| Stock            | `--table-group-stock-bg` | `--table-group-stock-fg` | `--table-group-stock-rule` | `--table-cell-stock` |
+| Vendita          | `--table-group-sale-bg`  | `--table-group-sale-fg`  | `--table-group-sale-rule`  | —                    |
+| Calcoli / totali | `--table-group-calc-bg`  | `--table-group-calc-fg`  | `--table-group-calc-rule`  | `--table-cell-calc`  |
+
+Hover di riga per gruppo: `--table-row-hover-stock`, `--table-row-hover-calc`;
+totale di riga `--table-cell-total`.
 
 ### Card view mobile (tabella su schermi ≤1024px)
 

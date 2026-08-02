@@ -3,16 +3,21 @@
   display: contents;
 }
 
+// Punti di regolazione: un contenitore che vuole bottoni piu' compatti (una
+// barra strumenti densa, il piede di un pannello) imposta queste custom
+// property su di se'. Le custom property attraversano il confine del
+// componente per costruzione: e' il modo corretto di configurare un componente
+// condiviso dall'esterno, senza bucare l'incapsulamento con ::ng-deep.
 .app-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-block-size: var(--field-height);
-  padding-inline: var(--space-3);
-  font-size: var(--text-sm);
+  min-block-size: var(--button-h, var(--field-height));
+  padding-inline: var(--button-pad-inline, var(--space-3));
+  font-size: var(--button-font-size, var(--text-sm));
   font-weight: var(--font-weight-semibold);
-  border-radius: var(--radius-md);
+  border-radius: var(--button-radius, var(--radius-md));
   border: var(--border-width) solid transparent;
   transition:
     background-color var(--transition-fast) var(--ease-standard),

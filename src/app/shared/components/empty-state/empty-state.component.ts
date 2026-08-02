@@ -20,6 +20,13 @@ export class EmptyStateComponent {
   readonly icon = input<string>('pi-inbox');
   /** Se valorizzata, mostra la CTA. */
   readonly ctaLabel = input<string>();
+  /**
+   * `stacked` (default) e' lo stato vuoto di una pagina o di una tabella.
+   * `inline` e' la riga compatta che sta dentro un pannello gia' intitolato:
+   * icona e titolo affiancati, descrizione omessa perche' il contesto la da'
+   * gia'. Prima era un override ::ng-deep del chiamante.
+   */
+  readonly layout = input<'stacked' | 'inline'>('stacked');
 
   readonly ctaClick = output<void>();
 }

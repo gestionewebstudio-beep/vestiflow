@@ -21,126 +21,165 @@
 // TEMA LIGHT — incluso in `:root` (default) e forzato da `@media print`
 // (le pagine di stampa restano sempre su tema chiaro, sfondo bianco).
 // -----------------------------------------------------------------------------
+@use 'breakpoints' as bp;
+
 @mixin theme-light {
   color-scheme: light;
 
-  // Superfici — neutre pure, dal logo monocromo (v5 "Antracite")
-  --color-bg: #f4f4f5;
+  // Superfici — grigio-blu desaturato (regole-stile-ui §2)
+  --color-bg: #eef0f2;
   --color-surface: #ffffff;
-  --color-surface-raised: #fafafa;
-  --color-surface-sunken: #f8f8f9;
-  --color-surface-hover: #f4f4f6;
-  --color-surface-muted: #efeff1;
+  --color-surface-soft: #f6f7f8;
+  --color-surface-hover: #f8faf9;
+  // Alias storici: stessa superficie, nomi usati nei componenti esistenti.
+  --color-surface-raised: var(--color-surface);
+  --color-surface-sunken: var(--color-surface-soft);
+  --color-surface-muted: var(--color-surface-soft);
 
-  --color-border: #e4e4e7;
-  --color-border-strong: #cdcdd2;
+  // Bordi e divisori
+  --color-border: #d7dddd;
+  --color-border-strong: #b6c0c1;
+  --color-border-cell: #e4ebe8;
+  --color-table-group-divider: #b9c7c0;
 
-  // Testo — grafite, mai nero pieno
-  --color-text: #292a2e;
-  --color-text-muted: #5c5d64;
-  --color-text-subtle: #86878f;
+  // Testo
+  --color-text: #20282b;
+  --color-text-muted: #657075;
+  --color-text-subtle: #8a9498;
   --color-text-inverse: #ffffff;
 
-  // CTA + interattivo — grafite morbida ispirata al logo (non nero pieno)
-  --color-primary: #333438;
-  --color-primary-hover: #47484e;
-  --color-primary-active: #26272b;
+  // Brand e interazione
+  --color-primary: #25343b;
+  --color-primary-hover: #18262d;
+  --color-primary-active: #18262d;
   --color-primary-fg: #ffffff;
-  --color-primary-subtle: rgb(51 52 56 / 0.08);
+  --color-primary-subtle: #edf2f4;
 
-  --color-interactive: #333438;
-  --color-interactive-hover: #47484e;
-  --color-interactive-active: #26272b;
-  --color-interactive-subtle: rgb(51 52 56 / 0.08);
+  --color-interactive: var(--color-primary);
+  --color-interactive-hover: var(--color-primary-hover);
+  --color-interactive-active: var(--color-primary-active);
+  --color-interactive-subtle: var(--color-primary-subtle);
 
-  --color-focus-ring: #333438;
-  --color-link: #2f3034;
-  --color-link-hover: #5c5d64;
-  --color-focus-ring-alpha: rgb(51 52 56 / 0.15);
+  --color-focus: #4f7e8d;
+  --color-focus-ring-alpha: rgb(79 126 141 / 0.12);
+  // Alias storico: molti componenti leggono ancora --color-focus-ring.
+  --color-focus-ring: var(--color-focus);
+  --color-link: var(--color-focus);
+  --color-link-hover: var(--color-primary);
   --field-focus-ring: 0 0 0 3px var(--color-focus-ring-alpha);
 
-  // Brand Shopify / successo — verde semantico (non piu' accento app)
-  --color-brand: #176b43;
-  --color-brand-hover: #115634;
-  --color-brand-subtle: #eaf7f0;
+  // Stati semantici (regole-stile-ui §2 «Stati»)
+  --color-ok: #2d7557;
+  --color-ok-subtle: #edf6f1;
+  --color-warning: #9a640c;
+  --color-warning-subtle: #fff6e7;
+  --color-danger: #b33a32;
+  --color-danger-subtle: #fff0ee;
+  --color-info: #2d6685;
+  --color-info-subtle: #eef6fa;
 
-  // Canale Shopify: identita' del CANALE, non lo stato "successo" generico.
-  // Solo chip sync in topbar e indicatori legati al canale; per esiti positivi
-  // (salvato, valido, giacenza ok) restano i token --status-ok-*.
-  --color-shopify: #0e7446;
-  --color-shopify-subtle: #e6f4ec;
-  --color-shopify-border: #b7dcc7;
-
-  --color-danger: #b42318;
-  --color-danger-hover: #932015;
+  --color-danger-hover: #96302a;
   --color-danger-fg: #ffffff;
-  --color-danger-subtle: #fff1ef;
-  --color-danger-border: rgb(180 35 24 / 0.3);
+  --color-danger-border: rgb(179 58 50 / 0.25);
 
-  --color-backdrop: rgb(20 20 22 / 0.45);
+  // Brand Shopify — identita' del CANALE, distinta dall'ok generico.
+  --color-shopify: #0e7446;
+  --color-shopify-subtle: rgb(14 116 70 / 0.12);
+  --color-shopify-border: rgb(14 116 70 / 0.25);
+  --color-brand: var(--color-shopify);
+  --color-brand-hover: #0b5c37;
+  --color-brand-subtle: var(--color-shopify-subtle);
 
-  // Nav — sidebar GRIGIO CHIARO in light (v5.1): niente blocco scuro,
-  // testi grafite e voce attiva con tinta.
-  --color-nav-bg: #efeff1;
-  --color-nav-hover: rgb(28 28 30 / 0.05);
-  --color-nav-selected-bg: rgb(51 52 56 / 0.09);
-  --color-nav-selected-text: #292a2e;
-  --color-nav-fg: #5c5d64;
-  --color-nav-fg-hover: #292a2e;
-  --color-nav-section: #86878f;
-  --color-nav-border: #e0e0e3;
-  --color-nav-badge-bg: rgb(51 52 56 / 0.09);
-  --color-nav-accent: #333438;
+  --color-backdrop: rgb(21 33 31 / 0.45);
 
-  // Input / tabelle — separatori di colonna stile foglio di lavoro
-  --color-input-bg: #ffffff;
-  --color-input-border: #cdcdd2;
-  --color-table-header-bg: #f1f1f3;
-  --color-table-row-divider: #e9e9ec;
-  --color-table-col-divider: #efeff1;
-  --color-table-row-selected: rgb(51 52 56 / 0.05);
-  --color-row-active: rgb(51 52 56 / 0.06);
+  // Navigazione — palette dedicata alla shell, tonalmente distinta dal brand
+  // perche' vive in un'area separata della schermata (regole-stile-ui §2).
+  --color-nav-bg: #15211f;
+  --color-nav-selected-bg: #1e3933;
+  --color-nav-fg: #d8e2df;
+  --color-nav-fg-muted: #8f9c96;
+  --color-nav-selected-fg: #ffffff;
+  --color-nav-divider: rgb(255 255 255 / 0.08);
+  --color-nav-hover: rgb(255 255 255 / 0.06);
+  --color-nav-selected-text: var(--color-nav-selected-fg);
+  --color-nav-fg-hover: var(--color-nav-selected-fg);
+  --color-nav-section: var(--color-nav-fg-muted);
+  --color-nav-border: var(--color-nav-divider);
+  --color-nav-badge-bg: rgb(255 255 255 / 0.1);
+  --color-nav-accent: var(--color-nav-selected-fg);
 
-  // Stato / stock — tinte semantiche soft (funzionali, non brand)
-  --status-ok-fg: #176b43;
-  --status-ok-bg: #eaf7f0;
-  --status-ok-border: #b9d9cf;
-  --status-low-fg: #9a5b0b;
-  --status-low-bg: #fff5e5;
-  --status-low-border: #edd4a8;
-  --status-empty-fg: #b42318;
-  --status-empty-bg: #fff1ef;
-  --status-empty-border: #f0c4be;
+  // Input e tabelle
+  --color-input-bg: var(--color-surface);
+  --color-input-border: var(--color-border);
+  --color-table-header-bg: #e9edee;
+  --color-table-row-divider: var(--color-border-cell);
+  --color-table-col-divider: var(--color-border-cell);
+  --color-table-row-selected: rgb(37 52 59 / 0.06);
+  --color-row-active: rgb(37 52 59 / 0.06);
 
-  --status-success-fg: #176b43;
-  --status-success-bg: #eaf7f0;
-  --status-success-border: #b9d9cf;
-  --status-warning-fg: #9a5b0b;
-  --status-warning-bg: #fff5e5;
-  --status-warning-border: #edd4a8;
-  --status-error-fg: #b42318;
-  --status-error-bg: #fff1ef;
-  --status-error-border: #f0c4be;
+  // Stato / stock — fg pieno + tinta chiara + bordo al 25%
+  --status-ok-fg: var(--color-ok);
+  --status-ok-bg: var(--color-ok-subtle);
+  --status-ok-border: rgb(45 117 87 / 0.25);
+  --status-low-fg: var(--color-warning);
+  --status-low-bg: var(--color-warning-subtle);
+  --status-low-border: rgb(154 100 12 / 0.25);
+  --status-empty-fg: var(--color-danger);
+  --status-empty-bg: var(--color-danger-subtle);
+  --status-empty-border: rgb(179 58 50 / 0.25);
 
-  --status-info-fg: #0b6fa8;
-  --status-info-bg: #ecf5fb;
-  --status-info-border: #bcdcef;
-  --status-neutral-fg: #55555c;
-  --status-neutral-bg: #f0f0f1;
-  --status-neutral-border: #e0e0e3;
+  --status-success-fg: var(--status-ok-fg);
+  --status-success-bg: var(--status-ok-bg);
+  --status-success-border: var(--status-ok-border);
+  --status-warning-fg: var(--status-low-fg);
+  --status-warning-bg: var(--status-low-bg);
+  --status-warning-border: var(--status-low-border);
+  --status-error-fg: var(--status-empty-fg);
+  --status-error-bg: var(--status-empty-bg);
+  --status-error-border: var(--status-empty-border);
+
+  --status-info-fg: var(--color-info);
+  --status-info-bg: var(--color-info-subtle);
+  --status-info-border: rgb(45 102 133 / 0.25);
+  --status-neutral-fg: var(--color-text-muted);
+  --status-neutral-bg: var(--color-surface-soft);
+  --status-neutral-border: var(--color-border);
+
+  // ── Gruppi di colonne nelle tabelle documentali (regole-stile-ui §6) ─────
+  --table-group-stock-bg: #e8edef;
+  --table-group-stock-fg: #405a63;
+  --table-group-stock-rule: #839aa2;
+  --table-group-sale-bg: #eceff1;
+  --table-group-sale-fg: #4c5f67;
+  --table-group-sale-rule: #9baab0;
+  --table-group-calc-bg: #e9ecec;
+  --table-group-calc-fg: #505c60;
+  --table-group-calc-rule: #a5afb1;
+  --table-cell-stock: #f2f5f6;
+  --table-cell-calc: #f4f6f6;
+  --table-cell-total: #eef1f2;
+  --table-row-hover-stock: #eaf0f2;
+  --table-row-hover-calc: #e9edee;
 
   // Badge «Fonte: VestiFlow»
-  --vestiflow-lockup-bg: #333438;
+  --vestiflow-lockup-bg: var(--color-primary);
   --vestiflow-lockup-fg: #ffffff;
-  --badge-vestiflow-fg: #333438;
+  --badge-vestiflow-fg: var(--color-primary);
   --badge-vestiflow-bg: color-mix(in srgb, var(--vestiflow-lockup-bg) 10%, transparent);
   --badge-vestiflow-border: color-mix(in srgb, var(--vestiflow-lockup-bg) 26%, transparent);
 
-  // Ombre — morbide stratificate, neutre
-  --shadow-xs: 0 1px 2px rgb(23 23 26 / 0.05);
-  --shadow-sm: 0 1px 2px rgb(23 23 26 / 0.04), 0 4px 12px rgb(23 23 26 / 0.05);
-  --shadow-md: 0 1px 2px rgb(23 23 26 / 0.04), 0 10px 30px rgb(23 23 26 / 0.06);
-  --shadow-lg: 0 15px 35px rgb(23 23 26 / 0.16);
+  // Ombre — i bordi disegnano la forma, le ombre danno profondita' sottile.
+  // Valori nominati da regole-stile-ui §4, con alpha verde-scuro.
+  --shadow-card: 0 1px 2px rgb(18 42 33 / 0.04), 0 4px 14px rgb(18 42 33 / 0.035);
+  --shadow-topbar: 0 2px 8px rgb(15 36 28 / 0.05);
+  --shadow-footer: 0 -5px 18px rgb(15 36 28 / 0.055);
+  --shadow-menu: 0 12px 35px rgb(18 40 32 / 0.16);
+  --shadow-raised: 0 6px 18px rgb(20 42 34 / 0.08);
+  // Alias della scala storica sui nomi nuovi.
+  --shadow-xs: 0 1px 2px rgb(18 42 33 / 0.04);
+  --shadow-sm: var(--shadow-card);
+  --shadow-md: var(--shadow-raised);
+  --shadow-lg: var(--shadow-menu);
 }
 
 // -----------------------------------------------------------------------------
@@ -149,121 +188,157 @@
 @mixin theme-dark {
   color-scheme: dark;
 
-  // Superfici — GRAFITE MORBIDA (v5): scuro riposante, mai nero pece.
-  --color-bg: #232529;
-  --color-surface: #2b2d33;
-  --color-surface-raised: #33353c;
-  --color-surface-sunken: #26282d;
-  --color-surface-hover: #313339;
-  --color-surface-muted: #282a30;
+  // Superfici — stessa famiglia slate del tema chiaro, non un grigio neutro:
+  // il dark e' la stessa identita' a luminosita' invertita, non un altro tema.
+  --color-bg: #14191b;
+  --color-surface: #1c2326;
+  --color-surface-soft: #171d1f;
+  --color-surface-hover: #222a2d;
+  --color-surface-raised: #242c30;
+  --color-surface-sunken: var(--color-surface-soft);
+  --color-surface-muted: var(--color-surface-soft);
 
-  --color-border: #3d3f47;
-  --color-border-strong: #4c4f59;
+  --color-border: #2e393d;
+  --color-border-strong: #3f4d52;
+  --color-border-cell: #2a3438;
+  --color-table-group-divider: #46565b;
 
-  --color-text: #ececef;
-  --color-text-muted: #a9acb5;
-  --color-text-subtle: #7d808a;
-  --color-text-inverse: #1a1a1c;
+  --color-text: #e3eaec;
+  --color-text-muted: #9aa8ad;
+  --color-text-subtle: #77868b;
+  --color-text-inverse: #14191b;
 
-  // CTA + interattivo — il monogramma chiaro del logo: bottoni quasi bianchi
-  // con testo scuro (mono invertito).
-  --color-primary: #ececef;
-  --color-primary-hover: #ffffff;
-  --color-primary-active: #d5d5da;
-  --color-primary-fg: #1a1a1c;
-  --color-primary-subtle: rgb(236 236 239 / 0.1);
+  // CTA — su fondo scuro il brand si schiarisce e il testo si scurisce,
+  // altrimenti #25343b sparirebbe nello sfondo.
+  --color-primary: #cfe0e6;
+  --color-primary-hover: #e6f1f5;
+  --color-primary-active: #b5cbd3;
+  --color-primary-fg: #162125;
+  --color-primary-subtle: rgb(207 224 230 / 0.12);
 
-  --color-interactive: #ececef;
-  --color-interactive-hover: #ffffff;
-  --color-interactive-active: #d5d5da;
-  --color-interactive-subtle: rgb(236 236 239 / 0.1);
+  --color-interactive: var(--color-primary);
+  --color-interactive-hover: var(--color-primary-hover);
+  --color-interactive-active: var(--color-primary-active);
+  --color-interactive-subtle: var(--color-primary-subtle);
 
-  --color-focus-ring: #ececef;
-  --color-link: #d6d7dd;
-  --color-link-hover: #ffffff;
-  --color-focus-ring-alpha: rgb(236 236 239 / 0.22);
+  --color-focus: #7fb0c0;
+  --color-focus-ring-alpha: rgb(127 176 192 / 0.22);
+  --color-focus-ring: var(--color-focus);
+  --color-link: var(--color-focus);
+  --color-link-hover: #a8cbd6;
   --field-focus-ring: 0 0 0 3px var(--color-focus-ring-alpha);
 
-  // Brand Shopify / successo
-  --color-brand: #3ddc97;
-  --color-brand-hover: #63e5ab;
-  --color-brand-subtle: rgb(61 220 151 / 0.12);
+  // Stati semantici — tinte schiarite per restare leggibili sul fondo scuro.
+  --color-ok: #5fb08a;
+  --color-ok-subtle: rgb(95 176 138 / 0.14);
+  --color-warning: #d29a3c;
+  --color-warning-subtle: rgb(210 154 60 / 0.14);
+  --color-danger: #e0796f;
+  --color-danger-subtle: rgb(224 121 111 / 0.14);
+  --color-info: #6aa8c9;
+  --color-info-subtle: rgb(106 168 201 / 0.14);
 
-  // Canale Shopify (vedi tema chiaro): su fondo scuro serve la variante menta
-  // per restare leggibile; #0e7446 non avrebbe contrasto sufficiente.
+  --color-danger-hover: #ec8f86;
+  --color-danger-fg: #14191b;
+  --color-danger-border: rgb(224 121 111 / 0.35);
+
+  // Canale Shopify: su fondo scuro serve la variante menta per il contrasto.
   --color-shopify: #3ddc97;
   --color-shopify-subtle: rgb(61 220 151 / 0.12);
   --color-shopify-border: rgb(61 220 151 / 0.25);
-
-  --color-danger: #ff6b5e;
-  --color-danger-hover: #ff887d;
-  --color-danger-fg: #ffffff;
-  --color-danger-subtle: rgb(255 107 94 / 0.12);
-  --color-danger-border: rgb(255 107 94 / 0.35);
+  --color-brand: var(--color-shopify);
+  --color-brand-hover: #63e5ab;
+  --color-brand-subtle: var(--color-shopify-subtle);
 
   --color-backdrop: rgb(0 0 0 / 0.55);
 
-  // Nav laterale — appena piu' scura del contenuto, sempre morbida
-  --color-nav-bg: #1e2025;
+  // Navigazione — gia' scura in tema chiaro: qui scende appena sotto il fondo
+  // della pagina, restando riconoscibile come shell.
+  --color-nav-bg: #0f1618;
+  --color-nav-selected-bg: #1e3933;
+  --color-nav-fg: #d8e2df;
+  --color-nav-fg-muted: #8f9c96;
+  --color-nav-selected-fg: #ffffff;
+  --color-nav-divider: rgb(255 255 255 / 0.08);
   --color-nav-hover: rgb(255 255 255 / 0.06);
-  --color-nav-selected-bg: rgb(255 255 255 / 0.1);
-  --color-nav-selected-text: #ffffff;
-  --color-nav-fg: #b3b6bf;
-  --color-nav-fg-hover: #ffffff;
-  --color-nav-section: #83858e;
-  --color-nav-border: rgb(255 255 255 / 0.07);
+  --color-nav-selected-text: var(--color-nav-selected-fg);
+  --color-nav-fg-hover: var(--color-nav-selected-fg);
+  --color-nav-section: var(--color-nav-fg-muted);
+  --color-nav-border: var(--color-nav-divider);
   --color-nav-badge-bg: rgb(255 255 255 / 0.1);
-  --color-nav-accent: #ffffff;
+  --color-nav-accent: var(--color-nav-selected-fg);
 
-  // Input / tabelle
-  --color-input-bg: #26282d;
-  --color-input-border: #4c4f59;
-  --color-table-header-bg: #292b31;
-  --color-table-row-divider: #3a3c44;
-  --color-table-col-divider: #34363d;
-  --color-table-row-selected: rgb(236 236 239 / 0.06);
-  --color-row-active: rgb(236 236 239 / 0.07);
+  // Input e tabelle
+  --color-input-bg: var(--color-surface-soft);
+  --color-input-border: var(--color-border-strong);
+  --color-table-header-bg: #1f272a;
+  --color-table-row-divider: var(--color-border-cell);
+  --color-table-col-divider: var(--color-border-cell);
+  --color-table-row-selected: rgb(207 224 230 / 0.06);
+  --color-row-active: rgb(207 224 230 / 0.07);
 
-  // Stato / stock — fg pieno + bg 12% + bordo 25%
-  --status-ok-fg: #3ddc97;
-  --status-ok-bg: rgb(61 220 151 / 0.12);
-  --status-ok-border: rgb(61 220 151 / 0.25);
-  --status-low-fg: #ffb02e;
-  --status-low-bg: rgb(255 176 46 / 0.12);
-  --status-low-border: rgb(255 176 46 / 0.25);
-  --status-empty-fg: #ff6b5e;
-  --status-empty-bg: rgb(255 107 94 / 0.12);
-  --status-empty-border: rgb(255 107 94 / 0.25);
+  // Stato / stock
+  --status-ok-fg: var(--color-ok);
+  --status-ok-bg: var(--color-ok-subtle);
+  --status-ok-border: rgb(95 176 138 / 0.28);
+  --status-low-fg: var(--color-warning);
+  --status-low-bg: var(--color-warning-subtle);
+  --status-low-border: rgb(210 154 60 / 0.28);
+  --status-empty-fg: var(--color-danger);
+  --status-empty-bg: var(--color-danger-subtle);
+  --status-empty-border: rgb(224 121 111 / 0.28);
 
-  --status-success-fg: #3ddc97;
-  --status-success-bg: rgb(61 220 151 / 0.12);
-  --status-success-border: rgb(61 220 151 / 0.25);
-  --status-warning-fg: #ffb02e;
-  --status-warning-bg: rgb(255 176 46 / 0.12);
-  --status-warning-border: rgb(255 176 46 / 0.25);
-  --status-error-fg: #ff6b5e;
-  --status-error-bg: rgb(255 107 94 / 0.12);
-  --status-error-border: rgb(255 107 94 / 0.25);
+  --status-success-fg: var(--status-ok-fg);
+  --status-success-bg: var(--status-ok-bg);
+  --status-success-border: var(--status-ok-border);
+  --status-warning-fg: var(--status-low-fg);
+  --status-warning-bg: var(--status-low-bg);
+  --status-warning-border: var(--status-low-border);
+  --status-error-fg: var(--status-empty-fg);
+  --status-error-bg: var(--status-empty-bg);
+  --status-error-border: var(--status-empty-border);
 
-  --status-info-fg: #4cc3ff;
-  --status-info-bg: rgb(76 195 255 / 0.12);
-  --status-info-border: rgb(76 195 255 / 0.25);
-  --status-neutral-fg: #a9acb5;
-  --status-neutral-bg: rgb(169 172 181 / 0.12);
-  --status-neutral-border: rgb(169 172 181 / 0.25);
+  --status-info-fg: var(--color-info);
+  --status-info-bg: var(--color-info-subtle);
+  --status-info-border: rgb(106 168 201 / 0.28);
+  --status-neutral-fg: var(--color-text-muted);
+  --status-neutral-bg: rgb(154 168 173 / 0.12);
+  --status-neutral-border: var(--color-border);
+
+  // Gruppi di colonne — su fondo scuro le bande sono scostamenti minimi dalla
+  // superficie, non tinte: la distinzione la fa il divisore verticale.
+  --table-group-stock-bg: #1e262a;
+  --table-group-stock-fg: #9fb6bd;
+  --table-group-stock-rule: #40545c;
+  --table-group-sale-bg: #1d2427;
+  --table-group-sale-fg: #9aacb3;
+  --table-group-sale-rule: #3c4d53;
+  --table-group-calc-bg: #1c2325;
+  --table-group-calc-fg: #97a5a9;
+  --table-group-calc-rule: #3a4649;
+  --table-cell-stock: #1a2124;
+  --table-cell-calc: #191f21;
+  --table-cell-total: #1d2427;
+  --table-row-hover-stock: #232d31;
+  --table-row-hover-calc: #212a2c;
 
   // Badge «Fonte: VestiFlow»
-  --vestiflow-lockup-bg: #4c4f59;
-  --vestiflow-lockup-fg: #ececef;
-  --badge-vestiflow-fg: #a9acb5;
+  --vestiflow-lockup-bg: #3f4d52;
+  --vestiflow-lockup-fg: #e3eaec;
+  --badge-vestiflow-fg: #9aa8ad;
   --badge-vestiflow-bg: color-mix(in srgb, var(--vestiflow-lockup-bg) 40%, transparent);
   --badge-vestiflow-border: color-mix(in srgb, var(--vestiflow-lockup-bg) 80%, transparent);
 
-  // Ombre — morbide anche qui: alpha contenute, mai buchi neri
+  // Ombre — alpha contenute, mai buchi neri
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.2), 0 4px 14px rgb(0 0 0 / 0.22);
+  --shadow-topbar: 0 2px 8px rgb(0 0 0 / 0.25);
+  --shadow-footer: 0 -5px 18px rgb(0 0 0 / 0.28);
+  --shadow-menu: 0 12px 35px rgb(0 0 0 / 0.4);
+  --shadow-raised: 0 6px 18px rgb(0 0 0 / 0.28);
   --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.25);
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.2), 0 4px 12px rgb(0 0 0 / 0.22);
-  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.2), 0 10px 30px rgb(0 0 0 / 0.28);
-  --shadow-lg: 0 15px 35px rgb(0 0 0 / 0.4);
+  --shadow-sm: var(--shadow-card);
+  --shadow-md: var(--shadow-raised);
+  --shadow-lg: var(--shadow-menu);
 }
 
 // -----------------------------------------------------------------------------
@@ -355,12 +430,25 @@
 
   // ── 4. RADIUS — scala invariata (8px controlli/righe, 12px card) ───────────
   --radius-xs: 0.125rem; // 2px
-  --radius-sm: 0.25rem; // 4px
-  --radius-md: 0.5rem; // 8px — default button/input/riga
-  --radius-lg: 0.75rem; // 12px — card/pannelli
+  --radius-sm: 0.375rem; // 6px — input, cella editabile, bottone secondario
+  --radius-md: 0.5rem; // 8px — bottone primario, chip, badge
+  --radius-lg: 0.5625rem; // 9px — card e pannelli
   --radius-xl: 1rem; // 16px
   --radius-2xl: 1.25rem; // 20px
   --radius-full: 9999px;
+  --radius-pill: var(--radius-full); // nome di regole-stile-ui §4
+
+  // ── Controlli densi — altezze del gestionale ─────────────────────────────
+  // Scelte sull'Ordine cliente e promosse a globali: ogni tabella documentale
+  // deve avere lo stesso passo verticale, non uno per maschera.
+  --control-h-field: 1.8125rem; // 29px — controlli di testata
+  --control-h-button: 1.9375rem; // 31px — bottoni barra strumenti e azioni
+  --control-h-cell: 1.5rem; // 24px — input dentro le righe
+  --control-h-touch: 2.75rem; // 44px — minimo tappabile su mobile
+  --table-row-h: 1.875rem; // 30px — riga tabella
+  --table-head-h: 2rem; // 32px — intestazione tabella
+  --table-cell-pad-block: 0.125rem; // 2px
+  --table-cell-pad-inline: 0.3125rem; // 5px
 
   // ── 4. Z-INDEX ─────────────────────────────────────────────────────────────
   --z-base: 0;
@@ -393,6 +481,11 @@
   --text-kpi: 1.75rem; // 28px — valore KPI stat-card (polish v2)
   --text-3xl: 1.875rem; // 30px — brand lockup topbar
   --text-4xl: 2.25rem; // 36px — brand lockup pagina login
+
+  // Label uppercase di form e tabelle (regole-stile-ui §3): un ruolo
+  // tipografico, non una misura estemporanea.
+  --text-label: 0.59375rem; // 9.5px
+  --font-weight-label: 760;
 
   --font-weight-regular: 400;
   --font-weight-medium: 500;
@@ -444,8 +537,14 @@
   );
   --topbar-chip-block-size: calc(var(--field-height) + var(--space-1) * 2);
 
-  --btn-min-height: 2.75rem; // 44px — touch target minimo (a11y)
-  --field-height: 2.25rem; // 36px — input
+  // Altezze dei controlli — DESKTOP DENSO per default (regole-stile-ui §4:
+  // «Desktop denso 31-34px»). Il minimo tappabile di 44px non e' il valore
+  // universale ma quello MOBILE: applicarlo ovunque rendeva tutta l'app piu'
+  // larga della densita' scelta, e costringeva le singole maschere a
+  // rimpicciolire i componenti condivisi con override locali.
+  // Sotto il breakpoint 'md' tornano a 44px: vedi il blocco @media in fondo.
+  --btn-min-height: 2.125rem; // 34px — desktop
+  --field-height: 2.125rem; // 34px — input desktop
   --field-height-inline: 1.875rem; // 30px — input inline nelle righe documento (spec §Form)
   // Larghezza campi per tipo di contenuto (v3): un campo largo quanto il dato
   // che ospita, mai quanto la pagina.
@@ -476,6 +575,20 @@
   --transition-page: 240ms; // ingresso contenuto pagina (polish v2)
   --transition-slow: 600ms;
   --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+// -----------------------------------------------------------------------------
+// MOBILE — il minimo tappabile torna a 44px (regole-stile-ui §4 e a11y).
+// Sta qui e non nei componenti: l'altezza del controllo e' una decisione di
+// sistema, non di singola maschera.
+// -----------------------------------------------------------------------------
+@include bp.media-down('md') {
+  :root {
+    --btn-min-height: 2.75rem; // 44px
+    --field-height: 2.75rem; // 44px
+    --control-h-field: 2.75rem;
+    --control-h-button: 2.75rem;
+  }
 }
 
 // -----------------------------------------------------------------------------
