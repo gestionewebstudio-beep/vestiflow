@@ -155,14 +155,14 @@
   }
 
   @include bp.media-down('md') {
+    // Su mobile la cella azione ospita un bottone a piena larghezza: glielo
+    // chiede dai suoi punti di regolazione, non raggiungendone gli interni.
+    --button-inline-size: 100%;
+    --button-h: var(--btn-min-height);
+
     display: flex;
     align-items: stretch;
     min-block-size: var(--btn-min-height);
-
-    ::ng-deep .app-button {
-      inline-size: 100%;
-      min-block-size: var(--btn-min-height);
-    }
   }
 }
 
@@ -174,16 +174,15 @@
 
 .product-detail__action-cell--badge {
   @include bp.media-up('md') {
+    // Il badge qui fa da controllo in riga: prende l'altezza di un campo.
+    --badge-h: var(--field-height);
+    --badge-pad-block: 0;
+    --badge-pad-inline: var(--space-3);
+    --badge-font-size: var(--text-sm);
+
     app-badge {
       display: inline-flex;
       align-items: center;
-    }
-
-    ::ng-deep .app-badge {
-      min-block-size: var(--field-height);
-      padding-block: 0;
-      padding-inline: var(--space-3);
-      font-size: var(--text-sm);
       border-radius: var(--radius-md);
     }
   }
@@ -192,22 +191,17 @@
     align-items: center;
     justify-content: center;
 
+    // Su mobile diventa una fascia a piena larghezza, alta come un bottone.
+    --badge-inline-size: 100%;
+    --badge-h: var(--btn-min-height);
+    --badge-pad-block: 0;
+    --badge-font-size: var(--text-sm);
+
     app-badge {
       display: flex;
       inline-size: 100%;
       block-size: 100%;
       align-items: stretch;
-    }
-
-    ::ng-deep .app-badge {
-      display: flex;
-      flex: 1;
-      align-items: center;
-      justify-content: center;
-      inline-size: 100%;
-      min-block-size: var(--btn-min-height);
-      padding-block: 0;
-      font-size: var(--text-sm);
       border-radius: var(--radius-md);
     }
   }

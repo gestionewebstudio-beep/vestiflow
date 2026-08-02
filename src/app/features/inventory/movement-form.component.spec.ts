@@ -1,5 +1,5 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, waitFor } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
@@ -145,8 +145,11 @@ describe('MovementFormComponent', () => {
     const quantity = screen.getByLabelText('Quantità per Maglietta / M / Rosso');
     expect(quantity).toHaveValue(1);
 
+    // L'aggiunta svuota la ricerca, ma la lista risultati si aggiorna solo dopo
+    // il debounce: digitare prima che sia svuotata comporrebbe «magmag».
+    await waitFor(() => expect(search).toHaveValue(''));
     await user.type(search, 'mag');
     await user.click(await screen.findByRole('button', { name: /Aggiungi/ }));
-    expect(quantity).toHaveValue(2);
+    await waitFor(() => expect(quantity).toHaveValue(2));
   });
 });

@@ -305,12 +305,6 @@
   --select-menu-width: min(100%, calc(var(--select-menu-width-wide) + var(--space-8)));
 }
 
-.po-form__line-field--variant ::ng-deep .select-menu__trigger-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .po-form__error-placeholder {
   display: block;
   min-block-size: calc(var(--text-xs) * 1.333333);

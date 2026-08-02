@@ -1031,32 +1031,6 @@
   font-size: var(--text-sm);
 }
 
-:host ::ng-deep .table-column-resize {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-end: calc(var(--space-1) * -1);
-  inline-size: var(--space-2);
-  cursor: col-resize;
-  touch-action: none;
-  z-index: 1;
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset-block: var(--space-1);
-    inset-inline-end: var(--space-1);
-    inline-size: var(--border-width);
-    background-color: var(--color-border-strong);
-    opacity: 0;
-    transition: opacity var(--transition-fast) var(--ease-standard);
-  }
-
-  &:hover::after,
-  &:active::after {
-    opacity: 1;
-  }
-}
-
 .gr-form__table th {
   position: relative;
 }

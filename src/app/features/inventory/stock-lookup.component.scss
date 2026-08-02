@@ -70,10 +70,7 @@
     align-self: stretch;
   }
 
-  ::ng-deep .app-button {
-    block-size: var(--btn-min-height);
-    min-block-size: var(--btn-min-height);
-  }
+  --button-h: var(--btn-min-height);
 }
 
 @include bp.media-up('md') {

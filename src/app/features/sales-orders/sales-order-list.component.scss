@@ -38,11 +38,6 @@
     z-index: var(--z-sticky);
     box-shadow: var(--shadow-lg);
   }
-
-  .sales-list__bulk-bar ::ng-deep .app-button {
-    flex: 1 1 auto;
-    justify-content: center;
-  }
 }
 
 .sales-list__bulk-count strong {
@@ -56,35 +51,26 @@
 
 // Bottoni della barra: traslucidi su fondo scuro, testo chiaro (il danger
 // vira sul rosso). Sovrascrivono la veste chiara dell'app-button solo qui.
-.sales-list__bulk-bar ::ng-deep .app-button {
-  color: var(--color-primary-fg);
-  background-color: rgb(255 255 255 / 0.12);
-  border-color: rgb(255 255 255 / 0.24);
-}
 
-.sales-list__bulk-bar ::ng-deep .app-button:hover:not(:disabled) {
-  background-color: rgb(255 255 255 / 0.2);
-  border-color: rgb(255 255 255 / 0.36);
-}
+// La barra azioni massive vive su superficie scura: i bottoni prendono i
+// colori dal contenitore attraverso i propri punti di regolazione, senza che
+// il contenitore debba raggiungerne gli interni (regole-stile-ui §5).
+.sales-list__bulk-bar {
+  --button-fg: var(--color-primary-fg);
+  --button-bg: rgb(255 255 255 / 0.12);
+  --button-border: rgb(255 255 255 / 0.2);
+  --button-bg-hover: rgb(255 255 255 / 0.2);
 
-.sales-list__bulk-bar ::ng-deep .app-button--danger {
-  color: #ffc9c9;
-  background-color: rgb(255 120 120 / 0.16);
-  border-color: rgb(255 120 120 / 0.32);
-}
+  --button-danger-fg: #ffc9c9;
+  --button-danger-bg: rgb(255 120 120 / 0.16);
+  --button-danger-border: rgb(255 120 120 / 0.32);
+  --button-danger-fg-hover: #ffe0e0;
+  --button-danger-bg-hover: rgb(255 120 120 / 0.26);
+  --button-danger-border-hover: rgb(255 120 120 / 0.32);
 
-.sales-list__bulk-bar ::ng-deep .app-button--danger:hover:not(:disabled) {
-  color: #ffe0e0;
-  background-color: rgb(255 120 120 / 0.26);
-}
-
-.sales-list__bulk-bar ::ng-deep .app-button--ghost {
-  background-color: transparent;
-  border-color: transparent;
-}
-
-.sales-list__bulk-bar ::ng-deep .app-button--ghost:hover:not(:disabled) {
-  background-color: rgb(255 255 255 / 0.12);
+  --button-ghost-fg: var(--color-primary-fg);
+  --button-ghost-fg-hover: var(--color-primary-fg);
+  --button-ghost-bg-hover: rgb(255 255 255 / 0.12);
 }
 
 // Modale scelta cliente (Duplica): overlay centrato sopra la lista.
@@ -265,9 +251,6 @@
 }
 
 .sales-list__filters--inline .sales-list__field ::ng-deep .select-menu,
-.sales-list__filters--inline .sales-list__field ::ng-deep .select-menu__trigger {
-  inline-size: 100%;
-}
 
 // Anche i campi data Dal/Al riempiono la loro cella, così sono larghi come le
 // chip sotto (di serie la date-input fullWidth resta a larghezza fissa).

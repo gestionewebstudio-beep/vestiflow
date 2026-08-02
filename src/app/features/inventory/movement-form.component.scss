@@ -61,26 +61,6 @@
   }
 }
 
-.movement-form__variant-select {
-  display: block;
-  inline-size: 100%;
-  max-inline-size: 100%;
-}
-
-.movement-form__variant-select ::ng-deep .select-menu__trigger-label,
-.movement-form__variant-select ::ng-deep .select-menu__option-label {
-  overflow: visible;
-  text-overflow: unset;
-  white-space: normal;
-  word-break: break-word;
-}
-
-.movement-form__variant-select ::ng-deep .select-menu__option-btn {
-  align-items: flex-start;
-  min-block-size: auto;
-  padding-block: var(--space-2);
-}
-
 .movement-form__field {
   display: flex;
   flex-direction: column;

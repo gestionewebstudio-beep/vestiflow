@@ -8,12 +8,13 @@
   margin-block-start: var(--space-4);
 }
 
-.mfa-settings__cta ::ng-deep .app-button,
-.mfa-settings__actions ::ng-deep .app-button,
-.mfa-settings__factor ::ng-deep .app-button {
-  min-block-size: var(--btn-min-height);
-  block-size: var(--btn-min-height);
-  box-sizing: border-box;
+// I bottoni di questa scheda sono quadrati: l'altezza la chiede il
+// contenitore attraverso il punto di regolazione del bottone, senza
+// raggiungerne gli interni (regole-stile-ui §5).
+.mfa-settings__cta,
+.mfa-settings__actions,
+.mfa-settings__factor {
+  --button-h: var(--btn-min-height);
 }
 
 .mfa-settings__alert {

@@ -120,13 +120,8 @@
   }
 }
 
-.admin-users__cell-select ::ng-deep .select-menu-host {
-  display: inline-flex;
-  max-inline-size: 100%;
-}
-
-.admin-users__cell-select ::ng-deep .select-menu--open {
-  z-index: var(--z-dropdown);
+.admin-users__cell-select {
+  --select-menu-max-width: 100%;
 }
 
 .admin-users__cell-locations {
@@ -228,10 +223,8 @@
   margin-block-start: var(--space-1);
 }
 
-.admin-users__create-fields ::ng-deep .select-menu-host--full {
+.admin-users__create-fields {
   --select-menu-width: 100%;
-  inline-size: 100%;
-  max-inline-size: 100%;
 }
 
 .admin-users__create-actions {

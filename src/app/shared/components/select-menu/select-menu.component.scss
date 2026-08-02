@@ -4,19 +4,14 @@
   display: inline-flex;
   position: relative;
   inline-size: var(--select-menu-width);
-  max-inline-size: min(var(--select-menu-width), 100%);
+  max-inline-size: min(var(--select-menu-width), var(--select-menu-max-width, 100%));
   vertical-align: top;
 }
 
-:host(.select-menu-host--full) {
-  display: block;
-  inline-size: var(--select-menu-width);
-  max-inline-size: min(var(--select-menu-width), 100%);
-
-  @include bp.media-down('md') {
-    inline-size: 100%;
-    max-inline-size: 100%;
-  }
+// Aperto, il menu sta sopra i fratelli: dentro una tabella il pannello di una
+// riga finirebbe altrimenti sotto la riga successiva.
+:host(.select-menu-host--open) {
+  z-index: var(--z-dropdown);
 }
 
 .select-menu {

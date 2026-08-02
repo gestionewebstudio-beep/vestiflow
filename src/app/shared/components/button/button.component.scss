@@ -15,6 +15,7 @@
   gap: var(--space-2);
   min-block-size: var(--button-h, var(--field-height));
   padding-inline: var(--button-pad-inline, var(--space-3));
+  inline-size: var(--button-inline-size, auto);
   font-size: var(--button-font-size, var(--text-sm));
   font-weight: var(--font-weight-semibold);
   border-radius: var(--button-radius, var(--radius-md));
@@ -61,36 +62,38 @@
 
 // ── Secondary (surface + bordo forte) ───────────────────────────────────────
 .app-button--secondary {
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  border-color: var(--color-border-strong);
+  color: var(--button-fg, var(--color-text));
+  background-color: var(--button-bg, var(--color-surface));
+  border-color: var(--button-border, var(--color-border-strong));
 }
 
 .app-button--secondary:hover:not(:disabled) {
-  background-color: var(--color-surface-hover);
+  background-color: var(--button-bg-hover, var(--color-surface-hover));
 }
 
 // ── Danger (distruttivo: tinta rossa 12% + bordo 35%, testo rosso) ──────────
 .app-button--danger {
-  color: var(--color-danger);
-  background-color: var(--color-danger-subtle);
-  border-color: var(--color-danger-border);
+  color: var(--button-danger-fg, var(--color-danger));
+  background-color: var(--button-danger-bg, var(--color-danger-subtle));
+  border-color: var(--button-danger-border, var(--color-danger-border));
 }
 
 .app-button--danger:hover:not(:disabled) {
-  color: var(--color-danger-hover);
-  border-color: var(--color-danger);
+  color: var(--button-danger-fg-hover, var(--color-danger-hover));
+  background-color: var(--button-danger-bg-hover, var(--color-danger-subtle));
+  border-color: var(--button-danger-border-hover, var(--color-danger));
 }
 
 // ── Ghost (solo testo accento) ──────────────────────────────────────────────
 .app-button--ghost {
-  color: var(--color-interactive);
+  color: var(--button-ghost-fg, var(--color-interactive));
   background-color: transparent;
+  border-color: transparent;
 }
 
 .app-button--ghost:hover:not(:disabled) {
-  color: var(--color-interactive-hover);
-  background-color: var(--color-primary-subtle);
+  color: var(--button-ghost-fg-hover, var(--color-interactive-hover));
+  background-color: var(--button-ghost-bg-hover, var(--color-primary-subtle));
 }
 
 .app-button--loading {

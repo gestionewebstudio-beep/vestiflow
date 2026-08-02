@@ -1,0 +1,42 @@
+// Aspetto delle direttive condivise.
+//
+// Una direttiva Angular non puo' avere un proprio foglio di stile: la classe
+// che applica all'host (`class: '...'` nei metadata) resta senza vestito. Se
+// ogni feature che la usa se lo ricuce addosso, la stessa maniglia finisce
+// disegnata in tre modi diversi — ed e' esattamente cosi' che nascono i
+// `::ng-deep` (regole-stile-ui §5).
+//
+// Qui vive l'aspetto che appartiene alla direttiva, non alla schermata che la
+// ospita. Regola d'ingresso: solo classi impostate da una direttiva di
+// `shared/directives/`, mai selettori di componente.
+
+// ── TableColumnResizeDirective ──────────────────────────────────────────────
+// Maniglia di ridimensionamento colonna: si ancora al bordo destro della cella
+// intestazione, che deve quindi essere `position: relative`.
+.table-column-resize {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: calc(var(--space-1) * -1);
+  inline-size: var(--space-2);
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 1;
+
+  // Il filo verticale compare solo al passaggio: a riposo la maniglia e'
+  // invisibile e l'intestazione resta pulita.
+  &::after {
+    content: '';
+    position: absolute;
+    inset-block: var(--space-1);
+    inset-inline-end: var(--space-1);
+    inline-size: var(--border-width);
+    background-color: var(--color-border-strong);
+    opacity: 0;
+    transition: opacity var(--transition-fast) var(--ease-standard);
+  }
+
+  &:hover::after,
+  &:active::after {
+    opacity: 1;
+  }
+}

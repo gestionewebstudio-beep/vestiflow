@@ -2,6 +2,9 @@
 // I design token sono la UNICA fonte di verita' visiva (regole-architettura).
 // Solo base styles fondazionali: nessuno stile da landing, nessun valore hardcoded.
 @use 'design-tokens';
+// Aspetto delle classi applicate dalle direttive di shared/: sta qui perche'
+// una direttiva non puo' avere un proprio styleUrl (vedi il partial).
+@use 'styles/shared-directives';
 
 // -----------------------------------------------------------------------------
 // RESET MODERNO

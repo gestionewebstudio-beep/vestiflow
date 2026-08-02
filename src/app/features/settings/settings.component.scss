@@ -304,10 +304,8 @@
   box-sizing: border-box;
 }
 
-.settings__connect-row ::ng-deep .app-button {
-  min-block-size: var(--btn-min-height);
-  block-size: var(--btn-min-height);
-  box-sizing: border-box;
+.settings__connect-row {
+  --button-h: var(--btn-min-height);
 }
 
 .settings__connect-form .settings__field {
