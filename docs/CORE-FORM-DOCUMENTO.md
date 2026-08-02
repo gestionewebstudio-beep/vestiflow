@@ -117,13 +117,36 @@ insieme due comportamenti diversi — l'anti-pattern che
 `regole-architettura` chiama «astrazione prematura». Va rivisto quando
 si decide quale delle due navigazioni è quella giusta.
 
-### 5. Predicati di riga — ~30 righe, 77-93%
+### 5. Predicati di riga — ~~estraibili~~ **in gran parte falsi positivi**
 
 `lineVariantSummary`, `lineRowComplete`, `lineHasDiscount`,
 `lineGrossMoney`, `lineUnitOfMeasure`, `totalPiecesCount`.
 
-Piccoli e quasi puri: estraibili con lo stesso metodo dei totali, valore
-basso ma rischio quasi nullo.
+Una prima lettura li dava come «piccoli e quasi puri, estraibili con lo
+stesso metodo dei totali». **Guardandoli davvero, è sbagliato**: la
+metrica di similarità misura la forma del corpo, non la regola che
+codifica, e qui i corpi si somigliano mentre le regole differiscono.
+
+| Metodo              | Ordine cliente                       | Arrivo merce               |
+| ------------------- | ------------------------------------ | -------------------------- |
+| `lineHasDiscount`   | sconti a cascata (`"10+5"`)          | percentuale singola        |
+| `lineRowComplete`   | prodotto **+ quantità > 0**          | prodotto **+ costo**       |
+| `totalPiecesCount`  | salta anche le righe «riferimento»   | non ha righe riferimento   |
+| `lineUnitOfMeasure` | fallback sull'unità digitata in riga | solo quella della variante |
+
+Sono differenze **volute**: un arrivo merce senza costo è incompleto, un
+ordine cliente senza quantità sì. Unificarle richiederebbe di passare
+predicati e accessor, cioè un'API più grande del corpo che sostituisce —
+e nel caso peggiore di fondere due regole di business diverse.
+
+**Non estrarre.** È il caso da tenere a mente quando si legge questa
+mappa: la percentuale di similarità è un indizio su dove guardare, non
+una prova che due cose siano la stessa cosa.
+
+Unica eccezione già applicata: `lineVariantSummary` era identico e per
+giunta ripetuto in **cinque** form (i due grandi più `stock-operation`,
+`transfer`, `supplier-order`). È diventato `findVariantSummaryById` in
+`domain/products/utils/variant-summary-search.util.ts`.
 
 ---
 

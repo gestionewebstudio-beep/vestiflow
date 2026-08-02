@@ -122,7 +122,10 @@ import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/produ
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
-import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import {
+  findVariantSummaryById,
+  mergeVariantSummaries,
+} from '@domain/products/utils/variant-summary-search.util';
 import { ProductPickerDialogComponent } from '@domain/products/components/product-picker-dialog/product-picker-dialog.component';
 import type { CreateProductDto } from '@domain/products/models/product.dto';
 import { OrderScanOverlayComponent } from './components/order-scan-overlay/order-scan-overlay.component';
@@ -1858,14 +1861,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   protected lineVariantSummary(index: number): VariantSummary | null {
-    const variantId = this.lines.at(index)?.controls.variantId.value;
-    if (!variantId) {
-      return null;
-    }
-    return (
-      mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
-        (summary) => summary.variantId === variantId,
-      ) ?? null
+    return findVariantSummaryById(
+      this.lines.at(index)?.controls.variantId.value,
+      this.pinnedVariants(),
+      this.searchedVariants(),
     );
   }
 

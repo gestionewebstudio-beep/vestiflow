@@ -71,7 +71,10 @@ import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util
 import type { Supplier } from '@core/models/supplier.model';
 import { normalizeSku } from '@domain/products/models/product-form.validators';
 import { ProductService } from '@domain/products/services/product.service';
-import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import {
+  findVariantSummaryById,
+  mergeVariantSummaries,
+} from '@domain/products/utils/variant-summary-search.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { SupplierFormFieldsComponent } from '@domain/suppliers/components/supplier-form-fields/supplier-form-fields.component';
 import {
@@ -2125,15 +2128,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected lineVariantSummary(index: number): VariantSummary | null {
-    const line = this.lines.at(index);
-    const variantId = line.controls.variantId.value;
-    if (!variantId) {
-      return null;
-    }
-    return (
-      mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
-        (summary) => summary.variantId === variantId,
-      ) ?? null
+    return findVariantSummaryById(
+      this.lines.at(index)?.controls.variantId.value,
+      this.pinnedVariants(),
+      this.searchedVariants(),
     );
   }
 

@@ -14,3 +14,22 @@ export function mergeVariantSummaries(
   }
   return [...byId.values()];
 }
+
+/**
+ * Variante di una riga documento fra quelle note al form: prima le già
+ * selezionate, poi i risultati di ricerca. Lo facevano cinque form con lo
+ * stesso `merge(...).find(...)` copiato.
+ */
+export function findVariantSummaryById(
+  variantId: string | null | undefined,
+  pinned: readonly VariantSummary[],
+  searched: readonly VariantSummary[],
+): VariantSummary | null {
+  if (!variantId) {
+    return null;
+  }
+  return (
+    mergeVariantSummaries(pinned, searched).find((summary) => summary.variantId === variantId) ??
+    null
+  );
+}

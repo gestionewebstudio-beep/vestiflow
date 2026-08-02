@@ -66,7 +66,10 @@ import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/produ
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
-import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import {
+  findVariantSummaryById,
+  mergeVariantSummaries,
+} from '@domain/products/utils/variant-summary-search.util';
 import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
 
 import { DocumentService } from '@domain/documents/services/document.service';
@@ -525,11 +528,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     if (!variantId) {
       return null;
     }
-    return (
-      mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
-        (row) => row.variantId === variantId,
-      ) ?? null
-    );
+    return findVariantSummaryById(variantId, this.pinnedVariants(), this.searchedVariants());
   }
 
   protected lineDisplay(
@@ -661,9 +660,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       }
     };
 
-    const known = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
-      (row) => row.variantId === variantId,
-    );
+    const known = findVariantSummaryById(variantId, this.pinnedVariants(), this.searchedVariants());
     if (known) {
       applyFromSummary(known);
       return;

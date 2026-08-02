@@ -40,7 +40,10 @@ import { OperationalLocationsService } from '@domain/inventory/services/operatio
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductService } from '@domain/products/services/product.service';
-import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import {
+  findVariantSummaryById,
+  mergeVariantSummaries,
+} from '@domain/products/utils/variant-summary-search.util';
 import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
@@ -486,9 +489,7 @@ export class StockOperationFormComponent {
     line.controls.variantId.setValue(value ?? '');
     line.controls.variantId.markAsTouched();
     if (value) {
-      const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
-        (v) => v.variantId === value,
-      );
+      const summary = findVariantSummaryById(value, this.pinnedVariants(), this.searchedVariants());
       if (summary) {
         line.controls.description.setValue(`${summary.productName} · ${summary.title}`.trim());
         line.controls.sku.setValue(summary.sku);

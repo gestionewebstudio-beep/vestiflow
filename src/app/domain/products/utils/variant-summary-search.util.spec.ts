@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { VariantSummary } from '../models/variant-summary.model';
-import { mergeVariantSummaries } from './variant-summary-search.util';
+import { findVariantSummaryById, mergeVariantSummaries } from './variant-summary-search.util';
 
 function variant(id: string, sku = `SKU-${id}`): VariantSummary {
   return {
@@ -43,5 +43,35 @@ describe('mergeVariantSummaries', () => {
     expect(mergeVariantSummaries([], [])).toEqual([]);
     expect(mergeVariantSummaries([variant('a')], [])).toHaveLength(1);
     expect(mergeVariantSummaries([], [variant('b')])).toHaveLength(1);
+  });
+});
+
+describe('findVariantSummaryById', () => {
+  const pinnata = { variantId: 'var-1', sku: 'SKU-1' } as VariantSummary;
+  const cercata = { variantId: 'var-2', sku: 'SKU-2' } as VariantSummary;
+
+  it('senza variantId restituisce null', () => {
+    expect(findVariantSummaryById(null, [pinnata], [cercata])).toBeNull();
+    expect(findVariantSummaryById(undefined, [pinnata], [cercata])).toBeNull();
+    expect(findVariantSummaryById('', [pinnata], [cercata])).toBeNull();
+  });
+
+  it('trova fra le varianti già selezionate', () => {
+    expect(findVariantSummaryById('var-1', [pinnata], [cercata])).toBe(pinnata);
+  });
+
+  it('trova fra i risultati di ricerca', () => {
+    expect(findVariantSummaryById('var-2', [pinnata], [cercata])).toBe(cercata);
+  });
+
+  it('variante sconosciuta: null, non undefined', () => {
+    expect(findVariantSummaryById('var-ignota', [pinnata], [cercata])).toBeNull();
+  });
+
+  it('a parità di id vince il risultato di ricerca, più fresco', () => {
+    const vecchia = { variantId: 'var-1', sku: 'VECCHIO' } as VariantSummary;
+    const nuova = { variantId: 'var-1', sku: 'NUOVO' } as VariantSummary;
+
+    expect(findVariantSummaryById('var-1', [vecchia], [nuova])?.sku).toBe('NUOVO');
   });
 });
