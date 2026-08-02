@@ -1,35 +1,5 @@
 @use 'breakpoints' as bp;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ORDINE CLIENTE — 4 di 6: testata compressa, scansione, barra azioni (mobile)
-// ═══════════════════════════════════════════════════════════════════════════
-// Il contorno della vista mobile: la testata che si riassume in una riga
-// apribile, la card di scansione rapida sotto le righe, la barra fissa
-// «Scansiona / Aggiungi prodotto», il rientro tappabile dei controlli.
-//
-// Le card delle righe stanno nel foglio 3; qui non ce ne sono.
-// Vedi l'indice dei fogli in customer-order-form.component.scss.
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Rifiniture UX mobile (feel nativo): feedback al tocco e tap target ≥44px.
-// Le classi .co-form__card* / __header-summary vivono solo nella vista mobile,
-// quindi non serve racchiuderle in una media query.
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Feedback pressed veloce (<150ms) sugli elementi tappabili custom.
-.co-form__card-head,
-.co-form__header-summary,
-.co-form__card-search-btn {
-  transition: background-color 120ms var(--ease-standard);
-}
-
-.co-form__card-head:active,
-.co-form__header-summary:active,
-.co-form__card-search-btn:active {
-  background-color: var(--color-surface-soft, var(--color-surface-soft));
-}
-
 // Tap target ≥44×44 sui pochi controlli icona ancora sotto soglia (il cestino
 // della riga «documento collegato» usa l'altezza densa da desktop).
 .co-form__mobile-source-row .doc-form__line-remove {
@@ -39,16 +9,9 @@
 
 // Rispetto di «riduci animazioni».
 @media (prefers-reduced-motion: reduce) {
-  .co-form__card,
-  .co-form__card-head,
   .co-form__header-summary,
-  .co-form__card-search-btn,
   .co-form .co-form__header-details {
     transition-duration: 0.01ms;
-  }
-
-  .co-form__card:active {
-    transform: none;
   }
 }
 
@@ -215,136 +178,23 @@
     opacity: 0.6;
   }
 
-  .co-form .doc-form__gate-fields:disabled .co-form__mobile-quick,
-  .co-form .doc-form__gate-fields:disabled .co-form__card {
+  .co-form .doc-form__gate-fields:disabled .co-form__mobile-quick {
     border-style: dashed;
     border-color: var(--color-border);
     box-shadow: none;
   }
 
-  .co-form .doc-form__gate-fields:disabled .co-form__card-name,
-  .co-form .doc-form__gate-fields:disabled .co-form__card-sub,
+  // Finche' manca il cliente le righe non si toccano: le card lo dicono con il
+  // bordo tratteggiato e il testo smorzato, configurate da qui.
+  .co-form .doc-form__gate-fields:disabled .co-form__cards {
+    --co-card-border: var(--border-width) dashed var(--color-border);
+    --co-card-shadow: none;
+    --co-card-fg: var(--color-text-muted);
+  }
+
   .co-form .doc-form__gate-fields:disabled .doc-form__subtitle {
     color: var(--color-text-muted);
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// F4 — riga articolo compatta: stepper quantità, totale, rimozione, alert.
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Area tap-per-espandere (chevron + nome/SKU): prende lo spazio residuo.
-.co-form__card-expand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 1 1 10rem;
-  min-inline-size: 0;
-  min-block-size: 2.75rem;
-  padding: 0;
-  text-align: start;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-
-.co-form__card-copy {
-  display: flex;
-  flex-direction: column;
-  min-inline-size: 0;
-}
-
-// Stepper −/+ con input centrale: pulsanti 44×44 touch-friendly.
-.co-form__qty-stepper {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  margin-inline-start: auto;
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-// Touch target pieno (44px) anche dentro il chip: il tocco vale su tutta
-// l'altezza, l'aspetto resta compatto grazie al margine negativo verticale.
-.co-form__qty-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-inline-size: 2.5rem;
-  min-block-size: 2.75rem;
-  margin-block: calc(var(--space-1) * -1);
-  color: var(--color-text, var(--color-text));
-  background-color: var(--color-surface);
-  border: 0;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background-color 120ms var(--ease-standard);
-}
-
-.co-form__qty-btn:active:not(:disabled) {
-  background-color: var(--color-surface-soft, var(--color-surface-soft));
-}
-
-.co-form__qty-btn:disabled {
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-}
-
-.co-form__qty-input {
-  inline-size: 2.75rem;
-  min-block-size: 2.75rem;
-  padding: 0;
-  text-align: center;
-  font-size: var(--text-lg);
-  color: var(--color-text, var(--color-text));
-  background-color: var(--color-surface);
-  border: 0;
-  border-inline: var(--border-width) solid var(--color-border);
-  appearance: textfield;
-}
-
-.co-form__qty-input::-webkit-outer-spin-button,
-.co-form__qty-input::-webkit-inner-spin-button {
-  appearance: none;
-  margin: 0;
-}
-
-.co-form__card-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  min-inline-size: 2.75rem;
-  min-block-size: 2.75rem;
-  color: var(--color-text-muted);
-  background: none;
-  border: 0;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.co-form__card-remove:active:not(:disabled) {
-  color: var(--status-error-fg);
-  background-color: var(--color-surface-soft, var(--color-surface-soft));
-}
-
-.co-form__card-remove:disabled {
-  color: var(--color-border-strong);
-  cursor: not-allowed;
-}
-
-// Alert disponibilità sopra la riga: informativo, non bloccante.
-.co-form__card-alert {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-2xs);
-  color: var(--status-warning-fg);
-  background-color: var(--status-warning-bg);
-  border-block-end: var(--border-width) solid var(--status-warning-border);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

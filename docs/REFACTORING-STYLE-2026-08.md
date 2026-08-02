@@ -151,32 +151,47 @@ Salva. Tocca a loro adottarlo, una alla volta.
 | `::ng-deep` nell'app                      | 65    | 0     |
 | Token globali conformi alle regole        | 3/33  | 31/33 |
 | Copie della maschera documento nel CSS    | 5+1   | 1     |
-| Fogli di stile oltre budget               | 6     | 1     |
+| Fogli di stile oltre budget               | 6     | 0     |
 | Variabili di palette private a una pagina | ~40   | 3     |
 | `settings.component.ts`                   | 1099  | 421   |
 
-Suite: 151 file / 793 test verdi (frontend), 148 file / 1064 verdi (API).
+Suite: 152 file / 804 test verdi (frontend), 148 file / 1064 verdi (API).
 Lint: 0 errori. Build: OK.
 
 ---
 
 ## Cosa resta
 
-### `customer-order-form.mobile-cards.scss` — 15.2 kB (budget 12)
+### Fatto: la card di riga e' un componente
 
-E' la riga documento come card su mobile, ed e' l'unico foglio ancora sopra
-soglia. Ha un gemello gia' scritto altrove:
-`features/documents/components/goods-receipt-line-card/` fa la stessa cosa per
-l'arrivo merce, come componente.
+Era l'ultimo foglio sopra soglia, e la ragione per cui non l'avevo estratta era
+che la card leggeva **37 valori** chiamando altrettanti metodi del form.
+Passarglieli uno per uno avrebbe prodotto trenta `input()` — l'anti-pattern che
+le regole vietano per nome.
 
-Unirle non e' un'estrazione meccanica. La card dell'Ordine cliente ha **37 punti
-di aggancio** col form (derivati, handler, stati di riga): un componente con
-trenta `input()` non e' un componente, ed e' esattamente l'anti-pattern che le
-regole di progetto vietano («Quando NON estrarre»). Prima serve un **view-model
-di riga** che raccolga i derivati in un oggetto solo — a quel punto la card
-prende due input e diventa condivisibile fra le maschere.
+La strada era quella indicata: prima un **view-model di riga**
+(`CustomerOrderLineCardVm`), che raccoglie i ventitre' derivati in un oggetto e
+si prende anche la formattazione (la card riceve stringhe pronte e non sa cosa
+sia una `Money`). Con quello, il componente prende **tre input** — il FormGroup,
+il view-model, lo stato aperto/chiuso — e una variante di testata.
 
-E' il pezzo successivo, ed e' un refactor del form, non dello stile.
+Le due disposizioni della testata sono un `input<'order' | 'registry'>()`, non
+due componenti gemelli: il corpo espanso e' identico, cambia solo cio' che si
+vede a card chiusa. Erano un `@if (isOrder)` in mezzo al template del form.
+
+Il template del form scende da 3012 a 2582 righe; le 460 della card vivono ora
+nel proprio componente, accanto ai propri stili. E la forma esterna della card
+(bordi, raggio, padding, ombra) si configura dal contenitore con
+`--co-card-*`: la sezione «niente card dentro card» del foglio ritmo non
+raggiunge piu' gli interni della card, le dice che forma avere.
+
+Resta separata dal gemello dell'arrivo merce, e va bene cosi': le due righe
+portano campi diversi — costo e prezzo di vendita da una parte, sconto, IVA e
+impegno di magazzino dall'altra — e fonderle richiederebbe la dozzina di flag
+che le regole chiamano «sintomo che si stanno fondendo due componenti diversi».
+Condividono i token e i componenti condivisi, non un antenato.
+
+**Nessun foglio di stile e' piu' sopra il budget.**
 
 ### Da verificare a occhio
 

@@ -126,6 +126,7 @@ import {
 } from '@domain/products/utils/variant-summary-search.util';
 import { ProductPickerDialogComponent } from '@domain/products/components/product-picker-dialog/product-picker-dialog.component';
 import type { CreateProductDto } from '@domain/products/models/product.dto';
+import { CustomerOrderLineCardComponent } from './components/customer-order-line-card/customer-order-line-card.component';
 import { OrderScanOverlayComponent } from './components/order-scan-overlay/order-scan-overlay.component';
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
@@ -165,6 +166,7 @@ import {
   SALES_DDT_LINES_VIEW,
 } from './models/customer-order-line-columns.config';
 import { redistributeColumnWidths } from './models/column-width-distribution.util';
+import type { CustomerOrderLineCardVm } from './models/customer-order-line-card.model';
 import { sourceLabel } from '@domain/sales-orders/models/sales-order-labels.util';
 import {
   SalesOrderService,
@@ -219,6 +221,7 @@ interface AvailabilityIssue {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    CustomerOrderLineCardComponent,
     CdkDropList,
     CdkDrag,
     CdkDragHandle,
@@ -1765,6 +1768,55 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /** Stepper quantità della riga compatta mobile (min 1). */
+  /**
+   * Tutto cio' che la card di riga mostra ma non calcola, in un oggetto solo.
+   *
+   * Prima la card leggeva ventitre' valori chiamando altrettanti metodi da
+   * template. Portarla in un componente passandoglieli uno per uno avrebbe
+   * prodotto trenta `input()`; raccolti qui, gliene bastano tre. E' anche il
+   * punto in cui la formattazione (valuta, etichette) resta di competenza del
+   * form: la card riceve stringhe pronte e non sa cosa sia una `Money`.
+   */
+  protected lineCardVm(index: number): CustomerOrderLineCardVm {
+    return {
+      index,
+      variantLabel: this.lineVariantLabel(index),
+      articleCode: this.lineArticleCode(index),
+      unitOfMeasure: this.lineUnitOfMeasure(index),
+      stockAvailable: this.lineStockAvailable(index),
+      availabilityHint: this.lineAvailabilityHint(index),
+      availabilityCritical: this.lineAvailabilityCritical(index),
+      complete: this.lineRowComplete(index),
+      totalLabel: this.formatMoney(this.lineTotalMoney(index)),
+      discountedUnitLabel: this.formatMoney(this.lineDiscountedUnitMoney(index)),
+      purchaseCostLabel: this.linePurchaseCost(index),
+      priceLabel: this.priceRowLabel(),
+      vatOptions: this.lineVatOptions(index),
+      vatValue: this.lineVatValue(index),
+      suggestions: this.lineSuggestions(index).map((variant) => ({
+        variantId: variant.variantId,
+        title: variant.title,
+        detail: this.mobileSuggestionDetail(variant),
+      })),
+      suggestionsOpen: this.lineSuggestionsOpen(index),
+      suggestAbove: this.mobileSuggestAbove(),
+      activeSuggestionIndex: this.activeSuggestionIndex(),
+      readOnly: this.formReadOnly(),
+      commitsLabel: this.isQuote ? null : this.commitsColumnLabel,
+      showSerials: this.isLineColumnVisible('serials'),
+      showPurchaseCost: this.isLineColumnVisible('purchaseCost'),
+    };
+  }
+
+  /** +1 / -1 dallo stepper della card: il minimo e la marcatura restano qui. */
+  protected onLineQuantityStep(index: number, step: 1 | -1): void {
+    if (step === 1) {
+      this.incrementLineQty(index);
+      return;
+    }
+    this.decrementLineQty(index);
+  }
+
   protected incrementLineQty(index: number): void {
     if (this.formReadOnly()) {
       return;

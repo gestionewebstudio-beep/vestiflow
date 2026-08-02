@@ -139,26 +139,27 @@
   .co-form .doc-form__lines,
   .co-form .doc-form__totals-bar,
   .co-form .doc-form__footer-notes,
-  .co-form .doc-form__attachments,
-  .co-form .co-form__card,
-  .co-form .co-form__card--open {
+  .co-form .doc-form__attachments {
     padding: var(--card-pad-mobile);
     box-shadow: none;
     border-color: var(--color-border);
   }
 
   // La testata continua a gestire il padding dei propri blocchi interni.
-  .co-form .doc-form__header,
-  .co-form .co-form__card,
-  .co-form .co-form__card--open {
+  .co-form .doc-form__header {
     padding: 0;
   }
 
-  .co-form .co-form__card-head,
-  .co-form .co-form__card-body,
   .co-form .co-form__header-summary,
   .co-form .co-form__header-include {
     padding: var(--card-pad-mobile);
+  }
+
+  // La card di riga si configura, non si perfora: il contenitore le dice che
+  // forma avere e lei la applica dentro il proprio foglio.
+  .co-form .co-form__cards {
+    --co-card-shadow: none;
+    --co-card-section-pad: var(--card-pad-mobile);
   }
 
   // ── Niente card dentro card: sezioni orizzontali nel contenitore ─────────
@@ -177,25 +178,20 @@
     padding-inline: var(--space-2);
   }
 
+  // Niente card dentro card: le righe diventano un elenco continuo, separate
+  // da un filo invece che da quattro bordi.
   .co-form .co-form__cards {
+    --co-card-border: 0;
+    --co-card-radius: 0;
+    --co-card-section-pad: var(--card-pad-mobile) var(--space-2);
+
     gap: 0;
   }
 
-  .co-form .co-form__card,
-  .co-form .co-form__card--open {
-    border-inline: 0;
-    border-block-start: 0;
+  .co-form .co-form__cards > *:not(:last-child) {
     border-block-end: var(--border-width) solid var(--color-border);
-    border-radius: 0;
   }
 
-  .co-form .co-form__cards > *:last-child .co-form__card,
-  .co-form .co-form__card:last-child {
-    border-block-end: 0;
-  }
-
-  .co-form .co-form__card-head,
-  .co-form .co-form__card-body,
   .co-form .co-form__header-summary,
   .co-form .co-form__header-include {
     padding-inline: var(--space-2);

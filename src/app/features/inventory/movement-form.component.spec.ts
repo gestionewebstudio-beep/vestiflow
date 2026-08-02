@@ -49,6 +49,9 @@ function operationalLocationsMock() {
   };
 }
 
+/** La ricerca articolo passa da un debounce: l'attesa predefinita e' troppo corta. */
+const SEARCH_WAIT = { timeout: 5000 };
+
 describe('MovementFormComponent', () => {
   async function setup(queryParams: Record<string, string> = {}) {
     const registerMovementBatch = vi.fn().mockReturnValue(of({ created: 1 }));
@@ -140,16 +143,21 @@ describe('MovementFormComponent', () => {
 
     const search = screen.getByLabelText('Cerca articolo per codice articolo, nome, SKU o EAN');
     await user.type(search, 'mag');
-    await user.click(await screen.findByRole('button', { name: /Aggiungi/ }));
+    // Fra il tasto e il risultato c'e' un debounce: il secondo di attesa
+    // predefinito basta a macchina scarica e non basta a suite piena.
+    await user.click(await screen.findByRole('button', { name: /Aggiungi/ }, SEARCH_WAIT));
 
     const quantity = screen.getByLabelText('Quantità per Maglietta / M / Rosso');
     expect(quantity).toHaveValue(1);
 
-    // L'aggiunta svuota la ricerca, ma la lista risultati si aggiorna solo dopo
-    // il debounce: digitare prima che sia svuotata comporrebbe «magmag».
-    await waitFor(() => expect(search).toHaveValue(''));
-    await user.type(search, 'mag');
-    await user.click(await screen.findByRole('button', { name: /Aggiungi/ }));
-    await waitFor(() => expect(quantity).toHaveValue(2));
+    // L'aggiunta svuota il campo. Il secondo termine e' DIVERSO dal primo di
+    // proposito: la ricerca passa da `distinctUntilChanged` dopo il debounce, e
+    // ricomporre «mag» prima che scatti farebbe collassare 'mag' → '' → 'mag'
+    // in una sola emissione — nessun aggiornamento della lista, e il click
+    // finirebbe sul bottone della ricerca precedente mentre viene smontato.
+    await waitFor(() => expect(search).toHaveValue(''), SEARCH_WAIT);
+    await user.type(search, 'maglietta');
+    await user.click(await screen.findByRole('button', { name: /Aggiungi/ }, SEARCH_WAIT));
+    await waitFor(() => expect(quantity).toHaveValue(2), SEARCH_WAIT);
   });
 });
