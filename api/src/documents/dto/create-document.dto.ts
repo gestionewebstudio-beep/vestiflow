@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsInt,
   IsISO8601,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -38,8 +39,14 @@ export class DocumentLineInputDto {
   @Min(0)
   quantity!: number;
 
+  /**
+   * Prezzo unitario NETTO in unità minori. Non intero (§sei decimali): quando
+   * la riga è stata digitata in modalità ivata, lo scorporo lascia una coda
+   * decimale — fino a 4 cifre di centesimo, quante ne tiene la colonna — ed è
+   * quella a far tornare il prezzo digitato alla riapertura del documento.
+   */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   unitPriceMinor?: number;
 

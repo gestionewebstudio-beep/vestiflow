@@ -28,7 +28,12 @@ import { LocationContextService } from '@core/services/location-context.service'
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { formatDate } from '@core/utils/date.util';
-import { formatMoney, moneyToDecimalString, parseMoneyInput } from '@core/utils/money.util';
+import {
+  formatMoney,
+  moneyToDecimalString,
+  parseMoneyInput,
+  toStorableMinor,
+} from '@core/utils/money.util';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -42,7 +47,7 @@ import {
   computeVatLineAmounts,
   entryIncludesVat,
   grossFromNetMinor,
-  netFromGrossMinor,
+  netFromGrossExact,
   vatInputFromLegacyRate,
   vatInputFromVatCode,
   type VatComputationInput,
@@ -734,7 +739,12 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         line.variantId === variantId
           ? {
               ...line,
-              unitPriceMinor: netFromGrossMinor(parsed.amountMinor, this.lineRate(line)),
+              // Scorporo ESATTO: il netto memorizzato porta la coda decimale, ed
+              // è quella a far tornare il prezzo digitato quando il campo lo
+              // rimostra ivato (§sei decimali).
+              unitPriceMinor: toStorableMinor(
+                netFromGrossExact(parsed.amountMinor, this.lineRate(line)),
+              ),
             }
           : line,
       ),

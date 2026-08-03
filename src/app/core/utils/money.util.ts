@@ -46,6 +46,10 @@ export function zeroMoney(currencyCode: CurrencyCode = DEFAULT_CURRENCY): Money 
  * Costruisce un Money da un valore in unità maggiori (es. 19.9 -> 1990).
  * Usa Math.round: adatto a costanti controllate (seed mock) e al ponte del form,
  * NON a parsing diretto di input utente (vedi parseMoneyInput).
+ *
+ * Se il valore può portare una coda decimale (netto scorporato da un ivato)
+ * questo è il ponte sbagliato: arrotonda, e la coda muore qui. Vedi
+ * `moneyFromMajorExact`.
  */
 export function moneyFromMajor(
   major: number,
@@ -53,6 +57,35 @@ export function moneyFromMajor(
 ): Money {
   const factor = 10 ** currencyDecimals(currencyCode);
   return { amountMinor: Math.round(major * factor), currencyCode };
+}
+
+/** Cifre di centesimo che una colonna `NUMERIC(16,6)` sa memorizzare. */
+const MINOR_TAIL_DECIMALS = 4;
+
+/**
+ * Riduce la coda decimale a quello che la colonna sa tenere: 4 cifre di
+ * centesimo, cioè 6 decimali di euro. NON è l'arrotondamento d'uscita — è la
+ * forma memorizzabile del valore esatto. Oltre quelle cifre non c'è precisione,
+ * c'è il rumore del float (`25 / 1.22` in binario non finisce mai), e il
+ * backend lo rifiuta.
+ */
+export function toStorableMinor(amountMinor: number): number {
+  const factor = 10 ** MINOR_TAIL_DECIMALS;
+  return Math.round(amountMinor * factor) / factor;
+}
+
+/**
+ * Ponte unità maggiori -> Money che CONSERVA la coda decimale. È quello da usare
+ * quando il valore nasce da uno scorporo IVA: 25,00 ivati al 22% valgono
+ * 2049,1803 centesimi netti, ed è quella coda a far tornare 25,00 quando il
+ * prezzo viene rimostrato ivato.
+ */
+export function moneyFromMajorExact(
+  major: number,
+  currencyCode: CurrencyCode = DEFAULT_CURRENCY,
+): Money {
+  const factor = 10 ** currencyDecimals(currencyCode);
+  return { amountMinor: toStorableMinor(major * factor), currencyCode };
 }
 
 /** Valore in unità maggiori (per formattazione e ponte del form). */

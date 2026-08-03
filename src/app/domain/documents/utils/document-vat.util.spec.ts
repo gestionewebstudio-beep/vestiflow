@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import { toStorableMinor } from '@core/utils/money.util';
+
 import {
   buildVatSummary,
   computeVatLineAmounts,
   entryIncludesVat,
   grossFromNetMinor,
+  netFromGrossExact,
   netFromGrossMinor,
   vatInputFromLegacyRate,
   type VatComputationInput,
@@ -208,5 +211,30 @@ describe('buildVatSummary', () => {
     expect(summary[0]?.code).toBe('10');
     expect(summary[1]?.netMinor).toBe(12000);
     expect(summary[1]?.vatMinor).toBe(2640);
+  });
+});
+
+describe('andata e ritorno del prezzo ivato (§sei decimali)', () => {
+  /** Quello che il gestionale memorizza quando il campo mostra l'ivato. */
+  const storedNet = (grossMinor: number, rate: number): number =>
+    toStorableMinor(netFromGrossExact(grossMinor, rate));
+
+  it('123,97 al 22% torna 123,97 — e col netto arrotondato tornerebbe 123,96', () => {
+    expect(grossFromNetMinor(storedNet(12397, 22), 22)).toBe(12397);
+    expect(grossFromNetMinor(netFromGrossMinor(12397, 22), 22)).toBe(12396);
+  });
+
+  it('nessun prezzo fino a 500,00 perde il centesimo, a nessuna aliquota', () => {
+    for (const rate of [4, 5, 10, 22]) {
+      for (let grossMinor = 1; grossMinor <= 50000; grossMinor++) {
+        if (grossFromNetMinor(storedNet(grossMinor, rate), rate) !== grossMinor) {
+          throw new Error(`${grossMinor} al ${rate}% non torna identico`);
+        }
+      }
+    }
+  });
+
+  it("all'operatore il netto memorizzato si mostra sempre a due decimali", () => {
+    expect(Math.round(storedNet(12397, 22))).toBe(10161);
   });
 });

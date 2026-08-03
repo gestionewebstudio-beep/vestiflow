@@ -115,12 +115,15 @@ export function netFromGrossMinor(grossMinor: number, ratePercent: number): numb
   return Math.round(netFromGrossExact(grossMinor, ratePercent));
 }
 
-/** Aggiunge l'IVA arrotondando al centesimo. Gemella di `netFromGrossMinor`. */
+/**
+ * Aggiunge l'IVA arrotondando al centesimo. Gemella di `netFromGrossMinor`.
+ *
+ * L'arrotondamento sta FUORI, sul lordo: sommare un'IVA già arrotondata a un
+ * netto con la coda decimale perde il centesimo del ritorno — 123,97 ivati al
+ * 22% tornerebbero 123,96. Su un netto intero le due forme coincidono.
+ */
 export function grossFromNetMinor(netMinor: number, ratePercent: number): number {
-  if (ratePercent <= 0) {
-    return netMinor;
-  }
-  return netMinor + Math.round((netMinor * ratePercent) / 100);
+  return Math.round(grossFromNetExact(netMinor, ratePercent));
 }
 
 export interface ComputeVatLineParams {

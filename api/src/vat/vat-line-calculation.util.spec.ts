@@ -4,7 +4,9 @@ import {
   buildVatSummary,
   computeVatLineAmounts,
   entryIncludesVat,
+  grossFromNetExact,
   grossFromNetMinor,
+  netFromGrossExact,
   netFromGrossMinor,
   type VatComputationInput,
 } from './vat-line-calculation.util';
@@ -220,5 +222,31 @@ describe('buildVatSummary (§10.2)', () => {
     expect(summary[1]?.netMinor).toBe(30000);
     expect(summary[1]?.vatMinor).toBe(6600);
     expect(summary[1]?.grossMinor).toBe(36600);
+  });
+});
+
+describe('andata e ritorno del prezzo ivato (§sei decimali)', () => {
+  // Specchio del test di `src/app/domain/documents/utils/document-vat.util.spec.ts`:
+  // le due implementazioni devono restare la stessa aritmetica.
+  const storedNet = (grossMinor: number, rate: number): number =>
+    Math.round(netFromGrossExact(grossMinor, rate) * 1e4) / 1e4;
+
+  it('123,97 al 22% torna 123,97 — e col netto arrotondato tornerebbe 123,96', () => {
+    expect(grossFromNetMinor(storedNet(12397, 22), 22)).toBe(12397);
+    expect(grossFromNetMinor(netFromGrossMinor(12397, 22), 22)).toBe(12396);
+  });
+
+  it('su un netto intero somma e arrotondamento esterno danno lo stesso lordo', () => {
+    for (let netMinor = 0; netMinor <= 20000; netMinor++) {
+      const legacy = netMinor + Math.round((netMinor * 22) / 100);
+      if (grossFromNetMinor(netMinor, 22) !== legacy) {
+        throw new Error(`${netMinor} diverge dalla forma precedente`);
+      }
+    }
+  });
+
+  it('con aliquota 0 il lordo resta il netto, coda compresa', () => {
+    expect(grossFromNetExact(2049.1803, 0)).toBe(2049.1803);
+    expect(grossFromNetMinor(2049.1803, 0)).toBe(2049);
   });
 });

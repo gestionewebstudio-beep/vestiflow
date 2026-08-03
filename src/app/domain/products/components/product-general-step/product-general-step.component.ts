@@ -19,7 +19,12 @@ import type { Subscription } from 'rxjs';
 import { PRODUCT_KIND_LABELS, ProductKind, ProductStatus } from '@core/models/product.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 import { formatVatRate, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
-import { DEFAULT_CURRENCY, moneyFromMajor, moneyToMajor } from '@core/utils/money.util';
+import {
+  DEFAULT_CURRENCY,
+  moneyFromMajorExact,
+  moneyToMajor,
+  roundToMinor,
+} from '@core/utils/money.util';
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
@@ -30,7 +35,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import {
   entryIncludesVat,
   grossFromNetMinor,
-  netFromGrossMinor,
+  netFromGrossExact,
   vatInputFromVatCode,
 } from '@domain/documents/utils/document-vat.util';
 
@@ -105,9 +110,11 @@ const PRICE_MODE_OPTIONS: readonly SegmentedOption[] = [
 ];
 
 // Ponte unità maggiori <-> minori: la conversione IVA lavora in centesimi, come
-// il backend, così l'arrotondamento è lo stesso ovunque.
+// il backend, così l'arrotondamento è lo stesso ovunque. Il ponte è quello
+// ESATTO: il netto scorporato da un ivato non è intero, e arrotondarlo qui
+// perderebbe la coda che lo fa tornare identico in ivato (§sei decimali).
 function majorToMinor(major: number): number {
-  return moneyFromMajor(major, DEFAULT_CURRENCY).amountMinor;
+  return moneyFromMajorExact(major, DEFAULT_CURRENCY).amountMinor;
 }
 
 function minorToMajor(minor: number): number {
@@ -603,15 +610,22 @@ export class ProductGeneralStepComponent implements OnInit {
     if (!this.pricesIncludeVat() || rate <= 0) {
       return displayed;
     }
-    return minorToMajor(netFromGrossMinor(majorToMinor(displayed), rate));
+    // Scorporo ESATTO: è il valore che viene memorizzato, e la coda decimale è
+    // ciò che lo fa tornare identico quando il campo torna a mostrare l'ivato.
+    return minorToMajor(netFromGrossExact(majorToMinor(displayed), rate));
   }
 
+  /**
+   * Netto memorizzato → numero da mettere nel campo. È un punto di USCITA: due
+   * decimali, sempre. Anche in modalità netta, dove non c'è conversione da fare
+   * ma il netto può portare la coda di uno scorporo precedente.
+   */
   private toDisplayed(net: number | null, includeVat: boolean, rate: number): number | null {
     if (net == null) {
       return null;
     }
     if (!includeVat || rate <= 0) {
-      return net;
+      return minorToMajor(roundToMinor(majorToMinor(net)));
     }
     return minorToMajor(grossFromNetMinor(majorToMinor(net), rate));
   }

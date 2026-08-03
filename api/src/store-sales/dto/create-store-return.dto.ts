@@ -5,6 +5,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -30,9 +31,13 @@ export class StoreReturnLineInputDto {
   @IsBoolean()
   restockable!: boolean;
 
-  /** Prezzo unitario rimborsato (unità minori), opzionale per registro. */
+  /**
+   * Prezzo unitario rimborsato in unità minori, opzionale per registro. È il
+   * netto della vendita originale, quindi può portarne la coda decimale
+   * (§sei decimali): il reso rende esattamente quello che la vendita ha preso.
+   */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   unitPriceMinor?: number;
 }

@@ -344,17 +344,20 @@ describe('StoreSaleRegisterComponent', () => {
     // Totale riga e totale di cassa: entrambi il lordo che il cliente paga.
     expect(screen.getAllByText(/24,28/).length).toBeGreaterThan(0);
 
-    // L'operatore arrotonda a 25,00 al banco: al server va il netto scorporato.
+    // L'operatore arrotonda a 25,00 al banco: al server va il netto scorporato,
+    // con la coda decimale (§sei decimali) — è quella a far tornare 25,00 nel
+    // campo, che infatti resta 25,00 e non 24,99.
     await user.clear(price);
     await user.type(price, '25,00');
     await user.tab();
+    expect(price.value).toBe('25,00');
 
     const component = fixture.componentInstance as unknown as { concludeSale(): void };
     component.concludeSale();
 
     expect(createSale).toHaveBeenCalledWith(
       expect.objectContaining({
-        lines: [expect.objectContaining({ unitPriceMinor: 2049 })],
+        lines: [expect.objectContaining({ unitPriceMinor: 2049.1803 })],
       }),
     );
   });

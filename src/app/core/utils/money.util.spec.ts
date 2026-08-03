@@ -7,10 +7,12 @@ import {
   formatMoney,
   isValidCompareAt,
   moneyFromMajor,
+  moneyFromMajorExact,
   moneyToDecimalString,
   moneyToMajor,
   parseMoneyInput,
   sameCurrency,
+  toStorableMinor,
   zeroMoney,
 } from './money.util';
 
@@ -143,5 +145,29 @@ describe('sameCurrency / isValidCompareAt', () => {
     expect(isValidCompareAt(price, { amountMinor: 1990, currencyCode: 'EUR' })).toBe(false);
     expect(isValidCompareAt(price, { amountMinor: 1490, currencyCode: 'EUR' })).toBe(false);
     expect(isValidCompareAt(price, { amountMinor: 2990, currencyCode: 'USD' })).toBe(false);
+  });
+});
+
+describe('toStorableMinor / moneyFromMajorExact (§sei decimali)', () => {
+  it('tiene 4 cifre di centesimo e butta il rumore del float', () => {
+    // 25,00 ivati al 22%: il netto in binario non finisce mai, la colonna
+    // NUMERIC(16,6) ne tiene quattro cifre di centesimo.
+    expect(toStorableMinor(2500 / 1.22)).toBe(2049.1803);
+    expect(toStorableMinor(1989.9999999999998)).toBe(1990);
+  });
+
+  it('non tocca gli importi gia interi', () => {
+    expect(toStorableMinor(1990)).toBe(1990);
+    expect(toStorableMinor(0)).toBe(0);
+  });
+
+  it('moneyFromMajorExact conserva la coda che moneyFromMajor arrotonda', () => {
+    expect(moneyFromMajorExact(20.491803).amountMinor).toBe(2049.1803);
+    expect(moneyFromMajor(20.491803).amountMinor).toBe(2049);
+  });
+
+  it('sui prezzi digitati a due decimali i due ponti coincidono', () => {
+    expect(moneyFromMajorExact(19.9)).toEqual(moneyFromMajor(19.9));
+    expect(moneyFromMajorExact(0.05)).toEqual(moneyFromMajor(0.05));
   });
 });

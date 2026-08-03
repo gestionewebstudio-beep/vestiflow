@@ -66,6 +66,7 @@ import {
   formatMoney,
   moneyToDecimalString,
   parseMoneyInput,
+  toStorableMinor,
 } from '@core/utils/money.util';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
@@ -87,7 +88,11 @@ import {
   type IncludedDocumentPayload,
 } from '@domain/documents/models/document-include.util';
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
-import { grossFromNetMinor, netFromGrossMinor } from '@domain/documents/utils/document-vat.util';
+import {
+  grossFromNetMinor,
+  netFromGrossExact,
+  netFromGrossMinor,
+} from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
@@ -2286,10 +2291,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return vatCode && vatCode.calculationMode === 'standard' ? vatCode.ratePercent : 0;
   }
 
-  /** Valore digitato nella modalità corrente → netto da memorizzare. */
+  /**
+   * Valore digitato nella modalità corrente → netto da MEMORIZZARE, quindi
+   * scorporato ESATTAMENTE: 123,97 ivati al 22% non hanno un netto intero, e
+   * arrotondarlo qui li farebbe tornare 123,96 alla riapertura (§sei decimali).
+   */
   private netFromDisplayed(minor: number, ratePercent: number): number {
     return this.pricesIncludeVat() && ratePercent > 0
-      ? netFromGrossMinor(minor, ratePercent)
+      ? toStorableMinor(netFromGrossExact(minor, ratePercent))
       : minor;
   }
 

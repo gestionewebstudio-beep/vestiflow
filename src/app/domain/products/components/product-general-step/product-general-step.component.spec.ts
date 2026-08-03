@@ -196,6 +196,37 @@ describe('ProductGeneralStepComponent', () => {
       expect(lastCall?.listino1Price).toBe(100);
     });
 
+    it('un prezzo ivato torna identico dopo un giro netti → ivati', async () => {
+      // Regola di accettazione (§sei decimali): 123,97 al 22% ha un netto che in
+      // unità minori NON è intero (10161,4754). Memorizzarlo arrotondato a 10161
+      // lo farebbe tornare 123,96: il centesimo si perde qui, non altrove.
+      const user = userEvent.setup();
+      const onChange = vi.fn<(value: ProductGeneralDraft) => void>();
+      const { fixture } = await renderStep({
+        value: EMPTY_GENERAL,
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22],
+        tenantDefaultVatCodeId: VAT_22.id,
+        pricesIncludeVat: true,
+      });
+      fixture.componentInstance.valueChange.subscribe(onChange);
+      await fixture.whenStable();
+
+      const price = screen.getByLabelText('Prezzo articolo');
+      await user.clear(price);
+      await user.type(price, '123.97');
+      expect(onChange.mock.calls.at(-1)?.[0].sellingPrice).toBeCloseTo(101.614754, 6);
+
+      // A schermo il netto resta a due decimali: la coda è del dato, non della vista.
+      fixture.componentRef.setInput('pricesIncludeVat', false);
+      await fixture.whenStable();
+      expect(price).toHaveValue(101.61);
+
+      fixture.componentRef.setInput('pricesIncludeVat', true);
+      await fixture.whenStable();
+      expect(price).toHaveValue(123.97);
+    });
+
     it('senza aliquota il toggle non compare: non c è nulla da scorporare', async () => {
       await renderStep({
         value: EMPTY_GENERAL,

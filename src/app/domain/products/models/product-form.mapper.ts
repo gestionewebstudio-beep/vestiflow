@@ -3,7 +3,15 @@ import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import type { Money } from '@core/models/common.model';
 import type { Product } from '@core/models/product.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
-import { DEFAULT_CURRENCY, moneyFromMajor, moneyToMajor } from '@core/utils/money.util';
+// Due ponti, non uno: `moneyFromMajorExact` per i prezzi (colonne a sei
+// decimali, dove la coda di uno scorporo IVA deve arrivare intera),
+// `moneyFromMajor` per costo e barrato, che restano interi in unità minori.
+import {
+  DEFAULT_CURRENCY,
+  moneyFromMajor,
+  moneyFromMajorExact,
+  moneyToMajor,
+} from '@core/utils/money.util';
 
 import type {
   CreateProductDto,
@@ -259,10 +267,10 @@ function toVariantBase(variant: VariantDraft): CreateProductVariantDto {
       name: option.name,
       value: option.value,
     })),
-    sellingPrice: moneyFromMajor(variant.sellingPrice, DEFAULT_CURRENCY),
+    sellingPrice: moneyFromMajorExact(variant.sellingPrice, DEFAULT_CURRENCY),
     // Prezzo Shopify variante: sempre inviato (il backend lo usa con Shopify
     // attivo, lo ignora a Shopify spento applicando la propria regola di follow).
-    shopifyPrice: moneyFromMajor(variant.shopifyPrice, DEFAULT_CURRENCY),
+    shopifyPrice: moneyFromMajorExact(variant.shopifyPrice, DEFAULT_CURRENCY),
     purchasePrice:
       variant.purchasePrice != null
         ? moneyFromMajor(variant.purchasePrice, DEFAULT_CURRENCY)
@@ -292,7 +300,7 @@ function formatTagsInput(tags: readonly string[] | undefined): string {
 
 /** Listino del draft -> Money netto, `null` se il campo è stato svuotato. */
 function listinoMoney(value: number | null): Money | null {
-  return value != null ? moneyFromMajor(value, DEFAULT_CURRENCY) : null;
+  return value != null ? moneyFromMajorExact(value, DEFAULT_CURRENCY) : null;
 }
 
 function generalToDto(
@@ -307,9 +315,9 @@ function generalToDto(
     // Prezzo/costo a livello articolo (ponte unità maggiori -> Money). Il prezzo
     // di vendita è sempre inviato; barrato e costo di riferimento solo se
     // valorizzati (null nel draft = assente).
-    sellingPrice: moneyFromMajor(general.sellingPrice, DEFAULT_CURRENCY),
+    sellingPrice: moneyFromMajorExact(general.sellingPrice, DEFAULT_CURRENCY),
     // Prezzo Shopify articolo: sempre inviato (backend autoritativo, vedi sopra).
-    shopifyPrice: moneyFromMajor(general.shopifyPrice, DEFAULT_CURRENCY),
+    shopifyPrice: moneyFromMajorExact(general.shopifyPrice, DEFAULT_CURRENCY),
     compareAtPrice:
       general.compareAtPrice != null
         ? moneyFromMajor(general.compareAtPrice, DEFAULT_CURRENCY)
@@ -362,7 +370,7 @@ function isSimpleProductDraft(draft: ProductFormDraft): boolean {
 function articleSellingMoney(
   general: ProductGeneralDraft,
 ): CreateProductVariantDto['sellingPrice'] {
-  return moneyFromMajor(general.sellingPrice, DEFAULT_CURRENCY);
+  return moneyFromMajorExact(general.sellingPrice, DEFAULT_CURRENCY);
 }
 
 /** Costo di riferimento dell'articolo come Money (null nel draft = assente). */
@@ -378,7 +386,7 @@ function articlePurchaseMoney(
 function articleShopifyMoney(
   general: ProductGeneralDraft,
 ): CreateProductVariantDto['shopifyPrice'] {
-  return moneyFromMajor(general.shopifyPrice, DEFAULT_CURRENCY);
+  return moneyFromMajorExact(general.shopifyPrice, DEFAULT_CURRENCY);
 }
 
 /**

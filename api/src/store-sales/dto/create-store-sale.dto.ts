@@ -6,6 +6,7 @@ import {
   IsIn,
   IsInt,
   IsISO8601,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -27,8 +28,15 @@ export class StoreSaleLineInputDto {
   @Min(1)
   quantity!: number;
 
-  /** Prezzo unitario applicato in cassa (unità minori, IVA inclusa). */
-  @IsInt()
+  /**
+   * Prezzo unitario applicato in cassa, NETTO in unità minori: al banco si vede
+   * e si digita l'ivato, ma quello che arriva qui è già scorporato.
+   *
+   * Non intero (§sei decimali): lo scorporo lascia una coda decimale — fino a 4
+   * cifre di centesimo, quante ne tiene la colonna — ed è quella a far tornare
+   * il prezzo digitato quando la riga viene rimostrata ivata.
+   */
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   unitPriceMinor!: number;
 
