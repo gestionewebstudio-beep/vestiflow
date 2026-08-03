@@ -132,6 +132,34 @@ export class CreateProductDto {
   @Type(() => MoneyDto)
   purchasePrice?: MoneyDto;
 
+  // ── Listini aggiuntivi (§B): SOLO articolo, valore unico per tutte le varianti.
+  // Sempre memorizzati NETTI (forma canonica dei consumatori). Assenti = non
+  // valorizzati. Il toggle netto/ivato dell'anagrafica lavora in UI: qui arriva
+  // gia' scorporato al netto.
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  listino1Price?: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  listino2Price?: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  listino3Price?: MoneyDto;
+
+  /**
+   * Modalità netto/ivato della sezione Listini al salvataggio (memoria di
+   * display per-articolo: alla riapertura la scheda si mostra nella stessa
+   * modalità). NON cambia la forma memorizzata, sempre netta.
+   */
+  @IsOptional()
+  @IsBoolean()
+  listinoPricesIncludeVat?: boolean;
+
   @IsOptional()
   @IsString()
   @MaxLength(2000)

@@ -64,6 +64,29 @@ export class UpdateProductDto {
   @Type(() => MoneyDto)
   purchasePrice?: MoneyDto;
 
+  // ── Listini aggiuntivi (§B): sempre netti (forma canonica). La presenza di
+  // listinoPricesIncludeVat segnala che il form ha inviato la sezione Listini:
+  // in quel caso i listino assenti valgono "azzera" (null).
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  listino1Price?: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  listino2Price?: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  listino3Price?: MoneyDto;
+
+  /** Modalità netto/ivato della sezione Listini (memoria display per-articolo). */
+  @IsOptional()
+  @IsBoolean()
+  listinoPricesIncludeVat?: boolean;
+
   @IsOptional()
   @IsString()
   @MaxLength(2000)

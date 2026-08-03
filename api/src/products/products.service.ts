@@ -432,6 +432,11 @@ export class ProductsService {
           shopifyPriceMinor: dto.shopifyPrice?.amountMinor ?? dto.sellingPrice.amountMinor,
           compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
           purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
+          // Listini aggiuntivi (§B): netti, valore unico articolo. Assenti = null.
+          listino1PriceMinor: dto.listino1Price?.amountMinor ?? null,
+          listino2PriceMinor: dto.listino2Price?.amountMinor ?? null,
+          listino3PriceMinor: dto.listino3Price?.amountMinor ?? null,
+          listinoPricesIncludeVat: dto.listinoPricesIncludeVat ?? undefined,
           inventoryTracking: dto.inventoryTracking ?? undefined,
           managesStock: dto.managesStock ?? true,
           kind: dto.kind ?? undefined,
@@ -523,6 +528,11 @@ export class ProductsService {
         shopifyPriceMinor: original.shopifyPriceMinor,
         compareAtPriceMinor: original.compareAtPriceMinor,
         purchasePriceMinor: original.purchasePriceMinor,
+        // Listini aggiuntivi + modalità display: copiati tali e quali (netti).
+        listino1PriceMinor: original.listino1PriceMinor,
+        listino2PriceMinor: original.listino2PriceMinor,
+        listino3PriceMinor: original.listino3PriceMinor,
+        listinoPricesIncludeVat: original.listinoPricesIncludeVat,
         inventoryTracking: original.inventoryTracking,
         managesStock: original.managesStock,
         kind: original.kind,
@@ -644,6 +654,17 @@ export class ProductsService {
                   : dto.sellingPrice.amountMinor !== existing.sellingPriceMinor
                     ? { shopifyPriceMinor: dto.sellingPrice.amountMinor }
                     : {}),
+              }
+            : {}),
+          // Listini aggiuntivi (§B): la presenza del flag modalità segnala che il
+          // form ha inviato la sezione Listini. I listino assenti valgono
+          // "azzera" (null). Sempre netti (il frontend scorpora prima di inviare).
+          ...(dto.listinoPricesIncludeVat !== undefined
+            ? {
+                listinoPricesIncludeVat: dto.listinoPricesIncludeVat,
+                listino1PriceMinor: dto.listino1Price?.amountMinor ?? null,
+                listino2PriceMinor: dto.listino2Price?.amountMinor ?? null,
+                listino3PriceMinor: dto.listino3Price?.amountMinor ?? null,
               }
             : {}),
           ...(dto.shopifyTaxonomyCategoryId !== undefined

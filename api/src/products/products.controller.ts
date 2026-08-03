@@ -46,6 +46,7 @@ import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { ListVariantSummariesQueryDto } from './dto/list-variant-summaries.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductMediaService } from './product-media.service';
+import { ProductPriceModePreferenceService } from './product-price-mode-preference.service';
 import { ProductsExportService } from './products-export.service';
 import { ProductsImportService } from './products-import.service';
 import { ProductsService, type ProductWithVariants } from './products.service';
@@ -104,6 +105,7 @@ export class ProductsController {
     private readonly productsExport: ProductsExportService,
     private readonly suppliers: SuppliersService,
     private readonly skuGenerator: SkuGeneratorService,
+    private readonly priceModePreference: ProductPriceModePreferenceService,
   ) {}
 
   @Get()
@@ -261,6 +263,24 @@ export class ProductsController {
     return this.suppliers.listVariantLinksByProduct(tenantId, id);
   }
 
+  /**
+   * Modalità prezzo (netto/ivato) della sezione Listini da proporre a un articolo
+   * nuovo: preferenza ricordata dell'operatore ?? primo utilizzo (ivato).
+   * Rotta statica: DEVE precedere `@Get(':id')`, altrimenti `:id` la cattura.
+   */
+  @Get('price-mode-preference')
+  @RequirePermissions(TenantPermission.CatalogManage)
+  async getPriceModePreference(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+  ): Promise<{ pricesIncludeVat: boolean }> {
+    const pricesIncludeVat = await this.priceModePreference.resolvePricesIncludeVat(
+      tenantId,
+      user.id,
+    );
+    return { pricesIncludeVat };
+  }
+
   @Get(':id')
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   getById(
@@ -272,11 +292,17 @@ export class ProductsController {
 
   @Post()
   @RequirePermissions(TenantPermission.CatalogManage)
-  create(
+  async create(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Body() dto: CreateProductDto,
   ): Promise<ProductWithVariants> {
-    return this.products.create(tenantId, dto);
+    const product = await this.products.create(tenantId, dto);
+    // Ricorda la modalità Listini scelta (solo alla creazione, come i documenti).
+    if (dto.listinoPricesIncludeVat !== undefined) {
+      await this.priceModePreference.remember(tenantId, user.id, dto.listinoPricesIncludeVat);
+    }
+    return product;
   }
 
   @Patch(':id')

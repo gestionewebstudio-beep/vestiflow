@@ -25,6 +25,10 @@ describe('ProductsController', () => {
   const productsImport = { previewCsv: vi.fn(), importCsv: vi.fn() };
   const productsExport = { exportCsv: vi.fn().mockResolvedValue('name,sku\n') };
   const skuGenerator = { previewSku: vi.fn() };
+  const priceModePreference = {
+    resolvePricesIncludeVat: vi.fn().mockResolvedValue(true),
+    remember: vi.fn().mockResolvedValue(undefined),
+  };
 
   const controller = new ProductsController(
     products as unknown as ProductsService,
@@ -33,6 +37,7 @@ describe('ProductsController', () => {
     productsExport as unknown as ProductsExportService,
     {} as never,
     skuGenerator as unknown as SkuGeneratorService,
+    priceModePreference as never,
   );
 
   it('list delega al service', async () => {
@@ -117,9 +122,24 @@ describe('ProductsController', () => {
     const dto = { name: 'Nuovo', status: 'active', options: [], variants: [] };
     products.create.mockResolvedValue({ id: 'prod-new' });
 
-    await controller.create(tenantId, dto as never);
+    await controller.create(tenantId, { id: 'user-1' } as never, dto as never);
 
     expect(products.create).toHaveBeenCalledWith(tenantId, dto);
+  });
+
+  it('create ricorda la modalità Listini scelta (solo su create)', async () => {
+    const dto = {
+      name: 'Nuovo',
+      status: 'active',
+      options: [],
+      variants: [],
+      listinoPricesIncludeVat: false,
+    };
+    products.create.mockResolvedValue({ id: 'prod-new' });
+
+    await controller.create(tenantId, { id: 'user-1' } as never, dto as never);
+
+    expect(priceModePreference.remember).toHaveBeenCalledWith(tenantId, 'user-1', false);
   });
 
   it('exportCsv restituisce StreamableFile', async () => {

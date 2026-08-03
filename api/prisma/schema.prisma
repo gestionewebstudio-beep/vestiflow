@@ -362,6 +362,7 @@ model Tenant {
   inventorySerials        InventorySerial[]
   userTableViewPreferences UserTableViewPreference[]
   userDocumentPriceModePreferences UserDocumentPriceModePreference[]
+  userProductPriceModePreferences  UserProductPriceModePreference[]
   documentSequences       DocumentSequence[]
   documentTypeSettings    DocumentTypeSetting[]
   documentCounters        DocumentCounter[]
@@ -412,6 +413,7 @@ model User {
   supportSessionsAsOperator SupportSession[] @relation("SupportSessionOperator")
   tableViewPreferences      UserTableViewPreference[]
   documentPriceModePreferences UserDocumentPriceModePreference[]
+  productPriceModePreferences  UserProductPriceModePreference[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -2387,4 +2389,24 @@ model UserDocumentPriceModePreference {
   @@unique([tenantId, userId, documentType], map: "user_doc_price_mode_pref_tenant_user_type_key")
   @@index([tenantId, userId], map: "user_doc_price_mode_pref_tenant_user_idx")
   @@map("user_document_price_mode_preferences")
+}
+
+/// Preferenza operatore della modalità prezzo (netto/ivato) della sezione Listini
+/// in anagrafica articolo. Stessa logica di UserDocumentPriceModePreference:
+/// ricordata al salvataggio di un articolo, riproposta alla creazione del
+/// successivo, per (tenant, utente). Primo utilizzo: ivato. La modifica di un
+/// articolo esistente NON aggiorna la preferenza: solo la creazione lo fa.
+model UserProductPriceModePreference {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  pricesIncludeVat Boolean  @map("prices_include_vat")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId], map: "user_product_price_mode_pref_tenant_user_key")
+  @@index([tenantId, userId], map: "user_product_price_mode_pref_tenant_user_idx")
+  @@map("user_product_price_mode_preferences")
 }
