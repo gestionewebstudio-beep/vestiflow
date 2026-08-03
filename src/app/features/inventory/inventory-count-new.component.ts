@@ -1,11 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -38,6 +40,7 @@ import { InventoryService } from '@domain/inventory/services/inventory.service';
   styleUrl: './inventory-count-new.component.scss',
 })
 export class InventoryCountNewComponent {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly inventoryService = inject(InventoryService);
   private readonly operationalLocations = inject(OperationalLocationsService);
@@ -131,6 +134,7 @@ export class InventoryCountNewComponent {
           );
           return of(null);
         }),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((session) => {
         if (session) {

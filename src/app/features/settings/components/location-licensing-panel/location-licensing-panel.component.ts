@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
@@ -8,6 +9,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { isAppError } from '@core/models/app-error.model';
 import type { Location } from '@core/models/location.model';
@@ -29,6 +31,7 @@ import { InventoryService } from '@domain/inventory/services/inventory.service';
   styleUrl: './location-licensing-panel.component.scss',
 })
 export class LocationLicensingPanelComponent {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly inventory = inject(InventoryService);
 
   readonly locations = input.required<readonly Location[]>();
@@ -121,17 +124,20 @@ export class LocationLicensingPanelComponent {
     this.submitLoading.set(true);
     this.submitError.set(null);
 
-    this.inventory.setLicensedLocations(ids).subscribe({
-      next: () => {
-        this.submitLoading.set(false);
-        this.saved.emit();
-      },
-      error: (err: unknown) => {
-        this.submitLoading.set(false);
-        this.submitError.set(
-          isAppError(err) ? err.message : 'Salvataggio sedi non riuscito. Riprova.',
-        );
-      },
-    });
+    this.inventory
+      .setLicensedLocations(ids)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.submitLoading.set(false);
+          this.saved.emit();
+        },
+        error: (err: unknown) => {
+          this.submitLoading.set(false);
+          this.submitError.set(
+            isAppError(err) ? err.message : 'Salvataggio sedi non riuscito. Riprova.',
+          );
+        },
+      });
   }
 }

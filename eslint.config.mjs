@@ -80,7 +80,13 @@ export default tseslint.config(
       // ── RxJS (igiene observable) ─────────────────────────────────────
       'rxjs/no-ignored-replay-buffer': 'error',
       'rxjs/no-unsafe-takeuntil': 'error',
-      'rxjs/no-ignored-subscription': 'warn',
+      // 'rxjs/no-ignored-subscription' e' stata rimossa: chiedeva la cosa
+      // giusta con il criterio sbagliato — pretende che il valore di ritorno
+      // di subscribe() sia assegnato, e non conosce takeUntilDestroyed(). Su
+      // questo progetto segnalava 218 casi di cui 203 corretti, e un rapporto
+      // cosi' non rende un controllo severo: lo rende illeggibile. Il criterio
+      // vero (in un componente la sottoscrizione deve avere una via d'uscita)
+      // vive in scripts/check-subscriptions.mjs, dentro `npm run lint`.
     },
   },
 

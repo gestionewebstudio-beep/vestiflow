@@ -1310,6 +1310,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .pipe(
         take(1),
         catchError(() => of([] as readonly VariantSummary[])),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((results) => {
         const matches = this.filterLookupMatches(results, value, field);
@@ -3219,6 +3220,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         // Fallback proprio dell'Arrivo merce: SKU fornitore → variante nota.
         localFallback: (value) => this.variantIdBySupplierSku().get(normalizeSku(value)),
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (variantId) => {
           this.barcodeScanBusy.set(false);

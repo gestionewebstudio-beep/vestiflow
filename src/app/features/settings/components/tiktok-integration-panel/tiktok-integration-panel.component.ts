@@ -143,49 +143,58 @@ export class TikTokIntegrationPanelComponent {
     this.connectLoading.set(true);
     this.connectError.set(null);
 
-    this.tiktokConnectionService.beginAuth().subscribe({
-      next: ({ authorizeUrl }) => {
-        this.connectLoading.set(false);
-        window.location.assign(authorizeUrl);
-      },
-      error: (err: unknown) => {
-        this.connectLoading.set(false);
-        this.connectError.set(this.mapActionError(err));
-      },
-    });
+    this.tiktokConnectionService
+      .beginAuth()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ authorizeUrl }) => {
+          this.connectLoading.set(false);
+          window.location.assign(authorizeUrl);
+        },
+        error: (err: unknown) => {
+          this.connectLoading.set(false);
+          this.connectError.set(this.mapActionError(err));
+        },
+      });
   }
 
   protected disconnectTikTok(): void {
     this.disconnectLoading.set(true);
     this.connectError.set(null);
 
-    this.tiktokConnectionService.disconnect().subscribe({
-      next: () => {
-        this.disconnectLoading.set(false);
-        this.tiktokBanner.set('disconnected');
-        this.reloadConnection();
-      },
-      error: (err: unknown) => {
-        this.disconnectLoading.set(false);
-        this.connectError.set(this.mapActionError(err));
-      },
-    });
+    this.tiktokConnectionService
+      .disconnect()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.disconnectLoading.set(false);
+          this.tiktokBanner.set('disconnected');
+          this.reloadConnection();
+        },
+        error: (err: unknown) => {
+          this.disconnectLoading.set(false);
+          this.connectError.set(this.mapActionError(err));
+        },
+      });
   }
 
   protected clearTikTokErrors(): void {
     this.clearErrorsLoading.set(true);
     this.connectError.set(null);
 
-    this.tiktokConnectionService.clearErrors().subscribe({
-      next: () => {
-        this.clearErrorsLoading.set(false);
-        this.reloadConnection();
-      },
-      error: (err: unknown) => {
-        this.clearErrorsLoading.set(false);
-        this.connectError.set(this.mapActionError(err));
-      },
-    });
+    this.tiktokConnectionService
+      .clearErrors()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.clearErrorsLoading.set(false);
+          this.reloadConnection();
+        },
+        error: (err: unknown) => {
+          this.clearErrorsLoading.set(false);
+          this.connectError.set(this.mapActionError(err));
+        },
+      });
   }
 
   protected dismissBanner(): void {
@@ -194,16 +203,19 @@ export class TikTokIntegrationPanelComponent {
 
   private handleOAuthReturn(result: TikTokBanner): void {
     if (result === 'connected') {
-      this.tiktokConnectionService.getConnection().subscribe({
-        next: (connection) => {
-          this.tiktokBanner.set(connection.lastError ? 'connected-warn' : 'connected');
-          this.reloadConnection();
-        },
-        error: () => {
-          this.tiktokBanner.set('connected');
-          this.reloadConnection();
-        },
-      });
+      this.tiktokConnectionService
+        .getConnection()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (connection) => {
+            this.tiktokBanner.set(connection.lastError ? 'connected-warn' : 'connected');
+            this.reloadConnection();
+          },
+          error: () => {
+            this.tiktokBanner.set('connected');
+            this.reloadConnection();
+          },
+        });
       return;
     }
 
@@ -213,16 +225,19 @@ export class TikTokIntegrationPanelComponent {
       return;
     }
 
-    this.tiktokConnectionService.getConnection().subscribe({
-      next: (connection) => {
-        this.tiktokBanner.set(connection.lastError ? 'connected-warn' : 'connected');
-        this.reloadConnection();
-      },
-      error: () => {
-        this.tiktokBanner.set('error');
-        this.reloadConnection();
-      },
-    });
+    this.tiktokConnectionService
+      .getConnection()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (connection) => {
+          this.tiktokBanner.set(connection.lastError ? 'connected-warn' : 'connected');
+          this.reloadConnection();
+        },
+        error: () => {
+          this.tiktokBanner.set('error');
+          this.reloadConnection();
+        },
+      });
   }
 
   private connectionErrorToState(err: unknown): ConnectionState {

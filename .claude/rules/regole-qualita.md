@@ -108,7 +108,7 @@ npx lint-staged
 ```
 
 - Hook `commit-msg`: valida il messaggio con `@commitlint/cli` (vedi sezione Commit).
-- Hook `pre-push`: esegue `npm run test:unit` e `npm run build` per evitare push rotti.
+- Hook `pre-push`: esegue `npm run test:everything` e `npm run build` per evitare push rotti.
 
 ---
 
@@ -176,6 +176,22 @@ describe('formatPrice', () => {
 - Copertura minima: gli **happy path** delle 3-5 user journey più critiche (es. login, creazione prodotto con varianti, registrazione carico, emissione documento di vendita).
 - E2E gira in CI su PR critiche e su deploy in staging.
 - Mai test E2E che dipendono da dati esterni reali: usa fixture o ambiente dedicato.
+
+## Come sono divisi gli script di test
+
+| script            | cosa fa                                                          |
+| ----------------- | ---------------------------------------------------------------- |
+| `test`            | esegue tutti i test del frontend e dice se passano. Nient'altro. |
+| `test:watch`      | lo stesso, in watch, per lavorarci                               |
+| `test:coverage`   | **il gate di copertura**: soglie 80/75 sul codice non-componente |
+| `test:components` | i soli test di componente, senza copertura                       |
+| `test:everything` | i tre sopra più l'API — è quello che gira al push                |
+
+La soglia di copertura si applica a service, util, pipe e validator, non ai
+componenti: quelli sono coperti da test di comportamento, dove un numero di
+righe eseguite dice poco. Misurarla sull'unione dei due mondi darebbe un 55%
+che non significa niente e farebbe fallire per sempre il comando più ovvio —
+che è il modo migliore per insegnare a ignorarlo.
 
 ## Coverage Reporting
 
@@ -254,7 +270,7 @@ Una pipeline CI deve eseguire (in ordine, fail-fast):
 1. **Install**: `npm ci` (riproducibilità dal lockfile).
 2. **Lint**: `npm run lint`.
 3. **Type-check**: `tsc --noEmit` (se non già coperto da `ng build`).
-4. **Test unit/component**: `npm run test -- --watch=false --browsers=ChromeHeadless` (o `vitest run`).
+4. **Test unit/component**: `npm run test:everything` (è quello che gira anche al push).
 5. **Build**: `npm run build` con `--configuration=production`.
 6. **E2E** (su PR/staging): `npm run e2e:headless`.
 7. **Lighthouse CI** (su PR/staging): `npm run audit:lhci`.
@@ -310,7 +326,7 @@ Per architetture non banali (> 1 service, decisioni di design discutibili): cart
 Prima di un release in produzione:
 
 - [ ] `npm run lint` pulito
-- [ ] `npm run test` verde (unit + component)
+- [ ] `npm run test:everything` verde (unit, component, API)
 - [ ] `npm run e2e` verde sui happy path
 - [ ] `npm run build` senza warning di budget
 - [ ] Lighthouse CI ≥ soglie configurate
