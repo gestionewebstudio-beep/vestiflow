@@ -89,6 +89,40 @@ describe('UserTableViewsService', () => {
     ).resolves.toEqual(saved);
   });
 
+  // Le dodici viste che l'API non conosceva rispondevano 400 anche al PUT: le
+  // preferenze colonne di quelle tabelle non venivano mai salvate, in silenzio.
+  it.each([
+    'quote_documents_list',
+    'proforma_documents_list',
+    'sales_ddt_documents_list',
+    'manual_unload_documents_list',
+    'invoice_draft_documents_list',
+    'purchase_invoice_documents_list',
+    'store_sale_documents_list',
+    'quote_lines',
+    'sales_ddt_lines',
+    'manual_unload_lines',
+    'sales_orders_list',
+    'shopify_orders_list',
+  ])('upsertTableView accetta la vista %s', async (view) => {
+    const prisma = {
+      userTableViewPreference: {
+        findUnique: vi.fn(),
+        upsert: vi.fn().mockResolvedValue({ id: 'pref-1', stateJson: '{}' }),
+      },
+    };
+    const service = new UserTableViewsService(prisma as unknown as PrismaService);
+
+    await service.upsertTableView(
+      tenantId,
+      userId,
+      view,
+      '{"presetId":"default","columnOrder":[],"hiddenColumnIds":[],"pinnedColumnIds":[]}',
+    );
+
+    expect(prisma.userTableViewPreference.upsert).toHaveBeenCalled();
+  });
+
   it('upsertTableView rifiuta viewId non valido', async () => {
     const prisma = {
       userTableViewPreference: {
