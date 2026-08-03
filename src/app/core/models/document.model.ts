@@ -11,9 +11,12 @@ import type { PurchaseCostEntryMode, VatSnapshot } from './vat-code.model';
 /** Tipo di documento gestionale (§2.1 piano funzionale). */
 export const DocumentType = {
   SupplierOrder: 'supplier_order',
+  /**
+   * Arrivo merce: l'UNICO carico da fornitore. Che la merce arrivasse con un
+   * DDT, una fattura o un reso è un dato a parte (tipo documento fornitore, in
+   * `ExternalDocumentType`) che compone la causale: non fa un documento diverso.
+   */
   GoodsReceipt: 'goods_receipt',
-  SupplierDdt: 'supplier_ddt',
-  SupplierInvoiceAccompanying: 'supplier_invoice_accompanying',
   SupplierInvoice: 'supplier_invoice',
   ManualLoad: 'manual_load',
   InitialLoad: 'initial_load',

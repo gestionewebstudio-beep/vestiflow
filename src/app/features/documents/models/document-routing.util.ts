@@ -51,7 +51,7 @@ export function documentEditPath(doc: {
  * restano sul percorso legacy (crea copia e naviga alla modifica).
  */
 export function documentDuplicateFormRoute(type: DocumentTypeValue): string | null {
-  // Famiglia arrivo merce / carico (goods_receipt, supplier_ddt, ecc.): tutti
+  // Famiglia carico (arrivo merce, carico manuale, carico iniziale): tutti
   // gestiti dalla stessa maschera, che imposta il tipo dalla copia.
   if (isGoodsReceiptDocumentType(type)) {
     return '/app/documents/goods-receipt/new';

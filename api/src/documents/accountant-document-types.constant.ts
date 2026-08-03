@@ -5,8 +5,6 @@ export const ACCOUNTANT_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.sales_ddt,
   DocumentType.invoice_draft,
   DocumentType.goods_receipt,
-  DocumentType.supplier_ddt,
-  DocumentType.supplier_invoice_accompanying,
   DocumentType.supplier_invoice,
 ] as const;
 

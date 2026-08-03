@@ -10,10 +10,8 @@ import { isSalesInvoiceDocumentType } from './document-sales.util';
 const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.SupplierOrder]: 'Ordine fornitore',
   [DocumentType.GoodsReceipt]: 'Arrivo merce',
-  [DocumentType.SupplierDdt]: 'DDT fornitore',
   // Disambiguata dall'omonima di vendita (InvoiceAccompanying): nel registro
   // generico le due comparirebbero altrimenti con la stessa etichetta.
-  [DocumentType.SupplierInvoiceAccompanying]: 'Fattura accomp. fornitore',
   [DocumentType.SupplierInvoice]: 'Fattura fornitore',
   [DocumentType.ManualLoad]: 'Carico manuale',
   [DocumentType.InitialLoad]: 'Carico iniziale',

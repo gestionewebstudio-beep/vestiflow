@@ -7,8 +7,6 @@ import { documentNumberingType, PROFORMA_DEFAULT_NOTES } from './document-type.u
 export const DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.supplier_order,
   DocumentType.goods_receipt,
-  DocumentType.supplier_ddt,
-  DocumentType.supplier_invoice_accompanying,
   DocumentType.supplier_invoice,
   DocumentType.manual_load,
   DocumentType.initial_load,
@@ -111,8 +109,6 @@ export const SETTINGS_CARD_DOCUMENT_TYPES: readonly DocumentType[] = [
 export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
   [DocumentType.supplier_order]: 'OF',
   [DocumentType.goods_receipt]: 'CAR',
-  [DocumentType.supplier_ddt]: 'DDTF',
-  [DocumentType.supplier_invoice_accompanying]: 'FAC',
   [DocumentType.supplier_invoice]: 'FF',
   [DocumentType.manual_load]: 'CM',
   [DocumentType.initial_load]: 'CI',
@@ -138,8 +134,6 @@ export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
 export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
   [DocumentType.supplier_order]: 'Ordine fornitore',
   [DocumentType.goods_receipt]: 'Arrivo merce',
-  [DocumentType.supplier_ddt]: 'DDT fornitore',
-  [DocumentType.supplier_invoice_accompanying]: 'Fattura accompagnatoria',
   [DocumentType.supplier_invoice]: 'Fattura fornitore',
   [DocumentType.manual_load]: 'Carico manuale',
   [DocumentType.initial_load]: 'Carico iniziale',

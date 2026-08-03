@@ -271,8 +271,9 @@ interface DocumentTotals {
 }
 
 /**
- * Dominio documentale (§2 piano funzionale). Step 2: alla conferma di arrivo
- * merce / DDT fornitore / fattura accompagnatoria genera carichi e movimenti.
+ * Dominio documentale (§2 piano funzionale). Step 2: alla conferma di un
+ * documento di carico (arrivo merce, carico manuale, carico iniziale) genera
+ * carichi e movimenti.
  */
 @Injectable()
 export class DocumentsService {

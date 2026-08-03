@@ -9,8 +9,6 @@ export const PRINTABLE_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.quote,
   DocumentType.transfer,
   DocumentType.goods_receipt,
-  DocumentType.supplier_ddt,
-  DocumentType.supplier_invoice_accompanying,
   // Scarico manuale (prompt Scarico manuale): stampa con prezzi e totali.
   DocumentType.manual_unload,
 ] as const;
@@ -19,8 +17,6 @@ const TRANSFER_TYPES: readonly DocumentType[] = [DocumentType.transfer] as const
 
 const GOODS_RECEIPT_TYPES: readonly DocumentType[] = [
   DocumentType.goods_receipt,
-  DocumentType.supplier_ddt,
-  DocumentType.supplier_invoice_accompanying,
 ] as const;
 
 const SALES_TYPES: readonly DocumentType[] = [

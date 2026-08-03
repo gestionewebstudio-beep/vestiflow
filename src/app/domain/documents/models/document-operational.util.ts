@@ -4,8 +4,6 @@ import { DocumentType } from '@core/models/document.model';
 export const OPERATIONAL_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.SupplierOrder,
   DocumentType.GoodsReceipt,
-  DocumentType.SupplierDdt,
-  DocumentType.SupplierInvoiceAccompanying,
   DocumentType.SupplierInvoice,
   DocumentType.ManualLoad,
   DocumentType.InitialLoad,

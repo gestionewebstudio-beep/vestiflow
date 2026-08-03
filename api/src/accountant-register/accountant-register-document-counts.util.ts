@@ -25,8 +25,6 @@ type CountQueryRow = {
 
 const SUPPLIER_PENDING_TYPES = [
   DocumentType.goods_receipt,
-  DocumentType.supplier_ddt,
-  DocumentType.supplier_invoice_accompanying,
 ] as const;
 
 const SALES_DDT_ACTIVE_STATUSES = [

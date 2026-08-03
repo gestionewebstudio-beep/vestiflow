@@ -221,9 +221,10 @@ enum InventoryCountStatus {
 /// il dominio documentale li affianca e potrà assorbirli in step successivi.
 enum DocumentType {
   supplier_order // Ordine fornitore
-  goods_receipt // Arrivo merce / carico fornitore
-  supplier_ddt // DDT fornitore
-  supplier_invoice_accompanying // Fattura accompagnatoria fornitore
+  /// Arrivo merce: l'UNICO carico da fornitore. Il documento che accompagna la
+  /// merce (DDT, fattura, reso) è un dato a parte — `ExternalDocumentType` —
+  /// che compone la causale e non genera un tipo documento diverso.
+  goods_receipt
   supplier_invoice // Fattura fornitore collegata a DDT
   manual_load // Carico manuale magazzino
   initial_load // Carico iniziale magazzino

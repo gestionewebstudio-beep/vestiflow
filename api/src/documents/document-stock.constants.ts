@@ -3,8 +3,6 @@ import { DocumentType } from '@prisma/client';
 /** Tipi documento che generano carichi di magazzino alla conferma (§2.1, §3). */
 export const DOCUMENT_STOCK_LOAD_TYPES: readonly DocumentType[] = [
   DocumentType.goods_receipt,
-  DocumentType.supplier_ddt,
-  DocumentType.supplier_invoice_accompanying,
   DocumentType.manual_load,
   DocumentType.initial_load,
 ] as const;
@@ -12,8 +10,6 @@ export const DOCUMENT_STOCK_LOAD_TYPES: readonly DocumentType[] = [
 /** Tipi arrivo merce collegabili a una registrazione fattura (documenti fornitore). */
 export const INVOICE_LINKABLE_RECEIPT_TYPES: readonly DocumentType[] = [
   DocumentType.goods_receipt,
-  DocumentType.supplier_ddt,
-  DocumentType.supplier_invoice_accompanying,
 ] as const;
 
 /**

@@ -38,8 +38,6 @@ export interface SaveDocumentCounterBody {
 export const COUNTER_CONFIGURABLE_TYPES: readonly DocumentType[] = [
   DocumentType.SupplierOrder,
   DocumentType.GoodsReceipt,
-  DocumentType.SupplierDdt,
-  DocumentType.SupplierInvoiceAccompanying,
   DocumentType.SupplierInvoice,
   DocumentType.ManualLoad,
   DocumentType.InitialLoad,

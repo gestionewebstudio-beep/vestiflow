@@ -13,8 +13,6 @@ export const PRINTABLE_DOCUMENT_TYPES: readonly DocumentTypeValue[] = [
   DocumentType.Quote,
   DocumentType.Transfer,
   DocumentType.GoodsReceipt,
-  DocumentType.SupplierDdt,
-  DocumentType.SupplierInvoiceAccompanying,
   // Scarico manuale (prompt Scarico manuale): stampa con prezzi e totali.
   DocumentType.ManualUnload,
 ] as const;

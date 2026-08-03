@@ -398,8 +398,6 @@ describe('DocumentsService', () => {
     // deve rifiutarli per evitare bozze prive di fornitore/location valide.
     it.each([
       DocumentType.goods_receipt,
-      DocumentType.supplier_ddt,
-      DocumentType.supplier_invoice_accompanying,
       DocumentType.manual_load,
       DocumentType.initial_load,
     ])('rifiuta la creazione generica di %s: usa il flusso dedicato arrivo merce', async (type) => {
