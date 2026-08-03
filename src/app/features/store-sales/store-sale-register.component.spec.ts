@@ -318,6 +318,47 @@ describe('StoreSaleRegisterComponent', () => {
     );
   });
 
+  // Il prezzo dell'articolo è netto; al banco si vede e si digita ivato.
+  it('mostra il prezzo ivato e manda al server il netto', async () => {
+    const createSale = vi.fn(() =>
+      of({
+        id: 'doc-1',
+        reference: 'VN-2026-0001',
+        documentDate: '2026-07-22',
+        totalMinor: 2428,
+        currency: 'EUR',
+        lines: [],
+      }),
+    );
+    const user = userEvent.setup();
+    const { fixture } = await setup({
+      variantIdByCode: 'var-1',
+      lookupItems: [ITEM],
+      createSale,
+    });
+    await scan(EAN);
+
+    // 19,90 netti al 22% → 24,28 nel campo prezzo e nel totale di cassa.
+    const price = await screen.findByLabelText<HTMLInputElement>(`Prezzo unitario ${ITEM.sku}`);
+    expect(price.value).toBe('24,28');
+    // Totale riga e totale di cassa: entrambi il lordo che il cliente paga.
+    expect(screen.getAllByText(/24,28/).length).toBeGreaterThan(0);
+
+    // L'operatore arrotonda a 25,00 al banco: al server va il netto scorporato.
+    await user.clear(price);
+    await user.type(price, '25,00');
+    await user.tab();
+
+    const component = fixture.componentInstance as unknown as { concludeSale(): void };
+    component.concludeSale();
+
+    expect(createSale).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lines: [expect.objectContaining({ unitPriceMinor: 2049 })],
+      }),
+    );
+  });
+
   it('guard di uscita: consente a carrello vuoto, chiede conferma con lavoro in corso', async () => {
     const { fixture } = await setup({ variantIdByCode: 'var-1', lookupItems: [ITEM] });
     const component = fixture.componentInstance as unknown as {

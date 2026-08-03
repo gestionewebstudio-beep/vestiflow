@@ -446,7 +446,7 @@ describe('ProductsService', () => {
 
     await service.update(tenantId, 'prod-1', {
       // valorizzato → scritto; null → azzerato; assente → non toccato.
-      listino1Price: { amountMinor: 2500, currencyCode: 'EUR' },
+      listino1Price: { amountMinor: 2500, currency: 'EUR' },
       listino2Price: null,
     });
 

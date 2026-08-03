@@ -274,7 +274,11 @@ export class BusinessAnalyticsService {
       documentLineIds.length > 0
         ? this.prisma.documentLine.findMany({
             where: { tenantId, id: { in: uniq(documentLineIds) } },
-            select: { id: true, lineTotalMinor: true },
+            // Ricavo LORDO: la riga porta l'imponibile in `lineTotalMinor` e il
+            // lordo qui. Prima si leggeva l'imponibile, che in cassa conteneva
+            // il lordo — il report resta sullo stesso numero, ora dal campo che
+            // lo dichiara.
+            select: { id: true, lineGrossTotalMinor: true },
           })
         : Promise.resolve([]),
       onlineSaleLineIds.length > 0
@@ -296,7 +300,7 @@ export class BusinessAnalyticsService {
     ]);
 
     return {
-      documentLineTotal: new Map(documentLines.map((line) => [line.id, line.lineTotalMinor])),
+      documentLineTotal: new Map(documentLines.map((line) => [line.id, line.lineGrossTotalMinor])),
       onlineSaleLineTotal: new Map(onlineSaleLines.map((line) => [line.id, line.totalMinor])),
       onlineOriginalUnitPrice: new Map(
         originalOnlineLines

@@ -140,7 +140,7 @@
                   <span class="pos__result-options">{{ item.optionSummary }}</span>
                 }
                 <span class="pos__result-meta tabular-nums">
-                  {{ item.sku }} · {{ money(item.sellingPriceMinor) }} · disp.
+                  {{ item.sku }} · {{ lookupPrice(item) }} · disp.
                   {{ item.available }}
                 </span>
               </button>

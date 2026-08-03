@@ -25,10 +25,16 @@ import { assertUserCanAccessLocation } from '../inventory/user-location-scope.ut
 import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
-import { buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
+import {
+  computeVatLineAmounts,
+  vatInputFromLegacyRate,
+  vatInputFromVatCode,
+  type VatComputationInput,
+} from '../vat/vat-line-calculation.util';
+import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 
 import type { CreateStoreReturnDto } from './dto/create-store-return.dto';
-import type { CreateStoreSaleDto, StoreSaleLineInputDto } from './dto/create-store-sale.dto';
+import type { CreateStoreSaleDto } from './dto/create-store-sale.dto';
 
 /** Esito della registrazione vendita/reso per la UI di cassa. */
 export interface StoreSaleResult {
@@ -111,19 +117,22 @@ export class StoreSalesService {
       });
       const reference = formatDocumentReference(setting.numberPrefix, series, number);
 
-      // Prezzi in cassa IVA inclusa: scorporo per i totali interni.
+      // Il prezzo che arriva dalla cassa è NETTO, come ogni prezzo del
+      // gestionale: l'IVA si calcola qui, riga per riga, all'aliquota del
+      // Codice IVA risolto. Quello che il cliente paga è il risultato del
+      // calcolo, non un numero letto da una colonna.
       const computedLines = dto.lines.map((line, index) => {
         const variant = variants.get(line.variantId)!;
         const discountPercent = line.discountPercent ?? 0;
-        const grossTotal = Math.round(
-          (line.quantity * line.unitPriceMinor * (100 - discountPercent)) / 100,
-        );
-        const resolved = this.resolveLineVatCode(line, variant, vatContext);
-        const vatRate = resolved.vatRatePercent;
-        const tax =
-          vatRate && vatRate > 0
-            ? grossTotal - Math.round((grossTotal * 100) / (100 + vatRate))
-            : 0;
+        const resolved = this.resolveLineVatCode(line.vatCodeId, variant, vatContext);
+        const amounts = computeVatLineAmounts({
+          enteredUnitCostMinor: line.unitPriceMinor,
+          // Il valore memorizzato è netto: nessuno scorporo da fare.
+          costEntryMode: 'vat_excluded',
+          quantity: line.quantity,
+          discountPercent,
+          vat: resolved.vat,
+        });
         return {
           lineNumber: index + 1,
           variantId: variant.id,
@@ -134,15 +143,16 @@ export class StoreSalesService {
           discountPercent,
           vatCodeId: resolved.vatCodeId,
           vatSnapshot: resolved.vatSnapshot,
-          lineTotalMinor: grossTotal,
-          lineVatTotalMinor: tax,
-          lineGrossTotalMinor: grossTotal,
+          lineTotalMinor: amounts.lineNetMinor,
+          lineVatTotalMinor: amounts.lineVatMinor,
+          lineGrossTotalMinor: amounts.lineGrossMinor,
           loadsStock: true,
         };
       });
 
-      const totalMinor = computedLines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+      const subtotalMinor = computedLines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
       const taxMinor = computedLines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
+      const totalMinor = computedLines.reduce((sum, line) => sum + line.lineGrossTotalMinor, 0);
 
       const doc = await tx.document.create({
         data: {
@@ -168,9 +178,12 @@ export class StoreSalesService {
           paymentMethodNote:
             dto.paymentMethod === 'other' ? dto.paymentMethodNote?.trim() || null : null,
           currency: 'EUR',
-          subtotalMinor: totalMinor - taxMinor,
+          subtotalMinor,
           taxMinor,
           totalMinor,
+          // Al banco i prezzi si leggono ivati: è come li mostra la cassa
+          // all'operatore e al cliente. È una nota di visualizzazione — non
+          // entra in nessun calcolo, che parte sempre dal netto memorizzato.
           pricesIncludeVat: true,
           confirmedAt: new Date(),
           createdById: actor.createdById,
@@ -239,6 +252,8 @@ export class StoreSalesService {
       tenantId,
       dto.lines.map((line) => line.variantId),
     );
+    // Righe di reso senza Codice IVA proprio: la risoluzione parte dall'articolo.
+    const vatContext = await this.resolveVatContext(tenantId, [], variants);
 
     let saleReference: string | null = null;
     if (dto.saleDocumentId) {
@@ -271,9 +286,21 @@ export class StoreSalesService {
       });
       const reference = formatDocumentReference(setting.numberPrefix, series, number);
 
+      // Il reso rende quello che la vendita ha incassato: stesso prezzo netto,
+      // stessa IVA calcolata allo stesso modo. Prima l'imposta non veniva
+      // scorporata affatto (`taxMinor: 0`) e il reso non tornava con la vendita.
       const computedLines = dto.lines.map((line, index) => {
         const variant = variants.get(line.variantId)!;
         const unitPriceMinor = line.unitPriceMinor ?? 0;
+        // Il reso non sceglie un Codice IVA: prende quello dell'articolo.
+        const resolved = this.resolveLineVatCode(null, variant, vatContext);
+        const amounts = computeVatLineAmounts({
+          enteredUnitCostMinor: unitPriceMinor,
+          costEntryMode: 'vat_excluded',
+          quantity: line.quantity,
+          discountPercent: 0,
+          vat: resolved.vat,
+        });
         return {
           lineNumber: index + 1,
           variantId: variant.id,
@@ -281,15 +308,20 @@ export class StoreSalesService {
           description: `${this.lineDescription(variant)}${line.restockable ? '' : ' — non vendibile'}`,
           quantity: line.quantity,
           unitPriceMinor,
-          lineTotalMinor: unitPriceMinor * line.quantity,
-          lineGrossTotalMinor: unitPriceMinor * line.quantity,
+          vatCodeId: resolved.vatCodeId,
+          vatSnapshot: resolved.vatSnapshot,
+          lineTotalMinor: amounts.lineNetMinor,
+          lineVatTotalMinor: amounts.lineVatMinor,
+          lineGrossTotalMinor: amounts.lineGrossMinor,
           // loadsStock traccia lo stato vendibile: solo la merce che rientra
           // realmente tra le quantità disponibili genera il movimento (§9).
           loadsStock: line.restockable,
         };
       });
 
-      const totalMinor = computedLines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+      const subtotalMinor = computedLines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+      const taxMinor = computedLines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
+      const totalMinor = computedLines.reduce((sum, line) => sum + line.lineGrossTotalMinor, 0);
 
       const doc = await tx.document.create({
         data: {
@@ -308,15 +340,21 @@ export class StoreSalesService {
           locationId: dto.locationId,
           sourceDocumentId: dto.saleDocumentId ?? null,
           currency: 'EUR',
-          subtotalMinor: totalMinor,
-          taxMinor: 0,
+          subtotalMinor,
+          taxMinor,
           totalMinor,
+          // Come la vendita: nota di come si leggono i prezzi al banco, non un
+          // parametro di calcolo.
           pricesIncludeVat: true,
           confirmedAt: new Date(),
           createdById: actor.createdById,
           createdByName: actor.createdByName,
           lines: {
-            create: computedLines.map((line) => ({ ...line, tenantId })),
+            create: computedLines.map((line) => ({
+              ...line,
+              tenantId,
+              vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+            })),
           },
         },
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
@@ -390,7 +428,10 @@ export class StoreSalesService {
         sku: string | null;
         description: string;
         quantity: number;
+        /** Prezzo unitario NETTO della riga venduta. */
         unitPriceMinor: number;
+        /** Aliquota della riga: serve alla cassa per mostrare il prezzo ivato. */
+        vatRatePercent: number | null;
       }[];
     }[]
   > {
@@ -433,6 +474,7 @@ export class StoreSalesService {
             description: true,
             quantity: true,
             unitPriceMinor: true,
+            vatSnapshot: true,
           },
           orderBy: { lineNumber: 'asc' },
         },
@@ -440,7 +482,16 @@ export class StoreSalesService {
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
-    return docs;
+    // L'aliquota si legge dallo snapshot salvato sulla riga, non dal Codice IVA
+    // di oggi: un reso deve tornare con la vendita anche se l'aliquota è
+    // cambiata nel frattempo.
+    return docs.map((doc) => ({
+      ...doc,
+      lines: doc.lines.map(({ vatSnapshot, ...line }) => ({
+        ...line,
+        vatRatePercent: vatSnapshotRatePercent(vatSnapshot),
+      })),
+    }));
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -501,7 +552,9 @@ export class StoreSalesService {
    */
   private async resolveVatContext(
     tenantId: string,
-    lines: readonly StoreSaleLineInputDto[],
+    // Serve solo l'eventuale Codice IVA di riga: vale per le righe di vendita
+    // come per quelle di reso, che ne hanno una forma più corta.
+    lines: readonly { readonly vatCodeId?: string | null }[],
     variants: ReadonlyMap<string, ResolvedVariant>,
   ): Promise<{
     readonly vatCodesById: ReadonlyMap<string, VatCodeWithNature>;
@@ -537,7 +590,8 @@ export class StoreSalesService {
 
   /** Precedenza: override esplicito di riga > predefinito articolo > predefinito aziendale. */
   private resolveLineVatCode(
-    line: StoreSaleLineInputDto,
+    /** Codice IVA scelto sulla riga; le righe di reso non ne hanno uno. */
+    lineVatCodeId: string | null | undefined,
     variant: ResolvedVariant,
     vatContext: {
       readonly vatCodesById: ReadonlyMap<string, VatCodeWithNature>;
@@ -547,17 +601,25 @@ export class StoreSalesService {
     readonly vatCodeId: string | null;
     readonly vatSnapshot: Prisma.InputJsonObject | null;
     readonly vatRatePercent: number | null;
+    /** Dati di calcolo della riga: senza Codice IVA, nessuna imposta. */
+    readonly vat: VatComputationInput;
   } {
     const resolvedId =
-      line.vatCodeId ?? variant.defaultVatCodeId ?? vatContext.tenantDefaultVatCodeId;
+      lineVatCodeId ?? variant.defaultVatCodeId ?? vatContext.tenantDefaultVatCodeId;
     const vatCode = resolvedId ? (vatContext.vatCodesById.get(resolvedId) ?? null) : null;
     if (!vatCode) {
-      return { vatCodeId: null, vatSnapshot: null, vatRatePercent: null };
+      return {
+        vatCodeId: null,
+        vatSnapshot: null,
+        vatRatePercent: null,
+        vat: vatInputFromLegacyRate(null),
+      };
     }
     return {
       vatCodeId: vatCode.id,
       vatSnapshot: buildVatCodeSnapshot(vatCode),
       vatRatePercent: Math.round(Number(vatCode.ratePercent)),
+      vat: vatInputFromVatCode(vatCode),
     };
   }
 

@@ -12,9 +12,10 @@ export interface StoreSaleLookupItem {
   readonly barcode: string | null;
   readonly productName: string;
   readonly optionSummary: string;
+  /** Prezzo di vendita NETTO dell'articolo: la cassa ci calcola sopra l'IVA. */
   readonly sellingPriceMinor: number;
   readonly currency: CurrencyCode;
-  /** Aliquota % del Codice IVA risolto (solo display). */
+  /** Aliquota % del Codice IVA risolto. */
   readonly vatRatePercent: number | null;
   readonly vatCodeId: EntityId | null;
   readonly vatCodeLabel: string | null;
@@ -84,6 +85,9 @@ export interface RecentStoreSale {
     readonly sku: string | null;
     readonly description: string;
     readonly quantity: number;
+    /** Prezzo unitario NETTO della riga venduta. */
     readonly unitPriceMinor: number;
+    /** Aliquota della riga (dallo snapshot): per mostrare il prezzo ivato. */
+    readonly vatRatePercent: number | null;
   }[];
 }

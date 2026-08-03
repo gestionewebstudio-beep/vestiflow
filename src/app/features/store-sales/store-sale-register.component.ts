@@ -37,6 +37,16 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
+// Stesse formule e stessi arrotondamenti del server: l'aritmetica IVA è una sola.
+import {
+  computeVatLineAmounts,
+  entryIncludesVat,
+  grossFromNetMinor,
+  netFromGrossMinor,
+  vatInputFromLegacyRate,
+  vatInputFromVatCode,
+  type VatComputationInput,
+} from '@domain/documents/utils/document-vat.util';
 import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/product-form.mapper';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductFormComponent } from '@domain/products/product-form.component';
@@ -57,6 +67,11 @@ interface CartLine {
   readonly variantId: EntityId;
   readonly sku: string;
   readonly description: string;
+  /**
+   * Prezzo unitario NETTO: è il dato, quello che viaggia verso il server.
+   * Al banco si vede e si digita ivato — la conversione sta nei metodi di
+   * questa classe, non nel valore.
+   */
   readonly unitPriceMinor: number;
   readonly quantity: number;
   readonly discountPercent: number;
@@ -75,7 +90,10 @@ interface ReturnLine {
   readonly sku: string;
   readonly description: string;
   readonly soldQuantity: number;
+  /** Prezzo unitario NETTO della vendita originale. */
   readonly unitPriceMinor: number;
+  /** Aliquota della riga venduta: per mostrare quanto si restituisce davvero. */
+  readonly vatRatePercent: number | null;
   readonly returnQuantity: number;
   readonly restockable: boolean;
 }
@@ -91,10 +109,6 @@ interface UnresolvedCode {
   readonly code: string;
   /** `barcode` = EAN scansionato (solo cifre); `text` = testo di ricerca manuale. */
   readonly kind: 'barcode' | 'text';
-}
-
-function lineTotalMinor(line: CartLine): number {
-  return Math.round((line.quantity * line.unitPriceMinor * (100 - line.discountPercent)) / 100);
 }
 
 /** EAN/UPC plausibile: solo cifre, 8-14 caratteri (EAN-8 … GTIN-14). */
@@ -249,8 +263,9 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected readonly saleConfirmOpen = signal(false);
   protected readonly lastSaleResult = signal<StoreSaleResult | null>(null);
 
+  /** Totale di cassa: quello che il cliente paga, cioè la somma dei lordi. */
   protected readonly cartTotalMinor = computed(() =>
-    this.cart().reduce((sum, line) => sum + lineTotalMinor(line), 0),
+    this.cart().reduce((sum, line) => sum + this.lineAmounts(line).lineGrossMinor, 0),
   );
 
   protected readonly cartQuantity = computed(() =>
@@ -708,6 +723,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     );
   }
 
+  /** Il prezzo si digita lordo e si memorizza netto: la vista non è il dato. */
   protected onPriceInput(variantId: EntityId, event: Event): void {
     const parsed = parseMoneyInput((event.target as HTMLInputElement).value);
     if (!parsed || parsed.amountMinor < 0) {
@@ -715,7 +731,12 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     }
     this.cart.update((lines) =>
       lines.map((line) =>
-        line.variantId === variantId ? { ...line, unitPriceMinor: parsed.amountMinor } : line,
+        line.variantId === variantId
+          ? {
+              ...line,
+              unitPriceMinor: netFromGrossMinor(parsed.amountMinor, this.lineRate(line)),
+            }
+          : line,
       ),
     );
   }
@@ -756,15 +777,54 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     return [...options, { value: selected.id, label: vatCodeOptionLabel(selected) }];
   }
 
-  protected lineTotal(line: CartLine): string {
-    return this.money(lineTotalMinor(line));
+  // ── Netto memorizzato, ivato al banco ─────────────────────────────────────
+  //
+  // Il prezzo dell'articolo è netto, come ogni prezzo del gestionale. Alla cassa
+  // però si ragiona su quello che il cliente paga: i campi mostrano il lordo e
+  // l'operatore digita il lordo. La conversione avviene qui, all'aliquota della
+  // riga; al server va sempre il netto.
+
+  /** Dati IVA della riga: dal Codice IVA scelto, o dall'aliquota già risolta. */
+  private lineVat(line: CartLine): VatComputationInput {
+    const vatCode = line.vatCodeId ? this.vatCodeById().get(line.vatCodeId) : undefined;
+    return vatCode ? vatInputFromVatCode(vatCode) : vatInputFromLegacyRate(line.vatRatePercent);
   }
 
+  /** Aliquota effettiva per la conversione (0 = niente da aggiungere). */
+  private lineRate(line: CartLine): number {
+    const vat = this.lineVat(line);
+    return entryIncludesVat('vat_included', vat) ? vat.ratePercent : 0;
+  }
+
+  /** Importi di riga con le stesse formule del server (una sola aritmetica). */
+  private lineAmounts(line: CartLine) {
+    return computeVatLineAmounts({
+      enteredUnitCostMinor: line.unitPriceMinor,
+      costEntryMode: 'vat_excluded',
+      quantity: line.quantity,
+      discountPercent: line.discountPercent,
+      vat: this.lineVat(line),
+    });
+  }
+
+  protected lineTotal(line: CartLine): string {
+    return this.money(this.lineAmounts(line).lineGrossMinor);
+  }
+
+  /** Nel campo prezzo si vede il lordo: è il prezzo che il cliente paga. */
   protected priceInputValue(line: CartLine): string {
-    return moneyToDecimalString({ amountMinor: line.unitPriceMinor, currencyCode: 'EUR' }).replace(
-      '.',
-      ',',
-    );
+    const grossMinor = grossFromNetMinor(line.unitPriceMinor, this.lineRate(line));
+    return moneyToDecimalString({ amountMinor: grossMinor, currencyCode: 'EUR' }).replace('.', ',');
+  }
+
+  /** Prezzo lordo di un articolo in lista ricerca, prima di entrare nel carrello. */
+  protected lookupPrice(item: StoreSaleLookupItem): string {
+    const vatCode = item.vatCodeId ? this.vatCodeById().get(item.vatCodeId) : undefined;
+    const vat = vatCode
+      ? vatInputFromVatCode(vatCode)
+      : vatInputFromLegacyRate(item.vatRatePercent);
+    const rate = entryIncludesVat('vat_included', vat) ? vat.ratePercent : 0;
+    return this.money(grossFromNetMinor(item.sellingPriceMinor, rate));
   }
 
   /** Messaggio §8 con i tre valori, mostrato inline sulla riga eccedente (avviso). */
@@ -896,6 +956,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           description: line.description,
           soldQuantity: line.quantity,
           unitPriceMinor: line.unitPriceMinor,
+          vatRatePercent: line.vatRatePercent,
           returnQuantity: 0,
           restockable: true,
         }),

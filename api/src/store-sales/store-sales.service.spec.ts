@@ -95,7 +95,37 @@ interface FakeDb {
   sequences: Map<string, number>;
   idCounter: number;
   failNextMovementCreate: boolean;
+  /** Codice IVA aziendale predefinito (null = nessuna imposta sulle righe). */
+  defaultVatCodeId: string | null;
+  vatCodes: FakeVatCode[];
 }
+
+/** Codice IVA nella forma che serve al calcolo (aliquota + natura esposta). */
+interface FakeVatCode {
+  id: string;
+  code: string;
+  ratePercent: number;
+  nonDeductiblePercent: number;
+  calculationMode: 'standard';
+  vatAffectsSupplierTotal: boolean;
+  usageScope: 'sales';
+  description: string;
+  notes: null;
+  nature: { key: string; label: string; officialCode: null };
+}
+
+const VAT_22: FakeVatCode = {
+  id: 'vat-22',
+  code: '22',
+  ratePercent: 22,
+  nonDeductiblePercent: 0,
+  calculationMode: 'standard',
+  vatAffectsSupplierTotal: true,
+  usageScope: 'sales',
+  description: 'Aliquota ordinaria',
+  notes: null,
+  nature: { key: 'ordinary', label: 'Ordinaria', officialCode: null },
+};
 
 function createDb(): FakeDb {
   return {
@@ -122,6 +152,8 @@ function createDb(): FakeDb {
     sequences: new Map(),
     idCounter: 0,
     failNextMovementCreate: false,
+    defaultVatCodeId: null,
+    vatCodes: [],
   };
 }
 
@@ -347,10 +379,11 @@ function createFakePrisma(db: FakeDb): PrismaService {
       },
     },
     tenantFeatureSettings: {
-      findUnique: () => Promise.resolve({ defaultVatCodeId: null }),
+      findUnique: () => Promise.resolve({ defaultVatCodeId: db.defaultVatCodeId }),
     },
     vatCode: {
-      findMany: () => Promise.resolve([]),
+      findMany: ({ where }: { where: { id: { in: string[] } } }) =>
+        Promise.resolve(db.vatCodes.filter((vatCode) => where.id.in.includes(vatCode.id))),
     },
     $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
       const snapshot = structuredClone({
@@ -469,6 +502,62 @@ describe('StoreSalesService (fase 3 §12)', () => {
     expect(movement.sourceDocumentId).toBe(doc.id);
     expect(movement.sourceLineId).toBe(doc.lines[0]!.id);
     expect(movement.createdByName).toBe('Mario Rossi');
+  });
+
+  // Il prezzo che arriva dalla cassa è NETTO come ogni prezzo del gestionale:
+  // l'IVA la calcola il server, non si scorpora da un lordo memorizzato.
+  it('Il prezzo di riga è netto: IVA calcolata sopra, totale = netto + imposta', async () => {
+    const db = createDb();
+    db.defaultVatCodeId = VAT_22.id;
+    db.vatCodes = [VAT_22];
+    const { service } = createService(db);
+
+    const result = await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        // 29,90 netti × 2 = 59,80 di imponibile; IVA 22% = 13,16; totale 72,96.
+        lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+      },
+      user,
+    );
+
+    expect(result.totalMinor).toBe(7296);
+
+    const doc = db.documents[0]!;
+    expect(doc['subtotalMinor']).toBe(5980);
+    expect(doc['taxMinor']).toBe(1316);
+    expect(doc['totalMinor']).toBe(7296);
+
+    const line = doc.lines[0]!;
+    // La riga conserva il netto digitato e porta imponibile, imposta e lordo.
+    expect(line.unitPriceMinor).toBe(2990);
+    expect(line['lineTotalMinor']).toBe(5980);
+    expect(line['lineVatTotalMinor']).toBe(1316);
+    expect(line['lineGrossTotalMinor']).toBe(7296);
+  });
+
+  it('Il reso restituisce imponibile e imposta della vendita, non un totale senza IVA', async () => {
+    const db = createDb();
+    db.defaultVatCodeId = VAT_22.id;
+    db.vatCodes = [VAT_22];
+    const { service } = createService(db);
+
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        reason: 'Taglia errata',
+        lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }],
+      },
+      user,
+    );
+
+    const doc = db.documents[0]!;
+    expect(doc['subtotalMinor']).toBe(2990);
+    expect(doc['taxMinor']).toBe(658);
+    expect(doc['totalMinor']).toBe(3648);
   });
 
   it('Policy §3: Disponibile 0 NON blocca la vendita — registrata con Disponibile negativa', async () => {

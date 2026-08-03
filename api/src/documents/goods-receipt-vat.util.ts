@@ -3,7 +3,8 @@ import type { DocumentType, Prisma, PurchaseCostEntryMode } from '@prisma/client
 
 import {
   computeVatLineAmounts,
-  type VatComputationInput,
+  vatInputFromLegacyRate,
+  vatInputFromVatCode as vatInputFromCode,
 } from '../vat/vat-line-calculation.util';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { documentTypeDefaultLoadsStock } from './document-type.util';
@@ -52,25 +53,6 @@ export interface ComputedGoodsReceiptLine {
 /** Conversione unità minori → stringa decimale a 6 cifre per NUMERIC. */
 function minorToDecimalString(minor: number): string {
   return (minor / 100).toFixed(6);
-}
-
-function vatInputFromCode(vatCode: VatCodeWithNature): VatComputationInput {
-  return {
-    ratePercent: Number(vatCode.ratePercent),
-    nonDeductiblePercent: Number(vatCode.nonDeductiblePercent),
-    calculationMode: vatCode.calculationMode,
-    vatAffectsSupplierTotal: vatCode.vatAffectsSupplierTotal,
-  };
-}
-
-/** Fallback legacy per righe senza Codice IVA (solo aliquota numerica). */
-function vatInputFromLegacyRate(ratePercent: number | null): VatComputationInput {
-  return {
-    ratePercent: ratePercent ?? 0,
-    nonDeductiblePercent: 0,
-    calculationMode: 'standard',
-    vatAffectsSupplierTotal: (ratePercent ?? 0) > 0,
-  };
 }
 
 export interface ComputeGoodsReceiptLinesParams {

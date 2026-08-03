@@ -53,6 +53,38 @@ export function entryIncludesVat(
   return costEntryMode === 'vat_included' && vatIsExposed(vat.calculationMode) && vat.ratePercent > 0;
 }
 
+/** Decimal Prisma o number: entrambi si portano a numero con `Number()`. */
+type NumericLike = number | { toString(): string };
+
+/**
+ * Codice IVA → dati di calcolo. Vive qui, accanto alle formule, perché la
+ * conversione è la stessa per acquisti, vendite e cassa: un secondo posto dove
+ * costruirla è un secondo posto dove sbagliarla.
+ */
+export function vatInputFromVatCode(vatCode: {
+  readonly ratePercent: NumericLike;
+  readonly nonDeductiblePercent: NumericLike;
+  readonly calculationMode: VatCalculationMode;
+  readonly vatAffectsSupplierTotal: boolean;
+}): VatComputationInput {
+  return {
+    ratePercent: Number(vatCode.ratePercent),
+    nonDeductiblePercent: Number(vatCode.nonDeductiblePercent),
+    calculationMode: vatCode.calculationMode,
+    vatAffectsSupplierTotal: vatCode.vatAffectsSupplierTotal,
+  };
+}
+
+/** Riga senza Codice IVA: resta la sola aliquota numerica (dati storici). */
+export function vatInputFromLegacyRate(ratePercent: number | null): VatComputationInput {
+  return {
+    ratePercent: ratePercent ?? 0,
+    nonDeductiblePercent: 0,
+    calculationMode: 'standard',
+    vatAffectsSupplierTotal: (ratePercent ?? 0) > 0,
+  };
+}
+
 /** Scorpora l'IVA da un importo lordo in unità minori. */
 export function netFromGrossMinor(grossMinor: number, ratePercent: number): number {
   if (ratePercent <= 0) {
