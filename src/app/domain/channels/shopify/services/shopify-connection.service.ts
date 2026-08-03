@@ -5,6 +5,7 @@ import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { ApiHttpClient } from '@core/http/api-http.client';
 import type { ShopifyConnection } from '@core/models/shopify-connection.model';
+import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
 import { isPlatformOperator } from '@core/permissions/platform-operator.util';
 import { canManageShopifyConnection } from '@core/permissions/tenant-permissions.util';
 
@@ -49,6 +50,13 @@ export class ShopifyConnectionService {
   getConnection(): Observable<ShopifyConnection> {
     const user = this.authService.currentUser();
     if (isPlatformOperator(user) || !canManageShopifyConnection(user)) {
+      return EMPTY;
+    }
+    // Il profilo canale del tenant, non solo il ruolo: su un tenant «solo
+    // gestionale» l'intero controller Shopify risponde 403, e questa chiamata
+    // parte da mezza dozzina di schermate all'apertura. Chiederlo per poi
+    // ignorare l'errore è un giro di rete sprecato e una console rossa.
+    if (!showShopifyIntegration(user?.tenantChannelProfile)) {
       return EMPTY;
     }
 

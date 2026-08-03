@@ -99,6 +99,18 @@ describe('ShopifyConnectionService (HTTP)', () => {
     httpMock.expectNone(`${API_BASE}/shopify/connection`);
   });
 
+  it('getConnection non chiama API su un tenant solo gestionale', async () => {
+    // Il controller Shopify rifiuta l'intero gruppo di rotte per profilo canale:
+    // chiederglielo lo stesso significa un 403 per ogni schermata che si apre.
+    authMock.currentUser.mockReturnValue({
+      ...authUserOwner(),
+      tenantChannelProfile: TenantChannelProfile.Gestionale,
+    });
+
+    await expect(firstValueFrom(service.getConnection())).rejects.toThrow();
+    httpMock.expectNone(`${API_BASE}/shopify/connection`);
+  });
+
   it('beginAuth invia shop e restituisce authorizeUrl', async () => {
     const promise = firstValueFrom(service.beginAuth('mystore.myshopify.com'));
 
