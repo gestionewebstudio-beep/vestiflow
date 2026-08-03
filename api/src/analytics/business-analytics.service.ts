@@ -1,10 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  MovementOrigin,
-  Prisma,
-  SalesOrderFinancialStatus,
-  StockMovementType,
-} from '@prisma/client';
+import { DocumentType, Prisma, StockMovementType } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { onlineSalesChannelLabel } from '../common/tenant-channel-profile.util';
@@ -17,45 +12,29 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { BusinessAnalyticsQueryDto } from './dto/business-analytics-query.dto';
 import type { BusinessAnalyticsSummaryDto } from './dto/business-analytics-summary.dto';
 import {
+  aggregateSalesMovements,
+  topProductsOf,
+  type AggregatableMovement,
+  type SalesAggregate,
+} from './movement-sales.util';
+import { onlineOriginalKey, type RevenueLineMaps } from './movement-sales-revenue.util';
+import {
   enumeratePeriodDates,
   periodDateTimeRange,
   previousReportPeriod,
   resolveReportPeriod,
-  toUtcIsoDate,
 } from './report-period.util';
 
-interface RevenueAccumulator {
-  revenueMinor: number;
-  costMinor: number;
-  costKnownRevenueMinor: number;
-  unitsSold: number;
-  transactionCount: number;
-}
-
-interface ProductAccumulator {
-  sku: string;
-  title: string;
-  revenueMinor: number;
-  unitsSold: number;
-}
-
-type ManualSalesAccumulator = RevenueAccumulator & {
-  byOrigin: Partial<Record<MovementOrigin, { revenueMinor: number; unitsSold: number }>>;
-  topProducts: Map<string, ProductAccumulator>;
-};
-
-type ShopifySalesAccumulator = RevenueAccumulator & {
-  topProducts: Map<string, ProductAccumulator>;
-};
-
-const REVENUE_FINANCIAL_STATUSES: SalesOrderFinancialStatus[] = [
-  SalesOrderFinancialStatus.paid,
-  SalesOrderFinancialStatus.partially_refunded,
-];
-
-const MANUAL_ORIGINS: MovementOrigin[] = [
-  MovementOrigin.vestiflow_pos,
-  MovementOrigin.vestiflow_online,
+/**
+ * Movimenti che il report del gestionale conta come vendite (§②): vendita al
+ * banco, vendita online, reso. `unload`/`adjustment`/`transfer` sono operazioni
+ * di magazzino, non vendite, e restano fuori. Le vendite manuali (movimenti
+ * `sale` a mano) oggi non esistono: includerle domani = aggiungere un tipo qui.
+ */
+const SALE_REPORT_MOVEMENT_TYPES: StockMovementType[] = [
+  StockMovementType.sale,
+  StockMovementType.online_sale,
+  StockMovementType.return,
 ];
 
 @Injectable()
@@ -90,30 +69,24 @@ export class BusinessAnalyticsService {
     const movementScope = locationScopeToMovementFilter(scope);
     const inventoryScope = locationScopeToInventoryLevelFilter(scope);
 
-    const [shopifyCurrent, shopifyPrevious, manualCurrent, manualPrevious, inventoryAgg, lowStockCount, dailyRevenue] =
-      await Promise.all([
-        this.aggregateShopifySales(tenantId, currentRange),
-        this.aggregateShopifySales(tenantId, previousRange),
-        this.aggregateManualSales(tenantId, currentRange, movementScope),
-        this.aggregateManualSales(tenantId, previousRange, movementScope),
-        this.aggregateInventoryValuation(tenantId, inventoryScope),
-        this.prisma.inventoryLevel.count({
-          where: {
-            tenantId,
-            ...inventoryScope,
-            available: { lte: this.prisma.inventoryLevel.fields.minThreshold },
-          },
-        }),
-        this.aggregateDailyRevenue(tenantId, currentRange, period, movementScope),
-      ]);
-
-    const current = this.mergeAccumulators(shopifyCurrent, manualCurrent);
-    const previous = this.mergeAccumulators(shopifyPrevious, manualPrevious);
+    const [current, previous, inventoryAgg, lowStockCount] = await Promise.all([
+      this.aggregateMovementSales(tenantId, currentRange, movementScope, period),
+      this.aggregateMovementSales(tenantId, previousRange, movementScope),
+      this.aggregateInventoryValuation(tenantId, inventoryScope),
+      this.prisma.inventoryLevel.count({
+        where: {
+          tenantId,
+          ...inventoryScope,
+          available: { lte: this.prisma.inventoryLevel.fields.minThreshold },
+        },
+      }),
+    ]);
 
     const changePercent =
       previous.revenueMinor > 0
-        ? Math.round(((current.revenueMinor - previous.revenueMinor) / previous.revenueMinor) * 1000) /
-          10
+        ? Math.round(
+            ((current.revenueMinor - previous.revenueMinor) / previous.revenueMinor) * 1000,
+          ) / 10
         : null;
 
     const margin = this.buildMargin(current);
@@ -140,29 +113,30 @@ export class BusinessAnalyticsService {
       avgDailyUnits > 0 ? Math.round(inventoryAgg.availableUnits / avgDailyUnits) : null;
 
     const onlineLabel = onlineSalesChannelLabel(tenant?.channelProfile ?? null);
+    const shopifyMinor = current.byChannel.shopify.revenueMinor;
+    const manualMinor =
+      current.byChannel.pos.revenueMinor + current.byChannel.online_manual.revenueMinor;
 
     const channels: BusinessAnalyticsSummaryDto['channels'] = [
       {
         channel: 'shopify',
         label: 'Shopify',
-        revenueMinor: shopifyCurrent.revenueMinor,
-        unitsSold: shopifyCurrent.unitsSold,
+        revenueMinor: current.byChannel.shopify.revenueMinor,
+        unitsSold: current.byChannel.shopify.unitsSold,
       },
       {
         channel: 'pos',
         label: 'Negozio fisico',
-        revenueMinor: manualCurrent.byOrigin[MovementOrigin.vestiflow_pos]?.revenueMinor ?? 0,
-        unitsSold: manualCurrent.byOrigin[MovementOrigin.vestiflow_pos]?.unitsSold ?? 0,
+        revenueMinor: current.byChannel.pos.revenueMinor,
+        unitsSold: current.byChannel.pos.unitsSold,
       },
       {
         channel: 'online_manual',
         label: onlineLabel,
-        revenueMinor: manualCurrent.byOrigin[MovementOrigin.vestiflow_online]?.revenueMinor ?? 0,
-        unitsSold: manualCurrent.byOrigin[MovementOrigin.vestiflow_online]?.unitsSold ?? 0,
+        revenueMinor: current.byChannel.online_manual.revenueMinor,
+        unitsSold: current.byChannel.online_manual.unitsSold,
       },
     ].filter((row) => row.revenueMinor !== 0 || row.unitsSold !== 0);
-
-    const topProducts = this.mergeTopProducts(shopifyCurrent.topProducts, manualCurrent.topProducts);
 
     return {
       currencyCode: 'EUR',
@@ -174,8 +148,8 @@ export class BusinessAnalyticsService {
       },
       revenue: {
         totalMinor: current.revenueMinor,
-        shopifyMinor: shopifyCurrent.revenueMinor,
-        manualMinor: manualCurrent.revenueMinor,
+        shopifyMinor,
+        manualMinor,
         previousTotalMinor: previous.revenueMinor,
         changePercent,
       },
@@ -202,68 +176,137 @@ export class BusinessAnalyticsService {
         daysOfCover,
       },
       channels,
-      topProducts,
-      dailyRevenue,
+      topProducts: topProductsOf(current.topProducts),
+      dailyRevenue: enumeratePeriodDates(period.from, period.to).map((date) => ({
+        date,
+        revenueMinor: current.daily.get(date) ?? 0,
+      })),
     };
   }
 
-  private async aggregateDailyRevenue(
+  /**
+   * Report vendite dai MOVIMENTI (§②): carica i movimenti di vendita/reso e le
+   * righe collegate, poi aggrega (funzione pura). Costo CONGELATO dal movimento,
+   * ricavo dalla riga di vendita (§①b).
+   */
+  private async aggregateMovementSales(
     tenantId: string,
     range: { gte: Date; lte: Date },
-    period: ReturnType<typeof resolveReportPeriod>,
     movementScope: Prisma.StockMovementWhereInput,
-  ): Promise<BusinessAnalyticsSummaryDto['dailyRevenue']> {
-    const [orders, movements] = await Promise.all([
-      this.prisma.salesOrder.findMany({
-        where: {
-          tenantId,
-          financialStatus: { in: REVENUE_FINANCIAL_STATUSES },
-          placedAt: range,
-        },
-        select: { placedAt: true, totalMinor: true },
-      }),
-      this.prisma.stockMovement.findMany({
-        where: {
-          tenantId,
-          ...movementScope,
-          type: { in: [StockMovementType.sale, StockMovementType.return] },
-          origin: { in: MANUAL_ORIGINS },
-          createdAt: range,
-        },
-        select: {
-          type: true,
-          quantity: true,
-          createdAt: true,
-          variant: { select: { sellingPriceMinor: true } },
-        },
-      }),
-    ]);
+    period?: ReturnType<typeof resolveReportPeriod>,
+  ): Promise<SalesAggregate> {
+    const rows = await this.prisma.stockMovement.findMany({
+      where: {
+        tenantId,
+        ...movementScope,
+        type: { in: SALE_REPORT_MOVEMENT_TYPES },
+        createdAt: range,
+      },
+      select: {
+        type: true,
+        origin: true,
+        quantity: true,
+        sku: true,
+        variantId: true,
+        totalCostMinor: true,
+        sourceDocumentType: true,
+        sourceDocumentId: true,
+        sourceLineId: true,
+        createdAt: true,
+        variant: { select: { product: { select: { name: true } } } },
+      },
+    });
 
-    const buckets = new Map<string, number>(
-      enumeratePeriodDates(period.from, period.to).map((date) => [date, 0]),
-    );
+    const movements: AggregatableMovement[] = rows.map((row) => ({
+      type: row.type,
+      origin: row.origin,
+      quantity: row.quantity,
+      sku: row.sku,
+      variantId: row.variantId,
+      totalCostMinor: row.totalCostMinor,
+      sourceDocumentType: row.sourceDocumentType,
+      sourceDocumentId: row.sourceDocumentId,
+      sourceLineId: row.sourceLineId,
+      createdAt: row.createdAt,
+      productName: row.variant.product.name,
+    }));
 
-    for (const order of orders) {
-      const date = toUtcIsoDate(order.placedAt);
-      if (buckets.has(date)) {
-        buckets.set(date, (buckets.get(date) ?? 0) + order.totalMinor);
-      }
-    }
+    const maps = await this.loadRevenueLineMaps(tenantId, movements);
+    const dailyDates = period ? enumeratePeriodDates(period.from, period.to) : undefined;
+    return aggregateSalesMovements(movements, maps, dailyDates);
+  }
+
+  /**
+   * Precarica in batch le righe da cui deriva il ricavo dei movimenti: righe
+   * documento (POS/DDT), righe vendita online e — per i resi online senza riga
+   * propria — la riga di vendita originale per variante (§①b + reso online).
+   */
+  private async loadRevenueLineMaps(
+    tenantId: string,
+    movements: readonly AggregatableMovement[],
+  ): Promise<RevenueLineMaps> {
+    const documentLineIds: string[] = [];
+    const onlineSaleLineIds: string[] = [];
+    const onlineReturnSaleIds: string[] = [];
+    const onlineReturnVariantIds: string[] = [];
 
     for (const movement of movements) {
-      const date = toUtcIsoDate(movement.createdAt);
-      if (!buckets.has(date)) {
-        continue;
+      if (movement.sourceLineId) {
+        if (movement.sourceDocumentType === DocumentType.online_sale) {
+          onlineSaleLineIds.push(movement.sourceLineId);
+        } else {
+          documentLineIds.push(movement.sourceLineId);
+        }
+      } else if (
+        movement.type === StockMovementType.return &&
+        movement.sourceDocumentType === DocumentType.online_sale &&
+        movement.sourceDocumentId &&
+        movement.variantId
+      ) {
+        onlineReturnSaleIds.push(movement.sourceDocumentId);
+        onlineReturnVariantIds.push(movement.variantId);
       }
-      const sign = movement.type === StockMovementType.sale ? 1 : -1;
-      const lineRevenue = sign * movement.quantity * movement.variant.sellingPriceMinor;
-      buckets.set(date, (buckets.get(date) ?? 0) + lineRevenue);
     }
 
-    return enumeratePeriodDates(period.from, period.to).map((date) => ({
-      date,
-      revenueMinor: buckets.get(date) ?? 0,
-    }));
+    const uniq = (values: readonly string[]): string[] => [...new Set(values)];
+
+    const [documentLines, onlineSaleLines, originalOnlineLines] = await Promise.all([
+      documentLineIds.length > 0
+        ? this.prisma.documentLine.findMany({
+            where: { tenantId, id: { in: uniq(documentLineIds) } },
+            select: { id: true, lineTotalMinor: true },
+          })
+        : Promise.resolve([]),
+      onlineSaleLineIds.length > 0
+        ? this.prisma.onlineSaleLine.findMany({
+            where: { tenantId, id: { in: uniq(onlineSaleLineIds) } },
+            select: { id: true, totalMinor: true },
+          })
+        : Promise.resolve([]),
+      onlineReturnSaleIds.length > 0
+        ? this.prisma.onlineSaleLine.findMany({
+            where: {
+              tenantId,
+              onlineSaleId: { in: uniq(onlineReturnSaleIds) },
+              variantId: { in: uniq(onlineReturnVariantIds) },
+            },
+            select: { onlineSaleId: true, variantId: true, unitPriceMinor: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    return {
+      documentLineTotal: new Map(documentLines.map((line) => [line.id, line.lineTotalMinor])),
+      onlineSaleLineTotal: new Map(onlineSaleLines.map((line) => [line.id, line.totalMinor])),
+      onlineOriginalUnitPrice: new Map(
+        originalOnlineLines
+          .filter((line) => line.variantId != null)
+          .map((line) => [
+            onlineOriginalKey(line.onlineSaleId, line.variantId as string),
+            line.unitPriceMinor,
+          ]),
+      ),
+    };
   }
 
   private emptySummary(
@@ -309,141 +352,11 @@ export class BusinessAnalyticsService {
     };
   }
 
-  private async aggregateShopifySales(
-    tenantId: string,
-    range: { gte: Date; lte: Date },
-  ): Promise<ShopifySalesAccumulator> {
-    const orders = await this.prisma.salesOrder.findMany({
-      where: {
-        tenantId,
-        financialStatus: { in: REVENUE_FINANCIAL_STATUSES },
-        placedAt: range,
-      },
-      select: {
-        totalMinor: true,
-        lines: {
-          select: {
-            sku: true,
-            title: true,
-            quantity: true,
-            totalMinor: true,
-            variantId: true,
-          },
-        },
-      },
-    });
-
-    const variantIds = [
-      ...new Set(
-        orders.flatMap((order) => order.lines.map((line) => line.variantId).filter(Boolean)),
-      ),
-    ] as string[];
-
-    const purchaseByVariant = new Map<string, number>();
-    if (variantIds.length > 0) {
-      const variants = await this.prisma.productVariant.findMany({
-        where: { tenantId, id: { in: variantIds } },
-        select: { id: true, purchasePriceMinor: true },
-      });
-      for (const variant of variants) {
-        if (variant.purchasePriceMinor !== null) {
-          purchaseByVariant.set(variant.id, variant.purchasePriceMinor);
-        }
-      }
-    }
-
-    const acc: ShopifySalesAccumulator = {
-      revenueMinor: 0,
-      costMinor: 0,
-      costKnownRevenueMinor: 0,
-      unitsSold: 0,
-      transactionCount: 0,
-      topProducts: new Map(),
-    };
-
-    for (const order of orders) {
-      acc.transactionCount += 1;
-      acc.revenueMinor += order.totalMinor;
-
-      for (const line of order.lines) {
-        acc.unitsSold += line.quantity;
-        this.addProductRow(acc.topProducts, line.sku, line.title, line.totalMinor, line.quantity);
-
-        const purchase = line.variantId ? purchaseByVariant.get(line.variantId) : undefined;
-        if (purchase !== undefined) {
-          acc.costMinor += purchase * line.quantity;
-          acc.costKnownRevenueMinor += line.totalMinor;
-        }
-      }
-    }
-
-    return acc;
-  }
-
-  private async aggregateManualSales(
-    tenantId: string,
-    range: { gte: Date; lte: Date },
-    movementScope: Prisma.StockMovementWhereInput,
-  ): Promise<ManualSalesAccumulator> {
-    const movements = await this.prisma.stockMovement.findMany({
-      where: {
-        tenantId,
-        ...movementScope,
-        type: { in: [StockMovementType.sale, StockMovementType.return] },
-        origin: { in: MANUAL_ORIGINS },
-        createdAt: range,
-      },
-      select: {
-        type: true,
-        origin: true,
-        quantity: true,
-        sku: true,
-        variant: {
-          select: {
-            sellingPriceMinor: true,
-            purchasePriceMinor: true,
-            product: { select: { name: true } },
-          },
-        },
-      },
-    });
-
-    const acc: ManualSalesAccumulator = {
-      revenueMinor: 0,
-      costMinor: 0,
-      costKnownRevenueMinor: 0,
-      unitsSold: 0,
-      transactionCount: 0,
-      byOrigin: {},
-      topProducts: new Map(),
-    };
-
-    for (const movement of movements) {
-      const sign = movement.type === StockMovementType.sale ? 1 : -1;
-      const lineRevenue = sign * movement.quantity * movement.variant.sellingPriceMinor;
-      const lineUnits = sign * movement.quantity;
-      const title = movement.variant.product.name;
-
-      acc.transactionCount += 1;
-      acc.revenueMinor += lineRevenue;
-      acc.unitsSold += lineUnits;
-      this.addProductRow(acc.topProducts, movement.sku, title, lineRevenue, lineUnits);
-
-      const origin = movement.origin;
-      const bucket = acc.byOrigin[origin] ?? { revenueMinor: 0, unitsSold: 0 };
-      bucket.revenueMinor += lineRevenue;
-      bucket.unitsSold += lineUnits;
-      acc.byOrigin[origin] = bucket;
-
-      if (movement.variant.purchasePriceMinor !== null) {
-        acc.costMinor += sign * movement.quantity * movement.variant.purchasePriceMinor;
-        acc.costKnownRevenueMinor += lineRevenue;
-      }
-    }
-
-    return acc;
-  }
-
+  /**
+   * Valorizzazione magazzino: usa il costo VARIANTE CORRENTE (§③ — dice quanto
+   * vale il magazzino oggi, quindi il costo attuale è quello giusto). Non passa
+   * al costo di riferimento dell'articolo.
+   */
   private async aggregateInventoryValuation(
     tenantId: string,
     inventoryScope: Prisma.InventoryLevelWhereInput,
@@ -485,20 +398,7 @@ export class BusinessAnalyticsService {
     };
   }
 
-  private mergeAccumulators(
-    shopify: RevenueAccumulator,
-    manual: RevenueAccumulator,
-  ): RevenueAccumulator {
-    return {
-      revenueMinor: shopify.revenueMinor + manual.revenueMinor,
-      costMinor: shopify.costMinor + manual.costMinor,
-      costKnownRevenueMinor: shopify.costKnownRevenueMinor + manual.costKnownRevenueMinor,
-      unitsSold: shopify.unitsSold + manual.unitsSold,
-      transactionCount: shopify.transactionCount + manual.transactionCount,
-    };
-  }
-
-  private buildMargin(current: RevenueAccumulator): BusinessAnalyticsSummaryDto['margin'] {
+  private buildMargin(current: SalesAggregate): BusinessAnalyticsSummaryDto['margin'] {
     const costCoveragePercent =
       current.revenueMinor > 0
         ? Math.round((current.costKnownRevenueMinor / current.revenueMinor) * 1000) / 10
@@ -509,49 +409,9 @@ export class BusinessAnalyticsService {
     }
 
     const grossMinor = current.costKnownRevenueMinor - current.costMinor;
-    const grossPercent =
-      Math.round((grossMinor / current.costKnownRevenueMinor) * 1000) / 10;
+    const grossPercent = Math.round((grossMinor / current.costKnownRevenueMinor) * 1000) / 10;
 
     return { grossMinor, grossPercent, costCoveragePercent };
-  }
-
-  private addProductRow(
-    map: Map<string, ProductAccumulator>,
-    sku: string,
-    title: string,
-    revenueMinor: number,
-    unitsSold: number,
-  ): void {
-    const existing = map.get(sku);
-    if (existing) {
-      existing.revenueMinor += revenueMinor;
-      existing.unitsSold += unitsSold;
-      return;
-    }
-    map.set(sku, { sku, title, revenueMinor, unitsSold });
-  }
-
-  private mergeTopProducts(
-    shopify: Map<string, ProductAccumulator>,
-    manual: Map<string, ProductAccumulator>,
-  ): BusinessAnalyticsSummaryDto['topProducts'] {
-    const merged = new Map<string, ProductAccumulator>();
-    for (const map of [shopify, manual]) {
-      for (const [sku, row] of map) {
-        const existing = merged.get(sku);
-        if (existing) {
-          existing.revenueMinor += row.revenueMinor;
-          existing.unitsSold += row.unitsSold;
-        } else {
-          merged.set(sku, { ...row });
-        }
-      }
-    }
-
-    return [...merged.values()]
-      .filter((row) => row.revenueMinor > 0)
-      .sort((a, b) => b.revenueMinor - a.revenueMinor)
-      .slice(0, 10);
   }
 
   private daysInCurrentMonth(reference: Date = new Date()): number {
