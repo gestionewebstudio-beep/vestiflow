@@ -109,7 +109,7 @@
     "marked": "^15.0.12",
     "marked-gfm-heading-id": "^4.1.4",
     "prettier": "^3.8.1",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.3",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.60.1",
     "vitest": "^4.1.10"
