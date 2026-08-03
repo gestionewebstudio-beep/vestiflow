@@ -16,6 +16,11 @@ import {
 } from '@prisma/client';
 
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
+import {
+  currentVariantCostMap,
+  frozenTotalCostMinor,
+  originalSaleUnitCostMinor,
+} from '../inventory/movement-cost.util';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { findVatCodeForDerivedRate } from '../vat/vat-reverse-match.util';
 import { buildUnmatchedRateSnapshot, buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
@@ -158,6 +163,13 @@ export class OnlineSaleFulfillmentService {
     });
 
     // ── Scarico per riga: UN movimento per riga + consumo impegno (§3) ──────
+    // Costo di record da congelare sulla vendita: costo effettivo corrente
+    // delle varianti, in una sola query (§A).
+    const costByVariant = await currentVariantCostMap(
+      tx,
+      event.tenantId,
+      computedLines.flatMap((line) => (line.variantId ? [line.variantId] : [])),
+    );
     let movedLines = 0;
     let stockLines = 0;
     for (const line of computedLines) {
@@ -216,6 +228,7 @@ export class OnlineSaleFulfillmentService {
 
       // 3. Movimento collegato a vendita, riga e ordine. UNIQUE
       //    (sourceDocumentType, sourceLineId) ⇒ al massimo UN movimento per riga.
+      const unitCostMinor = costByVariant.get(line.variantId) ?? null;
       await tx.stockMovement.create({
         data: {
           tenantId: event.tenantId,
@@ -230,6 +243,8 @@ export class OnlineSaleFulfillmentService {
           sourceDocumentType: DocumentType.online_sale,
           sourceDocumentId: sale.id,
           sourceLineId: createdLine.id,
+          unitCostMinor,
+          totalCostMinor: frozenTotalCostMinor(unitCostMinor, line.quantity),
           createdAt: fulfilledAt,
           createdByName: this.channelActorName(event.channel),
         },
@@ -352,6 +367,13 @@ export class OnlineSaleFulfillmentService {
     });
 
     const occurredAt = event.occurredAt ?? new Date();
+    // Fallback per il costo del reso quando la vendita originale non è
+    // collegata o non porta il costo: costo effettivo corrente delle varianti.
+    const costByVariant = await currentVariantCostMap(
+      tx,
+      event.tenantId,
+      event.lines.flatMap((line) => (line.variantId ? [line.variantId] : [])),
+    );
 
     for (const line of event.lines) {
       if (line.quantity <= 0 || !line.variantId) {
@@ -368,6 +390,16 @@ export class OnlineSaleFulfillmentService {
       // Carico atomico: Giacenza +, Disponibile + (upsert livello incluso).
       await applyInventoryDelta(tx, event.tenantId, line.variantId, locationId, line.quantity);
 
+      // Il reso inverte la vendita: costo congelato sulla vendita online
+      // originale (§③), fallback al costo variante corrente.
+      const unitCostMinor = await originalSaleUnitCostMinor(
+        tx,
+        event.tenantId,
+        sale?.id ?? null,
+        line.variantId,
+        [StockMovementType.online_sale],
+        costByVariant.get(line.variantId) ?? null,
+      );
       await tx.stockMovement.create({
         data: {
           tenantId: event.tenantId,
@@ -383,6 +415,8 @@ export class OnlineSaleFulfillmentService {
           externalRef: event.externalOrderId,
           sourceDocumentType: sale ? DocumentType.online_sale : null,
           sourceDocumentId: sale?.id ?? null,
+          unitCostMinor,
+          totalCostMinor: frozenTotalCostMinor(unitCostMinor, line.quantity),
           createdAt: occurredAt,
           createdByName: this.channelActorName(event.channel),
         },

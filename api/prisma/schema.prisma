@@ -827,9 +827,11 @@ model StockMovement {
   sourceDocumentId   String?            @map("source_document_id") @db.Uuid
   /// Riga documento origine: al massimo UN movimento per riga (no doppi carichi).
   sourceLineId       String?            @map("source_line_id") @db.Uuid
-  /// Costo unitario effettivo (netto sconto riga) in unità minori — solo carichi documentali.
+  /// Costo unitario effettivo in unità minori: costo di riga netto sconto sui
+  /// carichi documentali; costo della variante CONGELATO su vendite e resi
+  /// (§Punto A: il costo di record è la variante, congelato alla vendita).
   unitCostMinor      Int?               @map("unit_cost_minor")
-  /// Costo totale riga in unità minori — solo carichi documentali.
+  /// Costo totale del movimento in unità minori (unitario × quantità congelato).
   totalCostMinor     Int?               @map("total_cost_minor")
   /// Controparte facoltativa del movimento manuale (provenienza/destinatario merce).
   partyId            String?            @map("party_id") @db.Uuid

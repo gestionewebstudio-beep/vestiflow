@@ -14,6 +14,10 @@ import { formatDocumentReference } from '../documents/document-totals.util';
 import { defaultCounterSeries, nextDocumentNumber } from '../documents/document-numbering.util';
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import {
+  frozenTotalCostMinor,
+  originalSaleUnitCostMinor,
+} from '../inventory/movement-cost.util';
+import {
   INVENTORY_VIEW_SCOPE_MODE,
   resolveOperationalLocationScope,
 } from '../inventory/licensed-location-scope.util';
@@ -48,6 +52,8 @@ interface ResolvedVariant {
   readonly productName: string;
   readonly optionSummary: string;
   readonly defaultVatCodeId: string | null;
+  /** Costo effettivo corrente: congelato sul movimento di vendita. */
+  readonly purchasePriceMinor: number | null;
 }
 
 /**
@@ -185,6 +191,8 @@ export class StoreSalesService {
       // Nessuna guardia: la vendita si registra anche oltre la disponibile (§3).
       for (const line of doc.lines) {
         await applyInventoryDelta(tx, tenantId, line.variantId!, dto.locationId, -line.quantity);
+        // Costo di record congelato: il costo effettivo della variante ora (§A).
+        const unitCostMinor = variants.get(line.variantId!)?.purchasePriceMinor ?? null;
         await tx.stockMovement.create({
           data: {
             tenantId,
@@ -199,6 +207,8 @@ export class StoreSalesService {
             sourceDocumentType: DocumentType.store_sale,
             sourceDocumentId: doc.id,
             sourceLineId: line.id,
+            unitCostMinor,
+            totalCostMinor: frozenTotalCostMinor(unitCostMinor, line.quantity),
             createdById: actor.createdById,
             createdByName: actor.createdByName,
           },
@@ -319,6 +329,16 @@ export class StoreSalesService {
           continue;
         }
         await applyInventoryDelta(tx, tenantId, line.variantId!, dto.locationId, line.quantity);
+        // Il reso inverte la vendita: usa il costo congelato sulla vendita
+        // originale (§③), non quello corrente. Fallback: costo variante.
+        const unitCostMinor = await originalSaleUnitCostMinor(
+          tx,
+          tenantId,
+          dto.saleDocumentId ?? null,
+          line.variantId!,
+          [StockMovementType.sale],
+          variants.get(line.variantId!)?.purchasePriceMinor ?? null,
+        );
         await tx.stockMovement.create({
           data: {
             tenantId,
@@ -333,6 +353,8 @@ export class StoreSalesService {
             sourceDocumentType: DocumentType.store_return,
             sourceDocumentId: doc.id,
             sourceLineId: line.id,
+            unitCostMinor,
+            totalCostMinor: frozenTotalCostMinor(unitCostMinor, line.quantity),
             createdById: actor.createdById,
             createdByName: actor.createdByName,
           },
@@ -445,6 +467,7 @@ export class StoreSalesService {
         sku: true,
         barcode: true,
         optionValues: true,
+        purchasePriceMinor: true,
         product: {
           select: { name: true, defaultVatCodeId: true },
         },
@@ -460,6 +483,7 @@ export class StoreSalesService {
           productName: row.product.name,
           optionSummary: this.optionSummary(row.optionValues),
           defaultVatCodeId: row.product.defaultVatCodeId,
+          purchasePriceMinor: row.purchasePriceMinor,
         },
       ]),
     );

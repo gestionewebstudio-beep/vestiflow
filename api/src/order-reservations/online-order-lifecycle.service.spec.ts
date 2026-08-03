@@ -354,6 +354,18 @@ function createFakeDb() {
         movements.push({ ...data });
         return Promise.resolve({ ...data, id: nextId('mov') });
       },
+      // Usato dal reso per leggere il costo congelato sulla vendita originale.
+      findFirst: ({ where }: { where: Record<string, unknown> }) => {
+        const type = where['type'] as { in?: string[] } | undefined;
+        const match = movements.find(
+          (movement) =>
+            movement.tenantId === where['tenantId'] &&
+            movement.sourceDocumentId === where['sourceDocumentId'] &&
+            movement.variantId === where['variantId'] &&
+            (type?.in ? type.in.includes(movement.type as string) : true),
+        );
+        return Promise.resolve(match ? { ...match } : null);
+      },
     },
     productVariant: {
       findMany: ({ where }: { where: { id: { in: string[] } } }) =>
