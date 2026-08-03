@@ -9,6 +9,7 @@ import {
   CatalogOrigin,
   Prisma,
   ShopifyCatalogLinkKind,
+  TenantChannelProfile,
   type Product,
   type ProductImage,
   type ProductVariant,
@@ -76,6 +77,11 @@ const PRODUCT_LIST_SELECT = {
   sellingPriceMinor: true,
   compareAtPriceMinor: true,
   purchasePriceMinor: true,
+  shopifyPriceMinor: true,
+  listino1PriceMinor: true,
+  listino2PriceMinor: true,
+  listino3PriceMinor: true,
+  listinoPricesIncludeVat: true,
   shopifyTaxonomyCategoryId: true,
   shopifyTaxonomyCategoryFullName: true,
   shopifyCategoryMetafields: true,
@@ -420,6 +426,8 @@ export class ProductsService {
           unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
           defaultVatCodeId: dto.defaultVatCodeId ?? null,
           sellingPriceMinor: dto.sellingPrice.amountMinor,
+          // Prezzo Shopify precompilato dal prezzo articolo alla creazione (§B).
+          shopifyPriceMinor: dto.sellingPrice.amountMinor,
           compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
           purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
           inventoryTracking: dto.inventoryTracking ?? undefined,
@@ -476,6 +484,7 @@ export class ProductsService {
         barcode: null,
         currency: variant.currency,
         sellingPriceMinor: variant.sellingPriceMinor,
+        shopifyPriceMinor: variant.shopifyPriceMinor,
         purchasePriceMinor: variant.purchasePriceMinor,
       });
     }
@@ -509,6 +518,7 @@ export class ProductsService {
         unitOfMeasure: original.unitOfMeasure,
         defaultVatCodeId: original.defaultVatCodeId,
         sellingPriceMinor: original.sellingPriceMinor,
+        shopifyPriceMinor: original.shopifyPriceMinor,
         compareAtPriceMinor: original.compareAtPriceMinor,
         purchasePriceMinor: original.purchasePriceMinor,
         inventoryTracking: original.inventoryTracking,
@@ -571,9 +581,19 @@ export class ProductsService {
     const existing = await this.getById(tenantId, id);
     assertShopifyCatalogUpdateAllowed(existing, dto);
 
+    // Shopify ATTIVO: prezzo articolo e prezzo Shopify sono indipendenti (il form
+    // invia entrambi, B3). Shopify DISATTIVO: l'operatore non vede il prezzo
+    // Shopify, che segue il prezzo articolo SOLO quando questo cambia valore.
+    // Serve solo quando il patch tocca prezzo articolo o varianti: un edit di
+    // solo nome/descrizione non paga la query sul canale del tenant.
+    const shopifyActive =
+      dto.sellingPrice !== undefined || dto.variants !== undefined
+        ? await this.isShopifyActive(tenantId)
+        : false;
+
     await this.prisma.$transaction(async (tx) => {
       if (dto.variants) {
-        await this.syncVariants(tx, tenantId, id, dto.variants);
+        await this.syncVariants(tx, tenantId, id, dto.variants, shopifyActive);
       }
 
       // Codice articolo: undefined = non toccare; vuoto = bloccato (il campo
@@ -611,6 +631,11 @@ export class ProductsService {
                 sellingPriceMinor: dto.sellingPrice.amountMinor,
                 compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
                 purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
+                // Shopify disattivo: il prezzo Shopify segue il prezzo articolo
+                // SOLO se questo cambia valore (criterio unico e preciso).
+                ...(!shopifyActive && dto.sellingPrice.amountMinor !== existing.sellingPriceMinor
+                  ? { shopifyPriceMinor: dto.sellingPrice.amountMinor }
+                  : {}),
               }
             : {}),
           ...(dto.shopifyTaxonomyCategoryId !== undefined
@@ -836,6 +861,7 @@ export class ProductsService {
     tenantId: string,
     productId: string,
     variants: readonly UpdateVariantDto[],
+    shopifyActive: boolean,
   ): Promise<void> {
     this.assertNoDuplicateSkusInPayload(variants);
     this.assertNoDuplicateBarcodesInPayload(variants);
@@ -857,7 +883,7 @@ export class ProductsService {
 
     for (const variant of variants) {
       if (variant.id) {
-        await this.updateVariantInTx(tx, tenantId, productId, variant);
+        await this.updateVariantInTx(tx, tenantId, productId, variant, shopifyActive);
       } else {
         await this.createVariantInTx(tx, tenantId, productId, variant);
       }
@@ -882,6 +908,7 @@ export class ProductsService {
     tenantId: string,
     productId: string,
     variant: UpdateVariantDto,
+    shopifyActive: boolean,
   ): Promise<void> {
     const id = variant.id;
     if (!id) {
@@ -890,7 +917,7 @@ export class ProductsService {
 
     const current = await tx.productVariant.findFirst({
       where: { id, tenantId, productId },
-      select: { id: true },
+      select: { id: true, sellingPriceMinor: true },
     });
     if (!current) {
       throw new NotFoundException(`Variante ${id} non trovata sul prodotto`);
@@ -906,6 +933,11 @@ export class ProductsService {
         barcode: normalizeBarcodeInput(variant.barcode),
         currency: variant.sellingPrice.currency,
         sellingPriceMinor: variant.sellingPrice.amountMinor,
+        // Shopify disattivo: il prezzo Shopify della variante segue il prezzo
+        // articolo SOLO se questo cambia valore (stesso criterio dell'articolo).
+        ...(!shopifyActive && variant.sellingPrice.amountMinor !== current.sellingPriceMinor
+          ? { shopifyPriceMinor: variant.sellingPrice.amountMinor }
+          : {}),
         purchasePriceMinor: variant.purchasePrice?.amountMinor,
       },
     });
@@ -951,6 +983,8 @@ export class ProductsService {
       barcode: normalizeBarcodeInput(variant.barcode),
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
+      // Prezzo Shopify precompilato dal prezzo variante alla creazione (§B).
+      shopifyPriceMinor: variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
     };
   }
@@ -966,6 +1000,8 @@ export class ProductsService {
       barcode: normalizeBarcodeInput(variant.barcode),
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
+      // Prezzo Shopify precompilato dal prezzo variante alla creazione (§B).
+      shopifyPriceMinor: variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
     };
   }
@@ -983,7 +1019,7 @@ export class ProductsService {
   ): Promise<void> {
     const product = await tx.product.findFirst({
       where: { id: productId, tenantId },
-      select: { options: true, sellingPriceMinor: true },
+      select: { options: true, sellingPriceMinor: true, shopifyPriceMinor: true },
     });
     if (!product) {
       return;
@@ -992,10 +1028,28 @@ export class ProductsService {
     if (options.length > 0) {
       return;
     }
+    // La variante di default rispecchia sia il prezzo articolo sia il prezzo
+    // Shopify: sul prodotto semplice i due livelli coincidono.
     await tx.productVariant.updateMany({
       where: { productId, tenantId },
-      data: { sellingPriceMinor: product.sellingPriceMinor },
+      data: {
+        sellingPriceMinor: product.sellingPriceMinor,
+        shopifyPriceMinor: product.shopifyPriceMinor,
+      },
     });
+  }
+
+  /**
+   * Gestione Shopify attiva per il tenant = profilo canale Shopify. Governa se
+   * il prezzo Shopify è indipendente (attivo) o segue il prezzo articolo sui
+   * cambi di valore (disattivo, §B).
+   */
+  private async isShopifyActive(tenantId: string): Promise<boolean> {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { channelProfile: true },
+    });
+    return tenant?.channelProfile === TenantChannelProfile.shopify;
   }
 
   /** Duplicati nel payload stesso → errore di validazione (422). */

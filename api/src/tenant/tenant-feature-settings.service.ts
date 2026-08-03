@@ -18,6 +18,14 @@ const DEFAULTS: Omit<TenantFeatureSettings, 'id' | 'tenantId' | 'createdAt' | 'u
   blockNegativeInventory: false,
   defaultUnitOfMeasure: 'pz',
   defaultVatCodeId: null,
+  // Listini aggiuntivi: il primo attivo di default, gli altri due attivabili.
+  // Nome null → la UI mostra l'etichetta di default (B3).
+  listino1Name: null,
+  listino1Active: true,
+  listino2Name: null,
+  listino2Active: false,
+  listino3Name: null,
+  listino3Active: false,
 };
 
 @Injectable()

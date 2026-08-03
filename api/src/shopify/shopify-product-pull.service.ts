@@ -288,12 +288,18 @@ export class ShopifyProductPullService {
         // Campi articolo popolati dalla prima variante (Shopify li mostra come
         // prezzo/barrato/costo del prodotto): il barrato è SOLO dell'articolo.
         const first = remote.variants[0];
+        // Primo import: il prezzo Shopify E il prezzo articolo (gestionale)
+        // nascono entrambi dal prezzo Shopify — non c'è altra fonte. Da qui in
+        // poi la sync tocca solo il prezzo Shopify; il prezzo articolo è
+        // dell'operatore.
+        const firstPriceMinor = first ? shopifyDecimalToMinor(first.price ?? '0') : 0;
         const product = await tx.product.create({
           data: {
             tenantId,
             articleCode,
             ...productData,
-            sellingPriceMinor: first ? shopifyDecimalToMinor(first.price ?? '0') : 0,
+            sellingPriceMinor: firstPriceMinor,
+            shopifyPriceMinor: firstPriceMinor,
             compareAtPriceMinor: first?.compare_at_price
               ? shopifyDecimalToMinor(first.compare_at_price)
               : null,
@@ -306,6 +312,7 @@ export class ShopifyProductPullService {
         for (const variant of remote.variants) {
           const sku = this.resolveImportSku(reservedSkus, variant.sku, variant.id);
           reservedSkus.add(sku.toLowerCase());
+          const variantPriceMinor = shopifyDecimalToMinor(variant.price ?? '0');
           await tx.productVariant.create({
             data: {
               tenantId,
@@ -317,7 +324,8 @@ export class ShopifyProductPullService {
               ),
               barcode: variant.barcode ?? null,
               currency: 'EUR',
-              sellingPriceMinor: shopifyDecimalToMinor(variant.price ?? '0'),
+              sellingPriceMinor: variantPriceMinor,
+              shopifyPriceMinor: variantPriceMinor,
               purchasePriceMinor: enrichment?.variantPurchasePriceMinor.get(variant.id) ?? null,
               shopifyVariantId: String(variant.id),
               shopifyInventoryItemId: String(variant.inventory_item_id),
@@ -341,8 +349,10 @@ export class ShopifyProductPullService {
         where: { id: existing.id },
         data: {
           ...productData,
-          // Campi articolo ripopolati dalla prima variante (barrato solo qui).
-          sellingPriceMinor: firstRemote ? shopifyDecimalToMinor(firstRemote.price ?? '0') : 0,
+          // Ri-sync: si aggiorna SOLO il prezzo Shopify (dalla prima variante).
+          // Il prezzo articolo (gestionale) è dell'operatore, non si tocca più.
+          // Il barrato è dell'articolo ma resta sincronizzato (una sola versione).
+          shopifyPriceMinor: firstRemote ? shopifyDecimalToMinor(firstRemote.price ?? '0') : 0,
           compareAtPriceMinor: firstRemote?.compare_at_price
             ? shopifyDecimalToMinor(firstRemote.compare_at_price)
             : null,
@@ -359,21 +369,26 @@ export class ShopifyProductPullService {
           enrichment?.variantPurchasePriceMinor.get(variant.id) ??
           matched?.purchasePriceMinor ??
           null;
-        const variantData = {
+        const variantPriceMinor = shopifyDecimalToMinor(variant.price ?? '0');
+        // Comune a match/nuova: il prezzo Shopify e i collegamenti si allineano.
+        const variantSyncData = {
           optionValues: this.mapVariantOptions(remote, variant) as unknown as Prisma.InputJsonValue,
           barcode: variant.barcode ?? null,
-          sellingPriceMinor: shopifyDecimalToMinor(variant.price ?? '0'),
+          shopifyPriceMinor: variantPriceMinor,
           purchasePriceMinor,
           shopifyVariantId,
           shopifyInventoryItemId: String(variant.inventory_item_id),
         };
 
         if (matched) {
+          // Variante esistente: NON si tocca il prezzo articolo (gestionale).
           await tx.productVariant.update({
             where: { id: matched.id },
-            data: variantData,
+            data: variantSyncData,
           });
         } else {
+          // Variante nuova comparsa su Shopify: prezzo articolo seminato dal
+          // prezzo Shopify (nessun'altra fonte), poi indipendente.
           const sku = this.resolveImportSku(reservedSkus, variant.sku, variant.id);
           reservedSkus.add(sku.toLowerCase());
           await tx.productVariant.create({
@@ -382,7 +397,8 @@ export class ShopifyProductPullService {
               productId: existing.id,
               sku,
               currency: 'EUR',
-              ...variantData,
+              sellingPriceMinor: variantPriceMinor,
+              ...variantSyncData,
             },
           });
         }

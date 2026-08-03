@@ -257,6 +257,8 @@ export class ProductsImportService {
           seoDescription: parsed.seoDescription,
           status: parsed.dto.status,
           sellingPriceMinor: parsed.dto.sellingPrice.amountMinor,
+          // Prezzo Shopify precompilato dal prezzo articolo alla creazione (§B).
+          shopifyPriceMinor: parsed.dto.sellingPrice.amountMinor,
           compareAtPriceMinor: parsed.dto.compareAtPrice?.amountMinor ?? null,
           purchasePriceMinor: parsed.dto.purchasePrice?.amountMinor ?? null,
           options: parsed.dto.options as unknown as Prisma.InputJsonValue,
@@ -306,6 +308,8 @@ export class ProductsImportService {
       barcode: this.dedupeBarcode(variant.barcode, usedBarcodes),
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
+      // Prezzo Shopify precompilato dal prezzo variante alla creazione (§B).
+      shopifyPriceMinor: variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
     };
   }

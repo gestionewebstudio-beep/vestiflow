@@ -150,7 +150,8 @@ function buildProductRow(
 
   if (variant) {
     row['Variant SKU'] = variant.sku ?? '';
-    row['Variant Price'] = minorToShopifyDecimal(variant.sellingPriceMinor);
+    // Export per Shopify: il prezzo del canale (valore proprio, §B).
+    row['Variant Price'] = minorToShopifyDecimal(variant.shopifyPriceMinor);
     row['Variant Compare-at Price'] =
       product.compareAtPriceMinor != null
         ? minorToShopifyDecimal(product.compareAtPriceMinor)

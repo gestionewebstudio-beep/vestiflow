@@ -606,6 +606,19 @@ model Product {
   /// Costo d'acquisto di RIFERIMENTO: seeda le nuove varianti. Il costo effettivo
   /// per taglia vive sulla variante (aggiornato dai carichi).
   purchasePriceMinor              Int?                    @map("purchase_price_minor")
+  /// Prezzo di vendita per il canale Shopify (listino), INDIPENDENTE dal prezzo
+  /// articolo. La pubblicazione legge sempre e solo questo. Precompilato dal
+  /// prezzo articolo alla creazione; con Shopify DISATTIVO segue il prezzo
+  /// articolo solo quando questo cambia valore. Ha sempre un valore proprio.
+  shopifyPriceMinor               Int                     @default(0) @map("shopify_price_minor")
+  /// Tre listini aggiuntivi (SOLO articolo: valore unico per tutte le varianti).
+  /// Rinominabili/attivabili nelle impostazioni tenant. Mai sincronizzati.
+  listino1PriceMinor              Int?                    @map("listino1_price_minor")
+  listino2PriceMinor              Int?                    @map("listino2_price_minor")
+  listino3PriceMinor              Int?                    @map("listino3_price_minor")
+  /// Modalità netto/ivato della sezione Listini (entry/display, una per l'intera
+  /// sezione). I valori restano memorizzati nella forma canonica dei consumatori.
+  listinoPricesIncludeVat         Boolean                 @default(true) @map("listino_prices_include_vat")
   /// Tracciamento inventario: standard, lotti, seriali o nessuno.
   inventoryTracking               InventoryTrackingMode   @default(standard) @map("inventory_tracking")
   /// Se false, il prodotto non genera movimenti di magazzino.
@@ -692,6 +705,10 @@ model ProductVariant {
   // Denaro in unità minori intere (mai float).
   currency               String   @default("EUR")
   sellingPriceMinor      Int      @map("selling_price_minor")
+  /// Prezzo Shopify per-taglia, INDIPENDENTE dal prezzo articolo. Precompilato
+  /// dall'articolo alla creazione; la pubblicazione legge solo questo. Ha sempre
+  /// un valore proprio.
+  shopifyPriceMinor      Int      @default(0) @map("shopify_price_minor")
   /// Costo effettivo di questa taglia (aggiornato dai carichi; alimenta
   /// valorizzazione e margini). Il barrato NON vive sulla variante: è dell'articolo.
   purchasePriceMinor     Int?     @map("purchase_price_minor")
@@ -1711,6 +1728,14 @@ model TenantFeatureSettings {
   defaultUnitOfMeasure          String                    @default("pz") @map("default_unit_of_measure")
   /// Codice IVA predefinito aziendale.
   defaultVatCodeId              String?                   @map("default_vat_code_id") @db.Uuid
+  /// Listini aggiuntivi (fissi 3): nome rinominabile e attivazione. Il primo è
+  /// attivo di default, gli altri due si attivano quando servono.
+  listino1Name                  String?                   @map("listino1_name")
+  listino1Active                Boolean                   @default(true) @map("listino1_active")
+  listino2Name                  String?                   @map("listino2_name")
+  listino2Active                Boolean                   @default(false) @map("listino2_active")
+  listino3Name                  String?                   @map("listino3_name")
+  listino3Active                Boolean                   @default(false) @map("listino3_active")
   createdAt                   DateTime                  @default(now()) @map("created_at")
   updatedAt                   DateTime                  @updatedAt @map("updated_at")
 

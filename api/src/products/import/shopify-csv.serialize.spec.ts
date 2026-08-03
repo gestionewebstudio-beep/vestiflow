@@ -159,6 +159,9 @@ function makeRecord(input: {
       barcode: variant.barcode ?? null,
       currency: 'EUR',
       sellingPriceMinor: variant.sellingPriceMinor,
+      // Prezzo Shopify: valore proprio della variante, precompilato dal prezzo
+      // articolo alla creazione (l'export legge questo, §B).
+      shopifyPriceMinor: variant.sellingPriceMinor,
       purchasePriceMinor: null,
       shopifyVariantId: null,
       shopifyInventoryItemId: null,

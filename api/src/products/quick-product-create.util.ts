@@ -138,7 +138,9 @@ export async function createQuickProductWithVariant(
         defaultVatCodeId: input.vatCodeId ?? null,
         managesStock,
         // Prodotto semplice: i campi articolo e la variante di default coincidono.
+        // Il prezzo Shopify è precompilato dal prezzo articolo (§B).
         sellingPriceMinor: input.sellingPriceMinor ?? 0,
+        shopifyPriceMinor: input.sellingPriceMinor ?? 0,
         compareAtPriceMinor: input.compareAtPriceMinor ?? null,
         purchasePriceMinor: input.purchasePriceMinor ?? null,
         ...(input.unitOfMeasure?.trim() ? { unitOfMeasure: input.unitOfMeasure.trim() } : {}),
@@ -152,6 +154,7 @@ export async function createQuickProductWithVariant(
               optionValues: [] as unknown as Prisma.InputJsonValue,
               currency: input.currency?.trim() || 'EUR',
               sellingPriceMinor: input.sellingPriceMinor ?? 0,
+              shopifyPriceMinor: input.sellingPriceMinor ?? 0,
               purchasePriceMinor: input.purchasePriceMinor ?? undefined,
             },
           ],
