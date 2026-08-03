@@ -96,6 +96,14 @@ export class ProductGeneralStepComponent implements OnInit {
   /** Codici IVA attivi per la tendina "Codice IVA" (dal parent smart). */
   readonly vatCodes = input<readonly VatCode[]>([]);
   readonly shopifyConnected = input(false);
+  /**
+   * Shopify attivo per il tenant (profilo canale = Shopify). Governa la
+   * VISIBILITÀ del campo Prezzo Shopify e dell'avviso zero — allineato al gate
+   * del backend, che decide l'indipendenza del prezzo Shopify sul profilo, non
+   * sullo stato di connessione. Distinto da `shopifyConnected` (che richiede
+   * anche la connessione attiva, usato per la tassonomia).
+   */
+  readonly shopifyActive = input(false);
   readonly catalogReadOnly = input(false);
   /**
    * Mostra il campo Costo di riferimento (prezzo d'acquisto dell'articolo).
@@ -271,12 +279,33 @@ export class ProductGeneralStepComponent implements OnInit {
     // Prezzo/costo a livello articolo (unità maggiori). Il prezzo di vendita è il
     // dato reale dell'articolo; barrato e costo di riferimento sono opzionali.
     sellingPrice: this.fb.control(0, [Validators.required, Validators.min(0)]),
+    // Prezzo Shopify (§B): valore proprio. Zero è legittimo (avviso non
+    // bloccante); nessun min diverso da 0.
+    shopifyPrice: this.fb.control(0, [Validators.min(0)]),
     compareAtPrice: this.fb.control<number | null>(null, [Validators.min(0)]),
     purchasePrice: this.fb.control<number | null>(null, [Validators.min(0)]),
     description: this.fb.control(''),
   });
 
   private valueChangesSub: Subscription | null = null;
+
+  /**
+   * Il prezzo Shopify SEGUE il prezzo articolo finché l'operatore non lo tocca
+   * (§B). Inizializzato a `shopifyPrice === sellingPrice` all'apertura: una
+   * scheda esistente con prezzo Shopify già divergente NON viene sovrascritta
+   * dal follow (lettura non distruttiva). Si spegne al primo edit del campo.
+   */
+  private readonly shopifyFollowsArticle = signal(true);
+  /** Valore corrente del prezzo Shopify (per l'avviso zero, reattivo). */
+  private readonly shopifyPriceValue = signal(0);
+
+  /**
+   * Avviso non bloccante: prezzo Shopify a zero con Shopify attivo. L'articolo si
+   * pubblicherebbe a 0; l'operatore può salvare comunque (nessun blocco).
+   */
+  protected readonly showShopifyZeroWarning = computed(
+    () => this.shopifyActive() && this.shopifyPriceValue() === 0,
+  );
 
   /** Codice caricato all'apertura: base del "Ripristina" (§obbligatorio). */
   private initialArticleCode = '';
@@ -313,6 +342,33 @@ export class ProductGeneralStepComponent implements OnInit {
     this.customCategory.set(this.shouldUseCustomField(initial.category, this.categoryNamePool()));
     this.customSeason.set(initial.season.trim() !== '' && !isStandardProductSeason(initial.season));
     this.form.setValue(initial, { emitEvent: false });
+
+    // Prezzo Shopify (§B): il follow parte attivo solo se all'apertura i due
+    // prezzi coincidono; se già divergono, l'operatore li ha diversificati e il
+    // valore Shopify va protetto.
+    this.shopifyFollowsArticle.set(initial.shopifyPrice === initial.sellingPrice);
+    this.shopifyPriceValue.set(initial.shopifyPrice);
+
+    // Il prezzo articolo trascina il prezzo Shopify finché il follow è attivo. Il
+    // set usa emitEvent:false: NON deve apparire come un edit dell'operatore, così
+    // `shopifyPrice.valueChanges` resta un segnale puro di modifica manuale.
+    this.form.controls.sellingPrice.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        if (this.shopifyFollowsArticle() && this.form.controls.shopifyPrice.value !== value) {
+          this.form.controls.shopifyPrice.setValue(value, { emitEvent: false });
+          this.shopifyPriceValue.set(value);
+        }
+      });
+
+    // Edit manuale del prezzo Shopify: il follow si spegne e il campo diventa
+    // indipendente (i set programmatici sopra non passano di qui).
+    this.form.controls.shopifyPrice.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        this.shopifyFollowsArticle.set(false);
+        this.shopifyPriceValue.set(value);
+      });
 
     // La sottocategoria segue la categoria: al cambio si azzera (le voci
     // proposte sono filtrate sulla categoria selezionata).

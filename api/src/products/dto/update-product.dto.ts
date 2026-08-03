@@ -43,6 +43,17 @@ export class UpdateProductDto {
   @Type(() => MoneyDto)
   sellingPrice?: MoneyDto;
 
+  /**
+   * Prezzo Shopify dell'articolo (§B, valore proprio). Con Shopify attivo il
+   * form lo invia e il service lo persiste così com'è. Con Shopify spento il
+   * campo non esiste in UI: il valore inviato viene ignorato e il prezzo Shopify
+   * segue il prezzo articolo solo quando questo cambia (regola nel service).
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  shopifyPrice?: MoneyDto;
+
   @IsOptional()
   @ValidateNested()
   @Type(() => MoneyDto)

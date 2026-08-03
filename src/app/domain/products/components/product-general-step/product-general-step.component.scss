@@ -42,6 +42,11 @@
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+
+  // Avviso non bloccante (es. prezzo Shopify a zero): ambra, non danger.
+  &--warning {
+    color: var(--color-warning);
+  }
 }
 
 // Icona info in linea col nome del campo: la descrizione vive nel tooltip.

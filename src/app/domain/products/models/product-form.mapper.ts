@@ -46,6 +46,14 @@ export interface VariantSeed {
   readonly purchasePrice: number | null;
 }
 
+/**
+ * Prezzo Shopify di una NUOVA variante alla generazione: seed dal prezzo
+ * variante (che a sua volta nasce dal prezzo articolo), poi indipendente.
+ */
+function seedShopifyPrice(seed?: VariantSeed): number {
+  return seed?.sellingPrice ?? 0;
+}
+
 export function generateVariantDrafts(
   options: ProductOptionsDraft,
   // Mantenuto per compatibilita' con i chiamanti esistenti; non piu' usato
@@ -88,6 +96,7 @@ export function generateVariantDrafts(
       // Seed dal prezzo/costo di articolo (se fornito): la nuova combinazione
       // nasce coi valori dell'articolo, poi è modificabile in modo indipendente.
       sellingPrice: seed?.sellingPrice ?? 0,
+      shopifyPrice: seedShopifyPrice(seed),
       purchasePrice: seed?.purchasePrice ?? null,
       barcode: '',
       included: true,
@@ -114,6 +123,7 @@ export function createSingleVariantDraft(
     optionValues: [],
     sku,
     sellingPrice: existing?.sellingPrice ?? 0,
+    shopifyPrice: existing?.shopifyPrice ?? existing?.sellingPrice ?? 0,
     purchasePrice: existing?.purchasePrice ?? null,
     barcode: existing?.barcode ?? '',
     included: true,
@@ -168,6 +178,8 @@ export function productFormDraftFromEmbeddedPrefill(
         description: prefill.description?.trim() || base.general.description,
         defaultVatCodeId: prefill.defaultVatCodeId ?? base.general.defaultVatCodeId,
         sellingPrice,
+        // Prezzo Shopify precompilato dal prezzo articolo (§B).
+        shopifyPrice: sellingPrice,
         purchasePrice,
         compareAtPrice,
       },
@@ -179,6 +191,7 @@ export function productFormDraftFromEmbeddedPrefill(
           // Specchio dell'articolo: coerente col mirror applicato al build DTO.
           purchasePrice,
           sellingPrice,
+          shopifyPrice: sellingPrice,
         },
       ],
     },
@@ -211,6 +224,7 @@ export function emptyProductFormDraft(): ProductFormDraft {
       managesStock: true,
       kind: ProductKind.Article,
       sellingPrice: 0,
+      shopifyPrice: 0,
       compareAtPrice: null,
       purchasePrice: null,
     },
@@ -242,6 +256,9 @@ function toVariantBase(variant: VariantDraft): CreateProductVariantDto {
       value: option.value,
     })),
     sellingPrice: moneyFromMajor(variant.sellingPrice, DEFAULT_CURRENCY),
+    // Prezzo Shopify variante: sempre inviato (il backend lo usa con Shopify
+    // attivo, lo ignora a Shopify spento applicando la propria regola di follow).
+    shopifyPrice: moneyFromMajor(variant.shopifyPrice, DEFAULT_CURRENCY),
     purchasePrice:
       variant.purchasePrice != null
         ? moneyFromMajor(variant.purchasePrice, DEFAULT_CURRENCY)
@@ -282,6 +299,8 @@ function generalToDto(
     // di vendita è sempre inviato; barrato e costo di riferimento solo se
     // valorizzati (null nel draft = assente).
     sellingPrice: moneyFromMajor(general.sellingPrice, DEFAULT_CURRENCY),
+    // Prezzo Shopify articolo: sempre inviato (backend autoritativo, vedi sopra).
+    shopifyPrice: moneyFromMajor(general.shopifyPrice, DEFAULT_CURRENCY),
     compareAtPrice:
       general.compareAtPrice != null
         ? moneyFromMajor(general.compareAtPrice, DEFAULT_CURRENCY)
@@ -340,6 +359,13 @@ function articlePurchaseMoney(
     : undefined;
 }
 
+/** Prezzo Shopify dell'articolo come Money (sempre presente nel form). */
+function articleShopifyMoney(
+  general: ProductGeneralDraft,
+): CreateProductVariantDto['shopifyPrice'] {
+  return moneyFromMajor(general.shopifyPrice, DEFAULT_CURRENCY);
+}
+
 /** Draft -> payload di creazione (solo varianti incluse). */
 export function toCreateProductDto(draft: ProductFormDraft): CreateProductDto {
   const simple = isSimpleProductDraft(draft);
@@ -351,6 +377,7 @@ export function toCreateProductDto(draft: ProductFormDraft): CreateProductDto {
       ? {
           ...base,
           sellingPrice: articleSellingMoney(draft.general),
+          shopifyPrice: articleShopifyMoney(draft.general),
           purchasePrice: articlePurchaseMoney(draft.general),
         }
       : base;
@@ -373,7 +400,12 @@ export function toUpdateProductDto(draft: ProductFormDraft): UpdateProductDto {
     // riferimento perderebbe il dato di valorizzazione.
     return {
       ...base,
-      ...(simple ? { sellingPrice: articleSellingMoney(draft.general) } : {}),
+      ...(simple
+        ? {
+            sellingPrice: articleSellingMoney(draft.general),
+            shopifyPrice: articleShopifyMoney(draft.general),
+          }
+        : {}),
       id: variant.id,
     };
   });
@@ -442,6 +474,14 @@ export function productToFormDraft(
     // vendita ha sempre un valore (default 0); barrato e costo di riferimento
     // sono opzionali (null = assente).
     sellingPrice: product.sellingPrice != null ? moneyToMajor(product.sellingPrice) : 0,
+    // Prezzo Shopify articolo: valore proprio; fallback al prezzo articolo se
+    // assente (a DB è sempre valorizzato).
+    shopifyPrice:
+      product.shopifyPrice != null
+        ? moneyToMajor(product.shopifyPrice)
+        : product.sellingPrice != null
+          ? moneyToMajor(product.sellingPrice)
+          : 0,
     compareAtPrice: product.compareAtPrice != null ? moneyToMajor(product.compareAtPrice) : null,
     purchasePrice: product.purchasePrice != null ? moneyToMajor(product.purchasePrice) : null,
   };
@@ -455,6 +495,11 @@ export function productToFormDraft(
     sku: variant.sku,
     // Ponte dominio->form: Money (unità minori) torna a number in unità maggiori.
     sellingPrice: moneyToMajor(variant.sellingPrice),
+    // Prezzo Shopify variante: valore proprio; fallback al prezzo variante.
+    shopifyPrice:
+      variant.shopifyPrice != null
+        ? moneyToMajor(variant.shopifyPrice)
+        : moneyToMajor(variant.sellingPrice),
     purchasePrice: variant.purchasePrice != null ? moneyToMajor(variant.purchasePrice) : null,
     barcode: variant.barcode ?? '',
     included: true,

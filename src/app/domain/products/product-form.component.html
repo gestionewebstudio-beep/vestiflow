@@ -55,6 +55,7 @@
             [supplierOptions]="supplierOptions()"
             [vatCodes]="vatCodes()"
             [shopifyConnected]="shopifyConnected()"
+            [shopifyActive]="showShopifyIntegration()"
             [catalogReadOnly]="shopifyCatalogLocked()"
             [editMode]="mode() === 'edit'"
             [canSeeCosts]="canViewPurchaseCosts()"
@@ -122,6 +123,7 @@
             [takenSkus]="takenSkus()"
             [takenBarcodes]="takenBarcodes()"
             [catalogReadOnly]="shopifyCatalogLocked()"
+            [shopifyActive]="showShopifyIntegration()"
             (variantsChange)="onVariantsChange($event)"
             (stepValidChange)="onVariantsValidChange($event)"
           />

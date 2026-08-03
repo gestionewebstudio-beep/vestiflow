@@ -52,6 +52,13 @@ export interface ProductGeneralDraft {
    * specchia. Il mapper lo converte in Money.
    */
   readonly sellingPrice: number;
+  /**
+   * Prezzo Shopify dell'articolo (unità maggiori, ponte form). Valore proprio,
+   * indipendente. Alla creazione precompilato dal prezzo articolo; nella scheda
+   * aperta segue il prezzo articolo finché l'operatore non lo tocca. Visibile ed
+   * editabile solo con Shopify attivo.
+   */
+  readonly shopifyPrice: number;
   /** Prezzo "barrato" dell'articolo (unità maggiori). null = assente. Unico per articolo. */
   readonly compareAtPrice: number | null;
   /** Costo di riferimento dell'articolo (unità maggiori), seed del costo variante. null = assente. */
@@ -86,6 +93,12 @@ export interface VariantDraft {
   readonly sku: string;
   /** Prezzi in unità maggiori (ponte form); il mapper li converte in Money. */
   readonly sellingPrice: number;
+  /**
+   * Prezzo Shopify della variante (unità maggiori). Valore proprio, seed dal
+   * prezzo variante alla creazione poi indipendente. Editabile solo con Shopify
+   * attivo.
+   */
+  readonly shopifyPrice: number;
   /** Costo effettivo della variante (unità maggiori). Il barrato NON è più qui. */
   readonly purchasePrice: number | null;
   readonly barcode: string;

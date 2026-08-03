@@ -18,6 +18,9 @@
             }
             <th scope="col">SKU</th>
             <th scope="col" class="variants-step-table__cell--numeric">Prezzo vendita</th>
+            @if (shopifyActive()) {
+              <th scope="col" class="variants-step-table__cell--numeric">Prezzo Shopify</th>
+            }
             <th scope="col" class="variants-step-table__cell--numeric">Prezzo acquisto</th>
             <th scope="col">Barcode</th>
           </tr>
@@ -103,6 +106,29 @@
                   }
                 </div>
               </td>
+              @if (shopifyActive()) {
+                <td data-label="Prezzo Shopify" class="variants-step-table__cell--numeric">
+                  <div class="variants-step__field">
+                    <input
+                      class="variants-step__input variants-step__input--numeric"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.01"
+                      formControlName="shopifyPrice"
+                      [attr.aria-invalid]="isInvalid(group, 'shopifyPrice') ? true : null"
+                      [attr.aria-label]="'Prezzo Shopify per ' + rowTitle(i)"
+                    />
+                    @if (isInvalid(group, 'shopifyPrice')) {
+                      <p class="variants-step__error" role="alert">
+                        Il prezzo non può essere negativo.
+                      </p>
+                    } @else {
+                      <span class="variants-step__error-placeholder" aria-hidden="true"></span>
+                    }
+                  </div>
+                </td>
+              }
               <td data-label="Prezzo acquisto" class="variants-step-table__cell--numeric">
                 <div class="variants-step__field">
                   <input

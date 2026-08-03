@@ -29,6 +29,11 @@ export interface CreateProductVariantDto {
   /** Valori opzione (1-3 assi), es. [{Taglia,M},{Colore,Rosso}]. */
   readonly optionValues: readonly SelectedOptionDto[];
   readonly sellingPrice: Money;
+  /**
+   * Prezzo Shopify della variante (§B): valore proprio. Inviato dalla UI solo con
+   * Shopify attivo; assente = il backend precompila dal prezzo variante.
+   */
+  readonly shopifyPrice?: Money;
   /** Costo EFFETTIVO della variante (per-taglia): il barrato NON è più qui. */
   readonly purchasePrice?: Money;
   readonly barcode?: string;
@@ -51,6 +56,8 @@ export interface CreateProductDto {
   readonly name: string;
   /** Prezzo di vendita dell'articolo (dato reale, seed delle varianti). */
   readonly sellingPrice: Money;
+  /** Prezzo Shopify dell'articolo (§B, valore proprio). Inviato solo con Shopify attivo. */
+  readonly shopifyPrice?: Money;
   /** Prezzo "barrato" dell'articolo (unico per articolo). */
   readonly compareAtPrice?: Money;
   /** Costo di riferimento dell'articolo (seed del costo variante). */
@@ -90,6 +97,8 @@ export interface UpdateProductDto {
   readonly name?: string;
   /** Prezzo di vendita dell'articolo. undefined = non toccare. */
   readonly sellingPrice?: Money;
+  /** Prezzo Shopify dell'articolo (§B, valore proprio). Inviato solo con Shopify attivo. */
+  readonly shopifyPrice?: Money;
   /** Prezzo "barrato" dell'articolo (unico per articolo). */
   readonly compareAtPrice?: Money;
   /** Costo di riferimento dell'articolo (seed del costo variante). */

@@ -37,6 +37,7 @@ const EMPTY_GENERAL: ProductGeneralDraft = {
   managesStock: true,
   kind: ProductKind.Article,
   sellingPrice: 0,
+  shopifyPrice: 0,
   compareAtPrice: null,
   purchasePrice: null,
 };

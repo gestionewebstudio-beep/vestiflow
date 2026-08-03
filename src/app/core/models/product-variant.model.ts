@@ -13,6 +13,12 @@ export interface ProductVariant {
   /** Valori opzione della variante (es. [{Taglia,M},{Colore,Rosso}]), 1-3 assi. */
   readonly optionValues: readonly SelectedOption[];
   readonly sellingPrice: Money;
+  /**
+   * Prezzo Shopify della variante (§B): valore proprio, per-taglia. Seed dal
+   * prezzo variante alla creazione, poi indipendente. È il prezzo che la
+   * pubblicazione Shopify legge per la variante.
+   */
+  readonly shopifyPrice?: Money;
   // Opzionali ma raccomandati:
   readonly barcode?: string;
   /**

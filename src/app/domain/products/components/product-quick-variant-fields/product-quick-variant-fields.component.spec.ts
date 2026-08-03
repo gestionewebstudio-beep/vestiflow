@@ -12,6 +12,7 @@ const emptyVariant: VariantDraft = {
   optionValues: [],
   sku: '',
   sellingPrice: 0,
+  shopifyPrice: 0,
   purchasePrice: null,
   barcode: '',
   included: true,

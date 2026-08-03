@@ -90,6 +90,12 @@ export interface Product extends TenantScoped, Timestamped {
    */
   readonly sellingPrice?: Money;
   /**
+   * Prezzo Shopify dell'articolo (§B): valore proprio, indipendente dal prezzo
+   * articolo. È l'unico prezzo che la pubblicazione Shopify legge. Precompilato
+   * dal prezzo articolo alla creazione, poi editabile solo con Shopify attivo.
+   */
+  readonly shopifyPrice?: Money;
+  /**
    * Prezzo "barrato" (compareAt): UNO per articolo. Non esiste più a livello di
    * variante. In export Shopify viene replicato su ogni variante.
    */

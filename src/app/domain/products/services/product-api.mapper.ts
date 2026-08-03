@@ -24,6 +24,7 @@ function toApiVariant(variant: CreateProductVariantDto): Record<string, unknown>
     sku: variant.sku?.trim() || undefined,
     optionValues: variant.optionValues,
     sellingPrice: toApiMoney(variant.sellingPrice),
+    shopifyPrice: variant.shopifyPrice ? toApiMoney(variant.shopifyPrice) : undefined,
     purchasePrice: variant.purchasePrice ? toApiMoney(variant.purchasePrice) : undefined,
     barcode: variant.barcode,
   };
@@ -39,6 +40,7 @@ export function toCreateProductBody(dto: CreateProductDto): Record<string, unkno
     // Prezzo/costo a livello articolo: sellingPrice obbligatorio, barrato e costo
     // di riferimento opzionali.
     sellingPrice: toApiMoney(dto.sellingPrice),
+    shopifyPrice: dto.shopifyPrice ? toApiMoney(dto.shopifyPrice) : undefined,
     compareAtPrice: dto.compareAtPrice ? toApiMoney(dto.compareAtPrice) : undefined,
     purchasePrice: dto.purchasePrice ? toApiMoney(dto.purchasePrice) : undefined,
     description: dto.description,
@@ -82,6 +84,7 @@ export function toUpdateProductBody(dto: UpdateProductDto): Record<string, unkno
     // Prezzo/costo a livello articolo. undefined = non toccare; il barrato
     // assente resta undefined (non azzerato qui, il form lo governa).
     sellingPrice: dto.sellingPrice ? toApiMoney(dto.sellingPrice) : undefined,
+    shopifyPrice: dto.shopifyPrice ? toApiMoney(dto.shopifyPrice) : undefined,
     compareAtPrice: dto.compareAtPrice ? toApiMoney(dto.compareAtPrice) : undefined,
     purchasePrice: dto.purchasePrice ? toApiMoney(dto.purchasePrice) : undefined,
     description: dto.description,

@@ -48,6 +48,7 @@ const OVERWRITE_SKU_WARNING =
 interface VariantRowControls {
   sku: FormControl<string>;
   sellingPrice: FormControl<number>;
+  shopifyPrice: FormControl<number>;
   purchasePrice: FormControl<number | null>;
   barcode: FormControl<string>;
 }
@@ -90,6 +91,8 @@ export class ProductVariantsStepComponent {
   /** Barcode gia' in uso (normalizzati) dal controllo di disponibilita' del wizard. */
   readonly takenBarcodes = input<readonly string[]>([]);
   readonly catalogReadOnly = input(false);
+  /** Shopify attivo (profilo canale): mostra la colonna Prezzo Shopify per variante. */
+  readonly shopifyActive = input(false);
   readonly variantsChange = output<readonly VariantDraft[]>();
   /**
    * Validità complessiva dello step (formato SKU/prezzi/barcode). Il barrato NON
@@ -187,6 +190,9 @@ export class ProductVariantsStepComponent {
       // Facoltativo (specifica cliente §SKU): nessun Validators.required.
       sku: this.fb.control(variant.sku, [Validators.pattern(SKU_PATTERN)]),
       sellingPrice: this.fb.control(variant.sellingPrice, [Validators.required, Validators.min(0)]),
+      // Prezzo Shopify (§B): valore proprio, seed dal prezzo variante poi
+      // indipendente. Zero legittimo, nessun min diverso da 0.
+      shopifyPrice: this.fb.control(variant.shopifyPrice, [Validators.min(0)]),
       purchasePrice: this.fb.control<number | null>(variant.purchasePrice, [Validators.min(0)]),
       barcode: this.fb.control(variant.barcode),
     });
@@ -197,6 +203,8 @@ export class ProductVariantsStepComponent {
       if (readOnly) {
         group.controls.sku.disable({ emitEvent: false });
         group.controls.sellingPrice.disable({ emitEvent: false });
+        // Catalogo Shopify: anche il prezzo Shopify è di proprietà del canale.
+        group.controls.shopifyPrice.disable({ emitEvent: false });
         group.controls.barcode.disable({ emitEvent: false });
         group.controls.purchasePrice.enable({ emitEvent: false });
       } else {
@@ -349,6 +357,7 @@ export class ProductVariantsStepComponent {
         optionValues: rowMeta.optionValues,
         sku: raw.sku,
         sellingPrice: raw.sellingPrice,
+        shopifyPrice: raw.shopifyPrice,
         purchasePrice: raw.purchasePrice,
         barcode: raw.barcode,
         included: true,

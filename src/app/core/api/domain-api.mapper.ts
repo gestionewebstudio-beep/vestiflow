@@ -36,6 +36,8 @@ export interface ProductApiRow {
   readonly defaultVatCodeId?: string | null;
   /** Prezzo/costo a livello articolo (unità minori). Il barrato è solo qui. */
   readonly sellingPriceMinor?: number;
+  /** Prezzo Shopify dell'articolo (§B, unità minori). Valore proprio. */
+  readonly shopifyPriceMinor?: number;
   readonly compareAtPriceMinor?: number | null;
   readonly purchasePriceMinor?: number | null;
   readonly inventoryTracking?: string;
@@ -69,6 +71,8 @@ export interface ProductVariantApiRow {
   readonly barcode?: string | null;
   readonly currency: string;
   readonly sellingPriceMinor: number;
+  /** Prezzo Shopify della variante (§B, unità minori). Valore proprio. */
+  readonly shopifyPriceMinor?: number;
   readonly purchasePriceMinor?: number | null;
   readonly shopifyVariantId?: string | null;
   readonly shopifyInventoryItemId?: string | null;
@@ -255,6 +259,14 @@ export function mapProductApiRow(row: ProductApiRow): Product {
       row.sellingPriceMinor != null
         ? { amountMinor: row.sellingPriceMinor, currencyCode: currency }
         : undefined,
+    // Prezzo Shopify: valore proprio (§B). Fallback difensivo al prezzo articolo
+    // per response più vecchie senza il campo (a DB è sempre valorizzato).
+    shopifyPrice:
+      row.shopifyPriceMinor != null
+        ? { amountMinor: row.shopifyPriceMinor, currencyCode: currency }
+        : row.sellingPriceMinor != null
+          ? { amountMinor: row.sellingPriceMinor, currencyCode: currency }
+          : undefined,
     compareAtPrice:
       row.compareAtPriceMinor != null
         ? { amountMinor: row.compareAtPriceMinor, currencyCode: currency }
@@ -293,6 +305,11 @@ export function mapProductVariantApiRow(row: ProductVariantApiRow): ProductVaria
     optionValues: row.optionValues ?? [],
     barcode: row.barcode ?? undefined,
     sellingPrice: { amountMinor: row.sellingPriceMinor, currencyCode: row.currency },
+    // Prezzo Shopify variante: valore proprio (§B), fallback al prezzo variante.
+    shopifyPrice: {
+      amountMinor: row.shopifyPriceMinor ?? row.sellingPriceMinor,
+      currencyCode: row.currency,
+    },
     purchasePrice:
       row.purchasePriceMinor != null
         ? { amountMinor: row.purchasePriceMinor, currencyCode: row.currency }

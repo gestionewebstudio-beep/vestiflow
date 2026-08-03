@@ -426,8 +426,10 @@ export class ProductsService {
           unitOfMeasure: dto.unitOfMeasure?.trim() || 'pz',
           defaultVatCodeId: dto.defaultVatCodeId ?? null,
           sellingPriceMinor: dto.sellingPrice.amountMinor,
-          // Prezzo Shopify precompilato dal prezzo articolo alla creazione (§B).
-          shopifyPriceMinor: dto.sellingPrice.amountMinor,
+          // Prezzo Shopify: valore proprio (§B). Se il form lo invia (Shopify
+          // attivo, operatore che lo tocca) si usa quello; altrimenti nasce
+          // precompilato dal prezzo articolo.
+          shopifyPriceMinor: dto.shopifyPrice?.amountMinor ?? dto.sellingPrice.amountMinor,
           compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
           purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
           inventoryTracking: dto.inventoryTracking ?? undefined,
@@ -631,11 +633,17 @@ export class ProductsService {
                 sellingPriceMinor: dto.sellingPrice.amountMinor,
                 compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
                 purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
-                // Shopify disattivo: il prezzo Shopify segue il prezzo articolo
-                // SOLO se questo cambia valore (criterio unico e preciso).
-                ...(!shopifyActive && dto.sellingPrice.amountMinor !== existing.sellingPriceMinor
-                  ? { shopifyPriceMinor: dto.sellingPrice.amountMinor }
-                  : {}),
+                // Prezzo Shopify (§B). Shopify ATTIVO: valore indipendente inviato
+                // dal form, persistito così com'è (assente = non toccare). Shopify
+                // SPENTO: il campo non esiste in UI e segue il prezzo articolo solo
+                // se questo cambia valore (criterio unico e preciso).
+                ...(shopifyActive
+                  ? dto.shopifyPrice !== undefined
+                    ? { shopifyPriceMinor: dto.shopifyPrice.amountMinor }
+                    : {}
+                  : dto.sellingPrice.amountMinor !== existing.sellingPriceMinor
+                    ? { shopifyPriceMinor: dto.sellingPrice.amountMinor }
+                    : {}),
               }
             : {}),
           ...(dto.shopifyTaxonomyCategoryId !== undefined
@@ -933,11 +941,16 @@ export class ProductsService {
         barcode: normalizeBarcodeInput(variant.barcode),
         currency: variant.sellingPrice.currency,
         sellingPriceMinor: variant.sellingPrice.amountMinor,
-        // Shopify disattivo: il prezzo Shopify della variante segue il prezzo
-        // articolo SOLO se questo cambia valore (stesso criterio dell'articolo).
-        ...(!shopifyActive && variant.sellingPrice.amountMinor !== current.sellingPriceMinor
-          ? { shopifyPriceMinor: variant.sellingPrice.amountMinor }
-          : {}),
+        // Prezzo Shopify della variante (§B). Shopify ATTIVO: valore indipendente
+        // inviato dal form (assente = non toccare). Shopify SPENTO: segue il prezzo
+        // variante solo se questo cambia valore (stesso criterio dell'articolo).
+        ...(shopifyActive
+          ? variant.shopifyPrice !== undefined
+            ? { shopifyPriceMinor: variant.shopifyPrice.amountMinor }
+            : {}
+          : variant.sellingPrice.amountMinor !== current.sellingPriceMinor
+            ? { shopifyPriceMinor: variant.sellingPrice.amountMinor }
+            : {}),
         purchasePriceMinor: variant.purchasePrice?.amountMinor,
       },
     });
@@ -983,8 +996,9 @@ export class ProductsService {
       barcode: normalizeBarcodeInput(variant.barcode),
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
-      // Prezzo Shopify precompilato dal prezzo variante alla creazione (§B).
-      shopifyPriceMinor: variant.sellingPrice.amountMinor,
+      // Prezzo Shopify: valore proprio (§B). Se il form lo invia si usa quello,
+      // altrimenti nasce precompilato dal prezzo variante.
+      shopifyPriceMinor: variant.shopifyPrice?.amountMinor ?? variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
     };
   }
@@ -1000,8 +1014,9 @@ export class ProductsService {
       barcode: normalizeBarcodeInput(variant.barcode),
       currency: variant.sellingPrice.currency,
       sellingPriceMinor: variant.sellingPrice.amountMinor,
-      // Prezzo Shopify precompilato dal prezzo variante alla creazione (§B).
-      shopifyPriceMinor: variant.sellingPrice.amountMinor,
+      // Prezzo Shopify: valore proprio (§B). Se il form lo invia si usa quello,
+      // altrimenti nasce precompilato dal prezzo variante.
+      shopifyPriceMinor: variant.shopifyPrice?.amountMinor ?? variant.sellingPrice.amountMinor,
       purchasePriceMinor: variant.purchasePrice?.amountMinor,
     };
   }

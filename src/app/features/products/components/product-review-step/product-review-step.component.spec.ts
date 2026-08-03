@@ -34,6 +34,7 @@ const GENERAL: ProductGeneralDraft = {
   managesStock: true,
   kind: ProductKind.Article,
   sellingPrice: 129.9,
+  shopifyPrice: 129.9,
   compareAtPrice: null,
   purchasePrice: null,
 };

@@ -66,6 +66,16 @@ export class CreateVariantDto {
   @Type(() => MoneyDto)
   sellingPrice!: MoneyDto;
 
+  /**
+   * Prezzo Shopify della variante (§B, valore proprio). Facoltativo: se assente
+   * viene precompilato dal prezzo variante. L'operatore lo invia solo con Shopify
+   * attivo; a Shopify spento il campo non esiste in UI e la sync non lo tocca.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  shopifyPrice?: MoneyDto;
+
   @IsOptional()
   @ValidateNested()
   @Type(() => MoneyDto)
@@ -99,6 +109,16 @@ export class CreateProductDto {
   @ValidateNested()
   @Type(() => MoneyDto)
   sellingPrice!: MoneyDto;
+
+  /**
+   * Prezzo Shopify dell'articolo (§B, valore proprio, indipendente dal prezzo
+   * articolo). Facoltativo: se assente viene precompilato dal prezzo articolo.
+   * Inviato dalla UI solo con Shopify attivo.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  shopifyPrice?: MoneyDto;
 
   /** Prezzo barrato: solo articolo. */
   @IsOptional()

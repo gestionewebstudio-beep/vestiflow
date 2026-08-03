@@ -288,7 +288,7 @@
              questi valori fanno da seed alle nuove varianti; il prezzo barrato
              resta comunque unico per articolo. -->
         <div class="general-step__field">
-          <label class="general-step__label" for="product-selling-price">Prezzo di vendita</label>
+          <label class="general-step__label" for="product-selling-price">Prezzo articolo</label>
           <input
             id="product-selling-price"
             class="general-step__control"
@@ -306,6 +306,43 @@
             </p>
           }
         </div>
+
+        @if (shopifyActive()) {
+          <!-- Prezzo Shopify (§B): valore proprio, pubblicato online. Precompilato
+               dal prezzo articolo e lo segue finché non viene toccato; poi
+               indipendente. Zero è legittimo, con avviso non bloccante. -->
+          <div class="general-step__field">
+            <label class="general-step__label" for="product-shopify-price">
+              Prezzo Shopify
+              <app-hover-tooltip
+                [inline]="true"
+                text="Prezzo pubblicato su Shopify per questo articolo. Nasce uguale al prezzo articolo e lo segue finché non lo modifichi; da quel momento è indipendente."
+              >
+                <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              </app-hover-tooltip>
+            </label>
+            <input
+              id="product-shopify-price"
+              class="general-step__control"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              formControlName="shopifyPrice"
+              [attr.aria-describedby]="
+                showShopifyZeroWarning() ? 'product-shopify-price-warning' : null
+              "
+            />
+            @if (showShopifyZeroWarning()) {
+              <p
+                id="product-shopify-price-warning"
+                class="general-step__hint general-step__hint--warning"
+              >
+                Prezzo Shopify a zero: l'articolo verrà pubblicato a 0. Puoi salvare comunque.
+              </p>
+            }
+          </div>
+        }
 
         <div class="general-step__field">
           <label class="general-step__label" for="product-compare-at-price">
