@@ -35,15 +35,15 @@ export interface ProductApiRow {
   readonly unitOfMeasure?: string;
   readonly defaultVatCodeId?: string | null;
   /** Prezzo/costo a livello articolo (unità minori). Il barrato è solo qui. */
-  readonly sellingPriceMinor?: number;
+  readonly sellingPriceMinor?: number | string;
   /** Prezzo Shopify dell'articolo (§B, unità minori). Valore proprio. */
-  readonly shopifyPriceMinor?: number;
+  readonly shopifyPriceMinor?: number | string;
   readonly compareAtPriceMinor?: number | null;
   readonly purchasePriceMinor?: number | null;
   /** Listini aggiuntivi dell'articolo (§B, unità minori, sempre netti). */
-  readonly listino1PriceMinor?: number | null;
-  readonly listino2PriceMinor?: number | null;
-  readonly listino3PriceMinor?: number | null;
+  readonly listino1PriceMinor?: number | string | null;
+  readonly listino2PriceMinor?: number | string | null;
+  readonly listino3PriceMinor?: number | string | null;
   readonly inventoryTracking?: string;
   readonly managesStock?: boolean;
   readonly kind?: 'article' | 'service';
@@ -74,9 +74,9 @@ export interface ProductVariantApiRow {
   readonly optionValues: readonly { name: string; value: string }[];
   readonly barcode?: string | null;
   readonly currency: string;
-  readonly sellingPriceMinor: number;
+  readonly sellingPriceMinor: number | string;
   /** Prezzo Shopify della variante (§B, unità minori). Valore proprio. */
-  readonly shopifyPriceMinor?: number;
+  readonly shopifyPriceMinor?: number | string;
   readonly purchasePriceMinor?: number | null;
   readonly shopifyVariantId?: string | null;
   readonly shopifyInventoryItemId?: string | null;
@@ -261,15 +261,15 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     // barrato e costo di riferimento sono opzionali.
     sellingPrice:
       row.sellingPriceMinor != null
-        ? { amountMinor: row.sellingPriceMinor, currencyCode: currency }
+        ? { amountMinor: Number(row.sellingPriceMinor), currencyCode: currency }
         : undefined,
     // Prezzo Shopify: valore proprio (§B). Fallback difensivo al prezzo articolo
     // per response più vecchie senza il campo (a DB è sempre valorizzato).
     shopifyPrice:
       row.shopifyPriceMinor != null
-        ? { amountMinor: row.shopifyPriceMinor, currencyCode: currency }
+        ? { amountMinor: Number(row.shopifyPriceMinor), currencyCode: currency }
         : row.sellingPriceMinor != null
-          ? { amountMinor: row.sellingPriceMinor, currencyCode: currency }
+          ? { amountMinor: Number(row.sellingPriceMinor), currencyCode: currency }
           : undefined,
     compareAtPrice:
       row.compareAtPriceMinor != null
@@ -282,15 +282,15 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     // Listini aggiuntivi (§B): assenti = non valorizzati, non "zero".
     listino1Price:
       row.listino1PriceMinor != null
-        ? { amountMinor: row.listino1PriceMinor, currencyCode: currency }
+        ? { amountMinor: Number(row.listino1PriceMinor), currencyCode: currency }
         : undefined,
     listino2Price:
       row.listino2PriceMinor != null
-        ? { amountMinor: row.listino2PriceMinor, currencyCode: currency }
+        ? { amountMinor: Number(row.listino2PriceMinor), currencyCode: currency }
         : undefined,
     listino3Price:
       row.listino3PriceMinor != null
-        ? { amountMinor: row.listino3PriceMinor, currencyCode: currency }
+        ? { amountMinor: Number(row.listino3PriceMinor), currencyCode: currency }
         : undefined,
     inventoryTracking: (row.inventoryTracking as Product['inventoryTracking']) ?? undefined,
     managesStock: row.managesStock ?? true,
@@ -321,10 +321,10 @@ export function mapProductVariantApiRow(row: ProductVariantApiRow): ProductVaria
     sku: row.sku ?? '',
     optionValues: row.optionValues ?? [],
     barcode: row.barcode ?? undefined,
-    sellingPrice: { amountMinor: row.sellingPriceMinor, currencyCode: row.currency },
+    sellingPrice: { amountMinor: Number(row.sellingPriceMinor), currencyCode: row.currency },
     // Prezzo Shopify variante: valore proprio (§B), fallback al prezzo variante.
     shopifyPrice: {
-      amountMinor: row.shopifyPriceMinor ?? row.sellingPriceMinor,
+      amountMinor: Number(row.shopifyPriceMinor ?? row.sellingPriceMinor),
       currencyCode: row.currency,
     },
     purchasePrice:

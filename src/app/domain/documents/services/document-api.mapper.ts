@@ -27,7 +27,7 @@ export interface DocumentLineApiRow {
   readonly sku?: string | null;
   readonly description: string;
   readonly quantity: number;
-  readonly unitPriceMinor: number;
+  readonly unitPriceMinor: number | string;
   readonly discountPercent: number;
   readonly vatCodeId?: EntityId | null;
   readonly vatSnapshot?: VatSnapshot | null;
@@ -207,7 +207,7 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     sku: row.sku ?? undefined,
     description: row.description,
     quantity: row.quantity,
-    unitPrice: { amountMinor: row.unitPriceMinor, currencyCode: currency },
+    unitPrice: { amountMinor: Number(row.unitPriceMinor), currencyCode: currency },
     discountPercent: row.discountPercent,
     vatCodeId: row.vatCodeId ?? undefined,
     vatSnapshot: row.vatSnapshot ?? undefined,
@@ -394,7 +394,7 @@ export interface DocumentLineInputBody {
   readonly sku?: string;
   readonly description: string;
   readonly quantity: number;
-  readonly unitPriceMinor?: number;
+  readonly unitPriceMinor?: number | string;
   readonly discountPercent?: number;
   /** LEGACY: il backend lo deriva dal Codice IVA; accettato per compatibilità. */
   readonly vatRatePercent?: number;

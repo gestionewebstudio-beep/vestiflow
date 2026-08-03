@@ -60,7 +60,7 @@ function isStockLine(line: DocumentLine): line is DocumentLine & { variantId: st
 
 /** Costo unitario effettivo riga (netto sconto), in unità minori. */
 function effectiveUnitCostMinor(line: DocumentLine): number {
-  return Math.round((line.unitPriceMinor * (100 - line.discountPercent)) / 100);
+  return Math.round((Number(line.unitPriceMinor) * (100 - line.discountPercent)) / 100);
 }
 
 /**

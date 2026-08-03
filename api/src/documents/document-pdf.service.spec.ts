@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { DocumentPdfService } from './document-pdf.service';
 import type { DocumentDetail } from './documents.service';
+import { Prisma } from '@prisma/client';
 
 describe('DocumentPdfService', () => {
   const prisma = {
@@ -100,7 +101,7 @@ describe('DocumentPdfService', () => {
         sku: 'SKU-1',
         description: 'Maglietta',
         quantity: 2,
-        unitPriceMinor: 5000,
+        unitPriceMinor: new Prisma.Decimal(5000),
         discountPercent: 0,
         vatCodeId: null,
         vatSnapshot: { ratePercent: 22 },

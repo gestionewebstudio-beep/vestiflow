@@ -489,6 +489,8 @@ export class StoreSalesService {
       ...doc,
       lines: doc.lines.map(({ vatSnapshot, ...line }) => ({
         ...line,
+        // Prezzo netto a sei decimali verso la cassa (che mostra il lordo).
+        unitPriceMinor: Number(line.unitPriceMinor),
         vatRatePercent: vatSnapshotRatePercent(vatSnapshot),
       })),
     }));

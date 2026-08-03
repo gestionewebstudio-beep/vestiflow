@@ -1520,8 +1520,8 @@ export class SalesDocumentFormComponent {
           }),
           // Prezzo memorizzato netto: mostrato nella modalità di questo documento.
           unitPrice: this.fb.control(
-            line.unitPriceMinor && line.unitPriceMinor > 0
-              ? this.priceFieldValue(line.unitPriceMinor, line.vatRatePercent ?? 0)
+            Number(line.unitPriceMinor) > 0
+              ? this.priceFieldValue(Number(line.unitPriceMinor), line.vatRatePercent ?? 0)
               : '',
           ),
           vatRatePercent: this.fb.control(

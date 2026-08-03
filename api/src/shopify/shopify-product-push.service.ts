@@ -650,7 +650,7 @@ export class ShopifyProductPushService {
         sku: variant.sku ?? undefined,
         // Prezzo del canale Shopify: valore proprio, indipendente dal prezzo
         // articolo. Nessun ripiego (§B, modello definitivo).
-        price: minorToShopifyDecimal(variant.shopifyPriceMinor),
+        price: minorToShopifyDecimal(Number(variant.shopifyPriceMinor)),
         barcode: variant.barcode ?? undefined,
         inventory_management: 'shopify',
       };

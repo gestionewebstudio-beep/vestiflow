@@ -113,7 +113,9 @@ export class StoreSaleLookupService {
         barcode: row.barcode,
         productName: row.product.name,
         optionSummary: this.optionSummary(row.optionValues),
-        sellingPriceMinor: row.sellingPriceMinor,
+        // Prezzo netto a sei decimali: la cassa ci calcola sopra l'IVA e
+        // arrotonda solo quando lo mostra.
+        sellingPriceMinor: Number(row.sellingPriceMinor),
         currency: row.currency,
         vatRatePercent: vatCode ? Math.round(Number(vatCode.ratePercent)) : null,
         vatCodeId: vatCode?.id ?? null,

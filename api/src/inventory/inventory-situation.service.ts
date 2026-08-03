@@ -156,7 +156,7 @@ export class InventorySituationService {
           supplierId: link?.supplierId ?? null,
           supplierName: link ? partyDisplayName(link.supplier.party) : null,
           currency: variant.currency,
-          sellingPriceMinor: variant.sellingPriceMinor,
+          sellingPriceMinor: Number(variant.sellingPriceMinor),
           purchasePriceMinor: variant.purchasePriceMinor,
           ...totals,
           totalIn: 0,

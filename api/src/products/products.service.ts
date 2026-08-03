@@ -339,7 +339,9 @@ export class ProductsService {
         title: buildVariantTitle(row.product.name, row.optionValues),
         barcode: row.barcode,
         sellingPrice: {
-          amountMinor: row.sellingPriceMinor,
+          // Colonna a sei decimali: il numero esce come tale, chi lo mostra
+          // arrotonda (§sei decimali).
+          amountMinor: Number(row.sellingPriceMinor),
           currencyCode: row.currency,
         },
         purchasePrice:
@@ -651,7 +653,7 @@ export class ProductsService {
                     : {}
                   : // «Cambiato» si valuta al centesimo: una coda decimale
                     // diversa non è un prezzo nuovo (§sei decimali).
-                    !sameAmountAtCent(dto.sellingPrice.amountMinor, existing.sellingPriceMinor)
+                    !sameAmountAtCent(dto.sellingPrice.amountMinor, Number(existing.sellingPriceMinor))
                     ? { shopifyPriceMinor: dto.sellingPrice.amountMinor }
                     : {}),
               }
@@ -970,7 +972,7 @@ export class ProductsService {
           ? variant.shopifyPrice !== undefined
             ? { shopifyPriceMinor: variant.shopifyPrice.amountMinor }
             : {}
-          : !sameAmountAtCent(variant.sellingPrice.amountMinor, current.sellingPriceMinor)
+          : !sameAmountAtCent(variant.sellingPrice.amountMinor, Number(current.sellingPriceMinor))
             ? { shopifyPriceMinor: variant.sellingPrice.amountMinor }
             : {}),
         purchasePriceMinor: variant.purchasePrice?.amountMinor,

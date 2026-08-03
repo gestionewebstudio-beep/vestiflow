@@ -13,6 +13,7 @@ import {
   SHOPIFY_CATALOG_LOCKED_MESSAGE,
 } from './catalog-origin.util';
 import type { UpdateProductDto } from './dto/update-product.dto';
+import { Prisma } from '@prisma/client';
 
 const createdAt = new Date('2026-01-10T10:00:00.000Z');
 const syncedAtCreate = new Date('2026-01-10T10:00:02.000Z');
@@ -39,7 +40,7 @@ const existing = {
       optionValues: [{ name: 'Taglia', value: 'M' }],
       barcode: null,
       currency: 'EUR',
-      sellingPriceMinor: 5000,
+      sellingPriceMinor: new Prisma.Decimal(5000),
       purchasePriceMinor: 2000,
     },
   ],

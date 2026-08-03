@@ -469,7 +469,8 @@ export class DocumentPdfService {
         String(line.lineNumber),
         articleParts.join('\n'),
         String(line.quantity),
-        formatMinorAmount(line.unitPriceMinor, currency),
+        // Punto di uscita: due decimali in stampa (§sei decimali).
+        formatMinorAmount(Number(line.unitPriceMinor), currency),
         line.discountPercent > 0 ? `${line.discountPercent}%` : '—',
         vatRatePercent != null ? `${vatRatePercent}%` : '—',
         formatMinorAmount(line.lineTotalMinor, currency),

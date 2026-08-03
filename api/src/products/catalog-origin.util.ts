@@ -165,7 +165,7 @@ function variantCatalogEqual(
     current.currency === payload.sellingPrice.currency &&
     // Al centesimo: una coda decimale diversa non è una modifica del catalogo
     // e non deve far scattare il blocco «gestito da Shopify» (§sei decimali).
-    sameAmountAtCent(current.sellingPriceMinor, payload.sellingPrice.amountMinor)
+    sameAmountAtCent(Number(current.sellingPriceMinor), payload.sellingPrice.amountMinor)
   );
 }
 

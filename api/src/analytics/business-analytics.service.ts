@@ -387,7 +387,9 @@ export class BusinessAnalyticsService {
     for (const level of levels) {
       const qty = Math.max(0, level.available);
       availableUnits += level.available;
-      stockValueMinor += qty * level.variant.sellingPriceMinor;
+      // Prezzo a sei decimali: si somma il valore esatto e si arrotonda una
+      // volta sola, alla fine (§sei decimali).
+      stockValueMinor += qty * Number(level.variant.sellingPriceMinor);
       if (level.variant.purchasePriceMinor === null) {
         missingCost = true;
       } else {

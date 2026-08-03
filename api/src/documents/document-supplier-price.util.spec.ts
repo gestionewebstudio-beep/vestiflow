@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -35,7 +36,7 @@ describe('document-supplier-price.util', () => {
         findSupplierPriceDiffs(tx as never, 'tenant-1', null, [
           {
             variantId: 'var-1',
-            unitPriceMinor: 1000,
+            unitPriceMinor: new Prisma.Decimal(1000),
             loadsStock: true,
             quantity: 1,
           },
@@ -52,7 +53,7 @@ describe('document-supplier-price.util', () => {
         findSupplierPriceDiffs(tx as never, 'tenant-1', 'sup-1', [
           {
             variantId: 'var-1',
-            unitPriceMinor: 1000,
+            unitPriceMinor: new Prisma.Decimal(1000),
             loadsStock: true,
             quantity: 2,
           },
@@ -67,13 +68,13 @@ describe('document-supplier-price.util', () => {
         findSupplierPriceDiffs(tx as never, 'tenant-1', 'sup-1', [
           {
             variantId: null,
-            unitPriceMinor: 1000,
+            unitPriceMinor: new Prisma.Decimal(1000),
             loadsStock: true,
             quantity: 1,
           },
           {
             variantId: 'var-2',
-            unitPriceMinor: 500,
+            unitPriceMinor: new Prisma.Decimal(500),
             loadsStock: false,
             quantity: 1,
           },
@@ -92,7 +93,7 @@ describe('document-supplier-price.util', () => {
         [
           {
             variantId: 'var-1',
-            unitPriceMinor: 1200,
+            unitPriceMinor: new Prisma.Decimal(1200),
             loadsStock: true,
             quantity: 3,
           },
@@ -128,7 +129,7 @@ describe('document-supplier-price.util', () => {
         [
           {
             variantId: 'var-1',
-            unitPriceMinor: 900,
+            unitPriceMinor: new Prisma.Decimal(900),
             loadsStock: true,
             quantity: 1,
           },
@@ -154,7 +155,7 @@ describe('document-supplier-price.util', () => {
         [
           {
             variantId: 'var-1',
-            unitPriceMinor: 1500,
+            unitPriceMinor: new Prisma.Decimal(1500),
             loadsStock: true,
             quantity: 2,
           },
@@ -176,13 +177,13 @@ describe('document-supplier-price.util', () => {
         [
           {
             variantId: null,
-            unitPriceMinor: 1000,
+            unitPriceMinor: new Prisma.Decimal(1000),
             loadsStock: true,
             quantity: 1,
           },
           {
             variantId: 'var-2',
-            unitPriceMinor: 500,
+            unitPriceMinor: new Prisma.Decimal(500),
             loadsStock: false,
             quantity: 1,
           },

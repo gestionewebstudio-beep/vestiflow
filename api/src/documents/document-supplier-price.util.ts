@@ -62,7 +62,7 @@ export async function findSupplierPriceDiffs(
     diffs.push({
       variantId: line.variantId,
       previousMinor: previous,
-      nextMinor: line.unitPriceMinor,
+      nextMinor: Number(line.unitPriceMinor),
     });
   }
   return diffs;
@@ -109,7 +109,7 @@ export async function applySupplierPriceUpdates(
     // Costo effettivo della taglia: sempre.
     await tx.productVariant.updateMany({
       where: { id: line.variantId, tenantId },
-      data: { purchasePriceMinor: line.unitPriceMinor },
+      data: { purchasePriceMinor: Math.round(Number(line.unitPriceMinor)) },
     });
 
     // Ultimo prezzo per (fornitore, variante): solo con fornitore.
@@ -122,9 +122,9 @@ export async function applySupplierPriceUpdates(
           tenantId,
           supplierId,
           variantId: line.variantId,
-          lastPurchasePriceMinor: line.unitPriceMinor,
+          lastPurchasePriceMinor: Math.round(Number(line.unitPriceMinor)),
         },
-        update: { lastPurchasePriceMinor: line.unitPriceMinor },
+        update: { lastPurchasePriceMinor: Math.round(Number(line.unitPriceMinor)) },
       });
     }
 
@@ -136,7 +136,7 @@ export async function applySupplierPriceUpdates(
       if (productId) {
         await tx.product.updateMany({
           where: { id: productId, tenantId },
-          data: { purchasePriceMinor: line.unitPriceMinor },
+          data: { purchasePriceMinor: Math.round(Number(line.unitPriceMinor)) },
         });
       }
     }

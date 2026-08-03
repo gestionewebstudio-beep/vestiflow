@@ -171,7 +171,8 @@ export class TikTokProductPushService {
       skus: skuVariants.map((variant) => ({
         seller_sku: variant.sku,
         price: {
-          amount: (variant.sellingPriceMinor / 100).toFixed(2),
+          // Punto di uscita: due decimali (§sei decimali).
+          amount: (Number(variant.sellingPriceMinor) / 100).toFixed(2),
           currency: variant.currency,
         },
         stock_infos: [{ available_stock: stockByVariant.get(variant.id) ?? 0 }],

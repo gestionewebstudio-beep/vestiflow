@@ -603,7 +603,7 @@ model Product {
   // ── Prezzi/costo a livello articolo (unità minori, valuta EUR/tenant) ──
   /// Prezzo di vendita dell'articolo: dato vero, valore di partenza delle nuove
   /// varianti e prezzo quando la variante è la sola default anonima (rispecchiata).
-  sellingPriceMinor               Int                     @default(0) @map("selling_price_minor")
+  sellingPriceMinor               Decimal                 @default(0) @map("selling_price_minor") @db.Decimal(16, 6)
   /// Prezzo barrato: dato SOLO dell'articolo (nessuna dimensione per-variante).
   compareAtPriceMinor             Int?                    @map("compare_at_price_minor")
   /// Costo d'acquisto di RIFERIMENTO: seeda le nuove varianti. Il costo effettivo
@@ -613,15 +613,15 @@ model Product {
   /// articolo. La pubblicazione legge sempre e solo questo. Precompilato dal
   /// prezzo articolo alla creazione; con Shopify DISATTIVO segue il prezzo
   /// articolo solo quando questo cambia valore. Ha sempre un valore proprio.
-  shopifyPriceMinor               Int                     @default(0) @map("shopify_price_minor")
+  shopifyPriceMinor               Decimal                 @default(0) @map("shopify_price_minor") @db.Decimal(16, 6)
   /// Tre listini aggiuntivi (SOLO articolo: valore unico per tutte le varianti),
   /// sempre NETTI come ogni prezzo del gestionale. Rinominabili/attivabili nelle
   /// impostazioni tenant. Mai sincronizzati.
   /// La modalità netto/ivato con cui si compilano NON sta qui: è una preferenza
   /// dell'operatore (`UserProductPriceModePreference`), non dell'articolo.
-  listino1PriceMinor              Int?                    @map("listino1_price_minor")
-  listino2PriceMinor              Int?                    @map("listino2_price_minor")
-  listino3PriceMinor              Int?                    @map("listino3_price_minor")
+  listino1PriceMinor              Decimal?                @map("listino1_price_minor") @db.Decimal(16, 6)
+  listino2PriceMinor              Decimal?                @map("listino2_price_minor") @db.Decimal(16, 6)
+  listino3PriceMinor              Decimal?                @map("listino3_price_minor") @db.Decimal(16, 6)
   /// Tracciamento inventario: standard, lotti, seriali o nessuno.
   inventoryTracking               InventoryTrackingMode   @default(standard) @map("inventory_tracking")
   /// Se false, il prodotto non genera movimenti di magazzino.
@@ -707,11 +707,11 @@ model ProductVariant {
   barcode                String?
   // Denaro in unità minori intere (mai float).
   currency               String   @default("EUR")
-  sellingPriceMinor      Int      @map("selling_price_minor")
+  sellingPriceMinor      Decimal  @map("selling_price_minor") @db.Decimal(16, 6)
   /// Prezzo Shopify per-taglia, INDIPENDENTE dal prezzo articolo. Precompilato
   /// dall'articolo alla creazione; la pubblicazione legge solo questo. Ha sempre
   /// un valore proprio.
-  shopifyPriceMinor      Int      @default(0) @map("shopify_price_minor")
+  shopifyPriceMinor      Decimal  @default(0) @map("shopify_price_minor") @db.Decimal(16, 6)
   /// Costo effettivo di questa taglia (aggiornato dai carichi; alimenta
   /// valorizzazione e margini). Il barrato NON vive sulla variante: è dell'articolo.
   purchasePriceMinor     Int?     @map("purchase_price_minor")
@@ -1978,7 +1978,9 @@ model DocumentLine {
   quantity        Int      @default(0)
   /// Costo/prezzo unitario NETTO canonico in unità minori (riferimento per
   /// confronto prezzi fornitore, storico costi e valorizzazione).
-  unitPriceMinor  Int      @default(0) @map("unit_price_minor")
+  /// SEI DECIMALI: un prezzo digitato ivato non ha un netto intero, e la coda
+  /// decimale è ciò che lo fa tornare identico quando viene rimostrato ivato.
+  unitPriceMinor  Decimal  @default(0) @map("unit_price_minor") @db.Decimal(16, 6)
   discountPercent Int      @default(0) @map("discount_percent")
   /// Imponibile riga in unità minori (dopo sconto riga, prima IVA).
   lineTotalMinor  Int      @default(0) @map("line_total_minor")

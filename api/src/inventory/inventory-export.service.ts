@@ -148,7 +148,7 @@ export class InventoryExportService {
 
     const rows = movements.map((movement) => {
       const isReturn = movement.type === StockMovementType.return;
-      const unitMinor = movement.variant.sellingPriceMinor;
+      const unitMinor = Number(movement.variant.sellingPriceMinor);
       const signedAmountMinor = (isReturn ? -1 : 1) * unitMinor * movement.quantity;
       return {
         'Data e ora': ROME_DATETIME_FORMAT.format(movement.createdAt),
