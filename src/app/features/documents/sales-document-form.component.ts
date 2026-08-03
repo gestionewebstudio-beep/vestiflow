@@ -565,28 +565,21 @@ export class SalesDocumentFormComponent {
 
   protected readonly lineTotals = computed(() => {
     this.formValue();
-    const includesVat = this.pricesIncludeVat();
     let subtotalMinor = 0;
     let taxMinor = 0;
     for (const line of this.lines.controls) {
       const qty = Number(line.controls.quantity.value) || 0;
-      const price = parseMoneyInput(line.controls.unitPrice.value, this.currency);
-      const unitMinor = price?.amountMinor ?? 0;
       const vat = Number(line.controls.vatRatePercent.value) || 0;
+      // Il prezzo di riga è netto: se a schermo si vede ivato, si scorpora
+      // PRIMA di moltiplicare, come fa il server con il valore che riceve.
+      const unitNetMinor = this.lineUnitNetMinor(line);
       const lineAmount = applyDiscountMinor(
-        Math.round(qty * unitMinor),
+        Math.round(qty * unitNetMinor),
         line.controls.discountPercent.value,
       );
-      if (includesVat) {
-        // Prezzo ivato: il totale riga è lordo, l'IVA si scorpora (lordo fermo).
-        const net = vat > 0 ? netFromGrossMinor(lineAmount, vat) : lineAmount;
-        subtotalMinor += net;
-        taxMinor += lineAmount - net;
-      } else {
-        subtotalMinor += lineAmount;
-        if (vat > 0) {
-          taxMinor += Math.round((lineAmount * vat) / 100);
-        }
+      subtotalMinor += lineAmount;
+      if (vat > 0) {
+        taxMinor += Math.round((lineAmount * vat) / 100);
       }
     }
     const docDiscount = parseEffectiveDiscountPercent(
@@ -611,7 +604,6 @@ export class SalesDocumentFormComponent {
    */
   protected readonly vatBreakdown = computed(() => {
     this.formValue();
-    const includesVat = this.pricesIncludeVat();
     const docDiscount = parseEffectiveDiscountPercent(
       this.form.controls.documentDiscountPercent.value,
     );
@@ -619,20 +611,18 @@ export class SalesDocumentFormComponent {
     const byRate = new Map<number, { netMinor: number; vatMinor: number }>();
     for (const line of this.lines.controls) {
       const qty = Number(line.controls.quantity.value) || 0;
-      const price = parseMoneyInput(line.controls.unitPrice.value, this.currency);
       const rate = Number(line.controls.vatRatePercent.value) || 0;
-      const lineAmount = Math.round(
+      // Come nei totali: dal netto di riga, mai dal valore mostrato a schermo.
+      const net = Math.round(
         applyDiscountMinor(
-          Math.round(qty * (price?.amountMinor ?? 0)),
+          Math.round(qty * this.lineUnitNetMinor(line)),
           line.controls.discountPercent.value,
         ) * docMultiplier,
       );
-      if (lineAmount === 0) {
+      if (net === 0) {
         continue;
       }
-      // Ivato: lineAmount è lordo → scorporo; netto: lineAmount è imponibile.
-      const net = includesVat && rate > 0 ? netFromGrossMinor(lineAmount, rate) : lineAmount;
-      const vat = includesVat ? lineAmount - net : rate > 0 ? Math.round((net * rate) / 100) : 0;
+      const vat = rate > 0 ? Math.round((net * rate) / 100) : 0;
       const entry = byRate.get(rate) ?? { netMinor: 0, vatMinor: 0 };
       entry.netMinor += net;
       entry.vatMinor += vat;
@@ -832,9 +822,9 @@ export class SalesDocumentFormComponent {
       // «Scarica mag.» segue il tipo articolo già esistente in VestiFlow:
       // un Articolo scarica, un Servizio no. Resta modificabile a mano.
       line.controls.loadsStock.setValue(match.managesStock !== false, { emitEvent: false });
-      line.controls.unitPrice.setValue(moneyToDecimalString(match.sellingPrice).replace('.', ','));
       // Precedenza Codice IVA (§Piano IVA fase 3): articolo → aliquota legacy
-      // già presente (reverse-match) → predefinito aziendale.
+      // già presente (reverse-match) → predefinito aziendale. Va risolto PRIMA
+      // del prezzo: senza aliquota non si saprebbe come mostrarlo in ivato.
       if (!line.controls.vatCodeId.value) {
         const productVatCodeId = pickVatCodeId(
           [match.defaultVatCodeId],
@@ -847,6 +837,11 @@ export class SalesDocumentFormComponent {
         }
       }
       this.ensureLineVatCode(line);
+      // Il prezzo d'anagrafica è netto: in modalità ivata si mostra con l'IVA,
+      // non si copia com'è (varrebbe il 22% in meno di quanto vale).
+      line.controls.unitPrice.setValue(
+        this.priceFieldValue(match.sellingPrice.amountMinor, this.lineRatePercent(line)),
+      );
     }
   }
 
@@ -974,13 +969,6 @@ export class SalesDocumentFormComponent {
           variantId: line.variantId ?? '',
           description: line.description,
           quantity: line.quantity,
-          unitPrice:
-            line.unitPriceMinor > 0
-              ? moneyToDecimalString({
-                  amountMinor: line.unitPriceMinor,
-                  currencyCode: this.currency,
-                }).replace('.', ',')
-              : '',
           discountPercent: line.discount,
           vatCodeId: line.vatCodeId ?? '',
           vatRatePercent: '',
@@ -992,6 +980,14 @@ export class SalesDocumentFormComponent {
       } else {
         this.ensureLineVatCode(group);
       }
+      // Il documento di origine ha memorizzato il netto: qui si mostra nella
+      // modalità di questo documento, che può essere diversa da quella di là.
+      group.controls.unitPrice.setValue(
+        line.unitPriceMinor > 0
+          ? this.priceFieldValue(line.unitPriceMinor, this.lineRatePercent(group))
+          : '',
+        { emitEvent: false },
+      );
       groups.push(group);
     }
 
@@ -1187,11 +1183,13 @@ export class SalesDocumentFormComponent {
         .filter((line) => line.description.trim() || line.variantId)
         .map((line) => {
           const price = parseMoneyInput(line.unitPrice, this.currency);
+          const ratePercent = Number(line.vatRatePercent) || 0;
           return {
             variantId: line.variantId || undefined,
             description: line.description.trim() || 'Riga documento',
             quantity: Number(line.quantity),
-            unitPriceMinor: price?.amountMinor ?? 0,
+            // Al server va il netto: se il campo mostrava l'ivato, si scorpora qui.
+            unitPriceMinor: this.netFromDisplayed(price?.amountMinor ?? 0, ratePercent),
             vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
             vatCodeId: line.vatCodeId || undefined,
             discountPercent: parseEffectiveDiscountPercent(line.discountPercent),
@@ -1250,6 +1248,46 @@ export class SalesDocumentFormComponent {
       this.form.controls.documentNumber.setValue(counter.nextNumber);
       this.form.controls.documentNumber.markAsPristine();
     }
+  }
+
+  // ── Netto memorizzato, netto o ivato a schermo ────────────────────────────
+  //
+  // La riga porta sempre il prezzo NETTO: è quello che viene salvato e quello
+  // da cui si calcolano imposta e totali. La modalità dice soltanto come lo si
+  // vede e lo si digita.
+
+  /** Aliquota della riga (0 = nessuna imposta da aggiungere o scorporare). */
+  private lineRatePercent(line: ReturnType<SalesDocumentFormComponent['createLine']>): number {
+    return Number(line.controls.vatRatePercent.value) || 0;
+  }
+
+  /** Valore digitato nella modalità corrente → netto da memorizzare. */
+  private netFromDisplayed(minor: number, ratePercent: number): number {
+    return this.pricesIncludeVat() && ratePercent > 0
+      ? netFromGrossMinor(minor, ratePercent)
+      : minor;
+  }
+
+  /** Netto memorizzato → valore da mostrare nella modalità corrente. */
+  private displayedFromNet(minor: number, ratePercent: number): number {
+    return this.pricesIncludeVat() && ratePercent > 0
+      ? grossFromNetMinor(minor, ratePercent)
+      : minor;
+  }
+
+  /** Prezzo unitario netto della riga, qualunque cosa mostri il campo. */
+  private lineUnitNetMinor(line: ReturnType<SalesDocumentFormComponent['createLine']>): number {
+    const entered = parseMoneyInput(line.controls.unitPrice.value, this.currency);
+    return this.netFromDisplayed(entered?.amountMinor ?? 0, this.lineRatePercent(line));
+  }
+
+  /** Netto → stringa per il campo prezzo, nella modalità corrente. */
+  private priceFieldValue(netMinor: number, ratePercent: number): string {
+    const displayed = this.displayedFromNet(netMinor, ratePercent);
+    return moneyToDecimalString({ amountMinor: displayed, currencyCode: this.currency }).replace(
+      '.',
+      ',',
+    );
   }
 
   /**
@@ -1480,12 +1518,10 @@ export class SalesDocumentFormComponent {
           quantity: this.fb.control(line.quantity, {
             validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
           }),
+          // Prezzo memorizzato netto: mostrato nella modalità di questo documento.
           unitPrice: this.fb.control(
             line.unitPriceMinor && line.unitPriceMinor > 0
-              ? moneyToDecimalString({
-                  amountMinor: line.unitPriceMinor,
-                  currencyCode: this.currency,
-                }).replace('.', ',')
+              ? this.priceFieldValue(line.unitPriceMinor, line.vatRatePercent ?? 0)
               : '',
           ),
           vatRatePercent: this.fb.control(
@@ -1559,7 +1595,11 @@ export class SalesDocumentFormComponent {
           quantity: this.fb.control(line.quantity, {
             validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
           }),
-          unitPrice: this.fb.control(moneyToDecimalString(line.unitPrice).replace('.', ',')),
+          // Il documento ha memorizzato il netto: si rimostra nella modalità con
+          // cui era stato compilato, che è l'unica cosa che quel flag racconta.
+          unitPrice: this.fb.control(
+            this.priceFieldValue(line.unitPrice.amountMinor, line.vatSnapshot?.ratePercent ?? 0),
+          ),
           vatRatePercent: this.fb.control(line.vatSnapshot?.ratePercent?.toString() ?? ''),
           vatCodeId: this.fb.control(line.vatCodeId ?? ''),
           discountPercent: this.fb.control(

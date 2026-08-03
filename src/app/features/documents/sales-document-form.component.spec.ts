@@ -33,7 +33,7 @@ function operationalLocationsMock() {
 }
 
 describe('SalesDocumentFormComponent', () => {
-  async function setup() {
+  async function setup(pricesIncludeVat = false) {
     await render(SalesDocumentFormComponent, {
       providers: [
         {
@@ -79,7 +79,7 @@ describe('SalesDocumentFormComponent', () => {
             createDocument: vi.fn(),
             updateDocument: vi.fn(),
             confirmDocument: vi.fn(),
-            getPriceModePreference: () => of(false),
+            getPriceModePreference: () => of(pricesIncludeVat),
           },
         },
       ],
@@ -101,5 +101,20 @@ describe('SalesDocumentFormComponent', () => {
 
     // qty 1 × 10,00 con IVA 22% = imponibile 10,00 + IVA 2,20 = 12,20.
     expect(await screen.findByText(/12,20/)).toBeVisible();
+  });
+
+  // In modalità ivata cambia solo come si legge il prezzo: il documento vale
+  // lo stesso, perché imponibile e imposta si ricavano dal netto scorporato.
+  it('in modalità ivata i totali si calcolano dal netto scorporato', async () => {
+    const user = userEvent.setup();
+    await setup(true);
+
+    const priceInput = screen.getByLabelText('Prezzo ivato');
+    await user.clear(priceInput);
+    await user.type(priceInput, '12,20');
+
+    // 12,20 ivati al 22% → imponibile 10,00, IVA 2,20, totale 12,20.
+    expect(await screen.findByText(/10,00/)).toBeVisible();
+    expect(screen.getAllByText(/12,20/).length).toBeGreaterThan(0);
   });
 });

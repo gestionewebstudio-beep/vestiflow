@@ -844,15 +844,15 @@ export class DocumentsService {
       await this.assertSupplierOrderReceivable(tenantId, dto.supplierOrderId);
     }
 
-    // Modalità prezzo del documento (netto/ivato): dalla testata del form se
-    // presente, altrimenti dalla regola per tipo (retrocompatibilità). Un unico
-    // valore effettivo guida sia il calcolo totali sia il valore persistito.
+    // Modalità prezzo del documento (netto/ivato): come l'operatore stava
+    // guardando i prezzi, per ritrovare il documento come l'aveva compilato.
+    // Non entra nei totali: le righe portano il netto, l'imposta si calcola.
     const pricesIncludeVat = dto.pricesIncludeVat ?? setting.pricesIncludeVat;
 
     const documentDate = new Date(dto.documentDate);
     const vatContext = await this.buildLineVatContext(tenantId, dto.supplierId, dto.lines ?? []);
     const lines = this.computeLines(dto.lines ?? [], dto.type, vatContext);
-    const totals = this.computeTotals(lines, pricesIncludeVat, dto.documentDiscountPercent ?? 0);
+    const totals = this.computeTotals(lines, dto.documentDiscountPercent ?? 0);
 
     const supplierName = await this.snapshotSupplierName(tenantId, dto.supplierId);
     // Cliente da anagrafica (snapshot) oppure testo libero solo-stampa
@@ -1459,7 +1459,6 @@ export class DocumentsService {
     if (lines) {
       const totals = this.computeTotals(
         lines,
-        setting.pricesIncludeVat,
         dto.documentDiscountPercent ?? doc.documentDiscountPercent,
       );
       data.subtotalMinor = totals.subtotalMinor;
@@ -1486,7 +1485,6 @@ export class DocumentsService {
           })),
           doc.type,
         ),
-        setting.pricesIncludeVat,
         dto.documentDiscountPercent,
       );
       data.subtotalMinor = totals.subtotalMinor;
@@ -3275,9 +3273,14 @@ export class DocumentsService {
     }
   }
 
+  /**
+   * Totali del documento a partire dall'IMPONIBILE di riga. La modalità
+   * netto/ivato non compare: è come l'operatore guarda i prezzi, non cosa
+   * contengono le righe — che è sempre il netto. Il totale è quindi lo stesso
+   * qualunque modalità fosse attiva quando il documento è stato compilato.
+   */
   private computeTotals(
     lines: readonly ComputedLine[],
-    pricesIncludeVat: boolean,
     documentDiscountPercent = 0,
   ): DocumentTotals {
     const lineSum = lines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
@@ -3289,22 +3292,13 @@ export class DocumentsService {
       if (line.vatRatePercent == null || line.vatRatePercent === 0 || lineSum === 0) {
         return sum;
       }
+      // Lo sconto extra documento si spalma sulle righe in proporzione, così la
+      // somma delle imposte di riga coincide con l'imposta del documento.
       const lineShare = line.lineTotalMinor / lineSum;
       const discountedLineTotal = Math.round(discountedLineSum * lineShare);
-      const rate = line.vatRatePercent;
-      const tax = pricesIncludeVat
-        ? discountedLineTotal - Math.round((discountedLineTotal * 100) / (100 + rate))
-        : Math.round((discountedLineTotal * rate) / 100);
-      return sum + tax;
+      return sum + Math.round((discountedLineTotal * line.vatRatePercent) / 100);
     }, 0);
 
-    if (pricesIncludeVat) {
-      return {
-        subtotalMinor: discountedLineSum - taxMinor,
-        taxMinor,
-        totalMinor: discountedLineSum,
-      };
-    }
     return {
       subtotalMinor: discountedLineSum,
       taxMinor,

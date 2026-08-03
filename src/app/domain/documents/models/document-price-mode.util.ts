@@ -1,8 +1,11 @@
 /**
- * Modalità prezzo del documento (netto/ivato). `pricesIncludeVat = true`
- * significa che i prezzi riga si inseriscono e mostrano IVA inclusa (l'IVA si
- * scorpora); `false` significa netti (l'IVA si aggiunge). L'importo effettivo
- * delle righe non cambia con la modalità: cambia come viene interpretato.
+ * Modalità prezzo del documento (netto/ivato): riguarda SOLO come i prezzi si
+ * vedono e si digitano. `pricesIncludeVat = true` significa che i campi mostrano
+ * il prezzo IVA inclusa; `false` che lo mostrano netto.
+ *
+ * Il valore memorizzato sulla riga è sempre il NETTO, in ogni documento e in
+ * ogni modalità, e i totali si calcolano da lì: la modalità non entra nel
+ * calcolo e non cambia quanto vale il documento.
  */
 
 /** Etichetta del campo prezzo di riga secondo la modalità corrente. */

@@ -1942,17 +1942,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
     line.controls.productName.setValue(summary.productName || summary.title, { emitEvent: false });
     line.controls.unitOfMeasure.setValue(summary.unitOfMeasure ?? 'pz', { emitEvent: false });
-    if (!line.controls.unitPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
-      line.controls.unitPrice.setValue(
-        moneyToDecimalString(summary.sellingPrice).replace('.', ','),
-        { emitEvent: false },
-      );
-    }
     // Spunta "Impegna magazzino": default dal Tipo prodotto (Articolo ON,
     // Servizio OFF); prodotti non gestiti a magazzino mai impegnati di default.
     const isService = summary.kind === 'service' || summary.managesStock === false;
     line.controls.commitsStock.setValue(!isService, { emitEvent: false });
     // Codice IVA: predefinito articolo (se attivo/vendita) → predefinito globale.
+    // Prima del prezzo: in modalità ivata serve l'aliquota per mostrarlo.
     if (!line.controls.vatCodeId.value) {
       const productVat = summary.defaultVatCodeId
         ? this.vatCodeById().get(summary.defaultVatCodeId)
@@ -1962,6 +1957,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       } else if (this.defaultVatCodeId()) {
         line.controls.vatCodeId.setValue(this.defaultVatCodeId(), { emitEvent: false });
       }
+    }
+    // Il prezzo d'anagrafica è netto: in modalità ivata si mostra con l'IVA.
+    if (!line.controls.unitPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
+      line.controls.unitPrice.setValue(
+        this.priceFieldValue(summary.sellingPrice.amountMinor, this.lineRateOf(line)),
+        { emitEvent: false },
+      );
     }
     // Sconto anagrafica cliente proposto come default (mai sovrascrive).
     if (!line.controls.discount.value.trim()) {
@@ -2160,13 +2162,31 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return cascadeDiscountMultiplier(line.controls.discount.value) < 1;
   }
 
-  /** Totale riga = quantità × prezzo scontato (senza IVA). */
+  /**
+   * Totale riga mostrato in colonna: quantità × prezzo scontato, nella stessa
+   * modalità in cui si vedono i prezzi (netto o ivato). È una vista.
+   */
   protected lineTotalMoney(index: number): Money {
     this.formValue();
     const line = this.lines.at(index);
     const qty = Number(line.controls.quantity.value) || 0;
     const unitDiscounted = this.lineDiscountedUnitMoney(index).amountMinor;
     return { amountMinor: qty * unitDiscounted, currencyCode: this.currency };
+  }
+
+  /**
+   * Imponibile della riga: quantità × prezzo NETTO scontato. È il numero che
+   * finisce nei totali e nel documento, indipendente da come si guardano i
+   * prezzi. Lo sconto si applica al netto, come fa il server.
+   */
+  private lineNetTotalMinor(index: number): number {
+    const line = this.lines.at(index);
+    const qty = Number(line.controls.quantity.value) || 0;
+    const unitNet = this.lineUnitNetMinor(index);
+    const discounted = this.isQuote
+      ? applyDiscountMinor(unitNet, line.controls.discount.value)
+      : applyCascadeDiscountMinor(unitNet, line.controls.discount.value);
+    return qty * discounted;
   }
 
   /** Valore riga pre-sconto (barrato in colonna Totale, come Arrivo merce). */
@@ -2184,20 +2204,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    */
   protected readonly documentTotals = computed(() => {
     this.formValue();
-    const includesVat = this.pricesIncludeVat();
 
     // L'algoritmo dei totali è condiviso da tutti i tipi documento: qui si
-    // riducono le righe a imponibile/imposta (scorporando il netto quando i
-    // prezzi sono ivati), il resto vive in
-    // domain/documents/utils/document-totals.util.
+    // riducono le righe a imponibile/imposta partendo dal prezzo NETTO (che è
+    // ciò che viene salvato, anche quando a schermo si vede l'ivato), il resto
+    // vive in domain/documents/utils/document-totals.util.
     const lines = this.lines.controls.flatMap((line, index) => {
       if (this.lineIsEmpty(line) || this.isReferenceLine(line)) {
         return [];
       }
-      const lineAmount = this.lineTotalMoney(index).amountMinor;
       const vatRate = this.lineVatRate(index);
-      const netMinor =
-        includesVat && vatRate > 0 ? netFromGrossMinor(lineAmount, vatRate) : lineAmount;
+      const netMinor = this.lineNetTotalMinor(index);
       return [
         {
           netMinor,
@@ -2251,6 +2268,52 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     });
     this.pricesIncludeVat.set(pricesIncludeVat);
     this.markFormDirty();
+  }
+
+  // ── Netto memorizzato, netto o ivato a schermo ────────────────────────────
+  //
+  // La riga porta sempre il prezzo NETTO: è quello che si salva e da cui si
+  // calcolano imposta e totali. La modalità dice solo come lo si vede e digita.
+
+  /** Aliquota di una riga per riferimento (le versioni per indice sotto). */
+  private lineRateOf(line: ReturnType<CustomerOrderFormComponent['createLine']>): number {
+    return this.rateOfVatCodeId(line.controls.vatCodeId.value);
+  }
+
+  /** Aliquota di un Codice IVA: solo modalità standard espone imposta. */
+  private rateOfVatCodeId(vatCodeId: string | null | undefined): number {
+    const vatCode = vatCodeId ? this.vatCodeById().get(vatCodeId) : undefined;
+    return vatCode && vatCode.calculationMode === 'standard' ? vatCode.ratePercent : 0;
+  }
+
+  /** Valore digitato nella modalità corrente → netto da memorizzare. */
+  private netFromDisplayed(minor: number, ratePercent: number): number {
+    return this.pricesIncludeVat() && ratePercent > 0
+      ? netFromGrossMinor(minor, ratePercent)
+      : minor;
+  }
+
+  /** Netto memorizzato → valore da mostrare nella modalità corrente. */
+  private displayedFromNet(minor: number, ratePercent: number): number {
+    return this.pricesIncludeVat() && ratePercent > 0
+      ? grossFromNetMinor(minor, ratePercent)
+      : minor;
+  }
+
+  /** Netto → stringa per il campo prezzo, nella modalità corrente. */
+  private priceFieldValue(netMinor: number, ratePercent: number): string {
+    const displayed = this.displayedFromNet(netMinor, ratePercent);
+    return moneyToDecimalString({ amountMinor: displayed, currencyCode: this.currency }).replace(
+      '.',
+      ',',
+    );
+  }
+
+  /** Prezzo unitario netto della riga, qualunque cosa mostri il campo. */
+  private lineUnitNetMinor(index: number): number {
+    const line = this.lines.at(index);
+    const entered = parseMoneyInput(line.controls.unitPrice.value, this.currency);
+    return this.netFromDisplayed(entered?.amountMinor ?? 0, this.lineVatRate(index));
   }
 
   /** Aliquota effettiva della riga (solo modalità standard, 0 altrimenti). */
@@ -3063,12 +3126,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           barcode: line.barcode ?? '',
           productName: line.description,
           quantity: line.quantity,
+          // Prezzo memorizzato netto: mostrato nella modalità di questo documento.
           unitPrice:
             line.unitPriceMinor > 0
-              ? moneyToDecimalString({
-                  amountMinor: line.unitPriceMinor,
-                  currencyCode: this.currency,
-                }).replace('.', ',')
+              ? this.priceFieldValue(line.unitPriceMinor, this.rateOfVatCodeId(line.vatCodeId))
               : '',
           discount: line.discount,
           vatCodeId: line.vatCodeId ?? '',
@@ -3621,12 +3682,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         continue;
       }
       const unitPrice = parseMoneyInput(raw.unitPrice, this.currency);
+      const index = this.lines.controls.indexOf(line);
       lines.push({
         variantId: raw.variantId || undefined,
         sku: raw.sku.trim() || undefined,
         description: raw.productName.trim() || raw.sku.trim() || 'Riga documento',
         quantity: Number(raw.quantity) || 0,
-        unitPriceMinor: unitPrice?.amountMinor ?? 0,
+        // Al server va il netto: se il campo mostrava l'ivato, si scorpora qui.
+        unitPriceMinor: this.netFromDisplayed(unitPrice?.amountMinor ?? 0, this.lineVatRate(index)),
         // Le righe documento persistono la percentuale effettiva intera
         // (cascata "4+10%" → 14): stessa resa dei totali in anteprima.
         discountPercent: parseEffectiveDiscountPercent(raw.discount),
@@ -3913,9 +3976,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             barcode: '',
             productName: line.description,
             quantity: line.quantity,
+            // Il documento ha memorizzato il netto: si rimostra nella modalità
+            // con cui era stato compilato. L'aliquota è quella congelata sulla
+            // riga, non quella che il Codice IVA ha oggi.
             unitPrice:
               line.unitPrice.amountMinor > 0
-                ? moneyToDecimalString(line.unitPrice).replace('.', ',')
+                ? this.priceFieldValue(
+                    line.unitPrice.amountMinor,
+                    line.vatSnapshot?.ratePercent ?? this.rateOfVatCodeId(line.vatCodeId),
+                  )
                 : '',
             discount:
               line.discountPercent && line.discountPercent > 0 ? `${line.discountPercent}%` : '',

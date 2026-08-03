@@ -363,7 +363,11 @@ describe('DocumentsService', () => {
       expect(data.lines.create[1]).toMatchObject({ lineNumber: 2, lineTotalMinor: 4500 });
     });
 
-    it('scorpora l’IVA quando i prezzi sono IVA inclusa', async () => {
+    // La modalità di visualizzazione non entra nei totali: la riga porta il
+    // NETTO e l'imposta si calcola sopra, che l'operatore stesse guardando
+    // prezzi netti o ivati. Prima, con «prezzi ivati», lo stesso numero veniva
+    // scorporato: due documenti con la stessa riga valevano importi diversi.
+    it('i totali partono dal netto di riga, qualunque modalità mostri la testata', async () => {
       const { service } = createService(prisma, resolvedSetting({ pricesIncludeVat: true }));
       prisma.document.create.mockResolvedValue({
         id: 'doc-2',
@@ -375,14 +379,16 @@ describe('DocumentsService', () => {
       await service.create(tenantId, {
         type: DocumentType.proforma,
         documentDate: '2026-03-01',
-        lines: [{ description: 'Capo', quantity: 1, unitPriceMinor: 1220, vatRatePercent: 22 }],
+        lines: [{ description: 'Capo', quantity: 1, unitPriceMinor: 1000, vatRatePercent: 22 }],
       });
 
       const data = prisma.document.create.mock.calls[0]![0]!.data;
-      // 1220 lordo, IVA 22% -> imponibile 1000, IVA 220, totale 1220.
-      expect(data.totalMinor).toBe(1220);
-      expect(data.taxMinor).toBe(220);
+      // 1000 netti, IVA 22% -> imponibile 1000, IVA 220, totale 1220.
       expect(data.subtotalMinor).toBe(1000);
+      expect(data.taxMinor).toBe(220);
+      expect(data.totalMinor).toBe(1220);
+      // Il flag resta memorizzato: dice come il documento era compilato.
+      expect(data.pricesIncludeVat).toBe(true);
     });
 
     // Percorso duplicato Arrivo merce (post-audit): questi tipi hanno un
