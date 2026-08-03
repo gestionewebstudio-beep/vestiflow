@@ -11,7 +11,8 @@ import { selectedOptionValue } from '@domain/products/models/product-variant.uti
 
 /**
  * Tabella varianti (dumb puro). Read-only: SKU, colonne opzione dinamiche
- * (da `options`), prezzo, costo effettivo per variante (con permesso), barcode.
+ * (da `options`), prezzo, prezzo Shopify (con canale attivo), costo effettivo
+ * per variante (con permesso), barcode.
  * Il prezzo barrato NON è più della variante: è un dato dell'articolo. Lo stock
  * per negozio NON vive qui: e' responsabilita' della feature Magazzino.
  * Responsive: tabella su desktop, card impilate su mobile.
@@ -31,6 +32,12 @@ export class ProductVariantTableComponent {
   readonly productId = input<EntityId | null>(null);
   /** Mostra la colonna Costo (costo effettivo per variante). Permesso costi. */
   readonly canSeeCosts = input(false);
+  /**
+   * Mostra la colonna Prezzo Shopify: il prezzo che ogni taglia pubblica online,
+   * valore proprio della variante. Solo con profilo canale Shopify — altrove
+   * sarebbe una colonna di numeri senza destinazione.
+   */
+  readonly shopifyActive = input(false);
 
   protected readonly optionNames = computed(() => this.options().map((option) => option.name));
 

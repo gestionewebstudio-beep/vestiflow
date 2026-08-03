@@ -167,12 +167,31 @@
             {{ p.defaultVatCodeId ? vatCodeLabel(p.defaultVatCodeId) : '—' }}
           </dd>
         </div>
+        <!-- Prezzi dell'articolo, nello stesso ordine e con gli stessi nomi della
+             sezione Listini in anagrafica. Sono i valori NETTI memorizzati: qui
+             non c'è modalità di visualizzazione da scegliere. -->
         <div class="product-detail__fact">
-          <dt class="product-detail__term">Prezzo di vendita</dt>
+          <dt class="product-detail__term">Prezzo articolo</dt>
           <dd class="product-detail__value tabular-nums">
             {{ p.sellingPrice ? formatMoney(p.sellingPrice) : '—' }}
           </dd>
         </div>
+        @if (showShopifyIntegration()) {
+          <div class="product-detail__fact">
+            <dt class="product-detail__term">Prezzo Shopify</dt>
+            <dd class="product-detail__value tabular-nums">
+              {{ p.shopifyPrice ? formatMoney(p.shopifyPrice) : '—' }}
+            </dd>
+          </div>
+        }
+        @for (listino of listinoRows(); track listino.key) {
+          <div class="product-detail__fact">
+            <dt class="product-detail__term">{{ listino.label }}</dt>
+            <dd class="product-detail__value tabular-nums">
+              {{ listino.value ? formatMoney(listino.value) : '—' }}
+            </dd>
+          </div>
+        }
         <div class="product-detail__fact">
           <dt class="product-detail__term">Prezzo barrato</dt>
           <dd class="product-detail__value tabular-nums">
@@ -337,6 +356,7 @@
           [options]="p.options"
           [productId]="p.id"
           [canSeeCosts]="canViewPurchaseCosts()"
+          [shopifyActive]="showShopifyIntegration()"
         />
       }
 

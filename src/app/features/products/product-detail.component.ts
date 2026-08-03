@@ -63,6 +63,8 @@ import {
   SHOPIFY_CATALOG_READONLY_BANNER,
 } from '@domain/products/models/catalog-origin.util';
 import { ProductService } from '@domain/products/services/product.service';
+import { activeListinoSlots } from '@domain/products/models/product-listino.model';
+import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 
 const PRODUCTS_LIST_PATH = '/app/products';
 const SHOPIFY_FOLLOW_UP_POLL_MS = 2000;
@@ -147,6 +149,7 @@ function shopifyCustomMetafieldLabel(namespace: string, key: string): string {
 export class ProductDetailComponent {
   private readonly service = inject(ProductService);
   private readonly vatCodeService = inject(VatCodeService);
+  private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -238,6 +241,12 @@ export class ProductDetailComponent {
     return entry ? vatCodeOptionLabel(entry) : '—';
   }
 
+  // Listini attivi per l'azienda (nomi e attivazione stanno nelle impostazioni).
+  private readonly featureSettings = toSignal(
+    this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
+    { initialValue: null },
+  );
+
   protected readonly error = computed(() => {
     const current = this.state();
     return current.status === 'error' ? current.error : null;
@@ -246,6 +255,24 @@ export class ProductDetailComponent {
   protected readonly product = computed(() => {
     const current = this.state();
     return current.status === 'success' ? current.product : null;
+  });
+
+  /**
+   * Righe "Listino X" fra i prezzi: una per ogni listino attivo, col nome dato
+   * dall'azienda. Un listino attivo ma non valorizzato compare comunque, a
+   * trattino: che esista e che qui sia vuoto è l'informazione utile (in
+   * documento porterebbe la riga a zero).
+   */
+  protected readonly listinoRows = computed(() => {
+    const product = this.product();
+    if (!product) {
+      return [];
+    }
+    return activeListinoSlots(this.featureSettings()).map((slot) => ({
+      key: slot.field,
+      label: slot.label,
+      value: product[slot.field],
+    }));
   });
 
   protected readonly variants = computed(() => {

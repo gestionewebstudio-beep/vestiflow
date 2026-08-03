@@ -6,6 +6,9 @@
         <th scope="col">{{ name }}</th>
       }
       <th scope="col" class="variant-table__cell--numeric">Prezzo</th>
+      @if (shopifyActive()) {
+        <th scope="col" class="variant-table__cell--numeric">Prezzo Shopify</th>
+      }
       @if (canSeeCosts()) {
         <th scope="col" class="variant-table__cell--numeric">Costo</th>
       }
@@ -26,6 +29,11 @@
         <td class="variant-table__cell--numeric tabular-nums" data-label="Prezzo">
           {{ formatPrice(variant.sellingPrice) }}
         </td>
+        @if (shopifyActive()) {
+          <td class="variant-table__cell--numeric tabular-nums" data-label="Prezzo Shopify">
+            {{ variant.shopifyPrice ? formatPrice(variant.shopifyPrice) : '—' }}
+          </td>
+        }
         @if (canSeeCosts()) {
           <td class="variant-table__cell--numeric tabular-nums" data-label="Costo">
             {{ variant.purchasePrice ? formatPrice(variant.purchasePrice) : '—' }}
