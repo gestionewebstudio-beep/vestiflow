@@ -2244,6 +2244,25 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return vatInputFromLegacyRate(rate != null && Number.isFinite(rate) ? rate : null);
   }
 
+  /**
+   * Costo NETTO d'anagrafica → valore da mostrare nella colonna, che con
+   * «Costo ivato» attivo si legge lordo. Il costo memorizzato è sempre netto:
+   * copiarlo tale e quale in una colonna ivata lo farebbe valere meno dell'IVA.
+   */
+  private costFieldValue(
+    netMinor: number,
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+  ): string {
+    const vat = this.lineVatInput(line);
+    const displayed = entryIncludesVat(this.costEntryMode(), vat)
+      ? grossFromNetMinor(netMinor, vat.ratePercent)
+      : netMinor;
+    return moneyToDecimalString({ amountMinor: displayed, currencyCode: this.currency }).replace(
+      '.',
+      ',',
+    );
+  }
+
   /** Importi IVA della riga secondo la modalità costo corrente (§15). */
   private lineVatAmounts(
     line: ReturnType<GoodsReceiptFormComponent['createLine']>,
@@ -2842,11 +2861,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
         const label = summary.productName || summary.title;
         line.controls.productName.setValue(label, { emitEvent: false });
-        if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
-          line.controls.unitCost.setValue(
-            moneyToDecimalString(summary.purchasePrice).replace('.', ','),
-          );
-        }
         if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
           line.controls.sellingPrice.setValue(
             moneyToDecimalString(summary.sellingPrice).replace('.', ','),
@@ -2880,6 +2894,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           }
         }
         this.ensureLineVatCode(line);
+        // Il costo va dopo il Codice IVA: senza aliquota non si saprebbe come
+        // mostrarlo quando la colonna lavora a costi ivati.
+        if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
+          line.controls.unitCost.setValue(
+            this.costFieldValue(summary.purchasePrice.amountMinor, line),
+          );
+        }
         if (!line.controls.discountPercent.value.trim()) {
           const supplierDiscount = this.selectedSupplier()?.supplierDiscount?.trim();
           if (supplierDiscount) {
@@ -4024,7 +4045,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       quantity: this.fb.control(quantity, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
       }),
-      unitCost: this.fb.control(moneyToDecimalString(orderLine.unitCost).replace('.', ',')),
+      // Costo netto dell'ordine: mostrato nella modalità di QUESTO documento,
+      // che può essere diversa da quella con cui l'ordine era stato compilato.
+      // Valorizzato sotto, quando la riga ha già il suo Codice IVA.
+      unitCost: this.fb.control(''),
       discountPercent: this.fb.control(''),
       sellingPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
@@ -4038,6 +4062,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       serialNumbersText: this.fb.control(''),
     });
     this.applySupplierDefaultsToLine(line);
+    line.controls.unitCost.setValue(this.costFieldValue(orderLine.unitCost.amountMinor, line), {
+      emitEvent: false,
+    });
     return line;
   }
 

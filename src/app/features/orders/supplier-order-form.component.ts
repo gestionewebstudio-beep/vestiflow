@@ -317,6 +317,26 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   });
 
   /**
+   * Costo NETTO d'anagrafica → valore da mostrare nella colonna, che con
+   * «Costo ivato» attivo si legge lordo. Il costo memorizzato è sempre netto:
+   * copiarlo tale e quale in una colonna ivata lo farebbe valere meno dell'IVA.
+   */
+  private costFieldValue(netMinor: number, index: number): string {
+    const vatCode = this.vatCodesById().get(this.lines.at(index).controls.vatCodeId.value);
+    const exposed =
+      vatCode?.calculationMode === 'standard' || vatCode?.calculationMode === 'split_payment';
+    const rate = vatCode ? Math.max(0, vatCode.ratePercent) : 0;
+    const displayed =
+      this.costEntryMode() === 'vat_included' && exposed && rate > 0
+        ? netMinor + Math.round((netMinor * rate) / 100)
+        : netMinor;
+    return moneyToDecimalString({ amountMinor: displayed, currencyCode: this.currency }).replace(
+      '.',
+      ',',
+    );
+  }
+
+  /**
    * Importi riga client-side allineati al motore server (vat-line-calculation):
    * costi ivati → scorporo dal totale riga; costi netti → IVA derivata.
    */
@@ -648,10 +668,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       if (!summary) {
         return;
       }
-      const purchase = summary.purchasePrice;
-      if (purchase && purchase.amountMinor > 0 && !line.controls.unitCost.value.trim()) {
-        line.controls.unitCost.setValue(moneyToDecimalString(purchase).replace('.', ','));
-      }
+      // Il Codice IVA prima del costo: con «Costo ivato» serve l'aliquota per
+      // mostrare il costo d'anagrafica, che è memorizzato netto.
       const defaultVatCodeId = summary.defaultVatCodeId;
       if (
         defaultVatCodeId &&
@@ -659,6 +677,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         this.purchaseVatCodes().some((vatCode) => vatCode.id === defaultVatCodeId)
       ) {
         line.controls.vatCodeId.setValue(defaultVatCodeId);
+      }
+      const purchase = summary.purchasePrice;
+      if (purchase && purchase.amountMinor > 0 && !line.controls.unitCost.value.trim()) {
+        line.controls.unitCost.setValue(this.costFieldValue(purchase.amountMinor, index));
       }
     };
 

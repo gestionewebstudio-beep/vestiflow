@@ -254,7 +254,7 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     showSettlementFilter: true,
     viewId: TableViewId.PurchaseInvoiceDocumentsList,
     detailPanelTitle: 'Dati registrazione',
-    detailNotFoundTitle: 'Registrazione fattura non trovata',
+    detailNotFoundTitle: 'Registrazione fattura fornitore non trovata',
   },
   // Elenco condiviso da Fattura e Fattura accompagnatoria: un solo numeratore,
   // una sola pagina, filtro «Tipo» preimpostato dalla voce hub di provenienza.

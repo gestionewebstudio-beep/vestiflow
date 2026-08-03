@@ -92,7 +92,7 @@ export const documentsRoutes: Routes = [
     // Elenco Registrazioni fattura fornitore (Documenti → Acquisti e
     // fornitori): colonne e filtri della spec, stato saldo incluso.
     path: 'registrazione-fattura',
-    title: 'VestiFlow · Registrazioni fattura',
+    title: 'VestiFlow · Registrazioni fattura fornitore',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
@@ -306,7 +306,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'registrazione-fattura/new',
-    title: 'VestiFlow · Nuova registrazione fattura',
+    title: 'VestiFlow · Nuova registrazione fattura fornitore',
     loadComponent: () =>
       import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
     canActivate: [tenantPermissionGuard],
@@ -314,7 +314,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'registrazione-fattura/:id/edit',
-    title: 'VestiFlow · Modifica registrazione fattura',
+    title: 'VestiFlow · Modifica registrazione fattura fornitore',
     loadComponent: () =>
       import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
     canActivate: [tenantPermissionGuard],

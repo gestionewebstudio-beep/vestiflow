@@ -194,7 +194,9 @@ export class PurchaseInvoiceFormComponent {
   protected readonly isEditMode = computed(() => Boolean(this.editDocumentId()));
 
   protected readonly pageTitle = computed(() =>
-    this.isEditMode() ? 'Modifica registrazione fattura' : 'Registrazione fattura',
+    this.isEditMode()
+      ? 'Modifica registrazione fattura fornitore'
+      : 'Registrazione fattura fornitore',
   );
 
   readonly form = this.fb.group({

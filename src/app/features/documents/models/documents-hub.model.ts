@@ -40,7 +40,9 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
       },
       {
         id: 'supplier-invoices',
-        label: 'Registrazione fattura',
+        // «fornitore» nel nome: quando accanto ci saranno le fatture di vendita,
+        // «Registrazione fattura» da solo non direbbe più di quale lato si parla.
+        label: 'Registrazione fattura fornitore',
         description: 'Collega gli arrivi merce alla fattura ricevuta dal fornitore.',
         route: ['/app/documents/registrazione-fattura'],
         icon: 'pi-book',

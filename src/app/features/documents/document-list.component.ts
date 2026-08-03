@@ -451,7 +451,7 @@ export class DocumentListComponent {
   );
 
   protected readonly secondaryCreateOptions: readonly SelectMenuOption[] = [
-    { value: 'purchase-invoice', label: 'Registrazione fattura' },
+    { value: 'purchase-invoice', label: 'Registrazione fattura fornitore' },
     { value: 'transfer', label: 'Trasferimento' },
     { value: 'manual-unload', label: 'Scarico manuale' },
     { value: 'adjustment', label: 'Rettifica di magazzino' },
