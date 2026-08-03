@@ -270,6 +270,20 @@ export class ProductService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /**
+   * Modalità netto/ivato con cui aprire la sezione Listini: preferenza ricordata
+   * dell'operatore (?? primo utilizzo). È personale, non dell'articolo: vale
+   * quindi anche riaprendo una scheda esistente.
+   */
+  getPriceModePreference(): Observable<boolean> {
+    return this.http
+      .get<{ pricesIncludeVat: boolean }>(this.url('/products/price-mode-preference'))
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        map((response) => response.pricesIncludeVat),
+      );
+  }
+
   checkBarcodeAvailability(
     barcodes: readonly string[],
     excludeProductId?: EntityId,

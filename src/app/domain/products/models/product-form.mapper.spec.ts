@@ -138,6 +138,37 @@ describe('product-form.mapper', () => {
       });
     });
 
+    // Listini (§B): il backend distingue "azzera" da "non toccare" sul null.
+    it('listini: valorizzato -> Money netto, vuoto -> null (azzera)', () => {
+      const empty = emptyProductFormDraft();
+      const draft = {
+        ...empty,
+        general: {
+          ...empty.general,
+          name: 'Giacca',
+          listino1Price: 25,
+          listino2Price: null,
+        },
+      };
+
+      const dto = toCreateProductDto(draft, true);
+      expect(dto.listino1Price).toEqual({ amountMinor: 2500, currencyCode: DEFAULT_CURRENCY });
+      expect(dto.listino2Price).toBeNull();
+      expect(dto.listino3Price).toBeNull();
+      // La modalità viaggia solo per farsi ricordare: non è un dato dell'articolo.
+      expect(dto.listinoPricesIncludeVat).toBe(true);
+    });
+
+    it('senza modalità indicata il payload non la menziona (nessuna preferenza da ricordare)', () => {
+      const empty = emptyProductFormDraft();
+      const dto = toCreateProductDto({
+        ...empty,
+        general: { ...empty.general, name: 'Giacca' },
+      });
+
+      expect(dto).not.toHaveProperty('listinoPricesIncludeVat');
+    });
+
     it('codice articolo: vuoto -> undefined (progressivo dal backend), valorizzato -> MAIUSCOLO', () => {
       const empty = emptyProductFormDraft();
       const draftWithout = {

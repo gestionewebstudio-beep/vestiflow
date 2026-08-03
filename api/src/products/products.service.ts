@@ -81,7 +81,6 @@ const PRODUCT_LIST_SELECT = {
   listino1PriceMinor: true,
   listino2PriceMinor: true,
   listino3PriceMinor: true,
-  listinoPricesIncludeVat: true,
   shopifyTaxonomyCategoryId: true,
   shopifyTaxonomyCategoryFullName: true,
   shopifyCategoryMetafields: true,
@@ -436,7 +435,6 @@ export class ProductsService {
           listino1PriceMinor: dto.listino1Price?.amountMinor ?? null,
           listino2PriceMinor: dto.listino2Price?.amountMinor ?? null,
           listino3PriceMinor: dto.listino3Price?.amountMinor ?? null,
-          listinoPricesIncludeVat: dto.listinoPricesIncludeVat ?? undefined,
           inventoryTracking: dto.inventoryTracking ?? undefined,
           managesStock: dto.managesStock ?? true,
           kind: dto.kind ?? undefined,
@@ -528,11 +526,10 @@ export class ProductsService {
         shopifyPriceMinor: original.shopifyPriceMinor,
         compareAtPriceMinor: original.compareAtPriceMinor,
         purchasePriceMinor: original.purchasePriceMinor,
-        // Listini aggiuntivi + modalità display: copiati tali e quali (netti).
+        // Listini aggiuntivi: copiati tali e quali (netti).
         listino1PriceMinor: original.listino1PriceMinor,
         listino2PriceMinor: original.listino2PriceMinor,
         listino3PriceMinor: original.listino3PriceMinor,
-        listinoPricesIncludeVat: original.listinoPricesIncludeVat,
         inventoryTracking: original.inventoryTracking,
         managesStock: original.managesStock,
         kind: original.kind,
@@ -656,16 +653,17 @@ export class ProductsService {
                     : {}),
               }
             : {}),
-          // Listini aggiuntivi (§B): la presenza del flag modalità segnala che il
-          // form ha inviato la sezione Listini. I listino assenti valgono
-          // "azzera" (null). Sempre netti (il frontend scorpora prima di inviare).
-          ...(dto.listinoPricesIncludeVat !== undefined
-            ? {
-                listinoPricesIncludeVat: dto.listinoPricesIncludeVat,
-                listino1PriceMinor: dto.listino1Price?.amountMinor ?? null,
-                listino2PriceMinor: dto.listino2Price?.amountMinor ?? null,
-                listino3PriceMinor: dto.listino3Price?.amountMinor ?? null,
-              }
+          // Listini aggiuntivi (§B), gating per campo: assente = non toccare,
+          // `null` esplicito = azzera (l'operatore ha svuotato il campo). Sempre
+          // netti: il frontend scorpora prima di inviare.
+          ...(dto.listino1Price !== undefined
+            ? { listino1PriceMinor: dto.listino1Price?.amountMinor ?? null }
+            : {}),
+          ...(dto.listino2Price !== undefined
+            ? { listino2PriceMinor: dto.listino2Price?.amountMinor ?? null }
+            : {}),
+          ...(dto.listino3Price !== undefined
+            ? { listino3PriceMinor: dto.listino3Price?.amountMinor ?? null }
             : {}),
           ...(dto.shopifyTaxonomyCategoryId !== undefined
             ? {

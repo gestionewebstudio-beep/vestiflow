@@ -613,14 +613,14 @@ model Product {
   /// prezzo articolo alla creazione; con Shopify DISATTIVO segue il prezzo
   /// articolo solo quando questo cambia valore. Ha sempre un valore proprio.
   shopifyPriceMinor               Int                     @default(0) @map("shopify_price_minor")
-  /// Tre listini aggiuntivi (SOLO articolo: valore unico per tutte le varianti).
-  /// Rinominabili/attivabili nelle impostazioni tenant. Mai sincronizzati.
+  /// Tre listini aggiuntivi (SOLO articolo: valore unico per tutte le varianti),
+  /// sempre NETTI come ogni prezzo del gestionale. Rinominabili/attivabili nelle
+  /// impostazioni tenant. Mai sincronizzati.
+  /// La modalità netto/ivato con cui si compilano NON sta qui: è una preferenza
+  /// dell'operatore (`UserProductPriceModePreference`), non dell'articolo.
   listino1PriceMinor              Int?                    @map("listino1_price_minor")
   listino2PriceMinor              Int?                    @map("listino2_price_minor")
   listino3PriceMinor              Int?                    @map("listino3_price_minor")
-  /// Modalità netto/ivato della sezione Listini (entry/display, una per l'intera
-  /// sezione). I valori restano memorizzati nella forma canonica dei consumatori.
-  listinoPricesIncludeVat         Boolean                 @default(true) @map("listino_prices_include_vat")
   /// Tracciamento inventario: standard, lotti, seriali o nessuno.
   inventoryTracking               InventoryTrackingMode   @default(standard) @map("inventory_tracking")
   /// Se false, il prodotto non genera movimenti di magazzino.

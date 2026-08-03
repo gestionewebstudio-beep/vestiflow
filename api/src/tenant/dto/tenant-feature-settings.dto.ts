@@ -13,6 +13,15 @@ export class TenantFeatureSettingsDto {
   blockNegativeInventory!: boolean;
   defaultUnitOfMeasure!: string;
   defaultVatCodeId!: string | null;
+  // ── Listini aggiuntivi (§B): tre posizioni fisse, rinominabili e attivabili.
+  // Il nome null significa "usa l'etichetta di default" (Listino 1/2/3): così
+  // un tenant che non li ha mai configurati vede comunque nomi sensati.
+  listino1Name!: string | null;
+  listino1Active!: boolean;
+  listino2Name!: string | null;
+  listino2Active!: boolean;
+  listino3Name!: string | null;
+  listino3Active!: boolean;
 }
 
 export class UpdateTenantFeatureSettingsDto {

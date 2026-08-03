@@ -60,6 +60,10 @@
             [editMode]="mode() === 'edit'"
             [canSeeCosts]="canViewPurchaseCosts()"
             [articleCodeTakenBy]="articleCodeTakenBy()"
+            [listinoSlots]="listinoSlots()"
+            [tenantDefaultVatCodeId]="tenantDefaultVatCodeId()"
+            [pricesIncludeVat]="listinoPricesIncludeVat()"
+            (pricesIncludeVatChange)="onPriceModeChange($event)"
             (valueChange)="onGeneralChange($event)"
             (categoriesChanged)="reloadCatalogCategories()"
           />

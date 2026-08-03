@@ -190,6 +190,62 @@
   color: var(--status-error-fg);
 }
 
+// Sezione Listini: i prezzi dell'articolo stanno insieme, sotto un'unica
+// modalità netti/ivati. Stesso vestito del blocco "dettagli" — nel form c'è un
+// solo modo di raggruppare campi.
+.general-step__pricing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-sunken);
+}
+
+.general-step__pricing-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.general-step__pricing-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+// Nota che sostituisce il toggle quando non c'è aliquota: resta sulla stessa
+// riga del titolo, senza allargare la sezione.
+.general-step__pricing-note {
+  flex: 1 1 14rem;
+  text-align: end;
+}
+
+.general-step__pricing-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+@include bp.media-up('md') {
+  .general-step__pricing-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-5) var(--space-4);
+  }
+
+  // I prezzi hanno tutti la stessa larghezza: sono la stessa grandezza, letti
+  // in colonna uno sotto l'altro quando la riga va a capo.
+  .general-step__pricing-fields .general-step__field {
+    inline-size: 10rem;
+  }
+}
+
 .general-step__details {
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);

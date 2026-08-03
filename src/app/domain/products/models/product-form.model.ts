@@ -63,6 +63,18 @@ export interface ProductGeneralDraft {
   readonly compareAtPrice: number | null;
   /** Costo di riferimento dell'articolo (unità maggiori), seed del costo variante. null = assente. */
   readonly purchasePrice: number | null;
+  /**
+   * Listini aggiuntivi 1-3 (unità maggiori, ponte form). null = non valorizzato,
+   * che per un listino è diverso da zero: un documento su un listino vuoto porta
+   * la riga a zero con avviso, non ripiega sul prezzo articolo.
+   *
+   * Il draft porta SEMPRE il valore NETTO, qualunque sia la modalità con cui la
+   * sezione Listini è visualizzata: la modalità è una preferenza dell'operatore
+   * e vive nel componente, non nel dato.
+   */
+  readonly listino1Price: number | null;
+  readonly listino2Price: number | null;
+  readonly listino3Price: number | null;
 }
 
 /**

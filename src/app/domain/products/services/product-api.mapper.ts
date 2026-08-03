@@ -16,6 +16,18 @@ function toApiMoney(money: Money): ApiMoneyDto {
   return { amountMinor: money.amountMinor, currency: money.currencyCode };
 }
 
+/**
+ * Listino verso l'API: `undefined` = campo non inviato (non toccare),
+ * `null` = inviato vuoto (azzera). Il ternario non si può accorciare con `?:`
+ * perché appiattirebbe il `null` su `undefined`, cioè "azzera" su "non toccare".
+ */
+function toApiListino(money: Money | null | undefined): ApiMoneyDto | null | undefined {
+  if (money === undefined) {
+    return undefined;
+  }
+  return money === null ? null : toApiMoney(money);
+}
+
 function toApiVariant(variant: CreateProductVariantDto): Record<string, unknown> {
   return {
     // Facoltativo (specifica cliente §SKU): trim + stringa vuota -> non
@@ -43,6 +55,13 @@ export function toCreateProductBody(dto: CreateProductDto): Record<string, unkno
     shopifyPrice: dto.shopifyPrice ? toApiMoney(dto.shopifyPrice) : undefined,
     compareAtPrice: dto.compareAtPrice ? toApiMoney(dto.compareAtPrice) : undefined,
     purchasePrice: dto.purchasePrice ? toApiMoney(dto.purchasePrice) : undefined,
+    // Listini aggiuntivi (§B): sempre netti.
+    listino1Price: toApiListino(dto.listino1Price),
+    listino2Price: toApiListino(dto.listino2Price),
+    listino3Price: toApiListino(dto.listino3Price),
+    // Modalità di compilazione: memoria personale dell'operatore, non un campo
+    // dell'articolo (il backend la ricorda solo alla creazione).
+    listinoPricesIncludeVat: dto.listinoPricesIncludeVat,
     description: dto.description,
     brand: dto.brand,
     category: dto.category,
@@ -87,6 +106,10 @@ export function toUpdateProductBody(dto: UpdateProductDto): Record<string, unkno
     shopifyPrice: dto.shopifyPrice ? toApiMoney(dto.shopifyPrice) : undefined,
     compareAtPrice: dto.compareAtPrice ? toApiMoney(dto.compareAtPrice) : undefined,
     purchasePrice: dto.purchasePrice ? toApiMoney(dto.purchasePrice) : undefined,
+    // Listini aggiuntivi (§B): null esplicito = azzera il listino.
+    listino1Price: toApiListino(dto.listino1Price),
+    listino2Price: toApiListino(dto.listino2Price),
+    listino3Price: toApiListino(dto.listino3Price),
     description: dto.description,
     brand: dto.brand,
     category: dto.category,

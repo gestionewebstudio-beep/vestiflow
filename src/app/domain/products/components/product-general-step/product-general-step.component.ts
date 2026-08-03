@@ -6,6 +6,7 @@ import {
   effect,
   inject,
   input,
+  model,
   OnInit,
   output,
   signal,
@@ -18,9 +19,20 @@ import type { Subscription } from 'rxjs';
 import { PRODUCT_KIND_LABELS, ProductKind, ProductStatus } from '@core/models/product.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
 import { formatVatRate, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { DEFAULT_CURRENCY, moneyFromMajor, moneyToMajor } from '@core/utils/money.util';
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
+import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
+import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+// Aritmetica IVA: una sola implementazione in tutta l'app (stesse formule e
+// stessi arrotondamenti dei documenti, a loro volta specchio del backend).
+import {
+  entryIncludesVat,
+  grossFromNetMinor,
+  netFromGrossMinor,
+  vatInputFromVatCode,
+} from '@domain/documents/utils/document-vat.util';
 
 import {
   COMMON_UNIT_OF_MEASURE,
@@ -43,6 +55,7 @@ import {
   isStandardProductSeason,
   PRODUCT_SEASON_CUSTOM_OPTION,
 } from '../../models/product-season.options';
+import type { ProductListinoSlot } from '../../models/product-listino.model';
 import { productStatusLabel } from '../../models/product-status.util';
 import { ShopifyCategoryAttributesComponent } from '../shopify-category-attributes/shopify-category-attributes.component';
 import type { ShopifyTaxonomySelection } from '../shopify-taxonomy-picker/shopify-taxonomy-picker.component';
@@ -64,12 +77,50 @@ const STATUS_OPTIONS: readonly StatusOption[] = [
 /** Valore speciale select: apre l'inserimento manuale di categoria/stagione. */
 const CUSTOM_OPTION_VALUE = '__custom__';
 
+/**
+ * I prezzi della sezione Listini. Il draft li porta sempre NETTI; nei campi si
+ * vedono netti o ivati a seconda di come l'operatore preferisce lavorare.
+ */
+type PriceField =
+  | 'sellingPrice'
+  | 'shopifyPrice'
+  | 'listino1Price'
+  | 'listino2Price'
+  | 'listino3Price';
+
+const PRICE_FIELDS: readonly PriceField[] = [
+  'sellingPrice',
+  'shopifyPrice',
+  'listino1Price',
+  'listino2Price',
+  'listino3Price',
+];
+
+/** Prezzi netti dell'articolo: il dato, indipendente da come lo si guarda. */
+type NetPrices = Readonly<Record<PriceField, number | null>>;
+
+const PRICE_MODE_OPTIONS: readonly SegmentedOption[] = [
+  { value: 'net', label: 'Netti' },
+  { value: 'gross', label: 'Ivati' },
+];
+
+// Ponte unità maggiori <-> minori: la conversione IVA lavora in centesimi, come
+// il backend, così l'arrotondamento è lo stesso ovunque.
+function majorToMinor(major: number): number {
+  return moneyFromMajor(major, DEFAULT_CURRENCY).amountMinor;
+}
+
+function minorToMajor(minor: number): number {
+  return moneyToMajor({ amountMinor: minor, currencyCode: DEFAULT_CURRENCY });
+}
+
 @Component({
   selector: 'app-product-general-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
     HoverTooltipComponent,
+    SegmentedComponent,
     SelectMenuComponent,
     ShopifyTaxonomyPickerComponent,
     ShopifyCategoryAttributesComponent,
@@ -126,6 +177,24 @@ export class ProductGeneralStepComponent implements OnInit {
   readonly editMode = input(false);
   /** Nome dell'articolo che già usa il codice digitato (verifica live dal parent). */
   readonly articleCodeTakenBy = input<string | null>(null);
+  /**
+   * Listini aggiuntivi ATTIVI per il tenant, già etichettati (dal parent smart).
+   * Vuoto = nessun listino aggiuntivo in questa azienda: la sezione mostra solo
+   * prezzo articolo e, con Shopify attivo, prezzo Shopify.
+   */
+  readonly listinoSlots = input<readonly ProductListinoSlot[]>([]);
+  /**
+   * Codice IVA predefinito dell'azienda: fa da aliquota quando l'articolo non ne
+   * dichiara una propria. Nessuna delle due = nessuna conversione possibile.
+   */
+  readonly tenantDefaultVatCodeId = input<string | null>(null);
+  /**
+   * Modalità della sezione Listini: `true` = i campi mostrano prezzi IVATI.
+   * È una preferenza dell'OPERATORE (non dell'articolo): il parent la carica una
+   * volta e la ripropone su ogni scheda, nuova o esistente. Two-way perché il
+   * toggle vive qui ma la deve conoscere anche chi salva.
+   */
+  readonly pricesIncludeVat = model(false);
 
   protected readonly statusSelectOptions: readonly SelectMenuOption[] = STATUS_OPTIONS.map(
     (option) => ({
@@ -278,12 +347,20 @@ export class ProductGeneralStepComponent implements OnInit {
     kind: this.fb.control<ProductKind>(ProductKind.Article),
     // Prezzo/costo a livello articolo (unità maggiori). Il prezzo di vendita è il
     // dato reale dell'articolo; barrato e costo di riferimento sono opzionali.
-    sellingPrice: this.fb.control(0, [Validators.required, Validators.min(0)]),
+    // I prezzi ammettono `null` perché un input number svuotato vale null: il
+    // parent lo vede e blocca il salvataggio, invece di salvare uno zero che
+    // nessuno ha digitato.
+    sellingPrice: this.fb.control<number | null>(0, [Validators.required, Validators.min(0)]),
     // Prezzo Shopify (§B): valore proprio. Zero è legittimo (avviso non
     // bloccante); nessun min diverso da 0.
-    shopifyPrice: this.fb.control(0, [Validators.min(0)]),
+    shopifyPrice: this.fb.control<number | null>(0, [Validators.min(0)]),
     compareAtPrice: this.fb.control<number | null>(null, [Validators.min(0)]),
     purchasePrice: this.fb.control<number | null>(null, [Validators.min(0)]),
+    // Listini aggiuntivi (§B): null = non valorizzato, che per un listino non è
+    // zero (una riga documento su un listino vuoto va a zero con avviso).
+    listino1Price: this.fb.control<number | null>(null, [Validators.min(0)]),
+    listino2Price: this.fb.control<number | null>(null, [Validators.min(0)]),
+    listino3Price: this.fb.control<number | null>(null, [Validators.min(0)]),
     description: this.fb.control(''),
   });
 
@@ -297,7 +374,7 @@ export class ProductGeneralStepComponent implements OnInit {
    */
   private readonly shopifyFollowsArticle = signal(true);
   /** Valore corrente del prezzo Shopify (per l'avviso zero, reattivo). */
-  private readonly shopifyPriceValue = signal(0);
+  private readonly shopifyPriceValue = signal<number | null>(0);
 
   /**
    * Avviso non bloccante: prezzo Shopify a zero con Shopify attivo. L'articolo si
@@ -306,6 +383,50 @@ export class ProductGeneralStepComponent implements OnInit {
   protected readonly showShopifyZeroWarning = computed(
     () => this.shopifyActive() && this.shopifyPriceValue() === 0,
   );
+
+  // ── Sezione Listini: il dato è il netto, la vista è netta o ivata ─────────
+  //
+  // I campi mostrano `vista = f(netto, modalità, aliquota)`. Il netto cambia
+  // solo quando l'operatore digita; cambiare modalità o codice IVA ricalcola la
+  // vista e NON tocca il dato — così un giro netto→ivato→netto non sposta di un
+  // centesimo il prezzo salvato, e il form non risulta "modificato" per una
+  // scelta di visualizzazione.
+  private readonly netPrices = signal<NetPrices>({
+    sellingPrice: 0,
+    shopifyPrice: 0,
+    listino1Price: null,
+    listino2Price: null,
+    listino3Price: null,
+  });
+
+  /** Codice IVA scelto sull'articolo (reattivo: il campo vive in questo form). */
+  private readonly articleVatCodeId = signal('');
+
+  /** Opzioni del toggle di sezione (netti / ivati). */
+  protected readonly priceModeOptions = PRICE_MODE_OPTIONS;
+  protected readonly priceModeValue = computed(() => (this.pricesIncludeVat() ? 'gross' : 'net'));
+
+  /**
+   * Aliquota da usare per la conversione: quella dell'articolo, altrimenti il
+   * predefinito aziendale. Zero quando manca o quando il codice non espone IVA
+   * (esente, reverse charge): in quel caso netto e ivato coincidono e il toggle
+   * non muove niente — comportamento voluto, nessun avviso.
+   */
+  private readonly conversionRate = computed(() => {
+    const id = this.articleVatCodeId().trim() || (this.tenantDefaultVatCodeId() ?? '').trim();
+    const code = id ? this.vatCodes().find((entry) => entry.id === id) : undefined;
+    if (!code) {
+      return 0;
+    }
+    const vat = vatInputFromVatCode(code);
+    return entryIncludesVat('vat_included', vat) ? vat.ratePercent : 0;
+  });
+
+  /** True quando il toggle "Ivati" cambia davvero i valori mostrati. */
+  protected readonly vatConversionAvailable = computed(() => this.conversionRate() > 0);
+
+  /** La vista si allinea al dato solo dopo che il form è stato inizializzato. */
+  private formReady = false;
 
   /** Codice caricato all'apertura: base del "Ripristina" (§obbligatorio). */
   private initialArticleCode = '';
@@ -323,9 +444,27 @@ export class ProductGeneralStepComponent implements OnInit {
         this.form.controls.subcategory.enable({ emitEvent: false });
         this.form.controls.internalNotes.enable({ emitEvent: false });
         this.form.controls.supplierId.enable({ emitEvent: false });
+        // Stessa ragione per i listini aggiuntivi: sono prezzi del gestionale,
+        // nessun canale li conosce. Un catalogo gestito da Shopify non è un
+        // motivo per non poter dare a un articolo il suo prezzo all'ingrosso.
+        this.form.controls.listino1Price.enable({ emitEvent: false });
+        this.form.controls.listino2Price.enable({ emitEvent: false });
+        this.form.controls.listino3Price.enable({ emitEvent: false });
       } else {
         this.form.enable({ emitEvent: false });
       }
+    });
+
+    // La vista dei prezzi segue modalità e aliquota. Anche il primo passaggio è
+    // qui: preferenza operatore e codici IVA arrivano dal server, quindi dopo
+    // `ngOnInit`. Nessun `emit`: il draft non cambia, cambia solo come lo si legge.
+    effect(() => {
+      const includeVat = this.pricesIncludeVat();
+      const rate = this.conversionRate();
+      if (!this.formReady) {
+        return;
+      }
+      this.showNetPrices(includeVat, rate);
     });
   }
 
@@ -343,6 +482,32 @@ export class ProductGeneralStepComponent implements OnInit {
     this.customSeason.set(initial.season.trim() !== '' && !isStandardProductSeason(initial.season));
     this.form.setValue(initial, { emitEvent: false });
 
+    // Il draft arriva sempre netto: è il dato di partenza della sezione Listini.
+    // La vista viene poi allineata dall'effect (modalità e aliquota arrivano dal
+    // server e possono presentarsi dopo questo momento).
+    this.netPrices.set({
+      sellingPrice: initial.sellingPrice,
+      shopifyPrice: initial.shopifyPrice,
+      listino1Price: initial.listino1Price,
+      listino2Price: initial.listino2Price,
+      listino3Price: initial.listino3Price,
+    });
+    this.articleVatCodeId.set(initial.defaultVatCodeId);
+
+    // Ogni prezzo digitato aggiorna il netto corrispondente: è l'unico momento in
+    // cui il dato cambia. In modalità netta la conversione è l'identità.
+    for (const field of PRICE_FIELDS) {
+      this.form.controls[field].valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((displayed) => this.storeNet(field, displayed));
+    }
+
+    // Cambio Codice IVA: cambia l'aliquota, quindi la vista si ricalcola dal
+    // netto (che resta il prezzo dell'articolo, non cambia perché cambia l'IVA).
+    this.form.controls.defaultVatCodeId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => this.articleVatCodeId.set(value));
+
     // Prezzo Shopify (§B): il follow parte attivo solo se all'apertura i due
     // prezzi coincidono; se già divergono, l'operatore li ha diversificati e il
     // valore Shopify va protetto.
@@ -352,12 +517,14 @@ export class ProductGeneralStepComponent implements OnInit {
     // Il prezzo articolo trascina il prezzo Shopify finché il follow è attivo. Il
     // set usa emitEvent:false: NON deve apparire come un edit dell'operatore, così
     // `shopifyPrice.valueChanges` resta un segnale puro di modifica manuale.
+    // Proprio perché non emette, il netto va aggiornato qui a mano.
     this.form.controls.sellingPrice.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => {
         if (this.shopifyFollowsArticle() && this.form.controls.shopifyPrice.value !== value) {
           this.form.controls.shopifyPrice.setValue(value, { emitEvent: false });
           this.shopifyPriceValue.set(value);
+          this.storeNet('shopifyPrice', value);
         }
       });
 
@@ -398,7 +565,77 @@ export class ProductGeneralStepComponent implements OnInit {
 
     this.valueChangesSub = this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.valueChange.emit(this.form.getRawValue()));
+      .subscribe(() => this.valueChange.emit(this.currentDraft()));
+
+    this.formReady = true;
+  }
+
+  /**
+   * Draft emesso verso il parent: i campi del form, ma con i prezzi presi dal
+   * netto. Fuori da questo componente esiste una sola forma del prezzo, la
+   * canonica; la modalità ivata resta un modo di guardarlo.
+   */
+  private currentDraft(): ProductGeneralDraft {
+    const prices = this.netPrices();
+    return {
+      ...this.form.getRawValue(),
+      listino1Price: prices.listino1Price,
+      listino2Price: prices.listino2Price,
+      listino3Price: prices.listino3Price,
+      // Un campo prezzo svuotato vale `null` a runtime, dove il draft dichiara
+      // `number`: il valore passa così com'è e il parent blocca il salvataggio.
+      // Sostituirlo con 0 salverebbe un prezzo che nessuno ha digitato.
+      sellingPrice: prices.sellingPrice as number,
+      shopifyPrice: prices.shopifyPrice as number,
+    };
+  }
+
+  /** Prezzo digitato -> netto memorizzato (identità in modalità netta). */
+  private storeNet(field: PriceField, displayed: number | null): void {
+    this.netPrices.update((prices) => ({ ...prices, [field]: this.toNet(displayed) }));
+  }
+
+  private toNet(displayed: number | null): number | null {
+    if (displayed == null) {
+      return null;
+    }
+    const rate = this.conversionRate();
+    if (!this.pricesIncludeVat() || rate <= 0) {
+      return displayed;
+    }
+    return minorToMajor(netFromGrossMinor(majorToMinor(displayed), rate));
+  }
+
+  private toDisplayed(net: number | null, includeVat: boolean, rate: number): number | null {
+    if (net == null) {
+      return null;
+    }
+    if (!includeVat || rate <= 0) {
+      return net;
+    }
+    return minorToMajor(grossFromNetMinor(majorToMinor(net), rate));
+  }
+
+  /**
+   * Riscrive i campi prezzo dal netto memorizzato. `emitEvent: false` di
+   * proposito: cambiare unità di misura della vista non è una modifica
+   * dell'articolo e non deve sporcare il form né rimbalzare sul netto.
+   */
+  private showNetPrices(includeVat: boolean, rate: number): void {
+    const prices = this.netPrices();
+    for (const field of PRICE_FIELDS) {
+      const control = this.form.controls[field];
+      const displayed = this.toDisplayed(prices[field], includeVat, rate);
+      if (control.value !== displayed) {
+        control.setValue(displayed, { emitEvent: false });
+      }
+    }
+    this.shopifyPriceValue.set(this.form.controls.shopifyPrice.value);
+  }
+
+  /** Toggle netti/ivati: cambia solo la vista (vedi `showNetPrices`). */
+  protected onPriceModeChange(value: string): void {
+    this.pricesIncludeVat.set(value === 'gross');
   }
 
   protected showError(field: RequiredField): boolean {

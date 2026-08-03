@@ -139,22 +139,24 @@ export class CreateProductDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => MoneyDto)
-  listino1Price?: MoneyDto;
+  listino1Price?: MoneyDto | null;
 
   @IsOptional()
   @ValidateNested()
   @Type(() => MoneyDto)
-  listino2Price?: MoneyDto;
+  listino2Price?: MoneyDto | null;
 
   @IsOptional()
   @ValidateNested()
   @Type(() => MoneyDto)
-  listino3Price?: MoneyDto;
+  listino3Price?: MoneyDto | null;
 
   /**
-   * Modalità netto/ivato della sezione Listini al salvataggio (memoria di
-   * display per-articolo: alla riapertura la scheda si mostra nella stessa
-   * modalità). NON cambia la forma memorizzata, sempre netta.
+   * Modalità netto/ivato con cui l'operatore ha compilato la sezione Listini.
+   * NON è un dato dell'articolo e non viene persistito su di esso: serve solo a
+   * ricordare la preferenza di CHI salva, riproposta alla scheda successiva
+   * (`UserProductPriceModePreference`, gemella dei documenti). La forma
+   * memorizzata dei prezzi resta sempre netta.
    */
   @IsOptional()
   @IsBoolean()

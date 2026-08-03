@@ -37,6 +37,9 @@ const GENERAL: ProductGeneralDraft = {
   shopifyPrice: 129.9,
   compareAtPrice: null,
   purchasePrice: null,
+  listino1Price: null,
+  listino2Price: null,
+  listino3Price: null,
 };
 
 const OPTIONS: ProductOptionsDraft = {

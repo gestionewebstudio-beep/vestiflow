@@ -67,6 +67,12 @@ export class TenantFeatureSettingsService {
       blockNegativeInventory: row.blockNegativeInventory,
       defaultUnitOfMeasure: row.defaultUnitOfMeasure,
       defaultVatCodeId: row.defaultVatCodeId,
+      listino1Name: row.listino1Name,
+      listino1Active: row.listino1Active,
+      listino2Name: row.listino2Name,
+      listino2Active: row.listino2Active,
+      listino3Name: row.listino3Name,
+      listino3Active: row.listino3Active,
     };
   }
 }

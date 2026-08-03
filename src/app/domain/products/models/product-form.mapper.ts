@@ -1,5 +1,6 @@
 import { ProductKind, ProductStatus } from '@core/models/product.model';
 import { InventoryTrackingMode } from '@core/models/product-catalog.model';
+import type { Money } from '@core/models/common.model';
 import type { Product } from '@core/models/product.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
 import { DEFAULT_CURRENCY, moneyFromMajor, moneyToMajor } from '@core/utils/money.util';
@@ -227,6 +228,9 @@ export function emptyProductFormDraft(): ProductFormDraft {
       shopifyPrice: 0,
       compareAtPrice: null,
       purchasePrice: null,
+      listino1Price: null,
+      listino2Price: null,
+      listino3Price: null,
     },
     options: { axes: defaultOptionAxes() },
     variants: [],
@@ -286,6 +290,11 @@ function formatTagsInput(tags: readonly string[] | undefined): string {
   return tags?.join(', ') ?? '';
 }
 
+/** Listino del draft -> Money netto, `null` se il campo è stato svuotato. */
+function listinoMoney(value: number | null): Money | null {
+  return value != null ? moneyFromMajor(value, DEFAULT_CURRENCY) : null;
+}
+
 function generalToDto(
   general: ProductGeneralDraft,
 ): Omit<CreateProductDto, 'options' | 'variants'> {
@@ -309,6 +318,12 @@ function generalToDto(
       general.purchasePrice != null
         ? moneyFromMajor(general.purchasePrice, DEFAULT_CURRENCY)
         : undefined,
+    // Listini aggiuntivi (§B): sempre inviati, `null` quando l'operatore ha
+    // svuotato il campo — è così che il backend distingue "azzera" da "non
+    // toccare". Il draft li porta già netti.
+    listino1Price: listinoMoney(general.listino1Price),
+    listino2Price: listinoMoney(general.listino2Price),
+    listino3Price: listinoMoney(general.listino3Price),
     description: trimmedOrUndefined(general.description),
     brand: trimmedOrUndefined(general.brand),
     category: trimmedOrUndefined(general.category),
@@ -366,8 +381,18 @@ function articleShopifyMoney(
   return moneyFromMajor(general.shopifyPrice, DEFAULT_CURRENCY);
 }
 
-/** Draft -> payload di creazione (solo varianti incluse). */
-export function toCreateProductDto(draft: ProductFormDraft): CreateProductDto {
+/**
+ * Draft -> payload di creazione (solo varianti incluse).
+ *
+ * `listinoPricesIncludeVat` è la modalità con cui l'operatore stava compilando
+ * la sezione Listini: viaggia solo alla creazione e solo per farsela ricordare
+ * dal backend (preferenza personale). Non è un dato dell'articolo, per questo
+ * non sta nel draft.
+ */
+export function toCreateProductDto(
+  draft: ProductFormDraft,
+  listinoPricesIncludeVat?: boolean,
+): CreateProductDto {
   const simple = isSimpleProductDraft(draft);
   const variants = includedVariants(draft.variants).map((variant) => {
     const base = toVariantBase(variant);
@@ -384,6 +409,7 @@ export function toCreateProductDto(draft: ProductFormDraft): CreateProductDto {
   });
   return {
     ...generalToDto(draft.general),
+    ...(listinoPricesIncludeVat !== undefined ? { listinoPricesIncludeVat } : {}),
     options: buildOptionDtos(draft.options),
     variants,
   };
@@ -484,6 +510,11 @@ export function productToFormDraft(
           : 0,
     compareAtPrice: product.compareAtPrice != null ? moneyToMajor(product.compareAtPrice) : null,
     purchasePrice: product.purchasePrice != null ? moneyToMajor(product.purchasePrice) : null,
+    // Listini aggiuntivi (§B): netti a DB, netti nel draft. La sezione li mostra
+    // ivati solo se l'operatore lavora in quella modalità.
+    listino1Price: product.listino1Price != null ? moneyToMajor(product.listino1Price) : null,
+    listino2Price: product.listino2Price != null ? moneyToMajor(product.listino2Price) : null,
+    listino3Price: product.listino3Price != null ? moneyToMajor(product.listino3Price) : null,
   };
   const variantDrafts: VariantDraft[] = variants.map((variant) => ({
     key: variant.id,

@@ -40,6 +40,10 @@ export interface ProductApiRow {
   readonly shopifyPriceMinor?: number;
   readonly compareAtPriceMinor?: number | null;
   readonly purchasePriceMinor?: number | null;
+  /** Listini aggiuntivi dell'articolo (§B, unità minori, sempre netti). */
+  readonly listino1PriceMinor?: number | null;
+  readonly listino2PriceMinor?: number | null;
+  readonly listino3PriceMinor?: number | null;
   readonly inventoryTracking?: string;
   readonly managesStock?: boolean;
   readonly kind?: 'article' | 'service';
@@ -274,6 +278,19 @@ export function mapProductApiRow(row: ProductApiRow): Product {
     purchasePrice:
       row.purchasePriceMinor != null
         ? { amountMinor: row.purchasePriceMinor, currencyCode: currency }
+        : undefined,
+    // Listini aggiuntivi (§B): assenti = non valorizzati, non "zero".
+    listino1Price:
+      row.listino1PriceMinor != null
+        ? { amountMinor: row.listino1PriceMinor, currencyCode: currency }
+        : undefined,
+    listino2Price:
+      row.listino2PriceMinor != null
+        ? { amountMinor: row.listino2PriceMinor, currencyCode: currency }
+        : undefined,
+    listino3Price:
+      row.listino3PriceMinor != null
+        ? { amountMinor: row.listino3PriceMinor, currencyCode: currency }
         : undefined,
     inventoryTracking: (row.inventoryTracking as Product['inventoryTracking']) ?? undefined,
     managesStock: row.managesStock ?? true,

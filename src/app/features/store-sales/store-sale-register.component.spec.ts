@@ -156,6 +156,8 @@ describe('StoreSaleRegisterComponent', () => {
             getFilterOptions: vi.fn(() => of({ categories: [], brands: [], productTypes: [] })),
             checkSkuAvailability: vi.fn(() => of({ available: true, taken: [] })),
             checkBarcodeAvailability: vi.fn(() => of({ available: true, taken: [] })),
+            // Modalità prezzi della sezione Listini nell'anagrafica embedded.
+            getPriceModePreference: vi.fn(() => of(false)),
           },
         },
         {

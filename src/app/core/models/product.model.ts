@@ -105,6 +105,15 @@ export interface Product extends TenantScoped, Timestamped {
    * Il costo effettivo (valorizzazione) resta sulla variante.
    */
   readonly purchasePrice?: Money;
+  /**
+   * Listini aggiuntivi (§B): tre posizioni fisse, valore UNICO per articolo (mai
+   * per taglia) e sempre NETTO. Assenti = non valorizzati: un documento che
+   * chiede un listino vuoto porta la riga a zero, non ripiega su un altro prezzo.
+   * Nomi e attivazione sono impostazioni del tenant.
+   */
+  readonly listino1Price?: Money;
+  readonly listino2Price?: Money;
+  readonly listino3Price?: Money;
   readonly inventoryTracking?: InventoryTrackingMode;
   readonly managesStock?: boolean;
   /**

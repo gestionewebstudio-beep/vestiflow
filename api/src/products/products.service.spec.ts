@@ -432,6 +432,47 @@ describe('ProductsService', () => {
     expect(channelSync.enqueueProductPush).toHaveBeenCalledWith(tenantId, 'prod-1');
   });
 
+  // Listini (§B): il gate è per campo. Non esiste più un flag "la sezione è
+  // stata inviata": la modalità netto/ivato è una preferenza dell'operatore e
+  // non viaggia con l'articolo.
+  it('update valorizza, azzera e lascia stare i listini campo per campo', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta',
+      variants: [],
+      images: [],
+    });
+
+    await service.update(tenantId, 'prod-1', {
+      // valorizzato → scritto; null → azzerato; assente → non toccato.
+      listino1Price: { amountMinor: 2500, currencyCode: 'EUR' },
+      listino2Price: null,
+    });
+
+    const data = prisma.product.update.mock.calls[0]![0].data;
+    expect(data.listino1PriceMinor).toBe(2500);
+    expect(data.listino2PriceMinor).toBeNull();
+    expect(data).not.toHaveProperty('listino3PriceMinor');
+  });
+
+  it('update senza campi listino non li tocca (patch parziale)', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta',
+      variants: [],
+      images: [],
+    });
+
+    await service.update(tenantId, 'prod-1', { name: 'Nuovo nome' });
+
+    const data = prisma.product.update.mock.calls[0]![0].data;
+    expect(data).not.toHaveProperty('listino1PriceMinor');
+    expect(data).not.toHaveProperty('listino2PriceMinor');
+    expect(data).not.toHaveProperty('listino3PriceMinor');
+  });
+
   it('getFacets restituisce valori distinti, trimmati e filtrati per tenant', async () => {
     const { service, prisma } = createService();
     prisma.product.findMany

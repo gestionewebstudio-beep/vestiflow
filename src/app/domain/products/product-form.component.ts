@@ -97,6 +97,8 @@ import type { CatalogCategory } from './services/catalog-category.service';
 import { CatalogCategoryService } from './services/catalog-category.service';
 import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
+import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
+import { activeListinoSlots } from './models/product-listino.model';
 
 const EMPTY_FILTER_OPTIONS: ProductFilterOptions = { categories: [], brands: [], seasons: [] };
 
@@ -167,6 +169,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
   private readonly catalogCategoryService = inject(CatalogCategoryService);
   private readonly supplierService = inject(SupplierService);
   private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+  private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -370,6 +373,49 @@ export class ProductFormComponent implements CanComponentDeactivate {
     { initialValue: [] as readonly VatCode[] },
   );
 
+  // ── Sezione Listini ───────────────────────────────────────────────────────
+  // Impostazioni azienda: quali listini aggiuntivi esistono, come si chiamano e
+  // qual è il Codice IVA predefinito (aliquota di ripiego per la conversione).
+  private readonly featureSettings = toSignal(
+    this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
+    { initialValue: null },
+  );
+  protected readonly listinoSlots = computed(() => activeListinoSlots(this.featureSettings()));
+  protected readonly tenantDefaultVatCodeId = computed(
+    () => this.featureSettings()?.defaultVatCodeId ?? null,
+  );
+
+  /**
+   * Modalità netti/ivati della sezione Listini: preferenza dell'OPERATORE, non
+   * dell'articolo. Si carica una volta e vale per ogni scheda aperta in questa
+   * sessione, nuova o esistente; il backend la ricorda quando l'operatore salva
+   * un articolo nuovo.
+   */
+  protected readonly listinoPricesIncludeVat = signal(false);
+  /** Una scelta esplicita dell'operatore batte la preferenza che arriva dopo. */
+  private priceModeTouched = false;
+
+  constructor() {
+    // Preferenza modalità prezzi: vale anche per le schede esistenti (la
+    // modalità è di chi guarda, non dell'articolo). Errore = si resta sul netto.
+    this.service
+      .getPriceModePreference()
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (pricesIncludeVat) => {
+          if (!this.priceModeTouched) {
+            this.listinoPricesIncludeVat.set(pricesIncludeVat);
+          }
+        },
+        error: () => undefined,
+      });
+  }
+
+  protected onPriceModeChange(pricesIncludeVat: boolean): void {
+    this.priceModeTouched = true;
+    this.listinoPricesIncludeVat.set(pricesIncludeVat);
+  }
+
   // Validità dei campi per-variante (SKU/prezzi/barcode) riportata dallo step.
   private readonly variantsStepValid = signal(true);
 
@@ -505,6 +551,11 @@ export class ProductFormComponent implements CanComponentDeactivate {
       return false;
     }
     if (purchasePrice != null && purchasePrice < 0) {
+      return false;
+    }
+    // Listini: facoltativi, mai negativi (vuoto ≠ zero, vedi sezione Listini).
+    const { listino1Price, listino2Price, listino3Price } = this.draft().general;
+    if ([listino1Price, listino2Price, listino3Price].some((price) => price != null && price < 0)) {
       return false;
     }
     return this.draft().general.name.trim() !== '';
@@ -700,7 +751,9 @@ export class ProductFormComponent implements CanComponentDeactivate {
     }
     const baseRequest$ = id
       ? this.service.updateProduct(id, toUpdateProductDto(draft))
-      : this.service.createProduct(toCreateProductDto(draft));
+      : // Alla creazione viaggia anche la modalità con cui l'operatore ha
+        // compilato i listini: serve al backend solo per ricordargliela.
+        this.service.createProduct(toCreateProductDto(draft, this.listinoPricesIncludeVat()));
 
     const supplierId = draft.general.supplierId.trim();
     const request$ = baseRequest$.pipe(
