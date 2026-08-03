@@ -382,12 +382,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly lineSortColumn = signal<GoodsReceiptLineSortColumn | null>(null);
   protected readonly lineSortDirection = signal<'asc' | 'desc'>('asc');
   /**
-   * Spunta per-documento «Aggiorna anche il costo di riferimento in anagrafica»
-   * (default off, stile Danea). Il costo EFFETTIVO della variante è comunque
-   * sempre aggiornato dal carico; questa spunta decide solo se propagare anche
-   * al costo di riferimento dell'articolo. Sostituisce la vecchia policy tenant.
+   * Spunta per-documento «Aggiorna anche il costo di riferimento in anagrafica».
+   * Il costo EFFETTIVO della variante è comunque SEMPRE aggiornato dal carico
+   * (è un fatto della taglia); questa spunta decide solo se propagare anche al
+   * costo di RIFERIMENTO dell'articolo in anagrafica. Default ACCESO: di norma
+   * l'anagrafica segue l'ultimo costo pagato, chi non lo vuole la spegne su
+   * quel documento (§Punto A).
    */
-  protected readonly updateArticleReferenceCost = signal(false);
+  protected readonly updateArticleReferenceCost = signal(true);
   private readonly pendingSupplierOrderId = signal<string | null>(null);
   private readonly pendingLinkedSupplierOrderRef = signal<string | null>(null);
 
@@ -3108,7 +3110,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this._submitState.set({ status: 'error', error: validationError });
       return;
     }
-    // Nessun dialog: la scelta è la spunta per-documento (default off).
+    // Nessun dialog: la scelta è la spunta per-documento (default acceso).
     this.executeExplicitSave(this.updateArticleReferenceCost());
   }
 
