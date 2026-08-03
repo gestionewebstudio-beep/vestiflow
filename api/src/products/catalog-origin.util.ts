@@ -5,6 +5,8 @@ import {
   type ProductVariant,
 } from '@prisma/client';
 
+import { sameAmountAtCent } from '../common/money.util';
+
 import type { UpdateProductDto } from './dto/update-product.dto';
 import type { UpdateVariantDto } from './dto/update-variant.dto';
 
@@ -161,7 +163,9 @@ function variantCatalogEqual(
     jsonEqual(current.optionValues, payload.optionValues) &&
     normalizeOptionalString(current.barcode) === normalizeOptionalString(payload.barcode) &&
     current.currency === payload.sellingPrice.currency &&
-    current.sellingPriceMinor === payload.sellingPrice.amountMinor
+    // Al centesimo: una coda decimale diversa non è una modifica del catalogo
+    // e non deve far scattare il blocco «gestito da Shopify» (§sei decimali).
+    sameAmountAtCent(current.sellingPriceMinor, payload.sellingPrice.amountMinor)
   );
 }
 

@@ -16,6 +16,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { sameAmountAtCent } from '../common/money.util';
 import { canViewPurchaseCosts } from '../auth/user-permissions.util';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
@@ -648,7 +649,9 @@ export class ProductsService {
                   ? dto.shopifyPrice !== undefined
                     ? { shopifyPriceMinor: dto.shopifyPrice.amountMinor }
                     : {}
-                  : dto.sellingPrice.amountMinor !== existing.sellingPriceMinor
+                  : // «Cambiato» si valuta al centesimo: una coda decimale
+                    // diversa non è un prezzo nuovo (§sei decimali).
+                    !sameAmountAtCent(dto.sellingPrice.amountMinor, existing.sellingPriceMinor)
                     ? { shopifyPriceMinor: dto.sellingPrice.amountMinor }
                     : {}),
               }
@@ -967,7 +970,7 @@ export class ProductsService {
           ? variant.shopifyPrice !== undefined
             ? { shopifyPriceMinor: variant.shopifyPrice.amountMinor }
             : {}
-          : variant.sellingPrice.amountMinor !== current.sellingPriceMinor
+          : !sameAmountAtCent(variant.sellingPrice.amountMinor, current.sellingPriceMinor)
             ? { shopifyPriceMinor: variant.sellingPrice.amountMinor }
             : {}),
         purchasePriceMinor: variant.purchasePrice?.amountMinor,

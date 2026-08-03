@@ -107,7 +107,12 @@ L'interfaccia deve privilegiare:
 
 ## Denaro
 
-- I prezzi e i totali viaggiano come **interi in unità minori** (`Money { amountMinor, currencyCode }`): niente float per il denaro.
+- I prezzi e i totali viaggiano in **unità minori** (`Money { amountMinor, currencyCode }`), di norma intere ma **con una coda decimale ammessa**: fino a 4 cifre di centesimo (6 decimali di euro), quante ne memorizzano le colonne `NUMERIC(16,6)`.
+- La coda non è un vezzo: un prezzo digitato ivato vale 2049,180328 centesimi netti, ed è quella coda a farlo tornare identico quando lo si rimostra ivato. **Arrotondare a metà strada perde un centesimo su un prezzo su cinque** (aliquota 22%).
+- **Si arrotonda solo all'USCITA**: `formatMoney`, `moneyToDecimalString`, `minorToShopifyDecimal`, la stampa, il CSV. Mai nei passaggi intermedi, mai al momento di memorizzare.
+- **All'operatore si mostrano sempre e solo 2 decimali**, in ogni schermata e in ogni stampa.
+- **«È cambiato?» si chiede al centesimo** (`sameAmountAtCent`): una coda decimale diversa non è una modifica per chi guarda, e non deve far scattare storici prezzi, conflitti di catalogo o propagazioni verso i canali.
+- La conversione netto↔ivato ha **due forme**, e vanno tenute distinte: `*Exact` per il valore da memorizzare, `*Minor` (arrotondata) per il valore da mostrare.
 - Shopify espone i prezzi come **stringhe decimali** (es. `"29.90"`): la conversione stringa ↔ unità minori avviene in un'unica funzione di mapping testata, mai sparsa nel codice.
 - La formattazione display usa `Intl.NumberFormat` centralizzato, mai concatenazione manuale.
 

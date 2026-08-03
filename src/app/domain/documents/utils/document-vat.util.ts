@@ -48,15 +48,37 @@ export function entryIncludesVat(
   );
 }
 
-/** Scorpora l'IVA da un importo lordo in unità minori. */
-export function netFromGrossMinor(grossMinor: number, ratePercent: number): number {
+/**
+ * Scorpora l'IVA ESATTAMENTE: nessun arrotondamento, la coda decimale resta.
+ * È la forma da MEMORIZZARE (§sei decimali): 25,00 ivati al 22% valgono
+ * 2049,180328 centesimi netti, ed è quella coda a far tornare 25,00 quando il
+ * prezzo viene rimostrato ivato. Arrotondare qui perde il centesimo.
+ */
+export function netFromGrossExact(grossMinor: number, ratePercent: number): number {
   if (ratePercent <= 0) {
     return grossMinor;
   }
-  return Math.round((grossMinor * 100) / (100 + ratePercent));
+  return (grossMinor * 100) / (100 + ratePercent);
 }
 
-/** Aggiunge l'IVA a un importo netto in unità minori. */
+/** Aggiunge l'IVA ESATTAMENTE. Gemella di `netFromGrossExact`. */
+export function grossFromNetExact(netMinor: number, ratePercent: number): number {
+  if (ratePercent <= 0) {
+    return netMinor;
+  }
+  return netMinor * (1 + ratePercent / 100);
+}
+
+/**
+ * Scorpora l'IVA arrotondando al centesimo. È la forma da MOSTRARE: due
+ * decimali, quelli che l'operatore vede e digita. Per il valore da memorizzare
+ * serve `netFromGrossExact`.
+ */
+export function netFromGrossMinor(grossMinor: number, ratePercent: number): number {
+  return Math.round(netFromGrossExact(grossMinor, ratePercent));
+}
+
+/** Aggiunge l'IVA arrotondando al centesimo. Gemella di `netFromGrossMinor`. */
 export function grossFromNetMinor(netMinor: number, ratePercent: number): number {
   if (ratePercent <= 0) {
     return netMinor;

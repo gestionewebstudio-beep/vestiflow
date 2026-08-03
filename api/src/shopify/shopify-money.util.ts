@@ -19,10 +19,19 @@ export function shopifyGid(type: string, id: string | number): string {
   return `gid://shopify/${type}/${id}`;
 }
 
-/** Converte unità minori intere in stringa decimale Shopify (es. 2990 → "29.90"). */
+/**
+ * Converte unità minori in stringa decimale Shopify (es. 2990 → "29.90").
+ *
+ * **Punto di uscita**: qui l'importo lascia VestiFlow, quindi qui — e non prima
+ * — si arrotonda al centesimo. Un valore con coda decimale (nato da uno
+ * scorporo IVA, §sei decimali) senza questo arrotondamento produrrebbe una
+ * stringa malformata come `101.61.4754`, perché il resto e il padding qui sotto
+ * ragionano su interi.
+ */
 export function minorToShopifyDecimal(amountMinor: number, decimals = 2): string {
-  const negative = amountMinor < 0;
-  const abs = Math.abs(amountMinor);
+  const rounded = Math.round(amountMinor);
+  const negative = rounded < 0;
+  const abs = Math.abs(rounded);
   const factor = 10 ** decimals;
   const intPart = Math.floor(abs / factor);
   const frac = String(abs % factor).padStart(decimals, '0');

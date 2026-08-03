@@ -7,6 +7,7 @@ import {
   type StockMovement,
 } from '@prisma/client';
 
+import { sameNullableAmountAtCent } from '../common/money.util';
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import type { StockMovementActor } from '../inventory/inventory-movement.util';
 
@@ -210,8 +211,10 @@ export async function syncGoodsReceiptLineMovements(
       quantityDelta !== 0 ||
       movement.sku !== sku ||
       movement.reason !== params.reason ||
-      movement.unitCostMinor !== unitCostMinor ||
-      movement.totalCostMinor !== line.lineTotalMinor ||
+      // Costi al centesimo: una coda decimale diversa (§sei decimali) non è un
+      // costo nuovo e non deve far riscrivere il movimento.
+      !sameNullableAmountAtCent(movement.unitCostMinor, unitCostMinor) ||
+      !sameNullableAmountAtCent(movement.totalCostMinor, line.lineTotalMinor) ||
       movementDateChanged;
 
     if (needsUpdate) {

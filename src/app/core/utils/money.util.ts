@@ -1,7 +1,19 @@
-// Helper puri (framework-agnostici) per il value object Money (unità minori
-// intere). Nessun float nel dominio: parsing/serializzazione lavorano su stringhe
-// e interi. Il confine Shopify MoneyV2 (decimal string) passa per
-// moneyToDecimalString / decimalStringToMoney.
+// Helper puri (framework-agnostici) per il value object Money.
+//
+// L'invariante è cambiata (§sei decimali): l'ammontare in unità minori NON è
+// più necessariamente intero. Quando nasce da uno scorporo IVA porta una coda
+// decimale — fino a 4 cifre di centesimo, cioè 6 decimali di euro — ed è quella
+// coda a far tornare il prezzo digitato quando lo si rimostra ivato.
+//
+// Le regole che restano:
+// - **l'arrotondamento avviene solo all'uscita**: `formatMoney`,
+//   `moneyToDecimalString`, `minorToShopifyDecimal`. Mai a metà strada;
+// - **all'operatore si mostrano sempre 2 decimali**, in ogni schermata e stampa;
+// - **i confronti «è cambiato?» si fanno al centesimo** (`sameAmountAtCent`):
+//   una coda decimale diversa non è una modifica per chi guarda.
+//
+// Il confine Shopify MoneyV2 (decimal string) passa per moneyToDecimalString /
+// decimalStringToMoney.
 
 import type { CurrencyCode } from '../models/common.model';
 import type { Money } from '../models/money.model';
@@ -53,7 +65,10 @@ export function formatMoney(money: Money, locale = 'it-IT'): string {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: money.currencyCode,
-  }).format(moneyToMajor(money));
+    // Punto di uscita: due decimali, sempre. L'arrotondamento è esplicito e non
+    // delegato a Intl, così questo formato e `moneyToDecimalString` non possono
+    // divergere di un centesimo sullo stesso importo.
+  }).format(moneyToMajor({ ...money, amountMinor: roundToMinor(money.amountMinor) }));
 }
 
 /**
@@ -105,11 +120,30 @@ export function parseMoneyInput(
   return { amountMinor: negative ? -amountMinor : amountMinor, currencyCode };
 }
 
+/**
+ * Arrotonda al centesimo (unità minore intera). È il gesto dell'USCITA: si fa
+ * quando il valore smette di essere calcolato e diventa qualcosa che qualcuno
+ * legge, stampa o riceve.
+ */
+export function roundToMinor(amountMinor: number): number {
+  return Math.round(amountMinor);
+}
+
+/**
+ * Due importi sono lo stesso importo *per l'operatore*? Confronta al centesimo:
+ * una coda decimale diversa (scorpori, ricalcoli) non è una modifica visibile e
+ * non deve far scattare storici, conflitti o propagazioni verso i canali.
+ */
+export function sameAmountAtCent(a: number, b: number): boolean {
+  return Math.round(a) === Math.round(b);
+}
+
 /** Serializza in stringa decimale stile Shopify MoneyV2 (es. "19.90"). */
 export function moneyToDecimalString(money: Money): string {
   const decimals = currencyDecimals(money.currencyCode);
   const sign = money.amountMinor < 0 ? '-' : '';
-  const abs = Math.abs(money.amountMinor).toString();
+  // Punto di uscita: la coda decimale sparisce qui, mai prima.
+  const abs = Math.abs(roundToMinor(money.amountMinor)).toString();
   if (decimals === 0) {
     return `${sign}${abs}`;
   }

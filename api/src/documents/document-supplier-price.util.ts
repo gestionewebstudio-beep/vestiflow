@@ -1,5 +1,7 @@
 import type { DocumentLine, Prisma } from '@prisma/client';
 
+import { sameAmountAtCent } from '../common/money.util';
+
 type ReceiptLine = Pick<DocumentLine, 'variantId' | 'unitPriceMinor' | 'loadsStock' | 'quantity'>;
 
 /** Riga che incide sui costi: carica stock, ha quantità, variante e prezzo. */
@@ -52,7 +54,9 @@ export async function findSupplierPriceDiffs(
   const diffs: SupplierPriceDiff[] = [];
   for (const line of eligible) {
     const previous = lastPriceByVariant.get(line.variantId) ?? null;
-    if (previous === line.unitPriceMinor) {
+    // «Il costo è cambiato?» si chiede al centesimo: una coda decimale diversa
+    // (§sei decimali) non è un prezzo nuovo e non deve entrare nello storico.
+    if (previous !== null && sameAmountAtCent(previous, line.unitPriceMinor)) {
       continue;
     }
     diffs.push({
