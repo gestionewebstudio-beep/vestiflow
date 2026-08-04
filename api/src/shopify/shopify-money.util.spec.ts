@@ -35,6 +35,21 @@ describe('shopify-money.util', () => {
     it('gestisce valori negativi', () => {
       expect(minorToShopifyDecimal(-1050)).toBe('-10.50');
     });
+
+    // §sei decimali: un netto scorporato non e' intero in unita' minori. Qui
+    // l'importo lascia VestiFlow, quindi qui — e solo qui — si arrotonda.
+    it('arrotonda la coda decimale al centesimo', () => {
+      expect(minorToShopifyDecimal(10161.4754)).toBe('101.61');
+      expect(minorToShopifyDecimal(2049.1803)).toBe('20.49');
+      expect(minorToShopifyDecimal(2049.5)).toBe('20.50');
+    });
+
+    // `toFixed(2)` su `minor / 100` sembra equivalente: su mezzo centesimo non
+    // lo e' quasi mai, e due canali pubblicherebbero prezzi diversi.
+    it("non e' `toFixed` sul valore in euro", () => {
+      expect(minorToShopifyDecimal(1.5)).toBe('0.02');
+      expect((1.5 / 100).toFixed(2)).toBe('0.01');
+    });
   });
 
   describe('shopifyGid', () => {

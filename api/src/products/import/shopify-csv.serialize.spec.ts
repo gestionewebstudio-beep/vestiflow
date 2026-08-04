@@ -67,6 +67,23 @@ describe('serializeProductsToShopifyCsv', () => {
     expect(csv).toContain('https://example.com/a.jpg');
   });
 
+  // §sei decimali, punto di uscita: il prezzo memorizzato puo' portare la coda
+  // di uno scorporo IVA. Nel CSV deve uscire a due decimali, mai «101.61.4754».
+  it('scrive il prezzo a due decimali anche con la coda decimale', () => {
+    const csv = serializeProductsToShopifyCsv([
+      makeRecord({
+        name: 'Maglietta ivata',
+        options: [],
+        images: [],
+        variants: [{ sku: 'SKU-IVA', optionValues: [], sellingPriceMinor: 10161.4754 }],
+      }),
+    ]);
+
+    const dataRow = csv.split(/\r?\n/)[1] ?? '';
+    expect(dataRow.split(',')).toContain('101.61');
+    expect(csv).not.toContain('101.61.4754');
+  });
+
   it('è compatibile con il parser import (round-trip)', () => {
     const csv = serializeProductsToShopifyCsv([
       makeRecord({

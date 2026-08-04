@@ -1,3 +1,4 @@
+import { minorToDecimalString } from '../common/money.util';
 import { Injectable, Logger } from '@nestjs/common';
 import {
   ProductStatus,
@@ -171,8 +172,10 @@ export class TikTokProductPushService {
       skus: skuVariants.map((variant) => ({
         seller_sku: variant.sku,
         price: {
-          // Punto di uscita: due decimali (§sei decimali).
-          amount: (Number(variant.sellingPriceMinor) / 100).toFixed(2),
+          // Punto di uscita: due decimali (§sei decimali). Stessa conversione di
+          // Shopify: l'arrotondamento sta sulle unità minori, non su `toFixed`
+          // del valore in euro, che mezzo centesimo lo perde quasi sempre.
+          amount: minorToDecimalString(Number(variant.sellingPriceMinor)),
           currency: variant.currency,
         },
         stock_infos: [{ available_stock: stockByVariant.get(variant.id) ?? 0 }],

@@ -32,3 +32,23 @@ export function sameNullableAmountAtCent(a: number | null, b: number | null): bo
   }
   return sameAmountAtCent(a, b);
 }
+
+/**
+ * Unità minori → stringa decimale (2990 → "29.90"). È la forma con cui il
+ * denaro esce verso un canale esterno, quindi **è qui che si arrotonda**.
+ *
+ * L'arrotondamento sta sulle unità minori, non sul valore in euro: `toFixed(2)`
+ * su `minor / 100` sembra equivalente e non lo è — mezzo centesimo lo perde
+ * quasi sempre per come il float rappresenta `x,xx5`. Due canali che usassero
+ * le due forme pubblicherebbero lo stesso prezzo con un centesimo di
+ * differenza.
+ */
+export function minorToDecimalString(amountMinor: number, decimals = 2): string {
+  const rounded = roundToMinor(amountMinor);
+  const negative = rounded < 0;
+  const abs = Math.abs(rounded);
+  const factor = 10 ** decimals;
+  const intPart = Math.floor(abs / factor);
+  const frac = String(abs % factor).padStart(decimals, '0');
+  return `${negative ? '-' : ''}${intPart}.${frac}`;
+}

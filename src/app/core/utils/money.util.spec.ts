@@ -63,6 +63,15 @@ describe('formatMoney', () => {
     expect(label).toContain('€');
     expect(label).toContain('234,50');
   });
+
+  // Punto di uscita (§sei decimali): ogni schermata che mostra denaro passa da
+  // qui — scheda prodotto in sola lettura compresa, dove i prezzi memorizzati
+  // possono portare la coda di uno scorporo IVA. All'operatore, due decimali.
+  it('mostra due decimali anche quando l importo porta la coda decimale', () => {
+    expect(formatMoney({ amountMinor: 10161.4754, currencyCode: 'EUR' })).toContain('101,61');
+    expect(formatMoney({ amountMinor: 2049.1803, currencyCode: 'EUR' })).toContain('20,49');
+    expect(formatMoney({ amountMinor: 10161.4754, currencyCode: 'EUR' })).not.toContain('4754');
+  });
 });
 
 describe('parseMoneyInput', () => {
