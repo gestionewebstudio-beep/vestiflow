@@ -58,6 +58,24 @@
   border-radius: var(--radius-md);
 }
 
+// Una riga per listino: attivazione e nome affiancati, perché sono la stessa
+// decisione. Su schermi stretti tornano in colonna.
+.tenant-ops__listino {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tenant-ops__listino .tenant-ops__check {
+  flex: 0 0 auto;
+  min-inline-size: var(--field-w-md);
+}
+
+.tenant-ops__listino .tenant-ops__field {
+  flex: 1 1 var(--field-w-lg);
+}
+
 .tenant-ops__link {
   align-self: flex-start;
   font-size: var(--text-sm);

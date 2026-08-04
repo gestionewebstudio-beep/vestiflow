@@ -23,6 +23,18 @@ const DEFAULT_LABELS: Readonly<Record<1 | 2 | 3, string>> = {
   3: 'Listino 3',
 };
 
+/** Le tre posizioni, per chi deve mostrarle tutte (impostazioni tenant). */
+export const LISTINO_POSITIONS: readonly [1, 2, 3] = [1, 2, 3];
+
+/**
+ * Etichetta di una posizione quando il tenant non le ha dato un nome. In
+ * impostazioni fa da placeholder: dice come si chiamerà il listino se il campo
+ * resta vuoto, invece di lasciare intendere che senza nome sparisca.
+ */
+export function defaultListinoLabel(position: 1 | 2 | 3): string {
+  return DEFAULT_LABELS[position];
+}
+
 /** Chiavi del draft per posizione: l'unica mappa posizione → campo del modello. */
 export const LISTINO_FIELDS: Readonly<
   Record<

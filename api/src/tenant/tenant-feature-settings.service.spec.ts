@@ -46,6 +46,35 @@ describe('TenantFeatureSettingsService', () => {
     );
   });
 
+  // §B3b-4: i tre listini si rinominano e si attivano da qui. Il nome `null`
+  // non e' un nome vuoto — e' «torna a chiamarsi Listino N» — e va distinto dal
+  // campo assente, che significa «non toccare».
+  it('update rinomina e attiva i listini, e null riporta al nome di default', async () => {
+    prisma.tenantFeatureSettings.upsert.mockResolvedValue({});
+    prisma.tenantFeatureSettings.update.mockResolvedValue({
+      tenantId,
+      listino1Name: 'Ingrosso',
+      listino1Active: true,
+      listino2Name: null,
+      listino2Active: true,
+      listino3Name: null,
+      listino3Active: false,
+    });
+
+    await expect(
+      service.update(tenantId, {
+        listino1Name: 'Ingrosso',
+        listino2Name: null,
+        listino2Active: true,
+      }),
+    ).resolves.toMatchObject({ listino1Name: 'Ingrosso', listino2Name: null, listino2Active: true });
+
+    expect(prisma.tenantFeatureSettings.update).toHaveBeenCalledWith({
+      where: { tenantId },
+      data: { listino1Name: 'Ingrosso', listino2Name: null, listino2Active: true },
+    });
+  });
+
   it('update persiste i campi modificati', async () => {
     prisma.tenantFeatureSettings.upsert.mockResolvedValue({});
     prisma.tenantFeatureSettings.update.mockResolvedValue({

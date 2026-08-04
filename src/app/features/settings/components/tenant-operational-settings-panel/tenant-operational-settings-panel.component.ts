@@ -17,6 +17,10 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
+import {
+  defaultListinoLabel,
+  LISTINO_POSITIONS,
+} from '@domain/products/models/product-listino.model';
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 
 @Component({
@@ -61,7 +65,23 @@ export class TenantOperationalSettingsPanelComponent {
     defaultVatCodeId: this.fb.control(''),
     warnNegativeInventory: this.fb.control(true),
     blockNegativeInventory: this.fb.control(false),
+    // Listini aggiuntivi (§B): tre posizioni fisse, nome e attivazione.
+    listino1Name: this.fb.control(''),
+    listino1Active: this.fb.control(true),
+    listino2Name: this.fb.control(''),
+    listino2Active: this.fb.control(false),
+    listino3Name: this.fb.control(''),
+    listino3Active: this.fb.control(false),
   });
+
+  /** Le tre righe della sezione Listini, con il nome di default come segnaposto. */
+  protected readonly listinoRows = LISTINO_POSITIONS.map((position) => ({
+    position,
+    placeholder: defaultListinoLabel(position),
+    nameControl: `listino${position}Name` as const,
+    activeControl: `listino${position}Active` as const,
+    inputId: `tenant-ops-listino-${position}-name`,
+  }));
 
   constructor() {
     this.reload();
@@ -95,6 +115,12 @@ export class TenantOperationalSettingsPanelComponent {
           defaultVatCodeId: result.settings.defaultVatCodeId ?? '',
           warnNegativeInventory: result.settings.warnNegativeInventory,
           blockNegativeInventory: result.settings.blockNegativeInventory,
+          listino1Name: result.settings.listino1Name ?? '',
+          listino1Active: result.settings.listino1Active,
+          listino2Name: result.settings.listino2Name ?? '',
+          listino2Active: result.settings.listino2Active,
+          listino3Name: result.settings.listino3Name ?? '',
+          listino3Active: result.settings.listino3Active,
         });
       });
   }
@@ -115,6 +141,14 @@ export class TenantOperationalSettingsPanelComponent {
         defaultVatCodeId: raw.defaultVatCodeId || null,
         warnNegativeInventory: raw.warnNegativeInventory,
         blockNegativeInventory: raw.blockNegativeInventory,
+        // Nome vuoto = `null`: il listino torna a chiamarsi «Listino N», non
+        // resta senza nome.
+        listino1Name: raw.listino1Name.trim() || null,
+        listino1Active: raw.listino1Active,
+        listino2Name: raw.listino2Name.trim() || null,
+        listino2Active: raw.listino2Active,
+        listino3Name: raw.listino3Name.trim() || null,
+        listino3Active: raw.listino3Active,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

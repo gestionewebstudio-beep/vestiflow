@@ -48,6 +48,34 @@
     </fieldset>
 
     <fieldset class="tenant-ops__group">
+      <legend class="tenant-ops__legend">Listini aggiuntivi</legend>
+      <p class="tenant-ops__hint">
+        Tre listini oltre al prezzo articolo. Spegnere un listino lo toglie dall'anagrafica e dai
+        documenti: i valori già inseriti restano, ma nessuno li vede finché non lo riaccendi. Senza
+        nome si chiama «Listino 1», «Listino 2», «Listino 3».
+      </p>
+      @for (row of listinoRows; track row.position) {
+        <div class="tenant-ops__listino">
+          <label class="tenant-ops__check">
+            <input type="checkbox" [formControlName]="row.activeControl" />
+            <span class="tenant-ops__listino-label">Listino {{ row.position }} attivo</span>
+          </label>
+          <label class="tenant-ops__field" [for]="row.inputId">
+            <span class="sr-only">Nome del listino {{ row.position }}</span>
+            <input
+              [id]="row.inputId"
+              type="text"
+              [formControlName]="row.nameControl"
+              [placeholder]="row.placeholder"
+              maxlength="40"
+              autocomplete="off"
+            />
+          </label>
+        </div>
+      }
+    </fieldset>
+
+    <fieldset class="tenant-ops__group">
       <legend class="tenant-ops__legend">Giacenze negative</legend>
       <label class="tenant-ops__check">
         <input type="checkbox" formControlName="warnNegativeInventory" />

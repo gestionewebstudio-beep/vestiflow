@@ -73,4 +73,35 @@ export class UpdateTenantFeatureSettingsDto {
   @IsOptional()
   @IsUUID()
   defaultVatCodeId?: string;
+
+  // ── Listini aggiuntivi (§B) ───────────────────────────────────────────────
+  // Tre posizioni fisse, rinominabili. Il nome `null` non è un nome vuoto: è
+  // «usa l'etichetta di default» (Listino 1/2/3), e serve a distinguerlo dal
+  // campo assente, che invece significa «non toccare».
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  listino1Name?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  listino1Active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  listino2Name?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  listino2Active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  listino3Name?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  listino3Active?: boolean;
 }
