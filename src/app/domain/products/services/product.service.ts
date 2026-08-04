@@ -73,6 +73,10 @@ interface VariantSummaryApiRow {
     readonly amountMinor: number;
     readonly currencyCode: string;
   } | null;
+  /** Listini aggiuntivi dell'articolo per posizione (§B4); `null` = non valorizzato. */
+  readonly listinoPrices?: Readonly<
+    Record<'1' | '2' | '3', { readonly amountMinor: number; readonly currencyCode: string } | null>
+  >;
   readonly supplierSku?: string | null;
   readonly stockOnHand?: number | null;
   readonly stockAvailable?: number | null;
@@ -459,6 +463,11 @@ export class ProductService {
             currencyCode: row.compareAtPrice.currencyCode,
           }
         : undefined,
+      listinoPrices: {
+        1: row.listinoPrices?.['1'] ?? null,
+        2: row.listinoPrices?.['2'] ?? null,
+        3: row.listinoPrices?.['3'] ?? null,
+      },
       supplierSku: row.supplierSku ?? undefined,
       stockOnHand: row.stockOnHand ?? undefined,
       stockAvailable: row.stockAvailable ?? undefined,

@@ -267,6 +267,11 @@ export class ProductsService {
               category: true,
               unitOfMeasure: true,
               compareAtPriceMinor: true,
+              // Listini aggiuntivi (§B4): valori di ARTICOLO, uguali per ogni
+              // taglia. La riga documento li applica scegliendo il listino.
+              listino1PriceMinor: true,
+              listino2PriceMinor: true,
+              listino3PriceMinor: true,
               defaultVatCodeId: true,
               managesStock: true,
               kind: true,
@@ -350,6 +355,11 @@ export class ProductsService {
           row.product.compareAtPriceMinor != null
             ? { amountMinor: row.product.compareAtPriceMinor, currencyCode: row.currency }
             : null,
+        listinoPrices: {
+          1: listinoMoney(row.product.listino1PriceMinor, row.currency),
+          2: listinoMoney(row.product.listino2PriceMinor, row.currency),
+          3: listinoMoney(row.product.listino3PriceMinor, row.currency),
+        },
         supplierSku: supplierLink?.supplierSku ?? null,
         stockOnHand,
         stockAvailable,
@@ -1276,6 +1286,19 @@ export class ProductsService {
     assertShopifyCatalogManualSyncAllowed(product.catalogOrigin);
     return this.channelSync.pushProductNow(tenantId, id);
   }
+}
+
+/**
+ * Valore di un listino aggiuntivo per la vista variante (§B4). Assente resta
+ * assente: un listino non valorizzato non ripiega sul prezzo articolo — il
+ * documento mette la riga a zero e lo segnala, invece di far pagare un prezzo
+ * che nessuno ha deciso.
+ */
+function listinoMoney(
+  amountMinor: Prisma.Decimal | null,
+  currencyCode: string,
+): { amountMinor: number; currencyCode: string } | null {
+  return amountMinor == null ? null : { amountMinor: Number(amountMinor), currencyCode };
 }
 
 function withReadableShopifyErrors(product: ProductWithVariants): ProductWithVariants {

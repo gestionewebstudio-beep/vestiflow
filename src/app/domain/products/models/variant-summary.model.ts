@@ -17,6 +17,12 @@ export interface VariantSummary {
   readonly title: string;
   readonly barcode?: string;
   readonly sellingPrice: Money;
+  /**
+   * Listini aggiuntivi dell'ARTICOLO (§B4): stesso valore per ogni taglia, per
+   * posizione. `null` = questo articolo non ha un prezzo per quel listino, e
+   * non c'è ripiego: il documento mette la riga a zero e lo dice.
+   */
+  readonly listinoPrices?: Readonly<Record<1 | 2 | 3, Money | null>>;
   readonly purchasePrice?: Money;
   readonly compareAtPrice?: Money | null;
   readonly supplierSku?: string;

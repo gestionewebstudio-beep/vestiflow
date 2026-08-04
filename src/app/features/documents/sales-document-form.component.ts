@@ -15,6 +15,7 @@ import {
   catchError,
   debounceTime,
   distinctUntilChanged,
+  forkJoin,
   map,
   of,
   startWith,
@@ -47,6 +48,13 @@ import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/v
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { CustomerService } from '@domain/customers/services/customer.service';
+import {
+  ARTICLE_LISTINO_VALUE,
+  listinoSelectOptions,
+  listinoUnitPrice,
+  parseListinoChoice,
+  type DocumentListinoChoice,
+} from '@domain/documents/utils/document-listino.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductService } from '@domain/products/services/product.service';
 import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
@@ -190,6 +198,21 @@ export class SalesDocumentFormComponent {
     { value: 'net', label: 'Netto' },
     { value: 'gross', label: 'Ivato' },
   ];
+
+  // ── Listino del documento (§B4) ────────────────────────────────────────────
+  //
+  // Non è un dato del documento ma un modo di riempirlo: sceglierlo riscrive i
+  // prezzi delle righe, che restano modificabili una per una. Per questo non si
+  // memorizza — quello che conta sono i prezzi che restano nel documento.
+  protected readonly listinoChoice = signal<DocumentListinoChoice>('article');
+  protected readonly listinoOptions = computed(() => listinoSelectOptions(this.tenantSettings()));
+  protected readonly listinoValue = computed(() => {
+    const choice = this.listinoChoice();
+    return choice === 'article' ? ARTICLE_LISTINO_VALUE : String(choice);
+  });
+  /** Righe rimaste a zero perché l'articolo non ha un prezzo per quel listino. */
+  protected readonly listinoWarnings = signal<readonly string[]>([]);
+  protected readonly showListinoSelect = computed(() => this.listinoOptions().length > 1);
 
   protected readonly documentType = computed(() => {
     const loaded = this.loadedDocument()?.type;
@@ -843,8 +866,11 @@ export class SalesDocumentFormComponent {
       this.ensureLineVatCode(line);
       // Il prezzo d'anagrafica è netto: in modalità ivata si mostra con l'IVA,
       // non si copia com'è (varrebbe il 22% in meno di quanto vale).
+      // Segue il listino scelto in testata (§B4): una riga aggiunta dopo aver
+      // scelto un listino nasce con quel prezzo, non col prezzo articolo.
+      const listinoPrice = listinoUnitPrice(match, this.listinoChoice());
       line.controls.unitPrice.setValue(
-        this.priceFieldValue(match.sellingPrice.amountMinor, this.lineRatePercent(line)),
+        this.priceFieldValue(listinoPrice?.amountMinor ?? 0, this.lineRatePercent(line)),
       );
     }
   }
@@ -1303,6 +1329,76 @@ export class SalesDocumentFormComponent {
    * (netto↔ivato per aliquota di riga) così l'importo effettivo delle righe — e
    * i totali — non cambiano; muta solo come i valori sono interpretati e mostrati.
    */
+  /**
+   * Cambio listino: riscrive il prezzo di ogni riga col valore che quel listino
+   * dà all'ARTICOLO — uguale per ogni taglia, come da modello.
+   *
+   * Le righe già in documento non portano con sé la scheda dell'articolo: le
+   * si rilegge qui, una volta, perché scegliere un listino è un gesto
+   * deliberato e raro. Un articolo senza valore per il listino scelto NON
+   * ripiega sul prezzo articolo: la riga va a zero e l'avviso dice quale.
+   */
+  protected onListinoChange(value: string | null): void {
+    const choice = parseListinoChoice(value);
+    this.listinoChoice.set(choice);
+    if (this.formReadOnly()) {
+      return;
+    }
+
+    const targets = this.lines.controls
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => Boolean(line.controls.variantId.value));
+    if (targets.length === 0) {
+      this.listinoWarnings.set([]);
+      return;
+    }
+
+    forkJoin(
+      targets.map(({ line }) =>
+        this.productService
+          .searchVariantSummaries({ variantId: line.controls.variantId.value })
+          .pipe(
+            map((rows) => rows[0] ?? null),
+            catchError(() => of(null)),
+          ),
+      ),
+    )
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((summaries) => {
+        const missing: string[] = [];
+        summaries.forEach((summary, position) => {
+          const target = targets[position];
+          if (!summary || !target) {
+            return;
+          }
+          const price = listinoUnitPrice(summary, choice);
+          if (!price) {
+            missing.push(target.line.controls.description.value.trim() || summary.title);
+          }
+          target.line.controls.unitPrice.setValue(
+            this.priceFieldValue(price?.amountMinor ?? 0, this.lineRatePercent(target.line)),
+          );
+        });
+        this.listinoWarnings.set(
+          missing.length === 0
+            ? []
+            : [
+                `${this.listinoLabel()}: nessun prezzo per ${
+                  missing.length === 1 ? "l'articolo" : 'gli articoli'
+                } ${missing.join(', ')}. ${
+                  missing.length === 1 ? 'La riga è rimasta' : 'Le righe sono rimaste'
+                } a zero.`,
+              ],
+        );
+      });
+  }
+
+  /** Nome del listino scelto, per gli avvisi. */
+  private listinoLabel(): string {
+    const value = this.listinoValue();
+    return this.listinoOptions().find((option) => option.value === value)?.label ?? 'Listino';
+  }
+
   protected setPriceMode(pricesIncludeVat: boolean): void {
     if (pricesIncludeVat === this.pricesIncludeVat() || this.formReadOnly()) {
       return;

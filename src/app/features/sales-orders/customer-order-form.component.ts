@@ -124,6 +124,13 @@ import {
 } from '@core/models/document.model';
 import type { DocumentAddress, DocumentRecord } from '@core/models/document.model';
 import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/product-form.mapper';
+import {
+  ARTICLE_LISTINO_VALUE,
+  listinoSelectOptions,
+  listinoUnitPrice,
+  parseListinoChoice,
+  type DocumentListinoChoice,
+} from '@domain/documents/utils/document-listino.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
@@ -1176,6 +1183,25 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * (generato/duplicato). Cambiandola i prezzi si convertono, totali fermi.
    */
   protected readonly pricesIncludeVat = signal<boolean>(false);
+
+  // ── Listino del documento (§B4) ────────────────────────────────────────────
+  //
+  // Non e' un dato del documento ma un modo di riempirlo: sceglierlo riscrive i
+  // prezzi delle righe, che restano modificabili una per una. Per questo non si
+  // memorizza e alla riapertura torna su «Prezzo articolo»: quello che conta
+  // sono i prezzi che l'operatore ha lasciato nel documento.
+  protected readonly listinoChoice = signal<DocumentListinoChoice>('article');
+  protected readonly listinoOptions = computed(() => listinoSelectOptions(this.tenantSettings()));
+  protected readonly listinoValue = computed(() => {
+    const choice = this.listinoChoice();
+    return choice === 'article' ? ARTICLE_LISTINO_VALUE : String(choice);
+  });
+  /** Righe rimaste a zero perche' l'articolo non ha un prezzo per quel listino. */
+  protected readonly listinoWarnings = signal<readonly string[]>([]);
+  /** La tendina non compare sullo Scarico manuale: non e' un documento di vendita. */
+  protected readonly showListinoSelect = computed(
+    () => !this.isManualUnload && this.listinoOptions().length > 1,
+  );
   protected readonly priceRowLabel = computed(() => priceModeRowLabel(this.pricesIncludeVat()));
   protected readonly priceModeOptions: readonly SelectMenuOption[] = [
     { value: 'net', label: 'Netto' },
@@ -1969,9 +1995,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       }
     }
     // Il prezzo d'anagrafica è netto: in modalità ivata si mostra con l'IVA.
-    if (!line.controls.unitPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
+    // Segue il listino scelto in testata (§B4): una riga aggiunta dopo aver
+    // scelto un listino deve nascere con quel prezzo, non col prezzo articolo.
+    const listinoPrice = listinoUnitPrice(summary, this.listinoChoice());
+    if (!line.controls.unitPrice.value.trim() && (listinoPrice?.amountMinor ?? 0) > 0) {
       line.controls.unitPrice.setValue(
-        this.priceFieldValue(summary.sellingPrice.amountMinor, this.lineRateOf(line)),
+        this.priceFieldValue(listinoPrice?.amountMinor ?? 0, this.lineRateOf(line)),
         { emitEvent: false },
       );
     }
@@ -2287,6 +2316,57 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     });
     this.pricesIncludeVat.set(pricesIncludeVat);
     this.markFormDirty();
+  }
+
+  /**
+   * Cambio listino: riscrive il prezzo di ogni riga col valore che quel listino
+   * dà all'ARTICOLO — uguale per ogni taglia, come da modello.
+   *
+   * Un articolo senza valore per il listino scelto NON ripiega sul prezzo
+   * articolo: la riga va a zero e l'avviso dice quale. Un ripiego silenzioso
+   * farebbe uscire un documento a un prezzo che nessuno ha deciso, e nessuno se
+   * ne accorgerebbe.
+   */
+  protected onListinoChange(value: string | null): void {
+    const choice = parseListinoChoice(value);
+    this.listinoChoice.set(choice);
+    if (this.formReadOnly()) {
+      return;
+    }
+
+    const missing: string[] = [];
+    this.lines.controls.forEach((line, index) => {
+      if (this.isReferenceLine(line) || !line.controls.variantId.value) {
+        return;
+      }
+      const summary = this.lineVariantSummary(index);
+      if (!summary) {
+        return;
+      }
+      const price = listinoUnitPrice(summary, choice);
+      if (!price) {
+        missing.push(line.controls.productName.value.trim() || summary.title);
+      }
+      line.controls.unitPrice.setValue(
+        this.priceFieldValue(price?.amountMinor ?? 0, this.lineVatRate(index)),
+        { emitEvent: false },
+      );
+    });
+
+    this.listinoWarnings.set(
+      missing.length === 0
+        ? []
+        : [
+            `${this.listinoLabel()}: nessun prezzo per ${missing.length === 1 ? 'l’articolo' : 'gli articoli'} ${missing.join(', ')}. ${missing.length === 1 ? 'La riga è rimasta' : 'Le righe sono rimaste'} a zero.`,
+          ],
+    );
+    this.markFormDirty();
+  }
+
+  /** Nome del listino scelto, per gli avvisi. */
+  private listinoLabel(): string {
+    const value = this.listinoValue();
+    return this.listinoOptions().find((option) => option.value === value)?.label ?? 'Listino';
   }
 
   // ── Netto memorizzato, netto o ivato a schermo ────────────────────────────

@@ -7,6 +7,14 @@
     <p class="doc-form__disclaimer" role="note">{{ proformaDisclaimer }}</p>
   }
 
+  @if (listinoWarnings().length > 0) {
+    <div class="doc-form__warning-banner" role="status">
+      @for (warning of listinoWarnings(); track warning) {
+        <p>{{ warning }}</p>
+      }
+    </div>
+  }
+
   @if (loading()) {
     <app-table-skeleton [columns]="2" [rows]="6" />
   } @else if (loadError()) {
@@ -103,6 +111,24 @@
               (valueChange)="setPriceMode($event === 'gross')"
             />
           </div>
+
+          <!-- Listino (§B4): non è un dato del documento, è come lo si riempie.
+               Sceglierlo riscrive i prezzi delle righe, che restano
+               modificabili una per una. -->
+          @if (showListinoSelect() && !formReadOnly()) {
+            <div class="doc-form__field">
+              <span class="doc-form__label">Listino</span>
+              <app-select-menu
+                [options]="listinoOptions()"
+                [value]="listinoValue()"
+                ariaLabel="Listino applicato alle righe"
+                placeholder="Prezzo articolo"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="onListinoChange($event)"
+              />
+            </div>
+          }
 
           @if (isSalesInvoice()) {
             <div class="doc-form__field">
