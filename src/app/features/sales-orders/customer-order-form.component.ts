@@ -56,8 +56,9 @@ import { OperationalLocationsService } from '@domain/inventory/services/operatio
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
   applyCascadeDiscountMinor,
-  applyDiscountMinor,
   cascadeDiscountMultiplier,
+  formatDiscountPercent,
+  formatDiscountPercentValue,
   parseEffectiveDiscountPercent,
 } from '@core/utils/discount-percent.util';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
@@ -1480,7 +1481,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
                   currencyCode: this.currency,
                 }).replace('.', ',')
               : '',
-          discount: line.discountPercent > 0 ? `${line.discountPercent}%` : '',
+          discount:
+            Number(line.discountPercent) > 0
+              ? formatDiscountPercent(Number(line.discountPercent))
+              : '',
           vatCodeId: line.vatCodeId ?? '',
           commitsStock: Boolean(line.variantId),
         },
@@ -2147,19 +2151,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Prezzo unitario scontato con cascata ESATTA (es. "4+10%" ≠ 14%).
-   * In modalità Preventivo lo sconto è la percentuale effettiva ARROTONDATA:
-   * le righe documento persistono uno sconto intero (discountPercent), quindi
-   * l'anteprima usa lo stesso arrotondamento per combaciare col server.
+   * Prezzo unitario scontato con cascata: "4+10%" è 4%, poi 10% sul residuo.
+   * Vale per ogni tipo documento — il Preventivo faceva eccezione solo perché
+   * la colonna sconto era intera e l'anteprima doveva imitarne la perdita.
    */
   protected lineDiscountedUnitMoney(index: number): Money {
     this.formValue();
     const line = this.lines.at(index);
     const unit = this.lineUnitPriceMinor(line);
-    const discounted = this.isQuote
-      ? applyDiscountMinor(unit, line.controls.discount.value)
-      : applyCascadeDiscountMinor(unit, line.controls.discount.value);
-    return { amountMinor: discounted, currencyCode: this.currency };
+    return {
+      amountMinor: applyCascadeDiscountMinor(unit, line.controls.discount.value),
+      currencyCode: this.currency,
+    };
   }
 
   protected lineHasDiscount(index: number): boolean {
@@ -2199,10 +2202,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     if (this.isOrder) {
       return qty * applyCascadeDiscountMinor(unitNet, line.controls.discount.value);
     }
-    const multiplier = this.isQuote
-      ? (100 - parseEffectiveDiscountPercent(line.controls.discount.value)) / 100
-      : cascadeDiscountMultiplier(line.controls.discount.value);
-    return qty * unitNet * multiplier;
+    return qty * unitNet * cascadeDiscountMultiplier(line.controls.discount.value);
   }
 
   /** Valore riga pre-sconto (barrato in colonna Totale, come Arrivo merce). */
@@ -3313,7 +3313,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         paymentTerms: order.paymentTerms ?? '',
         notes: order.notes ?? '',
         documentDiscountPercent: order.documentDiscountPercent
-          ? String(order.documentDiscountPercent)
+          ? formatDiscountPercentValue(Number(order.documentDiscountPercent))
           : '',
       });
       this.lines.clear({ emitEvent: false });
@@ -3979,7 +3979,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         notes: doc.notes ?? '',
         documentDiscountPercent:
           doc.documentDiscountPercent && doc.documentDiscountPercent > 0
-            ? String(doc.documentDiscountPercent)
+            ? formatDiscountPercentValue(Number(doc.documentDiscountPercent))
             : '',
       });
       if (this.isSalesDdt) {
@@ -4010,7 +4010,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
                   )
                 : '',
             discount:
-              line.discountPercent && line.discountPercent > 0 ? `${line.discountPercent}%` : '',
+              Number(line.discountPercent) > 0
+                ? formatDiscountPercent(Number(line.discountPercent))
+                : '',
             vatCodeId: line.vatCodeId ?? '',
             commitsStock: this.isSalesDdt || this.isManualUnload ? line.loadsStock : false,
             unitOfMeasure: '',

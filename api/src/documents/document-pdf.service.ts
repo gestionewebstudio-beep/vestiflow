@@ -2,7 +2,7 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { DocumentType } from '@prisma/client';
 import type { PdfDocumentInstance } from '../common/pdf/pdf-document.types';
 
-import { formatMinorAmount } from '../common/pdf/money-format.util';
+import { formatMinorAmount, formatPercent } from '../common/pdf/money-format.util';
 import { renderPdfToBuffer, sanitizePdfFilename } from '../common/pdf/pdf-buffer.util';
 import {
   drawPdfMetaLine,
@@ -471,7 +471,7 @@ export class DocumentPdfService {
         String(line.quantity),
         // Punto di uscita: due decimali in stampa (§sei decimali).
         formatMinorAmount(Number(line.unitPriceMinor), currency),
-        line.discountPercent > 0 ? `${line.discountPercent}%` : '—',
+        Number(line.discountPercent) > 0 ? formatPercent(Number(line.discountPercent)) : '—',
         vatRatePercent != null ? `${vatRatePercent}%` : '—',
         formatMinorAmount(line.lineTotalMinor, currency),
       ];

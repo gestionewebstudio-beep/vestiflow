@@ -16,6 +16,7 @@
 // seguita dalle righe articolo copiate; i dati di testata restano quelli del
 // documento corrente.
 
+import { formatDiscountPercent } from '@core/utils/discount-percent.util';
 import type { EntityId, IsoDateString } from '@core/models/common.model';
 import { DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
@@ -108,7 +109,8 @@ export function includedPayloadFromQuote(doc: DocumentRecord): IncludedDocumentP
       description: line.description,
       quantity: line.quantity,
       unitPriceMinor: line.unitPrice.amountMinor,
-      discount: line.discountPercent > 0 ? `${line.discountPercent}%` : '',
+      discount:
+        Number(line.discountPercent) > 0 ? formatDiscountPercent(Number(line.discountPercent)) : '',
       vatCodeId: line.vatCodeId,
     })),
   };

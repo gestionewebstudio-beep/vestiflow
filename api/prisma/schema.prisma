@@ -1173,7 +1173,7 @@ model SalesOrder {
   paymentTerms      String?                     @map("payment_terms")
   /// Sconto extra percentuale sull'intero documento, dopo gli sconti riga
   /// (stesso pattern di Document.documentDiscountPercent in Arrivo merce).
-  documentDiscountPercent Int                   @default(0) @map("document_discount_percent")
+  documentDiscountPercent Decimal               @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
   /// Annullamento comunicato dal canale (impegni rilasciati, ordine in storico).
   cancelledAt       DateTime?                   @map("cancelled_at")
   /// Evasione completa registrata dal canale (evento canonico fulfilled).
@@ -1866,7 +1866,7 @@ model Document {
   /// (totale - scadenze saldate), mantenuto dal salvataggio. 0 per gli altri tipi.
   outstandingMinor  Int            @default(0) @map("outstanding_minor")
   /// Sconto extra percentuale applicato sull'intero documento oltre agli sconti riga.
-  documentDiscountPercent Int      @default(0) @map("document_discount_percent")
+  documentDiscountPercent Decimal  @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
   pricesIncludeVat  Boolean        @default(false) @map("prices_include_vat")
   /// Modalità inserimento costi dell'Arrivo merce: netti o ivati (§11.1).
   purchaseCostEntryMode PurchaseCostEntryMode @default(vat_excluded) @map("purchase_cost_entry_mode")
@@ -1981,7 +1981,10 @@ model DocumentLine {
   /// SEI DECIMALI: un prezzo digitato ivato non ha un netto intero, e la coda
   /// decimale è ciò che lo fa tornare identico quando viene rimostrato ivato.
   unitPriceMinor  Decimal  @default(0) @map("unit_price_minor") @db.Decimal(16, 6)
-  discountPercent Int      @default(0) @map("discount_percent")
+  /// Sconto riga in percentuale EFFETTIVA, con decimali: la cascata «4+10%»
+  /// vale 13,6%, e arrotondarla a 14 farebbe valere il documento meno di
+  /// quanto l'anteprima ha mostrato.
+  discountPercent Decimal  @default(0) @map("discount_percent") @db.Decimal(7, 4)
   /// Imponibile riga in unità minori (dopo sconto riga, prima IVA).
   lineTotalMinor  Int      @default(0) @map("line_total_minor")
   /// Codice IVA della riga. Null su righe storiche non migrate.

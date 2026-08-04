@@ -38,7 +38,10 @@ import {
   parseMoneyInput,
   toStorableMinor,
 } from '@core/utils/money.util';
-import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
+import {
+  formatDiscountPercentValue,
+  parseEffectiveDiscountPercent,
+} from '@core/utils/discount-percent.util';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
@@ -1508,7 +1511,7 @@ export class SalesDocumentFormComponent {
       paymentTerms: prefill.paymentTerms ?? '',
       documentDiscountPercent:
         prefill.documentDiscountPercent && prefill.documentDiscountPercent > 0
-          ? String(prefill.documentDiscountPercent)
+          ? formatDiscountPercentValue(Number(prefill.documentDiscountPercent))
           : '',
     });
     if (prefill.customerId) {
@@ -1560,7 +1563,7 @@ export class SalesDocumentFormComponent {
       internalComment: doc.internalComment ?? '',
       documentDiscountPercent:
         doc.documentDiscountPercent && doc.documentDiscountPercent > 0
-          ? String(doc.documentDiscountPercent)
+          ? formatDiscountPercentValue(Number(doc.documentDiscountPercent))
           : '',
       paymentTerms: doc.paymentTerms ?? '',
       paymentDueDate: doc.paymentDueDate?.slice(0, 10) ?? '',

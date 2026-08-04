@@ -15,6 +15,7 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  IsNumber,
 } from 'class-validator';
 import { DocumentType } from '@prisma/client';
 
@@ -106,7 +107,7 @@ export class SaveGoodsReceiptLineDto {
   unitPriceMinor?: number;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   @Max(100)
   discountPercent?: number;
@@ -259,7 +260,7 @@ export class SaveGoodsReceiptDto {
   currency?: string;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   @Max(100)
   documentDiscountPercent?: number;

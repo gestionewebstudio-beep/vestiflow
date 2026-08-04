@@ -14,6 +14,7 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  IsNumber,
 } from 'class-validator';
 
 /**
@@ -131,7 +132,7 @@ export class SaveManualSalesOrderDto {
 
   /** Sconto extra % sull'intero documento, dopo gli sconti riga (come Arrivo merce). */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   @Max(100)
   documentDiscountPercent?: number;

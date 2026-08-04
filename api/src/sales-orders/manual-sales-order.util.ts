@@ -147,7 +147,9 @@ export function computeManualOrderTotals(
     grossMinor += line.quantity * line.unitPriceMinor;
   }
 
-  const docDiscount = Math.min(100, Math.max(0, Math.trunc(documentDiscountPercent)));
+  // Niente `Math.trunc`: lo sconto extra puo' essere una cascata, e «4+10%»
+  // vale 13,6% — troncarlo a 13 farebbe pagare al cliente piu' del dovuto.
+  const docDiscount = Math.min(100, Math.max(0, documentDiscountPercent));
   const docDiscountAmount = Math.round((lineSumMinor * docDiscount) / 100);
   const subtotalMinor = lineSumMinor - docDiscountAmount;
 

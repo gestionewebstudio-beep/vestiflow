@@ -391,6 +391,32 @@ describe('DocumentsService', () => {
       expect(data.pricesIncludeVat).toBe(true);
     });
 
+    // Lo sconto a cascata «4+10%» vale 13,6%: 4%, poi 10% su quel che resta.
+    // Con la colonna intera il documento ne salvava 14 e valeva meno di quanto
+    // l'anteprima aveva mostrato — l'anteprima aveva ragione.
+    it('la riga sconta con la cascata, decimali compresi', async () => {
+      const { service } = createService(prisma, resolvedSetting());
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-4',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-4', lines: [] });
+
+      await service.create(tenantId, {
+        type: DocumentType.proforma,
+        documentDate: '2026-03-01',
+        lines: [
+          { description: 'Capo', quantity: 1, unitPriceMinor: 10000, discountPercent: 13.6 },
+        ],
+      });
+
+      const data = prisma.document.create.mock.calls[0]![0]!.data;
+      // 100,00 scontati 13,6% = 86,40 (con 14% sarebbero stati 86,00).
+      expect(data.lines.create[0]).toMatchObject({ lineTotalMinor: 8640 });
+      expect(data.subtotalMinor).toBe(8640);
+    });
+
     // §sei decimali: 123,97 digitati in modalità ivata valgono 10161,4754
     // centesimi netti. Con l'imposta calcolata sull'imponibile ARROTONDATO il
     // documento valeva 123,96 — un centesimo meno di quello che l'operatore

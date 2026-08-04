@@ -63,7 +63,10 @@ import {
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
-import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
+import {
+  formatDiscountPercentValue,
+  parseEffectiveDiscountPercent,
+} from '@core/utils/discount-percent.util';
 import type { Supplier } from '@core/models/supplier.model';
 import { normalizeSku } from '@domain/products/models/product-form.validators';
 import { ProductService } from '@domain/products/services/product.service';
@@ -4624,7 +4627,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       invoicePending: doc.billingCause === 'In attesa fattura',
       documentDiscountPercent:
         doc.documentDiscountPercent != null && doc.documentDiscountPercent > 0
-          ? String(doc.documentDiscountPercent)
+          ? formatDiscountPercentValue(Number(doc.documentDiscountPercent))
           : '',
     });
     // Ripristina modalità e modello causale DOPO il patch (il patch dei campi

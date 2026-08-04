@@ -1,49 +1,43 @@
-/** Converte notazione sconto (es. "10%", "4+10%") in percentuale effettiva a cascata (0–100). */
+/** Cifre decimali della percentuale: la cascata di due sconti interi non ne fa di più. */
+const PERCENT_DECIMALS = 4;
+
+/**
+ * Notazione sconto (es. "10%", "4+10%") → percentuale effettiva a cascata
+ * (0–100). La cascata è la regola: "4+10%" è 4%, poi 10% su quel che resta,
+ * cioè **13,6%** — non 14.
+ *
+ * Prima arrotondava all'intero, e non per scelta: la colonna `discount_percent`
+ * era INTEGER. Il risultato era che l'anteprima mostrava 13,6% e il documento
+ * ne salvava 14, valendo un po' meno di quanto l'operatore aveva letto. Ora la
+ * colonna tiene i decimali e questa funzione non ha più motivo di perderli.
+ */
 export function parseEffectiveDiscountPercent(input: string): number {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    return 0;
-  }
-
-  const parts = trimmed
-    .replace(/%/g, '')
-    .split('+')
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (parts.length === 0) {
-    return 0;
-  }
-
-  let multiplier = 1;
-  for (const part of parts) {
-    const value = Number.parseFloat(part.replace(',', '.'));
-    if (!Number.isFinite(value) || value < 0 || value > 100) {
-      continue;
-    }
-    multiplier *= (100 - value) / 100;
-  }
-
-  const effective = (1 - multiplier) * 100;
-  return Math.round(Math.min(100, Math.max(0, effective)));
+  const factor = 10 ** PERCENT_DECIMALS;
+  const effective = (1 - cascadeDiscountMultiplier(input)) * 100;
+  return Math.round(effective * factor) / factor;
 }
 
-/** Applica sconto percentuale effettivo a un importo in unità minori. */
-export function applyDiscountMinor(amountMinor: number, discountInput: string): number {
-  if (amountMinor <= 0) {
-    return 0;
-  }
-  const discount = parseEffectiveDiscountPercent(discountInput);
-  if (discount <= 0) {
-    return amountMinor;
-  }
-  return Math.round((amountMinor * (100 - discount)) / 100);
+const PERCENT_FORMAT = new Intl.NumberFormat('it-IT', { maximumFractionDigits: 2 });
+
+/**
+ * Percentuale di sconto → testo, per rimetterla in un campo o mostrarla in
+ * tabella. I decimali compaiono solo se ci sono, con la virgola: una cascata
+ * vale «13,6», uno sconto secco resta «10». Il parser sopra la rilegge.
+ */
+export function formatDiscountPercentValue(percent: number): string {
+  return PERCENT_FORMAT.format(percent);
+}
+
+/** Come sopra, col segno: «13,6%». */
+export function formatDiscountPercent(percent: number): string {
+  return `${formatDiscountPercentValue(percent)}%`;
 }
 
 /**
- * Moltiplicatore ESATTO dello sconto a cascata (§Ordine cliente): a differenza
- * di `parseEffectiveDiscountPercent` non arrotonda mai la percentuale —
- * "4+10%" → 0.96 × 0.90 = 0.864 (13,6% effettivo, NON 14%).
+ * Moltiplicatore dello sconto a cascata: "4+10%" → 0,96 × 0,90 = 0,864.
+ * È la forma da usare per scontare un importo; `parseEffectiveDiscountPercent`
+ * dà lo stesso sconto espresso in percentuale, per chi deve memorizzarlo o
+ * mostrarlo.
  */
 export function cascadeDiscountMultiplier(input: string | null | undefined): number {
   const trimmed = input?.trim();

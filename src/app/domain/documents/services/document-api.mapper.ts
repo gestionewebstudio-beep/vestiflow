@@ -28,7 +28,8 @@ export interface DocumentLineApiRow {
   readonly description: string;
   readonly quantity: number;
   readonly unitPriceMinor: number | string;
-  readonly discountPercent: number;
+  /** Sconto effettivo con decimali (Decimal serializzato come stringa). */
+  readonly discountPercent: number | string;
   readonly vatCodeId?: EntityId | null;
   readonly vatSnapshot?: VatSnapshot | null;
   /** Costo digitato (Decimal serializzato come stringa dal backend). */
@@ -141,7 +142,7 @@ export interface DocumentApiRow {
   readonly taxMinor: number;
   readonly totalMinor: number;
   readonly outstandingMinor?: number | null;
-  readonly documentDiscountPercent?: number;
+  readonly documentDiscountPercent?: number | string;
   readonly pricesIncludeVat: boolean;
   readonly purchaseCostEntryMode?: PurchaseCostEntryMode | null;
   readonly createdByName: string;
@@ -208,7 +209,7 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     description: row.description,
     quantity: row.quantity,
     unitPrice: { amountMinor: Number(row.unitPriceMinor), currencyCode: currency },
-    discountPercent: row.discountPercent,
+    discountPercent: Number(row.discountPercent),
     vatCodeId: row.vatCodeId ?? undefined,
     vatSnapshot: row.vatSnapshot ?? undefined,
     enteredUnitCostMinor:
@@ -354,7 +355,7 @@ export function mapDocumentApiRow(row: DocumentApiRow): DocumentRecord {
       row.outstandingMinor != null
         ? { amountMinor: row.outstandingMinor, currencyCode: row.currency }
         : undefined,
-    documentDiscountPercent: row.documentDiscountPercent ?? 0,
+    documentDiscountPercent: Number(row.documentDiscountPercent ?? 0),
     pricesIncludeVat: row.pricesIncludeVat,
     purchaseCostEntryMode: row.purchaseCostEntryMode ?? undefined,
     createdByName: row.createdByName,

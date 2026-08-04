@@ -494,7 +494,7 @@ export class ManualSalesOrdersService {
       notes: order.notes ?? undefined,
       externalRef: order.externalRef ?? undefined,
       internalComment: `Generato da Concludi ordine ${order.orderNumber}`,
-      documentDiscountPercent: order.documentDiscountPercent,
+      documentDiscountPercent: Number(order.documentDiscountPercent),
       includedSalesOrderIds: [order.id],
       lines: order.lines.map((line) => ({
         variantId: line.variantId ?? undefined,
@@ -662,7 +662,7 @@ export class ManualSalesOrdersService {
       externalRef: source.externalRef ?? undefined,
       notes: source.notes ?? undefined,
       paymentTerms: source.paymentTerms ?? undefined,
-      documentDiscountPercent: source.documentDiscountPercent,
+      documentDiscountPercent: Number(source.documentDiscountPercent),
       lines: source.lines.map((line) => ({
         variantId: line.variantId ?? undefined,
         sku: line.sku || undefined,

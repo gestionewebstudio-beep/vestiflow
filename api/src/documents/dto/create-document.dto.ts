@@ -51,7 +51,7 @@ export class DocumentLineInputDto {
   unitPriceMinor?: number;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   @Max(100)
   discountPercent?: number;
@@ -197,7 +197,7 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   externalRef?: string;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   @Max(100)
   documentDiscountPercent?: number;

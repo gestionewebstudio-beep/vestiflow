@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 import type { DocumentLine } from '@core/models/document.model';
+import { formatDiscountPercent } from '@core/utils/discount-percent.util';
 import { formatMoney } from '@core/utils/money.util';
 
 /** Tabella righe documento (dumb, sola lettura). Mobile come card impilate. */
@@ -21,6 +22,8 @@ export class DocumentLinesTableComponent {
   }
 
   protected discountLabel(line: DocumentLine): string {
-    return line.discountPercent > 0 ? `${line.discountPercent}%` : '—';
+    return Number(line.discountPercent) > 0
+      ? formatDiscountPercent(Number(line.discountPercent))
+      : '—';
   }
 }

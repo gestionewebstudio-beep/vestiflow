@@ -80,7 +80,7 @@ export class DocumentXmlService {
         quantity: line.quantity,
         // Punto di uscita (XML fattura): due decimali (§sei decimali).
         unitPriceMinor: Math.round(Number(line.unitPriceMinor)),
-        discountPercent: line.discountPercent,
+        discountPercent: Number(line.discountPercent),
         lineTotalMinor: line.lineTotalMinor,
         vatRatePercent: snapshot?.ratePercent ?? 0,
         natura: snapshot?.natura ?? undefined,

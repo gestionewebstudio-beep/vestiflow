@@ -14,6 +14,7 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  IsNumber,
 } from 'class-validator';
 import { AdjustmentDirection } from '@prisma/client';
 
@@ -105,7 +106,7 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   externalRef?: string | null;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   @Max(100)
   documentDiscountPercent?: number;

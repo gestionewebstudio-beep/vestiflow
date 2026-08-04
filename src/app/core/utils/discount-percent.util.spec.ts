@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyCascadeDiscountMinor,
-  applyDiscountMinor,
   cascadeDiscountMultiplier,
   parseEffectiveDiscountPercent,
 } from './discount-percent.util';
@@ -17,16 +16,25 @@ describe('parseEffectiveDiscountPercent', () => {
     expect(parseEffectiveDiscountPercent('10')).toBe(10);
   });
 
-  it('calcola sconti a cascata', () => {
-    expect(parseEffectiveDiscountPercent('4+10%')).toBe(14);
-    expect(parseEffectiveDiscountPercent('2+5+8%')).toBe(14);
+  // La cascata e' la regola: 4%, poi 10% su quel che resta. Arrotondare a 14
+  // faceva valere il documento salvato meno dell'anteprima che l'operatore
+  // aveva davanti — e l'anteprima aveva ragione.
+  it('calcola sconti a cascata SENZA arrotondarli', () => {
+    expect(parseEffectiveDiscountPercent('4+10%')).toBe(13.6);
+    expect(parseEffectiveDiscountPercent('2+5+8%')).toBeCloseTo(14.348, 10);
   });
-});
 
-describe('applyDiscountMinor', () => {
-  it('applica lo sconto effettivo', () => {
-    expect(applyDiscountMinor(10_000, '10%')).toBe(9_000);
-    expect(applyDiscountMinor(10_000, '4+10%')).toBe(8_600);
+  it('accetta la virgola e ignora le parti non valide', () => {
+    expect(parseEffectiveDiscountPercent('12,5%')).toBe(12.5);
+    expect(parseEffectiveDiscountPercent('abc')).toBe(0);
+    expect(parseEffectiveDiscountPercent('10%+abc')).toBe(10);
+  });
+
+  it("e' la percentuale dello stesso sconto che applica il moltiplicatore", () => {
+    for (const input of ['', '10%', '4+10%', '2+5+8%', '12,5%', '33%']) {
+      const fromPercent = 1 - parseEffectiveDiscountPercent(input) / 100;
+      expect(fromPercent).toBeCloseTo(cascadeDiscountMultiplier(input), 6);
+    }
   });
 });
 
