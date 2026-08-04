@@ -90,6 +90,7 @@ import {
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import {
   grossFromNetMinor,
+  lineVatFromNetExact,
   netFromGrossExact,
   netFromGrossMinor,
 } from '@domain/documents/utils/document-vat.util';
@@ -2180,18 +2181,28 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Imponibile della riga: quantità × prezzo NETTO scontato. È il numero che
-   * finisce nei totali e nel documento, indipendente da come si guardano i
-   * prezzi. Lo sconto si applica al netto, come fa il server.
+   * Imponibile della riga PRIMA dell'arrotondamento: quantità × prezzo NETTO
+   * scontato. È il numero che finisce nei totali e nel documento, indipendente
+   * da come si guardano i prezzi; chi lo usa lo arrotonda una volta sola, alla
+   * fine, e ne ricava l'imposta col valore esatto (§sei decimali).
+   *
+   * L'unica eccezione è l'Ordine cliente: lì il server
+   * (`manual-sales-order.util`) sconta il prezzo unitario e lo arrotonda
+   * subito, perché la sua colonna prezzo è intera. Tenere esatto qui quello che
+   * il server arrotonda farebbe divergere di un centesimo l'anteprima dal
+   * documento salvato.
    */
-  private lineNetTotalMinor(index: number): number {
+  private lineNetExactMinor(index: number): number {
     const line = this.lines.at(index);
     const qty = Number(line.controls.quantity.value) || 0;
     const unitNet = this.lineUnitNetMinor(index);
-    const discounted = this.isQuote
-      ? applyDiscountMinor(unitNet, line.controls.discount.value)
-      : applyCascadeDiscountMinor(unitNet, line.controls.discount.value);
-    return qty * discounted;
+    if (this.isOrder) {
+      return qty * applyCascadeDiscountMinor(unitNet, line.controls.discount.value);
+    }
+    const multiplier = this.isQuote
+      ? (100 - parseEffectiveDiscountPercent(line.controls.discount.value)) / 100
+      : cascadeDiscountMultiplier(line.controls.discount.value);
+    return qty * unitNet * multiplier;
   }
 
   /** Valore riga pre-sconto (barrato in colonna Totale, come Arrivo merce). */
@@ -2219,11 +2230,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         return [];
       }
       const vatRate = this.lineVatRate(index);
-      const netMinor = this.lineNetTotalMinor(index);
+      // L'imponibile arriva esatto: si arrotonda qui, una volta, e l'imposta
+      // nasce dal valore esatto — è così che il totale torna al prezzo ivato
+      // digitato (§sei decimali).
+      const netExactMinor = this.lineNetExactMinor(index);
       return [
         {
-          netMinor,
-          vatMinor: Math.round((netMinor * vatRate) / 100),
+          netMinor: Math.round(netExactMinor),
+          vatMinor: lineVatFromNetExact(netExactMinor, vatRate),
           vatRate,
           countsVatInTotal: vatRate > 0,
         },

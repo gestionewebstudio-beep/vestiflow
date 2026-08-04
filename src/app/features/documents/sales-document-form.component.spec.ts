@@ -103,6 +103,23 @@ describe('SalesDocumentFormComponent', () => {
     expect(await screen.findByText(/12,20/)).toBeVisible();
   });
 
+  // §sei decimali: 123,97 al 22% non ha un netto intero. Con l'imposta calcolata
+  // sull'imponibile arrotondato il documento valeva 123,96 — un centesimo meno
+  // di quello che l'operatore aveva digitato, e diverso da quello che il campo
+  // prezzo continuava a mostrargli.
+  it('il totale torna al prezzo ivato digitato, coda decimale compresa', async () => {
+    const user = userEvent.setup();
+    await setup(true);
+
+    const priceInput = screen.getByLabelText('Prezzo ivato');
+    await user.clear(priceInput);
+    await user.type(priceInput, '123,97');
+
+    // Imponibile 101,61 + IVA 22,36 = 123,97, esattamente il prezzo digitato.
+    expect(await screen.findByText(/101,61/)).toBeVisible();
+    expect(screen.getAllByText(/123,97/).length).toBeGreaterThan(0);
+  });
+
   // In modalità ivata cambia solo come si legge il prezzo: il documento vale
   // lo stesso, perché imponibile e imposta si ricavano dal netto scorporato.
   it('in modalità ivata i totali si calcolano dal netto scorporato', async () => {

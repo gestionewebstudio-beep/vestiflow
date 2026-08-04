@@ -38,10 +38,7 @@ import {
   parseMoneyInput,
   toStorableMinor,
 } from '@core/utils/money.util';
-import {
-  applyDiscountMinor,
-  parseEffectiveDiscountPercent,
-} from '@core/utils/discount-percent.util';
+import { parseEffectiveDiscountPercent } from '@core/utils/discount-percent.util';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
@@ -96,6 +93,7 @@ import {
 import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
 import {
   grossFromNetMinor,
+  lineVatFromNetExact,
   netFromGrossExact,
   netFromGrossMinor,
 } from '@domain/documents/utils/document-vat.util';
@@ -578,14 +576,13 @@ export class SalesDocumentFormComponent {
       // Il prezzo di riga è netto: se a schermo si vede ivato, si scorpora
       // PRIMA di moltiplicare, come fa il server con il valore che riceve.
       const unitNetMinor = this.lineUnitNetMinor(line);
-      const lineAmount = applyDiscountMinor(
-        Math.round(qty * unitNetMinor),
-        line.controls.discountPercent.value,
-      );
-      subtotalMinor += lineAmount;
-      if (vat > 0) {
-        taxMinor += Math.round((lineAmount * vat) / 100);
-      }
+      // L'imponibile di riga resta esatto fino a qui: si arrotonda una volta,
+      // e l'imposta nasce dal valore esatto. È così che un prezzo digitato
+      // ivato torna nel totale per intero (§sei decimali).
+      const discount = parseEffectiveDiscountPercent(line.controls.discountPercent.value);
+      const lineNetExactMinor = (qty * unitNetMinor * (100 - discount)) / 100;
+      subtotalMinor += Math.round(lineNetExactMinor);
+      taxMinor += lineVatFromNetExact(lineNetExactMinor, vat);
     }
     const docDiscount = parseEffectiveDiscountPercent(
       this.form.controls.documentDiscountPercent.value,
@@ -617,17 +614,16 @@ export class SalesDocumentFormComponent {
     for (const line of this.lines.controls) {
       const qty = Number(line.controls.quantity.value) || 0;
       const rate = Number(line.controls.vatRatePercent.value) || 0;
-      // Come nei totali: dal netto di riga, mai dal valore mostrato a schermo.
-      const net = Math.round(
-        applyDiscountMinor(
-          Math.round(qty * this.lineUnitNetMinor(line)),
-          line.controls.discountPercent.value,
-        ) * docMultiplier,
-      );
+      // Come nei totali: dal netto di riga, mai dal valore mostrato a schermo,
+      // e con l'imposta ricavata dall'imponibile esatto (§sei decimali).
+      const discount = parseEffectiveDiscountPercent(line.controls.discountPercent.value);
+      const netExact =
+        ((qty * this.lineUnitNetMinor(line) * (100 - discount)) / 100) * docMultiplier;
+      const net = Math.round(netExact);
       if (net === 0) {
         continue;
       }
-      const vat = rate > 0 ? Math.round((net * rate) / 100) : 0;
+      const vat = lineVatFromNetExact(netExact, rate);
       const entry = byRate.get(rate) ?? { netMinor: 0, vatMinor: 0 };
       entry.netMinor += net;
       entry.vatMinor += vat;

@@ -391,6 +391,33 @@ describe('DocumentsService', () => {
       expect(data.pricesIncludeVat).toBe(true);
     });
 
+    // §sei decimali: 123,97 digitati in modalità ivata valgono 10161,4754
+    // centesimi netti. Con l'imposta calcolata sull'imponibile ARROTONDATO il
+    // documento valeva 123,96 — un centesimo meno di quello che l'operatore
+    // aveva scritto, e diverso da quello che il campo prezzo gli rimostrava.
+    it('il totale torna al prezzo ivato digitato, coda decimale compresa', async () => {
+      const { service } = createService(prisma, resolvedSetting({ pricesIncludeVat: true }));
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-3',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-3', lines: [] });
+
+      await service.create(tenantId, {
+        type: DocumentType.proforma,
+        documentDate: '2026-03-01',
+        lines: [
+          { description: 'Capo', quantity: 1, unitPriceMinor: 10161.4754, vatRatePercent: 22 },
+        ],
+      });
+
+      const data = prisma.document.create.mock.calls[0]![0]!.data;
+      expect(data.subtotalMinor).toBe(10161);
+      expect(data.taxMinor).toBe(2236);
+      expect(data.totalMinor).toBe(12397);
+    });
+
     // Percorso duplicato Arrivo merce (post-audit): questi tipi hanno un
     // flusso dedicato che copre creazione E modifica con le validazioni
     // corrette (GoodsReceiptWorkflowService.saveGoodsReceipt, POST

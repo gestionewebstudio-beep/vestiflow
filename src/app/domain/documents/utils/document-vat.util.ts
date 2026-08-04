@@ -89,6 +89,23 @@ export function grossFromNetMinor(netMinor: number, ratePercent: number): number
   return Math.round(grossFromNetExact(netMinor, ratePercent));
 }
 
+/**
+ * Imposta di riga a partire dall'imponibile ESATTO. L'arrotondamento non sta
+ * sull'imposta ma sui due estremi, netto e lordo: la loro differenza fa quindi
+ * tornare netto + imposta al lordo che l'operatore ha digitato, a ogni aliquota.
+ *
+ * La forma precedente — `round(nettoArrotondato x aliquota)` — perdeva un
+ * centesimo ogni volta che l'imponibile portava una coda decimale: 123,97 ivati
+ * al 22% davano un totale riga di 123,96. Su un imponibile intero le due forme
+ * coincidono, quindi i documenti gia' registrati non cambiano.
+ */
+export function lineVatFromNetExact(netMinor: number, ratePercent: number): number {
+  if (ratePercent <= 0) {
+    return 0;
+  }
+  return grossFromNetMinor(netMinor, ratePercent) - Math.round(netMinor);
+}
+
 export function vatInputFromVatCode(vatCode: VatCode): VatComputationInput {
   return {
     ratePercent: vatCode.ratePercent,
@@ -149,8 +166,12 @@ export function computeVatLineAmounts(params: ComputeVatLineParams): VatLineAmou
     lineVatMinor = lineGrossBeforeVat - lineNetMinor;
   } else {
     unitNetMinor = enteredUnitCostMinor;
-    lineNetMinor = Math.round((quantity * enteredUnitCostMinor * (100 - discount)) / 100);
-    lineVatMinor = rate > 0 ? Math.round((lineNetMinor * rate) / 100) : 0;
+    // L'imponibile di riga si arrotonda una volta sola, alla fine. L'imposta
+    // nasce dal valore ESATTO: e' cosi' che il totale torna al lordo digitato
+    // quando il netto porta una coda decimale (vedi lineVatFromNetExact).
+    const lineNetExactMinor = (quantity * enteredUnitCostMinor * (100 - discount)) / 100;
+    lineNetMinor = Math.round(lineNetExactMinor);
+    lineVatMinor = lineVatFromNetExact(lineNetExactMinor, rate);
   }
 
   const unitVatMinor = rate > 0 ? grossFromNetMinor(unitNetMinor, rate) - unitNetMinor : 0;

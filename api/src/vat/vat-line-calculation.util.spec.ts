@@ -6,6 +6,7 @@ import {
   entryIncludesVat,
   grossFromNetExact,
   grossFromNetMinor,
+  lineVatFromNetExact,
   netFromGrossExact,
   netFromGrossMinor,
   type VatComputationInput,
@@ -248,5 +249,46 @@ describe('andata e ritorno del prezzo ivato (§sei decimali)', () => {
   it('con aliquota 0 il lordo resta il netto, coda compresa', () => {
     expect(grossFromNetExact(2049.1803, 0)).toBe(2049.1803);
     expect(grossFromNetMinor(2049.1803, 0)).toBe(2049);
+  });
+});
+
+describe("imposta di riga dall'imponibile esatto (§sei decimali)", () => {
+  // Specchio del test in `src/app/domain/documents/utils/document-vat.util.spec.ts`.
+  const storedNet = (grossMinor: number, rate: number): number =>
+    Math.round(netFromGrossExact(grossMinor, rate) * 1e4) / 1e4;
+
+  it('123,97 ivati fanno un totale di riga di 123,97, non di 123,96', () => {
+    const amounts = computeVatLineAmounts({
+      enteredUnitCostMinor: storedNet(12397, 22),
+      costEntryMode: 'vat_excluded',
+      quantity: 1,
+      discountPercent: 0,
+      vat: VAT_22,
+    });
+
+    expect(amounts.lineNetMinor).toBe(10161);
+    expect(amounts.lineVatMinor).toBe(2236);
+    expect(amounts.lineGrossMinor).toBe(12397);
+  });
+
+  it('nessun prezzo fino a 500,00 perde il centesimo nel totale, a nessuna aliquota', () => {
+    for (const rate of [4, 5, 10, 22]) {
+      for (let grossMinor = 1; grossMinor <= 50000; grossMinor++) {
+        const netExact = storedNet(grossMinor, rate);
+        if (Math.round(netExact) + lineVatFromNetExact(netExact, rate) !== grossMinor) {
+          throw new Error(`${grossMinor} al ${rate}% non torna nel totale`);
+        }
+      }
+    }
+  });
+
+  it("su un imponibile intero l'imposta e' identica alla forma precedente", () => {
+    for (const rate of [4, 5, 10, 22]) {
+      for (let netMinor = 0; netMinor <= 20000; netMinor++) {
+        if (lineVatFromNetExact(netMinor, rate) !== Math.round((netMinor * rate) / 100)) {
+          throw new Error(`imponibile ${netMinor} al ${rate}% diverge dalla forma precedente`);
+        }
+      }
+    }
   });
 });

@@ -43,6 +43,7 @@ import {
 } from '../inventory/inventory-serial.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
+import { lineVatFromNetExact } from '../vat/vat-line-calculation.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
 import { receiptVatBreakdown, type VatBreakdownEntry } from './purchase-invoice-vat-summary.util';
@@ -246,6 +247,12 @@ interface ComputedLine {
   /// nessun Codice IVA è stato risolto). §Piano IVA fase 2.
   vatRatePercent: number | null;
   lineTotalMinor: number;
+  /**
+   * Imponibile di riga PRIMA dell'arrotondamento: serve solo a calcolare
+   * l'imposta (§sei decimali). Non si persiste — la colonna e' intera, e
+   * quello che si memorizza e' `lineTotalMinor`.
+   */
+  lineNetExactMinor: number;
   vatCodeId: string | null;
   vatSnapshot: Prisma.InputJsonObject | null;
   loadsStock: boolean;
@@ -3125,9 +3132,8 @@ export class DocumentsService {
       const quantity = line.quantity;
       const unitPriceMinor = line.unitPriceMinor ?? 0;
       const discountPercent = line.discountPercent ?? 0;
-      const lineTotalMinor = Math.round(
-        (quantity * unitPriceMinor * (100 - discountPercent)) / 100,
-      );
+      const lineNetExactMinor = (quantity * unitPriceMinor * (100 - discountPercent)) / 100;
+      const lineTotalMinor = Math.round(lineNetExactMinor);
 
       // Risoluzione Codice IVA (§Piano IVA fase 2): (1) vatCodeId esplicito
       // sulla riga (origine documento o override manuale, entrambi vincono
@@ -3161,6 +3167,7 @@ export class DocumentsService {
         discountPercent,
         vatRatePercent,
         lineTotalMinor,
+        lineNetExactMinor,
         vatCodeId,
         vatSnapshot,
         loadsStock: line.loadsStock ?? defaultLoadsStock,
@@ -3295,11 +3302,18 @@ export class DocumentsService {
       if (line.vatRatePercent == null || line.vatRatePercent === 0 || lineSum === 0) {
         return sum;
       }
+      // Senza sconto documento l'imponibile di riga e' quello esatto: l'imposta
+      // nasce da li', ed e' cosi' che il totale torna al prezzo ivato digitato
+      // (§sei decimali). Su un imponibile intero il risultato non cambia.
+      if (docDiscount === 0) {
+        return sum + lineVatFromNetExact(line.lineNetExactMinor, line.vatRatePercent);
+      }
       // Lo sconto extra documento si spalma sulle righe in proporzione, così la
-      // somma delle imposte di riga coincide con l'imposta del documento.
+      // somma delle imposte di riga coincide con l'imposta del documento. Qui
+      // l'imponibile e' gia' ripartito e arrotondato: l'esattezza finisce.
       const lineShare = line.lineTotalMinor / lineSum;
       const discountedLineTotal = Math.round(discountedLineSum * lineShare);
-      return sum + Math.round((discountedLineTotal * line.vatRatePercent) / 100);
+      return sum + lineVatFromNetExact(discountedLineTotal, line.vatRatePercent);
     }, 0);
 
     return {
