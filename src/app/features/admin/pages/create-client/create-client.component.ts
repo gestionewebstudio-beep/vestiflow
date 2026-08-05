@@ -27,6 +27,7 @@ import {
   TENANT_LICENSED_LOCATION_MIN,
   TENANT_LICENSED_LOCATION_OPTIONS,
 } from '@core/constants/tenant-location-license.constants';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -49,6 +50,7 @@ import { AdminTenantsService } from '../../services/admin-tenants.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    BackButtonComponent,
     ButtonComponent,
     SelectMenuComponent,
     TableSkeletonComponent,

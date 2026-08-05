@@ -1,0 +1,105 @@
+/// Anatomia comune delle pagine cliente dell'area admin (create-client,
+/// edit-client): testata con back button, pannelli, form, azioni e alert di
+/// fondo pagina. Libreria di mixin, come la gemella admin-client-form-fields:
+/// genera i selettori `#{$block}__header|title|subtitle|panel|panel-title|
+/// muted|hint|form|alert|actions|page-footer-alert`.
+@mixin admin-client-page($block) {
+  .#{$block} {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    max-inline-size: var(--content-wide);
+  }
+
+  .#{$block}__header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+  }
+
+  // Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+  .#{$block}__header app-back-button {
+    margin-block-end: var(--space-2);
+  }
+
+  .#{$block}__title {
+    margin: 0;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text);
+  }
+
+  .#{$block}__subtitle {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .#{$block}__panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .#{$block}__panel-title {
+    margin: 0;
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .#{$block}__panel-title + .#{$block}__form {
+    margin-block-start: var(--space-6);
+  }
+
+  .#{$block}__muted {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .#{$block}__hint {
+    font-size: var(--text-xs);
+    color: var(--color-text-subtle);
+  }
+
+  .#{$block}__field .#{$block}__hint {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .#{$block}__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-12);
+    inline-size: 100%;
+  }
+
+  .#{$block}__alert {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--status-error-fg);
+  }
+
+  .#{$block}__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    justify-content: flex-end;
+  }
+
+  .#{$block}__actions--page-footer {
+    margin-block-start: var(--space-6);
+    padding-block-start: var(--space-4);
+    border-block-start: var(--border-width) solid var(--color-border);
+  }
+
+  .#{$block}__page-footer-alert {
+    margin-block-start: var(--space-6);
+  }
+}

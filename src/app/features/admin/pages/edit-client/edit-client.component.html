@@ -1,14 +1,14 @@
-<section class="create-client">
-  <header class="create-client__header">
-    <p class="create-client__back">
-      <a routerLink="/app/admin/clients" class="create-client__back-link">← Clienti registrati</a>
-    </p>
-    <h1 class="create-client__title">Modifica cliente</h1>
+<section class="edit-client">
+  <header class="edit-client__header">
+    <!-- Torna alla pagina precedente; senza cronologia interna ricade sul
+         livello superiore dedotto dall'URL (l'elenco clienti). -->
+    <app-back-button />
+    <h1 class="edit-client__title">Modifica cliente</h1>
     @if (tenant(); as detail) {
-      <p class="create-client__subtitle">
+      <p class="edit-client__subtitle">
         {{ detail.name }} · creato il {{ formatDateTime(detail.createdAt) }}
       </p>
-      <div class="create-client__header-actions">
+      <div class="edit-client__header-actions">
         <app-button
           type="button"
           variant="secondary"
@@ -23,7 +23,7 @@
   </header>
 
   @if (supportSessionError(); as message) {
-    <p class="create-client__alert" role="alert">{{ message }}</p>
+    <p class="edit-client__alert" role="alert">{{ message }}</p>
   }
 
   @if (loading()) {
@@ -31,43 +31,43 @@
   } @else if (error(); as message) {
     <app-error-state [description]="message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (tenant(); as detail) {
-    <section class="create-client__panel" aria-labelledby="edit-client-form-title">
-      <h2 id="edit-client-form-title" class="create-client__panel-title">Anagrafica</h2>
+    <section class="edit-client__panel" aria-labelledby="edit-client-form-title">
+      <h2 id="edit-client-form-title" class="edit-client__panel-title">Anagrafica</h2>
 
       @if (saved()) {
-        <p class="create-client__success" role="status">Modifiche salvate.</p>
+        <p class="edit-client__success" role="status">Modifiche salvate.</p>
       }
 
       <form
         id="edit-client-form"
-        class="create-client__form"
+        class="edit-client__form"
         [formGroup]="form"
         (ngSubmit)="onSubmit()"
         novalidate
       >
-        <section class="create-client__section" aria-labelledby="edit-client-company">
-          <h3 id="edit-client-company" class="create-client__section-title">Identificazione</h3>
-          <label class="create-client__field" for="edit-tenant-name">
-            <span class="create-client__field-label">Nome commerciale</span>
+        <section class="edit-client__section" aria-labelledby="edit-client-company">
+          <h3 id="edit-client-company" class="edit-client__section-title">Identificazione</h3>
+          <label class="edit-client__field" for="edit-tenant-name">
+            <span class="edit-client__field-label">Nome commerciale</span>
             <input
               id="edit-tenant-name"
-              class="create-client__input"
+              class="edit-client__input"
               type="text"
               formControlName="tenantName"
               [attr.aria-invalid]="showError('tenantName')"
             />
             @if (showError('tenantName')) {
-              <span class="create-client__field-error"
+              <span class="edit-client__field-error"
                 >Inserisci il nome dell’azienda (min. 2 caratteri).</span
               >
             }
           </label>
 
-          <label class="create-client__field" for="edit-legal-name">
-            <span class="create-client__field-label">Ragione sociale (opzionale)</span>
+          <label class="edit-client__field" for="edit-legal-name">
+            <span class="edit-client__field-label">Ragione sociale (opzionale)</span>
             <input
               id="edit-legal-name"
-              class="create-client__input"
+              class="edit-client__input"
               type="text"
               formControlName="legalName"
               autocomplete="organization"
@@ -78,33 +78,31 @@
         <app-admin-tenant-profile-fields [form]="form" [showError]="showError.bind(this)" />
 
         <section
-          class="create-client__section create-client__section--user-access"
+          class="edit-client__section edit-client__section--user-access"
           aria-labelledby="edit-client-access"
         >
-          <h3 id="edit-client-access" class="create-client__section-title">Primo utente</h3>
+          <h3 id="edit-client-access" class="edit-client__section-title">Primo utente</h3>
 
-          <div class="create-client__field-row">
-            <label class="create-client__field" for="edit-owner-name">
-              <span class="create-client__field-label">Nome utente</span>
+          <div class="edit-client__field-row">
+            <label class="edit-client__field" for="edit-owner-name">
+              <span class="edit-client__field-label">Nome utente</span>
               <input
                 id="edit-owner-name"
-                class="create-client__input"
+                class="edit-client__input"
                 type="text"
                 formControlName="ownerDisplayName"
                 [attr.aria-invalid]="showError('ownerDisplayName')"
               />
               @if (showError('ownerDisplayName')) {
-                <span class="create-client__field-error">Inserisci il nome dell’utente.</span>
+                <span class="edit-client__field-error">Inserisci il nome dell’utente.</span>
               }
             </label>
 
-            <div class="create-client__field">
-              <label class="create-client__field-label" for="edit-owner-role"
-                >Ruolo VestiFlow</label
-              >
+            <div class="edit-client__field">
+              <label class="edit-client__field-label" for="edit-owner-role">Ruolo VestiFlow</label>
               <input
                 id="edit-owner-role"
-                class="create-client__input create-client__input--readonly"
+                class="edit-client__input edit-client__input--readonly"
                 type="text"
                 [value]="tenantRoleLabel(detail.owner?.role)"
                 readonly
@@ -114,28 +112,28 @@
             </div>
           </div>
 
-          <div class="create-client__field create-client__field--span-full">
-            <label class="create-client__field-label" for="edit-owner-email">Email accesso</label>
+          <div class="edit-client__field edit-client__field--span-full">
+            <label class="edit-client__field-label" for="edit-owner-email">Email accesso</label>
             <input
               id="edit-owner-email"
-              class="create-client__input create-client__input--readonly"
+              class="edit-client__input edit-client__input--readonly"
               type="email"
               [value]="detail.owner?.email ?? '—'"
               readonly
               tabindex="-1"
               aria-readonly="true"
             />
-            <span class="create-client__hint"
+            <span class="edit-client__hint"
               >L’email di accesso non si modifica da qui (Supabase Auth).</span
             >
           </div>
         </section>
 
-        <section class="create-client__section" aria-labelledby="edit-client-channel">
-          <h3 id="edit-client-channel" class="create-client__section-title">Profilo canale</h3>
+        <section class="edit-client__section" aria-labelledby="edit-client-channel">
+          <h3 id="edit-client-channel" class="edit-client__section-title">Profilo canale</h3>
 
-          <div class="create-client__field create-client__field--channel-profile">
-            <span class="create-client__field-label" id="edit-channel-profile-label"
+          <div class="edit-client__field edit-client__field--channel-profile">
+            <span class="edit-client__field-label" id="edit-channel-profile-label"
               >Tipo cliente</span
             >
             <app-select-menu
@@ -148,7 +146,7 @@
               [matchInputHeight]="true"
               (valueChange)="onChannelProfileSelect($event)"
             />
-            <span class="create-client__hint"
+            <span class="edit-client__hint"
               >Determina quale integrazione compare in Impostazioni. Se il cliente ha già collegato
               un canale, disconnettilo prima di cambiare profilo.</span
             >
@@ -156,13 +154,13 @@
         </section>
 
         <section
-          class="create-client__section create-client__section--store-setup"
+          class="edit-client__section edit-client__section--store-setup"
           aria-labelledby="edit-client-setup"
         >
-          <h3 id="edit-client-setup" class="create-client__section-title">Negozio e location</h3>
+          <h3 id="edit-client-setup" class="edit-client__section-title">Negozio e location</h3>
 
-          <div class="create-client__field">
-            <span class="create-client__field-label" id="edit-licensed-locations-label"
+          <div class="edit-client__field">
+            <span class="edit-client__field-label" id="edit-licensed-locations-label"
               >Sedi incluse nel piano</span
             >
             <app-select-menu
@@ -176,46 +174,46 @@
               (valueChange)="onLicensedLocationCountSelect($event)"
             />
             @if (detail.licensedLocationActiveCount > 0) {
-              <span class="create-client__hint"
+              <span class="edit-client__hint"
                 >Attualmente attive in VestiFlow: {{ detail.licensedLocationActiveCount }} /
                 {{ detail.licensedLocationCount }}. Se abbassi il limite, le sedi in eccesso vengono
                 disattivate automaticamente (restano le più vecchie).</span
               >
             } @else {
-              <span class="create-client__hint"
+              <span class="edit-client__hint"
                 >Il cliente sceglierà le sedi dopo il sync Shopify (max
                 {{ detail.licensedLocationCount }}).</span
               >
             }
           </div>
 
-          <label class="create-client__field" for="edit-store-name">
-            <span class="create-client__field-label">Nome negozio</span>
+          <label class="edit-client__field" for="edit-store-name">
+            <span class="edit-client__field-label">Nome negozio</span>
             <input
               id="edit-store-name"
-              class="create-client__input"
+              class="edit-client__input"
               type="text"
               formControlName="storeName"
             />
           </label>
 
           <div
-            class="create-client__field create-client__field--span-full create-client__field--store-active-locations"
+            class="edit-client__field edit-client__field--span-full edit-client__field--store-active-locations"
           >
-            <span class="create-client__field-label" id="edit-active-locations-label"
+            <span class="edit-client__field-label" id="edit-active-locations-label"
               >Sedi attive in VestiFlow</span
             >
             @if (detail.activeLocations.length > 0) {
               <div
-                class="create-client__active-locations"
+                class="edit-client__active-locations"
                 aria-labelledby="edit-active-locations-label"
               >
                 @for (activeLocation of detail.activeLocations; track activeLocation.id) {
-                  <div class="create-client__active-location-field">
-                    <div class="create-client__active-location-input">
+                  <div class="edit-client__active-location-field">
+                    <div class="edit-client__active-location-input">
                       <input
                         type="text"
-                        class="create-client__input create-client__input--readonly"
+                        class="edit-client__input edit-client__input--readonly"
                         [value]="activeLocation.name"
                         readonly
                         tabindex="-1"
@@ -223,13 +221,13 @@
                         [attr.aria-label]="'Sede attiva: ' + activeLocation.name"
                       />
                       @if (activeLocation.code) {
-                        <span class="create-client__active-location-code tabular-nums">{{
+                        <span class="edit-client__active-location-code tabular-nums">{{
                           activeLocation.code
                         }}</span>
                       }
                     </div>
                     @if (!activeLocation.isActive) {
-                      <span class="create-client__active-location-badge">Disattiva su Shopify</span>
+                      <span class="edit-client__active-location-badge">Disattiva su Shopify</span>
                     }
                   </div>
                 }
@@ -237,7 +235,7 @@
             } @else {
               <input
                 type="text"
-                class="create-client__input create-client__input--readonly"
+                class="edit-client__input edit-client__input--readonly"
                 value="Nessuna sede attiva"
                 readonly
                 tabindex="-1"
@@ -247,16 +245,16 @@
             }
 
             @if (locationSelectionStatusLabel(); as statusLabel) {
-              <p class="create-client__hint">{{ statusLabel }}</p>
+              <p class="edit-client__hint">{{ statusLabel }}</p>
             }
             @if (grantLocationChangeSuccess()) {
-              <p class="create-client__success" role="status">Cambio sede concesso al cliente.</p>
+              <p class="edit-client__success" role="status">Cambio sede concesso al cliente.</p>
             }
             @if (grantLocationChangeError(); as message) {
-              <p class="create-client__alert" role="alert">{{ message }}</p>
+              <p class="edit-client__alert" role="alert">{{ message }}</p>
             }
             @if (canGrantLocationSelectionChange()) {
-              <div class="create-client__inline-action">
+              <div class="edit-client__inline-action">
                 <app-button
                   type="button"
                   variant="secondary"
@@ -273,20 +271,22 @@
       </form>
     </section>
 
-    <section class="create-client__panel" aria-labelledby="edit-client-users-title">
+    <!-- Il nome accessibile lo porta la sezione interna del pannello utenti:
+         qui solo la cornice visiva. -->
+    <div class="edit-client__panel">
       <app-admin-tenant-users-panel
         [tenantId]="detail.id"
         [activeLocations]="detail.activeLocations"
       />
-    </section>
+    </div>
 
     @if (submitError(); as message) {
-      <p class="create-client__alert create-client__page-footer-alert" role="alert">
+      <p class="edit-client__alert edit-client__page-footer-alert" role="alert">
         {{ message }}
       </p>
     }
 
-    <div class="create-client__actions create-client__actions--page-footer">
+    <div class="edit-client__actions edit-client__actions--page-footer">
       <app-button
         type="submit"
         formId="edit-client-form"
@@ -298,17 +298,17 @@
     </div>
 
     <section
-      class="create-client__panel create-client__panel--danger"
+      class="edit-client__panel edit-client__panel--danger"
       aria-labelledby="edit-client-danger-title"
     >
-      <h2 id="edit-client-danger-title" class="create-client__panel-title">Zona pericolosa</h2>
-      <p class="create-client__muted">
+      <h2 id="edit-client-danger-title" class="edit-client__panel-title">Zona pericolosa</h2>
+      <p class="edit-client__muted">
         Elimina il cliente e tutti i dati associati (catalogo, magazzino, utenti, integrazioni).
       </p>
       @if (deleteError(); as message) {
-        <p class="create-client__alert" role="alert">{{ message }}</p>
+        <p class="edit-client__alert" role="alert">{{ message }}</p>
       }
-      <div class="create-client__danger-actions">
+      <div class="edit-client__danger-actions">
         <app-button type="button" variant="danger" (click)="openDeleteDialog()">
           Elimina cliente
         </app-button>

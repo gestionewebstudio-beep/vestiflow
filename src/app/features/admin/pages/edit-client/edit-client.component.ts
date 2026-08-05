@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { isAppError } from '@core/models/app-error.model';
@@ -20,6 +20,7 @@ import {
   TENANT_LICENSED_LOCATION_MIN,
   TENANT_LICENSED_LOCATION_OPTIONS,
 } from '@core/constants/tenant-location-license.constants';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -56,7 +57,7 @@ type TenantLoadState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
-    RouterLink,
+    BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     ErrorStateComponent,
@@ -66,7 +67,7 @@ type TenantLoadState =
     AdminTenantUsersPanelComponent,
   ],
   templateUrl: './edit-client.component.html',
-  styleUrl: '../create-client/create-client.component.scss',
+  styleUrl: './edit-client.component.scss',
 })
 export class EditClientComponent {
   private readonly adminTenants = inject(AdminTenantsService);

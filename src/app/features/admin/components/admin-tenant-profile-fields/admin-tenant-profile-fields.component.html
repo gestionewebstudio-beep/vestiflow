@@ -1,13 +1,13 @@
-<div [formGroup]="form()" class="create-client__sections">
-  <section class="create-client__section" aria-labelledby="tenant-profile-company">
-    <h3 id="tenant-profile-company" class="create-client__section-title">Azienda</h3>
+<div [formGroup]="form()" class="tenant-profile-fields__sections">
+  <section class="tenant-profile-fields__section" aria-labelledby="tenant-profile-company">
+    <h3 id="tenant-profile-company" class="tenant-profile-fields__section-title">Azienda</h3>
 
-    <div class="create-client__field-row">
-      <label class="create-client__field" for="tenant-vat">
-        <span class="create-client__field-label">Partita IVA (opzionale)</span>
+    <div class="tenant-profile-fields__field-row">
+      <label class="tenant-profile-fields__field" for="tenant-vat">
+        <span class="tenant-profile-fields__field-label">Partita IVA (opzionale)</span>
         <input
           id="tenant-vat"
-          class="create-client__input"
+          class="tenant-profile-fields__input"
           type="text"
           formControlName="vatNumber"
           inputmode="numeric"
@@ -15,15 +15,15 @@
           [attr.aria-invalid]="showError()('vatNumber')"
         />
         @if (showError()('vatNumber')) {
-          <span class="create-client__field-error">Inserisci 11 cifre o lascia vuoto.</span>
+          <span class="tenant-profile-fields__field-error">Inserisci 11 cifre o lascia vuoto.</span>
         }
       </label>
 
-      <label class="create-client__field" for="tenant-fiscal-code">
-        <span class="create-client__field-label">Codice fiscale (opzionale)</span>
+      <label class="tenant-profile-fields__field" for="tenant-fiscal-code">
+        <span class="tenant-profile-fields__field-label">Codice fiscale (opzionale)</span>
         <input
           id="tenant-fiscal-code"
-          class="create-client__input"
+          class="tenant-profile-fields__input"
           type="text"
           formControlName="fiscalCode"
           autocomplete="off"
@@ -32,54 +32,64 @@
     </div>
   </section>
 
-  <section class="create-client__section" aria-labelledby="tenant-profile-address">
-    <h3 id="tenant-profile-address" class="create-client__section-title">Sede (opzionale)</h3>
+  <section class="tenant-profile-fields__section" aria-labelledby="tenant-profile-address">
+    <h3 id="tenant-profile-address" class="tenant-profile-fields__section-title">
+      Sede (opzionale)
+    </h3>
 
-    <label class="create-client__field create-client__field--span-full" for="tenant-address-1">
-      <span class="create-client__field-label">Indirizzo</span>
+    <label
+      class="tenant-profile-fields__field tenant-profile-fields__field--span-full"
+      for="tenant-address-1"
+    >
+      <span class="tenant-profile-fields__field-label">Indirizzo</span>
       <input
         id="tenant-address-1"
-        class="create-client__input"
+        class="tenant-profile-fields__input"
         type="text"
         formControlName="addressLine1"
         autocomplete="street-address"
       />
     </label>
 
-    <div class="create-client__field-row">
-      <label class="create-client__field" for="tenant-city">
-        <span class="create-client__field-label">Città</span>
-        <input id="tenant-city" class="create-client__input" type="text" formControlName="city" />
+    <div class="tenant-profile-fields__field-row">
+      <label class="tenant-profile-fields__field" for="tenant-city">
+        <span class="tenant-profile-fields__field-label">Città</span>
+        <input
+          id="tenant-city"
+          class="tenant-profile-fields__input"
+          type="text"
+          formControlName="city"
+        />
       </label>
 
-      <label class="create-client__field" for="tenant-province">
-        <span class="create-client__field-label">Provincia</span>
+      <label class="tenant-profile-fields__field" for="tenant-province">
+        <span class="tenant-profile-fields__field-label">Provincia</span>
         <input
           id="tenant-province"
-          class="create-client__input"
+          class="tenant-profile-fields__input"
           type="text"
           formControlName="province"
         />
       </label>
     </div>
 
-    <div class="create-client__field-row">
-      <label class="create-client__field" for="tenant-postal-code">
-        <span class="create-client__field-label">CAP</span>
+    <div class="tenant-profile-fields__field-row">
+      <label class="tenant-profile-fields__field" for="tenant-postal-code">
+        <span class="tenant-profile-fields__field-label">CAP</span>
         <input
           id="tenant-postal-code"
-          class="create-client__input"
+          class="tenant-profile-fields__input"
           type="text"
           formControlName="postalCode"
           inputmode="numeric"
         />
       </label>
 
-      <label class="create-client__field" for="tenant-country">
-        <span class="create-client__field-label">Paese</span>
+      <label class="tenant-profile-fields__field" for="tenant-country">
+        <span class="tenant-profile-fields__field-label">Paese</span>
         <input
           id="tenant-country"
-          class="create-client__input"
+          class="tenant-profile-fields__input"
           type="text"
           formControlName="countryCode"
           maxlength="2"
@@ -89,47 +99,56 @@
     </div>
   </section>
 
-  <section class="create-client__section" aria-labelledby="tenant-profile-contacts">
-    <h3 id="tenant-profile-contacts" class="create-client__section-title">Contatti (opzionali)</h3>
+  <section class="tenant-profile-fields__section" aria-labelledby="tenant-profile-contacts">
+    <h3 id="tenant-profile-contacts" class="tenant-profile-fields__section-title">
+      Contatti (opzionali)
+    </h3>
 
-    <div class="create-client__field-row">
-      <label class="create-client__field" for="tenant-phone">
-        <span class="create-client__field-label">Telefono</span>
+    <div class="tenant-profile-fields__field-row">
+      <label class="tenant-profile-fields__field" for="tenant-phone">
+        <span class="tenant-profile-fields__field-label">Telefono</span>
         <input
           id="tenant-phone"
-          class="create-client__input"
+          class="tenant-profile-fields__input"
           type="tel"
           formControlName="phone"
           autocomplete="tel"
         />
       </label>
 
-      <label class="create-client__field" for="tenant-pec">
-        <span class="create-client__field-label">PEC</span>
+      <label class="tenant-profile-fields__field" for="tenant-pec">
+        <span class="tenant-profile-fields__field-label">PEC</span>
         <input
           id="tenant-pec"
-          class="create-client__input"
+          class="tenant-profile-fields__input"
           type="email"
           formControlName="pec"
           autocomplete="off"
           [attr.aria-invalid]="showError()('pec')"
         />
         @if (showError()('pec')) {
-          <span class="create-client__field-error">Inserisci una PEC valida o lascia vuoto.</span>
+          <span class="tenant-profile-fields__field-error"
+            >Inserisci una PEC valida o lascia vuoto.</span
+          >
         }
       </label>
     </div>
 
-    <div class="create-client__field-row">
-      <label class="create-client__field" for="tenant-sdi">
-        <span class="create-client__field-label">Codice destinatario SDI (opzionale)</span>
-        <input id="tenant-sdi" class="create-client__input" type="text" formControlName="sdiCode" />
+    <div class="tenant-profile-fields__field-row">
+      <label class="tenant-profile-fields__field" for="tenant-sdi">
+        <span class="tenant-profile-fields__field-label">Codice destinatario SDI (opzionale)</span>
+        <input
+          id="tenant-sdi"
+          class="tenant-profile-fields__input"
+          type="text"
+          formControlName="sdiCode"
+        />
       </label>
-      <label class="create-client__field" for="tenant-iban">
-        <span class="create-client__field-label">IBAN (opzionale)</span>
+      <label class="tenant-profile-fields__field" for="tenant-iban">
+        <span class="tenant-profile-fields__field-label">IBAN (opzionale)</span>
         <input
           id="tenant-iban"
-          class="create-client__input"
+          class="tenant-profile-fields__input"
           type="text"
           formControlName="iban"
           maxlength="34"

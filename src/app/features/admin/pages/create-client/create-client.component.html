@@ -1,6 +1,7 @@
 <section class="create-client">
   @if (created(); as result) {
     <header class="create-client__header">
+      <app-back-button />
       <h1 class="create-client__title">Cliente creato</h1>
       <p class="create-client__subtitle">
         Cliente provisionato. Consegna al titolare email e password in modo sicuro (non via chat non
@@ -57,11 +58,9 @@
     </section>
   } @else if (showCreateForm()) {
     <header class="create-client__header">
-      <p class="create-client__back">
-        <button type="button" class="create-client__back-link" (click)="closeCreateForm()">
-          ← Clienti registrati
-        </button>
-      </p>
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade sul
+           livello superiore dedotto dall'URL (l'elenco clienti). -->
+      <app-back-button />
       <h1 class="create-client__title">Nuovo cliente</h1>
       <p class="create-client__subtitle">
         Crea tenant, primo utente con ruolo e location iniziale. Scegli il profilo canale: il
