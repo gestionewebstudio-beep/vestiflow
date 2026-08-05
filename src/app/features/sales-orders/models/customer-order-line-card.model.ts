@@ -1,6 +1,7 @@
 import type { FormControl } from '@angular/forms';
 
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import type { DocumentLineSuggestionItem } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.model';
 
 /**
  * I controlli che la card di riga edita. Tipo strutturale: il FormGroup della
@@ -39,11 +40,12 @@ export interface CustomerOrderLineCardGroup {
 /**
  * Suggerimento gia' pronto da mostrare. La card non riceve la variante grezza:
  * comporre «SKU · EAN · prezzo» richiede la formattazione della valuta, che e'
- * lavoro del form, non di chi disegna.
+ * lavoro del form, non di chi disegna. Estende la voce del pannello condiviso
+ * (`app-document-line-suggestions`) con l'identita' della variante, che il
+ * pannello non conosce: al pick restituisce l'indice, la card lo traduce in id.
  */
-export interface LineSuggestion {
+export interface LineSuggestion extends DocumentLineSuggestionItem {
   readonly variantId: string;
-  readonly title: string;
   readonly detail: string;
 }
 

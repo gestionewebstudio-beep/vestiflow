@@ -157,7 +157,8 @@ test.describe('Arrivo merce — ricerca contestuale su card mobile', () => {
     await cardNameInput.click();
     await cardNameInput.pressSequentially(term, { delay: 40 });
 
-    const suggestions = page.locator('.gr-card__suggestions');
+    // Il pannello è il componente condiviso app-document-line-suggestions.
+    const suggestions = page.getByRole('listbox', { name: 'Articoli suggeriti' });
     const appeared = await suggestions
       .waitFor({ state: 'visible', timeout: 15_000 })
       .then(() => true)
@@ -167,11 +168,11 @@ test.describe('Arrivo merce — ricerca contestuale su card mobile', () => {
       return;
     }
 
-    await expect(suggestions.getByRole('button', { name: /^Crea/ })).toHaveCount(0);
-    await expect(suggestions.getByRole('button', { name: 'Apri scheda completa…' })).toHaveCount(0);
+    await expect(suggestions.getByRole('option', { name: /^Crea/ })).toHaveCount(0);
+    await expect(suggestions.getByRole('option', { name: 'Apri scheda completa…' })).toHaveCount(0);
 
     // Selezione del primo suggerimento: la card passa in stato collegato.
-    await suggestions.locator('.gr-card__suggestion').first().click();
+    await suggestions.getByRole('option').first().click();
     await expect(page.locator('.gr-card__name').first()).toBeVisible({ timeout: 15_000 });
   });
 });

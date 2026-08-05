@@ -201,14 +201,7 @@ const SESSION_UNLOCKED_ORDER_IDS = new Set<string>();
 
 /** Campi riga nel giro Tab/Invio deterministico (stesso pattern Arrivo merce). */
 type CustomerOrderLineFocusField =
-  | 'articleCode'
-  | 'sku'
-  | 'barcode'
-  | 'product'
-  | 'quantity'
-  | 'unitPrice'
-  | 'discount'
-  | 'serials';
+  'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount' | 'serials';
 type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
@@ -326,11 +319,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    */
   private readonly formKind =
     (this.route.snapshot.data['customerDocumentKind'] as
-      | 'order'
-      | 'quote'
-      | 'sales-ddt'
-      | 'manual-unload'
-      | undefined) ?? 'order';
+      'order' | 'quote' | 'sales-ddt' | 'manual-unload' | undefined) ?? 'order';
   protected readonly isQuote = this.formKind === 'quote';
   protected readonly isSalesDdt = this.formKind === 'sales-ddt';
   protected readonly isManualUnload = this.formKind === 'manual-unload';
@@ -2726,8 +2715,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     const rect = input.getBoundingClientRect();
     const viewport = window.visualViewport;
     const viewportBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
-    // Sotto servono il dropdown (max ~13rem) più un margine dal dock fisso.
-    this.mobileSuggestAbove.set(viewportBottom - rect.bottom < 240);
+    // Sotto servono il dropdown (max 16rem del pannello condiviso) più un
+    // margine dal dock fisso.
+    this.mobileSuggestAbove.set(viewportBottom - rect.bottom < 272);
   }
 
   protected onLineUnlink(index: number): void {

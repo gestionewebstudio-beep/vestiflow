@@ -247,7 +247,7 @@
 
         <div class="co-card__field co-card__field--full">
           <label [attr.for]="'co-m-product-' + v.index">Nome prodotto</label>
-          <div class="co-card__search" [class.co-card__search--above]="v.suggestAbove">
+          <div class="co-card__search">
             <input
               #productInput
               [id]="'co-m-product-' + v.index"
@@ -274,31 +274,16 @@
             </button>
 
             <!-- Anteprima live: chiude al pick e al tap fuori (blur → clear
-                 ritardato). mousedown.preventDefault tiene il focus finché
-                 parte il tap. -->
+                 ritardato). Il pannello condiviso tiene il focus col suo
+                 mousedown.preventDefault finché parte il tap. -->
             @if (v.suggestionsOpen) {
-              <ul
-                [id]="'co-m-suggest-' + v.index"
-                class="co-card__suggestions"
-                role="listbox"
-                aria-label="Suggerimenti prodotto"
-              >
-                @for (item of v.suggestions; track item.variantId; let idx = $index) {
-                  <li
-                    role="option"
-                    class="co-card__suggestion"
-                    [class.co-card__suggestion--active]="idx === v.activeSuggestionIndex"
-                    [attr.aria-selected]="idx === v.activeSuggestionIndex"
-                    tabindex="0"
-                    (mousedown)="$event.preventDefault()"
-                    (click)="suggestionPicked.emit(item.variantId)"
-                    (keydown.enter)="suggestionPicked.emit(item.variantId); $event.preventDefault()"
-                  >
-                    <span class="co-card__suggestion-title">{{ item.title }}</span>
-                    <span class="co-card__suggestion-detail">{{ item.detail }}</span>
-                  </li>
-                }
-              </ul>
+              <app-document-line-suggestions
+                [items]="v.suggestions"
+                [activeIndex]="v.activeSuggestionIndex"
+                [placement]="v.suggestAbove ? 'above' : 'below'"
+                [listboxId]="'co-m-suggest-' + v.index"
+                (picked)="pickSuggestion($event)"
+              />
             }
           </div>
         </div>

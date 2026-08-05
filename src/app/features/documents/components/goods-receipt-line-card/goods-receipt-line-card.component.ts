@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { ReactiveFormsModule, type FormControl } from '@angular/forms';
 
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import { DocumentLineSuggestionsComponent } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import type { DocumentLineSuggestionItem } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.model';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 
 /**
@@ -35,7 +37,7 @@ export interface GoodsReceiptLineCardGroup {
 @Component({
   selector: 'app-goods-receipt-line-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, SelectMenuComponent],
+  imports: [DocumentLineSuggestionsComponent, ReactiveFormsModule, SelectMenuComponent],
   templateUrl: './goods-receipt-line-card.component.html',
   styleUrl: './goods-receipt-line-card.component.scss',
 })
@@ -69,6 +71,14 @@ export class GoodsReceiptLineCardComponent {
 
   protected readonly detailsOpen = signal(false);
 
+  /** Le varianti nel formato del pannello condiviso: il testo, non l'id. */
+  protected readonly suggestionItems = computed<readonly DocumentLineSuggestionItem[]>(() =>
+    this.suggestions().map((variant) => ({
+      title: variant.title,
+      detail: this.suggestionDetail(variant) || undefined,
+    })),
+  );
+
   protected toggleDetails(): void {
     this.detailsOpen.update((open) => !open);
   }
@@ -77,11 +87,15 @@ export class GoodsReceiptLineCardComponent {
     this.nameInput.emit(value);
   }
 
-  protected pickSuggestion(variantId: string): void {
-    this.suggestionPick.emit({ lineIndex: this.lineIndex(), variantId });
+  /** Il pannello restituisce l'indice; qui si torna alla variante. */
+  protected pickSuggestion(index: number): void {
+    const variant = this.suggestions()[index];
+    if (variant) {
+      this.suggestionPick.emit({ lineIndex: this.lineIndex(), variantId: variant.variantId });
+    }
   }
 
-  protected suggestionDetail(variant: VariantSummary): string {
+  private suggestionDetail(variant: VariantSummary): string {
     const parts: string[] = [];
     if (variant.sku) {
       parts.push(variant.sku);

@@ -3,6 +3,7 @@ import { ReactiveFormsModule } from '@angular/forms';
 
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import { DocumentLineSuggestionsComponent } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.component';
 
 import type {
   CustomerOrderLineCardGroup,
@@ -30,7 +31,12 @@ export type LineCodeField = 'articleCode' | 'sku' | 'barcode';
 @Component({
   selector: 'app-customer-order-line-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, ReactiveFormsModule, SelectMenuComponent],
+  imports: [
+    ButtonComponent,
+    DocumentLineSuggestionsComponent,
+    ReactiveFormsModule,
+    SelectMenuComponent,
+  ],
   templateUrl: './customer-order-line-card.component.html',
   styleUrl: './customer-order-line-card.component.scss',
 })
@@ -67,4 +73,12 @@ export class CustomerOrderLineCardComponent {
   readonly suggestionPicked = output<string>();
   readonly commitsChanged = output<string>();
   readonly vatSelected = output<string>();
+
+  /** Il pannello condiviso restituisce l'indice; qui si torna alla variante. */
+  protected pickSuggestion(index: number): void {
+    const item = this.vm().suggestions[index];
+    if (item) {
+      this.suggestionPicked.emit(item.variantId);
+    }
+  }
 }

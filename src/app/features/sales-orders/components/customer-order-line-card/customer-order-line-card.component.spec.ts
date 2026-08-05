@@ -159,6 +159,24 @@ describe('CustomerOrderLineCardComponent', () => {
     expect(on.removed).toHaveBeenCalled();
   });
 
+  it('il pick dal pannello suggerimenti traduce l’indice nell’id variante', async () => {
+    const user = userEvent.setup();
+    const { on } = await setup(
+      {
+        suggestions: [
+          { variantId: 'v-1', title: 'Maglietta — M', detail: 'SKU-01' },
+          { variantId: 'v-2', title: 'Maglietta — L', detail: 'SKU-02' },
+        ],
+        suggestionsOpen: true,
+      },
+      true,
+    );
+
+    await user.click(screen.getByText('Maglietta — L'));
+
+    expect(on.suggestionPicked).toHaveBeenCalledWith('v-2');
+  });
+
   it('Invio su un campo codice chiede al form di cercare il prodotto', async () => {
     const user = userEvent.setup();
     const { on } = await setup({}, true);

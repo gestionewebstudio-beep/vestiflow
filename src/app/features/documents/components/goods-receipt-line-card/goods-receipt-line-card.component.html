@@ -27,34 +27,13 @@
             (blur)="nameBlur.emit(lineIndex())"
           />
           @if (suggestionsOpen()) {
-            <ul
-              class="gr-card__suggestions"
-              role="listbox"
-              [id]="'gr-card-suggestions-' + lineIndex()"
-              aria-label="Articoli suggeriti"
-            >
-              @for (variant of suggestions(); track variant.variantId) {
-                <li>
-                  <button
-                    type="button"
-                    class="gr-card__suggestion"
-                    role="option"
-                    aria-selected="false"
-                    (mousedown)="$event.preventDefault()"
-                    (click)="pickSuggestion(variant.variantId)"
-                  >
-                    <span class="gr-card__suggestion-title">{{ variant.title }}</span>
-                    @if (suggestionDetail(variant); as detail) {
-                      <span class="gr-card__suggestion-detail tabular-nums">{{ detail }}</span>
-                    }
-                  </button>
-                </li>
-              } @empty {
-                <li class="gr-card__suggestion-empty" role="presentation">
-                  Nessun articolo trovato a catalogo.
-                </li>
-              }
-            </ul>
+            <app-document-line-suggestions
+              [items]="suggestionItems()"
+              [listboxId]="'gr-card-suggestions-' + lineIndex()"
+              ariaLabel="Articoli suggeriti"
+              emptyText="Nessun articolo trovato a catalogo."
+              (picked)="pickSuggestion($event)"
+            />
           }
         </div>
       }
