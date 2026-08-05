@@ -1,38 +1,46 @@
-/// Layout standard delle pagine di dettaglio documentale (back link, header,
-/// pannelli, note e totali). Genera i selettori BEM `#{$block}__back|header|
+/// Layout standard delle pagine di dettaglio documentale (header, pannelli,
+/// note e totali). Genera i selettori BEM `#{$block}__header|heading|actions|
 /// title|subtitle|badges|panel|panel-head|panel-title|note|count|totals|
-/// total-row` per evitare copia-incolla tra i dettagli dei registri.
+/// total-row` per evitare copia-incolla tra i dettagli dei registri. Il
+/// ritorno e' il componente condiviso <app-back-button>, non un selettore del
+/// mixin. Valori = canone misurato sulle pagine reali (allineamento 2026-08).
 @mixin detail-page($block) {
   .#{$block} {
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
+    gap: var(--space-5);
   }
 
-  .#{$block}__back {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-sm);
-    color: var(--color-text-muted);
-    text-decoration: none;
+  // Il back sta su riga propria sopra la testata, largo quanto il contenuto.
+  .#{$block} > app-back-button {
+    align-self: flex-start;
   }
 
-  .#{$block}__back:hover {
-    color: var(--color-text);
-  }
-
+  // Testata a riga: gruppo titolo+sottotitolo a sinistra, azioni a destra.
   .#{$block}__header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .#{$block}__heading {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+  }
+
+  .#{$block}__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .#{$block}__title {
     margin: 0;
     font-size: var(--text-2xl);
     font-weight: var(--font-weight-bold);
-    letter-spacing: var(--tracking-tight);
     color: var(--color-text);
   }
 
@@ -57,7 +65,6 @@
     background-color: var(--color-surface);
     border: var(--border-width) solid var(--color-border);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-xs);
   }
 
   .#{$block}__panel-head {
@@ -103,7 +110,9 @@
     gap: var(--space-2);
     margin: 0;
     margin-inline-start: auto;
-    min-inline-size: var(--detail-totals-min);
+    // Il min() evita l'overflow orizzontale dentro il padding del pannello
+    // sugli schermi più stretti del token.
+    min-inline-size: min(var(--detail-totals-min), 100%);
   }
 
   .#{$block}__total-row {
@@ -126,7 +135,7 @@
   .#{$block}__total-row--grand {
     padding-block-start: var(--space-2);
     font-size: var(--text-md);
-    font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-semibold);
     border-block-start: var(--border-width) solid var(--color-border);
   }
 

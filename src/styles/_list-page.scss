@@ -1,13 +1,20 @@
 @use 'breakpoints' as bp;
 
 /// Layout standard delle pagine registro (header + toolbar ricerca/filtri).
-/// Genera i selettori BEM `#{$block}__header|title|subtitle|toolbar|search|
-/// search-icon|input|filters|field|label` per evitare copia-incolla tra liste.
+/// Genera i selettori BEM `#{$block}__header|heading|title|subtitle|actions|
+/// toolbar|toolbar-actions|search|search-icon|input|filters|field|label|
+/// shopify-error` (più `:host`) per evitare copia-incolla tra liste.
+/// I valori sono il canone misurato sulle pagine reali (allineamento 2026-08):
+/// gap radice --space-5, input su --color-surface con bordo --color-border-strong.
 @mixin list-page($block) {
+  :host {
+    display: block;
+  }
+
   .#{$block} {
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
+    gap: var(--space-5);
   }
 
   .#{$block}__header {
@@ -25,6 +32,11 @@
     }
   }
 
+  // Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+  .#{$block}__heading app-back-button {
+    margin-block-end: var(--space-2);
+  }
+
   .#{$block}__actions {
     display: flex;
     flex-wrap: wrap;
@@ -35,7 +47,6 @@
     margin: 0;
     font-size: var(--text-2xl);
     font-weight: var(--font-weight-bold);
-    letter-spacing: var(--tracking-tight);
     color: var(--color-text);
   }
 
@@ -57,6 +68,13 @@
       align-items: flex-end;
       justify-content: space-between;
     }
+  }
+
+  .#{$block}__toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .#{$block}__search {
@@ -81,8 +99,8 @@
     padding-inline: var(--space-8) var(--space-3);
     font-size: var(--text-base);
     color: var(--color-text);
-    background-color: var(--color-input-bg);
-    border: var(--border-width) solid var(--color-input-border);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border-strong);
     border-radius: var(--radius-md);
   }
 
@@ -114,6 +132,7 @@
     @include bp.media-down('md') {
       align-items: stretch;
       inline-size: 100%;
+      --select-menu-width: 100%;
     }
   }
 
@@ -121,5 +140,11 @@
     font-size: var(--text-xs);
     font-weight: var(--font-weight-medium);
     color: var(--color-text-muted);
+  }
+
+  .#{$block}__shopify-error {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--status-error-fg);
   }
 }

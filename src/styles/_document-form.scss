@@ -28,6 +28,7 @@ app-sales-document-form,
 app-stock-operation-form,
 app-transfer-form,
 app-supplier-order-form,
+app-purchase-invoice-form,
 app-customer-order-form {
   display: block;
   inline-size: 100%;
@@ -355,6 +356,14 @@ app-customer-order-form {
   app-date-input {
     --select-menu-width: 100%;
   }
+}
+
+// Campo a tutta riga nella griglia (note, commento interno, errori che
+// riguardano una coppia di campi). La classe era già usata dai template di
+// trasferimento e operazione di magazzino senza essere definita: definirla
+// qui la attiva per tutte le maschere.
+.doc-form .doc-form__field--wide {
+  grid-column: 1 / -1;
 }
 
 .doc-form__label {
@@ -1980,7 +1989,7 @@ app-customer-order-form {
   background-color: color-mix(in srgb, var(--color-surface) 94%, transparent);
   border-color: var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 -5px 18px rgb(15 36 28 / 0.055);
+  box-shadow: var(--shadow-footer);
 }
 
 .doc-form .doc-form__actions-note {
@@ -1994,9 +2003,8 @@ app-customer-order-form {
 // Riga «documento collegato» e riordino delle righe per trascinamento —
 // terzo foglio del componente (customer-order-form.component.ts, styleUrls).
 // Sta a parte per restare dentro il budget CSS per-componente di angular.json.
-// I valori qui sotto vengono dalle specifiche di design della riga riferimento
-// e restano espliciti (non passano dalle --co-*): sono un contratto col
-// disegno, non la palette della pagina.
+// La riga riferimento non passa dalle --co-*: usa i token --color-doc-ref-*
+// (regole-stile-ui §7), che portano anche la variante scura.
 
 // ── Riga «documento collegato» ─────────────────────────────────────────────
 // La fascia colorata copre SOLO indice e colonne di identità: le colonne da
@@ -2004,18 +2012,18 @@ app-customer-order-form {
 // divisori verticali e le bande di colonna proseguono senza interruzioni.
 .doc-form .doc-form__table tbody td.doc-form__source-cell {
   block-size: 2.125rem; // 34px
-  color: #42545d;
-  background-color: #f2f5f7;
+  color: var(--color-doc-ref-fg);
+  background-color: var(--color-doc-ref-bg);
   overflow: visible;
 }
 
 .doc-form .doc-form__table tbody tr:hover td.doc-form__source-cell {
-  background-color: #f2f5f7;
+  background-color: var(--color-doc-ref-bg);
 }
 
 // Accento verticale sulla prima cella della fascia (l'indice).
 .doc-form .doc-form__table tbody td.doc-form__source-cell:first-child {
-  box-shadow: inset 3px 0 0 #718995;
+  box-shadow: inset 3px 0 0 var(--color-doc-ref-accent);
 }
 
 // ── Riordino righe: la maniglia è il numero ────────────────────────────────
