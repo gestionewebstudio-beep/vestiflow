@@ -33,9 +33,16 @@
   }
 }
 
-.back-button:hover {
+.back-button:not(.back-button--disabled):hover {
   background-color: var(--color-surface-hover);
   border-color: var(--color-text-subtle);
+}
+
+// aria-disabled, non disabled: resta focusabile e lo screen reader lo annuncia
+// inibito invece di farlo sparire dal giro di tab.
+.back-button--disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
 }
 
 .back-button:focus-visible {

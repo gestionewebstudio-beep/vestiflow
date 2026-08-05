@@ -28,6 +28,13 @@ export class BackButtonComponent {
   readonly fallbackLink = input<string | null>(null);
 
   /**
+   * Inibisce l'uscita (es. operazione in corso che verrebbe annullata): il
+   * click non fa nulla e il pulsante lo dichiara — attenuato e aria-disabled —
+   * invece di sembrare attivo e ignorare il tocco in silenzio.
+   */
+  readonly disabled = input(false);
+
+  /**
    * La freccia non naviga: emette `backRequested` e basta. Serve dove uscire
    * non e' solo cambiare pagina — una maschera con modifiche non salvate deve
    * poter chiedere conferma prima, e la guardia di rotta da sola non copre chi
@@ -58,6 +65,9 @@ export class BackButtonComponent {
   );
 
   protected goBack(): void {
+    if (this.disabled()) {
+      return;
+    }
     if (this.deferNavigation()) {
       this.backRequested.emit();
       return;

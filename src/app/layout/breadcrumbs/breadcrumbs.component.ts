@@ -38,6 +38,7 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   corrispettivi: 'Corrispettivi',
   shopify: 'Ordini Shopify',
   registro: 'Registro documenti',
+  'vendite-negozio': 'Vendita/Reso in negozio',
   'arrivi-merce': 'Arrivi merce',
   'goods-receipt': 'Arrivo merce',
   'registrazione-fattura': 'Registrazioni fattura',
@@ -50,7 +51,7 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   'sales-ddt': 'DDT vendita',
   quote: 'Preventivi',
   'codici-iva': 'Codici IVA',
-  'payment-options': 'Modalità di pagamento',
+  pagamenti: 'Modalità di pagamento',
   'accountant-register': 'Registro commercialista',
   clients: 'Clienti',
   account: 'Account',
@@ -66,10 +67,12 @@ const LINKABLE_PATHS: ReadonlySet<string> = new Set([
   '/app/inventory/movements',
   '/app/inventory/lookup',
   '/app/inventory/counts',
+  '/app/inventory/situation',
   '/app/suppliers',
   '/app/orders',
   '/app/documents',
   '/app/documents/registro',
+  '/app/documents/vendite-negozio',
   '/app/documents/arrivi-merce',
   '/app/documents/quote',
   '/app/documents/proforma',
@@ -88,6 +91,7 @@ const LINKABLE_PATHS: ReadonlySet<string> = new Set([
   '/app/reports/accountant-register',
   '/app/settings',
   '/app/settings/codici-iva',
+  '/app/settings/pagamenti',
   '/app/guide',
   '/app/admin',
   '/app/admin/clients',
@@ -176,6 +180,31 @@ export class BreadcrumbsComponent {
         { label: SEGMENT_LABELS['documents']!, link: '/app/documents' },
         { label: 'Ordini cliente' },
       ];
+    }
+
+    // Ordini fornitori: non è voce di sidebar, la si raggiunge dall'hub
+    // Documenti («Acquisti e fornitori»). Stesso trattamento degli Ordini
+    // cliente: «Documenti > Ordini fornitori > …».
+    if (segments[0] === 'orders') {
+      const crumbs: Crumb[] = [
+        { label: SEGMENT_LABELS['documents']!, link: '/app/documents' },
+        {
+          label: SEGMENT_LABELS['orders']!,
+          link: segments.length > 1 ? '/app/orders' : undefined,
+        },
+      ];
+      let accumulated = '/app/orders';
+      for (const segment of segments.slice(1)) {
+        accumulated += `/${segment}`;
+        crumbs.push({
+          label: isIdSegment(segment)
+            ? (this.entityLabels().get(segment) ?? 'Dettaglio')
+            : (SEGMENT_LABELS[segment] ?? decodeURIComponent(segment)),
+          link: LINKABLE_PATHS.has(accumulated) ? accumulated : undefined,
+        });
+      }
+      crumbs[crumbs.length - 1] = { label: crumbs[crumbs.length - 1]!.label };
+      return crumbs;
     }
 
     // Ordine cliente: la maschera vive sotto `sales/…` ma è un documento come
