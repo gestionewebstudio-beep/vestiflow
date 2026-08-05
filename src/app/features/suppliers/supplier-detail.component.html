@@ -1,8 +1,7 @@
 <section class="supplier-detail">
-  <a class="supplier-detail__back" [routerLink]="listPath">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Fornitori
-  </a>
+  <!-- Fuori dagli stati: la via d'uscita resta anche in caricamento/errore.
+       Senza cronologia ricade sulla lista Fornitori dedotta dall'URL. -->
+  <app-back-button />
 
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
@@ -18,12 +17,16 @@
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (supplier(); as s) {
     <header class="supplier-detail__header">
-      <h1 class="supplier-detail__title">{{ s.name }}</h1>
+      <div class="supplier-detail__heading">
+        <h1 class="supplier-detail__title">{{ s.name }}</h1>
+      </div>
       @if (canManage()) {
-        <app-button variant="secondary" (click)="editSupplier()">
-          <i class="pi pi-pencil" aria-hidden="true"></i>
-          Modifica
-        </app-button>
+        <div class="supplier-detail__actions">
+          <app-button variant="secondary" (click)="editSupplier()">
+            <i class="pi pi-pencil" aria-hidden="true"></i>
+            Modifica
+          </app-button>
+        </div>
       }
     </header>
 

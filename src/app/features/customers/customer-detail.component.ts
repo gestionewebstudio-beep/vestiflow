@@ -13,6 +13,7 @@ import {
 } from '@core/models/customer.model';
 import { canManageCustomers } from '@core/permissions/tenant-permissions.util';
 import { formatDate } from '@core/utils/date.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
@@ -35,6 +36,7 @@ type DetailState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
+    BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
     DetailFactsComponent,

@@ -1,6 +1,9 @@
 <section class="po-list">
   <header class="po-list__header">
     <div class="po-list__heading">
+      <!-- Pagina fuori sidebar: il ritorno esplicito è l'hub «Documenti», da
+           cui la si raggiunge, coerente con la lista Ordini cliente. -->
+      <app-back-button fallbackLink="/app/documents" />
       <h1 class="po-list__title">Ordini Fornitori</h1>
       <p class="po-list__subtitle">
         Ordini di acquisto verso i fornitori: l'ordine nasce confermato e si conclude quando viene

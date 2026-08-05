@@ -2,13 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { DestroyRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { isAppError } from '@core/models/app-error.model';
 import type { PaymentOption, PaymentOptionKind } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -27,7 +27,13 @@ interface LoadState {
 @Component({
   selector: 'app-payment-options-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, ButtonComponent, ErrorStateComponent, TableSkeletonComponent],
+  imports: [
+    FormsModule,
+    BackButtonComponent,
+    ButtonComponent,
+    ErrorStateComponent,
+    TableSkeletonComponent,
+  ],
   templateUrl: './payment-options-page.component.html',
   styleUrl: './payment-options-page.component.scss',
 })

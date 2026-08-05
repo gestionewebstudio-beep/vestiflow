@@ -16,6 +16,13 @@
   gap: var(--space-1);
 }
 
+// L'header è una colonna flex: senza align-self il pulsante si stira. Col gap
+// del blocco lo stacco dal titolo arriva a --space-2, come nelle altre liste.
+.stock-lookup__header app-back-button {
+  align-self: flex-start;
+  margin-block-end: var(--space-1);
+}
+
 .stock-lookup__title {
   margin: 0;
   font-size: var(--text-2xl);

@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthService } from '@core/auth';
@@ -28,6 +28,7 @@ import {
   corrispettiviReportFilterSubtitle,
   corrispettiviReportSubtitle,
 } from '@core/models/tenant-channel-profile.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -70,7 +71,7 @@ type CorrispettiviState =
   selector: 'app-corrispettivi-report',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
+    BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     CorrispettiviDeliveriesComponent,
@@ -201,17 +202,15 @@ export class CorrispettiviReportComponent {
           this.corrispettiviService.getSummary(query),
           this.corrispettiviService.listDeliveries(1, 10),
         ]).pipe(
-          map(
-            ([ordersPage, summary, deliveriesPage]): CorrispettiviState => ({
-              status: 'success',
-              data: {
-                orders: ordersPage.data,
-                summary,
-                deliveries: deliveriesPage.data,
-                totalOrders: ordersPage.meta.total,
-              },
-            }),
-          ),
+          map(([ordersPage, summary, deliveriesPage]): CorrispettiviState => ({
+            status: 'success',
+            data: {
+              orders: ordersPage.data,
+              summary,
+              deliveries: deliveriesPage.data,
+              totalOrders: ordersPage.meta.total,
+            },
+          })),
           startWith<CorrispettiviState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<CorrispettiviState>({ status: 'error', error: this.toAppError(err) }),

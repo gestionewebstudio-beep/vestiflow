@@ -1,5 +1,11 @@
 @use 'breakpoints' as bp;
 
+// Niente mixin `list-page`: la cassa POS non è una pagina-lista. La radice è
+// una cornice colorata di modalità (non il flex nudo del canone) e i nomi
+// __field/__label/__input qui sono controlli operativi a misura touch, non la
+// toolbar di ricerca del registro. Solo i valori di testata (header/heading/
+// title) sono allineati a mano al canone delle liste.
+
 :host {
   display: block;
 }
@@ -36,9 +42,14 @@
 
   @include bp.media-up('md') {
     flex-direction: row;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
   }
+}
+
+// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+.pos__heading app-back-button {
+  margin-block-end: var(--space-2);
 }
 
 .pos__title {
@@ -212,6 +223,8 @@
 
 .pos__input {
   inline-size: 100%;
+  // Delta touch deliberato della cassa: gli input seguono --btn-min-height
+  // (target tappabile da banco), non il --field-height del canone liste.
   block-size: var(--btn-min-height);
   padding-inline: var(--space-3);
   font-size: var(--text-base);

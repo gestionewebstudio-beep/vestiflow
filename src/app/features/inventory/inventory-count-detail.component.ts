@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
@@ -21,6 +21,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { formatDateTime } from '@core/utils/date.util';
 import { ProductService } from '@domain/products/services/product.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -54,6 +55,7 @@ interface ScanFeedback {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    BackButtonComponent,
     BadgeComponent,
     BarcodeScannerComponent,
     ButtonComponent,
@@ -68,7 +70,6 @@ interface ScanFeedback {
 })
 export class InventoryCountDetailComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly inventoryService = inject(InventoryService);
   private readonly productService = inject(ProductService);
   private readonly config = inject(APP_CONFIG);
@@ -127,12 +128,10 @@ export class InventoryCountDetailComponent {
           } satisfies DetailState);
         }
         return this.inventoryService.getInventoryCount(id).pipe(
-          map(
-            (session): DetailState => ({
-              status: 'success',
-              session,
-            }),
-          ),
+          map((session): DetailState => ({
+            status: 'success',
+            session,
+          })),
           catchError((error: unknown) =>
             of({
               status: 'error' as const,
@@ -220,10 +219,6 @@ export class InventoryCountDetailComponent {
     const status = this.session()?.status;
     return status === InventoryCountStatus.Completed || status === InventoryCountStatus.Cancelled;
   });
-
-  protected back(): void {
-    void this.router.navigate(['/app/inventory/counts']);
-  }
 
   protected reload(): void {
     this.refreshTick.update((value) => value + 1);

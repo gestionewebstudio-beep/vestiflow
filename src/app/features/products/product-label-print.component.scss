@@ -17,20 +17,6 @@
   gap: var(--space-3);
 }
 
-.label-print__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.label-print__back:hover {
-  color: var(--color-text);
-}
-
 .label-print__actions {
   display: flex;
   flex-wrap: wrap;

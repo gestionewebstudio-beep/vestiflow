@@ -1,10 +1,9 @@
 <section class="vat-codes">
   <header class="vat-codes__header">
     <div class="vat-codes__heading">
-      <a class="vat-codes__back" routerLink="/settings">
-        <i class="pi pi-arrow-left" aria-hidden="true"></i>
-        Impostazioni
-      </a>
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade sul
+           livello superiore dedotto dall'URL (l'hub Impostazioni). -->
+      <app-back-button />
       <h1 class="vat-codes__title">Codici IVA</h1>
       <p class="vat-codes__subtitle">
         Gestisci aliquote, Nature e trattamenti IVA utilizzati negli articoli e nei documenti.
@@ -23,47 +22,52 @@
     />
   } @else {
     <div class="vat-codes__toolbar" role="search">
-      <input
-        class="vat-codes__search"
-        type="search"
-        placeholder="Cerca per codice, descrizione o note…"
-        aria-label="Cerca Codici IVA"
-        [value]="searchQuery()"
-        (input)="onSearchInput($event)"
-      />
-      <label class="vat-codes__filter">
-        <span class="vat-codes__filter-label">Natura</span>
-        <select aria-label="Filtra per Natura" (change)="onNatureFilterChange($event)">
-          <option value="" [selected]="natureFilter() === ''">Tutte</option>
-          @for (nature of natures(); track nature.id) {
-            <option [value]="nature.id" [selected]="natureFilter() === nature.id">
-              {{ nature.label }}
-            </option>
-          }
-        </select>
-      </label>
-      <label class="vat-codes__filter">
-        <span class="vat-codes__filter-label">Ambito</span>
-        <select aria-label="Filtra per ambito" (change)="onScopeFilterChange($event)">
-          <option value="" [selected]="scopeFilter() === ''">Tutti</option>
-          @for (opt of usageScopeOptions; track opt.value) {
-            <option [value]="opt.value" [selected]="scopeFilter() === opt.value">
-              {{ opt.label }}
-            </option>
-          }
-        </select>
-      </label>
-      <label class="vat-codes__filter">
-        <span class="vat-codes__filter-label">Stato</span>
-        <select aria-label="Filtra per stato" (change)="onActiveFilterChange($event)">
-          <option value="all" [selected]="activeFilter() === 'all'">Tutte</option>
-          <option value="active" [selected]="activeFilter() === 'active'">Attive</option>
-          <option value="inactive" [selected]="activeFilter() === 'inactive'">Disattivate</option>
-        </select>
-      </label>
-      @if (hasFilters()) {
-        <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
-      }
+      <div class="vat-codes__search">
+        <i class="pi pi-search vat-codes__search-icon" aria-hidden="true"></i>
+        <input
+          class="vat-codes__input"
+          type="search"
+          placeholder="Cerca per codice, descrizione o note…"
+          aria-label="Cerca Codici IVA"
+          [value]="searchQuery()"
+          (input)="onSearchInput($event)"
+        />
+      </div>
+      <div class="vat-codes__filters">
+        <label class="vat-codes__field">
+          <span class="vat-codes__label">Natura</span>
+          <select aria-label="Filtra per Natura" (change)="onNatureFilterChange($event)">
+            <option value="" [selected]="natureFilter() === ''">Tutte</option>
+            @for (nature of natures(); track nature.id) {
+              <option [value]="nature.id" [selected]="natureFilter() === nature.id">
+                {{ nature.label }}
+              </option>
+            }
+          </select>
+        </label>
+        <label class="vat-codes__field">
+          <span class="vat-codes__label">Ambito</span>
+          <select aria-label="Filtra per ambito" (change)="onScopeFilterChange($event)">
+            <option value="" [selected]="scopeFilter() === ''">Tutti</option>
+            @for (opt of usageScopeOptions; track opt.value) {
+              <option [value]="opt.value" [selected]="scopeFilter() === opt.value">
+                {{ opt.label }}
+              </option>
+            }
+          </select>
+        </label>
+        <label class="vat-codes__field">
+          <span class="vat-codes__label">Stato</span>
+          <select aria-label="Filtra per stato" (change)="onActiveFilterChange($event)">
+            <option value="all" [selected]="activeFilter() === 'all'">Tutte</option>
+            <option value="active" [selected]="activeFilter() === 'active'">Attive</option>
+            <option value="inactive" [selected]="activeFilter() === 'inactive'">Disattivate</option>
+          </select>
+        </label>
+        @if (hasFilters()) {
+          <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
+        }
+      </div>
     </div>
 
     @if (groups().length === 0) {

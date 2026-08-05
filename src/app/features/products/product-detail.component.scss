@@ -1,13 +1,28 @@
 @use 'breakpoints' as bp;
+@use 'detail-page' as dp;
 
 :host {
   display: block;
 }
 
-.product-detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+@include dp.detail-page('product-detail');
+
+// ── Testata: comportamento mobile ─────────────────────────────────────────
+// Su mobile heading e azioni si impilano e le azioni prendono tutta la
+// larghezza: lo richiede il sistema actions-row/action-cell qui sotto.
+.product-detail__header {
+  @include bp.media-down('md') {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.product-detail__actions {
+  @include bp.media-down('md') {
+    flex-direction: column;
+    align-items: stretch;
+    inline-size: 100%;
+  }
 }
 
 .product-detail__delete-error {
@@ -65,53 +80,6 @@
   border: var(--border-width) solid var(--color-border-strong);
 }
 
-.product-detail__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  align-self: flex-start;
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
-}
-
-.product-detail__back:hover {
-  color: var(--color-text);
-  text-decoration: none;
-}
-
-// ── Header ────────────────────────────────────────────────────────────────
-.product-detail__header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-
-  @include bp.media-down('md') {
-    flex-direction: column;
-    align-items: stretch;
-  }
-}
-
-.product-detail__title {
-  margin: 0;
-  font-size: var(--text-2xl);
-}
-
-.product-detail__brand {
-  margin-block-start: var(--space-1);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.product-detail__badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-block-start: var(--space-2);
-}
-
 .product-detail__catalog-banner {
   margin: 0;
   padding: var(--space-3) var(--space-4);
@@ -120,20 +88,6 @@
   background-color: var(--status-info-bg);
   border: var(--border-width) solid var(--status-info-border);
   border-radius: var(--radius-md);
-}
-
-.product-detail__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-
-  @include bp.media-down('md') {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
-    inline-size: 100%;
-  }
 }
 
 .product-detail__actions-row {
@@ -172,70 +126,12 @@
   }
 }
 
-.product-detail__action-cell--badge {
-  @include bp.media-up('md') {
-    // Il badge qui fa da controllo in riga: prende l'altezza di un campo.
-    --badge-h: var(--field-height);
-    --badge-pad-block: 0;
-    --badge-pad-inline: var(--space-3);
-    --badge-font-size: var(--text-sm);
-
-    app-badge {
-      display: inline-flex;
-      align-items: center;
-      border-radius: var(--radius-md);
-    }
-  }
-
-  @include bp.media-down('md') {
-    align-items: center;
-    justify-content: center;
-
-    // Su mobile diventa una fascia a piena larghezza, alta come un bottone.
-    --badge-inline-size: 100%;
-    --badge-h: var(--btn-min-height);
-    --badge-pad-block: 0;
-    --badge-font-size: var(--text-sm);
-
-    app-badge {
-      display: flex;
-      inline-size: 100%;
-      block-size: 100%;
-      align-items: stretch;
-      border-radius: var(--radius-md);
-    }
-  }
-}
-
-// ── Pannelli ──────────────────────────────────────────────────────────────
-.product-detail__panel {
-  padding: var(--space-4);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
-}
-
-.product-detail__panel-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-block-end: var(--space-4);
-}
-
-.product-detail__panel-title {
-  margin: 0 0 var(--space-4);
-  font-size: var(--text-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.product-detail__panel-head .product-detail__panel-title {
-  margin-block-end: 0;
-}
-
+// Divergenza deliberata dal __count del mixin: qui è il contatore delle
+// varianti (un numero di card), non la pill di stato — palette neutra e
+// nessun padding verticale.
 .product-detail__count {
   min-inline-size: var(--space-6);
-  padding-inline: var(--space-2);
+  padding: 0 var(--space-2);
   font-size: var(--text-xs);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
@@ -292,11 +188,11 @@
 }
 
 // ── Hint inventory (hook tecnico, non una sezione stock) ─────────────────────
+// Lo stacco dal contenuto sopra lo dà il gap del pannello.
 .product-detail__hint {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-block-start: var(--space-4);
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }

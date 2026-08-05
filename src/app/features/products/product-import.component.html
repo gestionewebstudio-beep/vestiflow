@@ -1,14 +1,9 @@
 <section class="product-import">
   <header class="product-import__header">
     <div>
-      <a
-        class="product-import__back"
-        href="/app/products"
-        (click)="$event.preventDefault(); backToList()"
-      >
-        <i class="pi pi-arrow-left" aria-hidden="true"></i>
-        Prodotti
-      </a>
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade sulla
+           lista prodotti dedotta dall'URL. -->
+      <app-back-button />
       <h1 class="product-import__title">Importa prodotti da CSV</h1>
       <p class="product-import__intro">{{ pageIntro() }}</p>
     </div>

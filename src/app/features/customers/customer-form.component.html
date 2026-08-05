@@ -1,10 +1,8 @@
 <section class="customer-form">
-  <a class="customer-form__back" [routerLink]="listPath">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Clienti
-  </a>
-
   <header class="customer-form__header">
+    <!-- Torna alla pagina precedente; senza cronologia interna ricade sulla
+         lista clienti dedotta dall'URL. -->
+    <app-back-button />
     <h1 class="customer-form__title">
       {{ isEdit() ? 'Modifica cliente' : 'Nuovo cliente' }}
     </h1>

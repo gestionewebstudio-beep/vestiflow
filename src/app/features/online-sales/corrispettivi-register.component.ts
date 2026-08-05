@@ -29,6 +29,7 @@ import { CorrispettivoEntryStatus } from '@core/models/sales-order.model';
 import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
@@ -84,6 +85,7 @@ type EntryDetailState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
+    BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
     DateInputComponent,
@@ -193,13 +195,11 @@ export class CorrispettiviRegisterComponent {
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
         this.service.getCorrispettivoEntries(query).pipe(
-          map(
-            (response): ListState => ({
-              status: 'success',
-              entries: response.data,
-              meta: response.meta,
-            }),
-          ),
+          map((response): ListState => ({
+            status: 'success',
+            entries: response.data,
+            meta: response.meta,
+          })),
           startWith<ListState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<ListState>({ status: 'error', error: this.toAppError(err) }),

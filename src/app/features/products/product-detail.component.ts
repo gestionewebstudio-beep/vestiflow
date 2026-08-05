@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
   filter,
@@ -42,6 +42,7 @@ import type { ShopifyMetafieldRef } from '@core/models/shopify-product-metadata.
 import { ShopifySyncStatus } from '@core/models/shopify.model';
 import { vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { VatCodeService } from '@core/services/vat-code.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -133,7 +134,7 @@ function shopifyCustomMetafieldLabel(namespace: string, key: string): string {
   selector: 'app-product-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
+    BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
@@ -155,7 +156,6 @@ export class ProductDetailComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly listPath = PRODUCTS_LIST_PATH;
   protected readonly skeletonColumns = 5;
   protected readonly shopifySyncStatus = ShopifySyncStatus;
 
@@ -209,13 +209,11 @@ export class ProductDetailComponent {
           product: this.service.getProductById(id),
           variants: this.service.getProductVariants(id),
         }).pipe(
-          map(
-            ({ product, variants }): ProductDetailState => ({
-              status: 'success',
-              product,
-              variants,
-            }),
-          ),
+          map(({ product, variants }): ProductDetailState => ({
+            status: 'success',
+            product,
+            variants,
+          })),
           startWith<ProductDetailState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.toErrorState(err))),
         );

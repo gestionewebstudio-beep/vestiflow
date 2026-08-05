@@ -17,6 +17,7 @@ import { LocationContextService } from '@core/services/location-context.service'
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
@@ -31,6 +32,7 @@ import { InventoryService } from '@domain/inventory/services/inventory.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    BackButtonComponent,
     ButtonComponent,
     SelectMenuComponent,
     InventoryTabsComponent,

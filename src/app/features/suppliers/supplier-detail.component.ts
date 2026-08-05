@@ -11,6 +11,7 @@ import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.ut
 import { vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { formatMoney } from '@core/utils/money.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
@@ -36,6 +37,7 @@ type DetailState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
+    BackButtonComponent,
     ButtonComponent,
     DetailFactsComponent,
     EmptyStateComponent,
@@ -91,13 +93,11 @@ export class SupplierDetailComponent {
           supplier: this.service.getById(id),
           links: this.service.getVariantLinksBySupplier(id),
         }).pipe(
-          map(
-            ({ supplier, links }): DetailState => ({
-              status: 'success',
-              supplier,
-              links,
-            }),
-          ),
+          map(({ supplier, links }): DetailState => ({
+            status: 'success',
+            supplier,
+            links,
+          })),
           startWith<DetailState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.toErrorState(err))),
         );

@@ -1,0 +1,50 @@
+/// Blocchi condivisi fra i due dettagli documento (document-detail e
+/// sales-document-detail). Libreria di mixin sul modello di admin/styles:
+/// non emette CSS finché un componente non la include.
+///
+/// - `document-detail-revisions`: lo storico modifiche — genera i selettori
+///   `#{$block}__revision-list|revision-item|revision-meta|revision-number|
+///   revision-summary`.
+@mixin document-detail-revisions($block) {
+  .#{$block}__revision-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .#{$block}__revision-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-block-end: var(--space-3);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  .#{$block}__revision-item:last-child {
+    padding-block-end: 0;
+    border-block-end: none;
+  }
+
+  .#{$block}__revision-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .#{$block}__revision-number {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .#{$block}__revision-summary {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text);
+  }
+}

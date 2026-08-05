@@ -21,6 +21,7 @@ import type { Location } from '@core/models/location.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { PwaInstallService } from '@core/services/pwa-install.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -71,6 +72,7 @@ interface ReservationsTarget {
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    BackButtonComponent,
     ButtonComponent,
     BarcodeScannerComponent,
     EmptyStateComponent,

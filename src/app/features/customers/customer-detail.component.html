@@ -1,8 +1,7 @@
 <section class="customer-detail">
-  <a class="customer-detail__back" [routerLink]="listPath">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Clienti
-  </a>
+  <!-- Fuori dai rami di stato: la via d'uscita resta anche in loading/errore.
+       Senza cronologia interna ricade sulla lista clienti dedotta dall'URL. -->
+  <app-back-button />
 
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="5" />
@@ -25,10 +24,12 @@
         </app-badge>
       </div>
       @if (canManage()) {
-        <app-button variant="secondary" [routerLink]="editPath()">
-          <i class="pi pi-pencil" aria-hidden="true"></i>
-          Modifica
-        </app-button>
+        <div class="customer-detail__actions">
+          <app-button variant="secondary" [routerLink]="editPath()">
+            <i class="pi pi-pencil" aria-hidden="true"></i>
+            Modifica
+          </app-button>
+        </div>
       }
     </header>
 

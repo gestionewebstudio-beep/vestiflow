@@ -22,6 +22,7 @@ import type { Subscription } from 'rxjs';
 import type { PageMeta } from '@core/models/api.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -60,6 +61,7 @@ type ListState =
   selector: 'app-online-sale-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackButtonComponent,
     ButtonComponent,
     DateInputComponent,
     EmptyStateComponent,
@@ -116,13 +118,11 @@ export class OnlineSaleListComponent {
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
         this.service.getOnlineSales(query).pipe(
-          map(
-            (response): ListState => ({
-              status: 'success',
-              sales: response.data,
-              meta: response.meta,
-            }),
-          ),
+          map((response): ListState => ({
+            status: 'success',
+            sales: response.data,
+            meta: response.meta,
+          })),
           startWith<ListState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<ListState>({ status: 'error', error: this.toAppError(err) }),

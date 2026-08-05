@@ -10,7 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
   debounceTime,
@@ -48,6 +48,7 @@ import type { VatCode } from '@core/models/vat-code.model';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { VatCodeService } from '@core/services/vat-code.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -136,7 +137,7 @@ type FormLoadState =
   selector: 'app-product-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
+    BackButtonComponent,
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -174,8 +175,6 @@ export class ProductFormComponent implements CanComponentDeactivate {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
-
-  protected readonly listPath = PRODUCTS_LIST_PATH;
 
   /** Tab dell'anagrafica (Articolo, Catalogo, Varianti, Magazzino). */
   protected readonly tabs = FORM_TABS;

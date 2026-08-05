@@ -23,6 +23,7 @@ import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import type { SupplierOrder, SupplierOrderLinkedDocument } from '@core/models/supplier-order.model';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -59,6 +60,7 @@ type DetailState =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
+    BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
     DetailFactsComponent,

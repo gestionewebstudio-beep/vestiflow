@@ -1,40 +1,8 @@
-@use 'breakpoints' as bp;
+@use 'list-page' as lp;
 
-:host {
-  display: block;
-}
+@include lp.list-page('inventory-count-list');
 
-.inventory-count-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.inventory-count-list__header {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-3);
-}
-
-@include bp.media-up('md') {
-  .inventory-count-list__header {
-    flex-direction: row;
-    align-items: flex-start;
-    justify-content: space-between;
-  }
-}
-
-.inventory-count-list__title {
-  margin: 0;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-}
-
-.inventory-count-list__intro {
-  margin: var(--space-1) 0 0;
+// L'introduzione resta entro la larghezza di lettura dei contenuti ampi.
+.inventory-count-list__subtitle {
   max-inline-size: var(--content-wide);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
 }

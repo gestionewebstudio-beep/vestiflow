@@ -8,13 +8,14 @@ import {
   untracked,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { ProductVariant } from '@core/models/product-variant.model';
 import type { Product } from '@core/models/product.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -48,7 +49,7 @@ type LabelPrintState =
     '[class.product-label-print--auto]': 'autoPrint()',
   },
   imports: [
-    RouterLink,
+    BackButtonComponent,
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -65,7 +66,6 @@ export class ProductLabelPrintComponent {
 
   private autoPrintStarted = false;
 
-  protected readonly listPath = PRODUCTS_LIST_PATH;
   protected readonly skeletonColumns = 3;
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
@@ -152,13 +152,11 @@ export class ProductLabelPrintComponent {
           product: this.service.getProductById(id),
           variants: this.service.getProductVariants(id),
         }).pipe(
-          map(
-            ({ product, variants }): LabelPrintState => ({
-              status: 'success',
-              product,
-              variants,
-            }),
-          ),
+          map(({ product, variants }): LabelPrintState => ({
+            status: 'success',
+            product,
+            variants,
+          })),
           startWith<LabelPrintState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.toErrorState(err))),
         );

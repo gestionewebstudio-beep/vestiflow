@@ -29,7 +29,9 @@ test.describe('Movimenti di magazzino', () => {
 
   test('bottoni per tipo aprono il form già impostato', async ({ page }) => {
     await openMovementFormOfType(page, 'Scarico');
-    await expect(page.locator('h1.movement-form__title')).toHaveText('Registra scarico');
+    await expect(page.locator('app-movement-form h1.doc-form__title')).toHaveText(
+      'Registra scarico',
+    );
   });
 
   test('salva chiede conferma con riepilogo (dialog)', async ({ page }) => {

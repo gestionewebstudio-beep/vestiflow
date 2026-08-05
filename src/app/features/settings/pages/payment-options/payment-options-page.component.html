@@ -1,10 +1,9 @@
 <section class="payment-options">
   <header class="payment-options__header">
     <div class="payment-options__heading">
-      <a class="payment-options__back" routerLink="/settings">
-        <i class="pi pi-arrow-left" aria-hidden="true"></i>
-        Impostazioni
-      </a>
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade sul
+           livello superiore dedotto dall'URL (l'hub Impostazioni). -->
+      <app-back-button />
       <h1 class="payment-options__title">Pagamenti</h1>
       <p class="payment-options__subtitle">
         Modalità e condizioni di pagamento usate nelle anagrafiche clienti e fornitori. Le

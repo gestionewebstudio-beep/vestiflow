@@ -35,6 +35,7 @@ import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.m
 import type { StockMovement } from '@core/models/stock-movement.model';
 import { AdjustmentDirection } from '@core/models/stock-movement.model';
 import { formatDateTime } from '@core/utils/date.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -95,6 +96,7 @@ const SEARCH_DEBOUNCE_MS = 300;
   selector: 'app-stock-movements',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackButtonComponent,
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -311,16 +313,14 @@ export class StockMovementsComponent {
           movements: this.inventoryService.getMovements(query),
           locations: this.inventoryService.getLocations(),
         }).pipe(
-          map(
-            ({ movements, locations }): MovementsState => ({
-              status: 'success',
-              data: {
-                movements: movements.data,
-                locations,
-                meta: movements.meta,
-              },
-            }),
-          ),
+          map(({ movements, locations }): MovementsState => ({
+            status: 'success',
+            data: {
+              movements: movements.data,
+              locations,
+              meta: movements.meta,
+            },
+          })),
           startWith<MovementsState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<MovementsState>({ status: 'error', error: this.toAppError(err) }),
@@ -365,27 +365,25 @@ export class StockMovementsComponent {
 
     const profile = this.authService.currentUser()?.tenantChannelProfile;
 
-    return current.data.movements.map(
-      (movement): StockMovementRow => ({
-        id: movement.id,
-        type: movement.type,
-        sku: movement.sku,
-        articleCode: movement.articleCode ?? '',
-        signedQuantity: this.signedQuantity(movement),
-        locationLabel:
-          movement.type === StockMovementType.Transfer && movement.targetLocationId
-            ? `${nameOf(movement.locationId)} → ${nameOf(movement.targetLocationId)}`
-            : nameOf(movement.locationId),
-        direction: movement.direction,
-        reason: movement.reason,
-        createdAtLabel: formatDateTime(movement.createdAt),
-        createdByName: movement.createdByName,
-        origin: movement.origin,
-        originLabel: movementOriginLabel(movement.origin, profile),
-        productTitle: movement.productTitle,
-        documentReference: movement.documentReference,
-      }),
-    );
+    return current.data.movements.map((movement): StockMovementRow => ({
+      id: movement.id,
+      type: movement.type,
+      sku: movement.sku,
+      articleCode: movement.articleCode ?? '',
+      signedQuantity: this.signedQuantity(movement),
+      locationLabel:
+        movement.type === StockMovementType.Transfer && movement.targetLocationId
+          ? `${nameOf(movement.locationId)} → ${nameOf(movement.targetLocationId)}`
+          : nameOf(movement.locationId),
+      direction: movement.direction,
+      reason: movement.reason,
+      createdAtLabel: formatDateTime(movement.createdAt),
+      createdByName: movement.createdByName,
+      origin: movement.origin,
+      originLabel: movementOriginLabel(movement.origin, profile),
+      productTitle: movement.productTitle,
+      documentReference: movement.documentReference,
+    }));
   });
 
   protected readonly isEmpty = computed(() => {

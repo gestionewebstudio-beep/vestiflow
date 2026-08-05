@@ -1,12 +1,7 @@
 <section class="count-detail">
-  <a
-    class="count-detail__back"
-    href="/app/inventory/counts"
-    (click)="$event.preventDefault(); back()"
-  >
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Inventario
-  </a>
+  <!-- Fuori dagli stati: la via d'uscita resta anche in caricamento/errore.
+       Senza cronologia ricade sulla lista Inventario dedotta dall'URL. -->
+  <app-back-button />
 
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
@@ -14,7 +9,7 @@
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (session(); as s) {
     <header class="count-detail__header">
-      <div>
+      <div class="count-detail__heading">
         <div class="count-detail__title-row">
           <h1 class="count-detail__title">{{ s.name }}</h1>
           <app-badge [tone]="statusTone(s.status)">{{ statusLabel(s.status) }}</app-badge>
@@ -35,7 +30,7 @@
         }
       </div>
 
-      <div class="count-detail__header-actions">
+      <div class="count-detail__actions">
         @if (canEdit()) {
           <app-button variant="secondary" [disabled]="actionPending()" (click)="submitForReview()">
             Invia a revisione

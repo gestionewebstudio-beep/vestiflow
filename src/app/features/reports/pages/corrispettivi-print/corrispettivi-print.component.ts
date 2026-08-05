@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
@@ -32,7 +33,7 @@ type PrintState =
   selector: 'app-corrispettivi-print',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
+    BackButtonComponent,
     CorrispettiviOrdersTableComponent,
     CorrispettiviSummaryComponent,
     ErrorStateComponent,
@@ -67,12 +68,10 @@ export class CorrispettiviPrintComponent {
           this.corrispettiviService.listOrders(query),
           this.corrispettiviService.getSummary(query),
         ]).pipe(
-          map(
-            ([ordersPage, summary]): PrintState => ({
-              status: 'success',
-              data: { orders: ordersPage.data, summary },
-            }),
-          ),
+          map(([ordersPage, summary]): PrintState => ({
+            status: 'success',
+            data: { orders: ordersPage.data, summary },
+          })),
           startWith<PrintState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<PrintState>({ status: 'error', error: this.toAppError(err) }),

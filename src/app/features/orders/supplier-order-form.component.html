@@ -1,5 +1,7 @@
 <section class="doc-form">
-  <div class="doc-form__head-row">
+  <div class="doc-form__heading">
+    <!-- Su riga propria sopra il titolo (standard di progetto): il contenitore
+         block manda a capo l'host inline-flex prima dell'h1. -->
     <app-back-button [deferNavigation]="true" (backRequested)="cancel()" />
     <h1 class="doc-form__title">
       {{ isEditMode() ? 'Modifica ordine fornitore' : 'Nuovo ordine fornitore' }}

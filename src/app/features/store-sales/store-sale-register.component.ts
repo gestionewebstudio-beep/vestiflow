@@ -34,6 +34,7 @@ import {
   parseMoneyInput,
   toStorableMinor,
 } from '@core/utils/money.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -132,6 +133,7 @@ function looksLikeBarcode(code: string): boolean {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
+    BackButtonComponent,
     BarcodeScannerComponent,
     ButtonComponent,
     ConfirmDialogComponent,
@@ -959,18 +961,16 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.lastReturnResult.set(null);
     this.returnError.set(null);
     this.returnLines.set(
-      sale.lines.map(
-        (line): ReturnLine => ({
-          variantId: line.variantId,
-          sku: line.sku ?? '',
-          description: line.description,
-          soldQuantity: line.quantity,
-          unitPriceMinor: line.unitPriceMinor,
-          vatRatePercent: line.vatRatePercent,
-          returnQuantity: 0,
-          restockable: true,
-        }),
-      ),
+      sale.lines.map((line): ReturnLine => ({
+        variantId: line.variantId,
+        sku: line.sku ?? '',
+        description: line.description,
+        soldQuantity: line.quantity,
+        unitPriceMinor: line.unitPriceMinor,
+        vatRatePercent: line.vatRatePercent,
+        returnQuantity: 0,
+        restockable: true,
+      })),
     );
   }
 

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -8,6 +8,7 @@ import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/money.model';
 import { formatDate, formatDateTime } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
@@ -40,7 +41,7 @@ type DetailState =
   selector: 'app-online-sale-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
+    BackButtonComponent,
     BadgeComponent,
     DetailFactsComponent,
     EmptyStateComponent,

@@ -17,7 +17,7 @@
     <header class="sales-doc-detail__header">
       <div class="sales-doc-detail__heading">
         <h1 class="sales-doc-detail__title tabular-nums">{{ referenceTitle() }}</h1>
-        <p class="sales-doc-detail__customer">{{ doc.customerName ?? '—' }}</p>
+        <p class="sales-doc-detail__subtitle">{{ doc.customerName ?? '—' }}</p>
       </div>
       <div class="sales-doc-detail__actions">
         @if (canEdit()) {

@@ -10,6 +10,12 @@
 .doc-form {
   max-inline-size: none;
 }
+
+// Back su riga propria sopra il titolo (riferimento: document-list).
+// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+.doc-form__heading app-back-button {
+  margin-block-end: var(--space-2);
+}
 .doc-form__form {
   inline-size: 100%;
 }

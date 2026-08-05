@@ -1,0 +1,87 @@
+@use 'breakpoints' as bp;
+
+/// Riga filtri compatta condivisa dai tab Movimenti e Situazione magazzino
+/// (divergenza deliberata dal canone `list-page`): molti campi su una riga con
+/// wrap, ciascuno con base flessibile e tetto di larghezza, azioni in coda.
+/// Libreria di mixin, come la gemella admin-client-page: genera i selettori
+/// `#{$block}__filters|field|filters-action|search|search-input`; label e
+/// icona ricerca restano quelli del mixin `list-page`. Va incluso DOPO
+/// `list-page`: ne sovrascrive `__filters`, `__field` e `__search`.
+@mixin inventory-compact-filters($block) {
+  // Flex con wrap: il numero di campi varia (Dal/Al compaiono solo con periodo
+  // «Personalizzato»), la riga resta compatta e va a capo solo se serve.
+  .#{$block}__filters {
+    inline-size: 100%;
+    display: flex;
+    gap: var(--space-3);
+
+    @include bp.media-up('md') {
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    @include bp.media-down('md') {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+
+  .#{$block}__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-inline-size: 0;
+    align-items: stretch;
+    inline-size: 100%;
+    --select-menu-width: 100%;
+
+    @include bp.media-up('md') {
+      flex: 1 1 9rem;
+      max-inline-size: 15rem;
+    }
+  }
+
+  .#{$block}__filters-action {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    white-space: nowrap;
+
+    @include bp.media-up('md') {
+      margin-inline-start: auto;
+      padding-inline-start: var(--space-2);
+    }
+
+    @include bp.media-down('md') {
+      align-items: stretch;
+    }
+  }
+
+  // La larghezza della ricerca la governa il campo compatto: azzera il flex e
+  // il tetto che `list-page` mette su `__search` per la toolbar canonica.
+  .#{$block}__search {
+    position: relative;
+    flex: initial;
+    max-inline-size: none;
+  }
+
+  .#{$block}__search-input {
+    inline-size: 100%;
+    box-sizing: border-box;
+    block-size: var(--field-height);
+    padding-inline: var(--space-8) var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+
+    &:focus-visible {
+      border-color: var(--color-interactive);
+      outline: none;
+      box-shadow: var(--field-focus-ring);
+    }
+  }
+}

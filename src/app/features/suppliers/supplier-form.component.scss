@@ -11,12 +11,9 @@
   max-inline-size: var(--content-default);
 }
 
-.supplier-form__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  text-decoration: none;
+// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+.supplier-form__header app-back-button {
+  margin-block-end: var(--space-2);
 }
 
 .supplier-form__title {

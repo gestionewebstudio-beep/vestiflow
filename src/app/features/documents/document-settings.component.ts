@@ -13,7 +13,6 @@ import {
   type FormControl,
   type FormGroup,
 } from '@angular/forms';
-import { Router } from '@angular/router';
 import type { Subscription } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -21,6 +20,7 @@ import type { AppError } from '@core/models/app-error.model';
 import { DocumentType } from '@core/models/document.model';
 import type { DocumentTypeSetting } from '@core/models/document.model';
 import { ToastService } from '@core/services/toast.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -59,6 +59,7 @@ type PageState = 'loading' | 'ready' | 'error';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    BackButtonComponent,
     ButtonComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
@@ -72,7 +73,6 @@ export class DocumentSettingsComponent {
   private readonly countersService = inject(DocumentCountersService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly toast = inject(ToastService);
-  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly skeletonColumns = 4;
@@ -117,10 +117,6 @@ export class DocumentSettingsComponent {
 
   protected isSaving(type: DocumentType): boolean {
     return this._savingTypes().has(type);
-  }
-
-  protected goToList(): void {
-    void this.router.navigateByUrl('/app/documents');
   }
 
   protected load(): void {

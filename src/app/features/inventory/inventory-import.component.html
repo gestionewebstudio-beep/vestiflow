@@ -1,16 +1,11 @@
 <section class="inventory-import" [attr.aria-busy]="loading() ? 'true' : null">
   <header class="inventory-import__header">
     <div>
-      <a
-        class="inventory-import__back"
-        [class.inventory-import__back--disabled]="loading()"
-        [attr.aria-disabled]="loading() ? 'true' : null"
-        href="/app/inventory"
-        (click)="$event.preventDefault(); backToList()"
-      >
-        <i class="pi pi-arrow-left" aria-hidden="true"></i>
-        Magazzino
-      </a>
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade
+           sull'hub Magazzino dedotto dall'URL. Durante l'operazione è
+           disabilitato: uscire annullerebbe l'import (stessa guardia di
+           backToList). -->
+      <app-back-button [disabled]="loading()" />
       <h1 class="inventory-import__title">Importa giacenze da CSV</h1>
       <p class="inventory-import__intro">
         Carica un CSV con colonne SKU, Location e Disponibile. VestiFlow applica rettifiche
@@ -99,7 +94,7 @@
         [disabled]="loading()"
         (click)="phase.set('upload')"
       >
-        Indietro
+        Torna al caricamento
       </app-button>
       <app-button type="button" [disabled]="!canImport()" (click)="runImport()">
         @if (loading()) {

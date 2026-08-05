@@ -23,6 +23,7 @@ import {
   patchCustomerFormGroup,
   setCustomerAnagraficaReadOnly,
 } from '@domain/customers/utils/customer-form.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -35,6 +36,7 @@ import { CustomerService } from '@domain/customers/services/customer.service';
   imports: [
     RouterLink,
     ReactiveFormsModule,
+    BackButtonComponent,
     ButtonComponent,
     ErrorStateComponent,
     TableSkeletonComponent,

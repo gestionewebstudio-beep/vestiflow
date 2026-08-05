@@ -15,7 +15,7 @@ export async function openMovementFormOfType(
   });
   await page.getByRole('button', { name: typeLabel, exact: true }).click();
   await expect(page).toHaveURL(/\/app\/inventory\/movements\/new\?type=/, { timeout: 15_000 });
-  await expect(page.locator('h1.movement-form__title')).toHaveText(
+  await expect(page.locator('app-movement-form h1.doc-form__title')).toHaveText(
     `Registra ${typeLabel.toLowerCase()}`,
   );
 }
@@ -29,7 +29,7 @@ export async function openMovementFormForSku(page: Page, sku: string): Promise<v
 
   await page.getByRole('link', { name: 'Registra movimento' }).click();
   await expect(page).toHaveURL(/\/app\/inventory\/movements\/new/, { timeout: 15_000 });
-  await expect(page.locator('h1.movement-form__title')).toHaveText(/Registra carico/);
+  await expect(page.locator('app-movement-form h1.doc-form__title')).toHaveText(/Registra carico/);
   // Deep-link ?variantId=: l'articolo compare già nella lista righe.
   await expect(page.locator('.movement-form__lines-table tbody tr')).toHaveCount(1, {
     timeout: 15_000,
@@ -81,7 +81,7 @@ export async function confirmMovement(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Salva' }).click();
   await page.getByRole('button', { name: 'Registra', exact: true }).click();
 
-  const submitError = page.locator('.movement-form__submit-error');
+  const submitError = page.locator('app-movement-form .doc-form__submit-error');
   await Promise.race([
     expect(page).toHaveURL(/\/app\/inventory\/movements\/?$/, { timeout: 30_000 }),
     submitError.waitFor({ state: 'visible', timeout: 30_000 }).then(async () => {

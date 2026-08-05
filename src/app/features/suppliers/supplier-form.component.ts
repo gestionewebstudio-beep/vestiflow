@@ -24,6 +24,7 @@ import {
   mapSupplierFormToInput,
   patchSupplierFormGroup,
 } from '@domain/suppliers/utils/supplier-form.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -36,6 +37,7 @@ import { SupplierService } from '@domain/suppliers/services/supplier.service';
   imports: [
     RouterLink,
     ReactiveFormsModule,
+    BackButtonComponent,
     ButtonComponent,
     ErrorStateComponent,
     TableSkeletonComponent,

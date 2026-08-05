@@ -29,6 +29,7 @@ import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.ut
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { canSwitchOperationalLocation } from '@core/utils/user-location-scope.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -90,6 +91,7 @@ const EMPTY_META: PageMeta = {
   selector: 'app-inventory-situation',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackButtonComponent,
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -226,17 +228,15 @@ export class InventorySituationComponent {
     search: this.search(),
   }));
 
-  private readonly query = computed(
-    (): InventorySituationListQuery => ({
-      page: this.page(),
-      pageSize: this.pageSize(),
-      locationId: this.locationFilter() || undefined,
-      supplierId: this.supplierFilter() || undefined,
-      category: this.categoryFilter() || undefined,
-      stockStatus: this.statusFilter() || undefined,
-      search: this.search().trim() || undefined,
-    }),
-  );
+  private readonly query = computed((): InventorySituationListQuery => ({
+    page: this.page(),
+    pageSize: this.pageSize(),
+    locationId: this.locationFilter() || undefined,
+    supplierId: this.supplierFilter() || undefined,
+    category: this.categoryFilter() || undefined,
+    stockStatus: this.statusFilter() || undefined,
+    search: this.search().trim() || undefined,
+  }));
 
   private readonly request = computed(() => ({
     query: this.query(),
@@ -247,12 +247,10 @@ export class InventorySituationComponent {
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
         this.inventoryService.getSituation(query).pipe(
-          map(
-            (response): SituationState => ({
-              status: 'success',
-              data: { rows: response.data, meta: response.meta },
-            }),
-          ),
+          map((response): SituationState => ({
+            status: 'success',
+            data: { rows: response.data, meta: response.meta },
+          })),
           startWith<SituationState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<SituationState>({ status: 'error', error: this.toAppError(err) }),

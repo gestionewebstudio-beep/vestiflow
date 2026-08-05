@@ -1,8 +1,7 @@
 <section class="product-detail">
-  <a class="product-detail__back" [routerLink]="listPath">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Prodotti
-  </a>
+  <!-- Fuori dagli stati: il ritorno resta disponibile anche in loading/error.
+       Senza cronologia interna ricade sulla lista prodotti dedotta dall'URL. -->
+  <app-back-button />
 
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
@@ -21,7 +20,7 @@
     <header class="product-detail__header">
       <div class="product-detail__heading">
         <h1 class="product-detail__title">{{ p.name }}</h1>
-        <p class="product-detail__brand">{{ p.brand ?? 'Senza brand' }}</p>
+        <p class="product-detail__subtitle">{{ p.brand ?? 'Senza brand' }}</p>
         <div class="product-detail__badges">
           <app-badge [tone]="statusTone(p.status)">{{ statusLabel(p.status) }}</app-badge>
           <app-badge [tone]="catalogOriginTone(p.catalogOrigin)">

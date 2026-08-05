@@ -19,6 +19,7 @@ import { moneyToMajor, parseMoneyInput } from '@core/utils/money.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { StockMovementType } from '@core/models/stock-movement.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -102,6 +103,7 @@ type SubmitState =
   selector: 'app-movement-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackButtonComponent,
     BarcodeScannerComponent,
     ButtonComponent,
     ConfirmDialogComponent,

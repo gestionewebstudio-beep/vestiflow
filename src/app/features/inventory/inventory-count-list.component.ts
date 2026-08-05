@@ -13,6 +13,7 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { InventoryCountSession } from '@core/models/inventory-count.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -33,6 +34,7 @@ type CountListState =
   selector: 'app-inventory-count-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
     EmptyStateComponent,
@@ -68,12 +70,10 @@ export class InventoryCountListComponent {
     toObservable(this.refreshTick).pipe(
       switchMap(() =>
         this.inventoryService.listInventoryCounts().pipe(
-          map(
-            (sessions): CountListState => ({
-              status: 'success',
-              sessions,
-            }),
-          ),
+          map((sessions): CountListState => ({
+            status: 'success',
+            sessions,
+          })),
           catchError((error: unknown) =>
             of({
               status: 'error' as const,

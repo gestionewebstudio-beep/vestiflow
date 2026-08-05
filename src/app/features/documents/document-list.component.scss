@@ -1,13 +1,16 @@
 @use 'breakpoints' as bp;
+@use 'list-page' as lp;
 
-:host {
-  display: block;
-}
+@include lp.list-page('doc-list');
 
-.doc-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+// Extra rispetto al mixin: azioni testata centrate in verticale e a piena
+// larghezza su mobile (bottone «Nuovo…» + menu «Altro documento» affiancati).
+.doc-list__actions {
+  align-items: center;
+
+  @include bp.media-down('md') {
+    inline-size: 100%;
+  }
 }
 
 // Modale «Duplica arrivo merce»: scelta fornitore (stile allineato al modale
@@ -69,49 +72,6 @@
   color: var(--color-text);
 }
 
-.doc-list__header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-@include bp.media-up('md') {
-  .doc-list__header {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-
-// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
-.doc-list__heading app-back-button {
-  margin-block-end: var(--space-2);
-}
-
-.doc-list__title {
-  margin: 0;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-}
-
-.doc-list__subtitle {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.doc-list__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-
-  @include bp.media-down('md') {
-    inline-size: 100%;
-  }
-}
-
 .doc-list__create-menu {
   min-inline-size: calc(var(--space-10) * 2);
 }
@@ -141,48 +101,6 @@
   color: var(--color-primary);
 }
 
-// Barra filtri compatta (stile lista Ordini cliente): ricerca a sinistra,
-// filtri in linea a destra, "Azzera filtri" in coda — niente sezioni titolate.
-.doc-list__toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-@include bp.media-up('lg') {
-  .doc-list__toolbar {
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
-  }
-}
-
-.doc-list__filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-3);
-
-  @include bp.media-down('md') {
-    flex-direction: column;
-    align-items: stretch;
-  }
-}
-
-.doc-list__field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  align-items: flex-start;
-  min-inline-size: 0;
-
-  @include bp.media-down('md') {
-    align-items: stretch;
-    inline-size: 100%;
-    --select-menu-width: 100%;
-  }
-}
-
 .doc-list__field--date {
   @include bp.media-up('md') {
     inline-size: calc(var(--space-10) * 4);
@@ -202,43 +120,4 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   white-space: nowrap;
-}
-
-.doc-list__search {
-  position: relative;
-  flex: 1 1 auto;
-  max-inline-size: var(--content-narrow);
-}
-
-.doc-list__search-icon {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: var(--space-3);
-  transform: translateY(-50%);
-  font-size: var(--text-sm);
-  color: var(--color-text-subtle);
-  pointer-events: none;
-}
-
-.doc-list__input {
-  inline-size: 100%;
-  block-size: var(--field-height);
-  padding-inline: var(--space-8) var(--space-3);
-  font-size: var(--text-base);
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-}
-
-.doc-list__input:focus-visible {
-  border-color: var(--color-interactive);
-  outline: none;
-  box-shadow: var(--field-focus-ring);
-}
-
-.doc-list__label {
-  font-size: var(--text-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
 }

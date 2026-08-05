@@ -160,7 +160,9 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
 
       await page.goto('/app/inventory/movements/new');
       await expect(page).toHaveURL(/\/app\/inventory\/movements\/new$/, { timeout: 15_000 });
-      await expect(page.locator('h1.movement-form__title')).toHaveText(/Registra carico/);
+      await expect(page.locator('app-movement-form h1.doc-form__title')).toHaveText(
+        /Registra carico/,
+      );
     });
 
     test('storico movimenti: CTA movimento coerente con inventory.manage', async ({ page }) => {

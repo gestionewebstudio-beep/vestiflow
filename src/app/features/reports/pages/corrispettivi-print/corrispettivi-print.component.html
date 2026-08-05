@@ -1,16 +1,18 @@
-@if (loading()) {
-  <app-table-skeleton [columns]="6" [rows]="8" />
-} @else if (error(); as appError) {
-  <app-error-state [description]="appError.message" />
-} @else if (summary(); as pageSummary) {
-  <div class="corrispettivi-print">
-    <div class="corrispettivi-print__toolbar no-print">
-      <a routerLink="/app/reports/corrispettivi" class="corrispettivi-print__back">
-        ← Torna ai corrispettivi
-      </a>
+<div class="corrispettivi-print">
+  <!-- La toolbar resta fuori dagli stati: la via d'uscita c'è anche durante il
+       caricamento o dopo un errore. In stampa sparisce con .no-print. -->
+  <div class="corrispettivi-print__toolbar no-print">
+    <app-back-button />
+    @if (summary()) {
       <button type="button" class="corrispettivi-print__btn" (click)="print()">Stampa</button>
-    </div>
+    }
+  </div>
 
+  @if (loading()) {
+    <app-table-skeleton [columns]="6" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" />
+  } @else if (summary(); as pageSummary) {
     <article class="corrispettivi-print__sheet">
       <header class="corrispettivi-print__header">
         <h1 class="corrispettivi-print__title">Corrispettivi commercialista</h1>
@@ -26,5 +28,5 @@
         <app-corrispettivi-orders-table [orders]="orders()" />
       </section>
     </article>
-  </div>
-}
+  }
+</div>

@@ -1,52 +1,9 @@
 @use 'breakpoints' as bp;
+@use 'list-page' as lp;
 
-:host {
-  display: block;
-}
+@include lp.list-page('accountant-register');
 
-.accountant-register {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.accountant-register__header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.accountant-register__heading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.accountant-register__back {
-  margin: 0;
-}
-
-.accountant-register__back-link {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.accountant-register__back-link:hover {
-  color: var(--color-primary);
-}
-
-.accountant-register__title {
-  margin: 0;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-}
-
-.accountant-register__subtitle {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
+// ── Regole specifiche della pagina (non coperte dal mixin) ─────────────────
 
 .accountant-register__tabs {
   display: flex;

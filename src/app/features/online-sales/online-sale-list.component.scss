@@ -1,7 +1,3 @@
 @use 'list-page' as lp;
 
-:host {
-  display: block;
-}
-
 @include lp.list-page('os-list');

@@ -11,17 +11,9 @@
   max-inline-size: none;
 }
 
-.count-new__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  text-decoration: none;
-}
-
-.count-new__back:hover {
-  color: var(--color-text);
+// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+.count-new__heading app-back-button {
+  margin-block-end: var(--space-2);
 }
 
 .count-new__title {
@@ -31,7 +23,7 @@
 }
 
 .count-new__intro {
-  margin: 0;
+  margin: var(--space-1) 0 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }

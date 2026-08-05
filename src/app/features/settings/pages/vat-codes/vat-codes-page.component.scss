@@ -1,90 +1,21 @@
 @use 'breakpoints' as bp;
+@use 'list-page' as lp;
+
+@include lp.list-page('vat-codes');
+
+// ── Regole specifiche della pagina (non coperte dal mixin) ─────────────────
+
+.vat-codes__field select {
+  min-height: var(--field-height);
+  padding-inline: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
 
 .vat-codes {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-
-  &__header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-  }
-
-  &__heading {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  &__back {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    font-size: var(--text-sm);
-    color: var(--color-text-muted);
-    text-decoration: none;
-
-    &:hover {
-      color: var(--color-text);
-      text-decoration: underline;
-    }
-  }
-
-  &__title {
-    margin: 0;
-    font-size: var(--text-2xl);
-  }
-
-  &__subtitle {
-    margin: 0;
-    font-size: var(--text-sm);
-    color: var(--color-text-muted);
-  }
-
-  &__toolbar {
-    display: flex;
-    align-items: flex-end;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-
-  &__search {
-    flex: 1 1 var(--space-32);
-    min-width: 0;
-    min-height: var(--field-height);
-    padding-inline: var(--space-3);
-    border: var(--border-width) solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-surface);
-    color: var(--color-text);
-    font-size: var(--text-sm);
-  }
-
-  &__filter {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-
-    select {
-      min-height: var(--field-height);
-      padding-inline: var(--space-2);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-md);
-      background: var(--color-surface);
-      color: var(--color-text);
-      font-size: var(--text-sm);
-    }
-  }
-
-  &__filter-label {
-    font-weight: 600;
-  }
-
   &__group {
     border: var(--border-width) solid var(--color-border);
     border-radius: var(--radius-md);

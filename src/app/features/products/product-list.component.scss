@@ -1,8 +1,7 @@
 @use 'breakpoints' as bp;
+@use 'list-page' as lp;
 
-:host {
-  display: block;
-}
+@include lp.list-page('product-list');
 
 .product-list__columns {
   display: flex;
@@ -33,46 +32,6 @@
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border-strong);
   border-radius: var(--radius-md);
-}
-
-.product-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.product-list__header {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-3);
-}
-
-@include bp.media-up('md') {
-  .product-list__header {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-
-.product-list__title {
-  margin: 0;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-}
-
-.product-list__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.product-list__shopify-error {
-  margin: 0;
-  color: var(--status-error-fg);
-  font-size: var(--text-sm);
 }
 
 .product-list__scan-feedback {

@@ -5,6 +5,9 @@
 >
   <header class="pos__header">
     <div class="pos__heading">
+      <!-- Con carrello o reso in corso l'uscita passa comunque dalla guard di
+           route: il dialogo a tre scelte intercetta anche questa freccia. -->
+      <app-back-button />
       <h1 class="pos__title">Vendita/Reso in negozio</h1>
       <p class="pos__subtitle">
         Cassa interna non fiscale: lo scontrino viene emesso sulla cassa esterna. Alla conclusione

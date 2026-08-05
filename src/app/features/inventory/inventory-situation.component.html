@@ -1,8 +1,11 @@
 <section class="inventory-situation">
   <header class="inventory-situation__header">
-    <div>
+    <div class="inventory-situation__heading">
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade
+           sull'hub Magazzino dedotto dall'URL. -->
+      <app-back-button />
       <h1 class="inventory-situation__title">Situazione magazzino</h1>
-      <p class="inventory-situation__intro">
+      <p class="inventory-situation__subtitle">
         Fotografia degli articoli con scorte, dati economici e stato. Seleziona gli articoli da
         riordinare per creare un ordine fornitore.
       </p>

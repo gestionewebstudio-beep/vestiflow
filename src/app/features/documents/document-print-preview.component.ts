@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { DocumentType } from '@core/models/document.model';
@@ -15,6 +15,7 @@ import type { DocumentAddress } from '@core/models/document.model';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -44,7 +45,7 @@ const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini
   selector: 'app-document-print-preview',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
+    BackButtonComponent,
     ConfirmDialogComponent,
     DocumentLinesTableComponent,
     ErrorStateComponent,
@@ -67,6 +68,12 @@ export class DocumentPrintPreviewComponent {
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });
   private readonly request = computed(() => this.params().get('id') ?? '');
+
+  /**
+   * Ritorno senza cronologia: parentRoute scarterebbe 'print' e l'id arrivando
+   * all'hub Documenti, ma la pagina sensata è il dettaglio del documento.
+   */
+  protected readonly detailPath = computed(() => `/app/documents/${this.request()}`);
 
   private readonly state = toSignal(
     toObservable(this.request).pipe(

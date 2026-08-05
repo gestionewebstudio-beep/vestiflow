@@ -1,43 +1,13 @@
 @use 'breakpoints' as bp;
+@use 'list-page' as lp;
 
-.payment-options {
-  display: grid;
-  gap: var(--space-5);
-}
+@include lp.list-page('payment-options');
 
-.payment-options__header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
+// ── Regole specifiche della pagina (non coperte dal mixin) ─────────────────
 
-.payment-options__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-block-end: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.payment-options__back:hover {
-  color: var(--color-text);
-}
-
-.payment-options__title {
-  margin: 0;
-  font-size: var(--text-2xl);
-  color: var(--color-text);
-}
-
+// Sottotitolo lungo: contenuto a larghezza di lettura, non a tutta pagina.
 .payment-options__subtitle {
-  margin: var(--space-2) 0 0;
   max-inline-size: var(--content-narrow);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
 }
 
 .payment-options__panels {

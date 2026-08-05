@@ -1,43 +1,14 @@
 @use 'breakpoints' as bp;
+@use 'detail-page' as dp;
 @use 'responsive-table' as rt;
 
 :host {
   display: block;
 }
 
-.count-detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
+@include dp.detail-page('count-detail');
 
-.count-detail__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  text-decoration: none;
-}
-
-.count-detail__back:hover {
-  color: var(--color-text);
-}
-
-.count-detail__header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-@include bp.media-up('md') {
-  .count-detail__header {
-    flex-direction: row;
-    align-items: flex-start;
-    justify-content: space-between;
-  }
-}
-
+// Titolo e pill di stato affiancati, dentro il gruppo heading del mixin.
 .count-detail__title-row {
   display: flex;
   flex-wrap: wrap;
@@ -45,16 +16,11 @@
   gap: var(--space-2);
 }
 
-.count-detail__title {
-  margin: 0;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-}
-
+// Lo stacco verticale fra le righe della testata lo dà il gap del heading.
 .count-detail__meta,
 .count-detail__notes,
 .count-detail__document-link {
-  margin: var(--space-1) 0 0;
+  margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
@@ -66,12 +32,6 @@
 
 .count-detail__document-link a:hover {
   text-decoration: underline;
-}
-
-.count-detail__header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 .count-detail__review-banner {

@@ -1,8 +1,13 @@
 <section class="stock-movements">
   <header class="stock-movements__header">
-    <h1 class="stock-movements__title">Movimenti di magazzino</h1>
+    <div class="stock-movements__heading">
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade
+           sull'hub Magazzino dedotto dall'URL. -->
+      <app-back-button />
+      <h1 class="stock-movements__title">Movimenti di magazzino</h1>
+    </div>
     @if (canManageInventory()) {
-      <div class="stock-movements__header-actions">
+      <div class="stock-movements__actions">
         @for (action of movementActions; track action.type) {
           <app-button variant="secondary" (click)="newMovement(action.type)">
             <i class="pi {{ action.icon }}" aria-hidden="true"></i>

@@ -16,22 +16,6 @@
   gap: var(--space-2);
 }
 
-.doc-settings__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.doc-settings__back:hover {
-  color: var(--color-text);
-}
-
 .doc-settings__title {
   margin: 0;
   font-size: var(--text-2xl);

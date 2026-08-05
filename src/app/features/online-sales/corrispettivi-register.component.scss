@@ -2,10 +2,6 @@
 @use 'list-page' as lp;
 @use 'responsive-table' as rt;
 
-:host {
-  display: block;
-}
-
 @include lp.list-page('cor-list');
 @include rt.data-table-desktop('cor-table');
 @include rt.data-table-mobile-cards('cor-table');

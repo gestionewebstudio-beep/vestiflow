@@ -1,10 +1,8 @@
 <section class="supplier-form">
-  <a class="supplier-form__back" [routerLink]="listPath">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Fornitori
-  </a>
-
   <header class="supplier-form__header">
+    <!-- Torna alla pagina precedente; senza cronologia ricade sulla lista
+         Fornitori dedotta dall'URL. -->
+    <app-back-button />
     <h1 class="supplier-form__title">
       {{ isEdit() ? 'Modifica fornitore' : 'Nuovo fornitore' }}
     </h1>

@@ -1,10 +1,10 @@
 <section class="sales-list">
   <header class="sales-list__header">
     <div class="sales-list__heading">
+      <!-- Pagina di primo livello senza padre nell'URL: il ritorno esplicito
+           è «Documenti», coerente col breadcrumb. -->
+      <app-back-button fallbackLink="/app/documents" />
       <div class="sales-list__title-row">
-        <!-- Pagina di primo livello senza padre nell'URL: il ritorno esplicito
-             è «Documenti», coerente col breadcrumb. -->
-        <app-back-button fallbackLink="/app/documents" />
         <h1 class="sales-list__title">{{ pageTitle() }}</h1>
         @if (!loading()) {
           <span class="sales-list__count tabular-nums">

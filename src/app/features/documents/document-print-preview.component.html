@@ -1,11 +1,9 @@
-@if (loading()) {
-  <app-table-skeleton [columns]="4" [rows]="8" />
-} @else if (error()) {
-  <app-error-state description="Impossibile caricare il documento per la stampa." />
-} @else if (document(); as doc) {
-  <div class="doc-print">
-    <div class="doc-print__toolbar no-print">
-      <a routerLink="/app/documents/{{ doc.id }}" class="doc-print__back">← Torna al documento</a>
+<div class="doc-print">
+  <div class="doc-print__toolbar no-print">
+    <!-- Senza cronologia il padre dedotto dall'URL sarebbe l'hub Documenti:
+         da qui si torna al dettaglio del documento. -->
+    <app-back-button [fallbackLink]="detailPath()" />
+    @if (document()) {
       <button
         type="button"
         class="doc-print__btn"
@@ -15,8 +13,14 @@
         {{ downloadingPdf() ? 'Generazione PDF…' : 'Scarica PDF' }}
       </button>
       <button type="button" class="doc-print__btn" (click)="print()">Stampa</button>
-    </div>
+    }
+  </div>
 
+  @if (loading()) {
+    <app-table-skeleton [columns]="4" [rows]="8" />
+  } @else if (error()) {
+    <app-error-state description="Impossibile caricare il documento per la stampa." />
+  } @else if (document(); as doc) {
     <article class="doc-print__sheet">
       @if (showProformaDisclaimer()) {
         <p class="doc-print__disclaimer" role="note">{{ proformaDisclaimer }}</p>
@@ -116,8 +120,8 @@
         </footer>
       }
     </article>
-  </div>
-}
+  }
+</div>
 
 <app-confirm-dialog
   [(open)]="incompletePrintDialogOpen"

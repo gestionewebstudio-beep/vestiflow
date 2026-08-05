@@ -25,6 +25,7 @@ import { canManageSupplierOrders } from '@core/permissions/tenant-permissions.ut
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { SupplierOrder } from '@core/models/supplier-order.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -66,6 +67,7 @@ type OrderListState =
   selector: 'app-supplier-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackButtonComponent,
     ButtonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -110,13 +112,11 @@ export class SupplierOrderListComponent {
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
         this.service.getSupplierOrders(query).pipe(
-          map(
-            (response): OrderListState => ({
-              status: 'success',
-              orders: response.data,
-              meta: response.meta,
-            }),
-          ),
+          map((response): OrderListState => ({
+            status: 'success',
+            orders: response.data,
+            meta: response.meta,
+          })),
           startWith<OrderListState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<OrderListState>({ status: 'error', error: this.toAppError(err) }),

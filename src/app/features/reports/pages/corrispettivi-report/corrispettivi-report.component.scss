@@ -22,18 +22,11 @@
   gap: var(--space-1);
 }
 
-.corrispettivi__back {
-  margin: 0;
-}
-
-.corrispettivi__back-link {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.corrispettivi__back-link:hover {
-  color: var(--color-primary);
+// Nel flex a colonna il pulsante non deve stirarsi a tutta larghezza; col gap
+// del blocco lo stacco dal titolo arriva a --space-2, come nelle altre liste.
+.corrispettivi__heading app-back-button {
+  align-self: flex-start;
+  margin-block-end: var(--space-1);
 }
 
 .corrispettivi__title {

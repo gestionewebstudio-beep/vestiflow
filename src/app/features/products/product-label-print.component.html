@@ -17,10 +17,9 @@
     }
 
     <header class="label-print__toolbar">
-      <a class="label-print__back" [routerLink]="detailPath()">
-        <i class="pi pi-arrow-left" aria-hidden="true"></i>
-        Torna al prodotto
-      </a>
+      <!-- Il padre dedotto dall'URL sarebbe la lista prodotti: senza cronologia
+           si torna invece al dettaglio del prodotto di queste etichette. -->
+      <app-back-button [fallbackLink]="detailPath()" />
       <div class="label-print__actions">
         <label class="label-print__quantity">
           Copie per etichetta

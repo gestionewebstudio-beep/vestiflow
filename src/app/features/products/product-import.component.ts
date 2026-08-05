@@ -16,6 +16,7 @@ import {
   productImportFormatHint,
   productImportIntro,
 } from '@core/models/tenant-channel-profile.model';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
@@ -32,7 +33,7 @@ type ImportPhase = 'upload' | 'preview' | 'done';
 @Component({
   selector: 'app-product-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, BadgeComponent, InlineBannerComponent],
+  imports: [BackButtonComponent, ButtonComponent, BadgeComponent, InlineBannerComponent],
   templateUrl: './product-import.component.html',
   styleUrl: './product-import.component.scss',
 })
