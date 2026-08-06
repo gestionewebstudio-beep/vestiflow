@@ -81,6 +81,17 @@ export class FiscalDevicePanelComponent {
     notes: this.fb.control(''),
   });
 
+  /**
+   * Mappa aliquota → reparto: quattro coppie fisse (le RT hanno pochi
+   * reparti). Riga vuota = non usata; si salva solo ciò che è compilato.
+   */
+  protected readonly departmentRows = Array.from({ length: 4 }, (_, index) => ({
+    rateControl: this.fb.control(''),
+    departmentControl: this.fb.control(''),
+    rateId: `fiscal-device-rate-${index}`,
+    departmentId: `fiscal-device-department-${index}`,
+  }));
+
   constructor() {
     this.reload();
   }
@@ -136,6 +147,7 @@ export class FiscalDevicePanelComponent {
         endpoint: raw.endpoint.trim(),
         serialNumber: raw.serialNumber.trim() || undefined,
         enabled: raw.enabled,
+        vatDepartments: this.collectVatDepartments(),
         notes: raw.notes.trim() || undefined,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -204,5 +216,25 @@ export class FiscalDevicePanelComponent {
       enabled: device?.enabled ?? true,
       notes: device?.notes ?? '',
     });
+    this.departmentRows.forEach((row, index) => {
+      const entry = device?.vatDepartments?.[index];
+      row.rateControl.setValue(entry ? String(entry.ratePercent) : '');
+      row.departmentControl.setValue(entry ? String(entry.department) : '');
+    });
+  }
+
+  /** Solo le righe compilate per intero e numeriche entrano nella mappa. */
+  private collectVatDepartments(): readonly { ratePercent: number; department: number }[] {
+    const inRange = (value: number, min: number, max: number): boolean =>
+      Number.isInteger(value) && value >= min && value <= max;
+    return this.departmentRows
+      .filter(
+        (row) => row.rateControl.value.trim() !== '' && row.departmentControl.value.trim() !== '',
+      )
+      .map((row) => ({
+        ratePercent: Number(row.rateControl.value.trim()),
+        department: Number(row.departmentControl.value.trim()),
+      }))
+      .filter((entry) => inRange(entry.ratePercent, 0, 100) && inRange(entry.department, 1, 99));
   }
 }

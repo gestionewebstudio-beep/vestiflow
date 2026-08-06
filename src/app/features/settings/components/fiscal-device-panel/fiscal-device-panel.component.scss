@@ -60,6 +60,32 @@
   cursor: pointer;
 }
 
+.fiscal-device__departments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.fiscal-device__legend {
+  padding-inline: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.fiscal-device__department-row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.fiscal-device__field--narrow {
+  flex: 0 1 var(--field-w-sm);
+}
+
 .fiscal-device__meta {
   margin: 0;
   font-size: var(--text-xs);

@@ -518,6 +518,31 @@
   }
 }
 
+// ── Coda «da fiscalizzare» ───────────────────────────────────────────────
+
+.pos__fiscal-queue {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pos__fiscal-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.pos__fiscal-error {
+  color: var(--status-warning-fg);
+  font-size: var(--text-xs);
+}
+
 // ── Pagamento multi-tender ───────────────────────────────────────────────
 
 .pos__payments {

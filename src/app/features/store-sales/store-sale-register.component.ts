@@ -14,7 +14,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
 
-import { catchError, map, of, switchMap, take } from 'rxjs';
+import { catchError, firstValueFrom, map, of, switchMap, take } from 'rxjs';
 
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
@@ -59,6 +59,12 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 
+import type {
+  FiscalPrintPayload,
+  PendingFiscalReceipt,
+} from '@domain/fiscal/models/fiscal-print.model';
+import { EpsonFiscalPrinterService } from '@domain/fiscal/services/epson-fiscal-printer.service';
+import { FiscalReceiptsService } from '@domain/fiscal/services/fiscal-receipts.service';
 import type {
   RecentStoreSale,
   StoreSaleLookupItem,
@@ -166,6 +172,8 @@ function looksLikeBarcode(code: string): boolean {
 export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   private readonly service = inject(StoreSalesService);
   private readonly cashSessionsService = inject(CashSessionsService);
+  private readonly fiscalReceiptsService = inject(FiscalReceiptsService);
+  private readonly epsonPrinter = inject(EpsonFiscalPrinterService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly productService = inject(ProductService);
   private readonly customerService = inject(CustomerService);
@@ -237,7 +245,21 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   private readonly loadCashSessionOnLocation = effect(() => {
     const locationId = this.selectedLocationId();
     this.reloadCashSession(locationId);
+    this.reloadPendingFiscal(locationId);
   });
+
+  // ── Fiscalizzazione: esito emissione e coda «da fiscalizzare» ────────────
+
+  /** Esito dell'ultima emissione (null = nessuna emissione in questa sessione). */
+  protected readonly fiscalOutcome = signal<{
+    readonly state: 'printing' | 'emitted' | 'failed';
+    readonly fiscalNumber?: string | null;
+    readonly message?: string;
+  } | null>(null);
+  protected readonly pendingFiscal = signal<readonly PendingFiscalReceipt[]>([]);
+  protected readonly fiscalPrintPending = signal(false);
+
+  private pendingFiscalSubscription: Subscription | null = null;
 
   private readonly pinFixedOperationalLocation = effect(() => {
     const fixedId = this.operationalLocations.fixedSingleStoreLocationId();
@@ -460,6 +482,67 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   protected onCustomerChange(value: string | null): void {
     this.selectedCustomerId.set(value || null);
+  }
+
+  // ── Fiscalizzazione: emissione, esito, ristampa ──────────────────────────
+
+  private reloadPendingFiscal(locationId: EntityId | null): void {
+    if (!locationId) {
+      this.pendingFiscal.set([]);
+      return;
+    }
+    this.pendingFiscalSubscription = this.fiscalReceiptsService
+      .listPending(locationId)
+      .pipe(
+        catchError(() => of([] as readonly PendingFiscalReceipt[])),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((pending) => this.pendingFiscal.set(pending));
+  }
+
+  /**
+   * Emette il documento commerciale sulla stampante della sede e riporta
+   * l'esito al server. Il fallimento NON blocca la cassa: la vendita resta
+   * in coda «da fiscalizzare» e si riemette da lì.
+   */
+  private async emitFiscal(payload: FiscalPrintPayload): Promise<void> {
+    if (this.fiscalPrintPending()) {
+      return;
+    }
+    this.fiscalPrintPending.set(true);
+    this.fiscalOutcome.set({ state: 'printing' });
+    try {
+      const outcome =
+        payload.brand === 'epson'
+          ? await this.epsonPrinter.print(payload)
+          : {
+              ok: false as const,
+              errorMessage: `Driver ${payload.brand} non ancora disponibile: emetti sul registratore e segna l'esito.`,
+            };
+
+      await firstValueFrom(
+        this.fiscalReceiptsService.reportOutcome(payload.documentId, {
+          outcome: outcome.ok ? 'emitted' : 'failed',
+          fiscalNumber: outcome.ok ? outcome.fiscalNumber : undefined,
+          serialNumber: outcome.ok ? outcome.serialNumber : undefined,
+          errorMessage: outcome.ok ? undefined : outcome.errorMessage,
+        }),
+      ).catch(() => undefined);
+
+      this.fiscalOutcome.set(
+        outcome.ok
+          ? { state: 'emitted', fiscalNumber: outcome.fiscalNumber ?? null }
+          : { state: 'failed', message: outcome.errorMessage },
+      );
+    } finally {
+      this.fiscalPrintPending.set(false);
+      this.reloadPendingFiscal(this.selectedLocationId());
+    }
+  }
+
+  /** «Riemetti» dalla coda: stesso flusso dell'emissione alla vendita. */
+  protected retryFiscal(item: PendingFiscalReceipt): void {
+    void this.emitFiscal(item.payload);
   }
 
   // ── Sessione di cassa: apertura, movimenti, chiusura ─────────────────────
@@ -1183,6 +1266,12 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.selectedCustomerId.set(null);
           // La vendita è entrata nella sessione: la fascia deve rifletterla.
           this.reloadCashSession(locationId);
+          // Sede fiscale: emetti subito il documento commerciale.
+          if (result.fiscal) {
+            void this.emitFiscal(result.fiscal);
+          } else {
+            this.fiscalOutcome.set(null);
+          }
           this.focusSearchInput();
           onDone?.();
         },
@@ -1341,6 +1430,12 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.loadRecentSales();
           // Il rimborso è uscito dalla sessione: la fascia deve rifletterlo.
           this.reloadCashSession(locationId);
+          // Sede fiscale: emetti il documento commerciale di reso.
+          if (result.fiscal) {
+            void this.emitFiscal(result.fiscal);
+          } else {
+            this.fiscalOutcome.set(null);
+          }
           onDone?.();
         },
         error: (err: unknown) => {

@@ -1,7 +1,8 @@
-// Modelli della cassa negozio (fase 3 §7-§9): vendita immediata non fiscale
-// a carrello e reso collegato. Rispecchiano i contratti API `store-sales`.
+// Modelli della cassa negozio (fase 3 §7-§9): vendita immediata a carrello e
+// reso collegato. Rispecchiano i contratti API `store-sales`.
 
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
+import type { FiscalPrintPayload } from '@domain/fiscal/models/fiscal-print.model';
 
 export type StoreSalePaymentMethod = 'cash' | 'card' | 'other';
 
@@ -96,6 +97,11 @@ export interface StoreSaleResult {
     readonly quantity: number;
     readonly remainingAvailable: number;
   }[];
+  /**
+   * Sede con stampante fiscale abilitata: payload pronto da stampare (la
+   * cassa emette subito e riporta l'esito). Null = sede non fiscale.
+   */
+  readonly fiscal: FiscalPrintPayload | null;
 }
 
 /** Vendita negozio recente, per collegare un reso alla vendita origine. */

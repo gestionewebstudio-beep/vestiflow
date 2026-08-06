@@ -2173,6 +2173,9 @@ model FiscalDevice {
   /// Matricola fiscale del dispositivo (finisce sul documento commerciale).
   serialNumber String?           @map("serial_number")
   enabled      Boolean           @default(true)
+  /// Mappa aliquota → reparto della stampante (es. [{ratePercent:22,department:1}]):
+  /// le RT associano l'IVA ai reparti configurati a bordo, non alla riga.
+  vatDepartments Json?           @map("vat_departments")
   notes        String?
   /// Diagnostica riportata dalla cassa: ultimo contatto riuscito, ultimo errore.
   lastSeenAt   DateTime?         @map("last_seen_at")

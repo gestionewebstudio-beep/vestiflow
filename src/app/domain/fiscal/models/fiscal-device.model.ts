@@ -7,6 +7,12 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 
 export type FiscalDeviceBrand = 'epson' | 'custom' | 'rch' | 'olivetti' | 'other';
 
+/** Mappa aliquota IVA → reparto configurato a bordo stampante. */
+export interface FiscalVatDepartment {
+  readonly ratePercent: number;
+  readonly department: number;
+}
+
 export interface FiscalDevice {
   readonly locationId: EntityId;
   readonly locationName: string;
@@ -17,6 +23,7 @@ export interface FiscalDevice {
   /** Matricola fiscale (finisce sul documento commerciale). */
   readonly serialNumber: string | null;
   readonly enabled: boolean;
+  readonly vatDepartments: readonly FiscalVatDepartment[] | null;
   readonly notes: string | null;
   readonly lastSeenAt: IsoDateString | null;
   readonly lastError: string | null;
@@ -29,6 +36,7 @@ export interface UpsertFiscalDevicePayload {
   readonly endpoint: string;
   readonly serialNumber?: string;
   readonly enabled?: boolean;
+  readonly vatDepartments?: readonly FiscalVatDepartment[];
   readonly notes?: string;
 }
 

@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { FiscalDeviceBrand } from '@prisma/client';
+import { Prisma, type FiscalDeviceBrand } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
-import type { UpsertFiscalDeviceDto } from './dto/upsert-fiscal-device.dto';
+import type { UpsertFiscalDeviceDto, VatDepartmentDto } from './dto/upsert-fiscal-device.dto';
 
 /** Configurazione dispositivo per la UI (Impostazioni e cassa). */
 export interface FiscalDeviceResult {
@@ -14,10 +14,28 @@ export interface FiscalDeviceResult {
   readonly endpoint: string;
   readonly serialNumber: string | null;
   readonly enabled: boolean;
+  readonly vatDepartments: readonly { ratePercent: number; department: number }[] | null;
   readonly notes: string | null;
   readonly lastSeenAt: Date | null;
   readonly lastError: string | null;
   readonly updatedAt: Date;
+}
+
+/** La mappa persiste come JSON: qui si rilegge nella forma tipizzata. */
+function parseVatDepartments(
+  value: Prisma.JsonValue | null,
+): readonly { ratePercent: number; department: number }[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const rows = value.filter(
+    (entry): entry is { ratePercent: number; department: number } =>
+      !!entry &&
+      typeof entry === 'object' &&
+      Number.isInteger((entry as { ratePercent?: unknown }).ratePercent) &&
+      Number.isInteger((entry as { department?: unknown }).department),
+  );
+  return rows.length > 0 ? rows : null;
 }
 
 /**
@@ -44,6 +62,7 @@ export class FiscalDevicesService {
       endpoint: device.endpoint,
       serialNumber: device.serialNumber,
       enabled: device.enabled,
+      vatDepartments: parseVatDepartments(device.vatDepartments),
       notes: device.notes,
       lastSeenAt: device.lastSeenAt,
       lastError: device.lastError,
@@ -71,6 +90,7 @@ export class FiscalDevicesService {
       endpoint: dto.endpoint.trim().replace(/\/+$/, ''),
       serialNumber: dto.serialNumber?.trim() || null,
       enabled: dto.enabled ?? true,
+      vatDepartments: this.vatDepartmentsJson(dto.vatDepartments),
       notes: dto.notes?.trim() || null,
     };
     const device = await this.prisma.fiscalDevice.upsert({
@@ -87,11 +107,22 @@ export class FiscalDevicesService {
       endpoint: device.endpoint,
       serialNumber: device.serialNumber,
       enabled: device.enabled,
+      vatDepartments: parseVatDepartments(device.vatDepartments),
       notes: device.notes,
       lastSeenAt: device.lastSeenAt,
       lastError: device.lastError,
       updatedAt: device.updatedAt,
     };
+  }
+
+  /** Mappa vuota o assente ⇒ NULL in colonna, non una lista vuota. */
+  private vatDepartmentsJson(
+    rows: readonly VatDepartmentDto[] | undefined,
+  ): Prisma.InputJsonValue | typeof Prisma.DbNull {
+    if (!rows || rows.length === 0) {
+      return Prisma.DbNull;
+    }
+    return rows.map((row) => ({ ratePercent: row.ratePercent, department: row.department }));
   }
 
   async remove(tenantId: string, locationId: string): Promise<void> {

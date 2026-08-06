@@ -105,6 +105,9 @@ interface FakeDb {
   payments: FakePayment[];
   corrispettivi: Record<string, unknown>[];
   corrispettivoLines: Record<string, unknown>[];
+  /** Stampante fiscale abilitata della sede (null = sede non fiscale). */
+  fiscalDevice: Record<string, unknown> | null;
+  fiscalReceipts: Record<string, unknown>[];
   sequences: Map<string, number>;
   idCounter: number;
   failNextMovementCreate: boolean;
@@ -165,6 +168,8 @@ function createDb(): FakeDb {
     payments: [],
     corrispettivi: [],
     corrispettivoLines: [],
+    fiscalDevice: null,
+    fiscalReceipts: [],
     sequences: new Map(),
     idCounter: 0,
     failNextMovementCreate: false,
@@ -380,6 +385,31 @@ function createFakePrisma(db: FakeDb): PrismaService {
     },
     // Nessuna cassa aperta nel fake db: vendite e resi restano sganciati.
     cashSession: { findFirst: () => Promise.resolve(null) },
+    fiscalDevice: {
+      findFirst: () => Promise.resolve(db.fiscalDevice ? { ...db.fiscalDevice } : null),
+    },
+    fiscalReceipt: {
+      create: ({ data }: { data: Record<string, unknown> }) => {
+        db.fiscalReceipts.push({ ...data });
+        return Promise.resolve({ id: `fr-${db.fiscalReceipts.length}`, ...data });
+      },
+      findFirst: ({ where }: { where: { documentId?: string } }) => {
+        const match = db.fiscalReceipts.find(
+          (receipt) => receipt['documentId'] === where.documentId,
+        );
+        return Promise.resolve(
+          match
+            ? {
+                id: 'fr-original',
+                fiscalNumber: '0001-0042',
+                issuedAt: new Date('2026-08-06T10:00:00Z'),
+                serialNumber: 'MAT123',
+                ...match,
+              }
+            : null,
+        );
+      },
+    },
     corrispettivoEntry: {
       create: ({ data }: { data: Record<string, unknown> }) => {
         db.corrispettivi.push({ ...data });
@@ -643,6 +673,116 @@ describe('StoreSalesService (fase 3 §12)', () => {
       amountMinor: 2980,
       tenderedMinor: null,
     });
+  });
+
+  it('Sede fiscale: la vendita nasce «da fiscalizzare» e il result porta il payload di stampa', async () => {
+    const db = createDb();
+    db.defaultVatCodeId = VAT_22.id;
+    db.vatCodes = [VAT_22];
+    db.fiscalDevice = {
+      id: 'dev-1',
+      endpoint: 'https://192.168.1.50',
+      brand: 'epson',
+      serialNumber: 'MAT123',
+      vatDepartments: [{ ratePercent: 22, department: 3 }],
+    };
+    const { service } = createService(db);
+
+    const result = await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'card',
+        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 1990 }],
+      },
+      user,
+    );
+
+    // Ricevuta pending nella stessa transazione del documento.
+    expect(db.fiscalReceipts).toHaveLength(1);
+    expect(db.fiscalReceipts[0]).toMatchObject({
+      documentId: db.documents[0]!.id,
+      deviceId: 'dev-1',
+      serialNumber: 'MAT123',
+    });
+
+    // Payload pronto da stampare: lordo, reparto dalla mappa, pagamento carta.
+    expect(result.fiscal).toMatchObject({
+      documentType: 'sale',
+      endpoint: 'https://192.168.1.50',
+      brand: 'epson',
+      lines: [
+        // 1990 netti al 22% = 2428 lordi; aliquota 22 → reparto 3.
+        { quantity: 1, unitPriceGrossMinor: 2428, department: 3 },
+      ],
+      payments: [{ description: 'CARTA', amountMinor: 2428, epsonPaymentType: 2 }],
+      original: null,
+    });
+  });
+
+  it('Reso su sede fiscale: ricevuta agganciata all’originale e payload con rimborso', async () => {
+    const db = createDb();
+    db.fiscalDevice = {
+      id: 'dev-1',
+      endpoint: 'https://192.168.1.50',
+      brand: 'epson',
+      serialNumber: 'MAT123',
+      vatDepartments: null,
+    };
+    const { service } = createService(db);
+
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      },
+      user,
+    );
+    const sale = db.documents[0]!;
+
+    const result = await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        saleDocumentId: sale.id,
+        reason: 'capo difettoso',
+        refundMethod: 'card',
+        lines: [
+          { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 },
+        ],
+      },
+      user,
+    );
+
+    // Seconda ricevuta (il reso) agganciata alla ricevuta della vendita.
+    expect(db.fiscalReceipts).toHaveLength(2);
+    expect(db.fiscalReceipts[1]).toMatchObject({ originalReceiptId: 'fr-original' });
+
+    expect(result.fiscal).toMatchObject({
+      documentType: 'return',
+      payments: [{ description: 'CARTA', amountMinor: 2990, epsonPaymentType: 2 }],
+      original: { fiscalNumber: '0001-0042', serialNumber: 'MAT123' },
+    });
+  });
+
+  it('Sede NON fiscale: nessuna ricevuta, result.fiscal null (cassa come oggi)', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+
+    const result = await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      },
+      user,
+    );
+
+    expect(db.fiscalReceipts).toHaveLength(0);
+    expect(result.fiscal).toBeNull();
   });
 
   it('Multi-tender: somma diversa dal totale ⇒ vendita rifiutata, nessun documento né movimento', async () => {

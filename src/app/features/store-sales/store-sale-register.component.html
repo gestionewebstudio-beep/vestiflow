@@ -93,6 +93,57 @@
     <app-inline-banner tone="success" [message]="notice" />
   }
 
+  @if (fiscalOutcome(); as fiscal) {
+    @if (fiscal.state === 'printing') {
+      <app-inline-banner tone="info" message="Emissione scontrino in corso…" />
+    } @else if (fiscal.state === 'emitted') {
+      <app-inline-banner
+        tone="success"
+        [message]="
+          'Scontrino emesso' + (fiscal.fiscalNumber ? ' n. ' + fiscal.fiscalNumber : '') + '.'
+        "
+      />
+    } @else {
+      <app-inline-banner
+        tone="warning"
+        [message]="
+          'Scontrino NON emesso: ' +
+          (fiscal.message ?? 'errore stampante.') +
+          ' La vendita è in coda «Da fiscalizzare».'
+        "
+      />
+    }
+  }
+
+  @if (pendingFiscal().length > 0) {
+    <section class="pos__panel" aria-labelledby="pos-fiscal-queue-title">
+      <div class="pos__panel-head">
+        <h2 id="pos-fiscal-queue-title" class="pos__panel-title">Da fiscalizzare</h2>
+        <span class="pos__count tabular-nums">{{ pendingFiscal().length }}</span>
+      </div>
+      <ul class="pos__fiscal-queue" aria-label="Documenti in attesa di scontrino">
+        @for (item of pendingFiscal(); track item.receiptId) {
+          <li class="pos__fiscal-item">
+            <span class="tabular-nums">
+              {{ item.payload.documentType === 'return' ? 'Reso' : 'Vendita' }}
+              {{ item.payload.reference }} · {{ money(item.totalMinor) }}
+            </span>
+            @if (item.errorMessage) {
+              <span class="pos__fiscal-error">{{ item.errorMessage }}</span>
+            }
+            <app-button
+              variant="secondary"
+              [disabled]="fiscalPrintPending()"
+              (click)="retryFiscal(item)"
+            >
+              Riemetti
+            </app-button>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
   @if (mode() === 'sale') {
     <!-- ── VENDITA A CARRELLO ─────────────────────────────────────────── -->
     <section class="pos__panel" aria-labelledby="pos-sale-title">

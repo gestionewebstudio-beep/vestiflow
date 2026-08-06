@@ -34,6 +34,11 @@ import {
 } from '../vat/vat-line-calculation.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 
+import {
+  buildFiscalPrintPayload,
+  type FiscalPrintPayload,
+} from '../fiscal-devices/fiscal-print-payload.util';
+
 import type { CreateStoreReturnDto } from './dto/create-store-return.dto';
 import type { CreateStoreSaleDto } from './dto/create-store-sale.dto';
 import { createStoreCorrispettivoEntryTx } from './store-corrispettivo-entry.util';
@@ -52,6 +57,11 @@ export interface StoreSaleResult {
     readonly quantity: number;
     readonly remainingAvailable: number;
   }[];
+  /**
+   * Sede con stampante fiscale abilitata: il payload pronto da stampare (la
+   * cassa emette subito e riporta l'esito). Null = sede non fiscale.
+   */
+  readonly fiscal: FiscalPrintPayload | null;
 }
 
 interface ResolvedVariant {
@@ -149,6 +159,12 @@ export class StoreSalesService {
     // Si valida qui, PRIMA della transazione: un pagamento sbagliato non deve
     // nemmeno iniziare a scrivere.
     const payments = resolveStoreSalePayments(dto, totalMinor);
+
+    // Sede con stampante fiscale abilitata: la vendita nasce «da fiscalizzare»
+    // e la cassa emette subito dopo la conferma.
+    const fiscalDevice = await this.prisma.fiscalDevice.findFirst({
+      where: { tenantId, locationId: dto.locationId, enabled: true },
+    });
 
     const created = await this.prisma.$transaction(async (tx) => {
       const year = documentDate.getFullYear();
@@ -278,6 +294,17 @@ export class StoreSalesService {
         })),
       });
 
+      if (fiscalDevice) {
+        await tx.fiscalReceipt.create({
+          data: {
+            tenantId,
+            documentId: doc.id,
+            deviceId: fiscalDevice.id,
+            serialNumber: fiscalDevice.serialNumber,
+          },
+        });
+      }
+
       return doc;
     });
 
@@ -287,7 +314,24 @@ export class StoreSalesService {
       dto.locationId,
     );
 
-    return this.toResult(tenantId, dto.locationId, created);
+    const fiscal = fiscalDevice
+      ? buildFiscalPrintPayload({
+          documentId: created.id,
+          documentType: 'sale',
+          reference: created.reference ?? '',
+          device: fiscalDevice,
+          docLines: created.lines.map((line) => ({
+            description: line.description,
+            quantity: line.quantity,
+            lineGrossTotalMinor: line.lineGrossTotalMinor,
+            vatSnapshot: line.vatSnapshot,
+          })),
+          paymentRows: payments.rows,
+          original: null,
+        })
+      : null;
+
+    return this.toResult(tenantId, dto.locationId, created, fiscal);
   }
 
   async createReturn(
@@ -316,6 +360,18 @@ export class StoreSalesService {
       }
       saleReference = sale.reference;
     }
+
+    const fiscalDevice = await this.prisma.fiscalDevice.findFirst({
+      where: { tenantId, locationId: dto.locationId, enabled: true },
+    });
+    // Il documento di reso riferisce la ricevuta della vendita originale
+    // (numero, data, matricola): senza, la RT non può emettere il reso.
+    const originalReceipt = dto.saleDocumentId
+      ? await this.prisma.fiscalReceipt.findFirst({
+          where: { tenantId, documentId: dto.saleDocumentId },
+          select: { id: true, fiscalNumber: true, issuedAt: true, serialNumber: true },
+        })
+      : null;
 
     const documentDate = new Date();
     const setting = await this.settings.getResolved(tenantId, DocumentType.store_return);
@@ -499,6 +555,18 @@ export class StoreSalesService {
         })),
       });
 
+      if (fiscalDevice) {
+        await tx.fiscalReceipt.create({
+          data: {
+            tenantId,
+            documentId: doc.id,
+            deviceId: fiscalDevice.id,
+            serialNumber: fiscalDevice.serialNumber,
+            originalReceiptId: originalReceipt?.id ?? null,
+          },
+        });
+      }
+
       return doc;
     });
 
@@ -508,7 +576,27 @@ export class StoreSalesService {
       dto.locationId,
     );
 
-    return this.toResult(tenantId, dto.locationId, created);
+    const fiscal = fiscalDevice
+      ? buildFiscalPrintPayload({
+          documentId: created.id,
+          documentType: 'return',
+          reference: created.reference ?? '',
+          device: fiscalDevice,
+          docLines: created.lines.map((line) => ({
+            description: line.description,
+            quantity: line.quantity,
+            lineGrossTotalMinor: line.lineGrossTotalMinor,
+            vatSnapshot: line.vatSnapshot,
+          })),
+          paymentRows:
+            created.totalMinor > 0
+              ? [{ method: refundMethod, methodNote: null, amountMinor: created.totalMinor }]
+              : [],
+          original: originalReceipt,
+        })
+      : null;
+
+    return this.toResult(tenantId, dto.locationId, created, fiscal);
   }
 
   /** Vendite negozio recenti per collegare un reso (ricerca per riferimento). */
@@ -793,6 +881,7 @@ export class StoreSalesService {
         quantity: number;
       }[];
     },
+    fiscal: FiscalPrintPayload | null = null,
   ): Promise<StoreSaleResult> {
     const variantIds = doc.lines
       .map((line) => line.variantId)
@@ -815,6 +904,7 @@ export class StoreSalesService {
         quantity: line.quantity,
         remainingAvailable: line.variantId ? (availableByVariant.get(line.variantId) ?? 0) : 0,
       })),
+      fiscal,
     };
   }
 

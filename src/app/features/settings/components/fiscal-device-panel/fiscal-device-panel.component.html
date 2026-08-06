@@ -81,6 +81,43 @@
           </label>
         </div>
 
+        <fieldset class="fiscal-device__departments">
+          <legend class="fiscal-device__legend">Reparti IVA della stampante</legend>
+          <p class="fiscal-device__hint">
+            Le RT associano l'aliquota al reparto configurato a bordo macchina: indica qui la
+            corrispondenza (es. 22% → reparto 1). Aliquote non mappate finiscono sul reparto 1.
+          </p>
+          @for (row of departmentRows; track row.rateId) {
+            <div class="fiscal-device__department-row">
+              <label class="fiscal-device__field fiscal-device__field--narrow" [for]="row.rateId">
+                Aliquota %
+                <input
+                  [id]="row.rateId"
+                  type="number"
+                  min="0"
+                  max="100"
+                  inputmode="numeric"
+                  [formControl]="row.rateControl"
+                />
+              </label>
+              <label
+                class="fiscal-device__field fiscal-device__field--narrow"
+                [for]="row.departmentId"
+              >
+                Reparto
+                <input
+                  [id]="row.departmentId"
+                  type="number"
+                  min="1"
+                  max="99"
+                  inputmode="numeric"
+                  [formControl]="row.departmentControl"
+                />
+              </label>
+            </div>
+          }
+        </fieldset>
+
         <label class="fiscal-device__check">
           <input type="checkbox" formControlName="enabled" />
           Dispositivo abilitato per questa sede
