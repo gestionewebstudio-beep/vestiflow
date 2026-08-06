@@ -1,0 +1,85 @@
+.fiscal-device {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.fiscal-device__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.fiscal-device__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.fiscal-device__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.fiscal-device__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  // Campi a larghezza di lettura, non a tutta pagina (UX form).
+  max-inline-size: var(--content-form);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+// Solo dentro una riga il campo flette in orizzontale. Sul campo sciolto la
+// stessa flex-basis diventerebbe un'ALTEZZA di 224px (il contenitore è a
+// colonna): era il vuoto che sfasava il pannello.
+.fiscal-device__row .fiscal-device__field {
+  flex: 1 1 var(--field-w-lg);
+}
+
+.fiscal-device__field input,
+.fiscal-device__field select {
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.fiscal-device__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.fiscal-device__meta {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.fiscal-device__success {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-success-fg);
+}
+
+.fiscal-device__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
+.fiscal-device__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

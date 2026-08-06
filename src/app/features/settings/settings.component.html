@@ -92,6 +92,17 @@
     </section>
   }
 
+  @if (showFiscalDevicePanel()) {
+    <section class="settings__panel" aria-labelledby="settings-fiscal-device">
+      <h2 id="settings-fiscal-device" class="settings__panel-title">Dispositivo fiscale</h2>
+      <p class="settings__panel-hint">
+        Stampante fiscale RT di ogni sede: è il prerequisito per l'emissione del documento
+        commerciale dalla cassa.
+      </p>
+      <app-fiscal-device-panel />
+    </section>
+  }
+
   @if (showLocationsSection()) {
     <section class="settings__panel" aria-labelledby="settings-locations-panel">
       <h2 id="settings-locations-panel" class="settings__panel-title">Location</h2>

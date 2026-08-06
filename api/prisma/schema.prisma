@@ -36,6 +36,26 @@ enum PaymentOptionKind {
   terms
 }
 
+/// Marca della stampante fiscale RT configurata su una sede (driver cassa).
+enum FiscalDeviceBrand {
+  epson
+  custom
+  rch
+  olivetti
+  other
+}
+
+/// Stato fiscale di una vendita/reso di cassa: `pending` = da fiscalizzare
+/// (dispositivo non raggiungibile alla conferma), `emitted` = documento
+/// commerciale emesso, `failed` = ultimo tentativo fallito, `cancelled` =
+/// annullata con documento di annullo. Mai cancellazioni silenziose.
+enum FiscalReceiptStatus {
+  pending
+  emitted
+  failed
+  cancelled
+}
+
 enum ProductStatus {
   draft
   active
@@ -367,6 +387,9 @@ model Tenant {
   documentSequences       DocumentSequence[]
   documentTypeSettings    DocumentTypeSetting[]
   documentCounters        DocumentCounter[]
+  storeSalePayments       StoreSalePayment[]
+  fiscalDevices           FiscalDevice[]
+  fiscalReceipts          FiscalReceipt[]
   goodsReceiptCausals     GoodsReceiptCausal[]
   externalDocumentTypes   ExternalDocumentType[]
   vatCodes                VatCode[]
@@ -529,6 +552,7 @@ model Location {
   salesOrders       SalesOrder[]
   shopifyInventorySyncStates ShopifyInventorySyncState[]
   documentCounters  DocumentCounter[]
+  fiscalDevice      FiscalDevice?
 
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
@@ -1948,6 +1972,10 @@ model Document {
   ddtLinks               InvoiceSalesDdtLink[]             @relation("InvoiceLinkInvoice")
   /// Link DDT vendita → fatture che lo agganciano (questo doc è il DDT).
   invoiceLinks           InvoiceSalesDdtLink[]             @relation("InvoiceLinkDdt")
+  /// Pagamenti per metodo della Vendita in negozio (multi-tender cassa).
+  storeSalePayments      StoreSalePayment[]
+  /// Esito fiscale della vendita/reso di cassa (documento commerciale).
+  fiscalReceipt          FiscalReceipt?
 
   // Numero univoco per (tenant, tipo, serie): l'unicità reale è un indice
   // parziale `WHERE number IS NOT NULL` con NULLS NOT DISTINCT (serie nulla)
@@ -2062,6 +2090,105 @@ model DocumentPaymentInstallment {
   @@index([documentId])
   @@index([tenantId])
   @@map("document_payment_installments")
+}
+
+// ── Cassa negozio: pagamenti multi-metodo e fondazioni fiscali ───────────────
+
+/// Pagamento incassato su una Vendita in negozio, una riga per metodo
+/// (multi-tender). L'importo è LORDO in unità minori intere: è la quota del
+/// totale documento coperta dal metodo, e la somma delle righe è sempre pari
+/// al totale — lo garantisce il servizio alla creazione. Il documento tiene
+/// anche il riepilogo (`paymentMethod` = codice o `mixed`) per filtri e liste.
+model StoreSalePayment {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  documentId String   @map("document_id") @db.Uuid
+  /// Ordine di visualizzazione (1-based).
+  position   Int      @default(1)
+  /// Codice metodo cassa: `cash` / `card` / `other` (vocabolario chiuso del
+  /// filtro elenco; l'anagrafica PaymentOption resta quella dei documenti).
+  method     String
+  /// Descrizione libera quando method = 'other' (es. «Assegno», «Buono»).
+  methodNote String?  @map("method_note")
+  /// Quota del totale documento coperta da questo metodo (lordo).
+  amountMinor Int     @map("amount_minor")
+  /// Solo contanti: importo consegnato dal cliente, se digitato in cassa.
+  /// Il resto è derivato (tendered − amount), mai memorizzato.
+  tenderedMinor Int?  @map("tendered_minor")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([tenantId])
+  @@map("store_sale_payments")
+}
+
+/// Stampante fiscale RT configurata su una sede (al più una per location).
+/// Fondazione del modulo cassa fiscale: finché la sede non ha un dispositivo
+/// abilitato, la cassa resta la registrazione interna non fiscale di sempre.
+/// Nessun segreto: endpoint LAN e matricola sono configurazione, non credenziali.
+model FiscalDevice {
+  id           String            @id @default(uuid()) @db.Uuid
+  tenantId     String            @map("tenant_id") @db.Uuid
+  locationId   String            @unique @map("location_id") @db.Uuid
+  brand        FiscalDeviceBrand
+  model        String?
+  /// Endpoint LAN della stampante (es. `https://192.168.1.50`): la chiama il
+  /// browser in negozio, il server non raggiunge la LAN del punto vendita.
+  endpoint     String
+  /// Matricola fiscale del dispositivo (finisce sul documento commerciale).
+  serialNumber String?           @map("serial_number")
+  enabled      Boolean           @default(true)
+  notes        String?
+  /// Diagnostica riportata dalla cassa: ultimo contatto riuscito, ultimo errore.
+  lastSeenAt   DateTime?         @map("last_seen_at")
+  lastError    String?           @map("last_error")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  location Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  receipts FiscalReceipt[]
+
+  @@index([tenantId])
+  @@map("fiscal_devices")
+}
+
+/// Documento commerciale emesso (o da emettere) per una vendita/reso di cassa.
+/// La fondazione definisce entità e stati; l'emissione vera arriva con il
+/// driver di stampa (Tranche 2). Un documento ha al più una ricevuta; resi e
+/// annulli riferiscono la ricevuta della vendita originale, come richiede la
+/// normativa sul documento commerciale.
+model FiscalReceipt {
+  id                String              @id @default(uuid()) @db.Uuid
+  tenantId          String              @map("tenant_id") @db.Uuid
+  documentId        String              @unique @map("document_id") @db.Uuid
+  deviceId          String?             @map("device_id") @db.Uuid
+  status            FiscalReceiptStatus @default(pending)
+  /// Matricola del dispositivo al momento dell'emissione (snapshot stabile).
+  serialNumber      String?             @map("serial_number")
+  /// Progressivo del documento commerciale assegnato dalla stampante.
+  fiscalNumber      String?             @map("fiscal_number")
+  issuedAt          DateTime?           @map("issued_at")
+  /// Reso/annullo: ricevuta della vendita originale a cui si riferisce.
+  originalReceiptId String?             @map("original_receipt_id") @db.Uuid
+  errorMessage      String?             @map("error_message")
+  /// Risposta grezza della stampante (solo diagnostica, mai dati sensibili).
+  rawResponse       Json?               @map("raw_response")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  device   FiscalDevice?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  original FiscalReceipt?  @relation("FiscalReceiptOriginal", fields: [originalReceiptId], references: [id], onDelete: SetNull)
+  derived  FiscalReceipt[] @relation("FiscalReceiptOriginal")
+
+  @@index([tenantId, status])
+  @@map("fiscal_receipts")
 }
 
 /// Tipo documento fornitore per Arrivo merce (DDT, Fattura, Reso + tipi

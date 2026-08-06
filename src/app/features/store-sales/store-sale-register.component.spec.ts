@@ -302,19 +302,34 @@ describe('StoreSaleRegisterComponent', () => {
     await scan(EAN);
 
     // Metodo «Altro» con descrizione libera: il codice resta 'other' (il filtro
-    // dell'elenco continua a funzionare) e il testo viaggia in paymentMethodNote.
+    // dell'elenco continua a funzionare) e il testo viaggia nella riga
+    // pagamento (multi-tender: una riga che copre l'intero totale lordo).
     const component = fixture.componentInstance as unknown as {
-      paymentMethod: { set(value: string): void };
-      paymentOtherText: { set(value: string): void };
+      paymentRows: {
+        set(
+          rows: readonly {
+            method: string;
+            methodNote: string;
+            amountMinor: number;
+            tenderedMinor: number | null;
+          }[],
+        ): void;
+      };
       concludeSale(): void;
     };
-    component.paymentMethod.set('other');
-    component.paymentOtherText.set('Assegno');
+    component.paymentRows.set([
+      // 1990 netti al 22% = 2428 lordi: la quota copre l'intero totale.
+      { method: 'other', methodNote: 'Assegno', amountMinor: 2428, tenderedMinor: null },
+    ]);
     component.concludeSale();
 
     expect(createSale).toHaveBeenCalledTimes(1);
     expect(createSale).toHaveBeenCalledWith(
-      expect.objectContaining({ paymentMethod: 'other', paymentMethodNote: 'Assegno' }),
+      expect.objectContaining({
+        payments: [
+          { method: 'other', methodNote: 'Assegno', amountMinor: 2428, tenderedMinor: undefined },
+        ],
+      }),
     );
   });
 

@@ -1,30 +1,33 @@
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
-import type { StoreSalePaymentMethod } from './store-sale.model';
+import type { StoreSaleDocumentPaymentCode } from './store-sale.model';
 
 /**
- * Etichette dei metodi di pagamento della cassa. Il documento salva il codice
- * grezzo (`cash`/`card`/`other`), non lo snapshot testuale usato dai DDT: senza
- * questa mappa elenco e dettaglio mostrerebbero il codice all'operatore.
+ * Etichette dei codici pagamento della cassa. Il documento salva il codice
+ * grezzo (`cash`/`card`/`other`, o `mixed` per il multi-tender), non lo
+ * snapshot testuale usato dai DDT: senza questa mappa elenco e dettaglio
+ * mostrerebbero il codice all'operatore.
  */
-const STORE_SALE_PAYMENT_LABELS: Record<StoreSalePaymentMethod, string> = {
+const STORE_SALE_PAYMENT_LABELS: Record<StoreSaleDocumentPaymentCode, string> = {
   cash: 'Contanti',
   card: 'Carta',
   other: 'Altro',
+  mixed: 'Misto',
 };
 
-export function isStoreSalePaymentMethod(value: string): value is StoreSalePaymentMethod {
+export function isStoreSalePaymentCode(value: string): value is StoreSaleDocumentPaymentCode {
   return value in STORE_SALE_PAYMENT_LABELS;
 }
 
-/** Etichetta leggibile del metodo; il valore grezzo se non riconosciuto. */
+/** Etichetta leggibile del codice; il valore grezzo se non riconosciuto. */
 export function storeSalePaymentMethodLabel(value: string): string {
-  return isStoreSalePaymentMethod(value) ? STORE_SALE_PAYMENT_LABELS[value] : value;
+  return isStoreSalePaymentCode(value) ? STORE_SALE_PAYMENT_LABELS[value] : value;
 }
 
 /**
- * Etichetta del metodo con la descrizione libera di «Altro» in coda, quando
- * presente: «Altro — Assegno». Per cash/card la nota è ignorata.
+ * Etichetta del codice con la nota in coda, quando c'è: «Altro — Assegno»,
+ * «Misto — Contanti 10,00 € + Carta 9,90 €». Per contanti/carta la nota è
+ * ignorata (non esiste).
  */
 export function storeSalePaymentMethodLabelWithNote(
   value: string,
@@ -32,7 +35,7 @@ export function storeSalePaymentMethodLabelWithNote(
 ): string {
   const label = storeSalePaymentMethodLabel(value);
   const trimmed = note?.trim();
-  return value === 'other' && trimmed ? `${label} — ${trimmed}` : label;
+  return (value === 'other' || value === 'mixed') && trimmed ? `${label} — ${trimmed}` : label;
 }
 
 export const STORE_SALE_PAYMENT_METHOD_OPTIONS: readonly SelectMenuOption[] = Object.entries(

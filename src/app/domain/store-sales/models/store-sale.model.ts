@@ -5,6 +5,24 @@ import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.
 
 export type StoreSalePaymentMethod = 'cash' | 'card' | 'other';
 
+/**
+ * Codice pagamento sul DOCUMENTO: i metodi della cassa più `mixed`, il
+ * riepilogo di una vendita multi-tender (il dettaglio per metodo sta nelle
+ * righe pagamento).
+ */
+export type StoreSaleDocumentPaymentCode = StoreSalePaymentMethod | 'mixed';
+
+/** Pagamento della vendita, una voce per metodo (multi-tender). */
+export interface StoreSalePaymentInput {
+  readonly method: StoreSalePaymentMethod;
+  /** Descrizione libera quando method = 'other' (es. «Assegno»). */
+  readonly methodNote?: string;
+  /** Quota LORDA del totale coperta da questo metodo (unità minori intere). */
+  readonly amountMinor: number;
+  /** Solo contanti: consegnato dal cliente, per il resto. Mai sotto la quota. */
+  readonly tenderedMinor?: number;
+}
+
 /** Articolo trovato per il carrello: prezzo + quantità alla location (§8). */
 export interface StoreSaleLookupItem {
   readonly variantId: EntityId;
@@ -34,8 +52,13 @@ export interface StoreSaleLineInput {
 
 export interface CreateStoreSalePayload {
   readonly locationId: EntityId;
-  readonly paymentMethod: StoreSalePaymentMethod;
-  /** Testo libero quando paymentMethod = 'other' (es. «Assegno»). */
+  /** Pagamenti per metodo: la somma delle quote copre l'intero totale. */
+  readonly payments?: readonly StoreSalePaymentInput[];
+  /**
+   * Metodo unico legacy: usato solo per la vendita a totale zero (omaggio
+   * pieno), dove non c'è incasso da ripartire.
+   */
+  readonly paymentMethod?: StoreSalePaymentMethod;
   readonly paymentMethodNote?: string;
   readonly customerId?: EntityId;
   readonly notes?: string;

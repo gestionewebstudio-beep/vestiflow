@@ -1,0 +1,121 @@
+@if (loading()) {
+  <app-table-skeleton [columns]="2" [rows]="4" />
+} @else if (loadError()) {
+  <app-error-state
+    description="Impossibile caricare la configurazione dei dispositivi fiscali."
+    retryLabel="Riprova"
+    (retry)="reload()"
+  />
+} @else {
+  <div class="fiscal-device">
+    <p class="fiscal-device__hint">
+      Ogni sede può avere una stampante fiscale RT. Senza dispositivo abilitato la cassa registra la
+      vendita senza emettere lo scontrino: lo fa il registratore esterno, come oggi.
+    </p>
+
+    <label class="fiscal-device__field" for="fiscal-device-location">
+      Sede
+      <select
+        id="fiscal-device-location"
+        [value]="selectedLocationId() ?? ''"
+        (change)="onLocationSelect($event)"
+      >
+        @for (opt of locationOptions(); track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </label>
+
+    @if (selectedLocationId(); as locationId) {
+      <form class="fiscal-device__form" [formGroup]="form" (ngSubmit)="save()">
+        <div class="fiscal-device__row">
+          <label class="fiscal-device__field" for="fiscal-device-brand">
+            Marca
+            <select id="fiscal-device-brand" formControlName="brand">
+              @for (opt of brandOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </label>
+          <label class="fiscal-device__field" for="fiscal-device-model">
+            Modello (facoltativo)
+            <input
+              id="fiscal-device-model"
+              type="text"
+              maxlength="100"
+              placeholder="Es. FP-81II"
+              formControlName="model"
+            />
+          </label>
+        </div>
+
+        <label class="fiscal-device__field" for="fiscal-device-endpoint">
+          Endpoint di rete della stampante
+          <input
+            id="fiscal-device-endpoint"
+            type="text"
+            maxlength="200"
+            placeholder="https://192.168.1.50"
+            formControlName="endpoint"
+          />
+        </label>
+        @if (form.controls.endpoint.touched && form.controls.endpoint.invalid) {
+          <p class="fiscal-device__error" role="alert">
+            Indirizzo non valido: serve l’endpoint http(s) della stampante nella rete del negozio.
+          </p>
+        }
+
+        <div class="fiscal-device__row">
+          <label class="fiscal-device__field" for="fiscal-device-serial">
+            Matricola fiscale (facoltativa)
+            <input
+              id="fiscal-device-serial"
+              type="text"
+              maxlength="50"
+              formControlName="serialNumber"
+            />
+          </label>
+          <label class="fiscal-device__field" for="fiscal-device-notes">
+            Note (facoltative)
+            <input id="fiscal-device-notes" type="text" maxlength="500" formControlName="notes" />
+          </label>
+        </div>
+
+        <label class="fiscal-device__check">
+          <input type="checkbox" formControlName="enabled" />
+          Dispositivo abilitato per questa sede
+        </label>
+
+        @if (selectedDevice(); as device) {
+          <p class="fiscal-device__meta">
+            Configurato il {{ formatDateTime(device.updatedAt) }}
+            @if (device.lastSeenAt) {
+              · ultimo contatto {{ formatDateTime(device.lastSeenAt) }}
+            }
+          </p>
+          @if (device.lastError) {
+            <p class="fiscal-device__error" role="status">Ultimo errore: {{ device.lastError }}</p>
+          }
+        }
+
+        @if (saveMessage(); as message) {
+          <p class="fiscal-device__success" role="status">{{ message }}</p>
+        }
+        @if (saveError(); as message) {
+          <p class="fiscal-device__error" role="alert">{{ message }}</p>
+        }
+
+        <div class="fiscal-device__actions">
+          @if (selectedDevice()) {
+            <app-button variant="danger" [disabled]="saving()" (click)="remove()">
+              Rimuovi configurazione
+            </app-button>
+          }
+          <app-button type="submit" [loading]="saving()">Salva dispositivo</app-button>
+        </div>
+      </form>
+    } @else {
+      <p class="fiscal-device__hint">Nessuna sede operativa disponibile.</p>
+    }
+  </div>
+}

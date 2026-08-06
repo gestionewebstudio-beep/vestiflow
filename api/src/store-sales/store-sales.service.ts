@@ -35,6 +35,7 @@ import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapsho
 
 import type { CreateStoreReturnDto } from './dto/create-store-return.dto';
 import type { CreateStoreSaleDto } from './dto/create-store-sale.dto';
+import { resolveStoreSalePayments } from './store-sale-payments.util';
 
 /** Esito della registrazione vendita/reso per la UI di cassa. */
 export interface StoreSaleResult {
@@ -105,6 +106,48 @@ export class StoreSalesService {
       createdByName: user.displayName?.trim() || 'Utente',
     };
 
+    // Il prezzo che arriva dalla cassa è NETTO, come ogni prezzo del
+    // gestionale: l'IVA si calcola qui, riga per riga, all'aliquota del
+    // Codice IVA risolto. Quello che il cliente paga è il risultato del
+    // calcolo, non un numero letto da una colonna.
+    const computedLines = dto.lines.map((line, index) => {
+      const variant = variants.get(line.variantId)!;
+      const discountPercent = line.discountPercent ?? 0;
+      const resolved = this.resolveLineVatCode(line.vatCodeId, variant, vatContext);
+      const amounts = computeVatLineAmounts({
+        enteredUnitCostMinor: line.unitPriceMinor,
+        // Il valore memorizzato è netto: nessuno scorporo da fare.
+        costEntryMode: 'vat_excluded',
+        quantity: line.quantity,
+        discountPercent,
+        vat: resolved.vat,
+      });
+      return {
+        lineNumber: index + 1,
+        variantId: variant.id,
+        sku: variant.sku,
+        description: this.lineDescription(variant),
+        quantity: line.quantity,
+        unitPriceMinor: line.unitPriceMinor,
+        discountPercent,
+        vatCodeId: resolved.vatCodeId,
+        vatSnapshot: resolved.vatSnapshot,
+        lineTotalMinor: amounts.lineNetMinor,
+        lineVatTotalMinor: amounts.lineVatMinor,
+        lineGrossTotalMinor: amounts.lineGrossMinor,
+        loadsStock: true,
+      };
+    });
+
+    const subtotalMinor = computedLines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+    const taxMinor = computedLines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
+    const totalMinor = computedLines.reduce((sum, line) => sum + line.lineGrossTotalMinor, 0);
+
+    // Multi-tender: la somma delle quote deve coprire esattamente il totale.
+    // Si valida qui, PRIMA della transazione: un pagamento sbagliato non deve
+    // nemmeno iniziare a scrivere.
+    const payments = resolveStoreSalePayments(dto, totalMinor);
+
     const created = await this.prisma.$transaction(async (tx) => {
       const year = documentDate.getFullYear();
       const series = await defaultCounterSeries(tx, tenantId, DocumentType.store_sale);
@@ -116,43 +159,6 @@ export class StoreSalesService {
         source: 'document',
       });
       const reference = formatDocumentReference(setting.numberPrefix, series, number);
-
-      // Il prezzo che arriva dalla cassa è NETTO, come ogni prezzo del
-      // gestionale: l'IVA si calcola qui, riga per riga, all'aliquota del
-      // Codice IVA risolto. Quello che il cliente paga è il risultato del
-      // calcolo, non un numero letto da una colonna.
-      const computedLines = dto.lines.map((line, index) => {
-        const variant = variants.get(line.variantId)!;
-        const discountPercent = line.discountPercent ?? 0;
-        const resolved = this.resolveLineVatCode(line.vatCodeId, variant, vatContext);
-        const amounts = computeVatLineAmounts({
-          enteredUnitCostMinor: line.unitPriceMinor,
-          // Il valore memorizzato è netto: nessuno scorporo da fare.
-          costEntryMode: 'vat_excluded',
-          quantity: line.quantity,
-          discountPercent,
-          vat: resolved.vat,
-        });
-        return {
-          lineNumber: index + 1,
-          variantId: variant.id,
-          sku: variant.sku,
-          description: this.lineDescription(variant),
-          quantity: line.quantity,
-          unitPriceMinor: line.unitPriceMinor,
-          discountPercent,
-          vatCodeId: resolved.vatCodeId,
-          vatSnapshot: resolved.vatSnapshot,
-          lineTotalMinor: amounts.lineNetMinor,
-          lineVatTotalMinor: amounts.lineVatMinor,
-          lineGrossTotalMinor: amounts.lineGrossMinor,
-          loadsStock: true,
-        };
-      });
-
-      const subtotalMinor = computedLines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
-      const taxMinor = computedLines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
-      const totalMinor = computedLines.reduce((sum, line) => sum + line.lineGrossTotalMinor, 0);
 
       const doc = await tx.document.create({
         data: {
@@ -173,10 +179,10 @@ export class StoreSalesService {
           customerId: dto.customerId ?? null,
           customerName,
           locationId: dto.locationId,
-          paymentMethod: dto.paymentMethod,
-          // Testo libero solo per «Altro»: per cash/card resta null.
-          paymentMethodNote:
-            dto.paymentMethod === 'other' ? dto.paymentMethodNote?.trim() || null : null,
+          // Riepilogo per filtri e liste: codice metodo, o `mixed` con la
+          // sintesi in nota. Il dettaglio per metodo sta in store_sale_payments.
+          paymentMethod: payments.documentMethod,
+          paymentMethodNote: payments.documentMethodNote,
           currency: 'EUR',
           subtotalMinor,
           taxMinor,
@@ -198,6 +204,22 @@ export class StoreSalesService {
         },
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
+
+      // Dettaglio pagamenti nella stessa transazione del documento: o entrambi
+      // o nessuno dei due.
+      if (payments.rows.length > 0) {
+        await tx.storeSalePayment.createMany({
+          data: payments.rows.map((row) => ({
+            tenantId,
+            documentId: doc.id,
+            position: row.position,
+            method: row.method,
+            methodNote: row.methodNote,
+            amountMinor: row.amountMinor,
+            tenderedMinor: row.tenderedMinor,
+          })),
+        });
+      }
 
       // Un movimento negativo per riga: Giacenza −, Disponibile −, Impegnata
       // invariata. UNIQUE (sourceDocumentType, sourceLineId) ⇒ niente doppi.

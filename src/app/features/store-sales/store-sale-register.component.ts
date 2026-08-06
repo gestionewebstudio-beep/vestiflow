@@ -64,6 +64,14 @@ import type {
   StoreSalePaymentMethod,
   StoreSaleResult,
 } from '@domain/store-sales/models/store-sale.model';
+import {
+  canConcludeTender,
+  tenderChangeMinor,
+  tenderHasCashShortfall,
+  tenderRemainingMinor,
+  tenderToPaymentsPayload,
+  type TenderRow,
+} from '@domain/store-sales/models/store-sale-tender.util';
 import { StoreSalesService } from './services/store-sales.service';
 
 type RegisterMode = 'sale' | 'return';
@@ -261,9 +269,14 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected readonly searchPanelLaunchSeq = signal(0);
 
   protected readonly cart = signal<readonly CartLine[]>([]);
-  protected readonly paymentMethod = signal<StoreSalePaymentMethod>('cash');
-  /** Testo libero quando il metodo è «Altro» (es. «Assegno», «Bonifico»). */
-  protected readonly paymentOtherText = signal('');
+  /**
+   * Pagamenti per metodo (multi-tender). Con una sola riga la quota segue il
+   * totale del carrello da sola: è l'incasso intero, non c'è nulla da
+   * ripartire. Con più righe la ripartizione è dell'operatore.
+   */
+  protected readonly paymentRows = signal<readonly TenderRow[]>([
+    { method: 'cash', methodNote: '', amountMinor: 0, tenderedMinor: null },
+  ]);
   protected readonly saleNotes = signal('');
   protected readonly salePending = signal(false);
   protected readonly saleError = signal<string | null>(null);
@@ -286,8 +299,40 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   protected readonly hasAvailabilityWarning = computed(() => this.overAvailableLines().length > 0);
 
+  // ── Pagamento: quadratura quote e resto ─────────────────────────────────
+
+  /** Riga unica ⇒ la quota è il totale, sempre (vedi commento su paymentRows). */
+  private readonly syncSingleTenderRow = effect(() => {
+    const total = this.cartTotalMinor();
+    const rows = this.paymentRows();
+    if (rows.length === 1 && rows[0]!.amountMinor !== total) {
+      this.paymentRows.set([{ ...rows[0]!, amountMinor: total }]);
+    }
+  });
+
+  /** Quanto manca alla quadratura (negativo = quote oltre il totale). */
+  protected readonly paymentRemainingMinor = computed(() =>
+    tenderRemainingMinor(this.cartTotalMinor(), this.paymentRows()),
+  );
+
+  /** Resto da rendere: contanti consegnati oltre la quota da incassare. */
+  protected readonly paymentChangeMinor = computed(() => tenderChangeMinor(this.paymentRows()));
+
+  /** Contanti digitati sotto la quota: avviso e conclusione bloccata. */
+  protected readonly paymentHasCashShortfall = computed(() =>
+    tenderHasCashShortfall(this.paymentRows()),
+  );
+
+  protected readonly paymentsComplete = computed(() =>
+    canConcludeTender(this.cartTotalMinor(), this.paymentRows()),
+  );
+
   protected readonly canConcludeSale = computed(
-    () => this.cart().length > 0 && !!this.selectedLocationId() && !this.salePending(),
+    () =>
+      this.cart().length > 0 &&
+      !!this.selectedLocationId() &&
+      !this.salePending() &&
+      this.paymentsComplete(),
   );
 
   // ── Reso: vendita origine e righe di rientro ────────────────────────────
@@ -844,14 +889,117 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     return `Quantità superiore alla disponibilità. Giacenza ${line.onHand}, impegnata ${line.committed}, disponibile ${line.available}. La vendita procederà comunque.`;
   }
 
-  protected onPaymentMethodChange(value: string | null): void {
-    if (value === 'cash' || value === 'card' || value === 'other') {
-      this.paymentMethod.set(value);
+  // ── Pagamento: righe multi-tender ────────────────────────────────────────
+
+  protected onPaymentRowMethodChange(index: number, value: string | null): void {
+    if (value !== 'cash' && value !== 'card' && value !== 'other') {
+      return;
     }
+    this.paymentRows.update((rows) =>
+      rows.map((row, i) =>
+        i === index
+          ? {
+              ...row,
+              method: value,
+              // Nota e «ricevuti» seguono il metodo: fuori dal loro metodo
+              // sono rumore da non trascinare.
+              methodNote: value === 'other' ? row.methodNote : '',
+              tenderedMinor: value === 'cash' ? row.tenderedMinor : null,
+            }
+          : row,
+      ),
+    );
   }
 
-  protected onPaymentOtherInput(event: Event): void {
-    this.paymentOtherText.set((event.target as HTMLInputElement).value);
+  protected onPaymentRowAmountInput(index: number, event: Event): void {
+    const parsed = parseMoneyInput((event.target as HTMLInputElement).value);
+    if (!parsed || parsed.amountMinor < 0) {
+      return;
+    }
+    this.paymentRows.update((rows) => {
+      const updated = rows.map((row, i) =>
+        i === index ? { ...row, amountMinor: parsed.amountMinor } : row,
+      );
+      // L'ultima riga assorbe il residuo quando si ritocca una quota sopra:
+      // «20 in contanti, il resto in carta» si digita una volta sola.
+      const last = updated.length - 1;
+      if (updated.length > 1 && index !== last) {
+        const others = updated.slice(0, last).reduce((sum, row) => sum + row.amountMinor, 0);
+        const remainder = Math.max(0, this.cartTotalMinor() - others);
+        return updated.map((row, i) => (i === last ? { ...row, amountMinor: remainder } : row));
+      }
+      return updated;
+    });
+  }
+
+  protected onPaymentRowNoteInput(index: number, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.paymentRows.update((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, methodNote: value } : row)),
+    );
+  }
+
+  /** «Ricevuti» sui contanti: vuoto = non digitato (nessun resto da mostrare). */
+  protected onPaymentRowTenderedInput(index: number, event: Event): void {
+    const raw = (event.target as HTMLInputElement).value.trim();
+    if (raw === '') {
+      this.paymentRows.update((rows) =>
+        rows.map((row, i) => (i === index ? { ...row, tenderedMinor: null } : row)),
+      );
+      return;
+    }
+    const parsed = parseMoneyInput(raw);
+    if (!parsed || parsed.amountMinor < 0) {
+      return;
+    }
+    this.paymentRows.update((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, tenderedMinor: parsed.amountMinor } : row)),
+    );
+  }
+
+  /** «Dividi pagamento»: nuova riga a quota zero, da ripartire subito sopra. */
+  protected addPaymentRow(): void {
+    const rows = this.paymentRows();
+    if (rows.length >= 3) {
+      return;
+    }
+    const used = new Set(rows.map((row) => row.method));
+    const method: StoreSalePaymentMethod = !used.has('card')
+      ? 'card'
+      : !used.has('cash')
+        ? 'cash'
+        : 'other';
+    this.paymentRows.update((list) => [
+      ...list,
+      { method, methodNote: '', amountMinor: 0, tenderedMinor: null },
+    ]);
+  }
+
+  protected removePaymentRow(index: number): void {
+    this.paymentRows.update((rows) =>
+      rows.length > 1 ? rows.filter((_, i) => i !== index) : rows,
+    );
+  }
+
+  /** La quota si vede e si digita in euro, come ogni importo di cassa. */
+  protected paymentAmountValue(row: TenderRow): string {
+    return moneyToDecimalString({ amountMinor: row.amountMinor, currencyCode: 'EUR' }).replace(
+      '.',
+      ',',
+    );
+  }
+
+  protected paymentTenderedValue(row: TenderRow): string {
+    return row.tenderedMinor == null
+      ? ''
+      : moneyToDecimalString({ amountMinor: row.tenderedMinor, currencyCode: 'EUR' }).replace(
+          '.',
+          ',',
+        );
+  }
+
+  private resetPaymentRows(): void {
+    this.paymentRows.set([{ method: 'cash', methodNote: '', amountMinor: 0, tenderedMinor: null }]);
   }
 
   protected onSaleNotesInput(event: Event): void {
@@ -881,18 +1029,15 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   protected concludeSale(onDone?: () => void): void {
     const locationId = this.selectedLocationId();
-    if (!locationId || this.salePending()) {
+    if (!locationId || this.salePending() || !this.paymentsComplete()) {
       return;
     }
-    const method = this.paymentMethod();
     this.salePending.set(true);
     this.saleError.set(null);
     this.saleSubscription = this.service
       .createSale({
         locationId,
-        paymentMethod: method,
-        paymentMethodNote:
-          method === 'other' ? this.paymentOtherText().trim() || undefined : undefined,
+        ...tenderToPaymentsPayload(this.cartTotalMinor(), this.paymentRows()),
         customerId: this.selectedCustomerId() ?? undefined,
         notes: this.saleNotes().trim() || undefined,
         lines: this.cart().map((line) => ({
@@ -911,7 +1056,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.lastSaleResult.set(result);
           this.cart.set([]);
           this.saleNotes.set('');
-          this.paymentOtherText.set('');
+          this.resetPaymentRows();
           this.selectedCustomerId.set(null);
           this.focusSearchInput();
           onDone?.();
@@ -1098,6 +1243,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected confirmExitWithoutSaving(): void {
     this.exitDialogOpen.set(false);
     this.cart.set([]);
+    this.resetPaymentRows();
     this.clearSelectedSale();
     this.pendingDeactivate?.(true);
     this.pendingDeactivate = null;

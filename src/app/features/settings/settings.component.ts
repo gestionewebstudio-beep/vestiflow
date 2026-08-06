@@ -18,6 +18,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 import {
   canManageMfa as userCanManageMfa,
+  canManageSettingsCompany,
   canManageTikTokConnection,
 } from '@core/permissions/tenant-permissions.util';
 import { resolveUserAccessLabel } from '@core/models/user-role-labels.util';
@@ -56,6 +57,7 @@ import type { TenantCompany } from '@domain/tenant/models/tenant-company.model';
 import { TikTokIntegrationPanelComponent } from './components/tiktok-integration-panel/tiktok-integration-panel.component';
 import { TenantOperationalSettingsPanelComponent } from './components/tenant-operational-settings-panel/tenant-operational-settings-panel.component';
 import { TenantBackupPanelComponent } from './components/tenant-backup-panel/tenant-backup-panel.component';
+import { FiscalDevicePanelComponent } from './components/fiscal-device-panel/fiscal-device-panel.component';
 import { ShopifyIntegrationPanelComponent } from './components/shopify-integration-panel/shopify-integration-panel.component';
 import type { SetupStatusItem } from './models/setup-status.model';
 
@@ -101,6 +103,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     ProfileAvatarUploadComponent,
     TenantOperationalSettingsPanelComponent,
     TenantBackupPanelComponent,
+    FiscalDevicePanelComponent,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
@@ -219,6 +222,11 @@ export class SettingsComponent {
 
   protected readonly showOperationalSettingsPanel = computed(() =>
     hasFullTenantAccess(this.currentUser()),
+  );
+
+  /** Stampanti fiscali per sede: stesso permesso del backend (settings.company). */
+  protected readonly showFiscalDevicePanel = computed(() =>
+    canManageSettingsCompany(this.currentUser()),
   );
 
   protected readonly showLocationsSection = computed(

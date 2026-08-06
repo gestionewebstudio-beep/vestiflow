@@ -518,6 +518,55 @@
   }
 }
 
+// ── Pagamento multi-tender ───────────────────────────────────────────────
+
+.pos__payments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pos__payment-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+// Quota e «ricevuti»: importi corti, non campi a tutta riga.
+.pos__payment-amount {
+  inline-size: var(--field-w-sm);
+  text-align: end;
+}
+
+.pos__payment-note {
+  inline-size: var(--field-w-lg);
+}
+
+.pos__payment-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pos__payment-hint {
+  font-size: var(--text-sm);
+}
+
+.pos__payment-hint--warning {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-medium);
+}
+
+// Il resto si legge ad alta voce al cliente: dev'essere il valore più
+// evidente della zona pagamento.
+.pos__payment-hint--change {
+  color: var(--status-success-fg);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-bold);
+}
+
 // Barra sticky in fondo: totale e conclusione sempre visibili mentre il
 // carrello scorre, così l'operatore legge il totale sparando l'ultimo pezzo.
 .pos__sticky-bar {

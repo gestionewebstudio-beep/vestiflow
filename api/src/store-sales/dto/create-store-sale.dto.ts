@@ -19,6 +19,37 @@ import {
 export const STORE_SALE_PAYMENT_METHODS = ['cash', 'card', 'other'] as const;
 export type StoreSalePaymentMethod = (typeof STORE_SALE_PAYMENT_METHODS)[number];
 
+/**
+ * Pagamento della vendita, una voce per metodo (multi-tender). L'importo è la
+ * quota LORDA del totale coperta dal metodo: la somma delle voci deve essere
+ * pari al totale documento — la verifica è del servizio, che conosce il totale
+ * calcolato dalle righe.
+ */
+export class StoreSalePaymentInputDto {
+  @IsIn(STORE_SALE_PAYMENT_METHODS)
+  method!: StoreSalePaymentMethod;
+
+  /** Descrizione libera quando method = 'other' (es. «Assegno», «Buono»). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  methodNote?: string;
+
+  /** Quota del totale coperta da questo metodo (lordo, unità minori intere). */
+  @IsInt()
+  @Min(1)
+  amountMinor!: number;
+
+  /**
+   * Solo contanti: importo consegnato dal cliente, se digitato in cassa per
+   * calcolare il resto. Mai sotto la quota coperta.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  tenderedMinor?: number;
+}
+
 /** Riga carrello Vendita in negozio (fase 3 §7). */
 export class StoreSaleLineInputDto {
   @IsUUID()
@@ -56,8 +87,23 @@ export class CreateStoreSaleDto {
   @IsUUID()
   locationId!: string;
 
+  /**
+   * Pagamenti per metodo (multi-tender). In alternativa vale il legacy
+   * `paymentMethod` a metodo unico: almeno uno dei due deve esserci — la
+   * coerenza (somma = totale) la verifica il servizio.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(4)
+  @ValidateNested({ each: true })
+  @Type(() => StoreSalePaymentInputDto)
+  payments?: StoreSalePaymentInputDto[];
+
+  /** Legacy a metodo unico: copre l'intero totale. Ignorato se c'è `payments`. */
+  @IsOptional()
   @IsIn(STORE_SALE_PAYMENT_METHODS)
-  paymentMethod!: StoreSalePaymentMethod;
+  paymentMethod?: StoreSalePaymentMethod;
 
   /**
    * Descrizione libera quando paymentMethod = 'other' (es. «Assegno»). Il

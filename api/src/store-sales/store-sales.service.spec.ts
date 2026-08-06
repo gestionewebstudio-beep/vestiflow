@@ -88,10 +88,21 @@ interface FakeMovement {
   createdByName: string;
 }
 
+interface FakePayment {
+  tenantId: string;
+  documentId: string;
+  position: number;
+  method: string;
+  methodNote: string | null;
+  amountMinor: number;
+  tenderedMinor: number | null;
+}
+
 interface FakeDb {
   levels: FakeLevel[];
   documents: FakeDocument[];
   movements: FakeMovement[];
+  payments: FakePayment[];
   sequences: Map<string, number>;
   idCounter: number;
   failNextMovementCreate: boolean;
@@ -149,6 +160,7 @@ function createDb(): FakeDb {
     ],
     documents: [],
     movements: [],
+    payments: [],
     sequences: new Map(),
     idCounter: 0,
     failNextMovementCreate: false,
@@ -356,6 +368,12 @@ function createFakePrisma(db: FakeDb): PrismaService {
           }),
         ),
     },
+    storeSalePayment: {
+      createMany: ({ data }: { data: FakePayment[] }) => {
+        db.payments.push(...data.map((row) => ({ ...row })));
+        return Promise.resolve({ count: data.length });
+      },
+    },
     stockMovement: {
       create: ({ data }: { data: FakeMovement }) => {
         if (db.failNextMovementCreate) {
@@ -390,6 +408,7 @@ function createFakePrisma(db: FakeDb): PrismaService {
         levels: db.levels,
         documents: db.documents,
         movements: db.movements,
+        payments: db.payments,
         sequences: [...db.sequences.entries()],
       });
       try {
@@ -398,6 +417,7 @@ function createFakePrisma(db: FakeDb): PrismaService {
         db.levels = snapshot.levels;
         db.documents = snapshot.documents;
         db.movements = snapshot.movements;
+        db.payments = snapshot.payments;
         db.sequences = new Map(snapshot.sequences);
         throw error;
       }
@@ -502,6 +522,81 @@ describe('StoreSalesService (fase 3 §12)', () => {
     expect(movement.sourceDocumentId).toBe(doc.id);
     expect(movement.sourceLineId).toBe(doc.lines[0]!.id);
     expect(movement.createdByName).toBe('Mario Rossi');
+
+    // Il legacy a metodo unico produce comunque il dettaglio pagamenti:
+    // una riga che copre l'intero totale, nella stessa transazione.
+    expect(db.payments).toEqual([
+      {
+        tenantId: TENANT,
+        documentId: doc.id,
+        position: 1,
+        method: 'cash',
+        methodNote: null,
+        amountMinor: 5980,
+        tenderedMinor: null,
+      },
+    ]);
+  });
+
+  it('Multi-tender: righe pagamento persistite, documento marcato `mixed` con sintesi in nota', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+
+    // 2 × 29,90 netti senza IVA = 59,80: metà contanti (con resto), metà carta.
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        payments: [
+          { method: 'cash', amountMinor: 3000, tenderedMinor: 5000 },
+          { method: 'card', amountMinor: 2980 },
+        ],
+        lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+      },
+      user,
+    );
+
+    const doc = db.documents[0]!;
+    expect(doc.paymentMethod).toBe('mixed');
+    expect(doc['paymentMethodNote']).toBe('Contanti 30,00 € + Carta 29,80 €');
+    expect(db.payments).toHaveLength(2);
+    expect(db.payments[0]).toMatchObject({
+      documentId: doc.id,
+      position: 1,
+      method: 'cash',
+      amountMinor: 3000,
+      tenderedMinor: 5000,
+    });
+    expect(db.payments[1]).toMatchObject({
+      position: 2,
+      method: 'card',
+      amountMinor: 2980,
+      tenderedMinor: null,
+    });
+  });
+
+  it('Multi-tender: somma diversa dal totale ⇒ vendita rifiutata, nessun documento né movimento', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+
+    await expect(
+      service.createSale(
+        TENANT,
+        {
+          locationId: LOCATION,
+          payments: [{ method: 'cash', amountMinor: 1000 }],
+          lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+        },
+        user,
+      ),
+    ).rejects.toThrowError(
+      'La somma dei pagamenti (10,00 €) non corrisponde al totale della vendita (59,80 €).',
+    );
+
+    expect(db.documents).toHaveLength(0);
+    expect(db.movements).toHaveLength(0);
+    expect(db.payments).toHaveLength(0);
+    expect(levelOf(db, VARIANT_A).onHand).toBe(10);
   });
 
   // Il prezzo che arriva dalla cassa è NETTO come ogni prezzo del gestionale:
