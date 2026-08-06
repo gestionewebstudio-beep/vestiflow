@@ -210,6 +210,9 @@ enum SalesOrderSource {
   shopify_online
   shopify_pos
   manual
+  /// Cassa VestiFlow (vendita al banco): usato SOLO come canale dei
+  /// corrispettivi, mai come sorgente di un SalesOrder.
+  store
 }
 
 /// Stato fiscale corrispettivi per il commercialista (§8 piano funzionale).
@@ -1521,8 +1524,12 @@ model CorrispettivoEntry {
   year                Int
   /// Riferimento leggibile (es. 'COR-2026-0001').
   reference           String
-  onlineSaleId        String              @unique @map("online_sale_id") @db.Uuid
-  salesOrderId        String              @map("sales_order_id") @db.Uuid
+  /// Vendita online origine (canali Shopify). Null per le voci di cassa.
+  onlineSaleId        String?             @unique @map("online_sale_id") @db.Uuid
+  salesOrderId        String?             @map("sales_order_id") @db.Uuid
+  /// Documento origine (vendita/reso negozio, canale `store`). Null per le
+  /// voci online. Una voce ha SEMPRE una e una sola origine.
+  documentId          String?             @unique @map("document_id") @db.Uuid
   channel             SalesOrderSource
   /// Data operativa (evasione).
   operationalDate     DateTime            @map("operational_date")
@@ -1545,7 +1552,8 @@ model CorrispettivoEntry {
   updatedAt           DateTime            @updatedAt @map("updated_at")
 
   tenant     Tenant                   @relation(fields: [tenantId], references: [id])
-  onlineSale OnlineSale               @relation(fields: [onlineSaleId], references: [id], onDelete: Restrict)
+  onlineSale OnlineSale?              @relation(fields: [onlineSaleId], references: [id], onDelete: Restrict)
+  document   Document?                @relation(fields: [documentId], references: [id], onDelete: Restrict)
   lines      CorrispettivoEntryLine[]
 
   @@unique([tenantId, series, year, number])
@@ -1995,6 +2003,8 @@ model Document {
   /// Esito fiscale della vendita/reso di cassa (documento commerciale).
   fiscalReceipt          FiscalReceipt?
   cashSession            CashSession?   @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
+  /// Voce del registro Corrispettivi generata da questa vendita/reso di cassa.
+  corrispettivoEntry     CorrispettivoEntry?
 
   // Numero univoco per (tenant, tipo, serie): l'unicità reale è un indice
   // parziale `WHERE number IS NOT NULL` con NULLS NOT DISTINCT (serie nulla)

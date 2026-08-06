@@ -87,10 +87,14 @@ export interface CorrispettivoEntryRow {
   readonly reference: string;
   readonly channel: string;
   readonly channelLabel: string;
-  readonly onlineSaleId: EntityId;
-  readonly onlineSaleReference: string;
-  readonly salesOrderId: EntityId;
-  readonly orderNumber: string;
+  /** Origine online (canali Shopify); null per le voci di cassa. */
+  readonly onlineSaleId: EntityId | null;
+  readonly onlineSaleReference: string | null;
+  readonly salesOrderId: EntityId | null;
+  readonly orderNumber: string | null;
+  /** Origine cassa (vendita/reso negozio, canale `store`); null per l'online. */
+  readonly documentId: EntityId | null;
+  readonly documentReference: string | null;
   readonly operationalDate: IsoDateString;
   readonly fiscalDate: IsoDateString;
   readonly subtotalMinor: number;

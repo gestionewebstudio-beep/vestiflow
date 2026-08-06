@@ -36,6 +36,7 @@ import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapsho
 
 import type { CreateStoreReturnDto } from './dto/create-store-return.dto';
 import type { CreateStoreSaleDto } from './dto/create-store-sale.dto';
+import { createStoreCorrispettivoEntryTx } from './store-corrispettivo-entry.util';
 import { resolveStoreSalePayments } from './store-sale-payments.util';
 
 /** Esito della registrazione vendita/reso per la UI di cassa. */
@@ -254,6 +255,29 @@ export class StoreSalesService {
         });
       }
 
+      // Voce del registro Corrispettivi (canale Cassa negozio): stessa
+      // transazione del documento — o entrambi o nessuno dei due.
+      await createStoreCorrispettivoEntryTx(tx, {
+        tenantId,
+        documentId: doc.id,
+        documentDate,
+        operationalDate: doc.confirmedAt ?? documentDate,
+        subtotalMinor,
+        taxMinor,
+        totalMinor,
+        sign: 1,
+        lines: doc.lines.map((line) => ({
+          lineNumber: line.lineNumber,
+          description: line.description,
+          quantity: line.quantity,
+          lineTotalMinor: line.lineTotalMinor,
+          lineVatTotalMinor: line.lineVatTotalMinor,
+          lineGrossTotalMinor: line.lineGrossTotalMinor,
+          vatCodeId: line.vatCodeId,
+          vatSnapshot: line.vatSnapshot,
+        })),
+      });
+
       return doc;
     });
 
@@ -448,6 +472,32 @@ export class StoreSalesService {
           },
         });
       }
+
+      // Nel registro Corrispettivi il reso è uno STORNO: stessa voce della
+      // vendita ma con importi negativi, canale Cassa negozio.
+      await createStoreCorrispettivoEntryTx(tx, {
+        tenantId,
+        documentId: doc.id,
+        documentDate,
+        operationalDate: doc.confirmedAt ?? documentDate,
+        subtotalMinor,
+        taxMinor,
+        totalMinor,
+        sign: -1,
+        adjustmentNote: ['Reso', saleReference ? `vendita ${saleReference}` : null, dto.reason.trim()]
+          .filter(Boolean)
+          .join(' — '),
+        lines: doc.lines.map((line) => ({
+          lineNumber: line.lineNumber,
+          description: line.description,
+          quantity: line.quantity,
+          lineTotalMinor: line.lineTotalMinor,
+          lineVatTotalMinor: line.lineVatTotalMinor,
+          lineGrossTotalMinor: line.lineGrossTotalMinor,
+          vatCodeId: line.vatCodeId,
+          vatSnapshot: line.vatSnapshot,
+        })),
+      });
 
       return doc;
     });

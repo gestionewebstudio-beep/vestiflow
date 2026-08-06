@@ -174,7 +174,7 @@
           <tr>
             <th scope="col">Data fiscale</th>
             <th scope="col">Numero</th>
-            <th scope="col">Vendita online</th>
+            <th scope="col">Vendita</th>
             <th scope="col">Ordine</th>
             <th scope="col">Canale</th>
             <th scope="col" class="cor-table__cell--num">Imponibile</th>
@@ -202,23 +202,40 @@
                 {{ formatDate(entry.fiscalDate) }}
               </td>
               <td class="tabular-nums" data-label="Numero">{{ entry.reference }}</td>
-              <td class="tabular-nums" data-label="Vendita online">
-                <a
-                  [routerLink]="['/app/sales/online', entry.onlineSaleId]"
-                  class="cor-table__link"
-                  (click)="$event.stopPropagation()"
-                >
-                  {{ entry.onlineSaleReference }}
-                </a>
+              <td class="tabular-nums" data-label="Vendita">
+                @if (entry.onlineSaleId) {
+                  <a
+                    [routerLink]="['/app/sales/online', entry.onlineSaleId]"
+                    class="cor-table__link"
+                    (click)="$event.stopPropagation()"
+                  >
+                    {{ entry.onlineSaleReference }}
+                  </a>
+                } @else if (entry.documentId) {
+                  <!-- Voce di cassa: il link porta al documento vendita/reso negozio. -->
+                  <a
+                    [routerLink]="['/app/documents/vendite-negozio', entry.documentId]"
+                    class="cor-table__link"
+                    (click)="$event.stopPropagation()"
+                  >
+                    {{ entry.documentReference }}
+                  </a>
+                } @else {
+                  <span>—</span>
+                }
               </td>
               <td class="tabular-nums" data-label="Ordine">
-                <a
-                  [routerLink]="['/app/sales', entry.salesOrderId]"
-                  class="cor-table__link"
-                  (click)="$event.stopPropagation()"
-                >
-                  {{ entry.orderNumber }}
-                </a>
+                @if (entry.salesOrderId) {
+                  <a
+                    [routerLink]="['/app/sales', entry.salesOrderId]"
+                    class="cor-table__link"
+                    (click)="$event.stopPropagation()"
+                  >
+                    {{ entry.orderNumber }}
+                  </a>
+                } @else {
+                  <span>—</span>
+                }
               </td>
               <td data-label="Canale">{{ entry.channelLabel }}</td>
               <td class="cor-table__cell--num tabular-nums" data-label="Imponibile">

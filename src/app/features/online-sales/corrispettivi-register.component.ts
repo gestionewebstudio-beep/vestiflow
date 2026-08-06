@@ -117,6 +117,7 @@ export class CorrispettiviRegisterComponent {
   protected readonly channelOptions: readonly SelectMenuOption[] = [
     { value: 'online', label: 'Shopify online' },
     { value: 'pos', label: 'Shopify POS' },
+    { value: 'store', label: 'Cassa negozio' },
   ];
 
   protected readonly statusOptions: readonly SelectMenuOption[] = Object.values(

@@ -103,6 +103,8 @@ interface FakeDb {
   documents: FakeDocument[];
   movements: FakeMovement[];
   payments: FakePayment[];
+  corrispettivi: Record<string, unknown>[];
+  corrispettivoLines: Record<string, unknown>[];
   sequences: Map<string, number>;
   idCounter: number;
   failNextMovementCreate: boolean;
@@ -161,6 +163,8 @@ function createDb(): FakeDb {
     documents: [],
     movements: [],
     payments: [],
+    corrispettivi: [],
+    corrispettivoLines: [],
     sequences: new Map(),
     idCounter: 0,
     failNextMovementCreate: false,
@@ -376,6 +380,18 @@ function createFakePrisma(db: FakeDb): PrismaService {
     },
     // Nessuna cassa aperta nel fake db: vendite e resi restano sganciati.
     cashSession: { findFirst: () => Promise.resolve(null) },
+    corrispettivoEntry: {
+      create: ({ data }: { data: Record<string, unknown> }) => {
+        db.corrispettivi.push({ ...data });
+        return Promise.resolve({ id: `cor-${db.corrispettivi.length}` });
+      },
+    },
+    corrispettivoEntryLine: {
+      createMany: ({ data }: { data: Record<string, unknown>[] }) => {
+        db.corrispettivoLines.push(...data.map((row) => ({ ...row })));
+        return Promise.resolve({ count: data.length });
+      },
+    },
     stockMovement: {
       create: ({ data }: { data: FakeMovement }) => {
         if (db.failNextMovementCreate) {
@@ -411,6 +427,8 @@ function createFakePrisma(db: FakeDb): PrismaService {
         documents: db.documents,
         movements: db.movements,
         payments: db.payments,
+        corrispettivi: db.corrispettivi,
+        corrispettivoLines: db.corrispettivoLines,
         sequences: [...db.sequences.entries()],
       });
       try {
@@ -420,6 +438,8 @@ function createFakePrisma(db: FakeDb): PrismaService {
         db.documents = snapshot.documents;
         db.movements = snapshot.movements;
         db.payments = snapshot.payments;
+        db.corrispettivi = snapshot.corrispettivi;
+        db.corrispettivoLines = snapshot.corrispettivoLines;
         db.sequences = new Map(snapshot.sequences);
         throw error;
       }
@@ -538,6 +558,54 @@ describe('StoreSalesService (fase 3 §12)', () => {
         tenderedMinor: null,
       },
     ]);
+
+    // La vendita entra nel registro Corrispettivi come voce canale Cassa
+    // negozio, numerata nella sequenza COR condivisa con l'online.
+    expect(db.corrispettivi).toHaveLength(1);
+    expect(db.corrispettivi[0]).toMatchObject({
+      documentId: doc.id,
+      channel: 'store',
+      totalMinor: 5980,
+      status: 'to_verify',
+    });
+    expect(db.corrispettivi[0]!['reference']).toMatch(/^COR-\d{4}-0001$/);
+    expect(db.corrispettivoLines).toHaveLength(1);
+  });
+
+  it('Reso: voce corrispettivo di STORNO con importi negativi e nota col riferimento', async () => {
+    const db = createDb();
+    const { service } = createService(db);
+
+    await service.createSale(
+      TENANT,
+      {
+        locationId: LOCATION,
+        paymentMethod: 'cash',
+        lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+      },
+      user,
+    );
+    const sale = db.documents[0]!;
+
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        saleDocumentId: sale.id,
+        reason: 'taglia errata',
+        lines: [
+          { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 },
+        ],
+      },
+      user,
+    );
+
+    expect(db.corrispettivi).toHaveLength(2);
+    const storno = db.corrispettivi[1]!;
+    expect(storno).toMatchObject({ channel: 'store', totalMinor: -2990 });
+    expect(String(storno['adjustmentNote'])).toContain('taglia errata');
+    // Numerazione condivisa: la voce di storno prosegue la sequenza COR.
+    expect(storno['number']).toBe(2);
   });
 
   it('Multi-tender: righe pagamento persistite, documento marcato `mixed` con sintesi in nota', async () => {

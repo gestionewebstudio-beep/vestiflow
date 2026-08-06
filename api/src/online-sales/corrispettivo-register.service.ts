@@ -18,10 +18,14 @@ export interface CorrispettivoEntryRow {
   readonly reference: string;
   readonly channel: ApiSalesOrderSource;
   readonly channelLabel: string;
-  readonly onlineSaleId: string;
-  readonly onlineSaleReference: string;
-  readonly salesOrderId: string;
-  readonly orderNumber: string;
+  /** Origine online (canali Shopify); null per le voci di cassa. */
+  readonly onlineSaleId: string | null;
+  readonly onlineSaleReference: string | null;
+  readonly salesOrderId: string | null;
+  readonly orderNumber: string | null;
+  /** Origine cassa (vendita/reso negozio); null per le voci online. */
+  readonly documentId: string | null;
+  readonly documentReference: string | null;
   readonly operationalDate: string;
   readonly fiscalDate: string;
   readonly subtotalMinor: number;
@@ -113,6 +117,7 @@ export class CorrispettivoRegisterService {
         where,
         include: {
           onlineSale: { select: { reference: true, orderNumber: true } },
+          document: { select: { reference: true } },
         },
         orderBy: [{ fiscalDate: 'desc' }, { number: 'desc' }],
         skip: (query.page - 1) * query.pageSize,
@@ -263,6 +268,7 @@ export class CorrispettivoRegisterService {
       where: { id, tenantId },
       include: {
         onlineSale: { select: { reference: true, orderNumber: true, salesOrderId: true } },
+        document: { select: { reference: true } },
         lines: { orderBy: { lineNumber: 'asc' } },
       },
     });
@@ -334,6 +340,7 @@ export class CorrispettivoRegisterService {
       data,
       include: {
         onlineSale: { select: { reference: true, orderNumber: true } },
+        document: { select: { reference: true } },
       },
     });
     return this.toRow(updated);
@@ -377,6 +384,8 @@ export class CorrispettivoRegisterService {
         { reference: { contains: search, mode: 'insensitive' } },
         { onlineSale: { orderNumber: { contains: search, mode: 'insensitive' } } },
         { onlineSale: { reference: { contains: search, mode: 'insensitive' } } },
+        // Voci di cassa: si cercano per riferimento del documento (VN/RN).
+        { document: { reference: { contains: search, mode: 'insensitive' } } },
       ];
     }
     return where;
@@ -384,7 +393,10 @@ export class CorrispettivoRegisterService {
 
   private toRow(
     entry: Prisma.CorrispettivoEntryGetPayload<{
-      include: { onlineSale: { select: { reference: true; orderNumber: true } } };
+      include: {
+        onlineSale: { select: { reference: true; orderNumber: true } };
+        document: { select: { reference: true } };
+      };
     }>,
   ): CorrispettivoEntryRow {
     return {
@@ -393,9 +405,11 @@ export class CorrispettivoRegisterService {
       channel: fromPrismaSource(entry.channel),
       channelLabel: sourceDisplayLabel(entry.channel),
       onlineSaleId: entry.onlineSaleId,
-      onlineSaleReference: entry.onlineSale.reference,
+      onlineSaleReference: entry.onlineSale?.reference ?? null,
       salesOrderId: entry.salesOrderId,
-      orderNumber: entry.onlineSale.orderNumber,
+      orderNumber: entry.onlineSale?.orderNumber ?? null,
+      documentId: entry.documentId,
+      documentReference: entry.document?.reference ?? null,
       operationalDate: entry.operationalDate.toISOString(),
       fiscalDate: entry.fiscalDate.toISOString().slice(0, 10),
       subtotalMinor: entry.subtotalMinor,

@@ -6,6 +6,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import {
   API_SOURCE_ONLINE,
   API_SOURCE_POS,
+  API_SOURCE_STORE,
 } from '../../sales-orders/sales-order.enum-mapper';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -19,7 +20,7 @@ export class ListCorrispettivoEntriesQueryDto extends PaginationQueryDto {
   search?: string;
 
   @IsOptional()
-  @IsIn([API_SOURCE_ONLINE, API_SOURCE_POS])
+  @IsIn([API_SOURCE_ONLINE, API_SOURCE_POS, API_SOURCE_STORE])
   channel?: string;
 
   @IsOptional()

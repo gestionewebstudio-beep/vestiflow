@@ -9,6 +9,8 @@ export const API_SOURCE_ONLINE = 'online';
 export const API_SOURCE_POS = 'pos';
 /** Ordini creati manualmente nel gestionale (fase 3 §2: registro multicanale). */
 export const API_SOURCE_MANUAL = 'manual';
+/** Cassa VestiFlow (vendita al banco): solo come canale dei corrispettivi. */
+export const API_SOURCE_STORE = 'store';
 /** Tutti i canali Shopify (online + POS), per la schermata Ordini Shopify (fase 3 §3). */
 export const API_SOURCE_SHOPIFY = 'shopify';
 
@@ -40,7 +42,8 @@ export const API_STATE_VALUES = [
 export type ApiSalesOrderSource =
   | typeof API_SOURCE_ONLINE
   | typeof API_SOURCE_POS
-  | typeof API_SOURCE_MANUAL;
+  | typeof API_SOURCE_MANUAL
+  | typeof API_SOURCE_STORE;
 
 export function toPrismaSource(source?: string): PrismaSource | undefined {
   switch (source) {
@@ -50,6 +53,8 @@ export function toPrismaSource(source?: string): PrismaSource | undefined {
       return PrismaSource.shopify_pos;
     case API_SOURCE_MANUAL:
       return PrismaSource.manual;
+    case API_SOURCE_STORE:
+      return PrismaSource.store;
     default:
       return undefined;
   }
@@ -67,6 +72,9 @@ export function prismaSourceFilter(source?: string): PrismaSource[] | undefined 
 export function fromPrismaSource(source: PrismaSource): ApiSalesOrderSource {
   if (source === PrismaSource.manual) {
     return API_SOURCE_MANUAL;
+  }
+  if (source === PrismaSource.store) {
+    return API_SOURCE_STORE;
   }
   return source === PrismaSource.shopify_pos ? API_SOURCE_POS : API_SOURCE_ONLINE;
 }
@@ -104,6 +112,9 @@ export function prismaFulfillmentFilter(status?: string): PrismaFulfillment[] | 
 export function sourceDisplayLabel(source: PrismaSource): string {
   if (source === PrismaSource.manual) {
     return 'Manuale';
+  }
+  if (source === PrismaSource.store) {
+    return 'Cassa negozio';
   }
   return source === PrismaSource.shopify_pos ? 'Negozio' : 'Online';
 }
