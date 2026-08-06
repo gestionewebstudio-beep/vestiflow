@@ -22,4 +22,18 @@ export class NavigationHistoryService {
   back(): void {
     this.location.back();
   }
+
+  /**
+   * Uscita «indietro» delle maschere (Chiudi/Annulla): torna alla pagina
+   * precedente se una cronologia interna esiste, altrimenti va al fallback.
+   * Navigare SEMPRE in avanti verso la lista creava il giro vizioso
+   * lista → form → lista: dal secondo «Indietro» si rientrava nel form.
+   */
+  backOr(fallbackUrl: string): void {
+    if (this.canGoBack()) {
+      this.location.back();
+      return;
+    }
+    void this.router.navigateByUrl(fallbackUrl);
+  }
 }
