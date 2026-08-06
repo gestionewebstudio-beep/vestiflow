@@ -447,3 +447,24 @@
     (dismissed)="dismissConfirm()"
   />
 </section>
+
+<!-- Uscita con modifiche non salvate (guard di route): due scelte — il submit
+     ha già la sua conferma con riepilogo, niente «Salva e chiudi» qui. -->
+@if (exitDialogOpen()) {
+  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
+  <div
+    class="doc-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="mov-exit-title"
+  >
+    <h2 id="mov-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
+    <p class="doc-form__exit-message">Ci sono modifiche non salvate. Se esci ora andranno perse.</p>
+    <div class="doc-form__exit-actions">
+      <app-button type="button" variant="ghost" (click)="cancelExitDialog()">Annulla</app-button>
+      <app-button type="button" variant="secondary" (click)="confirmExitWithoutSaving()">
+        Esci senza salvare
+      </app-button>
+    </div>
+  </div>
+}

@@ -13,6 +13,7 @@ import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import type { Supplier } from '@core/models/supplier.model';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
@@ -46,7 +47,7 @@ import { SupplierService } from '@domain/suppliers/services/supplier.service';
   templateUrl: './supplier-form.component.html',
   styleUrl: './supplier-form.component.scss',
 })
-export class SupplierFormComponent {
+export class SupplierFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly service = inject(SupplierService);
   private readonly vatCodeService = inject(VatCodeService);
@@ -107,19 +108,41 @@ export class SupplierFormComponent {
 
   protected readonly form = createSupplierFormGroup(this.fb);
 
+  // ── Uscita con modifiche non salvate (pattern Ordine fornitore) ──
+  protected readonly dirtySinceLastSave = signal(false);
+  protected readonly exitDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
+  /** True durante il patch programmatico del form (caricamento in modifica). */
+  private suppressDirtyMarking = false;
+
   constructor() {
     toObservable(this.loadState)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((state) => {
         if (state.status === 'ready' && state.supplier) {
-          patchSupplierFormGroup(this.form, state.supplier);
+          // Patch programmatico: non è una modifica dell'utente.
+          this.suppressDirtyMarking = true;
+          try {
+            patchSupplierFormGroup(this.form, state.supplier);
+          } finally {
+            this.suppressDirtyMarking = false;
+          }
         }
       });
+
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.markFormDirty();
+    });
   }
 
-  protected submit(): void {
+  protected submit(onSaved?: () => void): void {
     this.form.markAllAsTouched();
     if (this.form.invalid || this.saving()) {
+      if (onSaved) {
+        // «Salva e chiudi» con form non valido: il dialogo si chiude e
+        // l'operatore resta sul form a correggere gli errori.
+        this.cancelExitDialog();
+      }
       return;
     }
     this.saving.set(true);
@@ -133,6 +156,12 @@ export class SupplierFormComponent {
     request$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (supplier: Supplier) => {
         this.saving.set(false);
+        // Fornitore salvato: il guard di uscita non deve più fermare la navigazione.
+        this.dirtySinceLastSave.set(false);
+        if (onSaved) {
+          onSaved();
+          return;
+        }
         void this.router.navigate(['/app/suppliers', supplier.id]);
       },
       error: (err: unknown) => {
@@ -140,5 +169,43 @@ export class SupplierFormComponent {
         this.saveError.set(isAppError(err) ? err.message : 'Salvataggio non riuscito');
       },
     });
+  }
+
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.dirtySinceLastSave()) {
+      return true;
+    }
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  protected cancelExitDialog(): void {
+    this.exitDialogOpen.set(false);
+    this.pendingDeactivate?.(false);
+    this.pendingDeactivate = null;
+  }
+
+  protected confirmExitWithoutSaving(): void {
+    this.exitDialogOpen.set(false);
+    this.dirtySinceLastSave.set(false);
+    this.pendingDeactivate?.(true);
+    this.pendingDeactivate = null;
+  }
+
+  /** «Salva e chiudi» dal dialogo: salva il fornitore e prosegue l'uscita. */
+  protected confirmExitSave(): void {
+    this.submit(() => {
+      this.exitDialogOpen.set(false);
+      this.pendingDeactivate?.(true);
+      this.pendingDeactivate = null;
+    });
+  }
+
+  private markFormDirty(): void {
+    if (!this.suppressDirtyMarking) {
+      this.dirtySinceLastSave.set(true);
+    }
   }
 }

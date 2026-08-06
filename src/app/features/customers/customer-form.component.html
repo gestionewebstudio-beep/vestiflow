@@ -35,3 +35,42 @@
     </form>
   }
 </section>
+
+@if (exitDialogOpen()) {
+  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
+  <div
+    class="doc-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="cust-exit-title"
+  >
+    <h2 id="cust-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
+    <p class="doc-form__exit-message">
+      Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?
+    </p>
+    @if (saveError(); as message) {
+      <p class="doc-form__exit-error" role="alert">{{ message }}</p>
+    }
+    <div class="doc-form__exit-actions">
+      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
+        Annulla
+      </app-button>
+      <app-button
+        type="button"
+        variant="secondary"
+        [disabled]="saving()"
+        (click)="confirmExitWithoutSaving()"
+      >
+        Chiudi senza salvare
+      </app-button>
+      <app-button
+        type="button"
+        [loading]="saving()"
+        [disabled]="saving()"
+        (click)="confirmExitSave()"
+      >
+        Salva e chiudi
+      </app-button>
+    </div>
+  </div>
+}

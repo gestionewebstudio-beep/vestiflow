@@ -20,6 +20,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
+import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import type { AppError } from '@core/models/app-error.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
@@ -161,7 +162,7 @@ function parseRatePercent(value: string): number | null {
   templateUrl: './purchase-invoice-form.component.html',
   styleUrl: './purchase-invoice-form.component.scss',
 })
-export class PurchaseInvoiceFormComponent {
+export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly documentService = inject(DocumentService);
   private readonly countersService = inject(DocumentCountersService);
@@ -186,6 +187,11 @@ export class PurchaseInvoiceFormComponent {
       id: this.editDocumentId() || null,
       label: this.loadedReference(),
     }));
+
+    // Ogni modifica utente al form marca la registrazione come «da salvare».
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.markFormDirty();
+    });
   }
 
   protected readonly listPath = '/app/documents/registrazione-fattura';
@@ -311,6 +317,13 @@ export class PurchaseInvoiceFormComponent {
     const state = this._submitState();
     return state.status === 'error' ? state.error : null;
   });
+
+  // ── Uscita con modifiche non salvate (pattern Ordine fornitore) ─────────────
+  protected readonly dirtySinceLastSave = signal(false);
+  protected readonly exitDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
+  /** True durante il patch programmatico del form (caricamento in modifica). */
+  private suppressDirtyMarking = false;
 
   private readonly suppliers = toSignal(
     this.supplierService.getSuppliers().pipe(catchError(() => of([]))),
@@ -559,8 +572,14 @@ export class PurchaseInvoiceFormComponent {
           }
           const proposed = counters.find((entry) => entry.id === proposedCounterId);
           if (proposed) {
-            this.form.controls.series.setValue(proposed.series ?? '');
-            this.form.controls.protocolNumber.setValue(proposed.nextNumber);
+            // Proposta programmatica di serie/protocollo: non è una modifica utente.
+            this.suppressDirtyMarking = true;
+            try {
+              this.form.controls.series.setValue(proposed.series ?? '');
+              this.form.controls.protocolNumber.setValue(proposed.nextNumber);
+            } finally {
+              this.suppressDirtyMarking = false;
+            }
           }
         },
         error: () => undefined,
@@ -833,11 +852,14 @@ export class PurchaseInvoiceFormComponent {
         vatBreakdown: row.vatBreakdown ?? [],
       })),
     ]);
+    // Gli arrivi inclusi vivono fuori dal FormGroup: dirty marcato a mano.
+    this.markFormDirty();
     this.includePanelOpen.set(false);
   }
 
   protected removeReceipt(id: string): void {
     this.includedReceipts.update((current) => current.filter((row) => row.id !== id));
+    this.markFormDirty();
   }
 
   /** Riga riepilogativa (§5.2): "Arrivo merce n. 3 del 30/05/2026 - DDT 145…". */
@@ -849,7 +871,7 @@ export class PurchaseInvoiceFormComponent {
 
   // ── Salvataggio ─────────────────────────────────────────────────────────────
 
-  protected save(): void {
+  protected save(onSaved?: () => void): void {
     if (this.saving()) {
       return;
     }
@@ -959,6 +981,12 @@ export class PurchaseInvoiceFormComponent {
       .subscribe({
         next: () => {
           this._submitState.set({ status: 'idle' });
+          // Registrazione salvata: il guard di uscita non deve più fermarla.
+          this.dirtySinceLastSave.set(false);
+          if (onSaved) {
+            onSaved();
+            return;
+          }
           void this.router.navigateByUrl(this.listPath);
         },
         error: (err: unknown) => {
@@ -979,7 +1007,57 @@ export class PurchaseInvoiceFormComponent {
     this.navHistory.backOr(this.listPath);
   }
 
+  // ── Uscita con modifiche non salvate (pattern Ordine fornitore) ─────────────
+
+  private markFormDirty(): void {
+    if (!this.suppressDirtyMarking) {
+      this.dirtySinceLastSave.set(true);
+    }
+  }
+
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.dirtySinceLastSave()) {
+      return true;
+    }
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  protected cancelExitDialog(): void {
+    this.exitDialogOpen.set(false);
+    this.pendingDeactivate?.(false);
+    this.pendingDeactivate = null;
+  }
+
+  protected confirmExitWithoutSaving(): void {
+    this.exitDialogOpen.set(false);
+    this.dirtySinceLastSave.set(false);
+    this.pendingDeactivate?.(true);
+    this.pendingDeactivate = null;
+  }
+
+  /** «Salva e chiudi» dal dialogo: salva la registrazione e prosegue l'uscita. */
+  protected confirmExitSaveInvoice(): void {
+    this.save(() => {
+      this.exitDialogOpen.set(false);
+      this.pendingDeactivate?.(true);
+      this.pendingDeactivate = null;
+    });
+  }
+
   private patchFormFromDocument(doc: DocumentRecord): void {
+    // Patch programmatico (caricamento/duplica): non è una modifica dell'utente.
+    this.suppressDirtyMarking = true;
+    try {
+      this.applyDocumentToForm(doc);
+    } finally {
+      this.suppressDirtyMarking = false;
+    }
+  }
+
+  private applyDocumentToForm(doc: DocumentRecord): void {
     this.selectedSupplierId.set(doc.supplierId ?? '');
     this.form.patchValue({
       supplierId: doc.supplierId ?? '',
@@ -1075,12 +1153,18 @@ export class PurchaseInvoiceFormComponent {
     // Copia indipendente, come il duplica legacy: numero e date fresche, niente
     // rate né ricevute agganciate; resta il rif. fattura fornitore e le righe
     // manuali. La registrazione fattura non movimenta magazzino.
-    this.form.patchValue({
-      protocolNumber: null,
-      documentDate: todayIsoDate(),
-      registrationDate: todayIsoDate(),
-    });
-    this.installments.clear();
+    // Prefill programmatico: non è una modifica dell'utente.
+    this.suppressDirtyMarking = true;
+    try {
+      this.form.patchValue({
+        protocolNumber: null,
+        documentDate: todayIsoDate(),
+        registrationDate: todayIsoDate(),
+      });
+      this.installments.clear();
+    } finally {
+      this.suppressDirtyMarking = false;
+    }
     this.includedReceipts.set([]);
     this.refreshProtocolProposal();
   }
