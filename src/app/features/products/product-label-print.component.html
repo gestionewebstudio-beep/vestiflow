@@ -1,0 +1,68 @@
+<section class="label-print">
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="4" />
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="pi-search"
+      title="Prodotto non trovato"
+      description="Il prodotto richiesto non esiste o è stato rimosso."
+      ctaLabel="Torna ai prodotti"
+      (ctaClick)="goToList()"
+    />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (product()) {
+    @if (autoPrint()) {
+      <p class="label-print__auto-status" aria-live="polite">Apertura finestra di stampa…</p>
+    }
+
+    <header class="label-print__toolbar">
+      <!-- Il padre dedotto dall'URL sarebbe la lista prodotti: senza cronologia
+           si torna invece al dettaglio del prodotto di queste etichette. -->
+      <app-back-button [fallbackLink]="detailPath()" />
+      <div class="label-print__actions">
+        <label class="label-print__quantity">
+          Copie per etichetta
+          <input
+            class="label-print__quantity-input"
+            type="number"
+            min="1"
+            max="500"
+            step="1"
+            [value]="quantity()"
+            (change)="setQuantity($any($event.target).valueAsNumber)"
+          />
+        </label>
+        <app-button variant="secondary" (click)="print()">
+          <i class="pi pi-print" aria-hidden="true"></i>
+          Stampa etichetta
+        </app-button>
+      </div>
+    </header>
+
+    <p class="label-print__hint">Anteprima etichetta per la cassa.</p>
+
+    @if (labels().length === 0) {
+      <app-empty-state
+        icon="pi-box"
+        title="Nessuna variante da stampare"
+        description="La variante richiesta non esiste oppure il prodotto non ha varianti."
+        ctaLabel="Torna al prodotto"
+        (ctaClick)="goToDetail()"
+      />
+    } @else {
+      <div class="label-print__sheet" aria-label="Etichette prodotto">
+        @for (label of expandedLabels(); track label.variantId + '-' + $index) {
+          <app-product-label
+            [productName]="label.productName"
+            [brand]="label.brand"
+            [sku]="label.sku"
+            [barcode]="label.barcode"
+            [sellingPrice]="label.sellingPrice"
+            [compareAtPrice]="label.compareAtPrice"
+          />
+        }
+      </div>
+    }
+  }
+</section>

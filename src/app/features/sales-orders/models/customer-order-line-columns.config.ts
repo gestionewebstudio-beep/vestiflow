@@ -1,0 +1,228 @@
+import {
+  TableViewId,
+  type TableColumnDef,
+  type TableViewPresetMap,
+} from '@shared/table-columns/table-column.model';
+import { TableViewPresetId as PresetId } from '@shared/table-columns/table-column.model';
+
+export const CUSTOMER_ORDER_LINES_VIEW = TableViewId.CustomerOrderLines;
+
+// Stesse larghezze "per contenuto" della tabella righe Arrivo merce (v4):
+// SKU/EAN respirano, quantità e IVA restano strette, il nome prodotto domina.
+export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
+  // Identificatore anagrafico interno (§Codice articolo): funzione primaria di
+  // ricerca articolo nei documenti, quindi visibile di default.
+  { id: 'articleCode', label: 'Cod. articolo', defaultWidthPx: 96, minWidthPx: 64 },
+  { id: 'sku', label: 'SKU', defaultWidthPx: 104, minWidthPx: 64 },
+  { id: 'barcode', label: 'EAN', defaultWidthPx: 124, minWidthPx: 72 },
+  { id: 'product', label: 'Nome prodotto', defaultWidthPx: 300, minWidthPx: 160 },
+  // Q.tà è il campo che si digita e ospita l'avviso «disponibili solo N»:
+  // qualche pixel in più a lei, tolto alla disponibilità che mostra un numero.
+  { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 72, minWidthPx: 52 },
+  {
+    id: 'stockAvailable',
+    label: 'Q.tà disp.',
+    numeric: true,
+    defaultWidthPx: 62,
+    minWidthPx: 48,
+  },
+  { id: 'unitOfMeasure', label: 'U.m.', defaultWidthPx: 44, minWidthPx: 36 },
+  // Costo d'acquisto (§8): colonna sensibile, nascosta di default e visibile
+  // SOLO agli operatori con permesso "Visualizza costi d'acquisto" — senza
+  // permesso la definizione non viene proprio registrata nel selettore.
+  {
+    id: 'purchaseCost',
+    label: 'Costo',
+    numeric: true,
+    defaultVisible: false,
+    defaultWidthPx: 84,
+    minWidthPx: 56,
+  },
+  // Glossario VestiFlow (§7): "Prezzo" come nella scheda prodotto.
+  { id: 'unitPrice', label: 'Prezzo', numeric: true, defaultWidthPx: 92, minWidthPx: 56 },
+  { id: 'discount', label: 'Sconto', numeric: true, defaultWidthPx: 64, minWidthPx: 44 },
+  {
+    id: 'discountedPrice',
+    label: 'Prezzo scontato',
+    numeric: true,
+    defaultWidthPx: 92,
+    minWidthPx: 56,
+  },
+  // IVA: la cella ospita una tendina (codice + freccia), non solo un numero —
+  // stretta, il codice veniva troncato («2…» al posto di «22»).
+  { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 96, minWidthPx: 76 },
+  { id: 'commitsStock', label: 'Imp.', defaultWidthPx: 48, minWidthPx: 40 },
+  { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
+  // Due pulsanti da 30px (duplica + elimina) più gap e rientri: sotto gli 84
+  // il cestino finisce contro il bordo della card.
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 84, minWidthPx: 76 },
+];
+
+// I preset partono dalle colonne visibili di default: quelle opzionali
+// (defaultVisible: false, es. Costo d'acquisto) restano selezionabili a mano.
+const ALL_COLUMN_IDS = CUSTOMER_ORDER_LINE_COLUMNS.filter(
+  (column) => column.defaultVisible !== false,
+).map((column) => column.id);
+
+export const CUSTOMER_ORDER_LINE_PRESETS: TableViewPresetMap = {
+  [PresetId.Default]: ALL_COLUMN_IDS,
+  [PresetId.Warehouse]: [
+    'articleCode',
+    'sku',
+    'barcode',
+    'product',
+    'quantity',
+    'stockAvailable',
+    'unitOfMeasure',
+    'commitsStock',
+    'actions',
+  ],
+  [PresetId.Accountant]: [
+    'sku',
+    'product',
+    'quantity',
+    'unitPrice',
+    'discount',
+    'vat',
+    'lineTotal',
+  ],
+  [PresetId.Supplier]: ALL_COLUMN_IDS,
+  [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitPrice', 'discountedPrice', 'lineTotal'],
+  [PresetId.Operational]: ALL_COLUMN_IDS,
+};
+
+// ── DDT vendita (stessa maschera dell'Ordine cliente, prompt DDT §RIGHE) ───
+// Differenze di colonne: «Imp.» (Impegna magazzino) diventa «Scarica mag.»
+// — il DDT non impegna le giacenze, le scarica — e compare «Seriali»
+// (nascosta di default, visibile solo con tracciamento seriali attivo):
+// lo scarico consuma i seriali come nell'Arrivo merce li carica.
+export const SALES_DDT_LINES_VIEW = TableViewId.SalesDdtLines;
+
+export const SALES_DDT_LINE_COLUMNS: readonly TableColumnDef[] =
+  CUSTOMER_ORDER_LINE_COLUMNS.flatMap((column) => {
+    if (column.id === 'commitsStock') {
+      return [
+        {
+          id: 'serials',
+          label: 'Seriali',
+          defaultVisible: false,
+          defaultWidthPx: 112,
+          minWidthPx: 88,
+        },
+        { ...column, label: 'Scarica mag.', defaultWidthPx: 64, minWidthPx: 48 },
+      ];
+    }
+    return [column];
+  });
+
+const SALES_DDT_ALL_COLUMN_IDS = SALES_DDT_LINE_COLUMNS.filter(
+  (column) => column.defaultVisible !== false,
+).map((column) => column.id);
+
+export const SALES_DDT_LINE_PRESETS: TableViewPresetMap = {
+  [PresetId.Default]: SALES_DDT_ALL_COLUMN_IDS,
+  [PresetId.Warehouse]: [
+    'articleCode',
+    'sku',
+    'barcode',
+    'product',
+    'quantity',
+    'stockAvailable',
+    'unitOfMeasure',
+    'serials',
+    'commitsStock',
+    'actions',
+  ],
+  [PresetId.Accountant]: [
+    'sku',
+    'product',
+    'quantity',
+    'unitPrice',
+    'discount',
+    'vat',
+    'lineTotal',
+  ],
+  [PresetId.Supplier]: SALES_DDT_ALL_COLUMN_IDS,
+  [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitPrice', 'discountedPrice', 'lineTotal'],
+  [PresetId.Operational]: SALES_DDT_ALL_COLUMN_IDS,
+};
+
+// ── Scarico manuale (stessa maschera del DDT vendita, prompt Scarico manuale) ─
+// Stesse colonne del DDT («Scarica mag.», prezzi, totali); niente «Seriali»:
+// lo scarico diretto non gestisce i numeri di serie (nessun movimento).
+export const MANUAL_UNLOAD_LINES_VIEW = TableViewId.ManualUnloadLines;
+
+export const MANUAL_UNLOAD_LINE_COLUMNS: readonly TableColumnDef[] = SALES_DDT_LINE_COLUMNS.filter(
+  (column) => column.id !== 'serials',
+);
+
+const MANUAL_UNLOAD_ALL_COLUMN_IDS = MANUAL_UNLOAD_LINE_COLUMNS.filter(
+  (column) => column.defaultVisible !== false,
+).map((column) => column.id);
+
+export const MANUAL_UNLOAD_LINE_PRESETS: TableViewPresetMap = {
+  [PresetId.Default]: MANUAL_UNLOAD_ALL_COLUMN_IDS,
+  [PresetId.Warehouse]: [
+    'articleCode',
+    'sku',
+    'barcode',
+    'product',
+    'quantity',
+    'stockAvailable',
+    'unitOfMeasure',
+    'commitsStock',
+    'actions',
+  ],
+  [PresetId.Accountant]: [
+    'sku',
+    'product',
+    'quantity',
+    'unitPrice',
+    'discount',
+    'vat',
+    'lineTotal',
+  ],
+  [PresetId.Supplier]: MANUAL_UNLOAD_ALL_COLUMN_IDS,
+  [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitPrice', 'discountedPrice', 'lineTotal'],
+  [PresetId.Operational]: MANUAL_UNLOAD_ALL_COLUMN_IDS,
+};
+
+// ── Preventivo (stessa maschera dell'Ordine cliente, §Preventivi) ───────────
+// Il preventivo non impegna e non blocca disponibilità di magazzino: niente
+// colonne «Q.tà disp.» e «Impegna» — il resto della tabella è identico.
+export const QUOTE_LINES_VIEW = TableViewId.QuoteLines;
+
+const QUOTE_EXCLUDED_COLUMN_IDS: readonly string[] = ['stockAvailable', 'commitsStock'];
+
+export const QUOTE_LINE_COLUMNS: readonly TableColumnDef[] = CUSTOMER_ORDER_LINE_COLUMNS.filter(
+  (column) => !QUOTE_EXCLUDED_COLUMN_IDS.includes(column.id),
+);
+
+const QUOTE_ALL_COLUMN_IDS = QUOTE_LINE_COLUMNS.filter(
+  (column) => column.defaultVisible !== false,
+).map((column) => column.id);
+
+export const QUOTE_LINE_PRESETS: TableViewPresetMap = {
+  [PresetId.Default]: QUOTE_ALL_COLUMN_IDS,
+  [PresetId.Warehouse]: [
+    'articleCode',
+    'sku',
+    'barcode',
+    'product',
+    'quantity',
+    'unitOfMeasure',
+    'actions',
+  ],
+  [PresetId.Accountant]: [
+    'sku',
+    'product',
+    'quantity',
+    'unitPrice',
+    'discount',
+    'vat',
+    'lineTotal',
+  ],
+  [PresetId.Supplier]: QUOTE_ALL_COLUMN_IDS,
+  [PresetId.Analysis]: ['sku', 'product', 'quantity', 'unitPrice', 'discountedPrice', 'lineTotal'],
+  [PresetId.Operational]: QUOTE_ALL_COLUMN_IDS,
+};

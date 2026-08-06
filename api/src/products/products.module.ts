@@ -1,10 +1,29 @@
 import { Module } from '@nestjs/common';
 
+import { ChannelsModule } from '../channels/channels.module';
+import { SupplierOrdersModule } from '../supplier-orders/supplier-orders.module';
+import { ShopifyModule } from '../shopify/shopify.module';
+import { CatalogCategoriesController } from './catalog-categories.controller';
+import { CatalogCategoriesService } from './catalog-categories.service';
+import { ProductMediaService } from './product-media.service';
+import { ProductPriceModePreferenceService } from './product-price-mode-preference.service';
 import { ProductsController } from './products.controller';
+import { ProductsExportService } from './products-export.service';
+import { ProductsImportService } from './products-import.service';
 import { ProductsService } from './products.service';
+import { SkuGeneratorService } from './sku-generator.service';
 
 @Module({
-  controllers: [ProductsController],
-  providers: [ProductsService],
+  imports: [ChannelsModule, ShopifyModule, SupplierOrdersModule],
+  controllers: [ProductsController, CatalogCategoriesController],
+  providers: [
+    ProductsService,
+    ProductMediaService,
+    ProductsImportService,
+    ProductsExportService,
+    SkuGeneratorService,
+    CatalogCategoriesService,
+    ProductPriceModePreferenceService,
+  ],
 })
 export class ProductsModule {}

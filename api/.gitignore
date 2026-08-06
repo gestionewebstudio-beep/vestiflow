@@ -1,5 +1,6 @@
 # Output build
 dist/
+tmp/
 
 # Ambiente locale: mai committare valori reali (regole-sicurezza)
 .env

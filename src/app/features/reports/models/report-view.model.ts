@@ -1,5 +1,4 @@
 import type { EntityId, Money } from '@core/models/common.model';
-import type { SalesOrderFinancialStatus } from '@core/models/sales-order.model';
 
 // View model dei report: righe già aggregate dalla pagina smart.
 
@@ -15,13 +14,4 @@ export interface LocationReportRow {
   readonly lowStockCount: number;
   /** Valore del disponibile a prezzo di vendita (available negativi esclusi). */
   readonly stockValue: Money;
-}
-
-/** Aggregato vendite per stato pagamento. */
-export interface SalesReportRow {
-  readonly status: SalesOrderFinancialStatus;
-  readonly orders: number;
-  /** Pezzi venduti (somma quantità righe). */
-  readonly units: number;
-  readonly total: Money;
 }

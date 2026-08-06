@@ -1,34 +1,67 @@
 <nav class="pagination" [attr.aria-label]="label()">
-  <div class="pagination__size">
-    <span class="pagination__label">Per pagina</span>
-    <app-select-menu
-      [options]="pageSizeSelectOptions()"
-      [value]="pageSizeValue()"
-      ariaLabel="Righe per pagina"
-      placeholder="25"
-      [compact]="true"
-      [fullWidth]="true"
-      [includeEmptyOption]="false"
-      (valueChange)="onPageSizeSelect($event)"
-    />
-  </div>
-
-  <p class="pagination__info tabular-nums">
-    {{ rangeStart() }}–{{ rangeEnd() }} di {{ meta().total }}
+  <p class="pagination__status tabular-nums">
+    <span class="pagination__range">{{ rangeStart() }}–{{ rangeEnd() }} di {{ meta().total }}</span>
+    <span class="pagination__status-sep" aria-hidden="true">·</span>
+    <span class="pagination__status-page">{{ meta().page }}/{{ meta().totalPages }}</span>
   </p>
 
-  <div class="pagination__controls">
-    <app-button variant="secondary" [disabled]="!canPrev()" (click)="prev()">
-      <i class="pi pi-chevron-left" aria-hidden="true"></i>
-      <span class="pagination__btn-label">Precedente</span>
-    </app-button>
-    <span class="pagination__page tabular-nums">
-      <span class="pagination__page-full">Pagina {{ meta().page }} di {{ meta().totalPages }}</span>
-      <span class="pagination__page-short">{{ meta().page }}/{{ meta().totalPages }}</span>
-    </span>
-    <app-button variant="secondary" [disabled]="!canNext()" (click)="next()">
-      <span class="pagination__btn-label">Successiva</span>
-      <i class="pi pi-chevron-right" aria-hidden="true"></i>
-    </app-button>
+  <div class="pagination__actions">
+    <div class="pagination__size">
+      <span class="pagination__label">Per pagina</span>
+      <div class="pagination__size-select">
+        <app-select-menu
+          [options]="pageSizeSelectOptions()"
+          [value]="pageSizeValue()"
+          ariaLabel="Righe per pagina"
+          placeholder="25"
+          [compact]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="onPageSizeSelect($event)"
+        />
+      </div>
+    </div>
+
+    <div class="pagination__controls">
+      <button
+        type="button"
+        class="pagination__nav"
+        [disabled]="!canPrev()"
+        aria-label="Pagina precedente"
+        (click)="prev()"
+      >
+        <i class="pi pi-chevron-left" aria-hidden="true"></i>
+      </button>
+
+      <ul class="pagination__pages">
+        @for (item of pageItems(); track $index) {
+          <li>
+            @if (item === 'ellipsis') {
+              <span class="pagination__ellipsis" aria-hidden="true">…</span>
+            } @else {
+              <button
+                type="button"
+                class="pagination__page-btn tabular-nums"
+                [class.pagination__page-btn--current]="item === meta().page"
+                [attr.aria-current]="item === meta().page ? 'page' : null"
+                [attr.aria-label]="'Pagina ' + item"
+                (click)="goTo(item)"
+              >
+                {{ item }}
+              </button>
+            }
+          </li>
+        }
+      </ul>
+
+      <button
+        type="button"
+        class="pagination__nav"
+        [disabled]="!canNext()"
+        aria-label="Pagina successiva"
+        (click)="next()"
+      >
+        <i class="pi pi-chevron-right" aria-hidden="true"></i>
+      </button>
+    </div>
   </div>
 </nav>

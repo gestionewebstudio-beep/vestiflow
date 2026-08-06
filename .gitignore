@@ -13,6 +13,7 @@ yarn-error.log
 
 # Backend NestJS (api/)
 /api/dist
+/api/coverage
 
 # IDEs and editors
 .idea/
@@ -55,7 +56,18 @@ serviceAccountKey.json
 
 # Reports
 /lighthouse-reports
+/playwright-report
+/test-results
+/e2e/.auth
+/backups
+
+# Script di collaudo usa-e-getta generati dall'agente di test (rigenerati a ogni giro)
+/e2e-collaudo
 
 # System files
 .DS_Store
 Thumbs.db
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/worktrees/

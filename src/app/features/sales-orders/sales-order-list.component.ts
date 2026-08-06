@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -10,36 +11,101 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
+  from,
   map,
   of,
   startWith,
   switchMap,
+  take,
+  toArray,
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
+import { AuthService } from '@core/auth';
+import {
+  canExportOperationalData,
+  canManageDocuments,
+} from '@core/permissions/tenant-permissions.util';
+import { SALES_ORDERS_CORRISPETTIVI_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
+import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
+import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { SalesOrder } from '@core/models/sales-order.model';
+import type { ShopifyConnection } from '@core/models/shopify-connection.model';
+import { SalesOrderSource, type SalesOrder } from '@core/models/sales-order.model';
+import { customerDisplayName } from '@core/models/customer.model';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+import { formatMoney } from '@core/utils/money.util';
+import type { Money } from '@core/models/money.model';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { SalesOrderTableComponent } from './components/sales-order-table/sales-order-table.component';
+import {
+  MovementPeriodPreset,
+  resolveMovementPeriodRange,
+} from '@domain/inventory/models/movement-period.util';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { TableViewId } from '@shared/table-columns/table-column.model';
+import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
+import {
+  canSyncShopifyCustomersOrOrders,
+  isShopifyConnected,
+} from '@domain/channels/shopify/models/shopify-page-sync.util';
+import {
+  formatShopifyOrdersSyncFeedback,
+  type ShopifySyncFeedback,
+} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
+import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
+import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
+import {
+  formatReportPeriodLabel,
+  parseSalesCorrispettiviPeriodQuery,
+  ReportPeriodPreset,
+  resolveReportDateRange,
+} from '@domain/reports/models/report-list-query.model';
+import {
+  SalesOrderTableComponent,
+  type SalesOrderTableActionEvent,
+  type SalesOrderTableProfile,
+  type SalesOrderTableSelectionEvent,
+} from './components/sales-order-table/sales-order-table.component';
+import {
+  SALES_ORDER_LIST_COLUMN_DEFS,
+  SALES_ORDER_LIST_COLUMN_PRESETS,
+  SHOPIFY_ORDER_LIST_COLUMN_DEFS,
+  SHOPIFY_ORDER_LIST_COLUMN_PRESETS,
+} from './models/sales-order-list-columns.config';
+import { sourceLabel } from '@domain/sales-orders/models/sales-order-labels.util';
+import {
+  buildSalesOrderListCsv,
+  buildSalesOrderListPrintHtml,
+} from './utils/sales-order-list-export.util';
 import {
   DEFAULT_SALES_PAGE_SIZE,
   SALES_PAGE_SIZE_OPTIONS,
   parseSalesOrderListQuery,
-} from './models/sales-order-list-query.model';
-import { SalesOrderService } from './services/sales-order.service';
+  withShopifySourceScope,
+} from '@domain/sales-orders/models/sales-order-list-query.model';
+import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 
 const SEARCH_DEBOUNCE_MS = 300;
+const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
 
 const EMPTY_META: PageMeta = {
   page: 1,
@@ -62,13 +128,20 @@ type SalesListState =
   selector: 'app-sales-order-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackButtonComponent,
     ButtonComponent,
+    ConfirmDialogComponent,
+    DateInputComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     PaginationComponent,
     SelectMenuComponent,
+    SlidePanelComponent,
     TableSkeletonComponent,
+    ReportCorrispettiviExportComponent,
     SalesOrderTableComponent,
+    TableColumnPickerComponent,
+    ShopifySyncFeedbackComponent,
   ],
   templateUrl: './sales-order-list.component.html',
   styleUrl: './sales-order-list.component.scss',
@@ -78,9 +151,40 @@ export class SalesOrderListComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly blobExport = inject(BackgroundBlobExportService);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+  private readonly authService = inject(AuthService);
+  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+  private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
+  private readonly customerService = inject(CustomerService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
 
-  protected readonly skeletonColumns = 6;
+  private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  protected readonly skeletonColumns = 9;
   protected readonly pageSizeOptions = SALES_PAGE_SIZE_OPTIONS;
+
+  private readonly routeData = toSignal(this.route.data, {
+    initialValue: this.route.snapshot.data,
+  });
+
+  /** Vista: registro generale «Ordini cliente» o canale «Ordini Shopify» (fase 3 §2-§3). */
+  protected readonly listProfile = computed(
+    (): SalesOrderTableProfile =>
+      (this.routeData()['salesListProfile'] as SalesOrderTableProfile | undefined) ??
+      'customer-orders',
+  );
+
+  protected readonly isShopifyView = computed(() => this.listProfile() === 'shopify-orders');
+
+  /** Vista colonne dell'elenco corrente (registro ordini o canale Shopify). */
+  protected readonly columnsView = computed(() =>
+    this.isShopifyView() ? TableViewId.ShopifyOrdersList : TableViewId.SalesOrdersList,
+  );
+
+  protected readonly visibleColumns = computed(() =>
+    this.columnPreferences.visibleColumns(this.columnsView())(),
+  );
 
   protected readonly financialStatusOptions: readonly SelectMenuOption[] = [
     { value: 'pending', label: 'In attesa' },
@@ -90,19 +194,144 @@ export class SalesOrderListComponent {
     { value: 'voided', label: 'Annullato' },
   ];
 
-  protected readonly sourceOptions: readonly SelectMenuOption[] = [
-    { value: 'online', label: 'Online' },
-    { value: 'pos', label: 'Negozio' },
+  /** Filtro Evasione: stesse voci della colonna (fulfillmentStatus). */
+  protected readonly fulfillmentStatusOptions: readonly SelectMenuOption[] = [
+    { value: 'unfulfilled', label: 'Da evadere' },
+    { value: 'partial', label: 'Evasione parziale' },
+    { value: 'fulfilled', label: 'Evaso' },
   ];
+
+  /**
+   * Filtro Stato (derivato, colonna Stato): le etichette riportano entrambe le
+   * diciture perche' il registro mescola ordini manuali (Confermato/Concluso)
+   * e Shopify (Aperto/Evaso), stesso stato sottostante.
+   */
+  protected readonly stateOptions: readonly SelectMenuOption[] = [
+    { value: 'open', label: 'Aperto / Confermato' },
+    { value: 'concluded', label: 'Concluso / Evaso' },
+    { value: 'cancelled', label: 'Annullato' },
+  ];
+
+  /** Clienti per il filtro (primi 100 attivi, ricercabili nel pannello). */
+  protected readonly customerOptions = toSignal(
+    this.customerService.getCustomers({ page: 1, pageSize: 100 }).pipe(
+      map((response) =>
+        response.data.map(
+          (customer): SelectMenuOption => ({
+            value: customer.id,
+            label: customerDisplayName(customer),
+          }),
+        ),
+      ),
+      catchError(() => of([] as readonly SelectMenuOption[])),
+    ),
+    { initialValue: [] as readonly SelectMenuOption[] },
+  );
+
+  /** Location consultabili dall'utente per il filtro. */
+  protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
+    this.operationalLocations.locations().map((loc) => ({ value: loc.id, label: loc.name })),
+  );
+
+  /** Filtro origine del registro generale (fase 3 §2). */
+  protected readonly sourceOptions = computed((): readonly SelectMenuOption[] => {
+    if (this.isShopifyView()) {
+      return [
+        { value: 'online', label: 'Shopify online' },
+        { value: 'pos', label: 'Shopify POS' },
+      ];
+    }
+    return [
+      { value: 'manual', label: 'Manuale' },
+      { value: 'online', label: 'Shopify online' },
+      { value: 'pos', label: 'Shopify POS' },
+    ];
+  });
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly query = computed(() => parseSalesOrderListQuery(this.queryParams()));
 
+  /** Periodo corrispettivi Shopify (query param dedicati, indipendenti dalla lista). */
+  private readonly corrispettiviPeriodQuery = computed(() =>
+    parseSalesCorrispettiviPeriodQuery(this.queryParams()),
+  );
+  private readonly uiCorrispettiviPeriod = signal<ReportPeriodPreset | null>(null);
+
+  protected readonly corrispettiviDisplayPeriod = computed(
+    () => this.uiCorrispettiviPeriod() ?? this.corrispettiviPeriodQuery().period,
+  );
+
+  protected readonly corrispettiviPeriodLabel = computed(() =>
+    formatReportPeriodLabel({
+      ...this.corrispettiviPeriodQuery(),
+      period: this.corrispettiviDisplayPeriod(),
+    }),
+  );
+
+  protected readonly corrispettiviDateFromDraft = computed(() => {
+    if (this.corrispettiviDisplayPeriod() !== ReportPeriodPreset.Custom) {
+      return '';
+    }
+    return this.corrispettiviPeriodQuery().dateFrom ?? todayIsoDate();
+  });
+
+  protected readonly corrispettiviDateToDraft = computed(() => {
+    if (this.corrispettiviDisplayPeriod() !== ReportPeriodPreset.Custom) {
+      return '';
+    }
+    return this.corrispettiviPeriodQuery().dateTo ?? todayIsoDate();
+  });
+
   private readonly refreshTick = signal(0);
 
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
+  protected readonly shopifyOrdersLoading = signal(false);
+  protected readonly exportingCorrispettivi = computed(() =>
+    this.blobExport.isActive(SALES_ORDERS_CORRISPETTIVI_CSV_EXPORT_ID),
+  );
+  protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
+  protected readonly shopifySyncError = signal<string | null>(null);
 
-  private readonly request = computed(() => ({ query: this.query(), tick: this.refreshTick() }));
+  private readonly shopifyConnection = toSignal(
+    this.shopifyConnectionService.getConnection().pipe(catchError(() => of(null))),
+    { initialValue: null as ShopifyConnection | null },
+  );
+
+  protected readonly showShopifyOrdersSync = computed(
+    () =>
+      this.isShopifyView() &&
+      isShopifyConnected(this.shopifyConnection()) &&
+      canSyncShopifyCustomersOrOrders(this.authService.currentUser()),
+  );
+
+  protected readonly canExportData = computed(
+    () => this.isShopifyView() && canExportOperationalData(this.authService.currentUser()),
+  );
+
+  /** "Nuovo ordine": solo nel registro generale, per chi gestisce documenti. */
+  protected readonly canCreateManualOrder = computed(
+    () => !this.isShopifyView() && canManageDocuments(this.authService.currentUser()),
+  );
+
+  protected readonly pageTitle = computed(() =>
+    this.isShopifyView() ? 'Ordini Shopify' : 'Ordini cliente',
+  );
+
+  protected readonly pageSubtitle = computed(() =>
+    this.isShopifyView()
+      ? 'Tutti gli ordini canonici del canale Shopify, qualunque sia lo stato: evasi, annullati, rimborsati o trasformati in Vendita online.'
+      : 'Registro generale multicanale degli ordini: manuali, Shopify e piattaforme future. Shopify resta la fonte autoritativa dei propri ordini.',
+  );
+
+  /** Query effettiva verso l'API: la vista Shopify limita ai canali Shopify. */
+  private readonly effectiveQuery = computed(() =>
+    this.isShopifyView() ? withShopifySourceScope(this.query()) : this.query(),
+  );
+
+  private readonly request = computed(() => ({
+    query: this.effectiveQuery(),
+    tick: this.refreshTick(),
+  }));
 
   private readonly state = toSignal(
     toObservable(this.request).pipe(
@@ -149,13 +378,132 @@ export class SalesOrderListComponent {
 
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
-    return Boolean(q.search ?? q.financialStatus ?? q.source);
+    return Boolean(
+      q.search ??
+      q.financialStatus ??
+      q.fulfillmentStatus ??
+      q.source ??
+      q.state ??
+      q.customerId ??
+      q.locationId ??
+      q.placedFrom ??
+      q.placedTo,
+    );
+  });
+
+  protected readonly formatMoney = formatMoney;
+
+  /** Pannello filtri mobile (mockup restyling): un solo pulsante «Filtri (n)». */
+  protected readonly mobileFiltersOpen = signal(false);
+
+  /**
+   * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
+   * non conta: ha il suo campo sempre visibile. Dal/Al fanno parte del periodo,
+   * quindi si contano insieme una sola volta.
+   */
+  protected readonly activeFilterCount = computed(() => {
+    const q = this.query();
+    let count = 0;
+    if (q.state) count++;
+    if (q.source) count++;
+    if (q.financialStatus) count++;
+    if (q.fulfillmentStatus) count++;
+    if (q.customerId) count++;
+    if (q.locationId) count++;
+    if (q.placedFrom ?? q.placedTo) count++;
+    return count;
+  });
+
+  /**
+   * Somma dei totali degli ordini selezionati, mostrata nella barra massiva.
+   * Solo aritmetica sui dati già caricati (nessun ricalcolo di sconti/IVA).
+   */
+  protected readonly selectionTotal = computed<Money>(() => {
+    const orders = this.selectedOrders();
+    const amountMinor = orders.reduce((sum, order) => sum + order.total.amountMinor, 0);
+    const currencyCode = orders[0]?.total.currencyCode ?? 'EUR';
+    return { amountMinor, currencyCode };
+  });
+
+  // ── Selezione multipla + eliminazione a due conferme (come Arrivi merce) ──
+  protected readonly canManage = computed(() => canManageDocuments(this.authService.currentUser()));
+  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
+  protected readonly selectedOrders = computed(() =>
+    this.orders().filter((order) => this.selectedIds().has(order.id)),
+  );
+  /** Solo gli ordini manuali sono eliminabili in massa (i non manuali no). */
+  protected readonly deletableSelectedOrders = computed(() =>
+    this.selectedOrders().filter((order) => order.source === SalesOrderSource.Manual),
+  );
+  protected readonly pendingDeleteOrders = signal<readonly SalesOrder[]>([]);
+  protected readonly deleteWarnOpen = signal(false);
+  protected readonly deleteConfirmOpen = signal(false);
+  protected readonly deleteBusy = signal(false);
+  protected readonly actionError = signal<AppError | null>(null);
+  /** Ordine in stampa PDF (blocca doppio click sull'azione di riga). */
+  protected readonly printingId = signal<string | null>(null);
+
+  protected readonly deleteWarnTitle = computed(() => {
+    const count = this.pendingDeleteOrders().length;
+    return count === 1 ? 'Elimina ordine cliente' : `Elimina ${count} ordini cliente`;
+  });
+
+  protected readonly deleteWarnMessage = computed(() => {
+    const count = this.pendingDeleteOrders().length;
+    return count === 1
+      ? "L'ordine verrà eliminato e gli impegni di magazzino rilasciati (la disponibilità torna libera)."
+      : `I ${count} ordini selezionati verranno eliminati e i relativi impegni di magazzino rilasciati.`;
+  });
+
+  // ── Duplica (con scelta cliente) + avviso «canale esterno» per i non manuali ──
+  protected readonly duplicateSource = signal<SalesOrder | null>(null);
+  protected readonly duplicateCustomerId = signal<string | null>(null);
+  protected readonly duplicateModalOpen = signal(false);
+  protected readonly duplicateBusy = signal(false);
+  /** Ordine non manuale su cui si sta per agire: attiva l'avviso canale esterno. */
+  protected readonly externalActionOrder = signal<SalesOrder | null>(null);
+  protected readonly externalWarnOpen = signal(false);
+
+  protected readonly externalWarnMessage = computed(() => {
+    const order = this.externalActionOrder();
+    const channel = order ? sourceLabel(order.source) : 'un canale esterno';
+    return (
+      `Stai per procedere su un ordine proveniente da ${channel}. ` +
+      "Le modifiche fatte qui non verranno sincronizzate con il canale d'origine. Vuoi continuare?"
+    );
   });
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    this.columnPreferences.registerView(
+      TableViewId.SalesOrdersList,
+      SALES_ORDER_LIST_COLUMN_DEFS,
+      SALES_ORDER_LIST_COLUMN_PRESETS,
+    );
+    this.columnPreferences.registerView(
+      TableViewId.ShopifyOrdersList,
+      SHOPIFY_ORDER_LIST_COLUMN_DEFS,
+      SHOPIFY_ORDER_LIST_COLUMN_PRESETS,
+    );
+
+    // Default «Mese corrente» all'apertura: l'URL è la fonte di verità dei
+    // filtri, quindi il periodo va scritto lì — una volta sola alla creazione,
+    // altrimenti scegliere «Tutto» verrebbe riscritto subito dopo.
+    if (this.periodPreset() === MovementPeriodPreset.ThisMonth) {
+      const initialRange = resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '');
+      this.updateParams(
+        { placedFrom: initialRange.from ?? null, placedTo: initialRange.to ?? null },
+        true,
+      );
+    }
+
+    effect(() => {
+      this.corrispettiviPeriodQuery();
+      this.uiCorrispettiviPeriod.set(null);
+    });
+
     this.searchSubscription = toObservable(this.searchDraft)
       .pipe(
         debounceTime(SEARCH_DEBOUNCE_MS),
@@ -163,6 +511,22 @@ export class SalesOrderListComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((value) => this.applySearch(value));
+
+    this.shopifySyncWatch
+      .watchRemoteDataChanged()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.reload());
+
+    // Al cambio pagina/filtri la selezione si restringe alle righe visibili.
+    toObservable(this.orders)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((orders) => {
+        const visible = new Set(orders.map((order) => order.id));
+        this.selectedIds.update((current) => {
+          const next = new Set([...current].filter((id) => visible.has(id)));
+          return next.size === current.size ? current : next;
+        });
+      });
   }
 
   protected onSearchInput(event: Event): void {
@@ -173,13 +537,117 @@ export class SalesOrderListComponent {
     this.updateParams({ financialStatus: value, page: null }, true);
   }
 
+  protected onFulfillmentFilterChange(value: string | null): void {
+    this.updateParams({ fulfillmentStatus: value, page: null }, true);
+  }
+
   protected onSourceFilterChange(value: string | null): void {
     this.updateParams({ source: value, page: null }, true);
   }
 
+  protected onStateFilterChange(value: string | null): void {
+    this.updateParams({ state: value, page: null }, true);
+  }
+
+  protected onCustomerFilterChange(value: string | null): void {
+    this.updateParams({ customerId: value, page: null }, true);
+  }
+
+  protected onLocationFilterChange(value: string | null): void {
+    this.updateParams({ locationId: value, page: null }, true);
+  }
+
+  protected onDateFromChange(value: string): void {
+    this.updateParams({ placedFrom: value || null, page: null }, true);
+  }
+
+  protected onDateToChange(value: string): void {
+    this.updateParams({ placedTo: value || null, page: null }, true);
+  }
+
+  protected onCorrispettiviPeriodChange(period: ReportPeriodPreset): void {
+    this.uiCorrispettiviPeriod.set(period);
+    if (period === ReportPeriodPreset.Custom) {
+      const today = todayIsoDate();
+      this.updateParams({ corrPeriod: period, corrFrom: today, corrTo: today });
+      return;
+    }
+    this.updateParams({ corrPeriod: period, corrFrom: null, corrTo: null });
+  }
+
+  protected onCorrispettiviDateFromChange(value: string): void {
+    this.updateParams({
+      corrFrom: value || null,
+      corrPeriod: ReportPeriodPreset.Custom,
+    });
+  }
+
+  protected onCorrispettiviDateToChange(value: string): void {
+    this.updateParams({
+      corrTo: value || null,
+      corrPeriod: ReportPeriodPreset.Custom,
+    });
+  }
+
+  /** Preset rapidi del periodo Dal/Al (stessi dell'Arrivo merce). */
+  protected readonly periodOptions: readonly SelectMenuOption[] = [
+    { value: MovementPeriodPreset.ThisMonth, label: 'Mese corrente' },
+    { value: MovementPeriodPreset.LastMonth, label: 'Mese scorso' },
+    { value: MovementPeriodPreset.ThisYear, label: 'Anno corrente' },
+    { value: MovementPeriodPreset.LastYear, label: 'Anno scorso' },
+    { value: MovementPeriodPreset.Custom, label: 'Personalizzato' },
+  ];
+
+  /**
+   * Preset periodo selezionato (stato UI locale; le date effettive stanno
+   * nell'URL). Con date già nell'URL si parte da «Personalizzato», così i campi
+   * Dal/Al restano visibili; altrimenti dal default «Mese corrente».
+   */
+  protected readonly periodPreset = signal<MovementPeriodPreset>(
+    this.route.snapshot.queryParamMap.get('placedFrom') ||
+      this.route.snapshot.queryParamMap.get('placedTo')
+      ? MovementPeriodPreset.Custom
+      : MovementPeriodPreset.ThisMonth,
+  );
+
+  protected readonly isCustomPeriod = computed(
+    () => this.periodPreset() === MovementPeriodPreset.Custom,
+  );
+
+  /** Cambio preset: calcola Dal/Al, oppure lascia i campi liberi se custom. */
+  protected onPeriodPresetChange(value: string | null): void {
+    const preset = (value ?? MovementPeriodPreset.All) as MovementPeriodPreset;
+    this.periodPreset.set(preset);
+    if (preset === MovementPeriodPreset.Custom) {
+      return;
+    }
+    const range = resolveMovementPeriodRange(preset, '', '');
+    this.updateParams(
+      { placedFrom: range.from ?? null, placedTo: range.to ?? null, page: null },
+      true,
+    );
+  }
+
   protected resetFilters(): void {
     this.searchDraft.set('');
-    this.updateParams({ search: null, financialStatus: null, source: null, page: null }, true);
+    // Il periodo torna al default dell'elenco («Mese corrente»), non a «Tutto».
+    this.periodPreset.set(MovementPeriodPreset.ThisMonth);
+    const range = resolveMovementPeriodRange(MovementPeriodPreset.ThisMonth, '', '');
+    this.updateParams(
+      {
+        search: null,
+        financialStatus: null,
+        fulfillmentStatus: null,
+        source: null,
+        state: null,
+        customerId: null,
+        locationId: null,
+        placedFrom: range.from ?? null,
+        placedTo: range.to ?? null,
+        page: null,
+      },
+      true,
+    );
   }
 
   protected goToPage(page: number): void {
@@ -194,8 +662,359 @@ export class SalesOrderListComponent {
     this.refreshTick.update((tick) => tick + 1);
   }
 
+  protected syncOrdersFromShopify(): void {
+    if (this.shopifyOrdersLoading()) {
+      return;
+    }
+
+    this.shopifyOrdersLoading.set(true);
+    this.clearShopifyFeedback();
+    this.shopifySyncError.set(null);
+
+    this.shopifyConnectionService
+      .syncOrders()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.shopifyOrdersLoading.set(false);
+          this.showShopifyFeedback(formatShopifyOrdersSyncFeedback(result));
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this.shopifyOrdersLoading.set(false);
+          this.shopifySyncError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected exportCorrispettiviShopify(): void {
+    if (this.exportingCorrispettivi()) {
+      return;
+    }
+
+    const range = resolveReportDateRange({
+      ...this.corrispettiviPeriodQuery(),
+      period: this.corrispettiviDisplayPeriod(),
+    });
+
+    this.blobExport.start({
+      exportId: SALES_ORDERS_CORRISPETTIVI_CSV_EXPORT_ID,
+      request: this.service.exportSalesOrdersCsv({
+        placedFrom: range.placedFrom,
+        placedTo: range.placedTo,
+      }),
+      filename: vestiflowExportFilename('corrispettivi-shopify', 'csv'),
+      inProgressMessage: 'Export corrispettivi Shopify in corso. Puoi continuare a navigare.',
+      successMessage: 'Export corrispettivi Shopify completato: download avviato.',
+      errorMessage: 'Export corrispettivi non riuscito. Riprova tra qualche istante.',
+    });
+  }
+
+  protected dismissShopifyFeedback(): void {
+    this.clearShopifyFeedback();
+  }
+
   protected openOrder(order: SalesOrder): void {
     void this.router.navigate(['/app/sales', order.id]);
+  }
+
+  protected createManualOrder(): void {
+    void this.router.navigate(['/app/sales/new']);
+  }
+
+  // ── Azioni di riga + selezione multipla ──────────────────────────────────
+
+  protected onTableAction(event: SalesOrderTableActionEvent): void {
+    this.actionError.set(null);
+    if (event.action === 'open') {
+      this.openOrder(event.order);
+      return;
+    }
+    if (event.action === 'duplicate') {
+      this.startDuplicate(event.order);
+      return;
+    }
+    if (event.action === 'print') {
+      this.printOrder(event.order);
+      return;
+    }
+    if (event.action === 'delete') {
+      this.requestDeleteOrder(event.order);
+    }
+  }
+
+  /** Scarica il PDF dell'ordine (azione di riga «Stampa PDF»). */
+  protected printOrder(order: SalesOrder): void {
+    if (this.printingId()) {
+      return;
+    }
+    this.printingId.set(order.id);
+    this.service
+      .exportOrderPdf(order.id)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          this.printingId.set(null);
+          this.downloadBlob(blob, `ordine-cliente-${order.orderNumber}.pdf`);
+        },
+        error: (err: unknown) => {
+          this.printingId.set(null);
+          this.actionError.set(this.toAppError(err));
+        },
+      });
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename.replace(/[^\w\s.-]/g, '-');
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Duplica con scelta cliente ────────────────────────────────────────────
+
+  /** Avvia la duplica: sui non manuali passa prima dall'avviso «canale esterno». */
+  protected startDuplicate(order: SalesOrder): void {
+    if (order.source !== SalesOrderSource.Manual) {
+      this.externalActionOrder.set(order);
+      this.externalWarnOpen.set(true);
+      return;
+    }
+    this.openDuplicateModal(order);
+  }
+
+  protected onExternalWarnConfirm(): void {
+    this.externalWarnOpen.set(false);
+    const order = this.externalActionOrder();
+    this.externalActionOrder.set(null);
+    if (order) {
+      this.openDuplicateModal(order);
+    }
+  }
+
+  protected onExternalWarnCancel(): void {
+    this.externalActionOrder.set(null);
+  }
+
+  private openDuplicateModal(order: SalesOrder): void {
+    this.duplicateSource.set(order);
+    this.duplicateCustomerId.set(order.customerId ?? null);
+    this.duplicateModalOpen.set(true);
+  }
+
+  /** Chiude il modale solo se il click è sul backdrop, non sul contenuto. */
+  protected onBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.cancelDuplicate();
+    }
+  }
+
+  protected cancelDuplicate(): void {
+    if (this.duplicateBusy()) {
+      return;
+    }
+    this.duplicateModalOpen.set(false);
+    this.duplicateSource.set(null);
+  }
+
+  protected confirmDuplicate(): void {
+    const source = this.duplicateSource();
+    const customerId = this.duplicateCustomerId();
+    if (!source || !customerId || this.duplicateBusy()) {
+      return;
+    }
+    this.duplicateBusy.set(true);
+    this.service
+      .duplicateManualOrder(source.id, customerId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (order) => {
+          this.duplicateBusy.set(false);
+          this.duplicateModalOpen.set(false);
+          this.duplicateSource.set(null);
+          void this.router.navigate(['/app/sales', order.id, 'edit']);
+        },
+        error: (err: unknown) => {
+          this.duplicateBusy.set(false);
+          this.duplicateModalOpen.set(false);
+          this.actionError.set(this.toAppError(err));
+        },
+      });
+  }
+
+  protected onToggleSelection(event: SalesOrderTableSelectionEvent): void {
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      if (event.selected) {
+        next.add(event.order.id);
+      } else {
+        next.delete(event.order.id);
+      }
+      return next;
+    });
+  }
+
+  protected onToggleSelectAll(checked: boolean): void {
+    this.selectedIds.set(checked ? new Set(this.orders().map((order) => order.id)) : new Set());
+  }
+
+  protected clearSelection(): void {
+    this.selectedIds.set(new Set());
+  }
+
+  // ── Operazioni massive: elenco (CSV/stampa) e PDF documenti ──────────────
+
+  protected readonly bulkPdfBusy = signal(false);
+
+  /** CSV apribile in Excel degli ordini selezionati, con riga totali. */
+  protected exportSelectionCsv(): void {
+    const orders = this.selectedOrders();
+    if (orders.length === 0) {
+      return;
+    }
+    const stamp = new Date().toISOString().slice(0, 10);
+    this.downloadBlob(
+      new Blob([buildSalesOrderListCsv(orders)], { type: 'text/csv;charset=utf-8' }),
+      `ordini-cliente-${stamp}.csv`,
+    );
+  }
+
+  /** Elenco stampabile dei selezionati con totali ("Salva come PDF" incluso). */
+  protected printSelectionList(): void {
+    const orders = this.selectedOrders();
+    if (orders.length === 0) {
+      return;
+    }
+    const printWindow = globalThis.open('', '_blank');
+    if (!printWindow) {
+      this.actionError.set({
+        kind: AppErrorKind.Unknown,
+        message: 'Il browser ha bloccato la finestra di stampa. Consenti i popup e riprova.',
+      });
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(buildSalesOrderListPrintHtml(orders));
+    printWindow.document.close();
+    const runPrint = (): void => {
+      printWindow.focus();
+      printWindow.print();
+    };
+    if (printWindow.document.readyState === 'complete') {
+      runPrint();
+    } else {
+      printWindow.addEventListener('load', runPrint, { once: true });
+    }
+  }
+
+  /** Scarica in sequenza il PDF di ogni ordine selezionato. */
+  protected downloadSelectionPdfs(): void {
+    const orders = this.selectedOrders();
+    if (orders.length === 0 || this.bulkPdfBusy()) {
+      return;
+    }
+    this.bulkPdfBusy.set(true);
+    from(orders)
+      .pipe(
+        concatMap((order) =>
+          this.service.exportOrderPdf(order.id).pipe(map((blob) => ({ order, blob }))),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: ({ order, blob }) => {
+          this.downloadBlob(blob, `ordine-cliente-${order.orderNumber}.pdf`);
+        },
+        complete: () => this.bulkPdfBusy.set(false),
+        error: (err: unknown) => {
+          this.bulkPdfBusy.set(false);
+          this.actionError.set(this.toAppError(err));
+        },
+      });
+  }
+
+  protected requestDeleteOrder(order: SalesOrder): void {
+    this.actionError.set(null);
+    this.pendingDeleteOrders.set([order]);
+    this.deleteWarnOpen.set(true);
+  }
+
+  protected requestDeleteSelection(): void {
+    const orders = this.deletableSelectedOrders();
+    if (orders.length === 0) {
+      return;
+    }
+    this.actionError.set(null);
+    this.pendingDeleteOrders.set([...orders]);
+    this.deleteWarnOpen.set(true);
+  }
+
+  /** 1° modale (avviso) confermato → apre il 2° modale (conferma finale). */
+  protected onDeleteWarnConfirm(): void {
+    this.deleteWarnOpen.set(false);
+    this.deleteConfirmOpen.set(true);
+  }
+
+  /** Annulla/ESC su uno dei due modali: azzera la coda di eliminazione. */
+  protected onDeleteCancel(): void {
+    if (this.deleteBusy()) {
+      return;
+    }
+    this.pendingDeleteOrders.set([]);
+  }
+
+  /**
+   * Conferma finale: elimina gli ordini in coda uno alla volta (nessun
+   * endpoint massivo), raccoglie gli esiti e ricarica. Un errore su un ordine
+   * (es. con Vendita online collegata) non interrompe gli altri.
+   */
+  protected onDeleteConfirm(): void {
+    const orders = this.pendingDeleteOrders();
+    if (orders.length === 0 || this.deleteBusy()) {
+      this.deleteConfirmOpen.set(false);
+      return;
+    }
+    this.deleteBusy.set(true);
+    from(orders)
+      .pipe(
+        concatMap((order) =>
+          this.service.deleteManualOrder(order.id).pipe(
+            map(() => ({ ok: true as const, order })),
+            catchError((err: unknown) =>
+              of({ ok: false as const, order, error: this.toAppError(err) }),
+            ),
+          ),
+        ),
+        toArray(),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((results) => {
+        this.deleteBusy.set(false);
+        this.deleteConfirmOpen.set(false);
+        this.pendingDeleteOrders.set([]);
+        const deletedIds = new Set(results.filter((r) => r.ok).map((r) => r.order.id));
+        if (deletedIds.size > 0) {
+          this.selectedIds.update((cur) => new Set([...cur].filter((id) => !deletedIds.has(id))));
+        }
+        const failure = results.find((r) => !r.ok);
+        const failedCount = results.length - deletedIds.size;
+        if (failure && !failure.ok) {
+          this.actionError.set(
+            failedCount === 1
+              ? failure.error
+              : {
+                  kind: failure.error.kind,
+                  message: `${failedCount} ordini non sono stati eliminati. ${failure.error.message}`,
+                },
+          );
+        } else {
+          this.actionError.set(null);
+        }
+        this.reload();
+      });
   }
 
   private updateParams(params: Record<string, string | number | null>, replace = false): void {
@@ -222,4 +1041,32 @@ export class SalesOrderListComponent {
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
   }
+
+  private showShopifyFeedback(feedback: ShopifySyncFeedback): void {
+    this.clearShopifyFeedback();
+    this.shopifyFeedback.set(feedback);
+    this.shopifyFeedbackTimer = setTimeout(() => {
+      this.shopifyFeedback.set(null);
+      this.shopifyFeedbackTimer = null;
+    }, SHOPIFY_FEEDBACK_DISMISS_MS);
+  }
+
+  private clearShopifyFeedback(): void {
+    if (this.shopifyFeedbackTimer) {
+      clearTimeout(this.shopifyFeedbackTimer);
+      this.shopifyFeedbackTimer = null;
+    }
+    this.shopifyFeedback.set(null);
+  }
+
+  private extractErrorMessage(err: unknown): string {
+    if (isAppError(err)) {
+      return err.message;
+    }
+    return 'Operazione non riuscita. Riprova.';
+  }
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
 }

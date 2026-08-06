@@ -3,13 +3,40 @@
 @use 'breakpoints' as bp;
 
 /// Layout tabella standard — default desktop, nessuna media query.
+/// v4: la tabella e' una CARD (bordo + angoli arrotondati su surface), come
+/// il riferimento; separate+spacing 0 mantiene i divisori a 1px e permette
+/// il raggio sugli angoli via prime/ultime celle.
 @mixin data-table-desktop($block) {
   .#{$block} {
     display: table;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     inline-size: 100%;
     table-layout: auto;
     font-size: var(--text-sm);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .#{$block} thead th:first-child {
+    border-start-start-radius: calc(var(--radius-lg) - var(--border-width));
+  }
+
+  .#{$block} thead th:last-child {
+    border-start-end-radius: calc(var(--radius-lg) - var(--border-width));
+  }
+
+  .#{$block} tbody tr:last-child td {
+    border-block-end: 0;
+  }
+
+  .#{$block} tbody tr:last-child td:first-child {
+    border-end-start-radius: calc(var(--radius-lg) - var(--border-width));
+  }
+
+  .#{$block} tbody tr:last-child td:last-child {
+    border-end-end-radius: calc(var(--radius-lg) - var(--border-width));
   }
 
   .#{$block} tbody {
@@ -29,11 +56,18 @@
   .#{$block} tbody td,
   .#{$block}__row td {
     display: table-cell;
-    padding: var(--space-2) var(--space-3);
-    border-block-end: var(--border-width) solid var(--color-border);
+    box-sizing: border-box;
+    padding: var(--space-2) var(--space-4);
+    border-block-end: var(--border-width) solid var(--color-table-row-divider);
+    // Separatore verticale di colonna: leggibilita' "da foglio di lavoro" (v4).
+    border-inline-end: var(--border-width) solid var(--color-table-col-divider);
     vertical-align: middle;
     text-align: start;
     color: var(--color-text);
+
+    &:last-child {
+      border-inline-end: 0;
+    }
 
     &::before {
       content: none;
@@ -41,19 +75,55 @@
     }
   }
 
-  .#{$block} th {
-    padding: var(--space-2) var(--space-3);
-    text-align: start;
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-muted);
-    border-block-end: var(--border-width) solid var(--color-border);
-    white-space: nowrap;
+  // Hover riga (desktop) — evidenzia l'intera riga.
+  .#{$block} tbody tr {
+    transition: background-color var(--transition-fast) var(--ease-standard);
   }
 
+  .#{$block} tbody tr:hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  // Selezione riga — tinta accento 6%.
+  .#{$block} tbody tr[aria-selected='true'],
+  .#{$block} tbody tr.is-selected {
+    background-color: var(--color-table-row-selected);
+  }
+
+  // Header (v4): 11/700 normal-case su banda tinta, con separatori colonna —
+  // come il file di riferimento, niente maiuscolo urlato.
+  .#{$block} th {
+    box-sizing: border-box;
+    padding: var(--space-2) var(--space-4);
+    text-align: start;
+    font-size: var(--text-2xs);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-muted);
+    background-color: var(--color-table-header-bg);
+    border-block-end: var(--border-width) solid var(--color-border-strong);
+    border-inline-end: var(--border-width) solid var(--color-table-col-divider);
+    white-space: nowrap;
+
+    &:last-child {
+      border-inline-end: 0;
+    }
+  }
+
+  // I bottoni di ordinamento dentro th: lo UA stylesheet di Chromium forza
+  // text-transform: none sui button, rompendo l'uppercase dell'header.
+  .#{$block} th button {
+    font-size: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+  }
+
+  // Colonne numeriche: destra, cifre tabulari, mai a capo (v4).
   .#{$block} th.#{$block}__cell--numeric,
   .#{$block} tbody td.#{$block}__cell--numeric,
   .#{$block}__row td.#{$block}__cell--numeric {
     text-align: end;
+    font-variant-numeric: var(--numeric-tabular);
+    white-space: nowrap;
   }
 }
 
@@ -63,6 +133,10 @@
     .#{$block} {
       display: block;
       max-inline-size: 100%;
+      // Reset della veste card desktop: su mobile le card sono le righe.
+      background-color: transparent;
+      border: 0;
+      border-radius: 0;
     }
 
     .#{$block} tbody {
@@ -82,7 +156,7 @@
       inline-size: 100%;
       max-inline-size: 100%;
       box-sizing: border-box;
-      margin-block-end: var(--space-3);
+      margin-block-end: var(--space-2);
       padding: var(--space-3);
       background-color: var(--color-surface);
       border: var(--border-width) solid var(--color-border);
@@ -93,7 +167,7 @@
     .#{$block}__row td {
       display: grid;
       grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
-      gap: var(--space-2);
+      gap: var(--space-1) var(--space-2);
       align-items: center;
       padding-block: var(--space-1);
       border: none;
@@ -103,6 +177,7 @@
         content: attr(data-label);
         display: block;
         grid-column: 1;
+        font-size: var(--text-xs);
         font-weight: var(--font-weight-medium);
         color: var(--color-text-muted);
         text-align: start;
@@ -123,6 +198,7 @@
     .#{$block}__row td .#{$block}__status-value {
       display: flex;
       justify-content: flex-end;
+      align-items: center;
       inline-size: 100%;
       grid-column: 2;
     }

@@ -1,0 +1,14 @@
+# Railway — deploy della sola cartella api/ (NestJS + Prisma).
+# In Railway: Settings → Root Directory = api.
+# Usiamo un Dockerfile (non nixpacks) per evitare il bug EBUSY su
+# node_modules/.cache quando npm ci gira con la cache montata.
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/v1/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

@@ -1,0 +1,154 @@
+@use 'responsive-table' as rt;
+
+:host {
+  display: block;
+  inline-size: 100%;
+}
+
+.inventory-import {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+}
+
+// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+.inventory-import__header app-back-button {
+  margin-block-end: var(--space-2);
+}
+
+.inventory-import__title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.inventory-import__intro {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.inventory-import__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
+.inventory-import__upload {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  border: var(--border-width) dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-sunken);
+  cursor: pointer;
+}
+
+.inventory-import__upload:hover {
+  border-color: var(--color-interactive);
+}
+
+.inventory-import__upload-icon {
+  font-size: var(--text-xl);
+  color: var(--color-interactive);
+}
+
+.inventory-import__upload-title {
+  font-weight: var(--font-weight-medium);
+}
+
+.inventory-import__upload-hint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.inventory-import__file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.inventory-import__file-name {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.inventory-import__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.inventory-import__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.inventory-import__actions--top {
+  justify-content: space-between;
+}
+
+.inventory-import__table-scroll {
+  overflow-x: auto;
+}
+
+@include rt.list-card-table-host();
+@include rt.data-table-desktop('inventory-import__table');
+@include rt.data-table-mobile-cards('inventory-import__table');
+
+.inventory-import__col--numeric,
+.inventory-import__numeric {
+  text-align: end;
+}
+
+.inventory-import__done {
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.inventory-import__done--success {
+  color: var(--status-success-fg);
+  background-color: var(--status-success-bg);
+  border-color: var(--status-success-border);
+}
+
+.inventory-import__done--warning {
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+}
+
+.inventory-import__done--error {
+  color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+  border-color: var(--status-error-border);
+}
+
+.inventory-import__done-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.inventory-import__done-message {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+
+.inventory-import__done-stats {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  opacity: 0.85;
+}

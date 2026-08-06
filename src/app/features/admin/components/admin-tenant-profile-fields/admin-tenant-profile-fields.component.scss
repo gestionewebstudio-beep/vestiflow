@@ -1,0 +1,8 @@
+@use '../../styles/admin-client-form-fields' as fields;
+
+:host {
+  display: block;
+  inline-size: 100%;
+}
+
+@include fields.admin-client-form-fields(tenant-profile-fields);

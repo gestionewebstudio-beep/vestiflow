@@ -1,0 +1,155 @@
+@use 'breakpoints' as bp;
+
+// Pannello di testata mobile (reference «Ordine cliente»). Qui vive tutto ciò
+// che sta nel template del componente: shell, head, riepilogo, corpo, stato —
+// così le regole valgono anche negli spec jsdom, che i globali non caricano.
+// Le classi del contenuto PROIETTATO (doc-panel__fields, __field, __label,
+// __control, …) stanno in styles/_document-form-mobile.scss: l'incapsulamento
+// non le raggiungerebbe da qui. Le misure --doc-m-* arrivano dal blocco
+// .doc-form in styles/_document-form.scss.
+
+// Visibile solo sotto lg, come il contenitore .doc-panels.
+:host {
+  display: none;
+}
+
+@include bp.media-down('lg') {
+  :host {
+    display: block;
+  }
+}
+
+.doc-panel {
+  position: relative;
+  overflow: visible;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--doc-m-radius);
+  box-shadow: var(--shadow-card);
+}
+
+.doc-panel__toggle {
+  display: grid;
+  grid-template-columns: var(--doc-m-icon) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: var(--doc-m-toggle-h);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text);
+  text-align: start;
+  background-color: var(--color-surface);
+  border: 0;
+  border-start-start-radius: var(--doc-m-radius);
+  border-start-end-radius: var(--doc-m-radius);
+  cursor: pointer;
+}
+
+.doc-panel__toggle:active {
+  background-color: var(--color-surface-soft);
+}
+
+.doc-panel__icon {
+  display: grid;
+  place-items: center;
+  inline-size: var(--doc-m-icon);
+  block-size: var(--doc-m-icon);
+  color: var(--color-focus);
+  background-color: var(--doc-m-accent-soft);
+  border-radius: var(--doc-m-radius-sm);
+}
+
+.doc-panel__copy {
+  min-inline-size: 0;
+}
+
+.doc-panel__copy strong {
+  display: block;
+  overflow: hidden;
+  font-size: var(--doc-m-text-panel);
+  font-weight: var(--font-weight-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Ogni voce del riepilogo va a capo intera; il puntino resta attaccato alla
+// voce che precede, così nessuna riga comincia con un separatore.
+// Due classi: `.doc-panel__copy small` qui sotto è più specifica di una
+// classe sola e riporterebbe il riepilogo a `display: block`.
+.doc-panel__copy .doc-panel__summary {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-2);
+}
+
+.doc-panel__summary-part {
+  white-space: nowrap;
+}
+
+.doc-panel__summary-part:not(:last-child)::after {
+  content: '·';
+  margin-inline-start: var(--space-2);
+  color: var(--color-text-subtle);
+}
+
+// Il riepilogo va a capo invece di troncarsi: tagliato non si legge.
+.doc-panel__copy small {
+  display: block;
+  margin-block-start: 0.1875rem;
+  color: var(--color-text-muted);
+  font-size: var(--doc-m-text-meta);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.doc-panel__chevron {
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast) var(--ease-standard);
+}
+
+.doc-panel--open .doc-panel__chevron {
+  transform: rotate(180deg);
+}
+
+// Niente max-height sul corpo: un pannello aperto non deve mai troncare i
+// propri campi, nemmeno quando ne compaiono di condizionali.
+.doc-panel__body {
+  display: none;
+  padding: var(--space-3);
+  background-color: var(--color-surface-soft);
+  border-block-start: var(--border-width) solid var(--color-border);
+}
+
+.doc-panel--open .doc-panel__body {
+  display: block;
+}
+
+// Senza overflow: hidden sulla card, gli angoli bassi se li arrotonda il corpo.
+.doc-panel__body:last-child {
+  border-end-start-radius: var(--doc-m-radius);
+  border-end-end-radius: var(--doc-m-radius);
+}
+
+// ── Riga di stato dei dati principali ───────────────────────────────────────
+.doc-panel__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding-block-start: var(--space-2);
+  color: var(--color-text-muted);
+  border-block-start: var(--border-width) solid var(--color-border);
+  font-size: var(--doc-m-text-meta);
+}
+
+.doc-panel__status-dot {
+  flex: 0 0 auto;
+  inline-size: var(--space-2);
+  block-size: var(--space-2);
+  background-color: var(--color-warning);
+  border-radius: var(--radius-full);
+}
+
+.doc-panel__status--ready .doc-panel__status-dot {
+  background-color: var(--color-ok);
+}

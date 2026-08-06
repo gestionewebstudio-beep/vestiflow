@@ -1,0 +1,25 @@
+:host {
+  display: block;
+}
+
+.product-supplier-links__wrap {
+  overflow-x: auto;
+}
+
+.product-supplier-links__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.product-supplier-links__table th,
+.product-supplier-links__table td {
+  padding: var(--space-2) var(--space-3);
+  border-block-end: var(--border-width) solid var(--color-border);
+  text-align: start;
+}
+
+.product-supplier-links__num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}

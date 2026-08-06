@@ -1,0 +1,257 @@
+<section class="count-detail">
+  <!-- Fuori dagli stati: la via d'uscita resta anche in caricamento/errore.
+       Senza cronologia ricade sulla lista Inventario dedotta dall'URL. -->
+  <app-back-button />
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (session(); as s) {
+    <header class="count-detail__header">
+      <div class="count-detail__heading">
+        <div class="count-detail__title-row">
+          <h1 class="count-detail__title">{{ s.name }}</h1>
+          <app-badge [tone]="statusTone(s.status)">{{ statusLabel(s.status) }}</app-badge>
+        </div>
+        <p class="count-detail__meta">
+          {{ s.locationName }} · {{ progressLabel() }} · avviato il
+          {{ formatDate(s.createdAt) }}
+        </p>
+        @if (s.notes) {
+          <p class="count-detail__notes">{{ s.notes }}</p>
+        }
+        @if (s.documentId) {
+          <p class="count-detail__document-link">
+            <a [routerLink]="['/app/documents', s.documentId]"
+              >Apri documento inventario generato →</a
+            >
+          </p>
+        }
+      </div>
+
+      <div class="count-detail__actions">
+        @if (canEdit()) {
+          <app-button variant="secondary" [disabled]="actionPending()" (click)="submitForReview()">
+            Invia a revisione
+          </app-button>
+          <app-button variant="secondary" [disabled]="actionPending()" (click)="cancelSession()">
+            Annulla sessione
+          </app-button>
+        } @else if (canReview()) {
+          <app-button [disabled]="actionPending()" (click)="finalize()">
+            Applica rettifiche
+          </app-button>
+          <app-button variant="secondary" [disabled]="actionPending()" (click)="cancelSession()">
+            Annulla sessione
+          </app-button>
+        }
+      </div>
+    </header>
+
+    @if (actionError(); as err) {
+      <app-inline-banner [message]="err.message" />
+    }
+
+    @if (canReview()) {
+      <div class="count-detail__review-banner" role="status">
+        <strong>Revisione.</strong>
+        Verifica le differenze rilevate. Confermando verranno create rettifiche di magazzino
+        {{ closeHint() }}
+        <span class="count-detail__review-stats tabular-nums">
+          {{ s.linesWithDelta }} differenze su {{ s.linesCounted }} righe contate
+        </span>
+      </div>
+    }
+
+    @if (isClosed()) {
+      <div class="count-detail__review-banner count-detail__review-banner--done" role="status">
+        @if (s.status === InventoryCountStatus.Completed) {
+          Sessione completata
+          @if (s.completedAt) {
+            il {{ formatDate(s.completedAt) }}
+          }
+          . Le rettifiche sono state registrate nello storico movimenti.
+        } @else {
+          Sessione annullata: nessuna modifica applicata al magazzino.
+        }
+      </div>
+    }
+
+    @if (s.lineCount === 0) {
+      <app-empty-state
+        title="Nessuna giacenza da contare"
+        description="Non ci sono varianti con stock registrato per questa location. Aggiungi giacenze o scegli un'altra location."
+        icon="pi-box"
+      />
+    } @else {
+      @if (canEdit()) {
+        <section class="count-detail__scan" aria-labelledby="count-scan-title">
+          <h2 id="count-scan-title" class="count-detail__scan-title">Conteggio rapido</h2>
+          <p class="count-detail__scan-intro">
+            Scansiona il barcode o inserisci SKU/barcode manualmente. Ogni lettura aggiunge
+            <strong>+1</strong> alla quantità contata.
+          </p>
+
+          <form
+            class="count-detail__scan-form"
+            [formGroup]="scanForm"
+            (ngSubmit)="submitScanCode()"
+          >
+            @if (barcodeScannerEnabled) {
+              <div class="count-detail__scan-scanner">
+                <span
+                  class="count-detail__scan-label count-detail__scan-label--spacer"
+                  aria-hidden="true"
+                  >&nbsp;</span
+                >
+                <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
+              </div>
+            }
+
+            <div class="count-detail__scan-manual">
+              <label class="count-detail__scan-field" for="count-scan-code">
+                <span class="count-detail__scan-label">SKU o barcode</span>
+                <input
+                  id="count-scan-code"
+                  class="count-detail__input count-detail__scan-input"
+                  type="text"
+                  formControlName="code"
+                  autocomplete="off"
+                  spellcheck="false"
+                  enterkeyhint="done"
+                  placeholder="Es. DEMO-TSH-WHT-S"
+                  [attr.aria-invalid]="
+                    scanForm.controls.code.invalid && scanForm.controls.code.touched
+                  "
+                />
+              </label>
+              <app-button type="submit" [disabled]="scanPending() || scanForm.invalid">
+                @if (scanPending()) {
+                  Ricerca…
+                } @else {
+                  +1 conta
+                }
+              </app-button>
+            </div>
+          </form>
+
+          @if (scanFeedback(); as feedback) {
+            <p
+              class="count-detail__scan-feedback"
+              [class.count-detail__scan-feedback--error]="feedback.tone === 'error'"
+              [class.count-detail__scan-feedback--success]="feedback.tone === 'success'"
+              role="status"
+            >
+              {{ feedback.message }}
+            </p>
+          }
+        </section>
+      }
+
+      <div class="count-detail__toolbar">
+        <div class="count-detail__search">
+          <i class="pi pi-search count-detail__search-icon" aria-hidden="true"></i>
+          <input
+            class="count-detail__input"
+            type="search"
+            [value]="search()"
+            placeholder="Cerca SKU o prodotto…"
+            aria-label="Cerca righe inventario"
+            (input)="onSearchInput($event)"
+          />
+        </div>
+
+        <div class="count-detail__filters" role="group" aria-label="Filtro righe">
+          <button
+            type="button"
+            class="count-detail__filter"
+            [class.count-detail__filter--active]="lineFilter() === 'all'"
+            (click)="setLineFilter('all')"
+          >
+            Tutte
+          </button>
+          <button
+            type="button"
+            class="count-detail__filter"
+            [class.count-detail__filter--active]="lineFilter() === 'pending'"
+            (click)="setLineFilter('pending')"
+          >
+            Da contare
+          </button>
+          <button
+            type="button"
+            class="count-detail__filter"
+            [class.count-detail__filter--active]="lineFilter() === 'delta'"
+            (click)="setLineFilter('delta')"
+          >
+            Con differenza
+          </button>
+        </div>
+      </div>
+
+      <div class="count-detail__table-scroll">
+        <table class="count-detail__table">
+          <thead>
+            <tr>
+              <th scope="col">Prodotto</th>
+              <th scope="col">SKU</th>
+              <th scope="col" class="count-detail__col--numeric">Sistema</th>
+              <th scope="col" class="count-detail__col--numeric">Contato</th>
+              <th scope="col" class="count-detail__col--numeric">Delta</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of filteredLines(); track line.id) {
+              <tr
+                [id]="'count-line-' + line.id"
+                class="count-detail__row"
+                [class.count-detail__row--delta]="lineDelta(line) !== null && lineDelta(line) !== 0"
+                [class.count-detail__row--highlight]="highlightedLineId() === line.id"
+              >
+                <td data-label="Prodotto">{{ line.productName }}</td>
+                <td data-label="SKU">{{ line.sku }}</td>
+                <td class="count-detail__numeric tabular-nums" data-label="Sistema">
+                  {{ line.systemQuantity }}
+                </td>
+                <td class="count-detail__numeric" data-label="Contato">
+                  @if (canEdit()) {
+                    <input
+                      class="count-detail__qty-input tabular-nums"
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      step="1"
+                      [value]="line.countedQuantity ?? ''"
+                      [attr.aria-label]="'Quantità contata per ' + line.sku"
+                      [disabled]="savingLineId() === line.id"
+                      (blur)="onCountedBlur(line, $event)"
+                    />
+                  } @else {
+                    <span class="tabular-nums">{{ line.countedQuantity ?? '—' }}</span>
+                  }
+                </td>
+                <td
+                  class="count-detail__numeric tabular-nums"
+                  data-label="Delta"
+                  [class.count-detail__delta--pos]="(lineDelta(line) ?? 0) > 0"
+                  [class.count-detail__delta--neg]="(lineDelta(line) ?? 0) < 0"
+                >
+                  @if (lineDelta(line); as delta) {
+                    {{ delta > 0 ? '+' + delta : delta }}
+                  } @else {
+                    —
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (filteredLines().length === 0) {
+        <p class="count-detail__empty-filter">Nessuna riga corrisponde ai filtri attuali.</p>
+      }
+    }
+  }
+</section>

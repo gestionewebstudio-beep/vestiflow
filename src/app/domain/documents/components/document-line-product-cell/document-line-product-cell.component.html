@@ -1,0 +1,111 @@
+@if (linked()) {
+  <div class="doc-product-cell doc-product-cell--linked">
+    <p class="doc-product-cell__linked-label" [title]="linkedLabel()">
+      {{ linkedLabel() || 'Prodotto collegato' }}
+    </p>
+    <button
+      type="button"
+      class="doc-product-cell__search"
+      tabindex="-1"
+      [disabled]="disabled()"
+      aria-label="Cerca un altro prodotto"
+      title="Cerca un altro prodotto"
+      (mousedown)="$event.preventDefault()"
+      (click)="openSearch($event)"
+    >
+      <i class="pi pi-search" aria-hidden="true"></i>
+    </button>
+    <button
+      type="button"
+      class="doc-product-cell__search"
+      tabindex="-1"
+      [disabled]="disabled()"
+      aria-label="Scollega articolo e modifica il testo"
+      title="Scollega articolo e modifica il testo"
+      (mousedown)="$event.preventDefault()"
+      (click)="requestUnlink($event)"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+    <button
+      type="button"
+      class="doc-product-cell__link-action"
+      tabindex="-1"
+      [disabled]="disabled()"
+      (click)="openDetail($event)"
+    >
+      Apri anagrafica
+    </button>
+  </div>
+} @else {
+  <div class="doc-product-cell">
+    <div class="doc-product-cell__field" [class.doc-product-cell__field--invalid]="invalid()">
+      <input
+        #productInput
+        class="doc-product-cell__input"
+        type="text"
+        [id]="inputId() || null"
+        [disabled]="disabled()"
+        [value]="value()"
+        [attr.aria-invalid]="invalid() ? true : null"
+        [attr.aria-expanded]="suggestionsOpen()"
+        [attr.aria-controls]="listboxId()"
+        aria-label="Nome prodotto"
+        autocomplete="off"
+        placeholder="Cerca o crea un articolo"
+        (input)="onInput($any($event.target).value)"
+        (focus)="onFocus()"
+        (blur)="onBlur()"
+        (keydown)="onKeydown($event)"
+      />
+      <button
+        type="button"
+        class="doc-product-cell__search"
+        tabindex="-1"
+        [disabled]="disabled()"
+        aria-label="Cerca prodotto"
+        (mousedown)="$event.preventDefault()"
+        (click)="openSearch($event)"
+      >
+        <i class="pi pi-search" aria-hidden="true"></i>
+      </button>
+    </div>
+    @if (suggestionsOpen()) {
+      <ul
+        class="doc-product-cell__suggestions"
+        role="listbox"
+        [id]="listboxId()"
+        aria-label="Suggerimenti prodotto"
+      >
+        @for (item of suggestions(); track item.variantId; let i = $index) {
+          <li
+            role="option"
+            tabindex="0"
+            class="doc-product-cell__suggestion"
+            [class.doc-product-cell__suggestion--active]="i === activeSuggestionIndex()"
+            [attr.aria-selected]="i === activeSuggestionIndex()"
+            (mousedown)="$event.preventDefault()"
+            (click)="pickSuggestion(item.variantId)"
+            (keydown)="onSuggestionKeydown($event, item.variantId)"
+          >
+            <span class="doc-product-cell__suggestion-title">{{ item.title }}</span>
+            <span class="doc-product-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
+          </li>
+        } @empty {
+          <li class="doc-product-cell__suggestion-empty" role="presentation">
+            Nessun articolo trovato a catalogo.
+          </li>
+        }
+      </ul>
+    }
+    <button
+      type="button"
+      class="doc-product-cell__link-action"
+      tabindex="-1"
+      [disabled]="disabled()"
+      (click)="openAnagraphic($event)"
+    >
+      Completa anagrafica
+    </button>
+  </div>
+}

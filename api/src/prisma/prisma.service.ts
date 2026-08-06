@@ -8,6 +8,16 @@ import { PrismaClient } from '@prisma/client';
  */
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  constructor() {
+    super({
+      transactionOptions: {
+        // Supabase pooler: attesa connessione libera con richieste concorrenti (E2E, sync).
+        maxWait: 10_000,
+        timeout: 30_000,
+      },
+    });
+  }
+
   async onModuleInit(): Promise<void> {
     await this.$connect();
   }

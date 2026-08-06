@@ -1,0 +1,75 @@
+import type { FormGroup } from '@angular/forms';
+import type { NonNullableFormBuilder } from '@angular/forms';
+import { Validators } from '@angular/forms';
+
+import type { TenantDetail } from './admin-tenant.model';
+import { italianVatValidator, optionalEmailValidator } from './admin-tenant.validators';
+
+export function createTenantProfileControls(fb: NonNullableFormBuilder) {
+  return {
+    legalName: fb.control('', { validators: [Validators.maxLength(160)] }),
+    vatNumber: fb.control('', { validators: [Validators.maxLength(16), italianVatValidator()] }),
+    fiscalCode: fb.control('', { validators: [Validators.maxLength(16)] }),
+    phone: fb.control('', { validators: [Validators.maxLength(30)] }),
+    pec: fb.control('', { validators: [Validators.maxLength(255), optionalEmailValidator()] }),
+    sdiCode: fb.control('', { validators: [Validators.maxLength(7)] }),
+    iban: fb.control('', { validators: [Validators.maxLength(34)] }),
+    addressLine1: fb.control('', { validators: [Validators.maxLength(200)] }),
+    addressLine2: fb.control('', { validators: [Validators.maxLength(200)] }),
+    city: fb.control('', { validators: [Validators.maxLength(100)] }),
+    province: fb.control('', { validators: [Validators.maxLength(100)] }),
+    postalCode: fb.control('', { validators: [Validators.maxLength(20)] }),
+    countryCode: fb.control('IT', { validators: [Validators.maxLength(2)] }),
+  };
+}
+
+export function patchTenantProfileForm(form: FormGroup, detail: TenantDetail): void {
+  form.patchValue({
+    tenantName: detail.name,
+    legalName: detail.profile.legalName ?? '',
+    vatNumber: detail.profile.vatNumber ?? '',
+    fiscalCode: detail.profile.fiscalCode ?? '',
+    phone: detail.profile.phone ?? '',
+    pec: detail.profile.pec ?? '',
+    sdiCode: detail.profile.sdiCode ?? '',
+    iban: detail.profile.iban ?? '',
+    addressLine1: detail.profile.addressLine1 ?? '',
+    addressLine2: detail.profile.addressLine2 ?? '',
+    city: detail.profile.city ?? '',
+    province: detail.profile.province ?? '',
+    postalCode: detail.profile.postalCode ?? '',
+    countryCode: detail.profile.countryCode ?? 'IT',
+    ownerDisplayName: detail.owner?.displayName ?? '',
+    channelProfile: detail.channelProfile,
+    licensedLocationCount: detail.licensedLocationCount,
+    storeName: detail.store?.name ?? '',
+  });
+}
+
+export function profilePayloadFromForm(
+  raw: Record<string, string | number | boolean | null | undefined>,
+): Record<string, string | undefined> {
+  const optional = (value: string | number | boolean | null | undefined): string | undefined => {
+    if (typeof value !== 'string' && typeof value !== 'number') {
+      return undefined;
+    }
+    const trimmed = (typeof value === 'string' ? value : String(value)).trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  };
+
+  return {
+    legalName: optional(raw['legalName']),
+    vatNumber: optional(raw['vatNumber']),
+    fiscalCode: optional(raw['fiscalCode']),
+    phone: optional(raw['phone']),
+    pec: optional(raw['pec']),
+    sdiCode: optional(raw['sdiCode']),
+    iban: optional(raw['iban']),
+    addressLine1: optional(raw['addressLine1']),
+    addressLine2: optional(raw['addressLine2']),
+    city: optional(raw['city']),
+    province: optional(raw['province']),
+    postalCode: optional(raw['postalCode']),
+    countryCode: optional(raw['countryCode']),
+  };
+}

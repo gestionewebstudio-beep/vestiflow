@@ -1,0 +1,106 @@
+@use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
+
+@include rt.list-card-table-host();
+@include rt.data-table-desktop('situation-table');
+@include rt.data-table-mobile-cards('situation-table');
+@include rt.data-table-mobile-title('situation-table__title');
+
+.situation-table__head th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-raised);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-table-header-bg);
+}
+
+.situation-table__row:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.situation-table__row--selected {
+  background-color: var(--color-surface-hover);
+}
+
+.situation-table__row td {
+  padding: var(--space-3) var(--space-4);
+  vertical-align: top;
+}
+
+.situation-table__title {
+  font-weight: var(--font-weight-semibold);
+}
+
+// Codice/SKU in mono (restyle spec §Tabelle).
+.situation-table__code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-link);
+}
+
+.situation-table__cell--select {
+  inline-size: var(--space-8);
+}
+
+.situation-table__select-all {
+  display: inline-flex;
+  align-items: center;
+}
+
+.situation-table__checkbox {
+  inline-size: 1rem;
+  block-size: 1rem;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.situation-table__cell--negative {
+  color: var(--status-error-fg);
+  font-weight: var(--font-weight-semibold);
+}
+
+// Disponibile colorato per soglia (restyle spec §Tabelle):
+// rosso a zero/sotto zero, ambra sotto la soglia minima.
+.situation-table__cell--empty {
+  color: var(--status-empty-fg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.situation-table__cell--low {
+  color: var(--status-low-fg);
+  font-weight: var(--font-weight-semibold);
+}
+
+@include bp.media-up('lg') {
+  .situation-table__title {
+    max-inline-size: var(--table-cell-max);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .situation-table__code {
+    max-inline-size: var(--table-cell-max);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .situation-table tbody td.situation-table__cell--status,
+  .situation-table__head th.situation-table__cell--status {
+    text-align: end;
+    white-space: nowrap;
+  }
+
+  .situation-table__status-value {
+    display: flex;
+    justify-content: flex-end;
+    inline-size: 100%;
+  }
+}
+
+@include bp.media-down('lg') {
+  .situation-table__row {
+    border-radius: var(--radius-lg);
+  }
+}

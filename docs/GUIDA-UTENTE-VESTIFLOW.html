@@ -1,0 +1,1945 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VestiFlow — Guida utente</title>
+  <style>@page {
+  margin: 18mm 16mm;
+  size: A4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 11pt;
+  line-height: 1.55;
+  color: #1a1a1a;
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 12mm 10mm;
+}
+
+h1 {
+  font-size: 22pt;
+  color: #1e3a5f;
+  border-bottom: 3px solid #2563eb;
+  padding-bottom: 8px;
+  margin-top: 0;
+  page-break-after: avoid;
+}
+
+h2 {
+  font-size: 15pt;
+  color: #1e3a5f;
+  margin-top: 28px;
+  border-bottom: 1px solid #cbd5e1;
+  padding-bottom: 4px;
+  page-break-after: avoid;
+}
+
+h3 {
+  font-size: 12pt;
+  color: #334155;
+  margin-top: 18px;
+  page-break-after: avoid;
+}
+
+p,
+li {
+  orphans: 3;
+  widows: 3;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 16px;
+  font-size: 10pt;
+  page-break-inside: avoid;
+}
+
+th,
+td {
+  border: 1px solid #cbd5e1;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f1f5f9;
+  font-weight: 600;
+}
+
+tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+code {
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 9.5pt;
+}
+
+pre {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 12px;
+  overflow-x: auto;
+  font-size: 9pt;
+  page-break-inside: avoid;
+}
+
+blockquote {
+  border-left: 4px solid #2563eb;
+  margin: 12px 0;
+  padding: 8px 16px;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 24px 0;
+}
+
+a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+ul,
+ol {
+  padding-left: 22px;
+}
+
+.cover-meta {
+  color: #64748b;
+  font-size: 10pt;
+  margin-bottom: 24px;
+}
+
+@media print {
+  body {
+    padding: 0;
+  }
+
+  h2 {
+    page-break-before: auto;
+  }
+
+  a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 8pt;
+    color: #64748b;
+  }
+}
+</style>
+</head>
+<body>
+<h1 id="vestiflow--guida-per-lutente">VestiFlow — Guida per l&#39;utente</h1>
+<p><strong>Versione documento:</strong> 3.4 — Luglio 2026</p>
+<p><strong>Per chi è questa guida:</strong> titolari, responsabili magazzino, commessi e amministratori del negozio che usano VestiFlow ogni giorno.</p>
+<p><strong>Prodotto:</strong> VestiFlow — gestionale web multi-sede per <strong>retail e negozi con inventario fisico</strong>, con integrazione opzionale a <strong>Shopify</strong> o <strong>TikTok Shop</strong> (in base al profilo scelto per il tuo negozio). Adatto ad abbigliamento, accessori, cosmetica, food con varianti, e-commerce Shopify e altri settori con SKU e magazzino. L&#39;integrazione <strong>TikTok Shop è ancora parziale</strong> — vedi <a href="#7-collegare-tiktok-shop">§7</a>.</p>
+<hr>
+<h2 id="indice">Indice</h2>
+<ol>
+<li><a href="#1-cos%C3%A8-vestiflow">Cos&#39;è VestiFlow</a></li>
+<li><a href="#2-accedere-al-gestionale">Accedere al gestionale</a></li>
+<li><a href="#3-orientarsi-nellinterfaccia">Orientarsi nell&#39;interfaccia</a></li>
+<li><a href="#4-ruoli-e-permessi">Ruoli e permessi</a></li>
+<li><a href="#5-primi-passi-dopo-lattivazione">Primi passi dopo l&#39;attivazione</a></li>
+<li><a href="#6-collegare-shopify">Collegare Shopify</a></li>
+<li><a href="#7-collegare-tiktok-shop">Collegare TikTok Shop</a></li>
+<li><a href="#8-cosa-si-sincronizza-e-dove">Cosa si sincronizza e dove</a></li>
+<li><a href="#9-prodotti-e-catalogo">Prodotti e catalogo</a></li>
+<li><a href="#10-magazzino-e-giacenze">Magazzino e giacenze</a></li>
+<li><a href="#11-ordini-fornitori">Ordini fornitori</a></li>
+<li><a href="#12-anagrafica-fornitori">Anagrafica fornitori</a></li>
+<li><a href="#13-documenti-fiscali-e-operativi">Documenti fiscali e operativi</a></li>
+<li><a href="#14-vendite-e-clienti">Vendite e clienti</a></li>
+<li><a href="#15-report-dashboard-e-registro-commercialista">Report, dashboard e registro commercialista</a></li>
+<li><a href="#16-usare-vestiflow-da-smartphone">Usare VestiFlow da smartphone</a></li>
+<li><a href="#17-negozio-fisico-vendite-al-banco">Negozio fisico: vendite al banco</a></li>
+<li><a href="#18-profilo-foto-e-sicurezza-account">Profilo, foto e sicurezza account</a></li>
+<li><a href="#19-domande-frequenti">Domande frequenti</a></li>
+<li><a href="#20-guida-nel-menu">Guida nel menu</a></li>
+</ol>
+<hr>
+<h2 id="1-cosè-vestiflow">1. Cos&#39;è VestiFlow</h2>
+<p>VestiFlow è il <strong>gestionale del tuo negozio</strong>: catalogo, magazzino, ordini ai fornitori e — se previsto dal tuo profilo — allineamento con <strong>Shopify</strong> o <strong>TikTok Shop</strong>.</p>
+<p>Con un account puoi:</p>
+<ul>
+<li>gestire <strong>prodotti e varianti</strong> (opzioni come taglia, colore, capacità, modello — SKU, barcode, prezzi);</li>
+<li>vedere e aggiornare <strong>giacenze per sede</strong> (negozio, magazzino, altri punti vendita);</li>
+<li>registrare <strong>carichi, scarichi, trasferimenti e rettifiche</strong> con storico;</li>
+<li>creare e ricevere <strong>ordini fornitori</strong>;</li>
+<li>gestire <strong>documenti</strong> (arrivi merce, DDT, trasferimenti, rettifiche, proforma e bozze fattura);</li>
+<li>consultare il <strong>registro commercialista</strong> con i documenti da fatturare o registrare;</li>
+<li><strong>registrare vendite e resi al banco</strong> con scansione barcode (profilo <strong>Solo gestionale</strong>);</li>
+<li>consultare <strong>vendite e clienti</strong> importati da Shopify (profilo Shopify);</li>
+<li>tenere <strong>catalogo e stock allineati</strong> al canale e-commerce collegato, se presente.</li>
+</ul>
+<p>VestiFlow <strong>non sostituisce</strong> il sito e-commerce: lo affianca per chi lavora in negozio e in magazzino.</p>
+<h3 id="cosa-ti-serve">Cosa ti serve</h3>
+<table>
+<thead>
+<tr>
+<th>Requisito</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Browser aggiornato</td>
+<td>Chrome, Edge, Safari o Firefox</td>
+</tr>
+<tr>
+<td>Connessione internet</td>
+<td>Il gestionale è online</td>
+</tr>
+<tr>
+<td>Account VestiFlow</td>
+<td>Email e password ricevute all&#39;attivazione</td>
+</tr>
+<tr>
+<td>Canale e-commerce</td>
+<td><strong>Shopify</strong> o <strong>TikTok Shop</strong> se previsto dal tuo profilo; altrimenti solo gestionale</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="2-accedere-al-gestionale">2. Accedere al gestionale</h2>
+<h3 id="login">Login</h3>
+<ol>
+<li>Apri l&#39;indirizzo del gestionale che ti è stato comunicato.</li>
+<li>Inserisci <strong>email</strong> e <strong>password</strong>.</li>
+<li>Se hai attivato la <strong>verifica in due passaggi</strong>, inserisci il codice a 6 cifre dall&#39;app authenticator.</li>
+<li>Entri nella <strong>Dashboard</strong>.</li>
+</ol>
+<h3 id="password-dimenticata">Password dimenticata</h3>
+<ol>
+<li>Dalla schermata di login clicca <strong>Password dimenticata</strong>.</li>
+<li>Inserisci la tua email e segui il link ricevuto per impostare una nuova password.</li>
+</ol>
+<h3 id="uscire">Uscire</h3>
+<p>In alto a destra clicca l&#39;icona <strong>Esci</strong> (freccia verso l&#39;uscita). Compare una <strong>conferma</strong> prima di chiudere la sessione.</p>
+<hr>
+<h2 id="3-orientarsi-nellinterfaccia">3. Orientarsi nell&#39;interfaccia</h2>
+<h3 id="menu-laterale-sidebar">Menu laterale (sidebar)</h3>
+<p>Su desktop resta sempre visibile; su smartphone si apre con l&#39;icona <strong>menu</strong> in alto.</p>
+<table>
+<thead>
+<tr>
+<th>Voce</th>
+<th>A cosa serve</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Dashboard</strong></td>
+<td>Riepilogo attività</td>
+</tr>
+<tr>
+<td><strong>Prodotti</strong></td>
+<td>Catalogo, creazione, modifica, import/export CSV</td>
+</tr>
+<tr>
+<td><strong>Magazzino</strong></td>
+<td>Apre <strong>Cerca giacenza</strong> (ricerca rapida, ideale su mobile)</td>
+</tr>
+<tr>
+<td><strong>Fornitori</strong></td>
+<td>Anagrafica fornitori (nome, contatti, P.IVA)</td>
+</tr>
+<tr>
+<td><strong>Ordini Fornitori</strong></td>
+<td>Acquisti dai fornitori</td>
+</tr>
+<tr>
+<td><strong>Documenti</strong></td>
+<td>Registro documenti: arrivi merce, DDT, trasferimenti, rettifiche, impostazioni numerazione</td>
+</tr>
+<tr>
+<td><strong>Registra vendita</strong></td>
+<td>Vendite e storni al banco con barcode (tutti i profili canale)</td>
+</tr>
+<tr>
+<td><strong>Vendite</strong></td>
+<td>Ordini da Shopify (sola lettura), export CSV (<strong>solo profilo Shopify</strong>)</td>
+</tr>
+<tr>
+<td><strong>Clienti</strong></td>
+<td>Anagrafica da Shopify (sola lettura), export CSV (<strong>solo profilo Shopify</strong>)</td>
+</tr>
+<tr>
+<td><strong>Report</strong></td>
+<td>Indicatori e riepiloghi</td>
+</tr>
+<tr>
+<td><strong>Registro commercialista</strong></td>
+<td>Riepilogo documenti fiscali e corrispettivi per periodo (collegato a <strong>Documenti</strong>)</td>
+</tr>
+<tr>
+<td><strong>Impostazioni</strong></td>
+<td>Profilo, foto, tema, sedi, integrazione canale (Shopify o TikTok se prevista), sicurezza</td>
+</tr>
+<tr>
+<td><strong>Guida</strong></td>
+<td>Manuale utente integrato nell&#39;app</td>
+</tr>
+</tbody></table>
+<p>Su mobile, <strong>Esci</strong> è in fondo al menu ☰ (sotto tutte le voci); su desktop resta anche in topbar.</p>
+<p>Dal menu <strong>Magazzino</strong> accedi subito alla ricerca; le altre sezioni magazzino (<strong>Giacenze</strong>, <strong>Movimenti</strong>, <strong>Inventario fisico</strong>) si aprono dai <strong>tab</strong> in alto nelle pagine del magazzino. La voce <strong>Magazzino</strong> (e le altre sezioni) resta <strong>evidenziata in sidebar</strong> su qualsiasi tab o sotto-pagina della stessa area.</p>
+<h4 id="voci-menu-per-profilo-canale">Voci menu per profilo canale</h4>
+<table>
+<thead>
+<tr>
+<th>Profilo</th>
+<th>Registra vendita</th>
+<th>Vendite (lista ordini)</th>
+<th>Clienti</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Solo gestionale</strong></td>
+<td>Sì</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>Shopify</strong></td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+</tr>
+<tr>
+<td><strong>TikTok Shop</strong></td>
+<td>Sì</td>
+<td>No</td>
+<td>No</td>
+</tr>
+</tbody></table>
+<h3 id="barra-in-alto-topbar">Barra in alto (topbar)</h3>
+<p>Ordine da sinistra a destra (desktop):</p>
+<ul>
+<li><strong>VestiFlow</strong> — nome del gestionale</li>
+<li><strong>Tema</strong> — chiaro / scuro / sistema (icona sole, luna, monitor)</li>
+<li><strong>Selettore location</strong> — indica la <strong>sede operativa</strong> per carichi, scarichi, trasferimenti e vendite al banco (solo sedi attive nel piano; vedi <a href="#sedi-location">§5 Sedi</a>). Comportamento:<ul>
+<li><strong>Titolare</strong> o <strong>Amministratore</strong> con più sedi: menu a tendina per cambiare sede attiva.</li>
+<li><strong>Manager</strong> o <strong>Commesso</strong> con <strong>sede assegnata</strong>: compare solo l’<strong>etichetta</strong> della sede (nessun cambio sede in topbar).</li>
+<li><strong>Una sola sede</strong> disponibile: etichetta fissa per tutti.</li>
+<li>Nei <strong>filtri</strong> di Magazzino (es. Giacenze) puoi vedere altre sedi se hai il permesso «Vedere giacenze di tutte le sedi»; le <strong>azioni</strong> restano comunque sulla sede operativa in topbar.</li>
+</ul>
+</li>
+<li><strong>Sync Shopify</strong> — chip con icona e <strong>data/ora ultimo sync</strong>; il punto colorato indica lo stato (verde = ok). Clic → Impostazioni</li>
+<li><strong>Avatar profilo</strong> — foto o iniziali; <strong>clic → Impostazioni</strong></li>
+<li><strong>Esci</strong> — logout con conferma (desktop in topbar; su smartphone in fondo al menu ☰)</li>
+</ul>
+<p>Su smartphone il menu hamburger apre la sidebar; tema, location e sync restano in topbar quando lo spazio lo consente.</p>
+<h3 id="impostazioni-cosa-compare">Impostazioni: cosa compare</h3>
+<p>Il contenuto di <strong>Impostazioni</strong> dipende dal <strong>profilo canale</strong> del tuo negozio (scelto in fase di attivazione). L’ordine dei pannelli è sempre: <strong>Profilo</strong> → <strong>Sede fisica</strong> (se presente) → <strong>Magazzino e documenti</strong> (Titolare/Admin) → integrazione canale → <strong>Sicurezza account</strong> → <strong>Aspetto</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Profilo canale</th>
+<th>Pannelli visibili in Impostazioni</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Solo gestionale</strong></td>
+<td>Profilo, <strong>Sede fisica</strong>, <strong>Magazzino e documenti</strong>, Sicurezza, Aspetto — nessuna integrazione e-commerce</td>
+</tr>
+<tr>
+<td><strong>Shopify</strong></td>
+<td>Profilo, <strong>Sede fisica</strong>, <strong>Magazzino e documenti</strong>, <strong>Integrazione Shopify</strong> (Location + <strong>Sedi attive in VestiFlow</strong>), Sicurezza, Aspetto</td>
+</tr>
+<tr>
+<td><strong>TikTok Shop</strong></td>
+<td>Profilo, <strong>Sede fisica</strong>, <strong>Magazzino e documenti</strong>, Integrazione TikTok Shop, Sicurezza, Aspetto</td>
+</tr>
+</tbody></table>
+<h4 id="magazzino-e-documenti-impostazioni-operative">Magazzino e documenti (impostazioni operative)</h4>
+<p>Pannello visibile a <strong>Titolare</strong> e <strong>Amministratore</strong> (accesso completo al tenant). Consente di attivare:</p>
+<ul>
+<li><strong>Gestione lotti e scadenze</strong> — colonne lotto/scadenza in arrivo merce</li>
+<li><strong>Gestione numeri seriali</strong> — colonna seriali in arrivo merce</li>
+<li><strong>Policy aggiornamento prezzo fornitore</strong> in carico: sempre / chiedi conferma / mai</li>
+<li><strong>Unità di misura</strong> e <strong>IVA predefinita</strong> per nuovi articoli</li>
+<li>Avvisi e blocco su <strong>giacenze negative</strong></li>
+</ul>
+<p>Le modifiche si applicano a tutti gli utenti del negozio.</p>
+<h4 id="sede-fisica-anagrafica-cliente">Sede fisica (anagrafica cliente)</h4>
+<p>Pannello <strong>Sede fisica</strong> in Impostazioni: mostra i dati commerciali registrati da VestiFlow all’attivazione (ragione sociale, negozio, P.IVA, indirizzo, contatti). È <strong>indipendente</strong> dalle sedi operative Shopify elencate sotto <strong>Integrazione Shopify → Location</strong>. I dettagli fiscali e di contatti opzionali sono in un riquadro espandibile <strong>Dati fiscali e contatti</strong>. Il pannello è visibile se il tuo account ha il permesso <strong>Impostazioni azienda</strong> (tipico per Titolare e Amministratore).</p>
+<h3 id="messaggi-comuni">Messaggi comuni</h3>
+<ul>
+<li><strong>Caricamento</strong> — skeleton o spinner mentre arrivano i dati</li>
+<li><strong>Elenco vuoto</strong> — messaggio con suggerimento su cosa fare</li>
+<li><strong>Errore</strong> — descrizione e pulsante <strong>Riprova</strong></li>
+</ul>
+<hr>
+<h2 id="4-ruoli-e-permessi">4. Ruoli e permessi</h2>
+<p>Ogni utente ha un <strong>ruolo VestiFlow</strong> (Titolare, Amministratore, Manager, Commesso). Il ruolo <strong>non</strong> viene da Shopify: sono due sistemi separati.</p>
+<table>
+<thead>
+<tr>
+<th>Ruolo</th>
+<th>Chi è di solito</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Titolare</strong></td>
+<td>Proprietario del negozio</td>
+</tr>
+<tr>
+<td><strong>Amministratore</strong></td>
+<td>Referente negozio / IT</td>
+</tr>
+<tr>
+<td><strong>Manager</strong></td>
+<td>Responsabile magazzino o acquisti</td>
+</tr>
+<tr>
+<td><strong>Commesso</strong></td>
+<td>Operatore negozio o magazzino</td>
+</tr>
+</tbody></table>
+<p>Il <strong>Titolare</strong> ha sempre <strong>accesso completo</strong> (tutti i permessi), inclusa la <strong>connessione OAuth</strong> a Shopify e TikTok Shop.</p>
+<p>Per <strong>Amministratore</strong>, <strong>Manager</strong> e <strong>Commesso</strong> il referente VestiFlow assegna un set di <strong>permessi granulari</strong> (checkbox al momento della creazione o modifica utente). Si parte da un <strong>preset</strong> legato al ruolo, personalizzabile utente per utente. Se un pulsante, una voce di menu o una pagina non compare, manca il permesso richiesto — non necessariamente «il ruolo intero».</p>
+<p><strong>Dopo una modifica permessi</strong> da parte del referente: <strong>esci e rientra</strong> oppure ricarica con <strong>Ctrl+F5</strong> (Mac: <strong>Cmd+Shift+R</strong>) così menu e pulsanti si allineano al profilo aggiornato.</p>
+<h3 id="permessi-granulari-cosa-controllano">Permessi granulari (cosa controllano)</h3>
+<table>
+<thead>
+<tr>
+<th>Permesso</th>
+<th>Cosa abilita</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Vedere giacenze di tutte le sedi</strong></td>
+<td>Consulta stock e movimenti oltre la sede assegnata (le <strong>azioni</strong> restano sulla sede operativa in topbar).</td>
+</tr>
+<tr>
+<td><strong>Gestire giacenze</strong></td>
+<td>Carichi, scarichi, trasferimenti, rettifiche, inventario fisico, <strong>Registra movimento</strong>.</td>
+</tr>
+<tr>
+<td><strong>Import/export e sync giacenze</strong></td>
+<td>Export/import CSV giacenze e pulsante <strong>Sincronizza giacenze da Shopify</strong>.</td>
+</tr>
+<tr>
+<td><strong>Gestire catalogo</strong></td>
+<td>Crea e modifica prodotti, varianti e prezzi.</td>
+</tr>
+<tr>
+<td><strong>Import/export e sync prodotti</strong></td>
+<td>Export/import CSV catalogo, <strong>Importa da Shopify</strong> e <strong>Sincronizza catalogo</strong> dalla lista prodotti.</td>
+</tr>
+<tr>
+<td><strong>Eliminare prodotti</strong></td>
+<td>Rimozione prodotti dal catalogo (nei limiti previsti da Fonte/sync).</td>
+</tr>
+<tr>
+<td><strong>Gestire ordini fornitore</strong></td>
+<td>Crea, modifica, invia e annulla ordini fornitore.</td>
+</tr>
+<tr>
+<td><strong>Ricevere ordini fornitore</strong></td>
+<td>Registra merce in arrivo da ordine fornitore (flusso rapido da <strong>Ordini Fornitori</strong>).</td>
+</tr>
+<tr>
+<td><strong>Consultare documenti</strong></td>
+<td>Lista e dettaglio <strong>Documenti</strong>; filtri registro commercialista e DDT da fatturare.</td>
+</tr>
+<tr>
+<td><strong>Gestire documenti</strong></td>
+<td>Crea e modifica documenti (arrivo merce, DDT, trasferimenti, rettifiche, impostazioni numerazione).</td>
+</tr>
+<tr>
+<td><strong>Registrare vendite al banco</strong></td>
+<td>Schermata <strong>Registra vendita</strong> (vendite e storni).</td>
+</tr>
+<tr>
+<td><strong>Consultare report</strong></td>
+<td>Dashboard e sezione <strong>Report</strong>.</td>
+</tr>
+<tr>
+<td><strong>Esportare dati</strong></td>
+<td>Export CSV vendite, clienti, giacenze, catalogo; sync manuale <strong>vendite</strong> e <strong>clienti</strong> da Shopify.</td>
+</tr>
+<tr>
+<td><strong>Impostazioni azienda</strong></td>
+<td>Pannello <strong>Sede fisica</strong> in Impostazioni.</td>
+</tr>
+<tr>
+<td><strong>Visualizzare clienti</strong></td>
+<td>Lista e dettaglio clienti (sola lettura, profilo Shopify).</td>
+</tr>
+<tr>
+<td><strong>Gestire clienti</strong></td>
+<td>Crea/modifica anagrafiche clienti (solo profili che lo prevedono).</td>
+</tr>
+</tbody></table>
+<p><strong>Nota:</strong> consultare giacenze, movimenti e liste di base sulla <strong>propria sede</strong> è in generalità consentito agli utenti autenticati; le righe sopra governano le <strong>azioni</strong> e le aree sensibili.</p>
+<h3 id="operazioni-riservate-al-titolare">Operazioni riservate al Titolare</h3>
+<table>
+<thead>
+<tr>
+<th>Operazione</th>
+<th>Chi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Collegare / disconnettere <strong>Shopify</strong> o <strong>TikTok Shop</strong> (OAuth)</td>
+<td>Solo <strong>Titolare</strong></td>
+</tr>
+<tr>
+<td><strong>Sincronizza location</strong>, <strong>Salva sedi attive</strong>, cambio negozio Shopify</td>
+<td>Solo <strong>Titolare</strong> (Amministratore <strong>non</strong> basta)</td>
+</tr>
+</tbody></table>
+<p>L’<strong>Amministratore</strong> con preset completo ha tutti i permessi granulari tranne la connessione OAuth ai canali e-commerce.</p>
+<h3 id="preset-tipici-per-ruolo-punto-di-partenza">Preset tipici per ruolo (punto di partenza)</h3>
+<p>I valori sotto sono i default <strong>prima</strong> di eventuali personalizzazioni del referente VestiFlow.</p>
+<table>
+<thead>
+<tr>
+<th>Operazione</th>
+<th>Titolare</th>
+<th>Admin (preset)</th>
+<th>Manager (preset)</th>
+<th>Commesso (preset)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Connessione Shopify / TikTok</td>
+<td>Sì</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Sync sedi / salva sedi attive</td>
+<td>Sì</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Catalogo completo + import/export/sync prodotti</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Elimina prodotti</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Giacenze + import/export/sync giacenze</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Movimenti / inventario fisico</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+</tr>
+<tr>
+<td>Vede tutte le sedi (filtri)</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Ordini fornitore (gestione)</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Ricezione merce</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+</tr>
+<tr>
+<td>Documenti (consultazione / gestione)</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Consultazione</td>
+</tr>
+<tr>
+<td>Registro commercialista</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Registra vendita al banco</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+</tr>
+<tr>
+<td>Report + export CSV / sync vendite-clienti</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>Solo consultazione report</td>
+</tr>
+<tr>
+<td>Sede fisica (anagrafica)</td>
+<td>Sì</td>
+<td>Sì</td>
+<td>No</td>
+<td>No</td>
+</tr>
+</tbody></table>
+<p>Per nuovi account, cambio permessi o sede assegnata contatta il <strong>referente VestiFlow</strong> che ha attivato il gestionale.</p>
+<p><strong>Buona pratica:</strong> ogni persona deve avere il proprio account, senza condividere password.</p>
+<hr>
+<h2 id="5-primi-passi-dopo-lattivazione">5. Primi passi dopo l&#39;attivazione</h2>
+<p>Percorso consigliato per il <strong>titolare</strong> del negozio:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Dove</th>
+<th>Cosa fare</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Login</td>
+<td>Accedi con le credenziali ricevute</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Impostazioni → Profilo</td>
+<td>Carica una <strong>foto profilo</strong> (opzionale)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Impostazioni → Sicurezza</td>
+<td>Attiva MFA (consigliato)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Canale e-commerce</td>
+<td>Vedi tabella sotto in base al profilo del negozio</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Prodotti</td>
+<td>Verifica e completa il catalogo</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Magazzino → Giacenze</td>
+<td>Controlla stock e registra rettifiche iniziali se serve</td>
+</tr>
+</tbody></table>
+<h3 id="step-4--in-base-al-profilo-canale">Step 4 — in base al profilo canale</h3>
+<p><strong>Profilo Solo gestionale:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Dove</th>
+<th>Cosa fare</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>4a</td>
+<td>Impostazioni</td>
+<td>Verifica <strong>Sede fisica</strong> e location operative</td>
+</tr>
+<tr>
+<td>4b</td>
+<td>Prodotti</td>
+<td>Completa barcode/SKU sulle varianti vendute in negozio</td>
+</tr>
+<tr>
+<td>4c</td>
+<td>Registra vendita</td>
+<td>Prova una scansione di test dopo il primo carico</td>
+</tr>
+</tbody></table>
+<p><strong>Profilo Shopify:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Dove</th>
+<th>Cosa fare</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>4a</td>
+<td>Impostazioni</td>
+<td>Collega il negozio Shopify</td>
+</tr>
+<tr>
+<td>4b</td>
+<td>Impostazioni</td>
+<td><strong>Sincronizza location</strong> (importa le sedi da Shopify)</td>
+</tr>
+<tr>
+<td>4c</td>
+<td>Impostazioni</td>
+<td><strong>Sedi attive in VestiFlow</strong> — seleziona le sedi del piano e <strong>Salva sedi attive</strong></td>
+</tr>
+<tr>
+<td>4d</td>
+<td>Impostazioni</td>
+<td><strong>Attiva aggiornamenti automatici</strong></td>
+</tr>
+<tr>
+<td>4e</td>
+<td>Impostazioni</td>
+<td><strong>Importa catalogo da Shopify</strong> (se hai già prodotti online)</td>
+</tr>
+<tr>
+<td>4f</td>
+<td>Registra vendita</td>
+<td>Prova scansione test se vendi in negozio con cassa esterna</td>
+</tr>
+</tbody></table>
+<p><strong>Profilo TikTok Shop:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Dove</th>
+<th>Cosa fare</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>4a</td>
+<td>Impostazioni</td>
+<td><strong>Connetti TikTok Shop</strong> (OAuth)</td>
+</tr>
+<tr>
+<td>4b</td>
+<td>Impostazioni</td>
+<td>Verifica sedi in <strong>Location</strong></td>
+</tr>
+<tr>
+<td>4c</td>
+<td>Registra vendita</td>
+<td>Prova scansione test se vendi in negozio fisico</td>
+</tr>
+</tbody></table>
+<p><strong>Profilo Solo gestionale:</strong> salta il collegamento e-commerce; usa catalogo e magazzino solo in VestiFlow.</p>
+<h3 id="sedi-location">Sedi (location)</h3>
+<p>Una <strong>sede</strong> è un luogo dove conti le giacenze (negozio, magazzino, secondo punto vendita). Con profilo <strong>Shopify</strong>, le location importate si vedono in <strong>Impostazioni → Integrazione Shopify</strong> (tabella <strong>Location</strong>); le sedi <strong>operative</strong> in VestiFlow si scelgono nel pannello <strong>Sedi attive in VestiFlow</strong> e nel <strong>selettore location</strong> in alto.</p>
+<h4 id="piano-sedi-e-selezione-attiva">Piano sedi e selezione attiva</h4>
+<p>Il tuo contratto include un numero massimo di <strong>sedi operative</strong> in VestiFlow (es. 1, 3 o 10). Non tutte le location presenti su Shopify devono essere attive nel gestionale: ne selezioni fino al limite del piano.</p>
+<table>
+<thead>
+<tr>
+<th>Fase</th>
+<th>Cosa succede</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Dopo sync location</strong></td>
+<td>Compaiono tutte le sedi Shopify importate; nel pannello <strong>Sedi attive in VestiFlow</strong> scegli quali attivare (entro il limite)</td>
+</tr>
+<tr>
+<td><strong>Primo salvataggio</strong></td>
+<td>Clic <strong>Salva sedi attive</strong> — da quel momento la scelta è <strong>bloccata</strong></td>
+</tr>
+<tr>
+<td><strong>Dopo il blocco</strong></td>
+<td>Vedi solo le sedi attive; compare il messaggio <em>«Contatta l&#39;assistenza per modificare le sedi attive»</em></td>
+</tr>
+<tr>
+<td><strong>Cambio sedi</strong></td>
+<td>Solo il <strong>referente VestiFlow</strong> può sbloccarti <strong>una volta</strong>; poi salvi di nuovo e la selezione si riblocca</td>
+</tr>
+</tbody></table>
+<p>Solo il <strong>Titolare</strong> può salvare la selezione sedi (l’Amministratore non basta per questa operazione).</p>
+<p><strong>Eccezione piano 1 sede:</strong> se Shopify espone <strong>una sola</strong> location attiva, VestiFlow può pre-selezionarla al sync, ma il <strong>blocco</strong> scatta solo dopo il tuo <strong>primo salvataggio</strong> esplicito (se il piano prevede più sedi o devi confermare).</p>
+<h4 id="sync-e-sedi-locali">Sync e sedi locali</h4>
+<p>Dopo <strong>Sincronizza location</strong>, compaiono le <strong>Sedi Shopify</strong> (importate dal negozio online) separate dalle eventuali <strong>Sedi locali</strong>. All’attivazione può esistere una sede temporanea di onboarding: viene rimossa automaticamente al primo sync se non ha giacenze.</p>
+<p>Magazzino, movimenti, giacenze e selettore in topbar mostrano <strong>solo le sedi attive</strong> nel piano — non tutte quelle presenti su Shopify.</p>
+<p><strong>Più sedi nello stesso shop Shopify</strong> (es. Napoli + magazzino): supportato entro il limite contrattuale. <strong>Due shop Shopify distinti</strong> (due domini): servono <strong>due account VestiFlow</strong> separati — contatta il referente.</p>
+<hr>
+<h2 id="6-collegare-shopify">6. Collegare Shopify</h2>
+<h3 id="prerequisiti">Prerequisiti</h3>
+<ul>
+<li>Negozio Shopify attivo (<code>nome-negozio.myshopify.com</code>)</li>
+<li>Ruolo <strong>Titolare</strong> in VestiFlow (solo il titolare avvia OAuth e sync sedi)</li>
+</ul>
+<h3 id="procedura">Procedura</h3>
+<ol>
+<li>Vai in <strong>Impostazioni → Integrazione Shopify</strong>.</li>
+<li>Inserisci il dominio del negozio (es. <code>mio-negozio.myshopify.com</code>).</li>
+<li>Clicca <strong>Connetti Shopify</strong> e accetta i permessi sulla pagina Shopify.</li>
+<li>Al ritorno lo stato deve essere <strong>Connesso</strong>.</li>
+</ol>
+<h3 id="dopo-la-connessione--tre-passi-importanti">Dopo la connessione — tre passi importanti</h3>
+<table>
+<thead>
+<tr>
+<th>Azione</th>
+<th>Dove</th>
+<th>Perché</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Sincronizza location</strong></td>
+<td>Impostazioni</td>
+<td>Importa le sedi da Shopify</td>
+</tr>
+<tr>
+<td><strong>Sedi attive in VestiFlow</strong></td>
+<td>Impostazioni</td>
+<td>Scegli quali sedi usare nel gestionale (entro il piano)</td>
+</tr>
+<tr>
+<td><strong>Attiva aggiornamenti automatici</strong></td>
+<td>Impostazioni</td>
+<td>Riceve prodotti, giacenze, ordini e clienti in tempo reale</td>
+</tr>
+<tr>
+<td><strong>Importa catalogo da Shopify</strong></td>
+<td>Impostazioni</td>
+<td>Scarica i prodotti già presenti online</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>Con cataloghi grandi l&#39;import può richiedere <strong>diversi minuti</strong>. Resta sulla pagina finché compare il messaggio di esito. <strong>Non premere più volte</strong> lo stesso pulsante.</p>
+</blockquote>
+<h3 id="pulsanti-utili-in-impostazioni">Pulsanti utili in Impostazioni</h3>
+<table>
+<thead>
+<tr>
+<th>Pulsante</th>
+<th>Quando usarlo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Sincronizza location</strong></td>
+<td>Primo setup o nuova sede su Shopify Admin</td>
+</tr>
+<tr>
+<td><strong>Salva sedi attive</strong></td>
+<td>Dopo sync: conferma quali sedi usare in VestiFlow</td>
+</tr>
+<tr>
+<td><strong>Attiva aggiornamenti automatici</strong></td>
+<td>Dopo connessione o cambio permessi app</td>
+</tr>
+<tr>
+<td><strong>Disattiva aggiornamenti automatici</strong></td>
+<td>Pausa sync temporanea</td>
+</tr>
+<tr>
+<td><strong>Importa catalogo da Shopify</strong></td>
+<td>Allineamento completo del catalogo</td>
+</tr>
+<tr>
+<td><strong>Ripristina connessione</strong></td>
+<td>Errore stale ma negozio ancora raggiungibile</td>
+</tr>
+<tr>
+<td><strong>Cambia negozio</strong></td>
+<td>Passare a un <strong>altro dominio</strong> Shopify</td>
+</tr>
+<tr>
+<td><strong>Disconnetti Shopify</strong></td>
+<td>Scollegamento senza cancellare i dati locali</td>
+</tr>
+<tr>
+<td><strong>Disconnetti e rimuovi dati</strong></td>
+<td>Scollegamento + rimozione dati importati da Shopify</td>
+</tr>
+</tbody></table>
+<p>Solo il <strong>Titolare</strong> vede i pulsanti di connessione, sync sedi e gestione OAuth.</p>
+<h3 id="cambiare-negozio-shopify-o-rimuovere-i-dati-importati">Cambiare negozio Shopify o rimuovere i dati importati</h3>
+<p>Per collegare un <strong>dominio Shopify diverso</strong> (es. da <code>negozio-a.myshopify.com</code> a <code>negozio-b.myshopify.com</code>) non basta disconnettere: serve la procedura guidata.</p>
+<p><strong>Cambia negozio</strong> (shop già connesso):</p>
+<ol>
+<li><strong>Impostazioni → Integrazione Shopify → Cambia negozio</strong></li>
+<li>Leggi l’<strong>anteprima</strong> (conteggio prodotti, clienti, ordini, location collegati a Shopify)</li>
+<li>Scegli se <strong>rimuovere i dati importati da Shopify</strong> prima del cambio (consigliato per evitare mix tra due negozi)</li>
+<li>Conferma digitando il <strong>dominio attuale</strong> del negozio</li>
+<li>Al termine: riconnetti il <strong>nuovo</strong> negozio con <strong>Connetti Shopify</strong></li>
+</ol>
+<p><strong>Disconnetti e rimuovi dati</strong> (senza cambiare subito negozio):</p>
+<ol>
+<li>Stessa procedura guidata con anteprima</li>
+<li>Rimuove catalogo, clienti, ordini vendita e location <strong>collegati a Shopify</strong> in VestiFlow</li>
+<li><strong>Non</strong> elimina ordini fornitori, movimenti di magazzino locali né l’anagrafica in <strong>Sede fisica</strong></li>
+<li>Se hai <strong>ordini fornitori aperti</strong> collegati a location Shopify, la rimozione può essere <strong>bloccata</strong> finché non li chiudi o annulli</li>
+</ol>
+<blockquote>
+<p><strong>Attenzione:</strong> la rimozione dati è <strong>irreversibile</strong> in VestiFlow. I prodotti su Shopify Admin <strong>non</strong> vengono cancellati automaticamente; VestiFlow elimina solo la copia locale e i collegamenti sync.</p>
+</blockquote>
+<p><strong>Disconnetti Shopify</strong> (semplice): scollega l’app e mantiene prodotti, clienti e ordini già importati in sola lettura locale. Utile per una pausa temporanea, non per cambiare negozio.</p>
+<h3 id="durante-unoperazione-di-sync">Durante un&#39;operazione di sync</h3>
+<ol>
+<li>Il pulsante mostra uno <strong>spinner</strong> e si disabilita.</li>
+<li>Compare un <strong>messaggio di avanzamento</strong> sopra i pulsanti.</li>
+<li>Al termine: messaggio verde (ok) o giallo (attenzione).</li>
+</ol>
+<blockquote>
+<p><strong>Nota:</strong> il pannello <strong>Integrazione Shopify</strong> compare solo se il tuo negozio ha profilo canale <strong>Shopify</strong>.</p>
+</blockquote>
+<hr>
+<h2 id="7-collegare-tiktok-shop">7. Collegare TikTok Shop</h2>
+<blockquote>
+<p><strong>Integrazione in fase iniziale.</strong> Oggi sono previsti collegamento OAuth, invio prodotti e aggiornamento giacenze dopo movimenti di carico/scarico. Mancano ancora import da TikTok, webhook, vendite/clienti e parità con Shopify. Usa TikTok Shop solo se concordato con il referente VestiFlow.</p>
+</blockquote>
+<p>Disponibile solo con profilo canale <strong>TikTok Shop</strong> (scelto in fase di attivazione).</p>
+<h3 id="prerequisiti-1">Prerequisiti</h3>
+<ul>
+<li>Negozio attivo su <strong>TikTok Shop Partner Center</strong></li>
+<li>Ruolo <strong>Titolare</strong> in VestiFlow</li>
+</ul>
+<h3 id="procedura-1">Procedura</h3>
+<ol>
+<li>Vai in <strong>Impostazioni → Integrazione TikTok Shop</strong>.</li>
+<li>Clicca <strong>Connetti TikTok Shop</strong> e completa l&#39;autorizzazione OAuth su TikTok.</li>
+<li>Al ritorno lo stato deve essere <strong>Connesso</strong>.</li>
+</ol>
+<h3 id="cosa-sincronizza-tiktok-shop-oggi">Cosa sincronizza TikTok Shop (oggi)</h3>
+<table>
+<thead>
+<tr>
+<th>Dato</th>
+<th>Comportamento</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Prodotti / varianti</strong></td>
+<td>Create e update verso TikTok al salvataggio in VF</td>
+</tr>
+<tr>
+<td><strong>Giacenze</strong></td>
+<td>Aggiornamento dopo <strong>carico</strong> e <strong>scarico</strong> in VF</td>
+</tr>
+<tr>
+<td><strong>Vendite / clienti</strong></td>
+<td><strong>Non</strong> gestiti in questa fase (solo catalogo/stock)</td>
+</tr>
+</tbody></table>
+<h3 id="pulsanti-utili">Pulsanti utili</h3>
+<table>
+<thead>
+<tr>
+<th>Pulsante</th>
+<th>Quando usarlo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Connetti TikTok Shop</strong></td>
+<td>Primo collegamento</td>
+</tr>
+<tr>
+<td><strong>Ripristina connessione</strong></td>
+<td>Errore OAuth o token scaduto</td>
+</tr>
+<tr>
+<td><strong>Disconnetti</strong></td>
+<td>Cambio negozio o reset collegamento</td>
+</tr>
+</tbody></table>
+<p>Solo il <strong>Titolare</strong> può collegare o scollegare TikTok Shop.</p>
+<hr>
+<h2 id="8-cosa-si-sincronizza-e-dove">8. Cosa si sincronizza e dove</h2>
+<table>
+<thead>
+<tr>
+<th>Dato</th>
+<th>Dove si modifica in VestiFlow</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Prodotti creati in VestiFlow</strong> (<code>Fonte: VestiFlow</code>)</td>
+<td>Sì — catalogo completo</td>
+<td>Push al salvataggio verso Shopify/TikTok se connessi</td>
+</tr>
+<tr>
+<td><strong>Prodotti importati da Shopify</strong> (<code>Fonte: Shopify</code>)</td>
+<td>Solo dati operativi</td>
+<td>Titolo, prezzi vendita, varianti e immagini in <strong>Shopify Admin</strong>; in VestiFlow: <strong>stagione</strong> e <strong>prezzo di acquisto</strong></td>
+</tr>
+<tr>
+<td><strong>Giacenze</strong></td>
+<td>Sì (carichi, rettifiche…)</td>
+<td>Vendite Shopify via webhook; vendite negozio via <strong>Registra vendita</strong> (tutti i profili); push canale dopo scansione</td>
+</tr>
+<tr>
+<td><strong>Ordini fornitori</strong></td>
+<td>Sì, solo in VestiFlow</td>
+<td>Non passano da Shopify/TikTok</td>
+</tr>
+<tr>
+<td><strong>Vendite al banco</strong></td>
+<td>Sì — <strong>Registra vendita</strong></td>
+<td>Tutti i profili; movimento magazzino (origine <strong>Vendita negozio</strong>), non ordine di vendita</td>
+</tr>
+<tr>
+<td><strong>Vendite (lista ordini)</strong></td>
+<td>Sola lettura</td>
+<td>Da Shopify Online e POS (<strong>solo profilo Shopify</strong>)</td>
+</tr>
+<tr>
+<td><strong>Clienti</strong></td>
+<td>Sola lettura</td>
+<td>Da Shopify (profilo Shopify)</td>
+</tr>
+<tr>
+<td><strong>Sedi (location)</strong></td>
+<td>Sync + <strong>selezione attiva</strong> (entro piano)</td>
+<td>Solo sedi attive in magazzino, movimenti e topbar; blocco dopo primo salvataggio</td>
+</tr>
+</tbody></table>
+<h3 id="etichetta-fonte-catalogo">Etichetta «Fonte» (catalogo)</h3>
+<p>Nella <strong>lista prodotti</strong> (colonna <strong>Fonte</strong>) e nel <strong>dettaglio prodotto</strong> compare un’etichetta che indica <strong>chi gestisce il catalogo ecommerce</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Etichetta</th>
+<th>Significato</th>
+<th>Cosa puoi fare in VestiFlow</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>VestiFlow</strong></td>
+<td>Prodotto nato nel gestionale (creato o importato CSV, poi eventualmente inviato al canale)</td>
+<td>Modifica completa; eliminazione (se consentita) anche su Shopify se collegato</td>
+</tr>
+<tr>
+<td><strong>Shopify</strong></td>
+<td>Prodotto importato dal negozio online</td>
+<td>Catalogo in sola lettura; modifica solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong>; elimina da <strong>Shopify Admin</strong></td>
+</tr>
+</tbody></table>
+<p>L’etichetta <strong>Fonte</strong> è distinta dallo <strong>stato sync Shopify</strong> (colonna <strong>Shopify</strong> in lista, se visibile): la Fonte dice <em>chi possiede il catalogo</em>; lo stato sync dice se l’ultimo invio verso Shopify è riuscito (solo per prodotti <strong>Fonte: VestiFlow</strong> collegati).</p>
+<h3 id="badge-sync-sul-prodotto">Badge sync sul prodotto</h3>
+<p>Nel dettaglio prodotto (solo prodotti <strong>Fonte: VestiFlow</strong> collegati a Shopify):</p>
+<table>
+<thead>
+<tr>
+<th>Badge</th>
+<th>Significato</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Sincronizzato</strong></td>
+<td>Collegato e ultimo invio riuscito</td>
+</tr>
+<tr>
+<td><strong>Sync in corso</strong></td>
+<td>Invio verso Shopify in corso (colonna Shopify in lista)</td>
+</tr>
+<tr>
+<td><strong>Da sincronizzare</strong></td>
+<td>Modifiche locali non ancora inviate</td>
+</tr>
+<tr>
+<td><strong>Errore sync</strong></td>
+<td>Ultimo invio fallito — usa sync manuale</td>
+</tr>
+<tr>
+<td><strong>Non collegato</strong></td>
+<td>Shopify non connesso o prodotto mai sync</td>
+</tr>
+</tbody></table>
+<p>I prodotti <strong>Fonte: Shopify</strong> si allineano automaticamente da Shopify Admin: non compare il pulsante <strong>Sincronizza con Shopify</strong>.</p>
+<hr>
+<h2 id="9-prodotti-e-catalogo">9. Prodotti e catalogo</h2>
+<h3 id="concetti-base">Concetti base</h3>
+<ul>
+<li><strong>Prodotto</strong> = scheda (nome, brand, categoria, stagione, descrizione, immagini).</li>
+<li><strong>Variante</strong> = unità vendibile e di magazzino (es. opzione «Taglia» M + «Colore» Rosso, oppure «Capacità» 500 ml + «Aroma» Vaniglia).</li>
+<li>Ogni variante ha <strong>SKU univoco</strong> (obbligatorio) e <strong>barcode</strong> opzionale.</li>
+<li>Lo <strong>stock</strong> non è sul prodotto: è per <strong>variante × sede</strong> (vedi Magazzino).</li>
+</ul>
+<h3 id="creare-un-prodotto">Creare un prodotto</h3>
+<ol>
+<li><strong>Prodotti → Aggiungi prodotto</strong></li>
+</ol>
+<p>All’apertura compare la modalità <strong>Inserimento rapido</strong> (consigliata per aggiungere velocemente un articolo). Puoi passare a <strong>Con varianti</strong> in qualsiasi momento, o tornare al rapido con il toggle in alto.</p>
+<h4 id="inserimento-rapido-predefinito">Inserimento rapido (predefinito)</h4>
+<p>Su <strong>un’unica schermata</strong> compili:</p>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Obbligatorio</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Nome prodotto</strong></td>
+<td>Sì</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>SKU</strong></td>
+<td>Sì</td>
+<td>Suggerito automaticamente dal nome (modificabile)</td>
+</tr>
+<tr>
+<td><strong>EAN</strong></td>
+<td>No</td>
+<td>Opzionale; pulsante <strong>Genera</strong> per codice EAN-13</td>
+</tr>
+<tr>
+<td><strong>Prezzo vendita</strong></td>
+<td>Sì</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Brand</strong></td>
+<td>No</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Categoria</strong></td>
+<td>No</td>
+<td>Completabile anche dopo</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>Altri dati catalogo</strong> (sezione espandibile): stagione, stato, IVA, unità di misura, tag, descrizione, immagini…</li>
+<li>Pulsante <strong>Crea prodotto</strong> in fondo — <strong>non</strong> serve completare brand, categoria o opzioni taglia/colore.</li>
+</ul>
+<p>Per un prodotto con <strong>taglia, colore o altre opzioni</strong>, clic <strong>Configura taglia/colore…</strong> (o il toggle <strong>Con varianti</strong>).</p>
+<h4 id="con-varianti-wizard-completo">Con varianti (wizard completo)</h4>
+<ol>
+<li><strong>Dati essenziali</strong> — nome, brand e categoria (opzionali), immagini; sezione <strong>Altri dati catalogo</strong> per il resto</li>
+<li><strong>Opzioni</strong> — assi predefiniti «Taglia» e «Colore» più un terzo opzionale; i valori generano le combinazioni. Se il prodotto ha <strong>un solo SKU</strong>, puoi <strong>saltare</strong> questo passo e andare avanti</li>
+<li><strong>Varianti</strong> — SKU, prezzi, EAN/barcode per ogni combinazione (pulsante <strong>Genera</strong> sul barcode)</li>
+<li><strong>Riepilogo</strong> → <strong>Crea prodotto</strong></li>
+</ol>
+<p><strong>Modifica prodotto:</strong> il wizard completo resta disponibile; i campi obbligatori restano essenziali (nome + dati varianti).</p>
+<h4 id="categoria-shopify-e-attributi-categoria-profilo-shopify">Categoria Shopify e attributi categoria (profilo Shopify)</h4>
+<p>Se il negozio ha <strong>Shopify connesso</strong>, compare il picker <strong>Categoria prodotto Shopify</strong> (tassonomia ufficiale Shopify, come in Shopify Admin). In <strong>inserimento rapido</strong> è <strong>consigliata</strong> per la sync ma <strong>non obbligatoria</strong> — puoi completarla anche dopo la creazione.</p>
+<p>Dopo aver scelto la categoria, compare la sezione <strong>Attributi categoria</strong>: metafield collegati a quella categoria Shopify (es. materiale, fascia d&#39;età, ingredienti — dipendono dalla categoria scelta). Servono per Shopify e Google; <strong>non</strong> creano varianti SKU — opzioni e combinazioni SKU restano nello step <strong>Opzioni</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Comportamento</th>
+<th>Cosa significa</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Select con <strong>(più valori)</strong></td>
+<td>Puoi scegliere <strong>più opzioni</strong> nello stesso attributo (come in Shopify Admin)</td>
+</tr>
+<tr>
+<td>Select senza indicazione</td>
+<td>Un solo valore per attributo</td>
+</tr>
+<tr>
+<td><strong>Seleziona…</strong> (voce vuota)</td>
+<td>Rimuove tutte le scelte per quell&#39;attributo</td>
+</tr>
+</tbody></table>
+<p>Per chiudere un menu a più valori, clicca fuori dal pannello. I valori scelti compaiono nel trigger (nomi o «N selezionati») e nel <strong>Riepilogo</strong> prima del salvataggio.</p>
+<p>Al <strong>salvataggio</strong>, VestiFlow invia categoria e attributi a Shopify insieme al resto del catalogo (prodotti <strong>Fonte: VestiFlow</strong>). In <strong>dettaglio prodotto</strong> e nel riepilogo del form gli attributi sono elencati per nome con i valori separati da virgola.</p>
+<p><strong>Nota:</strong> <strong>Tipo prodotto</strong> (campo testuale locale) e <strong>Categoria Shopify</strong> sono distinti: la categoria taxonomy è quella usata per sync e metafield di categoria.</p>
+<h3 id="modificare-o-eliminare">Modificare o eliminare</h3>
+<ul>
+<li><strong>Fonte: VestiFlow</strong> — modifica completa dalla lista o dal dettaglio. Con Shopify connesso, al salvataggio i dati catalogo vengono inviati a Shopify.</li>
+<li><strong>Fonte: Shopify</strong> — il pulsante diventa <strong>Modifica dati operativi</strong>: puoi aggiornare solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong> delle varianti. Nome, descrizione, prezzi di vendita, opzioni, SKU, barcode e immagini vanno modificati in <strong>Shopify Admin</strong>; VestiFlow si allinea con import catalogo o aggiornamenti automatici.</li>
+</ul>
+<h4 id="eliminazione-prodotto">Eliminazione prodotto</h4>
+<table>
+<thead>
+<tr>
+<th>Fonte / condizione</th>
+<th>Comportamento</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Fonte: Shopify</strong></td>
+<td><strong>Non eliminabile</strong> da VestiFlow — usa <strong>Shopify Admin</strong></td>
+</tr>
+<tr>
+<td><strong>Fonte: VestiFlow</strong>, senza movimenti di magazzino</td>
+<td>Eliminazione consentita; se collegato a Shopify, VestiFlow tenta di rimuoverlo anche online</td>
+</tr>
+<tr>
+<td><strong>Fonte: VestiFlow</strong>, con movimenti storici</td>
+<td><strong>Bloccato</strong> — archivia o lascia in catalogo</td>
+</tr>
+<tr>
+<td>Shopify <strong>disconnesso</strong> ma prodotto sincronizzato in passato</td>
+<td><strong>Bloccato</strong> — riconnetti Shopify e riprova</td>
+</tr>
+<tr>
+<td>Errore API Shopify (permessi, rete)</td>
+<td>Prodotto <strong>non</strong> rimosso da VestiFlow; messaggio di errore</td>
+</tr>
+</tbody></table>
+<p>Dopo l’eliminazione riuscita di un prodotto <strong>Fonte: VestiFlow</strong>, la scheda scompare da <strong>Prodotti</strong> e non è più presente su Shopify Admin (se era collegato).</p>
+<h3 id="import-ed-export-csv-catalogo">Import ed export CSV (catalogo)</h3>
+<table>
+<thead>
+<tr>
+<th>Azione</th>
+<th>Dove</th>
+<th>Cosa fa</th>
+<th>Permesso richiesto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Esporta CSV</strong></td>
+<td>Prodotti (lista)</td>
+<td>Scarica catalogo (SKU, varianti, prezzi, metadati)</td>
+<td><strong>Esportare dati</strong></td>
+</tr>
+<tr>
+<td><strong>Importa CSV</strong></td>
+<td>Prodotti → Importa CSV</td>
+<td>Carica prodotti da foglio formato Shopify</td>
+<td>Import/export e sync <strong>prodotti</strong></td>
+</tr>
+<tr>
+<td><strong>Sincronizza catalogo da Shopify</strong></td>
+<td>Prodotti (lista)</td>
+<td>Allinea catalogo dal negozio online</td>
+<td>Import/export e sync <strong>prodotti</strong></td>
+</tr>
+<tr>
+<td><strong>Importa da Shopify</strong></td>
+<td>Prodotti o Impostazioni</td>
+<td>Sync massiva catalogo</td>
+<td>Import/export e sync <strong>prodotti</strong></td>
+</tr>
+<tr>
+<td><strong>Crea / modifica prodotto</strong></td>
+<td>Lista o dettaglio</td>
+<td>CRUD catalogo</td>
+<td>Gestire <strong>catalogo</strong></td>
+</tr>
+<tr>
+<td><strong>Elimina prodotto</strong></td>
+<td>Dettaglio</td>
+<td>Rimozione (se consentita da Fonte)</td>
+<td><strong>Eliminare prodotti</strong></td>
+</tr>
+</tbody></table>
+<p>L&#39;export serve per backup o lavorare in Excel. L&#39;import CSV <strong>non</strong> sostituisce il sync Shopify: usa il percorso adatto al tuo caso.</p>
+<h3 id="stampare-etichette-dalla-lista">Stampare etichette dalla lista</h3>
+<ol>
+<li>In <strong>Prodotti</strong>, seleziona uno o più articoli con le <strong>caselle</strong> a sinistra (oppure <strong>Seleziona tutti</strong> in pagina).</li>
+<li>Nella barra azioni compare <strong>Stampa etichette selezionate</strong> — apre la stampa per tutti i prodotti scelti.</li>
+<li>L&#39;icona <strong>stampa</strong> su ogni riga stampa le etichette di <strong>un solo</strong> prodotto (come dal dettaglio).</li>
+</ol>
+<h3 id="cercare-un-prodotto-con-il-barcode">Cercare un prodotto con il barcode</h3>
+<p>In <strong>Prodotti</strong>, sopra i filtri, usa <strong>Scansiona barcode</strong> (su smartphone con Chrome/Android) oppure cerca per nome, brand o SKU. La scansione apre direttamente il <strong>dettaglio prodotto</strong> se il codice è riconosciuto.</p>
+<hr>
+<h2 id="10-magazzino-e-giacenze">10. Magazzino e giacenze</h2>
+<h3 id="tab-del-magazzino">Tab del magazzino</h3>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>Funzione</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Giacenze</strong></td>
+<td>Tabella stock per sede, filtri, export/import CSV</td>
+</tr>
+<tr>
+<td><strong>Cerca</strong></td>
+<td>Ricerca rapida SKU/barcode — ottimizzata per mobile</td>
+</tr>
+<tr>
+<td><strong>Movimenti</strong></td>
+<td>Storico carichi, scarichi, trasferimenti, rettifiche</td>
+</tr>
+<tr>
+<td><strong>Inventario fisico</strong></td>
+<td>Conteggio periodico con chiusura e rettifiche</td>
+</tr>
+</tbody></table>
+<h3 id="elenco-e-ricerca-in-giacenze">Elenco e ricerca in Giacenze</h3>
+<p>Senza testo nella <strong>barra di ricerca</strong>, la tab <strong>Giacenze</strong> elenca solo articoli <strong>già tracciati</strong> in magazzino (carichi, vendite, sync Shopify, rettifiche, inventario fisico, ecc.).</p>
+<p>Per trovare un prodotto <strong>mai movimentato</strong> o con <strong>giacenza zero</strong> su una sede:</p>
+<ul>
+<li>digita <strong>SKU</strong>, <strong>barcode</strong> o <strong>nome prodotto</strong> nella ricerca della tab Giacenze, oppure</li>
+<li>usa la tab <strong>Cerca</strong> (ottimizzata per mobile).</li>
+</ul>
+<p>In entrambi i casi vedi la variante con disponibile <strong>0</strong> e stato <strong>Esaurito</strong> se non c&#39;è stock. Il primo <strong>carico</strong>, <strong>rettifica</strong>, <strong>arrivo merce</strong> (documento) o <strong>import CSV</strong> crea la riga inventario definitiva.</p>
+<h3 id="colonna-in-arrivo">Colonna «In arrivo»</h3>
+<p>Nella tabella <strong>Giacenze</strong> la colonna <strong>In arrivo</strong> mostra quantità <strong>attese</strong> da ordini fornitore già <strong>inviati</strong> ma non ancora ricevuti. Quando confermi un <strong>Arrivo merce</strong> (documento collegato all&#39;ordine o creato da <strong>Registra arrivo merce</strong>), la quantità passa da <em>in arrivo</em> a <em>disponibile</em> sulla sede di destinazione.</p>
+<h3 id="azioni-principali-giacenze">Azioni principali (Giacenze)</h3>
+<table>
+<thead>
+<tr>
+<th>Pulsante</th>
+<th>Funzione</th>
+<th>Permesso richiesto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Sincronizza giacenze da Shopify</strong></td>
+<td>Allinea quantità da Shopify</td>
+<td>Import/export e sync <strong>giacenze</strong></td>
+</tr>
+<tr>
+<td><strong>Esporta CSV</strong></td>
+<td>Scarica giacenze (SKU, sede, quantità)</td>
+<td><strong>Esportare dati</strong></td>
+</tr>
+<tr>
+<td><strong>Importa CSV</strong></td>
+<td>Carica rettifiche da file</td>
+<td>Import/export e sync <strong>giacenze</strong></td>
+</tr>
+<tr>
+<td><strong>Registra movimento</strong></td>
+<td>Carico, scarico, trasferimento o rettifica</td>
+<td>Gestire <strong>giacenze</strong></td>
+</tr>
+</tbody></table>
+<h3 id="registrare-un-movimento">Registrare un movimento</h3>
+<ol>
+<li><strong>Magazzino → Registra movimento</strong> (da Giacenze o Movimenti).</li>
+<li>Scegli <strong>tipo</strong>, <strong>variante</strong>, <strong>sede</strong> e <strong>quantità</strong>.</li>
+<li>Per le <strong>rettifiche</strong> il <strong>motivo è obbligatorio</strong>.</li>
+<li>Controlla il <strong>riepilogo</strong> con l&#39;impatto atteso e conferma.</li>
+</ol>
+<p>Puoi <strong>scansionare il barcode</strong> sotto il campo Variante per selezionare automaticamente l&#39;articolo.</p>
+<h3 id="tipi-di-movimento">Tipi di movimento</h3>
+<table>
+<thead>
+<tr>
+<th>Tipo</th>
+<th>Quando usarlo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Carico</strong></td>
+<td>Merce arrivata</td>
+</tr>
+<tr>
+<td><strong>Scarico</strong></td>
+<td>Uscita merce (danneggiata, campionario…)</td>
+</tr>
+<tr>
+<td><strong>Trasferimento</strong></td>
+<td>Spostamento tra due sedi</td>
+</tr>
+<tr>
+<td><strong>Rettifica</strong></td>
+<td>Correzione quantità (motivo obbligatorio)</td>
+</tr>
+</tbody></table>
+<p>Le <strong>vendite</strong> e i <strong>resi al banco</strong> non si registrano nel form <strong>Registra movimento</strong>: usa <strong>Registra vendita</strong> in sidebar. Nello <strong>storico movimenti</strong> compaiono come tipo <strong>Vendita</strong> o <strong>Reso</strong> con origine <strong>Vendita negozio</strong>.</p>
+<p>Ogni movimento resta nello <strong>storico</strong> con data, operatore e origine (gestionale, Shopify o vendita negozio).</p>
+<h3 id="cercare-giacenze-sku-o-barcode">Cercare giacenze (SKU o barcode)</h3>
+<ol>
+<li><strong>Magazzino → Cerca</strong> (o menu laterale <strong>Magazzino</strong>).</li>
+<li>Digita SKU/barcode oppure <strong>Scansiona barcode</strong>.</li>
+<li>Vedi giacenze per sede e link per <strong>registrare movimento</strong> o aprire il prodotto.</li>
+</ol>
+<p>Lo scanner è disponibile anche in:</p>
+<ul>
+<li><strong>Giacenze</strong> — filtra la tabella dopo la scansione (mostra anche articoli a zero se non ancora tracciati)</li>
+<li><strong>Registra movimento</strong> — seleziona la variante</li>
+<li><strong>Registra vendita</strong> — campo vendita e storno</li>
+<li><strong>Inventario fisico</strong> — durante il conteggio</li>
+</ul>
+<p>Su <strong>iPhone</strong> la fotocamera può non essere disponibile: usa sempre l&#39;inserimento manuale del codice.</p>
+<h3 id="import-ed-export-csv-giacenze">Import ed export CSV giacenze</h3>
+<p><strong>Export:</strong> <strong>Magazzino → Giacenze → Esporta CSV</strong> (rispetta i filtri attivi).</p>
+<p><strong>Import:</strong></p>
+<ol>
+<li><strong>Magazzino → Giacenze → Importa CSV</strong></li>
+<li>File con colonne <strong>SKU</strong>, <strong>Location</strong> (nome esatto come in Impostazioni), <strong>Disponibile</strong></li>
+<li>Controlla l&#39;anteprima errori e conferma</li>
+</ol>
+<p>Ogni riga valida genera una <strong>rettifica tracciata</strong> nello storico movimenti.</p>
+<h3 id="inventario-fisico-conteggio">Inventario fisico (conteggio)</h3>
+<ol>
+<li><strong>Magazzino → Inventario fisico → Nuova sessione</strong> — scegli sede.</li>
+<li>Inserisci quantità contate per variante (anche con <strong>scanner barcode</strong>).</li>
+<li>In <strong>revisione</strong> controlli le differenze.</li>
+<li>Alla <strong>chiusura</strong> VestiFlow applica le rettifiche e aggiorna le giacenze (e Shopify se collegato).</li>
+</ol>
+<hr>
+<h2 id="11-ordini-fornitori">11. Ordini fornitori</h2>
+<p>Gestiti <strong>solo in VestiFlow</strong> (non su Shopify).</p>
+<h3 id="flusso-tipico">Flusso tipico</h3>
+<ol>
+<li><strong>Ordini Fornitori → Nuovo ordine</strong> — fornitore, destinazione merce, righe (variante, quantità, costo unitario)</li>
+<li><strong>Invia ordine</strong> — tracciamento interno; le quantità compaiono in <strong>In arrivo</strong> in Giacenze</li>
+<li>All&#39;arrivo merce: dal dettaglio ordine <strong>Registra arrivo merce</strong> (crea bozza in Documenti collegata all&#39;ordine) <strong>oppure</strong> <strong>Documenti → Arrivo merce</strong> manuale — incrementa giacenze, azzera <em>in arrivo</em> e crea movimenti di carico tracciati</li>
+</ol>
+<p>Il pulsante <strong>Registra arrivo merce</strong> sull&#39;ordine apre il form <strong>Documenti → Arrivo merce</strong> con righe e quantità residue già precompilate; non esiste più una ricezione «silenziosa» senza documento.</p>
+<h3 id="compilare-un-ordine">Compilare un ordine</h3>
+<ul>
+<li><strong>Fornitore</strong> e <strong>Variante</strong> (per ogni riga): nel menu a tendina usa la <strong>ricerca</strong> per filtrare per nome prodotto o SKU.</li>
+<li><strong>Righe in griglia tabellare</strong> con menu <strong>Colonne</strong> (preset, mostra/nascondi, <strong>Ripristina colonne</strong>); su smartphone le righe diventano <strong>card</strong> impilate.</li>
+<li><strong>Quantità</strong> e <strong>Costo unitario</strong>; il <strong>Subtotale</strong> riga si calcola automaticamente.</li>
+<li><strong>Data attesa</strong> (opzionale): selettore con <strong>calendario</strong> (stesso stile dei filtri data nei report).</li>
+<li>Puoi creare un <strong>nuovo fornitore</strong> inline dal form (<strong>Nuovo fornitore</strong>).</li>
+</ul>
+<h3 id="stati-e-azioni">Stati e azioni</h3>
+<table>
+<thead>
+<tr>
+<th>Stato ordine</th>
+<th>Cosa puoi fare (Manager e superiori, salvo dove indicato)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Bozza</strong></td>
+<td>Modifica bozza, Invia ordine, Annulla ordine</td>
+</tr>
+<tr>
+<td><strong>Inviato</strong></td>
+<td>Annulla ordine, <strong>Registra arrivo merce</strong> (tutti i ruoli operativi)</td>
+</tr>
+<tr>
+<td><strong>Annullato</strong></td>
+<td><strong>Elimina ordine</strong> — rimozione definitiva dall&#39;elenco</td>
+</tr>
+<tr>
+<td><strong>Ricevuto</strong> / parz.</td>
+<td>Solo consultazione</td>
+</tr>
+</tbody></table>
+<p>L&#39;<strong>Annulla ordine</strong> segna l&#39;ordine come annullato ma lo lascia in lista. <strong>Elimina ordine</strong> (solo su ordini già annullati) lo rimuove in modo irreversibile.</p>
+<ul>
+<li>Creazione e modifica: <strong>Manager</strong> e superiori</li>
+<li>Ricezione merce: tutti i ruoli operativi (verifica con il titolare le regole interne)</li>
+</ul>
+<hr>
+<h2 id="12-anagrafica-fornitori">12. Anagrafica fornitori</h2>
+<p>Menu <strong>Fornitori</strong>: elenco anagrafiche usate negli <strong>ordini fornitore</strong> e negli <strong>arrivi merce</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Azione</th>
+<th>Dove</th>
+<th>Permesso richiesto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Consultare elenco</td>
+<td><strong>Fornitori</strong></td>
+<td>Autenticato (area ordini)</td>
+</tr>
+<tr>
+<td>Creare / modificare</td>
+<td><strong>Fornitori → Nuovo</strong> / riga</td>
+<td><strong>Gestire ordini fornitore</strong></td>
+</tr>
+</tbody></table>
+<p>Campi tipici: ragione sociale, P.IVA, indirizzo, email, telefono, note. Puoi anche creare un fornitore <strong>inline</strong> dal form ordine o arrivo merce (<strong>Nuovo fornitore</strong>).</p>
+<hr>
+<h2 id="13-documenti-fiscali-e-operativi">13. Documenti fiscali e operativi</h2>
+<p>VestiFlow centralizza i documenti che impattano magazzino e contabilità. <strong>Non sostituisce</strong> il software di fatturazione elettronica o il commercialista: traccia numeri, stati, collegamenti e movimenti di stock.</p>
+<h3 id="dove-trovarli">Dove trovarli</h3>
+<ul>
+<li><strong>Documenti</strong> — registro completo con filtri, colonne personalizzabili e azioni di creazione</li>
+<li><strong>Registro commercialista</strong> — riepilogo KPI per periodo con link ai filtri preimpostati (vedi <a href="#15-report-dashboard-e-registro-commercialista">§15</a>)</li>
+</ul>
+<h3 id="tipi-di-documento">Tipi di documento</h3>
+<table>
+<thead>
+<tr>
+<th>Tipo</th>
+<th>Uso operativo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Arrivo merce</strong></td>
+<td>Carico da fornitore con righe, costi, opzionale collegamento a ordine</td>
+</tr>
+<tr>
+<td><strong>Carico manuale</strong></td>
+<td>Carico magazzino senza DDT fornitore (fornitore opzionale)</td>
+</tr>
+<tr>
+<td><strong>Carico iniziale</strong></td>
+<td>Stock di partenza / primo inventario (fornitore opzionale)</td>
+</tr>
+<tr>
+<td><strong>DDT vendita</strong></td>
+<td>Consegna merce al cliente; base per successiva fatturazione</td>
+</tr>
+<tr>
+<td><strong>Bozza fattura</strong></td>
+<td>Dati per emissione fattura (anche da conversione DDT)</td>
+</tr>
+<tr>
+<td><strong>Proforma</strong></td>
+<td>Preventivo non fiscale</td>
+</tr>
+<tr>
+<td><strong>Trasferimento</strong></td>
+<td>Spostamento stock tra sedi (origine → destinazione)</td>
+</tr>
+<tr>
+<td><strong>Scarico manuale</strong></td>
+<td>Uscita merce (campionario, deteriorata, …)</td>
+</tr>
+<tr>
+<td><strong>Rettifica</strong></td>
+<td>Correzione quantità con motivo obbligatorio</td>
+</tr>
+<tr>
+<td><strong>DDT / fatture fornitore</strong></td>
+<td>Registrazione documenti in ingresso (collegamento a carichi)</td>
+</tr>
+</tbody></table>
+<p>Alcuni tipi (es. inventario fisico) possono essere generati automaticamente da altre sezioni (<strong>Magazzino → Inventario fisico</strong>).</p>
+<h3 id="stati-del-documento">Stati del documento</h3>
+<table>
+<thead>
+<tr>
+<th>Stato</th>
+<th>Significato</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Bozza</strong></td>
+<td>Modificabile; <strong>nessun</strong> movimento di magazzino</td>
+</tr>
+<tr>
+<td><strong>Confermato</strong></td>
+<td>Numero assegnato; movimenti applicati</td>
+</tr>
+<tr>
+<td><strong>Stampato</strong> / <strong>Inviato</strong></td>
+<td>Tracciamento operativo / invio al commercialista (bozze fattura)</td>
+</tr>
+<tr>
+<td><strong>Registrato esternamente</strong></td>
+<td>Fattura o documento registrato fuori da VestiFlow</td>
+</tr>
+<tr>
+<td><strong>Annullato</strong></td>
+<td>Documento invalidato (con regole di reversibilità stock)</td>
+</tr>
+</tbody></table>
+<p>Le azioni disponibili nel <strong>dettaglio documento</strong> dipendono da tipo e stato (conferma, stampa, invio, registrazione esterna, conversione DDT → bozza fattura, annullamento).</p>
+<h3 id="registro-documenti--filtri-utili">Registro documenti — filtri utili</h3>
+<table>
+<thead>
+<tr>
+<th>Filtro / vista</th>
+<th>A cosa serve</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Tipo</strong> e <strong>Stato</strong></td>
+<td>Restringe l&#39;elenco (es. solo DDT vendita confermati)</td>
+</tr>
+<tr>
+<td><strong>Periodo</strong> (da / a)</td>
+<td>Intervallo date documento</td>
+</tr>
+<tr>
+<td><strong>Cliente</strong></td>
+<td>Documenti vendita per anagrafica</td>
+</tr>
+<tr>
+<td><strong>Vista commercialista</strong></td>
+<td>Solo tipi rilevanti per contabilità (da link Registro commercialista)</td>
+</tr>
+<tr>
+<td><strong>DDT da fatturare</strong></td>
+<td>DDT vendita attivi <strong>senza</strong> bozza fattura collegata</td>
+</tr>
+<tr>
+<td><strong>Ricerca</strong></td>
+<td>Numero, riferimento, note</td>
+</tr>
+</tbody></table>
+<p>I filtri restano nell&#39;<strong>URL</strong> della pagina: puoi salvare o condividere il link con il commercialista.</p>
+<h3 id="creare-documenti">Creare documenti</h3>
+<p>Da <strong>Documenti</strong>, pulsante <strong>Nuovo documento</strong> (se hai <strong>Gestire documenti</strong>):</p>
+<table>
+<thead>
+<tr>
+<th>Documento</th>
+<th>Percorso tipico</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Arrivo merce</td>
+<td><strong>Documenti → Arrivo merce</strong></td>
+</tr>
+<tr>
+<td>Trasferimento</td>
+<td><strong>Documenti → Trasferimento</strong></td>
+</tr>
+<tr>
+<td>Scarico / Rettifica</td>
+<td><strong>Documenti → Scarico manuale</strong> / <strong>Rettifica</strong></td>
+</tr>
+<tr>
+<td>DDT / Proforma / Bozza fattura</td>
+<td><strong>Documenti → Nuovo</strong> (tipo vendita)</td>
+</tr>
+</tbody></table>
+<p><strong>Arrivo merce — schermata e campi principali</strong></p>
+<ul>
+<li><strong>Testata:</strong> tipo documento (<strong>Arrivo merce</strong>, DDT fornitore, Fattura accompagnatoria, <strong>Carico manuale</strong>, <strong>Carico iniziale</strong>), fornitore (obbligatorio per arrivo/DDT/fattura accomp.; opzionale per carichi manuali), sede destinazione, data documento VestiFlow, numero/data <strong>documento fornitore</strong> (es. DDT 242/2026), <strong>causale di carico</strong>, flag <strong>Seguirà fattura</strong>, riferimento fattura fornitore, note.</li>
+<li><strong>Numero interno VestiFlow:</strong> in bozza vedi l&#39;<strong>anteprima</strong> (es. <code>CAR-2026-0045</code>); il numero definitivo viene assegnato alla <strong>conferma</strong> (distinto dal documento del fornitore).</li>
+<li><strong>Righe in griglia:</strong> menu <strong>Colonne</strong> (preset, resize intestazioni, <strong>Ripristina colonne</strong>); cerca articolo per <strong>nome, SKU o barcode/EAN</strong>; <strong>Crea articolo rapido</strong> o <strong>Crea anagrafica completa</strong> (pannello laterale senza uscire dal documento). Colonne: descrizione, quantità, costo, IVA, lotto/scadenza/seriali (se attivi in Impostazioni), flag <strong>Carica magazzino</strong>, totale riga.</li>
+<li><strong>Ordine fornitore collegato:</strong> se apri l&#39;arrivo da <strong>Registra arrivo merce</strong> sull&#39;ordine, compaiono anche colonne <strong>Ordinato / Già ricevuto / Residuo</strong> per ogni riga.</li>
+<li><strong>Conferma:</strong> se il costo differisce dall&#39;ultimo prezzo fornitore e la policy lo prevede, compare un dialog per <strong>aggiornare i prezzi fornitore</strong>.</li>
+<li><strong>Documento già confermato:</strong> dal form restano disponibili <strong>Anteprima stampa</strong> e il download del PDF. L&#39;arrivo merce non ha azioni di ciclo di vita fiscale: la copertura contabile è tracciata dal collegamento alla fattura fornitore.</li>
+<li>Opzionali per riga: <strong>lotto</strong>, <strong>scadenza lotto</strong>, <strong>numeri seriali</strong> (testo separato da virgola).</li>
+</ul>
+<p>Alla <strong>conferma</strong> dell&#39;arrivo merce (o carico manuale/iniziale) VestiFlow registra i <strong>carichi</strong> in magazzino, aggiorna le giacenze e, se collegato, l&#39;ordine fornitore e l&#39;<strong>in arrivo</strong> (e Shopify/TikTok se collegati).</p>
+<p><strong>Modifica di un documento già confermato:</strong> apri il documento in modifica, clicca <strong>Sblocca modifica</strong> e conferma l&#39;avviso — VestiFlow aggiorna movimenti e giacenze e salva lo storico revisioni.</p>
+<h3 id="allegati">Allegati</h3>
+<p>Nel <strong>form arrivo merce</strong> (dopo il primo salvataggio bozza) e nel <strong>dettaglio documento</strong>, pannello <strong>Allegati</strong>: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.</p>
+<h3 id="colonne-personalizzabili">Colonne personalizzabili</h3>
+<p>Usa <strong>Colonne</strong> sopra le tabelle principali per mostrare/nascondere campi, scegliere un <strong>preset</strong> (Completo, Magazzino, Fornitore, …) e <strong>Ripristina colonne</strong>. Le preferenze si <strong>sincronizzano</strong> con il tuo account.</p>
+<p>Viste con column picker: <strong>Documenti</strong>, <strong>Giacenze</strong>, <strong>Movimenti</strong>, <strong>Fornitori</strong>, <strong>Prodotti</strong>, <strong>Clienti</strong>, righe <strong>Ordine fornitore</strong> e righe <strong>Arrivo merce</strong>. Su mobile molte liste passano a <strong>card</strong> con etichette campo.</p>
+<h3 id="impostazioni-numerazione">Impostazioni numerazione</h3>
+<p><strong>Documenti → Impostazioni documenti</strong> (solo <strong>Gestire documenti</strong>): prefissi e serie per tipo (es. prefisso DDT vendita, arrivo merce). I numeri progressivi vengono assegnati alla <strong>conferma</strong>.</p>
+<h3 id="permessi">Permessi</h3>
+<table>
+<thead>
+<tr>
+<th>Permesso</th>
+<th>Cosa abilita</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Consultare documenti</strong></td>
+<td>Lista, dettaglio, stampa anteprima, filtri</td>
+</tr>
+<tr>
+<td><strong>Gestire documenti</strong></td>
+<td>Creazione, modifica bozze, conferma, impostazioni</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="14-vendite-e-clienti">14. Vendite e clienti</h2>
+<p>Il menu dipende dal <strong>profilo canale</strong> del negozio:</p>
+<table>
+<thead>
+<tr>
+<th>Profilo canale</th>
+<th>Voci in sidebar</th>
+<th>Contenuto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Solo gestionale</strong></td>
+<td><strong>Registra vendita</strong></td>
+<td>Scansione vendite e storni al banco — vedi <a href="#17-negozio-fisico-vendite-al-banco">§17</a></td>
+</tr>
+<tr>
+<td><strong>Shopify</strong></td>
+<td><strong>Registra vendita</strong> + <strong>Vendite</strong></td>
+<td>Doppia scansione al banco <strong>oppure</strong> ordini sync da Shopify (online/POS)</td>
+</tr>
+<tr>
+<td><strong>TikTok Shop</strong></td>
+<td><strong>Registra vendita</strong></td>
+<td>Scansione al banco; giacenze pushate a TikTok dopo la scansione</td>
+</tr>
+</tbody></table>
+<h3 id="registra-vendita-tutti-i-profili">Registra vendita (tutti i profili)</h3>
+<p>Schermata <strong>Registra vendita</strong> per aggiornare le giacenze dopo vendita o reso in negozio fisico. <strong>Non sostituisce la cassa fiscale</strong> e non crea un ordine di vendita in VestiFlow: registra il movimento di magazzino (e, con Shopify/TikTok connessi, aggiorna le giacenze sul canale).</p>
+<p><strong>Flusso consigliato con cassa esterna (doppia scansione):</strong></p>
+<ol>
+<li>Incasso alla <strong>cassa fiscale</strong> o POS esterno.</li>
+<li>Scansione dello stesso barcode in <strong>Registra vendita</strong> → <strong>Registra vendita</strong> (scarico 1 pezzo).</li>
+<li>Per un reso: pannello <strong>Registra storno</strong> (reingresso 1 pezzo).</li>
+</ol>
+<p><strong>Con Shopify POS collegato:</strong> le vendite POS arrivano anche in <strong>Vendite</strong> via sync; usa <strong>Registra vendita</strong> solo se incassi fuori da Shopify POS (cassa fiscale separata).</p>
+<p><strong>Elementi della schermata:</strong></p>
+<ul>
+<li><strong>Sede (location)</strong> — obbligatoria; deve essere quella dove avviene l’operazione.</li>
+<li>Campo barcode/SKU con <strong>Registra vendita</strong> e <strong>Registra storno</strong>.</li>
+<li><strong>Scansione camera</strong> (se abilitata) — icona fotocamera come in Magazzino.</li>
+<li><strong>Pistola barcode USB</strong> — funziona come tastiera: focus nel campo, scan, Invio o pulsante.</li>
+<li><strong>Sessione corrente</strong> — ultime operazioni della sessione (non sostituisce lo storico movimenti).</li>
+</ul>
+<p>Ogni scansione valida genera un movimento in <strong>Magazzino → Movimenti</strong> con origine <strong>Vendita negozio</strong>. Se lo stock <strong>disponibile</strong> è insufficiente, la vendita viene rifiutata.</p>
+<h3 id="vendite-solo-profilo-shopify">Vendite (solo profilo Shopify)</h3>
+<ul>
+<li>Provengono da <strong>Shopify Online</strong> o <strong>Shopify POS</strong>.</li>
+<li>In VestiFlow sono <strong>sola lettura</strong>.</li>
+<li>Filtri: stato pagamento, canale (online / negozio), ricerca ordine o cliente.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Azione</th>
+<th>Dove</th>
+<th>Permesso richiesto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Sincronizza vendite da Shopify</strong></td>
+<td>Vendite (lista)</td>
+<td><strong>Esportare dati</strong></td>
+</tr>
+<tr>
+<td><strong>Esporta CSV</strong></td>
+<td>Vendite (lista)</td>
+<td><strong>Esportare dati</strong></td>
+</tr>
+</tbody></table>
+<h3 id="clienti-profilo-shopify">Clienti (profilo Shopify)</h3>
+<ul>
+<li>Anagrafica da Shopify, <strong>sola lettura</strong> in VestiFlow.</li>
+<li>Per modifiche usa <strong>Shopify Admin</strong>.</li>
+<li><strong>Non disponibile</strong> nel profilo Solo gestionale.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Azione</th>
+<th>Dove</th>
+<th>Permesso richiesto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Sincronizza clienti da Shopify</strong></td>
+<td>Clienti (lista)</td>
+<td><strong>Esportare dati</strong></td>
+</tr>
+<tr>
+<td><strong>Esporta CSV</strong></td>
+<td>Clienti (lista)</td>
+<td><strong>Esportare dati</strong></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="15-report-dashboard-e-registro-commercialista">15. Report, dashboard e registro commercialista</h2>
+<h3 id="dashboard">Dashboard</h3>
+<p>Pagina iniziale dopo il login: vendite recenti, ordini fornitore in attesa e indicatori sintetici del negozio.</p>
+<h3 id="report">Report</h3>
+<p>Tabelle e KPI su prodotti, giacenze e ordini. I filtri <strong>periodo</strong> (da / a) usano un <strong>selettore data con calendario</strong>, coerente con la data attesa negli ordini fornitori e con il <strong>Registro commercialista</strong>.</p>
+<h3 id="registro-commercialista">Registro commercialista</h3>
+<p>Voce dedicata in sidebar (<strong>Registro commercialista</strong>, sotto <strong>Report</strong>): riepilogo per <strong>periodo</strong> di documenti fiscali e corrispettivi vendite online.</p>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>Contenuto</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Documenti</strong></td>
+<td>KPI: totale documenti, bozze fattura da emettere, inviate al commercialista, emesse/registrate esternamente, <strong>DDT vendita in attesa fattura</strong>, documenti fornitore da registrare</td>
+</tr>
+<tr>
+<td><strong>Corrispettivi</strong></td>
+<td>Riepilogo vendite ecommerce nel periodo (profilo Shopify) con link al dettaglio</td>
+</tr>
+</tbody></table>
+<p><strong>Collegamenti rapidi</strong> (tab Documenti):</p>
+<ul>
+<li><strong>Apri registro documenti filtrato</strong> — apre <strong>Documenti</strong> con vista commercialista e date del periodo</li>
+<li><strong>DDT da fatturare</strong> — elenco DDT vendita confermati senza bozza fattura collegata</li>
+</ul>
+<p>Usa questi link per preparare il pacchetto mensile per il commercialista senza ricostruire i filtri a mano.</p>
+<hr>
+<h2 id="16-usare-vestiflow-da-smartphone">16. Usare VestiFlow da smartphone</h2>
+<p>VestiFlow è una <strong>app web installabile (PWA)</strong>:</p>
+<ul>
+<li>icona sulla home del telefono;</li>
+<li>apertura a schermo intero;</li>
+<li>ideale per <strong>Cerca giacenza</strong>, <strong>Registra vendita</strong> e <strong>scanner barcode</strong> in magazzino.</li>
+</ul>
+<h3 id="installazione">Installazione</h3>
+<p><strong>Android (Chrome):</strong> menu → <strong>Aggiungi a schermata Home</strong> / <strong>Installa app</strong>. Su <strong>Magazzino → Cerca</strong> può comparire un banner di installazione.</p>
+<p><strong>iPhone (Safari):</strong> <strong>Condividi</strong> → <strong>Aggiungi a Home</strong>.</p>
+<h3 id="limitazioni">Limitazioni</h3>
+<ul>
+<li>Serve connessione internet per i dati aggiornati.</li>
+<li>Scanner barcode: meglio su <strong>Chrome/Android</strong>; su iOS usa l&#39;inserimento manuale del codice.</li>
+</ul>
+<hr>
+<h2 id="17-negozio-fisico-vendite-al-banco">17. Negozio fisico: vendite al banco</h2>
+<h3 id="profilo-solo-gestionale-senza-shopifytiktok">Profilo Solo gestionale (senza Shopify/TikTok)</h3>
+<p>Per negozi con <strong>cassa fiscale o POS esterno</strong> e VestiFlow solo come gestionale:</p>
+<ol>
+<li>Incassa alla cassa (VestiFlow non emette scontrini).</li>
+<li>Apri <strong>Registra vendita</strong> in sidebar.</li>
+<li>Seleziona la <strong>sede</strong> corretta.</li>
+<li>Scansiona il barcode (pistola USB o camera) e <strong>Registra vendita</strong>.</li>
+<li>Per un reso cliente: <strong>Registra storno</strong> nello stesso schermo.</li>
+</ol>
+<p><strong>Consigli:</strong> mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla <strong>Movimenti</strong> con origine <strong>Vendita negozio</strong> se qualcosa non quadra.</p>
+<p>Non compare la lista <strong>Vendite</strong> né <strong>Clienti</strong>: il tracciamento vendite in VestiFlow è il movimento di magazzino.</p>
+<h3 id="profilo-shopify-negozio-fisico">Profilo Shopify (negozio fisico)</h3>
+<p>Due scenari possibili:</p>
+<p><strong>A — Cassa esterna o fiscale + doppia scansione</strong></p>
+<p>Come il profilo Solo gestionale: incasso alla cassa, poi <strong>Registra vendita</strong> in VestiFlow. In sidebar compaiono anche <strong>Vendite</strong> (ordini online/POS da Shopify).</p>
+<p><strong>B — Shopify POS</strong></p>
+<table>
+<thead>
+<tr>
+<th>Strumento</th>
+<th>Ruolo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Shopify POS</strong></td>
+<td>Cassa su tablet/iPhone — vendite sync automatiche</td>
+</tr>
+<tr>
+<td><strong>VestiFlow</strong></td>
+<td><strong>Vendite</strong> (ordini) + movimenti da webhook; <strong>Registra vendita</strong> opzionale se serve rettifica manuale al banco</td>
+</tr>
+</tbody></table>
+<p>Flusso POS: vendita POS → Shopify scala giacenza → webhook → VestiFlow (movimento + ordine in <strong>Vendite</strong>).</p>
+<h3 id="profilo-tiktok-shop-negozio-fisico">Profilo TikTok Shop (negozio fisico)</h3>
+<p>Usa <strong>Registra vendita</strong> per vendite e storni al banco (cassa esterna). Le giacenze vengono inviate a TikTok Shop dopo la scansione. Non c’è lista <strong>Vendite</strong> sync da TikTok in questa fase.</p>
+<p>VestiFlow <strong>non</strong> emette scontrini fiscali in nessun profilo: usa il sistema collegato al POS o il tuo software fiscale.</p>
+<hr>
+<h2 id="18-profilo-foto-e-sicurezza-account">18. Profilo, foto e sicurezza account</h2>
+<h3 id="foto-profilo">Foto profilo</h3>
+<p>In <strong>Impostazioni → Profilo</strong> (o cliccando l&#39;<strong>avatar in alto</strong>):</p>
+<ol>
+<li><strong>Carica foto</strong> — JPEG, PNG o WebP, max <strong>2 MB</strong></li>
+<li>Regola <strong>inquadratura e zoom</strong> nel dialog circolare, poi <strong>Usa foto</strong></li>
+<li>Con foto presente: <strong>Cambia foto</strong>, <strong>Rimuovi</strong>, oppure <strong>clic sull&#39;avatar</strong> per vederla ingrandita</li>
+</ol>
+<p>Senza foto compare un cerchio con le <strong>iniziali</strong> del tuo nome.</p>
+<h3 id="verifica-in-due-passaggi-mfa">Verifica in due passaggi (MFA)</h3>
+<p>La <strong>verifica in due passaggi</strong> protegge l&#39;account anche se la password viene compromessa.</p>
+<ol>
+<li><strong>Impostazioni → Sicurezza account</strong></li>
+<li>Segui la procedura con app authenticator (Google Authenticator, Authy…)</li>
+<li>Al login successivo: password + codice a 6 cifre</li>
+</ol>
+<p>Consigliato per <strong>titolari e amministratori</strong>.</p>
+<h3 id="tema-dellinterfaccia">Tema dell&#39;interfaccia</h3>
+<p>In <strong>Impostazioni → Aspetto</strong> (o dalla <strong>topbar</strong>) scegli <strong>Chiaro</strong>, <strong>Scuro</strong> o <strong>Sistema</strong>.</p>
+<hr>
+<h2 id="19-domande-frequenti">19. Domande frequenti</h2>
+<h3 id="non-vedo-un-pulsante-o-una-voce-di-menu-che-mi-aspettavo">Non vedo un pulsante o una voce di menu che mi aspettavo</h3>
+<ol>
+<li>Verifica con il referente VestiFlow quali <strong>permessi granulari</strong> ha il tuo account (non basta il ruolo).</li>
+<li>Dopo una modifica permessi: <strong>esci e rientra</strong> o ricarica con <strong>Ctrl+F5</strong> (Mac: <strong>Cmd+Shift+R</strong>).</li>
+<li>Esempi: <strong>Sincronizza catalogo</strong> richiede import/export prodotti; <strong>Registra movimento</strong> richiede gestione giacenze; <strong>Documenti</strong> richiede consultare/gestire documenti; <strong>Collega Shopify</strong> è solo per il <strong>Titolare</strong>.</li>
+</ol>
+<h3 id="non-vedo-documenti-o-registro-commercialista">Non vedo Documenti o Registro commercialista</h3>
+<p>Verifica i permessi <strong>Consultare documenti</strong> e <strong>Consultare report</strong>. Il <strong>Registro commercialista</strong> richiede accesso ai report. Dopo una modifica permessi: esci e rientra.</p>
+<h3 id="cosa-significa-ddt-da-fatturare">Cosa significa «DDT da fatturare»?</h3>
+<p>Sono <strong>DDT vendita</strong> già confermati (consegnati al cliente) per i quali non esiste ancora una <strong>bozza fattura</strong> collegata in VestiFlow. Apri l&#39;elenco filtrato da <strong>Registro commercialista</strong> o dal filtro omonimo in <strong>Documenti</strong> per emettere o registrare le fatture esternamente.</p>
+<h3 id="differenza-tra-registra-arrivo-merce-ordine-e-arrivo-merce-manuale">Differenza tra Registra arrivo merce (ordine) e Arrivo merce manuale</h3>
+<p>Entrambi usano lo <strong>stesso form Documenti → Arrivo merce</strong>. Da un ordine <strong>Inviato</strong>, <strong>Registra arrivo merce</strong> crea una <strong>bozza collegata</strong> con righe e quantità residue precompilate (colonne Ord./Ric./Res.). Da <strong>Documenti → Nuovo arrivo merce</strong> crei un carico anche <strong>senza ordine</strong> precedente. In entrambi i casi serve <strong>Conferma e carica magazzino</strong> per movimentare lo stock; in bozza il magazzino non cambia.</p>
+<h3 id="il-prodotto-creato-in-vestiflow-non-compare-su-shopify">Il prodotto creato in VestiFlow non compare su Shopify</h3>
+<ol>
+<li>Impostazioni → Shopify è <strong>Connesso</strong>?</li>
+<li>Dettaglio prodotto: etichetta <strong>Fonte: VestiFlow</strong> (non Shopify)?</li>
+<li>Badge sync <strong>Errore sync</strong> nella colonna Shopify o nel dettaglio?</li>
+<li>Prova <strong>Sincronizza con Shopify</strong> nel dettaglio prodotto (solo <strong>Fonte: VestiFlow</strong>)</li>
+<li>Se persiste: <strong>Disconnetti</strong> e <strong>riconnetti</strong> Shopify da Impostazioni</li>
+</ol>
+<h3 id="il-prodotto-su-shopify-non-compare-in-vestiflow">Il prodotto su Shopify non compare in VestiFlow</h3>
+<ol>
+<li><strong>Importa catalogo da Shopify</strong> in Impostazioni (attendi fine operazione)</li>
+<li>Verifica che <strong>Aggiornamenti automatici</strong> sia attivo</li>
+</ol>
+<h3 id="limport-catalogo-è-lento">L&#39;import catalogo è lento</h3>
+<p>Con molti prodotti è <strong>normale</strong>. Attendi il messaggio di esito senza ripremere il pulsante. Se compare un avviso su limiti Shopify, attendi 1–2 minuti e riprova <strong>una volta</strong>.</p>
+<h3 id="le-giacenze-non-coincidono">Le giacenze non coincidono</h3>
+<ol>
+<li>Hai fatto <strong>Sincronizza location</strong>?</li>
+<li>Hai <strong>selezionato e salvato</strong> le sedi attive in <strong>Sedi attive in VestiFlow</strong>?</li>
+<li>In <strong>Impostazioni → Location</strong> ogni sede usata è <strong>Sincronizzata</strong>?</li>
+<li>Controlla lo <strong>storico movimenti</strong> (origine gestionale vs Shopify)</li>
+<li>Verifica la <strong>sede selezionata</strong> in alto (solo sedi attive nel piano)</li>
+</ol>
+<h3 id="vendite-o-clienti-mancanti">Vendite o clienti mancanti</h3>
+<p>Spesso serve l&#39;approvazione dati clienti protetti su Shopify Partners. Catalogo e giacenze funzionano comunque. Chiedi al referente VestiFlow se la sync ordini/clienti è abilitata per il tuo negozio.</p>
+<p><strong>Profilo Solo gestionale o TikTok:</strong> la lista <strong>Vendite</strong> non esiste per design. Usa <strong>Registra vendita</strong> per aggiornare lo stock e <strong>Storico movimenti</strong> per verificare le operazioni.</p>
+<h3 id="non-vedo-registra-vendita-in-sidebar">Non vedo «Registra vendita» in sidebar</h3>
+<p>La voce compare per tutti i profili canale attivi. Se manca, verifica di essere loggato con un ruolo operativo (commesso o superiore) o contatta il referente VestiFlow.</p>
+<h3 id="registra-vendita-e-vendite-insieme-shopify">Registra vendita e Vendite insieme (Shopify)</h3>
+<p>È <strong>normale</strong> con profilo Shopify: <strong>Registra vendita</strong> serve per la doppia scansione al banco; <strong>Vendite</strong> mostra gli ordini sincronizzati da Shopify. Non confondere movimento magazzino (scansione) con ordine ecommerce (lista Vendite).</p>
+<h3 id="la-vendita-viene-rifiutata-stock-insufficiente">La vendita viene rifiutata («stock insufficiente»)</h3>
+<p>La sede selezionata non ha quantità <strong>disponibile</strong> ≥ 1 per quella variante. Controlla <strong>Giacenze</strong> per sede, verifica di aver scansionato il codice giusto, oppure registra prima un <strong>carico</strong> se la merce è appena arrivata.</p>
+<h3 id="ho-scansionato-due-volte-per-errore">Ho scansionato due volte per errore</h3>
+<p>Usa <strong>Registra storno</strong> con lo stesso barcode per reingressare 1 pezzo, oppure chiedi a un responsabile una <strong>rettifica</strong> in Magazzino con motivo documentato.</p>
+<h3 id="non-trovo-un-articolo-scansionando-il-barcode">Non trovo un articolo scansionando il barcode</h3>
+<ul>
+<li>Verifica che la variante abbia <strong>barcode</strong> compilato in VestiFlow (o SKU uguale al codice letto).</li>
+<li>Prova a cercare manualmente lo <strong>SKU</strong> in <strong>Cerca giacenza</strong>.</li>
+</ul>
+<h3 id="upload-immagine-prodotto-fallito">Upload immagine prodotto fallito</h3>
+<p>Carica JPEG, PNG o WebP (max 5 MB). VestiFlow <strong>ottimizza automaticamente</strong> le immagini in WebP sul server. Riprova dopo qualche minuto se il servizio era in manutenzione.</p>
+<h3 id="ho-più-sedi-le-vedo-tutte">Ho più sedi: le vedo tutte?</h3>
+<p>Dipende dal <strong>piano</strong> e dalla <strong>selezione attiva</strong>:</p>
+<ol>
+<li>Configura le location in <strong>Shopify Admin</strong>, poi <strong>Sincronizza location</strong> in Impostazioni.</li>
+<li>Nel pannello <strong>Sedi attive in VestiFlow</strong> seleziona fino al numero di sedi incluse nel contratto e clic <strong>Salva sedi attive</strong>.</li>
+<li>Il <strong>selettore location</strong> in alto e il magazzino mostrano <strong>solo</strong> quelle attive — non tutte le location Shopify se ne hai importate di più.</li>
+</ol>
+<p>Per <strong>cambiare</strong> le sedi attive dopo il primo salvataggio contatta il <strong>referente VestiFlow</strong> (non puoi modificarle da solo).</p>
+<h3 id="non-posso-modificare-le-sedi-attive">Non posso modificare le sedi attive</h3>
+<p>Dopo il <strong>primo salvataggio</strong> la selezione è <strong>bloccata</strong> per policy commerciale. Compare il messaggio <em>«Contatta l&#39;assistenza per modificare le sedi attive»</em>. Il referente VestiFlow può concederti <strong>un solo round</strong> di modifica; dopo il nuovo salvataggio si riblocca.</p>
+<p>Se vedi <em>«Modifica consentita una sola volta…»</em>, seleziona le nuove sedi e salva subito.</p>
+<h3 id="devo-cambiare-negozio-shopify-altro-dominio">Devo cambiare negozio Shopify (altro dominio)</h3>
+<p>Usa <strong>Cambia negozio</strong> in Impostazioni, non il semplice <strong>Disconnetti Shopify</strong>. Segui la procedura guidata e, se indicato, rimuovi i dati importati prima di collegare il nuovo shop.</p>
+<h3 id="ho-eliminato-un-prodotto-ma-resta-su-shopify-o-viceversa">Ho eliminato un prodotto ma resta su Shopify (o viceversa)</h3>
+<ul>
+<li><strong>Fonte: Shopify</strong> — l’eliminazione va fatta in <strong>Shopify Admin</strong>, non in VestiFlow.</li>
+<li><strong>Fonte: VestiFlow</strong>, Shopify <strong>connesso</strong> — l’eliminazione da VestiFlow dovrebbe rimuovere anche su Shopify. Se vedi un errore, controlla permessi app (<code>write_products</code>) e riprova.</li>
+<li><strong>Fonte: VestiFlow</strong>, Shopify <strong>disconnesso</strong> — VestiFlow <strong>non</strong> elimina sul negozio online finché non riconnetti.</li>
+</ul>
+<h3 id="non-riesco-a-modificare-nome-o-prezzo-di-un-prodotto">Non riesco a modificare nome o prezzo di un prodotto</h3>
+<p>Controlla l’etichetta <strong>Fonte</strong> nel dettaglio. Se è <strong>Shopify</strong>, modifica titolo, varianti e prezzi di vendita in <strong>Shopify Admin</strong>; in VestiFlow restano editabili solo <strong>stagione</strong> e <strong>prezzo di acquisto</strong> (pulsante <strong>Modifica dati operativi</strong>).</p>
+<h3 id="non-vedo-gli-attributi-categoria-nel-form-prodotto">Non vedo gli attributi categoria nel form prodotto</h3>
+<p>Gli <strong>Attributi categoria</strong> compaiono solo dopo aver selezionato una <strong>Categoria prodotto Shopify</strong> nello step Dati generali. Verifica che Shopify sia <strong>connesso</strong> e che il profilo canale preveda l’integrazione. Se la categoria non ha metafield associati, la sezione può restare vuota («Nessun attributo per questa categoria»).</p>
+<h3 id="non-vedo-integrazione-shopify-o-tiktok-in-impostazioni">Non vedo Integrazione Shopify (o TikTok) in Impostazioni</h3>
+<p>Il <strong>profilo canale</strong> del tuo negozio potrebbe essere <strong>Solo gestionale</strong> o un altro canale. Contatta il referente VestiFlow se serve cambiare profilo.</p>
+<h3 id="il-prodotto-non-compare-su-tiktok-shop">Il prodotto non compare su TikTok Shop</h3>
+<ol>
+<li>Impostazioni → TikTok Shop è <strong>Connesso</strong>?</li>
+<li>Hai salvato il prodotto dopo la connessione?</li>
+<li>Per le giacenze: registrato un <strong>carico</strong> o <strong>scarico</strong> dopo il collegamento?</li>
+</ol>
+<h3 id="upload-foto-profilo-fallito">Upload foto profilo fallito</h3>
+<p>Usa JPEG, PNG o WebP, max 2 MB. Se l&#39;errore persiste, riprova tra qualche minuto.</p>
+<h3 id="il-referente-vestiflow-può-accedere-al-mio-gestionale">Il referente VestiFlow può accedere al mio gestionale?</h3>
+<p>Sì, <strong>solo per supporto tecnico</strong> e <strong>solo quando necessario</strong>. L&#39;operatore VestiFlow può aprire una <strong>sessione di assistenza</strong> temporanea (durata massima <strong>2 ore</strong>) sul tuo account negozio, senza conoscere la tua password. Ogni sessione è <strong>registrata</strong> (chi, quando, su quale negozio). Non devi fare nulla in app: durante l&#39;assistenza l&#39;operatore vede il gestionale come un amministratore del negozio; tu continui a usare VestiFlow normalmente con il tuo account.</p>
+<hr>
+<h2 id="20-guida-nel-menu">20. Guida nel menu</h2>
+<p>La voce <strong>Guida</strong> compare in sidebar subito sotto <strong>Impostazioni</strong> e apre questo manuale dentro l&#39;app (<code>/app/guide</code>).</p>
+<ul>
+<li>Usa l&#39;<strong>Indice</strong> per saltare alle sezioni.</li>
+<li>In alto puoi <strong>scaricare il PDF</strong> per consultarlo offline o stamparlo.</li>
+</ul>
+<p>La versione in-app è pensata per chi lavora nel negozio: passi operativi, dove cliccare e cosa aspettarsi. Per assistenza su configurazione o problemi di sync, contatta il tuo <strong>referente VestiFlow</strong>.</p>
+<hr>
+
+</body>
+</html>

@@ -1,0 +1,157 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// ORDINE CLIENTE — 2 di 6: righe, riordino, riga collegata
+// ═══════════════════════════════════════════════════════════════════════════
+// Vedi l'indice dei fogli in customer-order-form.component.scss.
+
+@use 'breakpoints' as bp;
+
+.co-form__source-index {
+  font-size: 0.6875rem; // 11px
+  color: var(--color-doc-ref-muted);
+}
+
+.co-form__source-info-cell {
+  padding-inline: 0;
+}
+
+.co-form__source-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-05);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.co-form__source-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 1rem; // 16px
+  block-size: 1rem;
+  color: var(--color-doc-ref-accent);
+}
+
+.co-form__source-icon i {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.co-form__source-kind {
+  flex: 0 0 auto;
+  padding: var(--space-05) var(--space-1-5);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-head);
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  color: var(--color-doc-ref-chip-fg);
+  background-color: var(--color-doc-ref-chip-bg);
+  border: var(--border-width) solid var(--color-doc-ref-chip-line);
+  border-radius: var(--radius-sm);
+}
+
+// Titolo del riferimento: resta un campo modificabile (il testo è libero),
+// ma pesa e si comporta come il titolo statico delle specifiche.
+.co-form__source-title {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  inline-size: 100%;
+  block-size: var(--control-h-cell);
+  padding: 0 var(--space-05);
+  font-size: 0.75rem; // 12px
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-doc-ref-title);
+  text-overflow: ellipsis;
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+.co-form__source-title:hover {
+  border-color: var(--color-doc-ref-chip-line);
+  background-color: var(--color-surface);
+}
+
+.co-form__source-title:focus-visible {
+  outline: none;
+  border-color: var(--color-focus);
+  background-color: var(--color-surface);
+  box-shadow: 0 0 0 var(--border-width-strong) var(--color-focus-ring-alpha);
+} // Segnaposto: la riga si riduce a una linea che indica il punto di rilascio.
+// Resta qui, non nel foglio globale: il segnaposto e' la <tr> originale con una
+// classe in piu', quindi porta l'attributo di incapsulamento di questo
+// componente e il selettore la raggiunge senza ::ng-deep.
+.co-form .cdk-drag-placeholder {
+  block-size: var(--border-width-strong);
+  background-color: var(--color-focus);
+  opacity: 1;
+}
+
+.co-form .cdk-drag-placeholder td {
+  padding: 0;
+  border: 0;
+  block-size: var(--border-width-strong);
+  overflow: hidden;
+}
+
+// L'anteprima trascinata invece NON e' qui: il CDK la appende al <body>, fuori
+// dall'albero del componente. Le sue regole vivono in styles/_document-form.scss
+// — dove finora c'erano `.co-form ::ng-deep .cdk-drag-preview`, che compilano
+// in `.co-form[_ngcontent] .cdk-drag-preview` e non hanno mai potuto agganciare
+// un elemento che sta nel body.
+
+// ── Mobile/tablet (≤lg): card compatta, non una colonna ───────────────────
+.co-form__mobile-source-row {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background-color: var(--color-doc-ref-bg);
+  border: var(--border-width) solid var(--color-doc-ref-line);
+  border-inline-start: var(--space-1) solid var(--color-doc-ref-accent);
+  border-radius: var(--radius-lg);
+}
+
+@include bp.media-down('lg') {
+  .co-form__mobile-source-row {
+    display: flex;
+  }
+}
+
+.co-form__mobile-source-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  inline-size: 2rem;
+  block-size: 2rem;
+  color: var(--color-doc-ref-chip-fg);
+  background-color: var(--color-doc-ref-chip-bg);
+  border-radius: var(--radius-sm);
+}
+
+.co-form__mobile-source-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.co-form__mobile-source-copy small {
+  font-size: 0.53125rem; // 8.5px
+  font-weight: var(--font-weight-head);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-doc-ref-muted);
+}
+
+.co-form__mobile-source-row .co-form__source-title {
+  block-size: var(--space-6);
+  font-size: 0.78125rem; // 12.5px
+}
+
+.co-form__mobile-source-row .doc-form__line-remove {
+  flex: 0 0 auto;
+  inline-size: 2rem;
+  block-size: 2rem;
+}

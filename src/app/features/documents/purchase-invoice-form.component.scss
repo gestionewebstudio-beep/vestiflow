@@ -1,0 +1,118 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// REGISTRAZIONE FATTURA FORNITORE — delta locale sull'anatomia condivisa
+// .doc-form (src/styles/_document-form.scss + _document-form-footer.scss).
+//
+// Qui resta solo ciò che il foglio condiviso non copre: le tre tabelle
+// riepilogative (arrivi inclusi, righe registrazione, scadenze) e i dettagli
+// del pannello «Includi arrivo merce». Testata a celle unite, riepilogo
+// totali, barra azioni e host (`app-purchase-invoice-form`) vivono nel
+// linguaggio comune delle maschere documento.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Tabelle riepilogative. NON adottano .doc-form__table-wrap: sotto `lg` quel
+// wrapper si nasconde in favore della vista a card (.doc-form__cards), che
+// questa maschera non ha — qui le tabelle restano visibili a ogni larghezza
+// e scorrono in orizzontale se serve. La deroga sopravvive all'adozione
+// m-ref: dentro le card di sezione del nuovo ritmo mobile le tre tabelle
+// restano tabelle a scroll, nessuna card view.
+.pi-form__table-wrap {
+  inline-size: 100%;
+  overflow-x: auto;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.pi-form__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+
+  th,
+  td {
+    padding: var(--space-2) var(--space-3);
+    text-align: start;
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  thead th {
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-subtle);
+    background-color: var(--color-table-header-bg);
+  }
+
+  tfoot th,
+  tfoot td {
+    border-block-end: none;
+    background-color: var(--color-surface-sunken);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
+// Le celle numeriche (testata e dati) usano .doc-form__num del foglio
+// condiviso; qui la tabella riallinea a destra anche gli input che ospita.
+.pi-form__table .doc-form__num {
+  text-align: end;
+}
+
+// Le tabelle restano tabelle anche su mobile (niente card view): la spunta
+// «Saldato» deve offrire da sola il minimo tappabile — il token è quello
+// responsive, così su desktop la riga tiene la densità della tabella.
+.pi-form__table .doc-form__check {
+  min-block-size: var(--btn-min-height);
+  justify-content: center;
+}
+
+// Input dentro le tabelle (righe manuali e scadenze).
+.pi-form__table-input {
+  inline-size: 100%;
+  min-inline-size: 6rem;
+}
+
+.pi-form__table-input--rate {
+  min-inline-size: 4rem;
+  max-inline-size: 6rem;
+}
+
+// Totali del pannello Pagamento (Da saldare / Saldato).
+.pi-form__payment-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+// ── Pannello «Includi arrivo merce» ─────────────────────────────────────────
+// Struttura e voci dalla famiglia condivisa __include-order-*; qui i soli
+// dettagli propri: selezione multipla con checkbox, causale e totale riga.
+
+.pi-form__include-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+
+  input {
+    margin-block-start: var(--space-1);
+  }
+}
+
+.pi-form__include-causal {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.pi-form__include-total {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.pi-form__include-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

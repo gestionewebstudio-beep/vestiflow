@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import type { PageMeta } from '@core/models/api.model';
-import { ButtonComponent } from '@shared/components/button/button.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -13,7 +12,7 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 @Component({
   selector: 'app-pagination',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, SelectMenuComponent],
+  imports: [SelectMenuComponent],
   templateUrl: './pagination.component.html',
   styleUrl: './pagination.component.scss',
 })
@@ -49,6 +48,40 @@ export class PaginationComponent {
   );
 
   protected readonly pageSizeValue = computed(() => String(this.meta().pageSize));
+
+  /**
+   * Pagine da mostrare come pill numerate (mockup 1b/2b: « 1 2 3 … 52 »):
+   * prima e ultima sempre visibili, finestra di 2 attorno alla corrente,
+   * ellissi al posto dei salti.
+   */
+  protected readonly pageItems = computed<readonly (number | 'ellipsis')[]>(() => {
+    const { page, totalPages } = this.meta();
+    if (totalPages <= 1) {
+      return [];
+    }
+    const pages = new Set<number>([1, totalPages]);
+    for (let p = page - 2; p <= page + 2; p++) {
+      if (p >= 1 && p <= totalPages) {
+        pages.add(p);
+      }
+    }
+    const items: (number | 'ellipsis')[] = [];
+    let previous = 0;
+    for (const current of [...pages].sort((a, b) => a - b)) {
+      if (previous && current - previous > 1) {
+        items.push('ellipsis');
+      }
+      items.push(current);
+      previous = current;
+    }
+    return items;
+  });
+
+  protected goTo(page: number): void {
+    if (page !== this.meta().page) {
+      this.pageChange.emit(page);
+    }
+  }
 
   protected prev(): void {
     if (this.canPrev()) {

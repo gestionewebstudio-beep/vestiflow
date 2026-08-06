@@ -7,7 +7,7 @@ import { BadgeComponent } from '@shared/components/badge/badge.component';
 import {
   financialStatusLabel,
   financialStatusTone,
-} from '@features/sales-orders/models/sales-order-labels.util';
+} from '@domain/sales-orders/models/sales-order-labels.util';
 
 import type { RecentSaleRow } from '../../models/dashboard-view.model';
 

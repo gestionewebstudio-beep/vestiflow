@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-export type BadgeTone = 'neutral' | 'success' | 'warning' | 'error' | 'info';
+export type BadgeTone = 'neutral' | 'success' | 'warning' | 'error' | 'info' | 'vestiflow';
 
 /**
  * Badge per stati/label brevi. Dumb puro, non cliccabile. Il testo (label)

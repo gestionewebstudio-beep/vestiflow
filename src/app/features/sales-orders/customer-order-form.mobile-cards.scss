@@ -1,0 +1,282 @@
+@use 'breakpoints' as bp;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ORDINE CLIENTE — 3 di 6: elenco delle righe come card
+// ═══════════════════════════════════════════════════════════════════════════
+// Il contenitore delle card e le tre viste mobili che convivono nel DOM. La
+// card in se' e' un componente: components/customer-order-line-card.
+//
+// Vedi l'indice dei fogli in customer-order-form.component.scss.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Le tre viste mobili esistono nel DOM ma restano spente su desktop.
+.co-form__header-summary,
+.co-form__cards,
+.co-form__mobile-quick {
+  display: none;
+}
+
+// Riga 3 — codice · SKU · disponibilità (servizio;
+
+// Conteggio righe sotto «Righe documento»: solo mobile (riacceso nella media
+// query in fondo), solo Ordine cliente (gate @if nel template).
+.co-order-lines__count {
+  display: none;
+}
+
+// ── Riepilogo di testata apribile ──────────────────────────────────────────
+.co-form__header-summary {
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: 3.25rem;
+  padding: var(--space-2);
+  text-align: start;
+  background-color: var(--color-surface);
+  border: 0;
+  cursor: pointer;
+}
+
+.co-form__header-summary-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  inline-size: var(--space-8);
+  block-size: var(--space-8);
+  color: var(--color-link);
+  background-color: var(--co-brand-soft, var(--color-surface-soft));
+  border-radius: var(--radius-sm);
+}
+
+.co-form__header-summary-copy {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.co-form__header-summary-copy strong {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-form__header-summary-copy small {
+  margin-block-start: var(--space-1);
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-form__header-summary-edit {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-link);
+  white-space: nowrap;
+}
+
+.co-form__header-summary-chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-base) var(--ease-standard);
+}
+
+.co-form__header--open .co-form__header-summary-chevron {
+  transform: rotate(180deg);
+}
+
+// Azioni documento in fondo (doc-form__mobile-actions): promosse in
+// styles/_document-form-mobile.scss.
+
+// ── Scansione rapida: card sotto le righe ──────────────────────────────────
+.co-form__mobile-quick {
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  --field-height: var(--doc-m-control-h);
+}
+
+// Fotocamera: CTA primaria a piena larghezza, in cima alla card.
+.co-form__mobile-scanner {
+  display: block;
+}
+
+.co-form__mobile-scanner {
+  --barcode-scanner-w: 100%;
+  --button-inline-size: 100%;
+  --button-h: var(--doc-m-control-h);
+  --button-font-size: var(--text-lg);
+}
+
+// Riga secondaria: ricerca/digitazione manuale + Aggiungi.
+.co-form__mobile-quick-manual {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.co-form__mobile-quick .doc-form__input {
+  flex: 1;
+  min-inline-size: 0;
+  block-size: var(--doc-m-control-h);
+  font-size: var(--text-lg);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+@include bp.media-down('lg') {
+  // Conteggio righe sotto «Righe documento» (solo mobile Ordine cliente).
+  .co-order-lines__count {
+    display: inline-flex;
+    align-items: center;
+    margin-block-start: var(--space-1);
+    font-size: var(--text-2xs);
+    color: var(--color-text-muted);
+  }
+
+  // Testata del form ancorata in cima durante lo scroll (il breadcrumb di shell
+  // resta com'è): «Indietro» e titolo sempre raggiungibili col pollice.
+  .co-form .doc-form__head-row {
+    inset-block-start: 0;
+    z-index: var(--z-sticky);
+    background-color: var(--color-bg);
+  }
+
+  // Riga titolo: stato e numero documento su righe proprie.
+  .co-form .doc-form__title {
+  }
+
+  .co-form .doc-form__meta {
+    display: contents;
+  }
+
+  .co-form .doc-form__internal-ref {
+    order: 2;
+    flex: 1 0 100%;
+    font-size: var(--text-xs);
+  }
+
+  // Scope .co-form: la classe ora è globale (.doc-form .doc-form__save-state,
+  // stessa specificità) e qui deve vincere il foglio del componente.
+  .co-form .doc-form__save-state {
+    order: 1;
+    flex: 1 0 100%;
+    margin-inline-start: 0;
+  }
+
+  // Testata: il riepilogo apre e chiude i campi.
+  .co-form__header-summary {
+    display: flex;
+  }
+
+  // Apertura/chiusura animata (≤200ms) invece dello stacco netto; visibility
+  // toglie i campi dal tab order quando la testata è chiusa.
+  .co-form .co-form__header-details {
+    display: block;
+    overflow: hidden;
+    max-block-size: 0;
+    opacity: 0;
+    visibility: hidden;
+    border-block-start: 0;
+    transition:
+      max-block-size 200ms var(--ease-standard),
+      opacity 160ms var(--ease-standard),
+      visibility 0s linear 200ms;
+  }
+
+  .co-form .co-form__header--open .co-form__header-details {
+    max-block-size: 34rem;
+    opacity: 1;
+    visibility: visible;
+    border-block-start: var(--border-width) solid var(--color-border);
+    transition:
+      max-block-size 200ms var(--ease-standard),
+      opacity 160ms var(--ease-standard),
+      visibility 0s;
+  }
+
+  .co-form .co-form__header-row,
+  .co-form .doc-form__header-row--secondary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .co-form .doc-form__header .doc-form__field {
+    padding: var(--space-2);
+    --field-height: var(--control-h-touch);
+  }
+
+  .co-form .doc-form__header .doc-form__input {
+    block-size: var(--control-h-touch);
+    min-block-size: var(--control-h-touch);
+    font-size: var(--text-lg);
+    border-radius: var(--radius-sm);
+  }
+
+  // Strumenti righe: titolo sopra, bottoni a griglia sotto.
+  .co-form .doc-form__lines-head {
+  }
+
+  .co-form .doc-form__lines-tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    --field-height: var(--co-tool-h);
+  }
+
+  .co-form .doc-form__lines-tools {
+    --button-font-size: var(--text-sm);
+
+    app-button {
+      inline-size: 100%;
+    }
+  }
+
+  .co-form .doc-form__lines-tools > app-button:last-child {
+    --button-grid-column: 1 / -1;
+  }
+
+  // Finestra «Colonne»: a tutta larghezza, una colonna sola e
+  // bottoni di riordino grandi abbastanza per il dito (mockup responsive).
+
+  // Tabella fuori, card dentro. (Tabella e piede doc-form__table-summary li
+  // spegne gia' il foglio globale a questo breakpoint.)
+  .co-form__cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    // Isola l'eventuale scroll interno dell'elenco dalla pagina (il bounce a
+    // livello di pagina resta gestito dalla shell).
+    overscroll-behavior: contain;
+  }
+
+  .co-form__mobile-quick {
+    display: flex;
+    flex-direction: column;
+  }
+
+  // Totali impilati, note e azioni finali: promossi in
+  // styles/_document-form-mobile.scss (gate .doc-form--m-ref).
+}
+
+// Schermi stretti: una colonna sola e Salva su tutta la riga.
+@include bp.media-down('sm') {
+  .co-form .co-form__header-row,
+  .co-form .doc-form__header-row--secondary {
+    grid-template-columns: 1fr;
+  }
+
+  .co-form .doc-form__header .doc-form__field {
+    border-inline-end: 0;
+  }
+
+  .co-form__header-summary-edit {
+    display: none;
+  }
+}

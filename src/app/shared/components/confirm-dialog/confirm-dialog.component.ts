@@ -32,10 +32,18 @@ export class ConfirmDialogComponent {
   readonly danger = input<boolean>(false);
   /** Disabilita i bottoni mentre l'azione confermata e' in corso. */
   readonly busy = input<boolean>(false);
+  /**
+   * Avviso informativo invece di una scelta: un solo bottone, nessun Annulla.
+   * L'operatore non decide fra due opzioni, prende atto di un fatto già
+   * avvenuto — quindi anche ESC deve valere come presa d'atto, e il
+   * chiamante collega `dismissed` allo stesso gestore di `confirmed`.
+   */
+  readonly acknowledge = input<boolean>(false);
 
   readonly open = model<boolean>(false);
 
   readonly confirmed = output<void>();
+  readonly dismissed = output<void>();
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
@@ -57,12 +65,14 @@ export class ConfirmDialogComponent {
 
   protected onCancel(): void {
     this.open.set(false);
+    this.dismissed.emit();
   }
 
   /** ESC nativo del <dialog>: riallinea lo stato. */
   protected onNativeClose(): void {
     if (this.open()) {
       this.open.set(false);
+      this.dismissed.emit();
     }
   }
 }

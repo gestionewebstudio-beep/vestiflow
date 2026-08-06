@@ -1,0 +1,368 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  FormControl,
+  FormGroup,
+  NonNullableFormBuilder,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
+import { catchError, of, take } from 'rxjs';
+import type { Subscription } from 'rxjs';
+
+import type { EntityId } from '@core/models/common.model';
+import type { SelectedOption } from '@core/models/product.model';
+
+import { ButtonComponent } from '@shared/components/button/button.component';
+
+import type { VariantDraft } from '../../models/product-form.model';
+import { generateDistinctEan13Barcode } from '../../models/barcode.util';
+import {
+  isBarcodeDistinct,
+  normalizeBarcode,
+  normalizeSku,
+  SKU_PATTERN,
+} from '../../models/product-form.validators';
+import {
+  selectedOptionValue,
+  variantOptionNames,
+  variantTitle,
+} from '../../models/product-variant.util';
+import { ProductService } from '../../services/product.service';
+
+/** Avviso mostrato prima di sovrascrivere uno SKU già presente nel campo. */
+const OVERWRITE_SKU_WARNING =
+  "Stai per sostituire lo SKU attuale. Se l'articolo ha già movimenti o documenti registrati, " +
+  'lo SKU storico resterà comunque quello usato in quei documenti. Continuare?';
+
+interface VariantRowControls {
+  sku: FormControl<string>;
+  sellingPrice: FormControl<number>;
+  shopifyPrice: FormControl<number>;
+  purchasePrice: FormControl<number | null>;
+  barcode: FormControl<string>;
+}
+
+// Dati non editabili della riga (identita' della combinazione), tenuti fuori dal
+// form e riallineati per indice ai controlli editabili.
+interface VariantRowMeta {
+  readonly key: string;
+  readonly id?: EntityId;
+  readonly optionValues: readonly SelectedOption[];
+}
+
+const EMPTY_META: VariantRowMeta = { key: '', optionValues: [] };
+
+/**
+ * Step "Varianti" del wizard (presentazionale con FormArray tipizzato). Espone
+ * i campi editabili per variante (SKU, prezzi, barcode) e propaga le modifiche
+ * via `variantsChange`. Taglia/colore/identita' restano fissi (derivati dalle
+ * opzioni). Il FormArray viene ricostruito solo quando cambia l'insieme delle
+ * combinazioni, cosi' le modifiche dell'utente sui campi non vengono perse.
+ */
+@Component({
+  selector: 'app-product-variants-step',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ButtonComponent, ReactiveFormsModule],
+  templateUrl: './product-variants-step.component.html',
+  styleUrl: './product-variants-step.component.scss',
+})
+export class ProductVariantsStepComponent {
+  private readonly fb = inject(NonNullableFormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly productService = inject(ProductService);
+
+  readonly variants = input.required<readonly VariantDraft[]>();
+  /** Nome e categoria correnti del prodotto: input per "Genera SKU" per riga. */
+  readonly productName = input('');
+  readonly category = input('');
+  /** SKU gia' in uso (normalizzati) dal controllo di disponibilita' del wizard. */
+  readonly takenSkus = input<readonly string[]>([]);
+  /** Barcode gia' in uso (normalizzati) dal controllo di disponibilita' del wizard. */
+  readonly takenBarcodes = input<readonly string[]>([]);
+  readonly catalogReadOnly = input(false);
+  /** Shopify attivo (profilo canale): mostra la colonna Prezzo Shopify per variante. */
+  readonly shopifyActive = input(false);
+  readonly variantsChange = output<readonly VariantDraft[]>();
+  /**
+   * Validità complessiva dello step (formato SKU/prezzi/barcode). Il barrato NON
+   * è più della variante (dato di articolo). Il parent la include nel gating.
+   */
+  readonly stepValidChange = output<boolean>();
+
+  private readonly takenSet = computed(() => new Set(this.takenSkus()));
+  private readonly takenBarcodeSet = computed(
+    () => new Set(this.takenBarcodes().map((barcode) => normalizeBarcode(barcode))),
+  );
+
+  protected readonly form = this.fb.group({
+    variants: this.fb.array<FormGroup<VariantRowControls>>([]),
+  });
+
+  protected readonly rowsMeta = signal<readonly VariantRowMeta[]>([]);
+
+  // Firma dell'insieme di combinazioni attualmente nel form (chiavi ordinate).
+  private seededKeys = '';
+  // Evita emissioni mentre ricostruiamo il form (clear/push).
+  private suppressEmit = false;
+  // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
+  private valueChangesSub: Subscription;
+
+  constructor() {
+    effect(() => {
+      const variants = this.variants();
+      const keys = variants.map((variant) => variant.key).join('|');
+      if (keys !== this.seededKeys) {
+        this.seed(variants);
+        this.seededKeys = keys;
+      }
+      this.applyCatalogReadOnly(this.catalogReadOnly());
+    });
+
+    this.valueChangesSub = this.variantsArray.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (!this.suppressEmit) {
+          this.variantsChange.emit(this.collect());
+          this.emitValidity();
+        }
+      });
+  }
+
+  protected get variantsArray() {
+    return this.form.controls.variants;
+  }
+
+  /** Colonne opzione dinamiche in base agli assi attivi nelle varianti. */
+  protected readonly optionNames = computed(() => variantOptionNames(this.variants()));
+
+  protected meta(index: number): VariantRowMeta {
+    return this.rowsMeta()[index] ?? EMPTY_META;
+  }
+
+  /** Valore della riga per l'asse indicato (derivato dalle optionValues). */
+  protected metaValue(index: number, name: string): string {
+    return selectedOptionValue(this.meta(index).optionValues, name);
+  }
+
+  /** Titolo della combinazione per le aria-label (es. "M / Rosso"). */
+  protected rowTitle(index: number): string {
+    return variantTitle(this.meta(index).optionValues) || '—';
+  }
+
+  /** True se lo SKU corrente risulta gia' in uso da un altro prodotto. */
+  protected isSkuTaken(sku: string): boolean {
+    const normalized = normalizeSku(sku);
+    return normalized.length > 0 && this.takenSet().has(normalized);
+  }
+
+  /** True se il barcode corrente risulta gia' in uso da un'altra variante. */
+  protected isBarcodeTaken(barcode: string): boolean {
+    const normalized = normalizeBarcode(barcode);
+    return normalized.length > 0 && this.takenBarcodeSet().has(normalized);
+  }
+
+  private seed(variants: readonly VariantDraft[]): void {
+    this.suppressEmit = true;
+    this.variantsArray.clear({ emitEvent: false });
+    const meta: VariantRowMeta[] = [];
+    for (const variant of variants) {
+      this.variantsArray.push(this.buildRow(variant), { emitEvent: false });
+      meta.push({ key: variant.key, id: variant.id, optionValues: variant.optionValues });
+    }
+    this.rowsMeta.set(meta);
+    this.suppressEmit = false;
+    this.emitValidity();
+  }
+
+  private buildRow(variant: VariantDraft): FormGroup<VariantRowControls> {
+    return this.fb.group<VariantRowControls>({
+      // Facoltativo (specifica cliente §SKU): nessun Validators.required.
+      sku: this.fb.control(variant.sku, [Validators.pattern(SKU_PATTERN)]),
+      sellingPrice: this.fb.control(variant.sellingPrice, [Validators.required, Validators.min(0)]),
+      // Prezzo Shopify (§B): valore proprio, seed dal prezzo variante poi
+      // indipendente. Zero legittimo, nessun min diverso da 0.
+      shopifyPrice: this.fb.control(variant.shopifyPrice, [Validators.min(0)]),
+      purchasePrice: this.fb.control<number | null>(variant.purchasePrice, [Validators.min(0)]),
+      barcode: this.fb.control(variant.barcode),
+    });
+  }
+
+  private applyCatalogReadOnly(readOnly: boolean): void {
+    for (const group of this.variantsArray.controls) {
+      if (readOnly) {
+        group.controls.sku.disable({ emitEvent: false });
+        group.controls.sellingPrice.disable({ emitEvent: false });
+        // Catalogo Shopify: anche il prezzo Shopify è di proprietà del canale.
+        group.controls.shopifyPrice.disable({ emitEvent: false });
+        group.controls.barcode.disable({ emitEvent: false });
+        group.controls.purchasePrice.enable({ emitEvent: false });
+      } else {
+        group.enable({ emitEvent: false });
+      }
+    }
+  }
+
+  /** Errore di formato del controllo, mostrato solo dopo interazione (touched). */
+  protected isInvalid(
+    group: FormGroup<VariantRowControls>,
+    field: keyof VariantRowControls,
+  ): boolean {
+    const control = group.controls[field];
+    return control.invalid && control.touched;
+  }
+
+  /** SKU duplicato tra le varianti del form (case-insensitive). */
+  protected isDuplicateSku(sku: string): boolean {
+    const normalized = normalizeSku(sku);
+    if (!normalized) {
+      return false;
+    }
+    let count = 0;
+    for (const group of this.variantsArray.controls) {
+      if (normalizeSku(group.controls.sku.value) === normalized) {
+        count += 1;
+      }
+    }
+    return count > 1;
+  }
+
+  /** Barcode duplicato tra le varianti del form (case-insensitive). */
+  protected isDuplicateBarcode(barcode: string): boolean {
+    const normalized = normalizeBarcode(barcode);
+    if (!normalized) {
+      return false;
+    }
+    let count = 0;
+    for (const group of this.variantsArray.controls) {
+      if (normalizeBarcode(group.controls.barcode.value) === normalized) {
+        count += 1;
+      }
+    }
+    return count > 1;
+  }
+
+  /** Barcode valorizzato ma uguale allo SKU (devono essere distinti). */
+  protected isBarcodeSameAsSku(group: FormGroup<VariantRowControls>): boolean {
+    return !isBarcodeDistinct(group.controls.sku.value, group.controls.barcode.value);
+  }
+
+  /** Barcode con errori di formato o unicita'. */
+  protected isBarcodeInvalid(group: FormGroup<VariantRowControls>): boolean {
+    const barcode = group.controls.barcode.value;
+    return (
+      this.isBarcodeSameAsSku(group) ||
+      this.isDuplicateBarcode(barcode) ||
+      this.isBarcodeTaken(barcode)
+    );
+  }
+
+  /** Genera un barcode EAN-13 distinto da SKU e barcode gia' presenti nel form. */
+  protected generateBarcode(index: number): void {
+    const group = this.variantsArray.at(index);
+    if (!group) {
+      return;
+    }
+
+    const excludes = this.variantsArray.controls.flatMap((row) => [
+      row.controls.sku.value,
+      row.controls.barcode.value,
+    ]);
+    const barcode = generateDistinctEan13Barcode(...excludes, ...this.takenBarcodes());
+    group.controls.barcode.setValue(barcode);
+    group.controls.barcode.markAsDirty();
+    group.controls.barcode.markAsTouched();
+  }
+
+  /** Indice della riga per cui e' in corso una generazione SKU (per il loading del bottone). */
+  protected readonly generatingSkuIndex = signal<number | null>(null);
+  protected readonly generateSkuError = signal<string | null>(null);
+
+  protected isGeneratingSku(index: number): boolean {
+    return this.generatingSkuIndex() === index;
+  }
+
+  /**
+   * Genera un'anteprima SKU per la singola variante (categoria + nome +
+   * attributi REALMENTE presenti sulla combinazione, vedi backend
+   * `SkuGeneratorService`). Se il campo ha gia' un valore, chiede conferma
+   * prima di sovrascriverlo (specifica cliente §SKU: mai in automatico).
+   */
+  protected generateSku(index: number): void {
+    const group = this.variantsArray.at(index);
+    if (!group) {
+      return;
+    }
+    const current = group.controls.sku.value.trim();
+    if (current && !window.confirm(OVERWRITE_SKU_WARNING)) {
+      return;
+    }
+
+    this.generateSkuError.set(null);
+    this.generatingSkuIndex.set(index);
+    this.productService
+      .generateSku({
+        productName: this.productName(),
+        category: this.category() || undefined,
+        optionValues: this.meta(index).optionValues.map((option) => ({
+          name: option.name,
+          value: option.value,
+        })),
+      })
+      .pipe(
+        take(1),
+        catchError(() => {
+          this.generateSkuError.set('Impossibile generare lo SKU: riprova o inseriscilo a mano.');
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((result) => {
+        this.generatingSkuIndex.set(null);
+        if (!result) {
+          return;
+        }
+        group.controls.sku.setValue(result.sku);
+        group.controls.sku.markAsDirty();
+        group.controls.sku.markAsTouched();
+      });
+  }
+
+  private emitValidity(): void {
+    this.stepValidChange.emit(this.variantsArray.valid);
+  }
+
+  private collect(): readonly VariantDraft[] {
+    const meta = this.rowsMeta();
+    const result: VariantDraft[] = [];
+    this.variantsArray.controls.forEach((group, index) => {
+      const rowMeta = meta[index];
+      if (!rowMeta) {
+        return;
+      }
+      const raw = group.getRawValue();
+      result.push({
+        key: rowMeta.key,
+        id: rowMeta.id,
+        optionValues: rowMeta.optionValues,
+        sku: raw.sku,
+        sellingPrice: raw.sellingPrice,
+        shopifyPrice: raw.shopifyPrice,
+        purchasePrice: raw.purchasePrice,
+        barcode: raw.barcode,
+        included: true,
+      });
+    });
+    return result;
+  }
+}

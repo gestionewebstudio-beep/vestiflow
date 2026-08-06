@@ -11,6 +11,8 @@
 @include rt.stack-table('po-lines');
 
 .po-lines__sku {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 

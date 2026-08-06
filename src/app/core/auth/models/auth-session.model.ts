@@ -7,4 +7,6 @@ import type { User } from '@core/models/user.model';
  */
 export interface AuthSession {
   readonly user: User;
+  /** Token effimero per le chiamate API (non persistito da AuthService). */
+  readonly accessToken?: string;
 }

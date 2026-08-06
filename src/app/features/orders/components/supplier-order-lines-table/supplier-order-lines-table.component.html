@@ -3,17 +3,21 @@
     <thead>
       <tr>
         <th scope="col">SKU</th>
-        <th scope="col" class="po-lines__cell--numeric">Ordinato</th>
+        <th scope="col">Descrizione</th>
+        <th scope="col" class="po-lines__cell--numeric">Q.tà</th>
         <th scope="col" class="po-lines__cell--numeric">Ricevuto</th>
-        <th scope="col" class="po-lines__cell--numeric">Costo unitario</th>
-        <th scope="col" class="po-lines__cell--numeric">Totale riga</th>
+        <th scope="col" class="po-lines__cell--numeric">Costo</th>
+        <th scope="col" class="po-lines__cell--numeric">Sconto</th>
+        <th scope="col" class="po-lines__cell--numeric">IVA</th>
+        <th scope="col" class="po-lines__cell--numeric">Totale</th>
       </tr>
     </thead>
     <tbody>
       @for (line of lines(); track line.id) {
         <tr class="po-lines__row">
           <td class="po-lines__sku tabular-nums" data-label="SKU">{{ line.sku }}</td>
-          <td class="po-lines__cell--numeric tabular-nums" data-label="Ordinato">
+          <td data-label="Descrizione">{{ line.description }}</td>
+          <td class="po-lines__cell--numeric tabular-nums" data-label="Q.tà">
             {{ line.orderedQuantity }}
           </td>
           <td
@@ -23,11 +27,17 @@
           >
             {{ line.receivedQuantity }}
           </td>
-          <td class="po-lines__cell--numeric tabular-nums" data-label="Costo unitario">
+          <td class="po-lines__cell--numeric tabular-nums" data-label="Costo">
             {{ formatMoney(line.unitCost) }}
           </td>
-          <td class="po-lines__cell--numeric tabular-nums" data-label="Totale riga">
-            {{ formatMoney(lineTotal(line)) }}
+          <td class="po-lines__cell--numeric tabular-nums" data-label="Sconto">
+            {{ line.discountPercent > 0 ? line.discountPercent + '%' : '—' }}
+          </td>
+          <td class="po-lines__cell--numeric tabular-nums" data-label="IVA">
+            {{ line.vatCode ?? '—' }}
+          </td>
+          <td class="po-lines__cell--numeric tabular-nums" data-label="Totale">
+            {{ formatMoney(line.lineTotal) }}
           </td>
         </tr>
       }

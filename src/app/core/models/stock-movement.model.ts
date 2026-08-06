@@ -8,6 +8,8 @@ export const StockMovementType = {
   Adjustment: 'adjustment',
   Sale: 'sale',
   Return: 'return',
+  /** Scarico generato dalla Vendita online (evasione ordine canale, fase 2). */
+  OnlineSale: 'online_sale',
 } as const;
 export type StockMovementType = (typeof StockMovementType)[keyof typeof StockMovementType];
 
@@ -17,6 +19,16 @@ export const AdjustmentDirection = {
   Decrease: 'decrease',
 } as const;
 export type AdjustmentDirection = (typeof AdjustmentDirection)[keyof typeof AdjustmentDirection];
+
+/** Origine del movimento: gestionale, sync Shopify o altro canale. */
+export const MovementOrigin = {
+  Manual: 'manual',
+  Shopify: 'shopify',
+  Tiktok: 'tiktok',
+  VestiflowPos: 'vestiflow_pos',
+  VestiflowOnline: 'vestiflow_online',
+} as const;
+export type MovementOrigin = (typeof MovementOrigin)[keyof typeof MovementOrigin];
 
 /**
  * Movimento di magazzino = log operativo immutabile.
@@ -46,4 +58,11 @@ export interface StockMovement extends TenantScoped {
   readonly createdBy: EntityId;
   /** Nome utente snapshot (display audit). */
   readonly createdByName: string;
+  /** Origine sync/manuale (es. vendita Shopify). */
+  readonly origin?: MovementOrigin;
+  readonly externalRef?: string;
+  readonly productTitle?: string;
+  /** Codice articolo del prodotto (colonna selezionabile §Codice articolo). */
+  readonly articleCode?: string;
+  readonly documentReference?: string;
 }

@@ -1,0 +1,120 @@
+@use 'breakpoints' as bp;
+@use 'list-page' as lp;
+
+@include lp.list-page('doc-list');
+
+// Extra rispetto al mixin: azioni testata centrate in verticale e a piena
+// larghezza su mobile (bottone «Nuovo…» + menu «Altro documento» affiancati).
+.doc-list__actions {
+  align-items: center;
+
+  @include bp.media-down('md') {
+    inline-size: 100%;
+  }
+}
+
+// Modale «Duplica arrivo merce»: scelta fornitore (stile allineato al modale
+// di scelta cliente della lista Ordini).
+.doc-list__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 1000);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background-color: color-mix(in srgb, var(--color-backdrop) 45%, transparent);
+}
+
+.doc-list__modal {
+  inline-size: min(100%, 32rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.doc-list__modal-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.doc-list__modal-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.doc-list__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.doc-list__banner {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.doc-list__banner--highlight {
+  background: var(--color-warning-subtle);
+  color: var(--color-text);
+}
+
+.doc-list__create-menu {
+  min-inline-size: calc(var(--space-10) * 2);
+}
+
+.doc-list__settings-label {
+  @include bp.media-down('sm') {
+    display: none;
+  }
+}
+
+// Barra operazioni massive: appare sopra la tabella quando ci sono selezioni.
+.doc-list__bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--color-primary-subtle);
+  border: var(--border-width) solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.doc-list__bulk-count {
+  margin-inline-end: auto;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+}
+
+// Dal/Al: cella piena della griglia filtri (canone del mixin), nessuna
+// larghezza fissa dedicata.
+
+.doc-list__check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+}

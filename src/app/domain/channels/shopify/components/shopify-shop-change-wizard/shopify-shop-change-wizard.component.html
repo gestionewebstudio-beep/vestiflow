@@ -1,0 +1,293 @@
+<dialog
+  #dialog
+  class="shop-change-wizard"
+  aria-labelledby="shop-change-wizard-title"
+  (close)="onNativeClose()"
+>
+  <div class="shop-change-wizard__panel" role="document">
+    <header class="shop-change-wizard__header">
+      <h2 id="shop-change-wizard-title" class="shop-change-wizard__title">{{ dialogTitle() }}</h2>
+      <button
+        type="button"
+        class="shop-change-wizard__close"
+        aria-label="Chiudi"
+        [disabled]="actionLoading()"
+        (click)="onClose()"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </header>
+
+    @if (previewLoading()) {
+      <div class="shop-change-wizard__loading" role="status" aria-live="polite">
+        <app-inline-spinner size="md" />
+        <span>Caricamento anteprima dati…</span>
+      </div>
+    } @else if (error(); as errorMessage) {
+      <app-error-state
+        title="Operazione non disponibile"
+        [description]="errorMessage"
+        retryLabel="Riprova"
+        (retry)="loadPreview()"
+      />
+    } @else if (preview(); as previewData) {
+      @switch (step()) {
+        @case ('preview') {
+          <div class="shop-change-wizard__body">
+            <p class="shop-change-wizard__intro">
+              Negozio attuale:
+              <strong class="tabular-nums">{{ previewData.currentShopDomain ?? '—' }}</strong
+              >. Puoi rimuovere i dati importati da Shopify prima di collegarne uno diverso.
+            </p>
+
+            <dl class="shop-change-wizard__counts">
+              <div class="shop-change-wizard__count">
+                <dt>Prodotti Shopify</dt>
+                <dd class="tabular-nums">{{ previewData.counts.shopifyProducts }}</dd>
+              </div>
+              <div class="shop-change-wizard__count">
+                <dt>Varianti</dt>
+                <dd class="tabular-nums">{{ previewData.counts.shopifyVariants }}</dd>
+              </div>
+              <div class="shop-change-wizard__count">
+                <dt>Clienti Shopify</dt>
+                <dd class="tabular-nums">{{ previewData.counts.shopifyCustomers }}</dd>
+              </div>
+              <div class="shop-change-wizard__count">
+                <dt>Ordini vendita Shopify</dt>
+                <dd class="tabular-nums">{{ previewData.counts.shopifySalesOrders }}</dd>
+              </div>
+              <div class="shop-change-wizard__count">
+                <dt>Giacenze collegate</dt>
+                <dd class="tabular-nums">{{ previewData.counts.inventoryLevels }}</dd>
+              </div>
+              <div class="shop-change-wizard__count">
+                <dt>Movimenti collegati</dt>
+                <dd class="tabular-nums">{{ previewData.counts.stockMovements }}</dd>
+              </div>
+              <div class="shop-change-wizard__count">
+                <dt>Location Shopify</dt>
+                <dd class="tabular-nums">{{ previewData.counts.shopifyLinkedLocations }}</dd>
+              </div>
+              @if (previewData.counts.removableShopifyLocations > 0) {
+                <div class="shop-change-wizard__count">
+                  <dt>Location rimovibili</dt>
+                  <dd class="tabular-nums">{{ previewData.counts.removableShopifyLocations }}</dd>
+                </div>
+              }
+            </dl>
+
+            <fieldset class="shop-change-wizard__options">
+              <legend class="shop-change-wizard__options-title">Cosa rimuovere</legend>
+              <label
+                class="shop-change-wizard__option"
+                [class.shop-change-wizard__option--disabled]="catalogPurgeBlocked()"
+              >
+                <span class="shop-change-wizard__option-row">
+                  <input
+                    type="checkbox"
+                    [checked]="purgeCatalog()"
+                    [disabled]="catalogPurgeBlocked()"
+                    (change)="purgeCatalog.set($any($event.target).checked)"
+                  />
+                  Catalogo importato da Shopify (prodotti, varianti, giacenze e movimenti collegati)
+                </span>
+                @if (catalogPurgeBlocked()) {
+                  <span class="shop-change-wizard__option-hint">
+                    Bloccato: ordini fornitore aperti collegati a queste varianti.
+                  </span>
+                }
+              </label>
+              <label class="shop-change-wizard__option">
+                <span class="shop-change-wizard__option-row">
+                  <input
+                    type="checkbox"
+                    [checked]="purgeOrders()"
+                    [disabled]="purgeCustomers()"
+                    (change)="purgeOrders.set($any($event.target).checked)"
+                  />
+                  Ordini vendita Shopify
+                </span>
+              </label>
+              <label class="shop-change-wizard__option">
+                <span class="shop-change-wizard__option-row">
+                  <input
+                    type="checkbox"
+                    [checked]="purgeCustomers()"
+                    (change)="onPurgeCustomersChange($any($event.target).checked)"
+                  />
+                  Clienti Shopify (include ordini vendita collegati)
+                </span>
+              </label>
+            </fieldset>
+
+            @for (blocker of previewData.blockers; track blocker.code) {
+              <div class="shop-change-wizard__blocker" role="alert">
+                <p>{{ blocker.message }}</p>
+                <ul class="shop-change-wizard__blocker-list">
+                  @for (ref of blocker.references; track ref.id) {
+                    <li>
+                      <a [routerLink]="['/app/orders', ref.id]">{{ ref.reference }}</a>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+
+            <p class="shop-change-wizard__note">
+              I prodotti creati in VestiFlow e poi sincronizzati su Shopify verranno trattati come
+              catalogo Shopify e rimossi se selezioni il catalogo. Le location importate da Shopify
+              vuote (codice LOC-XX, senza giacenze, movimenti o ordini fornitore) vengono eliminate
+              anche se non rimuovi il catalogo; quelle ancora in uso restano ma vengono scollegate.
+              Ordini fornitore e dati locali non Shopify restano intatti.
+            </p>
+          </div>
+
+          <footer class="shop-change-wizard__footer">
+            @if (continueBlockedHint(); as hint) {
+              <p class="shop-change-wizard__footer-hint" role="status">{{ hint }}</p>
+            }
+            <app-button variant="ghost" [disabled]="actionLoading()" (click)="onClose()">
+              Annulla
+            </app-button>
+            @if (mode() === 'change') {
+              <app-button
+                variant="ghost"
+                [disabled]="actionLoading()"
+                (click)="step.set('connect')"
+              >
+                Salta rimozione dati
+              </app-button>
+            } @else {
+              <app-button
+                variant="ghost"
+                [disabled]="actionLoading()"
+                (click)="onDisconnectWithoutPurge()"
+              >
+                Disconnetti senza rimuovere
+              </app-button>
+            }
+            <app-button
+              variant="primary"
+              [disabled]="actionLoading() || !canContinueFromPreview()"
+              [attr.title]="continueBlockedHint() ?? null"
+              (click)="onContinueFromPreview()"
+            >
+              Continua
+            </app-button>
+          </footer>
+        }
+
+        @case ('confirm') {
+          <div class="shop-change-wizard__body">
+            <p class="shop-change-wizard__intro">
+              Conferma la rimozione irreversibile dei dati selezionati del negozio
+              <strong class="tabular-nums">{{ previewData.currentShopDomain }}</strong
+              >.
+            </p>
+
+            <form
+              [formGroup]="confirmForm"
+              class="shop-change-wizard__form"
+              (ngSubmit)="onConfirmPurge()"
+            >
+              <label class="shop-change-wizard__field" for="shop-change-confirm-domain">
+                Digita il dominio del negozio attuale
+                <input
+                  id="shop-change-confirm-domain"
+                  type="text"
+                  formControlName="confirmShopDomain"
+                  autocomplete="off"
+                  placeholder="mio-negozio.myshopify.com"
+                  spellcheck="false"
+                />
+              </label>
+
+              <label class="shop-change-wizard__option shop-change-wizard__option--ack">
+                <span class="shop-change-wizard__option-row">
+                  <input
+                    type="checkbox"
+                    [checked]="acknowledgeLoss()"
+                    (change)="acknowledgeLoss.set($any($event.target).checked)"
+                  />
+                  Capisco che l'operazione è irreversibile
+                </span>
+              </label>
+            </form>
+          </div>
+
+          <footer class="shop-change-wizard__footer">
+            <app-button variant="ghost" [disabled]="actionLoading()" (click)="onBackToPreview()">
+              Indietro
+            </app-button>
+            <app-button
+              variant="danger"
+              [loading]="actionLoading()"
+              [disabled]="actionLoading() || !acknowledgeLoss()"
+              (click)="onConfirmPurge()"
+            >
+              Rimuovi dati selezionati
+            </app-button>
+          </footer>
+        }
+
+        @case ('connect') {
+          @if (mode() === 'change') {
+            <div class="shop-change-wizard__body">
+              <p class="shop-change-wizard__intro">
+                @if (purgeCatalog() || purgeCustomers() || purgeOrders()) {
+                  Dati rimossi. Ora collega il nuovo negozio Shopify.
+                } @else {
+                  Collega il nuovo negozio Shopify. I dati del negozio precedente resteranno in
+                  VestiFlow finché non li rimuovi.
+                }
+              </p>
+
+              <form
+                [formGroup]="connectForm"
+                class="shop-change-wizard__form"
+                (ngSubmit)="onDisconnectAndConnect()"
+              >
+                <label class="shop-change-wizard__field" for="shop-change-new-shop">
+                  Nuovo dominio shop
+                  <input
+                    id="shop-change-new-shop"
+                    type="text"
+                    formControlName="shop"
+                    autocomplete="off"
+                    placeholder="nuovo-negozio.myshopify.com"
+                    spellcheck="false"
+                  />
+                </label>
+              </form>
+            </div>
+
+            <footer class="shop-change-wizard__footer">
+              <app-button variant="ghost" [disabled]="actionLoading()" (click)="onClose()">
+                Annulla
+              </app-button>
+              @if (!purgeCatalog() && !purgeCustomers() && !purgeOrders()) {
+                <app-button
+                  variant="secondary"
+                  [loading]="actionLoading()"
+                  [disabled]="actionLoading()"
+                  (click)="onDisconnectAndConnect()"
+                >
+                  Disconnetti e collega
+                </app-button>
+              }
+              <app-button
+                variant="primary"
+                [loading]="actionLoading()"
+                [disabled]="actionLoading()"
+                (click)="onDisconnectAndConnect()"
+              >
+                Collega nuovo negozio
+              </app-button>
+            </footer>
+          }
+        }
+      }
+    }
+  </div>
+</dialog>

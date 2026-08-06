@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -12,6 +13,7 @@ import {
   catchError,
   debounceTime,
   distinctUntilChanged,
+  finalize,
   map,
   of,
   startWith,
@@ -20,6 +22,16 @@ import {
 import type { Subscription } from 'rxjs';
 
 import type { PageMeta } from '@core/models/api.model';
+import { AuthService } from '@core/auth';
+import { APP_CONFIG } from '@core/config/app-config.token';
+import { PRODUCTS_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
+import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
+import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
+import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
+import {
+  canImportExportCatalog,
+  canManageCatalog,
+} from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { ProductStatus } from '@core/models/product.model';
@@ -29,24 +41,40 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
 import { ProductTableComponent } from './components/product-table/product-table.component';
 import { ProductToolbarComponent } from './components/product-toolbar/product-toolbar.component';
+import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
 import type {
   ProductFilterChange,
   ProductStatusOption,
 } from './components/product-toolbar/product-toolbar.component';
+import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
+import {
+  formatShopifyProductsSyncFeedback,
+  type ShopifySyncFeedback,
+} from '@domain/channels/shopify/models/shopify-sync-feedback.util';
+import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
+import { ShopifySyncWatchService } from '@domain/channels/shopify/services/shopify-sync-watch.service';
 import {
   DEFAULT_PRODUCT_ORDER,
   DEFAULT_PRODUCT_PAGE_SIZE,
   DEFAULT_PRODUCT_SORT,
   PRODUCT_PAGE_SIZE_OPTIONS,
   parseProductListQuery,
-} from './models/product-list-query.model';
-import type { ProductSortField } from './models/product-list-query.model';
-import { ProductService } from './services/product.service';
+} from '@domain/products/models/product-list-query.model';
+import type { ProductSortField } from '@domain/products/models/product-list-query.model';
+import { ProductService } from '@domain/products/services/product.service';
+import {
+  PRODUCT_LIST_COLUMN_DEFS,
+  PRODUCT_LIST_COLUMN_PRESETS,
+  PRODUCT_LIST_VIEW,
+} from './models/product-table-columns.config';
 
 const SEARCH_DEBOUNCE_MS = 300;
+const SHOPIFY_FEEDBACK_DISMISS_MS = 8000;
 
 const STATUS_OPTIONS: readonly ProductStatusOption[] = [
   { value: ProductStatus.Active, label: 'Attivo' },
@@ -82,17 +110,36 @@ type ProductListState =
     PaginationComponent,
     ProductToolbarComponent,
     ProductTableComponent,
+    TableColumnPickerComponent,
+    ShopifySyncFeedbackComponent,
   ],
   templateUrl: './product-list.component.html',
   styleUrl: './product-list.component.scss',
 })
 export class ProductListComponent {
   private readonly service = inject(ProductService);
+  private readonly shopifyConnectionService = inject(ShopifyConnectionService);
+  private readonly shopifySyncWatch = inject(ShopifySyncWatchService);
+  private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly blobExport = inject(BackgroundBlobExportService);
+  private readonly config = inject(APP_CONFIG);
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
 
-  protected readonly skeletonColumns = 5;
+  protected readonly productListView = PRODUCT_LIST_VIEW;
+  protected readonly tableColumns: ReturnType<TableColumnPreferenceService['visibleColumns']>;
+
+  private shopifyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  protected readonly barcodeScannerEnabled = this.config.features.barcodeScanner;
+  protected readonly scanFeedback = signal<string | null>(null);
+
+  private lastFetchQueryKey = '';
+
+  protected readonly skeletonColumns = computed(() => (this.showShopifyColumn() ? 8 : 7));
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly pageSizeOptions = PRODUCT_PAGE_SIZE_OPTIONS;
 
@@ -102,9 +149,82 @@ export class ProductListComponent {
 
   // Tick di refresh per il retry (la query da URL e' identica dopo un errore).
   private readonly refreshTick = signal(0);
+  /** Refresh silenzioso (es. webhook Shopify): niente skeleton se query invariata. */
+  private readonly softRefreshTick = signal(0);
 
   // Testo ricerca "draft": locale, debounced. Inizializzato una volta dall'URL.
   protected readonly searchDraft = signal(this.route.snapshot.queryParamMap.get('search') ?? '');
+  protected readonly exporting = computed(() => this.blobExport.isActive(PRODUCTS_CSV_EXPORT_ID));
+  protected readonly shopifyCatalogLoading = signal(false);
+  protected readonly shopifyFeedback = signal<ShopifySyncFeedback | null>(null);
+  protected readonly shopifySyncError = signal<string | null>(null);
+  protected readonly bulkPrintLoading = signal(false);
+  protected readonly selectedProductIds = signal<ReadonlySet<string>>(new Set<string>());
+  protected readonly duplicatingProductId = signal<string | null>(null);
+  protected readonly duplicateError = signal<string | null>(null);
+  /** Copie per articolo alla stampa etichette: sia per la riga singola sia per la selezione multipla. */
+  protected readonly labelCopies = signal(1);
+
+  protected readonly selectedCount = computed(() => this.selectedProductIds().size);
+
+  protected readonly allOnPageSelected = computed(() => {
+    const pageProducts = this.products();
+    if (pageProducts.length === 0) {
+      return false;
+    }
+    const selected = this.selectedProductIds();
+    return pageProducts.every((product) => selected.has(product.id));
+  });
+
+  protected readonly someOnPageSelected = computed(() => {
+    const pageProducts = this.products();
+    const selected = this.selectedProductIds();
+    const anySelected = pageProducts.some((product) => selected.has(product.id));
+    return anySelected && !this.allOnPageSelected();
+  });
+
+  protected readonly showShopifyCatalogSync = computed(
+    () =>
+      this.canImportExportCatalog() &&
+      showShopifyIntegration(this.authService.currentUser()?.tenantChannelProfile),
+  );
+
+  protected readonly showShopifyColumn = computed(() =>
+    showShopifyIntegration(this.authService.currentUser()?.tenantChannelProfile),
+  );
+
+  protected readonly canImportExportCatalog = computed(() =>
+    canImportExportCatalog(this.authService.currentUser()),
+  );
+
+  // ── F6d: accesso rapido «Articoli da completare» (prodotti in bozza) ─────
+  // Conteggio ricaricato quando la lista si ricarica (es. dopo un quick-add da
+  // scanner), così il badge resta allineato.
+  protected readonly draftCount = toSignal(
+    toObservable(computed(() => this.refreshTick() + this.softRefreshTick())).pipe(
+      switchMap(() =>
+        this.service.getProducts({ page: 1, pageSize: 1, status: ProductStatus.Draft }).pipe(
+          map((response) => response.meta.total),
+          catchError(() => of(0)),
+        ),
+      ),
+    ),
+    { initialValue: 0 },
+  );
+  protected readonly draftFilterActive = computed(
+    () => this.query().status === ProductStatus.Draft,
+  );
+
+  protected toggleDraftFilter(): void {
+    this.updateParams(
+      { status: this.draftFilterActive() ? null : ProductStatus.Draft, page: null },
+      true,
+    );
+  }
+
+  protected readonly canManageCatalog = computed(() =>
+    canManageCatalog(this.authService.currentUser()),
+  );
 
   protected readonly filterOptions = toSignal(this.service.getFilterOptions(), {
     initialValue: { categories: [], brands: [], seasons: [] },
@@ -113,12 +233,17 @@ export class ProductListComponent {
   private readonly request = computed(() => ({
     query: this.query(),
     tick: this.refreshTick(),
+    softTick: this.softRefreshTick(),
   }));
 
   private readonly state = toSignal(
     toObservable(this.request).pipe(
-      switchMap(({ query }) =>
-        this.service.getProducts(query).pipe(
+      switchMap(({ query, tick, softTick }) => {
+        const queryKey = JSON.stringify(query);
+        const silentRefresh = softTick > 0 && tick === 0 && queryKey === this.lastFetchQueryKey;
+        this.lastFetchQueryKey = queryKey;
+
+        const fetch$ = this.service.getProducts(query).pipe(
           map(
             (response): ProductListState => ({
               status: 'success',
@@ -126,12 +251,15 @@ export class ProductListComponent {
               meta: response.meta,
             }),
           ),
-          startWith<ProductListState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<ProductListState>({ status: 'error', error: this.toAppError(err) }),
           ),
-        ),
-      ),
+        );
+
+        return silentRefresh
+          ? fetch$
+          : fetch$.pipe(startWith<ProductListState>({ status: 'loading' }));
+      }),
     ),
     { initialValue: { status: 'loading' } satisfies ProductListState },
   );
@@ -167,6 +295,18 @@ export class ProductListComponent {
   private readonly searchSubscription: Subscription;
 
   constructor() {
+    this.columnPreferences.registerView(
+      PRODUCT_LIST_VIEW,
+      PRODUCT_LIST_COLUMN_DEFS,
+      PRODUCT_LIST_COLUMN_PRESETS,
+    );
+    this.tableColumns = this.columnPreferences.visibleColumns(PRODUCT_LIST_VIEW);
+
+    effect(() => {
+      this.query();
+      this.selectedProductIds.set(new Set<string>());
+    });
+
     // Debounce ricerca: il draft locale guida la navigazione (idempotente).
     this.searchSubscription = toObservable(this.searchDraft)
       .pipe(
@@ -175,10 +315,33 @@ export class ProductListComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((value) => this.applySearch(value));
+
+    this.shopifySyncWatch
+      .watchRemoteDataChanged()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.softRefreshTick.update((tick) => tick + 1);
+      });
   }
 
   protected onSearchInput(value: string): void {
+    this.scanFeedback.set(null);
     this.searchDraft.set(value);
+  }
+
+  protected onBarcodeScanned(code: string): void {
+    this.scanFeedback.set(null);
+    this.service
+      .findVariantByCode(code)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (variant) => {
+          void this.router.navigate(['/app/products', variant.productId]);
+        },
+        error: () => {
+          this.scanFeedback.set('Nessun prodotto trovato per questo SKU o barcode.');
+        },
+      });
   }
 
   protected onFilterChange(change: ProductFilterChange): void {
@@ -224,8 +387,148 @@ export class ProductListComponent {
     void this.router.navigate(['/app/products', product.id]);
   }
 
+  protected printProductLabels(product: Product): void {
+    this.labelPrintService.triggerDirectPrint(product.id, undefined, this.labelCopies());
+  }
+
+  /** Copie per articolo scelte dall'utente prima di stampare (min 1, max 500). */
+  protected setLabelCopies(value: number): void {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+    this.labelCopies.set(Math.min(Math.max(Math.floor(value), 1), 500));
+  }
+
+  /** Duplica articolo (audit cliente §2b): naviga alla copia per rifinire SKU/campi. */
+  protected duplicateProduct(product: Product): void {
+    if (this.duplicatingProductId()) {
+      return;
+    }
+    this.duplicatingProductId.set(product.id);
+    this.service
+      .duplicateProduct(product.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (created) => {
+          this.duplicatingProductId.set(null);
+          void this.router.navigate(['/app/products', created.id, 'edit']);
+        },
+        error: (err: unknown) => {
+          this.duplicatingProductId.set(null);
+          this.duplicateError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected toggleProductSelection(productId: string, selected: boolean): void {
+    this.selectedProductIds.update((current) => {
+      const next = new Set(current);
+      if (selected) {
+        next.add(productId);
+      } else {
+        next.delete(productId);
+      }
+      return next;
+    });
+  }
+
+  protected toggleSelectAllOnPage(selected: boolean): void {
+    const pageProducts = this.products();
+    this.selectedProductIds.update((current) => {
+      const next = new Set(current);
+      for (const product of pageProducts) {
+        if (selected) {
+          next.add(product.id);
+        } else {
+          next.delete(product.id);
+        }
+      }
+      return next;
+    });
+  }
+
+  protected clearSelection(): void {
+    this.selectedProductIds.set(new Set<string>());
+  }
+
+  protected printSelectedLabels(): void {
+    const productIds = [...this.selectedProductIds()];
+    if (productIds.length === 0 || this.bulkPrintLoading()) {
+      return;
+    }
+
+    this.bulkPrintLoading.set(true);
+    this.labelPrintService
+      .triggerDirectPrintMany(productIds, undefined, this.labelCopies())
+      .pipe(
+        finalize(() => this.bulkPrintLoading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.clearSelection();
+        },
+      });
+  }
+
   protected createProduct(): void {
     void this.router.navigateByUrl('/app/products/new');
+  }
+
+  protected importProducts(): void {
+    void this.router.navigateByUrl('/app/products/import');
+  }
+
+  protected importCatalogFromShopify(): void {
+    if (this.shopifyCatalogLoading()) {
+      return;
+    }
+
+    this.shopifyCatalogLoading.set(true);
+    this.clearShopifyFeedback();
+    this.shopifySyncError.set(null);
+
+    this.shopifyConnectionService
+      .syncProducts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.shopifyCatalogLoading.set(false);
+          this.showShopifyFeedback(formatShopifyProductsSyncFeedback(result));
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this.shopifyCatalogLoading.set(false);
+          this.shopifySyncError.set(this.extractErrorMessage(err));
+        },
+      });
+  }
+
+  protected dismissShopifyFeedback(): void {
+    this.clearShopifyFeedback();
+  }
+
+  protected exportProducts(): void {
+    if (this.exporting()) {
+      return;
+    }
+
+    const {
+      page: _page,
+      pageSize: _pageSize,
+      sort: _sort,
+      order: _order,
+      ...filters
+    } = this.query();
+
+    this.blobExport.start({
+      exportId: PRODUCTS_CSV_EXPORT_ID,
+      request: this.service.exportProductsCsv(filters),
+      filename: vestiflowExportFilename('prodotti', 'csv'),
+      inProgressMessage: 'Export prodotti in corso. Puoi continuare a navigare.',
+      successMessage: 'Export prodotti completato: download avviato.',
+      errorMessage: 'Export prodotti non riuscito. Riprova tra qualche istante.',
+    });
   }
 
   /** Naviga solo modificando i param indicati (merge); null rimuove la chiave. */
@@ -253,5 +556,29 @@ export class ProductListComponent {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
+  }
+
+  private showShopifyFeedback(feedback: ShopifySyncFeedback): void {
+    this.clearShopifyFeedback();
+    this.shopifyFeedback.set(feedback);
+    this.shopifyFeedbackTimer = setTimeout(() => {
+      this.shopifyFeedback.set(null);
+      this.shopifyFeedbackTimer = null;
+    }, SHOPIFY_FEEDBACK_DISMISS_MS);
+  }
+
+  private clearShopifyFeedback(): void {
+    if (this.shopifyFeedbackTimer) {
+      clearTimeout(this.shopifyFeedbackTimer);
+      this.shopifyFeedbackTimer = null;
+    }
+    this.shopifyFeedback.set(null);
+  }
+
+  private extractErrorMessage(err: unknown): string {
+    if (isAppError(err)) {
+      return err.message;
+    }
+    return 'Operazione non riuscita. Riprova.';
   }
 }

@@ -1,0 +1,248 @@
+// REASON: mirino della fotocamera. Il nero e il bianco qui non sono il tema —
+// sono il contesto fisico: sotto c'e' l'immagine dal vivo della camera, e i
+// comandi devono restare leggibili sopra qualunque cosa l'utente stia
+// inquadrando. In tema chiaro un pannello chiaro sparirebbe sull'inquadratura
+// di un muro bianco. I livelli restano pero' dichiarati qui, in un posto solo,
+// invece che ripetuti otto volte nelle regole.
+:host {
+  --scan-shell: #000;
+  --scan-fg: #fff;
+  --scan-frame: rgb(255 255 255 / 0.85);
+  --scan-mask: rgb(0 0 0 / 0.35);
+  --scan-control-bg: rgb(0 0 0 / 0.5);
+  --scan-error-bg: rgb(0 0 0 / 0.6);
+}
+
+.scan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--scan-shell);
+  overscroll-behavior: contain;
+}
+
+// ── Metà superiore: fotocamera ─────────────────────────────────────────────
+.scan-overlay__camera {
+  position: relative;
+  flex: 1 1 50%;
+  min-block-size: 0;
+  overflow: hidden;
+  background-color: var(--scan-shell);
+}
+
+.scan-overlay__video {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+// Cornice guida al centro con velo scuro attorno.
+.scan-overlay__frame {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: 72%;
+  max-inline-size: 22rem;
+  aspect-ratio: 3 / 2;
+  transform: translate(-50%, -50%);
+  border: var(--border-width-strong) solid var(--scan-frame);
+  border-radius: var(--radius-md);
+  // Il buco nella maschera: l'ombra riempie tutto lo schermo tranne il riquadro.
+  box-shadow: 0 0 0 100vmax var(--scan-mask);
+  pointer-events: none;
+}
+
+.scan-overlay__close {
+  position: absolute;
+  inset-block-start: calc(env(safe-area-inset-top) + var(--space-3));
+  inset-inline-start: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  font-size: var(--text-lg);
+  color: var(--scan-fg);
+  background-color: var(--scan-control-bg);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.scan-overlay__cam-error {
+  position: absolute;
+  inset-block-end: var(--space-3);
+  inset-inline: var(--space-3);
+  margin: 0;
+  padding: var(--space-2);
+  text-align: center;
+  color: var(--scan-fg);
+  background-color: var(--scan-error-bg);
+  border-radius: var(--radius-sm);
+}
+
+// ── Metà inferiore: pannello dinamico ──────────────────────────────────────
+.scan-overlay__panel {
+  flex: 1 1 50%;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
+  padding-block-end: calc(var(--space-4) + env(safe-area-inset-bottom));
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+.scan-overlay__idle {
+  margin: 0;
+  padding-block: var(--space-6);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+// Articolo riconosciuto.
+.scan-overlay__product {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.scan-overlay__thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-12);
+  block-size: var(--space-12);
+  flex-shrink: 0;
+  overflow: hidden;
+  color: var(--color-text-subtle);
+  background-color: var(--color-surface-sunken);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.scan-overlay__thumb img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.scan-overlay__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-05);
+  min-inline-size: 0;
+}
+
+.scan-overlay__name {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.scan-overlay__code {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+// Stepper quantità grande.
+.scan-overlay__qty {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.scan-overlay__qty-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 3rem;
+  block-size: 3rem;
+  font-size: var(--text-lg);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.scan-overlay__qty-value {
+  min-inline-size: 3rem;
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+}
+
+.scan-overlay__calc {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-lg);
+}
+
+.scan-overlay__hint {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.scan-overlay__notfound-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+
+// Quick-add mini-form.
+.scan-overlay__qa {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.scan-overlay__qa-ean {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.scan-overlay__qa-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.scan-overlay__qa-field input {
+  block-size: 2.75rem;
+  padding-inline: var(--space-2);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-input-bg);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.scan-overlay__qa-qty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.scan-overlay__qa-qty .scan-overlay__qty {
+  margin-block-start: 0;
+}
+
+.scan-overlay__qa-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.scan-overlay__qa-actions app-button {
+  flex: 1 1 0;
+}

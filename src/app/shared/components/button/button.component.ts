@@ -1,7 +1,11 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
+import { InlineSpinnerComponent } from '../inline-spinner/inline-spinner.component';
+
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonType = 'button' | 'submit';
+/** `spinner`: cerchio dedicato; `icon`: anima le icone nel contenuto del bottone. */
+type ButtonLoadingIndicator = 'spinner' | 'icon';
 
 /**
  * Bottone condiviso. Dumb puro: stili centralizzati e varianti minime.
@@ -10,6 +14,7 @@ type ButtonType = 'button' | 'submit';
 @Component({
   selector: 'app-button',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [InlineSpinnerComponent],
   templateUrl: './button.component.html',
   styleUrl: './button.component.scss',
 })
@@ -19,5 +24,9 @@ export class ButtonComponent {
   readonly disabled = input<boolean>(false);
   /** Stato di caricamento: disabilita e segnala aria-busy. */
   readonly loading = input<boolean>(false);
+  /** Indicatore visivo durante il loading (default: spinner separato). */
+  readonly loadingIndicator = input<ButtonLoadingIndicator>('spinner');
   readonly fullWidth = input<boolean>(false);
+  /** ID form esterno per submit (attributo HTML `form` sul bottone). */
+  readonly formId = input<string | undefined>();
 }

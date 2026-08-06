@@ -1,0 +1,10 @@
+@use 'detail-page' as dp;
+@use './styles/document-detail' as doc;
+
+:host {
+  display: block;
+}
+
+// Layout allineato all'anteprima Ordine cliente (sales-order-detail).
+@include dp.detail-page('sales-doc-detail');
+@include doc.document-detail-revisions('sales-doc-detail');

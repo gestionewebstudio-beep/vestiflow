@@ -1,8 +1,7 @@
 <section class="product-detail">
-  <a class="product-detail__back" [routerLink]="listPath">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Prodotti
-  </a>
+  <!-- Fuori dagli stati: il ritorno resta disponibile anche in loading/error.
+       Senza cronologia interna ricade sulla lista prodotti dedotta dall'URL. -->
+  <app-back-button />
 
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
@@ -17,29 +16,80 @@
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (product(); as p) {
+    @let customShopifyMetafields = shopifyCustomMetafieldsForDisplay(p);
     <header class="product-detail__header">
       <div class="product-detail__heading">
         <h1 class="product-detail__title">{{ p.name }}</h1>
-        <p class="product-detail__brand">{{ p.brand ?? 'Senza brand' }}</p>
+        <p class="product-detail__subtitle">{{ p.brand ?? 'Senza brand' }}</p>
+        <div class="product-detail__badges">
+          <app-badge [tone]="statusTone(p.status)">{{ statusLabel(p.status) }}</app-badge>
+          <app-badge [tone]="catalogOriginTone(p.catalogOrigin)">
+            {{ catalogOriginLabel(p.catalogOrigin) }}
+          </app-badge>
+        </div>
       </div>
       <div class="product-detail__actions">
-        <app-badge [tone]="statusTone(p.status)">{{ statusLabel(p.status) }}</app-badge>
-        <app-button variant="secondary" (click)="goToEdit(p.id)">
-          <i class="pi pi-pencil" aria-hidden="true"></i>
-          Modifica
-        </app-button>
-        <app-button variant="ghost" [disabled]="deleting()" (click)="askDelete()">
-          <i class="pi pi-trash" aria-hidden="true"></i>
-          Elimina
-        </app-button>
+        <div class="product-detail__actions-row">
+          @if (p.shopify && canSyncProductToShopify()) {
+            <div class="product-detail__action-cell">
+              <app-button
+                variant="secondary"
+                loadingIndicator="icon"
+                [loading]="syncingShopify()"
+                [disabled]="syncingShopify()"
+                (click)="syncWithShopify(p.id)"
+              >
+                <i class="pi pi-sync" aria-hidden="true"></i>
+                Sincronizza con Shopify
+              </app-button>
+            </div>
+          }
+        </div>
+
+        @if (canManageCatalog() || canDeleteProduct()) {
+          <div class="product-detail__actions-row">
+            @if (canManageCatalog()) {
+              <div
+                class="product-detail__action-cell"
+                [class.product-detail__action-cell--solo]="!canDeleteProduct()"
+              >
+                <app-button variant="secondary" (click)="goToEdit(p.id)">
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                  {{ isShopifyCatalogProduct(p) ? shopifyCatalogEditTitle : 'Modifica' }}
+                </app-button>
+              </div>
+            }
+            @if (canDeleteProduct()) {
+              <div
+                class="product-detail__action-cell"
+                [class.product-detail__action-cell--solo]="!canManageCatalog()"
+              >
+                <app-button variant="secondary" [disabled]="deleting()" (click)="askDelete()">
+                  <i class="pi pi-trash" aria-hidden="true"></i>
+                  Elimina
+                </app-button>
+              </div>
+            }
+          </div>
+        }
       </div>
     </header>
+
+    @if (isShopifyCatalogProduct(p)) {
+      <p class="product-detail__catalog-banner" role="note">
+        {{ shopifyCatalogBanner }}
+      </p>
+    }
 
     @if (deleteError(); as message) {
       <p class="product-detail__delete-error" role="alert">
         <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
         {{ message }}
       </p>
+    }
+
+    @if (shopifySyncMessage(); as syncMessage) {
+      <p class="product-detail__sync-message" role="status">{{ syncMessage }}</p>
     }
 
     <app-confirm-dialog
@@ -62,12 +112,41 @@
       <h2 id="detail-general" class="product-detail__panel-title">Dati generali</h2>
       <dl class="product-detail__facts">
         <div class="product-detail__fact">
-          <dt class="product-detail__term">Brand</dt>
+          <dt class="product-detail__term">Codice articolo</dt>
+          <dd class="product-detail__value">{{ p.articleCode || '—' }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Venditore/Brand</dt>
           <dd class="product-detail__value">{{ p.brand ?? '—' }}</dd>
         </div>
+        @if (showShopifyIntegration()) {
+          <div class="product-detail__fact">
+            <dt class="product-detail__term">Categoria Shopify</dt>
+            <dd class="product-detail__value">{{ p.shopifyTaxonomyCategoryFullName ?? '—' }}</dd>
+          </div>
+          @if (p.shopifyCategoryMetafields && p.shopifyCategoryMetafields.length > 0) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Attributi categoria</dt>
+              <dd class="product-detail__value">
+                <ul class="product-detail__attr-list">
+                  @for (field of p.shopifyCategoryMetafields; track field.attributeId) {
+                    <li>
+                      <span class="product-detail__attr-name">{{ field.attributeName }}:</span>
+                      {{ field.values.map((value) => value.name).join(', ') || '—' }}
+                    </li>
+                  }
+                </ul>
+              </dd>
+            </div>
+          }
+        }
         <div class="product-detail__fact">
           <dt class="product-detail__term">Categoria</dt>
           <dd class="product-detail__value">{{ p.category ?? '—' }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Sottocategoria</dt>
+          <dd class="product-detail__value">{{ p.subcategory ?? '—' }}</dd>
         </div>
         <div class="product-detail__fact">
           <dt class="product-detail__term">Stagione</dt>
@@ -77,10 +156,79 @@
           <dt class="product-detail__term">Stato</dt>
           <dd class="product-detail__value">{{ statusLabel(p.status) }}</dd>
         </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">U.M.</dt>
+          <dd class="product-detail__value">{{ p.unitOfMeasure ?? 'pz' }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Codice IVA</dt>
+          <dd class="product-detail__value tabular-nums">
+            {{ p.defaultVatCodeId ? vatCodeLabel(p.defaultVatCodeId) : '—' }}
+          </dd>
+        </div>
+        <!-- Prezzi dell'articolo, nello stesso ordine e con gli stessi nomi della
+             sezione Listini in anagrafica. Sono i valori NETTI memorizzati: qui
+             non c'è modalità di visualizzazione da scegliere. -->
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Prezzo articolo</dt>
+          <dd class="product-detail__value tabular-nums">
+            {{ p.sellingPrice ? formatMoney(p.sellingPrice) : '—' }}
+          </dd>
+        </div>
+        @if (showShopifyIntegration()) {
+          <div class="product-detail__fact">
+            <dt class="product-detail__term">Prezzo Shopify</dt>
+            <dd class="product-detail__value tabular-nums">
+              {{ p.shopifyPrice ? formatMoney(p.shopifyPrice) : '—' }}
+            </dd>
+          </div>
+        }
+        @for (listino of listinoRows(); track listino.key) {
+          <div class="product-detail__fact">
+            <dt class="product-detail__term">{{ listino.label }}</dt>
+            <dd class="product-detail__value tabular-nums">
+              {{ listino.value ? formatMoney(listino.value) : '—' }}
+            </dd>
+          </div>
+        }
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Prezzo barrato</dt>
+          <dd class="product-detail__value tabular-nums">
+            {{ p.compareAtPrice ? formatMoney(p.compareAtPrice) : '—' }}
+          </dd>
+        </div>
+        @if (canViewPurchaseCosts()) {
+          <div class="product-detail__fact">
+            <dt class="product-detail__term">Costo di riferimento</dt>
+            <dd class="product-detail__value tabular-nums">
+              {{ p.purchasePrice ? formatMoney(p.purchasePrice) : '—' }}
+            </dd>
+          </div>
+        }
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Tracciamento</dt>
+          <dd class="product-detail__value">{{ trackingLabel(p.inventoryTracking) }}</dd>
+        </div>
+        <div class="product-detail__fact">
+          <dt class="product-detail__term">Giacenze</dt>
+          <dd class="product-detail__value">{{ p.managesStock === false ? 'No' : 'Sì' }}</dd>
+        </div>
         <div class="product-detail__fact product-detail__fact--wide">
           <dt class="product-detail__term">Descrizione</dt>
           <dd class="product-detail__value">{{ p.description ?? '—' }}</dd>
         </div>
+        @if (p.internalNotes) {
+          <div class="product-detail__fact product-detail__fact--wide">
+            <dt class="product-detail__term">Note interne</dt>
+            <dd class="product-detail__value">{{ p.internalNotes }}</dd>
+          </div>
+        }
+        @if (p.tags && p.tags.length > 0) {
+          <div class="product-detail__fact product-detail__fact--wide">
+            <dt class="product-detail__term">Tag</dt>
+            <dd class="product-detail__value">{{ p.tags.join(', ') }}</dd>
+          </div>
+        }
         <div class="product-detail__fact">
           <dt class="product-detail__term">Creato il</dt>
           <dd class="product-detail__value tabular-nums">{{ formatDate(p.createdAt) }}</dd>
@@ -94,12 +242,99 @@
             <dt class="product-detail__term">Shopify</dt>
             <dd class="product-detail__value">
               <app-badge [tone]="shopifyTone(shopify.status)">
-                {{ shopifyLabel(shopify.status) }}
+                <span class="product-detail__shopify-badge">
+                  @if (shopify.status === shopifySyncStatus.Syncing) {
+                    <i class="pi pi-sync product-detail__shopify-sync-icon" aria-hidden="true"></i>
+                  }
+                  {{ shopifyLabel(shopify.status) }}
+                </span>
               </app-badge>
+              @if (shopify.lastError) {
+                <span class="product-detail__sync-error">{{ shopify.lastError }}</span>
+              }
             </dd>
           </div>
         }
       </dl>
+    </section>
+
+    @if (
+      p.seoTitle ||
+      p.seoDescription ||
+      (p.shopifyCollections && p.shopifyCollections.length > 0) ||
+      customShopifyMetafields.length > 0
+    ) {
+      <section class="product-detail__panel" aria-labelledby="detail-shopify-meta">
+        <h2 id="detail-shopify-meta" class="product-detail__panel-title">Dati Shopify</h2>
+        <dl class="product-detail__facts">
+          @if (p.seoTitle) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Titolo SEO</dt>
+              <dd class="product-detail__value">{{ p.seoTitle }}</dd>
+            </div>
+          }
+          @if (p.seoDescription) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Descrizione SEO</dt>
+              <dd class="product-detail__value">{{ p.seoDescription }}</dd>
+            </div>
+          }
+          @if (p.shopifyCollections && p.shopifyCollections.length > 0) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Collezioni</dt>
+              <dd class="product-detail__value">
+                @for (collection of p.shopifyCollections; track collection.id; let last = $last) {
+                  {{ collection.title }}
+                  @if (!last) {
+                    <span>, </span>
+                  }
+                }
+              </dd>
+            </div>
+          }
+          @if (customShopifyMetafields.length > 0) {
+            <div class="product-detail__fact product-detail__fact--wide">
+              <dt class="product-detail__term">Metafield prodotto</dt>
+              <dd class="product-detail__value">
+                <ul class="product-detail__attr-list">
+                  @for (field of customShopifyMetafields; track field.trackId) {
+                    <li>
+                      <span class="product-detail__attr-name">{{ field.label }}:</span>
+                      {{ field.value }}
+                    </li>
+                  }
+                </ul>
+              </dd>
+            </div>
+          }
+        </dl>
+      </section>
+    }
+
+    @if (p.images && p.images.length > 0) {
+      <section class="product-detail__panel" aria-labelledby="detail-images">
+        <h2 id="detail-images" class="product-detail__panel-title">Immagini</h2>
+        <ul class="product-detail__images">
+          @for (image of p.images; track image.id) {
+            <li class="product-detail__image-item">
+              <img
+                class="product-detail__image"
+                [src]="image.url"
+                [alt]="image.altText ?? p.name"
+                width="160"
+                height="160"
+                loading="lazy"
+                decoding="async"
+              />
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <section class="product-detail__panel" aria-labelledby="detail-suppliers">
+      <h2 id="detail-suppliers" class="product-detail__panel-title">Fornitori articolo</h2>
+      <app-product-supplier-links [productId]="p.id" />
     </section>
 
     <section class="product-detail__panel" aria-labelledby="detail-variants">
@@ -115,7 +350,13 @@
           description="Questo prodotto non ha ancora varianti."
         />
       } @else {
-        <app-product-variant-table [variants]="variants()" [options]="p.options" />
+        <app-product-variant-table
+          [variants]="variants()"
+          [options]="p.options"
+          [productId]="p.id"
+          [canSeeCosts]="canViewPurchaseCosts()"
+          [shopifyActive]="showShopifyIntegration()"
+        />
       }
 
       <p class="product-detail__hint">

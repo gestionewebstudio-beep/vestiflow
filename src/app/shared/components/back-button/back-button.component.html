@@ -1,0 +1,10 @@
+<button
+  type="button"
+  class="back-button"
+  [class.back-button--disabled]="disabled()"
+  [attr.aria-disabled]="disabled() || null"
+  (click)="goBack()"
+>
+  <i class="pi pi-chevron-left" aria-hidden="true"></i>
+  Indietro
+</button>

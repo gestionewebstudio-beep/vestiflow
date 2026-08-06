@@ -1,0 +1,107 @@
+:host {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+// Modalità inline: icona/trigger in linea col testo (es. etichette campo).
+:host(.hover-tooltip-host--inline) {
+  display: inline-flex;
+  inline-size: auto;
+  max-inline-size: none;
+  vertical-align: text-bottom;
+}
+
+:host(.hover-tooltip-host--inline) .hover-tooltip,
+:host(.hover-tooltip-host--inline) .hover-tooltip__trigger {
+  display: inline-flex;
+  inline-size: auto;
+  max-inline-size: none;
+}
+
+.hover-tooltip {
+  position: relative;
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+.hover-tooltip__trigger {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+.hover-tooltip__bubble {
+  // `display: none` e non solo `visibility: hidden`: da nascosto il bubble
+  // resterebbe comunque impaginato e, largo fino a 352px accanto a una
+  // colonna di destra, allargherebbe l'area scorrevole del contenitore —
+  // barra orizzontale su tabelle che ci stanno perfettamente. La posizione
+  // viene misurata sul trigger (updatePlacement), non sul bubble: nasconderlo
+  // del tutto non toglie nulla al calcolo.
+  display: none;
+  position: absolute;
+  z-index: var(--z-tooltip);
+  inset-block-end: calc(100% + var(--space-2));
+  // Da che lato si allinea la bolla. Sull'ultima colonna di una tabella
+  // ancorarla a sinistra la manderebbe oltre il bordo: il contenitore
+  // dichiara `--hover-tooltip-inset: auto 0` e la ribalta.
+  inset-inline: var(--hover-tooltip-inset, 0 auto);
+  // max-content: il bubble si dimensiona sul TESTO, non sullo spazio del
+  // contenitore — da assoluto dentro una colonna stretta, `auto` faceva
+  // shrink-to-fit sulla larghezza della cella (striscia verticale ~99px).
+  inline-size: max-content;
+  min-inline-size: 0;
+  max-inline-size: min(var(--select-menu-width-wide), calc(100vw - var(--space-8)));
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--leading-snug);
+  color: var(--color-text);
+  text-align: start;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--transition-base),
+    visibility var(--transition-base);
+}
+
+.hover-tooltip__note {
+  display: block;
+  margin-block-start: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.hover-tooltip--bottom .hover-tooltip__bubble {
+  inset-block-end: auto;
+  inset-block-start: calc(100% + var(--space-2));
+}
+
+// Posizionamento intelligente (colonne vicine al bordo destro): il bubble si
+// ancora al bordo destro del trigger e si estende verso sinistra, restando
+// nel viewport. La classe arriva dal componente, misurata a hover/focus.
+.hover-tooltip--end .hover-tooltip__bubble {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
+.hover-tooltip:hover .hover-tooltip__bubble,
+.hover-tooltip:focus-within .hover-tooltip__bubble {
+  display: block;
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (hover: none) {
+  .hover-tooltip:focus-within .hover-tooltip__bubble {
+    display: block;
+    opacity: 1;
+    visibility: visible;
+  }
+}

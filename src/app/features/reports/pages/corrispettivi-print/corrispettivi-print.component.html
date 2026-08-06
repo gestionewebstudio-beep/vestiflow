@@ -1,0 +1,32 @@
+<div class="corrispettivi-print">
+  <!-- La toolbar resta fuori dagli stati: la via d'uscita c'è anche durante il
+       caricamento o dopo un errore. In stampa sparisce con .no-print. -->
+  <div class="corrispettivi-print__toolbar no-print">
+    <app-back-button />
+    @if (summary()) {
+      <button type="button" class="corrispettivi-print__btn" (click)="print()">Stampa</button>
+    }
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="6" [rows]="8" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" />
+  } @else if (summary(); as pageSummary) {
+    <article class="corrispettivi-print__sheet">
+      <header class="corrispettivi-print__header">
+        <h1 class="corrispettivi-print__title">Corrispettivi commercialista</h1>
+        <p class="corrispettivi-print__period">{{ periodLabel() }}</p>
+      </header>
+
+      <app-corrispettivi-summary [summary]="pageSummary" [periodLabel]="periodLabel()" />
+
+      <section class="corrispettivi-print__orders" aria-labelledby="corrispettivi-print-orders">
+        <h2 id="corrispettivi-print-orders" class="corrispettivi-print__section-title">
+          Elenco vendite
+        </h2>
+        <app-corrispettivi-orders-table [orders]="orders()" />
+      </section>
+    </article>
+  }
+</div>

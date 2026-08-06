@@ -1,0 +1,87 @@
+<section class="corrispettivi-export" aria-labelledby="corrispettivi-export-title">
+  <div class="corrispettivi-export__head">
+    <h2 id="corrispettivi-export-title" class="corrispettivi-export__title">{{ title() }}</h2>
+    <p class="corrispettivi-export__subtitle">{{ subtitle() }}</p>
+  </div>
+
+  <div class="corrispettivi-export__toolbar">
+    <div class="corrispettivi-export__fields">
+      <div class="corrispettivi-export__field corrispettivi-export__field--period">
+        <span class="corrispettivi-export__label">Periodo</span>
+        <app-select-menu
+          [options]="periodOptions"
+          [value]="period()"
+          ariaLabel="Periodo export corrispettivi"
+          placeholder="Periodo"
+          [compact]="true"
+          [fullWidth]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="onPeriodChange($event)"
+        />
+      </div>
+
+      @if (showCustomDates()) {
+        <div class="corrispettivi-export__field corrispettivi-export__field--date">
+          <label class="corrispettivi-export__label" for="corrispettivi-date-from">Dal</label>
+          <app-date-input
+            inputId="corrispettivi-date-from"
+            [value]="dateFrom()"
+            ariaLabel="Data inizio periodo corrispettivi"
+            placeholder="gg/mm/aaaa"
+            [compact]="true"
+            [fullWidth]="true"
+            [max]="dateTo() || undefined"
+            (valueChange)="onDateFromChange($event)"
+          />
+        </div>
+
+        <div class="corrispettivi-export__field corrispettivi-export__field--date">
+          <label class="corrispettivi-export__label" for="corrispettivi-date-to">Al</label>
+          <app-date-input
+            inputId="corrispettivi-date-to"
+            [value]="dateTo()"
+            ariaLabel="Data fine periodo corrispettivi"
+            placeholder="gg/mm/aaaa"
+            [compact]="true"
+            [fullWidth]="true"
+            [min]="dateFrom() || undefined"
+            (valueChange)="onDateToChange($event)"
+          />
+        </div>
+      }
+
+      @if (showChannelFilter()) {
+        <div class="corrispettivi-export__field corrispettivi-export__field--channel">
+          <span class="corrispettivi-export__label">Tipologia</span>
+          <app-select-menu
+            [options]="channelOptions()"
+            [value]="channel()"
+            ariaLabel="Tipologia vendita per export corrispettivi"
+            placeholder="Seleziona tipologia"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onChannelChange($event)"
+          />
+        </div>
+      }
+    </div>
+
+    @if (showExportButton()) {
+      <div class="corrispettivi-export__action">
+        <app-button [loading]="exporting()" [disabled]="exporting()" (click)="exportClick.emit()">
+          <i class="pi pi-download" aria-hidden="true"></i>
+          {{ exportButtonLabel() }}
+        </app-button>
+      </div>
+    }
+  </div>
+
+  <p class="corrispettivi-export__period" aria-live="polite">
+    Periodo selezionato: <strong>{{ periodLabel() }}</strong>
+  </p>
+
+  @if (channelHint()) {
+    <p class="corrispettivi-export__hint">{{ channelHint() }}</p>
+  }
+</section>

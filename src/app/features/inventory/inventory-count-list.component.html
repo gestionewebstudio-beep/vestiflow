@@ -1,0 +1,51 @@
+<section class="inventory-count-list">
+  <header class="inventory-count-list__header">
+    <div class="inventory-count-list__heading">
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade
+           sull'hub Magazzino dedotto dall'URL. -->
+      <app-back-button />
+      <h1 class="inventory-count-list__title">Inventario</h1>
+      <p class="inventory-count-list__subtitle">
+        Conteggio periodico delle giacenze per location. Alla chiusura genera rettifiche tracciate e
+        aggiorna il magazzino.
+      </p>
+    </div>
+    <app-button (click)="newSession()">
+      <i class="pi pi-plus" aria-hidden="true"></i>
+      Nuova sessione
+    </app-button>
+  </header>
+
+  <app-inventory-tabs />
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      title="Nessuna sessione inventario"
+      description="Avvia un inventario fisico per confrontare le quantità di sistema con il conteggio reale in negozio o magazzino."
+      icon="pi-list-check"
+      ctaLabel="Nuova sessione"
+      (ctaClick)="newSession()"
+    />
+  } @else {
+    <app-inventory-count-table
+      [sessions]="sessions()"
+      (rowClick)="openSession($event)"
+      (deleteClick)="requestDelete($event)"
+    />
+  }
+</section>
+
+<app-confirm-dialog
+  [(open)]="deleteDialogOpen"
+  title="Eliminare la sessione?"
+  [message]="deleteConfirmMessage()"
+  confirmLabel="Elimina sessione"
+  cancelLabel="Torna indietro"
+  [danger]="true"
+  [busy]="deleteLoading()"
+  (confirmed)="confirmDelete()"
+/>

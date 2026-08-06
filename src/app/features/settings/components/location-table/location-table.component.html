@@ -1,34 +1,182 @@
-<div class="location-table__wrapper">
-  <table class="location-table">
-    <thead>
-      <tr>
-        <th scope="col">Nome</th>
-        <th scope="col">Codice</th>
-        <th scope="col">Stato</th>
-        <th scope="col">Shopify</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (location of locations(); track location.id) {
-        <tr class="location-table__row">
-          <td data-label="Nome">{{ location.name }}</td>
-          <td class="location-table__code tabular-nums" data-label="Codice">
-            {{ location.code ?? '—' }}
-          </td>
-          <td data-label="Stato">
-            <span class="location-table__cell-value">
-              <app-badge [tone]="location.isActive ? 'success' : 'neutral'">
-                {{ location.isActive ? 'Attiva' : 'Disattivata' }}
-              </app-badge>
-            </span>
-          </td>
-          <td data-label="Shopify">
-            <span class="location-table__cell-value">
-              <app-badge [tone]="shopifyTone(location)">{{ shopifyLabel(location) }}</app-badge>
-            </span>
-          </td>
+@if (useGroupedLayout()) {
+  @if (shopifyLocations().length > 0) {
+    <section class="location-table__group" aria-labelledby="location-table-shopify-heading">
+      <h3 id="location-table-shopify-heading" class="location-table__group-title">Sedi Shopify</h3>
+      <p class="location-table__group-hint">
+        Sedi operative attive su Shopify (stesso elenco visibile in Shopify Admin → Sedi). Se ne
+        rimuovi una da Shopify, premi «Sincronizza location» in VestiFlow per aggiornare l’elenco.
+      </p>
+      <div class="location-table__wrapper">
+        <table class="location-table">
+          <thead>
+            <tr>
+              <th scope="col">Nome</th>
+              <th scope="col">Indirizzo</th>
+              <th scope="col">Codice</th>
+              <th scope="col">Stato</th>
+              <th scope="col">Shopify</th>
+              @if (showLicensedColumn()) {
+                <th scope="col">VestiFlow</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (location of shopifyLocations(); track location.id) {
+              <tr class="location-table__row">
+                <td data-label="Nome">{{ location.name }}</td>
+                <td data-label="Indirizzo">{{ formatAddress(location) }}</td>
+                <td class="location-table__code tabular-nums" data-label="Codice">
+                  {{ location.code ?? '—' }}
+                </td>
+                <td data-label="Stato">
+                  <span class="location-table__cell-value">
+                    <app-badge [tone]="location.isActive ? 'success' : 'neutral'">
+                      {{ location.isActive ? 'Attiva' : 'Disattivata' }}
+                    </app-badge>
+                  </span>
+                </td>
+                <td data-label="Shopify">
+                  <span class="location-table__cell-value">
+                    <app-badge [tone]="shopifyTone(location)">{{
+                      shopifyLabel(location)
+                    }}</app-badge>
+                  </span>
+                </td>
+                @if (showLicensedColumn()) {
+                  <td data-label="VestiFlow">
+                    <span class="location-table__cell-value">
+                      <app-badge [tone]="licensedTone(location)">{{
+                        licensedLabel(location)
+                      }}</app-badge>
+                    </span>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (archivedShopifyLocations().length > 0) {
+    <section class="location-table__group" aria-labelledby="location-table-archived-heading">
+      <h3 id="location-table-archived-heading" class="location-table__group-title">
+        Sedi Shopify disattivate
+      </h3>
+      <p class="location-table__group-hint">
+        Non compaiono nel selettore in alto. Restano in archivio solo se avevano giacenze o
+        movimenti collegati.
+      </p>
+      <div class="location-table__wrapper">
+        <table class="location-table">
+          <thead>
+            <tr>
+              <th scope="col">Nome</th>
+              <th scope="col">Indirizzo</th>
+              <th scope="col">Codice</th>
+              <th scope="col">Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (location of archivedShopifyLocations(); track location.id) {
+              <tr class="location-table__row">
+                <td data-label="Nome">{{ location.name }}</td>
+                <td data-label="Indirizzo">{{ formatAddress(location) }}</td>
+                <td class="location-table__code tabular-nums" data-label="Codice">
+                  {{ location.code ?? '—' }}
+                </td>
+                <td data-label="Stato">
+                  <span class="location-table__cell-value">
+                    <app-badge tone="neutral">Disattivata</app-badge>
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (localLocations().length > 0) {
+    <section class="location-table__group" aria-labelledby="location-table-local-heading">
+      <h3 id="location-table-local-heading" class="location-table__group-title">Sede locale</h3>
+      <p class="location-table__group-hint">
+        Creata in fase di registrazione del cliente su VestiFlow. Non è una sede Shopify: il nome
+        dell’azienda (es. il cliente che hai registrato) non compare in Shopify Admin.
+      </p>
+      <div class="location-table__wrapper">
+        <table class="location-table">
+          <thead>
+            <tr>
+              <th scope="col">Nome</th>
+              <th scope="col">Indirizzo</th>
+              <th scope="col">Codice</th>
+              <th scope="col">Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (location of localLocations(); track location.id) {
+              <tr class="location-table__row">
+                <td data-label="Nome">{{ location.name }}</td>
+                <td data-label="Indirizzo">{{ formatAddress(location) }}</td>
+                <td class="location-table__code tabular-nums" data-label="Codice">
+                  {{ location.code ?? '—' }}
+                </td>
+                <td data-label="Stato">
+                  <span class="location-table__cell-value">
+                    <app-badge [tone]="location.isActive ? 'success' : 'neutral'">
+                      {{ location.isActive ? 'Attiva' : 'Disattivata' }}
+                    </app-badge>
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+} @else {
+  <div class="location-table__wrapper">
+    <table class="location-table">
+      <thead>
+        <tr>
+          <th scope="col">Nome</th>
+          <th scope="col">Indirizzo</th>
+          <th scope="col">Codice</th>
+          <th scope="col">Stato</th>
+          @if (showShopifyColumn()) {
+            <th scope="col">Shopify</th>
+          }
         </tr>
-      }
-    </tbody>
-  </table>
-</div>
+      </thead>
+      <tbody>
+        @for (location of locations(); track location.id) {
+          <tr class="location-table__row">
+            <td data-label="Nome">{{ location.name }}</td>
+            <td data-label="Indirizzo">{{ formatAddress(location) }}</td>
+            <td class="location-table__code tabular-nums" data-label="Codice">
+              {{ location.code ?? '—' }}
+            </td>
+            <td data-label="Stato">
+              <span class="location-table__cell-value">
+                <app-badge [tone]="location.isActive ? 'success' : 'neutral'">
+                  {{ location.isActive ? 'Attiva' : 'Disattivata' }}
+                </app-badge>
+              </span>
+            </td>
+            @if (showShopifyColumn()) {
+              <td data-label="Shopify">
+                <span class="location-table__cell-value">
+                  <app-badge [tone]="shopifyTone(location)">{{ shopifyLabel(location) }}</app-badge>
+                </span>
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

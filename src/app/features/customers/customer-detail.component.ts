@@ -3,17 +3,26 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { Customer } from '@core/models/customer.model';
+import {
+  customerDisplayName,
+  customerSourceLabel,
+  type Customer,
+} from '@core/models/customer.model';
+import { canManageCustomers } from '@core/permissions/tenant-permissions.util';
 import { formatDate } from '@core/utils/date.util';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
+import { BadgeComponent } from '@shared/components/badge/badge.component';
+import { ButtonComponent } from '@shared/components/button/button.component';
 import { DetailFactsComponent } from '@shared/components/detail-facts/detail-facts.component';
 import type { DetailFact } from '@shared/components/detail-facts/detail-facts.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { CustomerService } from './services/customer.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
 
 type DetailState =
   | { readonly status: 'loading' }
@@ -21,12 +30,15 @@ type DetailState =
   | { readonly status: 'not-found' }
   | { readonly status: 'error'; readonly error: AppError };
 
-/** Dettaglio cliente read-only (smart): anagrafica e contatti. */
+/** Dettaglio cliente (smart): anagrafica, dati commerciali e collegamenti. */
 @Component({
   selector: 'app-customer-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
+    BackButtonComponent,
+    BadgeComponent,
+    ButtonComponent,
     DetailFactsComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -39,6 +51,7 @@ export class CustomerDetailComponent {
   private readonly service = inject(CustomerService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly authService = inject(AuthService);
 
   protected readonly listPath = '/app/customers';
   protected readonly skeletonColumns = 3;
@@ -77,12 +90,21 @@ export class CustomerDetailComponent {
     return current.status === 'success' ? current.customer : null;
   });
 
-  protected readonly fullName = computed(() => {
+  protected readonly displayName = computed(() => {
     const customer = this.customer();
-    return customer ? `${customer.firstName} ${customer.lastName}` : '';
+    return customer ? customerDisplayName(customer) : '';
   });
 
-  protected readonly facts = computed<readonly DetailFact[]>(() => {
+  protected readonly isShopifyOwned = computed(() => this.customer()?.source === 'shopify');
+
+  protected readonly canManage = computed(() => canManageCustomers(this.authService.currentUser()));
+
+  protected readonly editPath = computed(() => {
+    const customer = this.customer();
+    return customer ? `/app/customers/${customer.id}/edit` : this.listPath;
+  });
+
+  protected readonly anagraficaFacts = computed<readonly DetailFact[]>(() => {
     const customer = this.customer();
     if (!customer) {
       return [];
@@ -94,13 +116,61 @@ export class CustomerDetailComponent {
           .join(', ')
       : '—';
     return [
+      { label: 'Origine', value: customerSourceLabel(customer.source) },
+      { label: 'Nome', value: customer.firstName || '—' },
+      { label: 'Cognome', value: customer.lastName || '—' },
+      { label: 'Ragione sociale', value: customer.companyName ?? '—' },
+      { label: 'P. IVA', value: customer.vatNumber ?? '—', numeric: true },
+      { label: 'Codice fiscale', value: customer.taxCode ?? '—', numeric: true },
       { label: 'Email', value: customer.email ?? '—' },
+      { label: 'PEC', value: customer.pec ?? '—' },
+      { label: 'Codice destinatario SDI', value: customer.sdiCode ?? '—' },
       { label: 'Telefono', value: customer.phone ?? '—', numeric: true },
+      { label: 'Sito web', value: customer.website ?? '—' },
+      { label: 'Referente', value: customer.contactName ?? '—' },
       { label: 'Indirizzo', value: addressLabel },
       { label: 'Cliente dal', value: formatDate(customer.createdAt), numeric: true },
       { label: 'Aggiornato il', value: formatDate(customer.updatedAt), numeric: true },
-      { label: 'Note', value: customer.notes ?? '—', wide: true },
+      { label: 'Note anagrafiche', value: customer.notes ?? '—', wide: true },
     ];
+  });
+
+  protected readonly commercialFacts = computed<readonly DetailFact[]>(() => {
+    const customer = this.customer();
+    if (!customer) {
+      return [];
+    }
+    return [
+      { label: 'Codice cliente', value: customer.code ?? '—', numeric: true },
+      { label: 'Sconto', value: customer.customerDiscount ?? '—' },
+      { label: 'Modalità di pagamento', value: customer.paymentMethod ?? '—' },
+      { label: 'Condizioni di pagamento', value: customer.paymentTerms ?? '—' },
+      { label: 'Incaricato trasporto', value: customer.transportResponsible ?? '—' },
+      {
+        label: 'Avviso creazione documento',
+        value: customer.documentCreationAlert ?? '—',
+        wide: true,
+      },
+      {
+        label: 'Nota inserita nei documenti',
+        value: customer.documentCreationNote ?? '—',
+        wide: true,
+      },
+      { label: 'Note commerciali', value: customer.commercialNotes ?? '—', wide: true },
+      {
+        label: 'Anche fornitore',
+        value: customer.linkedSupplierId
+          ? customer.linkedSupplierActive
+            ? 'Sì — stesso soggetto in anagrafica fornitori'
+            : 'Ruolo fornitore disattivato (storico conservato)'
+          : 'No',
+      },
+    ];
+  });
+
+  protected readonly supplierLinkPath = computed(() => {
+    const supplierId = this.customer()?.linkedSupplierId;
+    return supplierId ? `/app/suppliers/${supplierId}` : null;
   });
 
   protected reload(): void {

@@ -1,0 +1,387 @@
+<section class="create-client">
+  @if (created(); as result) {
+    <header class="create-client__header">
+      <app-back-button />
+      <h1 class="create-client__title">Cliente creato</h1>
+      <p class="create-client__subtitle">
+        Cliente provisionato. Consegna al titolare email e password in modo sicuro (non via chat non
+        cifrata). In Impostazioni vedrà solo il profilo
+        <strong>{{ tenantChannelProfileLabel(result.channelProfile) }}</strong
+        >.
+      </p>
+    </header>
+
+    <section class="create-client__panel create-client__panel--success" aria-live="polite">
+      <dl class="create-client__facts">
+        <div class="create-client__fact">
+          <dt>Profilo canale</dt>
+          <dd>{{ tenantChannelProfileLabel(result.channelProfile) }}</dd>
+        </div>
+        <div class="create-client__fact">
+          <dt>Azienda</dt>
+          <dd>{{ result.tenantName }}</dd>
+        </div>
+        <div class="create-client__fact">
+          <dt>Utente</dt>
+          <dd>{{ result.ownerDisplayName }}</dd>
+        </div>
+        <div class="create-client__fact">
+          <dt>Ruolo</dt>
+          <dd>{{ tenantRoleLabel(result.role) }}</dd>
+        </div>
+        <div class="create-client__fact">
+          <dt>Email accesso</dt>
+          <dd>{{ result.ownerEmail }}</dd>
+        </div>
+        <div class="create-client__fact">
+          <dt>Negozio</dt>
+          <dd>{{ result.storeName }}</dd>
+        </div>
+        <div class="create-client__fact">
+          <dt>Sede temporanea</dt>
+          <dd>
+            @if (result.channelProfile === 'shopify') {
+              Verrà sostituita dalle sedi importate da Shopify al primo sync location.
+            } @else {
+              {{ result.locationName }}
+            }
+          </dd>
+        </div>
+      </dl>
+
+      <div class="create-client__actions">
+        <app-button type="button" variant="secondary" (click)="backToList()">
+          Torna all'elenco
+        </app-button>
+        <app-button type="button" (click)="resetForm()">Crea un altro cliente</app-button>
+      </div>
+    </section>
+  } @else if (showCreateForm()) {
+    <header class="create-client__header">
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade sul
+           livello superiore dedotto dall'URL (l'elenco clienti). -->
+      <app-back-button />
+      <h1 class="create-client__title">Nuovo cliente</h1>
+      <p class="create-client__subtitle">
+        Crea tenant, primo utente con ruolo e location iniziale. Scegli il profilo canale: il
+        cliente vedrà in Impostazioni solo l’integrazione prevista (o nessuna, per solo gestionale).
+      </p>
+    </header>
+
+    <section class="create-client__panel" aria-labelledby="create-client-form-title">
+      <h2 id="create-client-form-title" class="create-client__panel-title">Dati cliente</h2>
+
+      <form
+        id="create-client-form"
+        class="create-client__form"
+        [formGroup]="form"
+        (ngSubmit)="onSubmit()"
+        novalidate
+      >
+        <section class="create-client__section" aria-labelledby="create-client-company">
+          <h3 id="create-client-company" class="create-client__section-title">Identificazione</h3>
+          <label class="create-client__field" for="client-tenant-name">
+            <span class="create-client__field-label">Nome commerciale</span>
+            <input
+              id="client-tenant-name"
+              class="create-client__input"
+              type="text"
+              formControlName="tenantName"
+              placeholder="Negozio Napoli"
+              autocomplete="organization"
+              [attr.aria-invalid]="showError('tenantName')"
+            />
+            @if (showError('tenantName')) {
+              <span class="create-client__field-error"
+                >Inserisci il nome dell’azienda (min. 2 caratteri).</span
+              >
+            }
+          </label>
+
+          <label class="create-client__field" for="client-legal-name">
+            <span class="create-client__field-label">Ragione sociale (opzionale)</span>
+            <input
+              id="client-legal-name"
+              class="create-client__input"
+              type="text"
+              formControlName="legalName"
+              autocomplete="organization"
+            />
+          </label>
+        </section>
+
+        <app-admin-tenant-profile-fields [form]="form" [showError]="showError.bind(this)" />
+
+        <section class="create-client__section" aria-labelledby="create-client-access">
+          <h3 id="create-client-access" class="create-client__section-title">Primo accesso</h3>
+
+          <div class="create-client__field create-client__field--select-wide">
+            <span class="create-client__field-label" id="client-user-role-label"
+              >Ruolo VestiFlow</span
+            >
+            <app-select-menu
+              [options]="tenantRoleOptions"
+              [value]="form.controls.role.value"
+              ariaLabel="Ruolo VestiFlow"
+              placeholder="Seleziona un ruolo…"
+              [includeEmptyOption]="false"
+              [fullWidth]="true"
+              [matchInputHeight]="true"
+              [invalid]="showError('role')"
+              describedBy="client-user-role-hint"
+              (valueChange)="onRoleSelect($event)"
+            />
+            <p id="client-user-role-hint" class="create-client__hint">
+              Di default Titolare. Per negozi reali usa Titolare o Amministratore negozio per chi
+              gestisce Shopify e impostazioni.
+            </p>
+          </div>
+
+          <label class="create-client__field" for="client-owner-name">
+            <span class="create-client__field-label">Nome utente</span>
+            <input
+              id="client-owner-name"
+              class="create-client__input"
+              type="text"
+              formControlName="ownerDisplayName"
+              placeholder="Maria Rossi"
+              autocomplete="name"
+              [attr.aria-invalid]="showError('ownerDisplayName')"
+            />
+            @if (showError('ownerDisplayName')) {
+              <span class="create-client__field-error">Inserisci il nome dell’utente.</span>
+            }
+          </label>
+
+          <label class="create-client__field" for="client-owner-email">
+            <span class="create-client__field-label">Email accesso</span>
+            <input
+              id="client-owner-email"
+              class="create-client__input"
+              type="email"
+              formControlName="ownerEmail"
+              placeholder="maria@negozionapoli.it"
+              autocomplete="off"
+              inputmode="email"
+              [attr.aria-invalid]="showError('ownerEmail')"
+            />
+            @if (showError('ownerEmail')) {
+              <span class="create-client__field-error">Inserisci un’email valida.</span>
+            }
+          </label>
+
+          <label class="create-client__field" for="client-owner-password">
+            <span class="create-client__field-label">Password iniziale</span>
+            <div class="create-client__password">
+              <input
+                id="client-owner-password"
+                class="create-client__input create-client__input--password"
+                [type]="passwordVisible() ? 'text' : 'password'"
+                formControlName="ownerPassword"
+                autocomplete="new-password"
+                [attr.aria-invalid]="showError('ownerPassword')"
+              />
+              <button
+                type="button"
+                class="create-client__password-toggle"
+                [attr.aria-label]="passwordVisible() ? 'Nascondi password' : 'Mostra password'"
+                [attr.aria-pressed]="passwordVisible()"
+                (click)="togglePasswordVisibility()"
+              >
+                <i
+                  class="pi"
+                  [class.pi-eye]="!passwordVisible()"
+                  [class.pi-eye-slash]="passwordVisible()"
+                  aria-hidden="true"
+                ></i>
+              </button>
+            </div>
+            @if (showError('ownerPassword')) {
+              <span class="create-client__field-error"
+                >Inserisci una password di almeno {{ passwordMinLength }} caratteri.</span
+              >
+            }
+          </label>
+
+          <p class="create-client__hint create-client__field--span-full">
+            Comunica la password al titolare in modo sicuro (es. di persona o canale cifrato).
+          </p>
+        </section>
+
+        <section class="create-client__section" aria-labelledby="create-client-channel">
+          <h3 id="create-client-channel" class="create-client__section-title">Profilo canale</h3>
+
+          <div class="create-client__field create-client__field--channel-profile">
+            <span class="create-client__field-label" id="client-channel-profile-label"
+              >Tipo cliente</span
+            >
+            <app-select-menu
+              ariaLabel="Tipo cliente"
+              placeholder="Seleziona profilo canale…"
+              [options]="channelProfileOptions"
+              [value]="form.controls.channelProfile.value"
+              [includeEmptyOption]="false"
+              [fullWidth]="true"
+              [matchInputHeight]="true"
+              (valueChange)="onChannelProfileSelect($event)"
+            />
+            <span class="create-client__hint">{{ selectedChannelProfileDescription() }}</span>
+          </div>
+        </section>
+
+        <section class="create-client__section" aria-labelledby="create-client-setup">
+          <h3 id="create-client-setup" class="create-client__section-title">Setup iniziale</h3>
+
+          <div class="create-client__field">
+            <span class="create-client__field-label" id="client-licensed-locations-label"
+              >Sedi incluse nel piano</span
+            >
+            <app-select-menu
+              ariaLabel="Sedi incluse nel piano"
+              placeholder="Seleziona…"
+              [options]="licensedLocationOptions"
+              [value]="form.controls.licensedLocationCount.value.toString()"
+              [includeEmptyOption]="false"
+              [fullWidth]="true"
+              [matchInputHeight]="true"
+              (valueChange)="onLicensedLocationCountSelect($event)"
+            />
+            <span class="create-client__hint"
+              >Quante location Shopify il cliente potrà attivare in VestiFlow (max 10).</span
+            >
+          </div>
+
+          <label class="create-client__field" for="client-store-name">
+            <span class="create-client__field-label">Nome negozio (opzionale)</span>
+            <input
+              id="client-store-name"
+              class="create-client__input"
+              type="text"
+              formControlName="storeName"
+              placeholder="Negozio principale"
+              autocomplete="off"
+            />
+            <span class="create-client__hint">Se vuoto: «Negozio principale».</span>
+          </label>
+
+          @if (!isShopifyChannelProfile()) {
+            <label class="create-client__field" for="client-location-name">
+              <span class="create-client__field-label">Nome location (opzionale)</span>
+              <input
+                id="client-location-name"
+                class="create-client__input"
+                type="text"
+                formControlName="locationName"
+                placeholder="Come il negozio"
+                autocomplete="off"
+              />
+            </label>
+          } @else {
+            <p class="create-client__hint create-client__field--span-full">
+              Per i clienti Shopify le sedi magazzino vengono importate dal negozio collegato
+              (Shopify Admin → Sedi). VestiFlow crea solo una sede temporanea fino al primo sync.
+            </p>
+          }
+        </section>
+      </form>
+    </section>
+
+    @if (submitError(); as message) {
+      <p class="create-client__alert create-client__page-footer-alert" role="alert">
+        {{ message }}
+      </p>
+    }
+
+    <div class="create-client__actions create-client__actions--page-footer">
+      <app-button type="button" (click)="closeCreateForm()">Annulla</app-button>
+      <app-button
+        type="submit"
+        formId="create-client-form"
+        [loading]="submitLoading()"
+        [disabled]="submitLoading()"
+      >
+        Crea cliente
+      </app-button>
+    </div>
+  } @else {
+    <header class="create-client__header">
+      <h1 class="create-client__title">Clienti</h1>
+      <p class="create-client__subtitle">
+        Tenant registrati sulla piattaforma. Clicca una riga per modificare i dati di un cliente.
+      </p>
+    </header>
+
+    <section
+      class="create-client__panel create-client__panel--list"
+      aria-labelledby="create-client-list-title"
+    >
+      <div class="create-client__panel-header">
+        <h2 id="create-client-list-title" class="create-client__panel-title">Clienti registrati</h2>
+        <div class="create-client__panel-toolbar">
+          <app-button type="button" (click)="openCreateForm()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            Nuovo cliente
+          </app-button>
+        </div>
+      </div>
+
+      @if (supportSessionError(); as message) {
+        <p class="create-client__alert" role="alert">{{ message }}</p>
+      }
+
+      @if (tenantsLoading()) {
+        <app-table-skeleton [columns]="6" [rows]="4" />
+      } @else if (tenantsError(); as message) {
+        <p class="create-client__alert" role="alert">{{ message }}</p>
+      } @else if (tenants().length === 0) {
+        <p class="create-client__muted">Nessun cliente registrato.</p>
+      } @else {
+        <div class="create-client__table-wrap">
+          <table class="create-client__table">
+            <thead>
+              <tr>
+                <th scope="col">Azienda</th>
+                <th scope="col">Profilo</th>
+                <th scope="col">P.IVA</th>
+                <th scope="col">Utente</th>
+                <th scope="col">Email</th>
+                <th scope="col">Creato</th>
+                <th scope="col">Assistenza</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (tenant of tenants(); track tenant.id) {
+                <tr
+                  class="create-client__table-row"
+                  tabindex="0"
+                  [attr.aria-label]="'Modifica cliente ' + tenant.name"
+                  (click)="openTenant(tenant)"
+                  (keydown.enter)="openTenant(tenant)"
+                  (keydown.space)="$event.preventDefault(); openTenant(tenant)"
+                >
+                  <td>{{ tenant.name }}</td>
+                  <td>{{ tenantChannelProfileLabel(tenant.channelProfile) }}</td>
+                  <td class="tabular-nums">{{ tenant.vatNumber ?? '—' }}</td>
+                  <td>{{ tenant.ownerDisplayName ?? '—' }}</td>
+                  <td>{{ tenant.ownerEmail ?? '—' }}</td>
+                  <td class="tabular-nums">{{ formatDateTime(tenant.createdAt) }}</td>
+                  <td class="create-client__table-actions">
+                    <app-button
+                      type="button"
+                      variant="secondary"
+                      [loading]="supportSessionLoadingId() === tenant.id"
+                      [disabled]="supportSessionLoadingId() === tenant.id"
+                      (click)="openSupportSession(tenant, $event)"
+                    >
+                      Apri gestionale
+                    </app-button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</section>

@@ -1,20 +1,24 @@
+@use 'a11y';
 @use 'breakpoints' as bp;
+@use 'responsive-table' as rt;
 
 :host {
   display: block;
+  inline-size: 100%;
 }
 
 .settings {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  max-inline-size: var(--content-default);
+  inline-size: 100%;
+  max-inline-size: none;
 }
 
 .settings__title {
   margin: 0;
-  font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }
 
@@ -41,24 +45,24 @@
   color: var(--color-text);
 }
 
+.settings__panel-cta {
+  display: inline-flex;
+  margin-block-start: var(--space-3);
+  text-decoration: none;
+}
+
+.settings__panel-hint {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  max-inline-size: var(--content-default);
+}
+
 .settings__muted {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
-}
-
-// ── Shopify ──────────────────────────────────────────────────────────────────
-.settings__shopify-status {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.settings__shopify-domain {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text);
 }
 
 .settings__scopes {
@@ -67,14 +71,56 @@
   gap: var(--space-2);
 }
 
-.settings__shopify-error {
+@include rt.stack-table('settings__permissions-table');
+
+.settings__field--connect {
+  inline-size: 100%;
+}
+
+.settings__field {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
-  flex-wrap: wrap;
-  margin: 0;
+}
+
+.settings__field-label {
   font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.settings__input {
+  min-block-size: var(--btn-min-height);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.settings__input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.settings__input[aria-invalid='true'] {
+  border-color: var(--status-error-border);
+}
+
+.settings__field-error {
+  font-size: var(--text-xs);
   color: var(--status-error-fg);
+}
+
+@include bp.media-up('md') {
+  .settings__setup-status {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.settings__company-card-skeleton {
+  margin-block-start: var(--space-4);
 }
 
 // ── Facts (dl compatta) ──────────────────────────────────────────────────────
@@ -121,6 +167,9 @@
 }
 
 .settings__theme-option {
+  // Ancora qui la radio sr-only assoluta: senza, il suo containing block
+  // risale all'html, stira il documento e il focus scrolla via l'app.
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -146,14 +195,8 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+// Il radio vero resta raggiungibile da tastiera e leggibile dallo screen
+// reader: a vederlo e' la label che lo avvolge.
 .settings__theme-radio {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  clip-path: inset(50%);
-  overflow: hidden;
-  white-space: nowrap;
+  @include a11y.visually-hidden;
 }

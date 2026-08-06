@@ -3,16 +3,19 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { ProductStatus } from '@prisma/client';
+import { InventoryTrackingMode, ProductKind, ProductStatus } from '@prisma/client';
 
 import { MoneyDto } from './money.dto';
+import { ShopifyCategoryMetafieldDto } from './shopify-category-metafield.dto';
 
 /** Asse opzione (es. Taglia → S/M/L). Max 3 assi: vincolo Shopify. */
 export class ProductOptionDto {
@@ -23,7 +26,9 @@ export class ProductOptionDto {
 
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(100)
   @IsString({ each: true })
+  @MaxLength(100, { each: true })
   values!: string[];
 }
 
@@ -39,12 +44,20 @@ export class VariantOptionValueDto {
 }
 
 export class CreateVariantDto {
+  /**
+   * Facoltativo (specifica cliente §SKU): puo' restare vuoto alla creazione,
+   * essere inserito a mano, o generato via `POST products/sku/generate`.
+   * MAI reso obbligatorio qui: la validazione "SKU vuoto -> non creabile" e'
+   * esplicitamente vietata dalla specifica.
+   */
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(100)
-  sku!: string;
+  sku?: string;
 
   @IsArray()
+  @ArrayMaxSize(3)
   @ValidateNested({ each: true })
   @Type(() => VariantOptionValueDto)
   optionValues!: VariantOptionValueDto[];
@@ -53,15 +66,20 @@ export class CreateVariantDto {
   @Type(() => MoneyDto)
   sellingPrice!: MoneyDto;
 
+  /**
+   * Prezzo Shopify della variante (§B, valore proprio). Facoltativo: se assente
+   * viene precompilato dal prezzo variante. L'operatore lo invia solo con Shopify
+   * attivo; a Shopify spento il campo non esiste in UI e la sync non lo tocca.
+   */
   @IsOptional()
   @ValidateNested()
   @Type(() => MoneyDto)
-  purchasePrice?: MoneyDto;
+  shopifyPrice?: MoneyDto;
 
   @IsOptional()
   @ValidateNested()
   @Type(() => MoneyDto)
-  compareAtPrice?: MoneyDto;
+  purchasePrice?: MoneyDto;
 
   @IsOptional()
   @IsString()
@@ -70,10 +88,79 @@ export class CreateVariantDto {
 }
 
 export class CreateProductDto {
+  /**
+   * Codice articolo interno (§Codice articolo): identificatore anagrafico
+   * VestiFlow, mai sincronizzato con Shopify. Facoltativo alla creazione:
+   * se assente il backend genera il progressivo numerico (00001, 00002...).
+   * Formato e unicita' sono validati nel service con messaggi chiari.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  articleCode?: string;
+
   @IsString()
   @MinLength(1)
   @MaxLength(200)
   name!: string;
+
+  // ── Prezzi/costo a livello articolo ──
+  /** Prezzo di vendita dell'articolo (dato vero, seed delle nuove varianti). */
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  sellingPrice!: MoneyDto;
+
+  /**
+   * Prezzo Shopify dell'articolo (§B, valore proprio, indipendente dal prezzo
+   * articolo). Facoltativo: se assente viene precompilato dal prezzo articolo.
+   * Inviato dalla UI solo con Shopify attivo.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  shopifyPrice?: MoneyDto;
+
+  /** Prezzo barrato: solo articolo. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  compareAtPrice?: MoneyDto;
+
+  /** Costo d'acquisto di riferimento: seed delle nuove varianti. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  purchasePrice?: MoneyDto;
+
+  // ── Listini aggiuntivi (§B): SOLO articolo, valore unico per tutte le varianti.
+  // Sempre memorizzati NETTI (forma canonica dei consumatori). Assenti = non
+  // valorizzati. Il toggle netto/ivato dell'anagrafica lavora in UI: qui arriva
+  // gia' scorporato al netto.
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  listino1Price?: MoneyDto | null;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  listino2Price?: MoneyDto | null;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MoneyDto)
+  listino3Price?: MoneyDto | null;
+
+  /**
+   * Modalità netto/ivato con cui l'operatore ha compilato la sezione Listini.
+   * NON è un dato dell'articolo e non viene persistito su di esso: serve solo a
+   * ricordare la preferenza di CHI salva, riproposta alla scheda successiva
+   * (`UserProductPriceModePreference`, gemella dei documenti). La forma
+   * memorizzata dei prezzi resta sempre netta.
+   */
+  @IsOptional()
+  @IsBoolean()
+  listinoPricesIncludeVat?: boolean;
 
   @IsOptional()
   @IsString()
@@ -90,13 +177,93 @@ export class CreateProductDto {
   @MaxLength(100)
   category?: string;
 
+  /** Sottocategoria VestiFlow collegata alla categoria (testo, come category). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  subcategory?: string;
+
+  /** Note interne gestionale: mai sincronizzate con i canali. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  internalNotes?: string;
+
+  /** GID Shopify Standard Product Taxonomy (gid://shopify/TaxonomyCategory/...). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  shopifyTaxonomyCategoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  shopifyTaxonomyCategoryFullName?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ShopifyCategoryMetafieldDto)
+  shopifyCategoryMetafields?: ShopifyCategoryMetafieldDto[];
+
+  /** Categoria TikTok Shop (id Partner API) per sync catalogo. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  tiktokCategoryId?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(100)
   season?: string;
 
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  tags?: string[];
+
   @IsEnum(ProductStatus)
   status: ProductStatus = ProductStatus.draft;
+
+  /**
+   * Sincronizzazione con Shopify per questo prodotto. Default true (form
+   * completo standard). Il quick-add da scanner (Ordine cliente) lo passa
+   * esplicitamente a false, così un articolo creato di fretta non finisce
+   * online finché non viene completato.
+   */
+  @IsOptional()
+  @IsBoolean()
+  shopifySyncEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(20)
+  unitOfMeasure?: string;
+
+  /** Codice IVA ordinario dell'articolo (§8). Null = predefinito aziendale. */
+  @IsOptional()
+  @IsUUID()
+  defaultVatCodeId?: string;
+
+  @IsOptional()
+  @IsEnum(InventoryTrackingMode)
+  inventoryTracking?: InventoryTrackingMode;
+
+  @IsOptional()
+  @IsBoolean()
+  managesStock?: boolean;
+
+  /**
+   * Tipo prodotto Articolo/Servizio: proprietà interna VestiFlow, mai
+   * mappata su Shopify. Default `article`.
+   */
+  @IsOptional()
+  @IsEnum(ProductKind)
+  kind?: ProductKind;
 
   @IsArray()
   @ArrayMaxSize(3)
@@ -106,6 +273,7 @@ export class CreateProductDto {
 
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => CreateVariantDto)
   variants!: CreateVariantDto[];

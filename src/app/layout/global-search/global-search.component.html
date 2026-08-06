@@ -1,0 +1,69 @@
+@if (open()) {
+  <div class="gsearch__backdrop" aria-hidden="true" (click)="requestClose()"></div>
+
+  <div class="gsearch" role="dialog" aria-modal="true" aria-label="Ricerca globale">
+    <div class="gsearch__box">
+      <i class="pi pi-search gsearch__icon" aria-hidden="true"></i>
+      <input
+        #searchInput
+        class="gsearch__input"
+        type="text"
+        placeholder="Cerca prodotti, clienti, documenti o vai a una pagina…"
+        autocomplete="off"
+        [value]="query()"
+        (input)="onQueryInput($any($event.target).value)"
+        (keydown)="onKeydown($event)"
+      />
+      <button
+        type="button"
+        class="gsearch__close"
+        aria-label="Chiudi ricerca"
+        title="Chiudi"
+        (click)="requestClose()"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="gsearch__results" role="listbox" aria-label="Risultati ricerca">
+      @if (searching()) {
+        <p class="gsearch__status" role="status">
+          <app-inline-spinner />
+          Ricerca in corso…
+        </p>
+      }
+
+      @for (group of groups(); track group.name) {
+        <p class="gsearch__group-title">{{ group.name }}</p>
+        <ul class="gsearch__group">
+          @for (item of group.items; track item.route + item.label) {
+            <li>
+              <button
+                type="button"
+                class="gsearch__item"
+                role="option"
+                [class.gsearch__item--active]="flatIndexOf(item) === activeIndex()"
+                [attr.aria-selected]="flatIndexOf(item) === activeIndex()"
+                (mouseenter)="activeIndex.set(flatIndexOf(item))"
+                (click)="openResult(item)"
+              >
+                <i class="gsearch__item-icon pi" [ngClass]="item.icon" aria-hidden="true"></i>
+                <span class="gsearch__item-copy">
+                  <span class="gsearch__item-label">{{ item.label }}</span>
+                  @if (item.sub) {
+                    <span class="gsearch__item-sub">{{ item.sub }}</span>
+                  }
+                </span>
+                <i class="pi pi-arrow-right gsearch__item-go" aria-hidden="true"></i>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (showNoResults()) {
+        <p class="gsearch__status" role="status">Nessun risultato per «{{ query().trim() }}».</p>
+      }
+    </div>
+  </div>
+}

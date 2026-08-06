@@ -1,84 +1,172 @@
 <section class="settings">
   <header class="settings__header">
     <h1 class="settings__title">Impostazioni</h1>
-    <p class="settings__subtitle">Integrazione Shopify, aspetto, profilo e location.</p>
+    <p class="settings__subtitle">{{ settingsSubtitle() }}</p>
   </header>
 
-  <!-- ── Shopify ─────────────────────────────────────────────────────────── -->
-  <section class="settings__panel" aria-labelledby="settings-shopify">
-    <h2 id="settings-shopify" class="settings__panel-title">Integrazione Shopify</h2>
-
-    @if (connectionLoading()) {
-      <app-table-skeleton [columns]="2" [rows]="3" />
-    } @else if (connectionNotFound()) {
-      <p class="settings__muted">
-        Nessuna connessione Shopify configurata per questo account. La connessione si attiva dal
-        backend con l'autorizzazione OAuth dello shop.
-      </p>
-    } @else if (connectionError(); as appError) {
-      <app-error-state
-        [description]="appError.message"
-        retryLabel="Riprova"
-        (retry)="reloadConnection()"
-      />
-    } @else if (connection(); as conn) {
-      <div class="settings__shopify-status">
-        <app-badge [tone]="connectionStatusTone(conn.status)">
-          {{ connectionStatusLabel(conn.status) }}
-        </app-badge>
-        @if (conn.shopDomain) {
-          <span class="settings__shopify-domain tabular-nums">{{ conn.shopDomain }}</span>
-        }
-      </div>
-
+  <!-- ── Profilo ─────────────────────────────────────────────────────────── -->
+  <section class="settings__panel" aria-labelledby="settings-profile">
+    <h2 id="settings-profile" class="settings__panel-title">Profilo</h2>
+    @if (currentUser(); as user) {
+      <app-profile-avatar-upload [user]="user" />
       <dl class="settings__facts">
         <div class="settings__fact">
-          <dt>Nome shop</dt>
-          <dd>{{ conn.displayName ?? '—' }}</dd>
+          <dt>Nome</dt>
+          <dd>{{ user.displayName }}</dd>
         </div>
         <div class="settings__fact">
-          <dt>Versione API</dt>
-          <dd class="tabular-nums">{{ conn.apiVersion ?? '—' }}</dd>
+          <dt>Email</dt>
+          <dd>{{ user.email }}</dd>
         </div>
         <div class="settings__fact">
-          <dt>Ultima connessione</dt>
-          <dd class="tabular-nums">
-            {{ conn.lastConnectedAt ? formatDateTime(conn.lastConnectedAt) : '—' }}
-          </dd>
-        </div>
-        <div class="settings__fact">
-          <dt>Ultimo sync</dt>
-          <dd class="tabular-nums">
-            {{ conn.lastSyncAt ? formatDateTime(conn.lastSyncAt) : '—' }}
-          </dd>
+          <dt>Ruolo</dt>
+          <dd>{{ roleLabel() }}</dd>
         </div>
       </dl>
-
-      @if (conn.scopes?.length) {
-        <div class="settings__scopes" aria-label="Permessi concessi">
-          @for (scope of conn.scopes; track scope) {
-            <app-badge tone="neutral">{{ scope }}</app-badge>
-          }
-        </div>
-      }
-
-      @if (conn.lastError; as lastError) {
-        <p class="settings__shopify-error" role="alert">
-          <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
-          {{ lastError.message }}
-          <span class="settings__muted tabular-nums">
-            ({{ formatDateTime(lastError.occurredAt)
-            }}{{ lastError.code ? ' · ' + lastError.code : '' }})
-          </span>
-        </p>
-      }
-
-      <p class="settings__muted">
-        La gestione della connessione (autorizzazione, rinnovo, disconnessione) avviene lato server:
-        nessuna credenziale Shopify è gestita dal browser.
-      </p>
+    } @else {
+      <p class="settings__muted">Nessun utente autenticato.</p>
     }
   </section>
+
+  @if (showTenantCompanyPanel()) {
+    <!-- ── Sede fisica ─────────────────────────────────────────────────────── -->
+    <section class="settings__panel" aria-labelledby="settings-tenant-company">
+      <h2 id="settings-tenant-company" class="settings__panel-title">Sede fisica</h2>
+      <p class="settings__panel-hint">{{ tenantCompanyHint() }}</p>
+      @if (tenantCompanyLoading()) {
+        <div
+          class="settings__company-card-skeleton"
+          aria-busy="true"
+          aria-label="Caricamento anagrafica cliente"
+        >
+          <app-table-skeleton [columns]="2" [rows]="4" />
+        </div>
+      } @else if (tenantCompanyError(); as errorMessage) {
+        <app-error-state
+          title="Anagrafica cliente non disponibile"
+          [description]="errorMessage"
+          retryLabel="Riprova"
+          (retry)="reloadTenantCompany()"
+        />
+      } @else if (tenantCompany(); as company) {
+        <app-tenant-client-card [company]="company" />
+      }
+    </section>
+  }
+
+  @if (showOperationalSettingsPanel()) {
+    <section class="settings__panel" aria-labelledby="settings-operational">
+      <h2 id="settings-operational" class="settings__panel-title">Magazzino e documenti</h2>
+      <p class="settings__panel-hint">
+        Lotti, seriali, IVA predefinita e aggiornamento prezzo fornitore in arrivo merce.
+      </p>
+      <app-tenant-operational-settings-panel />
+    </section>
+
+    <section class="settings__panel" aria-labelledby="settings-vat-codes">
+      <h2 id="settings-vat-codes" class="settings__panel-title">Codici IVA</h2>
+      <p class="settings__panel-hint">
+        Gestisci aliquote, Nature e trattamenti IVA utilizzati negli articoli e nei documenti.
+      </p>
+      <a class="settings__panel-cta" routerLink="/settings/codici-iva">
+        <app-button variant="secondary">Gestisci Codici IVA</app-button>
+      </a>
+    </section>
+
+    <section class="settings__panel" aria-labelledby="settings-payment-options">
+      <h2 id="settings-payment-options" class="settings__panel-title">Pagamenti</h2>
+      <p class="settings__panel-hint">
+        Modalità e condizioni di pagamento selezionabili nelle anagrafiche clienti e fornitori.
+      </p>
+      <a class="settings__panel-cta" routerLink="/settings/pagamenti">
+        <app-button variant="secondary">Gestisci Pagamenti</app-button>
+      </a>
+    </section>
+
+    <section class="settings__panel" aria-labelledby="settings-tenant-backup">
+      <h2 id="settings-tenant-backup" class="settings__panel-title">Backup negozio</h2>
+      <p class="settings__panel-hint">
+        Esporta o ripristina una copia completa dei dati del negozio (solo titolare).
+      </p>
+      <app-tenant-backup-panel />
+    </section>
+  }
+
+  @if (showLocationsSection()) {
+    <section class="settings__panel" aria-labelledby="settings-locations-panel">
+      <h2 id="settings-locations-panel" class="settings__panel-title">Location</h2>
+      @if (showShopifyLocationColumn()) {
+        <p class="settings__panel-hint">
+          Sedi operative per il magazzino, importate da Shopify con «Sincronizza location».
+        </p>
+      } @else {
+        <p class="settings__panel-hint">
+          Dopo la connessione Shopify, sincronizza le location per importare le sedi operative del
+          negozio.
+        </p>
+      }
+      @if (actionFeedback(); as feedback) {
+        <app-inline-banner
+          [tone]="feedback.tone"
+          [message]="feedback.message"
+          dismissLabel="Chiudi"
+          (dismissed)="dismissLocationFeedback()"
+        />
+      }
+
+      @if (visibleLocations().length > 0) {
+        <app-location-table
+          [locations]="visibleLocations()"
+          [showShopifyColumn]="showShopifyLocationColumn()"
+          [showLicensedColumn]="showShopifyLocationColumn()"
+          [groupByShopifySource]="showShopifyLocationColumn()"
+        />
+        @if (showLocationLicensingPanel()) {
+          <app-location-licensing-panel
+            [locations]="visibleLocations()"
+            [licensedLocationCount]="licensedLocationCount()"
+            [canManage]="canManageLocationSelection()"
+            [selectionLocked]="locationSelectionLocked()"
+            [selectionChangeGranted]="locationSelectionChangeGranted()"
+            (saved)="onLocationLicensingSaved()"
+          />
+        }
+      } @else if (locationsLoading()) {
+        <app-table-skeleton [columns]="4" [rows]="3" />
+      } @else {
+        <p class="settings__shopify-locations-empty">
+          Nessuna sede operativa configurata. Collega Shopify e sincronizza le location per
+          importare le sedi del negozio.
+        </p>
+      }
+    </section>
+  }
+
+  @if (showTikTokPanel()) {
+    <!-- ── TikTok Shop ─────────────────────────────────────────────────────── -->
+    <section class="settings__panel" aria-labelledby="settings-tiktok">
+      <app-tiktok-integration-panel />
+    </section>
+  }
+
+  <!-- Integrazione Shopify: pannello autonomo, come quello TikTok sopra. -->
+  @if (showShopifyPanel()) {
+    <section class="settings__panel" aria-labelledby="settings-shopify">
+      <app-shopify-integration-panel
+        [locationSetupStatus]="locationSetupStatus()"
+        [mustChooseLocations]="mustChooseLocations()"
+        (locationsChanged)="onShopifyLocationsChanged()"
+      />
+    </section>
+  }
+
+  <!-- ── Sicurezza account ─────────────────────────────────────────────────── -->
+  @if (mfaAvailable && canManageMfa()) {
+    <section class="settings__panel" aria-labelledby="settings-mfa">
+      <h2 id="settings-mfa" class="settings__panel-title">Sicurezza account</h2>
+      <app-mfa-settings />
+    </section>
+  }
 
   <!-- ── Aspetto ─────────────────────────────────────────────────────────── -->
   <section class="settings__panel" aria-labelledby="settings-theme">
@@ -101,38 +189,5 @@
         }
       </div>
     </fieldset>
-  </section>
-
-  <!-- ── Profilo ─────────────────────────────────────────────────────────── -->
-  <section class="settings__panel" aria-labelledby="settings-profile">
-    <h2 id="settings-profile" class="settings__panel-title">Profilo</h2>
-    @if (currentUser(); as user) {
-      <dl class="settings__facts">
-        <div class="settings__fact">
-          <dt>Nome</dt>
-          <dd>{{ user.displayName }}</dd>
-        </div>
-        <div class="settings__fact">
-          <dt>Email</dt>
-          <dd>{{ user.email }}</dd>
-        </div>
-        <div class="settings__fact">
-          <dt>Ruolo</dt>
-          <dd>{{ roleLabel() }}</dd>
-        </div>
-      </dl>
-    } @else {
-      <p class="settings__muted">Nessun utente autenticato.</p>
-    }
-  </section>
-
-  <!-- ── Location ────────────────────────────────────────────────────────── -->
-  <section class="settings__panel" aria-labelledby="settings-locations">
-    <h2 id="settings-locations" class="settings__panel-title">Location</h2>
-    @if (locations().length > 0) {
-      <app-location-table [locations]="locations()" />
-    } @else {
-      <app-table-skeleton [columns]="4" [rows]="3" />
-    }
   </section>
 </section>

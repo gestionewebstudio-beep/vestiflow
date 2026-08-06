@@ -1,0 +1,97 @@
+:host {
+  display: block;
+  inline-size: 100%;
+}
+
+.count-new {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
+// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+.count-new__heading app-back-button {
+  margin-block-end: var(--space-2);
+}
+
+.count-new__title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.count-new__intro {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.count-new__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+}
+
+.count-new__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.count-new__label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.count-new__input,
+.count-new__textarea {
+  inline-size: 100%;
+  padding: var(--space-3);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.count-new__input {
+  block-size: var(--field-height);
+}
+
+.count-new__input:focus-visible,
+.count-new__textarea:focus-visible {
+  border-color: var(--color-interactive);
+  outline: none;
+  box-shadow: var(--field-focus-ring);
+}
+
+.count-new__error {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--status-error-fg);
+}
+
+.count-new__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.count-new__location-fixed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  block-size: var(--field-height);
+  padding-inline: var(--space-2);
+  color: var(--color-text-muted);
+  background-color: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}

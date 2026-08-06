@@ -1,10 +1,5 @@
 // Contratti di risposta API e parametri di paginazione.
 
-/** Risposta API a singola risorsa. */
-export interface ApiResponse<T> {
-  readonly data: T;
-}
-
 /** Metadati di paginazione (page 1-based). */
 export interface PageMeta {
   readonly page: number;

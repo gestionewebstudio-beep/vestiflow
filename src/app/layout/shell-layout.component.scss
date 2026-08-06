@@ -3,12 +3,14 @@
 :host {
   display: block;
   block-size: 100dvh;
+  min-block-size: 0;
 }
 
 // Mobile-first: una colonna, topbar sopra, contenuto sotto.
 .shell {
   display: grid;
   block-size: 100dvh;
+  min-block-size: 0;
   min-inline-size: 0;
   overflow: hidden;
   grid-template-columns: 1fr;
@@ -19,17 +21,118 @@
   background-color: var(--color-bg);
 }
 
+.shell--support-banner {
+  padding-block-end: var(--shell-support-banner-height);
+}
+
 .shell__topbar {
   grid-area: topbar;
   border-block-end: var(--border-width) solid var(--color-border);
-  background-color: var(--color-surface);
+  // Superficie traslucida con blur (riferimento v4).
+  background-color: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  backdrop-filter: blur(var(--blur-bar));
   min-inline-size: 0;
+}
+
+.shell__shopify-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border-bottom: var(--border-width) solid var(--status-warning-border);
+}
+
+.shell__support-banner {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-block-size: var(--shell-support-banner-height);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--status-info-fg);
+  background-color: var(--status-info-bg);
+  border-block-start: var(--border-width) solid var(--status-info-border);
+}
+
+.shell__support-banner-text {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.shell__support-banner-meta {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.shell__support-banner-exit {
+  flex-shrink: 0;
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--status-info-fg);
+  background: none;
+  border: var(--border-width) solid var(--status-info-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.shell__support-banner-exit:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.shell__support-banner-exit:hover:not(:disabled) {
+  background-color: var(--color-surface);
+}
+
+.shell__shopify-banner-text {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.shell__shopify-banner-link {
+  color: inherit;
+  font-weight: var(--font-weight-medium);
+}
+
+.shell__shopify-banner-link:hover {
+  text-decoration: underline;
+}
+
+.shell__shopify-banner-dismiss {
+  flex-shrink: 0;
+  padding: 0;
+  font-size: var(--text-sm);
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .shell__sidebar {
   grid-area: sidebar;
   background-color: var(--color-nav-bg);
-  border-inline-end: var(--border-width) solid var(--color-border);
+  // La sidebar e' scura in entrambi i temi: bordo dai token nav.
+  border-inline-end: var(--border-width) solid var(--color-nav-border);
   // Mobile: drawer off-canvas.
   position: fixed;
   inset-block: 0;
@@ -41,10 +144,15 @@
     transform var(--transition-base) var(--ease-standard),
     visibility 0s linear var(--transition-base);
   z-index: var(--z-modal);
-  overflow-y: auto;
+  // Lo scroll vive dentro app-sidebar (__nav): brand e logout restano fissi.
+  overflow-y: hidden;
   display: flex;
   flex-direction: column;
   align-items: stretch;
+}
+
+.shell--support-banner .shell__sidebar {
+  inset-block-end: var(--shell-support-banner-height);
 }
 
 .shell--drawer-open .shell__sidebar {
@@ -65,12 +173,17 @@
   overflow-y: auto;
   overflow-x: hidden;
   min-inline-size: 0;
-  padding: var(--space-2);
+  min-block-size: 0;
+  padding: var(--space-3);
 }
+
+// L'animazione di ingresso del contenuto routato vive in styles.scss:
+// i componenti figli della router-outlet non hanno l'attributo _ngcontent
+// della shell, quindi una regola scoped qui non li raggiungerebbe.
 
 @include bp.media-up('sm') {
   .shell__content {
-    padding: var(--space-3);
+    padding: var(--space-4);
   }
 }
 
@@ -81,6 +194,11 @@
     grid-template-areas:
       'sidebar topbar'
       'sidebar content';
+  }
+
+  // Piu' respiro sul desktop denso: 20px verticale, 24px orizzontale.
+  .shell__content {
+    padding: var(--space-5) var(--space-6);
   }
 
   .shell__sidebar {

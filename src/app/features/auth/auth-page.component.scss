@@ -1,0 +1,203 @@
+:host {
+  display: block;
+  block-size: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.login {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  min-block-size: 100dvh;
+  padding: var(--space-4);
+  background-color: var(--color-bg);
+}
+
+// Brand lockup sopra la card (stesso tile della sidebar: invert su dark).
+.login__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+// Logo del gestionale: tile scuro + monogramma chiaro — su sfondo pagina
+// chiaro va bene com'e', su tema dark si inverte per contrasto.
+.login__brand-logo {
+  inline-size: var(--space-16);
+  block-size: var(--space-16);
+  border-radius: var(--radius-md);
+  box-shadow: var(--brand-mark-shadow);
+}
+
+:host-context([data-theme='dark']) .login__brand-logo {
+  filter: invert(1);
+}
+
+.login__brand-wordmark {
+  font-size: var(--text-4xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text);
+}
+
+.login__card {
+  inline-size: 100%;
+  max-inline-size: var(--content-form);
+  padding: var(--space-6);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.login__header {
+  margin-block-end: var(--space-5);
+}
+
+.login__title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.login__subtitle {
+  margin-block: var(--space-1) 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.login__success {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--status-success-fg);
+  background-color: var(--status-success-bg);
+  border: var(--border-width) solid var(--status-success-border);
+  border-radius: var(--radius-md);
+}
+
+.login__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+}
+
+.login__label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.login__input {
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--transition-fast) var(--ease-standard),
+    box-shadow var(--transition-fast) var(--ease-standard);
+}
+
+.login__input:focus-visible {
+  border-color: var(--color-interactive);
+  outline: none;
+  box-shadow: var(--field-focus-ring);
+}
+
+.login__input[aria-invalid='true'] {
+  border-color: var(--status-error-border);
+}
+
+.login__input:disabled {
+  background-color: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+}
+
+.login__input--otp {
+  letter-spacing: var(--tracking-wide);
+  text-align: center;
+}
+
+// Il back e' un chip (regola globale v4); qui resta solo il margine.
+.login__back {
+  margin-block-start: var(--space-3);
+}
+
+.login__forgot-link {
+  display: inline-block;
+  margin-block-start: var(--space-3);
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+}
+
+.login__forgot-link:hover {
+  color: var(--color-text);
+}
+
+.login__back:focus-visible,
+.login__forgot-link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+.login__password {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.login__input--password {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding-inline-end: calc(var(--btn-min-height) + var(--space-1));
+}
+
+.login__password-toggle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--btn-min-height);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  border-radius: var(--radius-md);
+  transition:
+    color var(--transition-fast) var(--ease-standard),
+    background-color var(--transition-fast) var(--ease-standard);
+}
+
+.login__password-toggle:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface-hover);
+}
+
+.login__password-toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
+}
+
+.login__field-error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
+.login__forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-block: calc(-1 * var(--space-2)) var(--space-4);
+}

@@ -4,7 +4,7 @@
   "description": "VestiFlow backend API (NestJS + Prisma + PostgreSQL su Supabase)",
   "private": true,
   "engines": {
-    "node": ">=22.0.0 <23.0.0"
+    "node": ">=22.13.0 <23.0.0"
   },
   "scripts": {
     "build": "nest build",
@@ -14,7 +14,18 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "backfill:catalog-origin": "node scripts/backfill-catalog-origin.mjs",
+    "backfill:catalog-origin:apply": "node scripts/backfill-catalog-origin.mjs --apply",
+    "backfill:shopify-order-documents": "npm run build && node scripts/backfill-shopify-order-documents.mjs",
+    "backfill:shopify-order-documents:apply": "npm run build && node scripts/backfill-shopify-order-documents.mjs --apply",
+    "provision:e2e-users": "node scripts/provision-e2e-permission-users.mjs",
+    "verify:pdf-export": "npm run build && node scripts/verify-pdf-export.mjs",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"
@@ -24,18 +35,42 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.26",
     "@nestjs/platform-express": "^11.1.26",
+    "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.19.3",
+    "@supabase/supabase-js": "^2.108.1",
+    "archiver": "^8.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "helmet": "^8.2.0",
+    "jose": "^6.2.3",
+    "pdfkit": "^0.19.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "sharp": "^0.35.3",
+    "unzipper": "^0.12.5"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.23",
+    "@types/archiver": "^8.0.0",
     "@types/express": "^5.0.6",
+    "@types/multer": "^2.1.0",
     "@types/node": "^25.9.2",
+    "@types/pdfkit": "^0.17.6",
+    "@types/unzipper": "^0.10.11",
+    "@vitest/coverage-v8": "^4.0.8",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^9.1.2",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "^17.7.0",
     "prisma": "^6.19.3",
-    "typescript": "5.9"
+    "typescript": "5.9",
+    "typescript-eslint": "^8.62.0",
+    "vitest": "^4.0.8"
+  },
+  "overrides": {
+    "multer": "2.2.0"
+  },
+  "volta": {
+    "node": "22.13.1"
   }
 }

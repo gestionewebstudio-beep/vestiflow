@@ -1,11 +1,47 @@
 <section class="inventory-levels">
   <header class="inventory-levels__header">
     <h1 class="inventory-levels__title">Magazzino</h1>
-    <app-button (click)="newMovement()">
-      <i class="pi pi-plus" aria-hidden="true"></i>
-      Registra movimento
-    </app-button>
+    <div class="inventory-levels__actions">
+      @if (showShopifyInventorySync()) {
+        <app-button
+          variant="secondary"
+          loadingIndicator="icon"
+          [loading]="shopifyInventoryLoading()"
+          [disabled]="shopifyInventoryLoading()"
+          (click)="syncInventoryFromShopify()"
+        >
+          <i class="pi pi-sync" aria-hidden="true"></i>
+          Sincronizza giacenze da Shopify
+        </app-button>
+      }
+      @if (canImportExportInventory()) {
+        <app-button variant="secondary" [disabled]="exporting()" (click)="exportInventory()">
+          <i class="pi pi-download" aria-hidden="true"></i>
+          @if (exporting()) {
+            Export in corso…
+          } @else {
+            Esporta CSV
+          }
+        </app-button>
+        <app-button variant="secondary" (click)="importInventory()">
+          <i class="pi pi-upload" aria-hidden="true"></i>
+          Importa CSV
+        </app-button>
+      }
+    </div>
   </header>
+
+  @if (shopifySyncError(); as message) {
+    <p class="inventory-levels__shopify-error" role="alert">{{ message }}</p>
+  }
+
+  @if (shopifyFeedback(); as feedback) {
+    <app-shopify-sync-feedback
+      [message]="feedback.message"
+      [tone]="feedback.tone"
+      (dismissed)="dismissShopifyFeedback()"
+    />
+  }
 
   <app-inventory-tabs />
 
@@ -16,17 +52,25 @@
         id="inventory-search"
         class="inventory-levels__input"
         type="search"
-        [value]="search()"
-        placeholder="Cerca per prodotto o SKU…"
+        [value]="searchDraft()"
+        placeholder="Cerca per prodotto, SKU o barcode…"
         aria-label="Cerca giacenze"
         (input)="onSearchInput($event)"
       />
     </div>
 
+    @if (barcodeScannerEnabled) {
+      <app-barcode-scanner label="Scansiona barcode" (scanned)="onScanned($event)" />
+    }
+
+    @if (scanFeedback(); as message) {
+      <p class="inventory-levels__scan-feedback" role="status">{{ message }}</p>
+    }
+
     <div class="inventory-levels__filters">
       <div class="inventory-levels__field">
-        <span class="inventory-levels__label">Location</span>
         <app-select-menu
+          chipLabel="Location"
           [options]="locationOptions()"
           [value]="locationFilter()"
           ariaLabel="Filtra per location"
@@ -34,12 +78,13 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onLocationFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 
       <div class="inventory-levels__field">
-        <span class="inventory-levels__label">Stato stock</span>
         <app-select-menu
+          chipLabel="Stato stock"
           [options]="stockStatusOptions"
           [value]="statusFilter()"
           ariaLabel="Filtra per stato stock"
@@ -47,10 +92,12 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onStatusFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 
-      <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
+      <app-table-column-picker [viewId]="tableViewId" />
+      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
         <i class="pi pi-filter-slash" aria-hidden="true"></i>
         Azzera filtri
       </app-button>
@@ -68,6 +115,66 @@
       icon="pi-box"
     />
   } @else {
-    <app-inventory-level-table [rows]="rows()" />
+    <app-inventory-level-table
+      [rows]="rows()"
+      [columns]="tableColumns()"
+      (committedClick)="openReservations($event)"
+    />
+    <app-pagination
+      label="Paginazione giacenze"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
   }
+
+  <app-slide-panel
+    [open]="reservationsPanelOpen()"
+    title="Quantità impegnata"
+    ariaLabel="Ordini che compongono la quantità impegnata"
+    (closed)="closeReservations()"
+  >
+    @if (reservationsTarget(); as target) {
+      <p class="inventory-levels__reservations-context">
+        {{ target.title }} — <span class="tabular-nums">{{ target.sku }}</span>
+        <br />
+        {{ target.locationName }}: <strong class="tabular-nums">{{ target.committed }}</strong>
+        impegnati
+      </p>
+    }
+
+    @if (reservationsLoading()) {
+      <app-table-skeleton [columns]="3" [rows]="3" />
+    } @else if (reservationsError(); as message) {
+      <app-error-state
+        [description]="message"
+        retryLabel="Riprova"
+        (retry)="reloadReservations()"
+      />
+    } @else if (reservations().length === 0) {
+      <app-empty-state
+        title="Nessun impegno attivo"
+        description="Nessun ordine sta impegnando questa variante in questa location."
+        icon="pi-inbox"
+      />
+    } @else {
+      <ul class="inventory-levels__reservations">
+        @for (reservation of reservations(); track reservation.id) {
+          <li class="inventory-levels__reservation">
+            <span class="inventory-levels__reservation-order">
+              {{ channelLabel(reservation.channel) }}
+              <strong class="tabular-nums">{{ reservation.orderNumber }}</strong>
+            </span>
+            <span class="inventory-levels__reservation-qty tabular-nums">
+              {{ reservation.quantity }} {{ reservation.quantity === 1 ? 'pezzo' : 'pezzi' }}
+            </span>
+            <span class="inventory-levels__reservation-location">
+              {{ reservation.locationName }}
+            </span>
+          </li>
+        }
+      </ul>
+    }
+  </app-slide-panel>
 </section>

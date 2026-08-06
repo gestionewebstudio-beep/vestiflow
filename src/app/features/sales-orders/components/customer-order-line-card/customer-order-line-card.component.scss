@@ -1,0 +1,648 @@
+@use 'breakpoints' as bp;
+
+// Riga documento come card, sotto lg. Il markup e' in questo componente: prima
+// stava nel template del form e lo stile in un foglio a parte, e i due si
+// tenevano d'occhio da lontano attraverso i nomi delle classi.
+//
+// Il gemello dell'arrivo merce (goods-receipt-line-card) fa la stessa cosa con
+// campi diversi: quello che condividono sono i token e i componenti condivisi,
+// non un antenato comune.
+
+:host {
+  display: block;
+}
+
+// ── Card riga (visibili solo sotto lg, vedi media query in fondo) ───────────
+// Punti di regolazione della forma esterna. Il contenitore decide se le card
+// sono riquadri staccati o righe di un elenco continuo: e' una scelta
+// dell'impaginato, non della card (regole-stile-ui §5).
+.co-card {
+  background-color: var(--color-surface);
+  border: var(--co-card-border, var(--border-width) solid var(--color-border));
+  border-radius: var(--co-card-radius, var(--radius-lg));
+  overflow: hidden;
+  box-shadow: var(--co-card-shadow, var(--shadow-card));
+  transition:
+    border-color var(--transition-base) var(--ease-standard),
+    box-shadow var(--transition-base) var(--ease-standard),
+    transform 120ms var(--ease-standard);
+}
+
+// Contatto visivo al tocco (<150ms): leggero affondo della card riga.
+.co-card:active {
+  transform: scale(0.995);
+}
+
+.co-card--open {
+  border-color: var(--color-card-open-border);
+  box-shadow: var(--shadow-md);
+}
+
+.co-card--incomplete {
+  box-shadow: inset var(--space-1) 0 0 0 var(--status-warning-border);
+}
+
+// Testa-card compatta: riga titolo sopra, metric chip sotto.
+.co-card__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  inline-size: 100%;
+  padding: var(--co-card-section-pad, var(--space-2) var(--space-3));
+  background-color: var(--color-surface);
+  border: 0;
+}
+
+.co-card__topline--registry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+}
+
+// Qtà · Prezzo · Totale: modificabili senza aprire la card.
+.co-card__metrics {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.co-card--open .co-card__head {
+  background-color: var(--color-card-open-bg);
+}
+
+.co-card-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.co-card__name {
+  font-size: var(--text-card-title);
+  font-weight: var(--font-weight-bold);
+  color: var(--co-card-fg, var(--color-text));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-card__sub {
+  margin-block-start: var(--space-1);
+  font-size: var(--text-2xs);
+  color: var(--co-card-fg, var(--color-text-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-card-metrics {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.co-card__metric {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-05);
+  min-inline-size: 3.375rem;
+  padding: var(--space-1) var(--space-2);
+  text-align: end;
+  background-color: var(--color-metric-bg);
+  border-radius: var(--radius-sm);
+}
+
+// Chip Qtà: stepper senza cornice propria (la fa il chip).
+.co-card__metric--qty {
+  text-align: start;
+}
+
+.co-card__metric--qty .co-card__qty {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+// Chip Prezzo: input nudo dentro il chip, allineato a destra come i valori.
+.co-card__metric--price .co-card__metric-input {
+  inline-size: 100%;
+  min-inline-size: 4rem;
+  min-block-size: 2rem;
+  padding: 0;
+  text-align: end;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text, var(--color-text));
+  background: none;
+  border: 0;
+}
+
+.co-card__metric--price .co-card__metric-input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+.co-card__metric small {
+  display: block;
+  font-size: var(--text-nano);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.co-card__metric strong {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.co-card__metric--total {
+  color: var(--color-metric-total-fg);
+  background-color: var(--color-metric-total-bg);
+}
+
+.co-card__metric--total small {
+  color: inherit;
+}
+
+// Totale riga: il dato più marcato della testa-card.
+.co-card__metric--total strong {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-label);
+}
+
+.co-card__chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-base) var(--ease-standard);
+}
+
+.co-card--open .co-card__chevron {
+  transform: rotate(180deg);
+}
+
+.co-card__body {
+  padding: var(--co-card-section-pad, var(--space-2) var(--space-3));
+  background-color: var(--color-card-body-bg);
+  border-block-start: var(--border-width) solid var(--color-border);
+}
+
+.co-card__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.co-card__group {
+  grid-column: 1 / -1;
+  margin: var(--space-1) 0 0;
+  padding-block: var(--space-1) 0;
+  font-size: var(--text-nano);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-group-fg);
+  border-block-start: var(--border-width) solid var(--color-group-line);
+}
+
+.co-card__group--first {
+  margin-block-start: 0;
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Card riga v2 — SOLO Ordine cliente (isOrder), card chiusa. RAMO TEMPORANEO:
+// quando il layout andrà agli altri documenti, il ramo @else va rimosso e la
+// card torna una sola. Vive dentro .co-cards (spenta su desktop), riusa
+// la scala tipografica --co-* della testata OC mobile.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Riga 1 — elimina (sx) · nome · chevron (dx).
+.co-card__topline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+}
+
+.co-card__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  color: var(--color-danger);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.co-card__remove:active:not(:disabled) {
+  background-color: var(--color-danger-subtle);
+}
+
+.co-card__remove:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.co-card__expand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: 2.75rem;
+  padding: 0;
+  text-align: start;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+// Nella testata «order» il nome divide la riga col chevron: prende lo spazio
+// che resta invece di dimensionarsi sul testo.
+.co-card__expand:not(.co-card__expand--registry) .co-card__name {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+// Riga 2 — variante su riga propria (leggibile, sotto il nome).
+.co-card__variant {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Riga meta: codice, SKU e disponibilita' restano leggibili a card chiusa.
+.co-card__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.co-card__meta-item {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-card__meta-item:not(:first-child) {
+  position: relative;
+  flex-shrink: 0;
+  padding-inline-start: calc(var(--space-2) + var(--space-2));
+}
+
+.co-card__meta-item:not(:first-child)::before {
+  content: '·';
+  position: absolute;
+  inset-inline-start: var(--space-2);
+}
+
+.co-card__avail {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+
+.co-card__avail--low {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-semibold);
+}
+
+// Riga 4 — Qtà (stepper) · Prezzo (input) · Totale (testo). Pari peso dei valori.
+.co-card__controls {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: end;
+  gap: var(--space-3);
+  margin-block-start: var(--space-1);
+}
+
+.co-card__control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-05);
+  min-inline-size: 0;
+}
+
+.co-card__control:last-child {
+  text-align: end;
+}
+
+// Etichette controlli: NON maiuscole, NON le più piccole — secondarie per colore.
+.co-card__control-label {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.co-card__control .co-card__qty {
+  margin-inline-start: 0;
+}
+
+// Prezzo: campo editabile, col bordo (sembra un input).
+.co-card__price-input {
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-2);
+  text-align: end;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.co-card__price-input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+// Totale: valore calcolato, testo semplice senza bordo.
+.co-card__total {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-block-size: 2.5rem;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.co-card__field {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.co-card__field--full {
+  grid-column: 1 / -1;
+}
+
+.co-card__field label,
+.co-card__field-label {
+  margin-block-end: var(--space-1);
+  font-size: var(--text-nano);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.co-card__field .doc-form__input,
+.co-card__select {
+  block-size: var(--control-h-touch);
+  min-block-size: var(--control-h-touch);
+  padding-inline: var(--space-2);
+  font-size: var(--text-lg);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.co-card__field app-select-menu {
+  --field-height: var(--control-h-touch);
+  --color-input-bg: var(--color-surface);
+  --color-input-border: var(--color-border);
+}
+
+// Valori calcolati: stessa altezza dei campi, ma chiaramente non editabili.
+.co-card__field--readonly p {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  block-size: var(--control-h-touch);
+  padding-inline: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-readonly-fg);
+  background-color: var(--color-readonly-bg);
+  border: var(--border-width) solid var(--color-readonly-border);
+  border-radius: var(--radius-sm);
+}
+
+// Nome prodotto: input + scorciatoia alla ricerca prodotto a schermo intero.
+// Ancora del pannello suggerimenti condiviso (app-document-line-suggestions):
+// sotto il campo per default, sopra se manca spazio (placement dal vm).
+.co-card__search {
+  display: flex;
+  gap: var(--space-2);
+  position: relative;
+}
+
+.co-card__search .doc-form__input {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.co-card__search-btn {
+  flex-shrink: 0;
+  inline-size: var(--control-h-touch);
+  block-size: var(--control-h-touch);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.co-card__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+  --field-height: var(--control-h-touch);
+}
+
+.co-card__actions {
+  --button-flex: 1 1 0;
+  --button-inline-size: 100%;
+}
+
+// Su phone stretto i tre metric chip si stringono, ma non sotto la larghezza
+// che rende leggibile un totale a quattro cifre.
+@include bp.media-down('sm') {
+  .co-card__metric {
+    min-inline-size: 3.125rem;
+  }
+}
+
+// ── Raccolte dai fogli del form: erano rifiniture sulla card ───────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// ORDINE CLIENTE — 4 di 6: testata compressa, scansione, barra azioni (mobile)
+// ═══════════════════════════════════════════════════════════════════════════
+// Il contorno della vista mobile: la testata che si riassume in una riga
+// apribile, la card di scansione rapida sotto le righe, la barra fissa
+// «Scansiona / Aggiungi prodotto», il rientro tappabile dei controlli.
+//
+// Le card delle righe stanno nel foglio 3; qui non ce ne sono.
+// Vedi l'indice dei fogli in customer-order-form.component.scss.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Rifiniture UX mobile (feel nativo): feedback al tocco e tap target ≥44px.
+// Le classi .co-card* / __header-summary vivono solo nella vista mobile,
+// quindi non serve racchiuderle in una media query.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Feedback pressed veloce (<150ms) sugli elementi tappabili custom.
+.co-card__head,
+.co-form__header-summary,
+.co-card__search-btn {
+  transition: background-color 120ms var(--ease-standard);
+}
+
+.co-card__head:active,
+.co-form__header-summary:active,
+.co-card__search-btn:active {
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F4 — riga articolo compatta: stepper quantità, totale, rimozione, alert.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Area tap-per-espandere (chevron + nome/SKU): prende lo spazio residuo.
+.co-card__expand--registry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 10rem;
+  min-inline-size: 0;
+  min-block-size: 2.75rem;
+  padding: 0;
+  text-align: start;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.co-card__copy {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+// Stepper −/+ con input centrale: pulsanti 44×44 touch-friendly.
+.co-card__qty {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+// Touch target pieno (44px) anche dentro il chip: il tocco vale su tutta
+// l'altezza, l'aspetto resta compatto grazie al margine negativo verticale.
+.co-card__qty-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 2.5rem;
+  min-block-size: 2.75rem;
+  margin-block: calc(var(--space-1) * -1);
+  color: var(--color-text, var(--color-text));
+  background-color: var(--color-surface);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 120ms var(--ease-standard);
+}
+
+.co-card__qty-btn:active:not(:disabled) {
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
+}
+
+.co-card__qty-btn:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.co-card__qty-input {
+  inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  padding: 0;
+  text-align: center;
+  font-size: var(--text-lg);
+  color: var(--color-text, var(--color-text));
+  background-color: var(--color-surface);
+  border: 0;
+  border-inline: var(--border-width) solid var(--color-border);
+  appearance: textfield;
+}
+
+.co-card__qty-input::-webkit-outer-spin-button,
+.co-card__qty-input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.co-card__remove--registry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  color: var(--color-text-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.co-card__remove--registry:active:not(:disabled) {
+  color: var(--status-error-fg);
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
+}
+
+.co-card__remove--registry:disabled {
+  color: var(--color-border-strong);
+  cursor: not-allowed;
+}
+
+// Alert disponibilità sopra la riga: informativo, non bloccante.
+.co-card__alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-2xs);
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border-block-end: var(--border-width) solid var(--status-warning-border);
+}
+
+// Rispetto di «riduci animazioni»: la card smette di affondare al tocco.
+@media (prefers-reduced-motion: reduce) {
+  .co-card,
+  .co-card__head,
+  .co-card__search-btn {
+    transition-duration: 0.01ms;
+  }
+
+  .co-card:active {
+    transform: none;
+  }
+}

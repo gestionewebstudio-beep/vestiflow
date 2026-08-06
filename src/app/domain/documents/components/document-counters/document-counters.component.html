@@ -1,0 +1,88 @@
+<div class="counters">
+  <div class="counters__head">
+    <span class="counters__label">Serie</span>
+    @if (!editorOpen()) {
+      <app-button variant="ghost" (click)="startCreate()">Aggiungi serie</app-button>
+    }
+  </div>
+
+  <ul class="counters__list">
+    @for (counter of orderedSeries(); track counter.id) {
+      <li class="counters__row" [class.counters__row--editing]="editingId() === counter.id">
+        <span class="counters__name">
+          {{ counter.series ?? 'Senza serie' }}
+          @if (counter.isDefault) {
+            <span class="counters__badge">Predefinita</span>
+          }
+        </span>
+        <span class="counters__sede">{{ counter.locationName ?? 'Tutte le sedi' }}</span>
+        <span class="counters__next tabular-nums">
+          <span class="counters__next-label">Prossimo</span>{{ counter.nextNumber }}
+        </span>
+        <span class="counters__actions">
+          @if (!counter.isDefault) {
+            <app-button variant="ghost" (click)="setDefault(counter)">Rendi predefinita</app-button>
+          }
+          <!-- «Senza serie» (serie null) è la base del tipo: non si modifica né elimina. -->
+          @if (counter.series !== null) {
+            <app-button variant="ghost" (click)="startEdit(counter)">Modifica</app-button>
+            <app-button variant="danger" (click)="requestDelete(counter)">Elimina</app-button>
+          }
+        </span>
+      </li>
+    }
+  </ul>
+
+  @if (editorOpen()) {
+    <form class="counters__editor" [formGroup]="form" (ngSubmit)="save()">
+      <p class="counters__editor-title">{{ isCreating() ? 'Nuova serie' : 'Modifica serie' }}</p>
+      <div class="counters__editor-fields">
+        <label class="counters__field">
+          <span class="counters__field-label">Nome serie</span>
+          <input
+            class="counters__input"
+            type="text"
+            formControlName="series"
+            maxlength="20"
+            autocomplete="off"
+            placeholder="Es. 2026, NAP, MI"
+          />
+        </label>
+        <div class="counters__field">
+          <span class="counters__field-label">Sede</span>
+          <app-select-menu
+            [options]="locationOptions()"
+            [value]="form.controls.locationId.value"
+            ariaLabel="Sede della serie"
+            placeholder="Tutte le sedi"
+            [includeEmptyOption]="false"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onLocationSelect($event)"
+          />
+        </div>
+      </div>
+      <label class="counters__check">
+        <input type="checkbox" formControlName="isDefault" />
+        <span>Proponi questa serie in testata (predefinita del tipo)</span>
+      </label>
+      <div class="counters__editor-actions">
+        <app-button variant="ghost" type="button" (click)="cancelEdit()">Annulla</app-button>
+        <app-button type="submit" [disabled]="saving()">
+          {{ saving() ? 'Salvataggio…' : 'Salva' }}
+        </app-button>
+      </div>
+    </form>
+  }
+</div>
+
+<app-confirm-dialog
+  [(open)]="confirmOpen"
+  [title]="confirmTitle()"
+  [message]="confirmMessage()"
+  [confirmLabel]="confirmLabel()"
+  cancelLabel="Annulla"
+  [danger]="confirmDanger()"
+  (confirmed)="onConfirm()"
+  (dismissed)="onDismissConfirm()"
+/>

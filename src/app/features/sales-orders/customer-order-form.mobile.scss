@@ -1,0 +1,225 @@
+@use 'breakpoints' as bp;
+
+// Tap target ≥44×44 sui pochi controlli icona ancora sotto soglia (il cestino
+// della riga «documento collegato» usa l'altezza densa da desktop).
+.co-form__mobile-source-row .doc-form__line-remove {
+  min-block-size: 2.75rem;
+  min-inline-size: 2.75rem;
+}
+
+// Rispetto di «riduci animazioni».
+@media (prefers-reduced-motion: reduce) {
+  .co-form__header-summary,
+  .co-form .co-form__header-details {
+    transition-duration: 0.01ms;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F1 — header compatto, banner cliente, banner warning (solo vista mobile).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Banner cliente vuoto: card «da riempire» tratteggiata, ben distinguibile.
+.co-form__header-summary--empty {
+  border: var(--border-width) dashed var(--color-border-strong);
+}
+
+.co-form__header-summary--empty .co-form__header-summary-icon {
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
+}
+
+.co-form__header-summary-required {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-semibold);
+}
+
+// Modifiche non salvate: puntino accanto al titolo, solo su mobile.
+.co-form__dirty-dot {
+  display: none;
+}
+
+@include bp.media-down('lg') {
+  .co-form .co-form__dirty-dot {
+    display: inline-block;
+    inline-size: 0.625rem;
+    block-size: 0.625rem;
+    margin-inline-start: var(--space-2);
+    vertical-align: middle;
+    background-color: var(--status-warning-fg);
+    border-radius: 50%;
+  }
+
+  // La riga testuale del salvataggio resta su desktop, via su mobile.
+  .co-form .doc-form__save-state {
+    display: none;
+  }
+
+  // «Manca cliente/location»: fondo warning, non grigio tenue.
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F2 — totali a lista, footer ridotto, menu azioni ⋯.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// «+ Aggiungi sconto»: link inline al posto dell'input finché lo sconto è vuoto.
+.co-form__add-discount {
+  padding: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-link);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.co-form__add-discount:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+// Menu ⋯: nascosto su desktop (là c'è la barra azioni), visibile su mobile.
+.co-form__header-menu {
+  display: none;
+  position: relative;
+}
+
+.co-form__header-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  color: var(--color-text, var(--color-text));
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.co-form__header-menu-list {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: calc(100% + var(--space-1));
+  z-index: var(--z-dropdown);
+  min-inline-size: 15rem;
+  padding: var(--space-1);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.co-form__header-menu-group {
+  margin: var(--space-1) var(--space-2) var(--space-05);
+  font-size: var(--text-nano);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.co-form__header-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--space-2);
+  text-align: start;
+  color: var(--color-text, var(--color-text));
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 120ms var(--ease-standard);
+}
+
+.co-form__header-menu-item:active {
+  background-color: var(--color-surface-soft, var(--color-surface-soft));
+}
+
+// I totali a lista impilata sono promossi in styles/_document-form-mobile.scss.
+@include bp.media-down('lg') {
+  .co-form__header-menu {
+    display: block;
+    // Spinge il ⋯ a destra nella riga del titolo.
+    margin-inline-start: auto;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F3 — sezione righe disabilitata finché mancano cliente/location.
+// ═══════════════════════════════════════════════════════════════════════════
+@include bp.media-down('lg') {
+  // Aspetto chiaramente «in attesa»: opacità ridotta, bordi tenui tratteggiati,
+  // testi pallidi. Torna normale quando il gate si sblocca (fieldset non più
+  // disabled). Il cosa-fare è nel banner warning sopra la sezione.
+  .co-form .doc-form__gate-fields:disabled {
+    opacity: var(--opacity-disabled);
+  }
+
+  .co-form .doc-form__gate-fields:disabled .co-form__mobile-quick {
+    border-style: dashed;
+    border-color: var(--color-border);
+    box-shadow: none;
+  }
+
+  // Finche' manca il cliente le righe non si toccano: le card lo dicono con il
+  // bordo tratteggiato e il testo smorzato, configurate da qui.
+  .co-form .doc-form__gate-fields:disabled .co-form__cards {
+    --co-card-border: var(--border-width) dashed var(--color-border);
+    --co-card-shadow: none;
+    --co-card-fg: var(--color-text-muted);
+  }
+
+  .co-form .doc-form__gate-fields:disabled .doc-form__subtitle {
+    color: var(--color-text-muted);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Ingresso prodotti su mobile: blocco «Nuovo prodotto» e «Aggiungi riga» in
+// fondo alla lista. Nascosti su desktop, dove restano la toolbar righe e la
+// ricerca inline per riga. La veste del dock (doc-form__sticky-bar) è
+// promossa in styles/_document-form-mobile.scss.
+// ═══════════════════════════════════════════════════════════════════════════
+.co-form__mobile-tools,
+.co-form__mobile-add-line,
+.co-form__header-include {
+  display: none;
+}
+
+@include bp.media-down('lg') {
+  // Toolbar desktop fuori: i suoi comandi sono ricollocati.
+  .co-form .co-form__lines-tools {
+    display: none;
+  }
+
+  // Azione rara, quindi ghost compatto a destra (non a piena larghezza).
+  .co-form .co-form__mobile-tools {
+    display: flex;
+    justify-content: flex-end;
+    margin-block-end: var(--space-2);
+    --field-height: var(--co-ghost-h);
+  }
+
+  // Riga manuale: chiude la lista, a piena larghezza.
+  .co-form .co-form__mobile-add-line {
+    display: block;
+    margin-block-start: var(--space-2);
+    --field-height: var(--btn-min-height);
+  }
+
+  .co-form .co-form__mobile-add-line {
+    --button-inline-size: 100%;
+  }
+
+  // «Includi documento» in coda alla testata: agisce sul documento, non sulle righe.
+  .co-form .co-form__header-include {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--space-2);
+    border-block-start: var(--border-width) solid var(--color-border);
+  }
+}

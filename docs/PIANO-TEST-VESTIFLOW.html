@@ -1,0 +1,7146 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VestiFlow — Piano di test completo</title>
+  <style>@page {
+  margin: 18mm 16mm;
+  size: A4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 11pt;
+  line-height: 1.55;
+  color: #1a1a1a;
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 12mm 10mm;
+}
+
+h1 {
+  font-size: 22pt;
+  color: #1e3a5f;
+  border-bottom: 3px solid #2563eb;
+  padding-bottom: 8px;
+  margin-top: 0;
+  page-break-after: avoid;
+}
+
+h2 {
+  font-size: 15pt;
+  color: #1e3a5f;
+  margin-top: 28px;
+  border-bottom: 1px solid #cbd5e1;
+  padding-bottom: 4px;
+  page-break-after: avoid;
+}
+
+h3 {
+  font-size: 12pt;
+  color: #334155;
+  margin-top: 18px;
+  page-break-after: avoid;
+}
+
+p,
+li {
+  orphans: 3;
+  widows: 3;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 16px;
+  font-size: 10pt;
+  page-break-inside: avoid;
+}
+
+th,
+td {
+  border: 1px solid #cbd5e1;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f1f5f9;
+  font-weight: 600;
+}
+
+tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+code {
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 9.5pt;
+}
+
+pre {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 12px;
+  overflow-x: auto;
+  font-size: 9pt;
+  page-break-inside: avoid;
+}
+
+blockquote {
+  border-left: 4px solid #2563eb;
+  margin: 12px 0;
+  padding: 8px 16px;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 24px 0;
+}
+
+a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+ul,
+ol {
+  padding-left: 22px;
+}
+
+.cover-meta {
+  color: #64748b;
+  font-size: 10pt;
+  margin-bottom: 24px;
+}
+
+@media print {
+  body {
+    padding: 0;
+  }
+
+  h2 {
+    page-break-before: auto;
+  }
+
+  a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 8pt;
+    color: #64748b;
+  }
+}
+</style>
+</head>
+<body>
+<h1 id="vestiflow--piano-di-test-completo">VestiFlow — Piano di test completo</h1>
+<p><strong>Versione documento:</strong> 2.1 — Luglio 2026</p>
+<p><strong>Scopo:</strong> elenco ordinato di tutti i test manuali da eseguire sul gestionale VestiFlow, dal primo all&#39;ultimo, con passaggi operativi e risultati attesi. Pensato per essere letto e compilato in parallelo da due tester (tu e un collega).</p>
+<p><strong>Due percorsi di test distinti</strong></p>
+<table>
+<thead>
+<tr>
+<th>Percorso</th>
+<th>Account</th>
+<th>Cosa testa</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>A — Cliente (tenant)</strong></td>
+<td>Titolare, Admin negozio, Manager, Commesso</td>
+<td>Tutto il gestionale operativo del negozio: catalogo, magazzino, ordini, documenti, vendite, report</td>
+</tr>
+<tr>
+<td><strong>B — Admin piattaforma</strong></td>
+<td>Operatore VestiFlow (platform admin)</td>
+<td>Creazione clienti, utenti, licensing sedi, sessione assistenza, guida tecnica</td>
+</tr>
+</tbody></table>
+<p>I test tenant partono da <strong>T-001</strong>. I test admin sono nella <strong>sezione 18</strong> (T-160 in poi): eseguili con account operatore piattaforma, oppure segnala <strong>N/A</strong> se non disponibile.</p>
+<p><strong>Come usare questo documento</strong></p>
+<ol>
+<li>Leggi la sezione <strong>0 — Preparazione</strong> prima di iniziare qualsiasi test.</li>
+<li>Esegui i test <strong>nell&#39;ordine numerico</strong> (T-001 → T-206). Alcuni test dipendono da dati creati in test precedenti.</li>
+<li>Compila per ogni test: <strong>Esito</strong> (OK / KO / N/A), <strong>Tester</strong>, <strong>Data</strong>, <strong>Note</strong>.</li>
+<li>In caso di KO, descrivi cosa è successo e allega screenshot se utile.</li>
+<li>Non saltare i test contrassegnati <strong>Obbligatorio</strong> prima del go-live.</li>
+<li>Per i test <strong>Profilo canale</strong>, verifica l&#39;etichetta in tabella: <strong>Shopify</strong>, <strong>Solo gestionale</strong> o <strong>TikTok Shop</strong> — molte voci menu cambiano in base al profilo.</li>
+</ol>
+<hr>
+<h2 id="indice">Indice</h2>
+<ol start="0">
+<li><a href="#0-preparazione-ambiente-e-divisione-lavoro">Preparazione ambiente e divisione lavoro</a></li>
+<li><a href="#1-accesso-e-autenticazione">Accesso e autenticazione</a></li>
+<li><a href="#2-shell-navigazione-e-ui-generale">Shell, navigazione e UI generale</a></li>
+<li><a href="#3-dashboard">Dashboard</a></li>
+<li><a href="#4-impostazioni">Impostazioni</a></li>
+<li><a href="#5-prodotti-e-catalogo">Prodotti e catalogo</a></li>
+<li><a href="#6-magazzino--giacenze">Magazzino — Giacenze</a></li>
+<li><a href="#7-magazzino--cerca-giacenza">Magazzino — Cerca giacenza</a></li>
+<li><a href="#8-magazzino--movimenti">Magazzino — Movimenti</a></li>
+<li><a href="#9-magazzino--import-csv-giacenze">Magazzino — Import CSV giacenze</a></li>
+<li><a href="#10-inventario-fisico">Inventario fisico</a></li>
+<li><a href="#11-fornitori">Fornitori</a></li>
+<li><a href="#12-ordini-fornitori">Ordini fornitori</a></li>
+<li><a href="#13-documenti-fiscali-e-operativi">Documenti fiscali e operativi</a></li>
+<li><a href="#14-vendite-al-banco-e-ordini-online">Vendite al banco e ordini online</a></li>
+<li><a href="#15-clienti">Clienti</a></li>
+<li><a href="#16-report-e-registro-commercialista">Report e registro commercialista</a></li>
+<li><a href="#17-guida-integrata">Guida integrata</a></li>
+<li><a href="#18-amministrazione-piattaforma">Amministrazione piattaforma</a></li>
+<li><a href="#19-mobile-e-pwa">Mobile e PWA</a></li>
+<li><a href="#20-permessi-per-ruolo">Permessi per ruolo</a></li>
+<li><a href="#21-flussi-end-to-end-integrati">Flussi end-to-end integrati</a></li>
+</ol>
+<hr>
+<h2 id="legenda-campi-test">Legenda campi test</h2>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Significato</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>ID</strong></td>
+<td>Codice univoco del test (es. T-042)</td>
+</tr>
+<tr>
+<td><strong>Priorità</strong></td>
+<td><strong>P1</strong> = bloccante · <strong>P2</strong> = importante · <strong>P3</strong> = secondario</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Account necessario: Titolare, Admin, Manager, Commesso, Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop, Mobile, o Entrambi</td>
+</tr>
+<tr>
+<td><strong>Prerequisiti</strong></td>
+<td>Condizioni da soddisfare prima del test</td>
+</tr>
+<tr>
+<td><strong>Passaggi</strong></td>
+<td>Azioni da eseguire in sequenza</td>
+</tr>
+<tr>
+<td><strong>Risultato atteso</strong></td>
+<td>Comportamento corretto da verificare</td>
+</tr>
+<tr>
+<td><strong>Esito</strong></td>
+<td>Compila: OK / KO / N/A</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="0-preparazione-ambiente-e-divisione-lavoro">0. Preparazione ambiente e divisione lavoro</h2>
+<h3 id="01-checklist-ambiente-tutti-i-tester">0.1 Checklist ambiente (tutti i tester)</h3>
+<p>Prima di T-001, verifica:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Verifica</th>
+<th>OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Backend API avviato e raggiungibile</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Frontend VestiFlow aperto su URL di test/staging</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Almeno un negozio Shopify di test collegabile (se test sync)</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Quattro account tenant: Titolare, Admin negozio, Manager, Commesso</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Un account <strong>operatore piattaforma</strong> (admin VestiFlow) per sezione 18</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Almeno 2 location configurate (es. Negozio + Magazzino)</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Browser: Chrome o Edge aggiornato (desktop) + smartphone per test mobile</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Foglio condiviso o canale per segnalare bug (es. chat, issue tracker)</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Stampante o PDF reader per test stampa documenti / etichette</td>
+<td>☐</td>
+</tr>
+</tbody></table>
+<h3 id="02-dati-di-test-consigliati">0.2 Dati di test consigliati</h3>
+<p>Crea (o verifica l&#39;esistenza di) questi dati durante i primi test; serviranno ai test successivi:</p>
+<ul>
+<li>1 prodotto con 2+ varianti (taglia/colore), SKU univoci, almeno 1 barcode</li>
+<li>Giacenze &gt; 0 su almeno una location</li>
+<li>1 fornitore (creato durante ordine fornitore)</li>
+<li>Shopify connesso (se ambiente lo prevede)</li>
+</ul>
+<h3 id="03-divisione-suggerita-per-2-tester-in-parallelo">0.3 Divisione suggerita per 2 tester in parallelo</h3>
+<table>
+<thead>
+<tr>
+<th>Tester</th>
+<th>Sezioni principali</th>
+<th>ID test (indicativi)</th>
+<th>Focus</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>A</strong></td>
+<td>0 → 5, 13 (documenti vendita), 17, 21 (parte A)</td>
+<td>T-001 → T-063, T-135 → T-145, T-154 → T-156, T-190 → T-196</td>
+<td>Login, Shopify, prodotti (incluso <strong>Inserimento rapido</strong>), documenti fiscali, guida, onboarding</td>
+</tr>
+<tr>
+<td><strong>B</strong></td>
+<td>6 → 12, 13 (magazzino), 14 → 16, 18 → 21 (parte B)</td>
+<td>T-070 → T-134, T-146 → T-153, T-160 → T-172, T-180 → T-210</td>
+<td>Magazzino, fornitori, ordini, arrivi merce, vendite banco, report, admin, mobile, permessi</td>
+</tr>
+</tbody></table>
+<p><strong>Regola conflitto:</strong> non modificare lo stesso prodotto, ordine o inventario contemporaneamente. Usate prefissi SKU diversi (<code>TEST-A-</code> / <code>TEST-B-</code>).</p>
+<p><strong>Sync point consigliati:</strong></p>
+<ol>
+<li>Dopo <strong>T-031–T-034</strong> (Shopify connesso e catalogo importato) — prima che B lavori su giacenze.</li>
+<li>Dopo <strong>T-047</strong> (primo prodotto rapido creato da A) — B può usarlo per movimenti e vendite.</li>
+<li>Dopo <strong>T-162</strong> (sessione assistenza) — solo un tester alla volta in assistenza sullo stesso tenant.</li>
+</ol>
+<h3 id="04-profili-canale-da-testare-se-possibile">0.4 Profili canale da testare (se possibile)</h3>
+<p>Ideale: almeno un tenant <strong>Shopify</strong> (sync completo) e uno <strong>Solo gestionale</strong> (senza e-commerce). TikTok Shop: smoke test opzionale.</p>
+<table>
+<thead>
+<tr>
+<th>Profilo</th>
+<th>Voci menu extra / assenti</th>
+<th>Test prioritari</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Shopify</strong></td>
+<td>Vendite, Clienti, sync Shopify</td>
+<td>T-031–T-037, T-130–T-132, T-192</td>
+</tr>
+<tr>
+<td><strong>Solo gestionale</strong></td>
+<td>No lista Vendite/Clienti; <strong>Registra vendita online</strong> sì</td>
+<td>T-125–T-128, T-153</td>
+</tr>
+<tr>
+<td><strong>TikTok Shop</strong></td>
+<td>Integrazione TikTok in Impostazioni</td>
+<td>T-044 (se disponibile), push giacenze post-scan</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="1-accesso-e-autenticazione">1. Accesso e autenticazione</h2>
+<h3 id="t-001--login-con-credenziali-valide">T-001 — Login con credenziali valide</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> account attivo con email e password note.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri l&#39;URL del gestionale (es. <code>/login</code>).</li>
+<li>Inserisci email e password corrette.</li>
+<li>Clicca <strong>Accedi</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> redirect a <code>/app/dashboard</code>. Topbar mostra nome utente. Sidebar visibile.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-002--login-con-password-errata">T-002 — Login con password errata</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dalla schermata login inserisci email valida e password sbagliata.</li>
+<li>Clicca <strong>Accedi</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> resti su <code>/login</code>. Messaggio di errore visibile. Nessun accesso all&#39;app.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-003--validazione-campi-login-vuoti">T-003 — Validazione campi login vuoti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Lascia email e password vuote.</li>
+<li>Clicca <strong>Accedi</strong>.</li>
+<li>Compila solo email, lascia password vuota e invia di nuovo.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> messaggi di errore inline sui campi mancanti/non validi. Nessuna chiamata di login riuscita.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-004--password-dimenticata">T-004 — Password dimenticata</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Da <code>/login</code> clicca <strong>Password dimenticata</strong>.</li>
+<li>Inserisci email di un account esistente.</li>
+<li>Invia la richiesta.</li>
+<li>(Se possibile) apri il link ricevuto via email e imposta nuova password.</li>
+<li>Torna al login e accedi con la nuova password.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> messaggio di conferma invio email. Link reset funzionante. Login con nuova password OK.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-005--logout">T-005 — Logout</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> utente autenticato.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In topbar clicca <strong>Esci</strong> (icona/logout accanto al profilo).</li>
+<li>Prova ad aprire manualmente <code>/app/dashboard</code>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> redirect a <code>/login</code>. Route <code>/app/*</code> non accessibili senza nuovo login.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-006--login-con-mfa-utente-già-configurato">T-006 — Login con MFA (utente già configurato)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin con MFA attivo</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> MFA già attivato (vedi T-040).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Login con email e password.</li>
+<li>Quando compare la schermata <strong>Verifica a due fattori</strong>, inserisci codice a 6 cifre dall&#39;app authenticator.</li>
+<li>Clicca <strong>Verifica e accedi</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> accesso alla dashboard. Codice errato → messaggio errore, nessun accesso.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-007--torna-a-email-e-password-da-schermata-mfa">T-007 — Torna a email e password da schermata MFA</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Utente con MFA</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Arriva alla schermata MFA dopo login.</li>
+<li>Clicca <strong>Torna a email e password</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> torni al form credenziali. Puoi reinserire email/password.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-008--guest-guard-utente-loggato-non-vede-login">T-008 — Guest guard: utente loggato non vede login</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi autenticato</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Estando loggato, naviga manualmente a <code>/login</code>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> redirect automatico fuori dalla pagina login (es. dashboard).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="2-shell-navigazione-e-ui-generale">2. Shell, navigazione e UI generale</h2>
+<h3 id="t-010--sidebar-tutte-le-voci-menu">T-010 — Sidebar: tutte le voci menu</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dopo login verifica che la sidebar contenga almeno: <strong>Dashboard</strong>, <strong>Prodotti</strong>, <strong>Magazzino</strong>, <strong>Fornitori</strong>, <strong>Ordini Fornitori</strong>, <strong>Documenti</strong>, <strong>Registra vendita</strong>, <strong>Report</strong>, <strong>Impostazioni</strong>, <strong>Guida</strong>.</li>
+<li>Se profilo <strong>Shopify</strong>: verifica anche <strong>Vendite</strong> e <strong>Clienti</strong> (e opz. <strong>Registro commercialista</strong>).</li>
+<li>Clicca ogni voce visibile una alla volta.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> ogni voce apre la pagina corretta. Titolo pagina e URL coerenti (<code>/app/dashboard</code>, <code>/app/products</code>, <code>/app/suppliers</code>, <code>/app/documents</code>, <code>/app/sales/register</code>, ecc.). Voci assenti per profilo/permesso non devono comparire.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-011--voce-guida-in-sidebar">T-011 — Voce Guida in sidebar</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Scorri in fondo alla sidebar.</li>
+<li>Clicca <strong>Guida</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> si apre <code>/app/guide</code> con indice e contenuto guida utente.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-012--selettore-sede-location-in-topbar">T-012 — Selettore sede (location) in topbar</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> almeno 2 location configurate.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In topbar apri il selettore sede.</li>
+<li>Seleziona una location diversa da quella attuale.</li>
+<li>Vai in Magazzino → Giacenze.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> elenco giacenze filtrato o contestualizzato sulla sede selezionata. Il selettore mostra la sede scelta.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-013--indicatore-sync-shopify-in-topbar">T-013 — Indicatore sync Shopify in topbar</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare/Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Osserva l&#39;indicatore sync in topbar (con Shopify connesso e disconnesso, se possibile).</li>
+<li>Clicca l&#39;indicatore.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> stato sync leggibile (connesso/errore/sync in corso). Click porta a Impostazioni o mostra dettaglio coerente.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-014--cambio-tema-chiaro--scuro--sistema">T-014 — Cambio tema (chiaro / scuro / sistema)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Vai in <strong>Impostazioni → Aspetto</strong>.</li>
+<li>Seleziona <strong>Chiaro</strong>, poi <strong>Scuro</strong>, poi <strong>Sistema</strong>.</li>
+<li>Naviga in almeno 2 pagine diverse (Dashboard, Prodotti).</li>
+</ol>
+<p><strong>Risultato atteso:</strong> interfaccia cambia tema senza errori. Preferenza persiste dopo refresh pagina.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-015--sidebar-mobile-drawer">T-015 — Sidebar mobile (drawer)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri l&#39;app su smartphone (o riduci finestra browser &lt; breakpoint mobile).</li>
+<li>Tocca icona <strong>menu</strong> in topbar.</li>
+<li>Seleziona una voce (es. Prodotti).</li>
+<li>Chiudi/riapri il drawer.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> sidebar si apre come drawer. Navigazione funziona. Topbar sempre accessibile.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-016--stati-loading-ed-empty-state">T-016 — Stati loading ed empty state</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri una lista (Prodotti o Movimenti) e osserva il caricamento iniziale.</li>
+<li>Applica un filtro di ricerca che non restituisca risultati.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> skeleton/spinner durante loading. Empty state con titolo, descrizione e (se previsto) CTA — non solo testo &quot;Nessun dato&quot;.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-017--stato-errore-con-riprova">T-017 — Stato errore con Riprova</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>(Se possibile) ferma temporaneamente l&#39;API o simula offline.</li>
+<li>Ricarica Dashboard o una lista.</li>
+<li>Clicca <strong>Riprova</strong> dopo aver ripristinato la connessione.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> messaggio errore dedicato con pulsante Riprova. Dopo Riprova i dati si caricano.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="3-dashboard">3. Dashboard</h2>
+<h3 id="t-020--kpi-dashboard-visibili">T-020 — KPI dashboard visibili</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Vai su <code>/app/dashboard</code>.</li>
+<li>Attendi fine caricamento.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> compaiono le card KPI: Prodotti, Pezzi disponibili, Sotto soglia, Ordini in arrivo, Vendite da evadere. Valori numerici formattati (tabular-nums).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-021--panel-varianti-sotto-soglia">T-021 — Panel varianti sotto soglia</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> almeno una variante sotto soglia minima (o nessuna).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Nella sezione <strong>Varianti sotto soglia</strong> verifica contenuto tabella o messaggio positivo.</li>
+<li>Clicca <strong>Vai al magazzino</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> tabella con varianti sotto soglia oppure messaggio &quot;Nessuna variante sotto soglia&quot;. Link apre Magazzino.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-022--ultime-vendite-e-link-dettaglio">T-022 — Ultime vendite e link dettaglio</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> almeno una vendita sincronizzata da Shopify (se possibile).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Nella sezione <strong>Ultime vendite</strong> clicca una riga.</li>
+<li>Verifica la pagina di dettaglio vendita.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> click apre dettaglio ordine vendita. Link <strong>Vai alle vendite</strong> apre lista vendite.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="4-impostazioni">4. Impostazioni</h2>
+<h3 id="t-030--visualizzazione-profilo-utente">T-030 — Visualizzazione profilo utente</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Vai in <strong>Impostazioni → Profilo</strong>.</li>
+<li>Verifica nome, email e ruolo mostrati.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> dati coerenti con account usato per il login.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-045--impostazioni-magazzino-e-documenti">T-045 — Impostazioni Magazzino e documenti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Magazzino e documenti</strong>.</li>
+<li>Attiva <strong>Gestione lotti</strong> e <strong>Gestione seriali</strong>; salva.</li>
+<li>Imposta <strong>Policy aggiornamento prezzo fornitore</strong> (es. «Chiedi sempre»); salva.</li>
+<li>Modifica <strong>IVA predefinita</strong> e <strong>Unità di misura predefinita</strong>; salva.</li>
+<li>Ricarica pagina e verifica persistenza.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> flag e valori salvati. In <strong>Arrivo merce</strong>, colonne lotto/scadenza/seriali visibili solo se attivate. Alla conferma arrivo con costo diverso dal listino fornitore, comportamento coerente con la policy scelta.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-031--connessione-shopify-oauth">T-031 — Connessione Shopify (OAuth)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> shop Shopify di test. Connessione non ancora attiva (o disconnetti prima).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Integrazione Shopify</strong>.</li>
+<li>Inserisci dominio shop (es. <code>negozio-test.myshopify.com</code>).</li>
+<li>Clicca <strong>Connetti Shopify</strong>.</li>
+<li>Completa autorizzazione sulla pagina Shopify.</li>
+<li>Torna in VestiFlow.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> badge <strong>Connesso</strong>. Dominio shop visibile. Banner verde di conferma.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-032--sincronizza-location">T-032 — Sincronizza location</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> Shopify connesso.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In Impostazioni clicca <strong>Sincronizza location</strong>.</li>
+<li>Attendi completamento (spinner + messaggio avanzamento).</li>
+<li>Scorri alla sezione <strong>Location</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> messaggio esito verde/giallo. Tabella location popolata con sedi Shopify. Setup status &quot;Location&quot; = Attivo.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-033--attiva-aggiornamenti-automatici-webhook">T-033 — Attiva aggiornamenti automatici (webhook)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> Shopify connesso, location sincronizzate.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Clicca <strong>Attiva aggiornamenti automatici</strong>.</li>
+<li>Attendi completamento.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> setup status webhook = Attivo (o Parziale con spiegazione). Pulsante diventa <strong>Disattiva aggiornamenti automatici</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-034--importa-catalogo-da-shopify">T-034 — Importa catalogo da Shopify</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> Shopify connesso con prodotti già presenti online.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Da Impostazioni o Prodotti clicca <strong>Importa catalogo da Shopify</strong>.</li>
+<li>Attendi fine operazione <strong>senza</strong> ripremere il pulsante.</li>
+<li>Vai in Prodotti e verifica presenza prodotti importati.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> messaggio esito. Prodotti visibili in lista. Badge sync sui prodotti importati.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-035--permessi-shopify-visualizzati">T-035 — Permessi Shopify visualizzati</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In Impostazioni, sezione <strong>Accesso a Shopify</strong>, leggi l&#39;elenco permessi.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> ogni scope ha etichetta leggibile e badge lettura/scrittura.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-036--ripristina-connessione-se-errore-stale">T-036 — Ripristina connessione (se errore stale)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> connessione in stato errore simulato o reale.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Se compare <strong>Ripristina connessione</strong>, cliccalo.</li>
+<li>Attendi esito.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> errore cleared o messaggio esplicativo. Stato connessione migliorato.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-037--disconnetti-shopify">T-037 — Disconnetti Shopify</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Clicca <strong>Disconnetti Shopify</strong> (non «Disconnetti e rimuovi dati»).</li>
+<li>Verifica stato connessione.</li>
+<li><strong>Riconnetti</strong> subito dopo (T-031) per non bloccare altri test.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> stato Disconnesso. I dati già importati (prodotti, clienti) restano in VestiFlow. Form per nuova connessione visibile. Riconnessione funziona.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-037b--wizard-cambia-negozio--disconnetti-e-rimuovi-dati">T-037b — Wizard Cambia negozio / Disconnetti e rimuovi dati</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+<tr>
+<td><strong>Prerequisiti</strong></td>
+<td>Shopify connesso, ambiente di test (non produzione)</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Integrazione Shopify → Cambia negozio</strong>.</li>
+<li>Verifica anteprima conteggi (prodotti, clienti, ordini, location).</li>
+<li>Chiudi il wizard <strong>senza</strong> confermare (Annulla).</li>
+<li>Ripeti con <strong>Disconnetti e rimuovi dati</strong>; verifica che compaiano avvisi su irreversibilità e ordini fornitori.</li>
+<li><strong>Non</strong> completare la purge in staging con dati reali salvo test dedicato.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> wizard multi-step, conteggi coerenti, conferma dominio richiesta, blockers visibili se ordini fornitori aperti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-037c--pannello-sede-fisica">T-037c — Pannello Sede fisica</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Sede fisica</strong>.</li>
+<li>Verifica nome commerciale, negozio, profilo canale.</li>
+<li>Espandi <strong>Dati fiscali e contatti</strong> se presenti.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> anagrafica tenant visibile; distinta dalle location Shopify sotto Integrazione Shopify.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-038--commesso-non-vede-azioni-shopify">T-038 — Commesso non vede azioni Shopify</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Accedi come Commesso.</li>
+<li>Vai in Impostazioni → Integrazione Shopify.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> nessun pulsante Connetti/Disconnetti/Sync. Messaggio che solo titolare/admin possono gestire Shopify.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-039--tabella-location-in-impostazioni">T-039 — Tabella location in Impostazioni</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Integrazione Shopify → Location</strong>.</li>
+<li>Verifica gruppi <strong>Sedi Shopify</strong> e <strong>Sede locale</strong> (se presenti).</li>
+<li>Verifica colonne: nome, stato sync, riferimenti utili.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> location elencate nel pannello Shopify. Stato sync leggibile. Nome commerciale tenant <strong>non</strong> confuso con sedi Shopify.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-042--sedi-attive-in-vestiflow">T-042 — Sedi attive in VestiFlow</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> location sincronizzate (T-032). Piano con limite sedi (es. 2).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Sedi attive in VestiFlow</strong>.</li>
+<li>Seleziona le sedi da attivare entro il limite del piano.</li>
+<li>Clicca <strong>Salva sedi attive</strong>.</li>
+<li>Verifica che le sedi non selezionate non compaiano nei filtri operativi.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> salvataggio confermato. Solo sedi attive usabili in magazzino, movimenti e vendite. Modifica bloccata o limitata dopo salvataggio (se previsto dal piano).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-044--integrazione-tiktok-shop-smoke-test">T-044 — Integrazione TikTok Shop (smoke test)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+<tr>
+<td><strong>Profilo</strong></td>
+<td>TikTok Shop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Integrazione TikTok Shop</strong>.</li>
+<li>Avvia connessione OAuth (se ambiente configurato).</li>
+<li>Verifica badge stato connessione.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> flusso OAuth completabile o messaggio chiaro se ambiente non configurato. Segnare N/A se tenant non TikTok.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-040--attivazione-mfa">T-040 — Attivazione MFA</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Impostazioni → Sicurezza account</strong>.</li>
+<li>Avvia procedura MFA (QR code / codice setup).</li>
+<li>Scansiona con app authenticator e inserisci codice di verifica.</li>
+<li>Completa attivazione.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> MFA risulta attivo. Al prossimo login richiede codice (T-006).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-041--commesso-non-vede-sezione-mfa">T-041 — Commesso non vede sezione MFA</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Impostazioni come Commesso.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> sezione <strong>Sicurezza account</strong> / MFA non visibile o non modificabile.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="5-prodotti-e-catalogo">5. Prodotti e catalogo</h2>
+<h3 id="t-050--lista-prodotti-caricamento-e-filtri">T-050 — Lista prodotti: caricamento e filtri</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Vai in <strong>Prodotti</strong>.</li>
+<li>Usa ricerca libera (nome, brand, SKU).</li>
+<li>Applica filtri categoria / brand / stagione se disponibili.</li>
+<li>Reset filtri.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> tabella si aggiorna. Risultati coerenti. Empty state se nessun match.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-047--inserimento-rapido-prodotto-modalità-predefinita">T-047 — Inserimento rapido prodotto (modalità predefinita)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> permesso <strong>Gestire catalogo</strong>.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Prodotti → Aggiungi prodotto</strong> (<code>/app/products/new</code>).</li>
+<li>Verifica che il toggle mostri <strong>Inserimento rapido</strong> attivo (predefinito).</li>
+<li>Compila solo <strong>Nome</strong> (es. <code>TEST-A-Maglietta</code>) e <strong>Prezzo vendita</strong> (es. 29,90 €).</li>
+<li>Verifica che lo <strong>SKU</strong> si generi automaticamente dal nome.</li>
+<li>Opzionale: clicca <strong>Genera</strong> accanto a <strong>EAN</strong> e verifica che compaia un codice.</li>
+<li>Clicca <strong>Crea prodotto</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> prodotto creato con <strong>una sola variante</strong>. Redirect a dettaglio o lista. Nessun errore. Brand e categoria possono restare vuoti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-048--inserimento-rapido-altri-dati-catalogo-e-passaggio-a-varianti">T-048 — Inserimento rapido: Altri dati catalogo e passaggio a varianti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri <strong>Nuovo prodotto</strong> in modalità <strong>Inserimento rapido</strong>.</li>
+<li>Espandi il pannello <strong>Altri dati catalogo</strong> (chevron/details).</li>
+<li>Compila <strong>Brand</strong> e <strong>Categoria</strong> (opzionali).</li>
+<li>Clicca <strong>Configura taglia/colore…</strong> (o toggle <strong>Con varianti</strong>).</li>
+<li>Completa wizard: opzioni S/M/L e Nero/Bianco, SKU per variante, prezzi.</li>
+<li>Salva prodotto.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> passaggio fluido da rapido a wizard. Pannello collassabile leggibile. 6 varianti generate. Layout a 3 colonne su desktop per nome/brand/categoria nel rapido.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-051--creazione-prodotto-completa-wizard-4-step">T-051 — Creazione prodotto completa (wizard 4 step)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Prodotti → Aggiungi prodotto</strong>.</li>
+<li>Attiva <strong>Con varianti</strong> (se non già attivo).</li>
+<li><strong>Step 1 — Dati generali:</strong> nome <code>TEST-A-Giacca</code>, brand, categoria (select), stagione (select), descrizione. Aggiungi almeno 1 immagine (JPEG/PNG/WebP ≤ 5 MB).</li>
+<li><strong>Step 2 — Opzioni:</strong> aggiungi valori alla prima opzione (es. S, M, L) e alla seconda (es. Nero, Bianco). Verifica generazione combinazioni.</li>
+<li><strong>Step 3 — Varianti:</strong> compila SKU univoci per ogni variante, prezzo vendita, barcode opzionale su almeno una variante.</li>
+<li><strong>Step 4 — Riepilogo:</strong> controlla dati e clicca <strong>Crea prodotto</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> prodotto creato. Redirect a dettaglio o lista. 6 varianti generate (3×2). Nessun errore SKU duplicato.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-052--select-categoriastagione-e-valore-custom">T-052 — Select categoria/stagione e valore custom</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In nuovo prodotto, step Dati generali, apri select <strong>Categoria</strong>.</li>
+<li>Scegli voce dall&#39;elenco.</li>
+<li>Scegli <strong>Altra categoria…</strong> e inserisci testo libero.</li>
+<li>Ripeti per <strong>Stagione</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> select a larghezza piena come gli altri campi. Opzione custom mostra input testo. Valore salvato correttamente nel riepilogo.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-053--validazione-sku-duplicato">T-053 — Validazione SKU duplicato</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In creazione/modifica prodotto, step Varianti, inserisci uno SKU già usato da un&#39;altra variante.</li>
+<li>Prova ad avanzare / salvare.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> errore immediato su SKU duplicato. Salvataggio bloccato.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-054--uscita-form-con-modifiche-non-salvate">T-054 — Uscita form con modifiche non salvate</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri modifica prodotto o nuovo prodotto.</li>
+<li>Modifica un campo senza salvare.</li>
+<li>Clicca link <strong>Prodotti</strong> o altra voce menu.</li>
+<li>Nel dialog VestiFlow scegli <strong>Annulla</strong> (resta) poi ripeti e scegli <strong>Esci senza salvare</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> dialog di conferma VestiFlow (non popup browser nativo per navigazione interna). Annulla mantiene modifiche. Esci naviga via.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-055--dettaglio-prodotto">T-055 — Dettaglio prodotto</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dalla lista clicca un prodotto.</li>
+<li>Verifica sezioni: dati generali, varianti, giacenze per location, badge sync Shopify.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> tutte le informazioni coerenti con creazione. Tabella varianti con SKU, prezzi, barcode.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-056--modifica-prodotto-esistente">T-056 — Modifica prodotto esistente</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dal dettaglio clicca <strong>Modifica</strong>.</li>
+<li>Cambia nome e prezzo di una variante.</li>
+<li>Salva.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> modifiche persistite. Dettaglio aggiornato. Con Shopify connesso: badge sync aggiornato o sync manuale disponibile.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-057--sync-manuale-prodotto-con-shopify">T-057 — Sync manuale prodotto con Shopify</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare/Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> Shopify connesso. Prodotto con badge &quot;Da sincronizzare&quot; o simile.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Nel dettaglio prodotto clicca <strong>Sincronizza con Shopify</strong>.</li>
+<li>Attendi esito.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> badge diventa <strong>Sincronizzato</strong> o messaggio errore chiaro. Prodotto visibile su Shopify Admin.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-058--elimina-prodotto">T-058 — Elimina prodotto</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare/Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Elimina un prodotto di test <strong>senza movimenti</strong> di magazzino (non usato altrove).</li>
+<li>Conferma nel dialog.</li>
+<li>Se Shopify connesso e prodotto sincronizzato: verifica rimozione anche su Shopify Admin.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> prodotto rimosso da lista VestiFlow. Con sync attivo, rimosso anche da Shopify. Se il prodotto ha movimenti, eliminazione <strong>bloccata</strong> con messaggio chiaro.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-059--esporta-csv-catalogo">T-059 — Esporta CSV catalogo</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Prodotti → <strong>Esporta CSV</strong>.</li>
+<li>Apri il file scaricato.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> file CSV con colonne SKU, varianti, prezzi, metadati. Dati coerenti con lista filtrata.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-060--importa-csv-catalogo">T-060 — Importa CSV catalogo</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Prodotti → Importa CSV</strong>.</li>
+<li>Carica file CSV formato Shopify valido (con prodotti di test).</li>
+<li>Controlla anteprima errori.</li>
+<li>Conferma import.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> prodotti importati o errori riga per riga in anteprima. Nessun import silenzioso di righe invalide.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-061--scanner-barcode-in-lista-prodotti">T-061 — Scanner barcode in lista prodotti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile (Chrome/Android) o desktop con webcam</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> variante con barcode compilato.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In Prodotti clicca <strong>Scansiona barcode</strong>.</li>
+<li>Scansiona barcode noto (o inserisci manualmente se no camera).</li>
+</ol>
+<p><strong>Risultato atteso:</strong> apertura diretta dettaglio prodotto corrispondente. Se non trovato: feedback chiaro.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-062--commesso-non-crea-prodotti">T-062 — Commesso non crea prodotti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Accedi come Commesso.</li>
+<li>Vai in Prodotti. Prova <code>/app/products/new</code> manualmente.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> pulsante Aggiungi prodotto assente o disabilitato. Route new bloccata (redirect o accesso negato).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-063--stampa-etichetta-prodotto-singola-e-bulk">T-063 — Stampa etichetta prodotto (singola e bulk)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dal <strong>dettaglio prodotto</strong>, apri <strong>Stampa etichetta</strong> (o route <code>/app/products/:id/print-label</code>).</li>
+<li>Verifica anteprima con SKU, barcode, prezzo.</li>
+<li>Stampa o salva PDF.</li>
+<li>Dalla <strong>lista prodotti</strong>, seleziona 2+ righe e usa <strong>Stampa etichette</strong> bulk se disponibile.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> layout etichetta leggibile. Barcode scansionabile. Bulk genera una pagina per ogni variante selezionata.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="6-magazzino--giacenze">6. Magazzino — Giacenze</h2>
+<h3 id="t-070--tab-giacenze-tabella-e-filtri">T-070 — Tab Giacenze: tabella e filtri</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Vai in <strong>Magazzino</strong> (tab Giacenze, default).</li>
+<li>Verifica colonne: prodotto/variante, SKU, quantità per stati (disponibile, impegnato…), location.</li>
+<li>Usa filtri ricerca e stato stock.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> tabella popolata. Numeri allineati a destra con tabular-nums. Filtri funzionanti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-070b--ricerca-giacenze-prodotto-senza-movimenti-stock-0">T-070b — Ricerca Giacenze: prodotto senza movimenti (stock 0)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> variante in catalogo <strong>senza</strong> carichi/rettifiche/sync (nessuna riga inventario), oppure con disponibile <strong>0</strong> su tutte le sedi.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Vai in <strong>Magazzino → Giacenze</strong>.</li>
+<li>Verifica che l&#39;articolo <strong>non</strong> compaia nell&#39;elenco senza filtri di ricerca.</li>
+<li>Cerca per <strong>SKU</strong> o <strong>barcode</strong> (o scansiona il barcode).</li>
+<li>Ripeti la stessa ricerca in <strong>Magazzino → Cerca</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> in Giacenze compare la variante con disponibile <strong>0</strong>, stato <strong>Esaurito</strong>, per la sede selezionata (o per tutte le sedi se nessun filtro location). Comportamento coerente con la tab <strong>Cerca</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-071--navigazione-tab-magazzino">T-071 — Navigazione tab magazzino</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Clicca tab <strong>Giacenze</strong>, <strong>Cerca</strong>, <strong>Movimenti</strong>, <strong>Inventario fisico</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> ogni tab apre la pagina corretta mantenendo shell coerente.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-072--sincronizza-giacenze-da-shopify">T-072 — Sincronizza giacenze da Shopify</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare/Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Giacenze → <strong>Sincronizza giacenze da Shopify</strong>.</li>
+<li>Attendi completamento.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> messaggio esito. Quantità aggiornate rispetto a Shopify.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-073--esporta-csv-giacenze">T-073 — Esporta CSV giacenze</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Applica un filtro (es. una location).</li>
+<li><strong>Esporta CSV</strong>.</li>
+<li>Apri file.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> CSV con SKU, Location, quantità. Rispetta filtri attivi.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-074--link-registra-movimento-da-giacenze">T-074 — Link Registra movimento da Giacenze</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Da Giacenze clicca <strong>Registra movimento</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> apertura form movimento <code>/app/inventory/movements/new</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="7-magazzino--cerca-giacenza">7. Magazzino — Cerca giacenza</h2>
+<h3 id="t-080--ricerca-per-sku">T-080 — Ricerca per SKU</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Entrambi</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Magazzino → Cerca</strong> (o menu laterale Magazzino).</li>
+<li>Digita SKU esistente.</li>
+<li>Clicca <strong>Cerca giacenza</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> scheda variante con giacenze per ogni location. Link a prodotto e <strong>Registra movimento</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-081--ricerca-per-barcode--scanner">T-081 — Ricerca per barcode / scanner</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile preferito</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In Cerca giacenza usa <strong>Scansiona barcode</strong> su variante con barcode noto.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> stesso risultato di T-080. Su dispositivo senza camera: scanner disabilitato, ricerca manuale possibile.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-082--sku-inesistente">T-082 — SKU inesistente</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Cerca SKU <code>INEXISTENT-99999</code>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> empty state o messaggio &quot;non trovato&quot;. Nessun crash.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-083--layout-mobile-cerca-giacenza">T-083 — Layout mobile Cerca giacenza</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri Cerca giacenza su smartphone.</li>
+<li>Verifica allineamento campo ricerca, pulsanti <strong>Scansiona barcode</strong> e <strong>Cerca giacenza</strong> sulla stessa riga.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> pulsanti stessa altezza dell&#39;input. Nessun overflow orizzontale.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="8-magazzino--movimenti">8. Magazzino — Movimenti</h2>
+<h3 id="t-090--lista-movimenti-e-filtri">T-090 — Lista movimenti e filtri</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Magazzino → Movimenti</strong>.</li>
+<li>Filtra per tipo movimento, data, location se disponibili.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> storico movimenti con tipo, quantità, SKU, operatore, data. Filtri applicati correttamente.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-091--movimento-carico">T-091 — Movimento CARICO</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> variante TEST-A-* con giacenza nota.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Registra movimento</strong>.</li>
+<li>Tipo: <strong>Carico</strong>. Seleziona variante, location, quantità 5.</li>
+<li>Vai al riepilogo e <strong>Conferma</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> movimento in storico. Giacenza disponibile aumentata di 5 sulla location scelta.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-092--movimento-scarico">T-092 — Movimento SCARICO</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Tipo <strong>Scarico</strong>, quantità 2, variante con stock sufficiente.</li>
+<li>Conferma dal riepilogo.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> giacenza diminuita di 2. Movimento tracciato. Se stock insufficiente: errore prima della conferma.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-093--movimento-trasferimento-tra-location">T-093 — Movimento TRASFERIMENTO tra location</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> 2 location con stock origine sufficiente.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Tipo <strong>Trasferimento</strong>.</li>
+<li>Location origine A, destinazione B, quantità 3.</li>
+<li>Verifica riepilogo (origine −3, destinazione +3).</li>
+<li>Conferma.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> stock aggiornato su entrambe le location. Un movimento transfer in storico.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-094--movimento-rettifica-con-motivo-obbligatorio">T-094 — Movimento RETTIFICA con motivo obbligatorio</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Tipo <strong>Rettifica</strong>, imposta nuova quantità o delta.</li>
+<li>Prova a confermare <strong>senza</strong> motivo.</li>
+<li>Inserisci motivo (es. &quot;Conteggio errato&quot;) e conferma.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> validazione blocca submit senza motivo. Con motivo: rettifica applicata e visibile in storico.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-095--scanner-barcode-nel-form-movimento">T-095 — Scanner barcode nel form movimento</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In Registra movimento scansiona barcode variante nota.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> campo Variante precompilato. Feedback scan visibile.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-096--fase-revisione-movimento-doppia-conferma">T-096 — Fase revisione movimento (doppia conferma)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Compila movimento e vai a <strong>Riepilogo</strong>.</li>
+<li>Verifica dati mostrati (tipo, SKU, location, impatto quantità).</li>
+<li>Torna indietro e modifica, poi conferma.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> riepilogo chiaro prima del submit. Modifica possibile prima della conferma finale.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="9-magazzino--import-csv-giacenze">9. Magazzino — Import CSV giacenze</h2>
+<h3 id="t-100--import-csv-giacenze-valido">T-100 — Import CSV giacenze valido</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Magazzino → Giacenze → Importa CSV</strong>.</li>
+<li>Carica CSV con colonne SKU, Location (nome esatto), Disponibile.</li>
+<li>Controlla anteprima.</li>
+<li>Conferma import.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> giacenze aggiornate. Movimenti rettifica generati in storico.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-101--import-csv-con-errori">T-101 — Import CSV con errori</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Importa CSV con SKU inesistente o location errata.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> anteprima segnala righe invalide. Nessuna applicazione parziale non segnalata.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="10-inventario-fisico">10. Inventario fisico</h2>
+<h3 id="t-110--crea-nuova-sessione-inventario">T-110 — Crea nuova sessione inventario</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Magazzino → Inventario fisico</strong>.</li>
+<li><strong>Nuova sessione</strong> (o equivalente).</li>
+<li>Nome <code>TEST-INV-Giugno</code>, seleziona location, note opzionali.</li>
+<li><strong>Avvia inventario</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> sessione creata in stato aperto/in corso. Snapshot giacenze attuali.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-111--inserimento-quantità-contate">T-111 — Inserimento quantità contate</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Entrambi</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri sessione inventario creata.</li>
+<li>Inserisci quantità contate per almeno 3 varianti (diverse da sistema su almeno 1).</li>
+<li>Usa scanner barcode su una variante (se mobile).</li>
+</ol>
+<p><strong>Risultato atteso:</strong> quantità salvate. Differenze calcolate rispetto a snapshot.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-112--revisione-differenze">T-112 — Revisione differenze</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Passa alla fase revisione (se separata).</li>
+<li>Verifica elenco differenze (+/−).</li>
+</ol>
+<p><strong>Risultato atteso:</strong> differenze chiare per variante. Totali coerenti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-113--chiusura-inventario-e-applicazione-rettifiche">T-113 — Chiusura inventario e applicazione rettifiche</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Chiudi sessione inventario con conferma.</li>
+<li>Vai in Giacenze e Movimenti.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> giacenze allineate alle quantità contate. Movimenti rettifica generati. Sessione in stato chiuso/completato.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="11-fornitori">11. Fornitori</h2>
+<h3 id="t-115--lista-fornitori">T-115 — Lista fornitori</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Vai in <strong>Fornitori</strong> (<code>/app/suppliers</code>).</li>
+<li>Usa ricerca per nome o codice.</li>
+<li>Clicca una riga per aprire il dettaglio.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> tabella con loading/empty state. Dettaglio mostra anagrafica e ordini collegati se presenti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-116--nuovo-fornitore">T-116 — Nuovo fornitore</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Fornitori → Nuovo fornitore</strong>.</li>
+<li>Compila ragione sociale, email, telefono, indirizzo (campi obbligatori del form).</li>
+<li>Salva.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> fornitore creato. Compare in lista e nei select degli ordini fornitore / arrivi merce.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-117--modifica-fornitore">T-117 — Modifica fornitore</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri dettaglio fornitore → <strong>Modifica</strong>.</li>
+<li>Cambia telefono o note.</li>
+<li>Salva e ricarica pagina.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> modifiche persistite.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-118--creazione-fornitore-inline-da-ordine">T-118 — Creazione fornitore inline da ordine</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Ordini Fornitori → Nuovo ordine</strong>.</li>
+<li>Nel campo fornitore, usa <strong>Nuovo fornitore</strong> (creazione inline).</li>
+<li>Compila dati minimi e conferma.</li>
+<li>Completa ordine con il fornitore appena creato.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> fornitore creato senza uscire dal form ordine. Selezionabile subito.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="12-ordini-fornitori">12. Ordini fornitori</h2>
+<h3 id="t-120--lista-ordini-fornitori">T-120 — Lista ordini fornitori</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Ordini Fornitori</strong>.</li>
+<li>Usa filtri stato / fornitore / ricerca.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> tabella ordini con riferimento, fornitore, stato, totali.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-121--nuovo-ordine-fornitore">T-121 — Nuovo ordine fornitore</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Nuovo ordine</strong>.</li>
+<li>Seleziona fornitore esistente (o <strong>Nuovo fornitore</strong> con nome/contatti).</li>
+<li><strong>Aggiungi riga</strong>: variante, quantità ordinata, prezzo acquisto.</li>
+<li>Salva ordine.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> ordine in bozza o stato iniziale corretto. Dettaglio con righe e totali in EUR.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-122--invia-ordine">T-122 — Invia ordine</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dal dettaglio ordine in bozza clicca <strong>Invia ordine</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> stato aggiornato (inviato/in attesa). Pulsante non più disponibile se non applicabile.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-123--registra-arrivo-merce-da-ordine-fornitore">T-123 — Registra arrivo merce da ordine fornitore</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi (anche Commesso)</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> ordine fornitore <strong>Inviato</strong> (T-122).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri dettaglio ordine inviato/in arrivo.</li>
+<li>Clicca <strong>Registra arrivo merce</strong>.</li>
+<li>Verifica apertura form <strong>Arrivo merce</strong> con ordine collegato, righe precompilate e colonne <strong>Ordinato / Già ricevuto / Residuo</strong>.</li>
+<li>Inserisci quantità ricevute (parziale o totale) e <strong>Conferma e carica magazzino</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> documento <strong>Confermato</strong> con numero progressivo. Giacenze incrementate sulla sede destinazione. Movimenti <strong>Carico</strong> in storico. Colonna <strong>In arrivo</strong> aggiornata. Stato ordine <strong>Parzialmente ricevuto</strong> o <strong>Completato</strong>. Nessuna ricezione «silenziosa» senza documento.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-124--commesso-non-crea-ordini">T-124 — Commesso non crea ordini</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Accedi come Commesso. Verifica assenza pulsante <strong>Nuovo ordine</strong>. Prova <code>/app/orders/new</code>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> creazione bloccata. <strong>Registra arrivo merce</strong> su ordine inviato ancora possibile (T-123).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-124b--griglia-ordine-fornitore-colonne-e-mobile">T-124b — Griglia ordine fornitore: colonne e mobile</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Entrambi</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Crea o modifica un <strong>Ordine fornitore</strong> con almeno 2 righe.</li>
+<li>Apri menu <strong>Colonne</strong>: cambia preset, nascondi una colonna, ridimensiona un&#39;intestazione.</li>
+<li>Clic <strong>Ripristina colonne</strong> e verifica reset.</li>
+<li>Su smartphone: verifica righe in <strong>card</strong> impilate con etichette campo.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> griglia tabellare su desktop; preferenze colonne persistite dopo reload. Layout mobile leggibile senza scroll orizzontale incontrollato.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="13-documenti-fiscali-e-operativi">13. Documenti fiscali e operativi</h2>
+<blockquote>
+<p>Sezione critica per magazzino + contabilità. Richiede permesso <strong>Consultare documenti</strong> (view) e <strong>Gestire documenti</strong> (manage) per le azioni di scrittura.</p>
+</blockquote>
+<h3 id="t-135--registro-documenti-filtri-e-colonne">T-135 — Registro documenti: filtri e colonne</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Vai in <strong>Documenti</strong> (<code>/app/documents</code>).</li>
+<li>Applica filtri: tipo documento, stato, periodo.</li>
+<li>Apri menu <strong>Colonne</strong>, cambia preset (Completo / Compatto) e mostra/nascondi colonne.</li>
+<li>Ricarica pagina e verifica persistenza preferenze colonne.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> tabella filtrata correttamente. Preferenze colonne salvate per utente.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-136--arrivo-merce-creazione-griglia-e-conferma">T-136 — Arrivo merce: creazione, griglia e conferma</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> fornitore esistente (T-116). Variante con SKU noto.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Documenti → Nuovo documento → Arrivo merce</strong>.</li>
+<li>Seleziona fornitore, sede destinazione, data.</li>
+<li>Aggiungi riga: cerca variante per <strong>nome, SKU o barcode</strong>, quantità 5, costo unitario.</li>
+<li>Apri menu <strong>Colonne</strong> sulle righe: cambia preset, ridimensiona colonna, poi <strong>Ripristina colonne</strong>.</li>
+<li>Se attivi in T-045: compila lotto/scadenza/seriali su una riga.</li>
+<li>Salva bozza (giacenza <strong>non</strong> cambia), poi <strong>Conferma e carica magazzino</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> stato <strong>Confermato</strong>. Giacenza +5 sulla sede. Movimento <strong>Carico</strong> in storico. Numero progressivo assegnato alla conferma. Documento protetto da modifiche distruttive dopo conferma.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-137--arrivo-merce-collegato-a-ordine-fornitore">T-137 — Arrivo merce collegato a ordine fornitore</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> ordine fornitore <strong>Inviato</strong> (T-122).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dal dettaglio ordine clicca <strong>Registra arrivo merce</strong> (oppure <strong>Documenti → Arrivo merce</strong> e seleziona l&#39;ordine).</li>
+<li>Verifica precompilazione righe con colonne <strong>Ordinato / Già ricevuto / Residuo</strong>.</li>
+<li>Conferma arrivo con quantità ricevute.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> colonna <strong>In arrivo</strong> in Giacenze azzerata per quelle righe. Ordine aggiornato a ricevuto/parziale. Stesso effetto stock/movimenti della conferma manuale (T-136).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-138--crea-articolo-da-riga-arrivo-merce-rapido-e-pannello">T-138 — Crea articolo da riga arrivo merce (rapido e pannello)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In form <strong>Arrivo merce</strong>, su una riga usa <strong>Crea articolo rapido</strong>: compila nome, SKU, prezzo; conferma e associa alla riga.</li>
+<li>Su un&#39;altra riga usa <strong>Crea anagrafica completa</strong>: compila il pannello laterale prodotto (wizard embedded), salva <strong>e collega alla riga</strong> (o salva senza collegare e verifica comportamento).</li>
+<li>Completa e conferma documento.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> nuovi prodotti/varianti creati senza uscire dal documento. Variante collegata disponibile in catalogo. SKU duplicato bloccato in validazione.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-138b--dialog-aggiornamento-prezzo-fornitore">T-138b — Dialog aggiornamento prezzo fornitore</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> fornitore con listino/prezzo noto su variante. Policy prezzo ≠ «Mai» (T-045).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Crea <strong>Arrivo merce</strong> con costo unitario <strong>diverso</strong> dal prezzo fornitore salvato.</li>
+<li><strong>Conferma e carica magazzino</strong>.</li>
+<li>Se compare dialog prezzi: verifica elenco differenze; prova <strong>Applica</strong> e ripeti con <strong>Ignora</strong> (secondo documento).</li>
+</ol>
+<p><strong>Risultato atteso:</strong> dialog mostra SKU e prezzo vecchio/nuovo. Con «Applica», prezzo fornitore aggiornato in anagrafica. Con «Ignora», conferma documento senza aggiornare listino.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-138c--carico-manuale-e-carico-iniziale">T-138c — Carico manuale e carico iniziale</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Documenti → Nuovo → Carico manuale</strong>: aggiungi righe, conferma.</li>
+<li><strong>Documenti → Nuovo → Carico iniziale</strong>: stesso flusso con almeno una variante.</li>
+<li>Verifica movimenti e giacenze.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> entrambi i tipi incrementano stock alla conferma con movimenti tracciati distinti per tipo documento. Numerazione e PDF coerenti con impostazioni documenti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-139--trasferimento-tra-sedi">T-139 — Trasferimento tra sedi</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> giacenza &gt; 0 su sede A; sede B diversa.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Documenti → Trasferimento</strong>.</li>
+<li>Sede origine A, destinazione B, 2 pezzi variante test.</li>
+<li>Conferma con dialog di riepilogo.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> giacenza −2 su A, +2 su B. Movimenti tracciati.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-140--scarico-manuale-e-rettifica-con-motivo">T-140 — Scarico manuale e rettifica con motivo</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Documenti → Scarico manuale</strong>: scarica 1 pezzo con conferma.</li>
+<li><strong>Documenti → Rettifica inventario</strong>: imposta quantità diversa da sistema; <strong>motivo obbligatorio</strong> (es. «Conteggio errato»).</li>
+<li>Conferma entrambi.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> rettifica bloccata senza motivo. Dopo conferma, giacenze e movimenti coerenti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-141--proforma-e-bozza-fattura">T-141 — Proforma e bozza fattura</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Documenti → Nuova proforma</strong>: aggiungi righe, cliente, salva bozza.</li>
+<li>Verifica disclaimer fiscale in anteprima/stampa.</li>
+<li><strong>Documenti → Nuova bozza fattura</strong>: compila e salva.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> documenti in stato <strong>Bozza</strong>. Nessun impatto giacenze.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-142--ddt-vendita-e-conversione-in-bozza-fattura">T-142 — DDT vendita e conversione in bozza fattura</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Documenti → DDT vendita</strong>: cliente, righe, conferma.</li>
+<li>Dal dettaglio DDT, usa azione <strong>Converti in bozza fattura</strong> (se disponibile).</li>
+<li>Verifica filtro <strong>DDT da fatturare</strong> nel registro.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> bozza fattura collegata al DDT. Filtro registro mostra DDT pendenti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-143--stampa-e-download-pdf-documento">T-143 — Stampa e download PDF documento</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> almeno un documento confermato.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri <strong>dettaglio documento</strong>.</li>
+<li>Clicca <strong>Stampa</strong> → anteprima <code>/app/documents/:id/print</code>.</li>
+<li>Clicca <strong>Scarica PDF</strong> (export API).</li>
+</ol>
+<p><strong>Risultato atteso:</strong> anteprima browser leggibile. PDF scaricato con intestazione tenant, righe, totali. Nessun errore 500.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-144--allegati-su-documento">T-144 — Allegati su documento</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Su documento in bozza, carica allegato PDF o immagine (≤ limite size).</li>
+<li>Salva e ricarica dettaglio.</li>
+<li>Scarica/visualizza allegato.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> allegato persistito. Tipi MIME non ammessi rifiutati con messaggio chiaro.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-145--impostazioni-documenti-numeratori">T-145 — Impostazioni documenti (numeratori)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Documenti → Impostazioni documenti</strong>.</li>
+<li>Modifica prefisso serie per un tipo (es. DDT vendita).</li>
+<li>Salva.</li>
+<li>Crea e conferma un nuovo documento di quel tipo.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> numero progressivo usa il prefisso aggiornato.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-146--commesso-solo-consultazione-documenti">T-146 — Commesso: solo consultazione documenti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Login commesso (preset: consultazione documenti, no gestione).</li>
+<li>Apri <strong>Documenti</strong> e un dettaglio.</li>
+<li>Verifica assenza pulsanti <strong>Nuovo</strong>, <strong>Conferma</strong>, <strong>Modifica</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> read-only. Route <code>/app/documents/goods-receipt/new</code> non accessibile (redirect dashboard).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="14-vendite-al-banco-e-ordini-online">14. Vendite al banco e ordini online</h2>
+<h3 id="t-125--registra-vendita-al-banco-scan">T-125 — Registra vendita al banco (scan)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Entrambi</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> variante con barcode/SKU e giacenza ≥ 1 sulla sede operativa.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri <strong>Registra vendita</strong> (<code>/app/sales/register</code>).</li>
+<li>Verifica sede operativa in topbar (deve essere quella corretta).</li>
+<li>Scansiona barcode o inserisci SKU manualmente.</li>
+<li>Conferma <strong>Registra vendita</strong> (qty 1 per scan).</li>
+<li>Vai in <strong>Magazzino → Movimenti</strong> e cerca l&#39;ultimo movimento.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> giacenza −1. Movimento tipo <strong>Vendita</strong>, origine <strong>Vendita negozio</strong>. Feedback visivo/sonoro positivo dopo scan.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-126--registra-storno-reso-al-banco">T-126 — Registra storno (reso al banco)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In <strong>Registra vendita</strong>, attiva modalità <strong>Storno</strong> / <strong>Reso</strong>.</li>
+<li>Scansiona stesso barcode della T-125.</li>
+<li>Conferma.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> giacenza +1. Movimento tipo <strong>Reso</strong>. Non crea ordine di vendita in VestiFlow.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-127--registra-vendita-online-manuale">T-127 — Registra vendita online manuale</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+<tr>
+<td><strong>Profilo</strong></td>
+<td>Solo gestionale o TikTok</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri <strong>Registra vendita online</strong> (o <strong>Registra vendita online esterna</strong> su TikTok).</li>
+<li>Registra vendita con SKU e importo se richiesto.</li>
+<li>Verifica aggiornamento giacenze.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> flusso completabile. Voce menu assente su profilo <strong>Shopify</strong> puro (vendite online via sync).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-128--profilo-solo-gestionale-no-lista-vendite">T-128 — Profilo Solo gestionale: no lista Vendite</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+<tr>
+<td><strong>Profilo</strong></td>
+<td>Solo gestionale</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Login tenant solo gestionale.</li>
+<li>Verifica sidebar: <strong>Registra vendita</strong> sì, voce <strong>Vendite</strong> (lista ordini) no.</li>
+<li>Naviga manualmente a <code>/app/sales</code>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> redirect a <strong>Registra vendita</strong>. Nessuna lista ordini Shopify.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-130--lista-vendite-shopify">T-130 — Lista vendite Shopify</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> vendite presenti su Shopify (online o POS).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Vendite</strong>.</li>
+<li>Filtra per stato pagamento e canale (online/negozio).</li>
+<li>Cerca per numero ordine o cliente.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> ordini read-only. Dati coerenti con Shopify Admin.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-131--dettaglio-vendita">T-131 — Dettaglio vendita</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri dettaglio di un ordine vendita.</li>
+<li>Verifica righe, totali, cliente, stato, ID Shopify.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> nessun pulsante modifica. Informazioni complete e formattazione prezzi corretta.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-132--sincronizza-vendite-da-shopify">T-132 — Sincronizza vendite da Shopify</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare/Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Sincronizza vendite da Shopify</strong>. Attendi esito.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> nuove vendite importate o messaggio &quot;aggiornato&quot;. Commesso non vede il pulsante.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-133--esporta-csv-vendite">T-133 — Esporta CSV vendite</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Esporta CSV</strong> dalla lista vendite.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> file scaricato con ordini filtrati.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="15-clienti">15. Clienti</h2>
+<h3 id="t-147--lista-clienti">T-147 — Lista clienti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Clienti</strong>. Cerca per nome/email.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> anagrafica read-only da Shopify. Nessun form modifica.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-148--dettaglio-cliente">T-148 — Dettaglio cliente</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri un cliente. Verifica email, telefono, ordini collegati se presenti.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> dati allineati a Shopify. Solo consultazione.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-149--sincronizza-clienti-da-shopify">T-149 — Sincronizza clienti da Shopify</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare/Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Sincronizza clienti da Shopify</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> clienti aggiornati o messaggio esito.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="16-report-e-registro-commercialista">16. Report e registro commercialista</h2>
+<h3 id="t-150--kpi-report">T-150 — KPI report</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Report</strong>. Verifica KPI: Valore magazzino, Pezzi disponibili, Varianti sotto soglia, Fatturato.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> valori numerici coerenti con Dashboard/Magazzino (ordine di grandezza).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-151--tabella-giacenze-per-location">T-151 — Tabella giacenze per location</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Sezione <strong>Giacenze per location</strong> nel Report.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> breakdown per sede con totali.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-152--vendite-per-stato-pagamento">T-152 — Vendite per stato pagamento</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Sezione <strong>Vendite per stato pagamento</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> conteggi/importi per stato (pagato, in attesa, ecc.).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-153--corrispettivi-riepilogo-e-stampa-pdf">T-153 — Corrispettivi: riepilogo e stampa PDF</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+<tr>
+<td><strong>Profilo</strong></td>
+<td>Solo gestionale (o tenant con vendite online manuali)</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Report → Corrispettivi</strong> (<code>/app/reports/corrispettivi</code>).</li>
+<li>Seleziona periodo (mese corrente).</li>
+<li>Verifica totali coerenti con vendite online manuali registrate.</li>
+<li>Apri <strong>Stampa corrispettivi</strong> e scarica PDF.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> tabella riepilogativa. PDF generato senza errori. Layout adatto alla stampa.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-154--registro-commercialista">T-154 — Registro commercialista</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Registro commercialista</strong> (<code>/app/reports/accountant-register</code>).</li>
+<li>Tab <strong>Documenti</strong>: filtra periodo, verifica link a documenti filtrati.</li>
+<li>Tab <strong>Corrispettivi</strong>: verifica riepilogo.</li>
+<li>Usa filtro <strong>DDT da fatturare</strong> se presente.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> link aprono registro Documenti con query params corretti. Dati allineati al periodo selezionato.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-155--export-report-csv">T-155 — Export report CSV</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> permesso <strong>Esportare dati</strong>.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Da Report o lista Clienti/Vendite, usa <strong>Esporta CSV</strong>.</li>
+<li>Apri file in Excel/LibreOffice.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> CSV con header e dati UTF-8 corretti. Commesso senza permesso export non vede il pulsante.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="17-guida-integrata">17. Guida integrata</h2>
+<h3 id="t-156--guida-utente-in-app">T-156 — Guida utente in-app</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Guida</strong> dal menu.</li>
+<li>Naviga indice, scorri sezioni.</li>
+<li>Scarica PDF se disponibile.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> contenuto leggibile. Link indice funzionanti. PDF scaricabile.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-157--guida-tecnica-solo-platform-admin">T-157 — Guida tecnica (solo platform admin)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Verifica voce <strong>Guida Tecnica</strong> in sidebar (solo admin piattaforma).</li>
+<li>Apri <code>/app/admin/guide</code>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> guida operatore/tecnica. Utente negozio normale non vede la voce.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="18-amministrazione-piattaforma">18. Amministrazione piattaforma</h2>
+<blockquote>
+<p>Solo con account <strong>operatore piattaforma</strong>. Altrimenti segnare tutta la sezione <strong>N/A</strong>.</p>
+</blockquote>
+<h3 id="t-160--login-operatore-piattaforma-e-shell-admin">T-160 — Login operatore piattaforma e shell admin</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Login con account operatore piattaforma.</li>
+<li>Verifica redirect a <code>/app/admin/clients</code> (non dashboard tenant).</li>
+<li>Sidebar admin: <strong>Clienti</strong>, <strong>Impostazioni operatore</strong>, <strong>Guida Tecnica</strong> — niente voci tenant (Prodotti, Magazzino…).</li>
+</ol>
+<p><strong>Risultato atteso:</strong> shell admin dedicata. Tentativo di aprire <code>/app/dashboard</code> reindirizza ad admin clients (senza sessione assistenza).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-161--crea-nuovo-cliente-tenant">T-161 — Crea nuovo cliente (tenant)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri <code>/app/admin/clients/new</code>.</li>
+<li>Compila: ragione sociale, <strong>profilo canale</strong> (Shopify / Solo gestionale / TikTok), piano sedi, dati <strong>titolare</strong> (email, password).</li>
+<li>Salva.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> tenant creato. Login con account titolare funzionante. Profilo canale corretto in Impostazioni tenant.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-162--modifica-cliente-e-licensing-sedi">T-162 — Modifica cliente e licensing sedi</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><code>/app/admin/clients/{tenantId}</code>.</li>
+<li>Modifica ragione sociale o limite <strong>sedi attive</strong> del piano.</li>
+<li>Salva e verifica lato tenant in <strong>Impostazioni → Sedi attive</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> modifiche persistite. Tenant rispetta nuovo limite sedi.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-163--gestione-utenti-del-cliente">T-163 — Gestione utenti del cliente</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>In <strong>Modifica cliente</strong>, sezione <strong>Utenti del cliente</strong>.</li>
+<li><strong>Aggiungi utente</strong>: email, ruolo <strong>Manager</strong>, sede operativa assegnata.</li>
+<li>Salva. Login con nuovo utente e verifica menu ridotto (no OAuth Shopify).</li>
+<li>Modifica permessi granulari (es. revoca <strong>Gestire catalogo</strong>).</li>
+<li>Logout/login nuovo utente — verifica assenza <strong>Aggiungi prodotto</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> utente creato. Permessi applicati dopo re-login.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-164--avvia-sessione-assistenza">T-164 — Avvia sessione assistenza</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Login come platform admin.</li>
+<li>Apri <code>/app/admin/clients</code>.</li>
+<li>Su un tenant cliente, click <strong>Apri gestionale (assistenza)</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> redirect al gestionale del tenant (dashboard). Nessun errore 500. Sessione assistenza creata (max 2 ore).</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-165--sessione-assistenza-banner-e-operatività">T-165 — Sessione assistenza: banner e operatività</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+<tr>
+<td><strong>Prerequisiti</strong></td>
+<td>Sessione assistenza attiva (T-164)</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Verifica banner in basso: «Assistenza — {nome cliente}» e testo «Sessione attiva (max 2 ore)».</li>
+<li>Apri <strong>Magazzino → Giacenze</strong> o <strong>Prodotti</strong> e consulta dati del tenant.</li>
+<li>Esegui un&#39;azione di scrittura consentita ad admin (es. rettifica giacenza di test o modifica prodotto).</li>
+</ol>
+<p><strong>Risultato atteso:</strong> banner sempre visibile; dati del tenant corretti; nessun 403 su operazioni admin; sidebar «Esci» non sovrapposta al banner su mobile.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-166--termina-sessione-assistenza">T-166 — Termina sessione assistenza</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+<tr>
+<td><strong>Prerequisiti</strong></td>
+<td>Sessione assistenza attiva (T-164)</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dal banner in basso, click <strong>Esci dall&#39;assistenza</strong>.</li>
+<li>Attendi il redirect.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> ritorno a <code>/app/admin/clients</code> (shell admin). Banner scomparso. Nuove richieste API tenant non usano più la sessione assistenza.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="19-mobile-e-pwa">19. Mobile e PWA</h2>
+<h3 id="t-170--installazione-pwa-android">T-170 — Installazione PWA (Android)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile Android Chrome</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri VestiFlow in Chrome.</li>
+<li>Menu → <strong>Aggiungi a schermata Home</strong> / <strong>Installa app</strong>.</li>
+<li>Apri da icona home.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> app standalone a schermo intero. Login funzionante.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-171--installazione-pwa-iphone-safari">T-171 — Installazione PWA (iPhone Safari)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P3</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>iPhone Safari</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Condividi → Aggiungi a Home</strong>.</li>
+<li>Apri da icona.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> shortcut funzionante. (Scanner barcode può essere N/A su iOS.)</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-172--operatività-magazzino-da-mobile">T-172 — Operatività magazzino da mobile</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Cerca giacenza per SKU.</li>
+<li>Registra un carico di 1 pezzo.</li>
+<li>Consulta movimento in storico.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> flusso completabile touch-friendly. Target touch ≥ 44px.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="20-permessi-per-ruolo">20. Permessi per ruolo</h2>
+<h3 id="t-180--matrice-permessi-titolare">T-180 — Matrice permessi Titolare</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Verifica accesso a: Shopify, sync manuali, creazione prodotti, ordini, export CSV, MFA.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> tutte le azioni P1 disponibili per titolare.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-181--matrice-permessi-manager">T-181 — Matrice permessi Manager</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Verifica: crea prodotti OK, Shopify NO, sync vendite NO, movimenti OK, export OK.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> coerente con tabella permessi guida utente §4.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-182--matrice-permessi-commesso">T-182 — Matrice permessi Commesso</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Verifica: solo consultazione prodotti, movimenti OK, ricezione ordine OK, niente creazione prodotti/ordini, niente Shopify.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> UI nasconde azioni non permesse. Route protette non accessibili.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-183--matrice-permessi-amministratore-negozio">T-183 — Matrice permessi Amministratore negozio</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Amministratore negozio</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Verifica: crea prodotti OK, gestisce utenti <strong>no</strong> (solo platform admin), OAuth Shopify <strong>no</strong> (solo titolare).</li>
+<li>Verifica: sync manuali, documenti, ordini fornitori, export OK.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> quasi tutti i permessi tranne OAuth canali e impostazioni riservate al titolare.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="21-flussi-end-to-end-integrati">21. Flussi end-to-end integrati</h2>
+<blockquote>
+<p>Eseguire <strong>dopo</strong> i test di sezione. Richiedono Shopify connesso.</p>
+</blockquote>
+<h3 id="t-190--flusso-onboarding-negozio-completo">T-190 — Flusso onboarding negozio completo</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Login → Impostazioni → Connetti Shopify.</li>
+<li>Sincronizza location → Attiva webhook → Importa catalogo.</li>
+<li>Verifica prodotti in lista.</li>
+<li>Sincronizza giacenze.</li>
+<li>Dashboard mostra KPI aggiornati.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> negozio operativo end-to-end senza errori bloccanti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-191--prodotto-vestiflow--shopify">T-191 — Prodotto VestiFlow → Shopify</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Crea prodotto con <strong>Inserimento rapido</strong> (T-047) oppure wizard con 2 varianti.</li>
+<li>Attendi sync o sync manuale.</li>
+<li>Verifica prodotto su Shopify Admin.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> prodotto e varianti visibili su Shopify con SKU e prezzi corretti.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-192--vendita-shopify--giacenza-vestiflow">T-192 — Vendita Shopify → giacenza VestiFlow</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Annota giacenza variante X su location Y.</li>
+<li>Crea ordine test su Shopify (o POS) che include variante X.</li>
+<li>Attendi webhook (1–3 min) o sync manuale vendite/giacenze.</li>
+<li>Verifica giacenza e movimento in VestiFlow.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> giacenza diminuita. Movimento tipo vendita/sale in storico con origine Shopify.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-193--ordine-fornitore--carico-magazzino">T-193 — Ordine fornitore → carico magazzino</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager + Commesso</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Manager crea e invia ordine fornitore (10 pz variante Z).</li>
+<li>Commesso: <strong>Registra arrivo merce</strong> dall&#39;ordine, conferma documento (10 pz).</li>
+<li>Verifica giacenza +10 e movimento carico.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> stock e storico coerenti. Ordine completato. Documento arrivo merce confermato collegato all&#39;ordine.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-194--inventario-fisico--rettifica--shopify">T-194 — Inventario fisico → rettifica → Shopify</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Sessione inventario su location con sync Shopify.</li>
+<li>Conta quantità diversa da sistema su 1 variante.</li>
+<li>Chiudi inventario.</li>
+<li>Verifica giacenza VestiFlow e (dopo sync) Shopify Admin.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> rettifiche allineate. Movimenti tracciati.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-195--flusso-giornata-negozio-solo-gestionale">T-195 — Flusso giornata negozio (Solo gestionale)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso + Manager</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Entrambi</td>
+</tr>
+<tr>
+<td><strong>Profilo</strong></td>
+<td>Solo gestionale</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Manager: <strong>Inserimento rapido</strong> prodotto + carico 10 pz (movimento o arrivo merce).</li>
+<li>Commesso: <strong>Cerca giacenza</strong> da smartphone, verifica stock.</li>
+<li>Commesso: <strong>Registra vendita</strong> 2 pezzi via scan.</li>
+<li>Manager: verifica <strong>Report</strong> e <strong>Movimenti</strong>.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> flusso completo senza Shopify. Giacenza finale = 8.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-196--arrivo-merce-documento--ordine--giacenze">T-196 — Arrivo merce documento → ordine → giacenze</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Crea ordine fornitore e <strong>Invia</strong>.</li>
+<li>Verifica colonna <strong>In arrivo</strong> in Giacenze.</li>
+<li>Registra <strong>Arrivo merce</strong> documento collegato all&#39;ordine.</li>
+<li>Conferma documento.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> in arrivo azzerato, disponibile incrementato, ordine ricevuto.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-197--vendita-banco--sync-canale-shopifytiktok">T-197 — Vendita banco → sync canale (Shopify/TikTok)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Commesso</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile</td>
+</tr>
+<tr>
+<td><strong>Profilo</strong></td>
+<td>Shopify o TikTok</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Annota giacenza su canale esterno (Shopify Admin o TikTok).</li>
+<li><strong>Registra vendita</strong> 1 pezzo in VestiFlow.</li>
+<li>Attendi push/sync (1–3 min).</li>
+<li>Verifica giacenza sul canale.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> giacenze allineate dopo sync. Movimento <strong>Vendita negozio</strong> in storico.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-198--sessione-assistenza-end-to-end">T-198 — Sessione assistenza end-to-end</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Platform admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Admin: <strong>Apri gestionale (assistenza)</strong> su tenant cliente.</li>
+<li>Crea prodotto rapido o rettifica di test.</li>
+<li><strong>Esci dall&#39;assistenza</strong>.</li>
+<li>Titolare tenant: verifica che la modifica sia visibile.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> assistenza funziona senza errori permessi. Audit tracciabile lato backend.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-199--ddt--bozza-fattura--registro-commercialista">T-199 — DDT → bozza fattura → registro commercialista</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Crea e conferma <strong>DDT vendita</strong>.</li>
+<li>Converti in <strong>bozza fattura</strong>.</li>
+<li>In <strong>Registro commercialista</strong>, verifica documento nel periodo e filtro DDT da fatturare aggiornato.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> catena documentale coerente. PDF stampabili per entrambi.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-200--arrivo-merce-post-conferma-stampa-invio-registro-esterno">T-200 — Arrivo merce post-conferma: stampa, invio, registro esterno</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> arrivo merce <strong>Confermato</strong> (T-136 o T-137).</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Dal dettaglio documento confermato: <strong>Anteprima stampa</strong> / scarica PDF.</li>
+<li>Verifica che sull&#39;arrivo merce non compaia alcuna azione di ciclo di vita fiscale.</li>
+<li>Su una <strong>Fattura</strong>, <strong>Fattura accompagnatoria</strong> o <strong>Proforma</strong> confermata: <strong>Inviata al commercialista</strong>, conferma il dialogo e verifica il badge in lista/dettaglio.</li>
+<li>Tenta modifica righe su documento già inviato al commercialista.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> «Inviata al commercialista» è l&#39;unica azione di stato ed è presente solo su Fattura, Fattura accompagnatoria e Proforma. Modifiche distruttive bloccate o con conferma esplicita.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-201--column-picker-prodotti-e-clienti">T-201 — Column picker: Prodotti e Clienti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Manager+</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li><strong>Prodotti</strong>: menu <strong>Colonne</strong>, nascondi/mostra campi, <strong>Ripristina colonne</strong>, reload pagina.</li>
+<li><strong>Clienti</strong>: stesso flusso con preset diverso.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> preferenze salvate per utente (sync server). Ripristino torna al default vista.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-202--arrivo-merce-su-mobile-card-righe">T-202 — Arrivo merce su mobile (card righe)</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Qualsiasi (anche Commesso)</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Mobile</td>
+</tr>
+</tbody></table>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Da smartphone apri bozza <strong>Arrivo merce</strong> con almeno 2 righe.</li>
+<li>Verifica layout <strong>card</strong> per riga (etichette campo + valori).</li>
+<li>Modifica quantità su una riga e salva bozza.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> nessun overflow orizzontale. Touch target sufficienti. Salvataggio bozza OK.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="riepilogo-finale">Riepilogo finale</h2>
+<p>Al termine di tutti i test, compilare:</p>
+<table>
+<thead>
+<tr>
+<th>Metrica</th>
+<th>Valore</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Test totali</td>
+<td>~118</td>
+</tr>
+<tr>
+<td>OK</td>
+<td></td>
+</tr>
+<tr>
+<td>KO</td>
+<td></td>
+</tr>
+<tr>
+<td>N/A</td>
+<td></td>
+</tr>
+<tr>
+<td>Data inizio</td>
+<td></td>
+</tr>
+<tr>
+<td>Data fine</td>
+<td></td>
+</tr>
+<tr>
+<td>Ambiente testato (URL)</td>
+<td></td>
+</tr>
+<tr>
+<td>Versione build / commit</td>
+<td></td>
+</tr>
+<tr>
+<td>Tester A (nome)</td>
+<td></td>
+</tr>
+<tr>
+<td>Tester B (nome)</td>
+<td></td>
+</tr>
+</tbody></table>
+<h3 id="test-p1-obbligatori-checklist-rapida-go-live">Test P1 obbligatori (checklist rapida go-live)</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Area</th>
+<th>Titolo breve</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>T-001</td>
+<td>Auth</td>
+<td>Login valido</td>
+</tr>
+<tr>
+<td>T-010</td>
+<td>Nav</td>
+<td>Sidebar completa</td>
+</tr>
+<tr>
+<td>T-020</td>
+<td>Dashboard</td>
+<td>KPI visibili</td>
+</tr>
+<tr>
+<td>T-031–T-034</td>
+<td>Shopify</td>
+<td>Connessione + location + webhook + catalogo</td>
+</tr>
+<tr>
+<td>T-042</td>
+<td>Settings</td>
+<td>Sedi attive</td>
+</tr>
+<tr>
+<td>T-047</td>
+<td>Prodotti</td>
+<td>Inserimento rapido</td>
+</tr>
+<tr>
+<td>T-051</td>
+<td>Prodotti</td>
+<td>Wizard varianti</td>
+</tr>
+<tr>
+<td>T-091</td>
+<td>Magazzino</td>
+<td>Carico</td>
+</tr>
+<tr>
+<td>T-116</td>
+<td>Fornitori</td>
+<td>Nuovo fornitore</td>
+</tr>
+<tr>
+<td>T-121–T-123</td>
+<td>Ordini</td>
+<td>Crea → invia → registra arrivo merce</td>
+</tr>
+<tr>
+<td>T-125–T-126</td>
+<td>Vendite</td>
+<td>Vendita + storno banco</td>
+</tr>
+<tr>
+<td>T-136–T-137</td>
+<td>Documenti</td>
+<td>Arrivo merce (manuale e da ordine)</td>
+</tr>
+<tr>
+<td>T-143</td>
+<td>Documenti</td>
+<td>PDF documento</td>
+</tr>
+<tr>
+<td>T-160–T-163</td>
+<td>Admin</td>
+<td>Shell + tenant + utenti</td>
+</tr>
+<tr>
+<td>T-190</td>
+<td>E2E</td>
+<td>Onboarding Shopify</td>
+</tr>
+<tr>
+<td>T-191</td>
+<td>E2E</td>
+<td>Prodotto → Shopify</td>
+</tr>
+<tr>
+<td>T-192</td>
+<td>E2E</td>
+<td>Vendita Shopify → giacenza</td>
+</tr>
+<tr>
+<td>T-195</td>
+<td>E2E</td>
+<td>Giornata negozio gestionale</td>
+</tr>
+</tbody></table>
+<h3 id="criteri-go--no-go">Criteri go / no-go</h3>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Condizione</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>GO</strong></td>
+<td>Tutti i test <strong>P1 Obbligatori</strong> = OK. KO P2/P3 documentati con workaround accettato.</td>
+</tr>
+<tr>
+<td><strong>NO-GO</strong></td>
+<td>Qualsiasi test P1 Obbligatorio = KO su funzione core (login, prodotti, movimenti, documenti, ordini, vendite banco, sync critica).</td>
+</tr>
+</tbody></table>
+<h3 id="bug-da-segnalare-template">Bug da segnalare (template)</h3>
+<p>Per ogni KO copiare e compilare:</p>
+<pre><code>ID test: T-___
+Titolo:
+Passaggi eseguiti:
+Risultato atteso vs ottenuto:
+Browser/Device:
+Screenshot: sì/no
+Priorità bug: bloccante / alta / media / bassa
+</code></pre>
+<hr>
+<p><em>Documento generato per VestiFlow. Rigenerare PDF: <code>npm run docs:test-plan:all</code></em></p>
+
+</body>
+</html>

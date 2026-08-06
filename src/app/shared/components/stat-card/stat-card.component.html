@@ -1,4 +1,4 @@
-<div class="stat-card stat-card--{{ tone() }}">
+<div class="stat-card stat-card--{{ tone() }}" [class.stat-card--accent]="accent()">
   @if (icon(); as iconName) {
     <span class="stat-card__icon" aria-hidden="true">
       <i class="pi {{ iconName }}"></i>
@@ -6,9 +6,22 @@
   }
   <div class="stat-card__body">
     <p class="stat-card__label">{{ label() }}</p>
-    <p class="stat-card__value tabular-nums">{{ value() }}</p>
+    <p class="stat-card__value tabular-nums">
+      <span class="stat-card__value-main">{{ value() }}</span>
+      @if (valueSuffix(); as suffix) {
+        <span class="stat-card__value-suffix">{{ suffix }}</span>
+      }
+    </p>
     @if (hint(); as hintText) {
       <p class="stat-card__hint">{{ hintText }}</p>
+    }
+    @if (trendLabel(); as trend) {
+      <p class="stat-card__trend stat-card__trend--{{ trendTone() }}">
+        @if (trendArrow(); as arrow) {
+          <i class="pi {{ arrow }}" aria-hidden="true"></i>
+        }
+        {{ trend }}
+      </p>
     }
   </div>
 </div>

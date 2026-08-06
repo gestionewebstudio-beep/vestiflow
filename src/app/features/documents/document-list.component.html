@@ -1,0 +1,839 @@
+<section class="doc-list">
+  <header class="doc-list__header">
+    <div class="doc-list__heading">
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade sul
+           livello superiore dedotto dall'URL (l'hub Documenti). -->
+      <app-back-button />
+      <div class="doc-list__title-row">
+        <h1 class="doc-list__title">{{ pageTitle() }}</h1>
+        @if (!loading()) {
+          <span class="doc-list__count tabular-nums">
+            {{ meta().total }} {{ meta().total === 1 ? 'documento' : 'documenti' }}
+          </span>
+        }
+      </div>
+      <p class="doc-list__subtitle">
+        {{ pageSubtitle() }}
+      </p>
+    </div>
+    @if (canManageDocuments()) {
+      <div class="doc-list__actions">
+        @if (salesRegister()) {
+          <!--
+            Elenchi condivisi (Fatture): l'etichetta segue il filtro «Tipo».
+            Vendita/Reso negozio: nessun bottone — si registrano dalla cassa.
+          -->
+          @if (showCreateAction()) {
+            <app-button (click)="openNewSalesDocument()">
+              <i class="pi pi-plus" aria-hidden="true"></i>
+              {{ salesCreateLabel() }}
+            </app-button>
+          }
+        } @else if (isGoodsReceiptList()) {
+          <app-button (click)="openNewGoodsReceipt()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            Nuovo arrivo merce
+          </app-button>
+        } @else {
+          <app-button (click)="openNewGoodsReceipt()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            Nuovo arrivo merce
+          </app-button>
+          <app-select-menu
+            class="doc-list__create-menu"
+            [options]="secondaryCreateOptions"
+            value=""
+            ariaLabel="Crea altro tipo di documento"
+            placeholder="Altro documento"
+            triggerIcon="pi-file"
+            [compact]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onCreateDocumentType($event)"
+          />
+        }
+      </div>
+    }
+  </header>
+
+  @if (isAccountantView() && !isSalesRegisterList()) {
+    <p class="doc-list__banner" role="status">
+      Vista registro commercialista: tipi documento rilevanti per contabilità e fatturazione.
+    </p>
+  }
+  @if (isPendingInvoiceView()) {
+    <p class="doc-list__banner doc-list__banner--highlight" role="status">
+      DDT vendita confermati senza bozza fattura collegata.
+    </p>
+  }
+
+  <div class="doc-list__toolbar doc-list__toolbar--card">
+    <!-- Riga 1: ricerca (cresce) + azioni a destra. -->
+    <div class="doc-list__toolbar-main">
+      <div class="doc-list__search">
+        <i class="pi pi-search doc-list__search-icon" aria-hidden="true"></i>
+        <input
+          id="doc-search"
+          class="doc-list__input"
+          type="search"
+          [value]="searchDraft()"
+          [placeholder]="searchPlaceholder()"
+          aria-label="Cerca documenti"
+          (input)="onSearchInput($event)"
+        />
+      </div>
+
+      <div class="doc-list__toolbar-actions">
+        <button
+          type="button"
+          class="doc-list__mobile-filters"
+          (click)="mobileFiltersOpen.set(true)"
+        >
+          <i class="pi pi-sliders-h" aria-hidden="true"></i>
+          Filtri
+          @if (activeFilterCount() > 0) {
+            <span class="doc-list__filter-badge tabular-nums">{{ activeFilterCount() }}</span>
+          }
+        </button>
+
+        <app-table-column-picker [viewId]="tableViewId()" />
+      </div>
+    </div>
+
+    <!-- Riga 2: chip filtro a piena larghezza (per profilo); su mobile
+         spariscono a favore del pulsante «Filtri». -->
+    <div class="doc-list__filters doc-list__filters--inline">
+      @if (isGoodsReceiptList()) {
+        <div class="doc-list__field">
+          <app-select-menu
+            chipLabel="Periodo"
+            [options]="periodOptions"
+            [value]="periodPreset()"
+            ariaLabel="Filtra per periodo"
+            placeholder="Tutto"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onPeriodPresetChange($event)"
+            [filterChip]="true"
+          />
+        </div>
+      }
+
+      @if (!isGoodsReceiptList() || isCustomPeriod()) {
+        <div class="doc-list__field doc-list__field--date">
+          <label class="doc-list__label" for="doc-date-from">Dal</label>
+          <app-date-input
+            inputId="doc-date-from"
+            [value]="query().dateFrom ?? ''"
+            ariaLabel="Data inizio periodo"
+            placeholder="gg/mm/aaaa"
+            [compact]="true"
+            [fullWidth]="true"
+            [max]="query().dateTo || undefined"
+            (valueChange)="onDateFromChange($event)"
+          />
+        </div>
+
+        <div class="doc-list__field doc-list__field--date">
+          <label class="doc-list__label" for="doc-date-to">Al</label>
+          <app-date-input
+            inputId="doc-date-to"
+            [value]="query().dateTo ?? ''"
+            ariaLabel="Data fine periodo"
+            placeholder="gg/mm/aaaa"
+            [compact]="true"
+            [fullWidth]="true"
+            [min]="query().dateFrom || undefined"
+            (valueChange)="onDateToChange($event)"
+          />
+        </div>
+      }
+
+      @if (salesRegister(); as sales) {
+        <!--
+          Filtro «Tipo» degli elenchi condivisi (Fatture, Vendita/Reso
+          negozio): preimpostato dalla voce hub di provenienza ma sempre
+          modificabile, «Tutti» incluso.
+        -->
+        @if (showSharedTypeFilter()) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Tipo"
+              [options]="sharedTypeOptions()"
+              [value]="sharedTypeFilter()"
+              ariaLabel="Filtra per tipo di documento"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onSharedTypeFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (sales.statusOptions; as salesStatusOptions) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Stato"
+              [options]="salesStatusOptions"
+              [value]="query().status ?? ''"
+              ariaLabel="Filtra per stato documento"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onStatusFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (sales.showSettlementFilter) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Stato"
+              [options]="settlementOptions"
+              [value]="query().settlement ?? ''"
+              ariaLabel="Filtra per stato saldo"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onSettlementFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (sales.showSupplierFilter) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Fornitore"
+              [options]="supplierOptions()"
+              [value]="query().supplierId ?? ''"
+              ariaLabel="Filtra per fornitore"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca fornitore…"
+              searchAriaLabel="Cerca fornitore"
+              (valueChange)="onSupplierFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (!sales.hideCustomerFilter) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Cliente"
+              [options]="customerOptions()"
+              [value]="query().customerId ?? ''"
+              ariaLabel="Filtra per cliente"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca cliente…"
+              searchAriaLabel="Cerca cliente"
+              (valueChange)="onCustomerFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (sales.paymentMethodOptions; as paymentMethodOptions) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Metodo pagamento"
+              [options]="paymentMethodOptions"
+              [value]="query().paymentMethod ?? ''"
+              ariaLabel="Filtra per metodo di pagamento"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onPaymentMethodFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (sales.showOperatorFilter) {
+          <div class="doc-list__field">
+            <app-select-menu
+              chipLabel="Operatore"
+              [options]="operatorOptions()"
+              [value]="query().createdById ?? ''"
+              ariaLabel="Filtra per operatore"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca operatore…"
+              searchAriaLabel="Cerca operatore"
+              (valueChange)="onOperatorFilterChange($event)"
+              [filterChip]="true"
+            />
+          </div>
+        }
+
+        @if (sales.showPendingInvoiceFilter) {
+          <div class="doc-list__field">
+            <label class="doc-list__check">
+              <input
+                type="checkbox"
+                [checked]="isPendingInvoiceView()"
+                (change)="onPendingInvoiceFilterChange($any($event.target).checked)"
+              />
+              <span>DDT da fatturare</span>
+            </label>
+          </div>
+        }
+      } @else if (isGoodsReceiptList()) {
+        <div class="doc-list__field">
+          <app-select-menu
+            chipLabel="Fornitore"
+            [options]="supplierOptions()"
+            [value]="query().supplierId ?? ''"
+            ariaLabel="Filtra per fornitore"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca fornitore…"
+            searchAriaLabel="Cerca fornitore"
+            (valueChange)="onSupplierFilterChange($event)"
+            [filterChip]="true"
+          />
+        </div>
+
+        <div class="doc-list__field">
+          <app-select-menu
+            chipLabel="Stato"
+            [options]="linkStatusOptions"
+            [value]="query().linkStatus ?? ''"
+            ariaLabel="Filtra per stato collegamento fattura"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onLinkStatusFilterChange($event)"
+            [filterChip]="true"
+          />
+        </div>
+
+        <div class="doc-list__field">
+          <app-select-menu
+            chipLabel="Magazzino"
+            [options]="locationOptions()"
+            [value]="query().locationId ?? ''"
+            ariaLabel="Filtra per location"
+            placeholder="Tutte"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onLocationFilterChange($event)"
+            [filterChip]="true"
+          />
+        </div>
+
+        <div class="doc-list__field">
+          <app-select-menu
+            chipLabel="Tipo di documento"
+            [options]="externalDocTypeOptions()"
+            [value]="query().externalDocumentTypeId ?? ''"
+            ariaLabel="Filtra per tipo di documento"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onExternalDocTypeFilterChange($event)"
+            [filterChip]="true"
+          />
+        </div>
+
+        <div class="doc-list__field">
+          <app-select-menu
+            chipLabel="Pagamento"
+            [options]="paymentMethodFilterOptions()"
+            [value]="query().paymentMethod ?? ''"
+            ariaLabel="Filtra per modalità di pagamento"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            [searchable]="true"
+            searchPlaceholder="Cerca pagamento…"
+            searchAriaLabel="Cerca modalità di pagamento"
+            (valueChange)="onPaymentFilterChange($event)"
+            [filterChip]="true"
+          />
+        </div>
+      } @else {
+        <div class="doc-list__field">
+          <app-select-menu
+            chipLabel="Tipo"
+            [options]="typeOptions"
+            [value]="query().type ?? ''"
+            ariaLabel="Filtra per tipo documento"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onTypeFilterChange($event)"
+            [filterChip]="true"
+          />
+        </div>
+
+        <div class="doc-list__field">
+          <app-select-menu
+            chipLabel="Stato"
+            [options]="statusOptions"
+            [value]="query().status ?? ''"
+            ariaLabel="Filtra per stato documento"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onStatusFilterChange($event)"
+            [filterChip]="true"
+          />
+        </div>
+
+        <div class="doc-list__field">
+          <app-select-menu
+            chipLabel="Cliente"
+            [options]="customerOptions()"
+            [value]="query().customerId ?? ''"
+            ariaLabel="Filtra per cliente"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onCustomerFilterChange($event)"
+            [filterChip]="true"
+          />
+        </div>
+
+        <div class="doc-list__field">
+          <label class="doc-list__check">
+            <input
+              type="checkbox"
+              [checked]="isPendingInvoiceView()"
+              (change)="onPendingInvoiceFilterChange($any($event.target).checked)"
+            />
+            <span>DDT da fatturare</span>
+          </label>
+        </div>
+      }
+
+      @if (hasActiveFilters()) {
+        <button type="button" class="doc-list__clear" (click)="resetFilters()">
+          Azzera filtri
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (isEmpty()) {
+    <app-empty-state
+      [title]="emptyStateTitle()"
+      [description]="emptyStateDescription()"
+      [icon]="emptyStateIcon()"
+      [ctaLabel]="emptyStateCtaLabel()"
+      (ctaClick)="onEmptyStateCta()"
+    />
+  } @else {
+    @if (actionError(); as err) {
+      <app-error-state [description]="err.message" />
+    }
+    @if (supportsSelection() && selectedDocs().length > 0) {
+      <div class="doc-list__bulk-bar" role="toolbar" aria-label="Operazioni documenti selezionati">
+        <span class="doc-list__bulk-count tabular-nums">
+          {{ selectedDocs().length }}
+          {{ selectedDocs().length === 1 ? 'documento selezionato' : 'documenti selezionati' }}
+          · Totale {{ formatMoney(selectionTotal()) }}
+        </span>
+        <app-button variant="secondary" (click)="printSelectionList()">
+          <i class="pi pi-print" aria-hidden="true"></i>
+          Stampa / PDF elenco
+        </app-button>
+        <app-button variant="secondary" (click)="exportSelectionCsv()">
+          <i class="pi pi-file-excel" aria-hidden="true"></i>
+          Esporta Excel (CSV)
+        </app-button>
+        <app-button
+          variant="secondary"
+          [loading]="bulkPdfBusy()"
+          [disabled]="bulkPdfBusy()"
+          (click)="downloadSelectionPdfs()"
+        >
+          <i class="pi pi-file-pdf" aria-hidden="true"></i>
+          PDF documenti
+        </app-button>
+        @if (canManageDocuments()) {
+          <app-button variant="danger" (click)="requestDeleteSelection()">
+            <i class="pi pi-trash" aria-hidden="true"></i>
+            Elimina
+          </app-button>
+        }
+        <app-button variant="ghost" (click)="clearSelection()">Deseleziona</app-button>
+      </div>
+    }
+    <app-document-table
+      [documents]="documents()"
+      [columns]="tableColumns()"
+      [canManage]="canManageDocuments()"
+      [selectable]="supportsSelection()"
+      [selectedIds]="selectedIds()"
+      (rowClick)="openDocument($event)"
+      (action)="onTableAction($event)"
+      (selectionChange)="onToggleDocSelection($event)"
+      (selectAllChange)="onToggleSelectAll($event)"
+    />
+    <app-pagination
+      label="Paginazione documenti"
+      [meta]="meta()"
+      [pageSizeOptions]="pageSizeOptions"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
+  }
+
+  <!-- Pannello filtri mobile: gli stessi filtri della toolbar, per profilo, a
+       tutta larghezza. Scrivono su query() come le chip, quindi restano
+       allineati. aria-label distinti dai gemelli desktop. -->
+  <app-slide-panel
+    [open]="mobileFiltersOpen()"
+    title="Filtri"
+    size="narrow"
+    (closed)="mobileFiltersOpen.set(false)"
+  >
+    @if (mobileFiltersOpen()) {
+      <div class="doc-list__panel-filters">
+        @if (isGoodsReceiptList()) {
+          <div class="doc-list__field">
+            <span class="doc-list__label">Periodo</span>
+            <app-select-menu
+              [options]="periodOptions"
+              [value]="periodPreset()"
+              ariaLabel="Filtra per periodo (pannello filtri)"
+              placeholder="Tutto"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onPeriodPresetChange($event)"
+            />
+          </div>
+        }
+
+        @if (!isGoodsReceiptList() || isCustomPeriod()) {
+          <div class="doc-list__field">
+            <span class="doc-list__label">Dal</span>
+            <app-date-input
+              inputId="doc-panel-date-from"
+              [value]="query().dateFrom ?? ''"
+              ariaLabel="Data inizio periodo (pannello filtri)"
+              placeholder="gg/mm/aaaa"
+              [compact]="true"
+              [fullWidth]="true"
+              [max]="query().dateTo || undefined"
+              (valueChange)="onDateFromChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field">
+            <span class="doc-list__label">Al</span>
+            <app-date-input
+              inputId="doc-panel-date-to"
+              [value]="query().dateTo ?? ''"
+              ariaLabel="Data fine periodo (pannello filtri)"
+              placeholder="gg/mm/aaaa"
+              [compact]="true"
+              [fullWidth]="true"
+              [min]="query().dateFrom || undefined"
+              (valueChange)="onDateToChange($event)"
+            />
+          </div>
+        }
+
+        @if (salesRegister(); as sales) {
+          @if (showSharedTypeFilter()) {
+            <div class="doc-list__field">
+              <span class="doc-list__label">Tipo</span>
+              <app-select-menu
+                [options]="sharedTypeOptions()"
+                [value]="sharedTypeFilter()"
+                ariaLabel="Filtra per tipo di documento (pannello filtri)"
+                placeholder="Tutti"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="onSharedTypeFilterChange($event)"
+              />
+            </div>
+          }
+
+          @if (sales.statusOptions; as salesStatusOptions) {
+            <div class="doc-list__field">
+              <span class="doc-list__label">Stato</span>
+              <app-select-menu
+                [options]="salesStatusOptions"
+                [value]="query().status ?? ''"
+                ariaLabel="Filtra per stato documento (pannello filtri)"
+                placeholder="Tutti"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="onStatusFilterChange($event)"
+              />
+            </div>
+          }
+
+          @if (sales.showSettlementFilter) {
+            <div class="doc-list__field">
+              <span class="doc-list__label">Stato</span>
+              <app-select-menu
+                [options]="settlementOptions"
+                [value]="query().settlement ?? ''"
+                ariaLabel="Filtra per stato saldo (pannello filtri)"
+                placeholder="Tutti"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="onSettlementFilterChange($event)"
+              />
+            </div>
+          }
+
+          @if (sales.showSupplierFilter) {
+            <div class="doc-list__field">
+              <span class="doc-list__label">Fornitore</span>
+              <app-select-menu
+                [options]="supplierOptions()"
+                [value]="query().supplierId ?? ''"
+                ariaLabel="Filtra per fornitore (pannello filtri)"
+                placeholder="Tutti"
+                [compact]="true"
+                [fullWidth]="true"
+                [searchable]="true"
+                searchPlaceholder="Cerca fornitore…"
+                searchAriaLabel="Cerca fornitore (pannello filtri)"
+                (valueChange)="onSupplierFilterChange($event)"
+              />
+            </div>
+          }
+
+          @if (!sales.hideCustomerFilter) {
+            <div class="doc-list__field">
+              <span class="doc-list__label">Cliente</span>
+              <app-select-menu
+                [options]="customerOptions()"
+                [value]="query().customerId ?? ''"
+                ariaLabel="Filtra per cliente (pannello filtri)"
+                placeholder="Tutti"
+                [compact]="true"
+                [fullWidth]="true"
+                [searchable]="true"
+                searchPlaceholder="Cerca cliente…"
+                searchAriaLabel="Cerca cliente (pannello filtri)"
+                (valueChange)="onCustomerFilterChange($event)"
+              />
+            </div>
+          }
+
+          @if (sales.paymentMethodOptions; as paymentMethodOptions) {
+            <div class="doc-list__field">
+              <span class="doc-list__label">Metodo pagamento</span>
+              <app-select-menu
+                [options]="paymentMethodOptions"
+                [value]="query().paymentMethod ?? ''"
+                ariaLabel="Filtra per metodo di pagamento (pannello filtri)"
+                placeholder="Tutti"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="onPaymentMethodFilterChange($event)"
+              />
+            </div>
+          }
+
+          @if (sales.showOperatorFilter) {
+            <div class="doc-list__field">
+              <span class="doc-list__label">Operatore</span>
+              <app-select-menu
+                [options]="operatorOptions()"
+                [value]="query().createdById ?? ''"
+                ariaLabel="Filtra per operatore (pannello filtri)"
+                placeholder="Tutti"
+                [compact]="true"
+                [fullWidth]="true"
+                [searchable]="true"
+                searchPlaceholder="Cerca operatore…"
+                searchAriaLabel="Cerca operatore (pannello filtri)"
+                (valueChange)="onOperatorFilterChange($event)"
+              />
+            </div>
+          }
+
+          @if (sales.showPendingInvoiceFilter) {
+            <div class="doc-list__field">
+              <label class="doc-list__check">
+                <input
+                  type="checkbox"
+                  aria-label="DDT da fatturare (pannello filtri)"
+                  [checked]="isPendingInvoiceView()"
+                  (change)="onPendingInvoiceFilterChange($any($event.target).checked)"
+                />
+                <span>DDT da fatturare</span>
+              </label>
+            </div>
+          }
+        } @else if (isGoodsReceiptList()) {
+          <div class="doc-list__field">
+            <span class="doc-list__label">Fornitore</span>
+            <app-select-menu
+              [options]="supplierOptions()"
+              [value]="query().supplierId ?? ''"
+              ariaLabel="Filtra per fornitore (pannello filtri)"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca fornitore…"
+              searchAriaLabel="Cerca fornitore (pannello filtri)"
+              (valueChange)="onSupplierFilterChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field">
+            <span class="doc-list__label">Stato</span>
+            <app-select-menu
+              [options]="linkStatusOptions"
+              [value]="query().linkStatus ?? ''"
+              ariaLabel="Filtra per stato collegamento fattura (pannello filtri)"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onLinkStatusFilterChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field">
+            <span class="doc-list__label">Magazzino</span>
+            <app-select-menu
+              [options]="locationOptions()"
+              [value]="query().locationId ?? ''"
+              ariaLabel="Filtra per location (pannello filtri)"
+              placeholder="Tutte"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onLocationFilterChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field">
+            <span class="doc-list__label">Tipo di documento</span>
+            <app-select-menu
+              [options]="externalDocTypeOptions()"
+              [value]="query().externalDocumentTypeId ?? ''"
+              ariaLabel="Filtra per tipo di documento (pannello filtri)"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onExternalDocTypeFilterChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field">
+            <span class="doc-list__label">Pagamento</span>
+            <app-select-menu
+              [options]="paymentMethodFilterOptions()"
+              [value]="query().paymentMethod ?? ''"
+              ariaLabel="Filtra per modalità di pagamento (pannello filtri)"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca pagamento…"
+              searchAriaLabel="Cerca modalità di pagamento (pannello filtri)"
+              (valueChange)="onPaymentFilterChange($event)"
+            />
+          </div>
+        } @else {
+          <div class="doc-list__field">
+            <span class="doc-list__label">Tipo</span>
+            <app-select-menu
+              [options]="typeOptions"
+              [value]="query().type ?? ''"
+              ariaLabel="Filtra per tipo documento (pannello filtri)"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onTypeFilterChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field">
+            <span class="doc-list__label">Stato</span>
+            <app-select-menu
+              [options]="statusOptions"
+              [value]="query().status ?? ''"
+              ariaLabel="Filtra per stato documento (pannello filtri)"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onStatusFilterChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field">
+            <span class="doc-list__label">Cliente</span>
+            <app-select-menu
+              [options]="customerOptions()"
+              [value]="query().customerId ?? ''"
+              ariaLabel="Filtra per cliente (pannello filtri)"
+              placeholder="Tutti"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onCustomerFilterChange($event)"
+            />
+          </div>
+
+          <div class="doc-list__field">
+            <label class="doc-list__check">
+              <input
+                type="checkbox"
+                aria-label="DDT da fatturare (pannello filtri)"
+                [checked]="isPendingInvoiceView()"
+                (change)="onPendingInvoiceFilterChange($any($event.target).checked)"
+              />
+              <span>DDT da fatturare</span>
+            </label>
+          </div>
+        }
+
+        <div class="doc-list__panel-actions">
+          @if (hasActiveFilters()) {
+            <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
+          }
+          <app-button (click)="mobileFiltersOpen.set(false)">Vedi risultati</app-button>
+        </div>
+      </div>
+    }
+  </app-slide-panel>
+</section>
+
+<!-- Eliminazione a due conferme: 1) avviso su righe/giacenze, 2) conferma finale. -->
+<app-confirm-dialog
+  [(open)]="deleteWarnOpen"
+  [title]="deleteWarnTitle()"
+  [message]="deleteWarnMessage()"
+  confirmLabel="Continua"
+  cancelLabel="Annulla"
+  [danger]="true"
+  (confirmed)="onDeleteWarnConfirm()"
+  (dismissed)="onDeleteCancel()"
+/>
+
+<app-confirm-dialog
+  [(open)]="deleteConfirmOpen"
+  title="Confermi l'eliminazione?"
+  message="L'operazione non è reversibile."
+  confirmLabel="Elimina definitivamente"
+  cancelLabel="Annulla"
+  [danger]="true"
+  [busy]="deleteBusy()"
+  (confirmed)="onDeleteConfirm()"
+  (dismissed)="onDeleteCancel()"
+/>

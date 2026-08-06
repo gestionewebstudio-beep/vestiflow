@@ -1,0 +1,160 @@
+<div [formGroup]="form()" class="tenant-profile-fields__sections">
+  <section class="tenant-profile-fields__section" aria-labelledby="tenant-profile-company">
+    <h3 id="tenant-profile-company" class="tenant-profile-fields__section-title">Azienda</h3>
+
+    <div class="tenant-profile-fields__field-row">
+      <label class="tenant-profile-fields__field" for="tenant-vat">
+        <span class="tenant-profile-fields__field-label">Partita IVA (opzionale)</span>
+        <input
+          id="tenant-vat"
+          class="tenant-profile-fields__input"
+          type="text"
+          formControlName="vatNumber"
+          inputmode="numeric"
+          placeholder="12345678901"
+          [attr.aria-invalid]="showError()('vatNumber')"
+        />
+        @if (showError()('vatNumber')) {
+          <span class="tenant-profile-fields__field-error">Inserisci 11 cifre o lascia vuoto.</span>
+        }
+      </label>
+
+      <label class="tenant-profile-fields__field" for="tenant-fiscal-code">
+        <span class="tenant-profile-fields__field-label">Codice fiscale (opzionale)</span>
+        <input
+          id="tenant-fiscal-code"
+          class="tenant-profile-fields__input"
+          type="text"
+          formControlName="fiscalCode"
+          autocomplete="off"
+        />
+      </label>
+    </div>
+  </section>
+
+  <section class="tenant-profile-fields__section" aria-labelledby="tenant-profile-address">
+    <h3 id="tenant-profile-address" class="tenant-profile-fields__section-title">
+      Sede (opzionale)
+    </h3>
+
+    <label
+      class="tenant-profile-fields__field tenant-profile-fields__field--span-full"
+      for="tenant-address-1"
+    >
+      <span class="tenant-profile-fields__field-label">Indirizzo</span>
+      <input
+        id="tenant-address-1"
+        class="tenant-profile-fields__input"
+        type="text"
+        formControlName="addressLine1"
+        autocomplete="street-address"
+      />
+    </label>
+
+    <div class="tenant-profile-fields__field-row">
+      <label class="tenant-profile-fields__field" for="tenant-city">
+        <span class="tenant-profile-fields__field-label">Città</span>
+        <input
+          id="tenant-city"
+          class="tenant-profile-fields__input"
+          type="text"
+          formControlName="city"
+        />
+      </label>
+
+      <label class="tenant-profile-fields__field" for="tenant-province">
+        <span class="tenant-profile-fields__field-label">Provincia</span>
+        <input
+          id="tenant-province"
+          class="tenant-profile-fields__input"
+          type="text"
+          formControlName="province"
+        />
+      </label>
+    </div>
+
+    <div class="tenant-profile-fields__field-row">
+      <label class="tenant-profile-fields__field" for="tenant-postal-code">
+        <span class="tenant-profile-fields__field-label">CAP</span>
+        <input
+          id="tenant-postal-code"
+          class="tenant-profile-fields__input"
+          type="text"
+          formControlName="postalCode"
+          inputmode="numeric"
+        />
+      </label>
+
+      <label class="tenant-profile-fields__field" for="tenant-country">
+        <span class="tenant-profile-fields__field-label">Paese</span>
+        <input
+          id="tenant-country"
+          class="tenant-profile-fields__input"
+          type="text"
+          formControlName="countryCode"
+          maxlength="2"
+          autocomplete="country"
+        />
+      </label>
+    </div>
+  </section>
+
+  <section class="tenant-profile-fields__section" aria-labelledby="tenant-profile-contacts">
+    <h3 id="tenant-profile-contacts" class="tenant-profile-fields__section-title">
+      Contatti (opzionali)
+    </h3>
+
+    <div class="tenant-profile-fields__field-row">
+      <label class="tenant-profile-fields__field" for="tenant-phone">
+        <span class="tenant-profile-fields__field-label">Telefono</span>
+        <input
+          id="tenant-phone"
+          class="tenant-profile-fields__input"
+          type="tel"
+          formControlName="phone"
+          autocomplete="tel"
+        />
+      </label>
+
+      <label class="tenant-profile-fields__field" for="tenant-pec">
+        <span class="tenant-profile-fields__field-label">PEC</span>
+        <input
+          id="tenant-pec"
+          class="tenant-profile-fields__input"
+          type="email"
+          formControlName="pec"
+          autocomplete="off"
+          [attr.aria-invalid]="showError()('pec')"
+        />
+        @if (showError()('pec')) {
+          <span class="tenant-profile-fields__field-error"
+            >Inserisci una PEC valida o lascia vuoto.</span
+          >
+        }
+      </label>
+    </div>
+
+    <div class="tenant-profile-fields__field-row">
+      <label class="tenant-profile-fields__field" for="tenant-sdi">
+        <span class="tenant-profile-fields__field-label">Codice destinatario SDI (opzionale)</span>
+        <input
+          id="tenant-sdi"
+          class="tenant-profile-fields__input"
+          type="text"
+          formControlName="sdiCode"
+        />
+      </label>
+      <label class="tenant-profile-fields__field" for="tenant-iban">
+        <span class="tenant-profile-fields__field-label">IBAN (opzionale)</span>
+        <input
+          id="tenant-iban"
+          class="tenant-profile-fields__input"
+          type="text"
+          formControlName="iban"
+          maxlength="34"
+          placeholder="IT60X0542811101000000123456"
+        />
+      </label>
+    </div>
+  </section>
+</div>

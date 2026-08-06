@@ -1,0 +1,164 @@
+@use 'breakpoints' as bp;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ORDINE CLIENTE — 5 di 6: rifiniture mobile della sola maschera
+// ═══════════════════════════════════════════════════════════════════════════
+// Il ritmo generale (sezioni come card, gap, scala testi, campi 44) è PROMOSSO
+// in styles/_document-form-mobile.scss (gate .doc-form--m-ref): qui restano le
+// rifiniture che parlano del markup di questa pagina — testata compressa
+// legacy, card di riga, «righe = elenco senza pareti».
+//
+// Vedi l'indice dei fogli in customer-order-form.component.scss.
+// ═══════════════════════════════════════════════════════════════════════════
+
+@include bp.media-down('lg') {
+  .co-form .co-form__header-summary {
+    min-block-size: 3.75rem;
+    padding: var(--space-3);
+  }
+
+  // Sotto-azione della riga totali (es. «+ Aggiungi sconto»): secondaria.
+  .co-form .co-form__add-discount {
+    font-size: var(--text-sm);
+  }
+
+  // ── Elenco righe: le card si staccano una dall'altra ─────────────────────
+  .co-form .co-form__cards {
+    gap: var(--space-3);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phone (<= md): il contenuto vale piu' dell'aria ai lati. Blocco in coda
+// all'ultimo foglio, cosi' vince sulle regole tablet qui sopra.
+// ═══════════════════════════════════════════════════════════════════════════
+@include bp.media-down('md') {
+  .co-form .co-form__header-summary,
+  .co-form .co-form__header-include {
+    padding: var(--card-pad-mobile);
+  }
+
+  // La card di riga si configura, non si perfora: il contenitore le dice che
+  // forma avere e lei la applica dentro il proprio foglio.
+  .co-form .co-form__cards {
+    --co-card-shadow: none;
+    --co-card-section-pad: var(--card-pad-mobile);
+  }
+
+  // ── Niente card dentro card: sezioni orizzontali nel contenitore ─────────
+  // Il contenitore esterno tiene i suoi 4 bordi; le sezioni interne perdono
+  // quelli verticali e si separano con un filo orizzontale. Sparisce la doppia
+  // parete che teneva il contenuto a ~24px dal bordo schermo.
+  .co-form .doc-form__lines,
+  .co-form .doc-form__totals-bar {
+    padding-inline: 0;
+  }
+
+  .co-form .doc-form__lines-head,
+  .co-form .co-form__mobile-tools,
+  .co-form .co-form__mobile-add-line {
+    padding-inline: var(--space-2);
+  }
+
+  // Niente card dentro card: le righe diventano un elenco continuo, separate
+  // da un filo invece che da quattro bordi.
+  .co-form .co-form__cards {
+    --co-card-border: 0;
+    --co-card-radius: 0;
+    --co-card-section-pad: var(--card-pad-mobile) var(--space-2);
+
+    gap: 0;
+  }
+
+  .co-form .co-form__cards > *:not(:last-child) {
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  .co-form .co-form__header-summary,
+  .co-form .co-form__header-include {
+    padding-inline: var(--space-2);
+  }
+
+  // Celle della testata: stesso trattamento, divisore solo sotto.
+  // Il campo cede tutta l'aria in coda: cosi' il filo di chiusura della cella
+  // finisce a filo dell'input e ne diventa la sottolineatura, invece di essere
+  // una riga che galleggia piu' sotto. Un filo di respiro resta solo in testa,
+  // perche' la label non tocchi il divisore del campo precedente.
+  .co-form .doc-form__header .doc-form__field {
+    padding-block: var(--space-1) var(--space-0);
+    padding-inline: var(--space-2);
+    border-inline: 0;
+    border-block-end: var(--border-width) solid var(--color-border);
+    // Label e valore sono un blocco solo, non due elementi accostati.
+    gap: var(--space-0);
+  }
+
+  // ── Input della testata piu' comodi da toccare e leggere ─────────────────
+  // La classe reale del trigger e' .select-menu__trigger: il nome col prefisso
+  // app- non esisteva, quindi la select restava l'unico controllo con il
+  // rientro orizzontale suo invece di quello della testata.
+  .co-form .doc-form__header .doc-form__input,
+  .co-form .doc-form__header .doc-form__textarea,
+  .co-form .doc-form__header {
+    --field-pad-inline: var(--space-3);
+  }
+
+  // ── Campi testata senza riquadro proprio (spec §7) ───────────────────────
+  // Il contenitore ha già il suo bordo: incorniciare anche ogni campo crea una
+  // doppia parete e ruba larghezza. Select e date picker seguono lo stesso
+  // token, quindi perdono il box senza doverli forzare uno per uno.
+  .co-form .doc-form__header .doc-form__input,
+  .co-form .doc-form__header .doc-form__field app-select-menu,
+  .co-form .doc-form__header .doc-form__field app-date-input {
+    --color-input-border: transparent;
+    --color-input-bg: transparent;
+  }
+
+  .co-form .doc-form__header .doc-form__input {
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  // La seconda fascia della testata nasce con un fondo tenue per staccarsi su
+  // desktop. In colonna singola quel fondo non separa piu' due fasce: tinge
+  // qualche campo si' e qualcuno no, e quelli tinti sembrano testo statico.
+  .co-form .doc-form__header .doc-form__header-row--secondary {
+    background-color: transparent;
+  }
+
+  // L'hover della select su touch resta appiccicato dopo il tap: il campo
+  // toccato per ultimo si ritrova un fondo grigio che gli altri non hanno.
+
+  // L'editabilità la dice il filo sotto la cella; al focus si accende.
+  .co-form .doc-form__header .doc-form__field:focus-within {
+    border-block-end-color: var(--color-focus);
+  }
+
+  .co-form .doc-form__header .doc-form__input:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  // ── Gerarchia tipografica della testata ──────────────────────────────────
+  // La scala generale (label 19, valore 16, titolo 22) e' promossa nel foglio
+  // globale; qui restano i livelli agganciati al markup di questa maschera.
+
+  // Titolo della testata compressa: resta a 15px. Non e' uno dei livelli in
+  // gioco qui, e quella riga divide lo spazio con icona, pulsante e chevron.
+  .co-form__header-summary-copy strong {
+    font-size: var(--text-value);
+  }
+
+  // Sottotitoli e link secondari — restano i piu' piccoli, ma a 11px erano
+  // sotto la soglia di lettura comoda.
+  .co-form__header-summary-copy small {
+    font-size: var(--text-xs);
+  }
+
+  // Il campo non ha piu' gap interno: le scorciatoie sotto il cliente si
+  // riprendono da sole il filo di stacco dal controllo.
+  .co-form .doc-form__header .doc-form__inline-links {
+    margin-block-start: var(--space-1);
+  }
+}

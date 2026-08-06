@@ -1,0 +1,44 @@
+<table class="doc-lines">
+  <thead class="doc-lines__head">
+    <tr>
+      <th scope="col" class="doc-lines__cell--num">#</th>
+      <th scope="col">Articolo</th>
+      <th scope="col" class="doc-lines__cell--qty">Q.tà</th>
+      <th scope="col" class="doc-lines__cell--price">Prezzo</th>
+      <th scope="col" class="doc-lines__cell--discount">Sconto</th>
+      <th scope="col" class="doc-lines__cell--vat">IVA</th>
+      <th scope="col" class="doc-lines__cell--stock">Magazzino</th>
+      <th scope="col" class="doc-lines__cell--total">Totale</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (line of lines(); track line.id) {
+      <tr class="doc-lines__row">
+        <td class="doc-lines__cell--num tabular-nums" data-label="#">{{ line.lineNumber }}</td>
+        <td data-label="Articolo">
+          <span class="doc-lines__desc">{{ line.description }}</span>
+          @if (line.sku) {
+            <span class="doc-lines__sku">{{ line.sku }}</span>
+          }
+          @if (line.serialNumbers?.length) {
+            <span class="doc-lines__sku">Seriali: {{ line.serialNumbers?.join(', ') }}</span>
+          }
+        </td>
+        <td class="doc-lines__cell--qty tabular-nums" data-label="Q.tà">{{ line.quantity }}</td>
+        <td class="doc-lines__cell--price tabular-nums" data-label="Prezzo">
+          {{ formatMoney(line.unitPrice) }}
+        </td>
+        <td class="doc-lines__cell--discount tabular-nums" data-label="Sconto">
+          {{ discountLabel(line) }}
+        </td>
+        <td class="doc-lines__cell--vat tabular-nums" data-label="IVA">{{ vatLabel(line) }}</td>
+        <td class="doc-lines__cell--stock" data-label="Magazzino">
+          {{ line.loadsStock ? 'Sì' : 'No' }}
+        </td>
+        <td class="doc-lines__cell--total tabular-nums" data-label="Totale">
+          {{ formatMoney(line.lineTotal) }}
+        </td>
+      </tr>
+    }
+  </tbody>
+</table>

@@ -1,0 +1,77 @@
+// L'ancora è del chiamante: il contenitore del campo dichiara
+// `position: relative`, il pannello si stende in assoluto sotto (o sopra).
+// L'host è `display: contents` così è la <ul> a stare nel flusso del padre,
+// come per app-button (regole-stile-ui §5).
+:host {
+  display: contents;
+}
+
+.doc-suggestions {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: calc(100% + var(--doc-suggestions-offset, var(--space-1)));
+  z-index: var(--doc-suggestions-z, var(--z-dropdown));
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  max-block-size: var(--doc-suggestions-max-h, calc(var(--space-8) * 8));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  // --shadow-lg è l'ombra dei menu/dropdown (--shadow-menu, regole-stile-ui §4).
+  box-shadow: var(--shadow-lg);
+}
+
+// Apre verso l'alto quando sotto il campo non c'è spazio.
+.doc-suggestions--above {
+  inset-block-start: auto;
+  inset-block-end: calc(100% + var(--doc-suggestions-offset, var(--space-1)));
+}
+
+.doc-suggestions__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  // Default touch fisso (non --btn-min-height): le card view che ospitano il
+  // pannello restano attive fino a lg, dove il token responsive tornerebbe
+  // alla densità desktop e il target scenderebbe sotto il minimo tappabile.
+  min-block-size: var(--doc-suggestions-item-min-h, var(--control-h-touch));
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast) var(--ease-standard);
+
+  // :active copre il tap su touch, dove :hover non è affidabile.
+  &:hover,
+  &:active {
+    background-color: var(--color-surface-soft);
+  }
+
+  // Voce attiva da tastiera: tinta interattiva, più marcata dell'hover.
+  &--active,
+  &:focus-visible {
+    background-color: var(--color-interactive-subtle);
+  }
+}
+
+.doc-suggestions__title {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.doc-suggestions__detail {
+  font-size: var(--text-xs);
+  font-variant-numeric: var(--numeric-tabular);
+  color: var(--color-text-muted);
+}
+
+// Messaggio «nessun risultato»: compare solo se il chiamante passa emptyText.
+.doc-suggestions__empty {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}

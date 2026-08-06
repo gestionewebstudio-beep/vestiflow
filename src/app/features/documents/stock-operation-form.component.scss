@@ -1,0 +1,11 @@
+@use 'breakpoints' as bp;
+
+// Vista mobile M1 (reference «Ordine cliente»): sotto lg la griglia classica
+// della testata lascia il posto al pannello apribile (doc-panels). Stesso
+// meccanismo di #co-header-details nell'Ordine cliente, nel foglio del
+// componente perché la classe vive solo in questo template.
+@include bp.media-down('lg') {
+  .stock-operation-form__header-desktop {
+    display: none;
+  }
+}

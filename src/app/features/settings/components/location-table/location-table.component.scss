@@ -13,3 +13,25 @@
 .location-table__code {
   color: var(--color-text-muted);
 }
+
+.location-table__group:first-child {
+  margin-block-start: 0;
+}
+
+.location-table__group + .location-table__group {
+  margin-block-start: var(--space-10);
+}
+
+.location-table__group-title {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  margin-block: 0 var(--space-4);
+}
+
+.location-table__group-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  margin-block: 0 var(--space-4);
+  max-inline-size: var(--content-default);
+}

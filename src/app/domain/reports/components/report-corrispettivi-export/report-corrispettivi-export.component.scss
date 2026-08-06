@@ -1,0 +1,104 @@
+@use 'breakpoints' as bp;
+
+.corrispettivi-export {
+  --corrispettivi-period-width: calc(var(--select-menu-width-wide) + var(--space-2));
+  --corrispettivi-field-width: calc(var(--select-menu-width) + var(--space-6));
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.corrispettivi-export__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.corrispettivi-export__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.corrispettivi-export__subtitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.corrispettivi-export__toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.corrispettivi-export__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.corrispettivi-export__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 calc(var(--space-24) + var(--space-8));
+  min-inline-size: calc(var(--space-24) + var(--space-8));
+  max-inline-size: 100%;
+}
+
+.corrispettivi-export__field--period {
+  --select-menu-width: var(--corrispettivi-period-width);
+  flex: 1 1 var(--corrispettivi-period-width);
+  min-inline-size: min(100%, var(--corrispettivi-period-width));
+  max-inline-size: var(--corrispettivi-period-width);
+}
+
+.corrispettivi-export__field--date,
+.corrispettivi-export__field--channel {
+  flex: 1 1 var(--corrispettivi-field-width);
+  min-inline-size: min(100%, var(--corrispettivi-field-width));
+  max-inline-size: var(--corrispettivi-field-width);
+  --select-menu-width: var(--corrispettivi-field-width);
+}
+
+.corrispettivi-export__label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.corrispettivi-export__action {
+  flex-shrink: 0;
+}
+
+@include bp.media-up('md') {
+  .corrispettivi-export__toolbar {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+
+  .corrispettivi-export__action {
+    margin-inline-start: auto;
+  }
+}
+
+.corrispettivi-export__period {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.corrispettivi-export__hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}

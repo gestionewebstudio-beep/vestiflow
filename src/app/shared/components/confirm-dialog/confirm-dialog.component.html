@@ -6,11 +6,14 @@
 >
   <h2 id="confirm-dialog-title" class="confirm-dialog__title">{{ title() }}</h2>
   <p class="confirm-dialog__message">{{ message() }}</p>
+  <ng-content />
 
   <div class="confirm-dialog__actions">
-    <app-button variant="secondary" [disabled]="busy()" (click)="onCancel()">
-      {{ cancelLabel() }}
-    </app-button>
+    @if (!acknowledge()) {
+      <app-button variant="secondary" [disabled]="busy()" (click)="onCancel()">
+        {{ cancelLabel() }}
+      </app-button>
+    }
     <app-button
       [variant]="danger() ? 'danger' : 'primary'"
       [loading]="busy()"

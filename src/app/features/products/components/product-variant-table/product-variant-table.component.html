@@ -6,7 +6,16 @@
         <th scope="col">{{ name }}</th>
       }
       <th scope="col" class="variant-table__cell--numeric">Prezzo</th>
+      @if (shopifyActive()) {
+        <th scope="col" class="variant-table__cell--numeric">Prezzo Shopify</th>
+      }
+      @if (canSeeCosts()) {
+        <th scope="col" class="variant-table__cell--numeric">Costo</th>
+      }
       <th scope="col">Barcode</th>
+      @if (productId(); as id) {
+        <th scope="col" class="variant-table__cell--actions">Etichetta</th>
+      }
     </tr>
   </thead>
 
@@ -18,12 +27,34 @@
           <td [attr.data-label]="name">{{ optionValue(variant, name) }}</td>
         }
         <td class="variant-table__cell--numeric tabular-nums" data-label="Prezzo">
-          @if (variant.compareAtPrice) {
-            <span class="variant-table__compare-at">{{ formatPrice(variant.compareAtPrice) }}</span>
-          }
           {{ formatPrice(variant.sellingPrice) }}
         </td>
+        @if (shopifyActive()) {
+          <td class="variant-table__cell--numeric tabular-nums" data-label="Prezzo Shopify">
+            {{ variant.shopifyPrice ? formatPrice(variant.shopifyPrice) : '—' }}
+          </td>
+        }
+        @if (canSeeCosts()) {
+          <td class="variant-table__cell--numeric tabular-nums" data-label="Costo">
+            {{ variant.purchasePrice ? formatPrice(variant.purchasePrice) : '—' }}
+          </td>
+        }
         <td class="tabular-nums" data-label="Barcode">{{ variant.barcode ?? '—' }}</td>
+        @if (productId(); as id) {
+          <td class="variant-table__cell--actions" data-label="Etichetta">
+            <span class="variant-table__cell-value">
+              <a
+                class="variant-table__print-link"
+                [routerLink]="['/app/products', id, 'print-label']"
+                [queryParams]="{ variantId: variant.id }"
+                [attr.aria-label]="'Stampa etichetta per ' + variant.sku"
+              >
+                <i class="pi pi-print" aria-hidden="true"></i>
+                Stampa
+              </a>
+            </span>
+          </td>
+        }
       </tr>
     }
   </tbody>

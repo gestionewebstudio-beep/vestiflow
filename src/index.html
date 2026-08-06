@@ -1,11 +1,30 @@
 <!doctype html>
-<html lang="en">
+<html lang="it">
   <head>
     <meta charset="utf-8" />
-    <title>Vestiflow</title>
+    <!--
+      index.html di SVILUPPO. La Content-Security-Policy stretta vive in
+      src/index.prod.html (build production), perche' in locale l'API gira su
+      http://localhost:3000 e una CSP stretta la bloccherebbe.
+      Tenere allineato a src/index.prod.html per modifiche non legate alla CSP.
+    -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <title>VestiFlow</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <meta
+      name="description"
+      content="Gestionale magazzino e vendite multi-sede per retail e Shopify."
+    />
+    <meta name="theme-color" content="#f4f4f5" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="VestiFlow" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   </head>
   <body>
     <app-root></app-root>

@@ -8,7 +8,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
-import { StockMovementType } from '@prisma/client';
+import { MovementOrigin, StockMovementType } from '@prisma/client';
 
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -17,11 +17,15 @@ export class ListInventoryLevelsQueryDto extends PaginationQueryDto {
   @IsUUID()
   locationId?: string;
 
-  /** Ricerca su SKU o nome prodotto. */
+  /** Ricerca su SKU, barcode o nome prodotto. */
   @IsOptional()
   @IsString()
   @MaxLength(200)
   search?: string;
+
+  @IsOptional()
+  @IsUUID()
+  variantId?: string;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
@@ -38,9 +42,30 @@ export class ListMovementsQueryDto extends PaginationQueryDto {
   @IsUUID()
   variantId?: string;
 
+  /** Ricerca su SKU, barcode, nome prodotto o codice articolo. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  search?: string;
+
+  /** Cliente o fornitore del documento origine del movimento. */
+  @IsOptional()
+  @IsUUID()
+  partyId?: string;
+
+  /** Operatore: snapshot `createdByName` del movimento (match esatto). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  createdBy?: string;
+
   @IsOptional()
   @IsEnum(StockMovementType)
   type?: StockMovementType;
+
+  @IsOptional()
+  @IsEnum(MovementOrigin)
+  origin?: MovementOrigin;
 
   @IsOptional()
   @IsISO8601()

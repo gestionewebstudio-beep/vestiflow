@@ -3,6 +3,7 @@
 // sono variabili SCSS. I componenti fanno: @use 'breakpoints' as bp;
 @use 'sass:map';
 
+$breakpoint-xs: 23.75rem; // 380px — phone stretto
 $breakpoint-sm: 30rem; // 480px
 $breakpoint-md: 48rem; // 768px
 $breakpoint-lg: 64rem; // 1024px
@@ -10,6 +11,7 @@ $breakpoint-xl: 80rem; // 1280px
 $breakpoint-2xl: 96rem; // 1536px
 
 $breakpoints: (
+  'xs': $breakpoint-xs,
   'sm': $breakpoint-sm,
   'md': $breakpoint-md,
   'lg': $breakpoint-lg,

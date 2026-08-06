@@ -1,0 +1,8 @@
+@use 'list-page' as lp;
+
+@include lp.list-page('inventory-count-list');
+
+// L'introduzione resta entro la larghezza di lettura dei contenuti ampi.
+.inventory-count-list__subtitle {
+  max-inline-size: var(--content-wide);
+}

@@ -1,0 +1,171 @@
+:host {
+  display: block;
+  block-size: 100%;
+  min-inline-size: 0;
+}
+
+.doc-product-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  block-size: 100%;
+  min-inline-size: 0;
+  position: relative;
+}
+
+.doc-product-cell__field {
+  display: flex;
+  align-items: stretch;
+  block-size: var(--doc-line-row-height, var(--field-height-inline));
+  min-inline-size: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
+
+  &--invalid {
+    background-color: var(--status-error-bg);
+  }
+}
+
+// Punto di regolazione: il nome prodotto e' la colonna che si legge per prima,
+// e una maschera puo' volerlo piu' marcato del resto della riga.
+.doc-product-cell__input {
+  flex: 1;
+  min-inline-size: 0;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--doc-product-cell-weight, inherit);
+  line-height: var(--leading-normal);
+  border: none;
+  background: transparent;
+
+  &:focus-visible {
+    outline: none;
+  }
+}
+
+.doc-product-cell__search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--doc-line-row-height, var(--field-height-inline));
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.doc-product-cell__suggestions {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline: 0;
+  z-index: var(--z-tooltip);
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  max-block-size: calc(var(--space-8) * 8);
+  overflow: auto;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.doc-product-cell__suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &--active,
+  &:hover {
+    background-color: var(--color-interactive-subtle);
+  }
+}
+
+.doc-product-cell__suggestion-title,
+.doc-product-cell__suggestion-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-product-cell__suggestion-title {
+  font-size: var(--text-sm);
+}
+
+.doc-product-cell__suggestion-detail {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+// Riga collegata: etichetta + lente SEMPRE visibile (ricerca/sostituzione
+// articolo) + "Apri anagrafica" all'hover.
+.doc-product-cell--linked {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-1);
+  justify-content: flex-start;
+  padding-inline-start: var(--space-2);
+}
+
+.doc-product-cell__linked-label {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--doc-product-cell-weight, inherit);
+  line-height: var(--leading-normal);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+}
+
+.doc-product-cell__link-action {
+  display: none;
+  align-self: flex-start;
+  padding: 0;
+  margin-block-start: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-interactive);
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: var(--leading-normal);
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.doc-product-cell:focus-within .doc-product-cell__link-action,
+.doc-product-cell:hover .doc-product-cell__link-action {
+  display: inline-flex;
+}
+
+.doc-product-cell--linked .doc-product-cell__link-action {
+  align-self: center;
+  flex-shrink: 0;
+  margin-block-start: 0;
+  margin-inline-end: var(--space-2);
+}
+
+/* Messaggio "nessun risultato" nel dropdown (punto D). */
+.doc-product-cell__suggestion-empty {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}

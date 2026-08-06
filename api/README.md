@@ -27,7 +27,7 @@ In `.env` servono le due connection string di Supabase (Project Settings → Dat
 ```bash
 npm run prisma:deploy     # applica le migrazioni (prisma/migrations)
 npm run prisma:generate   # rigenera il client dopo modifiche allo schema
-npm run prisma:seed       # dati demo (tenant, location, prodotto, giacenze)
+npm run prisma:seed       # dati sandbox (tenant, location, prodotti, giacenze)
 ```
 
 Per evolvere lo schema in sviluppo: `npm run prisma:migrate -- --name nome_migrazione`.
@@ -41,17 +41,29 @@ npm run start:dev   # watch mode su http://localhost:3000
 - Prefisso API: `/api/v1`
 - Healthcheck: `GET /api/v1/health` (verifica anche il DB)
 
-## Tenant (provvisorio)
+## Autenticazione (Supabase Auth)
 
-Finché non c'è Supabase Auth, il tenant si passa con l'header `x-tenant-id`
-(UUID). Con il seed demo:
+1. In `api/.env` imposta:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API → **service_role**, solo backend)
+2. In `src/environments/environment.ts` imposta `supabase.anonKey` (API → **anon/public**).
+3. Esegui il seed (dati di esempio in DB, **senza** utente Auth):
 
+```bash
+npm run prisma:seed
 ```
-x-tenant-id: 11111111-1111-4111-8111-111111111111
-```
 
-Con l'auth definitiva il tenant verrà estratto dal JWT verificato — l'header
-sparirà (vedi `TenantGuard`).
+4. Accedi con un account creato da **Nuovo cliente** (platform admin) o da Supabase Auth.
+
+Le route protette richiedono `Authorization: Bearer <jwt>`. Il tenant è risolto dal profilo DB, non da header client.
+
+| Metodo | Path              | Descrizione                            |
+| ------ | ----------------- | -------------------------------------- |
+| GET    | `/api/v1/auth/me` | Profilo utente (tenant, ruolo, negozi) |
+
+## Tenant (deprecato)
+
+L'header `x-tenant-id` non è più usato: il tenant arriva dal JWT verificato.
 
 ## Endpoint attuali
 

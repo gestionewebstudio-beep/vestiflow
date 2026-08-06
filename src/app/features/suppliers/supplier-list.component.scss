@@ -1,0 +1,3 @@
+@use 'list-page' as lp;
+
+@include lp.list-page('supplier-list');

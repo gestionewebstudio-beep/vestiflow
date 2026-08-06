@@ -1,0 +1,82 @@
+<section class="doc-settings">
+  <header class="doc-settings__header">
+    <div class="doc-settings__heading">
+      <app-back-button />
+      <h1 class="doc-settings__title">Impostazioni documenti</h1>
+      <p class="doc-settings__subtitle">
+        Numeratori, tipi di documento, titolo di stampa e numerazione automatica.
+      </p>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="load()" />
+  } @else {
+    <div class="doc-settings__grid">
+      @for (row of rows(); track row.type) {
+        <div class="doc-settings__card">
+          <form [formGroup]="row.form" (ngSubmit)="save(row)">
+            <div class="doc-settings__card-head">
+              <h2 class="doc-settings__card-title">{{ row.label }}</h2>
+            </div>
+
+            <div class="doc-settings__fields">
+              <label class="doc-settings__field">
+                <span class="doc-settings__label">Titolo di stampa</span>
+                <input
+                  class="doc-settings__input"
+                  type="text"
+                  formControlName="printTitle"
+                  autocomplete="off"
+                />
+              </label>
+
+              <div class="doc-settings__row">
+                <label class="doc-settings__field doc-settings__field--sm">
+                  <span class="doc-settings__label">Prefisso numero</span>
+                  <input
+                    class="doc-settings__input"
+                    type="text"
+                    formControlName="numberPrefix"
+                    maxlength="8"
+                    autocomplete="off"
+                  />
+                </label>
+              </div>
+
+              <label class="doc-settings__field">
+                <span class="doc-settings__label">Note predefinite</span>
+                <textarea
+                  class="doc-settings__input doc-settings__textarea"
+                  formControlName="defaultNotes"
+                  rows="2"
+                ></textarea>
+              </label>
+            </div>
+
+            <div class="doc-settings__card-actions">
+              <app-button
+                type="submit"
+                [disabled]="row.form.pristine || row.form.invalid || isSaving(row.type)"
+              >
+                {{ isSaving(row.type) ? 'Salvataggio…' : 'Salva' }}
+              </app-button>
+            </div>
+          </form>
+
+          <!-- Serie del tipo (numerazione). Nascosta dove la numerazione è
+               condivisa con un altro tipo (Fattura accompagnatoria → Fattura). -->
+          @if (seriesConfigurable(row.type)) {
+            <app-document-counters
+              [type]="row.type"
+              [counters]="countersFor(row.type)"
+              (changed)="reloadCounters()"
+            />
+          }
+        </div>
+      }
+    </div>
+  }
+</section>

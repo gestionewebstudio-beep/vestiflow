@@ -1,6 +1,5 @@
-// Seed di sviluppo: un tenant demo con location, prodotto e giacenze
-// iniziali, così l'API è esplorabile da subito. Idempotente: si può
-// rilanciare senza duplicare dati. NON eseguire in produzione reale.
+// Seed di sviluppo: tenant sandbox, location, prodotti, giacenze e dati di esempio.
+// Nessun utente Auth: accedi con un account creato da «Nuovo cliente» o da Supabase.
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -11,7 +10,7 @@ async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { id: TENANT_ID },
     update: {},
-    create: { id: TENANT_ID, name: 'Demo Boutique' },
+    create: { id: TENANT_ID, name: 'Sandbox locale' },
   });
 
   const store = await prisma.store.upsert({
@@ -49,19 +48,6 @@ async function main() {
       code: 'LOC-MAG',
       city: 'Napoli',
       countryCode: 'IT',
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { id: '55555555-5555-4555-8555-555555555555' },
-    update: {},
-    create: {
-      id: '55555555-5555-4555-8555-555555555555',
-      tenantId: tenant.id,
-      email: 'owner@demo-boutique.it',
-      displayName: 'Anna Esposito',
-      role: 'owner',
-      stores: { create: { storeId: store.id } },
     },
   });
 
@@ -149,7 +135,496 @@ async function main() {
     }
   }
 
-  console.log('Seed completato: tenant', tenant.id);
+  // Anagrafica canonica: il soggetto (party) porta i dati comuni,
+  // il fornitore e' il ruolo commerciale agganciato al soggetto.
+  const supplierParty = await prisma.party.upsert({
+    where: { id: 'a7777777-7777-4777-8777-777777777777' },
+    update: {},
+    create: {
+      id: 'a7777777-7777-4777-8777-777777777777',
+      tenantId: tenant.id,
+      companyName: 'Confezioni Sud SRL',
+      email: 'ordini@confezionisud.it',
+    },
+  });
+  const supplier = await prisma.supplier.upsert({
+    where: { id: '77777777-7777-4777-8777-777777777777' },
+    update: {},
+    create: {
+      id: '77777777-7777-4777-8777-777777777777',
+      tenantId: tenant.id,
+      partyId: supplierParty.id,
+      code: '0001',
+    },
+  });
+  const supplierName = 'Confezioni Sud SRL';
+
+  const variantMWhite = await prisma.productVariant.findFirst({
+    where: { tenantId: tenant.id, sku: 'TSB-M-WHT' },
+    select: { id: true },
+  });
+  const variantSBlack = await prisma.productVariant.findFirst({
+    where: { tenantId: tenant.id, sku: 'TSB-S-BLK' },
+    select: { id: true },
+  });
+  const variantLWhite = await prisma.productVariant.findFirst({
+    where: { tenantId: tenant.id, sku: 'TSB-L-WHT' },
+    select: { id: true },
+  });
+  const variantMBlack = await prisma.productVariant.findFirst({
+    where: { tenantId: tenant.id, sku: 'TSB-M-BLK' },
+    select: { id: true },
+  });
+  const variantLBlack = await prisma.productVariant.findFirst({
+    where: { tenantId: tenant.id, sku: 'TSB-L-BLK' },
+    select: { id: true },
+  });
+
+  if (variantMWhite && variantSBlack) {
+    // Ordini fornitore (prompt 2026-07): solo commerciali, stati
+    // Confermato/Concluso, numerazione OF dal numeratore supplier_order.
+    const line1Total = 30 * 750;
+    const line2Total = 20 * 750;
+    await prisma.supplierOrder.upsert({
+      where: {
+        tenantId_reference: { tenantId: tenant.id, reference: 'OF-2026-0001' },
+      },
+      update: {},
+      create: {
+        id: '88888888-8888-4888-8888-888888888888',
+        tenantId: tenant.id,
+        reference: 'OF-2026-0001',
+        supplierId: supplier.id,
+        supplierName,
+        status: 'concluded',
+        currency: 'EUR',
+        orderDate: new Date('2026-05-20'),
+        supplierReference: 'CONF-1188',
+        subtotalMinor: line1Total + line2Total,
+        totalMinor: line1Total + line2Total,
+        expectedAt: new Date('2026-06-01'),
+        lines: {
+          create: [
+            {
+              id: '99999999-9999-4999-8999-999999999991',
+              variantId: variantMWhite.id,
+              sku: 'TSB-M-WHT',
+              description: 'T-shirt Basic — M / Bianco',
+              orderedQuantity: 30,
+              receivedQuantity: 30,
+              unitCostMinor: 750,
+              enteredUnitCostMinor: 750,
+              lineTotalMinor: line1Total,
+            },
+            {
+              id: '99999999-9999-4999-8999-999999999992',
+              variantId: variantSBlack.id,
+              sku: 'TSB-S-BLK',
+              description: 'T-shirt Basic — S / Nero',
+              orderedQuantity: 20,
+              receivedQuantity: 20,
+              unitCostMinor: 750,
+              enteredUnitCostMinor: 750,
+              lineTotalMinor: line2Total,
+            },
+          ],
+        },
+      },
+    });
+
+    await prisma.supplierOrder.upsert({
+      where: {
+        tenantId_reference: { tenantId: tenant.id, reference: 'OF-2026-0002' },
+      },
+      update: {},
+      create: {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        tenantId: tenant.id,
+        reference: 'OF-2026-0002',
+        supplierId: supplier.id,
+        supplierName,
+        status: 'confirmed',
+        currency: 'EUR',
+        orderDate: new Date('2026-06-05'),
+        subtotalMinor: 15 * 750,
+        totalMinor: 15 * 750,
+        expectedAt: new Date('2026-06-20'),
+        lines: {
+          create: [
+            {
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              variantId: variantMWhite.id,
+              sku: 'TSB-M-WHT',
+              description: 'T-shirt Basic — M / Bianco',
+              orderedQuantity: 15,
+              receivedQuantity: 0,
+              unitCostMinor: 750,
+              enteredUnitCostMinor: 750,
+              lineTotalMinor: 15 * 750,
+            },
+          ],
+        },
+      },
+    });
+
+    await prisma.supplierOrder.upsert({
+      where: {
+        tenantId_reference: { tenantId: tenant.id, reference: 'OF-2026-0003' },
+      },
+      update: {},
+      create: {
+        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        tenantId: tenant.id,
+        reference: 'OF-2026-0003',
+        supplierId: supplier.id,
+        supplierName,
+        status: 'confirmed',
+        currency: 'EUR',
+        orderDate: new Date('2026-06-18'),
+        supplierReference: 'ORD-STAG-42',
+        subtotalMinor: 10 * 750,
+        totalMinor: 10 * 750,
+        expectedAt: new Date('2026-07-01'),
+        lines: {
+          create: [
+            {
+              id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+              variantId: variantLBlack.id,
+              sku: 'TSB-L-BLK',
+              description: 'T-shirt Basic — L / Nero',
+              orderedQuantity: 10,
+              receivedQuantity: 0,
+              unitCostMinor: 750,
+              enteredUnitCostMinor: 750,
+              lineTotalMinor: 10 * 750,
+            },
+          ],
+        },
+      },
+    });
+
+    await prisma.supplierOrder.upsert({
+      where: {
+        tenantId_reference: { tenantId: tenant.id, reference: 'OF-2026-0004' },
+      },
+      update: {},
+      create: {
+        id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        tenantId: tenant.id,
+        reference: 'OF-2026-0004',
+        supplierId: supplier.id,
+        supplierName,
+        status: 'confirmed',
+        currency: 'EUR',
+        orderDate: new Date('2026-07-02'),
+        subtotalMinor: 5 * 750,
+        totalMinor: 5 * 750,
+        expectedAt: new Date('2026-07-15'),
+        lines: {
+          create: [
+            {
+              id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+              variantId: variantMBlack.id,
+              sku: 'TSB-M-BLK',
+              description: 'T-shirt Basic — M / Nero',
+              orderedQuantity: 5,
+              receivedQuantity: 0,
+              unitCostMinor: 750,
+              enteredUnitCostMinor: 750,
+              lineTotalMinor: 5 * 750,
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  const sampleCustomers = [
+    {
+      id: 'c0011111-1111-4111-8111-111111111001',
+      firstName: 'Giulia',
+      lastName: 'Bianchi',
+      email: 'giulia.bianchi@example.com',
+      phone: '+39 333 1234567',
+      addressLine1: 'Via Toledo 45',
+      city: 'Napoli',
+      province: 'NA',
+      postalCode: '80134',
+      countryCode: 'IT',
+      shopifyCustomerId: 'gid://shopify/Customer/1001',
+    },
+    {
+      id: 'c0022222-2222-4222-8222-222222222002',
+      firstName: 'Marco',
+      lastName: 'Rossi',
+      email: 'marco.rossi@example.com',
+      phone: '+39 340 7654321',
+      addressLine1: 'Corso Buenos Aires 12',
+      city: 'Milano',
+      province: 'MI',
+      postalCode: '20124',
+      countryCode: 'IT',
+      notes: 'Preferisce ritiro in negozio.',
+      shopifyCustomerId: 'gid://shopify/Customer/1002',
+    },
+    {
+      id: 'c0033333-3333-4333-8333-333333333003',
+      firstName: 'Elena',
+      lastName: 'Verdi',
+      email: 'elena.verdi@example.com',
+      addressLine1: 'Via del Corso 101',
+      city: 'Roma',
+      province: 'RM',
+      postalCode: '00186',
+      countryCode: 'IT',
+      shopifyCustomerId: 'gid://shopify/Customer/1003',
+    },
+    {
+      id: 'c0044444-4444-4444-8444-444444444004',
+      firstName: 'Luca',
+      lastName: 'Esposito',
+      email: 'luca.esposito@example.com',
+      phone: '+39 328 9988776',
+    },
+    {
+      id: 'c0055555-5555-4555-8555-555555555005',
+      firstName: 'Sara',
+      lastName: 'Romano',
+      email: 'sara.romano@example.com',
+      notes: 'Iscritta alla newsletter; taglia abituale S.',
+    },
+    {
+      id: 'c0066666-6666-4666-8666-666666666006',
+      firstName: 'Davide',
+      lastName: 'Greco',
+      phone: '+39 347 1122334',
+    },
+    {
+      id: 'c0077777-7777-4777-8777-777777777007',
+      firstName: 'Francesca',
+      lastName: 'Marini',
+      email: 'francesca.marini@example.com',
+      phone: '+39 366 5566778',
+      addressLine1: 'Via Indipendenza 8',
+      city: 'Bologna',
+      province: 'BO',
+      postalCode: '40121',
+      countryCode: 'IT',
+    },
+    {
+      id: 'c0088888-8888-4888-8888-888888888008',
+      firstName: 'Antonio',
+      lastName: 'Ferrara',
+      email: 'antonio.ferrara@example.com',
+      notes: 'Cliente storico del negozio di Napoli.',
+    },
+  ];
+
+  for (const customer of sampleCustomers) {
+    const { id, shopifyCustomerId, ...partyData } = customer;
+    const partyId = `a${id.slice(1)}`;
+    await prisma.party.upsert({
+      where: { id: partyId },
+      update: {},
+      create: { id: partyId, tenantId: tenant.id, ...partyData },
+    });
+    await prisma.customer.upsert({
+      where: { id },
+      update: {},
+      create: {
+        id,
+        tenantId: tenant.id,
+        partyId,
+        ...(shopifyCustomerId ? { shopifyCustomerId } : {}),
+      },
+    });
+  }
+
+  const salesOrderIds = [
+    's0011111-1111-4111-8111-111111111001',
+    's0022222-2222-4222-8222-222222222002',
+    's0033333-3333-4333-8333-333333333003',
+    's0044444-4444-4444-8444-444444444004',
+    's0055555-5555-4555-8555-555555555005',
+    's0066666-6666-4666-8666-666666666006',
+  ];
+  await prisma.salesOrder.deleteMany({ where: { id: { in: salesOrderIds } } });
+
+  const sampleSalesOrders = [
+    {
+      id: salesOrderIds[0],
+      orderNumber: '#1001',
+      source: 'shopify_online',
+      financialStatus: 'paid',
+      fulfillmentStatus: 'fulfilled',
+      customerId: 'c0011111-1111-4111-8111-111111111001',
+      customerName: 'Giulia Bianchi',
+      subtotalMinor: 3980 + 1990,
+      totalMinor: 3980 + 1990,
+      placedAt: new Date('2026-05-28T09:15:00.000Z'),
+      shopifyOrderId: 'gid://shopify/Order/5001',
+      lines: [
+        {
+          id: 'sl001111-1111-4111-8111-111111111001',
+          variantId: variantMWhite?.id ?? null,
+          sku: 'TSB-M-WHT',
+          title: 'T-shirt Basic Cotone — M / Bianco',
+          quantity: 2,
+          unitPriceMinor: 1990,
+          totalMinor: 3980,
+        },
+        {
+          id: 'sl001111-1111-4111-8111-111111111002',
+          variantId: variantMBlack?.id ?? null,
+          sku: 'TSB-M-BLK',
+          title: 'T-shirt Basic Cotone — M / Nero',
+          quantity: 1,
+          unitPriceMinor: 1990,
+          totalMinor: 1990,
+        },
+      ],
+    },
+    {
+      id: salesOrderIds[1],
+      orderNumber: '#1002',
+      source: 'shopify_online',
+      financialStatus: 'pending',
+      fulfillmentStatus: 'unfulfilled',
+      customerName: 'Cliente occasionale',
+      subtotalMinor: 8990,
+      totalMinor: 8990,
+      placedAt: new Date('2026-05-30T14:40:00.000Z'),
+      shopifyOrderId: 'gid://shopify/Order/5002',
+      lines: [
+        {
+          id: 'sl002222-2222-4222-8222-222222222001',
+          variantId: null,
+          sku: 'SNEAKER-RUN-42-BIA',
+          title: 'Sneaker Running · 42 / Bianco',
+          quantity: 1,
+          unitPriceMinor: 8990,
+          totalMinor: 8990,
+        },
+      ],
+    },
+    {
+      id: salesOrderIds[2],
+      orderNumber: '#1003',
+      source: 'shopify_pos',
+      financialStatus: 'paid',
+      fulfillmentStatus: 'partially_fulfilled',
+      customerId: 'c0022222-2222-4222-8222-222222222002',
+      customerName: 'Marco Rossi',
+      subtotalMinor: 2490 * 3 + 5490,
+      totalMinor: 2490 * 3 + 5490,
+      placedAt: new Date('2026-06-01T17:05:00.000Z'),
+      shopifyOrderId: 'gid://shopify/Order/5003',
+      lines: [
+        {
+          id: 'sl003333-3333-4333-8333-333333333001',
+          variantId: variantLWhite?.id ?? null,
+          sku: 'TSB-L-WHT',
+          title: 'T-shirt Basic Cotone — L / Bianco',
+          quantity: 3,
+          unitPriceMinor: 2490,
+          totalMinor: 7470,
+        },
+        {
+          id: 'sl003333-3333-4333-8333-333333333002',
+          variantId: variantLBlack?.id ?? null,
+          sku: 'TSB-L-BLK',
+          title: 'T-shirt Basic Cotone — L / Nero',
+          quantity: 1,
+          unitPriceMinor: 5490,
+          totalMinor: 5490,
+        },
+      ],
+    },
+    {
+      id: salesOrderIds[3],
+      orderNumber: '#1004',
+      source: 'shopify_online',
+      financialStatus: 'partially_refunded',
+      fulfillmentStatus: 'fulfilled',
+      customerId: 'c0033333-3333-4333-8333-333333333003',
+      customerName: 'Elena Verdi',
+      subtotalMinor: 7990 * 2,
+      totalMinor: 7990 * 2,
+      placedAt: new Date('2026-06-02T10:20:00.000Z'),
+      shopifyOrderId: 'gid://shopify/Order/5004',
+      lines: [
+        {
+          id: 'sl004444-4444-4444-8444-444444444001',
+          variantId: variantMBlack?.id ?? null,
+          sku: 'TSB-M-BLK',
+          title: 'T-shirt Basic Cotone — M / Nero',
+          quantity: 2,
+          unitPriceMinor: 7990,
+          totalMinor: 15980,
+        },
+      ],
+    },
+    {
+      id: salesOrderIds[4],
+      orderNumber: '#1005',
+      source: 'shopify_pos',
+      financialStatus: 'refunded',
+      fulfillmentStatus: 'fulfilled',
+      customerName: 'Vendita al banco',
+      subtotalMinor: 1990,
+      totalMinor: 1990,
+      placedAt: new Date('2026-06-03T12:00:00.000Z'),
+      shopifyOrderId: 'gid://shopify/Order/5005',
+      lines: [
+        {
+          id: 'sl005555-5555-4555-8555-555555555001',
+          variantId: variantMWhite?.id ?? null,
+          sku: 'TSB-M-WHT',
+          title: 'T-shirt Basic Cotone — M / Bianco',
+          quantity: 1,
+          unitPriceMinor: 1990,
+          totalMinor: 1990,
+        },
+      ],
+    },
+    {
+      id: salesOrderIds[5],
+      orderNumber: '#1006',
+      source: 'shopify_online',
+      financialStatus: 'voided',
+      fulfillmentStatus: 'unfulfilled',
+      customerName: 'Cliente occasionale',
+      subtotalMinor: 5490,
+      totalMinor: 5490,
+      placedAt: new Date('2026-06-04T08:30:00.000Z'),
+      shopifyOrderId: 'gid://shopify/Order/5006',
+      lines: [
+        {
+          id: 'sl006666-6666-4666-8666-666666666001',
+          variantId: variantLBlack?.id ?? null,
+          sku: 'TSB-L-BLK',
+          title: 'T-shirt Basic Cotone — L / Nero',
+          quantity: 1,
+          unitPriceMinor: 5490,
+          totalMinor: 5490,
+        },
+      ],
+    },
+  ];
+
+  for (const order of sampleSalesOrders) {
+    const { lines, ...orderData } = order;
+    await prisma.salesOrder.create({
+      data: {
+        tenantId: tenant.id,
+        currency: 'EUR',
+        ...orderData,
+        lines: { create: lines },
+      },
+    });
+  }
+
+  console.log('Seed completato: tenant sandbox', tenant.id);
 }
 
 main()

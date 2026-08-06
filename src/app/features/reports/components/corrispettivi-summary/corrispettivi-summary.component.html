@@ -1,0 +1,37 @@
+<section class="corrispettivi-summary" aria-labelledby="corrispettivi-summary-title">
+  <div class="corrispettivi-summary__head">
+    <h2 id="corrispettivi-summary-title" class="corrispettivi-summary__title">Riepilogo periodo</h2>
+    <p class="corrispettivi-summary__period">{{ periodLabel() }}</p>
+  </div>
+
+  <dl class="corrispettivi-summary__grid">
+    <div class="corrispettivi-summary__item">
+      <dt>Ordini</dt>
+      <dd class="tabular-nums">{{ summary().orderCount }}</dd>
+    </div>
+    <div class="corrispettivi-summary__item">
+      <dt>Da consegnare</dt>
+      <dd class="tabular-nums">{{ summary().pendingDeliveryCount }}</dd>
+    </div>
+    <div class="corrispettivi-summary__item">
+      <dt>Rimborsi</dt>
+      <dd class="tabular-nums">{{ summary().refundsCount }}</dd>
+    </div>
+    <div class="corrispettivi-summary__item">
+      <dt>Imponibile</dt>
+      <dd class="tabular-nums">{{ formatMoney(summary().taxable) }}</dd>
+    </div>
+    <div class="corrispettivi-summary__item">
+      <dt>IVA</dt>
+      <dd class="tabular-nums">{{ formatMoney(summary().tax) }}</dd>
+    </div>
+    <div class="corrispettivi-summary__item">
+      <dt>Spedizioni</dt>
+      <dd class="tabular-nums">{{ formatMoney(summary().shipping) }}</dd>
+    </div>
+    <div class="corrispettivi-summary__item corrispettivi-summary__item--highlight">
+      <dt>Totale lordo</dt>
+      <dd class="tabular-nums">{{ formatMoney(summary().total) }}</dd>
+    </div>
+  </dl>
+</section>

@@ -1,0 +1,100 @@
+@use 'breakpoints' as bp;
+@use 'list-page' as lp;
+@use './styles/inventory-compact-filters' as filters;
+
+@include lp.list-page('inventory-situation');
+
+// Divergenza deliberata: riga filtri compatta con wrap, condivisa col tab
+// Movimenti (vedi styles/_inventory-compact-filters.scss).
+@include filters.inventory-compact-filters('inventory-situation');
+
+// Barra selezione: appare sopra la tabella quando c'è almeno un articolo.
+.inventory-situation__selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  @include bp.media-down('md') {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.inventory-situation__selection-count {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.inventory-situation__selection-actions {
+  display: flex;
+  gap: var(--space-2);
+
+  @include bp.media-down('md') {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+// ── Pannello Nuovo ordine fornitore ──────────────────────────────────────────
+
+.inventory-situation__order-context {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.inventory-situation__order-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-block-end: var(--space-3);
+  --select-menu-width: 100%;
+}
+
+.inventory-situation__order-input {
+  inline-size: 100%;
+  box-sizing: border-box;
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+
+  &:focus-visible {
+    border-color: var(--color-interactive);
+    outline: none;
+    box-shadow: var(--field-focus-ring);
+  }
+}
+
+.inventory-situation__order-toggle {
+  padding: 0;
+  font-size: var(--text-sm);
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+  cursor: pointer;
+}
+
+.inventory-situation__order-error {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}
+
+.inventory-situation__order-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block-start: var(--space-5);
+}

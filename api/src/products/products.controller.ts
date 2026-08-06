@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -10,17 +11,49 @@ import {
   Patch,
   Post,
   Query,
+  StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
+import {
+  csvUploadMulterOptions,
+  productImageUploadMulterOptions,
+} from '../common/upload/multer-upload.options';
+
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import {
+  CATALOG_SECTION_PERMISSIONS,
+  SHOPIFY_CATALOG_SYNC_PERMISSIONS,
+  TenantPermission,
+} from '../auth/tenant-permission.constants';
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from '../common/auth/tenant-permissions.decorator';
+import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
-import { TenantGuard } from '../common/tenant/tenant.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { GenerateSkuDto } from './dto/generate-sku.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
+import { ListVariantSummariesQueryDto } from './dto/list-variant-summaries.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductMediaService } from './product-media.service';
+import { ProductPriceModePreferenceService } from './product-price-mode-preference.service';
+import { ProductsExportService } from './products-export.service';
+import { ProductsImportService } from './products-import.service';
 import { ProductsService, type ProductWithVariants } from './products.service';
+import { SkuGeneratorService } from './sku-generator.service';
+import { ExportProductsQueryDto } from './dto/export-products.query.dto';
+import { ImportProductsBodyDto } from './dto/import-products-body.dto';
+import { SuppliersService } from '../supplier-orders/suppliers.service';
 
 class SkuAvailabilityQueryDto {
   @IsString()
@@ -33,12 +66,50 @@ class SkuAvailabilityQueryDto {
   excludeProductId?: string;
 }
 
+class BarcodeAvailabilityQueryDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  barcode!: string;
+
+  @IsOptional()
+  @IsUUID()
+  excludeProductId?: string;
+}
+
+class ArticleCodeAvailabilityQueryDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  articleCode!: string;
+
+  @IsOptional()
+  @IsUUID()
+  excludeProductId?: string;
+}
+
+class VariantByCodeQueryDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  code!: string;
+}
+
 @Controller('products')
-@UseGuards(TenantGuard)
+@UseGuards(JwtAuthGuard, TenantPermissionsGuard)
 export class ProductsController {
-  constructor(private readonly products: ProductsService) {}
+  constructor(
+    private readonly products: ProductsService,
+    private readonly productMedia: ProductMediaService,
+    private readonly productsImport: ProductsImportService,
+    private readonly productsExport: ProductsExportService,
+    private readonly suppliers: SuppliersService,
+    private readonly skuGenerator: SkuGeneratorService,
+    private readonly priceModePreference: ProductPriceModePreferenceService,
+  ) {}
 
   @Get()
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   list(
     @CurrentTenant() tenantId: string,
     @Query() query: ListProductsQueryDto,
@@ -46,8 +117,27 @@ export class ProductsController {
     return this.products.list(tenantId, query);
   }
 
-  // Prima di ':id' per non essere catturata dalla route parametrica.
+  @Get('facets')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
+  getFacets(@CurrentTenant() tenantId: string) {
+    return this.products.getFacets(tenantId);
+  }
+
+  // L'utente serve al service per decidere se includere il costo d'acquisto
+  // nella risposta (dato sensibile §permessi): il filtro è server-side, non
+  // una semplice omissione nella UI.
+  @Get('variants/summaries')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
+  listVariantSummaries(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Query() query: ListVariantSummariesQueryDto,
+  ) {
+    return this.products.listVariantSummaries(tenantId, query, user);
+  }
+
   @Get('sku-availability')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   checkSku(
     @CurrentTenant() tenantId: string,
     @Query() query: SkuAvailabilityQueryDto,
@@ -55,7 +145,144 @@ export class ProductsController {
     return this.products.checkSkuAvailability(tenantId, query.sku, query.excludeProductId);
   }
 
+  /**
+   * Anteprima "Genera SKU" (specifica cliente §SKU): calcola un codice
+   * prevedibile (categoria + nome/modello + attributi variante presenti +
+   * progressivo) e ne risolve gia' l'unicita' nel tenant. NON salva nulla:
+   * l'utente puo' ancora modificare il codice proposto prima del submit, e
+   * l'unicita' viene riverificata al salvataggio (vincolo DB + controllo
+   * applicativo in ProductsService).
+   */
+  @Post('sku/generate')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
+  generateSku(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: GenerateSkuDto,
+  ): Promise<{ sku: string }> {
+    return this.skuGenerator
+      .previewSku(tenantId, {
+        productName: dto.productName,
+        category: dto.category,
+        modelCode: dto.modelCode,
+        optionValues: dto.optionValues,
+      })
+      .then((sku) => ({ sku }));
+  }
+
+  /**
+   * Disponibilità codice articolo per la validazione live del form
+   * anagrafica (§Codice articolo: univoco per tenant, case-insensitive).
+   * `takenBy` = nome dell'articolo che occupa il codice, per il messaggio
+   * "Codice articolo già utilizzato da [nome articolo]."
+   */
+  @Get('article-code-availability')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
+  checkArticleCode(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ArticleCodeAvailabilityQueryDto,
+  ): Promise<{ articleCode: string; available: boolean; takenBy: string | null }> {
+    return this.products.checkArticleCodeAvailability(
+      tenantId,
+      query.articleCode,
+      query.excludeProductId,
+    );
+  }
+
+  @Get('barcode-availability')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
+  checkBarcode(
+    @CurrentTenant() tenantId: string,
+    @Query() query: BarcodeAvailabilityQueryDto,
+  ): Promise<{ barcode: string; available: boolean }> {
+    return this.products.checkBarcodeAvailability(
+      tenantId,
+      query.barcode,
+      query.excludeProductId,
+    );
+  }
+
+  @Get('variants/by-code')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
+  findVariantByCode(
+    @CurrentTenant() tenantId: string,
+    @Query() query: VariantByCodeQueryDto,
+  ): Promise<{
+    variantId: string;
+    productId: string;
+    sku: string | null;
+    barcode: string | null;
+    productName: string;
+  }> {
+    return this.products.findVariantByCode(tenantId, query.code);
+  }
+
+  @Post('import/preview')
+  @RequirePermissions(TenantPermission.CatalogImportExport)
+  @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
+  previewImport(@CurrentTenant() tenantId: string, @UploadedFile() file: Express.Multer.File) {
+    this.assertCsvFile(file);
+    return this.productsImport.previewCsv(tenantId, file.buffer.toString('utf-8'));
+  }
+
+  @Post('import')
+  @RequirePermissions(TenantPermission.CatalogImportExport)
+  @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
+  importProducts(
+    @CurrentTenant() tenantId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: ImportProductsBodyDto,
+  ) {
+    this.assertCsvFile(file);
+    const handles = body.handles?.filter((handle) => handle.trim().length > 0);
+    return this.productsImport.importCsv(tenantId, file.buffer.toString('utf-8'), {
+      handles,
+    });
+  }
+
+  @Get('export/csv')
+  @RequirePermissions(TenantPermission.CatalogImportExport)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  async exportCsv(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ExportProductsQueryDto,
+  ): Promise<StreamableFile> {
+    const csv = await this.productsExport.exportCsv(tenantId, query);
+    const stamp = new Date().toISOString().slice(0, 10);
+    return new StreamableFile(Buffer.from(csv, 'utf-8'), {
+      type: 'text/csv; charset=utf-8',
+      disposition: `attachment; filename="prodotti-vestiflow-${stamp}.csv"`,
+    });
+  }
+
+  @Get(':id/supplier-links')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
+  listSupplierLinks(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.suppliers.listVariantLinksByProduct(tenantId, id);
+  }
+
+  /**
+   * Modalità prezzo (netto/ivato) della sezione Listini da proporre a un articolo
+   * nuovo: preferenza ricordata dell'operatore ?? primo utilizzo (ivato).
+   * Rotta statica: DEVE precedere `@Get(':id')`, altrimenti `:id` la cattura.
+   */
+  @Get('price-mode-preference')
+  @RequirePermissions(TenantPermission.CatalogManage)
+  async getPriceModePreference(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+  ): Promise<{ pricesIncludeVat: boolean }> {
+    const pricesIncludeVat = await this.priceModePreference.resolvePricesIncludeVat(
+      tenantId,
+      user.id,
+    );
+    return { pricesIncludeVat };
+  }
+
   @Get(':id')
+  @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   getById(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -64,14 +291,22 @@ export class ProductsController {
   }
 
   @Post()
-  create(
+  @RequirePermissions(TenantPermission.CatalogManage)
+  async create(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Body() dto: CreateProductDto,
   ): Promise<ProductWithVariants> {
-    return this.products.create(tenantId, dto);
+    const product = await this.products.create(tenantId, dto);
+    // Ricorda la modalità Listini scelta (solo alla creazione, come i documenti).
+    if (dto.listinoPricesIncludeVat !== undefined) {
+      await this.priceModePreference.remember(tenantId, user.id, dto.listinoPricesIncludeVat);
+    }
+    return product;
   }
 
   @Patch(':id')
+  @RequirePermissions(TenantPermission.CatalogManage)
   update(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -80,12 +315,61 @@ export class ProductsController {
     return this.products.update(tenantId, id, dto);
   }
 
+  /** Duplica anagrafica prodotto (audit cliente): nuovo id, SKU/barcode univoci. */
+  @Post(':id/duplicate')
+  @RequirePermissions(TenantPermission.CatalogManage)
+  duplicate(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ProductWithVariants> {
+    return this.products.duplicateProduct(tenantId, id);
+  }
+
+  @Post(':id/sync-shopify')
+  @RequireAnyPermissions(SHOPIFY_CATALOG_SYNC_PERMISSIONS)
+  syncToShopify(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.products.syncToShopify(tenantId, id);
+  }
+
+  @Post(':id/images')
+  @RequirePermissions(TenantPermission.CatalogManage)
+  @UseInterceptors(FileInterceptor('file', productImageUploadMulterOptions))
+  uploadImage(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.productMedia.uploadImage(tenantId, id, file);
+  }
+
+  @Delete(':id/images/:imageId')
+  @RequirePermissions(TenantPermission.CatalogManage)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteImage(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('imageId', ParseUUIDPipe) imageId: string,
+  ): Promise<void> {
+    await this.productMedia.deleteImage(tenantId, id, imageId);
+  }
+
   @Delete(':id')
+  @RequirePermissions(TenantPermission.CatalogDelete)
   @HttpCode(HttpStatus.NO_CONTENT)
   async delete(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.products.delete(tenantId, id);
+  }
+
+  private assertCsvFile(file: Express.Multer.File | undefined): void {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Carica un file CSV valido.');
+    }
+    const name = file.originalname?.toLowerCase() ?? '';
+    if (!name.endsWith('.csv') && file.mimetype !== 'text/csv') {
+      throw new BadRequestException('Il file deve essere in formato CSV.');
+    }
   }
 }

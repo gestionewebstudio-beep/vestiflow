@@ -9,10 +9,22 @@ import prettier from 'eslint-config-prettier';
 export default tseslint.config(
   {
     // api/ è il backend NestJS: ha il proprio tsconfig e non segue le regole Angular.
-    ignores: ['dist/**', 'out-tsc/**', 'coverage/**', '.angular/**', 'api/**'],
+    ignores: [
+      'dist/**',
+      'out-tsc/**',
+      'coverage/**',
+      '.angular/**',
+      'api/**',
+      // HTML di stampa generati da docs/*.md (non template Angular).
+      'docs/**/*.html',
+      // Fragment HTML guida in-app (generati da scripts/generate-guide-html.mjs).
+      'public/guide/**',
+      'src/assets/guide-admin/**',
+    ],
   },
   {
     files: ['**/*.ts'],
+    ignores: ['e2e/**', 'playwright.config.ts'],
     extends: [
       eslint.configs.recommended,
       ...tseslint.configs.recommendedTypeChecked,
@@ -68,7 +80,100 @@ export default tseslint.config(
       // ── RxJS (igiene observable) ─────────────────────────────────────
       'rxjs/no-ignored-replay-buffer': 'error',
       'rxjs/no-unsafe-takeuntil': 'error',
-      'rxjs/no-ignored-subscription': 'warn',
+      // 'rxjs/no-ignored-subscription' e' stata rimossa: chiedeva la cosa
+      // giusta con il criterio sbagliato — pretende che il valore di ritorno
+      // di subscribe() sia assegnato, e non conosce takeUntilDestroyed(). Su
+      // questo progetto segnalava 218 casi di cui 203 corretti, e un rapporto
+      // cosi' non rende un controllo severo: lo rende illeggibile. Il criterio
+      // vero (in un componente la sottoscrizione deve avere una via d'uscita)
+      // vive in scripts/check-subscriptions.mjs, dentro `npm run lint`.
+    },
+  },
+
+  // ── Confini tra layer (regole-architettura) ────────────────────────────
+  // core → shared → domain → features: ogni layer vede solo quelli sotto.
+  // Le eccezioni si aprono qui, non con un commento nel file.
+  {
+    files: ['src/app/core/**/*.ts', 'src/app/shared/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@domain/*', '@features/*'],
+              message:
+                'core/ e shared/ non conoscono il dominio: sposta il file in domain/ o inverti la dipendenza.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/domain/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@features/*'],
+              message:
+                'domain/ non dipende dalle schermate: il pezzo condiviso va in domain/, non in features/.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/features/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@features/*'],
+              message:
+                'Nessun import tra feature: promuovi il file condiviso in domain/ (vedi regole-architettura).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['e2e/**/*.ts', 'playwright.config.ts'],
+    extends: [
+      eslint.configs.recommended,
+      ...tseslint.configs.recommendedTypeChecked,
+      ...tseslint.configs.stylistic,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./e2e/tsconfig.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    plugins: {
+      'unused-imports': unusedImports,
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'unused-imports/no-unused-imports': 'error',
+      'unused-imports/no-unused-vars': [
+        'error',
+        {
+          args: 'after-used',
+          argsIgnorePattern: '^_',
+          vars: 'all',
+          varsIgnorePattern: '^_',
+        },
+      ],
     },
   },
   {

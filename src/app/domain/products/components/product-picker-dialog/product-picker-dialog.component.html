@@ -1,0 +1,145 @@
+<div class="picker__backdrop" (click)="close()" (keydown.escape)="close()" tabindex="-1"></div>
+
+<section
+  class="picker"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="picker-title"
+  (keydown.escape)="close()"
+>
+  <header class="picker__head">
+    @if (openProduct(); as product) {
+      <button
+        type="button"
+        class="picker__back"
+        aria-label="Torna ai prodotti"
+        (click)="backToProducts()"
+      >
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+      </button>
+      <h2 id="picker-title" class="picker__title">{{ product.name }}</h2>
+    } @else {
+      <h2 id="picker-title" class="picker__title">Seleziona prodotti</h2>
+    }
+    <button type="button" class="picker__close" aria-label="Chiudi" (click)="close()">
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  @if (!openProduct()) {
+    <div class="picker__search">
+      <i class="pi pi-search picker__search-icon" aria-hidden="true"></i>
+      <input
+        class="picker__search-input"
+        type="search"
+        [value]="searchDraft()"
+        placeholder="Cerca prodotti…"
+        aria-label="Cerca prodotti per nome, SKU o EAN"
+        autocomplete="off"
+        (input)="onSearchInput($any($event.target).value)"
+      />
+    </div>
+  }
+
+  <div class="picker__body">
+    @if (openProduct(); as product) {
+      <!-- Secondo livello: varianti del prodotto, selezione multipla. -->
+      <ul class="picker__list" role="listbox" aria-multiselectable="true">
+        @for (variant of product.variants; track variant.variantId) {
+          <li>
+            <button
+              type="button"
+              class="picker__row picker__row--variant"
+              role="option"
+              [attr.aria-selected]="isSelected(variant.variantId)"
+              (click)="toggleVariant(variant.variantId)"
+            >
+              <span
+                class="picker__check"
+                [class.picker__check--on]="isSelected(variant.variantId)"
+                aria-hidden="true"
+              >
+                @if (isSelected(variant.variantId)) {
+                  <i class="pi pi-check"></i>
+                }
+              </span>
+              <span class="picker__row-copy">
+                <span class="picker__row-title">{{ variantLabel(product, variant) }}</span>
+                @if (variant.sku) {
+                  <span class="picker__row-code">{{ variant.sku }}</span>
+                }
+                @if (stockStatus(variant); as status) {
+                  <span
+                    class="picker__stock"
+                    [class.picker__stock--ok]="status === StockStatus.Ok"
+                    [class.picker__stock--low]="status === StockStatus.Low"
+                    [class.picker__stock--empty]="status === StockStatus.Empty"
+                  >
+                    {{ stockLabel(variant) }}
+                  </span>
+                }
+              </span>
+              @if (variantPrice(variant); as price) {
+                <span class="picker__price">{{ price }}</span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    } @else {
+      <!-- Primo livello: prodotti. -->
+      @if (products().length === 0) {
+        <p class="picker__empty">
+          @if (loading()) {
+            Ricerca…
+          } @else {
+            Nessun prodotto trovato.
+          }
+        </p>
+      } @else {
+        <ul class="picker__list">
+          @for (product of products(); track product.productId) {
+            <li>
+              <button type="button" class="picker__row" (click)="onProductTap(product)">
+                <span class="picker__thumb">
+                  @if (product.imageUrl) {
+                    <img [src]="product.imageUrl" [alt]="product.name" loading="lazy" />
+                  } @else {
+                    <i class="pi pi-image" aria-hidden="true"></i>
+                  }
+                </span>
+                <span class="picker__row-copy">
+                  <span class="picker__row-title">{{ product.name }}</span>
+                  @if (product.articleCode) {
+                    <span class="picker__row-code">{{ product.articleCode }}</span>
+                  }
+                  @if (product.variants.length > 1) {
+                    <span class="picker__row-meta">{{ product.variants.length }} varianti</span>
+                  }
+                </span>
+                @if (product.priceLabel) {
+                  <span class="picker__price">{{ product.priceLabel }}</span>
+                }
+                @if (product.variants.length > 1) {
+                  <i class="pi pi-chevron-right picker__chevron" aria-hidden="true"></i>
+                }
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    }
+  </div>
+
+  @if (openProduct()) {
+    <footer class="picker__foot">
+      <app-button type="button" [disabled]="selectedCount() === 0" (click)="confirm()">
+        @if (selectedCount() > 0) {
+          Aggiungi {{ selectedCount() }}
+        } @else {
+          Aggiungi
+        }
+      </app-button>
+    </footer>
+  }
+</section>

@@ -1,0 +1,188 @@
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Max,
+  MaxLength,
+  Min,
+  ValidateNested,
+  IsNumber,
+} from 'class-validator';
+import { AdjustmentDirection } from '@prisma/client';
+
+import { DocumentLineInputDto } from './create-document.dto';
+import { DocumentAddressDto, DocumentTransportFieldsDto } from './document-transport.dto';
+
+/** Aggiornamento di un documento in bozza: righe sostituite integralmente. */
+export class UpdateDocumentDto extends DocumentTransportFieldsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /**
+   * Numero imposto dalla testata. Riscrive numero e riferimento del documento;
+   * come in creazione, un numero imposto non sposta il progressivo della serie.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
+  @IsOptional()
+  @IsISO8601()
+  documentDate?: string;
+
+  @IsOptional()
+  @IsUUID()
+  supplierId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  customerId?: string | null;
+
+  /**
+   * Cliente a testo libero (prompt Scarico manuale): applicato SOLO quando il
+   * documento non ha customerId — snapshot per la stampa, mai in anagrafica.
+   * null = svuota il testo libero.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  customerName?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  locationId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  targetLocationId?: string | null;
+
+  @IsOptional()
+  @IsEnum(AdjustmentDirection)
+  adjustmentDirection?: AdjustmentDirection | null;
+
+  @IsOptional()
+  @IsString()
+  @Length(3, 3)
+  currency?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  internalComment?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  externalDocNumber?: string | null;
+
+  @IsOptional()
+  @IsISO8601()
+  externalDocDate?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  billingCause?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  externalRef?: string | null;
+
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
+  @Min(0)
+  @Max(100)
+  documentDiscountPercent?: number;
+
+  /** Modalità prezzo del documento (netto/ivato): true = IVA inclusa. */
+  @IsOptional()
+  @IsBoolean()
+  pricesIncludeVat?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  supplierOrderId?: string | null;
+
+  /** Condizioni di pagamento in testata (Preventivo: campo «Pagamento»). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  paymentTerms?: string | null;
+
+  /** Modalità di pagamento (DDT vendita: voce normativa MP01–MP23, snapshot nome). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  paymentMethod?: string | null;
+
+  /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
+  @IsOptional()
+  @IsISO8601()
+  expectedDeliveryDate?: string | null;
+
+  /** Scadenza pagamento (Fattura). */
+  @IsOptional()
+  @IsISO8601()
+  paymentDueDate?: string | null;
+
+  /** IBAN di incasso: precompilato da Impostazioni, modificabile qui. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(34)
+  iban?: string | null;
+
+  /** DDT vendita agganciati: sostituisce integralmente i link esistenti. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID('4', { each: true })
+  linkedSalesDdtIds?: string[];
+
+  /** "Seguirà doc. di vendita" (DDT vendita, prompt DDT §TESTATA). */
+  @IsOptional()
+  @IsBoolean()
+  followedBySalesDoc?: boolean;
+
+  /** Intestatario documento (snapshot indirizzo, prompt DDT §INDIRIZZI). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DocumentAddressDto)
+  recipientAddress?: DocumentAddressDto | null;
+
+  /** Destinazione merce (può differire dall'intestatario). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DocumentAddressDto)
+  destinationAddress?: DocumentAddressDto | null;
+
+  /** Ordini cliente inclusi nel DDT vendita («Includi documento»). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID(undefined, { each: true })
+  includedSalesOrderIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => DocumentLineInputDto)
+  lines?: DocumentLineInputDto[];
+}

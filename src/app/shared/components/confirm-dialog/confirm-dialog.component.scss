@@ -1,11 +1,19 @@
 .confirm-dialog {
-  inline-size: min(var(--content-narrow), 90vw);
+  // Il reset globale (* { margin: 0 }) rimuove margin: auto del <dialog> nativo:
+  // forziamo il centraggio viewport per showModal().
+  position: fixed;
+  inset: 0;
+  inline-size: min(var(--content-narrow), calc(100vw - var(--space-4)));
+  block-size: fit-content;
+  max-block-size: calc(100dvh - var(--space-8));
+  margin: auto;
   padding: var(--space-5);
-  background-color: var(--color-surface);
+  background-color: var(--color-surface-raised);
   color: var(--color-text);
-  border: var(--border-width) solid var(--color-border);
+  border: var(--border-width) solid var(--color-border-strong);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
+  overflow-y: auto;
 }
 
 .confirm-dialog::backdrop {

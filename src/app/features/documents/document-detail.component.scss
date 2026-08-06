@@ -1,0 +1,17 @@
+@use 'detail-page' as dp;
+@use './styles/document-detail' as doc;
+
+:host {
+  display: block;
+}
+
+@include dp.detail-page('doc-detail');
+@include doc.document-detail-revisions('doc-detail');
+
+// Il titolo ospita la pill di stato: resta una riga flessibile, non solo testo.
+.doc-detail__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}

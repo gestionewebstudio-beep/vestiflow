@@ -1,0 +1,17 @@
+.edit-lock-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--status-warning-bg);
+  border: var(--border-width) solid var(--status-warning-border);
+  border-radius: var(--radius-md);
+
+  p {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text);
+  }
+}

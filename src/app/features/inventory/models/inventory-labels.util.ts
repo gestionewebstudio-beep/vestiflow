@@ -2,7 +2,9 @@
 // Funzioni pure riusate da tabelle, pagine e report.
 
 import { StockStatus } from '@core/models/inventory-level.model';
-import { StockMovementType } from '@core/models/stock-movement.model';
+import { MovementOrigin, StockMovementType } from '@core/models/stock-movement.model';
+import { onlineSalesChannelLabel } from '@core/models/tenant-channel-profile.model';
+import type { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
 const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
@@ -32,6 +34,7 @@ const MOVEMENT_TYPE_LABELS: Record<StockMovementType, string> = {
   [StockMovementType.Adjustment]: 'Rettifica',
   [StockMovementType.Sale]: 'Vendita',
   [StockMovementType.Return]: 'Reso',
+  [StockMovementType.OnlineSale]: 'Vendita online',
 };
 
 const MOVEMENT_TYPE_TONES: Record<StockMovementType, BadgeTone> = {
@@ -41,6 +44,7 @@ const MOVEMENT_TYPE_TONES: Record<StockMovementType, BadgeTone> = {
   [StockMovementType.Adjustment]: 'neutral',
   [StockMovementType.Sale]: 'info',
   [StockMovementType.Return]: 'success',
+  [StockMovementType.OnlineSale]: 'info',
 };
 
 export function movementTypeLabel(type: StockMovementType): string {
@@ -49,4 +53,39 @@ export function movementTypeLabel(type: StockMovementType): string {
 
 export function movementTypeTone(type: StockMovementType): BadgeTone {
   return MOVEMENT_TYPE_TONES[type];
+}
+
+/** Snapshot audit `createdByName` → etichetta comprensibile in UI. */
+const MOVEMENT_ACTOR_LABELS: Readonly<Record<string, string>> = {
+  API: 'Automatico',
+  Shopify: 'Shopify',
+};
+
+export function movementActorLabel(createdByName: string): string {
+  const trimmed = createdByName.trim();
+  if (!trimmed) {
+    return '—';
+  }
+  return MOVEMENT_ACTOR_LABELS[trimmed] ?? trimmed;
+}
+
+const MOVEMENT_ORIGIN_LABELS: Record<MovementOrigin, string> = {
+  [MovementOrigin.Manual]: 'Gestionale',
+  [MovementOrigin.Shopify]: 'Shopify',
+  [MovementOrigin.Tiktok]: 'TikTok',
+  [MovementOrigin.VestiflowPos]: 'Vendita negozio',
+  [MovementOrigin.VestiflowOnline]: 'Vendita online esterna',
+};
+
+export function movementOriginLabel(
+  origin: MovementOrigin | undefined,
+  profile?: TenantChannelProfile,
+): string {
+  if (!origin) {
+    return '—';
+  }
+  if (origin === MovementOrigin.VestiflowOnline) {
+    return onlineSalesChannelLabel(profile);
+  }
+  return MOVEMENT_ORIGIN_LABELS[origin] ?? origin;
 }

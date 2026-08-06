@@ -1,0 +1,35 @@
+.shopify-sync-feedback {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.shopify-sync-feedback--success {
+  background-color: var(--status-success-bg);
+  color: var(--status-success-fg);
+}
+
+.shopify-sync-feedback--warning {
+  background-color: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+}
+
+.shopify-sync-feedback__dismiss {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.shopify-sync-feedback__dismiss:focus-visible {
+  outline: var(--focus-ring-width) solid currentcolor;
+  outline-offset: var(--focus-ring-offset);
+}

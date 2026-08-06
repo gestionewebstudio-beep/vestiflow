@@ -1,29 +1,63 @@
 <section class="po-list">
   <header class="po-list__header">
-    <h1 class="po-list__title">Ordini Fornitori</h1>
-    <p class="po-list__subtitle">
-      Consultazione ordini di acquisto: la creazione e la ricezione merce arriveranno col backend.
-    </p>
+    <div class="po-list__heading">
+      <!-- Pagina fuori sidebar: il ritorno esplicito è l'hub «Documenti», da
+           cui la si raggiunge, coerente con la lista Ordini cliente. -->
+      <app-back-button fallbackLink="/app/documents" />
+      <div class="po-list__title-row">
+        <h1 class="po-list__title">Ordini Fornitori</h1>
+        @if (!loading()) {
+          <span class="po-list__count tabular-nums">
+            {{ meta().total }} {{ meta().total === 1 ? 'ordine' : 'ordini' }}
+          </span>
+        }
+      </div>
+      <p class="po-list__subtitle">
+        Ordini di acquisto verso i fornitori: l'ordine nasce confermato e si conclude quando viene
+        incluso in un arrivo merce.
+      </p>
+    </div>
+    @if (canManageSupplierOrders()) {
+      <app-button (click)="createOrder()">
+        <i class="pi pi-plus" aria-hidden="true"></i>
+        Nuovo ordine
+      </app-button>
+    }
   </header>
 
-  <div class="po-list__toolbar">
-    <div class="po-list__search">
-      <i class="pi pi-search po-list__search-icon" aria-hidden="true"></i>
-      <input
-        id="po-search"
-        class="po-list__input"
-        type="search"
-        [value]="searchDraft()"
-        placeholder="Cerca per riferimento o fornitore…"
-        aria-label="Cerca ordini fornitori"
-        (input)="onSearchInput($event)"
-      />
+  <div class="po-list__toolbar po-list__toolbar--card">
+    <!-- Riga 1: ricerca (cresce) + azioni a destra. -->
+    <div class="po-list__toolbar-main">
+      <div class="po-list__search">
+        <i class="pi pi-search po-list__search-icon" aria-hidden="true"></i>
+        <input
+          id="po-search"
+          class="po-list__input"
+          type="search"
+          [value]="searchDraft()"
+          placeholder="Cerca per riferimento o fornitore…"
+          aria-label="Cerca ordini fornitori"
+          (input)="onSearchInput($event)"
+        />
+      </div>
+
+      <div class="po-list__toolbar-actions">
+        <button type="button" class="po-list__mobile-filters" (click)="mobileFiltersOpen.set(true)">
+          <i class="pi pi-sliders-h" aria-hidden="true"></i>
+          Filtri
+          @if (activeFilterCount() > 0) {
+            <span class="po-list__filter-badge tabular-nums">{{ activeFilterCount() }}</span>
+          }
+        </button>
+      </div>
     </div>
 
-    <div class="po-list__filters">
+    <!-- Riga 2: chip filtro a piena larghezza, su mobile spariscono a favore
+         del pulsante «Filtri». -->
+    <div class="po-list__filters po-list__filters--inline">
       <div class="po-list__field">
-        <span class="po-list__label">Stato</span>
         <app-select-menu
+          chipLabel="Stato"
           [options]="statusOptions"
           [value]="query().status ?? ''"
           ariaLabel="Filtra per stato ordine"
@@ -31,13 +65,13 @@
           [compact]="true"
           [fullWidth]="true"
           (valueChange)="onStatusFilterChange($event)"
+          [filterChip]="true"
         />
       </div>
 
-      <app-button variant="ghost" [disabled]="!hasActiveFilters()" (click)="resetFilters()">
-        <i class="pi pi-filter-slash" aria-hidden="true"></i>
-        Azzera filtri
-      </app-button>
+      @if (hasActiveFilters()) {
+        <button type="button" class="po-list__clear" (click)="resetFilters()">Azzera filtri</button>
+      }
     </div>
   </div>
 
@@ -61,4 +95,37 @@
       (pageSizeChange)="onPageSizeChange($event)"
     />
   }
+
+  <!-- Pannello filtri mobile: lo stesso filtro della toolbar, a tutta
+       larghezza. Scrive su query() come la chip, quindi restano allineati. -->
+  <app-slide-panel
+    [open]="mobileFiltersOpen()"
+    title="Filtri"
+    size="narrow"
+    (closed)="mobileFiltersOpen.set(false)"
+  >
+    @if (mobileFiltersOpen()) {
+      <div class="po-list__panel-filters">
+        <div class="po-list__field">
+          <span class="po-list__label">Stato</span>
+          <app-select-menu
+            [options]="statusOptions"
+            [value]="query().status ?? ''"
+            ariaLabel="Filtra per stato ordine"
+            placeholder="Tutti"
+            [compact]="true"
+            [fullWidth]="true"
+            (valueChange)="onStatusFilterChange($event)"
+          />
+        </div>
+
+        <div class="po-list__panel-actions">
+          @if (hasActiveFilters()) {
+            <app-button variant="ghost" (click)="resetFilters()">Azzera filtri</app-button>
+          }
+          <app-button (click)="mobileFiltersOpen.set(false)">Vedi risultati</app-button>
+        </div>
+      </div>
+    }
+  </app-slide-panel>
 </section>

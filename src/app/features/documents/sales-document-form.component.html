@@ -1,0 +1,950 @@
+<!-- doc-form--m-ref: adotta la vista mobile di riferimento promossa in
+     styles/_document-form-mobile.scss (pannelli, totali, azioni finali). -->
+<section class="doc-form doc-form--m-ref">
+  <!-- Riga del titolo come sull'Ordine cliente: back in linea con l'H1. -->
+  <div class="doc-form__head-row">
+    <app-back-button />
+    <h1 class="doc-form__title">{{ pageTitle() }}</h1>
+  </div>
+
+  @if (isProforma()) {
+    <p class="doc-form__disclaimer" role="note">{{ proformaDisclaimer }}</p>
+  }
+
+  @if (listinoWarnings().length > 0) {
+    <div class="doc-form__warning-banner" role="status">
+      @for (warning of listinoWarnings(); track warning) {
+        <p>{{ warning }}</p>
+      }
+    </div>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="6" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare il documento."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else if (notEditable()) {
+    <app-empty-state
+      icon="pi-lock"
+      title="Documento non modificabile"
+      description="Solo bozze o documenti confermati (non bloccati) di proforma o bozza fattura sono editabili. Il DDT vendita si modifica dalla sua maschera dedicata."
+      ctaLabel="Torna al registro"
+      (ctaClick)="cancel()"
+    />
+  } @else {
+    <form
+      class="doc-form__form"
+      [class.doc-form__form--readonly]="formReadOnly()"
+      [formGroup]="form"
+      (ngSubmit)="isConfirmedEdit() ? saveDraft() : requestConfirm()"
+    >
+      @if (formReadOnly()) {
+        <app-edit-lock-banner (unlock)="requestUnlock()" />
+      }
+      <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
+        @if (customerDocumentAlert(); as customerAlert) {
+          <p class="doc-form__supplier-note-banner" role="status">
+            <i class="pi pi-info-circle" aria-hidden="true"></i>
+            {{ customerAlert }}
+          </p>
+        }
+
+        <!-- Testata a celle unite (forma Ordine cliente): prima fascia con i
+             dati del documento, seconda fascia fiscale solo per le fatture. -->
+        <div class="doc-form__header">
+          <!-- Vista mobile: pannelli apribili come la reference «Ordine
+               cliente». Vivono nel DOM accanto alle fasce desktop e si
+               accendono sotto lg; gli stessi @if di oggi decidono se i
+               pannelli sono uno (proforma/bozza) o due (fatture). -->
+          <div class="doc-panels">
+            <app-document-mobile-panel
+              [title]="customerPanelTitle()"
+              [summaryParts]="customerPanelSummaryParts()"
+              icon="pi-user"
+              [statusText]="customerPanelStatus()"
+              [statusReady]="customerPanelReady()"
+              [initiallyOpen]="true"
+            >
+              <p class="doc-panel__section">Dati principali</p>
+
+              <div class="doc-panel__fields">
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label" id="sd-m-customer-label">Cliente</span>
+                  <app-select-menu
+                    [options]="customerOptions()"
+                    [value]="form.controls.customerId.value"
+                    ariaLabel="Cliente"
+                    placeholder="Seleziona cliente…"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    searchPlaceholder="Cerca cliente…"
+                    searchAriaLabel="Cerca cliente"
+                    [invalid]="fieldInvalid('customerId')"
+                    describedBy="sd-m-customer-error"
+                    (valueChange)="onCustomerSelect($event)"
+                  />
+                  @if (fieldInvalid('customerId')) {
+                    <p id="sd-m-customer-error" class="doc-form__error">Seleziona un cliente.</p>
+                  }
+                  @if (customerCommercialHint(); as hint) {
+                    <p class="doc-panel__helper" role="note">{{ hint }}</p>
+                  }
+                </div>
+
+                <div class="doc-panel__fields doc-panel__fields--two">
+                  <div class="doc-panel__field">
+                    <label class="doc-panel__label" for="sd-m-date">Data</label>
+                    <app-date-input
+                      inputId="sd-m-date"
+                      formControlName="documentDate"
+                      ariaLabel="Data documento"
+                      [fullWidth]="true"
+                    />
+                  </div>
+
+                  <div class="doc-panel__field">
+                    <span class="doc-panel__label">Modalità prezzo</span>
+                    <app-select-menu
+                      [options]="priceModeOptions"
+                      [value]="pricesIncludeVat() ? 'gross' : 'net'"
+                      ariaLabel="Modalità prezzo netto o ivato"
+                      placeholder="Netto"
+                      [compact]="true"
+                      [fullWidth]="true"
+                      (valueChange)="setPriceMode($event === 'gross')"
+                    />
+                  </div>
+                </div>
+
+                <app-document-number-field
+                  numberInputId="sd-m-number"
+                  [number]="form.controls.documentNumber.value"
+                  [series]="form.controls.series.value"
+                  [seriesOptions]="seriesOptions()"
+                  [canManageSeries]="true"
+                  (numberChange)="onDocumentNumberChange($event)"
+                  (seriesChange)="onSeriesChange($event)"
+                  (manageSeries)="seriesDialogOpen.set(true)"
+                />
+
+                @if (showListinoSelect() && !formReadOnly()) {
+                  <div class="doc-panel__field">
+                    <span class="doc-panel__label">Listino</span>
+                    <app-select-menu
+                      [options]="listinoOptions()"
+                      [value]="listinoValue()"
+                      ariaLabel="Listino applicato alle righe"
+                      placeholder="Prezzo articolo"
+                      [compact]="true"
+                      [fullWidth]="true"
+                      (valueChange)="onListinoChange($event)"
+                    />
+                  </div>
+                }
+              </div>
+            </app-document-mobile-panel>
+
+            <!-- Solo fatture: la fascia fiscale diventa il secondo pannello,
+                 chiuso all'ingresso (i valori sono già validi o opzionali). -->
+            @if (isSalesInvoice()) {
+              <app-document-mobile-panel
+                title="Dettagli fattura"
+                [summaryParts]="invoicePanelSummaryParts()"
+                icon="pi-file"
+              >
+                <p class="doc-panel__section">Dati fiscali e pagamento</p>
+
+                <div class="doc-panel__fields">
+                  <div class="doc-panel__field">
+                    <label class="doc-panel__label" for="sd-m-cause">Causale</label>
+                    <input
+                      id="sd-m-cause"
+                      class="doc-panel__control"
+                      type="text"
+                      formControlName="billingCause"
+                    />
+                  </div>
+
+                  <div class="doc-panel__field">
+                    <span class="doc-panel__label">Riferimento DDT (opzionale)</span>
+                    <app-select-menu
+                      [options]="ddtOptions()"
+                      value=""
+                      ariaLabel="Aggancia un DDT vendita"
+                      placeholder="Aggancia un DDT…"
+                      [fullWidth]="true"
+                      [includeEmptyOption]="false"
+                      (valueChange)="onAddLinkedDdt($event)"
+                    />
+                    @if (linkedDdts().length > 0) {
+                      <ul class="doc-form__causal-manage-list">
+                        @for (ddt of linkedDdts(); track ddt.id) {
+                          <li class="doc-form__causal-manage-item">
+                            <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
+                            <button
+                              type="button"
+                              class="doc-form__causal-icon-btn"
+                              (click)="onRemoveLinkedDdt(ddt.id)"
+                              [attr.aria-label]="'Rimuovi ' + ddt.label"
+                            >
+                              <i class="pi pi-times" aria-hidden="true"></i>
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </div>
+
+                  <div class="doc-panel__field">
+                    <label class="doc-panel__label" for="sd-m-payment-terms">
+                      Condizioni di pagamento
+                    </label>
+                    <input
+                      id="sd-m-payment-terms"
+                      class="doc-panel__control"
+                      type="text"
+                      formControlName="paymentTerms"
+                      placeholder="Es. Bonifico 30 gg d.f."
+                    />
+                  </div>
+
+                  <div class="doc-panel__field">
+                    <label class="doc-panel__label" for="sd-m-payment-due">
+                      Scadenza pagamento
+                    </label>
+                    <app-date-input
+                      inputId="sd-m-payment-due"
+                      [value]="form.controls.paymentDueDate.value"
+                      ariaLabel="Scadenza pagamento"
+                      placeholder="gg/mm/aaaa"
+                      [fullWidth]="true"
+                      (valueChange)="form.controls.paymentDueDate.setValue($event)"
+                    />
+                  </div>
+
+                  <div class="doc-panel__field">
+                    <label class="doc-panel__label" for="sd-m-iban">IBAN</label>
+                    <input
+                      id="sd-m-iban"
+                      class="doc-panel__control"
+                      type="text"
+                      formControlName="iban"
+                      maxlength="34"
+                    />
+                    <p class="doc-panel__helper">
+                      Precompilato da Impostazioni negozio, modificabile qui.
+                    </p>
+                  </div>
+                </div>
+              </app-document-mobile-panel>
+            }
+          </div>
+
+          <div
+            class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+          >
+            <div class="doc-form__field doc-form__field--span2">
+              <span class="doc-form__label" id="sd-customer-label">Cliente</span>
+              <app-select-menu
+                [options]="customerOptions()"
+                [value]="form.controls.customerId.value"
+                ariaLabel="Cliente"
+                placeholder="Seleziona cliente…"
+                [compact]="true"
+                [fullWidth]="true"
+                [searchable]="true"
+                searchPlaceholder="Cerca cliente…"
+                searchAriaLabel="Cerca cliente"
+                [invalid]="fieldInvalid('customerId')"
+                describedBy="sd-customer-error"
+                (valueChange)="onCustomerSelect($event)"
+              />
+              @if (fieldInvalid('customerId')) {
+                <p id="sd-customer-error" class="doc-form__error">Seleziona un cliente.</p>
+              }
+              @if (customerCommercialHint(); as hint) {
+                <p class="doc-form__hint" role="note">{{ hint }}</p>
+              }
+            </div>
+
+            <div class="doc-form__field">
+              <label class="doc-form__label" for="sd-date">Data documento</label>
+              <app-date-input
+                inputId="sd-date"
+                formControlName="documentDate"
+                ariaLabel="Data documento"
+                [compact]="true"
+                [fullWidth]="true"
+              />
+            </div>
+
+            <!-- Identificativo del documento: Data + Numero + Serie. Il numero è
+               proposto dal progressivo di serie ma resta modificabile. -->
+            <app-document-number-field
+              numberInputId="sd-number"
+              [number]="form.controls.documentNumber.value"
+              [series]="form.controls.series.value"
+              [seriesOptions]="seriesOptions()"
+              [canManageSeries]="true"
+              (numberChange)="onDocumentNumberChange($event)"
+              (seriesChange)="onSeriesChange($event)"
+              (manageSeries)="seriesDialogOpen.set(true)"
+            />
+
+            <!-- Modalità prezzo del documento: netto o ivato. Cambiandola i prezzi
+                 si convertono così i totali non si spostano. -->
+            <div class="doc-form__field">
+              <span class="doc-form__label">Modalità prezzo</span>
+              <app-select-menu
+                [options]="priceModeOptions"
+                [value]="pricesIncludeVat() ? 'gross' : 'net'"
+                ariaLabel="Modalità prezzo netto o ivato"
+                placeholder="Netto"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="setPriceMode($event === 'gross')"
+              />
+            </div>
+
+            <!-- Listino (§B4): non è un dato del documento, è come lo si riempie.
+                 Sceglierlo riscrive i prezzi delle righe, che restano
+                 modificabili una per una. -->
+            @if (showListinoSelect() && !formReadOnly()) {
+              <div class="doc-form__field">
+                <span class="doc-form__label">Listino</span>
+                <app-select-menu
+                  [options]="listinoOptions()"
+                  [value]="listinoValue()"
+                  ariaLabel="Listino applicato alle righe"
+                  placeholder="Prezzo articolo"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="onListinoChange($event)"
+                />
+              </div>
+            }
+          </div>
+
+          @if (isSalesInvoice()) {
+            <div
+              class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row doc-form__header-row--secondary"
+            >
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-cause">Causale</label>
+                <input
+                  id="sd-cause"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="billingCause"
+                />
+              </div>
+
+              <!--
+              Riferimento DDT: aggancio opzionale a uno o più DDT esistenti.
+              Sull'accompagnatoria comanda anche lo scarico — con un DDT
+              agganciato la colonna «Scarica mag.» sparisce dalle righe.
+            -->
+              <div class="doc-form__field">
+                <span class="doc-form__label">Riferimento DDT (opzionale)</span>
+                <app-select-menu
+                  [options]="ddtOptions()"
+                  value=""
+                  ariaLabel="Aggancia un DDT vendita"
+                  placeholder="Aggancia un DDT…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [includeEmptyOption]="false"
+                  (valueChange)="onAddLinkedDdt($event)"
+                />
+                <!--
+                Riusa le classi della lista causali (stessa forma: voci con
+                etichetta e bottone di rimozione) invece di introdurne di nuove:
+                sono già nel foglio condiviso delle maschere documento.
+              -->
+                @if (linkedDdts().length > 0) {
+                  <ul class="doc-form__causal-manage-list">
+                    @for (ddt of linkedDdts(); track ddt.id) {
+                      <li class="doc-form__causal-manage-item">
+                        <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
+                        <button
+                          type="button"
+                          class="doc-form__causal-icon-btn"
+                          (click)="onRemoveLinkedDdt(ddt.id)"
+                          [attr.aria-label]="'Rimuovi ' + ddt.label"
+                        >
+                          <i class="pi pi-times" aria-hidden="true"></i>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-payment-terms">
+                  Condizioni di pagamento
+                </label>
+                <input
+                  id="sd-payment-terms"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="paymentTerms"
+                  placeholder="Es. Bonifico 30 gg d.f."
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-payment-due">Scadenza pagamento</label>
+                <app-date-input
+                  inputId="sd-payment-due"
+                  [value]="form.controls.paymentDueDate.value"
+                  ariaLabel="Scadenza pagamento"
+                  placeholder="gg/mm/aaaa"
+                  [fullWidth]="true"
+                  (valueChange)="form.controls.paymentDueDate.setValue($event)"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-iban">IBAN</label>
+                <input
+                  id="sd-iban"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="iban"
+                  maxlength="34"
+                />
+                <p class="doc-form__hint">
+                  Precompilato da Impostazioni negozio, modificabile qui.
+                </p>
+              </div>
+            </div>
+          }
+        </div>
+
+        <section class="doc-form__lines" aria-labelledby="sd-lines-title">
+          <div class="doc-form__lines-head">
+            <h2 id="sd-lines-title" class="doc-form__subtitle">Righe</h2>
+            <div class="doc-form__lines-tools">
+              @if (includeSourceKinds().length > 0) {
+                <app-button type="button" variant="ghost" (click)="openIncludePanel()">
+                  <i class="pi pi-file-import" aria-hidden="true"></i>
+                  Includi documento
+                </app-button>
+              }
+              <app-button type="button" (click)="addLine()">
+                <i class="pi pi-plus" aria-hidden="true"></i>
+                Aggiungi riga
+              </app-button>
+            </div>
+          </div>
+
+          <div class="doc-form__table-wrap">
+            <table class="doc-form__table">
+              <colgroup>
+                <col style="width: 16%" />
+                <col />
+                <col style="width: 7%" />
+                <col style="width: 10%" />
+                <col style="width: 8%" />
+                <col style="width: 13%" />
+                @if (showLoadsStockColumn()) {
+                  <col style="width: 8%" />
+                }
+                <col style="width: 5%" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">Articolo / SKU</th>
+                  <th scope="col" class="doc-form__col--sep">Descrizione</th>
+                  <th scope="col" class="doc-form__num doc-form__col--stock">Qtà</th>
+                  <th scope="col" class="doc-form__num doc-form__col--sale">
+                    {{ priceRowLabel() }}
+                  </th>
+                  <th scope="col" class="doc-form__num doc-form__col--sale">Sconto</th>
+                  <th scope="col" class="doc-form__col--tax doc-form__col--sep">Codice IVA</th>
+                  @if (showLoadsStockColumn()) {
+                    <th scope="col" class="doc-form__col--stock">Scarica mag.</th>
+                  }
+                  <th scope="col" class="doc-form__cell--actions">
+                    <span class="sr-only">Azioni riga</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody formArrayName="lines">
+                @for (line of lines.controls; track line; let i = $index) {
+                  <tr [formGroupName]="i">
+                    <td class="doc-form__cell doc-form__cell--editable doc-form__cell--code">
+                      <app-select-menu
+                        [options]="variantOptions()"
+                        [value]="line.controls.variantId.value"
+                        ariaLabel="Variante"
+                        placeholder="Cerca prodotto…"
+                        [compact]="true"
+                        [fullWidth]="true"
+                        [searchable]="true"
+                        [filterOptionsLocally]="false"
+                        searchPlaceholder="SKU o nome…"
+                        searchAriaLabel="Cerca variante"
+                        (searchChange)="onVariantSearch($event)"
+                        (valueChange)="onVariantSelect(i, $event)"
+                      />
+                    </td>
+                    <td class="doc-form__cell doc-form__cell--editable doc-form__col--sep">
+                      <input
+                        [id]="'sd-desc-' + i"
+                        class="doc-form__input doc-form__input--table"
+                        type="text"
+                        formControlName="description"
+                        aria-label="Descrizione"
+                      />
+                    </td>
+                    <td
+                      class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--stock"
+                    >
+                      <input
+                        [id]="'sd-qty-' + i"
+                        class="doc-form__input doc-form__input--table doc-form__input--num"
+                        type="number"
+                        min="1"
+                        formControlName="quantity"
+                        aria-label="Qtà"
+                      />
+                    </td>
+                    <td
+                      class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--sale"
+                    >
+                      <input
+                        [id]="'sd-price-' + i"
+                        class="doc-form__input doc-form__input--table doc-form__input--num"
+                        type="text"
+                        inputmode="decimal"
+                        formControlName="unitPrice"
+                        placeholder="0,00"
+                        [attr.aria-label]="priceRowLabel()"
+                      />
+                    </td>
+                    <td
+                      class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--sale"
+                    >
+                      <input
+                        [id]="'sd-discount-' + i"
+                        class="doc-form__input doc-form__input--table doc-form__input--num"
+                        type="text"
+                        formControlName="discountPercent"
+                        placeholder="es. 10%"
+                        autocomplete="off"
+                        aria-label="Sconto"
+                      />
+                    </td>
+                    <td
+                      class="doc-form__cell doc-form__cell--editable doc-form__cell--vat doc-form__col--tax doc-form__col--sep"
+                    >
+                      <app-select-menu
+                        [options]="lineVatOptions(i)"
+                        [value]="line.controls.vatCodeId.value"
+                        ariaLabel="Codice IVA riga"
+                        placeholder="Predefinito…"
+                        [compact]="true"
+                        [fullWidth]="true"
+                        (valueChange)="onLineVatSelect(i, $event)"
+                      />
+                    </td>
+                    <!--
+                    «Scarica mag.»: solo Fattura accompagnatoria e solo senza DDT
+                    agganciato. Con un DDT le giacenze sono già state scaricate da
+                    quel documento, quindi la colonna non viene proprio resa.
+                  -->
+                    @if (showLoadsStockColumn()) {
+                      <td class="doc-form__cell doc-form__cell--check doc-form__col--stock">
+                        <label class="doc-form__check" [for]="'sd-stock-' + i">
+                          <input
+                            [id]="'sd-stock-' + i"
+                            type="checkbox"
+                            formControlName="loadsStock"
+                          />
+                          <span class="sr-only">Scarica mag.</span>
+                        </label>
+                      </td>
+                    }
+                    <td class="doc-form__cell doc-form__cell--actions">
+                      @if (lines.length > 1) {
+                        <button
+                          type="button"
+                          class="doc-form__line-remove"
+                          aria-label="Rimuovi riga"
+                          (click)="removeLine(i)"
+                        >
+                          <i class="pi pi-trash" aria-hidden="true"></i>
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!--
+        Trasporto e Destinazione: solo Fattura accompagnatoria, con gli stessi
+        campi del DDT vendita (è la stessa merce che viaggia). Stanno PRIMA
+        della banda totali: il footer è sticky e chiude il documento.
+      -->
+        @if (isInvoiceAccompanying()) {
+          <section class="doc-form__lines" aria-labelledby="sd-transport-title">
+            <h2 id="sd-transport-title" class="doc-form__subtitle">Trasporto</h2>
+            <div class="doc-form__grid">
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-tr-causal">Causale trasporto</label>
+                <input
+                  id="sd-tr-causal"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="transportCausal"
+                  placeholder="Es. Vendita"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-tr-start">Data e ora inizio trasporto</label>
+                <input
+                  id="sd-tr-start"
+                  class="doc-form__input"
+                  type="datetime-local"
+                  formControlName="transportStartAt"
+                />
+              </div>
+              <div class="doc-form__field">
+                <span class="doc-form__label">Porto</span>
+                <app-select-menu
+                  [options]="transportPortOptions"
+                  [value]="form.controls.transportPort.value"
+                  ariaLabel="Porto del trasporto"
+                  placeholder="Non indicato"
+                  [fullWidth]="true"
+                  (valueChange)="form.controls.transportPort.setValue($event ?? '')"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-tr-carrier">Incaricato del trasporto</label>
+                <input
+                  id="sd-tr-carrier"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="transportCarrier"
+                  placeholder="Es. Vettore"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-tr-packages">Numero colli</label>
+                <input
+                  id="sd-tr-packages"
+                  class="doc-form__input"
+                  type="number"
+                  min="0"
+                  formControlName="transportPackagesCount"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-tr-weight">Peso</label>
+                <input
+                  id="sd-tr-weight"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="transportWeight"
+                  placeholder="Es. 12,5 kg"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-tr-aspect">Aspetto beni</label>
+                <input
+                  id="sd-tr-aspect"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="transportGoodsAspect"
+                  placeholder="Es. Scatole"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-tr-shipping">Codice spedizione</label>
+                <input
+                  id="sd-tr-shipping"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="transportShippingCode"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-tr-tracking">Tracking</label>
+                <input
+                  id="sd-tr-tracking"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="transportTrackingCode"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section class="doc-form__lines" aria-labelledby="sd-destination-title">
+            <div class="doc-form__lines-head">
+              <h2 id="sd-destination-title" class="doc-form__subtitle">
+                Indirizzo di destinazione
+              </h2>
+              @if (!destinationOverridden()) {
+                <app-button type="button" variant="ghost" (click)="onChangeDestination()">
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                  Cambia destinazione
+                </app-button>
+              }
+            </div>
+            @if (!destinationOverridden()) {
+              <p class="doc-form__hint">
+                Dati precompilati dall'anagrafica cliente. Usa «Cambia destinazione» per
+                modificarli.
+              </p>
+            }
+            <div class="doc-form__grid">
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-dest-name">Nome / Ragione sociale</label>
+                <input
+                  id="sd-dest-name"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="destinationName"
+                  [readOnly]="!destinationOverridden()"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-dest-address">Indirizzo</label>
+                <input
+                  id="sd-dest-address"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="destinationAddress"
+                  [readOnly]="!destinationOverridden()"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-dest-zip">CAP</label>
+                <input
+                  id="sd-dest-zip"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="destinationZip"
+                  [readOnly]="!destinationOverridden()"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-dest-city">Città</label>
+                <input
+                  id="sd-dest-city"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="destinationCity"
+                  [readOnly]="!destinationOverridden()"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-dest-province">Provincia</label>
+                <input
+                  id="sd-dest-province"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="destinationProvince"
+                  [readOnly]="!destinationOverridden()"
+                />
+              </div>
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="sd-dest-country">Nazione</label>
+                <input
+                  id="sd-dest-country"
+                  class="doc-form__input"
+                  type="text"
+                  formControlName="destinationCountry"
+                  [readOnly]="!destinationOverridden()"
+                />
+              </div>
+            </div>
+          </section>
+        }
+
+        @if (submitError(); as err) {
+          <app-error-state [description]="err.message" />
+        }
+
+        <!-- Banda finale (forma Ordine cliente): note a sinistra, totali a fila
+             di celle a destra con il Totale su fondo brand. Sulle fatture i
+             totali sono definitivi: «stimato» resta solo sui non fiscali. -->
+        <div class="doc-form__footer-grid">
+          <aside class="doc-form__totals-bar" aria-label="Totali documento">
+            <dl class="doc-form__totals">
+              <div class="doc-form__totals-row">
+                <dt>{{ isSalesInvoice() ? 'Imponibile righe' : 'Imponibile stimato' }}</dt>
+                <dd class="tabular-nums">
+                  @if (lineTotals().hasDocumentDiscount) {
+                    <span class="doc-form__line-total-gross">{{
+                      formatMoney(lineTotals().grossSubtotal)
+                    }}</span>
+                  }
+                  {{ formatMoney(lineTotals().subtotal) }}
+                </dd>
+              </div>
+              <div class="doc-form__totals-row doc-form__totals-row--field">
+                <dt>
+                  <label for="sd-doc-discount">Sconto extra documento</label>
+                </dt>
+                <dd>
+                  <input
+                    id="sd-doc-discount"
+                    class="doc-form__input doc-form__input--num doc-form__totals-input"
+                    type="text"
+                    formControlName="documentDiscountPercent"
+                    placeholder="es. 5%"
+                    autocomplete="off"
+                  />
+                </dd>
+              </div>
+              <!-- Dettaglio per aliquota: solo con aliquote miste. -->
+              @if (isSalesInvoice() && hasMixedVatRates()) {
+                @for (entry of vatBreakdown(); track entry.ratePercent) {
+                  <div class="doc-form__totals-row">
+                    <dt>IVA {{ entry.ratePercent }}% su {{ formatMoney(entry.net) }}</dt>
+                    <dd class="tabular-nums">{{ formatMoney(entry.vat) }}</dd>
+                  </div>
+                }
+              }
+              <div class="doc-form__totals-row">
+                <dt>{{ isSalesInvoice() ? 'IVA' : 'IVA stimata' }}</dt>
+                <dd class="tabular-nums">{{ formatMoney(lineTotals().tax) }}</dd>
+              </div>
+              <div class="doc-form__totals-row doc-form__totals-row--total">
+                <dt>{{ isSalesInvoice() ? 'Totale documento' : 'Totale stimato' }}</dt>
+                <dd class="tabular-nums">{{ formatMoney(lineTotals().total) }}</dd>
+              </div>
+            </dl>
+          </aside>
+
+          <div class="doc-form__footer-notes">
+            <div class="doc-form__field">
+              <label class="doc-form__label" for="sd-notes">Note (visibili in stampa)</label>
+              <textarea
+                id="sd-notes"
+                class="doc-form__textarea"
+                rows="3"
+                formControlName="notes"
+              ></textarea>
+            </div>
+
+            <div class="doc-form__field">
+              <label class="doc-form__label" for="sd-internal">Commento interno</label>
+              <textarea
+                id="sd-internal"
+                class="doc-form__textarea"
+                rows="2"
+                formControlName="internalComment"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="doc-form__actions">
+        <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
+        @if (isConfirmedEdit()) {
+          <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
+            Salva modifiche
+          </app-button>
+        } @else {
+          <app-button type="submit" [loading]="saving()" [disabled]="saving()">
+            {{ submitConfirmLabel() }}
+          </app-button>
+        }
+      </div>
+
+      <!-- Azioni su mobile/tablet (regole-stile-ui §5): coppia in fondo al
+           documento, scorre col contenuto. Corregge il submit nascosto ≤ md:
+           la barra desktop sotto lg esce di scena, il salvataggio resta qui. -->
+      <div class="doc-form__mobile-actions">
+        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
+          Annulla
+        </app-button>
+        @if (isConfirmedEdit()) {
+          <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
+            Salva modifiche
+          </app-button>
+        } @else {
+          <app-button type="submit" [loading]="saving()" [disabled]="saving()">
+            {{ submitConfirmLabel() }}
+          </app-button>
+        }
+      </div>
+    </form>
+  }
+
+  <app-confirm-dialog
+    [(open)]="confirmDialogOpen"
+    [title]="confirmDialogTitle()"
+    [message]="confirmDialogMessage()"
+    [confirmLabel]="confirmButtonLabel()"
+    cancelLabel="Indietro"
+    [busy]="saving()"
+    (confirmed)="confirmAndSave()"
+  />
+
+  <app-confirm-dialog
+    [(open)]="unlockDialogOpen"
+    title="Sblocca modifica documento"
+    message="Modificando il documento, VestiFlow aggiornerà lo storico della modifica."
+    confirmLabel="Sblocca e modifica"
+    (confirmed)="confirmUnlock()"
+  />
+
+  <app-slide-panel
+    [open]="includePanelOpen()"
+    title="Includi documento"
+    (closed)="closeIncludePanel()"
+  >
+    @if (includePanelOpen()) {
+      <app-document-include-panel
+        [sourceKinds]="includeSourceKinds()"
+        [launchSeq]="includeLaunchSeq()"
+        (included)="onDocumentIncluded($event)"
+        (dismissed)="closeIncludePanel()"
+      />
+    }
+  </app-slide-panel>
+</section>
+
+<app-confirm-dialog
+  [(open)]="incompleteDataDialogOpen"
+  [title]="incompleteDataTitle"
+  [message]="incompleteDataMessage"
+  confirmLabel="Sì"
+  cancelLabel="No"
+  (confirmed)="confirmIncompleteData()"
+  (dismissed)="dismissIncompleteData()"
+/>
+
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il numero
+     è già stato aggiornato al primo libero; il salvataggio resta una
+     pressione esplicita di Salva. -->
+<app-confirm-dialog
+  [(open)]="conflictDialogOpen"
+  title="Numero già usato"
+  [message]="conflictMessage()"
+  confirmLabel="OK"
+  [acknowledge]="true"
+  (confirmed)="acknowledgeConflictNumber()"
+  (dismissed)="acknowledgeConflictNumber()"
+/>
+
+<!-- Gestione numerazioni del tipo corrente, aperta dall'ingranaggio del campo
+     Serie. Overlay sopra il documento: la maschera resta montata. -->
+<app-document-series-manager-dialog
+  [type]="documentType()"
+  [open]="seriesDialogOpen()"
+  (closed)="onSeriesManagerClosed()"
+/>

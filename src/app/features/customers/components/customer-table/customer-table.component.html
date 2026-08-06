@@ -1,10 +1,45 @@
 <table class="customer-table">
   <thead class="customer-table__head">
     <tr>
-      <th scope="col">Cliente</th>
-      <th scope="col">Email</th>
-      <th scope="col">Telefono</th>
-      <th scope="col">Città</th>
+      @if (showColumn('code')) {
+        <th scope="col">{{ columnLabel('code') }}</th>
+      }
+      @if (showColumn('name')) {
+        <th scope="col">{{ columnLabel('name') }}</th>
+      }
+      @if (showColumn('source')) {
+        <th scope="col">{{ columnLabel('source') }}</th>
+      }
+      @if (showColumn('email')) {
+        <th scope="col">{{ columnLabel('email') }}</th>
+      }
+      @if (showColumn('phone')) {
+        <th scope="col">{{ columnLabel('phone') }}</th>
+      }
+      @if (showColumn('city')) {
+        <th scope="col">{{ columnLabel('city') }}</th>
+      }
+      @if (showColumn('province')) {
+        <th scope="col">{{ columnLabel('province') }}</th>
+      }
+      @if (showColumn('companyName')) {
+        <th scope="col">{{ columnLabel('companyName') }}</th>
+      }
+      @if (showColumn('vatNumber')) {
+        <th scope="col">{{ columnLabel('vatNumber') }}</th>
+      }
+      @if (showColumn('discount')) {
+        <th scope="col">{{ columnLabel('discount') }}</th>
+      }
+      @if (showColumn('paymentTerms')) {
+        <th scope="col">{{ columnLabel('paymentTerms') }}</th>
+      }
+      @if (showColumn('alsoSupplier')) {
+        <th scope="col">{{ columnLabel('alsoSupplier') }}</th>
+      }
+      @if (showColumn('createdAt')) {
+        <th scope="col">{{ columnLabel('createdAt') }}</th>
+      }
     </tr>
   </thead>
 
@@ -18,10 +53,61 @@
         (keydown.enter)="rowClick.emit(customer)"
         (keydown.space)="$event.preventDefault(); rowClick.emit(customer)"
       >
-        <td class="customer-table__name" data-label="Cliente">{{ fullName(customer) }}</td>
-        <td data-label="Email">{{ customer.email ?? '—' }}</td>
-        <td class="tabular-nums" data-label="Telefono">{{ customer.phone ?? '—' }}</td>
-        <td data-label="Città">{{ cityOf(customer) }}</td>
+        @if (showColumn('code')) {
+          <td class="tabular-nums" [attr.data-label]="columnLabel('code')">
+            {{ customer.code ?? '—' }}
+          </td>
+        }
+        @if (showColumn('name')) {
+          <td class="customer-table__name" [attr.data-label]="columnLabel('name')">
+            {{ displayName(customer) }}
+          </td>
+        }
+        @if (showColumn('source')) {
+          <td [attr.data-label]="columnLabel('source')">
+            <app-badge [tone]="sourceTone(customer)">{{ sourceLabel(customer) }}</app-badge>
+          </td>
+        }
+        @if (showColumn('email')) {
+          <td [attr.data-label]="columnLabel('email')">{{ customer.email ?? '—' }}</td>
+        }
+        @if (showColumn('phone')) {
+          <td class="tabular-nums" [attr.data-label]="columnLabel('phone')">
+            {{ customer.phone ?? '—' }}
+          </td>
+        }
+        @if (showColumn('city')) {
+          <td [attr.data-label]="columnLabel('city')">{{ cityOf(customer) }}</td>
+        }
+        @if (showColumn('province')) {
+          <td [attr.data-label]="columnLabel('province')">{{ provinceOf(customer) }}</td>
+        }
+        @if (showColumn('companyName')) {
+          <td [attr.data-label]="columnLabel('companyName')">{{ customer.companyName ?? '—' }}</td>
+        }
+        @if (showColumn('vatNumber')) {
+          <td class="tabular-nums" [attr.data-label]="columnLabel('vatNumber')">
+            {{ customer.vatNumber ?? '—' }}
+          </td>
+        }
+        @if (showColumn('discount')) {
+          <td class="tabular-nums" [attr.data-label]="columnLabel('discount')">
+            {{ customer.customerDiscount ?? '—' }}
+          </td>
+        }
+        @if (showColumn('paymentTerms')) {
+          <td [attr.data-label]="columnLabel('paymentTerms')">
+            {{ customer.paymentTerms ?? '—' }}
+          </td>
+        }
+        @if (showColumn('alsoSupplier')) {
+          <td [attr.data-label]="columnLabel('alsoSupplier')">{{ alsoSupplierLabel(customer) }}</td>
+        }
+        @if (showColumn('createdAt')) {
+          <td class="tabular-nums" [attr.data-label]="columnLabel('createdAt')">
+            {{ createdAtLabel(customer) }}
+          </td>
+        }
       </tr>
     }
   </tbody>

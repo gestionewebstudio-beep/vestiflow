@@ -3,19 +3,46 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith, switchMap, type Subscription } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import {
+  catchError,
+  filter,
+  forkJoin,
+  map,
+  of,
+  startWith,
+  switchMap,
+  take,
+  timer,
+  type Observable,
+  type Subscription,
+  timeout as rxTimeout,
+} from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { IsoDateString } from '@core/models/common.model';
+import { AuthService } from '@core/auth';
+import {
+  canDeleteProducts,
+  canManageCatalog,
+  canSyncProductToShopify,
+  canViewPurchaseCosts,
+} from '@core/permissions/tenant-permissions.util';
+import { showShopifyIntegration as isShopifyTenantProfile } from '@core/models/tenant-channel-profile.model';
+import type { IsoDateString, Money } from '@core/models/common.model';
+import { formatMoney } from '@core/utils/money.util';
 import type { ProductVariant } from '@core/models/product-variant.model';
 import type { Product, ProductStatus } from '@core/models/product.model';
+import type { ShopifyMetafieldRef } from '@core/models/shopify-product-metadata.model';
 import { ShopifySyncStatus } from '@core/models/shopify.model';
+import { vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { VatCodeService } from '@core/services/vat-code.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
@@ -25,10 +52,24 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { ProductVariantTableComponent } from './components/product-variant-table/product-variant-table.component';
-import { productStatusLabel, productStatusTone } from './models/product-status.util';
-import { ProductService } from './services/product.service';
+import { ProductSupplierLinksComponent } from './components/product-supplier-links/product-supplier-links.component';
+import { productStatusLabel, productStatusTone } from '@domain/products/models/product-status.util';
+import { INVENTORY_TRACKING_LABELS } from '@core/models/product-catalog.model';
+import type { InventoryTrackingMode } from '@core/models/product-catalog.model';
+import {
+  catalogOriginLabel,
+  catalogOriginTone,
+  isShopifyCatalogProduct,
+  SHOPIFY_CATALOG_EDIT_TITLE,
+  SHOPIFY_CATALOG_READONLY_BANNER,
+} from '@domain/products/models/catalog-origin.util';
+import { ProductService } from '@domain/products/services/product.service';
+import { activeListinoSlots } from '@domain/products/models/product-listino.model';
+import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 
 const PRODUCTS_LIST_PATH = '/app/products';
+const SHOPIFY_FOLLOW_UP_POLL_MS = 2000;
+const SHOPIFY_FOLLOW_UP_MAX_WAIT_MS = 120_000;
 
 const DATE_FORMAT = new Intl.DateTimeFormat('it-IT', { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -58,6 +99,32 @@ type ProductDetailState =
   | { readonly status: 'notFound' }
   | { readonly status: 'error'; readonly error: AppError };
 
+interface ProductDetailShopifyMetafieldRow {
+  readonly trackId: string;
+  readonly label: string;
+  readonly value: string;
+}
+
+/** Metafield già mostrati in "Dati generali": non ripetere in "Dati Shopify". */
+const SUPPRESSED_SHOPIFY_METAFIELD_KEYS = new Set(['vestiflow.season']);
+
+/** Etichette leggibili per metafield custom (non taxonomy categoria). */
+const CUSTOM_SHOPIFY_METAFIELD_LABELS: Readonly<Record<string, string>> = {
+  'vestiflow.season': 'Stagione',
+};
+
+function shopifyCustomMetafieldLabel(namespace: string, key: string): string {
+  const mapped = CUSTOM_SHOPIFY_METAFIELD_LABELS[`${namespace}.${key}`];
+  if (mapped) {
+    return mapped;
+  }
+  return key
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 /**
  * Dettaglio prodotto (smart, read-only). Anagrafica + varianti. Stesso pattern
  * di stato della lista (loading/error), con stato not-found dedicato.
@@ -67,7 +134,7 @@ type ProductDetailState =
   selector: 'app-product-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink,
+    BackButtonComponent,
     BadgeComponent,
     ButtonComponent,
     ConfirmDialogComponent,
@@ -75,22 +142,60 @@ type ProductDetailState =
     ErrorStateComponent,
     TableSkeletonComponent,
     ProductVariantTableComponent,
+    ProductSupplierLinksComponent,
   ],
   templateUrl: './product-detail.component.html',
   styleUrl: './product-detail.component.scss',
 })
 export class ProductDetailComponent {
   private readonly service = inject(ProductService);
+  private readonly vatCodeService = inject(VatCodeService);
+  private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
+  private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly listPath = PRODUCTS_LIST_PATH;
   protected readonly skeletonColumns = 5;
+  protected readonly shopifySyncStatus = ShopifySyncStatus;
+
+  protected readonly canManageCatalog = computed(() =>
+    canManageCatalog(this.authService.currentUser()),
+  );
+  protected readonly canDeleteProduct = computed(() => {
+    const product = this.product();
+    if (product && isShopifyCatalogProduct(product)) {
+      return false;
+    }
+    return canDeleteProducts(this.authService.currentUser());
+  });
+  protected readonly showShopifyIntegration = computed(() =>
+    isShopifyTenantProfile(this.authService.currentUser()?.tenantChannelProfile),
+  );
+  /** Costo di riferimento e costo variante visibili solo con catalog.view_purchase_costs. */
+  protected readonly canViewPurchaseCosts = computed(() =>
+    canViewPurchaseCosts(this.authService.currentUser()),
+  );
+  protected readonly canSyncProductToShopify = computed(() => {
+    if (!this.showShopifyIntegration()) {
+      return false;
+    }
+    const product = this.product();
+    if (product && isShopifyCatalogProduct(product)) {
+      return false;
+    }
+    return canSyncProductToShopify(this.authService.currentUser());
+  });
+  protected readonly shopifyCatalogBanner = SHOPIFY_CATALOG_READONLY_BANNER;
+  protected readonly shopifyCatalogEditTitle = SHOPIFY_CATALOG_EDIT_TITLE;
+  protected readonly isShopifyCatalogProduct = isShopifyCatalogProduct;
+  protected readonly catalogOriginLabel = catalogOriginLabel;
+  protected readonly catalogOriginTone = catalogOriginTone;
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   private readonly productId = computed(() => this.paramMap().get('id'));
   private readonly refreshTick = signal(0);
+  private readonly autoPollShopifyProductId = signal<string | null>(null);
 
   private readonly request = computed(() => ({ id: this.productId(), tick: this.refreshTick() }));
 
@@ -104,13 +209,11 @@ export class ProductDetailComponent {
           product: this.service.getProductById(id),
           variants: this.service.getProductVariants(id),
         }).pipe(
-          map(
-            ({ product, variants }): ProductDetailState => ({
-              status: 'success',
-              product,
-              variants,
-            }),
-          ),
+          map(({ product, variants }): ProductDetailState => ({
+            status: 'success',
+            product,
+            variants,
+          })),
           startWith<ProductDetailState>({ status: 'loading' }),
           catchError((err: unknown) => of(this.toErrorState(err))),
         );
@@ -122,6 +225,26 @@ export class ProductDetailComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly notFound = computed(() => this.state().status === 'notFound');
 
+  // Lookup Codici IVA per mostrare "22 · 22% · Imponibile 22%" nei fatti prodotto.
+  private readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
+
+  protected vatCodeLabel(vatCodeId: string | null | undefined): string {
+    if (!vatCodeId) {
+      return '—';
+    }
+    const entry = this.vatCodes().find((vatCode) => vatCode.id === vatCodeId);
+    return entry ? vatCodeOptionLabel(entry) : '—';
+  }
+
+  // Listini attivi per l'azienda (nomi e attivazione stanno nelle impostazioni).
+  private readonly featureSettings = toSignal(
+    this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
+    { initialValue: null },
+  );
+
   protected readonly error = computed(() => {
     const current = this.state();
     return current.status === 'error' ? current.error : null;
@@ -130,6 +253,24 @@ export class ProductDetailComponent {
   protected readonly product = computed(() => {
     const current = this.state();
     return current.status === 'success' ? current.product : null;
+  });
+
+  /**
+   * Righe "Listino X" fra i prezzi: una per ogni listino attivo, col nome dato
+   * dall'azienda. Un listino attivo ma non valorizzato compare comunque, a
+   * trattino: che esista e che qui sia vuoto è l'informazione utile (in
+   * documento porterebbe la riga a zero).
+   */
+  protected readonly listinoRows = computed(() => {
+    const product = this.product();
+    if (!product) {
+      return [];
+    }
+    return activeListinoSlots(this.featureSettings()).map((slot) => ({
+      key: slot.field,
+      label: slot.label,
+      value: product[slot.field],
+    }));
   });
 
   protected readonly variants = computed(() => {
@@ -145,6 +286,13 @@ export class ProductDetailComponent {
     return productStatusTone(status);
   }
 
+  protected trackingLabel(mode: InventoryTrackingMode | undefined): string {
+    if (!mode) {
+      return 'Standard';
+    }
+    return INVENTORY_TRACKING_LABELS[mode];
+  }
+
   protected shopifyLabel(status: ShopifySyncStatus): string {
     return SHOPIFY_LABELS[status];
   }
@@ -153,12 +301,138 @@ export class ProductDetailComponent {
     return SHOPIFY_TONES[status];
   }
 
+  /** Metafield Shopify non già mostrati in "Dati generali". */
+  protected supplementaryShopifyMetafields(product: Product): readonly ShopifyMetafieldRef[] {
+    const categoryKeys = new Set(
+      (product.shopifyCategoryMetafields ?? []).map((field) => `${field.namespace}.${field.key}`),
+    );
+    return (product.shopifyMetafields ?? []).filter((field) => {
+      const key = `${field.namespace}.${field.key}`;
+      if (categoryKeys.has(key)) {
+        return false;
+      }
+      if (SUPPRESSED_SHOPIFY_METAFIELD_KEYS.has(key) && product.season?.trim()) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  /** Metafield di categoria Shopify (namespace shopify.*), allineato a Shopify Admin. */
+  protected shopifyCategoryMetafieldsForDisplay(
+    product: Product,
+  ): readonly ProductDetailShopifyMetafieldRow[] {
+    return (product.shopifyCategoryMetafields ?? []).map((field) => ({
+      trackId: `category:${field.namespace}.${field.key}`,
+      label: field.attributeName,
+      value: field.values.map((entry) => entry.name).join(', ') || '—',
+    }));
+  }
+
+  /** Metafield prodotto custom (es. vestiflow.season), esclusi quelli di categoria. */
+  protected shopifyCustomMetafieldsForDisplay(
+    product: Product,
+  ): readonly ProductDetailShopifyMetafieldRow[] {
+    return this.supplementaryShopifyMetafields(product).map((field) => ({
+      trackId: `custom:${field.namespace}.${field.key}`,
+      label: shopifyCustomMetafieldLabel(field.namespace, field.key),
+      value: field.value,
+    }));
+  }
+
+  /** @deprecated Usare shopifyCategoryMetafieldsForDisplay + shopifyCustomMetafieldsForDisplay. */
+  protected shopifyMetafieldsForDisplay(
+    product: Product,
+  ): readonly ProductDetailShopifyMetafieldRow[] {
+    return [
+      ...this.shopifyCategoryMetafieldsForDisplay(product),
+      ...this.shopifyCustomMetafieldsForDisplay(product),
+    ];
+  }
+
   protected formatDate(value: IsoDateString): string {
     return DATE_FORMAT.format(new Date(value));
   }
 
+  /** Formattazione denaro centralizzata (Intl) per i prezzi a livello articolo. */
+  protected formatMoney(value: Money): string {
+    return formatMoney(value);
+  }
+
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
+  }
+
+  protected syncWithShopify(productId: string): void {
+    if (this.syncingShopify()) {
+      return;
+    }
+    this.syncingShopify.set(true);
+    this.shopifySyncMessage.set(null);
+    this.service
+      .syncProductToShopify(productId)
+      .pipe(
+        switchMap((result) => {
+          if (!result.pushed || !result.followUpInBackground) {
+            return of({ result, product: null as Product | null });
+          }
+          this.shopifySyncMessage.set(
+            'Sincronizzazione con Shopify in corso… attendi qualche istante.',
+          );
+          this.reload();
+          return this.pollShopifyFollowUpComplete(productId).pipe(
+            map((product) => ({ result, product })),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: ({ result, product }) => {
+          this.syncingShopify.set(false);
+          if (!result.pushed) {
+            this.shopifySyncMessage.set(
+              result.reason === 'sync_disabled'
+                ? 'Sincronizzazione disattivata per questo prodotto: attiva «Sincronizza con Shopify» per allinearlo.'
+                : 'Sync non eseguita: verifica connessione Shopify e permessi catalogo.',
+            );
+          } else if (product?.shopify?.status === ShopifySyncStatus.Synced) {
+            this.shopifySyncMessage.set('Sincronizzazione Shopify completata.');
+          } else if (product?.shopify?.lastError) {
+            this.shopifySyncMessage.set(product.shopify.lastError);
+          } else if (product?.shopify?.status === ShopifySyncStatus.Syncing) {
+            this.shopifySyncMessage.set(
+              'La sincronizzazione è ancora in corso. Aggiorna la pagina tra qualche istante.',
+            );
+          } else {
+            this.shopifySyncMessage.set(
+              'Sync non completata. Verifica i metafield di categoria su Shopify Admin.',
+            );
+          }
+          this.reload();
+        },
+        error: (err: unknown) => {
+          this.syncingShopify.set(false);
+          this.shopifySyncMessage.set(this.syncErrorMessage(err));
+        },
+      });
+  }
+
+  private pollShopifyFollowUpComplete(productId: string): Observable<Product | null> {
+    return timer(SHOPIFY_FOLLOW_UP_POLL_MS, SHOPIFY_FOLLOW_UP_POLL_MS).pipe(
+      switchMap(() => this.service.getProductById(productId)),
+      filter((product) => product.shopify?.status !== ShopifySyncStatus.Syncing),
+      take(1),
+      rxTimeout(SHOPIFY_FOLLOW_UP_MAX_WAIT_MS),
+      catchError(() => this.service.getProductById(productId)),
+    );
+  }
+
+  private syncErrorMessage(err: unknown): string {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/504|gateway timeout|timeout/i.test(message)) {
+      return 'La sincronizzazione ha impiegato troppo tempo. Controlla lo stato Shopify tra qualche istante.';
+    }
+    return 'Errore durante la sincronizzazione con Shopify.';
   }
 
   protected goToList(): void {
@@ -173,6 +447,45 @@ export class ProductDetailComponent {
   protected readonly deleteDialogOpen = signal(false);
   protected readonly deleting = signal(false);
   protected readonly deleteError = signal<string | null>(null);
+  protected readonly syncingShopify = signal(false);
+  protected readonly shopifySyncMessage = signal<string | null>(null);
+
+  constructor() {
+    effect(() => {
+      const current = this.state();
+      if (current.status !== 'success') {
+        this.autoPollShopifyProductId.set(null);
+        return;
+      }
+
+      const product = current.product;
+      if (product.shopify?.status !== ShopifySyncStatus.Syncing) {
+        this.autoPollShopifyProductId.set(null);
+        return;
+      }
+
+      if (this.syncingShopify() || this.autoPollShopifyProductId() === product.id) {
+        return;
+      }
+
+      this.autoPollShopifyProductId.set(product.id);
+      this.pollShopifyFollowUpComplete(product.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (refreshed) => {
+            if (refreshed?.shopify?.lastError) {
+              this.shopifySyncMessage.set(refreshed.shopify.lastError);
+            } else if (refreshed?.shopify?.status === ShopifySyncStatus.Synced) {
+              this.shopifySyncMessage.set('Sincronizzazione Shopify completata.');
+            }
+            this.refreshTick.update((tick) => tick + 1);
+          },
+          error: () => {
+            this.refreshTick.update((tick) => tick + 1);
+          },
+        });
+    });
+  }
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private deleteSubscription: Subscription | null = null;

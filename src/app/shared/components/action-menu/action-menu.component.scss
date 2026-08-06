@@ -1,0 +1,98 @@
+:host {
+  display: inline-flex;
+  position: relative;
+}
+
+.action-menu {
+  position: relative;
+}
+
+.action-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--field-height);
+  block-size: var(--field-height);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    border-color var(--transition-fast) var(--ease-standard);
+}
+
+.action-menu__trigger:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface-hover);
+}
+
+.action-menu__trigger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.action-menu--open .action-menu__trigger {
+  color: var(--color-text);
+  border-color: var(--color-interactive);
+  background-color: var(--color-surface-hover);
+}
+
+.action-menu__panel {
+  position: absolute;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+  z-index: var(--z-dropdown);
+  min-inline-size: calc(var(--space-10) * 4.5);
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.action-menu__item {
+  margin: 0;
+}
+
+.action-menu__item-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: var(--field-height);
+  padding-inline: var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-regular);
+  text-align: start;
+  white-space: nowrap;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast) var(--ease-standard);
+}
+
+.action-menu__item-btn:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.action-menu__item-btn i {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-subtle);
+}
+
+.action-menu__item-btn--danger {
+  color: var(--status-error-fg);
+}
+
+.action-menu__item-btn--danger i {
+  color: var(--status-error-fg);
+}

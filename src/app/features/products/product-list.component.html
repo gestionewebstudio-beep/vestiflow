@@ -1,11 +1,53 @@
 <section class="product-list">
   <header class="product-list__header">
     <h1 class="product-list__title">Prodotti</h1>
-    <app-button (click)="createProduct()">
-      <i class="pi pi-plus" aria-hidden="true"></i>
-      Aggiungi prodotto
-    </app-button>
+    <div class="product-list__actions">
+      @if (showShopifyCatalogSync()) {
+        <app-button
+          variant="secondary"
+          loadingIndicator="icon"
+          [loading]="shopifyCatalogLoading()"
+          [disabled]="shopifyCatalogLoading()"
+          (click)="importCatalogFromShopify()"
+        >
+          <i class="pi pi-sync" aria-hidden="true"></i>
+          Sincronizza catalogo da Shopify
+        </app-button>
+      }
+      @if (canImportExportCatalog()) {
+        <app-button variant="secondary" [disabled]="exporting()" (click)="exportProducts()">
+          <i class="pi pi-download" aria-hidden="true"></i>
+          @if (exporting()) {
+            Export in corso…
+          } @else {
+            Esporta CSV
+          }
+        </app-button>
+        <app-button variant="secondary" (click)="importProducts()">
+          <i class="pi pi-upload" aria-hidden="true"></i>
+          Importa CSV
+        </app-button>
+      }
+      @if (canManageCatalog()) {
+        <app-button (click)="createProduct()">
+          <i class="pi pi-plus" aria-hidden="true"></i>
+          Aggiungi prodotto
+        </app-button>
+      }
+    </div>
   </header>
+
+  @if (shopifySyncError(); as message) {
+    <p class="product-list__shopify-error" role="alert">{{ message }}</p>
+  }
+
+  @if (shopifyFeedback(); as feedback) {
+    <app-shopify-sync-feedback
+      [message]="feedback.message"
+      [tone]="feedback.tone"
+      (dismissed)="dismissShopifyFeedback()"
+    />
+  }
 
   <app-product-toolbar
     [search]="searchDraft()"
@@ -15,13 +57,51 @@
     [seasons]="filterOptions().seasons"
     [statusOptions]="statusOptions"
     [hasActiveFilters]="hasActiveFilters()"
+    [barcodeScannerEnabled]="barcodeScannerEnabled"
     (searchChange)="onSearchInput($event)"
     (filterChange)="onFilterChange($event)"
     (resetFilters)="onResetFilters()"
+    (barcodeScanned)="onBarcodeScanned($event)"
   />
 
+  <!-- F6d: accesso rapido agli articoli in bozza (es. creati al volo da scanner
+       ordine), da completare con anagrafica prima della sync Shopify. -->
+  @if (draftCount() > 0 || draftFilterActive()) {
+    <button
+      type="button"
+      class="product-list__drafts-chip"
+      [class.product-list__drafts-chip--active]="draftFilterActive()"
+      [attr.aria-pressed]="draftFilterActive()"
+      (click)="toggleDraftFilter()"
+    >
+      <i class="pi pi-inbox" aria-hidden="true"></i>
+      Articoli da completare
+      <span class="product-list__drafts-count tabular-nums">{{ draftCount() }}</span>
+    </button>
+  }
+
+  <div class="product-list__columns">
+    <app-table-column-picker [viewId]="productListView" />
+    <label class="product-list__label-copies">
+      Copie per etichetta
+      <input
+        class="product-list__label-copies-input"
+        type="number"
+        min="1"
+        max="500"
+        step="1"
+        [value]="labelCopies()"
+        (change)="setLabelCopies($any($event.target).valueAsNumber)"
+      />
+    </label>
+  </div>
+
+  @if (scanFeedback(); as message) {
+    <p class="product-list__scan-feedback" role="status">{{ message }}</p>
+  }
+
   @if (loading()) {
-    <app-table-skeleton [columns]="skeletonColumns" [rows]="8" />
+    <app-table-skeleton [columns]="skeletonColumns()" [rows]="8" />
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (isEmpty()) {
@@ -31,11 +111,47 @@
       icon="pi-tags"
     />
   } @else {
+    @if (selectedCount() > 0) {
+      <div class="product-list__bulk-actions" aria-live="polite">
+        <p class="product-list__bulk-summary">
+          {{ selectedCount() }}
+          {{ selectedCount() === 1 ? 'prodotto selezionato' : 'prodotti selezionati' }}
+        </p>
+        <div class="product-list__bulk-buttons">
+          <app-button variant="secondary" (click)="clearSelection()">Deseleziona</app-button>
+          <app-button
+            loadingIndicator="icon"
+            [loading]="bulkPrintLoading()"
+            [disabled]="bulkPrintLoading()"
+            (click)="printSelectedLabels()"
+          >
+            <i class="pi pi-print" aria-hidden="true"></i>
+            Stampa etichette selezionate
+            @if (labelCopies() > 1) {
+              ({{ labelCopies() }} copie cad.)
+            }
+          </app-button>
+        </div>
+      </div>
+    }
+    @if (duplicateError(); as message) {
+      <app-error-state [description]="message" />
+    }
     <app-product-table
       [products]="products()"
+      [columns]="tableColumns()"
       [sortField]="query().sort"
       [sortOrder]="query().order"
+      [showShopifyColumn]="showShopifyColumn()"
+      [selectedProductIds]="selectedProductIds()"
+      [allOnPageSelected]="allOnPageSelected()"
+      [someOnPageSelected]="someOnPageSelected()"
+      [canManage]="canManageCatalog()"
       (rowClick)="openProduct($event)"
+      (printLabel)="printProductLabels($event)"
+      (duplicate)="duplicateProduct($event)"
+      (selectionToggle)="toggleProductSelection($event.productId, $event.selected)"
+      (selectAllToggle)="toggleSelectAllOnPage($event)"
       (sortChange)="onSortChange($event)"
     />
     <app-pagination

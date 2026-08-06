@@ -15,7 +15,7 @@ export interface Location extends TenantScoped, Timestamped {
   readonly code?: string;
   readonly address?: Address;
   readonly isActive: boolean;
-  /** Store servito da questa location (opzionale: un magazzino può non averne). */
+  readonly licensedInVf: boolean;
   readonly storeId?: EntityId;
   /** Collegamento alla Shopify Location (id pubblico, nessun segreto). */
   readonly shopify?: ShopifyLink;

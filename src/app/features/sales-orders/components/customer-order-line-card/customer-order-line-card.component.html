@@ -1,0 +1,414 @@
+@let l = line().controls;
+@let v = vm();
+
+<article
+  class="co-card"
+  [class.co-card--open]="open()"
+  [class.co-card--incomplete]="!v.complete"
+  [attr.aria-label]="'Riga ' + (v.index + 1)"
+>
+  <!-- Avviso disponibilità: non blocca, informa (regole-gestionale). -->
+  @if (v.availabilityHint; as hint) {
+    <p class="co-card__alert" role="status">
+      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+      {{ hint }}
+    </p>
+  }
+
+  <div class="co-card__head">
+    @if (layout() === 'order') {
+      <!-- Testata «order»: elimina e nome in cima, poi variante, meta e i tre
+           controlli. Quantità e prezzo si modificano senza aprire la card. -->
+      <div class="co-card__topline">
+        <button
+          type="button"
+          class="co-card__remove"
+          [disabled]="v.readOnly"
+          aria-label="Elimina riga"
+          (click)="removeRequested.emit()"
+        >
+          <i class="pi pi-trash" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          class="co-card__expand"
+          [attr.aria-expanded]="open()"
+          (click)="toggled.emit()"
+        >
+          <span class="co-card__name">
+            {{ l.productName.value || 'Riga senza prodotto' }}
+          </span>
+          <i class="pi pi-chevron-down co-card__chevron" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      @if (v.variantLabel) {
+        <p class="co-card__variant">{{ v.variantLabel }}</p>
+      }
+
+      <p class="co-card__meta">
+        <span class="co-card__meta-item">
+          {{ v.articleCode ? 'Cod. ' + v.articleCode : 'Nessun codice' }}
+        </span>
+        @if (l.sku.value) {
+          <span class="co-card__meta-item">SKU {{ l.sku.value }}</span>
+        }
+        <span
+          class="co-card__meta-item co-card__avail"
+          [class.co-card__avail--low]="v.availabilityCritical"
+        >
+          Disp. {{ v.stockAvailable }}
+        </span>
+      </p>
+
+      <div class="co-card__controls">
+        <div class="co-card__control">
+          <span class="co-card__control-label">Quantità</span>
+          <div class="co-card__qty">
+            <button
+              type="button"
+              class="co-card__qty-btn"
+              [disabled]="v.readOnly"
+              aria-label="Diminuisci quantità"
+              (click)="quantityStepped.emit(-1)"
+            >
+              <i class="pi pi-minus" aria-hidden="true"></i>
+            </button>
+            <input
+              class="co-card__qty-input tabular-nums"
+              type="number"
+              min="1"
+              step="1"
+              inputmode="numeric"
+              [formControl]="l.quantity"
+              aria-label="Quantità"
+            />
+            <button
+              type="button"
+              class="co-card__qty-btn"
+              [disabled]="v.readOnly"
+              aria-label="Aumenta quantità"
+              (click)="quantityStepped.emit(1)"
+            >
+              <i class="pi pi-plus" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="co-card__control">
+          <span class="co-card__control-label">{{ v.priceLabel }}</span>
+          <input
+            class="co-card__price-input tabular-nums"
+            type="text"
+            inputmode="decimal"
+            [formControl]="l.unitPrice"
+            placeholder="0,00"
+            aria-label="Prezzo unitario"
+          />
+        </div>
+
+        <div class="co-card__control">
+          <span class="co-card__control-label">Totale</span>
+          <span class="co-card__total tabular-nums">{{ v.totalLabel }}</span>
+        </div>
+      </div>
+    } @else {
+      <!-- Testata «registry»: chevron e copy a sinistra, i tre valori come
+           metric chip sotto (regole-stile-ui §6, card view mobile). -->
+      <div class="co-card__topline co-card__topline--registry">
+        <button
+          type="button"
+          class="co-card__expand co-card__expand--registry"
+          [attr.aria-expanded]="open()"
+          (click)="toggled.emit()"
+        >
+          <i class="pi pi-chevron-down co-card__chevron" aria-hidden="true"></i>
+          <span class="co-card__copy">
+            <span class="co-card__name">
+              {{ l.productName.value || 'Riga senza prodotto' }}
+            </span>
+            <span class="co-card__sub">
+              {{ v.articleCode ? 'Cod. ' + v.articleCode : 'Nessun codice' }}
+              @if (l.sku.value) {
+                · SKU {{ l.sku.value }}
+              }
+            </span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="co-card__remove co-card__remove--registry"
+          [disabled]="v.readOnly"
+          aria-label="Rimuovi riga"
+          (click)="removed.emit()"
+        >
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="co-card__metrics">
+        <div class="co-card__metric co-card__metric--qty">
+          <small>Qtà</small>
+          <div class="co-card__qty">
+            <button
+              type="button"
+              class="co-card__qty-btn"
+              [disabled]="v.readOnly"
+              aria-label="Diminuisci quantità"
+              (click)="quantityStepped.emit(-1)"
+            >
+              <i class="pi pi-minus" aria-hidden="true"></i>
+            </button>
+            <input
+              class="co-card__qty-input tabular-nums"
+              type="number"
+              min="1"
+              step="1"
+              inputmode="numeric"
+              [formControl]="l.quantity"
+              aria-label="Quantità"
+            />
+            <button
+              type="button"
+              class="co-card__qty-btn"
+              [disabled]="v.readOnly"
+              aria-label="Aumenta quantità"
+              (click)="quantityStepped.emit(1)"
+            >
+              <i class="pi pi-plus" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="co-card__metric co-card__metric--price">
+          <small>{{ v.priceLabel }}</small>
+          <input
+            class="co-card__metric-input tabular-nums"
+            type="text"
+            inputmode="decimal"
+            [formControl]="l.unitPrice"
+            placeholder="0,00"
+            aria-label="Prezzo unitario"
+          />
+        </div>
+
+        <div class="co-card__metric co-card__metric--total">
+          <small>Totale</small>
+          <strong class="tabular-nums">{{ v.totalLabel }}</strong>
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (open()) {
+    <div class="co-card__body">
+      <div class="co-card__grid">
+        <p class="co-card__group co-card__group--first">Articolo</p>
+
+        <div class="co-card__field">
+          <label [attr.for]="'co-m-code-' + v.index">Cod. articolo</label>
+          <input
+            [id]="'co-m-code-' + v.index"
+            class="doc-form__input"
+            type="text"
+            [formControl]="l.articleCode"
+            placeholder="—"
+            autocomplete="off"
+            (keydown.enter)="codeCommitted.emit('articleCode'); $event.preventDefault()"
+          />
+        </div>
+
+        <div class="co-card__field">
+          <label [attr.for]="'co-m-sku-' + v.index">SKU</label>
+          <input
+            [id]="'co-m-sku-' + v.index"
+            class="doc-form__input"
+            type="text"
+            [formControl]="l.sku"
+            placeholder="—"
+            autocomplete="off"
+            (keydown.enter)="codeCommitted.emit('sku'); $event.preventDefault()"
+          />
+        </div>
+
+        <div class="co-card__field co-card__field--full">
+          <label [attr.for]="'co-m-barcode-' + v.index">EAN</label>
+          <input
+            [id]="'co-m-barcode-' + v.index"
+            class="doc-form__input"
+            type="text"
+            [formControl]="l.barcode"
+            placeholder="—"
+            autocomplete="off"
+            (keydown.enter)="codeCommitted.emit('barcode'); $event.preventDefault()"
+          />
+        </div>
+
+        <div class="co-card__field co-card__field--full">
+          <label [attr.for]="'co-m-product-' + v.index">Nome prodotto</label>
+          <div class="co-card__search">
+            <input
+              #productInput
+              [id]="'co-m-product-' + v.index"
+              class="doc-form__input"
+              type="text"
+              [formControl]="l.productName"
+              autocomplete="off"
+              role="combobox"
+              [attr.aria-expanded]="v.suggestionsOpen"
+              [attr.aria-controls]="'co-m-suggest-' + v.index"
+              (input)="productNameTyped.emit(productInput)"
+              (focus)="productNameFocused.emit(productInput)"
+              (blur)="productNameBlurred.emit()"
+            />
+            <button
+              type="button"
+              class="co-card__search-btn"
+              aria-label="Cerca prodotto"
+              [disabled]="v.readOnly"
+              (mousedown)="$event.preventDefault()"
+              (click)="productSearchOpened.emit()"
+            >
+              <i class="pi pi-search" aria-hidden="true"></i>
+            </button>
+
+            <!-- Anteprima live: chiude al pick e al tap fuori (blur → clear
+                 ritardato). Il pannello condiviso tiene il focus col suo
+                 mousedown.preventDefault finché parte il tap. -->
+            @if (v.suggestionsOpen) {
+              <app-document-line-suggestions
+                [items]="v.suggestions"
+                [activeIndex]="v.activeSuggestionIndex"
+                [placement]="v.suggestAbove ? 'above' : 'below'"
+                [listboxId]="'co-m-suggest-' + v.index"
+                (picked)="pickSuggestion($event)"
+              />
+            }
+          </div>
+        </div>
+
+        <!-- Quantità: solo nello stepper della testata compatta. Disponibile e
+             «Impegna magazzino» sono sempre a schermo: non dipendono dal
+             selettore colonne del desktop. -->
+        <p class="co-card__group">Magazzino</p>
+
+        <div class="co-card__field co-card__field--readonly">
+          <span class="co-card__field-label">Disponibile</span>
+          <p class="tabular-nums">{{ v.stockAvailable }} {{ v.unitOfMeasure }}</p>
+        </div>
+
+        <div class="co-card__field co-card__field--readonly">
+          <span class="co-card__field-label">U.m.</span>
+          <p>{{ v.unitOfMeasure }}</p>
+        </div>
+
+        @if (v.commitsLabel; as commitsLabel) {
+          <div class="co-card__field">
+            <label [attr.for]="'co-m-commits-' + v.index">{{ commitsLabel }}</label>
+            <select
+              [id]="'co-m-commits-' + v.index"
+              class="doc-form__input co-card__select"
+              [value]="l.commitsStock.value ? 'yes' : 'no'"
+              (change)="commitsChanged.emit($any($event.target).value)"
+            >
+              <option value="yes">Sì</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        }
+
+        @if (v.showSerials) {
+          <div class="co-card__field co-card__field--full">
+            <label [attr.for]="'co-m-serials-' + v.index">Seriali</label>
+            <input
+              [id]="'co-m-serials-' + v.index"
+              class="doc-form__input"
+              type="text"
+              [formControl]="l.serialNumbersText"
+              placeholder="SN001, SN002"
+              autocomplete="off"
+            />
+          </div>
+        }
+
+        <p class="co-card__group">Vendita</p>
+
+        @if (v.showPurchaseCost) {
+          <div class="co-card__field co-card__field--readonly">
+            <span class="co-card__field-label">Costo</span>
+            <p class="tabular-nums">{{ v.purchaseCostLabel }}</p>
+          </div>
+        }
+
+        <div class="co-card__field">
+          <label [attr.for]="'co-m-price-' + v.index">{{ v.priceLabel }}</label>
+          <input
+            [id]="'co-m-price-' + v.index"
+            class="doc-form__input"
+            type="text"
+            inputmode="decimal"
+            [formControl]="l.unitPrice"
+            placeholder="0,00"
+          />
+        </div>
+
+        <div class="co-card__field">
+          <label [attr.for]="'co-m-discount-' + v.index">Sconto</label>
+          <input
+            [id]="'co-m-discount-' + v.index"
+            class="doc-form__input"
+            type="text"
+            [formControl]="l.discount"
+            placeholder="0%"
+            title="Percentuale singola o cascata: «10%», «4+10%»"
+          />
+        </div>
+
+        <div class="co-card__field co-card__field--readonly">
+          <span class="co-card__field-label">Prezzo scontato</span>
+          <p class="tabular-nums">{{ v.discountedUnitLabel }}</p>
+        </div>
+
+        <div class="co-card__field">
+          <span class="co-card__field-label">IVA</span>
+          <app-select-menu
+            [options]="v.vatOptions"
+            [value]="v.vatValue"
+            ariaLabel="Codice IVA riga"
+            placeholder="—"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            [searchable]="true"
+            [inlineDetail]="true"
+            searchPlaceholder="Codice, aliquota, descrizione…"
+            searchAriaLabel="Cerca Codice IVA"
+            (valueChange)="vatSelected.emit($event ?? '')"
+          />
+        </div>
+
+        <div class="co-card__field co-card__field--readonly">
+          <span class="co-card__field-label">Totale</span>
+          <p class="tabular-nums">{{ v.totalLabel }}</p>
+        </div>
+      </div>
+
+      <div class="co-card__actions">
+        <app-button
+          type="button"
+          variant="secondary"
+          [disabled]="v.readOnly"
+          (click)="duplicated.emit()"
+        >
+          <i class="pi pi-clone" aria-hidden="true"></i>
+          Duplica
+        </app-button>
+        <app-button type="button" variant="danger" [disabled]="v.readOnly" (click)="removed.emit()">
+          <i class="pi pi-trash" aria-hidden="true"></i>
+          Elimina
+        </app-button>
+      </div>
+    </div>
+  }
+</article>

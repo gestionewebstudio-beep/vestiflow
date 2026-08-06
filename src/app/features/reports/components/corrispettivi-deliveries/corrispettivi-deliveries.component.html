@@ -1,0 +1,44 @@
+<section class="corrispettivi-deliveries" aria-labelledby="corrispettivi-deliveries-title">
+  <h2 id="corrispettivi-deliveries-title" class="corrispettivi-deliveries__title">
+    Storico consegne al commercialista
+  </h2>
+
+  @if (deliveries().length === 0) {
+    <p class="corrispettivi-deliveries__empty">Nessuna consegna registrata.</p>
+  } @else {
+    <div class="corrispettivi-deliveries__wrap">
+      <table class="corrispettivi-deliveries__table">
+        <thead>
+          <tr>
+            <th scope="col">Data</th>
+            <th scope="col">Periodo</th>
+            <th scope="col">Canale</th>
+            <th scope="col" class="corrispettivi-deliveries__cell--num">Ordini</th>
+            <th scope="col" class="corrispettivi-deliveries__cell--num">Totale</th>
+            <th scope="col">Operatore</th>
+            <th scope="col">Nota</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (delivery of deliveries(); track delivery.id) {
+            <tr>
+              <td class="tabular-nums">{{ formatDate(delivery.createdAt) }}</td>
+              <td class="tabular-nums">
+                {{ formatDate(delivery.periodFrom) }} – {{ formatDate(delivery.periodTo) }}
+              </td>
+              <td>{{ channelLabel(delivery.channelFilter) }}</td>
+              <td class="corrispettivi-deliveries__cell--num tabular-nums">
+                {{ delivery.orderCount }}
+              </td>
+              <td class="corrispettivi-deliveries__cell--num tabular-nums">
+                {{ formatMoney(delivery.total) }}
+              </td>
+              <td>{{ delivery.createdByName }}</td>
+              <td>{{ delivery.note ?? '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

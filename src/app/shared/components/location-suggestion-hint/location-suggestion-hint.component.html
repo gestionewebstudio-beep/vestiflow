@@ -1,0 +1,11 @@
+<button
+  type="button"
+  class="location-suggestion-hint"
+  [attr.aria-label]="'Usa la sede suggerita ' + locationName()"
+  (click)="applied.emit()"
+>
+  <i class="pi pi-map-marker" aria-hidden="true"></i>
+  <span
+    >Suggerita: <strong>{{ locationName() }}</strong></span
+  >
+</button>

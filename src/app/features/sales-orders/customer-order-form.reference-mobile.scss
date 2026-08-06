@@ -1,0 +1,148 @@
+@use 'breakpoints' as bp;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ORDINE CLIENTE — 6 di 6: sezione righe della reference mobile
+// ═══════════════════════════════════════════════════════════════════════════
+// Replica di REFERENCE_DEFINITIVA_ORDINE_CLIENTE_MOBILE.html, la reference
+// approvata dal proprietario. La parte generale (impaginato, pannelli di
+// testata, totali, note, azioni finali, dock) è PROMOSSA con nomi neutri in
+// styles/_document-form-mobile.scss (gate .doc-form--m-ref) e nel componente
+// condiviso domain/documents/components/document-mobile-panel: qui resta solo
+// ciò che riguarda le righe di QUESTA maschera (card, azioni, stato vuoto).
+//
+// Vedi l'indice dei fogli in customer-order-form.component.scss.
+// ═══════════════════════════════════════════════════════════════════════════
+
+@include bp.media-down('lg') {
+  // ── Banner del gate ───────────────────────────────────────────────────────
+  .co-form .doc-form__gate-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: 0;
+    padding: var(--space-3);
+    color: var(--color-warning);
+    background-color: var(--color-warning-subtle);
+    border: var(--border-width) solid var(--color-warning);
+    border-radius: var(--doc-m-radius-md);
+    font-size: var(--text-sm);
+    line-height: 1.42;
+  }
+
+  // ── Sezione righe ─────────────────────────────────────────────────────────
+  // Col gate attivo la sezione restava sbiadita in blocco. Nella reference si
+  // legge normalmente: a dire che non e' ancora utilizzabile bastano i bottoni
+  // spenti e il banner sopra, mentre titolo e stato vuoto vanno letti — sono
+  // proprio loro a spiegare cosa fare. L'attributo disabled resta, quindi
+  // niente cambia sul piano funzionale.
+  .co-form .doc-form__gate-fields:disabled,
+  .co-form .doc-form__gate-fields:disabled > * {
+    opacity: 1;
+  }
+
+  .co-form .doc-form__lines {
+    padding: var(--space-3);
+    background-color: var(--doc-m-lines-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--doc-m-radius);
+  }
+
+  // Titolo a sinistra e «Includi documento» a destra sulla stessa riga: il
+  // foglio mobile precedente li impilava per far posto alla toolbar desktop,
+  // che qui non c'e' piu'.
+  .co-form .doc-form__lines-head {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .co-form .doc-form__lines-head .doc-form__subtitle {
+    margin: 0;
+    font-size: var(--doc-m-text-lines);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: -0.015em;
+  }
+
+  .co-lines__include {
+    --button-h: var(--doc-m-include-h);
+    --button-pad-inline: var(--space-3);
+    --button-radius: var(--doc-m-radius-sm);
+    --button-font-size: var(--text-sm);
+  }
+
+  .co-lines__empty {
+    display: grid;
+    place-items: center;
+    min-block-size: var(--doc-m-empty-h);
+    margin-block-start: var(--space-3);
+    padding: var(--space-4);
+    color: var(--color-text-subtle);
+    text-align: center;
+    background-color: var(--doc-m-empty-bg);
+    border: var(--border-width) dashed var(--color-border-strong);
+    border-radius: var(--doc-m-radius-md);
+  }
+
+  .co-lines__empty strong {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--doc-m-text-body);
+  }
+
+  .co-lines__empty p {
+    max-inline-size: 17rem;
+    margin: var(--space-1) 0 0;
+    font-size: var(--doc-m-text-meta);
+    line-height: 1.45;
+  }
+
+  .co-lines__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    margin-block-start: var(--space-2);
+  }
+
+  .co-lines__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    min-block-size: var(--doc-m-control-h);
+    padding-inline: var(--space-2);
+    border-radius: var(--doc-m-radius-sm);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-bold);
+    line-height: 1.15;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .co-lines__action--empty {
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border-strong);
+  }
+
+  .co-lines__action--product {
+    color: var(--color-focus);
+    background-color: var(--doc-m-accent-soft);
+    border: var(--border-width) solid var(--color-border-strong);
+  }
+
+  .co-lines__action:disabled {
+    color: var(--color-text-subtle);
+    background-color: var(--color-surface-soft);
+    border-color: var(--color-border);
+    cursor: not-allowed;
+  }
+}
+
+// Phone stretto (< 380px): la coppia affiancata non ci sta piu'.
+@include bp.media-down('xs') {
+  .co-lines__actions {
+    grid-template-columns: 1fr;
+  }
+}

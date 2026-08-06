@@ -1,0 +1,669 @@
+@use 'breakpoints' as bp;
+
+// Niente mixin `list-page`: la cassa POS non è una pagina-lista. La radice è
+// una cornice colorata di modalità (non il flex nudo del canone) e i nomi
+// __field/__label/__input qui sono controlli operativi a misura touch, non la
+// toolbar di ricerca del registro. Solo i valori di testata (header/heading/
+// title) sono allineati a mano al canone delle liste.
+
+:host {
+  display: block;
+}
+
+.pos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-lg);
+  // Cambio modalità visibile con la coda dell'occhio: cornice + fondo tenue.
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base);
+}
+
+// Verde tenue per la Vendita, arancione tenue per il Reso: l'operatore capisce
+// la modalità attiva senza cercarla.
+.pos--sale {
+  border-color: var(--status-success-border);
+  background-color: var(--status-success-bg);
+}
+
+.pos--return {
+  border-color: var(--status-warning-border);
+  background-color: var(--status-warning-bg);
+}
+
+.pos__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  @include bp.media-up('md') {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
+.pos__heading app-back-button {
+  margin-block-end: var(--space-2);
+}
+
+.pos__title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.pos__subtitle {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  max-inline-size: var(--content-narrow);
+}
+
+.pos__link {
+  font-size: var(--text-sm);
+  color: var(--color-interactive);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pos__link:hover {
+  text-decoration: underline;
+}
+
+.pos__context {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  @include bp.media-up('md') {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+.pos__context-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  @include bp.media-up('md') {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+}
+
+.pos__location,
+.pos__customer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: var(--select-menu-width);
+}
+
+.pos__location-fixed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--field-height);
+  font-size: var(--text-base);
+  color: var(--color-text);
+}
+
+.pos__tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.pos__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-5);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+// Stato attivo colorato per modalità: la scelta corrente è inequivocabile
+// anche a colpo d'occhio, coerente con il tint dell'intera schermata.
+.pos__tab--sale.pos__tab--active {
+  color: var(--status-success-fg);
+  background-color: var(--status-success-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--status-success-border);
+}
+
+.pos__tab--return.pos__tab--active {
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--status-warning-border);
+}
+
+.pos__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.pos__panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pos__panel-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.pos__count {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--status-neutral-fg);
+  background-color: var(--status-neutral-bg);
+  border-radius: var(--radius-full);
+}
+
+.pos__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.pos__search-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  @include bp.media-up('md') {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+}
+
+.pos__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+}
+
+.pos__field--grow {
+  flex: 1 1 auto;
+}
+
+.pos__label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.pos__input {
+  inline-size: 100%;
+  // Delta touch deliberato della cassa: gli input seguono --btn-min-height
+  // (target tappabile da banco), non il --field-height del canone liste.
+  block-size: var(--btn-min-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.pos__input:focus-visible {
+  border-color: var(--color-interactive);
+  outline: none;
+  box-shadow: var(--field-focus-ring);
+}
+
+// Campo di scansione: protagonista della zona centrale, alto e leggibile.
+.pos__input--scan {
+  block-size: var(--space-12);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
+}
+
+.pos__textarea {
+  inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-family: inherit;
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  resize: vertical;
+}
+
+.pos__textarea:focus-visible {
+  border-color: var(--color-interactive);
+  outline: none;
+  box-shadow: var(--field-focus-ring);
+}
+
+.pos__search-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.pos__feedback {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-md);
+}
+
+.pos__feedback--error {
+  color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+}
+
+// Azioni di recupero dopo «Articolo non trovato.»: mai righe incomplete.
+.pos__notfound-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pos__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pos__result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  inline-size: 100%;
+  min-block-size: var(--btn-min-height);
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  background-color: var(--color-surface-sunken);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.pos__result:hover,
+.pos__result:focus-visible {
+  border-color: var(--color-interactive);
+}
+
+.pos__result-name {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.pos__result-options {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.pos__result-meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.pos__empty {
+  margin: 0;
+  padding: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  background-color: var(--color-surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+// ── Carrello ─────────────────────────────────────────────────────────────
+
+.pos__cart-scroll {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.pos-cart {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.pos-cart th,
+.pos-cart td {
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+  vertical-align: top;
+  border-block-end: var(--border-width) solid var(--color-border);
+}
+
+.pos-cart th {
+  text-transform: uppercase;
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-table-header-bg);
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+}
+
+.pos-cart th.pos-cart__cell--num,
+.pos-cart td.pos-cart__cell--num {
+  text-align: end;
+  white-space: nowrap;
+}
+
+.pos-cart__row--warning td {
+  background-color: var(--status-warning-bg);
+}
+
+.pos-cart__warning {
+  display: block;
+  margin-block-start: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--status-warning-fg);
+}
+
+.pos__availability-banner {
+  margin-block-end: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  font-size: var(--text-sm);
+}
+
+.pos-cart__row--error td {
+  background-color: var(--status-error-bg);
+}
+
+.pos-cart__name {
+  display: block;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.pos-cart__meta {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.pos-cart__error {
+  display: block;
+  margin-block-start: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--status-error-fg);
+}
+
+.pos-cart__qty {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.pos-cart__qty-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--btn-min-height);
+  block-size: var(--btn-min-height);
+  color: var(--color-text);
+  background-color: var(--color-surface-sunken);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.pos-cart__qty-btn:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.pos-cart__qty-input {
+  inline-size: var(--space-16);
+  block-size: var(--btn-min-height);
+  text-align: center;
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.pos-cart__price-input,
+.pos-cart__discount-input {
+  inline-size: var(--space-24);
+  block-size: var(--btn-min-height);
+  padding-inline: var(--space-2);
+  text-align: end;
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.pos-cart__discount-input {
+  inline-size: var(--space-16);
+}
+
+.pos-cart__cell--actions {
+  text-align: end;
+}
+
+.pos-cart__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--btn-min-height);
+  block-size: var(--btn-min-height);
+  color: var(--status-error-fg);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.pos-cart__remove:hover {
+  background-color: var(--status-error-bg);
+}
+
+// ── Checkout ─────────────────────────────────────────────────────────────
+
+.pos__checkout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-block-start: var(--space-3);
+  border-block-start: var(--border-width) solid var(--color-border);
+}
+
+.pos__checkout-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  @include bp.media-up('md') {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+}
+
+// Barra sticky in fondo: totale e conclusione sempre visibili mentre il
+// carrello scorre, così l'operatore legge il totale sparando l'ultimo pezzo.
+.pos__sticky-bar {
+  position: sticky;
+  inset-block-end: var(--space-3);
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+
+  @include bp.media-up('md') {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.pos__total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.pos__total-label {
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+}
+
+.pos__total-value {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.pos__success {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background-color: var(--status-success-bg);
+  border-radius: var(--radius-md);
+}
+
+.pos__success-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--status-success-fg);
+}
+
+.pos__success-lines {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--status-success-fg);
+}
+
+// ── Reso ─────────────────────────────────────────────────────────────────
+
+.pos__selected-sale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background-color: var(--color-surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.pos__selected-sale-ref {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.pos__selected-sale-meta {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.pos__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--btn-min-height);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+// ── Dialog di uscita con operazione in corso ────────────────────────────────
+
+.pos__exit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background-color: var(--color-backdrop);
+}
+
+.pos__exit-dialog {
+  position: fixed;
+  z-index: var(--z-modal);
+  inset-inline: 50%;
+  inset-block-start: 50%;
+  translate: -50% -50%;
+  inline-size: min(calc(var(--content-narrow) + var(--space-8)), calc(100% - var(--space-6)));
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.pos__exit-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.pos__exit-message {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.pos__exit-error {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+  line-height: var(--leading-normal);
+}
+
+.pos__exit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

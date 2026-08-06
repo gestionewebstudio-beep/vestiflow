@@ -1,0 +1,128 @@
+.doc-include {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-block-size: 0;
+}
+
+.doc-include__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.doc-include__hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.doc-include__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-text);
+  }
+}
+
+.doc-include__search {
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.doc-include__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.doc-include__kind-list,
+.doc-include__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+  max-block-size: calc(var(--space-8) * 16);
+}
+
+.doc-include__kind,
+.doc-include__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  padding: var(--space-3);
+  text-align: start;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-interactive-subtle);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+}
+
+.doc-include__kind {
+  justify-content: space-between;
+}
+
+.doc-include__kind-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.doc-include__item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+
+.doc-include__item-main {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.doc-include__item-ref {
+  font-weight: var(--font-weight-medium);
+}
+
+.doc-include__item-date {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.doc-include__item-detail {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.doc-include__actions {
+  display: flex;
+  justify-content: flex-end;
+}

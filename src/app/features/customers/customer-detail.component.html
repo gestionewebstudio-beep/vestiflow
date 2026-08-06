@@ -1,8 +1,7 @@
 <section class="customer-detail">
-  <a class="customer-detail__back" [routerLink]="listPath">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    Clienti
-  </a>
+  <!-- Fuori dai rami di stato: la via d'uscita resta anche in loading/errore.
+       Senza cronologia interna ricade sulla lista clienti dedotta dall'URL. -->
+  <app-back-button />
 
   @if (loading()) {
     <app-table-skeleton [columns]="skeletonColumns" [rows]="5" />
@@ -18,17 +17,47 @@
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (customer()) {
     <header class="customer-detail__header">
-      <h1 class="customer-detail__title">{{ fullName() }}</h1>
+      <div class="customer-detail__heading">
+        <h1 class="customer-detail__title">{{ displayName() }}</h1>
+        <app-badge [tone]="isShopifyOwned() ? 'info' : 'neutral'">
+          {{ isShopifyOwned() ? 'Shopify' : 'Gestionale' }}
+        </app-badge>
+      </div>
+      @if (canManage()) {
+        <div class="customer-detail__actions">
+          <app-button variant="secondary" [routerLink]="editPath()">
+            <i class="pi pi-pencil" aria-hidden="true"></i>
+            Modifica
+          </app-button>
+        </div>
+      }
     </header>
 
     <section class="customer-detail__panel" aria-labelledby="customer-general">
-      <h2 id="customer-general" class="customer-detail__panel-title">Anagrafica</h2>
-      <app-detail-facts [facts]="facts()" />
+      <h2 id="customer-general" class="customer-detail__panel-title">Dati anagrafici</h2>
+      <app-detail-facts [facts]="anagraficaFacts()" />
     </section>
+
+    <section class="customer-detail__panel" aria-labelledby="customer-commercial">
+      <h2 id="customer-commercial" class="customer-detail__panel-title">Dati commerciali</h2>
+      <app-detail-facts [facts]="commercialFacts()" />
+    </section>
+
+    @if (supplierLinkPath(); as supplierPath) {
+      <p class="customer-detail__link">
+        <i class="pi pi-truck" aria-hidden="true"></i>
+        <a [routerLink]="supplierPath">Apri scheda fornitore collegata</a>
+      </p>
+    }
 
     <p class="customer-detail__hint">
       <i class="pi pi-info-circle" aria-hidden="true"></i>
-      Lo storico acquisti del cliente è consultabile nella sezione Vendite.
+      @if (isShopifyOwned()) {
+        Anagrafica sincronizzata da Shopify: i dati commerciali sono gestiti nel gestionale e si
+        propongono automaticamente nei documenti di vendita.
+      } @else {
+        Cliente creato nel gestionale. Lo storico acquisti è consultabile nella sezione Vendite.
+      }
     </p>
   }
 </section>

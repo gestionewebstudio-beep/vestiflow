@@ -1,0 +1,211 @@
+<section class="inventory-import" [attr.aria-busy]="loading() ? 'true' : null">
+  <header class="inventory-import__header">
+    <div>
+      <!-- Torna alla pagina precedente; senza cronologia interna ricade
+           sull'hub Magazzino dedotto dall'URL. Durante l'operazione è
+           disabilitato: uscire annullerebbe l'import (stessa guardia di
+           backToList). -->
+      <app-back-button [disabled]="loading()" />
+      <h1 class="inventory-import__title">Importa giacenze da CSV</h1>
+      <p class="inventory-import__intro">
+        Carica un CSV con colonne SKU, Location e Disponibile. VestiFlow applica rettifiche
+        tracciate per allineare le giacenze; puoi anche riesportare da Giacenze e modificare il
+        file.
+      </p>
+    </div>
+  </header>
+
+  @if (error(); as appError) {
+    <app-inline-banner [message]="appError.message" />
+  }
+
+  @if (loading()) {
+    <app-inline-banner tone="neutral">
+      Operazione in corso: non lasciare questa pagina finché non vedi l’esito. Se esci, l’import
+      verrà annullato.
+    </app-inline-banner>
+  }
+
+  @if (phase() === 'upload') {
+    <div class="inventory-import__panel">
+      <label class="inventory-import__upload" for="inventory-csv-file">
+        <i class="pi pi-upload inventory-import__upload-icon" aria-hidden="true"></i>
+        <span class="inventory-import__upload-title">Seleziona file CSV</span>
+        <span class="inventory-import__upload-hint">UTF-8 · max 15 MB</span>
+        <input
+          id="inventory-csv-file"
+          class="inventory-import__file-input"
+          type="file"
+          accept=".csv,text/csv"
+          (change)="onFileSelected($event)"
+        />
+      </label>
+
+      @if (selectedFile(); as file) {
+        <p class="inventory-import__file-name">
+          File selezionato: <strong>{{ file.name }}</strong>
+        </p>
+      }
+
+      <div class="inventory-import__actions">
+        <app-button type="button" variant="ghost" [disabled]="loading()" (click)="backToList()">
+          Annulla
+        </app-button>
+        <app-button type="button" [disabled]="!selectedFile() || loading()" (click)="analyzeFile()">
+          @if (loading()) {
+            Analisi in corso…
+          } @else {
+            Analizza file
+          }
+        </app-button>
+      </div>
+    </div>
+  }
+
+  @if (phase() === 'preview' && preview(); as data) {
+    <div class="inventory-import__summary">
+      <span>{{ data.summary.total }} righe</span>
+      <span>{{ data.summary.ready }} pronte</span>
+      <span>{{ data.summary.unchanged }} invariate</span>
+      <span>{{ data.summary.errors }} con errori</span>
+    </div>
+
+    @if (allUnchanged()) {
+      <app-inline-banner tone="neutral">
+        Tutte le righe di questo file risultano già allineate alle giacenze a sistema: non c'è nulla
+        da aggiornare. Puoi tornare indietro e scegliere un altro file.
+      </app-inline-banner>
+    } @else if (data.summary.unchanged > 0 || data.summary.errors > 0) {
+      <app-inline-banner tone="warning">
+        Verranno aggiornate solo le {{ readyKeys().length }} righe modificate.
+        @if (data.summary.unchanged > 0) {
+          {{ data.summary.unchanged }} sono già allineate e verranno saltate.
+        }
+        @if (data.summary.errors > 0) {
+          {{ data.summary.errors }} hanno errori e verranno ignorate.
+        }
+      </app-inline-banner>
+    }
+
+    <div class="inventory-import__actions inventory-import__actions--top">
+      <app-button
+        type="button"
+        variant="ghost"
+        [disabled]="loading()"
+        (click)="phase.set('upload')"
+      >
+        Torna al caricamento
+      </app-button>
+      <app-button type="button" [disabled]="!canImport()" (click)="runImport()">
+        @if (loading()) {
+          Import in corso…
+        } @else {
+          Importa {{ readyKeys().length }} righe
+        }
+      </app-button>
+    </div>
+
+    <div class="inventory-import__table-scroll">
+      <table class="inventory-import__table">
+        <thead>
+          <tr>
+            <th scope="col">Variante</th>
+            <th scope="col">SKU</th>
+            <th scope="col">Location</th>
+            <th scope="col" class="inventory-import__col--numeric">Attuale</th>
+            <th scope="col" class="inventory-import__col--numeric">Nuovo</th>
+            <th scope="col" class="inventory-import__col--numeric">Delta</th>
+            <th scope="col">Stato</th>
+            <th scope="col">Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of data.rows; track item.key) {
+            <tr>
+              <td data-label="Variante">{{ item.variantTitle }}</td>
+              <td data-label="SKU">{{ item.sku }}</td>
+              <td data-label="Location">{{ item.locationName }}</td>
+              <td class="inventory-import__numeric tabular-nums" data-label="Attuale">
+                {{ item.currentAvailable ?? '—' }}
+              </td>
+              <td class="inventory-import__numeric tabular-nums" data-label="Nuovo">
+                {{ item.newAvailable ?? '—' }}
+              </td>
+              <td class="inventory-import__numeric tabular-nums" data-label="Delta">
+                @if (item.delta === null) {
+                  —
+                } @else if (item.delta > 0) {
+                  +{{ item.delta }}
+                } @else {
+                  {{ item.delta }}
+                }
+              </td>
+              <td data-label="Stato">
+                <app-badge [tone]="statusTone(item)">{{ statusLabel(item) }}</app-badge>
+              </td>
+              <td data-label="Note">{{ item.message ?? '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (phase() === 'done' && result(); as importResult) {
+    <div
+      class="inventory-import__done"
+      [class.inventory-import__done--success]="resultTone() === 'success'"
+      [class.inventory-import__done--warning]="resultTone() === 'warning'"
+      [class.inventory-import__done--error]="resultTone() === 'error'"
+      role="status"
+    >
+      <p class="inventory-import__done-title">
+        @if (resultTone() === 'success') {
+          Import completato
+        } @else if (resultTone() === 'warning') {
+          Import completato con avvisi
+        } @else {
+          Import non riuscito
+        }
+      </p>
+      <p class="inventory-import__done-message">{{ resultMessage() }}</p>
+      <p class="inventory-import__done-stats tabular-nums">
+        {{ importResult.updated }} aggiornate · {{ importResult.unchanged }} invariate ·
+        {{ importResult.skipped }} saltate · {{ importResult.failed }} fallite
+      </p>
+    </div>
+
+    @if (importResult.rows.length > 0) {
+      <div class="inventory-import__table-scroll">
+        <table class="inventory-import__table">
+          <thead>
+            <tr>
+              <th scope="col">SKU</th>
+              <th scope="col">Location</th>
+              <th scope="col">Esito</th>
+              <th scope="col">Dettaglio</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of importResult.rows; track row.key) {
+              <tr>
+                <td data-label="SKU">{{ row.sku }}</td>
+                <td data-label="Location">{{ row.locationName }}</td>
+                <td data-label="Esito">
+                  <app-badge [tone]="resultStatusTone(row.status)">
+                    {{ resultStatusLabel(row.status) }}
+                  </app-badge>
+                </td>
+                <td data-label="Dettaglio">{{ row.message ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <div class="inventory-import__actions">
+      <app-button type="button" (click)="backToList()">Vai alle giacenze</app-button>
+    </div>
+  }
+</section>

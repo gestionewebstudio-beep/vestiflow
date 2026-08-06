@@ -1,48 +1,20 @@
+@use 'detail-page' as dp;
+
 :host {
   display: block;
 }
 
-.customer-detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
+@include dp.detail-page('customer-detail');
 
-.customer-detail__back {
-  display: inline-flex;
+// ── Specifiche locali ─────────────────────────────────────────────────────────
+
+// Divergenza deliberata: il badge origine (Shopify/Gestionale) affianca il
+// titolo — è identità della testata, non un sottotitolo in colonna.
+.customer-detail__heading {
+  flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.customer-detail__back:hover {
-  color: var(--color-text);
-}
-
-.customer-detail__title {
-  margin: 0;
-  font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.customer-detail__panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-5);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
-}
-
-.customer-detail__panel-title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
+  gap: var(--space-3);
 }
 
 .customer-detail__hint {
@@ -52,4 +24,12 @@
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+.customer-detail__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
 }

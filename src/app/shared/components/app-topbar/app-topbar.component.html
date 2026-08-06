@@ -10,67 +10,87 @@
       <i class="pi pi-bars" aria-hidden="true"></i>
     </button>
 
-    <span class="app-topbar__brand">VestiFlow</span>
+    <button
+      type="button"
+      class="app-topbar__search"
+      aria-label="Ricerca globale (Ctrl K)"
+      title="Ricerca globale"
+      (click)="searchClick.emit()"
+    >
+      <i class="pi pi-search app-topbar__search-icon" aria-hidden="true"></i>
+      <span class="app-topbar__search-placeholder">Cerca prodotti, ordini, clienti…</span>
+      <kbd class="app-topbar__search-kbd" aria-hidden="true">⌘K</kbd>
+    </button>
   </div>
 
-  @if (locations().length > 0) {
-    <div class="app-topbar__store">
-      <app-select-menu
-        [options]="locationOptions()"
-        [value]="activeLocationValue()"
-        ariaLabel="Location attiva"
-        placeholder="Tutte le location"
-        triggerIcon="pi-shop"
-        [compact]="true"
-        (valueChange)="onLocationChange($event)"
-      />
-    </div>
-  }
+  <div class="app-topbar__end">
+    <!-- Sede fissa o unica: la mostra gia' il blocco profilo a destra;
+         il selettore compare solo quando la sede si puo' davvero cambiare. -->
+    @if (!showFixedLocationLabel() && locations().length > 0) {
+      <div class="app-topbar__store">
+        <app-select-menu
+          [options]="locationOptions()"
+          [value]="activeLocationValue()"
+          ariaLabel="Location attiva"
+          placeholder="Tutte le location"
+          triggerIcon="pi-shop"
+          [compact]="true"
+          [toolbarChip]="true"
+          [includeEmptyOption]="!locationSelectorLocked()"
+          (valueChange)="onLocationChange($event)"
+        />
+      </div>
+    }
 
-  <div class="app-topbar__actions">
-    @if (syncStatus(); as status) {
+    @if (syncStatus()) {
       <button
         type="button"
-        class="app-topbar__sync"
-        [attr.aria-label]="syncLabel()"
-        [title]="syncLabel()"
+        class="app-topbar__sync-card"
+        [ngClass]="syncCardToneClass()"
+        [attr.aria-label]="syncTooltip()"
+        [title]="syncTooltip()"
         (click)="syncClick.emit()"
       >
-        <i class="pi pi-sync" aria-hidden="true"></i>
-        <span class="app-topbar__sync-dot" [ngClass]="syncToneClass()" aria-hidden="true"></span>
+        <span class="app-topbar__sync-icon-wrap" aria-hidden="true">
+          <i class="pi pi-sync" aria-hidden="true"></i>
+          <span class="app-topbar__sync-dot" [ngClass]="syncToneClass()"></span>
+        </span>
+        @if (syncLastSyncLabel(); as lastSyncLabel) {
+          <span class="app-topbar__sync-meta tabular-nums">{{ lastSyncLabel }}</span>
+        }
       </button>
     }
 
-    <div class="app-topbar__theme" role="group" aria-label="Modalità tema">
-      @for (option of themeOptions; track option.mode) {
-        <button
-          type="button"
-          class="app-topbar__theme-btn"
-          [class.app-topbar__theme-btn--active]="themeMode() === option.mode"
-          [attr.aria-pressed]="themeMode() === option.mode"
-          [attr.aria-label]="option.label"
-          [title]="option.label"
-          (click)="themeModeChange.emit(option.mode)"
-        >
-          <i class="pi" [ngClass]="option.icon" aria-hidden="true"></i>
-        </button>
+    <button
+      type="button"
+      class="app-topbar__company"
+      [title]="'Profilo e impostazioni — ' + companyName()"
+      [attr.aria-label]="'Profilo e impostazioni — ' + companyName()"
+      (click)="onSettingsClick()"
+    >
+      @if (user(); as currentUser) {
+        <app-user-avatar
+          size="md"
+          [displayName]="currentUser.displayName"
+          [email]="currentUser.email"
+          [avatarUrl]="currentUser.avatarUrl"
+        />
       }
-    </div>
+      <span class="app-topbar__company-copy">
+        <strong class="app-topbar__company-name">{{ companyName() }}</strong>
+        <span class="app-topbar__company-sub">{{ companyLocationLabel() }}</span>
+      </span>
+    </button>
 
-    @if (user()) {
-      <div class="app-topbar__user">
-        <span class="app-topbar__avatar" [title]="displayName()" aria-hidden="true">{{
-          initials()
-        }}</span>
-        <button
-          type="button"
-          class="app-topbar__logout"
-          [attr.aria-label]="'Esci (' + displayName() + ')'"
-          (click)="logout.emit()"
-        >
-          <i class="pi pi-sign-out" aria-hidden="true"></i>
-        </button>
-      </div>
+    @if (user(); as currentUser) {
+      <button
+        type="button"
+        class="app-topbar__logout"
+        [attr.aria-label]="'Esci (' + (currentUser.displayName.trim() || currentUser.email) + ')'"
+        (click)="logout.emit()"
+      >
+        <i class="pi pi-sign-out" aria-hidden="true"></i>
+      </button>
     }
   </div>
 </div>

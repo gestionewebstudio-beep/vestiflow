@@ -1,0 +1,196 @@
+<table class="situation-table">
+  <thead class="situation-table__head">
+    <tr>
+      @for (col of columns(); track col.id) {
+        @switch (col.id) {
+          @case ('select') {
+            <th scope="col" class="situation-table__cell--select">
+              <label class="situation-table__select-all">
+                <input
+                  type="checkbox"
+                  class="situation-table__checkbox"
+                  [checked]="allOnPageSelected()"
+                  [attr.aria-label]="
+                    allOnPageSelected()
+                      ? 'Deseleziona tutti gli articoli in pagina'
+                      : 'Seleziona tutti gli articoli in pagina'
+                  "
+                  (change)="onSelectAllClick($event)"
+                />
+                <span class="sr-only">Seleziona tutti</span>
+              </label>
+            </th>
+          }
+          @default {
+            <th
+              scope="col"
+              [class.situation-table__cell--pinned]="col.pinned"
+              [class.situation-table__cell--numeric]="col.numeric"
+              [class.situation-table__cell--status]="col.id === 'status'"
+            >
+              {{ col.label }}
+            </th>
+          }
+        }
+      }
+    </tr>
+  </thead>
+
+  <tbody>
+    @for (row of rows(); track row.variantId) {
+      <tr class="situation-table__row" [class.situation-table__row--selected]="isSelected(row)">
+        @for (col of columns(); track col.id) {
+          @switch (col.id) {
+            @case ('select') {
+              <td class="situation-table__cell--select" [attr.data-label]="col.label">
+                <input
+                  type="checkbox"
+                  class="situation-table__checkbox"
+                  [checked]="isSelected(row)"
+                  [attr.aria-label]="'Seleziona ' + row.title"
+                  (change)="rowToggle.emit(row)"
+                />
+              </td>
+            }
+            @case ('title') {
+              <td
+                class="situation-table__title"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.title }}
+              </td>
+            }
+            @case ('code') {
+              <td
+                class="situation-table__code tabular-nums"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.code || '—' }}
+              </td>
+            }
+            @case ('sku') {
+              <td
+                class="situation-table__code tabular-nums"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.sku || '—' }}
+              </td>
+            }
+            @case ('category') {
+              <td [class.situation-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                {{ row.category || '—' }}
+              </td>
+            }
+            @case ('supplier') {
+              <td [class.situation-table__cell--pinned]="col.pinned" [attr.data-label]="col.label">
+                {{ row.supplierName || '—' }}
+              </td>
+            }
+            @case ('available') {
+              <td
+                class="situation-table__cell--numeric tabular-nums"
+                [class.situation-table__cell--negative]="row.available < 0"
+                [class.situation-table__cell--empty]="row.available <= 0"
+                [class.situation-table__cell--low]="
+                  row.available > 0 && row.minThreshold > 0 && row.available <= row.minThreshold
+                "
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.available }}
+              </td>
+            }
+            @case ('onHand') {
+              <td
+                class="situation-table__cell--numeric tabular-nums"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.onHand }}
+              </td>
+            }
+            @case ('committed') {
+              <td
+                class="situation-table__cell--numeric tabular-nums"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.committed }}
+              </td>
+            }
+            @case ('incoming') {
+              <td
+                class="situation-table__cell--numeric tabular-nums"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.incoming }}
+              </td>
+            }
+            @case ('minThreshold') {
+              <td
+                class="situation-table__cell--numeric tabular-nums"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.minThreshold }}
+              </td>
+            }
+            @case ('purchasePrice') {
+              <td
+                class="situation-table__cell--numeric tabular-nums"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ money(row.purchasePriceMinor, row.currency) }}
+              </td>
+            }
+            @case ('sellingPrice') {
+              <td
+                class="situation-table__cell--numeric tabular-nums"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ money(row.sellingPriceMinor, row.currency) }}
+              </td>
+            }
+            @case ('totalIn') {
+              <td
+                class="situation-table__cell--numeric tabular-nums"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.totalIn }}
+              </td>
+            }
+            @case ('totalOut') {
+              <td
+                class="situation-table__cell--numeric tabular-nums"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                {{ row.totalOut }}
+              </td>
+            }
+            @case ('status') {
+              <td
+                class="situation-table__cell--status"
+                [class.situation-table__cell--pinned]="col.pinned"
+                [attr.data-label]="col.label"
+              >
+                <span class="situation-table__status-value">
+                  <app-badge [tone]="statusTone(row.status)">{{
+                    statusLabel(row.status)
+                  }}</app-badge>
+                </span>
+              </td>
+            }
+          }
+        }
+      </tr>
+    }
+  </tbody>
+</table>

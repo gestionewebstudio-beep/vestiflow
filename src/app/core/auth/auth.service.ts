@@ -51,9 +51,23 @@ export class AuthService {
     );
   }
 
+  /** Completa l'accesso con codice TOTP dopo login password. */
+  verifyMfa(code: string): Observable<User> {
+    return this.gateway.verifyMfa(code).pipe(
+      tap((session) => this.applySession(session)),
+      map((session) => session.user),
+    );
+  }
+
   /** Termina la sessione e azzera lo stato. */
   logout(): Observable<void> {
     return this.gateway.logout().pipe(tap(() => this.applySession(null)));
+  }
+
+  /** Aggiorna l'utente corrente in memoria (es. dopo cambio foto profilo o sessione assistenza). */
+  setCurrentUser(user: User): void {
+    this._currentUser.set(user);
+    this._status.set('authenticated');
   }
 
   /**
@@ -62,6 +76,14 @@ export class AuthService {
    */
   getToken(): Observable<string | null> {
     return this.gateway.getToken();
+  }
+
+  requestPasswordReset(email: string): Observable<void> {
+    return this.gateway.requestPasswordReset(email);
+  }
+
+  updatePassword(newPassword: string): Observable<void> {
+    return this.gateway.updatePassword(newPassword);
   }
 
   private applySession(session: AuthSession | null): void {

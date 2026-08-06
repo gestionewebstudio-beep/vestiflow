@@ -1,0 +1,49 @@
+@use 'a11y';
+.profile-avatar-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.profile-avatar-upload__preview-trigger {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background-color: transparent;
+  cursor: pointer;
+  transition: box-shadow var(--transition-fast) var(--ease-standard);
+}
+
+.profile-avatar-upload__preview-trigger:hover:not(:disabled) {
+  box-shadow: 0 0 0 var(--border-width-strong) var(--color-border-strong);
+}
+
+.profile-avatar-upload__preview-trigger:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
+.profile-avatar-upload__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.profile-avatar-upload__input {
+  @include a11y.visually-hidden;
+}
+
+.profile-avatar-upload__hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-subtle);
+}
+
+.profile-avatar-upload__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-error-fg);
+}

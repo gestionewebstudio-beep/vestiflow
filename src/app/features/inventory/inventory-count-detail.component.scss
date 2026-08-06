@@ -1,0 +1,266 @@
+@use 'breakpoints' as bp;
+@use 'detail-page' as dp;
+@use 'responsive-table' as rt;
+
+:host {
+  display: block;
+}
+
+@include dp.detail-page('count-detail');
+
+// Titolo e pill di stato affiancati, dentro il gruppo heading del mixin.
+.count-detail__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+// Lo stacco verticale fra le righe della testata lo dà il gap del heading.
+.count-detail__meta,
+.count-detail__notes,
+.count-detail__document-link {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.count-detail__document-link a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.count-detail__document-link a:hover {
+  text-decoration: underline;
+}
+
+.count-detail__review-banner {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--status-warning-bg);
+  border: var(--border-width) solid var(--status-warning-border);
+  border-radius: var(--radius-md);
+}
+
+.count-detail__review-banner--done {
+  background-color: var(--color-surface-sunken);
+  border-color: var(--color-border);
+}
+
+.count-detail__review-stats {
+  display: block;
+  margin-block-start: var(--space-2);
+  font-weight: var(--font-weight-medium);
+}
+
+.count-detail__scan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.count-detail__scan-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.count-detail__scan-intro {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.count-detail__scan-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@include bp.media-up('sm') {
+  .count-detail__scan-form {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+}
+
+.count-detail__scan-manual {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.count-detail__scan-scanner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.count-detail__scan-label--spacer {
+  visibility: hidden;
+  user-select: none;
+}
+
+.count-detail__scan-form app-barcode-scanner {
+  --button-h: var(--field-height);
+
+  align-self: auto;
+}
+
+@include bp.media-up('sm') {
+  .count-detail__scan-manual {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+}
+
+.count-detail__scan-field {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: var(--select-menu-width-wide);
+  max-inline-size: 100%;
+}
+
+.count-detail__scan-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.count-detail__scan-feedback {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.count-detail__scan-feedback--success {
+  color: var(--status-success-fg);
+}
+
+.count-detail__scan-feedback--error {
+  color: var(--status-error-fg);
+}
+
+.count-detail__row--highlight {
+  outline: var(--border-width-strong) solid var(--color-interactive);
+  outline-offset: calc(-1 * var(--border-width-strong));
+}
+
+.count-detail__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@include bp.media-up('md') {
+  .count-detail__toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.count-detail__search {
+  position: relative;
+  flex: 1 1 auto;
+  max-inline-size: 20rem;
+}
+
+.count-detail__search-icon {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: var(--space-3);
+  transform: translateY(-50%);
+  color: var(--color-text-subtle);
+  pointer-events: none;
+}
+
+.count-detail__input {
+  inline-size: 100%;
+  block-size: var(--field-height);
+  padding-inline: var(--space-8) var(--space-3);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.count-detail__input.count-detail__scan-input {
+  padding-inline: var(--space-3);
+  text-align: start;
+}
+
+.count-detail__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.count-detail__filter {
+  min-block-size: var(--btn-min-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.count-detail__filter--active {
+  color: var(--color-text);
+  border-color: var(--color-interactive);
+  background-color: var(--color-interactive-subtle);
+}
+
+.count-detail__table-scroll {
+  overflow-x: auto;
+}
+
+@include rt.list-card-table-host();
+@include rt.data-table-desktop('count-detail__table');
+@include rt.data-table-mobile-cards('count-detail__table');
+
+.count-detail__col--numeric,
+.count-detail__numeric {
+  text-align: end;
+}
+
+.count-detail__row--delta {
+  background-color: var(--status-warning-bg);
+}
+
+.count-detail__qty-input {
+  inline-size: 100%;
+  max-inline-size: 6rem;
+  block-size: var(--field-height);
+  padding-inline: var(--space-2);
+  font-size: var(--text-base);
+  text-align: start;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.count-detail__delta--pos {
+  color: var(--status-success-fg);
+}
+
+.count-detail__delta--neg {
+  color: var(--status-error-fg);
+}
+
+.count-detail__empty-filter {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

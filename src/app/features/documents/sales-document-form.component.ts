@@ -1,0 +1,1811 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  forkJoin,
+  map,
+  of,
+  startWith,
+  switchMap,
+  take,
+} from 'rxjs';
+import type { Subscription } from 'rxjs';
+
+import { NavigationHistoryService } from '@core/services/navigation-history.service';
+import { formatDate } from '@core/utils/date.util';
+import { AuthService } from '@core/auth';
+import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
+import { AppErrorKind, isAppError } from '@core/models/app-error.model';
+import type { AppError } from '@core/models/app-error.model';
+import { DocumentStatus, DocumentType, TransportPort } from '@core/models/document.model';
+import type { DocumentRecord } from '@core/models/document.model';
+import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
+import {
+  DEFAULT_CURRENCY,
+  formatMoney,
+  moneyToDecimalString,
+  parseMoneyInput,
+  toStorableMinor,
+} from '@core/utils/money.util';
+import {
+  formatDiscountPercentValue,
+  parseEffectiveDiscountPercent,
+} from '@core/utils/discount-percent.util';
+import { customerDisplayName, type Customer } from '@core/models/customer.model';
+import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
+import { VatCodeService } from '@core/services/vat-code.service';
+import { CustomerService } from '@domain/customers/services/customer.service';
+import {
+  ARTICLE_LISTINO_VALUE,
+  listinoSelectOptions,
+  listinoUnitPrice,
+  parseListinoChoice,
+  type DocumentListinoChoice,
+} from '@domain/documents/utils/document-listino.util';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+import { ProductService } from '@domain/products/services/product.service';
+import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-search.util';
+import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
+import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
+import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
+import type { TenantCompany } from '@domain/tenant/models/tenant-company.model';
+import { TenantCompanyService } from '@domain/tenant/services/tenant-company.service';
+import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
+import { ButtonComponent } from '@shared/components/button/button.component';
+import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
+import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DateInputComponent } from '@shared/components/date-input/date-input.component';
+import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
+import { formatItalianInputDate } from '@shared/utils/calendar.util';
+
+import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
+import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
+import {
+  includeSourceKindsForDocumentType,
+  type IncludedDocumentPayload,
+} from '@domain/documents/models/document-include.util';
+import {
+  documentReferenceLabel,
+  documentTypeLabel,
+} from '@domain/documents/models/document-labels.util';
+import {
+  isInvoiceAccompanyingDocumentType,
+  isInvoiceDraftDocumentType,
+  isProformaDocumentType,
+  isSalesFormDocumentType,
+  isSalesInvoiceDocumentType,
+} from '@domain/documents/models/document-sales.util';
+import {
+  TRANSPORT_INCOMPLETE_MESSAGE,
+  TRANSPORT_INCOMPLETE_TITLE,
+  transportDataIncomplete,
+} from '@domain/documents/models/document-transport.util';
+import { priceModeRowLabel } from '@domain/documents/models/document-price-mode.util';
+import {
+  grossFromNetMinor,
+  lineVatFromNetExact,
+  netFromGrossExact,
+  netFromGrossMinor,
+} from '@domain/documents/utils/document-vat.util';
+import { DocumentService } from '@domain/documents/services/document.service';
+import type { CreateDocumentBody } from '@domain/documents/services/document-api.mapper';
+import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
+import { pickVatCodeId, toVatCodeById } from './utils/vat-code-resolution.util';
+
+const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
+const VARIANT_SEARCH_DEBOUNCE_MS = 300;
+const VARIANT_SEARCH_MIN_CHARS = 2;
+
+type SubmitState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'saving' }
+  | { readonly status: 'error'; readonly error: AppError };
+
+@Component({
+  selector: 'app-sales-document-form',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    BackButtonComponent,
+    ButtonComponent,
+    ConfirmDialogComponent,
+    DocumentNumberFieldComponent,
+    DocumentSeriesManagerDialogComponent,
+    DateInputComponent,
+    DocumentIncludePanelComponent,
+    DocumentMobilePanelComponent,
+    SelectMenuComponent,
+    EmptyStateComponent,
+    ErrorStateComponent,
+    SlidePanelComponent,
+    TableSkeletonComponent,
+    EditLockBannerComponent,
+  ],
+  providers: [DocumentEditLockService],
+  templateUrl: './sales-document-form.component.html',
+  // Foglio nuovo (FASE 1): solo i delta che l'anatomia condivisa non copre.
+  styleUrl: './sales-document-form.component.scss',
+})
+export class SalesDocumentFormComponent {
+  private readonly fb = inject(NonNullableFormBuilder);
+  private readonly editLock = inject(DocumentEditLockService);
+  private readonly authService = inject(AuthService);
+  private readonly documentService = inject(DocumentService);
+  private readonly salesOrderService = inject(SalesOrderService);
+  private readonly countersService = inject(DocumentCountersService);
+  private readonly customerService = inject(CustomerService);
+  private readonly productService = inject(ProductService);
+  private readonly vatCodeService = inject(VatCodeService);
+  private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
+  private readonly tenantCompanyService = inject(TenantCompanyService);
+  private readonly router = inject(Router);
+  private readonly navHistory = inject(NavigationHistoryService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly listPath = '/app/documents';
+  protected readonly currency = DEFAULT_CURRENCY;
+  protected readonly formatMoney = formatMoney;
+  protected readonly proformaDisclaimer = PROFORMA_DISCLAIMER;
+  protected readonly DocumentType = DocumentType;
+
+  private readonly routeType = this.route.snapshot.data['salesDocumentType'] as
+    DocumentType | undefined;
+
+  private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
+  protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
+  protected readonly isEditMode = computed(() => Boolean(this.editDocumentId()));
+
+  private readonly loadedDocument = signal<DocumentRecord | null>(null);
+  /** Documento d'origine, se il form è aperto precompilato da una conversione. */
+  private readonly _sourceDocumentId = signal<string | null>(null);
+  /**
+   * Ordini cliente agganciati (Concludi ordine → Fattura accompagnatoria):
+   * inviati al salvataggio, si concludono alla conferma del documento.
+   */
+  private readonly _includedSalesOrderIds = signal<readonly string[]>([]);
+
+  /**
+   * Modalità prezzo del documento (netto/ivato). true = i prezzi riga si
+   * inseriscono e mostrano IVA inclusa (l'IVA si scorpora); false = netti.
+   * Sorgente iniziale: preferenza operatore (doc nuovo), documento (modifica),
+   * origine (documento generato/duplicato). Cambiandola i prezzi si convertono
+   * così i totali non si spostano.
+   */
+  protected readonly pricesIncludeVat = signal<boolean>(false);
+  protected readonly priceRowLabel = computed(() => priceModeRowLabel(this.pricesIncludeVat()));
+  protected readonly priceModeOptions: readonly SelectMenuOption[] = [
+    { value: 'net', label: 'Netto' },
+    { value: 'gross', label: 'Ivato' },
+  ];
+
+  // ── Listino del documento (§B4) ────────────────────────────────────────────
+  //
+  // Non è un dato del documento ma un modo di riempirlo: sceglierlo riscrive i
+  // prezzi delle righe, che restano modificabili una per una. Per questo non si
+  // memorizza — quello che conta sono i prezzi che restano nel documento.
+  protected readonly listinoChoice = signal<DocumentListinoChoice>('article');
+  protected readonly listinoOptions = computed(() => listinoSelectOptions(this.tenantSettings()));
+  protected readonly listinoValue = computed(() => {
+    const choice = this.listinoChoice();
+    return choice === 'article' ? ARTICLE_LISTINO_VALUE : String(choice);
+  });
+  /** Righe rimaste a zero perché l'articolo non ha un prezzo per quel listino. */
+  protected readonly listinoWarnings = signal<readonly string[]>([]);
+  protected readonly showListinoSelect = computed(() => this.listinoOptions().length > 1);
+
+  protected readonly documentType = computed(() => {
+    const loaded = this.loadedDocument()?.type;
+    if (loaded) {
+      return loaded;
+    }
+    return this.routeType ?? DocumentType.Proforma;
+  });
+
+  protected readonly isProforma = computed(() => isProformaDocumentType(this.documentType()));
+  protected readonly isInvoiceDraft = computed(() =>
+    isInvoiceDraftDocumentType(this.documentType()),
+  );
+
+  /** Fattura o Fattura accompagnatoria: testata fiscale e dati pagamento. */
+  protected readonly isSalesInvoice = computed(() =>
+    isSalesInvoiceDocumentType(this.documentType()),
+  );
+
+  /** Solo accompagnatoria: sezioni Trasporto e Destinazione. */
+  protected readonly isInvoiceAccompanying = computed(() =>
+    isInvoiceAccompanyingDocumentType(this.documentType()),
+  );
+
+  protected readonly hasLinkedDdt = computed(() => this.linkedDdtIds().length > 0);
+
+  /**
+   * Colonna «Scarica mag.»: presente solo nella Fattura accompagnatoria e solo
+   * se non è agganciato alcun DDT. Con un DDT le giacenze sono già state
+   * scaricate da quel documento, quindi la colonna non viene renderizzata.
+   */
+  protected readonly showLoadsStockColumn = computed(
+    () => this.isInvoiceAccompanying() && !this.hasLinkedDdt(),
+  );
+
+  // ── Includi documento (mappa in document-include.util): proforma e bozza
+  //     fattura non includono da nessun documento. ─────────────────────────
+  protected readonly includeSourceKinds = computed(() =>
+    includeSourceKindsForDocumentType(this.documentType()),
+  );
+  protected readonly includePanelOpen = signal(false);
+  protected readonly includeLaunchSeq = signal(0);
+
+  protected readonly confirmDialogMessage = computed(() => {
+    const base = 'Salvando verrà assegnato il numero progressivo e il documento sarà definitivo.';
+    // L'accompagnatoria senza DDT scarica davvero le giacenze: dirlo prima
+    // del salvataggio, non dopo.
+    if (this.showLoadsStockColumn()) {
+      return `${base} Le righe con «Scarica mag.» attivo scaricheranno le giacenze. Procedere?`;
+    }
+    if (this.isInvoiceAccompanying()) {
+      return `${base} Le giacenze sono già state scaricate dal DDT agganciato. Procedere?`;
+    }
+    return `${base} Il documento non muove il magazzino. Procedere?`;
+  });
+
+  protected readonly confirmDialogTitle = computed(() => 'Salva documento');
+
+  protected readonly confirmButtonLabel = computed(() => 'Salva');
+
+  protected readonly submitConfirmLabel = computed(() => 'Salva');
+
+  protected readonly isConfirmedEdit = computed(() => {
+    const doc = this.loadedDocument();
+    return doc != null && isConfirmedEditableDocumentStatus(doc.status);
+  });
+
+  /** Un confermato si apre bloccato: sola lettura finché l'operatore non sblocca. */
+  protected readonly formReadOnly = computed(
+    () => this.isConfirmedEdit() && !this.editLock.unlocked(),
+  );
+  protected readonly unlockDialogOpen = signal(false);
+
+  protected requestUnlock(): void {
+    this.unlockDialogOpen.set(true);
+  }
+
+  protected confirmUnlock(): void {
+    this.unlockDialogOpen.set(false);
+    this.editLock.unlock(this.editDocumentId());
+  }
+
+  protected readonly pageTitle = computed(() => {
+    const label = documentTypeLabel(this.documentType());
+    if (!this.isEditMode()) {
+      return `Nuova ${label.toLowerCase()}`;
+    }
+    return this.isConfirmedEdit()
+      ? `Modifica ${label.toLowerCase()} confermata`
+      : `Modifica ${label.toLowerCase()}`;
+  });
+
+  protected readonly form = this.fb.group({
+    customerId: this.fb.control('', { validators: [Validators.required] }),
+    locationId: this.fb.control(''),
+    documentDate: this.fb.control(new Date().toISOString().slice(0, 10), {
+      validators: [Validators.required],
+    }),
+    /** Numero documento: proposto dal progressivo di serie, editabile. */
+    documentNumber: this.fb.control<number | null>(null),
+    series: this.fb.control(''),
+    billingCause: this.fb.control(''),
+    relatedDdtRef: this.fb.control(''),
+    notes: this.fb.control(this.routeType === DocumentType.Proforma ? PROFORMA_DISCLAIMER : ''),
+    internalComment: this.fb.control(''),
+    documentDiscountPercent: this.fb.control(''),
+    // ── Fattura: dati pagamento in testata ──────────────────────────────
+    paymentTerms: this.fb.control(''),
+    paymentDueDate: this.fb.control(''),
+    iban: this.fb.control(''),
+    // ── Fattura accompagnatoria: trasporto (identico al DDT vendita) ────
+    transportCausal: this.fb.control(''),
+    transportStartAt: this.fb.control(''),
+    transportPort: this.fb.control(''),
+    transportCarrier: this.fb.control(''),
+    transportPackagesCount: this.fb.control(''),
+    transportWeight: this.fb.control(''),
+    transportGoodsAspect: this.fb.control(''),
+    transportShippingCode: this.fb.control(''),
+    transportTrackingCode: this.fb.control(''),
+    // ── Fattura accompagnatoria: indirizzo di destinazione ──────────────
+    destinationName: this.fb.control(''),
+    destinationAddress: this.fb.control(''),
+    destinationZip: this.fb.control(''),
+    destinationCity: this.fb.control(''),
+    destinationProvince: this.fb.control(''),
+    destinationCountry: this.fb.control(''),
+    lines: this.fb.array([this.createLine()]),
+  });
+
+  /** DDT agganciati («Riferimento DDT»): id selezionati, testata condivisa. */
+  protected readonly linkedDdtIds = signal<readonly string[]>([]);
+
+  /** «Cambia destinazione»: finché è false i campi restano quelli del cliente. */
+  protected readonly destinationOverridden = signal(false);
+
+  // Snapshot reattivo del form: i totali stimati (lineTotals) leggono valori dai
+  // FormControl, che non sono signal. Senza questa dipendenza il computed
+  // resterebbe memoizzato e i totali non si aggiornerebbero digitando quantità,
+  // prezzo o sconto (stesso pattern di goods-receipt-form.documentTotals).
+  private readonly formValue = toSignal(this.form.valueChanges, {
+    initialValue: this.form.getRawValue(),
+  });
+
+  private readonly selectedCustomer = signal<Customer | null>(null);
+
+  protected readonly confirmDialogOpen = signal(false);
+  /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
+  // Avviso «numero già assegnato»: la macchina a stati vive in domain, qui
+  // resta solo quale controllo della testata riceve il numero aggiornato.
+  private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
+  protected readonly conflictMessage = this.numberConflictDialog.message;
+
+  /** Contatori disponibili per la testata (tipo + sede): alimentano la tendina. */
+  private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
+  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] =>
+    this._availableCounters().map((counter) => ({
+      value: counter.series ?? '',
+      label: counter.series ?? 'Senza serie',
+    })),
+  );
+
+  /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
+  protected readonly seriesDialogOpen = signal(false);
+
+  private readonly _submitState = signal<SubmitState>({ status: 'idle' });
+  protected readonly saving = computed(() => this._submitState().status === 'saving');
+  protected readonly submitError = computed(() => {
+    const state = this._submitState();
+    return state.status === 'error' ? state.error : null;
+  });
+
+  private submitSubscription?: Subscription;
+
+  private readonly loadTick = signal(0);
+  private readonly loadState = toSignal(
+    toObservable(computed(() => ({ id: this.editDocumentId(), tick: this.loadTick() }))).pipe(
+      switchMap(({ id }) => {
+        if (!id) {
+          return of<'ready' | 'loading' | 'not-found' | 'error'>('ready');
+        }
+        return this.documentService.getDocumentById(id).pipe(
+          map((doc) => {
+            if (!isSalesFormDocumentType(doc.type)) {
+              return 'not-found' as const;
+            }
+            if (doc.linkedSalesOrder) {
+              return 'not-found' as const;
+            }
+            const editable =
+              doc.status === DocumentStatus.Draft || isConfirmedEditableDocumentStatus(doc.status);
+            if (!editable) {
+              return 'not-found' as const;
+            }
+            this.loadedDocument.set(doc);
+            // Confermato → si riapre bloccato (salvo sblocco già dato in sessione).
+            this.editLock.syncOnLoad(doc.id, isConfirmedEditableDocumentStatus(doc.status));
+            this.patchFormFromDocument(doc);
+            return 'ready' as const;
+          }),
+          startWith<'ready' | 'loading' | 'not-found' | 'error'>('loading'),
+          catchError(() => of('error' as const)),
+        );
+      }),
+    ),
+    { initialValue: this.editDocumentId() ? 'loading' : 'ready' },
+  );
+
+  protected readonly loading = computed(() => this.loadState() === 'loading');
+  protected readonly loadError = computed(() => this.loadState() === 'error');
+  protected readonly notEditable = computed(() => this.loadState() === 'not-found');
+
+  private readonly customersReload = signal(0);
+  private readonly customers = toSignal(
+    toObservable(this.customersReload).pipe(
+      switchMap(() => this.customerService.getCustomers({ page: 1, pageSize: 100, active: true })),
+      map((response) => response.data),
+    ),
+    { initialValue: [] },
+  );
+
+  protected readonly customerOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.customers().map((c) => ({
+      value: c.id,
+      label: customerDisplayName(c),
+    })),
+  );
+
+  // ── Codice IVA (§Piano IVA fase 3): stessa risoluzione di Arrivo merce, ma
+  // lato vendita (Codici IVA usageScope 'sales'/'both', nessun fornitore). ──
+  protected readonly vatCodes = toSignal(
+    this.vatCodeService.list().pipe(catchError(() => of([] as readonly VatCode[]))),
+    { initialValue: [] as readonly VatCode[] },
+  );
+
+  private readonly vatCodeById = computed(() => toVatCodeById(this.vatCodes()));
+
+  /** Codici attivi utilizzabili in vendita, ordinati come in Impostazioni. */
+  protected readonly salesVatOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.vatCodes()
+      .filter((vatCode) => vatCode.isActive && isSalesVatCode(vatCode))
+      .map((vatCode) => ({ value: vatCode.id, label: vatCodeOptionLabel(vatCode) })),
+  );
+
+  private readonly tenantSettings = toSignal(
+    this.tenantFeatureSettingsService.getSettings().pipe(catchError(() => of(null))),
+    { initialValue: null as TenantFeatureSettings | null },
+  );
+
+  /** Codice IVA predefinito aziendale (impostazioni → flag isDefault attivo). */
+  private readonly tenantDefaultVatCodeId = computed(() => {
+    const codes = this.vatCodes();
+    const settingsId = this.tenantSettings()?.defaultVatCodeId;
+    const fromSettings = settingsId
+      ? codes.find((vatCode) => vatCode.id === settingsId && vatCode.isActive)
+      : undefined;
+    const fallback = codes.find((vatCode) => vatCode.isDefault && vatCode.isActive);
+    return (fromSettings ?? fallback)?.id ?? '';
+  });
+
+  /** Dati cedente (Impostazioni negozio): precompilano l'IBAN in fattura. */
+  private readonly tenantCompany = toSignal(
+    this.tenantCompanyService.getCompany().pipe(catchError(() => of(null))),
+    { initialValue: null as TenantCompany | null },
+  );
+
+  /**
+   * DDT vendita agganciabili: quelli confermati del cliente selezionato.
+   * L'elenco si ricarica al cambio cliente — un DDT di un altro cliente non
+   * ha senso come riferimento di questa fattura.
+   */
+  private readonly selectableDdts = toSignal(
+    toObservable(computed(() => this.form.controls.customerId.value)).pipe(
+      switchMap((customerId) => {
+        if (!customerId) {
+          return of({ data: [] as readonly DocumentRecord[] });
+        }
+        return this.documentService
+          .getDocuments({
+            type: DocumentType.SalesDdt,
+            customerId,
+            page: 1,
+            pageSize: 50,
+          })
+          .pipe(catchError(() => of({ data: [] as readonly DocumentRecord[] })));
+      }),
+      map((response) => response.data),
+    ),
+    { initialValue: [] as readonly DocumentRecord[] },
+  );
+
+  protected readonly ddtOptions = computed<readonly SelectMenuOption[]>(() =>
+    this.selectableDdts()
+      .filter((ddt) => ddt.status !== DocumentStatus.Cancelled)
+      .map((ddt) => ({
+        value: ddt.id,
+        label: `${ddt.reference ?? `Bozza ${ddt.series}`} del ${formatDate(ddt.documentDate)}`,
+      })),
+  );
+
+  /** DDT agganciati con etichetta, per i chip di riepilogo in testata. */
+  protected readonly linkedDdts = computed(() => {
+    const options = this.ddtOptions();
+    return this.linkedDdtIds().map((id) => ({
+      id,
+      label: options.find((option) => option.value === id)?.label ?? id,
+    }));
+  });
+
+  /** Porto: stesse voci del DDT vendita. */
+  protected readonly transportPortOptions: readonly SelectMenuOption[] = [
+    { value: '', label: 'Non indicato' },
+    { value: 'franco', label: 'Franco' },
+    { value: 'assegnato', label: 'Assegnato' },
+  ];
+
+  protected readonly variantSearchDraft = signal('');
+
+  private readonly searchedVariants = toSignal(
+    toObservable(this.variantSearchDraft).pipe(
+      debounceTime(VARIANT_SEARCH_DEBOUNCE_MS),
+      distinctUntilChanged(),
+      switchMap((search) => {
+        const term = search.trim();
+        if (term.length < VARIANT_SEARCH_MIN_CHARS) {
+          return of([] as readonly VariantSummary[]);
+        }
+        return this.productService.searchVariantSummaries({ search: term, pageSize: 30 });
+      }),
+    ),
+    { initialValue: [] as readonly VariantSummary[] },
+  );
+
+  /**
+   * Costo d'acquisto nel selettore articolo (dato sensibile §permessi): senza
+   * "Visualizza costi d'acquisto" non compare, come già per la colonna Costo
+   * dell'Ordine cliente.
+   */
+  private readonly canSeeCosts = computed(() =>
+    canViewPurchaseCosts(this.authService.currentUser()),
+  );
+
+  protected readonly variantOptions = computed(() =>
+    toVariantSelectMenuOptions(mergeVariantSummaries(this.searchedVariants(), []), {
+      canSeeCosts: this.canSeeCosts(),
+    }),
+  );
+
+  protected readonly customerCommercialHint = computed(() => {
+    const customer = this.selectedCustomer();
+    if (!customer) {
+      return null;
+    }
+    const parts: string[] = [];
+    if (customer.customerDiscount?.trim()) {
+      parts.push(`Sconto cliente: ${customer.customerDiscount.trim()}`);
+    }
+    if (customer.paymentMethod?.trim()) {
+      parts.push(`Modalità: ${customer.paymentMethod.trim()}`);
+    }
+    if (customer.paymentTerms?.trim()) {
+      parts.push(`Pagamento: ${customer.paymentTerms.trim()}`);
+    }
+    if (customer.commercialNotes?.trim()) {
+      parts.push(customer.commercialNotes.trim());
+    }
+    return parts.length > 0 ? parts.join(' · ') : null;
+  });
+
+  /** "Mostra avviso" (anagrafica cliente): banner alla selezione. */
+  protected readonly customerDocumentAlert = computed(() => {
+    const alert = this.selectedCustomer()?.documentCreationAlert?.trim();
+    return alert ?? '';
+  });
+
+  /** Ultima nota anagrafica inserita in automatico nelle note documento. */
+  private lastAutoInsertedNote = '';
+
+  protected readonly lineTotals = computed(() => {
+    this.formValue();
+    let subtotalMinor = 0;
+    let taxMinor = 0;
+    for (const line of this.lines.controls) {
+      const qty = Number(line.controls.quantity.value) || 0;
+      const vat = Number(line.controls.vatRatePercent.value) || 0;
+      // Il prezzo di riga è netto: se a schermo si vede ivato, si scorpora
+      // PRIMA di moltiplicare, come fa il server con il valore che riceve.
+      const unitNetMinor = this.lineUnitNetMinor(line);
+      // L'imponibile di riga resta esatto fino a qui: si arrotonda una volta,
+      // e l'imposta nasce dal valore esatto. È così che un prezzo digitato
+      // ivato torna nel totale per intero (§sei decimali).
+      const discount = parseEffectiveDiscountPercent(line.controls.discountPercent.value);
+      const lineNetExactMinor = (qty * unitNetMinor * (100 - discount)) / 100;
+      subtotalMinor += Math.round(lineNetExactMinor);
+      taxMinor += lineVatFromNetExact(lineNetExactMinor, vat);
+    }
+    const docDiscount = parseEffectiveDiscountPercent(
+      this.form.controls.documentDiscountPercent.value,
+    );
+    const docMultiplier = (100 - docDiscount) / 100;
+    const adjustedSubtotal = Math.round(subtotalMinor * docMultiplier);
+    const adjustedTax = Math.round(taxMinor * docMultiplier);
+    return {
+      subtotal: { amountMinor: adjustedSubtotal, currencyCode: this.currency },
+      tax: { amountMinor: adjustedTax, currencyCode: this.currency },
+      total: { amountMinor: adjustedSubtotal + adjustedTax, currencyCode: this.currency },
+      grossSubtotal: { amountMinor: subtotalMinor, currencyCode: this.currency },
+      hasDocumentDiscount: docDiscount > 0,
+    };
+  });
+
+  /**
+   * Dettaglio IVA per aliquota: mostrato nei totali quando le righe usano
+   * aliquote miste. Lo sconto extra documento è già applicato, come nei totali,
+   * così la somma delle quote coincide sempre con l'IVA totale.
+   */
+  protected readonly vatBreakdown = computed(() => {
+    this.formValue();
+    const docDiscount = parseEffectiveDiscountPercent(
+      this.form.controls.documentDiscountPercent.value,
+    );
+    const docMultiplier = (100 - docDiscount) / 100;
+    const byRate = new Map<number, { netMinor: number; vatMinor: number }>();
+    for (const line of this.lines.controls) {
+      const qty = Number(line.controls.quantity.value) || 0;
+      const rate = Number(line.controls.vatRatePercent.value) || 0;
+      // Come nei totali: dal netto di riga, mai dal valore mostrato a schermo,
+      // e con l'imposta ricavata dall'imponibile esatto (§sei decimali).
+      const discount = parseEffectiveDiscountPercent(line.controls.discountPercent.value);
+      const netExact =
+        ((qty * this.lineUnitNetMinor(line) * (100 - discount)) / 100) * docMultiplier;
+      const net = Math.round(netExact);
+      if (net === 0) {
+        continue;
+      }
+      const vat = lineVatFromNetExact(netExact, rate);
+      const entry = byRate.get(rate) ?? { netMinor: 0, vatMinor: 0 };
+      entry.netMinor += net;
+      entry.vatMinor += vat;
+      byRate.set(rate, entry);
+    }
+    return [...byRate.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([ratePercent, entry]) => ({
+        ratePercent,
+        net: { amountMinor: entry.netMinor, currencyCode: this.currency },
+        vat: { amountMinor: entry.vatMinor, currencyCode: this.currency },
+      }));
+  });
+
+  /** Aliquote miste: solo allora il dettaglio per aliquota aggiunge informazione. */
+  protected readonly hasMixedVatRates = computed(() => this.vatBreakdown().length > 1);
+
+  // ── Testata a pannelli su mobile (adozione M1) — SOLO display ─────────────
+  // Concatenazioni di valori form già esistenti: nessuna logica nuova.
+
+  /** Pannello «Cliente e listino»: nome del cliente scelto o intestazione neutra. */
+  protected readonly customerPanelTitle = computed(() => {
+    this.formValue();
+    const customerId = this.form.controls.customerId.value;
+    return (
+      this.customerOptions().find((option) => option.value === customerId)?.label ??
+      'Cliente e listino'
+    );
+  });
+
+  /** Riepilogo sotto il titolo: data · modalità prezzo · listino scelto. */
+  protected readonly customerPanelSummaryParts = computed<readonly string[]>(() => {
+    this.formValue();
+    const documentDate = this.form.controls.documentDate.value;
+    const parts: string[] = [
+      documentDate ? formatItalianInputDate(documentDate) : 'Data non indicata',
+      this.pricesIncludeVat() ? 'Prezzi ivati' : 'Prezzi netti',
+    ];
+    if (this.showListinoSelect()) {
+      const listino = this.listinoOptions().find(
+        (option) => option.value === this.listinoValue(),
+      )?.label;
+      if (listino) {
+        parts.push(listino);
+      }
+    }
+    return parts;
+  });
+
+  /** Il cliente è l'unico dato di testata che blocca il salvataggio. */
+  protected readonly customerPanelReady = computed(() => {
+    this.formValue();
+    return this.form.controls.customerId.value !== '';
+  });
+
+  protected readonly customerPanelStatus = computed(() =>
+    this.customerPanelReady()
+      ? 'Dati principali completi.'
+      : 'Il cliente è obbligatorio per salvare.',
+  );
+
+  /** Pannello «Dettagli fattura»: pagamento · scadenza · DDT agganciati. */
+  protected readonly invoicePanelSummaryParts = computed<readonly string[]>(() => {
+    this.formValue();
+    const parts: string[] = [
+      this.form.controls.paymentTerms.value.trim() || 'Pagamento non indicato',
+    ];
+    const dueDate = this.form.controls.paymentDueDate.value;
+    if (dueDate) {
+      parts.push(`Scadenza ${formatItalianInputDate(dueDate)}`);
+    }
+    const ddtCount = this.linkedDdts().length;
+    if (ddtCount > 0) {
+      parts.push(ddtCount === 1 ? '1 DDT agganciato' : `${ddtCount} DDT agganciati`);
+    }
+    return parts;
+  });
+
+  /**
+   * Etichetta del documento per il breadcrumb: il numero quando c'è, altrimenti
+   * la dicitura di bozza/serie — mai il generico «Dettaglio».
+   */
+  private readonly breadcrumbLabel = computed(() => {
+    const doc = this.loadedDocument();
+    return doc ? documentReferenceLabel(doc.type, doc.reference, doc.series) : null;
+  });
+
+  constructor() {
+    // Carica i contatori disponibili (tendina serie); su documento nuovo
+    // propone il predefinito, in modifica resta il numero già assegnato.
+    afterNextRender(() => {
+      this.refreshNumberProposal();
+      this.prefillFromConversionIfRequested();
+      this.prefillFromIncludedOrderIfRequested();
+      this.prefillFromDuplicateIfRequested();
+      this.initPriceModeForNewDocument();
+    });
+
+    // Breadcrumb: numero del documento al posto del generico «Dettaglio».
+    bindBreadcrumbEntityLabel(() => ({
+      id: this.editDocumentId() || null,
+      label: this.breadcrumbLabel(),
+    }));
+    // Applica il Codice IVA predefinito alle righe ancora senza scelta non
+    // appena i Codici IVA sono disponibili (caricamento asincrono): copre la
+    // riga iniziale in creazione, senza toccare righe già valorizzate da un
+    // documento caricato o da una scelta esplicita dell'utente.
+    effect(() => {
+      if (this.vatCodes().length === 0) {
+        return;
+      }
+      for (const line of this.lines.controls) {
+        this.ensureLineVatCode(line);
+      }
+    });
+
+    // IBAN precompilato da Impostazioni negozio: solo in creazione e solo se
+    // l'operatore non ha già digitato il proprio. Su un documento caricato
+    // vince sempre l'IBAN salvato (snapshot storico).
+    effect(() => {
+      const iban = this.tenantCompany()?.profile.iban;
+      if (!iban || this.isEditMode() || this.form.controls.iban.value.trim()) {
+        return;
+      }
+      this.form.controls.iban.setValue(iban, { emitEvent: false });
+    });
+  }
+
+  protected get lines(): FormArray<ReturnType<SalesDocumentFormComponent['createLine']>> {
+    return this.form.controls.lines;
+  }
+
+  protected fieldInvalid(name: 'customerId' | 'locationId'): boolean {
+    const control = this.form.controls[name];
+    return control.invalid && (control.touched || control.dirty);
+  }
+
+  protected onCustomerSelect(value: string | null): void {
+    this.form.controls.customerId.setValue(value ?? '');
+    this.form.controls.customerId.markAsTouched();
+    const customer = value ? (this.customers().find((c) => c.id === value) ?? null) : null;
+    this.selectedCustomer.set(customer);
+    if (customer) {
+      this.applyCustomerCommercialDefaults(customer);
+    }
+  }
+
+  private applyCustomerCommercialDefaults(customer: Customer): void {
+    const discount = customer.customerDiscount?.trim();
+    if (discount) {
+      for (const line of this.lines.controls) {
+        if (!line.controls.discountPercent.value.trim()) {
+          line.controls.discountPercent.setValue(discount, { emitEvent: false });
+        }
+      }
+    }
+
+    const commentParts: string[] = [];
+    if (customer.paymentMethod?.trim()) {
+      commentParts.push(`Modalità di pagamento: ${customer.paymentMethod.trim()}`);
+    }
+    if (customer.paymentTerms?.trim()) {
+      commentParts.push(`Pagamento: ${customer.paymentTerms.trim()}`);
+    }
+    if (customer.commercialNotes?.trim()) {
+      commentParts.push(customer.commercialNotes.trim());
+    }
+    const internalControl = this.form.controls.internalComment;
+    if (commentParts.length > 0 && !internalControl.value.trim()) {
+      internalControl.setValue(commentParts.join('\n'));
+    }
+
+    // Condizioni di pagamento dai tipi pagamento in VestiFlow (anagrafica).
+    const termsControl = this.form.controls.paymentTerms;
+    if (customer.paymentTerms?.trim() && !termsControl.value.trim()) {
+      termsControl.setValue(customer.paymentTerms.trim());
+    }
+
+    // Incaricato del trasporto configurato sull'anagrafica del cliente.
+    const carrierControl = this.form.controls.transportCarrier;
+    if (customer.transportResponsible?.trim() && !carrierControl.value.trim()) {
+      carrierControl.setValue(customer.transportResponsible.trim());
+    }
+
+    this.applyDestinationFromCustomer(customer);
+    this.applyCustomerDocumentNote(customer);
+  }
+
+  /**
+   * Indirizzo di destinazione precompilato dall'anagrafica cliente. Non tocca
+   * nulla dopo un «Cambia destinazione»: da quel momento i campi appartengono
+   * all'operatore e un cambio cliente non deve sovrascriverli in silenzio.
+   */
+  private applyDestinationFromCustomer(customer: Customer): void {
+    if (this.destinationOverridden()) {
+      return;
+    }
+    this.form.patchValue(
+      {
+        destinationName: customerDisplayName(customer),
+        destinationAddress: customer.address?.line1 ?? '',
+        destinationZip: customer.address?.postalCode ?? '',
+        destinationCity: customer.address?.city ?? '',
+        destinationProvince: customer.address?.province ?? '',
+        destinationCountry: customer.address?.country ?? '',
+      },
+      { emitEvent: false },
+    );
+  }
+
+  /**
+   * "Inserisci nota" (anagrafica cliente): compila le note del documento con
+   * la nota configurata sul ruolo, preservando il disclaimer proforma e
+   * senza sovrascrivere testo digitato dall'operatore.
+   */
+  private applyCustomerDocumentNote(customer: Customer): void {
+    const note = customer.documentCreationNote?.trim() ?? '';
+    const control = this.form.controls.notes;
+    const current = control.value.trim();
+    const base = this.routeType === DocumentType.Proforma ? PROFORMA_DISCLAIMER : '';
+    const previousAuto = [base, this.lastAutoInsertedNote].filter(Boolean).join('\n');
+    if (note && (current === base.trim() || (previousAuto && current === previousAuto.trim()))) {
+      control.setValue([base, note].filter(Boolean).join('\n'));
+      this.lastAutoInsertedNote = note;
+    } else if (!note && previousAuto && current === previousAuto.trim()) {
+      control.setValue(base);
+      this.lastAutoInsertedNote = '';
+    }
+  }
+
+  // ── Riferimento DDT (aggancio opzionale 1:N) ────────────────────────────
+  protected onAddLinkedDdt(value: string | null): void {
+    if (!value || this.linkedDdtIds().includes(value)) {
+      return;
+    }
+    this.linkedDdtIds.update((ids) => [...ids, value]);
+  }
+
+  protected onRemoveLinkedDdt(id: string): void {
+    this.linkedDdtIds.update((ids) => ids.filter((current) => current !== id));
+  }
+
+  /** «Cambia destinazione»: sblocca i campi precompilati dall'anagrafica. */
+  protected onChangeDestination(): void {
+    this.destinationOverridden.set(true);
+  }
+
+  protected onVariantSearch(value: string): void {
+    this.variantSearchDraft.set(value);
+  }
+
+  protected onVariantSelect(index: number, variantId: string | null): void {
+    const line = this.lines.at(index);
+    line.controls.variantId.setValue(variantId ?? '');
+    const match = this.searchedVariants().find((v) => v.variantId === variantId);
+    if (match) {
+      line.controls.description.setValue(match.productName);
+      // «Scarica mag.» segue il tipo articolo già esistente in VestiFlow:
+      // un Articolo scarica, un Servizio no. Resta modificabile a mano.
+      line.controls.loadsStock.setValue(match.managesStock !== false, { emitEvent: false });
+      // Precedenza Codice IVA (§Piano IVA fase 3): articolo → aliquota legacy
+      // già presente (reverse-match) → predefinito aziendale. Va risolto PRIMA
+      // del prezzo: senza aliquota non si saprebbe come mostrarlo in ivato.
+      if (!line.controls.vatCodeId.value) {
+        const productVatCodeId = pickVatCodeId(
+          [match.defaultVatCodeId],
+          this.vatCodeById(),
+          isSalesVatCode,
+        );
+        if (productVatCodeId) {
+          line.controls.vatCodeId.setValue(productVatCodeId, { emitEvent: false });
+          this.syncLegacyVatRate(line);
+        }
+      }
+      this.ensureLineVatCode(line);
+      // Il prezzo d'anagrafica è netto: in modalità ivata si mostra con l'IVA,
+      // non si copia com'è (varrebbe il 22% in meno di quanto vale).
+      // Segue il listino scelto in testata (§B4): una riga aggiunta dopo aver
+      // scelto un listino nasce con quel prezzo, non col prezzo articolo.
+      const listinoPrice = listinoUnitPrice(match, this.listinoChoice());
+      line.controls.unitPrice.setValue(
+        this.priceFieldValue(listinoPrice?.amountMinor ?? 0, this.lineRatePercent(line)),
+      );
+    }
+  }
+
+  /** Opzioni della riga: codici attivi + eventuale codice storico disattivato. */
+  protected lineVatOptions(index: number): readonly SelectMenuOption[] {
+    const options = this.salesVatOptions();
+    const selectedId = this.lines.at(index)?.controls.vatCodeId.value;
+    if (!selectedId || options.some((option) => option.value === selectedId)) {
+      return options;
+    }
+    const selected = this.vatCodeById().get(selectedId);
+    if (!selected) {
+      return options;
+    }
+    return [...options, { value: selected.id, label: vatCodeOptionLabel(selected) }];
+  }
+
+  protected onLineVatSelect(index: number, value: string | null): void {
+    const line = this.lines.at(index);
+    if (!line) {
+      return;
+    }
+    line.controls.vatCodeId.setValue(value ?? '');
+    this.syncLegacyVatRate(line);
+  }
+
+  /** Allinea l'aliquota legacy al Codice IVA (dual-write, §Piano IVA fase 2). */
+  private syncLegacyVatRate(line: ReturnType<SalesDocumentFormComponent['createLine']>): void {
+    const vatCode = this.vatCodeById().get(line.controls.vatCodeId.value);
+    if (vatCode) {
+      line.controls.vatRatePercent.setValue(String(vatCode.ratePercent), { emitEvent: false });
+    }
+  }
+
+  /**
+   * Precedenza Codice IVA sulle righe senza scelta esplicita (§Piano IVA
+   * fase 3): aliquota legacy già presente → codice imponibile con la stessa
+   * aliquota (mai il default, per non alterare l'IVA voluta); altrimenti
+   * predefinito aziendale.
+   */
+  private ensureLineVatCode(line: ReturnType<SalesDocumentFormComponent['createLine']>): void {
+    if (line.controls.vatCodeId.value) {
+      return;
+    }
+    const raw = line.controls.vatRatePercent.value.trim();
+    if (raw) {
+      const rate = Number(raw);
+      const matched = Number.isFinite(rate)
+        ? this.vatCodes().find(
+            (vatCode) =>
+              isSalesVatCode(vatCode) &&
+              vatCode.isActive &&
+              vatCode.ratePercent === rate &&
+              (vatCode.calculationMode === 'standard' ||
+                (rate === 0 && vatCode.calculationMode === 'zero_rate')),
+          )
+        : undefined;
+      if (matched) {
+        line.controls.vatCodeId.setValue(matched.id, { emitEvent: false });
+        this.syncLegacyVatRate(line);
+      }
+      return;
+    }
+    const fallback = this.tenantDefaultVatCodeId();
+    if (fallback) {
+      line.controls.vatCodeId.setValue(fallback, { emitEvent: false });
+      this.syncLegacyVatRate(line);
+    }
+  }
+
+  protected addLine(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const line = this.createLine();
+    const discount = this.selectedCustomer()?.customerDiscount?.trim();
+    if (discount) {
+      line.controls.discountPercent.setValue(discount, { emitEvent: false });
+    }
+    this.ensureLineVatCode(line);
+    this.lines.push(line);
+  }
+
+  protected removeLine(index: number): void {
+    if (this.formReadOnly() || this.lines.length <= 1) {
+      return;
+    }
+    this.lines.removeAt(index);
+  }
+
+  // ── Includi documento: inserimento righe dal documento di origine ───────
+  protected openIncludePanel(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.includeLaunchSeq.update((seq) => seq + 1);
+    this.includePanelOpen.set(true);
+  }
+
+  protected closeIncludePanel(): void {
+    this.includePanelOpen.set(false);
+  }
+
+  /**
+   * Documento incluso (logica trasversale «Includi documento»): riga di testo
+   * descrittiva col riferimento all'origine (es. «Rif. Preventivo
+   * PRE-2026-0001 del 17/07/2026») seguita dalle righe articolo copiate.
+   * I dati di testata restano quelli del documento corrente.
+   */
+  protected onDocumentIncluded(payload: IncludedDocumentPayload): void {
+    this.closeIncludePanel();
+    const groups: ReturnType<SalesDocumentFormComponent['createLine']>[] = [];
+
+    const referenceLine = this.createLine();
+    referenceLine.patchValue(
+      { description: payload.referenceText, quantity: 1, vatRatePercent: '' },
+      { emitEvent: false },
+    );
+    groups.push(referenceLine);
+
+    for (const line of payload.lines) {
+      const group = this.createLine();
+      group.patchValue(
+        {
+          variantId: line.variantId ?? '',
+          description: line.description,
+          quantity: line.quantity,
+          discountPercent: line.discount,
+          vatCodeId: line.vatCodeId ?? '',
+          vatRatePercent: '',
+        },
+        { emitEvent: false },
+      );
+      if (group.controls.vatCodeId.value) {
+        this.syncLegacyVatRate(group);
+      } else {
+        this.ensureLineVatCode(group);
+      }
+      // Il documento di origine ha memorizzato il netto: qui si mostra nella
+      // modalità di questo documento, che può essere diversa da quella di là.
+      group.controls.unitPrice.setValue(
+        line.unitPriceMinor > 0
+          ? this.priceFieldValue(line.unitPriceMinor, this.lineRatePercent(group))
+          : '',
+        { emitEvent: false },
+      );
+      groups.push(group);
+    }
+
+    // Le righe incluse entrano prima delle eventuali righe vuote in coda.
+    let insertAt = this.lines.length;
+    while (insertAt > 0 && this.emptyIncludeTargetLine(this.lines.at(insertAt - 1))) {
+      insertAt -= 1;
+    }
+    groups.forEach((group, offset) => {
+      this.lines.insert(insertAt + offset, group);
+    });
+  }
+
+  /** Riga vuota (né descrizione né variante): le incluse le precedono. */
+  private emptyIncludeTargetLine(
+    line: ReturnType<SalesDocumentFormComponent['createLine']>,
+  ): boolean {
+    return !line.controls.description.value.trim() && !line.controls.variantId.value;
+  }
+
+  // ── Avviso dati trasporto/indirizzi (Fattura accompagnatoria, §AVVISI) ──
+  // Promemoria non bloccante al salvataggio: il documento viaggia con la
+  // merce, quindi i dati mancanti vanno segnalati — mai impediti.
+
+  protected readonly incompleteDataDialogOpen = signal(false);
+  protected readonly incompleteDataTitle = TRANSPORT_INCOMPLETE_TITLE;
+  protected readonly incompleteDataMessage = TRANSPORT_INCOMPLETE_MESSAGE;
+  /** Flusso sospeso in attesa della scelta: true = conferma, false = bozza. */
+  private pendingConfirmAfterIncomplete: boolean | null = null;
+
+  /** Dati trasporto/destinazione incompleti nei valori correnti del form. */
+  private transportIncomplete(): boolean {
+    const raw = this.form.getRawValue();
+    return transportDataIncomplete(this.documentType(), {
+      transportCausal: raw.transportCausal,
+      transportPort: raw.transportPort,
+      transportCarrier: raw.transportCarrier,
+      transportPackagesCount: raw.transportPackagesCount,
+      transportGoodsAspect: raw.transportGoodsAspect,
+      destinationAddress: {
+        name: raw.destinationName,
+        address: raw.destinationAddress,
+        zip: raw.destinationZip,
+        city: raw.destinationCity,
+        province: raw.destinationProvince,
+        country: raw.destinationCountry,
+      },
+    });
+  }
+
+  /** «Sì»: prosegue il flusso sospeso (salvataggio bozza o conferma). */
+  protected confirmIncompleteData(): void {
+    this.incompleteDataDialogOpen.set(false);
+    const confirmAfter = this.pendingConfirmAfterIncomplete;
+    this.pendingConfirmAfterIncomplete = null;
+    if (confirmAfter) {
+      this.confirmDialogOpen.set(true);
+      return;
+    }
+    void this.persist();
+  }
+
+  /** «No»: si resta in maschera per completare i dati. */
+  protected dismissIncompleteData(): void {
+    this.incompleteDataDialogOpen.set(false);
+    this.pendingConfirmAfterIncomplete = null;
+  }
+
+  protected saveDraft(): void {
+    if (this.transportIncomplete()) {
+      this.pendingConfirmAfterIncomplete = false;
+      this.incompleteDataDialogOpen.set(true);
+      return;
+    }
+    void this.persist();
+  }
+
+  protected requestConfirm(): void {
+    if (!this.validateForm()) {
+      return;
+    }
+    if (this.transportIncomplete()) {
+      this.pendingConfirmAfterIncomplete = true;
+      this.incompleteDataDialogOpen.set(true);
+      return;
+    }
+    this.confirmDialogOpen.set(true);
+  }
+
+  protected confirmAndSave(): void {
+    this.confirmDialogOpen.set(false);
+    void this.persist();
+  }
+
+  protected cancel(): void {
+    this.navHistory.backOr(this.listPath);
+  }
+
+  protected reload(): void {
+    this.loadTick.update((t) => t + 1);
+  }
+
+  private validateForm(): boolean {
+    if (this.form.invalid || this.hasInvalidPrice() || !this.hasValidLine()) {
+      this.form.markAllAsTouched();
+      return false;
+    }
+    return true;
+  }
+
+  private hasValidLine(): boolean {
+    return this.lines.controls.some(
+      (line) => line.controls.description.value.trim() && Number(line.controls.quantity.value) > 0,
+    );
+  }
+
+  private hasInvalidPrice(): boolean {
+    return this.lines.controls.some((line) => {
+      const value = line.controls.unitPrice.value.trim();
+      if (!value) {
+        return false;
+      }
+      const parsed = parseMoneyInput(value, this.currency);
+      return parsed === null || parsed.amountMinor < 0;
+    });
+  }
+
+  private persist(): void {
+    if (this.formReadOnly() || this.saving() || !this.validateForm()) {
+      return;
+    }
+    const raw = this.form.getRawValue();
+    const body = {
+      type: this.documentType(),
+      // Conversione: collega il documento generato all'origine (proforma/DDT).
+      sourceDocumentId: this._sourceDocumentId() ?? undefined,
+      // Concludi ordine → Fattura accompagnatoria: aggancia l'ordine di origine,
+      // che alla conferma del documento passa a Concluso (il resto lo ignora).
+      ...(this._includedSalesOrderIds().length > 0
+        ? { includedSalesOrderIds: this._includedSalesOrderIds() }
+        : {}),
+      documentDate: new Date(raw.documentDate).toISOString(),
+      customerId: raw.customerId,
+      currency: this.currency,
+      // Numero imposto in testata: non sposta il progressivo della serie.
+      number: raw.documentNumber ?? undefined,
+      series: (raw.series ?? '').trim() || undefined,
+      notes: raw.notes.trim() || undefined,
+      internalComment: raw.internalComment.trim() || undefined,
+      billingCause: raw.billingCause.trim() || undefined,
+      externalRef: raw.relatedDdtRef.trim() || undefined,
+      documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
+      pricesIncludeVat: this.pricesIncludeVat(),
+      ...(this.isSalesInvoice()
+        ? {
+            paymentTerms: raw.paymentTerms.trim() || undefined,
+            paymentDueDate: raw.paymentDueDate
+              ? new Date(raw.paymentDueDate).toISOString()
+              : undefined,
+            iban: raw.iban.trim() || undefined,
+            linkedSalesDdtIds: [...this.linkedDdtIds()],
+          }
+        : {}),
+      ...(this.isInvoiceAccompanying()
+        ? {
+            // La Fattura accompagnatoria scarica il magazzino (senza DDT
+            // agganciato): la location di origine è obbligatoria per lo scarico.
+            locationId: raw.locationId || undefined,
+            transportCausal: raw.transportCausal.trim() || undefined,
+            transportStartAt: raw.transportStartAt
+              ? new Date(raw.transportStartAt).toISOString()
+              : undefined,
+            transportPort: (raw.transportPort as TransportPort) || undefined,
+            transportCarrier: raw.transportCarrier.trim() || undefined,
+            transportPackagesCount: raw.transportPackagesCount
+              ? Number(raw.transportPackagesCount)
+              : undefined,
+            transportWeight: raw.transportWeight.trim() || undefined,
+            transportGoodsAspect: raw.transportGoodsAspect.trim() || undefined,
+            transportShippingCode: raw.transportShippingCode.trim() || undefined,
+            transportTrackingCode: raw.transportTrackingCode.trim() || undefined,
+            destinationAddress: {
+              name: raw.destinationName.trim() || undefined,
+              address: raw.destinationAddress.trim() || undefined,
+              zip: raw.destinationZip.trim() || undefined,
+              city: raw.destinationCity.trim() || undefined,
+              province: raw.destinationProvince.trim() || undefined,
+              country: raw.destinationCountry.trim() || undefined,
+            },
+          }
+        : {}),
+      lines: raw.lines
+        .filter((line) => line.description.trim() || line.variantId)
+        .map((line) => {
+          const price = parseMoneyInput(line.unitPrice, this.currency);
+          const ratePercent = Number(line.vatRatePercent) || 0;
+          return {
+            variantId: line.variantId || undefined,
+            description: line.description.trim() || 'Riga documento',
+            quantity: Number(line.quantity),
+            // Al server va il netto: se il campo mostrava l'ivato, si scorpora qui.
+            unitPriceMinor: this.netFromDisplayed(price?.amountMinor ?? 0, ratePercent),
+            vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
+            vatCodeId: line.vatCodeId || undefined,
+            discountPercent: parseEffectiveDiscountPercent(line.discountPercent),
+            // Proforma e Fattura non movimentano mai il magazzino. La Fattura
+            // accompagnatoria lo fa solo senza DDT agganciato: con un DDT le
+            // giacenze sono già scese, quindi le righe non devono scaricare.
+            loadsStock: this.showLoadsStockColumn() ? line.loadsStock : false,
+          };
+        }),
+    };
+
+    const editId = this.editDocumentId();
+    this._submitState.set({ status: 'saving' });
+
+    const save$ = editId
+      ? this.documentService.updateDocument(editId, body)
+      : this.documentService.createDocument(body);
+
+    // Nascita-confermato (Fase 3): create e update producono già un documento
+    // confermato in transazione — non esiste più un passaggio di conferma.
+    const request$ = save$;
+
+    this.submitSubscription?.unsubscribe();
+    this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (doc) => {
+        this._submitState.set({ status: 'idle' });
+        void this.router.navigate([this.listPath, doc.id]);
+      },
+      error: (err: unknown) => {
+        // Numero già preso: il vincolo del database non ammette duplicati,
+        // si può solo prendere il primo libero o correggere a mano.
+        const conflict = documentNumberConflictOf(err);
+        if (conflict) {
+          this._submitState.set({ status: 'idle' });
+          this.numberConflictDialog.open(conflict);
+          return;
+        }
+        this._submitState.set({ status: 'error', error: this.toAppError(err) });
+      },
+    });
+  }
+
+  /** Numero digitato in testata: vuoto = «assegnalo tu». */
+  protected onDocumentNumberChange(value: number | null): void {
+    this.form.controls.documentNumber.setValue(value);
+    this.form.controls.documentNumber.markAsDirty();
+  }
+
+  /** Cambio serie: il numero si riallinea al progressivo di quella serie. */
+  /** Serie scelta dall'operatore: il numero passa al progressivo di quel contatore. */
+  protected onSeriesChange(value: string): void {
+    this.form.controls.series.setValue(value);
+    this.form.controls.series.markAsDirty();
+    const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
+    if (counter) {
+      this.form.controls.documentNumber.setValue(counter.nextNumber);
+      this.form.controls.documentNumber.markAsPristine();
+    }
+  }
+
+  // ── Netto memorizzato, netto o ivato a schermo ────────────────────────────
+  //
+  // La riga porta sempre il prezzo NETTO: è quello che viene salvato e quello
+  // da cui si calcolano imposta e totali. La modalità dice soltanto come lo si
+  // vede e lo si digita.
+
+  /** Aliquota della riga (0 = nessuna imposta da aggiungere o scorporare). */
+  private lineRatePercent(line: ReturnType<SalesDocumentFormComponent['createLine']>): number {
+    return Number(line.controls.vatRatePercent.value) || 0;
+  }
+
+  /**
+   * Valore digitato nella modalità corrente → netto da MEMORIZZARE, quindi
+   * scorporato ESATTAMENTE: 123,97 ivati al 22% non hanno un netto intero, e
+   * arrotondarlo qui li farebbe tornare 123,96 alla riapertura (§sei decimali).
+   */
+  private netFromDisplayed(minor: number, ratePercent: number): number {
+    return this.pricesIncludeVat() && ratePercent > 0
+      ? toStorableMinor(netFromGrossExact(minor, ratePercent))
+      : minor;
+  }
+
+  /** Netto memorizzato → valore da mostrare nella modalità corrente. */
+  private displayedFromNet(minor: number, ratePercent: number): number {
+    return this.pricesIncludeVat() && ratePercent > 0
+      ? grossFromNetMinor(minor, ratePercent)
+      : minor;
+  }
+
+  /** Prezzo unitario netto della riga, qualunque cosa mostri il campo. */
+  private lineUnitNetMinor(line: ReturnType<SalesDocumentFormComponent['createLine']>): number {
+    const entered = parseMoneyInput(line.controls.unitPrice.value, this.currency);
+    return this.netFromDisplayed(entered?.amountMinor ?? 0, this.lineRatePercent(line));
+  }
+
+  /** Netto → stringa per il campo prezzo, nella modalità corrente. */
+  private priceFieldValue(netMinor: number, ratePercent: number): string {
+    const displayed = this.displayedFromNet(netMinor, ratePercent);
+    return moneyToDecimalString({ amountMinor: displayed, currencyCode: this.currency }).replace(
+      '.',
+      ',',
+    );
+  }
+
+  /**
+   * Cambio modalità prezzo dalla testata: converte i prezzi già inseriti
+   * (netto↔ivato per aliquota di riga) così l'importo effettivo delle righe — e
+   * i totali — non cambiano; muta solo come i valori sono interpretati e mostrati.
+   */
+  /**
+   * Cambio listino: riscrive il prezzo di ogni riga col valore che quel listino
+   * dà all'ARTICOLO — uguale per ogni taglia, come da modello.
+   *
+   * Le righe già in documento non portano con sé la scheda dell'articolo: le
+   * si rilegge qui, una volta, perché scegliere un listino è un gesto
+   * deliberato e raro. Un articolo senza valore per il listino scelto NON
+   * ripiega sul prezzo articolo: la riga va a zero e l'avviso dice quale.
+   */
+  protected onListinoChange(value: string | null): void {
+    const choice = parseListinoChoice(value);
+    this.listinoChoice.set(choice);
+    if (this.formReadOnly()) {
+      return;
+    }
+
+    const targets = this.lines.controls
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => Boolean(line.controls.variantId.value));
+    if (targets.length === 0) {
+      this.listinoWarnings.set([]);
+      return;
+    }
+
+    forkJoin(
+      targets.map(({ line }) =>
+        this.productService
+          .searchVariantSummaries({ variantId: line.controls.variantId.value })
+          .pipe(
+            map((rows) => rows[0] ?? null),
+            catchError(() => of(null)),
+          ),
+      ),
+    )
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((summaries) => {
+        const missing: string[] = [];
+        summaries.forEach((summary, position) => {
+          const target = targets[position];
+          if (!summary || !target) {
+            return;
+          }
+          const price = listinoUnitPrice(summary, choice);
+          if (!price) {
+            missing.push(target.line.controls.description.value.trim() || summary.title);
+          }
+          target.line.controls.unitPrice.setValue(
+            this.priceFieldValue(price?.amountMinor ?? 0, this.lineRatePercent(target.line)),
+          );
+        });
+        this.listinoWarnings.set(
+          missing.length === 0
+            ? []
+            : [
+                `${this.listinoLabel()}: nessun prezzo per ${
+                  missing.length === 1 ? "l'articolo" : 'gli articoli'
+                } ${missing.join(', ')}. ${
+                  missing.length === 1 ? 'La riga è rimasta' : 'Le righe sono rimaste'
+                } a zero.`,
+              ],
+        );
+      });
+  }
+
+  /** Nome del listino scelto, per gli avvisi. */
+  private listinoLabel(): string {
+    const value = this.listinoValue();
+    return this.listinoOptions().find((option) => option.value === value)?.label ?? 'Listino';
+  }
+
+  protected setPriceMode(pricesIncludeVat: boolean): void {
+    if (pricesIncludeVat === this.pricesIncludeVat() || this.formReadOnly()) {
+      return;
+    }
+    for (const line of this.lines.controls) {
+      const price = parseMoneyInput(line.controls.unitPrice.value, this.currency);
+      const rate = Number(line.controls.vatRatePercent.value) || 0;
+      if (!price || price.amountMinor <= 0 || rate <= 0) {
+        continue;
+      }
+      const converted = pricesIncludeVat
+        ? grossFromNetMinor(price.amountMinor, rate)
+        : netFromGrossMinor(price.amountMinor, rate);
+      line.controls.unitPrice.setValue(
+        moneyToDecimalString({ amountMinor: converted, currencyCode: this.currency }).replace(
+          '.',
+          ',',
+        ),
+        { emitEvent: false },
+      );
+    }
+    this.pricesIncludeVat.set(pricesIncludeVat);
+    this.form.markAsDirty();
+  }
+
+  /**
+   * Carica i contatori disponibili per (tipo, sede) e, su documento nuovo,
+   * propone il predefinito: serie + prossimo numero. Un numero digitato a mano
+   * non viene toccato.
+   */
+  private refreshNumberProposal(): void {
+    const locationId = this.form.controls.locationId.value || null;
+    this.countersService
+      .available(this.documentType(), locationId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters, proposedCounterId }) => {
+          this._availableCounters.set(counters);
+          // In modifica la serie/numero restano quelli del documento.
+          if (this.editDocumentId() || this.form.controls.documentNumber.dirty) {
+            return;
+          }
+          const proposed = counters.find((entry) => entry.id === proposedCounterId);
+          if (proposed) {
+            this.form.controls.series.setValue(proposed.series ?? '');
+            this.form.controls.documentNumber.setValue(proposed.nextNumber);
+          }
+        },
+        // Contatori non disponibili: il server assegnerà comunque il numero.
+        error: () => undefined,
+      });
+  }
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie del documento
+   * (una serie appena creata diventa scegliibile) SENZA riproporre serie/numero
+   * — la selezione corrente resta quella che era. Cambiando serie dalla tendina
+   * il numero si ricalcola come già avviene oggi.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    const locationId = this.form.controls.locationId.value || null;
+    this.countersService
+      .available(this.documentType(), locationId)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this._availableCounters.set(counters),
+        error: () => undefined,
+      });
+  }
+
+  /** «Usa N»: prende il primo numero libero e risalva. */
+  /**
+   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
+   * ferma. Il salvataggio resta una pressione esplicita di Salva.
+   */
+  protected acknowledgeConflictNumber(): void {
+    const nextAvailable = this.numberConflictDialog.acknowledge();
+    if (nextAvailable === null) {
+      return;
+    }
+    this.form.controls.documentNumber.setValue(nextAvailable);
+    this.form.controls.documentNumber.markAsDirty();
+  }
+
+  /**
+   * Apertura precompilata da una conversione (proforma/DDT → fattura/proforma):
+   * il param `fromDocument` chiede al backend il prefill (testata + righe +
+   * `sourceDocumentId`) senza creare nulla. Il documento nasce solo al Salva.
+   */
+  private prefillFromConversionIfRequested(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const fromDocument = this.route.snapshot.queryParamMap.get('fromDocument');
+    if (!fromDocument) {
+      return;
+    }
+    this.documentService
+      .convertPrefill(fromDocument, this.documentType())
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (prefill) => this.prefillFromConversion(prefill),
+        error: () => undefined,
+      });
+  }
+
+  /**
+   * «Concludi ordine» → Fattura accompagnatoria: il param `includeOrder` porta
+   * l'ordine cliente da concludere. Il backend restituisce il documento di
+   * scarico precompilato (righe già scontate, IVA, aggancio ordine); il form si
+   * apre pronto e il salvataggio crea+conferma+conclude in un'unica transazione.
+   */
+  private prefillFromIncludedOrderIfRequested(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const includeOrder = this.route.snapshot.queryParamMap.get('includeOrder');
+    if (!includeOrder) {
+      return;
+    }
+    this.salesOrderService
+      .concludeManualPrefill(includeOrder, this.documentType())
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (prefill) => this.prefillFromConversion(prefill),
+        error: () => undefined,
+      });
+  }
+
+  /**
+   * «Duplica documento» (Fase 3, no bozze): il param `duplicateFrom` porta il
+   * documento originale, di cui si copia il contenuto in un documento NUOVO —
+   * nessuna copia nasce a monte, si crea (confermato) solo al salvataggio.
+   */
+  private prefillFromDuplicateIfRequested(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const duplicateFrom = this.route.snapshot.queryParamMap.get('duplicateFrom');
+    if (!duplicateFrom) {
+      return;
+    }
+    this.documentService
+      .getDocumentById(duplicateFrom)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (doc) => this.applyDuplicatePrefill(doc),
+        error: () => undefined,
+      });
+  }
+
+  /**
+   * Documento nuovo «da zero»: la modalità prezzo parte dalla preferenza
+   * ricordata dell'operatore (?? primo utilizzo). I documenti generati o
+   * duplicati non passano di qui: ereditano la modalità dell'origine.
+   */
+  private initPriceModeForNewDocument(): void {
+    if (this.isEditMode()) {
+      return;
+    }
+    const params = this.route.snapshot.queryParamMap;
+    if (params.get('fromDocument') || params.get('includeOrder') || params.get('duplicateFrom')) {
+      return;
+    }
+    this.documentService
+      .getPriceModePreference(this.documentType())
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (pricesIncludeVat) => this.pricesIncludeVat.set(pricesIncludeVat),
+        error: () => undefined,
+      });
+  }
+
+  private applyDuplicatePrefill(doc: DocumentRecord): void {
+    this.patchFormFromDocument(doc);
+    // Documento indipendente: si azzerano identità e collegamenti dell'originale
+    // (numero, serie, riferimenti, DDT agganciati); la data è quella odierna.
+    this.form.patchValue({
+      documentNumber: null,
+      series: '',
+      documentDate: new Date().toISOString().slice(0, 10),
+      relatedDdtRef: '',
+    });
+    this.linkedDdtIds.set([]);
+    this._sourceDocumentId.set(null);
+    this._includedSalesOrderIds.set([]);
+    this.refreshNumberProposal();
+  }
+
+  private prefillFromConversion(prefill: CreateDocumentBody): void {
+    this._sourceDocumentId.set(prefill.sourceDocumentId ?? null);
+    this._includedSalesOrderIds.set([...(prefill.includedSalesOrderIds ?? [])]);
+    // Documento generato: eredita la modalità prezzo dell'origine (dal prefill).
+    if (prefill.pricesIncludeVat !== undefined) {
+      this.pricesIncludeVat.set(prefill.pricesIncludeVat);
+    }
+    this.form.patchValue({
+      customerId: prefill.customerId ?? '',
+      locationId: prefill.locationId ?? '',
+      documentDate: prefill.documentDate.slice(0, 10),
+      billingCause: prefill.billingCause ?? '',
+      relatedDdtRef: prefill.externalRef ?? '',
+      notes: prefill.notes ?? '',
+      internalComment: prefill.internalComment ?? '',
+      paymentTerms: prefill.paymentTerms ?? '',
+      documentDiscountPercent:
+        prefill.documentDiscountPercent && prefill.documentDiscountPercent > 0
+          ? formatDiscountPercentValue(Number(prefill.documentDiscountPercent))
+          : '',
+    });
+    if (prefill.customerId) {
+      this.selectedCustomer.set(this.customers().find((c) => c.id === prefill.customerId) ?? null);
+    }
+    this.lines.clear();
+    for (const line of prefill.lines ?? []) {
+      this.lines.push(
+        this.fb.group({
+          variantId: this.fb.control(line.variantId ?? ''),
+          description: this.fb.control(line.description, { validators: [Validators.required] }),
+          quantity: this.fb.control(line.quantity, {
+            validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
+          }),
+          // Prezzo memorizzato netto: mostrato nella modalità di questo documento.
+          unitPrice: this.fb.control(
+            Number(line.unitPriceMinor) > 0
+              ? this.priceFieldValue(Number(line.unitPriceMinor), line.vatRatePercent ?? 0)
+              : '',
+          ),
+          vatRatePercent: this.fb.control(
+            line.vatRatePercent != null ? String(line.vatRatePercent) : '',
+          ),
+          vatCodeId: this.fb.control(''),
+          discountPercent: this.fb.control(
+            line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
+          ),
+          loadsStock: this.fb.control(line.loadsStock ?? false),
+        }),
+      );
+    }
+    if (this.lines.length === 0) {
+      this.lines.push(this.createLine());
+    }
+  }
+
+  private patchFormFromDocument(doc: DocumentRecord): void {
+    // Documento esistente: si mostra la modalità con cui è stato creato.
+    this.pricesIncludeVat.set(doc.pricesIncludeVat);
+    this.form.patchValue({
+      customerId: doc.customerId ?? '',
+      locationId: doc.locationId ?? '',
+      documentDate: doc.documentDate.slice(0, 10),
+      documentNumber: doc.number ?? null,
+      series: doc.series ?? '',
+      billingCause: doc.billingCause ?? '',
+      relatedDdtRef: doc.externalRef ?? '',
+      notes: doc.notes ?? '',
+      internalComment: doc.internalComment ?? '',
+      documentDiscountPercent:
+        doc.documentDiscountPercent && doc.documentDiscountPercent > 0
+          ? formatDiscountPercentValue(Number(doc.documentDiscountPercent))
+          : '',
+      paymentTerms: doc.paymentTerms ?? '',
+      paymentDueDate: doc.paymentDueDate?.slice(0, 10) ?? '',
+      iban: doc.iban ?? '',
+      transportCausal: doc.transportCausal ?? '',
+      // datetime-local vuole «YYYY-MM-DDTHH:mm», senza secondi né fuso.
+      transportStartAt: doc.transportStartAt?.slice(0, 16) ?? '',
+      transportPort: doc.transportPort ?? '',
+      transportCarrier: doc.transportCarrier ?? '',
+      transportPackagesCount:
+        doc.transportPackagesCount != null ? String(doc.transportPackagesCount) : '',
+      transportWeight: doc.transportWeight ?? '',
+      transportGoodsAspect: doc.transportGoodsAspect ?? '',
+      transportShippingCode: doc.transportShippingCode ?? '',
+      transportTrackingCode: doc.transportTrackingCode ?? '',
+      destinationName: doc.destinationAddress?.name ?? '',
+      destinationAddress: doc.destinationAddress?.address ?? '',
+      destinationZip: doc.destinationAddress?.zip ?? '',
+      destinationCity: doc.destinationAddress?.city ?? '',
+      destinationProvince: doc.destinationAddress?.province ?? '',
+      destinationCountry: doc.destinationAddress?.country ?? '',
+    });
+    this.linkedDdtIds.set((doc.linkedSalesDdts ?? []).map((ddt) => ddt.id));
+    // Una destinazione già salvata è per definizione quella voluta: il
+    // pulsante «Cambia destinazione» parte quindi già in modalità modifica.
+    this.destinationOverridden.set(Boolean(doc.destinationAddress?.address));
+    if (doc.customerId) {
+      const customer = this.customers().find((c) => c.id === doc.customerId) ?? null;
+      this.selectedCustomer.set(customer);
+    }
+    this.lines.clear();
+    for (const line of doc.lines ?? []) {
+      this.lines.push(
+        this.fb.group({
+          variantId: this.fb.control(line.variantId ?? ''),
+          description: this.fb.control(line.description, { validators: [Validators.required] }),
+          quantity: this.fb.control(line.quantity, {
+            validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
+          }),
+          // Il documento ha memorizzato il netto: si rimostra nella modalità con
+          // cui era stato compilato, che è l'unica cosa che quel flag racconta.
+          unitPrice: this.fb.control(
+            this.priceFieldValue(line.unitPrice.amountMinor, line.vatSnapshot?.ratePercent ?? 0),
+          ),
+          vatRatePercent: this.fb.control(line.vatSnapshot?.ratePercent?.toString() ?? ''),
+          vatCodeId: this.fb.control(line.vatCodeId ?? ''),
+          discountPercent: this.fb.control(
+            line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
+          ),
+          loadsStock: this.fb.control(line.loadsStock),
+        }),
+      );
+    }
+    if (this.lines.length === 0) {
+      this.lines.push(this.createLine());
+    }
+  }
+
+  private createLine() {
+    return this.fb.group({
+      variantId: this.fb.control(''),
+      description: this.fb.control('', { validators: [Validators.required] }),
+      quantity: this.fb.control(1, {
+        validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
+      }),
+      unitPrice: this.fb.control(''),
+      vatRatePercent: this.fb.control('22'),
+      vatCodeId: this.fb.control(''),
+      discountPercent: this.fb.control(''),
+      // «Scarica mag.»: il default segue il tipo articolo già in VestiFlow
+      // (Articolo scarica, Servizio no). Righe senza variante non muovono nulla.
+      loadsStock: this.fb.control(false),
+    });
+  }
+
+  private toAppError(err: unknown): AppError {
+    if (isAppError(err)) {
+      return err;
+    }
+    return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
+  }
+}

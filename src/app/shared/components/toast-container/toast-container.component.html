@@ -1,0 +1,21 @@
+@if (toastService.toasts().length > 0) {
+  <div class="toast-container" aria-live="polite" aria-relevant="additions">
+    @for (toast of toastService.toasts(); track toast.id) {
+      <div
+        class="toast toast--{{ toast.tone }}"
+        role="status"
+        [attr.aria-label]="toast.tone === 'error' ? 'Errore' : 'Informazione'"
+      >
+        <p class="toast__message">{{ toast.message }}</p>
+        <button
+          type="button"
+          class="toast__dismiss"
+          (click)="toastService.dismiss(toast.id)"
+          [attr.aria-label]="'Chiudi notifica'"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+    }
+  </div>
+}

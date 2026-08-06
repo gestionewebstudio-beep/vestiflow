@@ -1,0 +1,46 @@
+:host {
+  display: block;
+}
+
+.corrispettivi-deliveries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.corrispettivi-deliveries__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.corrispettivi-deliveries__empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.corrispettivi-deliveries__wrap {
+  overflow-x: auto;
+}
+
+.corrispettivi-deliveries__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.corrispettivi-deliveries__table th,
+.corrispettivi-deliveries__table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+  text-align: left;
+}
+
+.corrispettivi-deliveries__cell--num {
+  text-align: right;
+}

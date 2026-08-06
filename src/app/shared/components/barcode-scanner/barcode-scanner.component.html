@@ -1,0 +1,25 @@
+<div class="barcode-scanner">
+  @if (!scanning()) {
+    <div class="barcode-scanner__control">
+      <app-button variant="secondary" [disabled]="!detectorSupported()" (click)="startScan()">
+        <i class="pi pi-camera" aria-hidden="true"></i>
+        {{ label() }}
+      </app-button>
+    </div>
+  } @else {
+    <div class="barcode-scanner__viewport">
+      <video
+        #video
+        class="barcode-scanner__video"
+        playsinline
+        muted
+        aria-label="Anteprima fotocamera per scansione barcode"
+      ></video>
+      <app-button variant="ghost" (click)="stopScan()">Chiudi scanner</app-button>
+    </div>
+  }
+
+  @if (errorMessage(); as message) {
+    <p class="barcode-scanner__error barcode-scanner__caption" role="alert">{{ message }}</p>
+  }
+</div>

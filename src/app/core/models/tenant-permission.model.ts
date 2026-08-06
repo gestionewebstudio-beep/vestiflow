@@ -1,0 +1,211 @@
+import { UserRole } from '@core/models/user.model';
+
+/** Permessi granulari tenant. Il titolare ha sempre accesso pieno. */
+export const TenantPermission = {
+  InventoryViewAllLocations: 'inventory.view_all_locations',
+  InventoryManage: 'inventory.manage',
+  InventoryImportExport: 'inventory.import_export',
+  CatalogManage: 'catalog.manage',
+  CatalogImportExport: 'catalog.import_export',
+  CatalogDelete: 'catalog.delete',
+  CatalogViewPurchaseCosts: 'catalog.view_purchase_costs',
+  SupplierOrdersManage: 'supplier_orders.manage',
+  SupplierOrdersReceive: 'supplier_orders.receive',
+  DocumentsView: 'documents.view',
+  DocumentsManage: 'documents.manage',
+  RetailRegister: 'retail.register',
+  RetailRegisterOnline: 'retail.register_online',
+  ReportsView: 'reports.view',
+  ReportsExport: 'reports.export',
+  SettingsCompany: 'settings.company',
+  CustomersView: 'customers.view',
+  CustomersManage: 'customers.manage',
+} as const;
+
+export type TenantPermissionKey = (typeof TenantPermission)[keyof typeof TenantPermission];
+
+export const ALL_TENANT_PERMISSIONS = Object.values(
+  TenantPermission,
+) as readonly TenantPermissionKey[];
+
+export interface TenantPermissionDefinition {
+  readonly key: TenantPermissionKey;
+  readonly label: string;
+  readonly hint: string;
+  readonly group:
+    | 'inventory'
+    | 'catalog'
+    | 'orders'
+    | 'documents'
+    | 'reports'
+    | 'settings'
+    | 'customers';
+}
+
+export const TENANT_PERMISSION_DEFINITIONS: readonly TenantPermissionDefinition[] = [
+  {
+    key: TenantPermission.InventoryViewAllLocations,
+    label: 'Vedere giacenze di tutte le sedi',
+    hint: 'Consulta stock e movimenti oltre la sede assegnata (le azioni restano sulla sede operativa).',
+    group: 'inventory',
+  },
+  {
+    key: TenantPermission.InventoryManage,
+    label: 'Gestire giacenze',
+    hint: 'Carichi, scarichi, trasferimenti verso altre sedi, rettifiche e conteggi sulla sede operativa.',
+    group: 'inventory',
+  },
+  {
+    key: TenantPermission.InventoryImportExport,
+    label: 'Import/export e sync giacenze',
+    hint: 'Esporta e importa CSV giacenze e sincronizza lo stock da Shopify.',
+    group: 'inventory',
+  },
+  {
+    key: TenantPermission.CatalogManage,
+    label: 'Gestire catalogo',
+    hint: 'Crea e modifica prodotti, varianti e prezzi.',
+    group: 'catalog',
+  },
+  {
+    key: TenantPermission.CatalogImportExport,
+    label: 'Import/export e sync prodotti',
+    hint: 'Esporta e importa CSV catalogo e sincronizza i prodotti da Shopify.',
+    group: 'catalog',
+  },
+  {
+    key: TenantPermission.CatalogDelete,
+    label: 'Eliminare prodotti',
+    hint: 'Rimuove prodotti dal catalogo.',
+    group: 'catalog',
+  },
+  {
+    key: TenantPermission.CatalogViewPurchaseCosts,
+    label: "Visualizza costi d'acquisto",
+    hint: "Mostra il costo d'acquisto degli articoli dove si vende (es. colonna Costo nell'Ordine cliente).",
+    group: 'catalog',
+  },
+  {
+    key: TenantPermission.SupplierOrdersManage,
+    label: 'Gestire ordini fornitore',
+    hint: 'Crea, modifica e invia ordini ai fornitori.',
+    group: 'orders',
+  },
+  {
+    key: TenantPermission.SupplierOrdersReceive,
+    label: 'Ricevere ordini fornitore',
+    hint: 'Registra la merce in arrivo da ordini fornitore.',
+    group: 'orders',
+  },
+  {
+    key: TenantPermission.DocumentsView,
+    label: 'Consultare documenti',
+    hint: 'Registro documenti (DDT, carichi, trasferimenti, inventari, proforma) in sola lettura.',
+    group: 'documents',
+  },
+  {
+    key: TenantPermission.DocumentsManage,
+    label: 'Gestire documenti',
+    hint: 'Crea, modifica, conferma, stampa e annulla documenti; configura serie e numeratori.',
+    group: 'documents',
+  },
+  {
+    key: TenantPermission.RetailRegister,
+    label: 'Registrare vendite al banco',
+    hint: 'Vendite e storni da registratore/cassiere.',
+    group: 'orders',
+  },
+  {
+    key: TenantPermission.RetailRegisterOnline,
+    label: 'Registrare vendite online',
+    hint: 'Vendite e storni online registrati manualmente.',
+    group: 'orders',
+  },
+  {
+    key: TenantPermission.ReportsView,
+    label: 'Consultare report',
+    hint: 'Accesso alle schermate report e dashboard analitiche.',
+    group: 'reports',
+  },
+  {
+    key: TenantPermission.ReportsExport,
+    label: 'Esportare dati',
+    hint: 'Export CSV di vendite, clienti e giacenze.',
+    group: 'reports',
+  },
+  {
+    key: TenantPermission.SettingsCompany,
+    label: 'Impostazioni azienda',
+    hint: 'Dati societari e preferenze generali del negozio.',
+    group: 'settings',
+  },
+  {
+    key: TenantPermission.CustomersView,
+    label: 'Visualizzare clienti',
+    hint: 'Anagrafica clienti in sola lettura.',
+    group: 'customers',
+  },
+  {
+    key: TenantPermission.CustomersManage,
+    label: 'Gestire clienti',
+    hint: 'Crea e modifica anagrafiche clienti.',
+    group: 'customers',
+  },
+];
+
+const ADMIN_DEFAULTS: readonly TenantPermissionKey[] = ALL_TENANT_PERMISSIONS;
+
+const MANAGER_DEFAULTS: readonly TenantPermissionKey[] = [
+  TenantPermission.InventoryViewAllLocations,
+  TenantPermission.InventoryManage,
+  TenantPermission.InventoryImportExport,
+  TenantPermission.CatalogManage,
+  TenantPermission.CatalogImportExport,
+  TenantPermission.CatalogViewPurchaseCosts,
+  TenantPermission.SupplierOrdersManage,
+  TenantPermission.SupplierOrdersReceive,
+  TenantPermission.DocumentsView,
+  TenantPermission.DocumentsManage,
+  TenantPermission.RetailRegister,
+  TenantPermission.RetailRegisterOnline,
+  TenantPermission.ReportsView,
+  TenantPermission.ReportsExport,
+  TenantPermission.CustomersView,
+  TenantPermission.CustomersManage,
+];
+
+const CLERK_DEFAULTS: readonly TenantPermissionKey[] = [
+  TenantPermission.InventoryManage,
+  TenantPermission.SupplierOrdersReceive,
+  TenantPermission.DocumentsView,
+  TenantPermission.RetailRegister,
+  TenantPermission.RetailRegisterOnline,
+  TenantPermission.ReportsView,
+  TenantPermission.CustomersView,
+];
+
+export const ROLE_DEFAULT_PERMISSIONS: Readonly<Record<UserRole, readonly TenantPermissionKey[]>> =
+  {
+    [UserRole.Owner]: ALL_TENANT_PERMISSIONS,
+    [UserRole.Admin]: ADMIN_DEFAULTS,
+    [UserRole.Manager]: MANAGER_DEFAULTS,
+    [UserRole.Clerk]: CLERK_DEFAULTS,
+  };
+
+export const TENANT_PERMISSION_GROUP_LABELS: Record<TenantPermissionDefinition['group'], string> = {
+  inventory: 'Magazzino',
+  catalog: 'Catalogo',
+  orders: 'Ordini e vendite',
+  documents: 'Documenti',
+  reports: 'Report',
+  settings: 'Impostazioni',
+  customers: 'Clienti',
+};
+
+export function isTenantPermissionKey(value: string): value is TenantPermissionKey {
+  return (ALL_TENANT_PERMISSIONS as readonly string[]).includes(value);
+}
+
+export function defaultPermissionsForRole(role: UserRole): readonly TenantPermissionKey[] {
+  return ROLE_DEFAULT_PERMISSIONS[role] ?? [];
+}

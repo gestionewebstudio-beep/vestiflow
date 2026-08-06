@@ -1,23 +1,71 @@
-<div class="shell" [class.shell--drawer-open]="drawerOpen()">
+<div
+  class="shell"
+  [class.shell--drawer-open]="drawerOpen()"
+  [class.shell--support-banner]="showSupportSessionBanner()"
+>
+  <app-pwa-update-banner />
+  @if (showShopifyErrorBanner()) {
+    <div class="shell__shopify-banner" role="status">
+      <p class="shell__shopify-banner-text">
+        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+        Sync Shopify: {{ shopifyErrorBannerMessage() }}
+        <a class="shell__shopify-banner-link" routerLink="/app/settings">Apri impostazioni</a>
+      </p>
+      <button
+        type="button"
+        class="shell__shopify-banner-dismiss"
+        (click)="dismissShopifyErrorBanner()"
+      >
+        Chiudi
+      </button>
+    </div>
+  }
   <!-- Topbar persistente: dumb, parla allo shell via output(). -->
   <header class="shell__topbar">
     <app-topbar
-      [themeMode]="themeMode()"
       [user]="currentUser()"
-      [locations]="locations()"
+      [locations]="topbarLocations()"
       [activeLocationId]="activeLocationId()"
-      [syncStatus]="shopifySyncStatus()"
+      [locationSelectorLocked]="locationSelectorLocked()"
+      [fixedLocationLabel]="fixedLocationLabel()"
+      [syncStatus]="shopifySyncStatusForTopbar()"
+      [shopifyLastSyncAt]="shopifyLastSyncAt()"
+      [shopifyAutoSyncEnabled]="shopifyAutoSyncEnabled()"
+      [shopifyLastError]="shopifyLastError()"
       (menuToggle)="toggleDrawer()"
-      (themeModeChange)="onThemeModeChange($event)"
+      (searchClick)="openGlobalSearch()"
       (locationChange)="onLocationChange($event)"
       (syncClick)="onSyncClick()"
-      (logout)="onLogout()"
+      (settingsClick)="onSettingsClick()"
+      (logout)="onLogoutRequest()"
     />
   </header>
 
+  <!-- Ricerca globale ⌘K: pagine (gia' filtrate per permessi) + entita'. -->
+  <app-global-search
+    [open]="globalSearchOpen()"
+    [navSections]="navSections()"
+    (closed)="globalSearchOpen.set(false)"
+  />
+
+  <app-confirm-dialog
+    [(open)]="logoutDialogOpen"
+    title="Uscire dall'applicazione?"
+    message="La sessione verrà chiusa e dovrai accedere di nuovo per continuare."
+    confirmLabel="Esci"
+    cancelLabel="Annulla"
+    (confirmed)="onLogoutConfirm()"
+  />
+
   <!-- Sidebar persistente (desktop) / drawer (mobile). -->
   <aside id="shell-sidebar" class="shell__sidebar">
-    <app-sidebar [items]="navItems" [drawerOpen]="drawerOpen()" (closeRequested)="closeDrawer()" />
+    <app-sidebar
+      [sections]="navSections()"
+      [showLogout]="showSidebarLogout()"
+      [drawerOpen]="drawerOpen()"
+      (closeRequested)="closeDrawer()"
+      (logoutRequested)="onLogoutFromSidebar()"
+    />
   </aside>
 
   <!-- Backdrop: solo mobile, quando il drawer e' aperto. -->
@@ -32,6 +80,25 @@
 
   <!-- Unica regione principale di scroll. -->
   <main class="shell__content">
+    <app-breadcrumbs />
     <router-outlet />
   </main>
+
+  @if (showSupportSessionBanner()) {
+    <div class="shell__support-banner" role="status">
+      <p class="shell__support-banner-text">
+        <i class="pi pi-headphones" aria-hidden="true"></i>
+        Assistenza — {{ supportSession()?.targetTenantName }}
+        <span class="shell__support-banner-meta">Sessione attiva (max 2 ore)</span>
+      </p>
+      <button
+        type="button"
+        class="shell__support-banner-exit"
+        [disabled]="supportSessionEndLoading()"
+        (click)="onEndSupportSession()"
+      >
+        Esci dall'assistenza
+      </button>
+    </div>
+  }
 </div>

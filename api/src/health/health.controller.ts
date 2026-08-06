@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -6,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
  * Healthcheck per Railway/monitoring: `/health` verifica processo e
  * raggiungibilita' del database. Nessun dettaglio interno esposto.
  */
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}

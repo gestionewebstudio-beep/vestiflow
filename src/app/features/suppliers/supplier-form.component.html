@@ -1,0 +1,37 @@
+<section class="supplier-form">
+  <header class="supplier-form__header">
+    <!-- Torna alla pagina precedente; senza cronologia ricade sulla lista
+         Fornitori dedotta dall'URL. -->
+    <app-back-button />
+    <h1 class="supplier-form__title">
+      {{ isEdit() ? 'Modifica fornitore' : 'Nuovo fornitore' }}
+    </h1>
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="8" />
+  } @else if (loadError(); as appError) {
+    <app-error-state [description]="appError.message" />
+  } @else {
+    <form class="supplier-form__body" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <app-supplier-form-fields
+        idPrefix="supplier-page"
+        [formGroup]="form"
+        [showCodeField]="isEdit()"
+        [vatCodes]="vatCodes()"
+        [paymentOptions]="paymentOptions()"
+      />
+
+      @if (saveError(); as message) {
+        <p class="supplier-form__error" role="alert">{{ message }}</p>
+      }
+
+      <div class="supplier-form__actions">
+        <app-button type="submit" variant="primary" [loading]="saving()" [disabled]="saving()">
+          Salva fornitore
+        </app-button>
+        <app-button variant="ghost" [routerLink]="listPath">Annulla</app-button>
+      </div>
+    </form>
+  }
+</section>

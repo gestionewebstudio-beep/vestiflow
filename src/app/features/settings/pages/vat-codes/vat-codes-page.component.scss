@@ -1,0 +1,205 @@
+@use 'breakpoints' as bp;
+@use 'list-page' as lp;
+
+@include lp.list-page('vat-codes');
+
+// ── Regole specifiche della pagina (non coperte dal mixin) ─────────────────
+
+.vat-codes__field select {
+  min-height: var(--field-height);
+  padding-inline: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.vat-codes {
+  &__group {
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-raised);
+    overflow: hidden;
+  }
+
+  &__group-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    inline-size: 100%;
+    min-height: var(--btn-min-height);
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    background: var(--color-surface-sunken);
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-align: start;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--color-surface-hover);
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring-width) solid var(--color-focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+  }
+
+  &__group-icon {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__group-count {
+    margin-inline-start: auto;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__table-wrap {
+    overflow-x: auto;
+  }
+
+  &__table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+
+    th,
+    td {
+      padding: var(--space-2) var(--space-3);
+      text-align: start;
+      border-block-start: var(--border-width) solid var(--color-border);
+      vertical-align: middle;
+    }
+
+    thead th {
+      border-block-start: 0;
+      font-size: var(--text-2xs);
+      text-transform: uppercase;
+      font-weight: 600;
+      background-color: var(--color-table-header-bg);
+      color: var(--color-text-subtle);
+      white-space: nowrap;
+    }
+  }
+
+  &__row {
+    cursor: pointer;
+
+    &:hover {
+      background: var(--color-surface-hover);
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring-width) solid var(--color-focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+
+    &--inactive {
+      color: var(--color-text-muted);
+    }
+  }
+
+  &__code {
+    display: inline-flex;
+    margin-inline-end: var(--space-2);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__col-num {
+    text-align: end;
+    white-space: nowrap;
+  }
+
+  &__col-notes {
+    max-inline-size: var(--space-32);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__col-actions {
+    text-align: end;
+    white-space: nowrap;
+  }
+}
+
+.vat-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  &__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    font-weight: 600;
+
+    input,
+    select,
+    textarea {
+      min-height: var(--field-height);
+      padding: var(--space-2) var(--space-3);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-size: var(--text-sm);
+      font-weight: 400;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+  }
+
+  &__check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+  }
+
+  &__error {
+    font-size: var(--text-xs);
+    font-weight: 400;
+    color: var(--color-danger);
+  }
+
+  &__submit-error {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-danger);
+  }
+
+  &__hint {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-block-start: var(--space-2);
+  }
+}
+
+@include bp.media-down('sm') {
+  .vat-form__row {
+    grid-template-columns: 1fr;
+  }
+}

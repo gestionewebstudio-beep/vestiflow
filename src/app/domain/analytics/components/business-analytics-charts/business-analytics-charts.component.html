@@ -1,0 +1,115 @@
+<section class="analytics-charts" aria-labelledby="analytics-charts-title">
+  <div class="analytics-charts__head">
+    <div class="analytics-charts__heading">
+      <h3 id="analytics-charts-title" class="analytics-charts__title">Andamento e composizione</h3>
+      <p class="analytics-charts__hint">
+        Trend giornaliero del fatturato, ripartizione per canale e prodotti più performanti
+        @if (periodLabel(); as label) {
+          ({{ label }})
+        }
+        . Filtro indipendente dal periodo KPI ed export corrispettivi.
+      </p>
+    </div>
+
+    <div class="analytics-charts__filters">
+      <div class="analytics-charts__field">
+        <span class="analytics-charts__label">Periodo grafici</span>
+        <app-select-menu
+          [options]="periodOptions"
+          [value]="chartPeriod()"
+          ariaLabel="Periodo grafici analytics"
+          placeholder="Periodo"
+          [compact]="true"
+          [fullWidth]="true"
+          (valueChange)="onPeriodChange($event)"
+        />
+      </div>
+      @if (showCustomDates()) {
+        <div class="analytics-charts__field">
+          <span class="analytics-charts__label">Dal</span>
+          <app-date-input
+            [value]="chartDateFrom()"
+            ariaLabel="Data inizio periodo grafici"
+            [compact]="true"
+            (valueChange)="onDateFromChange($event)"
+          />
+        </div>
+        <div class="analytics-charts__field">
+          <span class="analytics-charts__label">Al</span>
+          <app-date-input
+            [value]="chartDateTo()"
+            ariaLabel="Data fine periodo grafici"
+            [compact]="true"
+            (valueChange)="onDateToChange($event)"
+          />
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="3" />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (summary()) {
+    <div class="analytics-charts__grid">
+      <article
+        class="analytics-charts__card analytics-charts__card--wide"
+        aria-labelledby="chart-daily-revenue"
+      >
+        <h4 id="chart-daily-revenue" class="analytics-charts__card-title">Fatturato giornaliero</h4>
+        @if (hasRevenueTrend() && dailyLineChart(); as lineChart) {
+          <div class="analytics-charts__canvas">
+            <canvas
+              baseChart
+              [type]="'line'"
+              [data]="lineChart.data"
+              [options]="lineChart.options"
+              aria-label="Grafico lineare del fatturato giornaliero"
+            ></canvas>
+          </div>
+        } @else {
+          <p class="analytics-charts__empty">Nessuna vendita registrata nel periodo selezionato.</p>
+        }
+      </article>
+
+      @if (channelChart(); as channel) {
+        <article
+          class="analytics-charts__card analytics-charts__card--wide"
+          aria-labelledby="chart-channels"
+        >
+          <h4 id="chart-channels" class="analytics-charts__card-title">Fatturato per canale</h4>
+          <div class="analytics-charts__canvas analytics-charts__canvas--donut">
+            <canvas
+              baseChart
+              [type]="'doughnut'"
+              [data]="channel.data"
+              [options]="channel.options"
+              aria-label="Grafico a ciambella del fatturato per canale"
+            ></canvas>
+          </div>
+        </article>
+      }
+
+      @if (topProductsChart(); as products) {
+        <article
+          class="analytics-charts__card analytics-charts__card--wide"
+          aria-labelledby="chart-top-products"
+        >
+          <h4 id="chart-top-products" class="analytics-charts__card-title">
+            Top prodotti per fatturato
+          </h4>
+          <div class="analytics-charts__canvas analytics-charts__canvas--bars">
+            <canvas
+              baseChart
+              [type]="'bar'"
+              [data]="products.data"
+              [options]="products.options"
+              aria-label="Grafico a barre dei prodotti con maggior fatturato"
+            ></canvas>
+          </div>
+        </article>
+      }
+    </div>
+  }
+</section>

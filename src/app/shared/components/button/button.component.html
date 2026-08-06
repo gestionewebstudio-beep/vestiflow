@@ -3,10 +3,20 @@
   [class.app-button--primary]="variant() === 'primary'"
   [class.app-button--secondary]="variant() === 'secondary'"
   [class.app-button--ghost]="variant() === 'ghost'"
+  [class.app-button--danger]="variant() === 'danger'"
   [class.app-button--block]="fullWidth()"
+  [class.app-button--loading]="loading()"
+  [class.app-button--loading-icon]="loading() && loadingIndicator() === 'icon'"
   [type]="type()"
+  [attr.form]="formId() ?? null"
   [disabled]="disabled() || loading()"
   [attr.aria-busy]="loading() ? true : null"
 >
+  @if (loading()) {
+    @if (loadingIndicator() === 'spinner') {
+      <app-inline-spinner />
+    }
+    <span class="sr-only">Caricamento in corso</span>
+  }
   <ng-content />
 </button>

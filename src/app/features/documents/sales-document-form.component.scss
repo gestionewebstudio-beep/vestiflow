@@ -1,0 +1,27 @@
+@use 'breakpoints' as bp;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FATTURE E PROFORMA (VENDITA) — delta locale sull'anatomia condivisa
+// .doc-form (src/styles/_document-form.scss + _document-form-footer.scss).
+//
+// Foglio nuovo (FASE 1): la maschera prima non ne aveva uno. Qui restano solo
+// i due punti che il linguaggio comune non copre per questa maschera.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Il foglio condiviso nasconde .doc-form__table-wrap sotto `lg` in favore
+// della vista a card (.doc-form__cards), che questa maschera non ha ancora:
+// la tabella righe resta visibile e scorre in orizzontale, come le tabelle
+// riepilogative della Registrazione fattura fornitore.
+@include bp.media-down('lg') {
+  .doc-form__table-wrap {
+    display: block;
+  }
+}
+
+// Cliente largo il doppio anche nella fascia flex a lg+ (sotto lg ci pensa
+// lo span2 della griglia compatta del foglio condiviso).
+@include bp.media-up('lg') {
+  .doc-form__header-row > .doc-form__field--span2 {
+    flex: 2 1 0;
+  }
+}

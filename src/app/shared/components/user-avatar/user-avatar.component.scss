@@ -1,0 +1,48 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.user-avatar__initials,
+.user-avatar__image {
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+}
+
+.user-avatar__initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-brand);
+  color: var(--color-text-inverse);
+  font-weight: var(--font-weight-semibold);
+}
+
+.user-avatar__image {
+  display: block;
+  object-fit: cover;
+}
+
+.user-avatar--sm.user-avatar__initials,
+.user-avatar--sm.user-avatar__image {
+  inline-size: var(--space-8);
+  block-size: var(--space-8);
+  font-size: var(--text-xs);
+}
+
+.user-avatar--md.user-avatar__initials,
+.user-avatar--md.user-avatar__image {
+  inline-size: var(--field-height);
+  block-size: var(--field-height);
+  font-size: var(--text-xs);
+}
+
+.user-avatar--lg.user-avatar__initials,
+.user-avatar--lg.user-avatar__image {
+  inline-size: var(--space-24);
+  block-size: var(--space-24);
+  font-size: var(--text-xl);
+}

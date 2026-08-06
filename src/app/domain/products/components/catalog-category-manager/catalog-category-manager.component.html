@@ -1,0 +1,103 @@
+<div class="cat-manager" role="group" [attr.aria-label]="title()">
+  <div class="cat-manager__head">
+    <span class="cat-manager__title">{{ title() }}</span>
+    <button
+      type="button"
+      class="cat-manager__close"
+      aria-label="Chiudi gestione"
+      (click)="closed.emit()"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  @if (error(); as message) {
+    <p class="cat-manager__error" role="alert">{{ message }}</p>
+  }
+
+  <ul class="cat-manager__list">
+    @for (entry of entries(); track entry.id) {
+      <li class="cat-manager__row">
+        @if (renamingId() === entry.id) {
+          <input
+            class="cat-manager__input"
+            type="text"
+            [value]="renameDraft()"
+            [attr.aria-label]="'Nuovo nome per ' + entry.name"
+            (input)="onRenameInput($event)"
+            (keydown.enter)="confirmRename(entry)"
+            (keydown.escape)="cancelRename()"
+          />
+          <button
+            type="button"
+            class="cat-manager__action"
+            [disabled]="busy()"
+            aria-label="Conferma rinomina"
+            (click)="confirmRename(entry)"
+          >
+            <i class="pi pi-check" aria-hidden="true"></i>
+          </button>
+          <button
+            type="button"
+            class="cat-manager__action"
+            aria-label="Annulla rinomina"
+            (click)="cancelRename()"
+          >
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
+        } @else {
+          <span class="cat-manager__name">{{ entry.name }}</span>
+          <button
+            type="button"
+            class="cat-manager__action"
+            [attr.aria-label]="'Rinomina ' + entry.name"
+            (click)="startRename(entry)"
+          >
+            <i class="pi pi-pencil" aria-hidden="true"></i>
+          </button>
+          <button
+            type="button"
+            class="cat-manager__action cat-manager__action--danger"
+            [attr.aria-label]="'Elimina ' + entry.name"
+            (click)="askDelete(entry)"
+          >
+            <i class="pi pi-trash" aria-hidden="true"></i>
+          </button>
+        }
+      </li>
+    } @empty {
+      <li class="cat-manager__empty">Nessuna voce ancora: aggiungi la prima qui sotto.</li>
+    }
+  </ul>
+
+  <div class="cat-manager__add">
+    <input
+      class="cat-manager__input"
+      type="text"
+      [value]="draftName()"
+      [placeholder]="addPlaceholder()"
+      [attr.aria-label]="addPlaceholder()"
+      (input)="onDraftInput($event)"
+      (keydown.enter)="add()"
+    />
+    <app-button
+      type="button"
+      variant="secondary"
+      [disabled]="busy() || !draftName().trim()"
+      (click)="add()"
+    >
+      <i class="pi pi-plus" aria-hidden="true"></i>
+      Aggiungi
+    </app-button>
+  </div>
+</div>
+
+<app-confirm-dialog
+  [(open)]="deleteDialogOpen"
+  title="Eliminare la voce?"
+  [message]="deleteMessage()"
+  confirmLabel="Elimina"
+  [danger]="true"
+  [busy]="busy()"
+  (confirmed)="confirmDelete()"
+/>

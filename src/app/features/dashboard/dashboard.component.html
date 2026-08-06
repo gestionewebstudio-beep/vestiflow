@@ -1,7 +1,9 @@
 <section class="dashboard">
   <header class="dashboard__header">
     <h1 class="dashboard__title">Dashboard</h1>
-    <p class="dashboard__subtitle">Panoramica operativa di magazzino, vendite e ordini.</p>
+    <p class="dashboard__subtitle">
+      Panoramica commerciale, magazzino e ordini. KPI vendite e margini per periodo selezionabile.
+    </p>
   </header>
 
   @if (loading()) {
@@ -9,42 +11,71 @@
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else {
-    <div class="dashboard__kpis">
+    @if (showShopifyPanel() && shopifyConnectionSummary(); as shopifyConn) {
+      <section class="dashboard__panel" aria-labelledby="dashboard-shopify">
+        <div class="dashboard__panel-head">
+          <h2 id="dashboard-shopify" class="dashboard__panel-title">Integrazione Shopify</h2>
+          <a class="dashboard__panel-link" routerLink="/app/settings">
+            Impostazioni Shopify
+            <i class="pi pi-arrow-right" aria-hidden="true"></i>
+          </a>
+        </div>
+        <div class="dashboard__shopify-summary">
+          <app-badge [tone]="connectionStatusTone(shopifyConn.status)">
+            {{ connectionStatusLabel(shopifyConn.status) }}
+          </app-badge>
+          @if (shopifyConn.shopDomain) {
+            <span class="dashboard__shopify-domain tabular-nums">{{ shopifyConn.shopDomain }}</span>
+          }
+        </div>
+        <dl class="dashboard__shopify-facts">
+          <div class="dashboard__shopify-fact">
+            <dt>Ultimo sync</dt>
+            <dd class="tabular-nums">
+              {{ shopifyConn.lastSyncAt ? formatDateTimeShort(shopifyConn.lastSyncAt) : '—' }}
+            </dd>
+          </div>
+          <div class="dashboard__shopify-fact">
+            <dt>Aggiornamenti automatici</dt>
+            <dd>{{ shopifyConn.autoSyncEnabled ? 'Attivi' : 'Non attivi' }}</dd>
+          </div>
+        </dl>
+        @if (shopifyConn.lastError; as lastError) {
+          <p class="dashboard__shopify-error" role="status">
+            <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+            {{ lastError.message }}
+          </p>
+        }
+      </section>
+    }
+
+    <app-business-analytics-panel layout="dashboard" />
+
+    <div class="dashboard__kpis dashboard__kpis--operational">
       <app-stat-card
-        label="Prodotti"
-        [value]="productCountLabel()"
+        label="Prodotti a catalogo"
         icon="pi-tag"
+        [value]="productCountLabel()"
         tone="neutral"
-        hint="A catalogo"
+        hint="Attivi nel tenant"
       />
       <app-stat-card
-        label="Pezzi disponibili"
-        [value]="availableUnitsLabel()"
-        icon="pi-box"
-        tone="info"
-        [hint]="activeLocationName() ?? 'Su tutte le location'"
-      />
-      <app-stat-card
-        label="Sotto soglia"
-        [value]="lowStockCountLabel()"
-        icon="pi-exclamation-triangle"
-        tone="warning"
-        hint="Varianti da riordinare"
-      />
-      <app-stat-card
-        label="Ordini in arrivo"
-        [value]="incomingOrdersLabel()"
+        label="Ordini fornitore aperti"
         icon="pi-truck"
+        [value]="incomingOrdersLabel()"
         tone="neutral"
-        hint="Da fornitori"
+        hint="Ordini confermati, non ancora conclusi"
       />
-      <app-stat-card
-        label="Vendite da evadere"
-        [value]="toFulfillLabel()"
-        icon="pi-shopping-cart"
-        tone="info"
-        hint="Non ancora evase"
-      />
+      @if (showRecentShopifySales()) {
+        <app-stat-card
+          label="Vendite da evadere"
+          icon="pi-send"
+          [value]="toFulfillLabel()"
+          tone="info"
+          [accent]="true"
+          hint="Ordini Shopify non evasi"
+        />
+      }
     </div>
 
     <section class="dashboard__panel" aria-labelledby="dashboard-low-stock">
@@ -67,16 +98,29 @@
 
     <section class="dashboard__panel" aria-labelledby="dashboard-recent-sales">
       <div class="dashboard__panel-head">
-        <h2 id="dashboard-recent-sales" class="dashboard__panel-title">Ultime vendite</h2>
-        <a class="dashboard__panel-link" routerLink="/app/sales">
-          Vai alle vendite
-          <i class="pi pi-arrow-right" aria-hidden="true"></i>
-        </a>
+        <h2 id="dashboard-recent-sales" class="dashboard__panel-title">
+          @if (showRecentShopifySales()) {
+            Ultime vendite Shopify
+          } @else {
+            Attività recente
+          }
+        </h2>
+        @if (showRecentShopifySales()) {
+          <a class="dashboard__panel-link" routerLink="/app/sales">
+            Vai alle vendite
+            <i class="pi pi-arrow-right" aria-hidden="true"></i>
+          </a>
+        }
       </div>
-      @if (recentSales().length > 0) {
+      @if (showRecentShopifySales() && recentSales().length > 0) {
         <app-recent-sales-table [rows]="recentSales()" (rowClick)="openSale($event)" />
+      } @else if (showRecentShopifySales()) {
+        <p class="dashboard__muted">Nessuna vendita Shopify registrata.</p>
       } @else {
-        <p class="dashboard__muted">Nessuna vendita registrata.</p>
+        <p class="dashboard__muted">
+          Le vendite manuali (negozio e online) compaiono nei movimenti di magazzino e nei
+          corrispettivi in Report.
+        </p>
       }
     </section>
   }

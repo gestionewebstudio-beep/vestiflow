@@ -39,6 +39,6 @@ export class SupplierOrderTableComponent {
   }
 
   protected lineCount(order: SupplierOrder): number {
-    return order.lines.length;
+    return order.lineCount ?? order.lines.length;
   }
 }

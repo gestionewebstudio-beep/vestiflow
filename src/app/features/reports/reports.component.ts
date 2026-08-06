@@ -1,38 +1,52 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import type { InventoryLevel } from '@core/models/inventory-level.model';
-import type { Location } from '@core/models/location.model';
-import type { Money } from '@core/models/common.model';
-import { SalesOrderFinancialStatus } from '@core/models/sales-order.model';
-import type { SalesOrder } from '@core/models/sales-order.model';
-import { isLowStock } from '@core/utils/inventory.util';
-import { DEFAULT_CURRENCY, formatMoney } from '@core/utils/money.util';
+import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
+import { REPORTS_CORRISPETTIVI_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
+import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
+import { BackgroundBlobExportService } from '@core/services/background-blob-export.service';
+import { reportPageSubtitle } from '@core/models/tenant-channel-profile.model';
+import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
-import { StatCardComponent } from '@shared/components/stat-card/stat-card.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { InventoryService } from '@features/inventory/services/inventory.service';
-import type { VariantSummary } from '@features/products/models/variant-summary.model';
-import { ProductService } from '@features/products/services/product.service';
-import { SalesOrderService } from '@features/sales-orders/services/sales-order.service';
+import { BusinessAnalyticsPanelComponent } from '@domain/analytics/components/business-analytics-panel/business-analytics-panel.component';
+import {
+  InventoryService,
+  type LocationInventoryReportRow,
+} from '@domain/inventory/services/inventory.service';
+import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 
+import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
 import { ReportLocationTableComponent } from './components/report-location-table/report-location-table.component';
-import { ReportSalesTableComponent } from './components/report-sales-table/report-sales-table.component';
-import type { LocationReportRow, SalesReportRow } from './models/report-view.model';
-
-// Le vendite mock sono poche: una pagina larga copre l'intero dataset.
-// Col backend reale i report avranno endpoint aggregati dedicati.
-const REPORT_SALES_PAGE_SIZE = 100;
+import {
+  corrispettiviChannelHint,
+  corrispettiviChannelOptions,
+  parseCorrispettiviChannel,
+  resolveCorrispettiviExport,
+} from './models/corrispettivi-channel.model';
+import {
+  formatReportPeriodLabel,
+  parseReportListQuery,
+  ReportPeriodPreset,
+  resolveReportDateRange,
+} from '@domain/reports/models/report-list-query.model';
+import type { LocationReportRow } from './models/report-view.model';
 
 interface ReportData {
-  readonly levels: readonly InventoryLevel[];
-  readonly locations: readonly Location[];
-  readonly summaries: readonly VariantSummary[];
-  readonly orders: readonly SalesOrder[];
+  readonly locationReport: readonly LocationInventoryReportRow[];
 }
 
 type ReportState =
@@ -41,41 +55,107 @@ type ReportState =
   | { readonly status: 'error'; readonly error: AppError };
 
 /**
- * Report base (smart): KPI di magazzino e vendite aggregati client-side dai
- * service mock. Read-only, nessun filtro persistente in questa prima versione.
+ * Report operativi: export corrispettivi manuali e snapshot magazzino.
+ * Le vendite Shopify vivono in Vendite Shopify; i corrispettivi Shopify lì.
  */
 @Component({
   selector: 'app-reports',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     ErrorStateComponent,
-    StatCardComponent,
+    BusinessAnalyticsPanelComponent,
+    ReportCorrispettiviExportComponent,
     TableSkeletonComponent,
     ReportLocationTableComponent,
-    ReportSalesTableComponent,
   ],
   templateUrl: './reports.component.html',
   styleUrl: './reports.component.scss',
 })
 export class ReportsComponent {
   private readonly inventoryService = inject(InventoryService);
-  private readonly productService = inject(ProductService);
   private readonly salesOrderService = inject(SalesOrderService);
+  private readonly authService = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly blobExport = inject(BackgroundBlobExportService);
 
   private readonly refreshTick = signal(0);
+  private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
+  /** Aggiornamento immediato del periodo in UI prima del sync URL. */
+  private readonly uiPeriod = signal<ReportPeriodPreset | null>(null);
+
+  constructor() {
+    effect(() => {
+      this.query();
+      this.uiPeriod.set(null);
+    });
+  }
+
+  protected readonly query = computed(() => parseReportListQuery(this.queryParams()));
+  protected readonly displayPeriod = computed(() => this.uiPeriod() ?? this.query().period);
+  protected readonly periodLabel = computed(() =>
+    formatReportPeriodLabel({ ...this.query(), period: this.displayPeriod() }),
+  );
+
+  protected readonly corrispettiviChannel = computed(() =>
+    parseCorrispettiviChannel(this.queryParams()),
+  );
+
+  private readonly tenantProfile = computed(
+    () => this.authService.currentUser()?.tenantChannelProfile,
+  );
+
+  protected readonly pageSubtitle = computed(() => reportPageSubtitle(this.tenantProfile()));
+
+  protected readonly corrispettiviChannelOptions = computed(() =>
+    corrispettiviChannelOptions(this.tenantProfile()),
+  );
+
+  protected readonly corrispettiviChannelHint = computed(() =>
+    corrispettiviChannelHint(this.corrispettiviChannel(), this.tenantProfile()),
+  );
+
+  protected readonly exporting = computed(() =>
+    this.blobExport.isActive(REPORTS_CORRISPETTIVI_CSV_EXPORT_ID),
+  );
+
+  protected readonly canExportCorrispettivi = computed(() =>
+    canExportOperationalData(this.authService.currentUser()),
+  );
+
+  private readonly exportRange = computed(() =>
+    resolveReportDateRange({ ...this.query(), period: this.displayPeriod() }),
+  );
+
+  protected readonly dateFromDraft = computed(() => {
+    if (this.displayPeriod() !== ReportPeriodPreset.Custom) {
+      return '';
+    }
+    return this.query().dateFrom ?? todayIsoDate();
+  });
+
+  protected readonly dateToDraft = computed(() => {
+    if (this.displayPeriod() !== ReportPeriodPreset.Custom) {
+      return '';
+    }
+    return this.query().dateTo ?? todayIsoDate();
+  });
+
+  private readonly request = computed(() => ({
+    tick: this.refreshTick(),
+  }));
 
   private readonly state = toSignal(
-    toObservable(this.refreshTick).pipe(
+    toObservable(this.request).pipe(
       switchMap(() =>
-        forkJoin({
-          levels: this.inventoryService.getLevels(),
-          locations: this.inventoryService.getLocations(),
-          summaries: this.productService.getVariantSummaries(),
-          orders: this.salesOrderService
-            .getSalesOrders({ page: 1, pageSize: REPORT_SALES_PAGE_SIZE })
-            .pipe(map((response) => response.data)),
-        }).pipe(
-          map((data): ReportState => ({ status: 'success', data })),
+        this.inventoryService.getLocationInventoryReport().pipe(
+          map(
+            (locationReport): ReportState => ({
+              status: 'success',
+              data: { locationReport },
+            }),
+          ),
           startWith<ReportState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<ReportState>({ status: 'error', error: this.toAppError(err) }),
@@ -98,103 +178,87 @@ export class ReportsComponent {
     return current.status === 'success' ? current.data : null;
   });
 
-  /** Aggregato giacenze per location (valore a prezzo di vendita). */
   protected readonly locationRows = computed<readonly LocationReportRow[]>(() => {
     const data = this.data();
     if (!data) {
       return [];
     }
-    const priceByVariant = new Map(
-      data.summaries.map((summary) => [summary.variantId, summary.sellingPrice]),
+    return data.locationReport.map(
+      (row): LocationReportRow => ({
+        locationId: row.locationId,
+        locationName: row.locationName,
+        trackedVariants: row.trackedVariants,
+        availableUnits: row.availableUnits,
+        lowStockCount: row.lowStockCount,
+        stockValue: {
+          amountMinor: row.stockValueMinor,
+          currencyCode: row.currencyCode || DEFAULT_CURRENCY,
+        },
+      }),
     );
-    return data.locations.map((location): LocationReportRow => {
-      const levels = data.levels.filter((level) => level.locationId === location.id);
-      const stockValueMinor = levels.reduce((sum, level) => {
-        const price = priceByVariant.get(level.variantId);
-        return sum + Math.max(0, level.available) * (price?.amountMinor ?? 0);
-      }, 0);
-      return {
-        locationId: location.id,
-        locationName: location.name,
-        trackedVariants: levels.length,
-        availableUnits: levels.reduce((sum, level) => sum + level.available, 0),
-        lowStockCount: levels.filter((level) => isLowStock(level)).length,
-        stockValue: { amountMinor: stockValueMinor, currencyCode: DEFAULT_CURRENCY },
-      };
-    });
   });
 
-  /** Aggregato vendite per stato pagamento (solo stati presenti nei dati). */
-  protected readonly salesRows = computed<readonly SalesReportRow[]>(() => {
-    const data = this.data();
-    if (!data) {
-      return [];
+  protected onPeriodChange(period: ReportPeriodPreset): void {
+    this.uiPeriod.set(period);
+    if (period === ReportPeriodPreset.Custom) {
+      const today = todayIsoDate();
+      this.updateParams({ period, from: today, to: today });
+      return;
     }
-    const byStatus = new Map<SalesOrder['financialStatus'], SalesReportRow>();
-    for (const order of data.orders) {
-      const existing = byStatus.get(order.financialStatus);
-      const units = order.lines.reduce((sum, line) => sum + line.quantity, 0);
-      if (existing) {
-        byStatus.set(order.financialStatus, {
-          status: order.financialStatus,
-          orders: existing.orders + 1,
-          units: existing.units + units,
-          total: {
-            amountMinor: existing.total.amountMinor + order.total.amountMinor,
-            currencyCode: existing.total.currencyCode,
-          },
-        });
-      } else {
-        byStatus.set(order.financialStatus, {
-          status: order.financialStatus,
-          orders: 1,
-          units,
-          total: order.total,
-        });
-      }
-    }
-    return [...byStatus.values()].sort((a, b) => b.total.amountMinor - a.total.amountMinor);
-  });
+    this.updateParams({ period, from: null, to: null });
+  }
 
-  // ── KPI ─────────────────────────────────────────────────────────────────────
-  protected readonly stockValueLabel = computed(() => {
-    const totalMinor = this.locationRows().reduce(
-      (sum, row) => sum + row.stockValue.amountMinor,
-      0,
-    );
-    return formatMoney(this.eur(totalMinor));
-  });
+  protected onDateFromChange(value: string): void {
+    this.updateParams({ from: value || null, period: ReportPeriodPreset.Custom });
+  }
 
-  protected readonly availableUnitsLabel = computed(() =>
-    String(this.locationRows().reduce((sum, row) => sum + row.availableUnits, 0)),
-  );
+  protected onDateToChange(value: string): void {
+    this.updateParams({ to: value || null, period: ReportPeriodPreset.Custom });
+  }
 
-  protected readonly lowStockLabel = computed(() =>
-    String(this.locationRows().reduce((sum, row) => sum + row.lowStockCount, 0)),
-  );
-
-  protected readonly revenueLabel = computed(() => {
-    const data = this.data();
-    if (!data) {
-      return formatMoney(this.eur(0));
-    }
-    // Fatturato lordo: ordini pagati o rimborsati parzialmente.
-    const totalMinor = data.orders
-      .filter(
-        (order) =>
-          order.financialStatus === SalesOrderFinancialStatus.Paid ||
-          order.financialStatus === SalesOrderFinancialStatus.PartiallyRefunded,
-      )
-      .reduce((sum, order) => sum + order.total.amountMinor, 0);
-    return formatMoney(this.eur(totalMinor));
-  });
+  protected onCorrispettiviChannelChange(value: string): void {
+    this.updateParams({ corrChannel: value || null });
+  }
 
   protected reload(): void {
     this.refreshTick.update((tick) => tick + 1);
   }
 
-  private eur(amountMinor: number): Money {
-    return { amountMinor, currencyCode: DEFAULT_CURRENCY };
+  protected exportCorrispettivi(): void {
+    if (this.exporting()) {
+      return;
+    }
+
+    const config = resolveCorrispettiviExport(this.corrispettiviChannel());
+    const range = this.exportRange();
+    const request =
+      config.kind === 'shopify'
+        ? this.salesOrderService.exportSalesOrdersCsv({
+            placedFrom: range.placedFrom,
+            placedTo: range.placedTo,
+          })
+        : this.inventoryService.exportCorrispettiviCsv({
+            origin: config.origin,
+            from: `${range.placedFrom}T00:00:00`,
+            to: `${range.placedTo}T23:59:59.999`,
+          });
+
+    this.blobExport.start({
+      exportId: REPORTS_CORRISPETTIVI_CSV_EXPORT_ID,
+      request,
+      filename: vestiflowExportFilename(config.filePrefix, 'csv'),
+      inProgressMessage: 'Export corrispettivi in corso. Puoi continuare a navigare.',
+      successMessage: 'Export corrispettivi completato: download avviato.',
+      errorMessage: 'Export corrispettivi non riuscito. Riprova tra qualche istante.',
+    });
+  }
+
+  private updateParams(params: Record<string, string | null>): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: params,
+      queryParamsHandling: 'merge',
+    });
   }
 
   private toAppError(err: unknown): AppError {
@@ -203,4 +267,8 @@ export class ReportsComponent {
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
   }
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
 }

@@ -1,0 +1,55 @@
+:host {
+  display: inline-flex;
+  // In un contenitore flex/grid deve potersi restringere (scroll interno al
+  // track) invece di far esplodere il layout con la sua larghezza intrinseca.
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+// Track: fondo sunken con bordo; il segmento attivo emerge su surface.
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-inline-size: 100%;
+  padding: var(--space-1);
+  background-color: var(--color-surface-sunken);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.segmented__item {
+  flex: 0 0 auto;
+  min-block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    color var(--transition-fast) var(--ease-standard);
+}
+
+.segmented__item:hover:not(.segmented__item--active) {
+  color: var(--color-text);
+  background-color: var(--color-surface-hover);
+}
+
+.segmented__item--active {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.segmented__item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}

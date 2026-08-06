@@ -1,0 +1,117 @@
+@use 'breakpoints' as bp;
+
+/// Vocabolario dei campi form dell'area clienti admin, condiviso da
+/// create-client, edit-client e admin-tenant-profile-fields. Libreria di
+/// mixin: non emette CSS finché un componente non la include col proprio
+/// blocco BEM. Genera i selettori `#{$block}__sections|section|section-title|
+/// field-row|field|field-label|input|field-error` e i relativi modificatori.
+@mixin admin-client-form-fields($block) {
+  .#{$block}__sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-12);
+    inline-size: 100%;
+  }
+
+  .#{$block}__section {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    inline-size: 100%;
+  }
+
+  @include bp.media-up('sm') {
+    .#{$block}__section {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .#{$block}__section-title,
+  .#{$block}__field-row,
+  .#{$block}__field--span-full {
+    grid-column: 1 / -1;
+  }
+
+  .#{$block}__field-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  @include bp.media-up('sm') {
+    .#{$block}__field-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .#{$block}__section-title {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    letter-spacing: var(--tracking-wide);
+  }
+
+  .#{$block}__section--user-access {
+    gap: var(--space-4);
+  }
+
+  .#{$block}__section--user-access .#{$block}__section-title {
+    margin-block-end: var(--space-1);
+  }
+
+  .#{$block}__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-inline-size: 0;
+  }
+
+  .#{$block}__field--select-wide,
+  .#{$block}__field--channel-profile {
+    --select-menu-width: var(--select-menu-width-wide);
+    max-inline-size: var(--select-menu-width-wide);
+  }
+
+  .#{$block}__field-label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text);
+  }
+
+  .#{$block}__input {
+    inline-size: 100%;
+    min-block-size: var(--btn-min-height);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+  }
+
+  .#{$block}__input:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .#{$block}__input[aria-invalid='true'] {
+    border-color: var(--status-error-border);
+  }
+
+  .#{$block}__input--readonly {
+    color: var(--color-text-muted);
+    background-color: var(--color-surface-sunken);
+    border-color: var(--color-border);
+    cursor: default;
+  }
+
+  .#{$block}__input--readonly:focus-visible {
+    outline: none;
+  }
+
+  .#{$block}__field-error {
+    font-size: var(--text-xs);
+    color: var(--status-error-fg);
+  }
+}

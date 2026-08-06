@@ -1,0 +1,82 @@
+<form class="quick-variant" [formGroup]="form" novalidate>
+  <div class="quick-variant__grid">
+    <div class="quick-variant__field">
+      <label class="quick-variant__label" for="quick-variant-sku">
+        SKU
+        <app-hover-tooltip
+          [inline]="true"
+          text="Facoltativo: lascialo vuoto, scrivilo a mano oppure generane uno con “Genera SKU”."
+        >
+          <i class="pi pi-info-circle quick-variant__info" tabindex="0" aria-hidden="true"></i>
+        </app-hover-tooltip>
+      </label>
+      <div class="quick-variant__barcode">
+        <input
+          id="quick-variant-sku"
+          class="quick-variant__control quick-variant__control--barcode"
+          type="text"
+          formControlName="sku"
+          autocomplete="off"
+          [attr.aria-invalid]="showSkuError() || isSkuTaken(form.controls.sku.value) ? true : null"
+        />
+        <app-button
+          type="button"
+          variant="secondary"
+          [loading]="generatingSku()"
+          [disabled]="!productName().trim()"
+          [attr.aria-label]="'Genera SKU'"
+          (click)="generateSku()"
+        >
+          Genera SKU
+        </app-button>
+      </div>
+      @if (showSkuError()) {
+        <p class="quick-variant__error" role="alert">
+          Formato non valido (lettere, numeri e trattini).
+        </p>
+      } @else if (isSkuTaken(form.controls.sku.value)) {
+        <p class="quick-variant__error" role="alert">SKU già in uso da un altro prodotto.</p>
+      } @else if (generateSkuError(); as error) {
+        <p class="quick-variant__error" role="alert">{{ error }}</p>
+      }
+    </div>
+
+    <div class="quick-variant__field">
+      <label class="quick-variant__label" for="quick-variant-ean">
+        EAN
+        <app-hover-tooltip
+          [inline]="true"
+          text="Facoltativo: puoi generare un codice EAN-13 con “Genera”."
+        >
+          <i class="pi pi-info-circle quick-variant__info" tabindex="0" aria-hidden="true"></i>
+        </app-hover-tooltip>
+      </label>
+      <div class="quick-variant__barcode">
+        <input
+          id="quick-variant-ean"
+          class="quick-variant__control quick-variant__control--barcode"
+          type="text"
+          formControlName="barcode"
+          autocomplete="off"
+          inputmode="numeric"
+          [attr.aria-invalid]="
+            showBarcodeSameAsSku() || isBarcodeTaken(form.controls.barcode.value) ? true : null
+          "
+        />
+        <app-button
+          type="button"
+          variant="secondary"
+          [attr.aria-label]="'Genera codice EAN-13'"
+          (click)="generateBarcode()"
+        >
+          Genera
+        </app-button>
+      </div>
+      @if (showBarcodeSameAsSku()) {
+        <p class="quick-variant__error" role="alert">L'EAN deve essere diverso dallo SKU.</p>
+      } @else if (isBarcodeTaken(form.controls.barcode.value)) {
+        <p class="quick-variant__error" role="alert">EAN già in uso da un'altra variante.</p>
+      }
+    </div>
+  </div>
+</form>

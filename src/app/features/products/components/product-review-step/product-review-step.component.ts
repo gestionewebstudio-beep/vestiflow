@@ -1,12 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import type { ProductStatus } from '@core/models/product.model';
-import {
-  DEFAULT_CURRENCY,
-  formatMoney,
-  isValidCompareAt,
-  moneyFromMajor,
-} from '@core/utils/money.util';
+import { DEFAULT_CURRENCY, formatMoney, moneyFromMajor } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
@@ -15,9 +10,12 @@ import type {
   ProductGeneralDraft,
   ProductOptionsDraft,
   VariantDraft,
-} from '../../models/product-form.model';
-import { productStatusLabel, productStatusTone } from '../../models/product-status.util';
-import { selectedOptionValue, variantOptionNames } from '../../models/product-variant.util';
+} from '@domain/products/models/product-form.model';
+import { productStatusLabel, productStatusTone } from '@domain/products/models/product-status.util';
+import {
+  selectedOptionValue,
+  variantOptionNames,
+} from '@domain/products/models/product-variant.util';
 
 /**
  * Step "Riepilogo" del wizard (presentazionale). Mostra in sola lettura i dati
@@ -35,6 +33,7 @@ export class ProductReviewStepComponent {
   readonly general = input.required<ProductGeneralDraft>();
   readonly options = input.required<ProductOptionsDraft>();
   readonly variants = input.required<readonly VariantDraft[]>();
+  readonly showShopifyIntegration = input(false);
 
   protected readonly variantCount = computed(() => this.variants().length);
 
@@ -63,16 +62,5 @@ export class ProductReviewStepComponent {
   // currency-aware via formatMoney, coerenti con la tabella varianti.
   protected formatPrice(value: number): string {
     return formatMoney(moneyFromMajor(value, DEFAULT_CURRENCY));
-  }
-
-  /** Prezzo barrato mostrato solo se presente e valido (> prezzo di vendita). */
-  protected compareAtVisible(variant: VariantDraft): boolean {
-    if (variant.compareAtPrice == null) {
-      return false;
-    }
-    return isValidCompareAt(
-      moneyFromMajor(variant.sellingPrice, DEFAULT_CURRENCY),
-      moneyFromMajor(variant.compareAtPrice, DEFAULT_CURRENCY),
-    );
   }
 }

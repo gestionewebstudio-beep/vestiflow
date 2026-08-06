@@ -1,0 +1,25 @@
+// Ricette di accessibilità che valgono su qualunque elemento.
+//
+// Sono mixin, non classi: si applicano a elementi che hanno gia' un nome BEM
+// proprio (il radio del tema, l'input file di un pannello), e cambiargli classe
+// nel template per prendere `.sr-only` significherebbe toccare sei template per
+// una regola di stile.
+
+/// Fuori dallo schermo ma dentro l'albero di accessibilità: lo screen reader lo
+/// legge, il focus da tastiera lo raggiunge, l'occhio non lo vede.
+///
+/// `clip-path: inset(50%)` e non il vecchio `clip: rect(...)`: `clip` e'
+/// deprecato e su alcuni motori interagisce male con le trasformazioni. La
+/// misura di 1px, non 0, e' voluta: a dimensione zero diversi screen reader
+/// saltano l'elemento.
+@mixin visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

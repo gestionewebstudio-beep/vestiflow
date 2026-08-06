@@ -1,0 +1,222 @@
+<section class="sales-doc-detail">
+  <app-back-button />
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="skeletonColumns" [rows]="6" />
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="pi-search"
+      [title]="config().detailNotFoundTitle"
+      description="Il documento richiesto non esiste o è stato eliminato."
+      ctaLabel="Torna all'elenco"
+      (ctaClick)="goToList()"
+    />
+  } @else if (error(); as appError) {
+    <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
+  } @else if (document(); as doc) {
+    <header class="sales-doc-detail__header">
+      <div class="sales-doc-detail__heading">
+        <h1 class="sales-doc-detail__title tabular-nums">{{ referenceTitle() }}</h1>
+        <p class="sales-doc-detail__subtitle">{{ doc.customerName ?? '—' }}</p>
+      </div>
+      <div class="sales-doc-detail__actions">
+        @if (canEdit()) {
+          <app-button variant="secondary" (click)="editDocument()">
+            <i class="pi pi-pencil" aria-hidden="true"></i>
+            {{ editButtonLabel() }}
+          </app-button>
+        }
+        @if (canOpenPrintPreview()) {
+          <app-button variant="secondary" (click)="openPrintPreview()">Anteprima stampa</app-button>
+          <app-button
+            variant="secondary"
+            [loading]="downloadingPdf()"
+            [disabled]="downloadingPdf()"
+            (click)="downloadDocumentPdf()"
+          >
+            Scarica PDF
+          </app-button>
+        }
+        @if (canDownloadXml()) {
+          <app-button
+            variant="secondary"
+            [loading]="downloadingXml()"
+            [disabled]="downloadingXml()"
+            (click)="downloadDocumentXml()"
+          >
+            Scarica XML
+          </app-button>
+        }
+        @if (canDuplicate()) {
+          <app-button variant="secondary" [disabled]="actionSaving()" (click)="duplicateDocument()">
+            Duplica
+          </app-button>
+        }
+        @if (canConvert()) {
+          <app-button
+            variant="secondary"
+            [disabled]="actionSaving()"
+            (click)="convertToInvoiceDraft()"
+          >
+            Converti in bozza fattura
+          </app-button>
+          <app-button variant="secondary" [disabled]="actionSaving()" (click)="convertToSalesDdt()">
+            Converti in DDT vendita
+          </app-button>
+        }
+        @if (canRegisterExternal()) {
+          <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestRegister()">
+            {{ registerButtonLabel }}
+          </app-button>
+        }
+        @if (canCancel()) {
+          <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestCancel()">
+            Annulla
+          </app-button>
+        }
+        @if (canDelete()) {
+          <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestDelete()">
+            Elimina
+          </app-button>
+        }
+      </div>
+    </header>
+
+    @if (actionError(); as err) {
+      <app-error-state [description]="err.message" />
+    }
+
+    <section class="sales-doc-detail__panel" aria-labelledby="sales-doc-general">
+      <div class="sales-doc-detail__panel-head sales-doc-detail__panel-head--split">
+        <h2 id="sales-doc-general" class="sales-doc-detail__panel-title">
+          {{ config().detailPanelTitle }}
+        </h2>
+        <div class="sales-doc-detail__badges">
+          @if (statusDisplayLabel(doc.type, doc.status, doc); as label) {
+            <app-badge [tone]="statusDisplayTone(doc.type, doc.status)!">{{ label }}</app-badge>
+          }
+        </div>
+      </div>
+      <app-detail-facts [facts]="documentFacts()" />
+    </section>
+
+    @if (transportFacts().length > 0) {
+      <section class="sales-doc-detail__panel" aria-labelledby="sales-doc-transport">
+        <div class="sales-doc-detail__panel-head">
+          <h2 id="sales-doc-transport" class="sales-doc-detail__panel-title">Trasporto</h2>
+        </div>
+        <app-detail-facts [facts]="transportFacts()" />
+      </section>
+    }
+
+    @if (addressFacts().length > 0) {
+      <section class="sales-doc-detail__panel" aria-labelledby="sales-doc-addresses">
+        <div class="sales-doc-detail__panel-head">
+          <h2 id="sales-doc-addresses" class="sales-doc-detail__panel-title">Indirizzi</h2>
+        </div>
+        <app-detail-facts [facts]="addressFacts()" />
+      </section>
+    }
+
+    <section class="sales-doc-detail__panel" aria-labelledby="sales-doc-lines">
+      <div class="sales-doc-detail__panel-head">
+        <h2 id="sales-doc-lines" class="sales-doc-detail__panel-title">Articoli</h2>
+        <span class="sales-doc-detail__count tabular-nums">{{ lines().length }}</span>
+      </div>
+
+      @if (lines().length === 0) {
+        <app-empty-state
+          title="Nessuna riga"
+          description="Questo documento non ha ancora righe."
+          icon="pi-list"
+        />
+      } @else {
+        <app-document-lines-table [lines]="lines()" />
+        <dl class="sales-doc-detail__totals">
+          <div class="sales-doc-detail__total-row">
+            <dt>Imponibile</dt>
+            <dd class="tabular-nums">{{ formatMoney(doc.subtotal) }}</dd>
+          </div>
+          <div class="sales-doc-detail__total-row">
+            <dt>IVA</dt>
+            <dd class="tabular-nums">{{ formatMoney(doc.tax) }}</dd>
+          </div>
+          <div class="sales-doc-detail__total-row sales-doc-detail__total-row--grand">
+            <dt>Totale</dt>
+            <dd class="tabular-nums">{{ formatMoney(doc.total) }}</dd>
+          </div>
+        </dl>
+      }
+    </section>
+
+    <section id="doc-detail-attachments">
+      <app-document-attachments-panel [documentId]="doc.id" [canManage]="canManage()" />
+    </section>
+
+    @if (hasRevisions()) {
+      <section class="sales-doc-detail__panel" aria-labelledby="sales-doc-revisions">
+        <div class="sales-doc-detail__panel-head">
+          <h2 id="sales-doc-revisions" class="sales-doc-detail__panel-title">Storico modifiche</h2>
+        </div>
+        <ol class="sales-doc-detail__revision-list">
+          @for (revision of revisions(); track revision.id) {
+            <li class="sales-doc-detail__revision-item">
+              <div class="sales-doc-detail__revision-meta">
+                <span class="sales-doc-detail__revision-number">
+                  Rev. {{ revision.revisionNumber }}
+                </span>
+                <span>{{ revision.changedByName }}</span>
+                <time class="tabular-nums" [attr.datetime]="revision.createdAt">
+                  {{ formatDate(revision.createdAt) }}
+                </time>
+              </div>
+              <p class="sales-doc-detail__revision-summary">{{ revision.summary }}</p>
+            </li>
+          }
+        </ol>
+      </section>
+    }
+  }
+</section>
+
+<!-- Conferma semplice: numero e data del documento esterno restano quelli
+     già acquisiti sul documento. -->
+<app-confirm-dialog
+  [(open)]="registerDialogOpen"
+  [title]="registerButtonLabel"
+  [message]="registerDialogMessage"
+  confirmLabel="Conferma"
+  cancelLabel="Annulla"
+  [busy]="actionSaving()"
+  (confirmed)="registerExternal()"
+/>
+
+<app-confirm-dialog
+  [(open)]="cancelDialogOpen"
+  title="Annulla documento"
+  message="Il documento annullato non sarà più operativo. I carichi magazzino associati verranno stornati. Procedere?"
+  confirmLabel="Annulla documento"
+  [danger]="true"
+  [busy]="actionSaving()"
+  (confirmed)="cancelDocument()"
+/>
+
+<app-confirm-dialog
+  [(open)]="deleteDialogOpen"
+  title="Elimina documento"
+  [message]="deleteDialogMessage()"
+  confirmLabel="Elimina"
+  [danger]="true"
+  [busy]="actionSaving()"
+  (confirmed)="deleteDocument()"
+/>
+
+<app-confirm-dialog
+  [(open)]="incompletePrintDialogOpen"
+  [title]="incompletePrintTitle"
+  [message]="incompletePrintMessage"
+  confirmLabel="Sì"
+  cancelLabel="No"
+  (confirmed)="confirmIncompletePrint()"
+  (dismissed)="dismissIncompletePrint()"
+/>

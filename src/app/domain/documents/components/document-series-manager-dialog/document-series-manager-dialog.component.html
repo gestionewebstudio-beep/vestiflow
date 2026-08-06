@@ -1,0 +1,16 @@
+<app-slide-panel
+  [open]="open()"
+  [title]="title()"
+  ariaLabel="Gestione numerazioni del documento"
+  (closed)="onClosed()"
+>
+  <!-- Contenuto creato solo a pannello aperto: `app-document-counters` inietta
+       servizi (sedi, contatori), non deve montarsi finché il pannello è chiuso. -->
+  @if (open()) {
+    @if (loading()) {
+      <app-table-skeleton [columns]="2" [rows]="4" />
+    } @else {
+      <app-document-counters [type]="type()" [counters]="counters()" (changed)="reload()" />
+    }
+  }
+</app-slide-panel>

@@ -1,0 +1,51 @@
+@use 'breakpoints' as bp;
+
+:host {
+  display: inline-flex;
+}
+
+// Pulsante vero, non un link: chevron + parola affiancati, cornice leggera e
+// area di tocco adeguata (più alta sotto md, dove si usa col dito).
+// Punti di regolazione: una schermata che vuole il pulsante piu' alto o piu'
+// stretto dichiara queste custom property su di se', senza raggiungerne gli
+// interni (regole-stile-ui §5).
+.back-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--back-button-gap, var(--space-2));
+  min-block-size: var(--back-button-h, var(--field-height));
+  padding-inline: var(--back-button-pad-inline, var(--space-3));
+  font-size: var(--back-button-font-size, var(--text-sm));
+  font-weight: var(--back-button-font-weight, var(--font-weight-medium));
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--back-button-radius, var(--radius-md));
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast) var(--ease-standard),
+    border-color var(--transition-fast) var(--ease-standard);
+
+  @include bp.media-down('md') {
+    min-block-size: var(--btn-min-height);
+    padding-inline: var(--space-4);
+  }
+}
+
+.back-button:not(.back-button--disabled):hover {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-text-subtle);
+}
+
+// aria-disabled, non disabled: resta focusabile e lo screen reader lo annuncia
+// inibito invece di farlo sparire dal giro di tab.
+.back-button--disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.back-button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}

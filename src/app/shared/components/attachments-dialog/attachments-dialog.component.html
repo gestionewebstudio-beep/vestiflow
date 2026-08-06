@@ -1,0 +1,142 @@
+<dialog
+  #dialog
+  class="attachments-dialog"
+  aria-labelledby="attachments-dialog-title"
+  (close)="onNativeClose()"
+>
+  <header class="attachments-dialog__head">
+    <h2 id="attachments-dialog-title" class="attachments-dialog__title">Allegati</h2>
+    <button
+      type="button"
+      class="attachments-dialog__close"
+      aria-label="Chiudi allegati"
+      (click)="close()"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  <!-- Spazio residuo: sempre visibile, così il limite non è una sorpresa. -->
+  <div class="attachments-dialog__space">
+    <div class="attachments-dialog__space-bar" aria-hidden="true">
+      <span
+        class="attachments-dialog__space-fill"
+        [class.attachments-dialog__space-fill--full]="quotaFull()"
+        [style.width.%]="usedPercent()"
+      ></span>
+    </div>
+    <p class="attachments-dialog__space-label tabular-nums">{{ spaceLabel() }}</p>
+  </div>
+
+  @if (canManage()) {
+    <label
+      class="attachments-dialog__drop"
+      [class.attachments-dialog__drop--over]="dragOver()"
+      [class.attachments-dialog__drop--disabled]="uploading()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave()"
+      (drop)="onDrop($event)"
+    >
+      <input
+        type="file"
+        class="attachments-dialog__file-input"
+        multiple
+        [accept]="acceptAttribute"
+        [disabled]="uploading()"
+        (change)="onFileInput($event)"
+      />
+      <i class="pi pi-cloud-upload attachments-dialog__drop-icon" aria-hidden="true"></i>
+      <span class="attachments-dialog__drop-title">
+        {{ uploading() ? 'Caricamento in corso…' : 'Trascina qui i file oppure scegli dal disco' }}
+      </span>
+      <span class="attachments-dialog__drop-hint">
+        PDF, JPG, PNG, HEIC, DOCX, XLSX · massimo 5 MB per file
+      </span>
+    </label>
+  }
+
+  @if (errorMessage(); as message) {
+    <p class="attachments-dialog__error" role="alert">
+      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+      {{ message }}
+    </p>
+  }
+
+  @if (attachments().length === 0) {
+    <p class="attachments-dialog__empty">Nessun allegato caricato per questo documento.</p>
+  } @else {
+    <ul class="attachments-dialog__list">
+      @for (item of attachments(); track item.id) {
+        <li class="attachments-dialog__item">
+          <i
+            class="pi attachments-dialog__icon"
+            [class]="'pi ' + iconClass(item.mimeType, item.fileName)"
+            aria-hidden="true"
+          ></i>
+
+          @if (renamingId() === item.id) {
+            <div class="attachments-dialog__rename">
+              <input
+                class="attachments-dialog__rename-input"
+                type="text"
+                [value]="renameDraft()"
+                [attr.aria-label]="'Nuovo nome per ' + item.fileName"
+                (input)="onRenameInput($event)"
+                (keydown.enter)="confirmRename(item)"
+                (keydown.escape)="cancelRename()"
+              />
+              <app-button variant="secondary" (click)="confirmRename(item)">Salva</app-button>
+              <app-button variant="ghost" (click)="cancelRename()">Annulla</app-button>
+            </div>
+          } @else {
+            <div class="attachments-dialog__meta">
+              <span class="attachments-dialog__name" [title]="item.fileName">
+                {{ item.fileName }}
+              </span>
+              <span class="attachments-dialog__details tabular-nums">
+                {{ formatSize(item.sizeBytes) }} · {{ formatDate(item.createdAt) }} ·
+                {{ item.createdByName }}
+              </span>
+            </div>
+
+            <div class="attachments-dialog__actions">
+              <button
+                type="button"
+                class="attachments-dialog__action"
+                [attr.aria-label]="'Scarica ' + item.fileName"
+                [disabled]="busyId() === item.id"
+                (click)="download(item)"
+              >
+                <i class="pi pi-download" aria-hidden="true"></i>
+              </button>
+              @if (canManage()) {
+                <button
+                  type="button"
+                  class="attachments-dialog__action"
+                  [attr.aria-label]="'Rinomina ' + item.fileName"
+                  [disabled]="busyId() === item.id"
+                  (click)="startRename(item)"
+                >
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="attachments-dialog__action attachments-dialog__action--danger"
+                  [attr.aria-label]="'Elimina ' + item.fileName"
+                  [disabled]="busyId() === item.id"
+                  (click)="remove(item)"
+                >
+                  <i class="pi pi-trash" aria-hidden="true"></i>
+                </button>
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  <footer class="attachments-dialog__footer">
+    <app-button variant="secondary" (click)="close()">Chiudi</app-button>
+  </footer>
+</dialog>
