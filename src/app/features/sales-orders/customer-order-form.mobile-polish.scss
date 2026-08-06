@@ -1,90 +1,20 @@
 @use 'breakpoints' as bp;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ORDINE CLIENTE — 5 di 6: ritmo verticale e gerarchia delle sezioni mobile
+// ORDINE CLIENTE — 5 di 6: rifiniture mobile della sola maschera
 // ═══════════════════════════════════════════════════════════════════════════
-// Impostazione «schermata a sezioni»: sezioni come card nette staccate su
-// fondo attenuato, respiro fra i blocchi, gerarchia dei titoli, valori
-// allineati a destra. Nessuna struttura, nessun campo: solo il ritmo con cui
-// si susseguono i blocchi che il foglio 3 ha disegnato.
+// Il ritmo generale (sezioni come card, gap, scala testi, campi 44) è PROMOSSO
+// in styles/_document-form-mobile.scss (gate .doc-form--m-ref): qui restano le
+// rifiniture che parlano del markup di questa pagina — testata compressa
+// legacy, card di riga, «righe = elenco senza pareti».
 //
-// Vedi l'indice dei cinque fogli in customer-order-form.component.scss.
+// Vedi l'indice dei fogli in customer-order-form.component.scss.
 // ═══════════════════════════════════════════════════════════════════════════
 
 @include bp.media-down('lg') {
-  // ── Ritmo verticale: le sezioni respirano e si staccano dal fondo ────────
-  .co-form.doc-form {
-    background-color: var(--color-bg);
-  }
-
-  .co-form .doc-form__form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-
-  // ── Sezioni come card nette (testata, righe, totali, note, allegati) ─────
-  .co-form .doc-form__header,
-  .co-form .doc-form__lines,
-  .co-form .doc-form__totals-bar,
-  .co-form .doc-form__footer-notes,
-  .co-form .doc-form__attachments {
-    padding: var(--space-4);
-    background-color: var(--color-surface);
-    border: var(--border-width) solid var(--color-border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-card);
-  }
-
-  // La testata gestisce il proprio padding interno (riepilogo + dettagli).
-  .co-form .doc-form__header {
-    padding: 0;
-  }
-
   .co-form .co-form__header-summary {
     min-block-size: 3.75rem;
     padding: var(--space-3);
-  }
-
-  // I totali sono una card a sé: niente doppia cornice interna.
-  .co-form .doc-form__totals {
-    border: 0;
-    border-radius: 0;
-    background-color: transparent;
-  }
-
-  .co-form .doc-form__totals-row {
-    padding-block: var(--space-2);
-    border-inline-end: 0;
-    border-block-end: var(--border-width) solid var(--color-border);
-  }
-
-  .co-form .doc-form__totals-row:last-child {
-    border-block-end: 0;
-  }
-
-  // ── Gerarchia tipografica: titolo di sezione leggibile, valori a destra ──
-  .co-form .doc-form__subtitle {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text, var(--color-text));
-  }
-
-  .co-form .doc-form__totals dt {
-    font-size: var(--text-sm);
-    color: var(--color-text, var(--color-text));
-  }
-
-  .co-form .doc-form__totals dd {
-    font-size: var(--text-sm);
-    text-align: end;
-  }
-
-  // Totale documento: la voce che pesa di più nella lista.
-  .co-form .doc-form__totals-row--total dt,
-  .co-form .doc-form__totals-row--total dd {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-bold);
   }
 
   // Sotto-azione della riga totali (es. «+ Aggiungi sconto»): secondaria.
@@ -96,24 +26,6 @@
   .co-form .co-form__cards {
     gap: var(--space-3);
   }
-
-  // ── Barra azioni sticky: ancorata al bordo inferiore dello schermo ───────
-  // fixed (non sticky): con sticky la barra si fermava a fine documento e sotto
-  // restava spazio. La safe-area serve solo a non finire sotto la home bar.
-  .co-form .co-form__sticky-bar {
-    position: fixed;
-    inset-inline: 0;
-    inset-block-end: 0;
-    margin-block-start: 0;
-    padding-block: var(--space-1);
-    padding-block-end: max(var(--space-1), env(safe-area-inset-bottom));
-    padding-inline: var(--space-3);
-  }
-
-  // Spazio in coda al documento pari all'ingombro della barra, così l'ultima
-  // riga non resta nascosta sotto di essa.
-  .co-form.doc-form {
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -121,35 +33,6 @@
 // all'ultimo foglio, cosi' vince sulle regole tablet qui sopra.
 // ═══════════════════════════════════════════════════════════════════════════
 @include bp.media-down('md') {
-  // 8px di margine laterale: la pagina cede 12px, l'host ne recupera 4.
-  :host {
-    margin-inline: calc(var(--space-1) * -1);
-  }
-
-  .co-form.doc-form {
-    padding-inline: 0;
-  }
-
-  .co-form .doc-form__form {
-    gap: var(--space-2);
-  }
-
-  // Sezioni e card: padding 14px, nessuna ombra, solo bordo tenue sul grigio.
-  .co-form .doc-form__header,
-  .co-form .doc-form__lines,
-  .co-form .doc-form__totals-bar,
-  .co-form .doc-form__footer-notes,
-  .co-form .doc-form__attachments {
-    padding: var(--card-pad-mobile);
-    box-shadow: none;
-    border-color: var(--color-border);
-  }
-
-  // La testata continua a gestire il padding dei propri blocchi interni.
-  .co-form .doc-form__header {
-    padding: 0;
-  }
-
   .co-form .co-form__header-summary,
   .co-form .co-form__header-include {
     padding: var(--card-pad-mobile);
@@ -173,8 +56,7 @@
 
   .co-form .doc-form__lines-head,
   .co-form .co-form__mobile-tools,
-  .co-form .co-form__mobile-add-line,
-  .co-form .doc-form__totals-row {
+  .co-form .co-form__mobile-add-line {
     padding-inline: var(--space-2);
   }
 
@@ -221,11 +103,6 @@
     --field-pad-inline: var(--space-3);
   }
 
-  // 44px: il minimo touch delle linee guida. Il ritmo si comprime altrove.
-  .co-form .doc-form__header .doc-form__field {
-    --field-height: var(--control-h-touch);
-  }
-
   // ── Campi testata senza riquadro proprio (spec §7) ───────────────────────
   // Il contenitore ha già il suo bordo: incorniciare anche ogni campo crea una
   // doppia parete e ruba larghezza. Select e date picker seguono lo stesso
@@ -264,15 +141,8 @@
   }
 
   // ── Gerarchia tipografica della testata ──────────────────────────────────
-  // Il valore del campo e' il contenuto informativo della schermata — nome
-  // cliente, data, stato, pagamento — e va letto col telefono in mano: sale a
-  // 16px, che e' anche la soglia sotto la quale Safari su iOS zooma il viewport
-  // al focus di un campo di testo (il meta viewport dell'app non lo impedisce).
-  // La label sale di conseguenza a 19px per restare percepibilmente sopra, e il
-  // titolo pagina a 22px per non finire schiacciato sulla label.
-  // Scala: 22 / 19 / 16 / 12. I pesi restano quelli.
-
-  // Titolo pagina: sale via token (--co-text-title-m), 20 -> 22px.
+  // La scala generale (label 19, valore 16, titolo 22) e' promossa nel foglio
+  // globale; qui restano i livelli agganciati al markup di questa maschera.
 
   // Titolo della testata compressa: resta a 15px. Non e' uno dei livelli in
   // gioco qui, e quella riga divide lo spazio con icona, pulsante e chevron.
@@ -280,33 +150,15 @@
     font-size: var(--text-value);
   }
 
-  // Label campo — visibilmente sopra il valore. Interlinea stretta: a 19px
-  // quella normale aggiungerebbe altezza a ogni campo proprio mentre il ritmo
-  // verticale si comprime.
-  .co-form .doc-form__header .doc-form__label {
-    font-size: var(--co-text-field-label);
-    line-height: var(--leading-tight);
-    letter-spacing: normal;
-    text-transform: none;
-  }
-
-  // Valore e placeholder — un solo corpo per ogni tipo di controllo: il valore
-  // di una select e quello di un input di testo sono lo stesso contenuto.
-  .co-form .doc-form__header .doc-form__input,
-  .co-form .doc-form__header {
-    --field-font-size: var(--text-lg);
-  }
-
   // Sottotitoli e link secondari — restano i piu' piccoli, ma a 11px erano
   // sotto la soglia di lettura comoda.
-  .co-form .doc-form__header .doc-form__inline-toggle,
   .co-form__header-summary-copy small {
     font-size: var(--text-xs);
   }
 
   // Il campo non ha piu' gap interno: le scorciatoie sotto il cliente si
   // riprendono da sole il filo di stacco dal controllo.
-  .co-form .doc-form__header .co-form__inline-links {
+  .co-form .doc-form__header .doc-form__inline-links {
     margin-block-start: var(--space-1);
   }
 }

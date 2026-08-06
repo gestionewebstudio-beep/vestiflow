@@ -9,6 +9,9 @@
 // stylesheet di componente finiva compilata cinque volte (vedi il partial).
 @use 'styles/document-form';
 @use 'styles/document-form-footer';
+// Vista mobile di riferimento della maschera documento: opt-in con il
+// modificatore .doc-form--m-ref (vedi il partial).
+@use 'styles/document-form-mobile';
 @use 'styles/a11y';
 
 // -----------------------------------------------------------------------------

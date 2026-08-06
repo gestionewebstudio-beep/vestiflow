@@ -1,4 +1,6 @@
-<section class="doc-form co-form">
+<!-- doc-form--m-ref: adotta la vista mobile di riferimento promossa in
+     styles/_document-form-mobile.scss (pannelli, totali, dock, azioni). -->
+<section class="doc-form doc-form--m-ref co-form">
   <div class="doc-form__head-row">
     <!-- Ritorno alla schermata precedente: nel mockup è il quadratino col
          chevron a sinistra del titolo, non un link sopra. -->
@@ -6,7 +8,7 @@
     <h1 class="doc-form__title">
       {{ pageTitle() }}
       <!-- Modifiche non salvate: su mobile un puntino accanto al titolo (la riga
-           testuale co-form__save-state resta su desktop, nascosta sotto lg). -->
+           testuale doc-form__save-state resta su desktop, nascosta sotto lg). -->
       @if (isOrder && !formReadOnly() && dirtySinceLastSave()) {
         <span
           class="co-form__dirty-dot"
@@ -32,12 +34,12 @@
     <!-- Stato di salvataggio in coda alla riga del titolo (mockup v3). -->
     @if (!loading() && !loadError() && !notEditable() && !formReadOnly()) {
       @if (dirtySinceLastSave()) {
-        <p class="co-form__save-state co-form__save-state--dirty" role="status">
+        <p class="doc-form__save-state doc-form__save-state--dirty" role="status">
           <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
           Modifiche non salvate
         </p>
       } @else if (editOrderId()) {
-        <p class="co-form__save-state" role="status">
+        <p class="doc-form__save-state" role="status">
           <i class="pi pi-check" aria-hidden="true"></i>
           Documento salvato
         </p>
@@ -217,308 +219,271 @@
                Il primo pannello tiene i dati che sbloccano le righe, il secondo
                quelli che hanno già un valore valido: si apre solo per cambiarli.
                Nessuno dei due si richiude da solo quando i dati si completano. -->
-          <div class="co-panels">
-            <section class="co-panel" [class.co-panel--open]="customerPanelOpen()">
-              <button
-                type="button"
-                class="co-panel__toggle"
-                aria-controls="co-panel-customer"
-                [attr.aria-expanded]="customerPanelOpen()"
-                (click)="toggleCustomerPanel()"
-              >
-                <span class="co-panel__icon" aria-hidden="true">
-                  <i class="pi pi-user"></i>
-                </span>
-                <span class="co-panel__copy">
-                  <strong>{{ customerPanelTitle() }}</strong>
-                  <small>{{ customerPanelSubtitle() }}</small>
-                </span>
-                <i class="pi pi-chevron-down co-panel__chevron" aria-hidden="true"></i>
-              </button>
+          <div class="doc-panels">
+            <!-- Il primo pannello tiene i dati che sbloccano le righe: aperto
+                 all'ingresso. Lo stato di apertura vive nel componente. -->
+            <app-document-mobile-panel
+              [title]="customerPanelTitle()"
+              [summaryParts]="[customerPanelSubtitle()]"
+              icon="pi-user"
+              [statusText]="customerPanelStatus()"
+              [statusReady]="headerDataReady()"
+              [initiallyOpen]="true"
+            >
+              <p class="doc-panel__section">Dati principali</p>
 
-              <div id="co-panel-customer" class="co-panel__body">
-                <p class="co-panel__section">Dati principali</p>
+              <div class="doc-panel__fields">
+                <div class="doc-panel__field">
+                  <div class="doc-panel__field-head">
+                    <span class="doc-panel__label" id="co-m-customer-label">
+                      {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
+                    </span>
+                    <button
+                      type="button"
+                      class="doc-panel__field-action"
+                      (click)="toggleCustomerForm()"
+                    >
+                      <i
+                        class="pi"
+                        [class.pi-plus]="!showCustomerForm()"
+                        [class.pi-minus]="showCustomerForm()"
+                        aria-hidden="true"
+                      ></i>
+                      {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
+                    </button>
+                  </div>
 
-                <div class="co-panel__fields">
-                  <div class="co-panel__field">
-                    <div class="co-panel__field-head">
-                      <span class="co-panel__label" id="co-m-customer-label">
-                        {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
-                      </span>
-                      <button
-                        type="button"
-                        class="co-panel__field-action"
-                        (click)="toggleCustomerForm()"
-                      >
-                        <i
-                          class="pi"
-                          [class.pi-plus]="!showCustomerForm()"
-                          [class.pi-minus]="showCustomerForm()"
-                          aria-hidden="true"
-                        ></i>
-                        {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
-                      </button>
-                    </div>
+                  <app-select-menu
+                    [options]="customerOptions()"
+                    [value]="form.controls.customerId.value"
+                    ariaLabel="Cliente"
+                    [placeholder]="
+                      isManualUnload ? 'Seleziona cliente (facoltativo)…' : 'Seleziona cliente…'
+                    "
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    searchPlaceholder="Cerca cliente…"
+                    searchAriaLabel="Cerca cliente"
+                    [invalid]="!isManualUnload && fieldInvalid('customerId')"
+                    describedBy="co-m-customer-error"
+                    (valueChange)="onCustomerSelect($event)"
+                  />
 
-                    <app-select-menu
-                      [options]="customerOptions()"
-                      [value]="form.controls.customerId.value"
-                      ariaLabel="Cliente"
-                      [placeholder]="
-                        isManualUnload ? 'Seleziona cliente (facoltativo)…' : 'Seleziona cliente…'
-                      "
-                      [fullWidth]="true"
-                      [searchable]="true"
-                      searchPlaceholder="Cerca cliente…"
-                      searchAriaLabel="Cerca cliente"
-                      [invalid]="!isManualUnload && fieldInvalid('customerId')"
-                      describedBy="co-m-customer-error"
-                      (valueChange)="onCustomerSelect($event)"
-                    />
-
-                    @if (!isManualUnload && fieldInvalid('customerId')) {
-                      <p id="co-m-customer-error" class="doc-form__error">Seleziona un cliente.</p>
-                    }
-                    @if (isManualUnload && !form.controls.customerId.value) {
-                      <!-- Cliente digitato liberamente (prompt Scarico manuale):
+                  @if (!isManualUnload && fieldInvalid('customerId')) {
+                    <p id="co-m-customer-error" class="doc-form__error">Seleziona un cliente.</p>
+                  }
+                  @if (isManualUnload && !form.controls.customerId.value) {
+                    <!-- Cliente digitato liberamente (prompt Scarico manuale):
                            compare solo in stampa, NON viene salvato in anagrafica. -->
-                      <input
-                        class="co-panel__control"
-                        type="text"
-                        formControlName="customerFreeText"
-                        placeholder="…oppure digita il nome solo per la stampa"
-                        aria-label="Cliente a testo libero (solo stampa)"
-                        autocomplete="off"
-                      />
-                    }
-                    @if (form.controls.customerId.value) {
-                      <button
-                        type="button"
-                        class="co-panel__field-action"
-                        (click)="openCustomerDetail()"
-                      >
-                        <i class="pi pi-external-link" aria-hidden="true"></i>
-                        Scheda cliente
-                      </button>
-                    }
-                  </div>
-
-                  <div class="co-panel__field">
-                    <span class="co-panel__label">{{
-                      isQuote ? 'Location' : 'Location di origine'
-                    }}</span>
-                    @if (locationOptions().length > 0) {
-                      <app-select-menu
-                        [options]="locationOptions()"
-                        [value]="form.controls.locationId.value"
-                        ariaLabel="Location di origine"
-                        placeholder="Seleziona location…"
-                        [fullWidth]="true"
-                        [searchable]="true"
-                        searchPlaceholder="Cerca location…"
-                        searchAriaLabel="Cerca location"
-                        [invalid]="fieldInvalid('locationId')"
-                        describedBy="co-m-location-error"
-                        (valueChange)="onLocationSelect($event)"
-                      />
-                    } @else {
-                      <p class="doc-form__error" role="alert">
-                        Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
-                        dell'account.
-                      </p>
-                    }
-                    @if (fieldInvalid('locationId')) {
-                      <p id="co-m-location-error" class="doc-form__error">Seleziona la location.</p>
-                    }
-                  </div>
+                    <input
+                      class="doc-panel__control"
+                      type="text"
+                      formControlName="customerFreeText"
+                      placeholder="…oppure digita il nome solo per la stampa"
+                      aria-label="Cliente a testo libero (solo stampa)"
+                      autocomplete="off"
+                    />
+                  }
+                  @if (form.controls.customerId.value) {
+                    <button
+                      type="button"
+                      class="doc-panel__field-action"
+                      (click)="openCustomerDetail()"
+                    >
+                      <i class="pi pi-external-link" aria-hidden="true"></i>
+                      Scheda cliente
+                    </button>
+                  }
                 </div>
 
-                <p
-                  class="co-panel__status"
-                  [class.co-panel__status--ready]="headerDataReady()"
-                  role="status"
-                >
-                  <span class="co-panel__status-dot" aria-hidden="true"></span>
-                  {{ customerPanelStatus() }}
-                </p>
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">{{
+                    isQuote ? 'Location' : 'Location di origine'
+                  }}</span>
+                  @if (locationOptions().length > 0) {
+                    <app-select-menu
+                      [options]="locationOptions()"
+                      [value]="form.controls.locationId.value"
+                      ariaLabel="Location di origine"
+                      placeholder="Seleziona location…"
+                      [fullWidth]="true"
+                      [searchable]="true"
+                      searchPlaceholder="Cerca location…"
+                      searchAriaLabel="Cerca location"
+                      [invalid]="fieldInvalid('locationId')"
+                      describedBy="co-m-location-error"
+                      (valueChange)="onLocationSelect($event)"
+                    />
+                  } @else {
+                    <p class="doc-form__error" role="alert">
+                      Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
+                      dell'account.
+                    </p>
+                  }
+                  @if (fieldInvalid('locationId')) {
+                    <p id="co-m-location-error" class="doc-form__error">Seleziona la location.</p>
+                  }
+                </div>
               </div>
-            </section>
+            </app-document-mobile-panel>
 
-            <section class="co-panel" [class.co-panel--open]="detailsPanelOpen()">
-              <button
-                type="button"
-                class="co-panel__toggle"
-                aria-controls="co-panel-details"
-                [attr.aria-expanded]="detailsPanelOpen()"
-                (click)="toggleDetailsPanel()"
-              >
-                <span class="co-panel__icon" aria-hidden="true">
-                  <i class="pi pi-calendar"></i>
-                </span>
-                <span class="co-panel__copy">
-                  <strong>Dettagli documento</strong>
-                  <small class="co-panel__summary">
-                    @for (part of detailsPanelSummaryParts(); track $index) {
-                      <span class="co-panel__summary-part">{{ part }}</span>
-                    }
-                  </small>
-                </span>
-                <i class="pi pi-chevron-down co-panel__chevron" aria-hidden="true"></i>
-              </button>
+            <!-- I dettagli hanno già valori validi: chiuso, si apre per cambiarli. -->
+            <app-document-mobile-panel
+              title="Dettagli documento"
+              [summaryParts]="detailsPanelSummaryParts()"
+              icon="pi-calendar"
+            >
+              <p class="doc-panel__section">Informazioni documento</p>
 
-              <div id="co-panel-details" class="co-panel__body">
-                <p class="co-panel__section">Informazioni documento</p>
+              <div class="doc-panel__fields">
+                <div class="doc-panel__fields doc-panel__fields--two">
+                  <div class="doc-panel__field">
+                    <label class="doc-panel__label" for="co-m-date">Data</label>
+                    <app-date-input
+                      inputId="co-m-date"
+                      formControlName="documentDate"
+                      ariaLabel="Data documento"
+                      [fullWidth]="true"
+                    />
+                  </div>
 
-                <div class="co-panel__fields">
-                  <div class="co-panel__fields co-panel__fields--two">
-                    <div class="co-panel__field">
-                      <label class="co-panel__label" for="co-m-date">Data</label>
+                  @if (isOrder) {
+                    <div class="doc-panel__field">
+                      <span class="doc-panel__label">Stato</span>
+                      @if (isSettledOrder()) {
+                        <p class="doc-form__readonly">{{ stateBadgeLabel() }}</p>
+                      } @else {
+                        <app-select-menu
+                          [options]="stateOptions"
+                          [value]="form.controls.status.value"
+                          ariaLabel="Stato documento"
+                          placeholder="Confermato"
+                          [fullWidth]="true"
+                          [includeEmptyOption]="false"
+                          (valueChange)="onStateSelect($event)"
+                        />
+                      }
+                    </div>
+                  }
+
+                  @if (isQuote) {
+                    <div class="doc-panel__field">
+                      <label class="doc-panel__label" for="co-m-delivery">Consegna prevista</label>
                       <app-date-input
-                        inputId="co-m-date"
-                        formControlName="documentDate"
-                        ariaLabel="Data documento"
+                        inputId="co-m-delivery"
+                        formControlName="expectedDeliveryDate"
+                        ariaLabel="Data prevista consegna"
+                        placeholder="Opzionale"
                         [fullWidth]="true"
                       />
                     </div>
+                  }
+                </div>
 
-                    @if (isOrder) {
-                      <div class="co-panel__field">
-                        <span class="co-panel__label">Stato</span>
-                        @if (isSettledOrder()) {
-                          <p class="doc-form__readonly">{{ stateBadgeLabel() }}</p>
-                        } @else {
-                          <app-select-menu
-                            [options]="stateOptions"
-                            [value]="form.controls.status.value"
-                            ariaLabel="Stato documento"
-                            placeholder="Confermato"
-                            [fullWidth]="true"
-                            [includeEmptyOption]="false"
-                            (valueChange)="onStateSelect($event)"
-                          />
-                        }
-                      </div>
-                    }
+                @if (!isOrder) {
+                  <app-document-number-field
+                    numberInputId="co-m-number"
+                    [number]="form.controls.documentNumber.value"
+                    [series]="form.controls.series.value"
+                    [seriesOptions]="seriesOptions()"
+                    [canManageSeries]="true"
+                    (numberChange)="onDocumentNumberChange($event)"
+                    (seriesChange)="onSeriesChange($event)"
+                    (manageSeries)="seriesDialogOpen.set(true)"
+                  />
 
-                    @if (isQuote) {
-                      <div class="co-panel__field">
-                        <label class="co-panel__label" for="co-m-delivery">Consegna prevista</label>
-                        <app-date-input
-                          inputId="co-m-delivery"
-                          formControlName="expectedDeliveryDate"
-                          ariaLabel="Data prevista consegna"
-                          placeholder="Opzionale"
-                          [fullWidth]="true"
-                        />
-                      </div>
-                    }
-                  </div>
-
-                  @if (!isOrder) {
-                    <app-document-number-field
-                      numberInputId="co-m-number"
-                      [number]="form.controls.documentNumber.value"
-                      [series]="form.controls.series.value"
-                      [seriesOptions]="seriesOptions()"
-                      [canManageSeries]="true"
-                      (numberChange)="onDocumentNumberChange($event)"
-                      (seriesChange)="onSeriesChange($event)"
-                      (manageSeries)="seriesDialogOpen.set(true)"
-                    />
-
-                    <!-- Modalità prezzo: netto o ivato. Su desktop lo stesso
+                  <!-- Modalità prezzo: netto o ivato. Su desktop lo stesso
                          controllo vive nell'intestazione di colonna. L'Ordine
                          cliente ne è escluso finché non arriva il supporto
                          backend dedicato (SalesOrder). -->
-                    <div class="co-panel__field">
-                      <span class="co-panel__label">Modalità prezzo</span>
-                      <app-select-menu
-                        [options]="priceModeOptions"
-                        [value]="pricesIncludeVat() ? 'gross' : 'net'"
-                        ariaLabel="Modalità prezzo netto o ivato"
-                        placeholder="Netto"
-                        [compact]="true"
-                        [fullWidth]="true"
-                        (valueChange)="setPriceMode($event === 'gross')"
-                      />
-                    </div>
-                  }
+                  <div class="doc-panel__field">
+                    <span class="doc-panel__label">Modalità prezzo</span>
+                    <app-select-menu
+                      [options]="priceModeOptions"
+                      [value]="pricesIncludeVat() ? 'gross' : 'net'"
+                      ariaLabel="Modalità prezzo netto o ivato"
+                      placeholder="Netto"
+                      [compact]="true"
+                      [fullWidth]="true"
+                      (valueChange)="setPriceMode($event === 'gross')"
+                    />
+                  </div>
+                }
 
-                  <!-- Listino (§B4): non è un dato del documento, è come lo si
+                <!-- Listino (§B4): non è un dato del documento, è come lo si
                        riempie. Sceglierlo riscrive i prezzi delle righe, che
                        restano modificabili una per una. -->
-                  @if (showListinoSelect() && !formReadOnly()) {
-                    <div class="co-panel__field">
-                      <span class="co-panel__label">Listino</span>
-                      <app-select-menu
-                        [options]="listinoOptions()"
-                        [value]="listinoValue()"
-                        ariaLabel="Listino applicato alle righe"
-                        placeholder="Prezzo articolo"
-                        [compact]="true"
-                        [fullWidth]="true"
-                        (valueChange)="onListinoChange($event)"
-                      />
-                    </div>
-                  }
+                @if (showListinoSelect() && !formReadOnly()) {
+                  <div class="doc-panel__field">
+                    <span class="doc-panel__label">Listino</span>
+                    <app-select-menu
+                      [options]="listinoOptions()"
+                      [value]="listinoValue()"
+                      ariaLabel="Listino applicato alle righe"
+                      placeholder="Prezzo articolo"
+                      [compact]="true"
+                      [fullWidth]="true"
+                      (valueChange)="onListinoChange($event)"
+                    />
+                  </div>
+                }
 
-                  @if (isManualUnload) {
-                    <div class="co-panel__field">
-                      <label class="co-panel__label" for="co-m-external-ref">Rif.</label>
-                      <input
-                        id="co-m-external-ref"
-                        class="co-panel__control"
-                        type="text"
-                        formControlName="externalRef"
-                        placeholder="Es. campionario fiera"
-                        autocomplete="off"
-                      />
-                    </div>
-                  }
+                @if (isManualUnload) {
+                  <div class="doc-panel__field">
+                    <label class="doc-panel__label" for="co-m-external-ref">Rif.</label>
+                    <input
+                      id="co-m-external-ref"
+                      class="doc-panel__control"
+                      type="text"
+                      formControlName="externalRef"
+                      placeholder="Es. campionario fiera"
+                      autocomplete="off"
+                    />
+                  </div>
+                }
 
-                  @if (isSalesDdt) {
-                    <div class="co-panel__field">
-                      <span class="co-panel__label">Pagamento</span>
-                      <app-select-menu
-                        [options]="paymentMethodOptions()"
-                        [value]="form.controls.paymentMethod.value"
-                        ariaLabel="Modalità di pagamento"
-                        placeholder="Seleziona pagamento…"
-                        [fullWidth]="true"
-                        [searchable]="true"
-                        searchPlaceholder="Cerca modalità…"
-                        searchAriaLabel="Cerca modalità di pagamento"
-                        (valueChange)="onPaymentMethodSelect($event)"
-                      />
-                    </div>
+                @if (isSalesDdt) {
+                  <div class="doc-panel__field">
+                    <span class="doc-panel__label">Pagamento</span>
+                    <app-select-menu
+                      [options]="paymentMethodOptions()"
+                      [value]="form.controls.paymentMethod.value"
+                      ariaLabel="Modalità di pagamento"
+                      placeholder="Seleziona pagamento…"
+                      [fullWidth]="true"
+                      [searchable]="true"
+                      searchPlaceholder="Cerca modalità…"
+                      searchAriaLabel="Cerca modalità di pagamento"
+                      (valueChange)="onPaymentMethodSelect($event)"
+                    />
+                  </div>
 
-                    <label class="doc-form__check doc-form__check--header">
-                      <input type="checkbox" formControlName="followedBySalesDoc" />
-                      <span>Seguirà doc. di vendita</span>
-                    </label>
-                  } @else if (!isManualUnload) {
-                    <div class="co-panel__field">
-                      <label class="co-panel__label" for="co-m-payment">Pagamento</label>
-                      <input
-                        id="co-m-payment"
-                        class="co-panel__control"
-                        type="text"
-                        formControlName="paymentTerms"
-                        placeholder="Es. 30 gg d.f."
-                        autocomplete="off"
-                      />
-                    </div>
-                  }
-                </div>
-
-                <p class="co-panel__helper">I valori predefiniti restano modificabili.</p>
+                  <label class="doc-form__check doc-form__check--header">
+                    <input type="checkbox" formControlName="followedBySalesDoc" />
+                    <span>Seguirà doc. di vendita</span>
+                  </label>
+                } @else if (!isManualUnload) {
+                  <div class="doc-panel__field">
+                    <label class="doc-panel__label" for="co-m-payment">Pagamento</label>
+                    <input
+                      id="co-m-payment"
+                      class="doc-panel__control"
+                      type="text"
+                      formControlName="paymentTerms"
+                      placeholder="Es. 30 gg d.f."
+                      autocomplete="off"
+                    />
+                  </div>
+                }
               </div>
-            </section>
+
+              <p class="doc-panel__helper">I valori predefiniti restano modificabili.</p>
+            </app-document-mobile-panel>
           </div>
 
           <div id="co-header-details" class="co-form__header-details">
             <div
-              class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact co-form__header-row"
+              class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row"
             >
               <div class="doc-form__field doc-form__field--span2">
                 <span class="doc-form__label" id="co-customer-label">
@@ -556,7 +521,7 @@
                   />
                 }
                 <!-- Scorciatoie sulla stessa riga, come nel mockup. -->
-                <div class="co-form__inline-links">
+                <div class="doc-form__inline-links">
                   <button
                     type="button"
                     class="doc-form__inline-toggle"
@@ -717,7 +682,7 @@
                prevista» resta al solo Preventivo: sull'Ordine cliente non serve. -->
             @if (!isSalesDdt && !isManualUnload) {
               <div
-                class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact co-form__header-row doc-form__header-row--secondary"
+                class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row doc-form__header-row--secondary"
               >
                 @if (isQuote) {
                   <div class="doc-form__field">
@@ -745,7 +710,7 @@
                   />
                 </div>
 
-                <div class="doc-form__field co-form__header-filler" aria-hidden="true"></div>
+                <div class="doc-form__field doc-form__header-filler" aria-hidden="true"></div>
               </div>
             }
           </div>
@@ -776,7 +741,7 @@
         }
 
         @if (headerGateActive()) {
-          <p class="doc-form__gate-banner co-form__gate-banner--warn" role="status">
+          <p class="doc-form__gate-banner doc-form__gate-banner--warn" role="status">
             <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
             {{ gateBannerMessage() }}
           </p>
@@ -1380,7 +1345,7 @@
                               "
                             />
                             @if (lineAvailabilityHint(i); as hint) {
-                              <span class="co-form__exceeds-hint">{{ hint }}</span>
+                              <span class="doc-form__exceeds-hint">{{ hint }}</span>
                             }
                           }
                         </td>
@@ -1587,7 +1552,7 @@
 
             <!-- Piede della tabella (mockup v3): conteggio righe a sinistra,
                  imponibile delle sole righe a destra. -->
-            <div class="co-form__table-summary">
+            <div class="doc-form__table-summary">
               <span>
                 <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
                 · <span class="tabular-nums">{{ totalPiecesCount() }}</span> pezzi
@@ -2263,26 +2228,26 @@
            ingresso prodotti più frequenti restano a portata di pollice mentre si
            scorre. Non contiene Salva/Annulla, che scorrono col documento. -->
       @if (!formReadOnly()) {
-        <div class="co-form__sticky-bar" role="toolbar" aria-label="Aggiunta prodotti">
+        <div class="doc-form__sticky-bar" role="toolbar" aria-label="Aggiunta prodotti">
           <!-- «Cerca prodotto» sceglie da catalogo, non crea anagrafiche: quello
                lo fa «Crea nuovo prodotto» sotto le righe. -->
           <button
             type="button"
-            class="co-dock__action co-dock__action--product"
+            class="doc-dock__action doc-dock__action--product"
             [disabled]="headerGateActive()"
             (click)="openProductPicker()"
           >
-            <span class="co-dock__icon" aria-hidden="true"><i class="pi pi-plus"></i></span>
+            <span class="doc-dock__icon" aria-hidden="true"><i class="pi pi-plus"></i></span>
             <span>Cerca prodotto</span>
           </button>
           @if (barcodeScannerEnabled) {
             <button
               type="button"
-              class="co-dock__action co-dock__action--scan"
+              class="doc-dock__action doc-dock__action--scan"
               [disabled]="headerGateActive()"
               (click)="openScanOverlay()"
             >
-              <span class="co-dock__icon" aria-hidden="true"><i class="pi pi-qrcode"></i></span>
+              <span class="doc-dock__icon" aria-hidden="true"><i class="pi pi-qrcode"></i></span>
               <span>Scansiona</span>
             </button>
           }
@@ -2294,7 +2259,7 @@
            nessuna barra fissa e nessun pulsante azione in topbar. Su desktop
            restano nel footer sticky sopra. -->
       @if (!formReadOnly()) {
-        <div class="co-form__mobile-actions">
+        <div class="doc-form__mobile-actions">
           <!-- «Chiudi»: stesso handler di uscita di prima, cambia l'etichetta. -->
           <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
             Chiudi

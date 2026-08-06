@@ -1,0 +1,36 @@
+<section class="doc-panel" [class.doc-panel--open]="open()">
+  <button
+    type="button"
+    class="doc-panel__toggle"
+    [attr.aria-controls]="bodyId"
+    [attr.aria-expanded]="open()"
+    (click)="toggle()"
+  >
+    <span class="doc-panel__icon" aria-hidden="true">
+      <i [class]="'pi ' + icon()"></i>
+    </span>
+    <span class="doc-panel__copy">
+      <strong>{{ title() }}</strong>
+      <!-- Ogni voce va a capo intera: a flusso libero l'a-capo cadeva su uno
+           spazio qualunque e spezzava «Pagamento non indicato» a metà. -->
+      <small class="doc-panel__summary">
+        @for (part of summaryParts(); track $index) {
+          <span class="doc-panel__summary-part">{{ part }}</span>
+        }
+      </small>
+    </span>
+    <i class="pi pi-chevron-down doc-panel__chevron" aria-hidden="true"></i>
+  </button>
+
+  <div [id]="bodyId" class="doc-panel__body">
+    <ng-content />
+    @if (statusText(); as status) {
+      <!-- Dice cosa manca DENTRO il pannello; il banner sotto la testata dice
+           cosa si sblocca: sono due frasi diverse e non si sovrappongono. -->
+      <p class="doc-panel__status" [class.doc-panel__status--ready]="statusReady()" role="status">
+        <span class="doc-panel__status-dot" aria-hidden="true"></span>
+        {{ status }}
+      </p>
+    }
+  </div>
+</section>

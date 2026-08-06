@@ -9,15 +9,19 @@
 // rapido, l'avviso di disponibilita', il menu «Concludi ordine», le sezioni
 // DDT — piu' gli scostamenti desktop rispetto alla base.
 //
-// I cinque fogli e cosa contiene ciascuno (l'ordine e' quello di styleUrls in
+// I fogli e cosa contiene ciascuno (l'ordine e' quello di styleUrls in
 // customer-order-form.component.ts, e conta: chi viene dopo vince):
 //   1. .component        vista desktop e parti solo di questa maschera
 //   2. .rows             righe: riordino, trascinamento, riga collegata
 //   3. .mobile-cards     sotto lg: la riga documento come card espandibile
-//   4. .mobile           sotto lg: testata compressa, scansione, barra azioni
-//   5. .mobile-polish    sotto lg: ritmo verticale e gerarchia delle sezioni
-//   6. .reference-mobile sotto lg: pannelli di testata, sezione righe, dock
-//                        — la reference approvata dal proprietario
+//   4. .mobile           sotto lg: scansione, menu ⋯, dirty-dot
+//   5. .mobile-polish    sotto lg: rifiniture della sola maschera (righe
+//                        come elenco, testata compressa legacy)
+//   6. .reference-mobile sotto lg: sezione righe della reference
+// La parte GENERALE della reference mobile (impaginato, pannelli, totali,
+// note, azioni, dock) e' promossa in styles/_document-form-mobile.scss
+// (gate .doc-form--m-ref) e nel componente condiviso
+// domain/documents/components/document-mobile-panel.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,47 +40,17 @@
 :host {
   --co-tool-h: 2.625rem; // 42px — bottoni della barra strumenti su mobile
   --co-ghost-h: 2.25rem; // 36px — azioni rare (ghost) su mobile
-  --co-text-field-label: 1.1875rem; // 19px — label dei campi di testata
-} // Stato di salvataggio in coda alla riga del titolo (mockup: check + testo).
-.co-form__save-state {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin: 0;
-  margin-inline-start: auto;
-  font-size: var(--text-xs);
-  color: var(--color-ok);
+  // La label dei campi di testata (19px) e' salita a --doc-m-field-label
+  // in styles/_document-form.scss, accanto alle altre misure --doc-m-*.
 }
 
-.co-form__save-state--dirty {
-  color: var(--status-warning-fg);
-  font-weight: var(--font-weight-medium);
-} // «Nuovo cliente» e «Scheda cliente» affiancate sotto il campo (mockup).
-.co-form__inline-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-} // A partire da lg la testata segue le proporzioni del mockup: fasce a
-// larghezza proporzionale che riempiono sempre la card, qualunque sia il
-// numero di campi della variante (ordine, preventivo, DDT, scarico).
+// Stato di salvataggio, link sotto il campo cliente, meccanica delle fasce di
+// testata, piede tabella, banda footer e avviso disponibilità sono saliti ai
+// fogli globali (_document-form.scss e _document-form-footer.scss, FASE 0):
+// qui restano solo le QUOTE delle fasce, che sono di questa maschera.
+// La meccanica flex arriva da .doc-form__header-row (stessa classe nel
+// template accanto a co-form__header-row, che ancora le quote).
 @include bp.media-up('lg') {
-  .co-form .co-form__header-row {
-    display: flex;
-    gap: 0;
-  }
-
-  .co-form .co-form__header-row > .doc-form__field {
-    flex: 1 1 0;
-    min-inline-size: 0;
-    border-block-end: 0;
-    border-inline-end: var(--border-width) solid var(--color-border);
-  }
-
-  .co-form .co-form__header-row > .doc-form__field:last-child {
-    border-inline-end: 0;
-  }
-
   // Cliente | Location | Data | Stato | Rif. — proporzioni del mockup.
   .co-form .co-form__header-row > *:nth-child(1) {
     flex-grow: 1.55;
@@ -113,16 +87,7 @@
   }
 }
 
-// Riempie la seconda fascia solo dove la testata è a larghezza piena: sotto lg
-// la griglia impila i campi e una cella vuota lascerebbe un bordo orfano.
-.co-form__header-filler {
-  display: none;
-  padding: 0;
-
-  @include bp.media-up('lg') {
-    display: block;
-  }
-} // ── Riga di inserimento rapido, sempre in fondo alla tabella (§RIGHE) ───────
+// ── Riga di inserimento rapido, sempre in fondo alla tabella (§RIGHE) ───────
 .co-form__quick-row td {
   padding: var(--space-2) var(--table-cell-pad-inline);
   background: var(--color-surface-soft);
@@ -148,126 +113,6 @@
   min-block-size: var(--control-h-field);
   border-color: var(--color-border-strong);
   border-radius: var(--radius-sm);
-}
-
-// ── Piede della tabella: chiude la card delle righe ────────────────────────
-.co-form__table-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-block-size: 3.25rem;
-  padding: 0 var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--color-doc-summary-fg);
-  background-color: var(--color-doc-summary-bg);
-  border: var(--border-width) solid var(--color-border);
-  border-block-start: var(--border-width) solid var(--color-table-group-divider);
-  border-end-start-radius: var(--radius-lg);
-  border-end-end-radius: var(--radius-lg);
-}
-
-.co-form__table-summary strong {
-  font-weight: var(--font-weight-label);
-  color: var(--color-text);
-}
-
-// ── Note e totali: due card affiancate nella banda in fondo ────────────────
-@include bp.media-up('lg') {
-  .co-form .doc-form__footer-grid {
-    gap: var(--space-2);
-    padding: 0;
-    background-color: color-mix(in srgb, var(--color-bg) 88%, transparent);
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  .co-form .doc-form__footer-notes {
-    flex: 0.55 1 15rem;
-  }
-
-  .co-form .doc-form__totals-bar {
-    flex: 2.2 1 42rem;
-  }
-
-  .co-form .doc-form__totals {
-    flex-wrap: nowrap;
-    align-items: stretch;
-    gap: 0;
-    padding: 0;
-    background-color: var(--color-surface);
-    border-color: var(--color-border-strong);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    box-shadow: var(--shadow-xs);
-  }
-
-  .co-form .doc-form__totals-row {
-    flex: 1 1 0;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 0;
-    min-inline-size: 0;
-    padding: var(--space-1) var(--space-3);
-    border-inline-end: var(--border-width) solid var(--color-border);
-  }
-
-  .co-form .doc-form__totals-row:last-child {
-    border-inline-end: 0;
-  }
-
-  // Totale documento: box scuro in coda, con filetto chiaro in cima.
-  .co-form .doc-form__totals-row--total {
-    position: relative;
-    order: 99;
-    padding-inline-start: var(--space-3);
-    color: var(--color-primary-fg);
-    background-color: var(--color-primary);
-    border-inline-start: 0;
-    border-inline-end: 0;
-  }
-
-  .co-form .doc-form__totals-row--total::before {
-    content: '';
-    position: absolute;
-    inset: 0 0 auto 0;
-    block-size: 0.1875rem;
-    background-color: var(--color-doc-brand-strip);
-  }
-
-  .co-form .doc-form__totals-row--total dt {
-    color: var(--color-doc-brand-label);
-  }
-
-  .co-form .doc-form__totals-row--total dd {
-    font-size: var(--text-grand-total);
-    font-weight: var(--font-weight-bold);
-    letter-spacing: var(--tracking-tight);
-  }
-} // ── §CONTROLLI: quantità oltre la disponibile ──────────────────────────────
-// Bordo/sfondo ambra sulla cella, testo discreto «disponibili solo N».
-// Mai un blocco.
-.doc-form__cell--exceeds {
-  position: relative;
-  background: var(--color-warning-subtle);
-
-  .doc-form__input--table {
-    color: var(--color-warning);
-    font-weight: var(--font-weight-semibold);
-    border-color: var(--color-warning);
-    background-color: var(--color-warning-subtle);
-  }
-} // L'avviso va a capo dentro la cella: su colonne strette restava su una riga
-// sola e sbordava sulle colonne vicine.
-.co-form__exceeds-hint {
-  display: block;
-  font-size: var(--text-label);
-  line-height: var(--leading-tight);
-  color: var(--color-warning);
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 
 // ── Tendina «Concludi ordine»: elenca i documenti di scarico disponibili ────

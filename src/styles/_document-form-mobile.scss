@@ -1,0 +1,608 @@
+@use 'breakpoints' as bp;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MASCHERA DOCUMENTO — VISTA MOBILE DI RIFERIMENTO (opt-in)
+// ═══════════════════════════════════════════════════════════════════════════
+// La vista mobile approvata sull'Ordine cliente, promossa con nomi neutri.
+// OPT-IN: ogni regola è agganciata al modificatore `.doc-form--m-ref` sulla
+// section radice — nessuna maschera cambia finché non lo adotta insieme al
+// markup (doc-panels + app-document-mobile-panel, doc-dock,
+// doc-form__mobile-actions). Le misure --doc-m-* vivono sul blocco .doc-form
+// in _document-form.scss.
+//
+// L'interno del pannello apribile è il componente condiviso
+// domain/documents/components/document-mobile-panel: il SUO foglio veste ciò
+// che sta nel suo template (head, riepilogo, corpo, stato) — così vive anche
+// negli spec jsdom, che i globali non li caricano. Qui restano il contenitore
+// .doc-panels e le classi del CONTENUTO PROIETTATO nel pannello
+// (doc-panel__fields, __field, __label, __control, …): stanno nel template del
+// chiamante, e l'incapsulamento del componente non le raggiungerebbe.
+//
+// NON è salito il trattamento «righe = elenco senza pareti» dell'Ordine
+// cliente: resta suo — le maschere con tabella sotto lg non devono riceverlo.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Le due viste convivono nel DOM (stesso schema tabella/card delle righe):
+// pannelli, dock e azioni finali restano spenti finché non si scende sotto lg.
+.doc-form--m-ref .doc-panels,
+.doc-form--m-ref .doc-form__sticky-bar,
+.doc-form--m-ref .doc-form__mobile-actions {
+  display: none;
+}
+
+@include bp.media-down('lg') {
+  // ── Impaginato di pagina ──────────────────────────────────────────────────
+  // Il gutter della reference (12px) deve essere l'unico rientro: la shell
+  // (.shell__content) mette già il suo, quindi la maschera lo annulla con un
+  // margine negativo. Il solo margine non basta: su `inline-size` percentuale
+  // il browser scarta in silenzio il margine destro per bilanciare l'equazione
+  // (sovravincolo CSS) — si somma il bleed alla larghezza, così torna su
+  // entrambi i lati.
+  .doc-form.doc-form--m-ref {
+    margin-inline: calc(var(--space-3) * -1);
+    inline-size: calc(100% + var(--space-3) * 2);
+    padding-inline: var(--doc-m-gutter);
+    // Il dock è fisso: il documento gli lascia sotto lo spazio che occupa.
+    padding-block-end: var(--doc-m-dock-clear);
+    background-color: var(--color-bg);
+  }
+
+  @include bp.media-up('sm') {
+    .doc-form.doc-form--m-ref {
+      margin-inline: calc(var(--space-4) * -1);
+      inline-size: calc(100% + var(--space-4) * 2);
+    }
+  }
+
+  // Non sticky: nella reference la riga del titolo scorre col documento.
+  .doc-form--m-ref .doc-form__head-row {
+    position: static;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding-block: 0 var(--space-3);
+  }
+
+  .doc-form--m-ref .doc-form__title {
+    min-inline-size: 0;
+    font-size: var(--doc-m-text-title);
+    line-height: 1.08;
+    letter-spacing: -0.035em;
+  }
+
+  .doc-form--m-ref {
+    --back-button-gap: var(--space-1);
+    --back-button-h: var(--doc-m-back-h);
+    --back-button-radius: var(--doc-m-radius-sm);
+    --back-button-font-size: var(--doc-m-text-body);
+    --back-button-font-weight: var(--font-weight-semibold);
+  }
+
+  // ── Ritmo verticale: le sezioni respirano e si staccano dal fondo ─────────
+  .doc-form--m-ref .doc-form__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  // Sezioni come card nette (righe, note, allegati; i totali sotto).
+  .doc-form--m-ref .doc-form__lines,
+  .doc-form--m-ref .doc-form__footer-notes,
+  .doc-form--m-ref .doc-form__attachments {
+    padding: var(--space-4);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+
+  .doc-form--m-ref .doc-form__subtitle {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text);
+  }
+
+  // ── Testata a pannelli ────────────────────────────────────────────────────
+  // Sotto lg la testata vive nei pannelli apribili: le fasce a griglia della
+  // vista desktop escono dal flusso, per OGNI maschera m-ref (le due viste
+  // convivono nel DOM e il breakpoint decide quale si vede).
+  .doc-form--m-ref .doc-form__header-row,
+  .doc-form--m-ref .doc-form__header .doc-form__grid--header {
+    display: none;
+  }
+
+  // Il banner del gate in tinta warning (forma OC): promosso col nome neutro.
+  .doc-form--m-ref .doc-form__gate-banner--warn {
+    color: var(--status-warning-fg);
+    background-color: var(--status-warning-bg);
+    border: var(--border-width) solid var(--status-warning-border);
+  }
+
+  // Le maschere senza dock fisso (niente scanner né selettore prodotti) non
+  // devono riservare i 116px del dock: basta un respiro sotto le azioni.
+  .doc-form--m-ref:not(:has(.doc-form__sticky-bar, .doc-form__dock)) {
+    --doc-m-dock-clear: var(--space-6);
+  }
+
+  // Il contenitore non disegna più nulla: la card la portano i pannelli.
+  // overflow visible: le tendine di select e date devono poter uscire.
+  .doc-form--m-ref .doc-form__header {
+    display: grid;
+    gap: var(--space-2);
+    padding: 0;
+    overflow: visible;
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .doc-form--m-ref .doc-panels {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  // Il pannello con una tendina aperta passa sopra a quello che segue.
+  .doc-form--m-ref .doc-panel:has(.select-menu--open),
+  .doc-form--m-ref .doc-panel:has(.date-input--open) {
+    z-index: var(--z-dropdown);
+  }
+
+  // ── Contenuto proiettato nel pannello (campi del chiamante) ───────────────
+  .doc-form--m-ref .doc-panel__section {
+    margin: 0 0 var(--space-2);
+    color: var(--color-text-muted);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-weight-label);
+    letter-spacing: 0.065em;
+    text-transform: uppercase;
+  }
+
+  .doc-form--m-ref .doc-panel__fields {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  // Colonne uguali, 12px di stacco: a 8px i due riquadri si leggevano come un
+  // controllo solo. Senza icona calendario la data ci sta per intero.
+  .doc-form--m-ref .doc-panel__fields--two {
+    grid-template-columns: 1fr 1fr;
+    column-gap: var(--space-3);
+    --date-input-icon-display: none;
+  }
+
+  // In mezza colonna il rientro conta più dell'aria.
+  .doc-form--m-ref .doc-panel__fields--two .doc-panel__field {
+    --field-gap: var(--space-1);
+    --field-pad-inline: var(--space-2);
+    --field-font-size: var(--text-md);
+    // Il calendario esce dalla mezza colonna e prende tutta la riga.
+    --date-input-panel-w: calc(200% + var(--space-3));
+  }
+
+  // La data non può accorciarsi: il pulsante del calendario si stringe.
+  .doc-form--m-ref .doc-panel__fields--two app-date-input {
+    --field-pad-inline: var(--space-1);
+    --date-input-toggle-w: var(--space-5);
+    --date-input-toggle-pad: 0;
+  }
+
+  // Il campo porta ai controlli condivisi altezza e riquadro della reference
+  // attraverso il vocabolario --field-* (select e date picker lo leggono).
+  .doc-form--m-ref .doc-panel__field {
+    display: grid;
+    gap: var(--space-1);
+    min-inline-size: 0;
+    --field-h: var(--doc-m-control-h);
+    --field-height: var(--doc-m-control-h);
+    --field-pad-inline: var(--space-3);
+    // 14px sui select: niente zoom iOS su un picker, e la gerarchia
+    // label 15 · trigger 14 · opzioni 13 resta coerente.
+    --field-font-size: var(--text-md);
+    --field-fg: var(--color-text);
+    --field-bg: var(--color-surface);
+    --field-bg-hover: var(--color-surface);
+    --field-border-color: var(--color-border-strong);
+    --field-radius: var(--doc-m-radius-sm);
+    // Senza questo select e date restano larghi 14rem di default.
+    --select-menu-width: 100%;
+    // Il calendario arriva al bordo della riga restando dentro lo schermo.
+    --date-input-panel-inset: 0 auto;
+    --date-input-panel-max-w: calc(100vw - var(--space-6));
+  }
+
+  // I controlli sono grid item: nascono con `min-inline-size: auto` e la
+  // larghezza minima del contenuto li farebbe sforare dalla colonna.
+  .doc-form--m-ref .doc-panel__field app-date-input,
+  .doc-form--m-ref .doc-panel__field app-select-menu,
+  .doc-form--m-ref .doc-panel__field .doc-panel__control {
+    min-inline-size: 0;
+  }
+
+  .doc-form--m-ref .doc-panel__label {
+    color: var(--color-text);
+    font-size: var(--doc-m-text-panel);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.2;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+
+  // Etichetta e scorciatoia sulla stessa riga («Crea nuovo cliente»).
+  .doc-form--m-ref .doc-panel__field-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    min-block-size: var(--space-6);
+  }
+
+  .doc-form--m-ref .doc-panel__field-action {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex-shrink: 0;
+    inline-size: fit-content;
+    min-block-size: var(--space-7, 1.75rem);
+    padding: 0;
+    color: var(--color-focus);
+    background: none;
+    border: 0;
+    font-size: var(--doc-m-text-meta);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  // Input di testo nudo: stesso riquadro di select e date picker.
+  .doc-form--m-ref .doc-panel__control {
+    inline-size: 100%;
+    min-block-size: var(--doc-m-control-h);
+    padding-inline: var(--space-3);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border-strong);
+    border-radius: var(--doc-m-radius-sm);
+    font-size: var(--text-lg);
+  }
+
+  .doc-form--m-ref .doc-panel__control:focus-visible {
+    outline: none;
+    border-color: var(--color-focus);
+    box-shadow: var(--field-focus-ring);
+  }
+
+  .doc-form--m-ref .doc-panel__helper {
+    margin: var(--space-2) 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--doc-m-text-meta);
+    line-height: 1.4;
+  }
+
+  // ── Riepilogo totali: lista impilata, riga Totale in tinta ────────────────
+  .doc-form--m-ref .doc-form__footer-grid {
+    gap: var(--space-2);
+  }
+
+  // Card a sé; il rientro sta sulle righe, così la fascia del totale arriva
+  // ai bordi da sola (l'overflow nascosto ritaglia gli angoli).
+  .doc-form--m-ref .doc-form__totals-bar {
+    display: block;
+    padding: 0;
+    overflow: hidden;
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+
+  .doc-form--m-ref .doc-form__totals {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    inline-size: 100%;
+    min-inline-size: 0;
+    padding: 0;
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+  }
+
+  .doc-form--m-ref .doc-form__totals-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0;
+    inline-size: auto;
+    max-inline-size: none;
+    margin-inline-start: 0;
+    padding-block: var(--space-2);
+    padding-inline: var(--doc-m-totals-pad);
+    border-inline-end: 0;
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  .doc-form--m-ref .doc-form__totals-row:last-child {
+    border-block-end: 0;
+  }
+
+  .doc-form--m-ref .doc-form__totals-row:nth-child(2n),
+  .doc-form--m-ref .doc-form__totals-row:nth-last-child(2):nth-child(odd) {
+    border-inline-end: 0;
+  }
+
+  .doc-form--m-ref .doc-form__totals-row:nth-last-child(2):nth-child(odd) {
+    grid-column: auto;
+  }
+
+  .doc-form--m-ref .doc-form__totals dt {
+    font-size: var(--text-sm);
+    color: var(--color-text);
+  }
+
+  .doc-form--m-ref .doc-form__totals dd {
+    font-size: var(--text-sm);
+    text-align: end;
+  }
+
+  // La cella del valore si adatta al contenuto: su mobile ospita anche il
+  // pulsante «+ Aggiungi sconto», il doppio del campo numerico.
+  .doc-form--m-ref .doc-form__totals-row--field dd {
+    inline-size: auto;
+    margin-inline-start: auto;
+  }
+
+  .doc-form--m-ref .doc-form__totals-input {
+    inline-size: var(--space-16);
+  }
+
+  // Totale documento: riga a piena larghezza in fondo, il dato più marcato
+  // della sezione. Margine sopra a zero: la fascia attacca alla riga dell'IVA.
+  .doc-form--m-ref .doc-form__totals-row--total {
+    grid-column: 1 / -1;
+    margin-block: 0;
+    border-inline-end: 0;
+    border-block-end: 0;
+    background-color: var(--color-metric-total-bg);
+    color: var(--color-metric-total-fg);
+  }
+
+  .doc-form--m-ref .doc-form__totals-row--total dt,
+  .doc-form--m-ref .doc-form__totals-row--total dd {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-bold);
+    color: inherit;
+  }
+
+  // ── Note documento ────────────────────────────────────────────────────────
+  // A 32px il campo sembrava un input: resta trascinabile, con un tetto alto.
+  .doc-form--m-ref .doc-form__footer-notes .doc-form__textarea {
+    min-block-size: var(--doc-m-notes-min);
+    max-block-size: var(--doc-m-notes-max);
+  }
+
+  // Su phone le note vanno in colonna singola a tutta larghezza: le due
+  // colonne della banda desktop strizzano le aree di scrittura.
+  .doc-form--m-ref .doc-form__footer-notes {
+    grid-template-columns: 1fr;
+  }
+
+  // La spunta a piena larghezza: casella e testo allineati in alto, riga
+  // comoda da tappare.
+  .doc-form--m-ref .doc-form__footer-notes .doc-form__check {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    min-block-size: var(--btn-min-height);
+  }
+
+  // ── Azioni finali del documento ───────────────────────────────────────────
+  // La barra azioni desktop esce: su mobile la coppia Annulla/Salva vive in
+  // fondo al documento e scorre col contenuto (regole-stile-ui §5).
+  .doc-form--m-ref .doc-form__actions {
+    display: none;
+  }
+
+  .doc-form--m-ref .doc-form__mobile-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-block-start: var(--space-6);
+    padding-block: var(--space-6) var(--space-1);
+    --field-height: var(--btn-min-height);
+    --button-h: var(--doc-m-control-h);
+    --button-pad-inline: var(--space-4);
+    --button-radius: var(--doc-m-radius-sm);
+    --button-font-size: var(--doc-m-text-body);
+    --button-font-weight: var(--font-weight-bold);
+  }
+
+  // ── Dock in basso ─────────────────────────────────────────────────────────
+  // Con il dock m-ref attivo fino a lg, lo scanner in linea del corpo pagina
+  // (Arrivo merce) sarebbe un doppione: sotto lg scansiona il dock.
+  .doc-form--m-ref .doc-form__scan-inline {
+    display: none;
+  }
+
+  // Totale nel dock: il vecchio blocco ≤md non copre la fascia md–lg.
+  .doc-form--m-ref .doc-form__dock-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-block-end: var(--space-2);
+  }
+
+  .doc-form--m-ref .doc-form__dock-total span {
+    font-size: var(--text-xs);
+    color: var(--color-text-subtle);
+  }
+
+  .doc-form--m-ref .doc-form__dock-total strong {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text);
+  }
+
+  // «Cerca prodotto» a sinistra sceglie dal catalogo; «Scansiona» a destra è
+  // l'azione primaria, scura, quella che si usa col telefono in mano.
+  // fixed: ancorato al bordo utile dello schermo, la safe-area serve solo a
+  // non finire sotto la home bar.
+  .doc-form--m-ref .doc-form__sticky-bar {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: var(--z-sticky);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    margin-block-start: 0;
+    padding: var(--space-1) var(--doc-m-gutter) calc(var(--space-1) + env(safe-area-inset-bottom));
+    background-color: var(--color-surface);
+    border-block-start: var(--border-width) solid var(--color-border);
+    box-shadow: var(--shadow-footer);
+    --field-height: var(--btn-min-height);
+    --button-inline-size: 100%;
+    --button-flex: 1 1 0;
+  }
+
+  // Il totale nel dock occupa una riga intera della griglia: scanner e Salva
+  // condividono la riga sotto, ad altezza pari (il gap fa da stacco).
+  .doc-form--m-ref .doc-form__sticky-bar .doc-form__dock-total {
+    grid-column: 1 / -1;
+    margin-block-end: 0;
+  }
+
+  .doc-form--m-ref .doc-form__sticky-bar .doc-panel__control {
+    min-block-size: var(--doc-m-dock-h);
+  }
+
+  .doc-form--m-ref .doc-dock__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-inline-size: 0;
+    min-block-size: var(--doc-m-dock-h);
+    padding-inline: var(--space-3);
+    border-radius: var(--doc-m-radius-md);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-bold);
+    line-height: 1.15;
+    cursor: pointer;
+  }
+
+  .doc-form--m-ref .doc-dock__icon {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    inline-size: var(--doc-m-dock-icon);
+    block-size: var(--doc-m-dock-icon);
+    border-radius: var(--space-2);
+  }
+
+  .doc-form--m-ref .doc-dock__action--product {
+    color: var(--color-focus);
+    background-color: var(--color-surface);
+    border: var(--border-width) solid var(--color-border-strong);
+  }
+
+  .doc-form--m-ref .doc-dock__action--product .doc-dock__icon {
+    color: var(--color-focus);
+    background-color: var(--doc-m-accent-soft);
+  }
+
+  .doc-form--m-ref .doc-dock__action--scan {
+    color: var(--color-text-inverse);
+    background-color: var(--color-primary);
+    border: var(--border-width) solid var(--color-primary);
+  }
+
+  .doc-form--m-ref .doc-dock__action--scan .doc-dock__icon {
+    color: var(--color-text-inverse);
+    background-color: var(--color-on-dark-surface);
+  }
+
+  .doc-form--m-ref .doc-dock__action--product:disabled {
+    color: var(--color-text-subtle);
+    background-color: var(--color-surface-soft);
+    border-color: var(--color-border);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .doc-form--m-ref .doc-dock__action--product:disabled .doc-dock__icon {
+    color: var(--color-text-subtle);
+    background-color: var(--color-surface);
+  }
+
+  // «Scansiona» disabilitato tiene lo sfondo brand, solo sbiadito: stesso
+  // pattern di app-button, applicato qui perché il dock è un bottone HTML.
+  .doc-form--m-ref .doc-dock__action--scan:disabled {
+    opacity: var(--opacity-disabled);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phone (≤ md): il contenuto vale più dell'aria ai lati.
+// ═══════════════════════════════════════════════════════════════════════════
+@include bp.media-down('md') {
+  .doc-form--m-ref .doc-form__form {
+    gap: var(--space-2);
+  }
+
+  // Sezioni: padding 14px, nessuna ombra, solo bordo tenue sul grigio.
+  .doc-form--m-ref .doc-form__lines,
+  .doc-form--m-ref .doc-form__footer-notes,
+  .doc-form--m-ref .doc-form__attachments {
+    padding: var(--card-pad-mobile);
+    box-shadow: none;
+    border-color: var(--color-border);
+  }
+
+  // I totali tengono il rientro sulle righe, non sulla card.
+  .doc-form--m-ref .doc-form__totals-bar {
+    padding: 0;
+    box-shadow: none;
+    border-color: var(--color-border);
+  }
+
+  // 44px: il minimo touch. Vale per le maschere che sotto lg tengono la
+  // griglia classica di testata (i pannelli hanno già i propri controlli).
+  .doc-form--m-ref .doc-form__header .doc-form__field {
+    --field-height: var(--control-h-touch);
+  }
+
+  // Scala testi della testata: valore leggibile col telefono in mano (16px,
+  // soglia no-zoom iOS), label sopra a 19px, sottotitoli a 12px.
+  .doc-form--m-ref .doc-form__header .doc-form__label {
+    font-size: var(--doc-m-field-label);
+    line-height: var(--leading-tight);
+    letter-spacing: normal;
+    text-transform: none;
+  }
+
+  .doc-form--m-ref .doc-form__header .doc-form__input,
+  .doc-form--m-ref .doc-form__header {
+    --field-font-size: var(--text-lg);
+  }
+
+  .doc-form--m-ref .doc-form__header .doc-form__inline-toggle {
+    font-size: var(--text-xs);
+  }
+}
+
+// Phone stretto (< 380px): le coppie affiancate non ci stanno più.
+@include bp.media-down('xs') {
+  .doc-form--m-ref .doc-form__title {
+    font-size: var(--text-xl);
+  }
+
+  .doc-form--m-ref .doc-panel__fields--two {
+    grid-template-columns: 1fr;
+  }
+}

@@ -90,10 +90,8 @@
   transform: rotate(180deg);
 }
 
-// Azioni documento in fondo (solo vista mobile: su desktop c'e' il footer).
-.co-form__mobile-actions {
-  display: none;
-}
+// Azioni documento in fondo (doc-form__mobile-actions): promosse in
+// styles/_document-form-mobile.scss.
 
 // ── Scansione rapida: card sotto le righe ──────────────────────────────────
 .co-form__mobile-quick {
@@ -165,7 +163,9 @@
     font-size: var(--text-xs);
   }
 
-  .co-form__save-state {
+  // Scope .co-form: la classe ora è globale (.doc-form .doc-form__save-state,
+  // stessa specificità) e qui deve vincere il foglio del componente.
+  .co-form .doc-form__save-state {
     order: 1;
     flex: 1 0 100%;
     margin-inline-start: 0;
@@ -245,13 +245,8 @@
   // Finestra «Colonne»: a tutta larghezza, una colonna sola e
   // bottoni di riordino grandi abbastanza per il dito (mockup responsive).
 
-  // Tabella fuori, card dentro.
-  // La tabella la spegne gia' la base a questo breakpoint; qui resta solo il
-  // riepilogo di riga, che e' dell'Ordine cliente.
-  .co-form__table-summary {
-    display: none;
-  }
-
+  // Tabella fuori, card dentro. (Tabella e piede doc-form__table-summary li
+  // spegne gia' il foglio globale a questo breakpoint.)
   .co-form__cards {
     display: flex;
     flex-direction: column;
@@ -266,96 +261,8 @@
     flex-direction: column;
   }
 
-  // Totali a due colonne; il totale documento chiude il riepilogo.
-  .co-form .doc-form__footer-grid {
-    gap: var(--space-2);
-  }
-
-  // Su desktop il riquadro si appoggia a destra a larghezza contenuto: qui
-  // deve occupare la riga intera, come le altre card.
-  .co-form .doc-form__totals-bar {
-    display: block;
-    padding-block-start: 0;
-  }
-
-  .co-form .doc-form__totals {
-    display: grid;
-    gap: 0;
-    inline-size: 100%;
-    min-inline-size: 0;
-    padding: 0;
-    border-color: var(--color-border);
-    overflow: hidden;
-  }
-
-  // Etichetta in alto a sinistra, valore allineato a destra: gli importi
-  // restano incolonnati anche a due colonne.
-  .co-form .doc-form__totals-row {
-    display: flex;
-    gap: 0;
-    inline-size: auto;
-    max-inline-size: none;
-    margin-inline-start: 0;
-    padding: var(--space-2);
-  }
-
-  .co-form .doc-form__totals dd {
-  }
-
-  .co-form .doc-form__totals-row--field dd {
-    margin-inline-start: auto;
-  }
-
-  .co-form .doc-form__totals-row:nth-child(2n) {
-    border-inline-end: 0;
-  }
-
-  // Con lo sconto documento le voci diventano dispari: l'ultima prende la riga.
-  .co-form .doc-form__totals-row:nth-last-child(2):nth-child(odd) {
-    border-inline-end: 0;
-  }
-
-  // Totale documento: riga a piena larghezza in fondo al riepilogo, il dato
-  // piu' marcato della sezione (non esiste piu' la barra fissa in basso).
-  .co-form .doc-form__totals-row--total {
-    grid-column: 1 / -1;
-    border-inline-end: 0;
-    border-block-end: 0;
-    background-color: var(--color-metric-total-bg);
-    color: var(--color-metric-total-fg);
-  }
-
-  .co-form .doc-form__totals-row--total dt,
-  .co-form .doc-form__totals-row--total dd {
-    color: inherit;
-  }
-
-  .co-form .doc-form__totals dt {
-  }
-
-  .co-form .doc-form__totals dd {
-  }
-
-  .co-form .doc-form__footer-notes {
-    padding: var(--space-2);
-  }
-
-  .co-form .doc-form__textarea {
-    min-block-size: var(--space-8);
-    max-block-size: var(--space-16);
-  }
-
-  // Barra azioni desktop fuori: su mobile la coppia Annulla/Salva ordine vive
-  // in fondo al documento (vedi .co-form__mobile-actions).
-  .co-form .doc-form__actions {
-    display: none;
-  }
-
-  .co-form .co-form__mobile-actions {
-    padding-block-end: env(safe-area-inset-bottom);
-    // Touch target pieno sui due pulsanti (regole-stile-ui §4).
-    --field-height: var(--btn-min-height);
-  }
+  // Totali impilati, note e azioni finali: promossi in
+  // styles/_document-form-mobile.scss (gate .doc-form--m-ref).
 }
 
 // Schermi stretti: una colonna sola e Salva su tutta la riga.

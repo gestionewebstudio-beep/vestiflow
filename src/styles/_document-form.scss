@@ -77,6 +77,7 @@ app-customer-order-form {
   --doc-m-text-panel: 0.9375rem; // 15px — titolo pannello e label campo
   --doc-m-text-body: 0.875rem; // 14px — testo dei bottoni finali
   --doc-m-text-meta: 0.75rem; // 12px — sottotitoli e stato
+  --doc-m-field-label: 1.1875rem; // 19px — label dei campi di testata (≤ md)
 
   --doc-m-accent-soft: #e9f2f1; // tinta del medaglione icona
   --doc-m-lines-bg: rgb(255 255 255 / 0.58);
@@ -115,7 +116,6 @@ app-customer-order-form {
 
 // Testo secondario ricorrente (hint, info, trigger di menu).
 .doc-form__po-link-hint,
-.doc-form__autosave-hint,
 .doc-form__scan-hint,
 .doc-form__line-total-gross,
 .doc-form__totals-row--info,
@@ -123,6 +123,14 @@ app-customer-order-form {
 .doc-form__th-menu-trigger {
   display: block;
   margin-top: var(--space-1);
+}
+
+// Avvertenza di maschera (proforma «non valida ai fini fiscali», disclaimer
+// delle operazioni di magazzino): testo secondario sotto il titolo.
+.doc-form__disclaimer {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
 }
 
 .doc-form__import-summary {
@@ -383,6 +391,9 @@ app-customer-order-form {
 
 .doc-form__input,
 .doc-form__textarea {
+  // Senza larghezza esplicita una textarea resta alla misura intrinseca del
+  // browser (~20 colonne): deve riempire la cella che la ospita.
+  inline-size: 100%;
   padding-inline: var(--space-3);
   font-size: var(--text-base);
   font-family: inherit;
@@ -502,19 +513,6 @@ app-customer-order-form {
     margin: 0;
     font-size: var(--text-sm);
     color: var(--color-text);
-  }
-}
-
-.doc-form__autosave-hint {
-  margin: 0;
-
-  &--saved {
-    color: var(--status-success-fg);
-  }
-
-  &--dirty {
-    color: var(--status-warning-fg);
-    font-weight: var(--font-weight-medium);
   }
 }
 
@@ -980,11 +978,6 @@ app-customer-order-form {
   white-space: nowrap;
 }
 
-.doc-form__lines-count {
-  font-size: var(--text-xs);
-  color: var(--color-text-subtle);
-}
-
 .doc-form__lines-tools {
   display: flex;
   align-items: center;
@@ -1098,9 +1091,15 @@ app-customer-order-form {
   margin-block-start: var(--space-2);
 }
 
+// Coda esplicativa della label («non stampato…»): scende sotto il titolo in
+// tondo minuscolo — dentro una label maiuscola diventerebbe una riga urlata
+// che spinge in basso il campo.
 .doc-form__label-hint {
+  display: block;
   font-weight: var(--font-weight-regular);
   color: var(--color-text-subtle);
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .doc-form__hint {
@@ -1587,10 +1586,10 @@ app-customer-order-form {
 // specificita' che avevano prima, e cambiarla sposterebbe chi vince fra queste
 // e le regole piu' specifiche gia' presenti sopra.
 //
-// NON e' salita la vista mobile dell'Ordine cliente: quella e' agganciata al
-// suo markup (.co-panel, .co-order-card, .co-dock) e promuoverla spegnerebbe
-// pezzi di schermata nelle maschere che quel markup non hanno. Tocca a loro
-// adottarlo, una alla volta.
+// La vista mobile dell'Ordine cliente e' salita a parte, come OPT-IN: vive in
+// _document-form-mobile.scss dietro il modificatore .doc-form--m-ref e nel
+// componente condiviso document-mobile-panel. Le maschere la adottano una
+// alla volta, insieme al markup (doc-panels, doc-dock, doc-form__mobile-actions).
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── Impaginato: card separate sul fondo pagina, niente card contenitore ─────
@@ -1604,6 +1603,31 @@ app-customer-order-form {
 .doc-form .doc-form__title {
   font-size: var(--text-xl);
   font-weight: var(--font-weight-label);
+}
+
+// Stato di salvataggio in coda alla riga del titolo (mockup: check + testo).
+.doc-form .doc-form__save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  margin-inline-start: auto;
+  font-size: var(--text-xs);
+  color: var(--color-ok);
+}
+
+.doc-form .doc-form__save-state--dirty {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-medium);
+}
+
+// Scorciatoie affiancate sotto un campo di testata (es. «Nuovo cliente» e
+// «Scheda cliente» sotto il campo cliente).
+.doc-form .doc-form__inline-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 // ── Testata: una card, due fasce di celle unite ─────────────────────────────
@@ -1676,6 +1700,54 @@ app-customer-order-form {
   box-shadow: var(--field-focus-ring);
 }
 
+// A partire da lg le fasce di testata sono flex a larghezza proporzionale:
+// riempiono sempre la card, qualunque sia il numero di campi della variante
+// (ordine, preventivo, DDT, scarico). Le QUOTE per-maschera (nth-child)
+// restano nel foglio della singola pagina.
+@include bp.media-up('lg') {
+  .doc-form .doc-form__header-row {
+    display: flex;
+    gap: 0;
+  }
+
+  .doc-form .doc-form__header-row > .doc-form__field,
+  .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    border-block-end: 0;
+    border-inline-end: var(--border-width) solid var(--color-border);
+  }
+
+  // Il fieldset-gate è display:contents: i suoi campi partecipano al flex
+  // della fascia, ma il combinatore > guarda il DOM — vanno raggiunti
+  // attraverso il fieldset (selettore qui sopra) e chiusi qui sotto.
+  .doc-form .doc-form__header-row > .doc-form__field:last-child,
+  .doc-form
+    .doc-form__header-row
+    > .doc-form__gate-fields:last-child
+    > .doc-form__field:last-child {
+    border-inline-end: 0;
+  }
+
+  // La quota doppia del campo principale (Cliente, Fornitore) vale anche
+  // nella fascia flex, dove il grid-column dello span2 non ha effetto.
+  .doc-form .doc-form__header-row > .doc-form__field--span2,
+  .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field--span2 {
+    flex-grow: 2;
+  }
+}
+
+// Riempie la fascia solo dove la testata è a larghezza piena: sotto lg la
+// griglia impila i campi e una cella vuota lascerebbe un bordo orfano.
+.doc-form .doc-form__header-filler {
+  display: none;
+  padding: 0;
+
+  @include bp.media-up('lg') {
+    display: block;
+  }
+}
+
 // ── Riga strumenti sopra la tabella ────────────────────────────────────────
 // P4 — La testata righe dell'Arrivo merce a xl diventa griglia a 3 colonne
 // (titolo | scanner inline | strumenti): qui lo scanner inline non esiste
@@ -1692,11 +1764,6 @@ app-customer-order-form {
 .doc-form .doc-form__subtitle {
   font-size: var(--text-md);
   font-weight: var(--font-weight-semibold);
-}
-
-.doc-form .doc-form__lines-count {
-  font-size: var(--text-2xs);
-  color: var(--color-text-muted);
 }
 
 .doc-form .doc-form__lines-tools {
@@ -1923,6 +1990,38 @@ app-customer-order-form {
   border-radius: var(--radius-xs);
 }
 
+// ── Piede della tabella: chiude in basso la card delle righe ───────────────
+// (la table-wrap porta solo i radius in alto; dove il piede manca, la card
+// resta com'è oggi nelle altre maschere — nessuna regola wrap da toccare).
+.doc-form .doc-form__table-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-block-size: 3.25rem;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-doc-summary-fg);
+  background-color: var(--color-doc-summary-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-block-start: var(--border-width) solid var(--color-table-group-divider);
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
+}
+
+.doc-form .doc-form__table-summary strong {
+  font-weight: var(--font-weight-label);
+  color: var(--color-text);
+}
+
+// Sotto lg la card view sostituisce la tabella: sparisce anche il suo piede.
+// Il blocco sta DOPO la regola qui sopra: a parità di specificità vince lui.
+@include bp.media-down('lg') {
+  .doc-form .doc-form__table-summary {
+    display: none;
+  }
+}
+
 .doc-form .doc-form__totals dt {
   font-size: var(--text-2xs);
   font-weight: var(--font-weight-regular);
@@ -1996,8 +2095,35 @@ app-customer-order-form {
   font-size: var(--text-2xs);
 }
 
+// ── §CONTROLLI: quantità oltre la disponibile ──────────────────────────────
+// Bordo/sfondo ambra sulla cella, testo discreto «disponibili solo N».
+// Mai un blocco.
+.doc-form .doc-form__cell--exceeds {
+  position: relative;
+  background: var(--color-warning-subtle);
+}
+
+.doc-form .doc-form__cell--exceeds .doc-form__input--table {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-semibold);
+  border-color: var(--color-warning);
+  background-color: var(--color-warning-subtle);
+}
+
+// Sulla riga in hover la cella resta ambra, non prende la tinta di gruppo.
 .doc-form .doc-form__table tbody tr:hover td.doc-form__cell--exceeds {
   background-color: var(--color-warning-subtle);
+}
+
+// L'avviso va a capo dentro la cella: su colonne strette restava su una riga
+// sola e sbordava sulle colonne vicine.
+.doc-form .doc-form__exceeds-hint {
+  display: block;
+  font-size: var(--text-label);
+  line-height: var(--leading-tight);
+  color: var(--color-warning);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 // Riga «documento collegato» e riordino delle righe per trascinamento —

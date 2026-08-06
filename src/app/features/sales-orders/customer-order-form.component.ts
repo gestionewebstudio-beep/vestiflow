@@ -24,6 +24,7 @@ import {
   take,
 } from 'rxjs';
 
+import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
@@ -78,6 +79,7 @@ import {
   mapCustomerFormToInput,
 } from '@domain/customers/utils/customer-form.util';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
+import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
@@ -243,6 +245,7 @@ interface AvailabilityIssue {
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentIncludePanelComponent,
+    DocumentMobilePanelComponent,
     ProductFormComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -293,6 +296,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly appConfig = inject(APP_CONFIG);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly navHistory = inject(NavigationHistoryService);
 
   /** Scanner fotocamera disponibile (feature flag tenant). */
   protected readonly barcodeScannerEnabled = this.appConfig.features.barcodeScanner;
@@ -2434,23 +2438,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // dato: nessun controllo del form ne dipende.
 
   // ── Testata mobile a due pannelli (reference Ordine cliente mobile) ───────
-  // Quello che serve per partire sta aperto, il resto ha già dei valori validi
-  // e si apre solo se li si vuole cambiare. Nessuno dei due si richiude da
-  // solo: l'apertura la decide l'utente, anche quando i dati si completano.
-
-  /** «Cliente e magazzino»: aperto all'ingresso, sono i dati che sbloccano tutto. */
-  protected readonly customerPanelOpen = signal(true);
-
-  /** «Dettagli documento»: chiuso all'ingresso, i valori predefiniti bastano. */
-  protected readonly detailsPanelOpen = signal(false);
-
-  protected toggleCustomerPanel(): void {
-    this.customerPanelOpen.update((open) => !open);
-  }
-
-  protected toggleDetailsPanel(): void {
-    this.detailsPanelOpen.update((open) => !open);
-  }
+  // I pannelli sono il componente condiviso app-document-mobile-panel: lo
+  // stato di apertura vive lì (initiallyOpen: aperto «Cliente e magazzino»,
+  // chiuso «Dettagli documento»); qui restano solo i testi computati.
 
   /** Card riga aperta: una sola alla volta, come nel mockup. */
   protected readonly openLineCard = signal<number | null>(null);
@@ -4334,13 +4324,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.navigateToList();
   }
 
-  /** Lista di provenienza: elenco dedicato (Preventivi/DDT) o Ordini cliente. */
+  /** Uscita del form: indietro nella cronologia, o la lista di provenienza. */
   private navigateToList(): void {
-    if (this.isRegistryDocument) {
-      void this.router.navigateByUrl(this.registryListPath);
-      return;
-    }
-    void this.router.navigate([this.listPath]);
+    this.navHistory.backOr(this.isRegistryDocument ? this.registryListPath : this.listPath);
   }
 
   protected reload(): void {

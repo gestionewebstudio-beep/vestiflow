@@ -51,16 +51,11 @@
   }
 
   // La riga testuale del salvataggio resta su desktop, via su mobile.
-  .co-form .co-form__save-state {
+  .co-form .doc-form__save-state {
     display: none;
   }
 
   // «Manca cliente/location»: fondo warning, non grigio tenue.
-  .co-form .co-form__gate-banner--warn {
-    color: var(--status-warning-fg);
-    background-color: var(--status-warning-bg);
-    border: var(--border-width) solid var(--status-warning-border);
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -144,26 +139,12 @@
   background-color: var(--color-surface-soft, var(--color-surface-soft));
 }
 
+// I totali a lista impilata sono promossi in styles/_document-form-mobile.scss.
 @include bp.media-down('lg') {
   .co-form__header-menu {
     display: block;
     // Spinge il ⋯ a destra nella riga del titolo.
     margin-inline-start: auto;
-  }
-
-  // Totali come lista pulita a colonna singola (label a sinistra, valore a destra).
-  .co-form .doc-form__totals {
-    grid-template-columns: 1fr;
-  }
-
-  .co-form .doc-form__totals-row {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .co-form .doc-form__totals-row:nth-last-child(2):nth-child(odd) {
-    grid-column: auto;
   }
 }
 
@@ -198,13 +179,13 @@
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Ingresso prodotti su mobile: blocco «Nuovo prodotto», «Aggiungi riga» in
-// fondo alla lista e barra azioni sticky. Nascosti su desktop, dove restano
-// la toolbar righe e la ricerca inline per riga.
+// Ingresso prodotti su mobile: blocco «Nuovo prodotto» e «Aggiungi riga» in
+// fondo alla lista. Nascosti su desktop, dove restano la toolbar righe e la
+// ricerca inline per riga. La veste del dock (doc-form__sticky-bar) è
+// promossa in styles/_document-form-mobile.scss.
 // ═══════════════════════════════════════════════════════════════════════════
 .co-form__mobile-tools,
 .co-form__mobile-add-line,
-.co-form__sticky-bar,
 .co-form__header-include {
   display: none;
 }
@@ -240,16 +221,5 @@
     justify-content: flex-end;
     padding: var(--space-2);
     border-block-start: var(--border-width) solid var(--color-border);
-  }
-
-  // Barra azioni sticky: le due azioni di ingresso prodotti sempre a portata.
-  .co-form .co-form__sticky-bar {
-    z-index: var(--z-sticky);
-    --field-height: var(--btn-min-height);
-  }
-
-  .co-form .co-form__sticky-bar {
-    --button-inline-size: 100%;
-    --button-flex: 1 1 0;
   }
 }
