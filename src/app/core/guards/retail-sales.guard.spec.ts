@@ -7,12 +7,7 @@ import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model'
 import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 
-import {
-  onlineSalesRegisterGuard,
-  retailSalesRegisterGuard,
-  salesHistoryGuard,
-  shopifyOrdersGuard,
-} from './retail-sales.guard';
+import { retailSalesRegisterGuard, shopifyOrdersGuard } from './retail-sales.guard';
 
 function userWithProfile(profile: User['tenantChannelProfile']): User {
   return {
@@ -72,59 +67,6 @@ describe('retail-sales guards', () => {
 
       const result = TestBed.runInInjectionContext(() =>
         retailSalesRegisterGuard({} as never, {} as never),
-      );
-      expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/dashboard']);
-      expect(result).not.toBe(true);
-    });
-  });
-
-  describe('onlineSalesRegisterGuard', () => {
-    it.each([TenantChannelProfile.Gestionale, TenantChannelProfile.TikTokShop])(
-      'consente accesso al profilo %s',
-      (profile) => {
-        const auth = TestBed.inject(AuthService);
-        vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(profile));
-
-        const result = TestBed.runInInjectionContext(() =>
-          onlineSalesRegisterGuard({} as never, {} as never),
-        );
-        expect(result).toBe(true);
-      },
-    );
-
-    it('redirige profilo Shopify alla dashboard', () => {
-      const auth = TestBed.inject(AuthService);
-      vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(TenantChannelProfile.Shopify));
-
-      const result = TestBed.runInInjectionContext(() =>
-        onlineSalesRegisterGuard({} as never, {} as never),
-      );
-      expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/dashboard']);
-      expect(result).not.toBe(true);
-    });
-  });
-
-  describe('salesHistoryGuard', () => {
-    it.each([
-      TenantChannelProfile.Gestionale,
-      TenantChannelProfile.Shopify,
-      TenantChannelProfile.TikTokShop,
-    ])('consente il registro Ordini cliente al profilo %s (fase 3 §2)', (profile) => {
-      const auth = TestBed.inject(AuthService);
-      vi.mocked(auth.currentUser).mockReturnValue(userWithProfile(profile));
-
-      const result = TestBed.runInInjectionContext(() =>
-        salesHistoryGuard({} as never, {} as never),
-      );
-      expect(result).toBe(true);
-    });
-
-    it('redirige utente assente alla dashboard', () => {
-      const auth = TestBed.inject(AuthService);
-      vi.mocked(auth.currentUser).mockReturnValue(null);
-
-      const result = TestBed.runInInjectionContext(() =>
-        salesHistoryGuard({} as never, {} as never),
       );
       expect(createUrlTreeMock).toHaveBeenCalledWith(['/app/dashboard']);
       expect(result).not.toBe(true);

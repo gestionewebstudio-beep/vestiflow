@@ -11,15 +11,15 @@ import {
 export const ordersRoutes: Routes = [
   {
     path: '',
-    title: 'VestiFlow · Ordini Fornitori',
+    title: 'Ordini Fornitori',
     loadComponent: () =>
       import('./supplier-order-list.component').then((m) => m.SupplierOrderListComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: SUPPLIER_ORDERS_VIEW_PERMISSIONS },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: SUPPLIER_ORDERS_VIEW_PERMISSIONS, reuse: true },
   },
   {
     path: 'new',
-    title: 'VestiFlow · Nuovo ordine fornitore',
+    title: 'Nuovo ordine fornitore',
     loadComponent: () =>
       import('./supplier-order-form.component').then((m) => m.SupplierOrderFormComponent),
     canActivate: [tenantPermissionGuard],
@@ -28,7 +28,7 @@ export const ordersRoutes: Routes = [
   },
   {
     path: ':id/edit',
-    title: 'VestiFlow · Modifica ordine fornitore',
+    title: 'Modifica ordine fornitore',
     loadComponent: () =>
       import('./supplier-order-form.component').then((m) => m.SupplierOrderFormComponent),
     canActivate: [tenantPermissionGuard],
@@ -37,7 +37,7 @@ export const ordersRoutes: Routes = [
   },
   {
     path: ':id',
-    title: 'VestiFlow · Dettaglio ordine fornitore',
+    title: 'Dettaglio ordine fornitore',
     loadComponent: () =>
       import('./supplier-order-detail.component').then((m) => m.SupplierOrderDetailComponent),
     canActivate: [tenantPermissionGuard],

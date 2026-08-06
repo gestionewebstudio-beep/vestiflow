@@ -7,24 +7,24 @@ import { REQUIRED_TENANT_PERMISSIONS_KEY } from '@core/permissions/tenant-permis
 export const reportsRoutes: Routes = [
   {
     path: '',
-    title: 'VestiFlow · Report',
+    title: 'Report',
     loadComponent: () => import('./reports.component').then((m) => m.ReportsComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView, reuse: true },
   },
   {
     path: 'corrispettivi',
-    title: 'VestiFlow · Corrispettivi',
+    title: 'Corrispettivi',
     loadComponent: () =>
       import('./pages/corrispettivi-report/corrispettivi-report.component').then(
         (m) => m.CorrispettiviReportComponent,
       ),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView, reuse: true },
   },
   {
     path: 'corrispettivi/print',
-    title: 'VestiFlow · Stampa corrispettivi',
+    title: 'Stampa corrispettivi',
     loadComponent: () =>
       import('./pages/corrispettivi-print/corrispettivi-print.component').then(
         (m) => m.CorrispettiviPrintComponent,
@@ -34,12 +34,12 @@ export const reportsRoutes: Routes = [
   },
   {
     path: 'accountant-register',
-    title: 'VestiFlow · Registro commercialista',
+    title: 'Registro commercialista',
     loadComponent: () =>
       import('./pages/accountant-register/accountant-register.component').then(
         (m) => m.AccountantRegisterComponent,
       ),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView, reuse: true },
   },
 ];

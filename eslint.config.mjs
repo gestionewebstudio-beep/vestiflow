@@ -93,6 +93,9 @@ export default tseslint.config(
   // ── Confini tra layer (regole-architettura) ────────────────────────────
   // core → shared → domain → features: ogni layer vede solo quelli sotto.
   // Le eccezioni si aprono qui, non con un commento nel file.
+  // `no-restricted-imports` vede solo gli import statici: gli `import()`
+  // dinamici (loadComponent/loadChildren nei routes) sono coperti dalla
+  // regola gemella `no-restricted-syntax` su ImportExpression.
   {
     files: ['src/app/core/**/*.ts', 'src/app/shared/**/*.ts'],
     rules: {
@@ -106,6 +109,14 @@ export default tseslint.config(
                 'core/ e shared/ non conoscono il dominio: sposta il file in domain/ o inverti la dipendenza.',
             },
           ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression > Literal[value=/^@(domain|features)\\u002F/]',
+          message:
+            'core/ e shared/ non conoscono il dominio (vale anche per gli import dinamici).',
         },
       ],
     },
@@ -125,6 +136,14 @@ export default tseslint.config(
           ],
         },
       ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression > Literal[value=/^@features\\u002F/]',
+          message:
+            'domain/ non dipende dalle schermate (vale anche per gli import dinamici).',
+        },
+      ],
     },
   },
   {
@@ -140,6 +159,33 @@ export default tseslint.config(
                 'Nessun import tra feature: promuovi il file condiviso in domain/ (vedi regole-architettura).',
             },
           ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression > Literal[value=/^@features\\u002F/]',
+          message:
+            'Nessun import tra feature, nemmeno dinamico: le rotte cross-feature le monta app.routes.ts (composition root), i componenti condivisi vanno in domain/.',
+        },
+      ],
+    },
+  },
+  {
+    // Eccezione dichiarata: documents monta la maschera Ordine cliente
+    // (sales-ddt, quote e scarico manuale sono la stessa maschera in modalità
+    // diverse). La correzione vera è promuovere customer-order-form a domain/;
+    // finché non avviene, l'eccezione vive qui — resta vietato ogni ALTRO
+    // import dinamico cross-feature nello stesso file (negative lookahead).
+    files: ['src/app/features/documents/documents.routes.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'ImportExpression > Literal[value=/^@features\\u002F(?!sales-orders\\u002Fcustomer-order-form)/]',
+          message:
+            'Nessun import tra feature, nemmeno dinamico: le rotte cross-feature le monta app.routes.ts (composition root), i componenti condivisi vanno in domain/.',
         },
       ],
     },

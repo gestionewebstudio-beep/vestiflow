@@ -12,56 +12,49 @@ import {
 export const productsRoutes: Routes = [
   {
     path: '',
-    children: [
-      {
-        path: '',
-        title: 'VestiFlow · Prodotti',
-        loadComponent: () => import('./product-list.component').then((m) => m.ProductListComponent),
-        canActivate: [tenantPermissionGuard],
-        data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: CATALOG_SECTION_PERMISSIONS },
-      },
-      {
-        path: 'new',
-        title: 'VestiFlow · Anagrafica prodotto',
-        loadComponent: () =>
-          import('@domain/products/product-form.component').then((m) => m.ProductFormComponent),
-        canActivate: [tenantPermissionGuard],
-        data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CatalogManage },
-        canDeactivate: [unsavedChangesGuard],
-      },
-      {
-        path: 'import',
-        title: 'VestiFlow · Importa prodotti CSV',
-        loadComponent: () =>
-          import('./product-import.component').then((m) => m.ProductImportComponent),
-        canActivate: [tenantPermissionGuard],
-        data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CatalogImportExport },
-      },
-      {
-        path: ':id/print-label',
-        title: 'VestiFlow · Stampa etichetta',
-        loadComponent: () =>
-          import('./product-label-print.component').then((m) => m.ProductLabelPrintComponent),
-        canActivate: [tenantPermissionGuard],
-        data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: CATALOG_SECTION_PERMISSIONS },
-      },
-      {
-        path: ':id',
-        title: 'VestiFlow · Dettaglio prodotto',
-        loadComponent: () =>
-          import('./product-detail.component').then((m) => m.ProductDetailComponent),
-        canActivate: [tenantPermissionGuard],
-        data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: CATALOG_SECTION_PERMISSIONS },
-      },
-      {
-        path: ':id/edit',
-        title: 'VestiFlow · Anagrafica prodotto',
-        loadComponent: () =>
-          import('@domain/products/product-form.component').then((m) => m.ProductFormComponent),
-        canActivate: [tenantPermissionGuard],
-        data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CatalogManage },
-        canDeactivate: [unsavedChangesGuard],
-      },
-    ],
+    title: 'Prodotti',
+    loadComponent: () => import('./product-list.component').then((m) => m.ProductListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: CATALOG_SECTION_PERMISSIONS, reuse: true },
+  },
+  {
+    path: 'new',
+    title: 'Anagrafica prodotto',
+    loadComponent: () =>
+      import('@domain/products/product-form.component').then((m) => m.ProductFormComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CatalogManage },
+    canDeactivate: [unsavedChangesGuard],
+  },
+  {
+    path: 'import',
+    title: 'Importa prodotti CSV',
+    loadComponent: () => import('./product-import.component').then((m) => m.ProductImportComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CatalogImportExport },
+  },
+  {
+    path: ':id/print-label',
+    title: 'Stampa etichetta',
+    loadComponent: () =>
+      import('./product-label-print.component').then((m) => m.ProductLabelPrintComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: CATALOG_SECTION_PERMISSIONS },
+  },
+  {
+    path: ':id',
+    title: 'Dettaglio prodotto',
+    loadComponent: () => import('./product-detail.component').then((m) => m.ProductDetailComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: CATALOG_SECTION_PERMISSIONS },
+  },
+  {
+    path: ':id/edit',
+    title: 'Anagrafica prodotto',
+    loadComponent: () =>
+      import('@domain/products/product-form.component').then((m) => m.ProductFormComponent),
+    canActivate: [tenantPermissionGuard],
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.CatalogManage },
+    canDeactivate: [unsavedChangesGuard],
   },
 ];
