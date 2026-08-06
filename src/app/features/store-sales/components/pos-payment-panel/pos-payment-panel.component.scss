@@ -1,0 +1,79 @@
+.ppp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ppp__label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.ppp__row,
+.ppp__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ppp__input {
+  block-size: var(--btn-min-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.ppp__input:focus-visible {
+  border-color: var(--color-interactive);
+  outline: none;
+  box-shadow: var(--field-focus-ring);
+}
+
+// Quota e «ricevuti»: importi corti, non campi a tutta riga.
+.ppp__amount {
+  inline-size: var(--field-w-sm);
+  text-align: end;
+}
+
+.ppp__note {
+  inline-size: var(--field-w-lg);
+}
+
+.ppp__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--btn-min-height);
+  block-size: var(--btn-min-height);
+  color: var(--status-error-fg);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.ppp__remove:hover {
+  background-color: var(--status-error-bg);
+}
+
+.ppp__hint {
+  font-size: var(--text-sm);
+}
+
+.ppp__hint--warning {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-medium);
+}
+
+// Il resto si legge ad alta voce al cliente: dev'essere il valore più
+// evidente della zona pagamento.
+.ppp__hint--change {
+  color: var(--status-success-fg);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-bold);
+}

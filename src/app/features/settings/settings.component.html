@@ -101,6 +101,15 @@
       </p>
       <app-fiscal-device-panel />
     </section>
+
+    <section class="settings__panel" aria-labelledby="settings-pos-terminals">
+      <h2 id="settings-pos-terminals" class="settings__panel-title">Terminali POS</h2>
+      <p class="settings__panel-hint">
+        Adempimento 2026: ogni POS va associato allo strumento di certificazione sul portale Fatture
+        e Corrispettivi. Qui l'elenco e le scadenze.
+      </p>
+      <app-pos-terminals-panel />
+    </section>
   }
 
   @if (showLocationsSection()) {

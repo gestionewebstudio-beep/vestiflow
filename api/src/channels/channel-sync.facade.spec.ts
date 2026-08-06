@@ -86,13 +86,41 @@ describe('ChannelSyncFacade', () => {
       expect(t.tiktokInventoryPush.pushVariantStock).not.toHaveBeenCalled();
     });
 
-    it('non propaga gli errori del canale', async () => {
-      const t = setup(TenantChannelProfile.shopify);
-      t.shopifyInventoryPush.pushLevels.mockRejectedValue(new Error('rate limit'));
+    it('non propaga gli errori del canale, dopo aver riprovato col backoff', async () => {
+      // Il retry attende 2s/10s/30s con timer veri: qui si accelerano.
+      vi.useFakeTimers();
+      try {
+        const t = setup(TenantChannelProfile.shopify);
+        t.shopifyInventoryPush.pushLevels.mockRejectedValue(new Error('rate limit'));
 
-      await expect(
-        t.facade.pushInventoryLevels('tenant-1', 'var-1', ['loc-1']),
-      ).resolves.toBeUndefined();
+        const push = t.facade.pushInventoryLevels('tenant-1', 'var-1', ['loc-1']);
+        await vi.runAllTimersAsync();
+        await expect(push).resolves.toBeUndefined();
+
+        // 1 tentativo + 3 retry: l'errore transitorio non lascia il canale
+        // stale fino al push successivo.
+        expect(t.shopifyInventoryPush.pushLevels).toHaveBeenCalledTimes(4);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('errore transitorio: il retry riallinea il canale senza propagare nulla', async () => {
+      vi.useFakeTimers();
+      try {
+        const t = setup(TenantChannelProfile.shopify);
+        t.shopifyInventoryPush.pushLevels
+          .mockRejectedValueOnce(new Error('rete giù'))
+          .mockResolvedValue(undefined);
+
+        const push = t.facade.pushInventoryLevels('tenant-1', 'var-1', ['loc-1']);
+        await vi.runAllTimersAsync();
+        await expect(push).resolves.toBeUndefined();
+
+        expect(t.shopifyInventoryPush.pushLevels).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

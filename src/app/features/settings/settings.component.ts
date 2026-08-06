@@ -58,6 +58,7 @@ import { TikTokIntegrationPanelComponent } from './components/tiktok-integration
 import { TenantOperationalSettingsPanelComponent } from './components/tenant-operational-settings-panel/tenant-operational-settings-panel.component';
 import { TenantBackupPanelComponent } from './components/tenant-backup-panel/tenant-backup-panel.component';
 import { FiscalDevicePanelComponent } from './components/fiscal-device-panel/fiscal-device-panel.component';
+import { PosTerminalsPanelComponent } from './components/pos-terminals-panel/pos-terminals-panel.component';
 import { ShopifyIntegrationPanelComponent } from './components/shopify-integration-panel/shopify-integration-panel.component';
 import type { SetupStatusItem } from './models/setup-status.model';
 
@@ -104,6 +105,7 @@ const THEME_OPTIONS: readonly { readonly value: ThemeMode; readonly label: strin
     TenantOperationalSettingsPanelComponent,
     TenantBackupPanelComponent,
     FiscalDevicePanelComponent,
+    PosTerminalsPanelComponent,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',

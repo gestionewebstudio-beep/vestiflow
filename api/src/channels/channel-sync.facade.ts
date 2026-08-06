@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { TenantChannelProfile } from '@prisma/client';
 
+import { retryWithBackoff } from '../common/retry-backoff.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyInventoryPushService } from '../shopify/shopify-inventory-push.service';
 import {
@@ -13,6 +14,14 @@ import { TikTokProductPushService } from '../tiktok/tiktok-product-push.service'
 
 /** Cache breve del profilo canale: cambia solo dal pannello admin. */
 const PROFILE_TTL_MS = 60_000;
+
+/**
+ * Attese tra i tentativi del push inventario (errore transitorio di rete o
+ * rate limit): dopo una vendita al banco il canale non può restare stale fino
+ * al push successivo. Retry in memoria: la rete di sicurezza finale resta la
+ * riconciliazione webhook (caso D) e il push della prossima scrittura.
+ */
+const INVENTORY_PUSH_RETRY_DELAYS_MS = [2_000, 10_000, 30_000] as const;
 
 /**
  * Orchestrazione push verso canali di vendita collegati.
@@ -129,7 +138,9 @@ export class ChannelSyncFacade {
   ): Promise<void> {
     if (await this.isShopifyTenant(tenantId)) {
       try {
-        await this.shopifyInventoryPush.pushLevels(tenantId, variantId, locationIds);
+        await this.withInventoryRetry('Shopify', tenantId, () =>
+          this.shopifyInventoryPush.pushLevels(tenantId, variantId, locationIds),
+        );
       } catch (error: unknown) {
         this.warn('Shopify', tenantId, error, 'Push inventario');
       }
@@ -138,11 +149,26 @@ export class ChannelSyncFacade {
 
     if (await this.isTikTokTenant(tenantId)) {
       try {
-        await this.tiktokInventoryPush.pushVariantStock(tenantId, variantId);
+        await this.withInventoryRetry('TikTok', tenantId, () =>
+          this.tiktokInventoryPush.pushVariantStock(tenantId, variantId),
+        );
       } catch (error: unknown) {
         this.warn('TikTok', tenantId, error, 'Push inventario');
       }
     }
+  }
+
+  /** Riprova il push inventario sugli errori transitori, loggando i tentativi. */
+  private withInventoryRetry<T>(
+    channel: string,
+    tenantId: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    return retryWithBackoff(operation, {
+      delaysMs: INVENTORY_PUSH_RETRY_DELAYS_MS,
+      onRetry: (attempt, error) =>
+        this.warn(channel, tenantId, error, `Push inventario (tentativo ${attempt})`),
+    });
   }
 
   // ── Operazioni attese, con esito mostrato all'utente ──────────────────────

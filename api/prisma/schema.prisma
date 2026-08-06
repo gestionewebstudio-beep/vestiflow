@@ -407,6 +407,7 @@ model Tenant {
   fiscalReceipts          FiscalReceipt[]
   cashSessions            CashSession[]
   cashSessionMovements    CashSessionMovement[]
+  posTerminals            PosTerminal[]
   goodsReceiptCausals     GoodsReceiptCausal[]
   externalDocumentTypes   ExternalDocumentType[]
   vatCodes                VatCode[]
@@ -571,6 +572,7 @@ model Location {
   documentCounters  DocumentCounter[]
   fiscalDevice      FiscalDevice?
   cashSessions      CashSession[]
+  posTerminals      PosTerminal[]
 
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
@@ -2231,6 +2233,37 @@ model CashSession {
   @@index([tenantId, locationId, status])
   @@index([tenantId, openedAt(sort: Desc)])
   @@map("cash_sessions")
+}
+
+/// Terminale di pagamento (POS) di una sede: anagrafica per l'adempimento
+/// 2026 del collegamento logico POS ↔ strumento di certificazione (Provv.
+/// AdE 424470/2025). L'associazione vera si fa SUL PORTALE dall'esercente
+/// (non è delegabile al software): qui si tiene traccia dei terminali, delle
+/// finestre di comunicazione e di quando l'adempimento è stato fatto.
+model PosTerminal {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  locationId     String    @map("location_id") @db.Uuid
+  /// Terminal ID assegnato dall'acquirer (identificativo pubblico).
+  terminalId     String    @map("terminal_id")
+  /// Operatore finanziario/acquirer (es. «SumUp», «Nexi», «Worldline»).
+  acquirerName   String    @map("acquirer_name")
+  description    String?
+  /// Attivazione (o ultima variazione) del terminale: determina la finestra
+  /// di comunicazione sul portale Fatture e Corrispettivi.
+  activatedAt    DateTime  @map("activated_at") @db.Date
+  /// Quando l'esercente ha registrato l'associazione sul portale (null = da fare).
+  portalLinkedAt DateTime? @map("portal_linked_at") @db.Date
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, terminalId])
+  @@index([tenantId])
+  @@map("pos_terminals")
 }
 
 /// Versamento o prelievo di contante durante la sessione, con causale

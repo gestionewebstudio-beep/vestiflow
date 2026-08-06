@@ -80,6 +80,7 @@ import {
   type TenderRow,
 } from '@domain/store-sales/models/store-sale-tender.util';
 import { CashSessionBarComponent } from './components/cash-session-bar/cash-session-bar.component';
+import { PosPaymentPanelComponent } from './components/pos-payment-panel/pos-payment-panel.component';
 import type {
   CashSessionSummary,
   CloseCashSessionPayload,
@@ -161,6 +162,7 @@ function looksLikeBarcode(code: string): boolean {
     CashSessionBarComponent,
     ConfirmDialogComponent,
     InlineBannerComponent,
+    PosPaymentPanelComponent,
     SelectMenuComponent,
     SlidePanelComponent,
     ProductFormComponent,
@@ -1117,15 +1119,10 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     );
   }
 
-  protected onPaymentRowAmountInput(index: number, event: Event): void {
-    const parsed = parseMoneyInput((event.target as HTMLInputElement).value);
-    if (!parsed || parsed.amountMinor < 0) {
-      return;
-    }
+  /** Quota già in unità minori: il parsing lo fa il pannello pagamenti. */
+  protected onPaymentRowAmount(index: number, amountMinor: number): void {
     this.paymentRows.update((rows) => {
-      const updated = rows.map((row, i) =>
-        i === index ? { ...row, amountMinor: parsed.amountMinor } : row,
-      );
+      const updated = rows.map((row, i) => (i === index ? { ...row, amountMinor } : row));
       // L'ultima riga assorbe il residuo quando si ritocca una quota sopra:
       // «20 in contanti, il resto in carta» si digita una volta sola.
       const last = updated.length - 1;
@@ -1138,28 +1135,16 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     });
   }
 
-  protected onPaymentRowNoteInput(index: number, event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
+  protected onPaymentRowNote(index: number, note: string): void {
     this.paymentRows.update((rows) =>
-      rows.map((row, i) => (i === index ? { ...row, methodNote: value } : row)),
+      rows.map((row, i) => (i === index ? { ...row, methodNote: note } : row)),
     );
   }
 
-  /** «Ricevuti» sui contanti: vuoto = non digitato (nessun resto da mostrare). */
-  protected onPaymentRowTenderedInput(index: number, event: Event): void {
-    const raw = (event.target as HTMLInputElement).value.trim();
-    if (raw === '') {
-      this.paymentRows.update((rows) =>
-        rows.map((row, i) => (i === index ? { ...row, tenderedMinor: null } : row)),
-      );
-      return;
-    }
-    const parsed = parseMoneyInput(raw);
-    if (!parsed || parsed.amountMinor < 0) {
-      return;
-    }
+  /** «Ricevuti» sui contanti: null = non digitato (nessun resto da mostrare). */
+  protected onPaymentRowTendered(index: number, tenderedMinor: number | null): void {
     this.paymentRows.update((rows) =>
-      rows.map((row, i) => (i === index ? { ...row, tenderedMinor: parsed.amountMinor } : row)),
+      rows.map((row, i) => (i === index ? { ...row, tenderedMinor } : row)),
     );
   }
 
@@ -1185,23 +1170,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.paymentRows.update((rows) =>
       rows.length > 1 ? rows.filter((_, i) => i !== index) : rows,
     );
-  }
-
-  /** La quota si vede e si digita in euro, come ogni importo di cassa. */
-  protected paymentAmountValue(row: TenderRow): string {
-    return moneyToDecimalString({ amountMinor: row.amountMinor, currencyCode: 'EUR' }).replace(
-      '.',
-      ',',
-    );
-  }
-
-  protected paymentTenderedValue(row: TenderRow): string {
-    return row.tenderedMinor == null
-      ? ''
-      : moneyToDecimalString({ amountMinor: row.tenderedMinor, currencyCode: 'EUR' }).replace(
-          '.',
-          ',',
-        );
   }
 
   private resetPaymentRows(): void {

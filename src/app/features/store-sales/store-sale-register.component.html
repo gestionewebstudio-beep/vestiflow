@@ -343,93 +343,19 @@
               giacenza potrà andare in negativo.
             </p>
           }
-          <div class="pos__payments">
-            <span class="pos__label">Pagamento</span>
-            @for (row of paymentRows(); track $index; let i = $index) {
-              <div class="pos__payment-row">
-                <app-select-menu
-                  [options]="paymentOptions"
-                  [value]="row.method"
-                  [ariaLabel]="'Metodo pagamento ' + (i + 1)"
-                  placeholder="Metodo"
-                  [includeEmptyOption]="false"
-                  [compact]="true"
-                  (valueChange)="onPaymentRowMethodChange(i, $event)"
-                />
-                @if (paymentRows().length > 1) {
-                  <input
-                    class="pos__input pos__payment-amount tabular-nums"
-                    type="text"
-                    inputmode="decimal"
-                    [value]="paymentAmountValue(row)"
-                    [attr.aria-label]="'Importo metodo ' + (i + 1)"
-                    (change)="onPaymentRowAmountInput(i, $event)"
-                  />
-                }
-                @if (row.method === 'other') {
-                  <input
-                    class="pos__input pos__payment-note"
-                    type="text"
-                    maxlength="100"
-                    autocomplete="off"
-                    placeholder="Es. Assegno, Buono…"
-                    [value]="row.methodNote"
-                    [attr.aria-label]="'Dettaglio metodo ' + (i + 1)"
-                    (input)="onPaymentRowNoteInput(i, $event)"
-                  />
-                }
-                @if (row.method === 'cash') {
-                  <input
-                    class="pos__input pos__payment-amount tabular-nums"
-                    type="text"
-                    inputmode="decimal"
-                    placeholder="Ricevuti"
-                    [value]="paymentTenderedValue(row)"
-                    [attr.aria-label]="'Contanti ricevuti metodo ' + (i + 1)"
-                    (change)="onPaymentRowTenderedInput(i, $event)"
-                  />
-                }
-                @if (paymentRows().length > 1) {
-                  <button
-                    type="button"
-                    class="pos-cart__remove"
-                    [attr.aria-label]="'Rimuovi metodo pagamento ' + (i + 1)"
-                    (click)="removePaymentRow(i)"
-                  >
-                    <i class="pi pi-trash" aria-hidden="true"></i>
-                  </button>
-                }
-              </div>
-            }
-            <div class="pos__payment-summary">
-              @if (paymentRows().length < 3) {
-                <app-button variant="ghost" (click)="addPaymentRow()">Dividi pagamento</app-button>
-              }
-              @if (paymentRows().length > 1 && paymentRemainingMinor() > 0) {
-                <span class="pos__payment-hint pos__payment-hint--warning" role="status">
-                  Da incassare ancora {{ money(paymentRemainingMinor()) }}
-                </span>
-              }
-              @if (paymentRemainingMinor() < 0) {
-                <span class="pos__payment-hint pos__payment-hint--warning" role="status">
-                  Le quote superano il totale di {{ money(-paymentRemainingMinor()) }}
-                </span>
-              }
-              @if (paymentHasCashShortfall()) {
-                <span class="pos__payment-hint pos__payment-hint--warning" role="status">
-                  Contanti ricevuti sotto la quota da incassare
-                </span>
-              }
-              @if (paymentChangeMinor() > 0 && !paymentHasCashShortfall()) {
-                <span
-                  class="pos__payment-hint pos__payment-hint--change tabular-nums"
-                  role="status"
-                >
-                  Resto: {{ money(paymentChangeMinor()) }}
-                </span>
-              }
-            </div>
-          </div>
+          <app-pos-payment-panel
+            [rows]="paymentRows()"
+            [remainingMinor]="paymentRemainingMinor()"
+            [changeMinor]="paymentChangeMinor()"
+            [hasShortfall]="paymentHasCashShortfall()"
+            [methodOptions]="paymentOptions"
+            (methodChange)="onPaymentRowMethodChange($event.index, $event.method)"
+            (amountChange)="onPaymentRowAmount($event.index, $event.amountMinor)"
+            (noteChange)="onPaymentRowNote($event.index, $event.note)"
+            (tenderedChange)="onPaymentRowTendered($event.index, $event.tenderedMinor)"
+            (addRow)="addPaymentRow()"
+            (removeRow)="removePaymentRow($event)"
+          />
           <div class="pos__checkout-fields">
             <label class="pos__field pos__field--grow" for="pos-sale-notes">
               <span class="pos__label">Note (facoltative)</span>

@@ -1,0 +1,84 @@
+<div class="ppp">
+  <span class="ppp__label">Pagamento</span>
+  @for (row of rows(); track $index; let i = $index) {
+    <div class="ppp__row">
+      <app-select-menu
+        [options]="methodOptions()"
+        [value]="row.method"
+        [ariaLabel]="'Metodo pagamento ' + (i + 1)"
+        placeholder="Metodo"
+        [includeEmptyOption]="false"
+        [compact]="true"
+        (valueChange)="onMethodChange(i, $event)"
+      />
+      @if (rows().length > 1) {
+        <input
+          class="ppp__input ppp__amount tabular-nums"
+          type="text"
+          inputmode="decimal"
+          [value]="amountValue(row)"
+          [attr.aria-label]="'Importo metodo ' + (i + 1)"
+          (change)="onAmountInput(i, $event)"
+        />
+      }
+      @if (row.method === 'other') {
+        <input
+          class="ppp__input ppp__note"
+          type="text"
+          maxlength="100"
+          autocomplete="off"
+          placeholder="Es. Assegno, Buono…"
+          [value]="row.methodNote"
+          [attr.aria-label]="'Dettaglio metodo ' + (i + 1)"
+          (input)="onNoteInput(i, $event)"
+        />
+      }
+      @if (row.method === 'cash') {
+        <input
+          class="ppp__input ppp__amount tabular-nums"
+          type="text"
+          inputmode="decimal"
+          placeholder="Ricevuti"
+          [value]="tenderedValue(row)"
+          [attr.aria-label]="'Contanti ricevuti metodo ' + (i + 1)"
+          (change)="onTenderedInput(i, $event)"
+        />
+      }
+      @if (rows().length > 1) {
+        <button
+          type="button"
+          class="ppp__remove"
+          [attr.aria-label]="'Rimuovi metodo pagamento ' + (i + 1)"
+          (click)="removeRow.emit(i)"
+        >
+          <i class="pi pi-trash" aria-hidden="true"></i>
+        </button>
+      }
+    </div>
+  }
+  <div class="ppp__summary">
+    @if (rows().length < 3) {
+      <app-button variant="ghost" (click)="addRow.emit()">Dividi pagamento</app-button>
+    }
+    @if (rows().length > 1 && remainingMinor() > 0) {
+      <span class="ppp__hint ppp__hint--warning" role="status">
+        Da incassare ancora {{ money(remainingMinor()) }}
+      </span>
+    }
+    @if (remainingMinor() < 0) {
+      <span class="ppp__hint ppp__hint--warning" role="status">
+        Le quote superano il totale di {{ money(-remainingMinor()) }}
+      </span>
+    }
+    @if (hasShortfall()) {
+      <span class="ppp__hint ppp__hint--warning" role="status">
+        Contanti ricevuti sotto la quota da incassare
+      </span>
+    }
+    @if (changeMinor() > 0 && !hasShortfall()) {
+      <span class="ppp__hint ppp__hint--change tabular-nums" role="status">
+        Resto: {{ money(changeMinor()) }}
+      </span>
+    }
+  </div>
+</div>

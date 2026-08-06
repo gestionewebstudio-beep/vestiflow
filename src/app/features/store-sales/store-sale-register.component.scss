@@ -290,7 +290,10 @@
   gap: var(--space-2);
 }
 
-.pos__results {
+// Stessa ricetta per i risultati di ricerca e la coda «da fiscalizzare»:
+// lista azzerata, colonna, respiro fra le voci.
+.pos__results,
+.pos__fiscal-queue {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -520,15 +523,6 @@
 
 // ── Coda «da fiscalizzare» ───────────────────────────────────────────────
 
-.pos__fiscal-queue {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
 .pos__fiscal-item {
   display: flex;
   flex-wrap: wrap;
@@ -543,48 +537,8 @@
   font-size: var(--text-xs);
 }
 
-// ── Pagamento multi-tender ───────────────────────────────────────────────
-
-.pos__payments {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.pos__payment-row,
-.pos__payment-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-// Quota e «ricevuti»: importi corti, non campi a tutta riga.
-.pos__payment-amount {
-  inline-size: var(--field-w-sm);
-  text-align: end;
-}
-
-.pos__payment-note {
-  inline-size: var(--field-w-lg);
-}
-
-.pos__payment-hint {
-  font-size: var(--text-sm);
-}
-
-.pos__payment-hint--warning {
-  color: var(--status-warning-fg);
-  font-weight: var(--font-weight-medium);
-}
-
-// Il resto si legge ad alta voce al cliente: dev'essere il valore più
-// evidente della zona pagamento.
-.pos__payment-hint--change {
-  color: var(--status-success-fg);
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-bold);
-}
+// Gli stili del pagamento multi-tender vivono nel componente estratto
+// `pos-payment-panel` (budget anyComponentStyle di questa scheda).
 
 // Barra sticky in fondo: totale e conclusione sempre visibili mentre il
 // carrello scorre, così l'operatore legge il totale sparando l'ultimo pezzo.

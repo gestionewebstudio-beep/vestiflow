@@ -17,6 +17,7 @@ import { SalesOrdersModule } from './sales-orders/sales-orders.module';
 import { StoreSalesModule } from './store-sales/store-sales.module';
 import { FiscalDevicesModule } from './fiscal-devices/fiscal-devices.module';
 import { CashSessionsModule } from './cash-sessions/cash-sessions.module';
+import { PosTerminalsModule } from './pos-terminals/pos-terminals.module';
 import { ShopifyModule } from './shopify/shopify.module';
 import { TikTokModule } from './tiktok/tiktok.module';
 import { validateEnv } from './config/env.validation';
@@ -57,6 +58,7 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     StoreSalesModule,
     FiscalDevicesModule,
     CashSessionsModule,
+    PosTerminalsModule,
     CorrispettiviModule,
     AccountantRegisterModule,
     ShopifyModule,

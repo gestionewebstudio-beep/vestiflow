@@ -1,0 +1,122 @@
+@if (loading()) {
+  <app-table-skeleton [columns]="5" [rows]="3" />
+} @else if (loadError()) {
+  <app-error-state
+    description="Impossibile caricare i terminali POS."
+    retryLabel="Riprova"
+    (retry)="reload()"
+  />
+} @else {
+  <div class="pos-terminals">
+    <p class="pos-terminals__hint">
+      Dal 2026 ogni POS va associato allo strumento di certificazione sul portale Fatture e
+      Corrispettivi (adempimento dell'esercente, non delegabile al software). Qui tieni l'elenco dei
+      terminali e le finestre di comunicazione: nuova attivazione o variazione → dal 6° giorno
+      all'ultimo giorno del secondo mese successivo.
+    </p>
+
+    @if (terminals().length > 0) {
+      <ul class="pos-terminals__list">
+        @for (terminal of terminals(); track terminal.id) {
+          <li class="pos-terminals__item">
+            <div class="pos-terminals__info">
+              <span class="pos-terminals__name">
+                {{ terminal.terminalId }} · {{ terminal.acquirerName }}
+                <span
+                  class="pos-terminals__pill"
+                  [class.pos-terminals__pill--ok]="terminal.portalStatus === 'linked'"
+                  [class.pos-terminals__pill--warn]="terminal.portalStatus === 'open'"
+                  [class.pos-terminals__pill--bad]="terminal.portalStatus === 'overdue'"
+                >
+                  {{ statusLabel(terminal.portalStatus) }}
+                </span>
+              </span>
+              <span class="pos-terminals__meta">
+                {{ terminal.locationName }} · attivato {{ formatDate(terminal.activatedAt) }} ·
+                finestra {{ formatDate(terminal.portalWindowFrom) }} –
+                {{ formatDate(terminal.portalWindowTo) }}
+                @if (terminal.portalLinkedAt) {
+                  · comunicato il {{ formatDate(terminal.portalLinkedAt) }}
+                }
+                @if (terminal.description) {
+                  · {{ terminal.description }}
+                }
+              </span>
+            </div>
+            <div class="pos-terminals__actions">
+              <app-button
+                variant="secondary"
+                [disabled]="saving()"
+                (click)="togglePortalLinked(terminal)"
+              >
+                {{ terminal.portalLinkedAt ? 'Riapri adempimento' : 'Segna comunicato' }}
+              </app-button>
+              <app-button variant="danger" [disabled]="saving()" (click)="remove(terminal)">
+                Elimina
+              </app-button>
+            </div>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="pos-terminals__hint">Nessun terminale registrato.</p>
+    }
+
+    <form class="pos-terminals__form" [formGroup]="form" (ngSubmit)="add()">
+      <div class="pos-terminals__row">
+        <label class="pos-terminals__field" for="pos-terminal-location">
+          Sede
+          <select id="pos-terminal-location" formControlName="locationId">
+            @for (opt of locationOptions(); track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="pos-terminals__field" for="pos-terminal-id">
+          Terminal ID
+          <input
+            id="pos-terminal-id"
+            type="text"
+            maxlength="50"
+            placeholder="Es. 12345678"
+            formControlName="terminalId"
+          />
+        </label>
+        <label class="pos-terminals__field" for="pos-terminal-acquirer">
+          Acquirer
+          <input
+            id="pos-terminal-acquirer"
+            type="text"
+            maxlength="100"
+            placeholder="Es. SumUp, Nexi…"
+            formControlName="acquirerName"
+          />
+        </label>
+        <label class="pos-terminals__field" for="pos-terminal-activated">
+          Attivato il
+          <input id="pos-terminal-activated" type="date" formControlName="activatedAt" />
+        </label>
+        <label class="pos-terminals__field pos-terminals__field--grow" for="pos-terminal-desc">
+          Descrizione (facoltativa)
+          <input
+            id="pos-terminal-desc"
+            type="text"
+            maxlength="200"
+            placeholder="Es. cassa 1, banco reso…"
+            formControlName="description"
+          />
+        </label>
+      </div>
+      <div class="pos-terminals__form-actions">
+        <app-button type="submit" [loading]="saving()">Aggiungi terminale</app-button>
+      </div>
+    </form>
+
+    @if (feedback(); as message) {
+      <p class="pos-terminals__success" role="status">{{ message }}</p>
+    }
+    @if (feedbackError(); as message) {
+      <p class="pos-terminals__error" role="alert">{{ message }}</p>
+    }
+  </div>
+}
