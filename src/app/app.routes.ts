@@ -105,6 +105,11 @@ export const routes: Routes = [
               ),
           },
           {
+            path: 'chiusure',
+            loadChildren: () =>
+              import('@features/store-sales/store-sales.routes').then((m) => m.cashSessionsRoutes),
+          },
+          {
             path: '',
             loadChildren: () =>
               import('@features/sales-orders/sales-orders.routes').then((m) => m.salesOrdersRoutes),

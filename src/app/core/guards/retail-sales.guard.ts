@@ -6,7 +6,7 @@ import {
   TenantChannelProfile,
   showRetailSalesRegister,
 } from '@core/models/tenant-channel-profile.model';
-import { canRegisterRetailSales } from '@core/permissions/tenant-permissions.util';
+import { canRegisterRetailSales, canViewReports } from '@core/permissions/tenant-permissions.util';
 
 /** Route vendita al banco: profilo canale + permesso retail.register. */
 export const retailSalesRegisterGuard: CanActivateFn = () => {
@@ -15,6 +15,25 @@ export const retailSalesRegisterGuard: CanActivateFn = () => {
   const user = auth.currentUser();
 
   if (showRetailSalesRegister(user?.tenantChannelProfile) && canRegisterRetailSales(user)) {
+    return true;
+  }
+
+  return router.createUrlTree(['/app/dashboard']);
+};
+
+/**
+ * Chiusure di cassa: stesse sedi della cassa, ma la consultazione spetta
+ * anche a chi legge i report (il titolare che controlla le differenze).
+ */
+export const cashSessionsGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const user = auth.currentUser();
+
+  if (
+    showRetailSalesRegister(user?.tenantChannelProfile) &&
+    (canRegisterRetailSales(user) || canViewReports(user))
+  ) {
     return true;
   }
 

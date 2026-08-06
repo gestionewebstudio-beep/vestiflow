@@ -374,6 +374,8 @@ function createFakePrisma(db: FakeDb): PrismaService {
         return Promise.resolve({ count: data.length });
       },
     },
+    // Nessuna cassa aperta nel fake db: vendite e resi restano sganciati.
+    cashSession: { findFirst: () => Promise.resolve(null) },
     stockMovement: {
       create: ({ data }: { data: FakeMovement }) => {
         if (db.failNextMovementCreate) {

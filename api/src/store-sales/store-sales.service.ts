@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
+  CashSessionStatus,
   DocumentStatus,
   DocumentType,
   MovementOrigin,
@@ -159,6 +160,7 @@ export class StoreSalesService {
         source: 'document',
       });
       const reference = formatDocumentReference(setting.numberPrefix, series, number);
+      const cashSessionId = await this.openSessionId(tx, tenantId, dto.locationId);
 
       const doc = await tx.document.create({
         data: {
@@ -179,6 +181,8 @@ export class StoreSalesService {
           customerId: dto.customerId ?? null,
           customerName,
           locationId: dto.locationId,
+          // Cassa aperta della sede: la vendita entra nella sua chiusura.
+          cashSessionId,
           // Riepilogo per filtri e liste: codice metodo, o `mixed` con la
           // sintesi in nota. Il dettaglio per metodo sta in store_sale_payments.
           paymentMethod: payments.documentMethod,
@@ -296,6 +300,7 @@ export class StoreSalesService {
       createdByName: user.displayName?.trim() || 'Utente',
     };
 
+    const refundMethod = dto.refundMethod ?? 'cash';
     const created = await this.prisma.$transaction(async (tx) => {
       const year = documentDate.getFullYear();
       const series = await defaultCounterSeries(tx, tenantId, DocumentType.store_return);
@@ -307,6 +312,7 @@ export class StoreSalesService {
         source: 'document',
       });
       const reference = formatDocumentReference(setting.numberPrefix, series, number);
+      const cashSessionId = await this.openSessionId(tx, tenantId, dto.locationId);
 
       // Il reso rende quello che la vendita ha incassato: stesso prezzo netto,
       // stessa IVA calcolata allo stesso modo. Prima l'imposta non veniva
@@ -361,6 +367,9 @@ export class StoreSalesService {
           internalComment: `Causale reso: ${dto.reason.trim()}`,
           locationId: dto.locationId,
           sourceDocumentId: dto.saleDocumentId ?? null,
+          // Reso agganciato alla cassa aperta: il rimborso esce dalla chiusura.
+          cashSessionId,
+          paymentMethod: refundMethod,
           currency: 'EUR',
           subtotalMinor,
           taxMinor,
@@ -381,6 +390,25 @@ export class StoreSalesService {
         },
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
+
+      // Il rimborso è un pagamento in uscita: una riga col metodo scelto, che
+      // le chiusure di cassa sottraggono dal bucket giusto. Reso a valore zero
+      // (solo documentazione): niente riga.
+      if (totalMinor > 0) {
+        await tx.storeSalePayment.createMany({
+          data: [
+            {
+              tenantId,
+              documentId: doc.id,
+              position: 1,
+              method: refundMethod,
+              methodNote: null,
+              amountMinor: totalMinor,
+              tenderedMinor: null,
+            },
+          ],
+        });
+      }
 
       const saleSuffix = saleReference ? ` — vendita ${saleReference}` : '';
       for (const line of doc.lines) {
@@ -519,6 +547,23 @@ export class StoreSalesService {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /**
+   * Sessione di cassa aperta della sede, se c'è: vendita e reso vi si
+   * agganciano alla conferma. Cassa chiusa ⇒ null: l'operazione resta valida
+   * (conta nei report), semplicemente non entra in nessuna chiusura.
+   */
+  private async openSessionId(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    locationId: string,
+  ): Promise<string | null> {
+    const session = await tx.cashSession.findFirst({
+      where: { tenantId, locationId, status: CashSessionStatus.open },
+      select: { id: true },
+    });
+    return session?.id ?? null;
+  }
 
   private async assertLocationExists(tenantId: string, locationId: string): Promise<void> {
     const location = await this.prisma.location.findFirst({

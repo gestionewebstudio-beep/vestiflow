@@ -56,6 +56,18 @@ enum FiscalReceiptStatus {
   cancelled
 }
 
+enum CashSessionStatus {
+  open
+  closed
+}
+
+/// Movimento di cassetto durante la sessione: versamento (entra contante) o
+/// prelievo (esce contante). Entrambi con causale obbligatoria.
+enum CashSessionMovementType {
+  deposit
+  withdrawal
+}
+
 enum ProductStatus {
   draft
   active
@@ -390,6 +402,8 @@ model Tenant {
   storeSalePayments       StoreSalePayment[]
   fiscalDevices           FiscalDevice[]
   fiscalReceipts          FiscalReceipt[]
+  cashSessions            CashSession[]
+  cashSessionMovements    CashSessionMovement[]
   goodsReceiptCausals     GoodsReceiptCausal[]
   externalDocumentTypes   ExternalDocumentType[]
   vatCodes                VatCode[]
@@ -553,6 +567,7 @@ model Location {
   shopifyInventorySyncStates ShopifyInventorySyncState[]
   documentCounters  DocumentCounter[]
   fiscalDevice      FiscalDevice?
+  cashSessions      CashSession[]
 
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
@@ -1903,6 +1918,9 @@ model Document {
   cancelledAt       DateTime?      @map("cancelled_at")
   /// Data emissione fattura esterna (bozza fattura, step intermedio §9.2).
   externallyIssuedAt DateTime?     @map("externally_issued_at")
+  /// Sessione di cassa a cui vendita/reso di negozio sono agganciati (null =
+  /// registrati a cassa chiusa: contano nei report ma non nelle chiusure).
+  cashSessionId     String?        @map("cash_session_id") @db.Uuid
   /// Modalità di pagamento (Vendita in negozio, fase 3 §7): cash/card/other.
   paymentMethod     String?        @map("payment_method")
   /// Descrizione libera quando paymentMethod = 'other' (Vendita in negozio):
@@ -1976,6 +1994,7 @@ model Document {
   storeSalePayments      StoreSalePayment[]
   /// Esito fiscale della vendita/reso di cassa (documento commerciale).
   fiscalReceipt          FiscalReceipt?
+  cashSession            CashSession?   @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
 
   // Numero univoco per (tenant, tipo, serie): l'unicità reale è un indice
   // parziale `WHERE number IS NOT NULL` con NULLS NOT DISTINCT (serie nulla)
@@ -1989,6 +2008,8 @@ model Document {
   @@index([sourceDocumentId, type, status])
   @@index([tenantId, supplierOrderId])
   @@index([tenantId, onlineSaleId])
+  // Totali di sessione: aggregazione dei pagamenti sui documenti agganciati.
+  @@index([tenantId, cashSessionId])
   @@map("documents")
 }
 
@@ -2155,6 +2176,69 @@ model FiscalDevice {
 
   @@index([tenantId])
   @@map("fiscal_devices")
+}
+
+/// Sessione di cassa di una sede: apertura con fondo dichiarato, vendite e
+/// resi agganciati man mano, chiusura con conteggio per metodo. Gli «attesi»
+/// si calcolano dai pagamenti dei documenti agganciati e si CONGELANO alla
+/// chiusura: la differenza di cassa è un fatto storico, non un ricalcolo.
+/// Al più una sessione aperta per sede (indice parziale in migration).
+model CashSession {
+  id                String            @id @default(uuid()) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  locationId        String            @map("location_id") @db.Uuid
+  status            CashSessionStatus @default(open)
+  openedAt          DateTime          @default(now()) @map("opened_at")
+  openedById        String?           @map("opened_by_id") @db.Uuid
+  /// Snapshot operatore (audit stabile anche se l'utente cambia nome).
+  openedByName      String            @map("opened_by_name")
+  /// Fondo cassa dichiarato all'apertura (contanti nel cassetto).
+  openingFloatMinor Int               @default(0) @map("opening_float_minor")
+  closedAt          DateTime?         @map("closed_at")
+  closedById        String?           @map("closed_by_id") @db.Uuid
+  closedByName      String?           @map("closed_by_name")
+  notes             String?
+  // Conteggio dichiarato alla chiusura, per metodo (null finché aperta).
+  countedCashMinor  Int?              @map("counted_cash_minor")
+  countedCardMinor  Int?              @map("counted_card_minor")
+  countedOtherMinor Int?              @map("counted_other_minor")
+  // Attesi congelati alla chiusura. Contanti = fondo + incassi − rimborsi
+  // + versamenti − prelievi; carta/altro = incassi − rimborsi.
+  expectedCashMinor  Int?             @map("expected_cash_minor")
+  expectedCardMinor  Int?             @map("expected_card_minor")
+  expectedOtherMinor Int?             @map("expected_other_minor")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  tenant    Tenant                @relation(fields: [tenantId], references: [id])
+  location  Location              @relation(fields: [locationId], references: [id])
+  movements CashSessionMovement[]
+  documents Document[]
+
+  @@index([tenantId, locationId, status])
+  @@index([tenantId, openedAt(sort: Desc)])
+  @@map("cash_sessions")
+}
+
+/// Versamento o prelievo di contante durante la sessione, con causale
+/// obbligatoria: il cassetto non cambia mai in silenzio.
+model CashSessionMovement {
+  id            String                  @id @default(uuid()) @db.Uuid
+  tenantId      String                  @map("tenant_id") @db.Uuid
+  sessionId     String                  @map("session_id") @db.Uuid
+  type          CashSessionMovementType
+  amountMinor   Int                     @map("amount_minor")
+  reason        String
+  createdById   String?                 @map("created_by_id") @db.Uuid
+  createdByName String                  @map("created_by_name")
+  createdAt     DateTime                @default(now()) @map("created_at")
+
+  tenant  Tenant      @relation(fields: [tenantId], references: [id])
+  session CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([tenantId])
+  @@map("cash_session_movements")
 }
 
 /// Documento commerciale emesso (o da emettere) per una vendita/reso di cassa.

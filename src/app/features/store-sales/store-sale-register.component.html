@@ -80,6 +80,19 @@
     </div>
   </div>
 
+  <app-cash-session-bar
+    [session]="cashSession()"
+    [pending]="cashSessionPending()"
+    [error]="cashSessionError()"
+    [locationSelected]="!!selectedLocationId()"
+    (openSession)="onOpenCashSession($event)"
+    (addMovement)="onAddCashMovement($event)"
+    (closeSession)="onCloseCashSession($event)"
+  />
+  @if (cashSessionNotice(); as notice) {
+    <app-inline-banner tone="success" [message]="notice" />
+  }
+
   @if (mode() === 'sale') {
     <!-- ── VENDITA A CARRELLO ─────────────────────────────────────────── -->
     <section class="pos__panel" aria-labelledby="pos-sale-title">
@@ -517,6 +530,17 @@
 
         <div class="pos__checkout">
           <div class="pos__checkout-fields">
+            <div class="pos__field">
+              <span class="pos__label">Rimborso</span>
+              <app-select-menu
+                [options]="paymentOptions"
+                [value]="returnRefundMethod()"
+                ariaLabel="Metodo di rimborso"
+                placeholder="Metodo"
+                [includeEmptyOption]="false"
+                (valueChange)="onReturnRefundMethodChange($event)"
+              />
+            </div>
             <label class="pos__field pos__field--grow" for="pos-return-reason">
               <span class="pos__label">Causale reso (obbligatoria)</span>
               <input

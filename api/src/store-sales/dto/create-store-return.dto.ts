@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -14,6 +15,11 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+
+import {
+  STORE_SALE_PAYMENT_METHODS,
+  type StoreSalePaymentMethod,
+} from './create-store-sale.dto';
 
 /** Riga Reso vendita negozio (fase 3 §9). */
 export class StoreReturnLineInputDto {
@@ -55,6 +61,15 @@ export class CreateStoreReturnDto {
   @IsString()
   @Length(1, 500)
   reason!: string;
+
+  /**
+   * Come viene rimborsato il cliente (default contanti). Alimenta la riga
+   * pagamento del reso: è quello che le chiusure di cassa sottraggono dal
+   * metodo giusto.
+   */
+  @IsOptional()
+  @IsIn(STORE_SALE_PAYMENT_METHODS)
+  refundMethod?: StoreSalePaymentMethod;
 
   @IsOptional()
   @IsString()

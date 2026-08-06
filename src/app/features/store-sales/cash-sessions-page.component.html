@@ -1,0 +1,174 @@
+<div class="cs-list">
+  <header class="cs-list__header">
+    <div class="cs-list__heading">
+      <h1 class="cs-list__title">Chiusure di cassa</h1>
+      <p class="cs-list__subtitle">
+        Sessioni di cassa per sede: fondo, incassi per metodo, conteggio e differenze. La cassa si
+        apre e si chiude dalla schermata Vendita negozio.
+      </p>
+    </div>
+  </header>
+
+  <div class="cs-list__toolbar">
+    <div class="cs-list__filters">
+      <div class="cs-list__field">
+        <span class="cs-list__label">Sede</span>
+        <app-select-menu
+          [options]="locationOptions()"
+          [value]="locationFilter() ?? ''"
+          ariaLabel="Filtra per sede"
+          placeholder="Tutte le sedi"
+          (valueChange)="onLocationFilterChange($event)"
+        />
+      </div>
+      <label class="cs-list__field" for="cs-from">
+        <span class="cs-list__label">Dal</span>
+        <input
+          id="cs-from"
+          class="cs-list__input"
+          type="date"
+          [value]="fromDraft()"
+          (change)="onFromInput($event)"
+        />
+      </label>
+      <label class="cs-list__field" for="cs-to">
+        <span class="cs-list__label">Al</span>
+        <input
+          id="cs-to"
+          class="cs-list__input"
+          type="date"
+          [value]="toDraft()"
+          (change)="onToInput($event)"
+        />
+      </label>
+      @if (hasActiveFilters()) {
+        <app-button variant="ghost" (click)="clearFilters()">Azzera filtri</app-button>
+      }
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="7" [rows]="6" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare le chiusure di cassa."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else if (sessions().length === 0) {
+    <app-empty-state
+      icon="pi-wallet"
+      title="Nessuna sessione di cassa"
+      description="Apri la cassa dalla schermata Vendita negozio: da lì arrivano fondo, incassi e chiusure."
+    />
+  } @else {
+    <div class="cs-table-scroll">
+      <table class="cs-table">
+        <thead>
+          <tr>
+            <th scope="col">Apertura</th>
+            <th scope="col">Chiusura</th>
+            <th scope="col">Sede</th>
+            <th scope="col" class="cs-table__cell--num">Fondo</th>
+            <th scope="col" class="cs-table__cell--num">Contanti</th>
+            <th scope="col" class="cs-table__cell--num">Carta</th>
+            <th scope="col" class="cs-table__cell--num">Altro</th>
+            <th scope="col" class="cs-table__cell--num">Differenza</th>
+            <th scope="col" class="cs-table__cell--num">Vendite/Resi</th>
+            <th scope="col">Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (session of sessions(); track session.id) {
+            <tr
+              class="cs-table__row"
+              [class.cs-table__row--open]="session.status === 'open'"
+              (click)="toggleExpanded(session.id)"
+            >
+              <td data-label="Apertura">
+                <span class="tabular-nums">{{ formatDateTime(session.openedAt) }}</span>
+                <span class="cs-table__meta">{{ session.openedByName }}</span>
+              </td>
+              <td data-label="Chiusura">
+                @if (session.closedAt) {
+                  <span class="tabular-nums">{{ formatDateTime(session.closedAt) }}</span>
+                  <span class="cs-table__meta">{{ session.closedByName }}</span>
+                } @else {
+                  <span class="cs-table__meta">—</span>
+                }
+              </td>
+              <td data-label="Sede">{{ session.locationName }}</td>
+              <td class="cs-table__cell--num tabular-nums" data-label="Fondo">
+                {{ money(session.openingFloatMinor) }}
+              </td>
+              <td class="cs-table__cell--num tabular-nums" data-label="Contanti">
+                {{ money(session.expectedCashMinor) }}
+                @if (session.countedCashMinor !== null) {
+                  <span class="cs-table__meta tabular-nums">
+                    contati {{ money(session.countedCashMinor) }}
+                  </span>
+                }
+              </td>
+              <td class="cs-table__cell--num tabular-nums" data-label="Carta">
+                {{ money(session.expectedCardMinor) }}
+              </td>
+              <td class="cs-table__cell--num tabular-nums" data-label="Altro">
+                {{ money(session.expectedOtherMinor) }}
+              </td>
+              <td class="cs-table__cell--num tabular-nums" data-label="Differenza">
+                @let diff = cashDifference(session);
+                @if (diff === null) {
+                  <span class="cs-table__meta">—</span>
+                } @else if (diff === 0) {
+                  <span class="cs-table__pill cs-table__pill--ok">Quadrata</span>
+                } @else {
+                  <span class="cs-table__pill cs-table__pill--bad">
+                    {{ diff > 0 ? '+' : '−' }}{{ money(diff > 0 ? diff : -diff) }}
+                  </span>
+                }
+              </td>
+              <td class="cs-table__cell--num tabular-nums" data-label="Vendite/Resi">
+                {{ session.salesCount }} / {{ session.returnsCount }}
+              </td>
+              <td data-label="Stato">
+                <span class="cs-table__pill" [class.cs-table__pill--ok]="session.status === 'open'">
+                  {{ session.status === 'open' ? 'Aperta' : 'Chiusa' }}
+                </span>
+              </td>
+            </tr>
+            @if (expandedId() === session.id) {
+              <tr class="cs-table__detail">
+                <td colspan="10">
+                  <div class="cs-table__detail-body">
+                    <p class="cs-table__detail-line tabular-nums">
+                      Incassi — contanti {{ money(session.totals.salesCashMinor) }} · carta
+                      {{ money(session.totals.salesCardMinor) }} · altro
+                      {{ money(session.totals.salesOtherMinor) }}. Rimborsi — contanti
+                      {{ money(session.totals.refundsCashMinor) }} · carta
+                      {{ money(session.totals.refundsCardMinor) }} · altro
+                      {{ money(session.totals.refundsOtherMinor) }}.
+                    </p>
+                    @if (session.movements.length > 0) {
+                      <ul class="cs-table__movements">
+                        @for (movement of session.movements; track movement.id) {
+                          <li class="tabular-nums">
+                            {{ movement.type === 'deposit' ? 'Versamento' : 'Prelievo' }}
+                            {{ money(movement.amountMinor) }} — {{ movement.reason }} ·
+                            {{ formatDateTime(movement.createdAt) }} · {{ movement.createdByName }}
+                          </li>
+                        }
+                      </ul>
+                    }
+                    @if (session.notes) {
+                      <p class="cs-table__detail-line">Note: {{ session.notes }}</p>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

@@ -396,6 +396,19 @@ export class ShellLayoutComponent {
       });
     }
 
+    // Chiusure di cassa: chi batte in cassa o chi controlla i report.
+    if (
+      showRetailSalesRegister(profile) &&
+      (canRegisterRetailSales(user) || canViewReports(user))
+    ) {
+      salesItems.push({
+        label: 'Chiusure di cassa',
+        icon: 'pi-wallet',
+        route: '/app/sales/chiusure',
+        activeRoutePrefix: '/app/sales/chiusure',
+      });
+    }
+
     if (canViewReports(user)) {
       salesItems.push({
         label: 'Vendite online',

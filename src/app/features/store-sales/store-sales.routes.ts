@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 
-import { retailSalesRegisterGuard } from '@core/guards/retail-sales.guard';
+import { cashSessionsGuard, retailSalesRegisterGuard } from '@core/guards/retail-sales.guard';
 import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 
 // Montata dal composition root (app.routes.ts) sotto /app/sales/register:
@@ -16,5 +16,17 @@ export const storeSalesRegisterRoutes: Routes = [
     // Fase 3 §7: cassa a carrello (sostituisce lo scan singolo per il negozio).
     loadComponent: () =>
       import('./store-sale-register.component').then((m) => m.StoreSaleRegisterComponent),
+  },
+];
+
+// Montata dal composition root sotto /app/sales/chiusure (Tranche 1.2 cassa).
+export const cashSessionsRoutes: Routes = [
+  {
+    path: '',
+    title: 'Chiusure di cassa',
+    canActivate: [cashSessionsGuard],
+    data: { reuse: true },
+    loadComponent: () =>
+      import('./cash-sessions-page.component').then((m) => m.CashSessionsPageComponent),
   },
 ];

@@ -77,6 +77,8 @@ export interface CreateStoreReturnPayload {
   readonly saleDocumentId?: EntityId;
   /** Causale obbligatoria: nessun carico silenzioso (§9). */
   readonly reason: string;
+  /** Come viene rimborsato il cliente (default contanti lato server). */
+  readonly refundMethod?: StoreSalePaymentMethod;
   readonly notes?: string;
   readonly lines: readonly StoreReturnLineInput[];
 }

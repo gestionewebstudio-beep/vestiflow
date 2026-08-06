@@ -1,0 +1,216 @@
+<div class="csb" [class.csb--open]="session()">
+  @if (session(); as current) {
+    <div class="csb__status">
+      <i class="pi pi-wallet csb__icon" aria-hidden="true"></i>
+      <div class="csb__info">
+        <span class="csb__title">
+          Cassa aperta · {{ formatDateTime(current.openedAt) }} · {{ current.openedByName }}
+        </span>
+        <span class="csb__meta tabular-nums">
+          Fondo {{ money(current.openingFloatMinor) }} · Contanti attesi
+          {{ money(current.expectedCashMinor) }} · Carta
+          {{ money(current.totals.salesCardMinor) }} · {{ current.salesCount }} vendite /
+          {{ current.returnsCount }} resi
+        </span>
+      </div>
+    </div>
+    <div class="csb__actions">
+      <app-button variant="ghost" [disabled]="pending()" (click)="openDialog('movement')">
+        Movimento cassa
+      </app-button>
+      <app-button variant="secondary" [disabled]="pending()" (click)="openDialog('close')">
+        Chiudi cassa
+      </app-button>
+    </div>
+  } @else {
+    <div class="csb__status">
+      <i class="pi pi-wallet csb__icon csb__icon--muted" aria-hidden="true"></i>
+      <div class="csb__info">
+        <span class="csb__title">Nessuna cassa aperta</span>
+        <span class="csb__meta">
+          Le vendite si registrano comunque; senza cassa aperta non entrano in nessuna chiusura.
+        </span>
+      </div>
+    </div>
+    <div class="csb__actions">
+      <app-button [disabled]="pending() || !locationSelected()" (click)="openDialog('open')">
+        Apri cassa
+      </app-button>
+    </div>
+  }
+</div>
+
+@if (error(); as message) {
+  <p class="csb__error" role="alert">{{ message }}</p>
+}
+
+<!-- ── Apertura ─────────────────────────────────────────────────────────── -->
+<app-slide-panel title="Apri cassa" [open]="dialog() === 'open'" (closed)="closeDialog()">
+  <div class="csb__form">
+    <label class="csb__field" for="csb-float">
+      <span class="csb__label">Fondo cassa (contanti nel cassetto)</span>
+      <input
+        id="csb-float"
+        class="csb__input tabular-nums"
+        type="text"
+        inputmode="decimal"
+        placeholder="0,00"
+        [value]="floatText()"
+        (input)="onTextInput('float', $event)"
+      />
+    </label>
+    <label class="csb__field" for="csb-open-notes">
+      <span class="csb__label">Note (facoltative)</span>
+      <input
+        id="csb-open-notes"
+        class="csb__input"
+        type="text"
+        maxlength="500"
+        [value]="openNotes()"
+        (input)="onTextInput('openNotes', $event)"
+      />
+    </label>
+    <div class="csb__form-actions">
+      <app-button variant="ghost" (click)="closeDialog()">Annulla</app-button>
+      <app-button [disabled]="!canSubmitOpen() || pending()" (click)="submitOpen()">
+        Apri cassa
+      </app-button>
+    </div>
+  </div>
+</app-slide-panel>
+
+<!-- ── Movimento di cassetto ────────────────────────────────────────────── -->
+<app-slide-panel
+  title="Movimento di cassa"
+  [open]="dialog() === 'movement'"
+  (closed)="closeDialog()"
+>
+  <div class="csb__form">
+    <label class="csb__field" for="csb-movement-type">
+      <span class="csb__label">Tipo</span>
+      <select
+        id="csb-movement-type"
+        class="csb__input"
+        [value]="movementType()"
+        (change)="onMovementTypeChange($event)"
+      >
+        <option value="withdrawal">Prelievo (esce contante)</option>
+        <option value="deposit">Versamento (entra contante)</option>
+      </select>
+    </label>
+    <label class="csb__field" for="csb-movement-amount">
+      <span class="csb__label">Importo</span>
+      <input
+        id="csb-movement-amount"
+        class="csb__input tabular-nums"
+        type="text"
+        inputmode="decimal"
+        placeholder="0,00"
+        [value]="movementAmountText()"
+        (input)="onTextInput('movementAmount', $event)"
+      />
+    </label>
+    <label class="csb__field" for="csb-movement-reason">
+      <span class="csb__label">Causale (obbligatoria)</span>
+      <input
+        id="csb-movement-reason"
+        class="csb__input"
+        type="text"
+        maxlength="200"
+        placeholder="Es. versamento in banca, cambio monete…"
+        [value]="movementReason()"
+        (input)="onTextInput('movementReason', $event)"
+      />
+    </label>
+    <div class="csb__form-actions">
+      <app-button variant="ghost" (click)="closeDialog()">Annulla</app-button>
+      <app-button [disabled]="!canSubmitMovement() || pending()" (click)="submitMovement()">
+        Registra movimento
+      </app-button>
+    </div>
+  </div>
+</app-slide-panel>
+
+<!-- ── Chiusura con conteggio ───────────────────────────────────────────── -->
+<app-slide-panel title="Chiudi cassa" [open]="dialog() === 'close'" (closed)="closeDialog()">
+  @if (session(); as current) {
+    <div class="csb__form">
+      <p class="csb__hint">
+        Conta il cassetto e conferma. Contanti attesi:
+        <strong class="tabular-nums">{{ money(current.expectedCashMinor) }}</strong>
+        (fondo + incassi − rimborsi + versamenti − prelievi).
+      </p>
+      <label class="csb__field" for="csb-counted-cash">
+        <span class="csb__label">Contanti contati (obbligatorio)</span>
+        <input
+          id="csb-counted-cash"
+          class="csb__input tabular-nums"
+          type="text"
+          inputmode="decimal"
+          [value]="countedCashText()"
+          (input)="onTextInput('cash', $event)"
+        />
+      </label>
+      @let diff = cashDifferenceMinor();
+      @if (diff !== null) {
+        <p
+          class="csb__difference tabular-nums"
+          [class.csb__difference--bad]="diff !== 0"
+          role="status"
+        >
+          @if (diff === 0) {
+            Cassa quadrata al centesimo.
+          } @else {
+            {{ diff > 0 ? 'Eccedenza' : 'Ammanco' }} contanti: {{ money(diff > 0 ? diff : -diff) }}
+          }
+        </p>
+      }
+      <div class="csb__row">
+        <label class="csb__field" for="csb-counted-card">
+          <span class="csb__label">
+            Carta (facoltativo — atteso {{ money(current.expectedCardMinor) }})
+          </span>
+          <input
+            id="csb-counted-card"
+            class="csb__input tabular-nums"
+            type="text"
+            inputmode="decimal"
+            [value]="countedCardText()"
+            (input)="onTextInput('card', $event)"
+          />
+        </label>
+        <label class="csb__field" for="csb-counted-other">
+          <span class="csb__label">
+            Altro (facoltativo — atteso {{ money(current.expectedOtherMinor) }})
+          </span>
+          <input
+            id="csb-counted-other"
+            class="csb__input tabular-nums"
+            type="text"
+            inputmode="decimal"
+            [value]="countedOtherText()"
+            (input)="onTextInput('other', $event)"
+          />
+        </label>
+      </div>
+      <label class="csb__field" for="csb-close-notes">
+        <span class="csb__label">Note di chiusura (facoltative)</span>
+        <input
+          id="csb-close-notes"
+          class="csb__input"
+          type="text"
+          maxlength="500"
+          placeholder="Es. motivo della differenza…"
+          [value]="closeNotes()"
+          (input)="onTextInput('closeNotes', $event)"
+        />
+      </label>
+      <div class="csb__form-actions">
+        <app-button variant="ghost" (click)="closeDialog()">Annulla</app-button>
+        <app-button [disabled]="!canSubmitClose() || pending()" (click)="submitClose()">
+          Chiudi cassa
+        </app-button>
+      </div>
+    </div>
+  }
+</app-slide-panel>

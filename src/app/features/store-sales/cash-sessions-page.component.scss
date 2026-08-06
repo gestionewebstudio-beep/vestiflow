@@ -1,0 +1,87 @@
+@use 'list-page' as lp;
+@use 'responsive-table' as rt;
+
+@include lp.list-page('cs-list');
+@include rt.data-table-desktop('cs-table');
+@include rt.data-table-mobile-cards('cs-table');
+
+.cs-list__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.cs-list__input {
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.cs-table-scroll {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.cs-table__row {
+  cursor: pointer;
+}
+
+// La sessione aperta si riconosce a colpo d'occhio nell'elenco.
+.cs-table__row--open {
+  background-color: var(--status-success-bg);
+}
+
+.cs-table__meta {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.cs-table__pill {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-soft);
+  color: var(--color-text-muted);
+}
+
+.cs-table__pill--ok {
+  background-color: var(--status-success-bg);
+  color: var(--status-success-fg);
+}
+
+.cs-table__pill--bad {
+  background-color: var(--status-error-bg);
+  color: var(--status-error-fg);
+}
+
+.cs-table__detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface-soft);
+  border-radius: var(--radius-md);
+}
+
+.cs-table__detail-line {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.cs-table__movements {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}

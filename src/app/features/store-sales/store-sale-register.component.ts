@@ -38,6 +38,7 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { BarcodeScannerComponent } from '@shared/components/barcode-scanner/barcode-scanner.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -72,6 +73,13 @@ import {
   tenderToPaymentsPayload,
   type TenderRow,
 } from '@domain/store-sales/models/store-sale-tender.util';
+import { CashSessionBarComponent } from './components/cash-session-bar/cash-session-bar.component';
+import type {
+  CashSessionSummary,
+  CloseCashSessionPayload,
+  CreateCashMovementPayload,
+} from './models/cash-session.model';
+import { CashSessionsService } from './services/cash-sessions.service';
 import { StoreSalesService } from './services/store-sales.service';
 
 type RegisterMode = 'sale' | 'return';
@@ -144,7 +152,9 @@ function looksLikeBarcode(code: string): boolean {
     BackButtonComponent,
     BarcodeScannerComponent,
     ButtonComponent,
+    CashSessionBarComponent,
     ConfirmDialogComponent,
+    InlineBannerComponent,
     SelectMenuComponent,
     SlidePanelComponent,
     ProductFormComponent,
@@ -155,6 +165,7 @@ function looksLikeBarcode(code: string): boolean {
 })
 export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   private readonly service = inject(StoreSalesService);
+  private readonly cashSessionsService = inject(CashSessionsService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly productService = inject(ProductService);
   private readonly customerService = inject(CustomerService);
@@ -211,6 +222,22 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected readonly selectedLocationId = signal<EntityId | null>(
     this.locationContext.activeLocationId(),
   );
+
+  // ── Sessione di cassa della sede ─────────────────────────────────────────
+
+  protected readonly cashSession = signal<CashSessionSummary | null>(null);
+  protected readonly cashSessionPending = signal(false);
+  protected readonly cashSessionError = signal<string | null>(null);
+  /** Esito dell'ultima chiusura (differenza contanti), mostrato sotto la fascia. */
+  protected readonly cashSessionNotice = signal<string | null>(null);
+
+  private cashSessionSubscription: Subscription | null = null;
+
+  /** La sessione segue la sede selezionata (cassa aperta ≠ per ogni sede). */
+  private readonly loadCashSessionOnLocation = effect(() => {
+    const locationId = this.selectedLocationId();
+    this.reloadCashSession(locationId);
+  });
 
   private readonly pinFixedOperationalLocation = effect(() => {
     const fixedId = this.operationalLocations.fixedSingleStoreLocationId();
@@ -345,6 +372,8 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected readonly selectedSale = signal<RecentStoreSale | null>(null);
   protected readonly returnLines = signal<readonly ReturnLine[]>([]);
   protected readonly returnReason = signal('');
+  /** Come viene rimborsato il cliente (default contanti, come al banco). */
+  protected readonly returnRefundMethod = signal<StoreSalePaymentMethod>('cash');
   protected readonly returnNotes = signal('');
   protected readonly returnPending = signal(false);
   protected readonly returnError = signal<string | null>(null);
@@ -431,6 +460,100 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   protected onCustomerChange(value: string | null): void {
     this.selectedCustomerId.set(value || null);
+  }
+
+  // ── Sessione di cassa: apertura, movimenti, chiusura ─────────────────────
+
+  private reloadCashSession(locationId: EntityId | null): void {
+    if (!locationId) {
+      this.cashSession.set(null);
+      return;
+    }
+    this.cashSessionSubscription = this.cashSessionsService
+      .current(locationId)
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((session) => this.cashSession.set(session));
+  }
+
+  protected onOpenCashSession(payload: { openingFloatMinor: number; notes?: string }): void {
+    const locationId = this.selectedLocationId();
+    if (!locationId || this.cashSessionPending()) {
+      return;
+    }
+    this.cashSessionPending.set(true);
+    this.cashSessionError.set(null);
+    this.cashSessionNotice.set(null);
+    this.cashSessionSubscription = this.cashSessionsService
+      .open({ locationId, ...payload })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (session) => {
+          this.cashSessionPending.set(false);
+          this.cashSession.set(session);
+        },
+        error: (err: unknown) => {
+          this.cashSessionPending.set(false);
+          this.cashSessionError.set(this.errorMessage(err));
+        },
+      });
+  }
+
+  protected onAddCashMovement(payload: CreateCashMovementPayload): void {
+    const session = this.cashSession();
+    if (!session || this.cashSessionPending()) {
+      return;
+    }
+    this.cashSessionPending.set(true);
+    this.cashSessionError.set(null);
+    this.cashSessionSubscription = this.cashSessionsService
+      .addMovement(session.id, payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.cashSessionPending.set(false);
+          this.cashSession.set(updated);
+        },
+        error: (err: unknown) => {
+          this.cashSessionPending.set(false);
+          this.cashSessionError.set(this.errorMessage(err));
+        },
+      });
+  }
+
+  protected onCloseCashSession(payload: CloseCashSessionPayload): void {
+    const session = this.cashSession();
+    if (!session || this.cashSessionPending()) {
+      return;
+    }
+    this.cashSessionPending.set(true);
+    this.cashSessionError.set(null);
+    this.cashSessionSubscription = this.cashSessionsService
+      .close(session.id, payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (closed) => {
+          this.cashSessionPending.set(false);
+          this.cashSession.set(null);
+          const difference =
+            closed.countedCashMinor != null
+              ? closed.countedCashMinor - closed.expectedCashMinor
+              : 0;
+          this.cashSessionNotice.set(
+            difference === 0
+              ? `Cassa chiusa: quadrata (contanti ${this.money(closed.countedCashMinor ?? 0)}).`
+              : `Cassa chiusa con ${difference > 0 ? 'eccedenza' : 'ammanco'} di ${this.money(
+                  Math.abs(difference),
+                )}. Il dettaglio è in Chiusure di cassa.`,
+          );
+        },
+        error: (err: unknown) => {
+          this.cashSessionPending.set(false);
+          this.cashSessionError.set(this.errorMessage(err));
+        },
+      });
   }
 
   // ── Vendita: ricerca ─────────────────────────────────────────────────────
@@ -1058,6 +1181,8 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.saleNotes.set('');
           this.resetPaymentRows();
           this.selectedCustomerId.set(null);
+          // La vendita è entrata nella sessione: la fascia deve rifletterla.
+          this.reloadCashSession(locationId);
           this.focusSearchInput();
           onDone?.();
         },
@@ -1124,6 +1249,13 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.returnLines.set([]);
     this.returnReason.set('');
     this.returnNotes.set('');
+    this.returnRefundMethod.set('cash');
+  }
+
+  protected onReturnRefundMethodChange(value: string | null): void {
+    if (value === 'cash' || value === 'card' || value === 'other') {
+      this.returnRefundMethod.set(value);
+    }
   }
 
   protected onReturnQuantityInput(index: number, event: Event): void {
@@ -1190,6 +1322,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         locationId,
         saleDocumentId: sale?.id,
         reason: this.returnReason().trim(),
+        refundMethod: this.returnRefundMethod(),
         notes: this.returnNotes().trim() || undefined,
         lines: lines.map((line) => ({
           variantId: line.variantId!,
@@ -1206,6 +1339,8 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.lastReturnResult.set(result);
           this.clearSelectedSale();
           this.loadRecentSales();
+          // Il rimborso è uscito dalla sessione: la fascia deve rifletterlo.
+          this.reloadCashSession(locationId);
           onDone?.();
         },
         error: (err: unknown) => {
