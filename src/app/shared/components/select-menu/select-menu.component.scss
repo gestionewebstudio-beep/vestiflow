@@ -412,9 +412,11 @@
   background-color: var(--color-surface-hover);
 }
 
+// Tinta chiara di selezione, non la palette della sidebar (--color-nav-* è
+// riservata alla shell): sul verde scuro il testo dell'opzione spariva.
 .select-menu__option-btn[aria-selected='true'] {
   font-weight: var(--font-weight-medium);
-  background-color: var(--color-nav-selected-bg);
+  background-color: var(--color-interactive-subtle);
 }
 
 .select-menu__check,

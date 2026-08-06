@@ -268,14 +268,16 @@
   border-color: var(--color-border-strong);
 }
 
+// Tinta chiara di selezione (i --color-nav-* sono della sola sidebar: sul
+// verde scuro il numero del giorno non si leggeva in tema chiaro).
 .date-input__day--selected {
   color: var(--color-interactive);
   font-weight: var(--font-weight-semibold);
-  background-color: var(--color-nav-selected-bg);
+  background-color: var(--color-interactive-subtle);
   border-color: var(--color-interactive);
 
   &:hover {
-    background-color: var(--color-nav-selected-bg);
+    background-color: var(--color-interactive-subtle);
   }
 }
 
