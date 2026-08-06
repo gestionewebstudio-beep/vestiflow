@@ -30,6 +30,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { OnlineSaleTableComponent } from './components/online-sale-table/online-sale-table.component';
@@ -68,6 +69,7 @@ type ListState =
     ErrorStateComponent,
     PaginationComponent,
     SelectMenuComponent,
+    SlidePanelComponent,
     TableSkeletonComponent,
     OnlineSaleTableComponent,
   ],
@@ -158,6 +160,22 @@ export class OnlineSaleListComponent {
   protected readonly hasActiveFilters = computed(() => {
     const q = this.query();
     return Boolean(q.search ?? q.channel ?? q.fulfilledFrom ?? q.fulfilledTo);
+  });
+
+  /** Pannello filtri mobile (layout comune pagine-registro): pulsante «Filtri (n)». */
+  protected readonly mobileFiltersOpen = signal(false);
+
+  /**
+   * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
+   * non conta: ha il suo campo sempre visibile. Dal/Al formano un unico
+   * intervallo e valgono uno.
+   */
+  protected readonly activeFilterCount = computed(() => {
+    const q = this.query();
+    let count = 0;
+    if (q.channel) count++;
+    if (q.fulfilledFrom ?? q.fulfilledTo) count++;
+    return count;
   });
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".

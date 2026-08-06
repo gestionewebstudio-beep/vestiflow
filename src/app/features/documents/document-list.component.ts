@@ -51,6 +51,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
@@ -147,6 +148,7 @@ type DeleteResult =
     ErrorStateComponent,
     PaginationComponent,
     SelectMenuComponent,
+    SlidePanelComponent,
     TableSkeletonComponent,
     DocumentTableComponent,
     TableColumnPickerComponent,
@@ -324,12 +326,10 @@ export class DocumentListComponent {
         }
         return this.service.getOperators(sales.types ?? [sales.type]).pipe(
           map((operators) =>
-            operators.map(
-              (operator): SelectMenuOption => ({
-                value: operator.id,
-                label: operator.name,
-              }),
-            ),
+            operators.map((operator): SelectMenuOption => ({
+              value: operator.id,
+              label: operator.name,
+            })),
           ),
           catchError(() => of([] as readonly SelectMenuOption[])),
         );
@@ -553,13 +553,11 @@ export class DocumentListComponent {
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
         this.service.getDocuments(query).pipe(
-          map(
-            (response): DocumentListState => ({
-              status: 'success',
-              documents: response.data,
-              meta: response.meta,
-            }),
-          ),
+          map((response): DocumentListState => ({
+            status: 'success',
+            documents: response.data,
+            meta: response.meta,
+          })),
           startWith<DocumentListState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<DocumentListState>({ status: 'error', error: this.toAppError(err) }),
@@ -631,6 +629,46 @@ export class DocumentListComponent {
       q.accountant === true ||
       q.pendingInvoice === true
     );
+  });
+
+  /** Pannello filtri mobile (layout comune pagine-registro): apertura UI pura. */
+  protected readonly mobileFiltersOpen = signal(false);
+
+  /**
+   * Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
+   * non conta (ha il campo sempre visibile); Dal/Al contano una volta sola.
+   * Stessi campi già valutati da hasActiveFilters, per profilo: zero logica nuova.
+   */
+  protected readonly activeFilterCount = computed(() => {
+    const q = this.query();
+    const sales = this.salesRegister();
+    let count = 0;
+    if (q.dateFrom ?? q.dateTo) count++;
+    if (sales) {
+      if (q.status) count++;
+      if (sales.types && this.sharedTypeFilter()) count++;
+      if (!sales.hideCustomerFilter && q.customerId) count++;
+      if (sales.showSupplierFilter && q.supplierId) count++;
+      if (sales.showSettlementFilter && q.settlement) count++;
+      if (sales.paymentMethodOptions && q.paymentMethod) count++;
+      if (sales.showOperatorFilter && q.createdById) count++;
+      if (sales.showPendingInvoiceFilter && q.pendingInvoice === true) count++;
+      return count;
+    }
+    if (this.isGoodsReceiptList()) {
+      if (q.locationId) count++;
+      if (q.supplierId) count++;
+      if (q.linkStatus) count++;
+      if (q.externalDocumentTypeId) count++;
+      if (q.paymentMethod) count++;
+      return count;
+    }
+    if (q.type) count++;
+    if (q.status) count++;
+    if (q.customerId) count++;
+    if (q.accountant === true) count++;
+    if (q.pendingInvoice === true) count++;
+    return count;
   });
 
   protected readonly isAccountantView = computed(() => Boolean(this.query().accountant));

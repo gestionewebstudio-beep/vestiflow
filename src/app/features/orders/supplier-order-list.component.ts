@@ -32,6 +32,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { SupplierOrderTableComponent } from './components/supplier-order-table/supplier-order-table.component';
@@ -73,6 +74,7 @@ type OrderListState =
     ErrorStateComponent,
     PaginationComponent,
     SelectMenuComponent,
+    SlidePanelComponent,
     TableSkeletonComponent,
     SupplierOrderTableComponent,
   ],
@@ -153,6 +155,13 @@ export class SupplierOrderListComponent {
     const q = this.query();
     return Boolean(q.search ?? q.status);
   });
+
+  /** Pannello filtri mobile: un solo pulsante «Filtri (n)». */
+  protected readonly mobileFiltersOpen = signal(false);
+
+  /** Quanti filtri sono attivi, per il badge del pulsante «Filtri». La ricerca
+   *  non conta: ha il suo campo sempre visibile. */
+  protected readonly activeFilterCount = computed(() => (this.query().status ? 1 : 0));
 
   // takeUntilDestroyed() gestisce l'unsubscribe; il campo evita subscription "ignorate".
   private readonly searchSubscription: Subscription;

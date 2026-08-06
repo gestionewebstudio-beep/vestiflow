@@ -101,11 +101,8 @@
   color: var(--color-primary);
 }
 
-.doc-list__field--date {
-  @include bp.media-up('md') {
-    inline-size: calc(var(--space-10) * 4);
-  }
-}
+// Dal/Al: cella piena della griglia filtri (canone del mixin), nessuna
+// larghezza fissa dedicata.
 
 .doc-list__check {
   display: inline-flex;
