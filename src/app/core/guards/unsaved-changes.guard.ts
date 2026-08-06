@@ -10,6 +10,8 @@ export interface CanComponentDeactivate {
 /**
  * Guard generico riusabile: delega la decisione al componente, che può
  * consentire l'uscita o chiedere conferma all'utente. UX, non sicurezza.
+ * Optional chaining difensivo: una rotta col guard ma senza il metodo nel
+ * componente lascia uscire, invece di rompere la navigazione con un TypeError.
  */
 export const unsavedChangesGuard: CanDeactivateFn<CanComponentDeactivate> = (component) =>
-  component.canDeactivate();
+  component.canDeactivate?.() ?? true;

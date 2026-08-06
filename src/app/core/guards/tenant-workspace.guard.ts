@@ -10,6 +10,10 @@ import {
 /**
  * Blocca l'accesso al gestionale negozio per gli operatori piattaforma.
  * Reindirizza all'area provisioning clienti.
+ *
+ * NON va applicato al mount di /app/admin: reindirizza gli operatori proprio
+ * lì, e metterlo su quella rotta creerebbe un loop di redirect (l'area admin è
+ * protetta dal guard speculare platformAdminGuard).
  */
 export const tenantWorkspaceGuard: CanActivateFn = () => {
   const auth = inject(AuthService);

@@ -24,6 +24,7 @@ import {
 import type { Subscription } from 'rxjs';
 
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
+import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -97,7 +98,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
   templateUrl: './stock-operation-form.component.html',
   styleUrl: './stock-operation-form.component.scss',
 })
-export class StockOperationFormComponent {
+export class StockOperationFormComponent implements CanComponentDeactivate {
   private readonly authService = inject(AuthService);
   private readonly editLock = inject(DocumentEditLockService);
   private readonly fb = inject(NonNullableFormBuilder);
@@ -131,6 +132,11 @@ export class StockOperationFormComponent {
       this.refreshNumberProposal();
       this.prefillFromDuplicateIfRequested();
     });
+
+    // Ogni modifica utente al form marca il documento come «da salvare».
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.markFormDirty();
+    });
   }
 
   /**
@@ -157,16 +163,22 @@ export class StockOperationFormComponent {
 
   private applyDuplicatePrefill(doc: DocumentRecord): void {
     this.patchFormFromDocument(doc);
-    // Documento nuovo indipendente: azzera numero, serie e data dell'originale.
-    this.form.patchValue({
-      documentNumber: null,
-      series: '',
-      documentDate: new Date().toISOString().slice(0, 10),
-    });
-    // Righe copiate come nuove: nessun id riga dell'originale, così il
-    // salvataggio non aggancia i movimenti del documento di partenza.
-    for (const line of this.lines.controls) {
-      line.get('id')?.setValue(null);
+    // Prefill programmatico del duplica: non è una modifica dell'utente.
+    this.suppressDirtyMarking = true;
+    try {
+      // Documento nuovo indipendente: azzera numero, serie e data dell'originale.
+      this.form.patchValue({
+        documentNumber: null,
+        series: '',
+        documentDate: new Date().toISOString().slice(0, 10),
+      });
+      // Righe copiate come nuove: nessun id riga dell'originale, così il
+      // salvataggio non aggancia i movimenti del documento di partenza.
+      for (const line of this.lines.controls) {
+        line.get('id')?.setValue(null);
+      }
+    } finally {
+      this.suppressDirtyMarking = false;
     }
     this.refreshNumberProposal();
   }
@@ -383,8 +395,14 @@ export class StockOperationFormComponent {
           }
           const proposed = counters.find((entry) => entry.id === proposedCounterId);
           if (proposed) {
-            this.form.controls.series.setValue(proposed.series ?? '');
-            this.form.controls.documentNumber.setValue(proposed.nextNumber);
+            // Proposta programmatica di serie/numero: non è una modifica utente.
+            this.suppressDirtyMarking = true;
+            try {
+              this.form.controls.series.setValue(proposed.series ?? '');
+              this.form.controls.documentNumber.setValue(proposed.nextNumber);
+            } finally {
+              this.suppressDirtyMarking = false;
+            }
           }
         },
         error: () => undefined,
@@ -411,6 +429,13 @@ export class StockOperationFormComponent {
     const state = this._submitState();
     return state.status === 'error' ? state.error : null;
   });
+
+  // ── Uscita con modifiche non salvate (pattern Ordine fornitore) ─────────────
+  protected readonly dirtySinceLastSave = signal(false);
+  protected readonly exitDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
+  /** True durante il patch programmatico del form (caricamento in modifica). */
+  private suppressDirtyMarking = false;
 
   private submitSubscription?: Subscription;
 
@@ -601,6 +626,39 @@ export class StockOperationFormComponent {
     this.navHistory.backOr(this.listPath);
   }
 
+  // ── Uscita con modifiche non salvate (pattern Ordine fornitore) ─────────────
+
+  private markFormDirty(): void {
+    if (!this.suppressDirtyMarking) {
+      this.dirtySinceLastSave.set(true);
+    }
+  }
+
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.dirtySinceLastSave()) {
+      return true;
+    }
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  protected cancelExitDialog(): void {
+    this.exitDialogOpen.set(false);
+    this.pendingDeactivate?.(false);
+    this.pendingDeactivate = null;
+  }
+
+  // Niente «Salva e chiudi»: il salvataggio passa dal dialogo di conferma
+  // (requestConfirm → confirmAndSave) e un dialogo sopra l'altro confonde.
+  protected confirmExitWithoutSaving(): void {
+    this.exitDialogOpen.set(false);
+    this.dirtySinceLastSave.set(false);
+    this.pendingDeactivate?.(true);
+    this.pendingDeactivate = null;
+  }
+
   protected reload(): void {
     this.loadTick.update((t) => t + 1);
   }
@@ -611,7 +669,13 @@ export class StockOperationFormComponent {
     // scelta è obbligata. Mai fallback "prima location disponibile".
     const writable = this.operationalLocations.writeLocations();
     if (writable.length === 1 && !this.form.controls.locationId.value) {
-      this.form.controls.locationId.setValue(writable[0]?.id ?? '');
+      // Precompilazione programmatica: non è una modifica dell'utente.
+      this.suppressDirtyMarking = true;
+      try {
+        this.form.controls.locationId.setValue(writable[0]?.id ?? '');
+      } finally {
+        this.suppressDirtyMarking = false;
+      }
     }
   }
 
@@ -673,6 +737,8 @@ export class StockOperationFormComponent {
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (doc) => {
         this._submitState.set({ status: 'idle' });
+        // Documento salvato: il guard di uscita non deve più fermare la navigazione.
+        this.dirtySinceLastSave.set(false);
         void this.router.navigate([this.listPath, doc.id]);
       },
       error: (err: unknown) => {
@@ -729,37 +795,43 @@ export class StockOperationFormComponent {
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
-    this.form.patchValue({
-      locationId: doc.locationId ?? '',
-      adjustmentDirection: doc.adjustmentDirection ?? AdjustmentDirection.Increase,
-      documentDate: doc.documentDate.slice(0, 10),
-      documentNumber: doc.number ?? null,
-      series: doc.series ?? '',
-      notes: doc.notes ?? '',
-      internalComment: doc.internalComment ?? '',
-    });
-    this.lines.clear();
-    for (const line of doc.lines ?? []) {
-      this.lines.push(
-        this.fb.group({
-          // Id riga esistente: preservato (mai esposto in UI) per consentire
-          // al salvataggio dedicato rettifica di aggiornare il movimento
-          // collegato invece di duplicarlo (POST /documents/adjustment/save).
-          id: this.fb.control<string | null>(line.id ?? null),
-          variantId: this.fb.control(line.variantId ?? '', {
-            validators: line.loadsStock ? [Validators.required] : [],
+    // Patch programmatico (caricamento/duplica): non è una modifica dell'utente.
+    this.suppressDirtyMarking = true;
+    try {
+      this.form.patchValue({
+        locationId: doc.locationId ?? '',
+        adjustmentDirection: doc.adjustmentDirection ?? AdjustmentDirection.Increase,
+        documentDate: doc.documentDate.slice(0, 10),
+        documentNumber: doc.number ?? null,
+        series: doc.series ?? '',
+        notes: doc.notes ?? '',
+        internalComment: doc.internalComment ?? '',
+      });
+      this.lines.clear();
+      for (const line of doc.lines ?? []) {
+        this.lines.push(
+          this.fb.group({
+            // Id riga esistente: preservato (mai esposto in UI) per consentire
+            // al salvataggio dedicato rettifica di aggiornare il movimento
+            // collegato invece di duplicarlo (POST /documents/adjustment/save).
+            id: this.fb.control<string | null>(line.id ?? null),
+            variantId: this.fb.control(line.variantId ?? '', {
+              validators: line.loadsStock ? [Validators.required] : [],
+            }),
+            sku: this.fb.control(line.sku ?? ''),
+            description: this.fb.control(line.description, { validators: [Validators.required] }),
+            quantity: this.fb.control(line.quantity, {
+              validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
+            }),
+            serialNumbersText: this.fb.control((line.serialNumbers ?? []).join(', ')),
           }),
-          sku: this.fb.control(line.sku ?? ''),
-          description: this.fb.control(line.description, { validators: [Validators.required] }),
-          quantity: this.fb.control(line.quantity, {
-            validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
-          }),
-          serialNumbersText: this.fb.control((line.serialNumbers ?? []).join(', ')),
-        }),
-      );
-    }
-    if (this.lines.length === 0) {
-      this.lines.push(this.createLine());
+        );
+      }
+      if (this.lines.length === 0) {
+        this.lines.push(this.createLine());
+      }
+    } finally {
+      this.suppressDirtyMarking = false;
     }
   }
 

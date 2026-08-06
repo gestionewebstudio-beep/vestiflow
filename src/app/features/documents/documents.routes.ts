@@ -12,29 +12,31 @@ import {
 export const documentsRoutes: Routes = [
   {
     path: '',
-    title: 'VestiFlow · Documenti',
+    title: 'Documenti',
     loadComponent: () => import('./documents-hub.component').then((m) => m.DocumentsHubComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS, reuse: true },
   },
   {
     path: 'registro',
-    title: 'VestiFlow · Registro documenti',
+    title: 'Registro documenti',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
       documentListProfile: 'generic',
+      reuse: true,
     },
   },
   {
     path: 'arrivi-merce',
-    title: 'VestiFlow · Arrivi merce',
+    title: 'Arrivi merce',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
       documentListProfile: 'goods-receipt',
+      reuse: true,
     },
   },
   {
@@ -42,44 +44,48 @@ export const documentsRoutes: Routes = [
     // stesso componente del registro con profilo dedicato (titolo, «Nuovo …»,
     // stato vuoto e filtri propri, senza filtro «Tipo»).
     path: 'quote',
-    title: 'VestiFlow · Preventivi',
+    title: 'Preventivi',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
       documentListProfile: 'quote',
+      reuse: true,
     },
   },
   {
     path: 'proforma',
-    title: 'VestiFlow · Proforma',
+    title: 'Proforma',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
       documentListProfile: 'proforma',
+      reuse: true,
     },
   },
   {
     path: 'sales-ddt',
-    title: 'VestiFlow · DDT vendita',
+    title: 'DDT vendita',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
       documentListProfile: 'sales-ddt',
+      reuse: true,
     },
   },
   {
     // Elenco condiviso Fattura / Fattura accompagnatoria: il filtro «Tipo» si
     // preimposta dal query param `type` della voce hub, ma resta modificabile.
     path: 'fattura',
-    title: 'VestiFlow · Fatture',
+    title: 'Fatture',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
       documentListProfile: 'invoice',
+      reuse: true,
     },
   },
   {
@@ -92,12 +98,13 @@ export const documentsRoutes: Routes = [
     // Elenco Registrazioni fattura fornitore (Documenti → Acquisti e
     // fornitori): colonne e filtri della spec, stato saldo incluso.
     path: 'registrazione-fattura',
-    title: 'VestiFlow · Registrazioni fattura fornitore',
+    title: 'Registrazioni fattura fornitore',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
       documentListProfile: 'purchase-invoice',
+      reuse: true,
     },
   },
   {
@@ -105,17 +112,18 @@ export const documentsRoutes: Routes = [
     // cassa. Sola consultazione — i documenti nascono in transazione con i
     // movimenti di magazzino e non si modificano né si eliminano da qui.
     path: 'vendite-negozio',
-    title: 'VestiFlow · Vendita/Reso in negozio',
+    title: 'Vendita/Reso in negozio',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
       documentListProfile: 'store-sale',
+      reuse: true,
     },
   },
   {
     path: 'vendite-negozio/:id',
-    title: 'VestiFlow · Dettaglio vendita in negozio',
+    title: 'Dettaglio vendita in negozio',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
@@ -128,20 +136,22 @@ export const documentsRoutes: Routes = [
     // Scarico manuale giacenze: pagina elenco dedicata (prompt Scarico
     // manuale) — il documento resta qui finché l'operatore non lo elimina.
     path: 'manual-unload',
-    title: 'VestiFlow · Scarico manuale giacenze',
+    title: 'Scarico manuale giacenze',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
       documentListProfile: 'manual-unload',
+      reuse: true,
     },
   },
   {
     path: 'proforma/new',
-    title: 'VestiFlow · Nuova proforma',
+    title: 'Nuova proforma',
     loadComponent: () =>
       import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
       salesDocumentType: DocumentType.Proforma,
@@ -149,10 +159,11 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'fattura/new',
-    title: 'VestiFlow · Nuova fattura',
+    title: 'Nuova fattura',
     loadComponent: () =>
       import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
       salesDocumentType: DocumentType.InvoiceDraft,
@@ -162,10 +173,11 @@ export const documentsRoutes: Routes = [
     // Stesso form: le sezioni Trasporto e Destinazione e la colonna «Scarica
     // mag.» compaiono in base al tipo, non a un componente separato.
     path: 'fattura-accompagnatoria/new',
-    title: 'VestiFlow · Nuova fattura accompagnatoria',
+    title: 'Nuova fattura accompagnatoria',
     loadComponent: () =>
       import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
       salesDocumentType: DocumentType.InvoiceAccompanying,
@@ -176,7 +188,7 @@ export const documentsRoutes: Routes = [
     // (prompt DDT §BASE — righe identiche, testata con Pagamento e «Seguirà
     // doc. di vendita», sezioni Trasporto e Indirizzi, scarico al salvataggio).
     path: 'sales-ddt/new',
-    title: 'VestiFlow · Nuovo DDT vendita',
+    title: 'Nuovo DDT vendita',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,
@@ -190,7 +202,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'sales-ddt/:id/edit',
-    title: 'VestiFlow · Modifica DDT vendita',
+    title: 'Modifica DDT vendita',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,
@@ -206,7 +218,7 @@ export const documentsRoutes: Routes = [
     // Preventivo: stessa maschera dell'Ordine cliente in modalità quote
     // (nessuno stato, nessun impegno magazzino, numeratore PRE).
     path: 'quote/new',
-    title: 'VestiFlow · Nuovo preventivo',
+    title: 'Nuovo preventivo',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,
@@ -220,7 +232,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'quote/:id/edit',
-    title: 'VestiFlow · Modifica preventivo',
+    title: 'Modifica preventivo',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,
@@ -236,7 +248,7 @@ export const documentsRoutes: Routes = [
     // Anteprime dettaglio dedicate (layout Ordine cliente): registrate dopo le
     // rotte `x/new` così «new» non viene mai interpretato come id documento.
     path: 'quote/:id',
-    title: 'VestiFlow · Dettaglio preventivo',
+    title: 'Dettaglio preventivo',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
@@ -247,7 +259,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'proforma/:id',
-    title: 'VestiFlow · Dettaglio proforma',
+    title: 'Dettaglio proforma',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
@@ -258,7 +270,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'sales-ddt/:id',
-    title: 'VestiFlow · Dettaglio DDT vendita',
+    title: 'Dettaglio DDT vendita',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
@@ -270,7 +282,7 @@ export const documentsRoutes: Routes = [
   {
     // Dettaglio condiviso: il titolo segue il tipo del documento caricato.
     path: 'fattura/:id',
-    title: 'VestiFlow · Dettaglio fattura',
+    title: 'Dettaglio fattura',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
@@ -281,15 +293,16 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'sales/:id/edit',
-    title: 'VestiFlow · Modifica documento vendita',
+    title: 'Modifica documento vendita',
     loadComponent: () =>
       import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
   },
   {
     path: ':id/print',
-    title: 'VestiFlow · Stampa documento',
+    title: 'Stampa documento',
     loadComponent: () =>
       import('./document-print-preview.component').then((m) => m.DocumentPrintPreviewComponent),
     canActivate: [tenantPermissionGuard],
@@ -297,7 +310,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'goods-receipt/new',
-    title: 'VestiFlow · Nuovo arrivo merce',
+    title: 'Nuovo arrivo merce',
     loadComponent: () =>
       import('./goods-receipt-form.component').then((m) => m.GoodsReceiptFormComponent),
     canActivate: [tenantPermissionGuard],
@@ -306,32 +319,36 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'registrazione-fattura/new',
-    title: 'VestiFlow · Nuova registrazione fattura fornitore',
+    title: 'Nuova registrazione fattura fornitore',
     loadComponent: () =>
       import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
   },
   {
     path: 'registrazione-fattura/:id/edit',
-    title: 'VestiFlow · Modifica registrazione fattura fornitore',
+    title: 'Modifica registrazione fattura fornitore',
     loadComponent: () =>
       import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
   },
   {
     path: 'transfer/new',
-    title: 'VestiFlow · Nuovo trasferimento',
+    title: 'Nuovo trasferimento',
     loadComponent: () => import('./transfer-form.component').then((m) => m.TransferFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
   },
   {
     path: 'transfer/:id/edit',
-    title: 'VestiFlow · Modifica trasferimento',
+    title: 'Modifica trasferimento',
     loadComponent: () => import('./transfer-form.component').then((m) => m.TransferFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
   },
   {
@@ -339,7 +356,7 @@ export const documentsRoutes: Routes = [
     // manual-unload (prompt Scarico manuale — righe con prezzi e totali,
     // cliente facoltativo, scarico diretto giacenze al salvataggio).
     path: 'manual-unload/new',
-    title: 'VestiFlow · Nuovo scarico manuale',
+    title: 'Nuovo scarico manuale',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,
@@ -353,7 +370,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'manual-unload/:id/edit',
-    title: 'VestiFlow · Modifica scarico manuale',
+    title: 'Modifica scarico manuale',
     loadComponent: () =>
       import('@features/sales-orders/customer-order-form.component').then(
         (m) => m.CustomerOrderFormComponent,
@@ -369,7 +386,7 @@ export const documentsRoutes: Routes = [
     // Anteprima dettaglio dedicata (layout Ordine cliente): registrata dopo
     // `manual-unload/new` così «new» non viene interpretato come id.
     path: 'manual-unload/:id',
-    title: 'VestiFlow · Dettaglio scarico manuale',
+    title: 'Dettaglio scarico manuale',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
@@ -380,10 +397,11 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'adjustment/new',
-    title: 'VestiFlow · Nuova rettifica inventario',
+    title: 'Nuova rettifica inventario',
     loadComponent: () =>
       import('./stock-operation-form.component').then((m) => m.StockOperationFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
       stockDocumentType: DocumentType.Adjustment,
@@ -391,10 +409,11 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'adjustment/:id/edit',
-    title: 'VestiFlow · Modifica rettifica inventario',
+    title: 'Modifica rettifica inventario',
     loadComponent: () =>
       import('./stock-operation-form.component').then((m) => m.StockOperationFormComponent),
     canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: {
       [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
       stockDocumentType: DocumentType.Adjustment,
@@ -402,7 +421,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'settings',
-    title: 'VestiFlow · Impostazioni documenti',
+    title: 'Impostazioni documenti',
     loadComponent: () =>
       import('./document-settings.component').then((m) => m.DocumentSettingsComponent),
     canActivate: [tenantPermissionGuard],
@@ -410,7 +429,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: ':id/edit',
-    title: 'VestiFlow · Modifica arrivo merce',
+    title: 'Modifica arrivo merce',
     loadComponent: () =>
       import('./goods-receipt-form.component').then((m) => m.GoodsReceiptFormComponent),
     canActivate: [tenantPermissionGuard],
@@ -419,7 +438,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: ':id',
-    title: 'VestiFlow · Dettaglio documento',
+    title: 'Dettaglio documento',
     loadComponent: () =>
       import('./document-detail.component').then((m) => m.DocumentDetailComponent),
     canActivate: [tenantPermissionGuard],

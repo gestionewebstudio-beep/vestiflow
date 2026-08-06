@@ -26,6 +26,7 @@ import type { Subscription } from 'rxjs';
 
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { formatDate } from '@core/utils/date.util';
+import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -152,7 +153,7 @@ type SubmitState =
   // Foglio nuovo (FASE 1): solo i delta che l'anatomia condivisa non copre.
   styleUrl: './sales-document-form.component.scss',
 })
-export class SalesDocumentFormComponent {
+export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly editLock = inject(DocumentEditLockService);
   private readonly authService = inject(AuthService);
@@ -743,6 +744,13 @@ export class SalesDocumentFormComponent {
     return doc ? documentReferenceLabel(doc.type, doc.reference, doc.series) : null;
   });
 
+  // ── Uscita con modifiche non salvate (pattern Arrivo merce / Ordine fornitore) ──
+  protected readonly dirtySinceLastSave = signal(false);
+  protected readonly exitDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
+  /** True durante i patch programmatici del form (caricamento e prefill). */
+  private suppressDirtyMarking = false;
+
   constructor() {
     // Carica i contatori disponibili (tendina serie); su documento nuovo
     // propone il predefinito, in modifica resta il numero già assegnato.
@@ -752,6 +760,12 @@ export class SalesDocumentFormComponent {
       this.prefillFromIncludedOrderIfRequested();
       this.prefillFromDuplicateIfRequested();
       this.initPriceModeForNewDocument();
+    });
+
+    // Ogni modifica del form (testata e righe) marca il documento come sporco;
+    // i patch programmatici la sopprimono con withoutDirtyMarking().
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.markFormDirty();
     });
 
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
@@ -781,6 +795,59 @@ export class SalesDocumentFormComponent {
         return;
       }
       this.form.controls.iban.setValue(iban, { emitEvent: false });
+    });
+  }
+
+  private markFormDirty(): void {
+    if (!this.suppressDirtyMarking) {
+      this.dirtySinceLastSave.set(true);
+    }
+  }
+
+  /**
+   * Esegue un patch programmatico senza marcare il form come modificato.
+   * Salva e ripristina il flag: i patch possono annidarsi (duplica → carica).
+   */
+  private withoutDirtyMarking(patch: () => void): void {
+    const previous = this.suppressDirtyMarking;
+    this.suppressDirtyMarking = true;
+    try {
+      patch();
+    } finally {
+      this.suppressDirtyMarking = previous;
+    }
+  }
+
+  canDeactivate(): boolean | Promise<boolean> {
+    // In sola lettura (confermato non sbloccato) non c'è nulla da perdere.
+    if (this.formReadOnly() || !this.dirtySinceLastSave()) {
+      return true;
+    }
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  protected cancelExitDialog(): void {
+    this.exitDialogOpen.set(false);
+    this.pendingDeactivate?.(false);
+    this.pendingDeactivate = null;
+  }
+
+  protected confirmExitWithoutSaving(): void {
+    this.exitDialogOpen.set(false);
+    this.dirtySinceLastSave.set(false);
+    this.pendingDeactivate?.(true);
+    this.pendingDeactivate = null;
+  }
+
+  /** «Salva e chiudi» dal dialogo: salva il documento e prosegue l'uscita. */
+  protected confirmExitSaveDocument(): void {
+    this.persist(() => {
+      this.exitDialogOpen.set(false);
+      this.pendingDeactivate?.(true);
+      this.pendingDeactivate = null;
     });
   }
 
@@ -892,10 +959,13 @@ export class SalesDocumentFormComponent {
       return;
     }
     this.linkedDdtIds.update((ids) => [...ids, value]);
+    // L'aggancio DDT non vive nel form: va marcato a mano.
+    this.markFormDirty();
   }
 
   protected onRemoveLinkedDdt(id: string): void {
     this.linkedDdtIds.update((ids) => ids.filter((current) => current !== id));
+    this.markFormDirty();
   }
 
   /** «Cambia destinazione»: sblocca i campi precompilati dall'anagrafica. */
@@ -1212,8 +1282,22 @@ export class SalesDocumentFormComponent {
     });
   }
 
-  private persist(): void {
-    if (this.formReadOnly() || this.saving() || !this.validateForm()) {
+  private persist(onSaved?: () => void): void {
+    if (this.formReadOnly() || this.saving()) {
+      return;
+    }
+    if (!this.validateForm()) {
+      if (onSaved) {
+        // «Salva e chiudi» dal dialogo di uscita: l'errore va mostrato lì.
+        this._submitState.set({
+          status: 'error',
+          error: {
+            kind: AppErrorKind.Validation,
+            message:
+              'Impossibile salvare: controlla cliente e righe (campi obbligatori o valori non validi).',
+          },
+        });
+      }
       return;
     }
     const raw = this.form.getRawValue();
@@ -1313,6 +1397,15 @@ export class SalesDocumentFormComponent {
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (doc) => {
         this._submitState.set({ status: 'idle' });
+        // Documento salvato: il guard di uscita non deve più fermare la
+        // navigazione — azzerare PRIMA di navigare, o il dialogo si riapre.
+        this.dirtySinceLastSave.set(false);
+        if (onSaved) {
+          // «Salva e chiudi»: prosegue la navigazione sospesa dal guard,
+          // senza aggiungerne una seconda verso il dettaglio.
+          onSaved();
+          return;
+        }
         void this.router.navigate([this.listPath, doc.id]);
       },
       error: (err: unknown) => {
@@ -1489,6 +1582,9 @@ export class SalesDocumentFormComponent {
     }
     this.pricesIncludeVat.set(pricesIncludeVat);
     this.form.markAsDirty();
+    // Lo switch netto/ivato non vive nel form (e i prezzi si riscrivono senza
+    // emettere valueChanges): va marcato a mano.
+    this.markFormDirty();
   }
 
   /**
@@ -1510,8 +1606,11 @@ export class SalesDocumentFormComponent {
           }
           const proposed = counters.find((entry) => entry.id === proposedCounterId);
           if (proposed) {
-            this.form.controls.series.setValue(proposed.series ?? '');
-            this.form.controls.documentNumber.setValue(proposed.nextNumber);
+            // Proposta programmatica di serie/numero: non sporca il documento.
+            this.withoutDirtyMarking(() => {
+              this.form.controls.series.setValue(proposed.series ?? '');
+              this.form.controls.documentNumber.setValue(proposed.nextNumber);
+            });
           }
         },
         // Contatori non disponibili: il server assegnerà comunque il numero.
@@ -1641,22 +1740,32 @@ export class SalesDocumentFormComponent {
   }
 
   private applyDuplicatePrefill(doc: DocumentRecord): void {
-    this.patchFormFromDocument(doc);
-    // Documento indipendente: si azzerano identità e collegamenti dell'originale
-    // (numero, serie, riferimenti, DDT agganciati); la data è quella odierna.
-    this.form.patchValue({
-      documentNumber: null,
-      series: '',
-      documentDate: new Date().toISOString().slice(0, 10),
-      relatedDdtRef: '',
+    // Prefill programmatico: la maschera parte «pulita» come un documento nuovo.
+    this.withoutDirtyMarking(() => {
+      this.patchFormFromDocument(doc);
+      // Documento indipendente: si azzerano identità e collegamenti dell'originale
+      // (numero, serie, riferimenti, DDT agganciati); la data è quella odierna.
+      this.form.patchValue({
+        documentNumber: null,
+        series: '',
+        documentDate: new Date().toISOString().slice(0, 10),
+        relatedDdtRef: '',
+      });
+      this.linkedDdtIds.set([]);
+      this._sourceDocumentId.set(null);
+      this._includedSalesOrderIds.set([]);
     });
-    this.linkedDdtIds.set([]);
-    this._sourceDocumentId.set(null);
-    this._includedSalesOrderIds.set([]);
     this.refreshNumberProposal();
   }
 
   private prefillFromConversion(prefill: CreateDocumentBody): void {
+    // Prefill programmatico (conversione/da ordine): non è una modifica utente.
+    this.withoutDirtyMarking(() => {
+      this.applyConversionPrefill(prefill);
+    });
+  }
+
+  private applyConversionPrefill(prefill: CreateDocumentBody): void {
     this._sourceDocumentId.set(prefill.sourceDocumentId ?? null);
     this._includedSalesOrderIds.set([...(prefill.includedSalesOrderIds ?? [])]);
     // Documento generato: eredita la modalità prezzo dell'origine (dal prefill).
@@ -1712,6 +1821,13 @@ export class SalesDocumentFormComponent {
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
+    // Patch programmatico: non è una modifica dell'utente.
+    this.withoutDirtyMarking(() => {
+      this.applyDocumentToForm(doc);
+    });
+  }
+
+  private applyDocumentToForm(doc: DocumentRecord): void {
     // Documento esistente: si mostra la modalità con cui è stato creato.
     this.pricesIncludeVat.set(doc.pricesIncludeVat);
     this.form.patchValue({

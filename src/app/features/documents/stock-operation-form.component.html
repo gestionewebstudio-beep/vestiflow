@@ -478,3 +478,27 @@
   [open]="seriesDialogOpen()"
   (closed)="onSeriesManagerClosed()"
 />
+
+<!-- Uscita con modifiche non salvate (pattern Ordine fornitore): due sole
+     scelte, senza «Salva e chiudi» — il salvataggio passa già dal dialogo di
+     conferma rettifica/scarico e un dialogo sopra l'altro confonde. -->
+@if (exitDialogOpen()) {
+  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
+  <div
+    class="doc-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="so-exit-title"
+  >
+    <h2 id="so-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
+    <p class="doc-form__exit-message">
+      Ci sono modifiche non salvate: uscendo dalla pagina andranno perse.
+    </p>
+    <div class="doc-form__exit-actions">
+      <app-button type="button" variant="ghost" (click)="cancelExitDialog()">Annulla</app-button>
+      <app-button type="button" variant="secondary" (click)="confirmExitWithoutSaving()">
+        Esci senza salvare
+      </app-button>
+    </div>
+  </div>
+}

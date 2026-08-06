@@ -7,7 +7,7 @@ import {
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
-import { provideRouter, RouteReuseStrategy } from '@angular/router';
+import { provideRouter, RouteReuseStrategy, TitleStrategy } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
 import { map, tap } from 'rxjs';
 
@@ -18,6 +18,8 @@ import { APP_CONFIG } from '@core/config/app-config.token';
 import { GlobalErrorHandler } from '@core/handlers/global-error.handler';
 import { errorInterceptor } from '@core/interceptors/error.interceptor';
 import { loadingInterceptor } from '@core/interceptors/loading.interceptor';
+import { PageTitleStrategy } from '@core/routing/page-title.strategy';
+import { reuseInvalidationInterceptor } from '@core/routing/reuse-invalidation.interceptor';
 import { TabRouteReuseStrategy } from '@core/routing/tab-route-reuse.strategy';
 import { supportSessionInterceptor } from '@core/support/support-session.interceptor';
 import { SupportSessionService } from '@core/support/support-session.service';
@@ -28,10 +30,15 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    { provide: RouteReuseStrategy, useClass: TabRouteReuseStrategy },
-    // Ordine: loading → support session → auth → error (Bearer JWT Supabase).
+    // useExisting: la stessa istanza serve il Router e l'interceptor di
+    // invalidazione (una scrittura HTTP svuota la cache delle pagine).
+    TabRouteReuseStrategy,
+    { provide: RouteReuseStrategy, useExisting: TabRouteReuseStrategy },
+    { provide: TitleStrategy, useClass: PageTitleStrategy },
+    // Ordine: reuse → loading → support session → auth → error (Bearer JWT Supabase).
     provideHttpClient(
       withInterceptors([
+        reuseInvalidationInterceptor,
         loadingInterceptor,
         supportSessionInterceptor,
         authInterceptor,

@@ -13,6 +13,7 @@ import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
+import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import type { Customer } from '@core/models/customer.model';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
@@ -45,7 +46,7 @@ import { CustomerService } from '@domain/customers/services/customer.service';
   templateUrl: './customer-form.component.html',
   styleUrl: './customer-form.component.scss',
 })
-export class CustomerFormComponent {
+export class CustomerFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly service = inject(CustomerService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
@@ -103,24 +104,49 @@ export class CustomerFormComponent {
 
   protected readonly form = createCustomerFormGroup(this.fb);
 
+  // ── Uscita con modifiche non salvate (pattern Ordine fornitore) ──
+  protected readonly dirtySinceLastSave = signal(false);
+  protected readonly exitDialogOpen = signal(false);
+  private pendingDeactivate: ((allow: boolean) => void) | null = null;
+  /** True durante il patch programmatico del form (caricamento in modifica). */
+  private suppressDirtyMarking = false;
+
   constructor() {
     toObservable(this.loadState)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((state) => {
         if (state.status === 'ready' && state.customer) {
-          patchCustomerFormGroup(this.form, state.customer);
-          setCustomerAnagraficaReadOnly(this.form, state.customer.source === 'shopify');
+          // Patch programmatico: non è una modifica dell'utente.
+          this.suppressDirtyMarking = true;
+          try {
+            patchCustomerFormGroup(this.form, state.customer);
+            setCustomerAnagraficaReadOnly(this.form, state.customer.source === 'shopify');
+          } finally {
+            this.suppressDirtyMarking = false;
+          }
         }
       });
+
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.markFormDirty();
+    });
   }
 
-  protected submit(): void {
+  protected submit(onSaved?: () => void): void {
     this.form.markAllAsTouched();
     if (this.form.hasError('identityRequired')) {
       this.saveError.set('Indica la ragione sociale oppure nome e cognome del cliente.');
+      if (onSaved) {
+        // «Salva e chiudi» con form non valido: il dialogo si chiude e
+        // l'operatore resta sul form a correggere gli errori.
+        this.cancelExitDialog();
+      }
       return;
     }
     if (this.form.invalid || this.saving()) {
+      if (onSaved) {
+        this.cancelExitDialog();
+      }
       return;
     }
     this.saving.set(true);
@@ -134,6 +160,12 @@ export class CustomerFormComponent {
     request$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (customer: Customer) => {
         this.saving.set(false);
+        // Cliente salvato: il guard di uscita non deve più fermare la navigazione.
+        this.dirtySinceLastSave.set(false);
+        if (onSaved) {
+          onSaved();
+          return;
+        }
         void this.router.navigate(['/app/customers', customer.id]);
       },
       error: (err: unknown) => {
@@ -141,5 +173,43 @@ export class CustomerFormComponent {
         this.saveError.set(isAppError(err) ? err.message : 'Salvataggio non riuscito');
       },
     });
+  }
+
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.dirtySinceLastSave()) {
+      return true;
+    }
+    this.exitDialogOpen.set(true);
+    return new Promise<boolean>((resolve) => {
+      this.pendingDeactivate = resolve;
+    });
+  }
+
+  protected cancelExitDialog(): void {
+    this.exitDialogOpen.set(false);
+    this.pendingDeactivate?.(false);
+    this.pendingDeactivate = null;
+  }
+
+  protected confirmExitWithoutSaving(): void {
+    this.exitDialogOpen.set(false);
+    this.dirtySinceLastSave.set(false);
+    this.pendingDeactivate?.(true);
+    this.pendingDeactivate = null;
+  }
+
+  /** «Salva e chiudi» dal dialogo: salva il cliente e prosegue l'uscita. */
+  protected confirmExitSave(): void {
+    this.submit(() => {
+      this.exitDialogOpen.set(false);
+      this.pendingDeactivate?.(true);
+      this.pendingDeactivate = null;
+    });
+  }
+
+  private markFormDirty(): void {
+    if (!this.suppressDirtyMarking) {
+      this.dirtySinceLastSave.set(true);
+    }
   }
 }
