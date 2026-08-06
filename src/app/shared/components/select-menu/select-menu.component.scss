@@ -224,6 +224,9 @@
 }
 
 .select-menu__trigger-label {
+  // Punto di regolazione (regole-stile-ui §5): un contenitore stretto può
+  // spegnere l'etichetta e tenere solo icona + freccia (topbar mobile).
+  display: var(--select-menu-label-display, block);
   flex: 1 1 auto;
   min-inline-size: 0;
   overflow: hidden;

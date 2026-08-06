@@ -110,8 +110,10 @@
   text-align: start;
 }
 
+// Tinta chiara di selezione, non la palette della sidebar (--color-nav-* è
+// riservata alla shell): sul verde scuro il testo della voce spariva.
 .gsearch__item--active {
-  background-color: var(--color-nav-selected-bg);
+  background-color: var(--color-interactive-subtle);
 }
 
 .gsearch__item--active .gsearch__item-icon,
