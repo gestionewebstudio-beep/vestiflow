@@ -68,6 +68,9 @@
 }
 
 .date-input--compact .date-input__control {
+  // Altezza esatta, non solo minima: in testata deve combaciare col campo
+  // numerazione, che ha la scatola fissa.
+  block-size: var(--field-height);
   min-block-size: var(--field-height);
   gap: var(--space-2);
   padding-inline-start: var(--space-2);

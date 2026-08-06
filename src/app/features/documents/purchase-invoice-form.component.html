@@ -154,10 +154,13 @@
           </app-document-mobile-panel>
         </div>
 
-        <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
-          <!-- Blocco «Documento fornitore»: i dati letti dalla fattura ricevuta. -->
-          <p class="doc-form__block-title">Documento fornitore</p>
-
+        <!-- Testata a due fasce (riferimento OC): la prima porta il documento
+             del fornitore, la seconda (fondo soft) la registrazione VestiFlow.
+             Le vecchie etichette di blocco non servono più: la separazione la
+             danno le fasce stesse. -->
+        <div
+          class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+        >
           <div class="doc-form__field doc-form__field--span2">
             <span class="doc-form__label" id="pi-supplier-label">Fornitore</span>
             <app-select-menu
@@ -190,7 +193,7 @@
             />
           </div>
 
-          <div class="doc-form__field doc-form__field--end-md doc-form__field--end-xl">
+          <div class="doc-form__field">
             <label class="doc-form__label" for="pi-ext-num">N. fattura</label>
             <input
               id="pi-ext-num"
@@ -200,10 +203,11 @@
               placeholder="Es. 58/2026"
             />
           </div>
+        </div>
 
-          <!-- Blocco «Registrazione VestiFlow»: i nostri dati interni. -->
-          <p class="doc-form__block-title">Registrazione VestiFlow</p>
-
+        <div
+          class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row doc-form__header-row--secondary"
+        >
           <div class="doc-form__field">
             <label class="doc-form__label" for="pi-reg-date">Data registrazione</label>
             <app-date-input
@@ -228,9 +232,7 @@
             (manageSeries)="seriesDialogOpen.set(true)"
           />
 
-          <div
-            class="doc-form__field doc-form__field--wide doc-form__field--end-md doc-form__field--end-xl"
-          >
+          <div class="doc-form__field doc-form__field--span2">
             <label class="doc-form__label" for="pi-comment">Commento interno</label>
             <input
               id="pi-comment"

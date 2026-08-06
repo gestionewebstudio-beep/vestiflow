@@ -568,7 +568,7 @@
   // ── Controlli densi — altezze del gestionale ─────────────────────────────
   // Scelte sull'Ordine cliente e promosse a globali: ogni tabella documentale
   // deve avere lo stesso passo verticale, non uno per maschera.
-  --control-h-field: 1.8125rem; // 29px — controlli di testata
+  --control-h-field: 2rem; // 32px — controlli di testata (rialzati dai 29 del mockup, un filo sotto i campi standard)
   --control-h-button: 1.9375rem; // 31px — bottoni barra strumenti e azioni
   --control-h-cell: 1.5rem; // 24px — input dentro le righe
   --control-h-touch: 2.75rem; // 44px — minimo tappabile su mobile

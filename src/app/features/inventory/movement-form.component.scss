@@ -80,7 +80,7 @@
 .movement-form__line-input {
   inline-size: 5.5rem;
   box-sizing: border-box;
-  block-size: var(--field-height);
+  block-size: var(--control-h-field);
   padding-inline: var(--space-2);
   font-size: var(--text-sm);
   text-align: end;
@@ -146,7 +146,7 @@
 .movement-form__search-input {
   inline-size: 100%;
   box-sizing: border-box;
-  block-size: var(--field-height);
+  block-size: var(--control-h-field);
   padding-inline: var(--space-8) var(--space-3);
   font-size: var(--text-sm);
   color: var(--color-text);
@@ -205,8 +205,8 @@
   color: var(--color-text-muted);
 }
 
-// Sede operativa fissa nella cella di testata: stessa altezza dei controlli
-// di testata del canone (29px desktop, 44px mobile).
+// Sede operativa fissa nella cella di testata: stessa altezza degli altri
+// controlli di testata (altezza standard campo).
 .movement-form__location-fixed {
   display: inline-flex;
   align-items: center;

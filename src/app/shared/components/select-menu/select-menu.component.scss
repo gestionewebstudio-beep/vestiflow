@@ -186,6 +186,9 @@
 }
 
 .select-menu--compact .select-menu__trigger {
+  // Altezza esatta, non solo minima: nelle celle di testata deve combaciare
+  // col campo numerazione, che ha la scatola fissa.
+  block-size: var(--field-height);
   min-block-size: var(--field-height);
   gap: var(--space-2);
   padding-inline: var(--space-2);

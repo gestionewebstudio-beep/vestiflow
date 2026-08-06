@@ -53,7 +53,9 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'vat', label: 'IVA', numeric: true, defaultWidthPx: 96, minWidthPx: 76 },
   { id: 'commitsStock', label: 'Imp.', defaultWidthPx: 48, minWidthPx: 40 },
   { id: 'lineTotal', label: 'Totale', numeric: true, defaultWidthPx: 88, minWidthPx: 56 },
-  { id: 'actions', label: 'Azioni', defaultWidthPx: 72, minWidthPx: 56 },
+  // Due pulsanti da 30px (duplica + elimina) più gap e rientri: sotto gli 84
+  // il cestino finisce contro il bordo della card.
+  { id: 'actions', label: 'Azioni', defaultWidthPx: 84, minWidthPx: 76 },
 ];
 
 // I preset partono dalle colonne visibili di default: quelle opzionali

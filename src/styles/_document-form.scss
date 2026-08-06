@@ -212,7 +212,8 @@ app-customer-order-form {
   // Niente overflow: hidden — i pannelli dei select devono poter uscire.
 }
 
-.doc-form__header .doc-form__field {
+.doc-form__header .doc-form__field,
+.doc-form__header .doc-number__field {
   gap: 0;
   position: relative;
   min-inline-size: 0;
@@ -313,7 +314,6 @@ app-customer-order-form {
 .doc-form__header .doc-form__field app-date-input {
   --color-input-bg: transparent;
   --color-input-border: transparent;
-  --field-height: 1.625rem;
 }
 
 .doc-form__header .doc-form__readonly {
@@ -860,6 +860,13 @@ app-customer-order-form {
 .doc-form__cell--actions {
   inline-size: calc(var(--doc-line-row-height) + var(--space-1));
   text-align: center;
+}
+
+// La cella azioni chiude la riga: senza un rientro finale l'ultima icona
+// tocca il filo della card. (La larghezza della colonna la decide il
+// colgroup: con table-layout fixed una inline-size qui non avrebbe effetto.)
+.doc-form .doc-form__table tbody td.doc-form__cell--actions {
+  padding-inline-end: var(--space-2);
 }
 
 // Riga selezionata per operazioni massive: tinta leggera su tutta la riga.
@@ -1654,11 +1661,16 @@ app-customer-order-form {
 
 // I bordi di cella li gestisce il foglio condiviso (e il blocco lg qui sotto):
 // qui cambia solo il respiro interno.
-.doc-form .doc-form__header .doc-form__field {
+.doc-form .doc-form__header .doc-form__field,
+.doc-form .doc-form__header .doc-number__field {
   padding: var(--space-1) var(--space-2);
+  // Stacco identico fra label e controllo in OGNI cella: senza, le select
+  // partivano più in alto del campo numerazione.
+  row-gap: var(--space-1);
 }
 
-.doc-form .doc-form__header .doc-form__label {
+.doc-form .doc-form__header .doc-form__label,
+.doc-form .doc-form__header .doc-number__label {
   font-size: var(--text-label);
   font-weight: var(--font-weight-label);
   letter-spacing: var(--tracking-caps);
@@ -1677,17 +1689,24 @@ app-customer-order-form {
 }
 
 // Controlli di testata: riquadro proprio, non più input «nudi» nella cella.
+// Tutti i controlli di testata sulla STESSA altezza di sistema
+// (--control-h-field): input, select, date e campo numerazione.
 .doc-form .doc-form__header .doc-form__input,
+.doc-form .doc-form__header .doc-number__input,
 .doc-form .doc-form__header .doc-form__field app-select-menu,
+.doc-form .doc-form__header .doc-number__field app-select-menu,
 .doc-form .doc-form__header .doc-form__field app-date-input {
   --field-height: var(--control-h-field);
   --color-input-bg: var(--color-surface);
   --color-input-border: var(--color-border);
 }
 
-.doc-form .doc-form__header .doc-form__input {
+.doc-form .doc-form__header .doc-form__input,
+.doc-form .doc-form__header .doc-number__input {
+  box-sizing: border-box;
   block-size: var(--control-h-field);
   min-block-size: var(--control-h-field);
+  max-block-size: var(--control-h-field);
   padding-inline: var(--space-2);
   font-size: var(--text-xs);
   background-color: var(--color-surface);
@@ -1695,7 +1714,8 @@ app-customer-order-form {
   border-radius: 0.3125rem;
 }
 
-.doc-form .doc-form__header .doc-form__input:focus-visible {
+.doc-form .doc-form__header .doc-form__input:focus-visible,
+.doc-form .doc-form__header .doc-number__input:focus-visible {
   border-color: var(--color-focus);
   box-shadow: var(--field-focus-ring);
 }
@@ -1711,7 +1731,8 @@ app-customer-order-form {
   }
 
   .doc-form .doc-form__header-row > .doc-form__field,
-  .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field {
+  .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field,
+  .doc-form .doc-form__header-row app-document-number-field .doc-number__field {
     flex: 1 1 0;
     min-inline-size: 0;
     border-block-end: 0;
