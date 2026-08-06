@@ -3,13 +3,15 @@ import {
   Component,
   DestroyRef,
   DOCUMENT,
+  ElementRef,
   computed,
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { NavigationEnd, NavigationStart, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { catchError, filter, merge, of, switchMap, type Subscription } from 'rxjs';
 
 import { AuthService } from '@core/auth';
@@ -54,6 +56,9 @@ import {
   canSwitchOperationalLocation,
   resolveFixedOperationalLocationId,
 } from '@core/utils/user-location-scope.util';
+
+/** Offset di scroll memorizzati al massimo (uno per URL visitata di recente). */
+const SCROLL_POSITIONS_MAX = 30;
 
 /**
  * Shell applicativa: topbar + sidebar + area contenuti con singola regione di
@@ -474,6 +479,52 @@ export class ShellLayoutComponent {
       takeUntilDestroyed(),
     )
     .subscribe(() => this.closeDrawer());
+
+  // L'unica regione di scroll (la <main>) persiste tra le navigazioni e il
+  // browser non la gestisce: senza intervento la pagina nuova eredita l'offset
+  // della precedente e si apre "a metà". All'uscita si memorizza l'offset per
+  // URL; all'arrivo si ripristina (ritorno su una pagina già vista, incluse
+  // quelle riattaccate da TabRouteReuseStrategy) oppure si torna in cima.
+  private readonly shellContent = viewChild<ElementRef<HTMLElement>>('shellContent');
+  private readonly scrollPositions = new Map<string, number>();
+
+  private readonly restoreScrollOnNavigation = this.router.events
+    .pipe(takeUntilDestroyed())
+    .subscribe((event) => {
+      if (event instanceof NavigationStart) {
+        this.saveScrollPosition();
+      } else if (event instanceof NavigationEnd) {
+        this.restoreScrollPosition(event.urlAfterRedirects);
+      }
+    });
+
+  private saveScrollPosition(): void {
+    const element = this.shellContent()?.nativeElement;
+    if (!element) {
+      return;
+    }
+    // Delete + set: la chiave torna in coda, così l'eviction butta la più vecchia.
+    this.scrollPositions.delete(this.router.url);
+    this.scrollPositions.set(this.router.url, element.scrollTop);
+    if (this.scrollPositions.size > SCROLL_POSITIONS_MAX) {
+      const oldest = this.scrollPositions.keys().next().value;
+      if (oldest !== undefined) {
+        this.scrollPositions.delete(oldest);
+      }
+    }
+  }
+
+  private restoreScrollPosition(url: string): void {
+    const element = this.shellContent()?.nativeElement;
+    if (!element) {
+      return;
+    }
+    const saved = this.scrollPositions.get(url) ?? 0;
+    // rAF: si applica dopo che il router ha montato la pagina nuova.
+    requestAnimationFrame(() => {
+      element.scrollTop = saved;
+    });
+  }
 
   toggleDrawer(): void {
     this._drawerOpen.update((open) => !open);
