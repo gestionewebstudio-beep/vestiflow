@@ -1,24 +1,14 @@
 @use 'breakpoints' as bp;
 
 // Maschera sull'anatomia doc-form (src/styles/_document-form.scss): titolo,
-// testata a celle unite, sezione righe, submit-error e barra azioni arrivano
-// dal foglio condiviso. Qui restano i pezzi che quel foglio non ha: la
-// tabella articoli locale (niente doc-form__table-wrap: sotto lg sparirebbe
-// con la card view che questa maschera non ha), la ricerca inline coi
-// risultati, gli input di riga e la sede operativa fissa. L'host non e'
-// nella lista del foglio condiviso, quindi la regola resta locale.
+// testata a celle unite, tabella righe (doc-form__table-wrap/__table),
+// submit-error e barra azioni arrivano dal foglio condiviso. Qui restano i
+// delta della tabella (vedi sotto), la ricerca inline coi risultati, gli
+// input di riga e la sede operativa fissa. L'host non e' nella lista del
+// foglio condiviso, quindi la regola resta locale.
 :host {
   display: block;
   inline-size: 100%;
-}
-
-// Sotto md il foglio condiviso riserva a .doc-form lo spazio del dock mobile
-// (padding-block-end su .doc-form): questa maschera il dock non ce l'ha,
-// quindi il vuoto in fondo alla pagina va rimosso.
-@include bp.media-down('md') {
-  .doc-form {
-    padding-block-end: 0;
-  }
 }
 
 .movement-form__scan-feedback {
@@ -37,38 +27,43 @@
   border-radius: var(--radius-md);
 }
 
-.movement-form__lines-scroll {
-  inline-size: 100%;
-  overflow-x: auto;
+// Tabella condivisa (doc-form__table-wrap/__table) con tre delta locali:
+// 1) questa maschera non ha la card view mobile (.doc-form__cards), quindi
+//    la tabella resta visibile anche sotto lg — il foglio condiviso la
+//    nasconderebbe a favore delle card che qui non esistono. DEROGA voluta
+//    anche con la vista --m-ref: il ritmo mobile veste le sezioni ma la
+//    lista resta tabella con scroll orizzontale controllato;
+// 2) non c'e' il piede .doc-form__table-summary a chiudere la card: bordo e
+//    raggio inferiori tornano sul wrapper;
+// 3) la tabella compare solo a righe presenti: niente area minima da foglio
+//    di lavoro, si dimensiona sul contenuto.
+@include bp.media-down('lg') {
+  .doc-form__table-wrap {
+    display: block;
+  }
 }
 
-.movement-form__lines-table {
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
+.doc-form__table-wrap {
+  min-block-size: 0;
+  border-block-end: var(--border-width) solid var(--color-border);
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
+}
 
-  th {
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-xs);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-muted);
-    text-align: start;
-    background-color: var(--color-table-header-bg);
-    white-space: nowrap;
-  }
+// Nessun config larghezze colonna: col layout fixed del foglio condiviso le
+// colonne verrebbero spartite in parti uguali. Qui decide il contenuto.
+.doc-form__table {
+  table-layout: auto;
+}
 
-  td {
-    padding: var(--space-2) var(--space-3);
-    border-block-start: var(--border-width) solid var(--color-border);
-    vertical-align: top;
-  }
-
-  // Il text-align:start del th sopra (0,1,1) batte la .doc-form__num globale
-  // (0,1,0): l'allineamento numerico va ridichiarato a specificità pari.
-  th.doc-form__num,
-  td.doc-form__num {
-    text-align: end;
-  }
+// Il text-align:start globale di `.doc-form .doc-form__table thead th`
+// (0,2,2) batte la .doc-form__num (0,1,0). Questo selettore da solo sarebbe
+// (0,2,1) e perderebbe: vince perché l'incapsulamento emulato aggiunge
+// [_ngcontent] e il foglio del componente carica dopo i globali. Non
+// «semplificarlo» e non passare a ViewEncapsulation.None: l'allineamento
+// delle intestazioni numeriche si perderebbe in silenzio.
+.doc-form__table th.doc-form__num {
+  text-align: end;
 }
 
 .movement-form__cell-code {

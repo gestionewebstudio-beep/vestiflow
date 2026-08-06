@@ -122,15 +122,17 @@ describe('MovementFormComponent', () => {
     await user.type(quantity, '99');
 
     expect(screen.getByText(/Supera il disponibile \(5\)/)).toBeVisible();
-    // Non bloccante: il Salva resta attivo.
-    expect(screen.getByRole('button', { name: /Salva/ })).toBeEnabled();
+    // Non bloccante: il Salva resta attivo. Nome esatto: nel DOM convive
+    // anche il «Salva movimento» delle azioni mobile (--m-ref).
+    expect(screen.getByRole('button', { name: 'Salva' })).toBeEnabled();
   });
 
   it('rettifica: causale precompilata, giacenza attuale readonly e nuova giacenza', async () => {
     await setup({ variantId: 'var-1', type: 'adjustment' });
 
     expect(screen.getByRole('heading', { name: 'Registra rettifica' })).toBeVisible();
-    expect(screen.getByLabelText(/Causale/)).toHaveValue('Rettifica giacenza');
+    // Label esatta: il pannello mobile ha «Causale (testata mobile)».
+    expect(screen.getByLabelText('Causale')).toHaveValue('Rettifica giacenza');
 
     // Giacenza attuale calcolata dal sistema (onHand a Milano = 6).
     expect(screen.getByText('Giacenza attuale')).toBeVisible();

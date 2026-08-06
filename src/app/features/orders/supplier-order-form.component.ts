@@ -22,6 +22,7 @@ import {
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
+import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
@@ -55,6 +56,7 @@ import { TableColumnPickerComponent } from '@shared/components/table-column-pick
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
+import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import {
   SUPPLIER_ORDER_LINE_COLUMNS,
@@ -74,6 +76,7 @@ import {
 import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
 
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
@@ -123,6 +126,7 @@ function todayIsoDate(): string {
     SupplierFormFieldsComponent,
     SlidePanelComponent,
     ProductFormComponent,
+    DocumentMobilePanelComponent,
   ],
   templateUrl: './supplier-order-form.component.html',
   styleUrl: './supplier-order-form.component.scss',
@@ -137,6 +141,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly documentService = inject(DocumentService);
   private readonly router = inject(Router);
+  private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
@@ -594,6 +599,44 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return supplier?.documentCreationAlert?.trim() ?? '';
   });
 
+  // ── Testata mobile (doc-form--m-ref): computed SOLO display ──────────────
+  /** Titolo del pannello: nome del fornitore scelto, o invito alla scelta. */
+  protected readonly supplierPanelTitle = computed(() => {
+    this.formValue();
+    const supplierId = this.form.controls.supplierId.value;
+    return (
+      this.supplierOptions().find((option) => option.value === supplierId)?.label ??
+      'Fornitore e date'
+    );
+  });
+
+  /** Riepilogo sotto il titolo: data · consegna prevista · riferimento. */
+  protected readonly supplierPanelSummaryParts = computed<readonly string[]>(() => {
+    this.formValue();
+    const orderDate = this.form.controls.orderDate.value;
+    const expectedAt = this.form.controls.expectedAt.value;
+    const reference = this.form.controls.supplierReference.value.trim();
+    const parts: string[] = [orderDate ? formatItalianInputDate(orderDate) : 'Data non indicata'];
+    if (expectedAt) {
+      parts.push(`Consegna ${formatItalianInputDate(expectedAt)}`);
+    }
+    if (reference) {
+      parts.push(`Rif. ${reference}`);
+    }
+    return parts;
+  });
+
+  /** Dot verde quando il fornitore (unico obbligatorio di testata) c'è. */
+  protected readonly supplierPanelReady = computed(() => {
+    this.formValue();
+    return Boolean(this.form.controls.supplierId.value);
+  });
+
+  /** Riga di stato dentro il pannello: dice cosa manca. */
+  protected readonly supplierPanelStatus = computed(() =>
+    this.supplierPanelReady() ? 'Dati principali completi.' : 'Il fornitore è obbligatorio.',
+  );
+
   protected onVariantSearch(value: string): void {
     this.variantSearchDraft.set(value);
   }
@@ -886,12 +929,12 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       this.exitDialogOpen.set(true);
       this.pendingDeactivate = (allow) => {
         if (allow) {
-          void this.router.navigateByUrl(this.listPath);
+          this.navHistory.backOr(this.listPath);
         }
       };
       return;
     }
-    void this.router.navigateByUrl(this.listPath);
+    this.navHistory.backOr(this.listPath);
   }
 
   private hasInvalidCost(): boolean {

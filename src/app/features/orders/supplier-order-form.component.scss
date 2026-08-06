@@ -2,28 +2,13 @@
 @use 'responsive-table' as rt;
 
 // Solo il delta rispetto all'anatomia condivisa (styles/_document-form.scss).
-// Prima questo foglio riscriveva l'intera maschera con un blocco proprio
-// (.po-form__*) e un ritmo piu' largo: 519 righe per ridire, con altri numeri,
-// cio' che la base gia' diceva. Restano le regole che descrivono l'ordine
-// fornitore e nessun'altra maschera.
+// Fase 1 (skin Ordine cliente): rimossi gli override che duplicavano o
+// contraddicevano il globale promosso — testata, input, tabella, bottone
+// rimuovi riga e barra azioni seguono il default dell'Ordine cliente.
+// Restano solo i delta funzionali di questa maschera.
 
 .doc-form {
   max-inline-size: none;
-}
-
-// Back su riga propria sopra il titolo (riferimento: document-list).
-// Il titolo ha margin 0: lo stacco dal pulsante «Indietro» lo mette il pulsante.
-.doc-form__heading app-back-button {
-  margin-block-end: var(--space-2);
-}
-.doc-form__form {
-  inline-size: 100%;
-}
-
-@include bp.media-up('md') {
-  .doc-form__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 
 // Selettore modalità costo mobile: solo dove la tabella si impila in card
@@ -37,69 +22,40 @@
     display: flex;
     margin-block-end: var(--space-3);
   }
+
+  // Il foglio condiviso nasconde .doc-form__table-wrap sotto lg in favore di
+  // una card view (.doc-form__cards) che questa maschera non ha: le righe si
+  // impilano già in card via stack-table. Senza questa ri-mostra sparivano
+  // (stesso rimedio di sales-document-form e movement-form).
+  .doc-form__table-wrap {
+    display: block;
+  }
+
+  // Adozione m-ref: sotto lg la testata è il pannello condiviso (doc-panels);
+  // la griglia classica esce dal flusso — convivono nel DOM come tabella/card.
+  .doc-form__header .doc-form__grid--header {
+    display: none;
+  }
 }
 
-.doc-form__input {
-  padding-inline: var(--space-3);
-  font-size: var(--text-base);
-  font-family: inherit;
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-}
-
-.doc-form__input:focus-visible {
-  border-color: var(--color-interactive);
-  outline: none;
-  box-shadow: var(--field-focus-ring);
-}
-
+// Campo non valido: il template marca aria-invalid (pattern dell'app);
+// il foglio condiviso copre solo la classe __input--invalid.
 .doc-form__input[aria-invalid='true'] {
   border-color: var(--status-error-fg);
 }
+
 .doc-form__hint {
   margin: 0;
-} // ── Righe ordine ──────────────────────────────────────────────────────────────
-.doc-form__lines {
-  inline-size: 100%;
 }
 
-.doc-form__table {
-  inline-size: 100%;
-  min-inline-size: calc(var(--space-16) * 6);
-}
-
+// La cella articolo ospita la select con ricerca: larghezza minima perché
+// resti usabile quando la colonna viene ristretta col resize.
 .doc-form__cell--variant {
   min-inline-size: calc(var(--space-16) * 2);
 }
 
-.doc-form__input--table {
-  padding-inline: var(--space-2);
-}
-
+// Fallback a card sotto lg (delta funzionale, non coperto dal globale).
 @include rt.stack-table('doc-form__table');
-
-.doc-form__line-remove {
-  block-size: var(--field-height);
-  inline-size: var(--field-height);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-  background: none;
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-}
-
-.doc-form__line-remove:hover:not(:disabled) {
-  border-color: var(--status-error-fg);
-}
-
-.doc-form__numbering {
-  margin: 0;
-}
 
 // ── Menu intestazione colonna Costo (switch netto/ivato come Arrivo merce) ──
 .doc-form__th-menu-wrap {
@@ -122,24 +78,4 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-// Footer azioni sticky in basso (restyle spec §Form).
-.doc-form__actions {
-  border-block-start: var(--border-width) solid var(--color-border);
-  border-end-start-radius: var(--radius-lg);
-  border-end-end-radius: var(--radius-lg);
-}
-
-.doc-form__supplier-alert-banner {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-4);
-  padding: var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--color-text);
-  background-color: var(--color-interactive-subtle);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
 }

@@ -31,7 +31,7 @@ export async function openMovementFormForSku(page: Page, sku: string): Promise<v
   await expect(page).toHaveURL(/\/app\/inventory\/movements\/new/, { timeout: 15_000 });
   await expect(page.locator('app-movement-form h1.doc-form__title')).toHaveText(/Registra carico/);
   // Deep-link ?variantId=: l'articolo compare già nella lista righe.
-  await expect(page.locator('.movement-form__lines-table tbody tr')).toHaveCount(1, {
+  await expect(page.locator('app-movement-form .doc-form__table tbody tr')).toHaveCount(1, {
     timeout: 15_000,
   });
 }
@@ -42,7 +42,7 @@ export async function addArticleBySku(page: Page, sku: string): Promise<void> {
   const firstResult = page.locator('.movement-form__result').first();
   await expect(firstResult).toBeVisible({ timeout: 15_000 });
   await firstResult.getByRole('button', { name: /Aggiungi/ }).click();
-  await expect(page.locator('.movement-form__lines-table tbody tr')).toHaveCount(1, {
+  await expect(page.locator('app-movement-form .doc-form__table tbody tr')).toHaveCount(1, {
     timeout: 15_000,
   });
 }

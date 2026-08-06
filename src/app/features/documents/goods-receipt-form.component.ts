@@ -32,6 +32,7 @@ import {
 import type { Subscription } from 'rxjs';
 import { take } from 'rxjs';
 
+import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
@@ -103,7 +104,7 @@ import { TableColumnPreferenceService } from '@shared/table-columns/table-column
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
-import { toIsoDateLocal } from '@shared/utils/calendar.util';
+import { formatItalianInputDate, toIsoDateLocal } from '@shared/utils/calendar.util';
 
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
@@ -113,6 +114,7 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import type { VariantByCodeDto } from '@domain/products/models/product.dto';
 import { GoodsReceiptLineCardComponent } from './components/goods-receipt-line-card/goods-receipt-line-card.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
+import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
@@ -241,6 +243,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
     GoodsReceiptLineCardComponent,
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
+    DocumentMobilePanelComponent,
     DocumentProductSearchPanelComponent,
     SlidePanelComponent,
     ProductFormComponent,
@@ -267,6 +270,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
+  private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -556,6 +560,81 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return 'Seleziona il fornitore per compilare il documento.';
     }
     return 'Seleziona il magazzino di destinazione per compilare il documento.';
+  });
+
+  // ── Testata mobile a due pannelli (riferimento «Ordine cliente») ──────────
+  // Solo testi display-only: concatenano valori già presenti nel form. Lo
+  // stato di apertura vive nel componente condiviso app-document-mobile-panel.
+
+  /** Dati che sbloccano le righe: stesso criterio del gate, letto al positivo. */
+  protected readonly headerDataReady = computed(() => !this.headerGateActive());
+
+  /**
+   * Head del pannello «Fornitore e magazzino»: finché i dati mancano fa da
+   * intestazione, quando ci sono diventa il riepilogo di ciò che si è scelto.
+   */
+  protected readonly supplierPanelTitle = computed(() => {
+    if (!this.headerDataReady()) {
+      return 'Fornitore e magazzino';
+    }
+    this.formValue();
+    const supplierId = this.form.controls.supplierId.value;
+    const supplier = this.supplierOptions().find((option) => option.value === supplierId)?.label;
+    return supplier || 'Senza fornitore';
+  });
+
+  protected readonly supplierPanelSubtitle = computed(() => {
+    if (!this.headerDataReady()) {
+      return 'Seleziona i dati necessari per iniziare';
+    }
+    this.formValue();
+    const locationId = this.form.controls.locationId.value;
+    const location = this.locationOptions().find((option) => option.value === locationId)?.label;
+    const documentDate = this.form.controls.documentDate.value;
+    return [location, documentDate ? formatItalianInputDate(documentDate) : null]
+      .filter((part): part is string => Boolean(part))
+      .join(' · ');
+  });
+
+  /**
+   * Riga di stato dentro il pannello: dice cosa manca, non come sbloccare le
+   * righe — quello lo dice il banner gate, ed è un'altra frase.
+   */
+  protected readonly supplierPanelStatus = computed(() => {
+    if (this.headerDataReady()) {
+      return 'Dati principali completi. Puoi aggiungere le righe.';
+    }
+    this.formValue();
+    const type = this.form.controls.type.value;
+    const supplierRequired = type !== DocumentType.ManualLoad && type !== DocumentType.InitialLoad;
+    const supplierMissing = supplierRequired && !this.form.controls.supplierId.value;
+    const locationMissing = !this.form.controls.locationId.value;
+    if (supplierMissing && locationMissing) {
+      return 'Fornitore e magazzino sono obbligatori.';
+    }
+    return supplierMissing ? 'Il fornitore è obbligatorio.' : 'Il magazzino è obbligatorio.';
+  });
+
+  /** Pannello «Documento fornitore»: tipo+numero · data · pagamento. */
+  protected readonly supplierDocPanelSummaryParts = computed<readonly string[]>(() => {
+    this.formValue();
+    const typeId = this.form.controls.externalDocumentTypeId.value;
+    const type = this.externalDocTypes().find((entry) => entry.id === typeId);
+    const typeLabel = type ? type.shortLabel || type.name : null;
+    const number = this.form.controls.externalDocNumber.value.trim();
+    const parts: string[] = [
+      [typeLabel, number].filter(Boolean).join(' ') || 'Documento non indicato',
+    ];
+    const externalDate = this.form.controls.externalDocDate.value;
+    if (externalDate) {
+      parts.push(formatItalianInputDate(externalDate));
+    }
+    const methodId = this.form.controls.paymentMethod.value;
+    const method = methodId
+      ? this.paymentMethodOptions().find((option) => option.value === methodId)?.label
+      : null;
+    parts.push(method || 'Pagamento non indicato');
+    return parts;
   });
 
   protected readonly documentStatus = computed(
@@ -3864,7 +3943,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (result instanceof Promise) {
       void result.then((allow) => {
         if (allow) {
-          void this.router.navigateByUrl(this.listPath);
+          this.navHistory.backOr(this.listPath);
         }
       });
       return;
@@ -3872,7 +3951,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (!result) {
       return;
     }
-    void this.router.navigateByUrl(this.listPath);
+    this.navHistory.backOr(this.listPath);
   }
 
   protected printLabels(): void {

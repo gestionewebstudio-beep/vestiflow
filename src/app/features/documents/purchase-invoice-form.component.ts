@@ -19,6 +19,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
+import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import type { AppError } from '@core/models/app-error.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
@@ -48,6 +49,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
@@ -147,6 +149,7 @@ function parseRatePercent(value: string): number | null {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     EmptyStateComponent,
@@ -166,6 +169,7 @@ export class PurchaseInvoiceFormComponent {
   private readonly supplierService = inject(SupplierService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
+  private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -351,6 +355,48 @@ export class PurchaseInvoiceFormComponent {
   /** Ultima nota anagrafica inserita in automatico nelle note documento. */
   private lastAutoInsertedNote = '';
 
+  // ── Testata mobile (m-ref): riepiloghi display-only dei pannelli ────────────
+  // Solo concatenazioni di valori già nel form: nessuna logica né validazione.
+
+  /** Titolo del pannello fornitore: il nome scelto, o l'invito a sceglierlo. */
+  protected readonly supplierPanelTitle = computed(() => {
+    const supplierId = this.selectedSupplierId();
+    const name = this.suppliers().find((entry) => entry.id === supplierId)?.name;
+    return name ?? 'Fornitore da selezionare';
+  });
+
+  /** Riepilogo sotto il titolo: data e numero della fattura ricevuta. */
+  protected readonly supplierPanelSummaryParts = computed(() => {
+    this.formChanges();
+    const raw = this.form.getRawValue();
+    const externalNumber = raw.externalDocNumber.trim();
+    return [
+      raw.documentDate ? `Fattura del ${formatDate(raw.documentDate)}` : 'Data fattura da indicare',
+      externalNumber ? `N. ${externalNumber}` : 'N. fattura da indicare',
+    ];
+  });
+
+  /** Stato del pannello: il fornitore è il dato che sblocca gli arrivi. */
+  protected readonly supplierPanelReady = computed(() => Boolean(this.selectedSupplierId()));
+  protected readonly supplierPanelStatus = computed(() =>
+    this.supplierPanelReady()
+      ? 'Fornitore selezionato'
+      : 'Seleziona il fornitore per includere gli arrivi merce',
+  );
+
+  /** Riepilogo del pannello registrazione: data interna, protocollo, pagamento. */
+  protected readonly registrationPanelSummaryParts = computed(() => {
+    this.formChanges();
+    const raw = this.form.getRawValue();
+    return [
+      raw.registrationDate
+        ? `Registrata il ${formatDate(raw.registrationDate)}`
+        : 'Data registrazione da indicare',
+      raw.protocolNumber != null ? `Protocollo ${raw.protocolNumber}` : 'Protocollo da assegnare',
+      raw.paymentMethod.trim() || 'Pagamento non indicato',
+    ];
+  });
+
   // ── Righe registrazione (auto per aliquota + manuali) ───────────────────────
 
   /**
@@ -392,14 +438,12 @@ export class PurchaseInvoiceFormComponent {
       }
     }
     return [...byRate.entries()]
-      .map(
-        ([ratePercent, entry]): AutoVatRow => ({
-          ratePercent,
-          net: { amountMinor: entry.net, currencyCode: this.currency },
-          vat: { amountMinor: entry.vat, currencyCode: this.currency },
-          description: `Rif. Arrivo merce ${entry.refs.join(', ')}`,
-        }),
-      )
+      .map(([ratePercent, entry]): AutoVatRow => ({
+        ratePercent,
+        net: { amountMinor: entry.net, currencyCode: this.currency },
+        vat: { amountMinor: entry.vat, currencyCode: this.currency },
+        description: `Rif. Arrivo merce ${entry.refs.join(', ')}`,
+      }))
       .sort((a, b) => a.ratePercent - b.ratePercent);
   });
 
@@ -777,19 +821,17 @@ export class PurchaseInvoiceFormComponent {
     }
     this.includedReceipts.update((current) => [
       ...current,
-      ...toInclude.map(
-        (row): IncludedReceiptRow => ({
-          id: row.id,
-          number: row.number,
-          reference: row.reference,
-          documentDate: row.documentDate,
-          causalText: row.causalText,
-          subtotal: row.subtotal,
-          tax: row.tax,
-          total: row.total,
-          vatBreakdown: row.vatBreakdown ?? [],
-        }),
-      ),
+      ...toInclude.map((row): IncludedReceiptRow => ({
+        id: row.id,
+        number: row.number,
+        reference: row.reference,
+        documentDate: row.documentDate,
+        causalText: row.causalText,
+        subtotal: row.subtotal,
+        tax: row.tax,
+        total: row.total,
+        vatBreakdown: row.vatBreakdown ?? [],
+      })),
     ]);
     this.includePanelOpen.set(false);
   }
@@ -934,7 +976,7 @@ export class PurchaseInvoiceFormComponent {
   }
 
   protected cancel(): void {
-    void this.router.navigateByUrl(this.listPath);
+    this.navHistory.backOr(this.listPath);
   }
 
   private patchFormFromDocument(doc: DocumentRecord): void {
@@ -992,19 +1034,17 @@ export class PurchaseInvoiceFormComponent {
     }
 
     this.includedReceipts.set(
-      (doc.linkedGoodsReceipts ?? []).map(
-        (receipt): IncludedReceiptRow => ({
-          id: receipt.id,
-          number: receipt.number,
-          reference: receipt.reference,
-          documentDate: receipt.documentDate,
-          causalText: receipt.causalText,
-          subtotal: receipt.subtotal,
-          tax: receipt.tax,
-          total: receipt.total,
-          vatBreakdown: receipt.vatBreakdown ?? [],
-        }),
-      ),
+      (doc.linkedGoodsReceipts ?? []).map((receipt): IncludedReceiptRow => ({
+        id: receipt.id,
+        number: receipt.number,
+        reference: receipt.reference,
+        documentDate: receipt.documentDate,
+        causalText: receipt.causalText,
+        subtotal: receipt.subtotal,
+        tax: receipt.tax,
+        total: receipt.total,
+        vatBreakdown: receipt.vatBreakdown ?? [],
+      })),
     );
   }
 

@@ -1,9 +1,11 @@
-<section class="doc-form">
-  <!-- Senza cronologia (refresh, link diretto) l'URL `documents/:id/edit`
-       porterebbe all'hub Documenti: il ritorno giusto è il registro arrivi. -->
-  <app-back-button fallbackLink="/app/documents/arrivi-merce" />
-
+<!-- doc-form--m-ref: adotta la vista mobile di riferimento promossa in
+     styles/_document-form-mobile.scss (pannelli testata, dock, totali impilati). -->
+<section class="doc-form doc-form--m-ref">
   <div class="doc-form__head-row">
+    <!-- Ritorno in linea col titolo (riferimento Ordine cliente). Senza
+         cronologia (refresh, link diretto) l'URL `documents/:id/edit`
+         porterebbe all'hub Documenti: il ritorno giusto è il registro arrivi. -->
+    <app-back-button fallbackLink="/app/documents/arrivi-merce" />
     <h1 class="doc-form__title">
       {{ pageTitle() }}
     </h1>
@@ -17,6 +19,23 @@
           <span class="doc-form__internal-ref tabular-nums">Protocollo: {{ ref }}</span>
         }
       </div>
+    }
+
+    <!-- Stato di salvataggio in coda alla riga del titolo (riferimento OC). -->
+    @if (!loading() && !loadError() && !notEditable()) {
+      @if (saveHintStatus() === 'saving') {
+        <p class="doc-form__save-state" role="status">Salvataggio…</p>
+      } @else if (saveHintStatus() === 'pending') {
+        <p class="doc-form__save-state doc-form__save-state--dirty" role="status">
+          <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+          Modifiche non salvate — usa «Salva documento»
+        </p>
+      } @else if (editDocumentId()) {
+        <p class="doc-form__save-state" role="status">
+          <i class="pi pi-check" aria-hidden="true"></i>
+          Documento salvato.
+        </p>
+      }
     }
   </div>
 
@@ -78,18 +97,6 @@
         </div>
       }
 
-      @if (saveHintStatus() === 'saving') {
-        <p class="doc-form__autosave-hint" role="status">Salvataggio…</p>
-      } @else if (saveHintStatus() === 'pending') {
-        <p class="doc-form__autosave-hint doc-form__autosave-hint--dirty" role="status">
-          Modifiche non salvate — usa «Salva documento»
-        </p>
-      } @else if (editDocumentId()) {
-        <p class="doc-form__autosave-hint doc-form__autosave-hint--saved" role="status">
-          Documento salvato.
-        </p>
-      }
-
       @if (operationalStatusWarning(); as warning) {
         <p class="doc-form__warning-banner" role="status">{{ warning }}</p>
       }
@@ -123,7 +130,221 @@
 
       <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
         <div class="doc-form__header">
-          <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
+          <!-- Vista mobile: due pannelli apribili, come la reference «Ordine
+               cliente». Vivono nel DOM accanto alle fasce desktop e si
+               accendono sotto lg (stesso schema tabella/card delle righe).
+               Le copie mobili dei controlli hanno aria-label distinti
+               («… (vista mobile)») e id gr-m-*: negli spec jsdom entrambe le
+               viste sono presenti e getByRole deve restare unico. -->
+          <div class="doc-panels">
+            <!-- I dati che sbloccano le righe: aperto all'ingresso. -->
+            <app-document-mobile-panel
+              [title]="supplierPanelTitle()"
+              [summaryParts]="[supplierPanelSubtitle()]"
+              icon="pi-truck"
+              [statusText]="supplierPanelStatus()"
+              [statusReady]="headerDataReady()"
+              [initiallyOpen]="true"
+            >
+              <p class="doc-panel__section">Dati principali</p>
+
+              <div class="doc-panel__fields">
+                <div class="doc-panel__field">
+                  <div class="doc-panel__field-head">
+                    <span class="doc-panel__label">Fornitore</span>
+                    <button
+                      type="button"
+                      class="doc-panel__field-action"
+                      (click)="toggleSupplierForm()"
+                    >
+                      <i
+                        class="pi"
+                        [class.pi-plus]="!showSupplierForm()"
+                        [class.pi-minus]="showSupplierForm()"
+                        aria-hidden="true"
+                      ></i>
+                      {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
+                    </button>
+                  </div>
+
+                  <app-select-menu
+                    [options]="supplierOptions()"
+                    [value]="form.controls.supplierId.value"
+                    ariaLabel="Fornitore (vista mobile)"
+                    placeholder="Seleziona fornitore…"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    searchPlaceholder="Cerca fornitore…"
+                    searchAriaLabel="Cerca fornitore (vista mobile)"
+                    [invalid]="fieldInvalid('supplierId')"
+                    describedBy="gr-m-supplier-error"
+                    (valueChange)="onSupplierSelect($event)"
+                  />
+                  @if (fieldInvalid('supplierId')) {
+                    <p id="gr-m-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
+                  }
+                  @if (form.controls.supplierId.value) {
+                    <button
+                      type="button"
+                      class="doc-panel__field-action"
+                      (click)="openSupplierDetail()"
+                    >
+                      <i class="pi pi-external-link" aria-hidden="true"></i>
+                      Scheda fornitore
+                    </button>
+                  }
+                </div>
+
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Location destinazione</span>
+                  @if (locationOptions().length > 0) {
+                    <app-select-menu
+                      [options]="locationOptions()"
+                      [value]="form.controls.locationId.value"
+                      ariaLabel="Location di destinazione (vista mobile)"
+                      placeholder="Seleziona location…"
+                      [fullWidth]="true"
+                      [searchable]="true"
+                      searchPlaceholder="Cerca location…"
+                      searchAriaLabel="Cerca location (vista mobile)"
+                      [invalid]="fieldInvalid('locationId')"
+                      describedBy="gr-m-location-error"
+                      (valueChange)="onLocationSelect($event)"
+                    />
+                  } @else {
+                    <p class="doc-form__error" role="alert">
+                      Non hai accesso ad alcun magazzino. Contatta il titolare o un amministratore
+                      dell'account.
+                    </p>
+                  }
+                  @if (fieldInvalid('locationId')) {
+                    <p id="gr-m-location-error" class="doc-form__error">Seleziona la location.</p>
+                  }
+                  @if (suggestedLocation(); as suggested) {
+                    @if (!form.controls.locationId.value && !formReadOnly()) {
+                      <!-- Stesso handler dell'hint desktop, nome accessibile
+                           diverso: getByRole sull'hint deve restare unico. -->
+                      <button
+                        type="button"
+                        class="doc-panel__field-action"
+                        (click)="applySuggestedLocation()"
+                      >
+                        <i class="pi pi-map-marker" aria-hidden="true"></i>
+                        Suggerita: {{ suggested.name }}
+                      </button>
+                    }
+                  }
+                </div>
+
+                <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
+                  <div class="doc-panel__field">
+                    <label class="doc-panel__label" for="gr-m-date">Data registrazione</label>
+                    <app-date-input
+                      inputId="gr-m-date"
+                      formControlName="documentDate"
+                      ariaLabel="Data registrazione (vista mobile)"
+                      [fullWidth]="true"
+                    />
+                  </div>
+
+                  <app-document-number-field
+                    numberLabel="Protocollo"
+                    numberInputId="gr-m-protocol"
+                    hint="Numero interno di catalogazione."
+                    [number]="form.controls.protocolNumber.value"
+                    [series]="form.controls.series.value"
+                    [seriesOptions]="seriesOptions()"
+                    [canManageSeries]="true"
+                    (numberChange)="onProtocolNumberChange($event)"
+                    (seriesChange)="onSeriesChange($event)"
+                    (manageSeries)="seriesDialogOpen.set(true)"
+                  />
+                </fieldset>
+              </div>
+            </app-document-mobile-panel>
+
+            <!-- I dati letti dal documento del fornitore: chiuso, si apre per
+                 compilarli. Interamente dietro il gate fornitore + magazzino. -->
+            <app-document-mobile-panel
+              title="Documento fornitore"
+              [summaryParts]="supplierDocPanelSummaryParts()"
+              icon="pi-file"
+            >
+              <p class="doc-panel__section">Dati del documento ricevuto</p>
+
+              <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
+                <div class="doc-panel__fields">
+                  <div class="doc-panel__field">
+                    <span class="doc-panel__label">Tipo di documento</span>
+                    <app-select-menu
+                      [options]="externalDocTypeOptions()"
+                      [value]="form.controls.externalDocumentTypeId.value"
+                      ariaLabel="Tipo di documento (vista mobile)"
+                      placeholder="DDT, Fattura…"
+                      [fullWidth]="true"
+                      (valueChange)="onExternalDocTypeSelect($event)"
+                    />
+                  </div>
+
+                  <div class="doc-panel__fields doc-panel__fields--two">
+                    <div class="doc-panel__field">
+                      <label class="doc-panel__label" for="gr-m-ext-num">N. documento</label>
+                      <input
+                        id="gr-m-ext-num"
+                        class="doc-panel__control"
+                        type="text"
+                        formControlName="externalDocNumber"
+                        placeholder="Es. 145"
+                      />
+                    </div>
+
+                    <div class="doc-panel__field">
+                      <label class="doc-panel__label" for="gr-m-ext-date">Data doc.</label>
+                      <app-date-input
+                        inputId="gr-m-ext-date"
+                        formControlName="externalDocDate"
+                        ariaLabel="Data documento fornitore (vista mobile)"
+                        placeholder="Opzionale"
+                        [fullWidth]="true"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="doc-panel__field">
+                    <span class="doc-panel__label">Pagamento</span>
+                    <app-select-menu
+                      [options]="paymentMethodOptions()"
+                      [value]="form.controls.paymentMethod.value"
+                      ariaLabel="Modalità di pagamento (vista mobile)"
+                      placeholder="Modalità…"
+                      [fullWidth]="true"
+                      [searchable]="true"
+                      searchPlaceholder="Cerca pagamento…"
+                      searchAriaLabel="Cerca modalità di pagamento (vista mobile)"
+                      (valueChange)="onPaymentMethodChange($event)"
+                    />
+                  </div>
+
+                  <label class="doc-form__check" for="gr-m-invoice-pending">
+                    <input
+                      id="gr-m-invoice-pending"
+                      type="checkbox"
+                      formControlName="invoicePending"
+                    />
+                    <span>Seguirà registrazione fattura</span>
+                  </label>
+                </div>
+              </fieldset>
+            </app-document-mobile-panel>
+          </div>
+
+          <!-- Testata a due fasce (riferimento OC): la prima porta i dati di
+               registrazione VestiFlow, la seconda (fondo soft) il documento del
+               fornitore. Le vecchie etichette di blocco non servono più: la
+               separazione la danno le fasce stesse. -->
+          <div
+            class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+          >
             <div class="doc-form__field doc-form__field--span2">
               <span class="doc-form__label" id="gr-supplier-label">Fornitore</span>
               <app-select-menu
@@ -143,25 +364,32 @@
               @if (fieldInvalid('supplierId')) {
                 <p id="gr-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
               }
-              <button type="button" class="doc-form__inline-toggle" (click)="toggleSupplierForm()">
-                <i
-                  class="pi"
-                  [class.pi-plus]="!showSupplierForm()"
-                  [class.pi-minus]="showSupplierForm()"
-                  aria-hidden="true"
-                ></i>
-                {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
-              </button>
-              @if (form.controls.supplierId.value) {
+              <!-- Scorciatoie sulla stessa riga, come nel riferimento. -->
+              <div class="doc-form__inline-links">
                 <button
                   type="button"
                   class="doc-form__inline-toggle"
-                  (click)="openSupplierDetail()"
+                  (click)="toggleSupplierForm()"
                 >
-                  <i class="pi pi-external-link" aria-hidden="true"></i>
-                  Scheda fornitore
+                  <i
+                    class="pi"
+                    [class.pi-plus]="!showSupplierForm()"
+                    [class.pi-minus]="showSupplierForm()"
+                    aria-hidden="true"
+                  ></i>
+                  {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
                 </button>
-              }
+                @if (form.controls.supplierId.value) {
+                  <button
+                    type="button"
+                    class="doc-form__inline-toggle"
+                    (click)="openSupplierDetail()"
+                  >
+                    <i class="pi pi-external-link" aria-hidden="true"></i>
+                    Scheda fornitore
+                  </button>
+                }
+              </div>
             </div>
 
             <div class="doc-form__field">
@@ -200,14 +428,45 @@
               }
             </div>
 
-            <!-- Gate compilazione: i dati del documento fornitore si sbloccano
-                 solo dopo fornitore + magazzino (display: contents per non
-                 rompere la griglia della testata). -->
+            <!-- Gate compilazione: data e protocollo si sbloccano solo dopo
+                 fornitore + magazzino (display: contents per non rompere la
+                 fascia della testata). -->
             <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-              <!-- Blocco «Documento fornitore»: i dati letti dal documento
-                   cartaceo/PDF del fornitore, non la nostra numerazione. -->
-              <p class="doc-form__block-title">Documento fornitore</p>
+              <div class="doc-form__field doc-form__field--end-md">
+                <label class="doc-form__label" for="gr-date">Data registrazione</label>
+                <app-date-input
+                  inputId="gr-date"
+                  formControlName="documentDate"
+                  ariaLabel="Data registrazione"
+                  [compact]="true"
+                  [fullWidth]="true"
+                />
+              </div>
 
+              <!-- Il protocollo è il numero di catalogazione interno, non
+                   quello del fornitore (che sta nella seconda fascia). -->
+              <app-document-number-field
+                numberLabel="Protocollo"
+                numberInputId="gr-protocol"
+                hint="Numero interno di catalogazione."
+                [number]="form.controls.protocolNumber.value"
+                [series]="form.controls.series.value"
+                [seriesOptions]="seriesOptions()"
+                [canManageSeries]="true"
+                (numberChange)="onProtocolNumberChange($event)"
+                (seriesChange)="onSeriesChange($event)"
+                (manageSeries)="seriesDialogOpen.set(true)"
+              />
+            </fieldset>
+          </div>
+
+          <!-- Seconda fascia (fondo soft automatico): i dati letti dal
+               documento cartaceo/PDF del fornitore, più pagamento e copertura
+               fattura. Interamente dietro il gate fornitore + magazzino. -->
+          <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
+            <div
+              class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row doc-form__header-row--secondary"
+            >
               <div class="doc-form__field">
                 <span class="doc-form__label">Tipo di documento</span>
                 <app-select-menu
@@ -221,7 +480,7 @@
                 />
               </div>
 
-              <div class="doc-form__field doc-form__field--end-xl">
+              <div class="doc-form__field">
                 <label class="doc-form__label" for="gr-ext-num">N. documento fornitore</label>
                 <input
                   id="gr-ext-num"
@@ -232,7 +491,7 @@
                 />
               </div>
 
-              <div class="doc-form__field doc-form__field--end-md">
+              <div class="doc-form__field">
                 <label class="doc-form__label" for="gr-ext-date">Data doc. fornitore</label>
                 <app-date-input
                   inputId="gr-ext-date"
@@ -244,36 +503,7 @@
                 />
               </div>
 
-              <!-- Blocco «Registrazione VestiFlow»: i dati interni nostri. Il
-                   protocollo è il numero di catalogazione, non quello del
-                   fornitore (che sta nel blocco sopra). -->
-              <p class="doc-form__block-title">Registrazione VestiFlow</p>
-
               <div class="doc-form__field doc-form__field--end-md">
-                <label class="doc-form__label" for="gr-date">Data registrazione</label>
-                <app-date-input
-                  inputId="gr-date"
-                  formControlName="documentDate"
-                  ariaLabel="Data registrazione"
-                  [compact]="true"
-                  [fullWidth]="true"
-                />
-              </div>
-
-              <app-document-number-field
-                numberLabel="Protocollo"
-                numberInputId="gr-protocol"
-                hint="Numero interno di catalogazione."
-                [number]="form.controls.protocolNumber.value"
-                [series]="form.controls.series.value"
-                [seriesOptions]="seriesOptions()"
-                [canManageSeries]="true"
-                (numberChange)="onProtocolNumberChange($event)"
-                (seriesChange)="onSeriesChange($event)"
-                (manageSeries)="seriesDialogOpen.set(true)"
-              />
-
-              <div class="doc-form__field">
                 <span class="doc-form__label">Pagamento</span>
                 <app-select-menu
                   [options]="paymentMethodOptions()"
@@ -292,16 +522,14 @@
               <!-- Punto E: la Causale di carico non è più esposta nel form.
                    Viene generata sempre in automatico e in silenzio dal modello
                    del tipo documento fornitore (tipo + numero + data). -->
-              <div
-                class="doc-form__field doc-form__field--fill doc-form__field--end-md doc-form__field--end-xl"
-              >
+              <div class="doc-form__field">
                 <label class="doc-form__check doc-form__check--block" for="gr-invoice-pending">
                   <input id="gr-invoice-pending" type="checkbox" formControlName="invoicePending" />
                   <span>Seguirà registrazione fattura</span>
                 </label>
               </div>
-            </fieldset>
-          </div>
+            </div>
+          </fieldset>
         </div>
 
         @if (showSupplierForm()) {
@@ -327,7 +555,10 @@
         }
 
         @if (headerGateActive()) {
-          <p class="doc-form__gate-banner" role="status">
+          <!-- Modificatore --warn: tinta warning su mobile come nell'OC. Lo
+               stile promosso non esiste ancora nei fogli globali (vedi nota di
+               consegna): la classe è già il gancio giusto. -->
+          <p class="doc-form__gate-banner doc-form__gate-banner--warn" role="status">
             <i class="pi pi-lock" aria-hidden="true"></i>
             {{ headerGateMessage() }}
           </p>
@@ -337,10 +568,8 @@
           <section class="doc-form__lines" aria-labelledby="gr-lines-title">
             <div class="doc-form__lines-head">
               <div class="doc-form__lines-heading">
+                <!-- Conteggi nel piede della tabella (riferimento OC), non qui. -->
                 <h2 id="gr-lines-title" class="doc-form__subtitle">Righe documento</h2>
-                <span class="doc-form__lines-count tabular-nums">
-                  {{ validLinesCount() }} valide · {{ totalPiecesCount() }} pezzi
-                </span>
               </div>
               <div class="doc-form__scan-inline" role="region" aria-label="Lettura codici a barre">
                 <label
@@ -1413,6 +1642,19 @@
               </table>
             </div>
 
+            <!-- Piede della tabella (riferimento OC): conteggio righe e pezzi a
+                 sinistra, imponibile delle sole righe a destra. -->
+            <div class="doc-form__table-summary">
+              <span>
+                <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
+                · <span class="tabular-nums">{{ totalPiecesCount() }}</span> pezzi
+              </span>
+              <span>
+                Imponibile righe
+                <strong class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</strong>
+              </span>
+            </div>
+
             <!-- Vista mobile (§10.10): righe come card editabili, tabella nascosta. -->
             <div class="doc-form__cards">
               <!-- Selettore modalità costo su mobile: su desktop vive
@@ -1502,18 +1744,6 @@
                   <dt>IVA</dt>
                   <dd class="tabular-nums">{{ formatMoney(documentTotals().tax) }}</dd>
                 </div>
-                @if (reverseChargeTotal().amountMinor > 0) {
-                  <div class="doc-form__totals-row doc-form__totals-row--info">
-                    <dt>IVA reverse charge (non dovuta al fornitore)</dt>
-                    <dd class="tabular-nums">{{ formatMoney(reverseChargeTotal()) }}</dd>
-                  </div>
-                }
-                @if (nonDeductibleTotal().amountMinor > 0) {
-                  <div class="doc-form__totals-row doc-form__totals-row--info">
-                    <dt>di cui IVA indetraibile</dt>
-                    <dd class="tabular-nums">{{ formatMoney(nonDeductibleTotal()) }}</dd>
-                  </div>
-                }
                 <div class="doc-form__totals-row doc-form__totals-row--total">
                   <dt>Totale</dt>
                   <dd class="tabular-nums">
@@ -1537,6 +1767,22 @@
                         Imp. {{ formatMoney(minorToMoney(row.netMinor)) }} · IVA
                         {{ formatMoney(minorToMoney(row.vatMinor)) }}
                       </dd>
+                    </div>
+                  }
+                  <!-- Voci informative qui e non nella fila di celle: con otto
+                       celle le etichette lunghe si troncherebbero. Se valgono
+                       più di zero il riepilogo IVA esiste sempre (derivano
+                       dalle sue stesse righe). -->
+                  @if (reverseChargeTotal().amountMinor > 0) {
+                    <div class="doc-form__totals-row doc-form__totals-row--info">
+                      <dt>IVA reverse charge (non dovuta al fornitore)</dt>
+                      <dd class="tabular-nums">{{ formatMoney(reverseChargeTotal()) }}</dd>
+                    </div>
+                  }
+                  @if (nonDeductibleTotal().amountMinor > 0) {
+                    <div class="doc-form__totals-row doc-form__totals-row--info">
+                      <dt>di cui IVA indetraibile</dt>
+                      <dd class="tabular-nums">{{ formatMoney(nonDeductibleTotal()) }}</dd>
                     </div>
                   }
                 </dl>
@@ -1643,16 +1889,39 @@
         }
       </div>
 
-      <!-- Dock mobile (v4): totale + scanner + salva sempre a portata di pollice. -->
-      <div class="doc-form__dock" role="region" aria-label="Azioni rapide documento">
-        <div class="doc-form__dock-total">
-          <span>Totale documento</span>
-          <strong class="tabular-nums">{{ formatMoney(documentTotals().total) }}</strong>
+      <!-- Azioni su mobile/tablet (riferimento OC): in fondo al documento,
+           scorrono col contenuto. Salva vive nel dock fisso qui sotto;
+           Anteprima/PDF restano nelle azioni del documento confermato in cima. -->
+      @if (!formReadOnly()) {
+        <div class="doc-form__mobile-actions">
+          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
+            Chiudi
+          </app-button>
+          <app-button
+            type="button"
+            variant="secondary"
+            [disabled]="saving()"
+            (click)="printLabels()"
+          >
+            Stampa etichette
+          </app-button>
         </div>
-        <div class="doc-form__dock-row">
+      }
+
+      <!-- Dock in basso (classi promosse doc-form__sticky-bar / doc-dock, ≤lg):
+           totale + scanner + salva sempre a portata di pollice. Stessi handler
+           del dock v4; in sola lettura sparisce, come la sticky bar dell'OC. -->
+      @if (!formReadOnly()) {
+        <div class="doc-form__sticky-bar" role="region" aria-label="Azioni rapide documento">
+          <!-- Totale su riga propria a tutta larghezza: sotto, scanner e Salva
+               si dividono la riga ad altezza pari (niente stiramenti). -->
+          <div class="doc-form__dock-total">
+            <span>Totale documento</span>
+            <strong class="tabular-nums">{{ formatMoney(documentTotals().total) }}</strong>
+          </div>
           <input
             #barcodeScanDockInput
-            class="doc-form__dock-scan"
+            class="doc-panel__control"
             type="text"
             [value]="barcodeScanDraft()"
             [disabled]="formReadOnly() || barcodeScanBusy() || headerGateActive()"
@@ -1665,15 +1934,16 @@
           @if (canSaveDocument()) {
             <button
               type="button"
-              class="doc-form__dock-save"
+              class="doc-dock__action doc-dock__action--scan"
               [disabled]="saving()"
               (click)="requestSaveDocument()"
             >
-              Salva
+              <span class="doc-dock__icon" aria-hidden="true"><i class="pi pi-save"></i></span>
+              <span>Salva</span>
             </button>
           }
         </div>
-      </div>
+      }
     </form>
   }
 </section>

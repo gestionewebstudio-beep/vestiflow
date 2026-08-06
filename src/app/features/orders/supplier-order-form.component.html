@@ -1,11 +1,21 @@
-<section class="doc-form">
-  <div class="doc-form__heading">
-    <!-- Su riga propria sopra il titolo (standard di progetto): il contenitore
-         block manda a capo l'host inline-flex prima dell'h1. -->
+<!-- doc-form--m-ref: adotta la vista mobile di riferimento promossa in
+     styles/_document-form-mobile.scss (pannelli, totali, azioni finali). -->
+<section class="doc-form doc-form--m-ref">
+  <div class="doc-form__head-row">
+    <!-- Back in linea col titolo (riferimento: Ordine cliente). -->
     <app-back-button [deferNavigation]="true" (backRequested)="cancel()" />
     <h1 class="doc-form__title">
       {{ isEditMode() ? 'Modifica ordine fornitore' : 'Nuovo ordine fornitore' }}
     </h1>
+    <!-- Anteprima numerazione in coda alla riga del titolo (era un hint sopra la testata). -->
+    @if (!isEditMode() && nextReferencePreview()) {
+      <div class="doc-form__meta">
+        <span class="doc-form__internal-ref tabular-nums">
+          Numerazione (dai Numeratori): prossimo riferimento
+          <strong>{{ nextReferencePreview() }}</strong>
+        </span>
+      </div>
+    }
   </div>
 
   @if (loading()) {
@@ -27,20 +37,101 @@
   } @else {
     <form class="doc-form__form" [formGroup]="form" (ngSubmit)="submit()">
       @if (supplierDocumentAlert(); as supplierAlert) {
-        <p class="doc-form__supplier-alert-banner" role="status">
+        <!-- Stessa classe globale delle altre maschere documento (era un doppione locale). -->
+        <p class="doc-form__supplier-note-banner" role="status">
           <i class="pi pi-info-circle" aria-hidden="true"></i>
           {{ supplierAlert }}
         </p>
       }
 
-      @if (!isEditMode() && nextReferencePreview()) {
-        <p class="doc-form__hint doc-form__numbering tabular-nums">
-          Numerazione (dai Numeratori): prossimo riferimento
-          <strong>{{ nextReferencePreview() }}</strong>
-        </p>
-      }
-
       <div class="doc-form__header">
+        <!-- Vista mobile (m-ref): pannello unico con i dati di testata. Convive
+             nel DOM con la griglia desktop (stesso schema tabella/card delle
+             righe); aria-label distinti dalla griglia per query univoche.
+             I computed del pannello sono SOLO display. -->
+        <div class="doc-panels">
+          <app-document-mobile-panel
+            [title]="supplierPanelTitle()"
+            [summaryParts]="supplierPanelSummaryParts()"
+            icon="pi-truck"
+            [statusText]="supplierPanelStatus()"
+            [statusReady]="supplierPanelReady()"
+            [initiallyOpen]="true"
+          >
+            <p class="doc-panel__section">Dati principali</p>
+
+            <div class="doc-panel__fields">
+              <div class="doc-panel__field">
+                <div class="doc-panel__field-head">
+                  <span class="doc-panel__label">Fornitore</span>
+                  <button
+                    type="button"
+                    class="doc-panel__field-action"
+                    (click)="toggleSupplierForm()"
+                  >
+                    <i
+                      class="pi"
+                      [class.pi-plus]="!showSupplierForm()"
+                      [class.pi-minus]="showSupplierForm()"
+                      aria-hidden="true"
+                    ></i>
+                    {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Crea nuovo fornitore' }}
+                  </button>
+                </div>
+
+                <app-select-menu
+                  [options]="supplierOptions()"
+                  [value]="form.controls.supplierId.value"
+                  ariaLabel="Fornitore dell'ordine"
+                  placeholder="Seleziona un fornitore…"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca fornitore…"
+                  searchAriaLabel="Cerca fornitore per nome"
+                  [invalid]="fieldInvalid('supplierId')"
+                  (valueChange)="onSupplierSelect($event)"
+                />
+              </div>
+
+              <div class="doc-panel__fields doc-panel__fields--two">
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Data</span>
+                  <app-date-input
+                    inputId="po-m-order-date"
+                    formControlName="orderDate"
+                    ariaLabel="Data dell'ordine"
+                    [fullWidth]="true"
+                  />
+                </div>
+
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Consegna prevista</span>
+                  <app-date-input
+                    inputId="po-m-expected"
+                    formControlName="expectedAt"
+                    ariaLabel="Data di consegna prevista"
+                    placeholder="Nessuna data"
+                    [fullWidth]="true"
+                  />
+                </div>
+              </div>
+
+              <div class="doc-panel__field">
+                <span class="doc-panel__label">Rif. ordine fornitore</span>
+                <input
+                  id="po-m-supplier-reference"
+                  class="doc-panel__control"
+                  type="text"
+                  formControlName="supplierReference"
+                  placeholder="Es. conferma d'ordine del fornitore"
+                  maxlength="120"
+                  aria-label="Riferimento ordine fornitore"
+                />
+              </div>
+            </div>
+          </app-document-mobile-panel>
+        </div>
+
         <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
           <div class="doc-form__field doc-form__field--span2">
             <span class="doc-form__label" id="po-supplier-label">Fornitore</span>
@@ -609,6 +700,13 @@
       }
 
       <div class="doc-form__actions">
+        <p class="doc-form__actions-note">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          <strong class="tabular-nums">{{ lines.length }}</strong>
+          {{ lines.length === 1 ? 'riga ordine' : 'righe ordine' }}
+          <span class="doc-form__actions-note-sep">·</span>
+          L'ordine è solo commerciale e non movimenta le giacenze
+        </p>
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
           Annulla
         </app-button>
@@ -616,6 +714,17 @@
           <i class="pi pi-check" aria-hidden="true"></i>
           {{ isEditMode() ? 'Salva modifiche' : 'Salva ordine' }}
         </app-button>
+      </div>
+
+      <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
+           fondo al documento, scorre col contenuto. Ripristina anche il submit
+           sotto md, dove il foglio condiviso nasconde il Salva della barra
+           desktop. «Chiudi» usa lo stesso handler di uscita col dialogo. -->
+      <div class="doc-form__mobile-actions">
+        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
+          Chiudi
+        </app-button>
+        <app-button type="submit" [disabled]="saving()" [loading]="saving()">Salva</app-button>
       </div>
     </form>
   }

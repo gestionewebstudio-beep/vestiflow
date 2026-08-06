@@ -1,11 +1,16 @@
-<section class="doc-form">
-  <app-back-button />
+<!-- doc-form--m-ref: vista mobile di riferimento (styles/_document-form-mobile.scss). -->
+<section class="doc-form doc-form--m-ref">
+  <!-- Riga del titolo come nell'Ordine cliente: back in linea, titolo, meta. -->
+  <div class="doc-form__head-row">
+    <app-back-button />
+    <h1 class="doc-form__title">{{ pageTitle() }}</h1>
 
-  <h1 class="doc-form__title">{{ pageTitle() }}</h1>
-
-  @if (loadedReference(); as reference) {
-    <p class="doc-form__internal-ref tabular-nums">N. interno: {{ reference }}</p>
-  }
+    @if (loadedReference(); as reference) {
+      <div class="doc-form__meta">
+        <p class="doc-form__internal-ref tabular-nums">N. interno: {{ reference }}</p>
+      </div>
+    }
+  </div>
 
   @if (loading()) {
     <app-table-skeleton [columns]="2" [rows]="6" />
@@ -36,6 +41,119 @@
            è quello del fornitore, il protocollo è nostro — separarli evita di
            confonderli. -->
       <div class="doc-form__header">
+        <!-- Vista mobile (m-ref): testata a due pannelli apribili, come la
+             reference. Convive nel DOM con la griglia desktop (che sotto lg
+             esce via CSS): stessi FormControl e stessi handler, due viste. -->
+        <div class="doc-panels">
+          <!-- Il fornitore è il dato che sblocca gli arrivi: aperto all'ingresso. -->
+          <app-document-mobile-panel
+            [title]="supplierPanelTitle()"
+            [summaryParts]="supplierPanelSummaryParts()"
+            icon="pi-truck"
+            [statusText]="supplierPanelStatus()"
+            [statusReady]="supplierPanelReady()"
+            [initiallyOpen]="true"
+          >
+            <p class="doc-panel__section">Documento fornitore</p>
+
+            <div class="doc-panel__fields">
+              <div class="doc-panel__field">
+                <span class="doc-panel__label" id="pi-m-supplier-label">Fornitore</span>
+                <app-select-menu
+                  [options]="supplierOptions()"
+                  [value]="form.controls.supplierId.value"
+                  ariaLabel="Fornitore del documento"
+                  placeholder="Seleziona fornitore…"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca fornitore…"
+                  searchAriaLabel="Cerca fornitore"
+                  [invalid]="fieldInvalid('supplierId')"
+                  describedBy="pi-m-supplier-error"
+                  (valueChange)="onSupplierSelect($event)"
+                />
+                @if (fieldInvalid('supplierId')) {
+                  <p id="pi-m-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
+                }
+              </div>
+
+              <div class="doc-panel__fields doc-panel__fields--two">
+                <div class="doc-panel__field">
+                  <label class="doc-panel__label" for="pi-m-doc-date">Data fattura</label>
+                  <app-date-input
+                    inputId="pi-m-doc-date"
+                    formControlName="documentDate"
+                    ariaLabel="Data della fattura del fornitore"
+                    [fullWidth]="true"
+                  />
+                </div>
+
+                <div class="doc-panel__field">
+                  <label class="doc-panel__label" for="pi-m-ext-num">N. fattura</label>
+                  <input
+                    id="pi-m-ext-num"
+                    class="doc-panel__control"
+                    type="text"
+                    formControlName="externalDocNumber"
+                    placeholder="Es. 58/2026"
+                  />
+                </div>
+              </div>
+            </div>
+          </app-document-mobile-panel>
+
+          <!-- I dati interni hanno già default validi: chiuso, si apre per cambiarli. -->
+          <app-document-mobile-panel
+            title="Registrazione VestiFlow"
+            [summaryParts]="registrationPanelSummaryParts()"
+            icon="pi-calendar"
+          >
+            <p class="doc-panel__section">Dati interni</p>
+
+            <div class="doc-panel__fields">
+              <div class="doc-panel__fields doc-panel__fields--two">
+                <div class="doc-panel__field">
+                  <label class="doc-panel__label" for="pi-m-reg-date">Data registrazione</label>
+                  <app-date-input
+                    inputId="pi-m-reg-date"
+                    formControlName="registrationDate"
+                    ariaLabel="Data registrazione"
+                    [fullWidth]="true"
+                  />
+                </div>
+              </div>
+
+              <app-document-number-field
+                numberLabel="Protocollo"
+                numberInputId="pi-m-protocol"
+                hint="Numero interno di catalogazione, non quello del fornitore."
+                [number]="form.controls.protocolNumber.value"
+                [series]="form.controls.series.value"
+                [seriesOptions]="seriesOptions()"
+                [canManageSeries]="true"
+                (numberChange)="onProtocolNumberChange($event)"
+                (seriesChange)="onSeriesChange($event)"
+                (manageSeries)="seriesDialogOpen.set(true)"
+              />
+
+              <div class="doc-panel__field">
+                <label class="doc-panel__label" for="pi-m-comment">Commento interno</label>
+                <input
+                  id="pi-m-comment"
+                  class="doc-panel__control"
+                  type="text"
+                  formControlName="internalComment"
+                  placeholder="Nota interna, mai in stampa"
+                />
+              </div>
+            </div>
+
+            <p class="doc-panel__helper">
+              Protocollo e serie si propongono da soli, restano modificabili.
+            </p>
+          </app-document-mobile-panel>
+        </div>
+
         <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
           <!-- Blocco «Documento fornitore»: i dati letti dalla fattura ricevuta. -->
           <p class="doc-form__block-title">Documento fornitore</p>
@@ -534,6 +652,17 @@
       <!-- ── Barra azioni (i totali vivono nella banda qui sopra) ─────────── -->
       <div class="doc-form__actions">
         <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
+          Chiudi
+        </app-button>
+        <app-button type="submit" [loading]="saving()" [disabled]="saving()">
+          Salva registrazione
+        </app-button>
+      </div>
+
+      <!-- Azioni su mobile/tablet (regole-stile-ui §5): coppia in fondo al
+           documento, scorre col contenuto. Su desktop resta la barra sopra. -->
+      <div class="doc-form__mobile-actions">
+        <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
           Chiudi
         </app-button>
         <app-button type="submit" [loading]="saving()" [disabled]="saving()">

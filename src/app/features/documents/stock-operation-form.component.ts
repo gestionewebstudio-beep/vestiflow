@@ -23,6 +23,7 @@ import {
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
+import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -49,6 +50,7 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -56,6 +58,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
+import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { documentReferenceLabel } from '@domain/documents/models/document-labels.util';
 import { isAdjustmentDocumentType } from './models/document-stock-operation.util';
@@ -81,6 +84,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     EditLockBannerComponent,
@@ -91,6 +95,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
   ],
   providers: [DocumentEditLockService],
   templateUrl: './stock-operation-form.component.html',
+  styleUrl: './stock-operation-form.component.scss',
 })
 export class StockOperationFormComponent {
   private readonly authService = inject(AuthService);
@@ -101,6 +106,7 @@ export class StockOperationFormComponent {
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
+  private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -243,6 +249,66 @@ export class StockOperationFormComponent {
     notes: this.fb.control(''),
     internalComment: this.fb.control('', { validators: [Validators.required] }),
     lines: this.fb.array([this.createLine()]),
+  });
+
+  // Snapshot reattivo del form: i testi del pannello mobile leggono valori dai
+  // FormControl, che non sono signal — senza questa dipendenza i computed
+  // resterebbero memoizzati (stesso schema del gemello transfer-form).
+  private readonly formValue = toSignal(this.form.valueChanges, {
+    initialValue: this.form.getRawValue(),
+  });
+
+  // ── Testata mobile (M1, reference «Ordine cliente») ───────────────────────
+  // Solo testi di vista per il pannello apribile: concatenano valori già
+  // presenti nel form e nelle opzioni della testata — nessuna logica nuova.
+
+  /** Titolo del pannello: la location scelta, o l'invito a completare. */
+  protected readonly mobilePanelTitle = computed(() => {
+    this.formValue();
+    const location = this.operationalLocations
+      .writeLocations()
+      .find((loc) => loc.id === this.form.controls.locationId.value)?.name;
+    return location ?? 'Dati documento';
+  });
+
+  /** Riepilogo sotto il titolo: direzione (se rettifica), data, numero/serie. */
+  protected readonly mobilePanelSummaryParts = computed<readonly string[]>(() => {
+    this.formValue();
+    const parts: string[] = [];
+    if (this.isAdjustment()) {
+      const direction = this.directionOptions.find(
+        (option) => option.value === this.form.controls.adjustmentDirection.value,
+      )?.label;
+      parts.push(direction ?? 'Direzione non indicata');
+    }
+    const date = this.form.controls.documentDate.value;
+    parts.push(date ? formatItalianInputDate(date) : 'Data non indicata');
+    const number = this.form.controls.documentNumber.value;
+    if (number !== null) {
+      const series = this.form.controls.series.value;
+      parts.push(`N. ${number}${series ? `/${series}` : ''}`);
+    }
+    return parts;
+  });
+
+  /** Dati principali presenti: location (e direzione, per le rettifiche). */
+  protected readonly mobileHeaderReady = computed(() => {
+    this.formValue();
+    const hasLocation = Boolean(this.form.controls.locationId.value);
+    if (!this.isAdjustment()) {
+      return hasLocation;
+    }
+    return hasLocation && Boolean(this.form.controls.adjustmentDirection.value);
+  });
+
+  /** Riga di stato dentro il pannello: dice cosa manca. */
+  protected readonly mobilePanelStatus = computed(() => {
+    if (this.mobileHeaderReady()) {
+      return 'Dati principali completi.';
+    }
+    return this.isAdjustment()
+      ? 'Location e direzione sono obbligatorie.'
+      : 'La location è obbligatoria.';
   });
 
   protected readonly confirmDialogOpen = signal(false);
@@ -532,7 +598,7 @@ export class StockOperationFormComponent {
   }
 
   protected cancel(): void {
-    void this.router.navigateByUrl(this.listPath);
+    this.navHistory.backOr(this.listPath);
   }
 
   protected reload(): void {

@@ -24,6 +24,7 @@ import {
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
+import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { formatDate } from '@core/utils/date.util';
 import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
@@ -79,8 +80,10 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
+import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
+import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import {
   includeSourceKindsForDocumentType,
   type IncludedDocumentPayload,
@@ -136,6 +139,7 @@ type SubmitState =
     DocumentSeriesManagerDialogComponent,
     DateInputComponent,
     DocumentIncludePanelComponent,
+    DocumentMobilePanelComponent,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -145,6 +149,8 @@ type SubmitState =
   ],
   providers: [DocumentEditLockService],
   templateUrl: './sales-document-form.component.html',
+  // Foglio nuovo (FASE 1): solo i delta che l'anatomia condivisa non copre.
+  styleUrl: './sales-document-form.component.scss',
 })
 export class SalesDocumentFormComponent {
   private readonly fb = inject(NonNullableFormBuilder);
@@ -159,6 +165,7 @@ export class SalesDocumentFormComponent {
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly tenantCompanyService = inject(TenantCompanyService);
   private readonly router = inject(Router);
+  private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -169,8 +176,7 @@ export class SalesDocumentFormComponent {
   protected readonly DocumentType = DocumentType;
 
   private readonly routeType = this.route.snapshot.data['salesDocumentType'] as
-    | DocumentType
-    | undefined;
+    DocumentType | undefined;
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
@@ -667,6 +673,67 @@ export class SalesDocumentFormComponent {
   /** Aliquote miste: solo allora il dettaglio per aliquota aggiunge informazione. */
   protected readonly hasMixedVatRates = computed(() => this.vatBreakdown().length > 1);
 
+  // ── Testata a pannelli su mobile (adozione M1) — SOLO display ─────────────
+  // Concatenazioni di valori form già esistenti: nessuna logica nuova.
+
+  /** Pannello «Cliente e listino»: nome del cliente scelto o intestazione neutra. */
+  protected readonly customerPanelTitle = computed(() => {
+    this.formValue();
+    const customerId = this.form.controls.customerId.value;
+    return (
+      this.customerOptions().find((option) => option.value === customerId)?.label ??
+      'Cliente e listino'
+    );
+  });
+
+  /** Riepilogo sotto il titolo: data · modalità prezzo · listino scelto. */
+  protected readonly customerPanelSummaryParts = computed<readonly string[]>(() => {
+    this.formValue();
+    const documentDate = this.form.controls.documentDate.value;
+    const parts: string[] = [
+      documentDate ? formatItalianInputDate(documentDate) : 'Data non indicata',
+      this.pricesIncludeVat() ? 'Prezzi ivati' : 'Prezzi netti',
+    ];
+    if (this.showListinoSelect()) {
+      const listino = this.listinoOptions().find(
+        (option) => option.value === this.listinoValue(),
+      )?.label;
+      if (listino) {
+        parts.push(listino);
+      }
+    }
+    return parts;
+  });
+
+  /** Il cliente è l'unico dato di testata che blocca il salvataggio. */
+  protected readonly customerPanelReady = computed(() => {
+    this.formValue();
+    return this.form.controls.customerId.value !== '';
+  });
+
+  protected readonly customerPanelStatus = computed(() =>
+    this.customerPanelReady()
+      ? 'Dati principali completi.'
+      : 'Il cliente è obbligatorio per salvare.',
+  );
+
+  /** Pannello «Dettagli fattura»: pagamento · scadenza · DDT agganciati. */
+  protected readonly invoicePanelSummaryParts = computed<readonly string[]>(() => {
+    this.formValue();
+    const parts: string[] = [
+      this.form.controls.paymentTerms.value.trim() || 'Pagamento non indicato',
+    ];
+    const dueDate = this.form.controls.paymentDueDate.value;
+    if (dueDate) {
+      parts.push(`Scadenza ${formatItalianInputDate(dueDate)}`);
+    }
+    const ddtCount = this.linkedDdts().length;
+    if (ddtCount > 0) {
+      parts.push(ddtCount === 1 ? '1 DDT agganciato' : `${ddtCount} DDT agganciati`);
+    }
+    return parts;
+  });
+
   /**
    * Etichetta del documento per il breadcrumb: il numero quando c'è, altrimenti
    * la dicitura di bozza/serie — mai il generico «Dettaglio».
@@ -1113,7 +1180,7 @@ export class SalesDocumentFormComponent {
   }
 
   protected cancel(): void {
-    void this.router.navigateByUrl(this.listPath);
+    this.navHistory.backOr(this.listPath);
   }
 
   protected reload(): void {

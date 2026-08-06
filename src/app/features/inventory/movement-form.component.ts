@@ -11,6 +11,7 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { Router, ActivatedRoute } from '@angular/router';
 import { catchError, debounceTime, distinctUntilChanged, forkJoin, map, of, switchMap } from 'rxjs';
 
+import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { LocationContextService } from '@core/services/location-context.service';
@@ -28,6 +29,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import { CustomerService } from '@domain/customers/services/customer.service';
+import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductService } from '@domain/products/services/product.service';
@@ -108,6 +110,7 @@ type SubmitState =
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentMobilePanelComponent,
     SelectMenuComponent,
   ],
   templateUrl: './movement-form.component.html',
@@ -121,6 +124,7 @@ export class MovementFormComponent {
   private readonly supplierService = inject(SupplierService);
   private readonly customerService = inject(CustomerService);
   private readonly router = inject(Router);
+  private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
@@ -301,6 +305,59 @@ export class MovementFormComponent {
   protected readonly typeLabel = computed(
     () => MANUAL_TYPES.find((option) => option.value === this.type())?.label ?? '',
   );
+
+  // ── Pannello testata mobile (--m-ref) — SOLO display: concatenazioni di
+  // valori già presenti nel form, nessuna logica nuova. ─────────────────────
+
+  /** Titolo del pannello: la location scelta (con destinazione nei trasferimenti). */
+  protected readonly headerPanelTitle = computed(() => {
+    const origin = this.locationId() ? this.locationLabel(this.locationId()) : '';
+    if (!origin) {
+      return `Dati ${this.typeLabel().toLowerCase()}`;
+    }
+    if (this.isTransfer() && this.targetLocationId()) {
+      return `${origin} → ${this.locationLabel(this.targetLocationId())}`;
+    }
+    return origin;
+  });
+
+  /** Riepilogo sotto il titolo: data operazione, controparte e causale inserite. */
+  protected readonly headerPanelSummaryParts = computed<readonly string[]>(() => {
+    const parts = [formatItalianDate(this.operationDate())];
+    if (this.isLoad() || this.isUnload()) {
+      const party = this.partyOptions().find((option) => option.value === this.partyId());
+      if (party) {
+        parts.push(party.label);
+      }
+    }
+    const reason = this.reason().trim();
+    if (!this.isTransfer() && reason) {
+      parts.push(reason);
+    }
+    return parts.filter((part) => part !== '');
+  });
+
+  /** Dot verde quando la testata è completa (specchio display di validate()). */
+  protected readonly headerPanelReady = computed(
+    () =>
+      Boolean(this.locationId()) &&
+      (!this.isTransfer() || Boolean(this.targetLocationId())) &&
+      (!this.isAdjustment() || this.reason().trim().length > 0),
+  );
+
+  /** Riga di stato del pannello: dice il primo dato di testata mancante. */
+  protected readonly headerPanelStatus = computed(() => {
+    if (!this.locationId()) {
+      return this.isTransfer() ? 'Seleziona la location di origine' : 'Seleziona la location';
+    }
+    if (this.isTransfer() && !this.targetLocationId()) {
+      return 'Seleziona la location di destinazione';
+    }
+    if (this.isAdjustment() && !this.reason().trim()) {
+      return 'Indica la causale della rettifica';
+    }
+    return 'Dati completi';
+  });
 
   protected availableAt(line: MovementFormLine, locationId: string): number {
     return line.levels.find((level) => level.locationId === locationId)?.available ?? 0;
@@ -533,7 +590,7 @@ export class MovementFormComponent {
   }
 
   protected cancel(): void {
-    void this.router.navigateByUrl('/app/inventory/movements');
+    this.navHistory.backOr('/app/inventory/movements');
   }
 
   private validate(): string | null {
@@ -596,6 +653,12 @@ export class MovementFormComponent {
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
   }
+}
+
+/** YYYY-MM-DD → gg/mm/aaaa, solo per display nel riepilogo pannello. */
+function formatItalianDate(iso: string): string {
+  const [year, month, day] = iso.split('-');
+  return year && month && day ? `${day}/${month}/${year}` : iso;
 }
 
 /** YYYY-MM-DD in ora locale. */

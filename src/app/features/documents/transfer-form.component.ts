@@ -30,6 +30,7 @@ import {
 } from 'rxjs';
 import type { Subscription } from 'rxjs';
 
+import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -56,6 +57,7 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
@@ -63,6 +65,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
+import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { documentReferenceLabel } from '@domain/documents/models/document-labels.util';
 import { isTransferDocumentType } from './models/document-transfer.util';
@@ -97,6 +100,7 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     EditLockBannerComponent,
@@ -107,6 +111,7 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
   ],
   providers: [DocumentEditLockService],
   templateUrl: './transfer-form.component.html',
+  styleUrl: './transfer-form.component.scss',
 })
 export class TransferFormComponent {
   private readonly authService = inject(AuthService);
@@ -117,6 +122,7 @@ export class TransferFormComponent {
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
+  private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -515,6 +521,52 @@ export class TransferFormComponent {
     return this.form.hasError('sameLocation') && this.form.touched;
   });
 
+  // ── Testata mobile (M1, reference «Ordine cliente») ───────────────────────
+  // Solo testi di vista per il pannello apribile: concatenano valori già
+  // presenti nel form e nelle location operative — nessuna logica nuova.
+
+  /** Titolo del pannello: «Origine → Destinazione» quando entrambe scelte. */
+  protected readonly mobilePanelTitle = computed(() => {
+    this.formValue();
+    const origin = this.operationalLocations
+      .writeLocations()
+      .find((loc) => loc.id === this.form.controls.locationId.value)?.name;
+    const target = this.operationalLocations
+      .transferTargetLocations()
+      .find((loc) => loc.id === this.form.controls.targetLocationId.value)?.name;
+    return origin && target ? `${origin} → ${target}` : 'Origine e destinazione';
+  });
+
+  /** Riepilogo sotto il titolo: data documento e numero/serie se presenti. */
+  protected readonly mobilePanelSummaryParts = computed<readonly string[]>(() => {
+    this.formValue();
+    const date = this.form.controls.documentDate.value;
+    const parts: string[] = [date ? formatItalianInputDate(date) : 'Data non indicata'];
+    const number = this.form.controls.documentNumber.value;
+    if (number !== null) {
+      const series = this.form.controls.series.value;
+      parts.push(`N. ${number}${series ? `/${series}` : ''}`);
+    }
+    return parts;
+  });
+
+  /** Dati principali presenti: origine e destinazione scelte e distinte. */
+  protected readonly mobileHeaderReady = computed(() => {
+    this.formValue();
+    return Boolean(
+      this.form.controls.locationId.value &&
+      this.form.controls.targetLocationId.value &&
+      !this.form.hasError('sameLocation'),
+    );
+  });
+
+  /** Riga di stato dentro il pannello: dice cosa manca. */
+  protected readonly mobilePanelStatus = computed(() =>
+    this.mobileHeaderReady()
+      ? 'Dati principali completi.'
+      : 'Origine e destinazione sono obbligatorie.',
+  );
+
   protected lineFieldInvalid(
     index: number,
     name: 'variantId' | 'description' | 'quantity',
@@ -540,7 +592,7 @@ export class TransferFormComponent {
   }
 
   protected cancel(): void {
-    void this.router.navigateByUrl(this.listPath);
+    this.navHistory.backOr(this.listPath);
   }
 
   protected reload(): void {

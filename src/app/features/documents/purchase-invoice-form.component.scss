@@ -1,5 +1,3 @@
-@use 'breakpoints' as bp;
-
 // ═══════════════════════════════════════════════════════════════════════════
 // REGISTRAZIONE FATTURA FORNITORE — delta locale sull'anatomia condivisa
 // .doc-form (src/styles/_document-form.scss + _document-form-footer.scss).
@@ -14,7 +12,9 @@
 // Tabelle riepilogative. NON adottano .doc-form__table-wrap: sotto `lg` quel
 // wrapper si nasconde in favore della vista a card (.doc-form__cards), che
 // questa maschera non ha — qui le tabelle restano visibili a ogni larghezza
-// e scorrono in orizzontale se serve.
+// e scorrono in orizzontale se serve. La deroga sopravvive all'adozione
+// m-ref: dentro le card di sezione del nuovo ritmo mobile le tre tabelle
+// restano tabelle a scroll, nessuna card view.
 .pi-form__table-wrap {
   inline-size: 100%;
   overflow-x: auto;
@@ -115,22 +115,4 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
-}
-
-// ── Counter-rules mobile (niente dock in questa maschera) ───────────────────
-// Sotto `md` il foglio condiviso nasconde il submit dentro __actions e
-// riserva spazio in fondo al documento contando sul dock fisso
-// (.doc-form__dock, come nell'Arrivo merce). Questa maschera il dock non ce
-// l'ha — niente scanner né totale «a portata di pollice»: il salvataggio
-// resta nella barra azioni (che sotto md è già in flusso normale) e lo
-// spazio riservato al dock non serve.
-@include bp.media-down('md') {
-  .doc-form {
-    padding-block-end: 0;
-  }
-
-  // Ripristina il default dell'host di app-button (display: contents).
-  .doc-form__actions app-button[type='submit'] {
-    display: contents;
-  }
 }

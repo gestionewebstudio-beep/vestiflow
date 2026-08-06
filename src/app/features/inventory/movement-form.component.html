@@ -1,13 +1,133 @@
-<section class="doc-form">
-  <!-- Torna alla pagina precedente; senza cronologia interna ricade sulla
-       lista Movimenti dedotta dall'URL. -->
-  <app-back-button />
-
-  <h1 class="doc-form__title">Registra {{ typeLabel().toLowerCase() }}</h1>
+<!-- doc-form--m-ref: adotta la vista mobile di riferimento promossa in
+     styles/_document-form-mobile.scss (pannello testata, azioni in fondo). -->
+<section class="doc-form doc-form--m-ref">
+  <!-- Back in linea col titolo, come sul riferimento Ordine cliente; senza
+       cronologia interna ricade sulla lista Movimenti dedotta dall'URL. -->
+  <div class="doc-form__head-row">
+    <app-back-button />
+    <h1 class="doc-form__title">Registra {{ typeLabel().toLowerCase() }}</h1>
+  </div>
 
   <div class="doc-form__form">
     <div class="doc-form__header">
-      <div class="doc-form__grid doc-form__grid--header">
+      <!-- Vista mobile (--m-ref): testata in un unico pannello apribile.
+           Convive nel DOM con la griglia desktop e si accende sotto lg; i
+           controlli riusano gli stessi valori e handler dei campi desktop,
+           con aria-label distinti per tenere uniche le query per label. -->
+      <div class="doc-panels">
+        <app-document-mobile-panel
+          [title]="headerPanelTitle()"
+          [summaryParts]="headerPanelSummaryParts()"
+          icon="pi-box"
+          [statusText]="headerPanelStatus()"
+          [statusReady]="headerPanelReady()"
+          [initiallyOpen]="true"
+        >
+          <p class="doc-panel__section">Dati principali</p>
+
+          <div class="doc-panel__fields">
+            <div class="doc-panel__field">
+              <span class="doc-panel__label">
+                {{ isTransfer() ? 'Location di origine' : 'Location' }}
+              </span>
+              @if (isFixedSingleStore() && fixedSingleStoreLabel(); as label) {
+                <!-- La sede operativa assegnata resta fissa anche nel pannello. -->
+                <span class="movement-form__location-fixed" title="Sede operativa assegnata">
+                  <i class="pi pi-shop" aria-hidden="true"></i>
+                  {{ label }}
+                </span>
+              } @else {
+                <app-select-menu
+                  [options]="locationSelectOptions()"
+                  [value]="locationId()"
+                  ariaLabel="Location (testata mobile)"
+                  placeholder="Seleziona…"
+                  [fullWidth]="true"
+                  (valueChange)="onLocationSelect($event)"
+                />
+              }
+            </div>
+
+            @if (isTransfer()) {
+              <div class="doc-panel__field">
+                <span class="doc-panel__label">Location di destinazione</span>
+                <app-select-menu
+                  [options]="targetLocationSelectOptions()"
+                  [value]="targetLocationId()"
+                  ariaLabel="Location di destinazione (testata mobile)"
+                  placeholder="Seleziona…"
+                  [fullWidth]="true"
+                  (valueChange)="onTargetLocationSelect($event)"
+                />
+              </div>
+            }
+
+            @if (isLoad() || isUnload()) {
+              <div class="doc-panel__field">
+                <span class="doc-panel__label">
+                  {{
+                    isLoad() ? 'Provenienza merce (opzionale)' : 'Destinatario merce (opzionale)'
+                  }}
+                </span>
+                <app-select-menu
+                  [options]="partyOptions()"
+                  [value]="partyId()"
+                  [ariaLabel]="
+                    (isLoad() ? 'Provenienza merce' : 'Destinatario merce') + ' (testata mobile)'
+                  "
+                  placeholder="Nessuna controparte"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  (valueChange)="onPartySelect($event)"
+                />
+              </div>
+            }
+
+            <!-- Nei trasferimenti la causale non c'è: la data prende la riga intera. -->
+            <div class="doc-panel__fields" [class.doc-panel__fields--two]="!isTransfer()">
+              <div class="doc-panel__field">
+                <label class="doc-panel__label" for="mov-m-operation-date">Data operazione</label>
+                <app-date-input
+                  inputId="mov-m-operation-date"
+                  [value]="operationDate()"
+                  ariaLabel="Data operazione (testata mobile)"
+                  placeholder="gg/mm/aaaa"
+                  [fullWidth]="true"
+                  (valueChange)="onOperationDateChange($event)"
+                />
+              </div>
+
+              @if (!isTransfer()) {
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">
+                    Causale {{ isAdjustment() ? '' : '(opzionale)' }}
+                  </span>
+                  <input
+                    class="doc-panel__control"
+                    type="text"
+                    list="mov-m-reason-presets"
+                    [value]="reason()"
+                    placeholder="Testo libero…"
+                    aria-label="Causale (testata mobile)"
+                    (input)="onReasonInput($event)"
+                  />
+                  <datalist id="mov-m-reason-presets">
+                    @for (preset of reasonPresets(); track preset) {
+                      <option [value]="preset"></option>
+                    }
+                  </datalist>
+                </div>
+              }
+            </div>
+          </div>
+        </app-document-mobile-panel>
+      </div>
+
+      <!-- Fascia unica: la griglia compatta vale fino a lg, poi doc-form__header-row
+           ripartisce i campi in proporzione qualunque sia il tipo movimento. -->
+      <div
+        class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+      >
         <div class="doc-form__field">
           <label class="doc-form__label" for="mov-operation-date">Data operazione</label>
           <app-date-input
@@ -77,7 +197,9 @@
         }
 
         @if (!isTransfer()) {
-          <div class="doc-form__field">
+          <!-- Quarta cella della fascia a md (solo carico/scarico): niente
+               bordo destro doppio contro il bordo card. -->
+          <div class="doc-form__field" [class.doc-form__field--end-md]="isLoad() || isUnload()">
             <label class="doc-form__label" for="mov-reason">
               Causale {{ isAdjustment() ? '' : '(opzionale)' }}
             </label>
@@ -122,8 +244,8 @@
           gli articoli senza uscire dal form.
         </p>
       } @else {
-        <div class="movement-form__lines-scroll">
-          <table class="movement-form__lines-table">
+        <div class="doc-form__table-wrap">
+          <table class="doc-form__table">
             <thead>
               <tr>
                 <th scope="col">Cod. articolo</th>
@@ -299,6 +421,18 @@
       <app-button [loading]="saving()" [disabled]="saving()" (click)="save()">
         <i class="pi pi-check" aria-hidden="true"></i>
         Salva
+      </app-button>
+    </div>
+
+    <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
+         fondo al documento, scorre col contenuto. Stessi handler dei bottoni
+         desktop; «Salva movimento» tiene distinto il nome dal «Salva» sopra. -->
+    <div class="doc-form__mobile-actions">
+      <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
+        Chiudi
+      </app-button>
+      <app-button type="button" [loading]="saving()" [disabled]="saving()" (click)="save()">
+        Salva movimento
       </app-button>
     </div>
   </div>

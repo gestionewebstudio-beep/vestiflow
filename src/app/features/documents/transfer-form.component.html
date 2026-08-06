@@ -1,7 +1,11 @@
-<section class="doc-form">
-  <app-back-button />
+<!-- doc-form--m-ref: adotta la vista mobile di riferimento (Ordine cliente)
+     promossa in styles/_document-form-mobile.scss. -->
+<section class="doc-form doc-form--m-ref">
+  <div class="doc-form__head-row">
+    <app-back-button />
+    <h1 class="doc-form__title">{{ pageTitle() }}</h1>
+  </div>
 
-  <h1 class="doc-form__title">{{ pageTitle() }}</h1>
   <p class="doc-form__disclaimer" role="note">
     Trasferimento stock tra location: alla conferma vengono generati movimenti di magazzino su
     origine e destinazione.
@@ -34,85 +38,264 @@
         <app-edit-lock-banner (unlock)="requestUnlock()" />
       }
       <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
-        <div class="doc-form__grid">
-          <div class="doc-form__field">
-            <span class="doc-form__label">Location origine</span>
-            <app-select-menu
-              [options]="originLocationOptions()"
-              [value]="form.controls.locationId.value"
-              ariaLabel="Location di origine"
-              placeholder="Seleziona origine…"
-              [compact]="true"
-              [fullWidth]="true"
-              [invalid]="fieldInvalid('locationId')"
-              describedBy="tr-origin-error"
-              (valueChange)="onOriginSelect($event)"
-            />
-            @if (fieldInvalid('locationId')) {
-              <p id="tr-origin-error" class="doc-form__error">Seleziona la location di origine.</p>
-            }
+        <!-- Testata a celle unite (FASE 1: la forma dell'Ordine cliente). -->
+        <div class="doc-form__header">
+          <!-- Vista mobile (M1): la testata è un solo pannello apribile. Vive
+               nel DOM accanto alla griglia desktop e si accende sotto lg —
+               stesso schema tabella/card delle righe. Aria-label distinti dai
+               gemelli desktop: le query (spec e screen reader) restano uniche. -->
+          <div class="doc-panels">
+            <app-document-mobile-panel
+              [title]="mobilePanelTitle()"
+              [summaryParts]="mobilePanelSummaryParts()"
+              icon="pi-arrow-right-arrow-left"
+              [statusText]="mobilePanelStatus()"
+              [statusReady]="mobileHeaderReady()"
+              [initiallyOpen]="true"
+            >
+              <p class="doc-panel__section">Dati principali</p>
+
+              <div class="doc-panel__fields">
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Location origine</span>
+                  <app-select-menu
+                    [options]="originLocationOptions()"
+                    [value]="form.controls.locationId.value"
+                    ariaLabel="Location origine"
+                    placeholder="Seleziona origine…"
+                    [fullWidth]="true"
+                    [invalid]="fieldInvalid('locationId')"
+                    describedBy="tr-m-origin-error"
+                    (valueChange)="onOriginSelect($event)"
+                  />
+                  @if (fieldInvalid('locationId')) {
+                    <p id="tr-m-origin-error" class="doc-form__error">
+                      Seleziona la location di origine.
+                    </p>
+                  }
+                </div>
+
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Location destinazione</span>
+                  <app-select-menu
+                    [options]="targetLocationOptions()"
+                    [value]="form.controls.targetLocationId.value"
+                    ariaLabel="Location destinazione"
+                    placeholder="Seleziona destinazione…"
+                    [fullWidth]="true"
+                    [invalid]="fieldInvalid('targetLocationId')"
+                    describedBy="tr-m-target-error"
+                    (valueChange)="onTargetSelect($event)"
+                  />
+                  @if (fieldInvalid('targetLocationId')) {
+                    <p id="tr-m-target-error" class="doc-form__error">
+                      Seleziona la location di destinazione.
+                    </p>
+                  }
+                </div>
+
+                @if (locationsConflict()) {
+                  <p class="doc-form__error">
+                    Origine e destinazione devono essere location diverse.
+                  </p>
+                }
+
+                <div class="doc-panel__field">
+                  <label class="doc-panel__label" for="tr-m-date">Data documento</label>
+                  <app-date-input
+                    inputId="tr-m-date"
+                    formControlName="documentDate"
+                    ariaLabel="Data documento"
+                    [fullWidth]="true"
+                  />
+                </div>
+
+                <app-document-number-field
+                  numberInputId="tr-m-number"
+                  [number]="form.controls.documentNumber.value"
+                  [series]="form.controls.series.value"
+                  [seriesOptions]="seriesOptions()"
+                  [canManageSeries]="true"
+                  (numberChange)="onDocumentNumberChange($event)"
+                  (seriesChange)="onSeriesChange($event)"
+                  (manageSeries)="seriesDialogOpen.set(true)"
+                />
+              </div>
+            </app-document-mobile-panel>
           </div>
 
-          <div class="doc-form__field">
-            <span class="doc-form__label">Location destinazione</span>
-            <app-select-menu
-              [options]="targetLocationOptions()"
-              [value]="form.controls.targetLocationId.value"
-              ariaLabel="Location di destinazione"
-              placeholder="Seleziona destinazione…"
-              [compact]="true"
-              [fullWidth]="true"
-              [invalid]="fieldInvalid('targetLocationId')"
-              describedBy="tr-target-error"
-              (valueChange)="onTargetSelect($event)"
-            />
-            @if (fieldInvalid('targetLocationId')) {
-              <p id="tr-target-error" class="doc-form__error">
-                Seleziona la location di destinazione.
-              </p>
-            }
+          <!-- Griglia classica: solo desktop. Sotto lg la nasconde il foglio
+               del componente (stesso meccanismo di #co-header-details). -->
+          <div class="transfer-form__header-desktop">
+            <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
+              <div class="doc-form__field">
+                <span class="doc-form__label">Location origine</span>
+                <app-select-menu
+                  [options]="originLocationOptions()"
+                  [value]="form.controls.locationId.value"
+                  ariaLabel="Location di origine"
+                  placeholder="Seleziona origine…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [invalid]="fieldInvalid('locationId')"
+                  describedBy="tr-origin-error"
+                  (valueChange)="onOriginSelect($event)"
+                />
+                @if (fieldInvalid('locationId')) {
+                  <p id="tr-origin-error" class="doc-form__error">
+                    Seleziona la location di origine.
+                  </p>
+                }
+              </div>
+
+              <div class="doc-form__field">
+                <span class="doc-form__label">Location destinazione</span>
+                <app-select-menu
+                  [options]="targetLocationOptions()"
+                  [value]="form.controls.targetLocationId.value"
+                  ariaLabel="Location di destinazione"
+                  placeholder="Seleziona destinazione…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  [invalid]="fieldInvalid('targetLocationId')"
+                  describedBy="tr-target-error"
+                  (valueChange)="onTargetSelect($event)"
+                />
+                @if (fieldInvalid('targetLocationId')) {
+                  <p id="tr-target-error" class="doc-form__error">
+                    Seleziona la location di destinazione.
+                  </p>
+                }
+              </div>
+
+              @if (locationsConflict()) {
+                <p class="doc-form__error doc-form__field--wide">
+                  Origine e destinazione devono essere location diverse.
+                </p>
+              }
+
+              <div class="doc-form__field">
+                <label class="doc-form__label" for="tr-date">Data documento</label>
+                <app-date-input
+                  inputId="tr-date"
+                  formControlName="documentDate"
+                  ariaLabel="Data documento"
+                  [compact]="true"
+                  [fullWidth]="true"
+                />
+              </div>
+
+              <!-- Identificativo del documento: Data + Numero + Serie. -->
+              <app-document-number-field
+                numberInputId="tf-number"
+                [number]="form.controls.documentNumber.value"
+                [series]="form.controls.series.value"
+                [seriesOptions]="seriesOptions()"
+                [canManageSeries]="true"
+                (numberChange)="onDocumentNumberChange($event)"
+                (seriesChange)="onSeriesChange($event)"
+                (manageSeries)="seriesDialogOpen.set(true)"
+              />
+            </div>
           </div>
-
-          @if (locationsConflict()) {
-            <p class="doc-form__error doc-form__field--wide">
-              Origine e destinazione devono essere location diverse.
-            </p>
-          }
-
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="tr-date">Data documento</label>
-            <app-date-input
-              inputId="tr-date"
-              formControlName="documentDate"
-              ariaLabel="Data documento"
-              [compact]="true"
-              [fullWidth]="true"
-            />
-          </div>
-
-          <!-- Identificativo del documento: Data + Numero + Serie. -->
-          <app-document-number-field
-            numberInputId="tf-number"
-            [number]="form.controls.documentNumber.value"
-            [series]="form.controls.series.value"
-            [seriesOptions]="seriesOptions()"
-            [canManageSeries]="true"
-            (numberChange)="onDocumentNumberChange($event)"
-            (seriesChange)="onSeriesChange($event)"
-            (manageSeries)="seriesDialogOpen.set(true)"
-          />
         </div>
 
         <section class="doc-form__lines" aria-labelledby="tr-lines-title">
           <div class="doc-form__lines-head">
             <h2 id="tr-lines-title" class="doc-form__subtitle">Articoli da trasferire</h2>
-            <app-button type="button" variant="ghost" (click)="addLine()">
-              <i class="pi pi-plus" aria-hidden="true"></i>
-              Aggiungi riga
-            </app-button>
+            <div class="doc-form__lines-tools">
+              <app-button type="button" (click)="addLine()">
+                <i class="pi pi-plus" aria-hidden="true"></i>
+                Aggiungi riga
+              </app-button>
+            </div>
           </div>
 
-          <div class="doc-form__line-list" formArrayName="lines">
+          <!-- Desktop (lg+): righe in tabella, come l'Ordine cliente. -->
+          <div class="doc-form__table-wrap">
+            <table class="doc-form__table">
+              <thead>
+                <tr>
+                  <th scope="col">Variante / SKU</th>
+                  <th scope="col">Descrizione</th>
+                  <th scope="col" class="doc-form__num">Quantità</th>
+                  <th scope="col">Seriali</th>
+                  <th scope="col" class="doc-form__cell--actions">
+                    <span class="sr-only">Azioni</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody formArrayName="lines">
+                @for (line of lines.controls; track line; let i = $index) {
+                  <tr [formGroupName]="i">
+                    <td class="doc-form__cell doc-form__cell--editable">
+                      <app-select-menu
+                        [options]="variantOptions()"
+                        [value]="line.controls.variantId.value"
+                        ariaLabel="Variante"
+                        placeholder="Cerca SKU o articolo…"
+                        [compact]="true"
+                        [fullWidth]="true"
+                        [searchable]="true"
+                        searchPlaceholder="Min. 2 caratteri…"
+                        searchAriaLabel="Cerca variante"
+                        [invalid]="lineFieldInvalid(i, 'variantId')"
+                        (searchChange)="variantSearchDraft.set($event)"
+                        (valueChange)="onVariantSelect(i, $event)"
+                      />
+                      @if (lineFieldInvalid(i, 'variantId')) {
+                        <p class="doc-form__error">Seleziona una variante.</p>
+                      }
+                    </td>
+                    <td class="doc-form__cell doc-form__cell--editable">
+                      <input
+                        class="doc-form__input doc-form__input--table"
+                        type="text"
+                        formControlName="description"
+                        aria-label="Descrizione"
+                      />
+                    </td>
+                    <td class="doc-form__cell doc-form__cell--editable doc-form__num">
+                      <input
+                        class="doc-form__input doc-form__input--table doc-form__input--num"
+                        type="number"
+                        min="1"
+                        step="1"
+                        formControlName="quantity"
+                        aria-label="Quantità"
+                      />
+                    </td>
+                    <td class="doc-form__cell doc-form__cell--editable">
+                      <input
+                        class="doc-form__input doc-form__input--table"
+                        type="text"
+                        formControlName="serialNumbersText"
+                        placeholder="SN001, SN002"
+                        autocomplete="off"
+                        aria-label="Seriali"
+                      />
+                    </td>
+                    <td class="doc-form__cell doc-form__cell--actions">
+                      <button
+                        type="button"
+                        class="doc-form__line-remove"
+                        [disabled]="lines.length <= 1"
+                        aria-label="Rimuovi riga"
+                        (click)="removeLine(i)"
+                      >
+                        <i class="pi pi-trash" aria-hidden="true"></i>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Sotto lg la tabella sparisce (doc-form__table-wrap è desktop-only):
+               qui la stessa riga resta editabile come lista di campi. Stessi
+               controlli, stesso FormArray. -->
+          <div class="doc-form__cards" formArrayName="lines">
             @for (line of lines.controls; track line; let i = $index) {
               <div class="doc-form__line-block">
                 <div class="doc-form__line" [formGroupName]="i">
@@ -182,24 +365,27 @@
           </div>
         </section>
 
-        <div class="doc-form__grid">
-          <div class="doc-form__field doc-form__field--wide">
-            <label class="doc-form__label" for="tr-notes">Note</label>
-            <textarea
-              id="tr-notes"
-              class="doc-form__textarea"
-              rows="2"
-              formControlName="notes"
-            ></textarea>
-          </div>
-          <div class="doc-form__field doc-form__field--wide">
-            <label class="doc-form__label" for="tr-internal">Commento interno</label>
-            <textarea
-              id="tr-internal"
-              class="doc-form__textarea"
-              rows="2"
-              formControlName="internalComment"
-            ></textarea>
+        <!-- Banda finale: card note (nessun totale su questa maschera). -->
+        <div class="doc-form__footer-grid">
+          <div class="doc-form__footer-notes">
+            <div class="doc-form__field">
+              <label class="doc-form__label" for="tr-notes">Note</label>
+              <textarea
+                id="tr-notes"
+                class="doc-form__textarea"
+                rows="2"
+                formControlName="notes"
+              ></textarea>
+            </div>
+            <div class="doc-form__field">
+              <label class="doc-form__label" for="tr-internal">Commento interno</label>
+              <textarea
+                id="tr-internal"
+                class="doc-form__textarea"
+                rows="2"
+                formControlName="internalComment"
+              ></textarea>
+            </div>
           </div>
         </div>
 
@@ -209,6 +395,14 @@
       </fieldset>
 
       <div class="doc-form__actions">
+        <p class="doc-form__actions-note">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          <strong class="tabular-nums">
+            {{ lines.length }} {{ lines.length === 1 ? 'riga' : 'righe' }}
+          </strong>
+          <span class="doc-form__actions-note-sep">·</span>
+          Le giacenze si aggiornano alla conferma
+        </p>
         <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
         @if (isConfirmedEdit()) {
           <app-button type="submit" [disabled]="formReadOnly() || saving()"
@@ -218,6 +412,24 @@
           <app-button type="submit" [disabled]="saving()">Salva trasferimento</app-button>
         }
       </div>
+
+      <!-- Azioni documento su mobile/tablet (regole-stile-ui §5): coppia in
+           fondo al documento, scorre col contenuto. Il submit resta dentro il
+           form: ripristina il salvataggio che sotto md la barra desktop
+           nasconde. -->
+      @if (!formReadOnly()) {
+        <div class="doc-form__mobile-actions">
+          <!-- «Chiudi»: stesso handler di uscita di prima, cambia l'etichetta. -->
+          <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
+            Chiudi
+          </app-button>
+          @if (isConfirmedEdit()) {
+            <app-button type="submit" [disabled]="saving()">Salva modifiche</app-button>
+          } @else {
+            <app-button type="submit" [disabled]="saving()">Salva trasferimento</app-button>
+          }
+        </div>
+      }
     </form>
   }
 
