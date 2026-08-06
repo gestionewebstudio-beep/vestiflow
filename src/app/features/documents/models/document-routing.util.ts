@@ -1,5 +1,8 @@
-import { DocumentType } from '@core/models/document.model';
-import type { DocumentType as DocumentTypeValue } from '@core/models/document.model';
+import { DocumentStatus, DocumentType } from '@core/models/document.model';
+import type {
+  DocumentStatus as DocumentStatusValue,
+  DocumentType as DocumentTypeValue,
+} from '@core/models/document.model';
 
 import { isGoodsReceiptDocumentType } from './document-goods-receipt.util';
 import {
@@ -41,6 +44,46 @@ export function documentEditPath(doc: {
     return `/app/documents/registrazione-fattura/${doc.id}/edit`;
   }
   return `/app/documents/${doc.id}/edit`;
+}
+
+/**
+ * Percorso di apertura canonico di un documento fuori dalle sue liste (ricerca
+ * globale, link trasversali). Replica le scelte di `openDocument` della lista:
+ * la famiglia carico e le registrazioni fattura attive si aprono nel form
+ * (unica vista completa), i documenti di vendita nell'anteprima dettaglio
+ * dedicata, il resto nel dettaglio generico.
+ */
+export function documentOpenPath(doc: {
+  readonly id: string;
+  readonly type: DocumentTypeValue;
+  readonly status: DocumentStatusValue;
+}): string {
+  if (isGoodsReceiptDocumentType(doc.type)) {
+    return `/app/documents/${doc.id}/edit`;
+  }
+  if (doc.type === DocumentType.SupplierInvoice) {
+    return doc.status === DocumentStatus.Cancelled
+      ? `/app/documents/${doc.id}`
+      : `/app/documents/registrazione-fattura/${doc.id}/edit`;
+  }
+  switch (doc.type) {
+    case DocumentType.Quote:
+      return `/app/documents/quote/${doc.id}`;
+    case DocumentType.Proforma:
+      return `/app/documents/proforma/${doc.id}`;
+    case DocumentType.SalesDdt:
+      return `/app/documents/sales-ddt/${doc.id}`;
+    case DocumentType.InvoiceDraft:
+    case DocumentType.InvoiceAccompanying:
+      return `/app/documents/fattura/${doc.id}`;
+    case DocumentType.StoreSale:
+    case DocumentType.StoreReturn:
+      return `/app/documents/vendite-negozio/${doc.id}`;
+    case DocumentType.ManualUnload:
+      return `/app/documents/manual-unload/${doc.id}`;
+    default:
+      return `/app/documents/${doc.id}`;
+  }
 }
 
 /**

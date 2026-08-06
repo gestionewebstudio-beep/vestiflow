@@ -111,6 +111,23 @@ describe('ProductsService', () => {
     expect(result.total).toBe(1);
   });
 
+  it('list con search cerca anche su barcode variante (scanner alla mano)', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findMany.mockResolvedValue([]);
+    prisma.product.count.mockResolvedValue(0);
+
+    await service.list(tenantId, { page: 1, pageSize: 10, search: '8001234567890' });
+
+    const where = (prisma.product.findMany.mock.calls[0]?.[0] as { where: { OR: unknown[] } })
+      .where;
+    expect(where.OR).toContainEqual({
+      variants: { some: { barcode: { contains: '8001234567890', mode: 'insensitive' } } },
+    });
+    expect(where.OR).toContainEqual({
+      variants: { some: { sku: { contains: '8001234567890', mode: 'insensitive' } } },
+    });
+  });
+
   it('getById lancia NotFoundException se assente', async () => {
     const { service, prisma } = createService();
     prisma.product.findFirst.mockResolvedValue(null);
