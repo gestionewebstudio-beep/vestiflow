@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -56,6 +57,8 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
@@ -86,6 +89,7 @@ import {
 import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
 
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import {
   grossFromNetExact,
@@ -157,7 +161,12 @@ function todayIsoDate(): string {
     ProductFormComponent,
     DocumentMobilePanelComponent,
     DocumentLineCodeCellComponent,
+    ConfirmDialogComponent,
+    EditLockBannerComponent,
   ],
+  // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
+  // sbloccato e a rilasciarli all'uscita, così alla riapertura tornano protetti.
+  providers: [DocumentEditLockService],
   templateUrl: './supplier-order-form.component.html',
   styleUrl: './supplier-order-form.component.scss',
 })
@@ -176,6 +185,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly destroyRef = inject(DestroyRef);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
+  private readonly editLock = inject(DocumentEditLockService);
 
   protected readonly lineColumnsView = TableViewId.SupplierOrderLines;
 
@@ -203,6 +213,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
             if (order.status !== SupplierOrderStatus.Confirmed) {
               return 'not-found' as const;
             }
+            // Solo QUI, non dentro patchFormFromOrder: quel metodo viene
+            // richiamato anche dopo un salvataggio in modifica, e ricalcolare il
+            // blocco lì richiuderebbe la maschera in faccia a chi sta lavorando.
+            this.editLock.syncOnLoad(order.id);
             this.patchFormFromOrder(order);
             return 'ready' as const;
           }),
@@ -217,6 +231,31 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   protected readonly loading = computed(() => this.loadState() === 'loading');
   protected readonly loadError = computed(() => this.loadState() === 'error');
   protected readonly notEditable = computed(() => this.loadState() === 'not-found');
+
+  // ── Blocco alla riapertura (meccanismo condiviso di domain/documents) ──────
+  //
+  // Un ordine già registrato si riapre in sola lettura: per modificarlo si
+  // sblocca, e lo sblocco vale per la sessione di lavoro. Era l'unico documento
+  // del gestionale che si riapriva direttamente in scrittura — e la ragione per
+  // portarcelo non è il rischio contabile, che qui è basso, ma la prevedibilità:
+  // quattro documenti che si comportano allo stesso modo.
+  protected readonly formReadOnly = computed(
+    () => this.isEditMode() && this.loadState() === 'ready' && !this.editLock.unlocked(),
+  );
+  protected readonly unlockDialogOpen = signal(false);
+
+  protected requestUnlockEdit(): void {
+    this.unlockDialogOpen.set(true);
+  }
+
+  protected confirmUnlockEdit(): void {
+    this.unlockDialogOpen.set(false);
+    this.editLock.unlock(this.editOrderId());
+  }
+
+  protected cancelUnlockEdit(): void {
+    this.unlockDialogOpen.set(false);
+  }
 
   /** Anteprima numerazione dal numeratore supplier_order (solo creazione). */
   protected readonly nextReferencePreview = toSignal(
@@ -557,6 +596,18 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.markFormDirty();
+    });
+
+    // Sola lettura = form disabilitato. Un solo punto invece di una guardia in
+    // ogni gestore: lasciare i campi scrivibili e bloccare solo il salvataggio
+    // farebbe digitare a vuoto, che è il modo peggiore di dire «non si può».
+    effect(() => {
+      const locked = this.formReadOnly();
+      if (locked && this.form.enabled) {
+        this.form.disable({ emitEvent: false });
+      } else if (!locked && this.form.disabled) {
+        this.form.enable({ emitEvent: false });
+      }
     });
 
     // Nuovo ordine: la modalità costi iniziale viene dalla preferenza operatore
@@ -1255,6 +1306,12 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         // documento e un secondo salvataggio aggiorna invece di crearne un
         // altro. `replaceUrl` toglie /new dalla cronologia: il tasto Indietro
         // deve tornare alla lista, non a una maschera vuota.
+        //
+        // Il cambio di rotta ricrea l'istanza: lo sblocco va conservato e
+        // l'ordine appena creato marcato come sbloccato, altrimenti la maschera
+        // si richiuderebbe in faccia a chi l'ha appena scritto.
+        this.editLock.unlock(order.id);
+        this.editLock.preserveAcrossReload();
         void this.router.navigate([this.listPath, order.id, 'edit'], { replaceUrl: true });
       },
       error: (err: unknown) => {

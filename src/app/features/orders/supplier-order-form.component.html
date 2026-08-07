@@ -226,6 +226,13 @@
         </div>
       }
 
+      <!-- Blocco alla riapertura: un ordine già registrato si apre protetto,
+           come ogni altro documento del gestionale. Stesso componente delle
+           altre maschere — il banner non si riscrive per feature. -->
+      @if (formReadOnly()) {
+        <app-edit-lock-banner (unlock)="requestUnlockEdit()" />
+      }
+
       <section class="doc-form__lines" aria-labelledby="po-lines-title">
         <div class="doc-form__lines-head">
           <h2 id="po-lines-title" class="doc-form__subtitle">Righe ordine</h2>
@@ -833,3 +840,12 @@
     />
   }
 </app-slide-panel>
+
+<!-- Sblocco di un ordine gia' registrato: stesso dialogo delle altre maschere. -->
+<app-confirm-dialog
+  [(open)]="unlockDialogOpen"
+  title="Sblocca modifica ordine"
+  message="Modificando l'ordine, VestiFlow aggiornerà lo storico della modifica."
+  confirmLabel="Sblocca e modifica"
+  (confirmed)="confirmUnlockEdit()"
+/>
