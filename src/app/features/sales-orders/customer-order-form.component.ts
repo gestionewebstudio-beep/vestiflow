@@ -1725,6 +1725,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * l'operatore a comporre l'ordine riga per riga.
    */
   protected onLineDrop(event: CdkDragDrop<unknown>): void {
+    // Guardia, non ridondanza: il template disabilita già il drop su documento
+    // protetto, ma quella è una riga di binding che si perde in un refactor
+    // senza che niente diventi rosso. Il riordino di un documento bloccato non
+    // sporcherebbe nemmeno il form (markFormDirty gatea su formReadOnly), e
+    // resterebbe quindi una modifica invisibile in attesa del primo salvataggio.
+    if (this.formReadOnly()) {
+      return;
+    }
     const { previousIndex, currentIndex } = event;
     if (previousIndex === currentIndex) {
       return;

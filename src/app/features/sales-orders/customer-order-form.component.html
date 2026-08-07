@@ -1198,7 +1198,16 @@
                     }
                   </tr>
                 </thead>
-                <tbody formArrayName="lines" cdkDropList (cdkDropListDropped)="onLineDrop($event)">
+                <!-- Il riordino va disabilitato a mano: il <fieldset disabled>
+                     sopra ferma i controlli del form, non il drag & drop, che
+                     controllo non è. Su un documento protetto le righe si
+                     sarebbero ancora trascinate. -->
+                <tbody
+                  formArrayName="lines"
+                  cdkDropList
+                  [cdkDropListDisabled]="formReadOnly()"
+                  (cdkDropListDropped)="onLineDrop($event)"
+                >
                   @for (line of lines.controls; track line; let i = $index) {
                     <tr
                       class="doc-form__table-row"

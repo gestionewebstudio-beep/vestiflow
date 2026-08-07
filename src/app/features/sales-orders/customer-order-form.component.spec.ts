@@ -482,6 +482,11 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
     readonly canUnlockDocument: () => boolean;
     confirmUnlockEdit: () => void;
     saveDocument: () => void;
+    onLineDrop: (event: { previousIndex: number; currentIndex: number }) => void;
+    readonly lines: {
+      length: number;
+      at: (i: number) => { controls: Record<string, { value: unknown }> };
+    };
   }
 
   async function apri(options: FormOptions) {
@@ -550,6 +555,24 @@ describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
 
     expect(updateDocument).toHaveBeenCalled();
     expect(form.formReadOnly()).toBe(true);
+  });
+
+  // Il <fieldset disabled> ferma i controlli del form, non il drag & drop: su un
+  // documento protetto le righe si sarebbero riordinate lo stesso, e senza
+  // nemmeno sporcare il form — una modifica invisibile in attesa del primo
+  // salvataggio.
+  it('su un documento protetto il riordino delle righe non ha effetto', async () => {
+    const form = await apri({
+      kind: 'sales-ddt',
+      id: 'doc-1',
+      document: documentoConfermato('sales_ddt'),
+    });
+    expect(form.formReadOnly()).toBe(true);
+    expect(form.lines.length).toBe(2);
+
+    form.onLineDrop({ previousIndex: 0, currentIndex: 1 });
+
+    expect(form.lines.at(0).controls['productName']!.value).toBe('Prima riga');
   });
 
   // La sola lettura di un ordine da canale esterno è una proprietà del
