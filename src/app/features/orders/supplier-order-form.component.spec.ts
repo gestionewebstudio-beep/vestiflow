@@ -233,6 +233,43 @@ describe('SupplierOrderFormComponent', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Errore del server');
   });
 
+  // ── Il salvataggio non fallisce mai in silenzio ────────────────────────────
+  //
+  // Il pulsante marcava i campi e usciva zitto quando il form era invalido:
+  // all'operatore non succedeva letteralmente NULLA. E con le colonne che
+  // scorrono in orizzontale il campo incriminato può stare fuori schermo,
+  // quindi non c'era nemmeno modo di capire da soli cosa mancasse.
+  it('dice cosa manca invece di non fare nulla, e nomina la riga', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup();
+
+    await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+    await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+
+    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
+    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
+    await user.click(
+      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+    );
+
+    // L'articolo di prova non ha costo d'anagrafica: la riga resta senza costo.
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Riga 1');
+    expect(screen.getByRole('alert')).toHaveTextContent('costo');
+    expect(createOrder).not.toHaveBeenCalled();
+  });
+
+  it('senza fornitore lo dice, invece di restare muto', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup();
+
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('fornitore');
+    expect(createOrder).not.toHaveBeenCalled();
+  });
+
   // ── Il selettore netto/ivato cambia la VISTA, non il valore ────────────────
   //
   // Prima non convertiva affatto: cambiava il significato del numero senza

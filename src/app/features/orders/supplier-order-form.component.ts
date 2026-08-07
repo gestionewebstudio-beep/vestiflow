@@ -1122,9 +1122,20 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    */
   protected discountInvalid(index: number): boolean {
     const control = this.lines.at(index).controls.discountPercent;
-    const touched = control.touched || control.dirty;
-    const raw = control.value.trim();
-    if (!touched || !raw) {
+    if (!control.touched && !control.dirty) {
+      return false;
+    }
+    return this.discountValueInvalid(control.value);
+  }
+
+  /**
+   * La regola dello sconto vive qui e basta: la cella rossa e il messaggio che
+   * blocca il salvataggio devono dire la stessa cosa, e due copie della stessa
+   * condizione prima o poi divergono.
+   */
+  private discountValueInvalid(value: string): boolean {
+    const raw = value.trim();
+    if (!raw) {
       return false;
     }
     return cascadeDiscountMultiplier(raw) >= 1 && parseEffectiveDiscountPercent(raw) === 0;
@@ -1163,19 +1174,18 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     if (this.saving()) {
       return;
     }
-    if (this.form.invalid || this.hasInvalidCost() || this.hasInvalidDiscount()) {
+    const problem = this.validationProblem();
+    if (problem) {
       this.form.markAllAsTouched();
-      if (onSaved) {
-        // «Salva e chiudi» dal dialogo di uscita: l'errore va mostrato lì.
-        this._submitState.set({
-          status: 'error',
-          error: {
-            kind: AppErrorKind.Validation,
-            message:
-              'Impossibile salvare: controlla fornitore e righe (campi obbligatori o valori non validi).',
-          },
-        });
-      }
+      // L'errore si mostra SEMPRE, non solo quando il salvataggio arriva dal
+      // dialogo di uscita. Prima il pulsante «Salva ordine» marcava i campi e
+      // usciva zitto: con le colonne che scorrono in orizzontale il campo
+      // incriminato può stare fuori schermo, quindi all'operatore non succedeva
+      // letteralmente nulla e non c'era modo di capire perché.
+      this._submitState.set({
+        status: 'error',
+        error: { kind: AppErrorKind.Validation, message: problem },
+      });
       return;
     }
     const raw = this.form.getRawValue();
@@ -1308,22 +1318,43 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.navHistory.backOr(this.listPath);
   }
 
-  private hasInvalidCost(): boolean {
-    return this.lines.controls.some((line) => {
-      const parsed = parseMoneyInput(line.controls.unitCost.value, this.currency);
-      return parsed === null || parsed.amountMinor < 0;
-    });
-  }
-
-  private hasInvalidDiscount(): boolean {
-    return this.lines.controls.some((line) => {
-      const value = line.controls.discountPercent.value.trim();
-      if (!value) {
-        return false;
+  /**
+   * Cosa impedisce il salvataggio, detto all'operatore nei suoi termini: quale
+   * riga e quale campo. Un «controlla i campi obbligatori» generico costringe a
+   * cercare, e su una tabella che scorre in orizzontale il campo può non essere
+   * nemmeno visibile.
+   *
+   * Ritorna `null` quando si può salvare.
+   */
+  private validationProblem(): string | null {
+    if (this.form.controls.supplierId.invalid) {
+      return 'Manca il fornitore: sceglilo in testata.';
+    }
+    if (this.form.controls.orderDate.invalid) {
+      return 'Manca la data del documento.';
+    }
+    for (let index = 0; index < this.lines.length; index++) {
+      const line = this.lines.at(index);
+      const riga = `Riga ${index + 1}`;
+      if (line.controls.variantId.invalid) {
+        return `${riga}: manca l'articolo. Cercalo per codice, SKU, EAN o codice fornitore, oppure crealo dalla riga.`;
       }
-      const parsed = Number(value);
-      return !Number.isInteger(parsed) || parsed < 0 || parsed > 100;
-    });
+      const quantity = Number(line.controls.orderedQuantity.value);
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        return `${riga}: la quantità deve essere un numero intero maggiore di zero.`;
+      }
+      const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
+      if (cost === null) {
+        return `${riga}: manca il costo. Se l'articolo non ne ha uno in anagrafica va scritto qui.`;
+      }
+      if (cost.amountMinor < 0) {
+        return `${riga}: il costo non può essere negativo.`;
+      }
+      if (this.discountValueInvalid(line.controls.discountPercent.value)) {
+        return `${riga}: lo sconto non è leggibile. Usa «10» oppure «4+10» per gli sconti a cascata.`;
+      }
+    }
+    return null;
   }
 
   private createLine() {
