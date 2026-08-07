@@ -4,7 +4,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { DocumentStatus, DocumentType } from '@prisma/client';
+import { DocumentStatus, DocumentType, Prisma } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
@@ -309,6 +309,39 @@ describe('DocumentsService', () => {
       const data = prisma.document.create.mock.calls[0]![0]!.data;
       expect(data.number).toBe(100);
       expect(data.reference).toBe('DDT-0100');
+    });
+
+    // Il payload riga nasce da `...rest` su ComputedLine: un campo di appoggio
+    // al calcolo che nessuno esclude finisce dritto a Prisma, che rifiuta
+    // l'INTERA scrittura con «Unknown argument» — 500 a ogni salvataggio, per
+    // qualsiasi tipo documento. Il mock accetta tutto, quindi il confine lo
+    // verifica il modello: le chiavi del payload devono essere colonne vere.
+    it('manda a Prisma solo campi che sono colonne di document_lines', async () => {
+      const { service } = createService(prisma);
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
+
+      await service.create(tenantId, {
+        type: DocumentType.proforma,
+        documentDate: '2026-03-01',
+        // Prezzo con coda decimale: e' il caso che ha introdotto il campo
+        // d'appoggio lineNetExactMinor (§sei decimali).
+        lines: [
+          { description: 'Capo', quantity: 2, unitPriceMinor: 2459.0164, vatRatePercent: 22 },
+        ],
+      });
+
+      const documentLine = Prisma.dmmf.datamodel.models.find((m) => m.name === 'DocumentLine');
+      const columns = new Set((documentLine?.fields ?? []).map((field) => field.name));
+      const data = prisma.document.create.mock.calls[0]![0]!.data;
+      const lineData: Record<string, unknown> = data.lines.create[0];
+
+      expect(columns.size).toBeGreaterThan(0);
+      expect(Object.keys(lineData).filter((key) => !columns.has(key))).toEqual([]);
     });
 
     it('senza numero imposto lascia numero e riferimento alla conferma', async () => {
