@@ -6,6 +6,19 @@ import {
   type BarcodeScanInput,
 } from '@core/utils/parse-barcode-scan-input.util';
 import { ProductService } from '@domain/products/services/product.service';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+
+/**
+ * L'unico elemento che soddisfa il criterio, oppure `null`. Zero risultati e
+ * due risultati portano allo stesso esito: non c'è un articolo da richiamare.
+ */
+function onlyMatch(
+  rows: readonly VariantSummary[],
+  predicate: (row: VariantSummary) => boolean,
+): string | null {
+  const matches = rows.filter(predicate);
+  return matches.length === 1 ? matches[0]!.variantId : null;
+}
 
 /** Opzioni di risoluzione: filtri di contesto + fallback locale del modulo. */
 export interface BarcodeResolveOptions {
@@ -64,7 +77,18 @@ export class BarcodeLookupService {
     );
   }
 
-  /** Ricerca libera limitata: accetta SOLO corrispondenze esatte barcode/SKU. */
+  /**
+   * Ricerca libera limitata: accetta SOLO corrispondenze esatte, su tutte e
+   * quattro le chiavi di identità dell'articolo.
+   *
+   * L'ordine non è casuale — è dal più specifico al più condiviso. L'EAN
+   * identifica la variante; lo SKU pure, ma è nostro e riscrivibile; il codice
+   * articolo identifica il PRODOTTO, quindi può valere per più varianti; il
+   * codice fornitore vive sul legame Fornitore↔Variante, e fornitori diversi
+   * possono usare lo stesso codice per articoli diversi. Sugli ultimi due si
+   * accetta solo un risultato non ambiguo: indovinare fra due articoli è peggio
+   * che lasciare la scelta a chi sta ordinando.
+   */
   private searchExactVariantId(
     code: string,
     options: BarcodeResolveOptions,
@@ -84,7 +108,13 @@ export class BarcodeLookupService {
           }
           const normalized = code.toUpperCase();
           const exactSku = rows.find((row) => row.sku.trim().toUpperCase() === normalized);
-          return exactSku?.variantId ?? null;
+          if (exactSku) {
+            return exactSku.variantId;
+          }
+          return (
+            onlyMatch(rows, (row) => row.articleCode?.trim().toUpperCase() === normalized) ??
+            onlyMatch(rows, (row) => row.supplierSku?.trim().toUpperCase() === normalized)
+          );
         }),
         catchError(() => of(null)),
       );

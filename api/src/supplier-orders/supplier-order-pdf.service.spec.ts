@@ -1,4 +1,4 @@
-import { SupplierOrderStatus } from '@prisma/client';
+import { Prisma, SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SupplierOrderPdfService } from './supplier-order-pdf.service';
@@ -40,9 +40,11 @@ describe('SupplierOrderPdfService', () => {
         description: 'T-shirt Basic — M / Bianco',
         orderedQuantity: 3,
         receivedQuantity: 0,
-        unitCostMinor: 10000,
-        enteredUnitCostMinor: 10000,
-        discountPercent: 0,
+        // Colonne NUMERIC: la finzione di prova deve portare Decimal come li
+        // porta il database, altrimenti prova un percorso che non esiste.
+        unitCostMinor: new Prisma.Decimal(10000),
+        enteredUnitCostMinor: new Prisma.Decimal(10000),
+        discountPercent: new Prisma.Decimal(0),
         vatCodeId: 'vat-22',
         vatSnapshot: { code: '22', ratePercent: 22 },
         lineTotalMinor: 30000,

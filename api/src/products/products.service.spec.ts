@@ -202,6 +202,46 @@ describe('ProductsService', () => {
     });
   });
 
+  // Il fornitore manda il suo listino con i SUOI codici: quello è il codice che
+  // si ha sotto gli occhi mentre si compila l'ordine, quindi è una chiave di
+  // ricerca come SKU ed EAN, non un dato da sola lettura.
+  it('findVariantByCode risolve per codice fornitore', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findFirst.mockResolvedValue(null);
+    prisma.productVariant.findMany
+      // Codice articolo: nessun riscontro.
+      .mockResolvedValueOnce([])
+      // Codice fornitore: uno solo, quindi non è ambiguo.
+      .mockResolvedValueOnce([
+        {
+          id: 'var-9',
+          productId: 'prod-9',
+          sku: 'SKU-9',
+          barcode: null,
+          product: { id: 'prod-9', name: 'Camicia', managesStock: true },
+        },
+      ]);
+
+    await expect(service.findVariantByCode(tenantId, 'FORN-123')).resolves.toMatchObject({
+      variantId: 'var-9',
+      productName: 'Camicia',
+    });
+  });
+
+  // Fornitori diversi possono usare lo stesso codice per articoli diversi:
+  // meglio nessun richiamo che il richiamo sbagliato.
+  it('findVariantByCode non sceglie se il codice fornitore è ambiguo', async () => {
+    const { service, prisma } = createService();
+    prisma.productVariant.findFirst.mockResolvedValue(null);
+    prisma.productVariant.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'var-a' }, { id: 'var-b' }]);
+
+    await expect(service.findVariantByCode(tenantId, 'FORN-123')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
   it('delete rifiuta prodotto con movimenti di magazzino', async () => {
     const { service, prisma } = createService();
     prisma.product.findFirst.mockResolvedValue({

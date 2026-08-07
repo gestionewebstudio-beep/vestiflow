@@ -151,12 +151,20 @@ export function ensureQuickModeDraft(
   };
 }
 
-/** Prefill per creazione prodotto da pannello embedded (es. riga arrivo merce). */
+/**
+ * Prefill per creazione prodotto da pannello embedded (es. riga arrivo merce).
+ *
+ * I campi identità della riga non sono informativi: finché l'articolo non
+ * esiste sono il dato che finirà in anagrafica, quindi quello che l'operatore
+ * ha digitato nella riga deve arrivare qui invece di essere ridigitato.
+ */
 export interface ProductEmbeddedCreatePrefill {
   readonly name?: string;
   readonly description?: string;
+  readonly articleCode?: string;
   readonly sku?: string;
   readonly barcode?: string;
+  readonly unitOfMeasure?: string;
   readonly purchasePriceMajor?: number | null;
   readonly sellingPriceMajor?: number | null;
   readonly compareAtPriceMajor?: number | null;
@@ -185,6 +193,8 @@ export function productFormDraftFromEmbeddedPrefill(
         ...base.general,
         name,
         description: prefill.description?.trim() || base.general.description,
+        articleCode: prefill.articleCode?.trim() || base.general.articleCode,
+        unitOfMeasure: prefill.unitOfMeasure?.trim() || base.general.unitOfMeasure,
         defaultVatCodeId: prefill.defaultVatCodeId ?? base.general.defaultVatCodeId,
         sellingPrice,
         // Prezzo Shopify precompilato dal prezzo articolo (§B).

@@ -102,4 +102,75 @@ describe('mapSupplierOrderApiRow', () => {
     expect(order.lines[0]?.enteredUnitCost.amountMinor).toBe(500);
     expect(order.lines[0]?.lineTotal.amountMinor).toBe(1000);
   });
+
+  // ── Le colonne NUMERIC arrivano come stringhe ──────────────────────────────
+  // Prisma serializza `NUMERIC` in stringa decimale, non in numero: senza
+  // conversione il costo resterebbe testo e ogni calcolo a valle lo tratterebbe
+  // per quello che sembra, non per quello che vale.
+  it('converte in numero i costi e lo sconto che arrivano come stringhe decimali', () => {
+    const order = mapSupplierOrderApiRow({
+      id: 'ord-3',
+      tenantId: 'tenant-1',
+      reference: 'OF-2026-0003',
+      supplierId: 'sup-1',
+      supplierName: 'Fornitore ABC',
+      status: SupplierOrderStatus.Confirmed,
+      currency: 'EUR',
+      totalMinor: 502,
+      createdAt: '2026-06-01T00:00:00.000Z',
+      updatedAt: '2026-06-01T00:00:00.000Z',
+      lines: [
+        {
+          id: 'line-1',
+          orderId: 'ord-3',
+          variantId: 'var-1',
+          sku: 'SKU-1',
+          orderedQuantity: 1,
+          receivedQuantity: 0,
+          // 5,02 ivati al 22%: il netto canonico porta la coda dello scorporo.
+          unitCostMinor: '411.4754',
+          enteredUnitCostMinor: '502.0000',
+          discountPercent: '13.6000',
+        },
+      ],
+    });
+
+    expect(order.lines[0]?.unitCost.amountMinor).toBe(411.4754);
+    expect(order.lines[0]?.enteredUnitCost.amountMinor).toBe(502);
+    expect(order.lines[0]?.discountPercent).toBe(13.6);
+  });
+
+  // ── La trappola del ripiego ────────────────────────────────────────────────
+  // `enteredUnitCostMinor ?? unitCostMinor` deve ripiegare PRIMA della
+  // conversione. Convertire per primo — `Number(entered) ?? unitCost` — farebbe
+  // valere ZERO un costo assente, perché `Number(null)` è 0 e `0 ?? x` resta 0:
+  // l'ordine si riaprirebbe con la riga a costo nullo, senza dire niente.
+  it('con costo digitato assente ripiega sul netto canonico, non su zero', () => {
+    const order = mapSupplierOrderApiRow({
+      id: 'ord-4',
+      tenantId: 'tenant-1',
+      reference: 'OF-2026-0004',
+      supplierId: 'sup-1',
+      supplierName: 'Fornitore ABC',
+      status: SupplierOrderStatus.Confirmed,
+      currency: 'EUR',
+      totalMinor: 1000,
+      createdAt: '2026-06-01T00:00:00.000Z',
+      updatedAt: '2026-06-01T00:00:00.000Z',
+      lines: [
+        {
+          id: 'line-1',
+          orderId: 'ord-4',
+          variantId: 'var-1',
+          sku: 'SKU-1',
+          orderedQuantity: 2,
+          receivedQuantity: 0,
+          unitCostMinor: '500.0000',
+          enteredUnitCostMinor: null,
+        },
+      ],
+    });
+
+    expect(order.lines[0]?.enteredUnitCost.amountMinor).toBe(500);
+  });
 });

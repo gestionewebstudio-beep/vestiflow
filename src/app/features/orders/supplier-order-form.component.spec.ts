@@ -60,8 +60,21 @@ function tableColumnPreferenceMock() {
   };
 }
 
+const VAT_22 = {
+  id: 'vat-22',
+  code: '22',
+  description: 'Aliquota ordinaria',
+  ratePercent: 22,
+  nonDeductiblePercent: 0,
+  calculationMode: 'standard',
+  vatAffectsSupplierTotal: true,
+  isActive: true,
+  isDefault: true,
+  usageScope: 'both',
+};
+
 describe('SupplierOrderFormComponent', () => {
-  async function setup(options?: { createFails?: boolean }) {
+  async function setup(options?: { createFails?: boolean; vatCodes?: readonly unknown[] }) {
     const createOrder = options?.createFails
       ? vi.fn(() =>
           throwError(() => ({
@@ -109,7 +122,7 @@ describe('SupplierOrderFormComponent', () => {
         },
         {
           provide: VatCodeService,
-          useValue: { list: () => of([]) },
+          useValue: { list: () => of(options?.vatCodes ?? []) },
         },
         {
           provide: PaymentOptionsService,
@@ -218,5 +231,78 @@ describe('SupplierOrderFormComponent', () => {
       }),
     );
     expect(await screen.findByRole('alert')).toHaveTextContent('Errore del server');
+  });
+
+  // ── Il selettore netto/ivato cambia la VISTA, non il valore ────────────────
+  //
+  // Prima non convertiva affatto: cambiava il significato del numero senza
+  // cambiare il numero. Lo stesso «5,02» passava da lordo a netto e l'ordine
+  // valeva d'improvviso il 22% in meno, senza che nulla si muovesse a schermo.
+  //
+  // La correzione non è «convertire il valore mostrato» — quella perde il
+  // centesimo nel 18% dei costi al 22%. È tenere il netto canonico in memoria e
+  // ridisegnare il campo: passando avanti e indietro il numero non si muove
+  // perché non viene mai ricostruito da ciò che si vede.
+  async function switchCostMode(user: ReturnType<typeof userEvent.setup>, label: string) {
+    await user.click(screen.getByRole('button', { name: 'Modalità costi del documento' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: label }));
+  }
+
+  it('il giro ivato → netto → ivato rimette lo stesso costo ivato', async () => {
+    const user = userEvent.setup();
+    await setup({ vatCodes: [VAT_22] });
+
+    // Serve un articolo sulla riga: è il richiamo a portarle il Codice IVA, e
+    // senza aliquota non c'è nessuno scorporo da fare.
+    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
+    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
+    await user.click(
+      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+    );
+
+    await switchCostMode(user, 'Usa costi ivati');
+
+    const cost = screen.getByPlaceholderText('0,00');
+    await user.clear(cost);
+    // 5,02 al 22% è uno dei costi che il giro arrotondato perdeva: il netto
+    // vale 411,4754 centesimi, e chi lo arrotondava a 411 tornava a 5,01.
+    await user.type(cost, '5,02');
+
+    await switchCostMode(user, 'Usa costi netti');
+    expect(cost).toHaveValue('4,11');
+
+    await switchCostMode(user, 'Usa costi ivati');
+    expect(cost).toHaveValue('5,02');
+  });
+
+  it('al salvataggio manda il costo esatto, non i due decimali che si leggono', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup({ vatCodes: [VAT_22] });
+
+    await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+    await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+
+    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
+    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
+    await user.click(
+      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+    );
+
+    await switchCostMode(user, 'Usa costi ivati');
+    const cost = screen.getByPlaceholderText('0,00');
+    await user.clear(cost);
+    await user.type(cost, '5,02');
+
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+
+    // Il valore parte esatto: è il server a rifare lo scorporo e a ottenere lo
+    // stesso netto. Mandare «502» arrotondato funzionerebbe qui e si romperebbe
+    // appena l'operatore passa a netto prima di salvare.
+    expect(createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        costEntryMode: 'vat_included',
+        lines: [expect.objectContaining({ enteredUnitCostMinor: 502 })],
+      }),
+    );
   });
 });

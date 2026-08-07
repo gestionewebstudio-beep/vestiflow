@@ -27,7 +27,12 @@ import { costEntryModeToPricesIncludeVat } from '../documents/document-price-mod
 import { formatDocumentReference } from '../documents/document-totals.util';
 import { defaultCounterSeries, nextDocumentNumber } from '../documents/document-numbering.util';
 import { computeGoodsReceiptTotals } from '../documents/goods-receipt-vat.util';
-import { computeVatLineAmounts } from '../vat/vat-line-calculation.util';
+import {
+  computeVatLineAmounts,
+  entryIncludesVat,
+  netFromGrossExact,
+} from '../vat/vat-line-calculation.util';
+import { toStorableMinor } from '../common/money.util';
 import { VatCodesService, type VatCodeWithNature } from '../vat/vat-codes.service';
 import type {
   CreateSupplierOrderDto,
@@ -443,13 +448,26 @@ export class SupplierOrdersService {
         discountPercent,
         vat,
       });
+      // Il costo unitario NETTO è il valore canonico della riga: è da lui che il
+      // campo si ridisegna alla riapertura, quindi deve conservare la coda dello
+      // scorporo. `amounts.unitNetMinor` la perde perché arrotonda al centesimo
+      // — giusto per gli importi che si mostrano, sbagliato per quello che si
+      // memorizza: 5,02 ivati al 22% tornerebbero 5,01 (§sei decimali).
+      //
+      // Il motore condiviso NON si tocca: lo usano anche Arrivo merce e Vendita
+      // al banco, e cambiarlo sposterebbe in silenzio ogni documento già
+      // registrato. Cambia solo da dove nasce questo singolo valore; imponibile
+      // e imposta di riga restano quelli che il motore ha calcolato.
+      const unitCostMinor = entryIncludesVat(costEntryMode, vat)
+        ? toStorableMinor(netFromGrossExact(line.enteredUnitCostMinor, vat.ratePercent))
+        : toStorableMinor(line.enteredUnitCostMinor);
       return {
         variantId: line.variantId,
         sku: variant.sku ?? '',
         description: line.description?.trim() || variant.product.name,
         orderedQuantity: line.orderedQuantity,
-        unitCostMinor: amounts.unitNetMinor,
-        enteredUnitCostMinor: line.enteredUnitCostMinor,
+        unitCostMinor,
+        enteredUnitCostMinor: toStorableMinor(line.enteredUnitCostMinor),
         discountPercent,
         vatCodeId: vatCode?.id ?? null,
         vatSnapshot: vatCode ? this.vatCodes.buildSnapshot(vatCode) : null,
@@ -469,9 +487,11 @@ export class SupplierOrdersService {
       sku: line.sku,
       description: line.description,
       orderedQuantity: line.orderedQuantity,
-      unitCostMinor: line.unitCostMinor,
-      enteredUnitCostMinor: line.enteredUnitCostMinor,
-      discountPercent: line.discountPercent,
+      // Colonne NUMERIC: passano da Prisma.Decimal, altrimenti il float arriva
+      // al driver con la sua approssimazione binaria al posto del valore esatto.
+      unitCostMinor: new Prisma.Decimal(line.unitCostMinor),
+      enteredUnitCostMinor: new Prisma.Decimal(line.enteredUnitCostMinor),
+      discountPercent: new Prisma.Decimal(line.discountPercent),
       lineTotalMinor: line.lineTotalMinor,
       vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
       ...(line.vatCodeId ? { vatCode: { connect: { id: line.vatCodeId } } } : {}),

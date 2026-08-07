@@ -17,6 +17,25 @@ export function roundToMinor(amountMinor: number): number {
   return Math.round(amountMinor);
 }
 
+/** Cifre di centesimo che una colonna `NUMERIC(16,6)` sa memorizzare. */
+const MINOR_TAIL_DECIMALS = 4;
+
+/**
+ * Riduce la coda decimale a quello che la colonna sa tenere: 4 cifre di
+ * centesimo, cioè 6 decimali di euro. NON è l'arrotondamento d'uscita — è la
+ * forma memorizzabile del valore esatto. Oltre quelle cifre non c'è precisione,
+ * c'è il rumore del float (`25 / 1.22` in binario non finisce mai), e il
+ * database rifiuterebbe la scala.
+ *
+ * Gemella di `toStorableMinor` del frontend (`core/utils/money.util.ts`): le due
+ * sponde devono ridurre la coda allo stesso modo, altrimenti lo stesso importo
+ * salvato dalle due parti differisce nell'ultima cifra.
+ */
+export function toStorableMinor(amountMinor: number): number {
+  const factor = 10 ** MINOR_TAIL_DECIMALS;
+  return Math.round(amountMinor * factor) / factor;
+}
+
 /** Stesso importo *per l'operatore*: confronto al centesimo. */
 export function sameAmountAtCent(a: number, b: number): boolean {
   return Math.round(a) === Math.round(b);

@@ -1042,11 +1042,14 @@ model SupplierOrderLine {
   orderedQuantity  Int    @map("ordered_quantity")
   receivedQuantity Int    @default(0) @map("received_quantity")
   /// Costo unitario NETTO canonico in unità minori (riferimento fornitore).
-  unitCostMinor    Int    @map("unit_cost_minor")
+  /// Porta la coda decimale dello scorporo IVA (§sei decimali): è quella a far
+  /// tornare identico il costo ivato digitato quando lo si rimostra ivato.
+  unitCostMinor    Decimal @map("unit_cost_minor") @db.Decimal(16, 6)
   /// Costo digitato dall'utente, nella modalità costEntryMode della testata.
-  enteredUnitCostMinor Int? @map("entered_unit_cost_minor")
-  /// Sconto riga percentuale intero (come DocumentLine.discountPercent).
-  discountPercent  Int    @default(0) @map("discount_percent")
+  enteredUnitCostMinor Decimal? @map("entered_unit_cost_minor") @db.Decimal(16, 6)
+  /// Sconto riga a cascata (come DocumentLine.discountPercent): «4+10%» vale
+  /// 13,6% e non 14 — i decimali servono a non arrotondarlo al salvataggio.
+  discountPercent  Decimal @default(0) @map("discount_percent") @db.Decimal(7, 4)
   vatCodeId        String? @map("vat_code_id") @db.Uuid
   /// Snapshot Codice IVA (stesso formato di DocumentLine.vatSnapshot).
   vatSnapshot      Json?  @map("vat_snapshot")
