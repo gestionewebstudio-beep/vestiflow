@@ -51,7 +51,23 @@ export class DocumentEditLockService {
    * `isConfirmedEdit()`, quindi il comportamento non cambia.
    */
   syncOnLoad(docId: string | null | undefined): void {
-    this._unlocked.set(docId ? SESSION_UNLOCKED_DOC_IDS.has(docId) : false);
+    if (docId && SESSION_UNLOCKED_DOC_IDS.has(docId)) {
+      // ADOZIONE, ed è la riga senza la quale il blocco non si richiude mai.
+      //
+      // Lo sblocco può arrivare da un'istanza precedente: il passaggio
+      // new → /:id/edit distrugge la maschera e ne ricrea un'altra. Se questa
+      // istanza si limitasse a leggerlo, nessuno lo rilascerebbe più
+      // all'uscita — `unlockedByThisInstance` resterebbe vuoto — e l'id
+      // resterebbe nel set di sessione per sempre: da lì in poi ogni
+      // riapertura di quel documento lo troverebbe sbloccato.
+      //
+      // Adottandolo, è questa istanza a rispondere del rilascio: quando esce,
+      // il documento torna protetto.
+      this.unlockedByThisInstance.add(docId);
+      this._unlocked.set(true);
+      return;
+    }
+    this._unlocked.set(false);
   }
 
   /** Sblocco esplicito richiesto dall'utente. */
