@@ -1,10 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { AuthService } from '@core/auth';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppErrorKind } from '@core/models/app-error.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
@@ -75,6 +75,21 @@ const VAT_22 = {
 };
 
 describe('SupplierOrderFormComponent', () => {
+  // jsdom non implementa <dialog>: senza questo, aprire il dialogo di sblocco
+  // esplode con «showModal is not a function». È un limite dell'ambiente di
+  // prova, non del componente.
+  beforeAll(() => {
+    const proto = globalThis.HTMLDialogElement?.prototype;
+    if (proto && !proto.showModal) {
+      proto.showModal = function showModal(this: HTMLDialogElement) {
+        this.open = true;
+      };
+      proto.close = function close(this: HTMLDialogElement) {
+        this.open = false;
+      };
+    }
+  });
+
   async function setup(options?: { createFails?: boolean; vatCodes?: readonly unknown[] }) {
     const createOrder = options?.createFails
       ? vi.fn(() =>
@@ -233,6 +248,93 @@ describe('SupplierOrderFormComponent', () => {
     );
     expect(await screen.findByRole('alert')).toHaveTextContent('Errore del server');
   });
+
+  // ── Il ciclo del blocco su un ordine già registrato ────────────────────────
+  //
+  // Apre protetto → si sblocca → si modifica → si salva → torna protetto, senza
+  // mai uscire dal documento. È il giro che a mano sembrava a posto due volte
+  // mentre non lo era: la prima perché il blocco non si agganciava, la seconda
+  // perché non si richiudeva mai dopo il primo sblocco.
+  async function setupEdit() {
+    const updateOrder = vi.fn(() => of({ id: 'po-1', status: SupplierOrderStatus.Confirmed }));
+    const ordine = {
+      id: 'po-1',
+      reference: 'OF-2026-0001',
+      supplierId: 'sup-1',
+      supplierName: 'Tessuti Italia',
+      status: SupplierOrderStatus.Confirmed,
+      currency: 'EUR',
+      costEntryMode: 'vat_excluded' as const,
+      orderDate: '2026-08-01T00:00:00.000Z',
+      lines: [
+        {
+          id: 'l-1',
+          variantId: 'var-1',
+          sku: 'MAG-M-ROSSO',
+          description: 'Maglietta',
+          orderedQuantity: 2,
+          receivedQuantity: 0,
+          unitCost: { amountMinor: 1250, currencyCode: 'EUR' as const },
+          enteredUnitCost: { amountMinor: 1250, currencyCode: 'EUR' as const },
+          discountPercent: 0,
+          lineTotal: { amountMinor: 2500, currencyCode: 'EUR' as const },
+        },
+      ],
+      subtotal: { amountMinor: 2500, currencyCode: 'EUR' as const },
+      tax: { amountMinor: 0, currencyCode: 'EUR' as const },
+      totalAmount: { amountMinor: 2500, currencyCode: 'EUR' as const },
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+
+    await render(SupplierOrderFormComponent, {
+      providers: [
+        { provide: AuthService, useValue: { currentUser: () => null } },
+        provideRouter([{ path: '**', children: [] }]),
+        // Rotta /:id/edit: è l'id a far entrare la maschera in modifica.
+        {
+          provide: ActivatedRoute,
+          useValue: { paramMap: of(convertToParamMap({ id: 'po-1' })) },
+        },
+        {
+          provide: SupplierService,
+          useValue: { getSuppliers: () => of(SUPPLIERS), createSupplier: vi.fn() },
+        },
+        { provide: ProductService, useValue: { searchVariantSummaries: () => of(VARIANTS) } },
+        {
+          provide: SupplierOrderService,
+          useValue: {
+            getSupplierOrderById: () => of(ordine),
+            updateOrder,
+            createOrder: vi.fn(),
+            getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
+          },
+        },
+        { provide: DocumentService, useValue: { getPriceModePreference: () => of(false) } },
+        { provide: TableColumnPreferenceService, useValue: tableColumnPreferenceMock() },
+        { provide: VatCodeService, useValue: { list: () => of([]) } },
+        { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+      ],
+    });
+
+    return { updateOrder };
+  }
+
+  it('un ordine registrato si apre protetto', async () => {
+    await setupEdit();
+
+    expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
+    // Protetto = form disabilitato: non si digita a vuoto.
+    expect(screen.getByRole('spinbutton')).toBeDisabled();
+  });
+
+  // TODO(blocco documenti): manca il resto del giro — sblocca, modifica, salva,
+  // torna protetto. Il test è stato scritto e NON passa nell'ambiente di prova:
+  // il dialogo di sblocco usa <dialog>, che jsdom non implementa, e il polyfill
+  // qui sopra non basta a farlo arrivare in fondo. Va ripreso decidendo se
+  // pilotare il dialogo o esercitare direttamente confirmUnlockEdit(): è la
+  // verifica che manca, e va fatta prima di migrare Arrivo merce e Ordine
+  // cliente, che hanno lo stesso giro.
 
   // ── Salvare non è uscire ───────────────────────────────────────────────────
   //
