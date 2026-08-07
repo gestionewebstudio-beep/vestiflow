@@ -75,6 +75,7 @@ export function documentOpenPath(doc: {
       return `/app/documents/sales-ddt/${doc.id}`;
     case DocumentType.InvoiceDraft:
     case DocumentType.InvoiceAccompanying:
+    case DocumentType.CreditNote:
       return `/app/documents/fattura/${doc.id}`;
     case DocumentType.StoreSale:
     case DocumentType.StoreReturn:
@@ -106,6 +107,8 @@ export function documentDuplicateFormRoute(type: DocumentTypeValue): string | nu
       return '/app/documents/fattura/new';
     case DocumentType.InvoiceAccompanying:
       return '/app/documents/fattura-accompagnatoria/new';
+    case DocumentType.CreditNote:
+      return '/app/documents/nota-credito/new';
     case DocumentType.SalesDdt:
       return '/app/documents/sales-ddt/new';
     case DocumentType.Quote:

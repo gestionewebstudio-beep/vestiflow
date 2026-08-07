@@ -1,9 +1,13 @@
 import type { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 
+import { DEFAULT_TAX_REGIME_CODE, taxRegimeDisplayLabel } from './tax-regime.model';
+
 export interface TenantCompanyProfile {
   readonly legalName: string | null;
   readonly vatNumber: string | null;
   readonly fiscalCode: string | null;
+  /** Regime fiscale FatturaPA (RF01–RF19). */
+  readonly taxRegime: string;
   readonly phone: string | null;
   readonly pec: string | null;
   readonly sdiCode: string | null;
@@ -56,6 +60,7 @@ export function tenantCompanyFromDto(dto: TenantCompanyDto): TenantCompany {
       legalName: dto.profile.legalName?.trim() || null,
       vatNumber: dto.profile.vatNumber?.trim() || null,
       fiscalCode: dto.profile.fiscalCode?.trim() || null,
+      taxRegime: dto.profile.taxRegime?.trim() || DEFAULT_TAX_REGIME_CODE,
       phone: dto.profile.phone?.trim() || null,
       pec: dto.profile.pec?.trim() || null,
       sdiCode: dto.profile.sdiCode?.trim() || null,
@@ -110,6 +115,11 @@ export function buildTenantClientExtendedFields(
 
   push('Partita IVA', profile.vatNumber, true);
   push('Codice fiscale', profile.fiscalCode, true);
+  // Il regime compare solo quando devia dall'ordinario: RF01 è il default e
+  // non aggiunge informazione.
+  if (profile.taxRegime !== DEFAULT_TAX_REGIME_CODE) {
+    push('Regime fiscale', taxRegimeDisplayLabel(profile.taxRegime));
+  }
   push('Indirizzo', formatTenantCompanyAddress(profile));
   push('Telefono', profile.phone);
   push('PEC', profile.pec);

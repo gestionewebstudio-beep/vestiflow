@@ -52,6 +52,7 @@ import {
 } from './models/document-stock-operation.util';
 import { isStoreFlowDocumentType } from '@domain/documents/models/document-operational.util';
 import {
+  isCreditNoteDocumentType,
   isInvoiceDraftDocumentType,
   isProformaDocumentType,
   isQuoteDocumentType,
@@ -87,6 +88,7 @@ type DetailState =
 const EXTERNAL_REGISTRATION_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.InvoiceDraft,
   DocumentType.InvoiceAccompanying,
+  DocumentType.CreditNote,
   DocumentType.Proforma,
 ] as const;
 
@@ -456,6 +458,19 @@ export class DocumentDetailComponent {
     );
   });
 
+  /** «Genera nota di credito»: da una fattura emessa, mai da un'altra NC. */
+  protected readonly canGenerateCreditNote = computed(() => {
+    const doc = this.document();
+    return (
+      this.canManage() &&
+      doc != null &&
+      isSalesInvoiceDocumentType(doc.type) &&
+      !isCreditNoteDocumentType(doc.type) &&
+      doc.status !== DocumentStatus.Cancelled &&
+      doc.status !== DocumentStatus.Draft
+    );
+  });
+
   protected readonly canOpenPrintPreview = computed(() => {
     const doc = this.document();
     return doc != null && isPrintableDocumentType(doc.type);
@@ -657,6 +672,10 @@ export class DocumentDetailComponent {
     this.runConvert(DocumentType.SalesDdt);
   }
 
+  protected convertToCreditNote(): void {
+    this.runConvert(DocumentType.CreditNote);
+  }
+
   private runConvert(targetType: DocumentType): void {
     const doc = this.document();
     if (!doc) {
@@ -678,6 +697,8 @@ export class DocumentDetailComponent {
         return '/app/documents/proforma/new';
       case DocumentType.SalesDdt:
         return '/app/documents/sales-ddt/new';
+      case DocumentType.CreditNote:
+        return '/app/documents/nota-credito/new';
       default:
         return null;
     }

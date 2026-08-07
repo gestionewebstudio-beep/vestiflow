@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DocumentType } from '@core/models/document.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { ProductService } from '@domain/products/services/product.service';
@@ -67,6 +68,8 @@ describe('SalesDocumentFormComponent', () => {
         // Iniettato per la generazione «Concludi ordine → Fattura accompagnatoria».
         { provide: SalesOrderService, useValue: { concludeManualPrefill: vi.fn() } },
         { provide: VatCodeService, useValue: { list: () => of([]) } },
+        // Modalità di pagamento (MP01–MP23) per i dati pagamento della fattura.
+        { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
         { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
         // Dati cedente: alimentano l'IBAN precompilato in fattura.
         { provide: TenantCompanyService, useValue: { getCompany: () => of(null) } },

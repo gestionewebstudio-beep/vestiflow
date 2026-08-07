@@ -53,6 +53,12 @@
         formControlName="vatNumber"
         autocomplete="off"
       />
+      @if (vatNumberWarning(); as warning) {
+        <p class="customer-fields__hint customer-fields__hint--warning" role="status">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+          {{ warning }}
+        </p>
+      }
     </div>
     <div class="customer-fields__field">
       <label class="customer-fields__label" [for]="idPrefix() + '-tax'">Codice fiscale</label>
@@ -63,6 +69,12 @@
         formControlName="taxCode"
         autocomplete="off"
       />
+      @if (taxCodeWarning(); as warning) {
+        <p class="customer-fields__hint customer-fields__hint--warning" role="status">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+          {{ warning }}
+        </p>
+      }
     </div>
     <div class="customer-fields__field">
       <label class="customer-fields__label" [for]="idPrefix() + '-email'">Email</label>
@@ -97,6 +109,12 @@
         autocomplete="off"
         placeholder="Es. ABC1234"
       />
+      @if (sdiCodeWarning(); as warning) {
+        <p class="customer-fields__hint customer-fields__hint--warning" role="status">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+          {{ warning }}
+        </p>
+      }
       <p class="customer-fields__hint">
         Dove il commercialista trasmette la fattura. In alternativa si usa la PEC.
       </p>

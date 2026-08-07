@@ -1,5 +1,7 @@
 import { Transform } from 'class-transformer';
-import { IsEmail, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+
+import { TAX_REGIME_CODES, type TaxRegimeCode } from '../../tenant/tax-regime.constant';
 
 function trimToUndefined({ value }: { value: unknown }): unknown {
   if (typeof value !== 'string') {
@@ -29,6 +31,12 @@ export class TenantProfileFieldsDto {
   @MaxLength(16)
   @Transform(trimToUndefined)
   fiscalCode?: string;
+
+  /** Regime fiscale FatturaPA (RF01–RF19): alimenta RegimeFiscale nell'XML. */
+  @IsOptional()
+  @IsIn(TAX_REGIME_CODES, { message: 'Regime fiscale non valido: usa un codice RF01–RF19' })
+  @Transform(trimToUndefined)
+  taxRegime?: TaxRegimeCode;
 
   @IsOptional()
   @IsString()

@@ -441,8 +441,16 @@ export interface CreateDocumentBody {
   readonly pricesIncludeVat?: boolean;
   /** Condizioni di pagamento in testata (Preventivo: campo «Pagamento»). */
   readonly paymentTerms?: string;
-  /** Modalità di pagamento (DDT vendita: voce normativa MP01–MP23). */
+  /** Modalità di pagamento (voce normativa MP01–MP23, snapshot nome). */
   readonly paymentMethod?: string;
+  /** Scadenza pagamento (Fattura). */
+  readonly paymentDueDate?: IsoDateString;
+  /** IBAN di incasso (Fattura): precompilato da Impostazioni, modificabile. */
+  readonly iban?: string;
+  /** DDT vendita agganciati alla fattura («Riferimento DDT»). */
+  readonly linkedSalesDdtIds?: readonly EntityId[];
+  /** Rate di pagamento (Fattura): lista sostituita integralmente quando dichiarata. */
+  readonly installments?: readonly PurchaseInvoiceInstallmentBody[];
   /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
   readonly expectedDeliveryDate?: IsoDateString;
   // ── DDT vendita: testata operativa (prompt DDT) ──

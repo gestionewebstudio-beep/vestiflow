@@ -139,6 +139,7 @@ export const INVOICE_TYPE_FILTER_OPTIONS: readonly SelectMenuOption[] = [
   { value: '', label: 'Tutti' },
   { value: DocumentType.InvoiceDraft, label: 'Fattura' },
   { value: DocumentType.InvoiceAccompanying, label: 'Fattura accompagnatoria' },
+  { value: DocumentType.CreditNote, label: 'Nota di credito' },
 ];
 
 /** Opzioni del filtro «Tipo» dell'elenco Vendita/Reso in negozio. */
@@ -278,6 +279,11 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
         type: DocumentType.InvoiceAccompanying,
         label: 'Nuova fattura accompagnatoria',
         path: '/app/documents/fattura-accompagnatoria/new',
+      },
+      {
+        type: DocumentType.CreditNote,
+        label: 'Nuova nota di credito',
+        path: '/app/documents/nota-credito/new',
       },
     ],
     listPath: '/app/documents/fattura',

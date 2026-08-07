@@ -6,6 +6,11 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import type { CustomerFormGroup } from '@domain/customers/utils/customer-form.util';
+import {
+  sdiCodeWarning,
+  taxCodeWarning,
+  vatNumberWarning,
+} from '@domain/customers/utils/customer-fiscal.validators';
 
 @Component({
   selector: 'app-customer-form-fields',
@@ -30,6 +35,22 @@ export class CustomerFormFieldsComponent {
   protected readonly paymentTermsOptions = computed((): readonly SelectMenuOption[] =>
     this.buildPaymentOptions('terms', this.formGroup().controls.paymentTerms.value),
   );
+
+  // ── Avvisi fiscali non bloccanti (regole-gestionale): il dato malformato
+  //    farebbe scartare la fattura elettronica, ma il salvataggio resta libero
+  //    (anagrafiche estere o importate da Shopify). ────────────────────────────
+
+  protected vatNumberWarning(): string | null {
+    return vatNumberWarning(this.formGroup().controls.vatNumber.value);
+  }
+
+  protected taxCodeWarning(): string | null {
+    return taxCodeWarning(this.formGroup().controls.taxCode.value);
+  }
+
+  protected sdiCodeWarning(): string | null {
+    return sdiCodeWarning(this.formGroup().controls.sdiCode.value);
+  }
 
   protected onPaymentMethodSelect(value: string | null): void {
     this.formGroup().controls.paymentMethod.setValue(value ?? '');

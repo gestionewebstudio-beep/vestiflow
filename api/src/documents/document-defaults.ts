@@ -19,6 +19,7 @@ export const DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
   DocumentType.invoice_draft,
   DocumentType.invoice_accompanying,
+  DocumentType.credit_note,
   DocumentType.store_sale,
   DocumentType.store_return,
 ];
@@ -122,6 +123,7 @@ export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
   // Numeratore condiviso con `invoice_draft`: il prefisso qui è solo il
   // fallback usato se il numeratore della Fattura non è personalizzato.
   [DocumentType.invoice_accompanying]: 'FT',
+  [DocumentType.credit_note]: 'FT',
   [DocumentType.online_sale]: 'VO',
   [DocumentType.corrispettivo]: 'COR',
   [DocumentType.customer_order]: 'OC',
@@ -145,6 +147,7 @@ export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
   [DocumentType.proforma]: 'Proforma - documento non fiscale',
   [DocumentType.invoice_draft]: 'Fattura',
   [DocumentType.invoice_accompanying]: 'Fattura accompagnatoria',
+  [DocumentType.credit_note]: 'Nota di credito',
   [DocumentType.online_sale]: 'Vendita online',
   [DocumentType.corrispettivo]: 'Corrispettivo',
   [DocumentType.customer_order]: 'Ordine cliente',

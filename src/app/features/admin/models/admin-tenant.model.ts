@@ -5,6 +5,8 @@ export interface TenantProfileFields {
   readonly legalName?: string;
   readonly vatNumber?: string;
   readonly fiscalCode?: string;
+  /** Regime fiscale FatturaPA (RF01–RF19). */
+  readonly taxRegime?: string;
   readonly phone?: string;
   readonly pec?: string;
   readonly sdiCode?: string;
@@ -85,6 +87,7 @@ export interface TenantDetail {
     readonly legalName: string | null;
     readonly vatNumber: string | null;
     readonly fiscalCode: string | null;
+    readonly taxRegime: string;
     readonly phone: string | null;
     readonly pec: string | null;
     readonly sdiCode: string | null;

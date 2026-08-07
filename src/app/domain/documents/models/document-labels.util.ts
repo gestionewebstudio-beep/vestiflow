@@ -23,6 +23,7 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.Proforma]: 'Proforma',
   [DocumentType.InvoiceDraft]: 'Fattura',
   [DocumentType.InvoiceAccompanying]: 'Fattura accompagnatoria',
+  [DocumentType.CreditNote]: 'Nota di credito',
   [DocumentType.StoreSale]: 'Vendita negozio',
   [DocumentType.StoreReturn]: 'Reso vendita negozio',
   [DocumentType.Quote]: 'Preventivo',

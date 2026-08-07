@@ -114,4 +114,9 @@
     font-size: var(--text-xs);
     color: var(--status-error-fg);
   }
+
+  .#{$block}__field-hint {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+  }
 }

@@ -50,6 +50,13 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { DocumentInstallmentsComponent } from '@domain/documents/components/document-installments/document-installments.component';
+import {
+  rehydrateInstallments,
+  serializeInstallments,
+  type InstallmentFormArray,
+  type InstallmentFormGroup,
+} from '@domain/documents/utils/document-installments.util';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -101,13 +108,6 @@ type ManualLineForm = FormGroup<{
   vatText: FormControl<string>;
 }>;
 
-type InstallmentForm = FormGroup<{
-  dueDate: FormControl<string>;
-  amountText: FormControl<string>;
-  settled: FormControl<boolean>;
-  settledAt: FormControl<string>;
-}>;
-
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -150,6 +150,7 @@ function parseRatePercent(value: string): number | null {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentInstallmentsComponent,
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
@@ -233,7 +234,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       vatNumber: this.fb.control(''),
     }),
     manualLines: this.fb.array<ManualLineForm>([]),
-    installments: this.fb.array<InstallmentForm>([]),
+    installments: this.fb.array<InstallmentFormGroup>([]),
   });
 
   /** Tick reattivo su ogni modifica del form (totali e opzioni derivate). */
@@ -243,7 +244,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     return this.form.controls.manualLines;
   }
 
-  protected get installments(): FormArray<InstallmentForm> {
+  protected get installments(): InstallmentFormArray {
     return this.form.controls.installments;
   }
 
@@ -491,26 +492,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     currencyCode: this.currency,
   }));
 
-  /** Totale scadenze saldate ("Saldato"). */
-  protected readonly settledTotal = computed<Money>(() => {
-    this.formChanges();
-    const amountMinor = this.form
-      .getRawValue()
-      .installments.filter((installment) => installment.settled)
-      .reduce(
-        (sum, installment) =>
-          sum + (parseMoneyInput(installment.amountText, this.currency)?.amountMinor ?? 0),
-        0,
-      );
-    return { amountMinor, currencyCode: this.currency };
-  });
-
-  /** Residuo "Da saldare" = totale registrazione - scadenze saldate. */
-  protected readonly outstandingTotal = computed<Money>(() => ({
-    amountMinor: Math.max(0, this.totalGross().amountMinor - this.settledTotal().amountMinor),
-    currencyCode: this.currency,
-  }));
-
   private readonly loadTick = signal(0);
   private readonly loadState = toSignal(
     toObservable(computed(() => ({ id: this.editDocumentId(), tick: this.loadTick() }))).pipe(
@@ -722,61 +703,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     );
   }
 
-  // ── Scadenze di pagamento ───────────────────────────────────────────────────
-
-  private buildInstallment(init?: {
-    dueDate?: string;
-    amountText?: string;
-    settled?: boolean;
-    settledAt?: string;
-  }): InstallmentForm {
-    return this.fb.group({
-      dueDate: this.fb.control(init?.dueDate ?? ''),
-      amountText: this.fb.control(init?.amountText ?? ''),
-      settled: this.fb.control(init?.settled ?? false),
-      settledAt: this.fb.control(init?.settledAt ?? ''),
-    });
-  }
-
-  protected addInstallment(): void {
-    // Comodo default: il residuo non ancora coperto dalle scadenze esistenti.
-    const covered = this.form
-      .getRawValue()
-      .installments.reduce(
-        (sum, installment) =>
-          sum + (parseMoneyInput(installment.amountText, this.currency)?.amountMinor ?? 0),
-        0,
-      );
-    const residualMinor = Math.max(0, this.totalGross().amountMinor - covered);
-    this.installments.push(
-      this.buildInstallment({
-        amountText:
-          residualMinor > 0
-            ? this.moneyToInputText({ amountMinor: residualMinor, currencyCode: this.currency })
-            : '',
-      }),
-    );
-    this.installments.markAsDirty();
-  }
-
-  protected removeInstallment(index: number): void {
-    this.installments.removeAt(index);
-    this.installments.markAsDirty();
-  }
-
-  /** Spunta "Saldato": propone oggi come data saldo se assente. */
-  protected onInstallmentSettledChange(index: number, checked: boolean): void {
-    const group = this.installments.at(index);
-    if (!group) {
-      return;
-    }
-    group.controls.settled.setValue(checked);
-    group.controls.settled.markAsDirty();
-    if (checked && !group.controls.settledAt.value) {
-      group.controls.settledAt.setValue(todayIsoDate());
-    }
-  }
-
   // ── Includi arrivo merce (prompt §5.1) ──────────────────────────────────────
 
   protected openIncludePanel(): void {
@@ -920,33 +846,15 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       });
     }
 
-    const installments: PurchaseInvoiceInstallmentBody[] = [];
-    for (const [index, installment] of raw.installments.entries()) {
-      const hasContent =
-        installment.dueDate.trim() || installment.amountText.trim() || installment.settled;
-      if (!hasContent) {
-        continue;
-      }
-      const amount = parseMoneyInput(installment.amountText, this.currency);
-      if (!installment.dueDate || amount === null || amount.amountMinor < 0) {
-        this._submitState.set({
-          status: 'error',
-          error: {
-            kind: AppErrorKind.Validation,
-            message: `Scadenza ${index + 1}: inserisci data scadenza e importo validi.`,
-          },
-        });
-        return;
-      }
-      installments.push({
-        dueDate: new Date(installment.dueDate).toISOString(),
-        amountMinor: amount.amountMinor,
-        settled: installment.settled,
-        settledAt: installment.settledAt
-          ? new Date(installment.settledAt).toISOString()
-          : undefined,
+    const serialized = serializeInstallments(raw.installments, this.currency);
+    if (!serialized.ok) {
+      this._submitState.set({
+        status: 'error',
+        error: { kind: AppErrorKind.Validation, message: serialized.message },
       });
+      return;
     }
+    const installments: PurchaseInvoiceInstallmentBody[] = [...serialized.installments];
 
     this._submitState.set({ status: 'saving' });
     this.documentService
@@ -1099,17 +1007,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       );
     }
 
-    this.installments.clear();
-    for (const installment of doc.paymentInstallments ?? []) {
-      this.installments.push(
-        this.buildInstallment({
-          dueDate: installment.dueDate.slice(0, 10),
-          amountText: this.moneyToInputText(installment.amount),
-          settled: installment.settled,
-          settledAt: installment.settledAt ? installment.settledAt.slice(0, 10) : '',
-        }),
-      );
-    }
+    rehydrateInstallments(this.fb, this.installments, doc.paymentInstallments ?? []);
 
     this.includedReceipts.set(
       (doc.linkedGoodsReceipts ?? []).map((receipt): IncludedReceiptRow => ({

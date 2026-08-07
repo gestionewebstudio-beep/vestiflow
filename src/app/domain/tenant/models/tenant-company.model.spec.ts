@@ -22,6 +22,7 @@ const baseCompany = (profile: Partial<TenantCompany['profile']> = {}): TenantCom
     legalName: null,
     vatNumber: null,
     fiscalCode: null,
+    taxRegime: 'RF01',
     phone: null,
     pec: null,
     sdiCode: null,
@@ -61,6 +62,17 @@ describe('tenant-company.model extended fields', () => {
       'Indirizzo',
       'Telefono',
     ]);
+  });
+
+  it("mostra il regime fiscale solo quando devia dall'ordinario RF01", () => {
+    const ordinario = buildTenantClientExtendedFields(baseCompany({ taxRegime: 'RF01' }));
+    const forfettario = buildTenantClientExtendedFields(baseCompany({ taxRegime: 'RF19' }));
+
+    expect(ordinario.map((field) => field.label)).not.toContain('Regime fiscale');
+    expect(forfettario.map((field) => field.label)).toContain('Regime fiscale');
+    expect(forfettario.find((field) => field.label === 'Regime fiscale')?.value).toBe(
+      'RF19 — Forfettario',
+    );
   });
 
   it('tenantClientExtendedDetailsMeta pluralizza il conteggio', () => {

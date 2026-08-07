@@ -26,6 +26,11 @@ export interface FatturaPaLine {
   readonly quantity: number;
   readonly unitPriceMinor: number;
   readonly discountPercent: number;
+  /**
+   * Quota dello sconto testata ripartita sulla riga (secondo blocco
+   * ScontoMaggiorazione): il totale riga è già al netto di entrambi gli sconti.
+   */
+  readonly extraDiscountPercent?: number;
   readonly lineTotalMinor: number;
   readonly vatRatePercent: number;
   readonly natura?: string;
@@ -43,6 +48,14 @@ export interface FatturaPaParty {
   readonly city?: string | null;
   readonly province?: string | null;
   readonly countryCode?: string | null;
+  /** Regime fiscale RF01–RF19: solo cedente; default RF01 se assente. */
+  readonly taxRegime?: string | null;
+}
+
+/** Scadenza di pagamento: un DettaglioPagamento per rata. */
+export interface FatturaPaInstallment {
+  readonly dueDate: Date;
+  readonly amountMinor: number;
 }
 
 export interface FatturaPaInput {
@@ -63,8 +76,18 @@ export interface FatturaPaInput {
   readonly paymentTerms?: string | null;
   readonly paymentDueDate?: Date | null;
   readonly iban?: string | null;
+  /**
+   * Modalità di pagamento normativa (MP01–MP23), estratta dal nome della
+   * PaymentOption. Senza codice il blocco DatiPagamento non viene emesso:
+   * ModalitaPagamento è obbligatoria dallo schema e non si inventa.
+   */
+  readonly paymentMethodCode?: string | null;
+  /** Rate di pagamento: se presenti, CondizioniPagamento diventa TP01. */
+  readonly installments?: readonly FatturaPaInstallment[];
   /** Riferimenti DDT agganciati (blocco DatiDDT). */
   readonly linkedDdts?: readonly { readonly reference: string; readonly date: Date }[];
+  /** Fatture rettificate da una nota di credito (blocco DatiFattureCollegate). */
+  readonly linkedInvoices?: readonly { readonly reference: string; readonly date: Date }[];
   readonly notes?: string | null;
 }
 
@@ -75,7 +98,7 @@ export interface FatturaPaInput {
  */
 const DEFAULT_SDI_CODE = '0000000';
 
-/** Regime fiscale: VestiFlow non lo gestisce, RF01 è il default ordinario. */
+/** Regime fiscale di ripiego quando il cedente non lo dichiara: RF01 ordinario. */
 const DEFAULT_TAX_REGIME = 'RF01';
 
 /** Nazione di default quando l'anagrafica non la specifica. */
@@ -93,6 +116,20 @@ function escapeXml(value: string): string {
 /** Importi FatturaPA: sempre due decimali, punto come separatore. */
 function money(amountMinor: number): string {
   return (amountMinor / 100).toFixed(2);
+}
+
+/**
+ * PrezzoUnitario: lo standard ammette fino a 8 decimali, e la coda decimale
+ * del netto canonico (§sei decimali) va emessa per intero — troncare al
+ * centesimo farebbe fallire il ricalcolo SDI PrezzoUnitario × Quantità
+ * (controllo 00423) già con poche unità. Minimo due decimali, zeri di coda
+ * oltre il secondo rimossi.
+ */
+function unitPrice(amountMinor: number): string {
+  const fixed = (amountMinor / 100).toFixed(8);
+  const trimmed = fixed.replace(/0+$/, '');
+  const decimals = trimmed.length - trimmed.indexOf('.') - 1;
+  return decimals >= 2 ? trimmed : (amountMinor / 100).toFixed(2);
 }
 
 /** Percentuali FatturaPA: due decimali. */
@@ -158,13 +195,23 @@ function lineBlock(line: FatturaPaLine): string {
     tag('NumeroLinea', String(line.lineNumber)),
     tag('Descrizione', line.description),
     tag('Quantita', line.quantity.toFixed(2)),
-    tag('PrezzoUnitario', money(line.unitPriceMinor)),
+    tag('PrezzoUnitario', unitPrice(line.unitPriceMinor)),
   ];
   if (line.discountPercent > 0) {
     parts.push(
       `<ScontoMaggiorazione><Tipo>SC</Tipo>${tag(
         'Percentuale',
         rate(line.discountPercent),
+      )}</ScontoMaggiorazione>`,
+    );
+  }
+  // Sconto testata: ripartito sulle righe come secondo sconto in cascata,
+  // così la somma dei PrezzoTotale torna con i DatiRiepilogo (controllo 00422).
+  if ((line.extraDiscountPercent ?? 0) > 0) {
+    parts.push(
+      `<ScontoMaggiorazione><Tipo>SC</Tipo>${tag(
+        'Percentuale',
+        rate(line.extraDiscountPercent ?? 0),
       )}</ScontoMaggiorazione>`,
     );
   }
@@ -194,26 +241,50 @@ function vatSummaryBlock(summary: FatturaPaVatSummary): string {
 }
 
 /**
- * Blocco DatiPagamento: emesso solo se c'è almeno un dato di pagamento reale.
+ * Blocco DatiPagamento: emesso solo se la modalità normativa è nota.
  *
- * `ModalitaPagamento` è un codice normativo MP01–MP23 che VestiFlow non
- * gestisce come tale (le condizioni di pagamento sono testo libero), quindi
- * NON viene emesso: sarebbe un valore inventato. Le condizioni testuali
- * viaggiano come causale, dove sono informative e non normative.
+ * `ModalitaPagamento` (MP01–MP23) è obbligatoria dallo schema dentro ogni
+ * DettaglioPagamento: senza codice il blocco intero si omette — un
+ * DatiPagamento senza modalità sarebbe non conforme, uno con modalità
+ * inventata sarebbe falso. Il codice arriva dal nome della PaymentOption
+ * (es. «Bonifico (MP05)»), mai dedotto da altro.
+ *
+ * Con le rate il pagamento è TP01 (a rate) e ogni rata è un
+ * DettaglioPagamento; senza rate resta TP02 (completo) in un solo dettaglio.
  */
 function paymentBlock(input: FatturaPaInput): string {
-  const hasPayment = Boolean(input.paymentDueDate || input.iban?.trim());
-  if (!hasPayment) {
+  const methodCode = input.paymentMethodCode?.trim();
+  if (!methodCode) {
     return '';
   }
-  const details = [
-    '<DettaglioPagamento>',
-    input.paymentDueDate ? tag('DataScadenzaPagamento', isoDate(input.paymentDueDate)) : '',
-    tag('ImportoPagamento', money(input.totalMinor)),
-    tag('IBAN', input.iban),
-    '</DettaglioPagamento>',
-  ].join('');
-  return `<DatiPagamento><CondizioniPagamento>TP02</CondizioniPagamento>${details}</DatiPagamento>`;
+  const installments = input.installments ?? [];
+  const details =
+    installments.length > 0
+      ? installments.map((installment) =>
+          [
+            '<DettaglioPagamento>',
+            tag('ModalitaPagamento', methodCode),
+            tag('DataScadenzaPagamento', isoDate(installment.dueDate)),
+            tag('ImportoPagamento', money(installment.amountMinor)),
+            tag('IBAN', input.iban),
+            '</DettaglioPagamento>',
+          ].join(''),
+        )
+      : [
+          [
+            '<DettaglioPagamento>',
+            tag('ModalitaPagamento', methodCode),
+            input.paymentDueDate ? tag('DataScadenzaPagamento', isoDate(input.paymentDueDate)) : '',
+            tag('ImportoPagamento', money(input.totalMinor)),
+            tag('IBAN', input.iban),
+            '</DettaglioPagamento>',
+          ].join(''),
+        ];
+  // Rate presenti = pagamento a rate (TP01), anche con una sola scadenza: un
+  // acconto singolo dichiarato TP02 («completo») con importo parziale sarebbe
+  // un dato falso. TP01 con un solo DettaglioPagamento è valido per lo schema.
+  const conditions = installments.length > 0 ? 'TP01' : 'TP02';
+  return `<DatiPagamento><CondizioniPagamento>${conditions}</CondizioniPagamento>${details.join('')}</DatiPagamento>`;
 }
 
 /** Blocco DatiDDT: un elemento per ogni DDT agganciato alla fattura. */
@@ -226,10 +297,32 @@ function ddtBlock(input: FatturaPaInput): string {
     .join('');
 }
 
+/**
+ * Blocco DatiFattureCollegate: sulla nota di credito, il riferimento alla
+ * fattura che viene rettificata. Nello schema precede DatiDDT.
+ */
+function linkedInvoicesBlock(input: FatturaPaInput): string {
+  return (input.linkedInvoices ?? [])
+    .map(
+      (invoice) =>
+        `<DatiFattureCollegate>${tag('IdDocumento', invoice.reference)}${tag(
+          'Data',
+          isoDate(invoice.date),
+        )}</DatiFattureCollegate>`,
+    )
+    .join('');
+}
+
 /** Genera l'XML FatturaPA completo del documento. */
 export function buildFatturaPaXml(input: FatturaPaInput): string {
   const transmitterVat = input.cedente.vatNumber?.trim();
   const transmitterCountry = input.cedente.countryCode?.trim() || DEFAULT_COUNTRY;
+  const sdiCode = input.sdiCode?.trim() || DEFAULT_SDI_CODE;
+  // ProgressivoInvio: String10Type, max 10 caratteri. Il riferimento «FT-2026-
+  // 0001» sanificato ai soli alfanumerici resta univoco per serie e numero; se
+  // eccede si tengono gli ultimi 10 — il valore non ha significato di business,
+  // serve solo a distinguere gli invii del trasmittente.
+  const progressivoInvio = input.number.replace(/[^A-Za-z0-9]/g, '').slice(-10);
 
   const header = [
     '<FatturaElettronicaHeader>',
@@ -242,17 +335,21 @@ export function buildFatturaPaXml(input: FatturaPaInput): string {
           transmitterVat,
         )}</IdTrasmittente>`
       : '',
-    tag('ProgressivoInvio', input.number),
+    tag('ProgressivoInvio', progressivoInvio),
     '<FormatoTrasmissione>FPR12</FormatoTrasmissione>',
-    tag('CodiceDestinatario', input.sdiCode?.trim() || DEFAULT_SDI_CODE),
-    input.pec?.trim() ? `<PECDestinatario>${escapeXml(input.pec.trim())}</PECDestinatario>` : '',
+    tag('CodiceDestinatario', sdiCode),
+    // PECDestinatario è ammessa SOLO con CodiceDestinatario 0000000 (controllo
+    // SDI 00426): con un codice reale la PEC non si emette.
+    sdiCode === DEFAULT_SDI_CODE && input.pec?.trim()
+      ? `<PECDestinatario>${escapeXml(input.pec.trim())}</PECDestinatario>`
+      : '',
     '</DatiTrasmissione>',
     '<CedentePrestatore>',
     '<DatiAnagrafici>',
     idFiscaleIvaBlock(input.cedente),
     tag('CodiceFiscale', input.cedente.fiscalCode),
     anagraficaBlock(input.cedente),
-    `<RegimeFiscale>${DEFAULT_TAX_REGIME}</RegimeFiscale>`,
+    `<RegimeFiscale>${escapeXml(input.cedente.taxRegime?.trim() || DEFAULT_TAX_REGIME)}</RegimeFiscale>`,
     '</DatiAnagrafici>',
     sedeBlock(input.cedente),
     '</CedentePrestatore>',
@@ -278,6 +375,7 @@ export function buildFatturaPaXml(input: FatturaPaInput): string {
     tag('ImportoTotaleDocumento', money(input.totalMinor)),
     input.notes?.trim() ? tag('Causale', input.notes) : '',
     '</DatiGeneraliDocumento>',
+    linkedInvoicesBlock(input),
     ddtBlock(input),
     '</DatiGenerali>',
     '<DatiBeniServizi>',
@@ -300,12 +398,16 @@ export function buildFatturaPaXml(input: FatturaPaInput): string {
 }
 
 /**
- * Nome file secondo la convenzione SDI: IT{PIVA}_{progressivo}.xml.
- * Senza partita IVA si ripiega sul solo numero documento — l'alternativa
- * sarebbe inventare un identificativo fiscale.
+ * Nome file secondo la convenzione SDI: IT{PIVA}_{progressivo}.xml, con il
+ * progressivo alfanumerico di MAX 5 caratteri. Dal riferimento sanificato si
+ * tengono gli ultimi 5 («FT-2026-0001» → «60001»): numeri diversi nello stesso
+ * anno restano distinti; il troncamento può collidere tra anni o serie diverse,
+ * ma il nome serve solo alla trasmissione del singolo file. Senza partita IVA
+ * si ripiega sul solo progressivo — l'alternativa sarebbe inventare un
+ * identificativo fiscale.
  */
 export function fatturaPaFileName(vatNumber: string | null | undefined, number: string): string {
-  const sanitizedNumber = number.replace(/[^A-Za-z0-9]/g, '');
+  const progressivo = number.replace(/[^A-Za-z0-9]/g, '').slice(-5);
   const vat = vatNumber?.trim();
-  return vat ? `IT${vat}_${sanitizedNumber}.xml` : `${sanitizedNumber}.xml`;
+  return vat ? `IT${vat}_${progressivo}.xml` : `${progressivo}.xml`;
 }

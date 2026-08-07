@@ -33,6 +33,11 @@ export const DocumentType = {
    * Condivide elenco, numeratore e form base con InvoiceDraft.
    */
   InvoiceAccompanying: 'invoice_accompanying',
+  /**
+   * Nota di credito di vendita (TD04): rettifica una fattura emessa. Condivide
+   * elenco, numeratore e form con InvoiceDraft; non muove mai il magazzino.
+   */
+  CreditNote: 'credit_note',
   // Fase 3: creati solo dal flusso cassa (mai dai form documenti generici).
   StoreSale: 'store_sale',
   StoreReturn: 'store_return',

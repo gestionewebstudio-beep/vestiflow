@@ -1,0 +1,66 @@
+// Tabella rate di pagamento: stesso vocabolario delle tabelle riepilogative
+// della Registrazione fattura (da cui è estratta). Resta tabella a ogni
+// larghezza — niente card view — e scorre in orizzontale se serve.
+:host {
+  display: block;
+  inline-size: 100%;
+}
+
+.doc-installments__table-wrap {
+  inline-size: 100%;
+  overflow-x: auto;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.doc-installments__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+
+  th,
+  td {
+    padding: var(--space-2) var(--space-3);
+    text-align: start;
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+
+  thead th {
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-subtle);
+    background-color: var(--color-table-header-bg);
+  }
+
+  tfoot th,
+  tfoot td {
+    border-block-end: none;
+    background-color: var(--color-surface-sunken);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
+.doc-installments__table .doc-form__num {
+  text-align: end;
+}
+
+// La spunta «Saldato» offre da sola il minimo tappabile (token responsive:
+// su desktop la riga mantiene la densità della tabella).
+.doc-installments__table .doc-form__check {
+  min-block-size: var(--btn-min-height);
+  justify-content: center;
+}
+
+.doc-installments__amount {
+  inline-size: 100%;
+  min-inline-size: 6rem;
+}
+
+.doc-installments__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}

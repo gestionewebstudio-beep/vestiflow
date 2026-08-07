@@ -5,10 +5,12 @@ import { isGoodsReceiptDocumentType } from './document-goods-receipt.util';
 import { isSalesDocumentType } from '@domain/documents/models/document-sales.util';
 import { isTransferDocumentType } from './document-transfer.util';
 
-/** Tipi con anteprima/stampa HTML dedicata (B5). */
+/** Tipi con anteprima/stampa HTML dedicata (B5) — mirror di api document-print.util. */
 export const PRINTABLE_DOCUMENT_TYPES: readonly DocumentTypeValue[] = [
   DocumentType.Proforma,
   DocumentType.InvoiceDraft,
+  DocumentType.InvoiceAccompanying,
+  DocumentType.CreditNote,
   DocumentType.SalesDdt,
   DocumentType.Quote,
   DocumentType.Transfer,

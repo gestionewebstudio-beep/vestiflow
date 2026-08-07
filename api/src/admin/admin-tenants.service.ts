@@ -136,6 +136,7 @@ export class AdminTenantsService {
         legalName: tenant.legalName,
         vatNumber: tenant.vatNumber,
         fiscalCode: tenant.fiscalCode,
+        taxRegime: tenant.taxRegime,
         phone: tenant.phone,
         pec: tenant.pec,
         sdiCode: tenant.sdiCode,

@@ -18,7 +18,7 @@ import {
 } from 'class-validator';
 import { AdjustmentDirection } from '@prisma/client';
 
-import { DocumentLineInputDto } from './create-document.dto';
+import { DocumentInstallmentDto, DocumentLineInputDto } from './create-document.dto';
 import { DocumentAddressDto, DocumentTransportFieldsDto } from './document-transport.dto';
 
 /** Aggiornamento di un documento in bozza: righe sostituite integralmente. */
@@ -154,6 +154,14 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   @ArrayMaxSize(50)
   @IsUUID('4', { each: true })
   linkedSalesDdtIds?: string[];
+
+  /** Rate di pagamento (Fattura): sostituite integralmente quando dichiarate. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(60)
+  @ValidateNested({ each: true })
+  @Type(() => DocumentInstallmentDto)
+  installments?: DocumentInstallmentDto[];
 
   /** "Seguirà doc. di vendita" (DDT vendita, prompt DDT §TESTATA). */
   @IsOptional()

@@ -1,0 +1,90 @@
+@if (groups().length > 0) {
+  <div class="doc-installments__table-wrap">
+    <table class="doc-installments__table">
+      <thead>
+        <tr>
+          <th scope="col">Data scadenza</th>
+          <th scope="col" class="doc-form__num">Importo</th>
+          <th scope="col">Saldato</th>
+          <th scope="col">Data saldo</th>
+          <th scope="col">
+            <span class="sr-only">Azioni</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (group of groups(); track group; let i = $index) {
+          <tr [formGroup]="group">
+            <td [attr.data-label]="'Data scadenza'">
+              <app-date-input
+                [inputId]="idPrefix() + '-due-' + i"
+                formControlName="dueDate"
+                [ariaLabel]="'Data scadenza ' + (i + 1)"
+                [compact]="true"
+                [fullWidth]="true"
+              />
+            </td>
+            <td class="doc-form__num" [attr.data-label]="'Importo'">
+              <input
+                class="doc-form__input doc-form__input--num doc-installments__amount"
+                type="text"
+                inputmode="decimal"
+                formControlName="amountText"
+                placeholder="0,00"
+                [attr.aria-label]="'Importo scadenza ' + (i + 1)"
+              />
+            </td>
+            <td [attr.data-label]="'Saldato'">
+              <label class="doc-form__check">
+                <input
+                  type="checkbox"
+                  [checked]="group.controls.settled.value"
+                  [attr.aria-label]="'Scadenza ' + (i + 1) + ' saldata'"
+                  (change)="onSettledChange(i, $any($event.target).checked)"
+                />
+              </label>
+            </td>
+            <td [attr.data-label]="'Data saldo'">
+              <app-date-input
+                [inputId]="idPrefix() + '-settled-' + i"
+                formControlName="settledAt"
+                [ariaLabel]="'Data saldo scadenza ' + (i + 1)"
+                placeholder="—"
+                [compact]="true"
+                [fullWidth]="true"
+              />
+            </td>
+            <td class="doc-form__cell--actions">
+              <button
+                type="button"
+                class="doc-form__line-remove"
+                [attr.aria-label]="'Rimuovi scadenza ' + (i + 1)"
+                (click)="remove(i)"
+              >
+                <i class="pi pi-times" aria-hidden="true"></i>
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row">Totali</th>
+          <td colspan="3" class="doc-installments__totals">
+            <span>
+              Da saldare:
+              <strong class="tabular-nums">{{ formatMoney(outstandingTotal()) }}</strong>
+            </span>
+            <span>
+              Saldato:
+              <strong class="tabular-nums">{{ formatMoney(settledTotal()) }}</strong>
+            </span>
+          </td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+} @else {
+  <p class="doc-form__hint">{{ emptyHint() }}</p>
+}

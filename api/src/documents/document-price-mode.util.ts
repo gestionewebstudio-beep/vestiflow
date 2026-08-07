@@ -11,6 +11,7 @@ export const PRICE_MODE_VAT_INCLUDED_DEFAULT_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
   DocumentType.invoice_draft,
   DocumentType.invoice_accompanying,
+  DocumentType.credit_note,
   DocumentType.sales_ddt,
   DocumentType.quote,
   DocumentType.manual_unload,

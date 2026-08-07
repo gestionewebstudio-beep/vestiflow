@@ -60,6 +60,15 @@
             Converti in DDT vendita
           </app-button>
         }
+        @if (canGenerateCreditNote()) {
+          <app-button
+            variant="secondary"
+            [disabled]="actionSaving()"
+            (click)="convertToCreditNote()"
+          >
+            Genera nota di credito
+          </app-button>
+        }
         @if (canRegisterExternal()) {
           <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestRegister()">
             {{ registerButtonLabel }}

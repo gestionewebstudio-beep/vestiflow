@@ -20,6 +20,28 @@ import { AdjustmentDirection, DocumentType } from '@prisma/client';
 
 import { DocumentAddressDto, DocumentTransportFieldsDto } from './document-transport.dto';
 
+/**
+ * Rata di pagamento di una fattura di vendita (stesso schema della
+ * Registrazione fattura fornitore): la lista viene sostituita integralmente a
+ * ogni salvataggio che la dichiara.
+ */
+export class DocumentInstallmentDto {
+  @IsISO8601()
+  dueDate!: string;
+
+  @IsInt()
+  @Min(0)
+  amountMinor!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  settled?: boolean;
+
+  @IsOptional()
+  @IsISO8601()
+  settledAt?: string;
+}
+
 /** Riga documento in input. La testata calcola i totali server-side. */
 export class DocumentLineInputDto {
   @IsOptional()
@@ -238,6 +260,14 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @IsString()
   @MaxLength(34)
   iban?: string;
+
+  /** Rate di pagamento (Fattura): alimentano DatiPagamento TP01 nell'XML. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(60)
+  @ValidateNested({ each: true })
+  @Type(() => DocumentInstallmentDto)
+  installments?: DocumentInstallmentDto[];
 
   /**
    * DDT vendita agganciati alla fattura («Riferimento DDT», opzionale).

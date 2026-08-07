@@ -30,6 +30,22 @@
         />
       </label>
     </div>
+
+    <label class="tenant-profile-fields__field" for="tenant-tax-regime">
+      <span class="tenant-profile-fields__field-label">Regime fiscale (FatturaPA)</span>
+      <select
+        id="tenant-tax-regime"
+        class="tenant-profile-fields__input"
+        formControlName="taxRegime"
+      >
+        @for (regime of taxRegimes; track regime.code) {
+          <option [value]="regime.code">{{ regime.code }} — {{ regime.label }}</option>
+        }
+      </select>
+      <span class="tenant-profile-fields__field-hint">
+        Compare come RegimeFiscale nell'XML delle fatture elettroniche del cliente.
+      </span>
+    </label>
   </section>
 
   <section class="tenant-profile-fields__section" aria-labelledby="tenant-profile-address">

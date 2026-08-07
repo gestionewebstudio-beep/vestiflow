@@ -152,7 +152,7 @@
                  chiuso all'ingresso (i valori sono già validi o opzionali). -->
             @if (isSalesInvoice()) {
               <app-document-mobile-panel
-                title="Dettagli fattura"
+                [title]="invoicePanelTitle()"
                 [summaryParts]="invoicePanelSummaryParts()"
                 icon="pi-file"
               >
@@ -169,35 +169,37 @@
                     />
                   </div>
 
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Riferimento DDT (opzionale)</span>
-                    <app-select-menu
-                      [options]="ddtOptions()"
-                      value=""
-                      ariaLabel="Aggancia un DDT vendita"
-                      placeholder="Aggancia un DDT…"
-                      [fullWidth]="true"
-                      [includeEmptyOption]="false"
-                      (valueChange)="onAddLinkedDdt($event)"
-                    />
-                    @if (linkedDdts().length > 0) {
-                      <ul class="doc-form__causal-manage-list">
-                        @for (ddt of linkedDdts(); track ddt.id) {
-                          <li class="doc-form__causal-manage-item">
-                            <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
-                            <button
-                              type="button"
-                              class="doc-form__causal-icon-btn"
-                              (click)="onRemoveLinkedDdt(ddt.id)"
-                              [attr.aria-label]="'Rimuovi ' + ddt.label"
-                            >
-                              <i class="pi pi-times" aria-hidden="true"></i>
-                            </button>
-                          </li>
-                        }
-                      </ul>
-                    }
-                  </div>
+                  @if (showDdtPanel()) {
+                    <div class="doc-panel__field">
+                      <span class="doc-panel__label">Riferimento DDT (opzionale)</span>
+                      <app-select-menu
+                        [options]="ddtOptions()"
+                        value=""
+                        ariaLabel="Aggancia un DDT vendita"
+                        placeholder="Aggancia un DDT…"
+                        [fullWidth]="true"
+                        [includeEmptyOption]="false"
+                        (valueChange)="onAddLinkedDdt($event)"
+                      />
+                      @if (linkedDdts().length > 0) {
+                        <ul class="doc-form__causal-manage-list">
+                          @for (ddt of linkedDdts(); track ddt.id) {
+                            <li class="doc-form__causal-manage-item">
+                              <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
+                              <button
+                                type="button"
+                                class="doc-form__causal-icon-btn"
+                                (click)="onRemoveLinkedDdt(ddt.id)"
+                                [attr.aria-label]="'Rimuovi ' + ddt.label"
+                              >
+                                <i class="pi pi-times" aria-hidden="true"></i>
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </div>
+                  }
 
                   <div class="doc-panel__field">
                     <label class="doc-panel__label" for="sd-m-payment-terms">
@@ -209,6 +211,18 @@
                       type="text"
                       formControlName="paymentTerms"
                       placeholder="Es. Bonifico 30 gg d.f."
+                    />
+                  </div>
+
+                  <div class="doc-panel__field">
+                    <span class="doc-panel__label">Modalità di pagamento</span>
+                    <app-select-menu
+                      [options]="paymentMethodOptions()"
+                      [value]="form.controls.paymentMethod.value"
+                      ariaLabel="Modalità di pagamento"
+                      placeholder="Seleziona…"
+                      [fullWidth]="true"
+                      (valueChange)="onPaymentMethodChange($event)"
                     />
                   </div>
 
@@ -347,42 +361,45 @@
               Riferimento DDT: aggancio opzionale a uno o più DDT esistenti.
               Sull'accompagnatoria comanda anche lo scarico — con un DDT
               agganciato la colonna «Scarica mag.» sparisce dalle righe.
+              La nota di credito riferisce la fattura d'origine, non i DDT.
             -->
-              <div class="doc-form__field">
-                <span class="doc-form__label">Riferimento DDT (opzionale)</span>
-                <app-select-menu
-                  [options]="ddtOptions()"
-                  value=""
-                  ariaLabel="Aggancia un DDT vendita"
-                  placeholder="Aggancia un DDT…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  [includeEmptyOption]="false"
-                  (valueChange)="onAddLinkedDdt($event)"
-                />
-                <!--
+              @if (showDdtPanel()) {
+                <div class="doc-form__field">
+                  <span class="doc-form__label">Riferimento DDT (opzionale)</span>
+                  <app-select-menu
+                    [options]="ddtOptions()"
+                    value=""
+                    ariaLabel="Aggancia un DDT vendita"
+                    placeholder="Aggancia un DDT…"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    [includeEmptyOption]="false"
+                    (valueChange)="onAddLinkedDdt($event)"
+                  />
+                  <!--
                 Riusa le classi della lista causali (stessa forma: voci con
                 etichetta e bottone di rimozione) invece di introdurne di nuove:
                 sono già nel foglio condiviso delle maschere documento.
               -->
-                @if (linkedDdts().length > 0) {
-                  <ul class="doc-form__causal-manage-list">
-                    @for (ddt of linkedDdts(); track ddt.id) {
-                      <li class="doc-form__causal-manage-item">
-                        <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
-                        <button
-                          type="button"
-                          class="doc-form__causal-icon-btn"
-                          (click)="onRemoveLinkedDdt(ddt.id)"
-                          [attr.aria-label]="'Rimuovi ' + ddt.label"
-                        >
-                          <i class="pi pi-times" aria-hidden="true"></i>
-                        </button>
-                      </li>
-                    }
-                  </ul>
-                }
-              </div>
+                  @if (linkedDdts().length > 0) {
+                    <ul class="doc-form__causal-manage-list">
+                      @for (ddt of linkedDdts(); track ddt.id) {
+                        <li class="doc-form__causal-manage-item">
+                          <span class="doc-form__causal-manage-label">{{ ddt.label }}</span>
+                          <button
+                            type="button"
+                            class="doc-form__causal-icon-btn"
+                            (click)="onRemoveLinkedDdt(ddt.id)"
+                            [attr.aria-label]="'Rimuovi ' + ddt.label"
+                          >
+                            <i class="pi pi-times" aria-hidden="true"></i>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
+              }
 
               <div class="doc-form__field">
                 <label class="doc-form__label" for="sd-payment-terms">
@@ -395,6 +412,21 @@
                   formControlName="paymentTerms"
                   placeholder="Es. Bonifico 30 gg d.f."
                 />
+              </div>
+              <div class="doc-form__field">
+                <span class="doc-form__label">Modalità di pagamento</span>
+                <app-select-menu
+                  [options]="paymentMethodOptions()"
+                  [value]="form.controls.paymentMethod.value"
+                  ariaLabel="Modalità di pagamento"
+                  placeholder="Seleziona…"
+                  [compact]="true"
+                  [fullWidth]="true"
+                  (valueChange)="onPaymentMethodChange($event)"
+                />
+                <p class="doc-form__hint">
+                  Voce normativa (MP01–MP23): alimenta i dati pagamento dell'XML.
+                </p>
               </div>
               <div class="doc-form__field">
                 <label class="doc-form__label" for="sd-payment-due">Scadenza pagamento</label>
@@ -826,6 +858,32 @@
               </div>
             </dl>
           </aside>
+
+          @if (isSalesInvoice()) {
+            <section class="doc-form__lines" aria-labelledby="sd-installments-title">
+              <div class="doc-form__lines-head">
+                <div class="doc-form__lines-heading">
+                  <h2 id="sd-installments-title" class="doc-form__subtitle">
+                    Scadenze di pagamento
+                  </h2>
+                </div>
+                <div class="doc-form__lines-tools">
+                  <app-button type="button" variant="secondary" (click)="installmentsTable.add()">
+                    <i class="pi pi-plus" aria-hidden="true"></i>
+                    Aggiungi scadenza
+                  </app-button>
+                </div>
+              </div>
+              <app-document-installments
+                #installmentsTable
+                [installments]="installments"
+                [totalGrossMinor]="lineTotals().total.amountMinor"
+                [currencyCode]="currency"
+                idPrefix="sd-installment"
+                emptyHint="Nessuna scadenza: senza rate l'XML usa la sola scadenza di pagamento in testata."
+              />
+            </section>
+          }
 
           <div class="doc-form__footer-notes">
             <div class="doc-form__field">

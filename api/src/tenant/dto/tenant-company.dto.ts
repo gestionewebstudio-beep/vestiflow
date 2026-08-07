@@ -4,6 +4,8 @@ export interface TenantCompanyProfileDto {
   readonly legalName: string | null;
   readonly vatNumber: string | null;
   readonly fiscalCode: string | null;
+  /** Regime fiscale FatturaPA (RF01–RF19). */
+  readonly taxRegime: string;
   readonly phone: string | null;
   readonly pec: string | null;
   readonly sdiCode: string | null;

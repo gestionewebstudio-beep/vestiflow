@@ -1,7 +1,7 @@
 import { DocumentType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 
-import { documentNumberingType } from './document-type.util';
+import { documentNumberingType, documentNumberingTypeSet } from './document-type.util';
 import { formatDocumentReference } from './document-totals.util';
 
 /**
@@ -70,9 +70,12 @@ export async function lastAssignedNumber(input: NextNumberInput): Promise<number
     return result._max?.number ?? 0;
   }
 
+  // La famiglia fatture condivide il progressivo ma ogni documento è salvato
+  // col tipo concreto: il massimo va cercato su tutto l'insieme, o i numeri
+  // già presi da accompagnatorie e note di credito verrebbero riassegnati.
   const result = await tx.document.aggregate({
     _max: { number: true },
-    where: { tenantId, type: documentNumberingType(input.type), series },
+    where: { tenantId, type: { in: [...documentNumberingTypeSet(input.type)] }, series },
   });
   return result._max?.number ?? 0;
 }

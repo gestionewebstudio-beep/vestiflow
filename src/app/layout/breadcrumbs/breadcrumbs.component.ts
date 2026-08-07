@@ -48,6 +48,7 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   proforma: 'Proforma',
   fattura: 'Fatture',
   'fattura-accompagnatoria': 'Fattura accompagnatoria',
+  'nota-credito': 'Nota di credito',
   'sales-ddt': 'DDT vendita',
   quote: 'Preventivi',
   'codici-iva': 'Codici IVA',

@@ -27,6 +27,15 @@ const SUPPLIER_PENDING_TYPES = [
   DocumentType.goods_receipt,
 ] as const;
 
+/**
+ * Tipi che seguono il ciclo fiscale «Da emettere → Inviata al commercialista»:
+ * fatture e note di credito condividono contatori e stati nel registro.
+ */
+const INVOICE_REGISTER_TYPES = [
+  DocumentType.invoice_draft,
+  DocumentType.credit_note,
+] as const;
+
 const SALES_DDT_ACTIVE_STATUSES = [
   DocumentStatus.confirmed,
   DocumentStatus.printed,
@@ -50,6 +59,9 @@ export function buildAccountantDocumentCountsQuery(
   const supplierPendingStatuses = Prisma.join(
     SALES_DDT_ACTIVE_STATUSES.map((status) => Prisma.sql`${status}::"DocumentStatus"`),
   );
+  const invoiceRegisterTypes = Prisma.join(
+    INVOICE_REGISTER_TYPES.map((type) => Prisma.sql`${type}::"DocumentType"`),
+  );
 
   const dateFromFilter = query.dateFrom
     ? Prisma.sql`AND d.document_date >= ${new Date(query.dateFrom)}`
@@ -62,22 +74,22 @@ export function buildAccountantDocumentCountsQuery(
     SELECT
       COUNT(*)::int AS total,
       COUNT(*) FILTER (
-        WHERE d.type = ${DocumentType.invoice_draft}::"DocumentType"
+        WHERE d.type IN (${invoiceRegisterTypes})
           AND d.status = ${DocumentStatus.confirmed}::"DocumentStatus"
           AND d.externally_issued_at IS NULL
       )::int AS invoice_draft_to_issue,
       COUNT(*) FILTER (
-        WHERE d.type = ${DocumentType.invoice_draft}::"DocumentType"
+        WHERE d.type IN (${invoiceRegisterTypes})
           AND d.status = ${DocumentStatus.sent}::"DocumentStatus"
           AND d.externally_issued_at IS NULL
       )::int AS invoice_draft_sent,
       COUNT(*) FILTER (
-        WHERE d.type = ${DocumentType.invoice_draft}::"DocumentType"
+        WHERE d.type IN (${invoiceRegisterTypes})
           AND d.status = ${DocumentStatus.sent}::"DocumentStatus"
           AND d.externally_issued_at IS NOT NULL
       )::int AS invoice_draft_externally_issued,
       COUNT(*) FILTER (
-        WHERE d.type = ${DocumentType.invoice_draft}::"DocumentType"
+        WHERE d.type IN (${invoiceRegisterTypes})
           AND d.status = ${DocumentStatus.externally_registered}::"DocumentStatus"
       )::int AS invoice_draft_registered,
       COUNT(*) FILTER (

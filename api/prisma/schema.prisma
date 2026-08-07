@@ -240,6 +240,10 @@ enum DocumentType {
   /// `documentNumberingType`), si differenzia per sezioni trasporto e
   /// destinazione e per lo scarico di magazzino quando non aggancia un DDT.
   invoice_accompanying
+  /// Nota di credito di vendita (TD04): rettifica una fattura emessa. Condivide
+  /// numeratore e form con invoice_draft (vedi `documentNumberingType`), non
+  /// muove mai il magazzino (il rientro fisico resta sullo store_return).
+  credit_note
   online_sale // Vendita online (documento interno generato dall'evasione, fase 2)
   corrispettivo // Corrispettivo collegato alla Vendita online (registro interno, fase 2)
   customer_order // Ordine cliente manuale (numeratore dedicato; l'ordine vive in SalesOrder)
@@ -314,6 +318,9 @@ model Tenant {
   /// IBAN del negozio: precompila i dati pagamento in fattura (modificabile
   /// sul singolo documento) e alimenta DatiPagamento nell'XML FatturaPA.
   iban                           String?
+  /// Regime fiscale del cedente (RF01–RF19, FatturaPA): alimenta
+  /// RegimeFiscale nell'XML. RF01 = ordinario, RF19 = forfettario.
+  taxRegime                      String               @default("RF01") @map("tax_regime")
   addressLine1                   String?              @map("address_line1")
   addressLine2                   String?              @map("address_line2")
   city                           String?

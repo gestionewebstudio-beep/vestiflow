@@ -153,6 +153,15 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         available: true,
       },
       {
+        id: 'credit-note',
+        label: 'Nota di credito',
+        description: 'Rettifica una fattura emessa (TD04).',
+        route: ['/app/documents/fattura'],
+        queryParams: { type: 'credit_note' },
+        icon: 'pi-replay',
+        available: true,
+      },
+      {
         id: 'quotes',
         label: 'Preventivi',
         description: 'Preventivi cliente con numerazione PRE dedicata.',

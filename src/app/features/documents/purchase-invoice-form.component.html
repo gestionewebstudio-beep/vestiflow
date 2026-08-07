@@ -428,7 +428,7 @@
             <h2 id="pi-payment-title" class="doc-form__subtitle">Pagamento</h2>
           </div>
           <div class="doc-form__lines-tools">
-            <app-button type="button" variant="secondary" (click)="addInstallment()">
+            <app-button type="button" variant="secondary" (click)="installmentsTable.add()">
               <i class="pi pi-plus" aria-hidden="true"></i>
               Aggiungi scadenza
             </app-button>
@@ -451,99 +451,14 @@
           </div>
         </div>
 
-        @if (installments.length > 0) {
-          <div class="pi-form__table-wrap">
-            <table class="pi-form__table" formArrayName="installments">
-              <thead>
-                <tr>
-                  <th scope="col">Data scadenza</th>
-                  <th scope="col" class="doc-form__num">Importo</th>
-                  <th scope="col">Saldato</th>
-                  <th scope="col">Data saldo</th>
-                  <th scope="col">
-                    <span class="sr-only">Azioni</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (group of installments.controls; track group; let i = $index) {
-                  <tr [formGroupName]="i">
-                    <td [attr.data-label]="'Data scadenza'">
-                      <app-date-input
-                        [inputId]="'pi-installment-due-' + i"
-                        formControlName="dueDate"
-                        [ariaLabel]="'Data scadenza ' + (i + 1)"
-                        [compact]="true"
-                        [fullWidth]="true"
-                      />
-                    </td>
-                    <td class="doc-form__num" [attr.data-label]="'Importo'">
-                      <input
-                        class="doc-form__input doc-form__input--num pi-form__table-input"
-                        type="text"
-                        inputmode="decimal"
-                        formControlName="amountText"
-                        placeholder="0,00"
-                        [attr.aria-label]="'Importo scadenza ' + (i + 1)"
-                      />
-                    </td>
-                    <td [attr.data-label]="'Saldato'">
-                      <label class="doc-form__check">
-                        <input
-                          type="checkbox"
-                          [checked]="group.controls.settled.value"
-                          [attr.aria-label]="'Scadenza ' + (i + 1) + ' saldata'"
-                          (change)="onInstallmentSettledChange(i, $any($event.target).checked)"
-                        />
-                      </label>
-                    </td>
-                    <td [attr.data-label]="'Data saldo'">
-                      <app-date-input
-                        [inputId]="'pi-installment-settled-' + i"
-                        formControlName="settledAt"
-                        [ariaLabel]="'Data saldo scadenza ' + (i + 1)"
-                        placeholder="—"
-                        [compact]="true"
-                        [fullWidth]="true"
-                      />
-                    </td>
-                    <td class="doc-form__cell--actions">
-                      <button
-                        type="button"
-                        class="doc-form__line-remove"
-                        [attr.aria-label]="'Rimuovi scadenza ' + (i + 1)"
-                        (click)="removeInstallment(i)"
-                      >
-                        <i class="pi pi-times" aria-hidden="true"></i>
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th scope="row">Totali</th>
-                  <td colspan="3" class="pi-form__payment-totals">
-                    <span>
-                      Da saldare:
-                      <strong class="tabular-nums">{{ formatMoney(outstandingTotal()) }}</strong>
-                    </span>
-                    <span>
-                      Saldato:
-                      <strong class="tabular-nums">{{ formatMoney(settledTotal()) }}</strong>
-                    </span>
-                  </td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        } @else {
-          <p class="doc-form__hint">
-            Nessuna scadenza: aggiungi le scadenze di pagamento per tracciare saldo e residuo
-            ("Ancora da saldare" nell'elenco registrazioni).
-          </p>
-        }
+        <app-document-installments
+          #installmentsTable
+          [installments]="installments"
+          [totalGrossMinor]="totalGross().amountMinor"
+          [currencyCode]="currency"
+          idPrefix="pi-installment"
+          emptyHint='Nessuna scadenza: aggiungi le scadenze di pagamento per tracciare saldo e residuo ("Ancora da saldare" nell&apos;elenco registrazioni).'
+        />
       </section>
 
       <!-- ── Indirizzi ────────────────────────────────────────────────────── -->

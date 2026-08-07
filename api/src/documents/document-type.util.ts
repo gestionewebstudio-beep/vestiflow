@@ -8,16 +8,20 @@ export const NON_STOCK_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.supplier_invoice,
   // Preventivo: mai effetti magazzino (non impegna e non blocca disponibilità).
   DocumentType.quote,
+  // Nota di credito: rettifica contabile; il rientro fisico è dello store_return.
+  DocumentType.credit_note,
 ] as const;
 
 /**
- * Fatture di vendita: Fattura e Fattura accompagnatoria. Condividono elenco,
- * numeratore e form base; si differenziano per trasporto/destinazione e per lo
- * scarico di magazzino (solo l'accompagnatoria, e solo senza DDT agganciato).
+ * Fatture di vendita: Fattura, Fattura accompagnatoria e Nota di credito.
+ * Condividono elenco, numeratore e form base; l'accompagnatoria si distingue
+ * per trasporto/destinazione e scarico (solo senza DDT agganciato), la nota di
+ * credito per il TipoDocumento TD04 e il riferimento alla fattura rettificata.
  */
 export const SALES_INVOICE_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.invoice_draft,
   DocumentType.invoice_accompanying,
+  DocumentType.credit_note,
 ] as const;
 
 export function isSalesInvoiceDocumentType(type: DocumentType): boolean {
@@ -28,12 +32,28 @@ export function isSalesInvoiceDocumentType(type: DocumentType): boolean {
  * Tipo su cui chiavare il numeratore (DocumentSequence).
  *
  * Di norma coincide col tipo del documento. Fanno eccezione le fatture di
- * vendita: Fattura e Fattura accompagnatoria condividono UN SOLO progressivo,
- * quindi entrambe numerano sotto `invoice_draft`. La numerazione non si divide
- * per tipo — due fatture di tipo diverso non possono avere lo stesso numero.
+ * vendita: Fattura, Fattura accompagnatoria e Nota di credito condividono UN
+ * SOLO progressivo (stile Danea), quindi numerano tutte sotto `invoice_draft`.
+ * La numerazione non si divide per tipo — due fatture di tipo diverso non
+ * possono avere lo stesso numero.
  */
 export function documentNumberingType(type: DocumentType): DocumentType {
-  return type === DocumentType.invoice_accompanying ? DocumentType.invoice_draft : type;
+  return type === DocumentType.invoice_accompanying || type === DocumentType.credit_note
+    ? DocumentType.invoice_draft
+    : type;
+}
+
+/**
+ * Insieme dei tipi che condividono il numeratore del tipo dato: la famiglia
+ * fatture al completo, altrimenti il solo tipo. I documenti sono salvati col
+ * tipo CONCRETO, quindi il massimo del progressivo va cercato su tutto
+ * l'insieme — cercarlo sul solo tipo normalizzato ignorerebbe i numeri già
+ * presi da accompagnatorie e note di credito.
+ */
+export function documentNumberingTypeSet(type: DocumentType): readonly DocumentType[] {
+  return documentNumberingType(type) === DocumentType.invoice_draft
+    ? SALES_INVOICE_DOCUMENT_TYPES
+    : [type];
 }
 
 /** Avviso obbligatorio in stampa/note proforma (§9.1). */
@@ -61,10 +81,22 @@ export function documentTypeDefaultLoadsStock(type: DocumentType): boolean {
   return !(NON_STOCK_DOCUMENT_TYPES as readonly string[]).includes(type);
 }
 
+/**
+ * Tipi generabili da una fattura emessa: la sola Nota di credito. La NC nasce
+ * sempre come rettifica di una fattura, mai il contrario.
+ */
+export const INVOICE_CONVERT_TARGET_TYPES: readonly DocumentType[] = [
+  DocumentType.credit_note,
+] as const;
+
 export function isProformaConvertTarget(type: DocumentType): boolean {
   return (PROFORMA_CONVERT_TARGET_TYPES as readonly string[]).includes(type);
 }
 
 export function isSalesDdtConvertTarget(type: DocumentType): boolean {
   return (SALES_DDT_CONVERT_TARGET_TYPES as readonly string[]).includes(type);
+}
+
+export function isInvoiceConvertTarget(type: DocumentType): boolean {
+  return (INVOICE_CONVERT_TARGET_TYPES as readonly string[]).includes(type);
 }

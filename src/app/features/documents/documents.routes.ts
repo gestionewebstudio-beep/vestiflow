@@ -184,6 +184,20 @@ export const documentsRoutes: Routes = [
     },
   },
   {
+    // Nota di credito (TD04): stesso form fattura, senza pannello DDT; nasce
+    // di norma da «Genera nota di credito» sul dettaglio fattura.
+    path: 'nota-credito/new',
+    title: 'Nuova nota di credito',
+    loadComponent: () =>
+      import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
+    canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      salesDocumentType: DocumentType.CreditNote,
+    },
+  },
+  {
     // DDT vendita: stessa maschera dell'Ordine cliente in modalità sales-ddt
     // (prompt DDT §BASE — righe identiche, testata con Pagamento e «Seguirà
     // doc. di vendita», sezioni Trasporto e Indirizzi, scarico al salvataggio).

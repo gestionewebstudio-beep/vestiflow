@@ -2,11 +2,12 @@
 // REGISTRAZIONE FATTURA FORNITORE — delta locale sull'anatomia condivisa
 // .doc-form (src/styles/_document-form.scss + _document-form-footer.scss).
 //
-// Qui resta solo ciò che il foglio condiviso non copre: le tre tabelle
-// riepilogative (arrivi inclusi, righe registrazione, scadenze) e i dettagli
-// del pannello «Includi arrivo merce». Testata a celle unite, riepilogo
-// totali, barra azioni e host (`app-purchase-invoice-form`) vivono nel
-// linguaggio comune delle maschere documento.
+// Qui resta solo ciò che il foglio condiviso non copre: le due tabelle
+// riepilogative (arrivi inclusi, righe registrazione) e i dettagli del
+// pannello «Includi arrivo merce». Le scadenze di pagamento vivono nel
+// componente condiviso app-document-installments. Testata a celle unite,
+// riepilogo totali, barra azioni e host (`app-purchase-invoice-form`) vivono
+// nel linguaggio comune delle maschere documento.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Tabelle riepilogative. NON adottano .doc-form__table-wrap: sotto `lg` quel
@@ -75,13 +76,6 @@
 .pi-form__table-input--rate {
   min-inline-size: 4rem;
   max-inline-size: 6rem;
-}
-
-// Totali del pannello Pagamento (Da saldare / Saldato).
-.pi-form__payment-totals {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
 }
 
 // ── Pannello «Includi arrivo merce» ─────────────────────────────────────────

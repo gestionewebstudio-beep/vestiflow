@@ -88,10 +88,11 @@ export class DocumentSettingsComponent {
 
   /**
    * La sezione serie compare solo dove il tipo possiede il proprio numeratore.
-   * La Fattura accompagnatoria condivide quello della Fattura: si configura lì.
+   * Fattura accompagnatoria e Nota di credito condividono quello della
+   * Fattura: si configurano lì.
    */
   protected seriesConfigurable(type: DocumentType): boolean {
-    return type !== DocumentType.InvoiceAccompanying;
+    return type !== DocumentType.InvoiceAccompanying && type !== DocumentType.CreditNote;
   }
 
   private readonly _state = signal<PageState>('loading');

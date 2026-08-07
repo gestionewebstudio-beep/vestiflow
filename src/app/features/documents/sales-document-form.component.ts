@@ -46,6 +46,8 @@ import {
   parseEffectiveDiscountPercent,
 } from '@core/utils/discount-percent.util';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
+import type { PaymentOption } from '@core/models/payment-option.model';
+import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { VatCodeService } from '@core/services/vat-code.service';
@@ -84,6 +86,13 @@ import { DocumentEditLockService } from '@shared/services/document-edit-lock.ser
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
+import { DocumentInstallmentsComponent } from '@domain/documents/components/document-installments/document-installments.component';
+import {
+  rehydrateInstallments,
+  serializeInstallments,
+  type InstallmentFormArray,
+  type InstallmentFormGroup,
+} from '@domain/documents/utils/document-installments.util';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import {
   includeSourceKindsForDocumentType,
@@ -140,6 +149,7 @@ type SubmitState =
     DocumentSeriesManagerDialogComponent,
     DateInputComponent,
     DocumentIncludePanelComponent,
+    DocumentInstallmentsComponent,
     DocumentMobilePanelComponent,
     SelectMenuComponent,
     EmptyStateComponent,
@@ -165,6 +175,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private readonly vatCodeService = inject(VatCodeService);
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
   private readonly tenantCompanyService = inject(TenantCompanyService);
+  private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
@@ -234,7 +245,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     isInvoiceDraftDocumentType(this.documentType()),
   );
 
-  /** Fattura o Fattura accompagnatoria: testata fiscale e dati pagamento. */
+  /** Fattura, Fattura accompagnatoria o Nota di credito: testata fiscale e dati pagamento. */
   protected readonly isSalesInvoice = computed(() =>
     isSalesInvoiceDocumentType(this.documentType()),
   );
@@ -242,6 +253,17 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   /** Solo accompagnatoria: sezioni Trasporto e Destinazione. */
   protected readonly isInvoiceAccompanying = computed(() =>
     isInvoiceAccompanyingDocumentType(this.documentType()),
+  );
+
+  /** Nota di credito (TD04): rettifica una fattura, mai riferimenti DDT propri. */
+  protected readonly isCreditNote = computed(() => this.documentType() === DocumentType.CreditNote);
+
+  /** Pannello «Riferimento DDT»: fatture sì, nota di credito no. */
+  protected readonly showDdtPanel = computed(() => this.isSalesInvoice() && !this.isCreditNote());
+
+  /** Titolo del pannello mobile della testata fiscale, coerente col tipo. */
+  protected readonly invoicePanelTitle = computed(() =>
+    this.isCreditNote() ? 'Dettagli nota di credito' : 'Dettagli fattura',
   );
 
   protected readonly hasLinkedDdt = computed(() => this.linkedDdtIds().length > 0);
@@ -328,8 +350,10 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     documentDiscountPercent: this.fb.control(''),
     // ── Fattura: dati pagamento in testata ──────────────────────────────
     paymentTerms: this.fb.control(''),
+    paymentMethod: this.fb.control(''),
     paymentDueDate: this.fb.control(''),
     iban: this.fb.control(''),
+    installments: this.fb.array<InstallmentFormGroup>([]),
     // ── Fattura accompagnatoria: trasporto (identico al DDT vendita) ────
     transportCausal: this.fb.control(''),
     transportStartAt: this.fb.control(''),
@@ -855,6 +879,37 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     return this.form.controls.lines;
   }
 
+  protected get installments(): InstallmentFormArray {
+    return this.form.controls.installments;
+  }
+
+  // ── Modalità di pagamento (Impostazioni → Pagamenti) ───────────────────────
+
+  /** Voci «Modalità di pagamento»: il nome porta il codice MP01–MP23 per l'XML. */
+  private readonly paymentOptions = toSignal(
+    this.paymentOptionsService.list('method').pipe(catchError(() => of([] as PaymentOption[]))),
+    { initialValue: [] as readonly PaymentOption[] },
+  );
+
+  protected readonly paymentMethodOptions = computed<readonly SelectMenuOption[]>(() => {
+    this.formValue();
+    const current = this.form.controls.paymentMethod.value.trim();
+    const names = this.paymentOptions()
+      .filter((option) => option.isActive)
+      .map((option) => option.name);
+    const options = names.map((name): SelectMenuOption => ({ value: name, label: name }));
+    // Valore storico non più in elenco: resta selezionabile (snapshot).
+    if (current && !names.includes(current)) {
+      options.unshift({ value: current, label: current });
+    }
+    return options;
+  });
+
+  protected onPaymentMethodChange(value: string | null): void {
+    this.form.controls.paymentMethod.setValue(value ?? '');
+    this.form.controls.paymentMethod.markAsDirty();
+  }
+
   protected fieldInvalid(name: 'customerId' | 'locationId'): boolean {
     const control = this.form.controls[name];
     return control.invalid && (control.touched || control.dirty);
@@ -899,6 +954,12 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     const termsControl = this.form.controls.paymentTerms;
     if (customer.paymentTerms?.trim() && !termsControl.value.trim()) {
       termsControl.setValue(customer.paymentTerms.trim());
+    }
+
+    // Modalità di pagamento dall'anagrafica (nome con codice MP: alimenta l'XML).
+    const methodControl = this.form.controls.paymentMethod;
+    if (customer.paymentMethod?.trim() && !methodControl.value.trim()) {
+      methodControl.setValue(customer.paymentMethod.trim());
     }
 
     // Incaricato del trasporto configurato sull'anagrafica del cliente.
@@ -1301,6 +1362,17 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       return;
     }
     const raw = this.form.getRawValue();
+    // Rate: righe vuote saltate, righe incomplete bloccano con messaggio puntuale.
+    const serializedInstallments = this.isSalesInvoice()
+      ? serializeInstallments(raw.installments, this.currency)
+      : ({ ok: true, installments: [] } as const);
+    if (!serializedInstallments.ok) {
+      this._submitState.set({
+        status: 'error',
+        error: { kind: AppErrorKind.Validation, message: serializedInstallments.message },
+      });
+      return;
+    }
     const body = {
       type: this.documentType(),
       // Conversione: collega il documento generato all'origine (proforma/DDT).
@@ -1325,11 +1397,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       ...(this.isSalesInvoice()
         ? {
             paymentTerms: raw.paymentTerms.trim() || undefined,
+            paymentMethod: raw.paymentMethod.trim() || undefined,
             paymentDueDate: raw.paymentDueDate
               ? new Date(raw.paymentDueDate).toISOString()
               : undefined,
             iban: raw.iban.trim() || undefined,
-            linkedSalesDdtIds: [...this.linkedDdtIds()],
+            installments: serializedInstallments.installments,
+            // La nota di credito riferisce la fattura d'origine, non i DDT.
+            ...(this.showDdtPanel() ? { linkedSalesDdtIds: [...this.linkedDdtIds()] } : {}),
           }
         : {}),
       ...(this.isInvoiceAccompanying()
@@ -1750,8 +1825,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         series: '',
         documentDate: new Date().toISOString().slice(0, 10),
         relatedDdtRef: '',
+        // Scadenza dell'originale: non appartiene alla copia.
+        paymentDueDate: '',
       });
       this.linkedDdtIds.set([]);
+      // Copia indipendente, come il duplica della Registrazione fattura:
+      // niente rate — men che meno quelle già spuntate «saldate», che farebbero
+      // nascere la copia con residuo zero senza che nessuno abbia incassato.
+      this.installments.clear();
       this._sourceDocumentId.set(null);
       this._includedSalesOrderIds.set([]);
     });
@@ -1807,7 +1888,10 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           vatRatePercent: this.fb.control(
             line.vatRatePercent != null ? String(line.vatRatePercent) : '',
           ),
-          vatCodeId: this.fb.control(''),
+          // Il Codice IVA dell'origine si conserva (come nel duplica): senza,
+          // il salvataggio risolverebbe il default articolo sovrascrivendo
+          // aliquota e Natura — fatale sulla nota di credito, che rettifica.
+          vatCodeId: this.fb.control(line.vatCodeId ?? ''),
           discountPercent: this.fb.control(
             line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
           ),
@@ -1845,6 +1929,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           ? formatDiscountPercentValue(Number(doc.documentDiscountPercent))
           : '',
       paymentTerms: doc.paymentTerms ?? '',
+      paymentMethod: doc.paymentMethod ?? '',
       paymentDueDate: doc.paymentDueDate?.slice(0, 10) ?? '',
       iban: doc.iban ?? '',
       transportCausal: doc.transportCausal ?? '',
@@ -1866,6 +1951,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       destinationCountry: doc.destinationAddress?.country ?? '',
     });
     this.linkedDdtIds.set((doc.linkedSalesDdts ?? []).map((ddt) => ddt.id));
+    rehydrateInstallments(this.fb, this.installments, doc.paymentInstallments ?? []);
     // Una destinazione già salvata è per definizione quella voluta: il
     // pulsante «Cambia destinazione» parte quindi già in modalità modifica.
     this.destinationOverridden.set(Boolean(doc.destinationAddress?.address));

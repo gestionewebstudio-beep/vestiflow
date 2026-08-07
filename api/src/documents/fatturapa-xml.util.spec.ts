@@ -120,19 +120,106 @@ describe('buildFatturaPaXml', () => {
     expect(xml).not.toContain('<DatiPagamento>');
   });
 
-  it('non emette ModalitaPagamento: VestiFlow non gestisce i codici MP01–MP23', () => {
+  it('omette DatiPagamento quando la modalità MP01–MP23 non è nota', () => {
+    // ModalitaPagamento è obbligatoria dallo schema dentro DettaglioPagamento:
+    // senza codice, meglio nessun blocco che un blocco non conforme.
     const xml = buildFatturaPaXml(
       baseInput({ iban: 'IT60X0542811101000000123456', paymentTerms: 'Bonifico 30 gg' }),
     );
 
-    expect(xml).toContain('<DatiPagamento>');
+    expect(xml).not.toContain('<DatiPagamento>');
+  });
+
+  it('emette DatiPagamento TP02 con la modalità normativa quando è nota', () => {
+    const xml = buildFatturaPaXml(
+      baseInput({
+        iban: 'IT60X0542811101000000123456',
+        paymentMethodCode: 'MP05',
+        paymentDueDate: new Date('2026-08-20T00:00:00.000Z'),
+      }),
+    );
+
+    expect(xml).toContain('<CondizioniPagamento>TP02</CondizioniPagamento>');
+    expect(xml).toContain('<ModalitaPagamento>MP05</ModalitaPagamento>');
+    expect(xml).toContain('<DataScadenzaPagamento>2026-08-20</DataScadenzaPagamento>');
+    expect(xml).toContain('<ImportoPagamento>122.00</ImportoPagamento>');
     expect(xml).toContain('<IBAN>IT60X0542811101000000123456</IBAN>');
-    expect(xml).not.toContain('<ModalitaPagamento>');
+  });
+
+  it('con le rate emette TP01 e un DettaglioPagamento per rata', () => {
+    const xml = buildFatturaPaXml(
+      baseInput({
+        paymentMethodCode: 'MP05',
+        installments: [
+          { dueDate: new Date('2026-08-31T00:00:00.000Z'), amountMinor: 6100 },
+          { dueDate: new Date('2026-09-30T00:00:00.000Z'), amountMinor: 6100 },
+        ],
+      }),
+    );
+
+    expect(xml).toContain('<CondizioniPagamento>TP01</CondizioniPagamento>');
+    expect(xml.match(/<DettaglioPagamento>/g)).toHaveLength(2);
+    expect(xml).toContain('<DataScadenzaPagamento>2026-09-30</DataScadenzaPagamento>');
+    expect(xml.match(/<ImportoPagamento>61\.00<\/ImportoPagamento>/g)).toHaveLength(2);
   });
 
   it('usa il codice destinatario di default previsto dallo standard se assente', () => {
     const xml = buildFatturaPaXml(baseInput({ sdiCode: null }));
     expect(xml).toContain('<CodiceDestinatario>0000000</CodiceDestinatario>');
+  });
+
+  it('emette PECDestinatario solo con codice destinatario 0000000 (controllo 00426)', () => {
+    const conCodice = buildFatturaPaXml(
+      baseInput({ sdiCode: 'ABC1234', pec: 'cliente@pec.it' }),
+    );
+    const senzaCodice = buildFatturaPaXml(baseInput({ sdiCode: null, pec: 'cliente@pec.it' }));
+
+    expect(conCodice).not.toContain('<PECDestinatario>');
+    expect(senzaCodice).toContain('<CodiceDestinatario>0000000</CodiceDestinatario>');
+    expect(senzaCodice).toContain('<PECDestinatario>cliente@pec.it</PECDestinatario>');
+  });
+
+  it('tronca il ProgressivoInvio a 10 alfanumerici (String10Type)', () => {
+    const xml = buildFatturaPaXml(baseInput({ number: 'FT-2026-A-00042' }));
+
+    // «FT2026A00042» ha 12 caratteri: restano gli ultimi 10.
+    expect(xml).toContain('<ProgressivoInvio>2026A00042</ProgressivoInvio>');
+    // Il Numero del documento resta però integrale.
+    expect(xml).toContain('<Numero>FT-2026-A-00042</Numero>');
+  });
+
+  it('emette PrezzoUnitario con la coda decimale del netto esatto (controllo 00423)', () => {
+    // 25,00 € ivato al 22% → netto esatto 20,491803… minor: la coda deve
+    // uscire, o il ricalcolo SDI prezzo × quantità non torna col PrezzoTotale.
+    const xml = buildFatturaPaXml(
+      baseInput({
+        lines: [
+          {
+            lineNumber: 1,
+            description: 'Prezzo con coda',
+            quantity: 30,
+            unitPriceMinor: 2049.180328,
+            discountPercent: 0,
+            lineTotalMinor: 61475,
+            vatRatePercent: 22,
+          },
+        ],
+      }),
+    );
+
+    expect(xml).toContain('<PrezzoUnitario>20.49180328</PrezzoUnitario>');
+  });
+
+  it('con una sola rata dichiara comunque TP01: un acconto non è un pagamento completo', () => {
+    const xml = buildFatturaPaXml(
+      baseInput({
+        paymentMethodCode: 'MP05',
+        installments: [{ dueDate: new Date('2026-08-31T00:00:00.000Z'), amountMinor: 6100 }],
+      }),
+    );
+
+    expect(xml).toContain('<CondizioniPagamento>TP01</CondizioniPagamento>');
+    expect(xml).toContain('<ImportoPagamento>61.00</ImportoPagamento>');
   });
 
   it('preferisce Nome e Cognome quando manca la ragione sociale', () => {
@@ -205,6 +292,54 @@ describe('buildFatturaPaXml', () => {
     expect(xml).toContain('<Percentuale>10.00</Percentuale>');
   });
 
+  it('scrive lo sconto testata ripartito come secondo ScontoMaggiorazione', () => {
+    const xml = buildFatturaPaXml(
+      baseInput({
+        lines: [
+          {
+            lineNumber: 1,
+            description: 'Articolo con doppio sconto',
+            quantity: 1,
+            unitPriceMinor: 10000,
+            discountPercent: 10,
+            extraDiscountPercent: 5,
+            lineTotalMinor: 8550,
+            vatRatePercent: 22,
+          },
+        ],
+      }),
+    );
+
+    expect(xml.match(/<ScontoMaggiorazione>/g)).toHaveLength(2);
+    expect(xml).toContain('<Percentuale>5.00</Percentuale>');
+    expect(xml).toContain('<PrezzoTotale>85.50</PrezzoTotale>');
+  });
+
+  it('scrive il regime fiscale del cedente, con RF01 come ripiego', () => {
+    const rf19 = buildFatturaPaXml(
+      baseInput({ cedente: { legalName: 'Forfettario SRLS', taxRegime: 'RF19' } }),
+    );
+    const fallback = buildFatturaPaXml(baseInput());
+
+    expect(rf19).toContain('<RegimeFiscale>RF19</RegimeFiscale>');
+    expect(fallback).toContain('<RegimeFiscale>RF01</RegimeFiscale>');
+  });
+
+  it('include DatiFattureCollegate per la fattura rettificata dalla nota di credito', () => {
+    const xml = buildFatturaPaXml(
+      baseInput({
+        documentTypeCode: 'TD04',
+        linkedInvoices: [
+          { reference: 'FT-2026-0001', date: new Date('2026-07-21T00:00:00.000Z') },
+        ],
+      }),
+    );
+
+    expect(xml).toContain(
+      '<DatiFattureCollegate><IdDocumento>FT-2026-0001</IdDocumento><Data>2026-07-21</Data></DatiFattureCollegate>',
+    );
+  });
+
   it("esegue l'escape dei caratteri speciali XML", () => {
     const xml = buildFatturaPaXml(
       baseInput({ cessionario: { legalName: 'Rossi & Bianchi <SRL>' } }),
@@ -216,11 +351,11 @@ describe('buildFatturaPaXml', () => {
 });
 
 describe('fatturaPaFileName', () => {
-  it('usa la convenzione SDI IT{PIVA}_{numero}', () => {
-    expect(fatturaPaFileName('01234567890', 'FT-2026-0001')).toBe('IT01234567890_FT20260001.xml');
+  it('usa la convenzione SDI IT{PIVA}_{progressivo} con progressivo di max 5 caratteri', () => {
+    expect(fatturaPaFileName('01234567890', 'FT-2026-0001')).toBe('IT01234567890_60001.xml');
   });
 
-  it('ripiega sul solo numero se la partita IVA manca', () => {
-    expect(fatturaPaFileName(null, 'FT-2026-0001')).toBe('FT20260001.xml');
+  it('ripiega sul solo progressivo se la partita IVA manca', () => {
+    expect(fatturaPaFileName(null, 'FT-2026-0001')).toBe('60001.xml');
   });
 });

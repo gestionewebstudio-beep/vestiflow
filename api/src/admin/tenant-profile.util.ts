@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 
+import { DEFAULT_TAX_REGIME_CODE } from '../tenant/tax-regime.constant';
 import type { TenantProfileFieldsDto } from './dto/tenant-profile-fields.dto';
 
 export function tenantProfileCreateData(
@@ -9,6 +10,7 @@ export function tenantProfileCreateData(
   | 'legalName'
   | 'vatNumber'
   | 'fiscalCode'
+  | 'taxRegime'
   | 'phone'
   | 'pec'
   | 'sdiCode'
@@ -26,6 +28,8 @@ export function tenantProfileCreateData(
     legalName: dto.legalName ?? null,
     vatNumber: dto.vatNumber ?? null,
     fiscalCode: dto.fiscalCode ?? null,
+    // Colonna NOT NULL: senza scelta esplicita vale l'ordinario RF01.
+    taxRegime: dto.taxRegime ?? DEFAULT_TAX_REGIME_CODE,
     phone: dto.phone ?? null,
     pec: dto.pec ?? null,
     sdiCode: dto.sdiCode ?? null,
@@ -46,6 +50,7 @@ export function tenantProfileReplaceData(
   | 'legalName'
   | 'vatNumber'
   | 'fiscalCode'
+  | 'taxRegime'
   | 'phone'
   | 'pec'
   | 'sdiCode'
@@ -63,6 +68,7 @@ export function tenantProfileReplaceData(
     legalName: dto.legalName ?? null,
     vatNumber: dto.vatNumber ?? null,
     fiscalCode: dto.fiscalCode ?? null,
+    taxRegime: dto.taxRegime ?? DEFAULT_TAX_REGIME_CODE,
     phone: dto.phone ?? null,
     pec: dto.pec ?? null,
     sdiCode: dto.sdiCode ?? null,

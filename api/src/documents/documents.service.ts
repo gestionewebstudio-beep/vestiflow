@@ -67,8 +67,10 @@ import {
 import {
   documentNumberingType,
   documentTypeDefaultLoadsStock,
+  isInvoiceConvertTarget,
   isProformaConvertTarget,
   isSalesDdtConvertTarget,
+  isSalesInvoiceDocumentType,
 } from './document-type.util';
 import {
   buildDocumentNumberConflict,
@@ -107,7 +109,11 @@ import {
 } from './document-defaults';
 import type { ResolvedDocumentTypeSetting } from './document-defaults';
 import type { ConvertDocumentDto } from './dto/convert-document.dto';
-import type { CreateDocumentDto, DocumentLineInputDto } from './dto/create-document.dto';
+import type {
+  CreateDocumentDto,
+  DocumentInstallmentDto,
+  DocumentLineInputDto,
+} from './dto/create-document.dto';
 import type { DocumentAddressDto } from './dto/document-transport.dto';
 import type { ListDocumentOperatorsQueryDto } from './dto/list-document-operators.query.dto';
 import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
@@ -346,9 +352,11 @@ export class DocumentsService {
         ? { externalDocumentTypeId: query.externalDocumentTypeId }
         : {}),
       ...this.buildLinkStatusClause(query.linkStatus),
-      // Stato saldo (Registrazioni fattura): residuo denormalizzato sul documento.
+      // Stato saldo (Registrazioni fattura): residuo denormalizzato sul
+      // documento. Un annullato non ha nulla da incassare: come il filtro
+      // pendingInvoice qui sotto, «da saldare» esclude i cancellati.
       ...(query.settlement === 'pending'
-        ? { outstandingMinor: { gt: 0 } }
+        ? { outstandingMinor: { gt: 0 }, status: { not: DocumentStatus.cancelled } }
         : query.settlement === 'settled'
           ? { outstandingMinor: { lte: 0 } }
           : {}),
@@ -951,6 +959,16 @@ export class DocumentsService {
           await this.syncLinkedSalesDdtsTx(tx, tenantId, created.id, dto.linkedSalesDdtIds);
         }
 
+        if (isSalesInvoiceDocumentType(dto.type)) {
+          await this.syncInvoiceInstallmentsTx(
+            tx,
+            tenantId,
+            created.id,
+            totals.totalMinor,
+            dto.installments,
+          );
+        }
+
         if (dto.includedSalesOrderIds !== undefined) {
           await this.syncIncludedSalesOrdersTx(tx, tenantId, created, dto.includedSalesOrderIds);
         }
@@ -1098,6 +1116,65 @@ export class DocumentsService {
         data: uniqueIds.map((salesDdtId) => ({ tenantId, invoiceId, salesDdtId })),
       });
     }
+  }
+
+  /**
+   * Rate di pagamento della fattura di vendita: lista sostituita integralmente
+   * a ogni salvataggio che la dichiara (stesso schema della Registrazione
+   * fattura fornitore). Il residuo «Ancora da saldare» è denormalizzato in
+   * testata; senza rate resta 0, come per gli altri tipi.
+   */
+  private async syncInvoiceInstallmentsTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    documentId: string,
+    totalMinor: number,
+    installments: readonly DocumentInstallmentDto[] | undefined,
+  ): Promise<void> {
+    if (installments === undefined) {
+      // Lista non dichiarata: le rate restano intatte, ma il residuo
+      // denormalizzato segue comunque il totale (che questo update può aver
+      // cambiato) — come fa la Registrazione fattura a ogni salvataggio.
+      const existing = await tx.documentPaymentInstallment.findMany({
+        where: { documentId },
+        select: { settled: true, amountMinor: true },
+      });
+      if (existing.length === 0) {
+        return;
+      }
+      const existingSettled = existing
+        .filter((installment) => installment.settled)
+        .reduce((sum, installment) => sum + installment.amountMinor, 0);
+      await tx.document.update({
+        where: { id: documentId },
+        data: { outstandingMinor: Math.max(0, totalMinor - existingSettled) },
+      });
+      return;
+    }
+    await tx.documentPaymentInstallment.deleteMany({ where: { documentId } });
+    if (installments.length > 0) {
+      await tx.documentPaymentInstallment.createMany({
+        data: installments.map((installment, index) => ({
+          tenantId,
+          documentId,
+          position: index + 1,
+          dueDate: new Date(installment.dueDate),
+          amountMinor: installment.amountMinor,
+          settled: installment.settled === true,
+          settledAt: installment.settledAt ? new Date(installment.settledAt) : null,
+        })),
+      });
+    }
+    const settledMinor = installments
+      .filter((installment) => installment.settled === true)
+      .reduce((sum, installment) => sum + installment.amountMinor, 0);
+    await tx.document.update({
+      where: { id: documentId },
+      data: {
+        outstandingMinor:
+          installments.length > 0 ? Math.max(0, totalMinor - settledMinor) : 0,
+      },
+    });
   }
 
   private async syncIncludedSalesOrdersTx(
@@ -1867,6 +1944,17 @@ export class DocumentsService {
         await this.syncLinkedSalesDdtsTx(tx, tenantId, saved.id, dto.linkedSalesDdtIds);
       }
 
+      // Rate della fattura: allineate a ogni salvataggio che le dichiara.
+      if (isSalesInvoiceDocumentType(saved.type)) {
+        await this.syncInvoiceInstallmentsTx(
+          tx,
+          tenantId,
+          saved.id,
+          saved.totalMinor,
+          dto.installments,
+        );
+      }
+
       // Aggancio ordini cliente inclusi (DDT vendita, prompt DDT §LOGICA
       // MAGAZZINO): allineato a ogni salvataggio che dichiara l'elenco.
       if (dto.includedSalesOrderIds !== undefined) {
@@ -2235,9 +2323,12 @@ export class DocumentsService {
     this.assertDocumentLocationWritable(user, source);
     const isProformaSource = source.type === DocumentType.proforma;
     const isSalesDdtSource = source.type === DocumentType.sales_ddt;
-    if (!isProformaSource && !isSalesDdtSource) {
+    // La NC nasce da una fattura emessa (mai da un'altra nota di credito).
+    const isInvoiceSource =
+      isSalesInvoiceDocumentType(source.type) && source.type !== DocumentType.credit_note;
+    if (!isProformaSource && !isSalesDdtSource && !isInvoiceSource) {
       throw new ConflictException(
-        'Solo proforme e DDT vendita possono essere convertiti con questa azione.',
+        'Solo proforme, DDT vendita e fatture possono essere convertiti con questa azione.',
       );
     }
     if (isProformaSource && !isProformaConvertTarget(dto.targetType)) {
@@ -2246,6 +2337,11 @@ export class DocumentsService {
     if (isSalesDdtSource && !isSalesDdtConvertTarget(dto.targetType)) {
       throw new UnprocessableEntityException(
         'Dal DDT vendita si possono generare solo Bozza fattura o Proforma.',
+      );
+    }
+    if (isInvoiceSource && !isInvoiceConvertTarget(dto.targetType)) {
+      throw new UnprocessableEntityException(
+        'Da una fattura si può generare solo la Nota di credito.',
       );
     }
     if (source.status === DocumentStatus.cancelled) {
@@ -2257,10 +2353,12 @@ export class DocumentsService {
 
     const sourceRef =
       source.reference ??
-      `${isSalesDdtSource ? 'DDT vendita' : 'proforma'} ${source.id.slice(0, 8)}`;
-    const conversionNote = isSalesDdtSource
-      ? `Generato da ${sourceRef}`
-      : `Convertito da ${sourceRef}`;
+      `${isSalesDdtSource ? 'DDT vendita' : isInvoiceSource ? 'fattura' : 'proforma'} ${source.id.slice(0, 8)}`;
+    const conversionNote = isInvoiceSource
+      ? `Rettifica di ${sourceRef}`
+      : isSalesDdtSource
+        ? `Generato da ${sourceRef}`
+        : `Convertito da ${sourceRef}`;
 
     let locationId = source.locationId ?? undefined;
     if (dto.targetType === DocumentType.sales_ddt && !locationId) {
@@ -2300,6 +2398,10 @@ export class DocumentsService {
         quantity: line.quantity,
         unitPriceMinor: Number(line.unitPriceMinor),
         discountPercent: Number(line.discountPercent),
+        // Il Codice IVA viaggia col prefill: senza, il salvataggio risolverebbe
+        // il default articolo/tenant sovrascrivendo aliquota e Natura — su una
+        // nota di credito la rettifica deve usare l'IVA della fattura d'origine.
+        vatCodeId: line.vatCodeId ?? undefined,
         vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot) ?? undefined,
         loadsStock: dto.targetType === DocumentType.sales_ddt,
       })),
@@ -2608,7 +2710,9 @@ export class DocumentsService {
 
       await tx.document.update({
         where: { id },
-        data: { status: DocumentStatus.cancelled, cancelledAt: new Date() },
+        // Un annullato non ha più nulla da incassare: il residuo denormalizzato
+        // si azzera (le rate restano, sono lo storico dello scadenzario).
+        data: { status: DocumentStatus.cancelled, cancelledAt: new Date(), outstandingMinor: 0 },
       });
     });
 

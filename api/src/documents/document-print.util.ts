@@ -5,6 +5,7 @@ export const PRINTABLE_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
   DocumentType.invoice_draft,
   DocumentType.invoice_accompanying,
+  DocumentType.credit_note,
   DocumentType.sales_ddt,
   DocumentType.quote,
   DocumentType.transfer,
@@ -24,6 +25,7 @@ const SALES_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
   DocumentType.invoice_draft,
   DocumentType.invoice_accompanying,
+  DocumentType.credit_note,
   DocumentType.quote,
   // Scarico manuale: layout vendita (Cliente + righe con prezzi/totali).
   DocumentType.manual_unload,

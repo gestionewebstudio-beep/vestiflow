@@ -887,6 +887,9 @@ export class DocumentListComponent {
       case 'invoice-accompanying':
         this.openNewInvoice(DocumentType.InvoiceAccompanying);
         break;
+      case 'credit-note':
+        this.openNewInvoice(DocumentType.CreditNote);
+        break;
       default:
         break;
     }
@@ -1321,12 +1324,14 @@ export class DocumentListComponent {
     void this.router.navigate(['/app/documents/quote/new']);
   }
 
-  /** Nuova fattura del tipo scelto: le due varianti condividono il form. */
+  /** Nuova fattura del tipo scelto: le varianti condividono il form. */
   protected openNewInvoice(type: DocumentType): void {
     const path =
       type === DocumentType.InvoiceAccompanying
         ? '/app/documents/fattura-accompagnatoria/new'
-        : '/app/documents/fattura/new';
+        : type === DocumentType.CreditNote
+          ? '/app/documents/nota-credito/new'
+          : '/app/documents/fattura/new';
     void this.router.navigate([path]);
   }
 

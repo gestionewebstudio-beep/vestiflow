@@ -72,3 +72,12 @@
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
+
+// Avviso fiscale non bloccante (ambra, come «disponibili solo N» sui documenti):
+// informa che il dato farebbe scartare la fattura elettronica, mai un blocco.
+.customer-fields__hint--warning {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  color: var(--color-warning);
+}

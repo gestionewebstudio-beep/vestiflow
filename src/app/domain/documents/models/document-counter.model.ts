@@ -31,9 +31,10 @@ export interface SaveDocumentCounterBody {
 /**
  * Tipi documento con numerazione configurabile — mirror di
  * COUNTER_CONFIGURABLE_DOCUMENT_TYPES (api/src/documents/document-defaults.ts).
- * Il backend valida comunque: qui serve solo a popolare la tendina. Esclusa la
- * Fattura accompagnatoria (condivide il numeratore della Fattura). Gli ordini
- * (cliente/fornitore) usano il progressivo delle rispettive tabelle.
+ * Il backend valida comunque: qui serve solo a popolare la tendina. Escluse
+ * Fattura accompagnatoria e Nota di credito (condividono il numeratore della
+ * Fattura). Gli ordini (cliente/fornitore) usano il progressivo delle
+ * rispettive tabelle.
  */
 export const COUNTER_CONFIGURABLE_TYPES: readonly DocumentType[] = [
   DocumentType.SupplierOrder,
