@@ -9,6 +9,44 @@ Aree non architetturali ma indispensabili per la qualità nel tempo di VestiFlow
 
 ---
 
+# ⛔ DATABASE — Due comandi VIETATI
+
+Il database di VestiFlow è **condiviso**, e la sua storia delle migration può essere più
+avanti del ramo su cui si sta lavorando: chi sta su un altro ramo applica le proprie
+migration allo stesso database. Non è un'ipotesi — è già successo, con sei migration
+presenti nel database e assenti in locale.
+
+Con le storie divergenti:
+
+- **`prisma migrate dev`** — **VIETATO**. Non applica e basta: propone di **azzerare il
+  database** per riallinearlo. Si perde il lavoro degli altri rami, e i dati.
+- **`prisma db push`** — **VIETATO**. Allinea il database allo schema locale, quindi
+  **cancella** le tabelle che il ramo corrente non conosce.
+- **`prisma migrate reset`** — **VIETATO**, fa quello che dice.
+
+Al loro posto, sempre e solo:
+
+| Devi…                           | Comando                     |
+| ------------------------------- | --------------------------- |
+| applicare le migration mancanti | `npm run prisma:deploy`     |
+| rigenerare il client            | `npm run prisma:generate`   |
+| vedere cosa manca               | `npx prisma migrate status` |
+
+Una **migration nuova** si scrive a mano, senza toccare il database: si modifica
+`prisma/schema.prisma`, si genera l'SQL con `prisma migrate diff`
+(`--from-schema-datasource` → `--to-schema-datamodel`, `--script`), lo si mette in
+`prisma/migrations/<AAAAMMGGhhmmss>_<nome>/migration.sql` **con un commento che dica
+perché**, e lo si applica con `npm run prisma:deploy`.
+
+`.claude/settings.json` blocca quei comandi via permessi, e `npm run prisma:migrate` è
+una guardia che spiega — ma **nessuna delle due ferma un terminale**, quindi la regola
+resta scritta qui.
+
+Se `prisma generate` dà `EPERM`: è il watcher dell'API che tiene bloccato il query
+engine. Fermare `npm run start:dev` e rilanciare.
+
+---
+
 # NODE & PACKAGE MANAGER
 
 - **Pinna la versione Node**: file `.nvmrc` (o `engines.node` in `package.json`) con la versione LTS attiva. Aggiorna almeno una volta all'anno alla nuova LTS.
