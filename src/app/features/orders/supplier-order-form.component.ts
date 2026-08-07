@@ -1314,11 +1314,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         // altro. `replaceUrl` toglie /new dalla cronologia: il tasto Indietro
         // deve tornare alla lista, non a una maschera vuota.
         //
-        // Il cambio di rotta ricrea l'istanza: lo sblocco va conservato e
-        // l'ordine appena creato marcato come sbloccato, altrimenti la maschera
-        // si richiuderebbe in faccia a chi l'ha appena scritto.
-        this.editLock.unlock(order.id);
-        this.editLock.preserveAcrossReload();
+        // E si BLOCCA, come dopo ogni salvataggio: la regola è una sola, e non
+        // cambia fra creazione e modifica. L'ordine appena creato non viene
+        // sbloccato, quindi la rotta nuova lo carica protetto — chi vuole
+        // rimetterci mano lo sblocca, con lo stesso gesto di sempre.
         void this.router.navigate([this.listPath, order.id, 'edit'], { replaceUrl: true });
       },
       error: (err: unknown) => {
