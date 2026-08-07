@@ -267,24 +267,57 @@ che prima o poi diverge. Ed era già divergente.
 È il più delicato dei tre. **Non usa il servizio**: ha ancora la sua copia, con
 `SESSION_UNLOCKED_ORDER_IDS`, ed è per questo che oggi funziona mentre gli altri no.
 
-Tre cose da risolvere, tutte con una decisione dentro:
+Il passo 5 fa **solo il blocco**: niente altro entra in quel giro, così resta rivedibile.
+Tre cose, tutte con la decisione già presa:
 
-1. **Il DDT aperto dall'Ordine cliente non si blocca.** Quella maschera ospita quattro tipi
+1. **Adotta il servizio** al posto della copia a mano, e **si riblocca al salvataggio** —
+   oggi resta sbloccato, come faceva l'Arrivo merce prima del passo 4.
+2. **Il DDT aperto dall'Ordine cliente non si blocca.** Quella maschera ospita quattro tipi
    di documento e il blocco fu scritto per uno solo: gli altri presero `editUnlocked = true`
    come ripiego. È un **residuo**, non una scelta — confermato: è lo stesso documento che
    dalla sua maschera il blocco ce l'ha. Va tolto.
-2. **Il divieto assoluto sugli ordini da canale esterno** (`order.source === Manual && …`):
+3. **Il divieto assoluto sugli ordini da canale esterno** (`order.source === Manual && …`):
    un ordine da Shopify o POS non è sbloccabile in nessun caso. Diventa un **avviso**, non
    un divieto — coerente con la regola di progetto «i controlli sono avvisi, mai blocchi».
    Il testo deve dire la conseguenza, non chiedere conferma generica:
    _«questo ordine viene da Shopify, la modifica resta solo in VestiFlow»_. I due sistemi
    diranno cose diverse e nessuno dei due sa dell'altro; a volte serve davvero — un cliente
    telefona e cambia una taglia — ma chi lo fa deve saperlo.
-3. **`track line` anche qui**, sulla stessa struttura. Ma le righe dell'Ordine cliente **si
-   riordinano per trascinamento**, quindi `track $index` **non** è la risposta giusta: va
-   pensata. È l'unico dei tre punti che non ha già una decisione presa.
-
-Aggiungere: l'Ordine cliente oggi **non si riblocca** dopo il salvataggio, e va portato
-alla regola nuova come gli altri due.
 
 I dettagli con i numeri di riga stanno nei messaggi di commit da `4fd3d16` a `cd01098`.
+
+---
+
+# Da discutere prima di farlo: il `track` delle righe
+
+**Non c'entra con il blocco.** È finito nella stessa conversazione solo perché l'ho
+incontrato mentre lavoravo sulla stessa maschera, e tenerlo separato è la ragione per cui
+sta qui in fondo invece che dentro il passo 5.
+
+**Cos'è.** Le righe documento sono una `FormArray` che viene **svuotata e ricostruita** a
+ogni caricamento (`lines.clear()` più push dei FormGroup). Il template le scorre con
+`@for (line of lines.controls; track line)`, cioè traccia per **identità dell'oggetto**:
+dopo la ricostruzione gli oggetti sono altri, quindi Angular vede una collezione
+interamente nuova e distrugge e ricrea l'intera tabella. Lo dice lui stesso, con NG0956.
+
+**Cosa costa.** È un avviso, non un errore: non rompe niente e non blocca il salvataggio.
+Costa lavoro sprecato — DOM buttato e rifatto a ogni apertura — e in mezzo può nascondere
+avvisi veri, che è come si è manifestato la prima volta.
+
+**Perché non è ovvio cosa fare.** Sull'Ordine fornitore la risposta era `track $index`: in
+una `FormArray` la posizione è l'identità della riga, e quelle righe non si riordinano.
+Sull'**Ordine cliente le righe si trascinano** (`cdkDrag`), quindi tracciare per posizione
+è discutibile: al riordino cambierebbe l'identità di ogni riga spostata.
+
+**Le domande da farsi prima di scrivere qualsiasi cosa**, e sono di prodotto quanto di
+codice:
+
+- Serve davvero ricostruire la `FormArray` a ogni caricamento, o basta aggiornare i
+  controlli esistenti? Se non la si ricostruisse, il problema non esisterebbe e la
+  domanda sul `track` non si porrebbe.
+- Le righe hanno già un'identità stabile? Le righe salvate hanno un `id`; quelle nuove no.
+  Un `track` misto — id quando c'è, posizione altrimenti — è una possibilità, ma va
+  verificata sul riordino, non immaginata.
+
+Prima di toccarlo va deciso **se vale la pena**: è un avviso, e il costo è invisibile
+all'operatore. Potrebbe non meritare un intervento adesso.
