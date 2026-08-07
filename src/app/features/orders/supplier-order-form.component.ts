@@ -1235,11 +1235,27 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       next: (order) => {
         // Ordine salvato: il guard di uscita non deve più fermare la navigazione.
         this.dirtySinceLastSave.set(false);
+        this._submitState.set({ status: 'idle' });
         if (onSaved) {
+          // «Salva e chiudi» dal dialogo di uscita: l'operatore sta uscendo di
+          // proposito, non lo si porta da un'altra parte.
           onSaved();
           return;
         }
-        void this.router.navigate([this.listPath, order.id]);
+        if (editId) {
+          // Ri-legge dal documento salvato: il costo netto canonico torna con
+          // la coda che il server ha memorizzato, non con quella che avevamo
+          // in memoria.
+          this.patchFormFromOrder(order);
+          return;
+        }
+        // Primo salvataggio: si RESTA nel documento appena creato. Salvare non
+        // è uscire — l'operatore in genere continua a lavorarci. Cambia solo
+        // l'URL, da /new a /:id/edit, così un ricaricamento non perde il
+        // documento e un secondo salvataggio aggiorna invece di crearne un
+        // altro. `replaceUrl` toglie /new dalla cronologia: il tasto Indietro
+        // deve tornare alla lista, non a una maschera vuota.
+        void this.router.navigate([this.listPath, order.id, 'edit'], { replaceUrl: true });
       },
       error: (err: unknown) => {
         this._submitState.set({ status: 'error', error: this.toAppError(err) });

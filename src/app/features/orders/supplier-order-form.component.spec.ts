@@ -1,4 +1,5 @@
-import { provideRouter } from '@angular/router';
+import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
 import { AuthService } from '@core/auth';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -231,6 +232,40 @@ describe('SupplierOrderFormComponent', () => {
       }),
     );
     expect(await screen.findByRole('alert')).toHaveTextContent('Errore del server');
+  });
+
+  // ── Salvare non è uscire ───────────────────────────────────────────────────
+  //
+  // Dopo il primo salvataggio si RESTA nel documento: cambia solo l'URL, da
+  // /new a /:id/edit, così un ricaricamento non perde il documento e un secondo
+  // salvataggio aggiorna invece di crearne un altro. Prima portava al dettaglio
+  // in sola lettura, cioè buttava fuori l'operatore da quello che stava
+  // scrivendo — ed è lo stesso pattern dell'Ordine cliente.
+  it('dopo il salvataggio resta nel documento, su /:id/edit', async () => {
+    const user = userEvent.setup();
+    await setup({ vatCodes: [VAT_22] });
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+
+    await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+    await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+
+    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
+    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
+    await user.click(
+      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+    );
+
+    const cost = screen.getByPlaceholderText('0,00');
+    await user.clear(cost);
+    await user.type(cost, '12,50');
+
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+
+    expect(navigate).toHaveBeenCalledWith(
+      ['/app/orders', 'po-1', 'edit'],
+      expect.objectContaining({ replaceUrl: true }),
+    );
   });
 
   // ── Il salvataggio non fallisce mai in silenzio ────────────────────────────
