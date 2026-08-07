@@ -207,3 +207,84 @@ ivato → netto → ivato rimette lo stesso costo, e il salvataggio manda il val
   il selettore netto/ivato solo sul costo: la stessa trappola tolta di qui.
 - Il **DDT vendita** e l'**Ordine cliente**, che perdono il centesimo sui prezzi digitati
   a mano per lo stesso motivo.
+
+---
+
+# Il blocco dei documenti — lavoro nato da qui, non ancora finito
+
+Sistemando l'Ordine fornitore è emerso che era **l'unico documento del gestionale che si
+riapriva direttamente in scrittura**. Da lì è partita l'unificazione del blocco, che vale
+per tutte le maschere e non solo per questa.
+
+## La decisione dell'08/2026 — si blocca sempre dopo il salvataggio
+
+> **Si salva → il documento si blocca → si resta dentro.** Se si vuole continuare, si
+> sblocca.
+
+Vale **ovunque**, senza eccezioni per tipo documento. La ragione non è il rischio
+contabile: è che meglio un gesto in più che una schermata salvata e lasciata aperta a
+chiunque passi.
+
+**Questo supera §10.7 sul punto.** Quella specifica dice che l'Arrivo merce «salva e resta
+nella maschera, si esce solo con Chiudi»: resta vero che si resta nella maschera — cambia
+che i campi tornano protetti.
+
+Non è un dettaglio di implementazione, è una regola di prodotto: chi trova §10.7 e il
+codice in disaccordo deve sapere quale delle due è più recente.
+
+## Perché unificare, e non aggiungere una quarta copia
+
+Il meccanismo era scritto **tre volte** con tre comportamenti diversi. È lo stesso
+problema che ha fatto perdere una giornata sui prezzi: la stessa decisione in più punti,
+che prima o poi diverge. Ed era già divergente.
+
+## Fatto
+
+- **`DocumentEditLockService`** — l'estrazione **esisteva già**, ma stava in `shared/` e la
+  usavano solo DDT vendita, trasferimenti e operazioni di magazzino. Spostato in
+  `domain/documents/services/`: conosce «confermato» e «bozza», quindi è dominio.
+- **Via il ramo bozza** da `syncOnLoad`: era «non confermato → sempre sbloccato», ed era
+  proprio la complicazione che faceva divergere le maschere. Le bozze non esistono come
+  documenti che si riaprono — nel database sono **zero su 90**, lo stato è transitorio
+  dentro la creazione. Chi chiama gatea già sul proprio `isConfirmedEdit()`.
+- **`relock()`**, il verbo che mancava: il documento torna protetto subito, senza
+  aspettare l'uscita.
+- **Ordine fornitore** e **Arrivo merce** adottano il servizio.
+
+### Due difetti trovati strada facendo
+
+- **L'adozione dello sblocco.** `syncOnLoad` trovava l'id nel set di sessione e sbloccava
+  ma **non lo adottava**: nessuna istanza rispondeva più del rilascio, l'id restava nel set
+  per sempre, e da lì in poi quel documento non si riapriva **mai più** protetto. Il blocco
+  funzionava una volta sola. È la riga che si perde migrando — l'Arrivo merce ce l'aveva,
+  l'estrazione condivisa no.
+- **`track line`** su una `FormArray` svuotata e ricostruita a ogni caricamento: Angular
+  tracciava per **identità**, vedeva ogni volta una collezione nuova e rispondeva NG0956
+  distruggendo l'intera tabella. Sull'Ordine fornitore corretto con `track $index`.
+
+## Resta: il passo 5, l'Ordine cliente
+
+È il più delicato dei tre. **Non usa il servizio**: ha ancora la sua copia, con
+`SESSION_UNLOCKED_ORDER_IDS`, ed è per questo che oggi funziona mentre gli altri no.
+
+Tre cose da risolvere, tutte con una decisione dentro:
+
+1. **Il DDT aperto dall'Ordine cliente non si blocca.** Quella maschera ospita quattro tipi
+   di documento e il blocco fu scritto per uno solo: gli altri presero `editUnlocked = true`
+   come ripiego. È un **residuo**, non una scelta — confermato: è lo stesso documento che
+   dalla sua maschera il blocco ce l'ha. Va tolto.
+2. **Il divieto assoluto sugli ordini da canale esterno** (`order.source === Manual && …`):
+   un ordine da Shopify o POS non è sbloccabile in nessun caso. Diventa un **avviso**, non
+   un divieto — coerente con la regola di progetto «i controlli sono avvisi, mai blocchi».
+   Il testo deve dire la conseguenza, non chiedere conferma generica:
+   _«questo ordine viene da Shopify, la modifica resta solo in VestiFlow»_. I due sistemi
+   diranno cose diverse e nessuno dei due sa dell'altro; a volte serve davvero — un cliente
+   telefona e cambia una taglia — ma chi lo fa deve saperlo.
+3. **`track line` anche qui**, sulla stessa struttura. Ma le righe dell'Ordine cliente **si
+   riordinano per trascinamento**, quindi `track $index` **non** è la risposta giusta: va
+   pensata. È l'unico dei tre punti che non ha già una decisione presa.
+
+Aggiungere: l'Ordine cliente oggi **non si riblocca** dopo il salvataggio, e va portato
+alla regola nuova come gli altri due.
+
+I dettagli con i numeri di riga stanno nei messaggi di commit da `4fd3d16` a `cd01098`.
