@@ -819,6 +819,57 @@ parte, **non infilato in questa fetta senza dirlo**.
   esplicitamente che l'arrotondamento a sei decimali lo fa la banca dati. È una scelta di
   dottrina: non deciderla prima significa scoprirla a metà lavoro.
 
+### Consegna operativa — come si esegue questa correzione
+
+_Decisioni prese il 07/08/2026. Chi riprende il lavoro può partire da qui senza altro
+contesto._
+
+**Le scelte già fatte:**
+
+1. **Si chiama la funzione esatta che esiste già**, non si scrive una formula nuova.
+   `netFromGrossExact` è in `api/src/vat/vat-line-calculation.util.ts`, esposta e testata.
+   Il servizio dell'ordine fornitore chiamerà quella al posto di `netFromGrossMinor`.
+   Non è una quarta copia del calcolo: è lo stesso attrezzo, quello giusto — distinzione
+   importante, perché una quarta copia è precisamente ciò che `docs/GUARDIE-MANCANTI.md`
+   §8 contesta.
+2. **Il motore IVA condiviso non si tocca.** Lo usano tre maschere; cambiarne il
+   risultato in luogo sposterebbe in silenzio i valori di ogni carico e scontrino già
+   registrato. Va detto però che **il motore ha lo stesso difetto** (arrotonda il netto
+   unitario nel ramo dei costi ivati): non è che vada bene, è che va misurato prima.
+3. **L'Arrivo merce resta fuori**, e si misura a parte quando si affrontano gli acquisti.
+4. **Entrambe le colonne** vanno a `Decimal(16,6)`, anche `enteredUnitCostMinor` che oggi
+   riceve solo interi: è il gemello di `DocumentLine.enteredUnitCost`, già decimale, e
+   lasciarne una stretta e una larga ricrea l'asimmetria che costa tempo a chi legge.
+5. **La migration si applica davvero.** Il database è di test, i dati sono cancellabili,
+   nessuno lo sta usando. Applicarla permette la verifica del giro completo su dati veri
+   invece che su un database simulato — che accetterebbe qualunque numero e non
+   dimostrerebbe nulla.
+6. **Nel mapper, la conversione di tipo va DOPO il ripiego.** Il valore ha un ripiego
+   («se manca il digitato, usa il netto»): convertire prima trasformerebbe un costo
+   assente in un costo **zero**. È l'unico punto dove un errore non griderebbe.
+7. **L'attrezzo che quantizza il valore prima di memorizzarlo va aggiunto lato server**,
+   in `api/src/common/money.util.ts`, dove sta il resto della dottrina del denaro — non
+   si dichiara che l'arrotondamento lo fa la banca dati.
+
+**L'ordine dei passi:**
+
+1. `toStorableMinor` in `common/money.util.ts`, col suo test
+2. **il test del giro completo, PRIMA della correzione** — deve essere **rosso**
+3. schema + migration applicata, `prisma generate`, typecheck
+4. le correzioni, un file alla volta, typecheck dopo ognuno
+5. test verde, suite API completa, test del form
+6. rilettura del diff per intero
+
+**I due punti dove fermarsi e riferire invece di proseguire:**
+
+- se il test del passo 2 nasce **verde**: qualcosa non torna nella diagnosi
+- se dopo il passo 3 il typecheck segnala **molti più di ~10 punti**: la misura era
+  sbagliata e il lavoro non è più contenuto
+
+**Il test del giro completo enuncia la regola, non il caso:** «un costo digitato in
+modalità ivata, memorizzato e riletto, torna identico» — su un elenco di casi, non sul
+solo 5,02.
+
 ### Un falso allarme, escluso
 
 La maschera Ordine fornitore calcola l'anteprima dei totali con formule proprie invece di
