@@ -166,6 +166,7 @@ import {
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
+import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
   vatCodeSelectOption,
@@ -186,16 +187,6 @@ type SubmitState =
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 // Allineato all'apertura del dropdown (2 caratteri): la ricerca parte subito.
 const VARIANT_SEARCH_MIN_CHARS = 2;
-
-/**
- * Documenti sbloccati nella sessione di lavoro corrente (§9): vive a livello
- * di modulo perché il componente viene distrutto/ricreato quando la route
- * passa da `goods-receipt/new` a `:id/edit`, e quel passaggio non deve
- * ribloccare il documento. Regola severa: uscendo dalla maschera gli id
- * sbloccati vengono rilasciati (vedi onDestroy), così ogni riapertura del
- * documento ripresenta il blocco.
- */
-const SESSION_UNLOCKED_DOC_IDS = new Set<string>();
 
 type GoodsReceiptLineFocusField =
   | 'articleCode'
@@ -250,6 +241,9 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
     SupplierFormFieldsComponent,
     LocationSuggestionHintComponent,
   ],
+  // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
+  // sbloccato e a rilasciarli all'uscita.
+  providers: [DocumentEditLockService],
   templateUrl: './goods-receipt-form.component.html',
   // Banda footer sticky (totali orizzontali + azioni) condivisa con
   // l'Ordine cliente: secondo stylesheet, fuori dal budget del principale.
@@ -273,6 +267,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly editLock = inject(DocumentEditLockService);
 
   protected readonly listPath = '/app/documents/arrivi-merce';
   protected readonly currency = DEFAULT_CURRENCY;
@@ -340,20 +335,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
-  protected readonly editUnlocked = signal(false);
-  /** Evita il lock immediato dopo auto-save che crea il documento e cambia route. */
+  /**
+   * Il passaggio di route new → :id/edit non è un'uscita: serve solo a dire al
+   * guard delle modifiche non salvate di lasciar passare.
+   *
+   * Non ha più niente a che vedere con il blocco. Prima faceva due mestieri —
+   * anche impedire il rilascio degli sblocchi al destroy — ma da quando il
+   * documento si RIBLOCCA al salvataggio non c'è più nessuno sblocco da portarsi
+   * attraverso il cambio di rotta.
+   */
   private readonly preserveEditSession = signal(false);
   protected readonly unlockDialogOpen = signal(false);
-
-  /** Id sbloccati da QUESTA istanza: rilasciati all'uscita (riblocco alla riapertura). */
-  private readonly unlockedByThisInstance = new Set<string>();
-
-  private markSessionUnlocked(docId: string | null | undefined): void {
-    if (docId) {
-      SESSION_UNLOCKED_DOC_IDS.add(docId);
-      this.unlockedByThisInstance.add(docId);
-    }
-  }
   // Stato del pannello prodotto: la macchina vive in domain, qui restano solo
   // i riferimenti con i nomi che i template già usano.
   private readonly productPanel = new DocumentProductPanelStore();
@@ -527,7 +519,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return null;
   });
 
-  protected readonly formReadOnly = computed(() => this.isConfirmedEdit() && !this.editUnlocked());
+  protected readonly formReadOnly = computed(
+    () => this.isConfirmedEdit() && !this.editLock.unlocked(),
+  );
 
   /**
    * Blocco compilazione: fornitore (se richiesto dal tipo) e magazzino vanno
@@ -914,19 +908,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       GOODS_RECEIPT_LINE_PRESETS,
     );
 
-    // Regola severa: lo sblocco vale solo finché si lavora nella maschera.
-    // All'uscita gli id sbloccati da questa istanza vengono rilasciati e il
-    // documento torna protetto alla riapertura. Il passaggio di route
-    // new → :id/edit (preserveEditSession) non è un'uscita: lo sblocco deve
-    // sopravvivere per l'istanza ricreata.
-    this.destroyRef.onDestroy(() => {
-      if (this.preserveEditSession()) {
-        return;
-      }
-      for (const id of this.unlockedByThisInstance) {
-        SESSION_UNLOCKED_DOC_IDS.delete(id);
-      }
-    });
+    // Il rilascio degli sblocchi all'uscita non vive più qui: lo fa
+    // DocumentEditLockService, uguale per ogni maschera.
     this.syncSupplierRequirement(this.form.controls.type.value);
     this.form.controls.type.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -3241,8 +3224,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected confirmUnlockEdit(): void {
     this.unlockDialogOpen.set(false);
-    this.markSessionUnlocked(this.persistedDocumentId());
-    this.editUnlocked.set(true);
+    this.editLock.unlock(this.persistedDocumentId());
     this.syncLineFieldAccess();
   }
 
@@ -4299,10 +4281,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this.loadedDocument.set(doc);
           this.pendingSupplierOrderId.set(null);
           this.pendingLinkedSupplierOrderRef.set(null);
-          // "Salva documento" salva e resta nella maschera (§10.7):
-          // si esce solo con "Chiudi".
-          this.markSessionUnlocked(doc.id);
-          this.editUnlocked.set(true);
+          // "Salva documento" salva e resta nella maschera (§10.7): si esce solo
+          // con "Chiudi". Ma il documento si RIBLOCCA — decisione del 08/2026,
+          // che supera §10.7 sul punto: meglio un gesto in più che una schermata
+          // salvata e lasciata aperta a chiunque passi. Chi vuole continuare
+          // sblocca, con lo stesso gesto di sempre.
+          this.editLock.relock(doc.id);
           if (!this.editDocumentId()) {
             this.preserveEditSession.set(true);
             void this.router.navigate(['/app/documents', doc.id, 'edit'], { replaceUrl: true });
@@ -4666,22 +4650,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   private patchFormFromDocumentInner(doc: DocumentRecord): void {
     if (this.preserveEditSession()) {
+      // Cambio di rotta new → :id/edit: non è un caricamento nuovo, e il
+      // documento è già stato ribloccato dal salvataggio che l'ha creato.
       this.preserveEditSession.set(false);
-      this.markSessionUnlocked(doc.id);
-      this.editUnlocked.set(true);
       return;
     }
-    // Lo sblocco vale per la sessione di lavoro sul documento (§9): i
-    // salvataggi intermedi (status confirmed) non devono ribloccare la
-    // maschera. Se lo sblocco arriva dal set condiviso (istanza ricreata dal
-    // passaggio new → edit), questa istanza lo adotta: sarà lei a rilasciarlo
-    // all'uscita, rimettendo il blocco alla prossima riapertura.
-    if (SESSION_UNLOCKED_DOC_IDS.has(doc.id)) {
-      this.unlockedByThisInstance.add(doc.id);
-      this.editUnlocked.set(true);
-    } else {
-      this.editUnlocked.set(doc.status === DocumentStatus.Draft);
-    }
+    // Un documento che si riapre nasce protetto. La regola vive in
+    // DocumentEditLockService ed è la stessa per ogni maschera: qui non si
+    // decide più niente, si sincronizza soltanto.
+    this.editLock.syncOnLoad(doc.id);
     const poMap = new Map<string, LinkedSupplierOrderLineContext>();
     for (const line of doc.linkedSupplierOrderLines ?? []) {
       poMap.set(line.id, line);
