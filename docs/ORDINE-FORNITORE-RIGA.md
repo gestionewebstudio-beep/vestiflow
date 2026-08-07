@@ -298,33 +298,64 @@ incontrato lavorando sulla stessa maschera.
 > Se l'operatore **sposta** una riga, l'ordine è il suo. Deve **restare** dopo salvataggio
 > e riapertura — non si torna a come le righe erano nate.
 >
-> E il riordino va **previsto su tutti i documenti**, non solo dove c'è già.
+> Il riordino va **previsto su tutti i documenti**, non solo dove c'è già.
 
-## Cosa c'è oggi
+I modi di riordinare sono **due**, e fanno la **stessa cosa**:
 
-- **Il trascinamento esiste solo nell'Ordine cliente** (`cdkDrag`, con la maniglia sul
-  numero di riga). Gli altri documenti non riordinano.
-- **`DocumentLine` ha `lineNumber`**: i documenti che passano da lì sanno già tenere una
-  posizione.
-- **`SupplierOrderLine` NON ha nessuna colonna di posizione**, e le righe si leggono con
-  `include: { lines: true }` **senza `orderBy`**. Quindi l'ordine che si vede oggi è solo
-  quello di inserimento — una convenzione del database, non una garanzia: Postgres non
-  promette di restituire le righe nell'ordine in cui sono state scritte.
+- **trascinamento** di una riga;
+- **ordinamento per colonna** (clic sull'intestazione).
 
-Cioè: sull'Ordine fornitore l'ordine delle righe **non è persistito affatto**, e il fatto
-che oggi torni giusto è fortuna, non progetto.
+Entrambi **riscrivono l'ordine del documento**, in modo definitivo: si salva così, si
+stampa così. Non esiste un «ordinare solo per guardare» — è il modello di Danea, e la
+ragione è che due significati diversi per lo stesso gesto si confondono: sposti una riga a
+mano, poi clicchi su una colonna per controllare qualcosa, e non sai più se hai perso il
+lavoro fatto.
 
-## Cosa comporta
+**L'avviso** compare al **primo ordinamento per colonna**, perché è quello che ribalta
+tutto in un colpo e non si annulla. Sul trascinamento di una riga singola **non serve**: è
+un gesto evidente, e chi lo fa sa cosa sta facendo.
 
-1. **Colonna di posizione dove manca.** `SupplierOrderLine` ne ha bisogno, come
-   `DocumentLine` ha `lineNumber`. Migration più scrittura in fase di salvataggio.
-2. **`orderBy` esplicito in lettura**, ovunque si leggano righe. Senza, la colonna non
-   serve a niente.
-3. **Il trascinamento nelle altre maschere**, se il riordino va previsto ovunque. Nell'Ordine
-   cliente il pattern c'è già ed è riusabile — la maniglia è il numero di riga.
-4. **Verificare che `lineNumber` sia davvero scritto secondo la posizione a schermo** dove
-   già esiste, e non solo secondo l'ordine di creazione. È il punto che darei per scontato
-   e che va invece guardato.
+Lo svantaggio accettato: non si può più «dare un'occhiata ordinata» senza cambiare il
+documento. Per guardare ci sono i totali e la ricerca.
+
+## Cosa c'è già — verificato
+
+**L'Ordine cliente lo fa già, e per intero.** È la maschera di riferimento, non un
+abbozzo — il giro è completo:
+
+- trascinamento con `cdkDrag`, maniglia sul numero di riga (`onLineDrop`);
+- al salvataggio la posizione viene scritta: `lineNumber: index + 1`, cioè **dall'indice a
+  schermo**, non dall'ordine di creazione;
+- in lettura il server ordina: `lines: { orderBy: { lineNumber: 'asc' } }`.
+
+Quindi sposti, salvi, riapri, e le righe sono dove le hai messe. Chi implementa gli altri
+documenti **copia questo**, non inventa.
+
+**Nessun documento ordina le righe per colonna.** Zero: quella metà della regola è tutta
+da fare, ovunque.
+
+**L'Ordine fornitore non ha niente**: né trascinamento, né colonna di posizione
+(`SupplierOrderLine` non ce l'ha), né `orderBy` in lettura — le righe si leggono con
+`include: { lines: true }` e basta. L'ordine che si vede è quello di inserimento restituito
+da Postgres: una convenzione, non una garanzia. **Torna giusto per fortuna, non per
+progetto.**
+
+## Cosa manca, per documento
+
+| Documento                                      | Trascina | Posizione salvata                          | Ordina per colonna |
+| ---------------------------------------------- | -------- | ------------------------------------------ | ------------------ |
+| **Ordine cliente**                             | sì       | sì (`lineNumber`)                          | no                 |
+| DDT vendita, Preventivo, Scarico, Arrivo merce | no       | la colonna c'è (`DocumentLine.lineNumber`) | no                 |
+| **Ordine fornitore**                           | no       | **no, manca la colonna**                   | no                 |
+
+Quindi il lavoro si divide in tre pezzi di taglia molto diversa:
+
+1. **Documenti che passano da `DocumentLine`**: la colonna c'è già e la lettura è già
+   ordinata. Manca solo il trascinamento nella maschera — è riuso del pattern esistente.
+2. **Ordine fornitore**: serve una migration per la colonna di posizione, la scrittura al
+   salvataggio e l'`orderBy` in lettura, **prima** di poter parlare di trascinamento.
+3. **Ordinamento per colonna**: da fare ovunque, e con l'avviso al primo uso. È il pezzo
+   nuovo, quello senza nessun precedente da copiare.
 
 ## Il `track`, che dipende da tutto questo
 
