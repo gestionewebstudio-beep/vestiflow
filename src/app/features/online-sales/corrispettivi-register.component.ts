@@ -37,6 +37,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
@@ -93,6 +94,7 @@ type EntryDetailState =
     ErrorStateComponent,
     PaginationComponent,
     SelectMenuComponent,
+    SlidePanelComponent,
     TableSkeletonComponent,
   ],
   templateUrl: './corrispettivi-register.component.html',
@@ -244,6 +246,23 @@ export class CorrispettiviRegisterComponent {
       q.excludedFromSummary ??
       q.vatRatePercent,
     );
+  });
+
+  /** Pannello filtri mobile (stato UI puro, pattern toolbar-card). */
+  protected readonly mobileFiltersOpen = signal(false);
+
+  /** Filtri attivi per il badge del pulsante «Filtri» (ricerca esclusa,
+   * l'intervallo date conta una volta). */
+  protected readonly activeFilterCount = computed(() => {
+    const q = this.query();
+    let count = 0;
+    if (q.channel) count += 1;
+    if (q.status) count += 1;
+    if (q.vatRatePercent !== undefined && q.vatRatePercent !== null) count += 1;
+    if (q.invoiceIssued !== undefined && q.invoiceIssued !== null) count += 1;
+    if (q.excludedFromSummary !== undefined && q.excludedFromSummary !== null) count += 1;
+    if (q.fiscalFrom || q.fiscalTo) count += 1;
+    return count;
   });
 
   /** Voce espansa con righe analitiche (fase 3 §5: dettaglio). */

@@ -57,7 +57,24 @@ export const SECONDARY_PAGES: readonly SecondaryPage[] = [
     route: '/app/inventory/import',
     parent: '/app/inventory',
   },
-  // Azioni rapide documentali
+  {
+    label: 'Registra movimento',
+    sub: 'Carico, scarico o rettifica rapida',
+    icon: 'pi-plus',
+    route: '/app/inventory/movements/new',
+    parent: '/app/inventory',
+  },
+  {
+    label: 'Nuovo inventario',
+    sub: 'Conteggio di magazzino',
+    icon: 'pi-plus',
+    route: '/app/inventory/counts/new',
+    parent: '/app/inventory',
+  },
+  // Azioni rapide documentali. Le azioni «Nuovo …» dei documenti di vendita
+  // (preventivo, proforma, DDT, fatture, scarico manuale, registrazione
+  // fattura) NON stanno qui: la ricerca le deriva dalle config dei registri
+  // documentali, una per profilo.
   {
     label: 'Nuovo arrivo merce',
     sub: 'Carico fornitore',
@@ -66,10 +83,52 @@ export const SECONDARY_PAGES: readonly SecondaryPage[] = [
     parent: '/app/documents',
   },
   {
+    label: 'Nuovo trasferimento',
+    sub: 'Spostamento stock tra location',
+    icon: 'pi-plus',
+    route: '/app/documents/transfer/new',
+    parent: '/app/documents',
+  },
+  {
+    label: 'Nuova rettifica inventario',
+    icon: 'pi-plus',
+    route: '/app/documents/adjustment/new',
+    parent: '/app/documents',
+  },
+  // Vendite
+  {
+    label: 'Nuovo ordine cliente',
+    icon: 'pi-plus',
+    route: '/app/sales/new',
+    parent: '/app/sales',
+  },
+  // Anagrafiche
+  {
+    label: 'Nuovo cliente',
+    icon: 'pi-plus',
+    route: '/app/customers/new',
+    parent: '/app/customers',
+  },
+  {
+    label: 'Nuovo fornitore',
+    icon: 'pi-plus',
+    route: '/app/suppliers/new',
+    parent: '/app/suppliers',
+  },
+  // Ordini fornitore: assenti dalla sidebar (si raggiungono dall'area
+  // Fornitori), il gate permessi è la voce nav «Fornitori».
+  {
+    label: 'Ordini fornitori',
+    sub: 'Ordini commerciali ai fornitori',
+    icon: 'pi-shopping-bag',
+    route: '/app/orders',
+    parent: '/app/suppliers',
+  },
+  {
     label: 'Nuovo ordine fornitore',
     icon: 'pi-shopping-bag',
     route: '/app/orders/new',
-    parent: '/app/orders',
+    parent: '/app/suppliers',
   },
   {
     label: 'Numeratori documenti',
@@ -112,6 +171,13 @@ export const SECONDARY_PAGES: readonly SecondaryPage[] = [
     sub: 'Aliquote e nature IVA',
     icon: 'pi-percentage',
     route: '/app/settings/codici-iva',
+    parent: '/app/settings',
+  },
+  {
+    label: 'Pagamenti',
+    sub: 'Metodi e condizioni di pagamento',
+    icon: 'pi-credit-card',
+    route: '/app/settings/pagamenti',
     parent: '/app/settings',
   },
 ];

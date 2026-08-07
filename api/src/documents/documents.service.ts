@@ -3253,11 +3253,22 @@ export class DocumentsService {
   }
 
   /** Converte una riga calcolata in dati Prisma: null JS su vatSnapshot deve
-   * scrivere NULL SQL, non il letterale JSON "null" (Prisma.DbNull). vatRatePercent
-   * è solo un valore calcolato interno (calcolo IVA totali): non esiste più come
-   * colonna persistita, va escluso dal payload di scrittura. */
-  private toLineCreateData(line: ComputedLine, tenantId: string) {
-    const { vatRatePercent: _vatRatePercent, ...rest } = line;
+   * scrivere NULL SQL, non il letterale JSON "null" (Prisma.DbNull).
+   *
+   * I campi di appoggio del calcolo (vatRatePercent, lineNetExactMinor) NON
+   * sono colonne: vanno tolti qui, o Prisma rifiuta l'intera scrittura con
+   * «Unknown argument» e il salvataggio del documento fallisce con un 500.
+   * Il tipo di ritorno è esplicito apposta: senza, `...rest` fa passare in
+   * silenzio ogni campo di comodo aggiunto a ComputedLine. */
+  private toLineCreateData(
+    line: ComputedLine,
+    tenantId: string,
+  ): Prisma.DocumentLineUncheckedCreateWithoutDocumentInput {
+    const {
+      vatRatePercent: _vatRatePercent,
+      lineNetExactMinor: _lineNetExactMinor,
+      ...rest
+    } = line;
     return { ...rest, tenantId, vatSnapshot: line.vatSnapshot ?? Prisma.DbNull };
   }
 

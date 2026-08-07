@@ -145,6 +145,8 @@ export class ProductsService {
               { name: { contains: query.search, mode: 'insensitive' } },
               { brand: { contains: query.search, mode: 'insensitive' } },
               { variants: { some: { sku: { contains: query.search, mode: 'insensitive' } } } },
+              // Barcode/EAN: criterio primario in magazzino (scanner alla mano).
+              { variants: { some: { barcode: { contains: query.search, mode: 'insensitive' } } } },
             ],
           }
         : {}),
