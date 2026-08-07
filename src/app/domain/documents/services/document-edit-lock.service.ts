@@ -39,14 +39,18 @@ export class DocumentEditLockService {
   }
 
   /**
-   * Da chiamare al caricamento del documento: una bozza è sempre sbloccata; un
-   * confermato lo è solo se già sbloccato in questa sessione.
+   * Da chiamare al caricamento: un documento che si RIAPRE nasce bloccato, e lo
+   * resta finché non è stato sbloccato in questa sessione. Una frase sola, uguale
+   * per ogni tipo documento.
+   *
+   * Non c'è più un ramo per le bozze. Ce n'era uno («non confermato → sempre
+   * sbloccato») ed era proprio la complicazione che faceva divergere le maschere:
+   * chi il ripiego su Draft ce l'aveva e chi no. Ma le bozze non esistono come
+   * documenti che si riaprono — nel database sono ZERO su 90 — quindi quel ramo
+   * non si percorreva mai. Chi chiama gatea comunque sul proprio
+   * `isConfirmedEdit()`, quindi il comportamento non cambia.
    */
-  syncOnLoad(docId: string | null | undefined, isConfirmed: boolean): void {
-    if (!isConfirmed) {
-      this._unlocked.set(true);
-      return;
-    }
+  syncOnLoad(docId: string | null | undefined): void {
     this._unlocked.set(docId ? SESSION_UNLOCKED_DOC_IDS.has(docId) : false);
   }
 

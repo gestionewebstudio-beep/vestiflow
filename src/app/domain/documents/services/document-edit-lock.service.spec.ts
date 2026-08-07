@@ -11,28 +11,37 @@ describe('DocumentEditLockService', () => {
     lock = TestBed.inject(DocumentEditLockService);
   });
 
-  it('una bozza è sempre sbloccata', () => {
-    lock.syncOnLoad('doc-draft', false);
-    expect(lock.unlocked()).toBe(true);
+  // La regola è una frase sola, uguale per ogni tipo documento: un documento
+  // che si riapre nasce bloccato. Non c'è più il ramo «se è bozza è sbloccato»,
+  // che era la complicazione da cui nascevano le differenze fra le maschere.
+  it('un documento riaperto si apre bloccato', () => {
+    lock.syncOnLoad('doc-a');
+    expect(lock.unlocked()).toBe(false);
   });
 
-  it('un confermato mai sbloccato si apre bloccato', () => {
-    lock.syncOnLoad('doc-conf-a', true);
+  it('senza id non ha nulla da sbloccare', () => {
+    lock.syncOnLoad(null);
     expect(lock.unlocked()).toBe(false);
   });
 
   it('lo sblocco esplicito rende modificabile', () => {
-    lock.syncOnLoad('doc-conf-b', true);
+    lock.syncOnLoad('doc-b');
     expect(lock.unlocked()).toBe(false);
 
-    lock.unlock('doc-conf-b');
+    lock.unlock('doc-b');
     expect(lock.unlocked()).toBe(true);
   });
 
   it('lo sblocco resta valido riaprendo lo stesso documento nella sessione', () => {
-    lock.unlock('doc-conf-c');
+    lock.unlock('doc-c');
     // Riapertura del medesimo documento: la sessione ricorda lo sblocco.
-    lock.syncOnLoad('doc-conf-c', true);
+    lock.syncOnLoad('doc-c');
     expect(lock.unlocked()).toBe(true);
+  });
+
+  it('lo sblocco di un documento non vale per un altro', () => {
+    lock.unlock('doc-d');
+    lock.syncOnLoad('doc-e');
+    expect(lock.unlocked()).toBe(false);
   });
 });

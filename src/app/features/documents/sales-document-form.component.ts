@@ -80,7 +80,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
+import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
@@ -417,7 +417,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
             }
             this.loadedDocument.set(doc);
             // Confermato → si riapre bloccato (salvo sblocco già dato in sessione).
-            this.editLock.syncOnLoad(doc.id, isConfirmedEditableDocumentStatus(doc.status));
+            this.editLock.syncOnLoad(doc.id);
             this.patchFormFromDocument(doc);
             return 'ready' as const;
           }),

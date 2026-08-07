@@ -58,7 +58,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
+import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { documentReferenceLabel } from '@domain/documents/models/document-labels.util';
@@ -459,7 +459,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
             }
             this.loadedDocument.set(doc);
             // Confermato → si riapre bloccato (salvo sblocco già dato in sessione).
-            this.editLock.syncOnLoad(doc.id, confirmedEditable);
+            this.editLock.syncOnLoad(doc.id);
             this.patchFormFromDocument(doc);
             return 'ready' as const;
           }),
