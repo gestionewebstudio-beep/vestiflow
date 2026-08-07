@@ -1294,10 +1294,17 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
           return;
         }
         if (editId) {
-          // Ri-legge dal documento salvato: il costo netto canonico torna con
-          // la coda che il server ha memorizzato, non con quella che avevamo
-          // in memoria.
-          this.patchFormFromOrder(order);
+          // Salvato: il documento torna PROTETTO. Lo sblocco valeva per la
+          // modifica appena conclusa, non per tutta la sessione — chi vuole
+          // rimetterci mano lo sblocca di nuovo.
+          //
+          // Niente ricostruzione del form dal documento salvato: `lines.clear()`
+          // e i FormGroup rifatti facevano vedere ad Angular una collezione
+          // tutta nuova (`track line` è per identità), che rispondeva con
+          // NG0956 distruggendo e ricreando l'intera tabella. I valori a schermo
+          // sono già quelli che abbiamo appena inviato, quindi non c'era niente
+          // da riprendere: solo un giro di DOM buttato via.
+          this.editLock.relock(editId);
           return;
         }
         // Primo salvataggio: si RESTA nel documento appena creato. Salvare non

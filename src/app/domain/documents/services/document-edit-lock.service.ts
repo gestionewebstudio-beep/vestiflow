@@ -80,6 +80,22 @@ export class DocumentEditLockService {
   }
 
   /**
+   * Il documento torna protetto **subito**, senza aspettare l'uscita.
+   *
+   * Lo sblocco vale per la modifica che si è appena conclusa, non per tutta la
+   * sessione: salvato il documento, chi vuole rimetterci mano lo sblocca di
+   * nuovo. Senza questo, dopo un salvataggio la maschera resterebbe aperta e
+   * scrivibile, e il blocco varrebbe solo per la prima modifica.
+   */
+  relock(docId: string | null | undefined): void {
+    if (docId) {
+      SESSION_UNLOCKED_DOC_IDS.delete(docId);
+      this.unlockedByThisInstance.delete(docId);
+    }
+    this._unlocked.set(false);
+  }
+
+  /**
    * Il prossimo destroy non rilascia gli sblocchi: serve quando la maschera
    * cambia route (es. new→:id) senza che sia un'uscita reale.
    */
