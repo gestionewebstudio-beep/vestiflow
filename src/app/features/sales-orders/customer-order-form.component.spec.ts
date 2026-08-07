@@ -53,80 +53,103 @@ function operationalLocationsMock() {
   };
 }
 
+/**
+ * Modalità della maschera e documento caricato: l'unica cosa che cambia fra un
+ * Ordine cliente nuovo e un DDT già salvato che si riapre.
+ */
+interface FormOptions {
+  readonly kind?: 'quote' | 'sales-ddt' | 'manual-unload';
+  readonly id?: string;
+  readonly user?: unknown;
+  readonly document?: unknown;
+  readonly order?: unknown;
+  readonly updateDocument?: ReturnType<typeof vi.fn>;
+  readonly saveManualOrder?: ReturnType<typeof vi.fn>;
+}
+
+function formProviders(options: FormOptions = {}) {
+  return [
+    provideRouter([]),
+    {
+      provide: ActivatedRoute,
+      useValue: {
+        snapshot: {
+          data: options.kind ? { customerDocumentKind: options.kind } : {},
+          queryParamMap: convertToParamMap({}),
+        },
+        paramMap: of(convertToParamMap(options.id ? { id: options.id } : {})),
+      },
+    },
+    {
+      provide: APP_CONFIG,
+      useValue: {
+        production: false,
+        appName: 'VestiFlow',
+        apiBaseUrl: '',
+        features: { barcodeScanner: false, shopify: false },
+      },
+    },
+    { provide: AuthService, useValue: { currentUser: () => options.user ?? null } },
+    { provide: OperationalLocationsService, useValue: operationalLocationsMock() },
+    { provide: VatCodeService, useValue: { list: () => of(VAT_CODES) } },
+    { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+    {
+      provide: CustomerService,
+      useValue: { getAllCustomers: () => of([]), createCustomer: vi.fn() },
+    },
+    {
+      provide: BarcodeLookupService,
+      useValue: { resolveVariantIdByCode: () => of(null), parseScanInput: (v: string) => v },
+    },
+    { provide: BreadcrumbLabelService, useValue: { set: vi.fn(), clear: vi.fn() } },
+    { provide: DocumentActionsService, useValue: { set: vi.fn(), clear: vi.fn() } },
+    {
+      provide: DocumentCountersService,
+      useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+    },
+    {
+      provide: DocumentService,
+      useValue: {
+        getDocumentById: options.document ? () => of(options.document) : vi.fn(),
+        createDocument: vi.fn(),
+        updateDocument: options.updateDocument ?? vi.fn(),
+        previewDocumentNumber: () =>
+          of({ reference: 'OC-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
+        // Solo i documenti a registro leggono la preferenza: l'Ordine
+        // cliente resta a netto (modalita' prezzo ri-gated).
+        getPriceModePreference: () => of(false),
+      },
+    },
+    {
+      provide: ProductService,
+      useValue: {
+        searchVariantSummaries: () => of([]),
+        getSupplierVariantLinks: () => of([]),
+        createProduct: vi.fn(),
+      },
+    },
+    {
+      provide: SalesOrderService,
+      useValue: {
+        getManualOrderMeta: () => of(null),
+        getSalesOrderById: options.order ? () => of(options.order) : vi.fn(),
+        saveManualOrder: options.saveManualOrder ?? vi.fn(),
+        reloadOwnReservations: vi.fn(),
+        getOrderReservations: () => of([]),
+      },
+    },
+    { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
+    {
+      provide: TableViewPreferenceApiService,
+      useValue: { load: () => of(null), save: () => of(undefined) },
+    },
+  ];
+}
+
 describe('CustomerOrderFormComponent — caratterizzazione', () => {
   async function setup() {
     const view = await render(CustomerOrderFormComponent, {
-      providers: [
-        provideRouter([]),
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            snapshot: { data: {}, queryParamMap: convertToParamMap({}) },
-            paramMap: of(convertToParamMap({})),
-          },
-        },
-        {
-          provide: APP_CONFIG,
-          useValue: {
-            production: false,
-            appName: 'VestiFlow',
-            apiBaseUrl: '',
-            features: { barcodeScanner: false, shopify: false },
-          },
-        },
-        { provide: AuthService, useValue: { currentUser: () => null } },
-        { provide: OperationalLocationsService, useValue: operationalLocationsMock() },
-        { provide: VatCodeService, useValue: { list: () => of(VAT_CODES) } },
-        { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
-        {
-          provide: CustomerService,
-          useValue: { getAllCustomers: () => of([]), createCustomer: vi.fn() },
-        },
-        {
-          provide: BarcodeLookupService,
-          useValue: { resolveVariantIdByCode: () => of(null), parseScanInput: (v: string) => v },
-        },
-        { provide: BreadcrumbLabelService, useValue: { set: vi.fn(), clear: vi.fn() } },
-        { provide: DocumentActionsService, useValue: { set: vi.fn(), clear: vi.fn() } },
-        {
-          provide: DocumentCountersService,
-          useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
-        },
-        {
-          provide: DocumentService,
-          useValue: {
-            getDocumentById: vi.fn(),
-            createDocument: vi.fn(),
-            updateDocument: vi.fn(),
-            previewDocumentNumber: () =>
-              of({ reference: 'OC-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
-            // Solo i documenti a registro leggono la preferenza: l'Ordine
-            // cliente resta a netto (modalita' prezzo ri-gated).
-            getPriceModePreference: () => of(false),
-          },
-        },
-        {
-          provide: ProductService,
-          useValue: {
-            searchVariantSummaries: () => of([]),
-            getSupplierVariantLinks: () => of([]),
-            createProduct: vi.fn(),
-          },
-        },
-        {
-          provide: SalesOrderService,
-          useValue: {
-            getManualOrderMeta: () => of(null),
-            getSalesOrderById: vi.fn(),
-            saveManualOrder: vi.fn(),
-          },
-        },
-        { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
-        {
-          provide: TableViewPreferenceApiService,
-          useValue: { load: () => of(null), save: () => of(undefined) },
-        },
-      ],
+      providers: formProviders(),
     });
 
     const component = view.fixture.componentInstance as unknown as {
@@ -378,5 +401,168 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
 
       expect(view.component.numberConflictDialog.isOpen()).toBe(false);
     });
+  });
+});
+
+/**
+ * Il blocco alla riapertura.
+ *
+ * Questa maschera ospita QUATTRO tipi di documento, e fino al 08/2026 il blocco
+ * ne copriva due: DDT vendita e Scarico manuale si aprivano scrivibili perché il
+ * meccanismo era stato scritto per il solo Ordine cliente, e gli altri avevano
+ * preso `editUnlocked = true` come ripiego. Questi test dicono che ora la regola
+ * è una sola, e che dopo il salvataggio il documento torna protetto senza che si
+ * esca dalla maschera.
+ *
+ * Il dialogo di sblocco non viene pilotato dalla UI: usa `<dialog>`, che jsdom
+ * non implementa. Si esercita `confirmUnlockEdit()`, che è ciò che quel dialogo
+ * chiama — è la strada lasciata aperta dal TODO sull'Ordine fornitore.
+ */
+describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
+  const OWNER = { id: 'u-1', role: 'owner' };
+
+  /** Documento a registro già salvato e confermato, con due righe. */
+  function documentoConfermato(type: string, overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'doc-1',
+      type,
+      status: 'confirmed',
+      reference: 'DDT-2026-0001',
+      number: 1,
+      series: 'A',
+      documentDate: '2026-08-01T00:00:00.000Z',
+      customerId: null,
+      customerName: 'Cliente prova',
+      locationId: 'loc-1',
+      currency: 'EUR',
+      pricesIncludeVat: false,
+      documentDiscountPercent: 0,
+      lines: [
+        {
+          id: 'l-1',
+          lineNumber: 1,
+          description: 'Prima riga',
+          quantity: 1,
+          unitPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+          discountPercent: 0,
+          loadsStock: false,
+        },
+        {
+          id: 'l-2',
+          lineNumber: 2,
+          description: 'Seconda riga',
+          quantity: 1,
+          unitPrice: { amountMinor: 2000, currencyCode: 'EUR' },
+          discountPercent: 0,
+          loadsStock: false,
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  function ordineCaricato(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'so-1',
+      orderNumber: 'OC-2026-0001',
+      source: 'manual',
+      currency: 'EUR',
+      documentDate: '2026-08-01T00:00:00.000Z',
+      customerId: null,
+      customerName: 'Cliente prova',
+      locationId: 'loc-1',
+      documentDiscountPercent: 0,
+      lines: [],
+      ...overrides,
+    };
+  }
+
+  interface LockedForm {
+    readonly formReadOnly: () => boolean;
+    readonly canUnlockDocument: () => boolean;
+    confirmUnlockEdit: () => void;
+    saveDocument: () => void;
+  }
+
+  async function apri(options: FormOptions) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: formProviders({ user: OWNER, ...options }),
+    });
+    return view.fixture.componentInstance as unknown as LockedForm;
+  }
+
+  it('un DDT vendita salvato si riapre protetto', async () => {
+    const form = await apri({
+      kind: 'sales-ddt',
+      id: 'doc-1',
+      document: documentoConfermato('sales_ddt'),
+    });
+
+    expect(form.formReadOnly()).toBe(true);
+  });
+
+  it('uno scarico manuale salvato si riapre protetto', async () => {
+    const form = await apri({
+      kind: 'manual-unload',
+      id: 'doc-1',
+      document: documentoConfermato('manual_unload'),
+    });
+
+    expect(form.formReadOnly()).toBe(true);
+  });
+
+  it('un preventivo confermato si riapre protetto', async () => {
+    const form = await apri({
+      kind: 'quote',
+      id: 'doc-1',
+      document: documentoConfermato('quote'),
+    });
+
+    expect(form.formReadOnly()).toBe(true);
+  });
+
+  // Togliendo il ramo bozza da syncOnLoad il comportamento non doveva cambiare,
+  // perché a gatearlo è `isConfirmedEdit()`. Questa è la verifica.
+  it('una bozza resta subito modificabile, senza passare dallo sblocco', async () => {
+    const form = await apri({
+      kind: 'quote',
+      id: 'doc-1',
+      document: documentoConfermato('quote', { status: 'draft' }),
+    });
+
+    expect(form.formReadOnly()).toBe(false);
+  });
+
+  it('sbloccato e salvato, il documento torna protetto senza uscire dalla maschera', async () => {
+    const documento = documentoConfermato('sales_ddt');
+    const updateDocument = vi.fn(() => of(documento));
+    const form = await apri({
+      kind: 'sales-ddt',
+      id: 'doc-1',
+      document: documento,
+      updateDocument,
+    });
+
+    form.confirmUnlockEdit();
+    expect(form.formReadOnly()).toBe(false);
+
+    form.saveDocument();
+
+    expect(updateDocument).toHaveBeenCalled();
+    expect(form.formReadOnly()).toBe(true);
+  });
+
+  // La sola lettura di un ordine da canale esterno è una proprietà del
+  // documento, non uno stato del lock: non deve dipendere dal set di sessione.
+  it('un ordine da canale esterno resta in sola lettura anche dopo uno sblocco', async () => {
+    const form = await apri({
+      id: 'so-1',
+      order: ordineCaricato({ source: 'shopify_online' }),
+    });
+    expect(form.canUnlockDocument()).toBe(false);
+
+    form.confirmUnlockEdit();
+
+    expect(form.formReadOnly()).toBe(true);
   });
 });

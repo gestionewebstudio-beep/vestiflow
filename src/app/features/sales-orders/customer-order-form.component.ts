@@ -112,6 +112,7 @@ import { transportDataIncomplete } from '@domain/documents/models/document-trans
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import type {
   CreateDocumentBody,
@@ -193,14 +194,6 @@ import {
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
 
-/**
- * Id degli ordini sbloccati nella sessione di lavoro corrente (come Arrivi
- * merce): sopravvive al passaggio nuovo→/:id/edit dopo il primo salvataggio e
- * ad altre navigazioni tra istanze del form; ogni istanza rilascia alla
- * distruzione i soli id che ha sbloccato (riblocco alla riapertura).
- */
-const SESSION_UNLOCKED_ORDER_IDS = new Set<string>();
-
 /** Campi riga nel giro Tab/Invio deterministico (stesso pattern Arrivo merce). */
 type CustomerOrderLineFocusField =
   'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount' | 'serials';
@@ -260,6 +253,9 @@ interface AvailabilityIssue {
     DocumentLineProductCellComponent,
     DocumentProductSearchPanelComponent,
   ],
+  // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
+  // sbloccato e a rilasciarli all'uscita.
+  providers: [DocumentEditLockService],
   templateUrl: './customer-order-form.component.html',
   // Stile riusato dall'Arrivo merce (stesse classi doc-form__*), più la banda
   // footer condivisa e le aggiunte specifiche di questa maschera. La vista
@@ -302,6 +298,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly barcodeScannerEnabled = this.appConfig.features.barcodeScanner;
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly editLock = inject(DocumentEditLockService);
 
   /**
    * Modalità della maschera (route data `customerDocumentKind`): 'order' =
@@ -856,23 +853,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       : 'Seleziona la location per iniziare ad aggiungere righe.';
   });
 
-  // ── Apertura in sola lettura (come Arrivi merce) ─────────────────────────
-  // Un Ordine cliente già salvato si apre BLOCCATO: va sbloccato con «Sblocca
-  // modifica» per essere modificato. Vale SOLO per gli Ordini (isOrder) con un
-  // ordine caricato; i nuovi ordini e gli altri tipi documento
-  // (preventivo/DDT/scarico) non si bloccano.
-  protected readonly editUnlocked = signal(false);
+  // ── Apertura in sola lettura ─────────────────────────────────────────────
+  //
+  // Un documento già salvato si riapre BLOCCATO e va sbloccato con «Sblocca
+  // modifica». Vale per tutti e quattro i tipi che questa maschera ospita: DDT
+  // vendita e Scarico manuale prendevano `editUnlocked = true` perché il blocco
+  // fu scritto per il solo Ordine cliente — un ripiego, non una scelta.
+  //
+  // La regola non vive più qui: sta in DocumentEditLockService, scritta una
+  // volta sola per ogni maschera del gestionale.
   protected readonly unlockDialogOpen = signal(false);
-  private readonly unlockedByThisInstance = new Set<string>();
 
-  private markSessionUnlocked(orderId: string | null | undefined): void {
-    if (orderId) {
-      SESSION_UNLOCKED_ORDER_IDS.add(orderId);
-      this.unlockedByThisInstance.add(orderId);
-    }
-  }
-
-  /** Ordine caricato da un canale esterno (Shopify/POS): resta in sola lettura. */
+  /** Ordine caricato da un canale esterno (Shopify/POS). */
   protected readonly isExternalOrder = computed(() => {
     const order = this.loadedOrder();
     return order != null && order.source !== SalesOrderSource.Manual;
@@ -883,45 +875,74 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   );
 
   /**
-   * Sbloccabile se l'utente gestisce i documenti e il documento è modificabile
-   * a mano: gli Ordini manuali (i non manuali restano in sola lettura, Fase 1)
-   * e i Preventivi (aperti bloccati dall'elenco, come gli Arrivi merce).
+   * Sbloccabile se l'utente gestisce i documenti. Gli ordini da canale esterno
+   * restano in sola lettura (Fase 1): la modifica locale non tornerebbe al
+   * canale d'origine.
    */
-  protected readonly canUnlockOrder = computed(
-    () => this.canManageOrders() && ((this.isOrder && !this.isExternalOrder()) || this.isQuote),
+  protected readonly canUnlockDocument = computed(
+    () => this.canManageOrders() && !this.isExternalOrder(),
   );
 
   /**
-   * Sola lettura all'apertura: un Ordine manuale già caricato oppure un
-   * Preventivo già caricato restano bloccati finché non si preme «Sblocca
-   * modifica» (stesso pattern degli Arrivi merce). I nuovi documenti (nessun
-   * id) e gli altri tipi (DDT/Scarico) non si bloccano.
+   * Documento già salvato, quindi da riaprire protetto. Per l'Ordine cliente
+   * basta che sia caricato — un ordine esiste solo dopo il salvataggio. Per i
+   * tipi che vivono nel registro conta lo stato: una bozza (un duplicato appena
+   * creato) resta subito modificabile.
+   */
+  protected readonly isConfirmedEdit = computed(() => {
+    if (this.isOrder) {
+      return this.loadedOrder() != null;
+    }
+    const doc = this.loadedQuoteDoc();
+    return doc != null && isConfirmedEditableDocumentStatus(doc.status);
+  });
+
+  /**
+   * L'ordine da canale esterno è in sola lettura **sempre**, non «finché non lo
+   * si sblocca»: è una proprietà del documento, e va detta qui invece di
+   * affidarla al set di sessione del lock. Per tutto il resto vale la regola
+   * condivisa — confermato e non ancora sbloccato.
    */
   protected readonly formReadOnly = computed(
-    () =>
-      (this.isOrder && this.loadedOrder() != null && !this.editUnlocked()) ||
-      (this.isQuote && this.loadedQuoteDoc() != null && !this.editUnlocked()),
+    () => this.isExternalOrder() || (this.isConfirmedEdit() && !this.editLock.unlocked()),
   );
+
+  /** Nome del documento nei testi di blocco e sblocco, per tipo. */
+  private readonly documentNoun = this.isQuote
+    ? 'preventivo'
+    : this.isSalesDdt
+      ? 'DDT'
+      : this.isManualUnload
+        ? 'scarico manuale'
+        : 'ordine';
 
   /** Testo del banner di sola lettura, per tipo documento. */
   protected readonly lockedBannerText = computed(() =>
     this.isQuote
       ? 'Preventivo protetto da modifica. Sblocca per continuare a lavorare.'
-      : 'Ordine protetto da modifica. Sblocca per continuare a lavorare.',
+      : this.isSalesDdt
+        ? 'DDT protetto da modifica. Sblocca per continuare a lavorare.'
+        : this.isManualUnload
+          ? 'Scarico manuale protetto da modifica. Sblocca per continuare a lavorare.'
+          : 'Ordine protetto da modifica. Sblocca per continuare a lavorare.',
   );
 
   /** Titolo/messaggio del dialogo di sblocco, per tipo documento. */
-  protected readonly unlockDialogTitle = computed(() =>
-    this.isQuote ? 'Sblocca modifica preventivo' : 'Sblocca modifica ordine',
-  );
-  protected readonly unlockDialogMessage = computed(() =>
-    this.isQuote
-      ? 'Sblocca il preventivo per modificarne righe e testata e salvarlo di nuovo.'
-      : "Modificando l'ordine, VestiFlow aggiornerà gli impegni di magazzino collegati al salvataggio.",
-  );
+  protected readonly unlockDialogTitle = computed(() => `Sblocca modifica ${this.documentNoun}`);
+  protected readonly unlockDialogMessage = computed(() => {
+    if (this.isQuote) {
+      return 'Sblocca il preventivo per modificarne righe e testata e salvarlo di nuovo.';
+    }
+    // DDT e Scarico manuale muovono la giacenza al salvataggio: risalvandoli si
+    // riconcilia a delta, non si scarica una seconda volta.
+    if (this.isSalesDdt || this.isManualUnload) {
+      return `Modificando il ${this.documentNoun}, VestiFlow ricalcolerà lo scarico di magazzino al salvataggio.`;
+    }
+    return "Modificando l'ordine, VestiFlow aggiornerà gli impegni di magazzino collegati al salvataggio.";
+  });
 
   protected requestUnlockEdit(): void {
-    if (!this.canUnlockOrder()) {
+    if (!this.canUnlockDocument()) {
       return;
     }
     this.unlockDialogOpen.set(true);
@@ -929,8 +950,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   protected confirmUnlockEdit(): void {
     this.unlockDialogOpen.set(false);
-    this.markSessionUnlocked(this.loadedOrder()?.id ?? this.loadedQuoteDoc()?.id);
-    this.editUnlocked.set(true);
+    this.editLock.unlock(this.loadedOrder()?.id ?? this.loadedQuoteDoc()?.id);
   }
 
   // ── Caricamento ordine in modifica ──────────────────────────────────────
@@ -952,15 +972,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
                 this.loadedQuoteDoc.set(null);
                 return 'not-editable' as const;
               }
-              // Preventivo: un CONFERMATO si apre BLOCCATO (come Arrivi merce),
-              // una bozza (es. duplicato) resta subito modificabile; sblocco di
-              // sessione sempre rispettato. Gli altri tipi registro (DDT/Scarico)
-              // non si bloccano: editUnlocked = true.
-              this.editUnlocked.set(
-                this.isQuote
-                  ? SESSION_UNLOCKED_ORDER_IDS.has(doc.id) || doc.status === DocumentStatus.Draft
-                  : true,
-              );
+              // Un documento che si riapre nasce protetto — preventivo, DDT o
+              // scarico manuale, senza distinzioni. La regola vive in
+              // DocumentEditLockService: qui non si decide più niente, si
+              // sincronizza soltanto. Le bozze restano modificabili perché
+              // `isConfirmedEdit()` non le considera, non per un ramo di qui.
+              this.editLock.syncOnLoad(doc.id);
               this.loadedQuoteDoc.set(doc);
               this.patchFormFromRegistryDocument(doc);
               return 'ready' as const;
@@ -974,10 +991,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             // Anche gli ordini NON manuali (Shopify/canali esterni) si aprono
             // nel form, ma in SOLA LETTURA: aprirli qui sostituisce la vecchia
             // schermata Dettaglio. La modifica locale resta ai soli manuali
-            // (gli impegni si ricaricano solo per questi).
-            this.editUnlocked.set(
-              order.source === SalesOrderSource.Manual && SESSION_UNLOCKED_ORDER_IDS.has(order.id),
-            );
+            // (gli impegni si ricaricano solo per questi). Che restino in sola
+            // lettura lo dice `formReadOnly`, non questa sincronizzazione.
+            this.editLock.syncOnLoad(order.id);
             this.loadedOrder.set(order);
             this.patchFormFromOrder(order);
             if (order.source === SalesOrderSource.Manual) {
@@ -1257,12 +1273,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             : CUSTOMER_ORDER_LINE_PRESETS,
     );
 
-    // Sblocco per-sessione: alla distruzione dell'istanza rilascio i soli id
-    // che ho sbloccato io, così riaprendo l'ordine torna bloccato (come AM).
+    // Il rilascio degli sblocchi all'uscita non vive più qui: lo fa
+    // DocumentEditLockService, uguale per ogni maschera.
     this.destroyRef.onDestroy(() => {
-      for (const id of this.unlockedByThisInstance) {
-        SESSION_UNLOCKED_ORDER_IDS.delete(id);
-      }
       if (this.breadcrumbLabelId) {
         this.breadcrumbLabels.clear(this.breadcrumbLabelId);
       }
@@ -3734,11 +3747,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           }
           this.ownReservedByVariant.set(byVariant);
           this.dirtySinceLastSave.set(false);
+          // Salvato l'ordine, i campi tornano protetti — decisione del 08/2026:
+          // si salva, il documento si blocca, si resta dentro. Chi vuole
+          // continuare sblocca, con lo stesso gesto di sempre.
+          this.editLock.relock(result.order.id);
           if (!this.editOrderId()) {
-            // Primo salvataggio: l'ordine appena creato resta sbloccato dopo il
-            // passaggio a /:id/edit (altrimenti si ribloccherebbe subito).
-            this.markSessionUnlocked(result.order.id);
-            this.editUnlocked.set(true);
             void this.router.navigate([this.listPath, result.order.id, 'edit'], {
               replaceUrl: true,
             });
@@ -3909,13 +3922,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this._submitState.set({ status: 'idle' });
         this.loadedQuoteDoc.set(doc);
         this.dirtySinceLastSave.set(false);
+        // Come per l'ordine: salvato il documento, i campi tornano protetti.
+        this.editLock.relock(doc.id);
         if (!this.editOrderId()) {
-          // Preventivo appena creato: resta sbloccato dopo il passaggio a
-          // :id/edit (altrimenti si ribloccherebbe subito, come un ordine).
-          if (this.isQuote) {
-            this.markSessionUnlocked(doc.id);
-            this.editUnlocked.set(true);
-          }
           const editPath = this.isSalesDdt
             ? 'sales-ddt'
             : this.isManualUnload
