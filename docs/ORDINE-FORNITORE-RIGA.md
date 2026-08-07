@@ -288,36 +288,64 @@ I dettagli con i numeri di riga stanno nei messaggi di commit da `4fd3d16` a `cd
 
 ---
 
-# Da discutere prima di farlo: il `track` delle righe
+# Da discutere: l'ordine delle righe (e il `track`, che ne è una conseguenza)
 
 **Non c'entra con il blocco.** È finito nella stessa conversazione solo perché l'ho
-incontrato mentre lavoravo sulla stessa maschera, e tenerlo separato è la ragione per cui
-sta qui in fondo invece che dentro il passo 5.
+incontrato lavorando sulla stessa maschera.
 
-**Cos'è.** Le righe documento sono una `FormArray` che viene **svuotata e ricostruita** a
-ogni caricamento (`lines.clear()` più push dei FormGroup). Il template le scorre con
-`@for (line of lines.controls; track line)`, cioè traccia per **identità dell'oggetto**:
-dopo la ricostruzione gli oggetti sono altri, quindi Angular vede una collezione
-interamente nuova e distrugge e ricrea l'intera tabella. Lo dice lui stesso, con NG0956.
+## La regola, decisa l'08/2026
 
-**Cosa costa.** È un avviso, non un errore: non rompe niente e non blocca il salvataggio.
-Costa lavoro sprecato — DOM buttato e rifatto a ogni apertura — e in mezzo può nascondere
-avvisi veri, che è come si è manifestato la prima volta.
+> Se l'operatore **sposta** una riga, l'ordine è il suo. Deve **restare** dopo salvataggio
+> e riapertura — non si torna a come le righe erano nate.
+>
+> E il riordino va **previsto su tutti i documenti**, non solo dove c'è già.
 
-**Perché non è ovvio cosa fare.** Sull'Ordine fornitore la risposta era `track $index`: in
-una `FormArray` la posizione è l'identità della riga, e quelle righe non si riordinano.
-Sull'**Ordine cliente le righe si trascinano** (`cdkDrag`), quindi tracciare per posizione
-è discutibile: al riordino cambierebbe l'identità di ogni riga spostata.
+## Cosa c'è oggi
 
-**Le domande da farsi prima di scrivere qualsiasi cosa**, e sono di prodotto quanto di
-codice:
+- **Il trascinamento esiste solo nell'Ordine cliente** (`cdkDrag`, con la maniglia sul
+  numero di riga). Gli altri documenti non riordinano.
+- **`DocumentLine` ha `lineNumber`**: i documenti che passano da lì sanno già tenere una
+  posizione.
+- **`SupplierOrderLine` NON ha nessuna colonna di posizione**, e le righe si leggono con
+  `include: { lines: true }` **senza `orderBy`**. Quindi l'ordine che si vede oggi è solo
+  quello di inserimento — una convenzione del database, non una garanzia: Postgres non
+  promette di restituire le righe nell'ordine in cui sono state scritte.
 
-- Serve davvero ricostruire la `FormArray` a ogni caricamento, o basta aggiornare i
-  controlli esistenti? Se non la si ricostruisse, il problema non esisterebbe e la
-  domanda sul `track` non si porrebbe.
-- Le righe hanno già un'identità stabile? Le righe salvate hanno un `id`; quelle nuove no.
-  Un `track` misto — id quando c'è, posizione altrimenti — è una possibilità, ma va
-  verificata sul riordino, non immaginata.
+Cioè: sull'Ordine fornitore l'ordine delle righe **non è persistito affatto**, e il fatto
+che oggi torni giusto è fortuna, non progetto.
 
-Prima di toccarlo va deciso **se vale la pena**: è un avviso, e il costo è invisibile
-all'operatore. Potrebbe non meritare un intervento adesso.
+## Cosa comporta
+
+1. **Colonna di posizione dove manca.** `SupplierOrderLine` ne ha bisogno, come
+   `DocumentLine` ha `lineNumber`. Migration più scrittura in fase di salvataggio.
+2. **`orderBy` esplicito in lettura**, ovunque si leggano righe. Senza, la colonna non
+   serve a niente.
+3. **Il trascinamento nelle altre maschere**, se il riordino va previsto ovunque. Nell'Ordine
+   cliente il pattern c'è già ed è riusabile — la maniglia è il numero di riga.
+4. **Verificare che `lineNumber` sia davvero scritto secondo la posizione a schermo** dove
+   già esiste, e non solo secondo l'ordine di creazione. È il punto che darei per scontato
+   e che va invece guardato.
+
+## Il `track`, che dipende da tutto questo
+
+Le righe sono una `FormArray` svuotata e ricostruita a ogni caricamento
+(`lines.clear()` più push). Il template la scorre con `track line`, cioè per **identità
+dell'oggetto**: dopo la ricostruzione gli oggetti sono altri, Angular vede una collezione
+nuova e ricrea l'intera tabella — è NG0956. È un **avviso**, non un errore: non rompe
+niente e il costo (DOM rifatto) è invisibile all'operatore. Ma può coprire avvisi veri, ed
+è così che si è manifestato la prima volta.
+
+**Una correzione da mettere in conto**: sull'Ordine fornitore ho risolto con
+`track $index`, ragionando che quelle righe non si riordinano. **Con il riordino previsto
+ovunque, quella scelta ha una scadenza**: il giorno in cui l'Ordine fornitore trascina le
+righe, tracciare per posizione diventa la cosa sbagliata. Non è rotta oggi, ma va rifatta
+insieme a questo lavoro, non dimenticata lì.
+
+La risposta giusta a valle di tutto è probabilmente tracciare per **identità stabile della
+riga**, che è quello che la colonna di posizione e gli `id` insieme rendono possibile. Ma
+prima vanno decise le due domande che potrebbero far sparire il problema invece di curarlo:
+
+- Serve davvero **ricostruire** la `FormArray` a ogni caricamento, o basta aggiornare i
+  controlli esistenti? Se non la si ricostruisse, la domanda sul `track` non si porrebbe.
+- Le righe **nuove** — quelle non ancora salvate — con quale identità le si traccia? Le
+  salvate hanno un `id`, le altre no.
