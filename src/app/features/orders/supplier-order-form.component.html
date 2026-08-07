@@ -467,7 +467,13 @@
               </tr>
             </thead>
             <tbody formArrayName="lines">
-              @for (line of lines.controls; track line; let i = $index) {
+              <!-- track per POSIZIONE, non per identità: la FormArray viene
+                   svuotata e ricostruita a ogni caricamento del documento, e con
+                   `track line` Angular vedeva ogni volta una collezione tutta
+                   nuova — NG0956, con distruzione e ricreazione dell'intera
+                   tabella. In una FormArray la posizione È l'identità della
+                   riga, e queste righe non si riordinano. -->
+              @for (line of lines.controls; track $index; let i = $index) {
                 <tr class="doc-form__table-row" [formGroupName]="i">
                   <!-- Le quattro chiavi di ricerca: si digitano per trovare
                        l'articolo, e restano il dato che finisce in anagrafica se
