@@ -462,24 +462,77 @@
             <tbody formArrayName="lines">
               @for (line of lines.controls; track line; let i = $index) {
                 <tr class="doc-form__table-row" [formGroupName]="i">
+                  <!-- Le quattro chiavi di ricerca: si digitano per trovare
+                       l'articolo, e restano il dato che finisce in anagrafica se
+                       l'articolo va creato. Invio cerca, Tab attraversa. -->
                   @if (isLineColumnVisible('articleCode')) {
-                    <td class="doc-form__cell tabular-nums" data-label="Cod. articolo">
-                      {{ lineDisplay(i, 'articleCode') }}
+                    <td class="doc-form__cell doc-form__cell--code" data-label="Cod. articolo">
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'po-code-' + i"
+                        ariaLabel="Codice articolo"
+                        placeholder="Cerca codice"
+                        [value]="line.controls.articleCode.value"
+                        [linked]="lineHasLinkedProduct(i)"
+                        [linkedValue]="line.controls.articleCode.value"
+                        (valueChange)="onLineCodeChange(i, 'articleCode', $event)"
+                        (commit)="commitCodeLookup(i, 'articleCode')"
+                        (lineRetreat)="focusPreviousLineField(i, 'articleCode')"
+                        (lineRowAdvance)="advanceToNextLine(i)"
+                      />
                     </td>
                   }
                   @if (isLineColumnVisible('sku')) {
-                    <td class="doc-form__cell tabular-nums" data-label="SKU">
-                      {{ lineDisplay(i, 'sku') }}
+                    <td class="doc-form__cell doc-form__cell--code" data-label="SKU">
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'po-sku-' + i"
+                        ariaLabel="SKU"
+                        placeholder="Cerca SKU"
+                        [value]="line.controls.sku.value"
+                        [linked]="lineHasLinkedProduct(i)"
+                        [linkedValue]="line.controls.sku.value"
+                        (valueChange)="onLineCodeChange(i, 'sku', $event)"
+                        (commit)="commitCodeLookup(i, 'sku')"
+                        (lineRetreat)="focusPreviousLineField(i, 'sku')"
+                        (lineRowAdvance)="advanceToNextLine(i)"
+                      />
                     </td>
                   }
                   @if (isLineColumnVisible('barcode')) {
-                    <td class="doc-form__cell tabular-nums" data-label="EAN">
-                      {{ lineDisplay(i, 'barcode') }}
+                    <td class="doc-form__cell doc-form__cell--code" data-label="EAN">
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'po-barcode-' + i"
+                        ariaLabel="EAN"
+                        placeholder="Scansiona EAN"
+                        [value]="line.controls.barcode.value"
+                        [linked]="lineHasLinkedProduct(i)"
+                        [linkedValue]="line.controls.barcode.value"
+                        (valueChange)="onLineCodeChange(i, 'barcode', $event)"
+                        (commit)="commitCodeLookup(i, 'barcode')"
+                        (lineRetreat)="focusPreviousLineField(i, 'barcode')"
+                        (lineRowAdvance)="advanceToNextLine(i)"
+                      />
                     </td>
                   }
                   @if (isLineColumnVisible('supplierCode')) {
-                    <td class="doc-form__cell tabular-nums" data-label="Cod. fornitore">
-                      {{ lineDisplay(i, 'supplierSku') }}
+                    <!-- Il fornitore manda il suo listino con i SUOI codici:
+                         qui si digita quello che si ha sotto gli occhi. -->
+                    <td class="doc-form__cell doc-form__cell--code" data-label="Cod. fornitore">
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'po-suppcode-' + i"
+                        ariaLabel="Codice fornitore"
+                        placeholder="Cerca cod. forn."
+                        [value]="line.controls.supplierCode.value"
+                        [linked]="lineHasLinkedProduct(i)"
+                        [linkedValue]="line.controls.supplierCode.value"
+                        (valueChange)="onLineCodeChange(i, 'supplierCode', $event)"
+                        (commit)="commitCodeLookup(i, 'supplierCode')"
+                        (lineRetreat)="focusPreviousLineField(i, 'supplierCode')"
+                        (lineRowAdvance)="advanceToNextLine(i)"
+                      />
                     </td>
                   }
                   @if (isLineColumnVisible('product')) {
@@ -527,6 +580,7 @@
                         min="1"
                         step="1"
                         formControlName="orderedQuantity"
+                        (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
                         [attr.aria-invalid]="lineFieldInvalid(i, 'orderedQuantity')"
                       />
                       @if (lineFieldInvalid(i, 'orderedQuantity')) {
@@ -566,6 +620,7 @@
                         formControlName="unitCost"
                         placeholder="0,00"
                         (input)="onUnitCostInput(i, $any($event.target).value)"
+                        (keydown)="onLineFieldKeydown(i, 'unitCost', $event)"
                         [attr.aria-invalid]="unitCostInvalid(i)"
                       />
                       @if (unitCostInvalid(i)) {

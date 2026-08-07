@@ -77,6 +77,8 @@ import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/produ
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
+import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
+import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import {
   findVariantSummaryById,
   mergeVariantSummaries,
@@ -108,6 +110,19 @@ type SubmitState =
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
+
+/** Le quattro chiavi di ricerca dell'articolo, nell'ordine delle colonne. */
+type LineCodeField = 'articleCode' | 'sku' | 'barcode' | 'supplierCode';
+const CODE_FOCUS_FIELDS: readonly LineCodeField[] = [
+  'articleCode',
+  'sku',
+  'barcode',
+  'supplierCode',
+];
+
+/** Campi della riga che ricevono il fuoco, nell'ordine di attraversamento. */
+type LineFocusField =
+  LineCodeField | 'product' | 'quantity' | 'unitOfMeasure' | 'unitCost' | 'discount';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -141,6 +156,7 @@ function todayIsoDate(): string {
     SlidePanelComponent,
     ProductFormComponent,
     DocumentMobilePanelComponent,
+    DocumentLineCodeCellComponent,
   ],
   templateUrl: './supplier-order-form.component.html',
   styleUrl: './supplier-order-form.component.scss',
@@ -159,6 +175,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
+  private readonly barcodeLookup = inject(BarcodeLookupService);
 
   protected readonly lineColumnsView = TableViewId.SupplierOrderLines;
 
@@ -673,6 +690,69 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return value?.trim() ? value : '—';
   }
 
+  // ── Celle codice: quattro chiavi di ricerca, un solo comportamento ─────────
+  //
+  // Cod. articolo, SKU, EAN e Cod. fornitore si digitano per CERCARE l'articolo.
+  // Alla conferma si prova il richiamo esatto; se non c'è riscontro il testo
+  // resta lì — è il dato che finirà in anagrafica se l'articolo va creato.
+
+  /** La riga è agganciata a un articolo di anagrafica? */
+  protected lineHasLinkedProduct(index: number): boolean {
+    return Boolean(this.lines.at(index)?.controls.variantId.value);
+  }
+
+  protected onLineCodeChange(index: number, field: LineCodeField, value: string): void {
+    this.lines.at(index)?.controls[field].setValue(value);
+    this.markFormDirty();
+  }
+
+  /**
+   * Invio su una cella codice: richiamo esatto dell'articolo. Il lookup è quello
+   * condiviso (`BarcodeLookupService`), quindi vale la stessa catena di ogni
+   * altra maschera — EAN, SKU, codice articolo, codice fornitore.
+   *
+   * Se la riga è già agganciata non si ricerca: si passa al campo successivo.
+   * Un richiamo qui resetterebbe la riga, e non è quello che chiede chi sta solo
+   * attraversando i campi con Invio.
+   */
+  protected commitCodeLookup(index: number, field: LineCodeField): void {
+    const line = this.lines.at(index);
+    if (!line || line.controls.variantId.value) {
+      this.focusNextLineField(index, field);
+      return;
+    }
+    const code = line.controls[field].value.trim();
+    if (!code) {
+      this.focusNextLineField(index, field);
+      return;
+    }
+    this.barcodeLookup
+      .resolveVariantIdByCode(code, {
+        supplierId: this.form.controls.supplierId.value || undefined,
+      })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((variantId) => {
+        if (variantId) {
+          this.onVariantSelect(index, variantId);
+          this.focusLineField(index, 'quantity');
+          return;
+        }
+        // Nessun riscontro: l'operatore prosegue con gli altri campi, e quello
+        // che ha digitato resta la bozza dell'articolo da creare.
+        this.focusNextLineField(index, field);
+      });
+  }
+
+  /** Scollega l'articolo lasciando i codici digitati: la riga torna bozza. */
+  protected onLineUnlink(index: number): void {
+    const line = this.lines.at(index);
+    if (!line) {
+      return;
+    }
+    line.controls.variantId.setValue('');
+    this.markFormDirty();
+  }
+
   protected lineStock(index: number, field: 'stockOnHand' | 'stockAvailable'): string {
     const summary = this.lineSummary(index);
     const value = summary?.[field];
@@ -756,6 +836,119 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
   protected addLine(): void {
     this.lines.push(this.createLine());
+  }
+
+  // ── Tab e Invio deterministici fra i campi della riga ─────────────────────
+  //
+  // L'ordine segue le COLONNE VISIBILI, non i campi esistenti: nascondere una
+  // colonna dal tasto Colonne deve toglierla anche dal giro del Tab, altrimenti
+  // il fuoco sparisce in una cella che non si vede.
+
+  private visibleLineFocusFields(index: number): readonly LineFocusField[] {
+    const all: readonly LineFocusField[] = [
+      'articleCode',
+      'sku',
+      'barcode',
+      'supplierCode',
+      'product',
+      'quantity',
+      'unitOfMeasure',
+      'unitCost',
+      'discount',
+    ];
+    const linked = this.lineHasLinkedProduct(index);
+    return all.filter((field) => {
+      // Su riga agganciata i codici e il nome sono bloccati: restano i dati.
+      if (linked && CODE_FOCUS_FIELDS.includes(field as LineCodeField)) {
+        return false;
+      }
+      if (linked && field === 'product') {
+        return false;
+      }
+      return this.isLineColumnVisible(field === 'product' ? 'product' : field);
+    });
+  }
+
+  protected focusLineField(index: number, field: LineFocusField): void {
+    const idMap: Record<LineFocusField, string> = {
+      articleCode: `po-code-${index}`,
+      sku: `po-sku-${index}`,
+      barcode: `po-barcode-${index}`,
+      supplierCode: `po-suppcode-${index}`,
+      product: `po-product-${index}`,
+      quantity: `po-qty-${index}`,
+      unitOfMeasure: `po-uom-${index}`,
+      unitCost: `po-cost-${index}`,
+      discount: `po-discount-${index}`,
+    };
+    globalThis.document.getElementById(idMap[field])?.focus();
+  }
+
+  private focusFirstLineField(index: number): void {
+    const first = this.visibleLineFocusFields(index)[0];
+    if (first) {
+      this.focusLineField(index, first);
+    }
+  }
+
+  protected focusNextLineField(index: number, current: LineFocusField): void {
+    const order = this.visibleLineFocusFields(index);
+    const pos = order.indexOf(current);
+    if (pos >= 0 && pos < order.length - 1) {
+      this.focusLineField(index, order[pos + 1]!);
+      return;
+    }
+    this.advanceToNextLine(index);
+  }
+
+  protected focusPreviousLineField(index: number, current: LineFocusField): void {
+    const order = this.visibleLineFocusFields(index);
+    const pos = order.indexOf(current);
+    if (pos > 0) {
+      this.focusLineField(index, order[pos - 1]!);
+      return;
+    }
+    if (index > 0) {
+      const previous = this.visibleLineFocusFields(index - 1);
+      const last = previous[previous.length - 1];
+      if (last) {
+        this.focusLineField(index - 1, last);
+      }
+    }
+  }
+
+  /** Ultima cella della riga → prima della successiva; sull'ultima ne crea una. */
+  protected advanceToNextLine(index: number): void {
+    const nextIndex = index + 1;
+    if (nextIndex >= this.lines.length) {
+      this.addLine();
+      this.markFormDirty();
+    }
+    // Il fuoco dopo il render della riga appena creata.
+    setTimeout(() => this.focusFirstLineField(nextIndex));
+  }
+
+  protected onLineFieldKeydown(index: number, field: LineFocusField, event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.focusNextLineField(index, field);
+      return;
+    }
+    if (event.key !== 'Tab') {
+      return;
+    }
+    if (event.shiftKey) {
+      const order = this.visibleLineFocusFields(index);
+      if (order.indexOf(field) <= 0 && index === 0) {
+        // Prima cella della prima riga: l'uscita dalla tabella la fa il browser.
+        return;
+      }
+      event.preventDefault();
+      this.focusPreviousLineField(index, field);
+      return;
+    }
+    event.preventDefault();
+    this.focusNextLineField(index, field);
   }
 
   /**
