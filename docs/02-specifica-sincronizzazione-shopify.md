@@ -267,6 +267,46 @@ Alla riaccensione si esegue il **controllo delle differenze**, che è comunque u
 
 _Nota onesta: gli usi reali di questo interruttore sono da verificare sul campo. È stato pensato per l'installazione iniziale e per le emergenze; quando servirà davvero lo si scoprirà guardando perché qualcuno l'ha premuto, e a quel punto la scelta di non conservare va rivista alla luce di quei casi, non di ipotesi fatte adesso._
 
+#### Cosa è stato misurato
+
+**Venti punti pubblicano, due sole porte.** Diciannove percorsi passano dalla facciata dei canali — documenti, arrivo merce, trasferimenti, rettifiche, inventario, conteggi, immagini prodotto (un push completo per ogni immagine), import CSV, prodotti, ordini manuali, vendita al banco. Uno scavalca la facciata: il pull inventario, che è il percorso dietro «Riallinea le giacenze su Shopify». Due sono endpoint manuali.
+
+Ma tutti convergono su **due soli servizi di push**, giacenze e prodotti. Anche il percorso che scavalca la facciata finisce lì. Quindi due guardie coprono tutto — non venti.
+
+**L'interruttore di oggi non è un interruttore.** `autoSyncEnabled` è consultato in un solo punto dell'intera applicazione: il cancello sui webhook in entrata. Nessun servizio di push lo guarda.
+
+E il difetto è più profondo del «ferma solo metà»: **quel campo non è uno stato che l'operatore governa, è la traccia di un'operazione distruttiva.** Diventa vero quando una registrazione riesce, falso quando le sottoscrizioni vengono cancellate su Shopify. Non descrive una volontà, descrive una conseguenza.
+
+Da lì discendono i due problemi noti, che sono lo stesso problema: spegnere **cancella** invece di mettere in pausa, e per aggiungere un topic bisogna spegnere e riaccendere, perché la sola strada verso «registra» passa dall'etichetta che compare solo quando è spento.
+
+#### Cosa deve diventare
+
+**Uno stato locale che non tocca niente su Shopify.** In pausa le sottoscrizioni restano vive e gli eventi continuano ad arrivare: semplicemente non vengono trattati. Riattivando non si registra nulla di nuovo.
+
+Il nome è libero — dopo il punto Uno, `autoSyncEnabled` non serve più a dire se i webhook sono registrati, lo dicono meglio l'elenco dei topic e la data dell'osservazione. Va chiamato per quello che è: **sincronizzazione in pausa**, non «aggiornamenti automatici», perché ferma entrambe le direzioni e non riguarda solo l'automatico.
+
+**Schema:** una colonna additiva, `syncPausedAt` — un timestamp e non un booleano, perché dice anche _quando_, che è la differenza fra uno stato e una decisione databile. Eventualmente `syncPausedBy`.
+
+**Costo delle guardie: zero query.** Entrambi i servizi di push leggono già la connessione come prima cosa; la pausa è una riga accanto, sullo stesso oggetto già caricato. E si innesta su un vocabolario esistente delle ragioni di salto, quindi tutto ciò che oggi sa mostrare perché un push è stato saltato lo mostra anche per la pausa.
+
+#### Decisioni prese
+
+**I pulsanti manuali si fermano.** «Fermare i danni» non funziona se il gesto manuale passa: chi preme «Riallinea le giacenze» a sincronizzazione in pausa è esattamente la persona che l'interruttore deve proteggere.
+
+**La pausa nasce silenziosa.** Gli eventi scartati durante la pausa non lasciano traccia, come oggi. La traccia arriva col passo 5 (registro 2.4/2.5). Non è un peggioramento: è lo stato attuale con in più un interruttore che funziona.
+
+**Riaccendere non riallinea**, perché il controllo delle differenze del §6.2 richiede lo scheduler, che non esiste. Ma **l'interfaccia deve dirlo esplicitamente alla riaccensione**: quello che è successo durante la pausa non è stato recuperato. Un interruttore che c'è vale più di uno che aspetta lo scheduler, purché non finga.
+
+**Simmetrico su TikTok.** È lo stesso difetto sullo stesso codice; farlo solo su Shopify significa tornarci.
+
+**Conferma per spegnere**, che qui dichiara una decisione voluta invece di legittimare un difetto — e deve dire che gli eventi della pausa non si recuperano.
+
+#### Da prevedere, non ancora disegnato
+
+**Il riallineamento dopo la pausa, da VestiFlow verso Shopify.** Alla riaccensione le due parti possono essere divergenti: VestiFlow ha continuato a lavorare, Shopify ha continuato a vendere. Serve un modo di ripubblicare ciò che è cambiato nel gestionale mentre la sincronizzazione era ferma, senza rifare tutto il catalogo.
+
+Non è lo stesso del controllo delle differenze del §6.2, che confronta e segnala in sola lettura: qui si tratta di **riportare Shopify allo stato di VestiFlow**, cioè di scrivere. Va disegnato quando si affronta, con le stesse cautele di ogni scrittura verso il canale — anteprima di cosa cambierà, nessuna scrittura senza divergenza dichiarata.
+
 ---
 
 Questa parte è piccola come lavoro e **abilita tutto il resto**. Senza di essa qualunque pannello nuovo mostrerebbe le stesse spie che mentono.
@@ -379,9 +419,17 @@ Le **operazioni ricorrenti nelle rispettive schermate**, con un vocabolario unic
 
 **Il lucchetto sui processi periodici.** Se l'ambiente pubblicato gira su più di un'istanza, un processo periodico parte più volte in parallelo. In sola lettura è innocuo; sulla coda in uscita no. Da decidere quando si implementa il §6, non prima.
 
+**Il riallineamento dopo la pausa** — vedi §4.10, ultimo paragrafo.
+
+**Analisi già fatte, da riprendere senza rifarle.** Il passo 5 (errori che si accumulano, messaggio originale conservato, rifiuti registrati) e l'interruttore del §4.10 sono stati analizzati l'8 agosto. Del passo 5 restano fissate quattro decisioni: due tabelle separate, contatori invece di righe per i rifiuti che arrivano prima dell'autenticazione (l'endpoint è pubblico per costruzione e non gli si dà una leva sul database), `tenantId` nullabile sulla tabella dei rifiuti come deroga dichiarata alla regola multi-tenant, stato della connessione derivato invece che scritto, e potatura opportunistica in attesa dello scheduler.
+
+La decisione centrale di quel passo non sono le tabelle: è che **«risolvere» diventi per-tipo e non globale.** Oggi l'errore di connessione viene azzerato in sei punti, tre dei quali sono il successo di un'operazione che cancella il fallimento di un'altra.
+
 ---
 
 ## 9. Ordine di implementazione
+
+**Stato all'8 agosto 2026, fine giornata.** Punto Zero e punto Uno chiusi e committati sul ramo `feature/listini`, non ancora uniti né rilasciati. Il resto è fermo in attesa del merge, che si fa con il collega al suo rientro. Le due analisi già fatte — passo 5 e interruttore — sono scritte qui e non vanno rifatte.
 
 L'ordine non è una preferenza: alcuni pezzi non si possono progettare finché non se ne conoscono altri.
 
