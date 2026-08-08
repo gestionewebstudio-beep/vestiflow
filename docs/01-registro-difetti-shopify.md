@@ -142,7 +142,11 @@ Non è un'ipotesi: eseguito l'08/08 per aggiungere quattro colonne a `shopify_co
 
 **Finché non è sistemato:** nessuno script generato da `migrate diff` va applicato senza averlo letto riga per riga, e da uno script del genere si preleva **solo** il blocco che riguarda la propria modifica. La regola di progetto che indica quel comando come procedura standard è, oggi, una regola che consegna in mano un `DROP TABLE`.
 
-**Urgenza.** Alta ma non attiva: il danno si produce solo se qualcuno applica lo script generato. Nessuno l'ha fatto.
+**Il rilascio non c'entra, ed è stato verificato.** L'immagine di Railway avvia con `npx prisma migrate deploy && node dist/main.js` (`api/Dockerfile`, e `api/railway.toml` conferma che il builder è quel Dockerfile). `migrate deploy` esegue **solo** l'SQL delle migration non ancora applicate e non tocca nulla che una migration non descriva: nessun `db push`, nessun allineamento dello schema. **Le tabelle della cassa non corrono alcun rischio da un rilascio.**
+
+Due proprietà buone emerse dalla stessa lettura: il `&&` rende il boot a rovina chiusa — se una migration fallisce l'applicazione non parte, quindi non esiste lo stato «database mezzo migrato con l'app che gira sopra» — e il client Prisma viene generato in fase di build dallo schema del ramo, coerente con le migration che quello stesso ramo porta.
+
+**Urgenza.** Media, e circoscritta al banco di lavoro. Il danno si produce **solo** se qualcuno genera uno script con `migrate diff` e lo applica a mano. Il rilascio è fuori dal perimetro. Nessuno l'ha fatto.
 
 ---
 
@@ -347,6 +351,20 @@ Quel testo preconfezionato incolpa il permesso «Protected customer data», che 
 **Cosa deve fare invece.** Il `build` di pre-push deve compilare anche l'API, e `api/**` deve entrare in `lint-staged` — che è già deciso e rimandato all'unione dei rami, insieme alla riformattazione. **Le due cose si chiudono nello stesso momento**, perché è la stessa attesa.
 
 **Nel frattempo** i controlli si eseguono a mano dopo ogni modifica al backend: `npm run lint`, `npm run build` e `npm run test` dentro `api/`, più `npm run lint` e `npm run test:everything` alla radice. **È una protezione che dipende da chi si ricorda di eseguirla**, quindi non è una soluzione: è un rimedio dichiarato, con la sua data di scadenza.
+
+---
+
+### 2.12 — Un errore viene nascosto apposta, e la condizione che lo giustifica non è legata a niente
+
+**Cosa succede.** Nel DTO della connessione, `hideScopeDuplicate` sopprime `lastError` quando la diagnostica sugli ambiti sta già segnalando lo stesso problema di permessi. **Oggi è corretto**: è deduplicazione di un fatto mostrato due volte, non mascheramento di due fatti diversi — la distinzione che vale in tutta questa sezione.
+
+Il difetto non è nel comportamento, è nella **dipendenza**. Quella soppressione è valida solo finché la diagnostica sugli ambiti continua a coprire quel caso. Se un domani cambia — un codice d'errore rinominato, la diagnostica ristrutturata, il messaggio spostato altrove — l'errore smette di comparire e **niente lo sostituisce**: sparisce, e nessuno ricollegherà le due cose, perché stanno in due punti che non si citano a vicenda.
+
+È la forma latente dello stesso schema che ha prodotto il «7 su 8» muto: un'informazione la cui visibilità dipende da una condizione altrove.
+
+**Come lo sappiamo.** Lettura del codice, `toDto` in `shopify-connection.service.ts`.
+
+**Cosa deve fare invece.** Lasciarlo com'è — non c'è niente di rotto da correggere. Ma chi tocca la diagnostica sugli ambiti deve sapere che quel `lastError` dipende da lei. La correzione strutturale, quando si passerà di lì, è che la soppressione sia decisa **dalla presenza effettiva dell'altro messaggio**, non da un codice d'errore che si presume corrisponda.
 
 ---
 

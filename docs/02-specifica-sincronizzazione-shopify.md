@@ -422,3 +422,15 @@ Queste scelte sono deliberate. Se durante l'implementazione sembrano sbagliate, 
 **Non si cancellano movimenti a cascata.** Si disattiva conservando lo storico. Vale per le varianti, vale per la disconnessione del canale.
 
 **Un'operazione di popolamento non resta accesa in permanenza.** È il difetto che ha generato metà di questo documento.
+
+**Nessuna informazione importante dietro una priorità, nessuna lista dentro un segnale.**
+
+Una catena di `if` non è sospetta di per sé: lo diventa **quando i rami possono essere veri insieme**. Da qui i tre casi:
+
+- Su **stati mutuamente esclusivi** va bene: non possono coesistere, quindi nessuno nasconde l'altro.
+- Su **fatti indipendenti** è un difetto: coesistono, e il primo copre gli altri proprio quando ce ne sono di più.
+- Ciò che è **indipendente** si aggiunge a ogni ramo, non si mette in gara con essi.
+
+E una banda è un segnale, dimensionata per un colpo d'occhio: appena contiene un elenco lungo smette di essere un segnale e diventa un documento che nessuno legge. Il dettaglio che cresce va in una struttura che regge la crescita — i fatti sempre visibili, e l'elenco dei sospesi del §6.4.
+
+_Nasce da un difetto reale: il nome del topic mancante viveva solo dentro una banda che doveva prima vincere sulle altre segnalazioni, e con l'indirizzo sbagliato non compariva più da nessuna parte. Restava «7 su 8» — lo stesso numero muto che questo lavoro doveva togliere._
