@@ -274,11 +274,85 @@ blocco di ordini passati, non scaricare è la scelta giusta — quella merce è 
 riscalarla falserebbe le giacenze di oggi. Il problema è che **per la cassa quel ramo non è
 l'eccezione, è la normalità**: ogni scontrino nasce già evaso.
 
+### Dove sta la correzione — verificato
+
+I campi che distinguono un ordine POS (`source_name`, `location_id`, `device_id`,
+`processing_method`) VestiFlow li legge già, ma **non rispondono alla domanda che conta**:
+un ordine che arriva già evaso è una vendita di adesso o un'importazione di storia?
+
+Il segnale utile non è nel contenuto dell'ordine, è **nella strada da cui arriva**. Un
+webhook `orders/create` è un fatto appena avvenuto, in tempo reale, uno per volta. Uno
+scarico in blocco è storia.
+
+**Verificato: oggi le due strade sono indistinguibili.** Convergono su un'unica funzione,
+con una firma che non porta nessuna provenienza:
+
+```
+webhook  →  handleWebhook  ─┐
+                            ├─→  applyOrderFromShopify(tenantId, order)  →  …  →  if (!reservation) continue
+pull     →  pullOrders     ─┘
+```
+
+`applyOrderFromShopify` prende `tenantId` e il payload grezzo, e basta. Da lì in giù il
+codice è identico per entrambe: stesso evento, stesso `OnlineOrderEventInput` — che non ha
+un campo per la provenienza — stesso ramo che salta lo scarico.
+
+**Quindi il ramo che salta lo scarico è lo stesso per le due strade, ed è lì la
+correzione.** La provenienza deve viaggiare dal chiamante fino a quel punto, dove «nessun
+impegno da consumare» smetterebbe di avere un solo significato:
+
+- arrivato da **webhook** → è una vendita appena avvenuta: si scarica davvero;
+- arrivato da **scarico in blocco** → è storia: si salta, come oggi.
+
+La forma è la più sicura possibile, perché è **additiva**: il comportamento storico resta il
+default, e solo la strada in tempo reale guadagna lo scarico.
+
+Una rassicurazione utile, già verificata: un ordine importato come storico che venisse poi
+modificato su Shopify **non** verrebbe scaricato in ritardo. L'evento `fulfilled` non porta
+un suffisso di dedupe, quindi la sua chiave è stabile e la seconda occorrenza viene
+riconosciuta come duplicata e ignorata.
+
+### La domanda da portare al collega che lavora sulla cassa
+
+> **Quando la merce esce dal negozio, chi scrive il movimento?**
+
+Lui l'ha appena risposto per la cassa VestiFlow. Per la cassa Shopify oggi la risposta è
+«nessuno». Le due risposte devono stare nella stessa frase.
+
+|                     | Percorso                    | Movimento di magazzino | Voce COR-                                       |
+| ------------------- | --------------------------- | ---------------------- | ----------------------------------------------- |
+| **Cassa VestiFlow** | Documento VN                | ✅ sì                  | ✅ ora sì (`store-corrispettivo-entry.util.ts`) |
+| **Cassa Shopify**   | SalesOrder → Vendita online | ❌ **no**              | ✅ sì                                           |
+
+Due casse, due strade, **entrambe scrivono nello stesso registro fiscale e solo una scarica
+il magazzino**. Non è un conflitto di file — i due rami si fondono puliti e non condividono
+nemmeno una riga in quella zona — è una decisione di disegno che va presa una volta per
+tutte e due, altrimenti fra un mese ci sono due meccanismi che fanno la stessa cosa in due
+modi diversi. Che è il problema da cui è nato tutto il lavoro sul blocco documenti.
+
 ### Il resto, che invece è a posto
 
 Le vendite POS sono **escluse dalla consegna al commercialista**: prendono
 `fiscalStatus: excluded_pos_register`, e solo `shopify_online` entra nel conteggio dei
 documenti da consegnare. A registrarle fiscalmente è la cassa. Questo è coerente e voluto.
+
+### Un vincolo che vive solo in un commento
+
+Il ramo della cassa aggiunge `store` all'enum `SalesOrderSource`, con questo contratto:
+
+> `/// Cassa VestiFlow (vendita al banco): usato SOLO come canale dei corrispettivi, mai
+come sorgente di un SalesOrder.`
+
+Il contratto è giusto, ma **non lo protegge niente**: né il tipo — `store` è un valore
+legittimo del campo `source` di `SalesOrder` — né un test, né un vincolo del database.
+
+E se qualcuno lo violasse, il primo posto a mentire sarebbe il banner appena scritto:
+`isExternalOrder()` è `source !== manual`, quindi un ordine con origine `store` finirebbe
+nel ramo «esterno» e verrebbe presentato all'operatore come **«questo ordine arriva da
+Shopify»**, con l'invito a modificarlo là. Una vendita del banco, mandata su Shopify.
+
+Oggi non succede — nessuno crea SalesOrder con quell'origine. Ma un contratto scritto in un
+commento è un contratto che regge finché qualcuno lo legge.
 
 ---
 
