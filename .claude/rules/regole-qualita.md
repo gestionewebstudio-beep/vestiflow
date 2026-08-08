@@ -73,10 +73,14 @@ Il danno non è estetico. Sono conflitti fantasma con i rami degli altri su file
 nessuno ha cambiato davvero, e una revisione impossibile da fare.
 
 - **VIETATO** `prettier --write` con un glob che copre una cartella (`api/**`, `**`, `.`).
-  `.claude/settings.json` lo blocca via permessi, ma la regola resta scritta qui perché i
-  permessi non fermano un terminale.
 - Si formatta **solo quello che si è toccato**, file per file.
 - Sul frontend non serve nemmeno: ci pensa `lint-staged` al commit.
+
+`.claude/settings.json` blocca le forme più grossolane (`.`, `api`, `api/src`), ma **non
+può fare di più**: i permessi confrontano glob con il testo del comando, quindi un pattern
+su `api/**` bloccherebbe anche `prettier --write api/src/un-file.ts`, che è il caso giusto.
+Una guardia che impedisce il lavoro legittimo viene aggirata, non rispettata — per questo
+il divieto vero è quello scritto qui, e la soluzione vera è `lint-staged` (sotto).
 
 **Deciso e rimandato (08/2026): `api/**` entrerà in `lint-staged`, ma non adesso.** È la
 soluzione alla radice — ogni file API si formatterebbe quando lo si mette in staging, e

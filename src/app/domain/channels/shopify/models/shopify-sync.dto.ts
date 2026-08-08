@@ -43,6 +43,10 @@ export interface ShopifySyncInventoryDto {
   readonly linkedVariantCount: number;
   readonly linkedLocationCount: number;
   readonly remoteLevelCount: number;
+  /** Disallineamenti rimasti in sospeso e ripubblicati in questa passata. */
+  readonly republishedLevels?: number;
+  /** Disallineamenti ancora in coda: falliti, oppure oltre il tetto per passata. */
+  readonly pendingMismatches?: number;
 }
 
 export interface ShopifySyncCustomersDto {

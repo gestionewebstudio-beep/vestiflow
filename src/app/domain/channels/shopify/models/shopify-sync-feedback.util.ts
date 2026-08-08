@@ -46,29 +46,63 @@ export function formatShopifyProductsSyncFeedback(
   };
 }
 
+/**
+ * Coda del messaggio sui disallineamenti ripubblicati.
+ *
+ * Prima questa informazione non usciva da nessuna parte: la ripubblicazione era
+ * un tentativo solo e, se falliva, restava un flag nel database che nessuno
+ * leggeva. Quello che resta in coda va detto — è l'unico modo in cui l'operatore
+ * può sapere che VestiFlow e Shopify non dicono ancora la stessa cosa.
+ */
+function republishSuffix(result: ShopifySyncInventoryDto): string {
+  const republished = result.republishedLevels ?? 0;
+  const remaining = result.pendingMismatches ?? 0;
+  if (republished === 0 && remaining === 0) {
+    return '';
+  }
+  const fatte =
+    republished === 1
+      ? ' Ripubblicata su Shopify 1 giacenza disallineata.'
+      : republished > 1
+        ? ` Ripubblicate su Shopify ${republished} giacenze disallineate.`
+        : '';
+  const restano =
+    remaining === 1
+      ? ' 1 resta disallineata: riprova la sincronizzazione.'
+      : remaining > 1
+        ? ` ${remaining} restano disallineate: riprova la sincronizzazione.`
+        : '';
+  return `${fatte}${restano}`;
+}
+
 export function formatShopifyInventorySyncFeedback(
   result: ShopifySyncInventoryDto,
 ): ShopifySyncFeedback {
   const changedCount = result.imported + result.updated;
+  const republish = republishSuffix(result);
+  // Se qualcosa resta disallineato il tono non può essere di successo: la
+  // sincronizzazione è finita, ma i due sistemi non dicono la stessa cosa.
+  const tone = (result.pendingMismatches ?? 0) > 0 ? 'warning' : 'success';
 
   if (result.remoteLevelCount === 0) {
     return {
       tone: 'warning',
       message:
-        'Nessuna giacenza trovata su Shopify per le varianti e location collegate. Verifica che il tracking quantità sia attivo su Shopify.',
+        'Nessuna giacenza trovata su Shopify per le varianti e location collegate. Verifica che il tracking quantità sia attivo su Shopify.' +
+        republish,
     };
   }
 
   if (changedCount === 0) {
     return {
-      tone: 'success',
-      message: `Giacenze già allineate (${result.unchanged} righe invariate su Shopify).`,
+      tone,
+      message: `Giacenze già allineate (${result.unchanged} righe invariate su Shopify).${republish}`,
     };
   }
 
   return {
-    tone: 'success',
-    message: `Giacenze sincronizzate da Shopify: ${result.imported} nuove, ${result.updated} aggiornate (${result.remoteLevelCount} livelli letti).`,
+    tone,
+    message: `Giacenze sincronizzate da Shopify: ${result.imported} nuove, ${result.updated} aggiornate (${result.remoteLevelCount} livelli letti).${republish}`,
   };
 }
 
