@@ -23,7 +23,6 @@ import {
   ShopifyLocationSyncService,
   type ShopifyLocationSyncResult,
 } from './shopify-location-sync.service';
-import { ShopifyShopChangeService } from './shopify-shop-change.service';
 import {
   buildShopifyScopeDiagnostics,
   mergeShopifyScopes,
@@ -48,7 +47,6 @@ export class ShopifyOAuthService {
     private readonly shopifyAdmin: ShopifyAdminClient,
     private readonly shopifyConnection: ShopifyConnectionService,
     private readonly shopifyLocationSync: ShopifyLocationSyncService,
-    private readonly shopifyShopChange: ShopifyShopChangeService,
   ) {}
 
   async beginAuth(tenantId: string, shopInput: string): Promise<{ authorizeUrl: string }> {
@@ -224,10 +222,26 @@ export class ShopifyOAuthService {
     return `${this.shopifyConfig.frontendUrl}/app/settings?shopify=connected`;
   }
 
+  /**
+   * Disconnettere SOSPENDE, non cancella (registro difetti 1.3).
+   *
+   * Fino all'08/08/2026 qui c'era una pulizia delle sedi Shopify che cancellava
+   * sessioni di conteggio, giacenze, movimenti e ordini fornitore chiusi — per
+   * SEDE, quindi anche di articoli nati solo in VestiFlow — e nel caso piu'
+   * probabile riusciva in silenzio, archiviando la sede DOPO che quei dati
+   * erano spariti. Nessun errore, nessun sintomo.
+   *
+   * La dipendenza da ShopifyShopChangeService e' stata rimossa apposta: cosi'
+   * questo percorso non ha piu' modo di cancellare, e la stessa correzione vale
+   * per le tre chiamate del wizard che passavano di qui — compresa
+   * «Disconnetti senza rimuovere», che prometteva esattamente di non farlo.
+   *
+   * La rimozione dei dati resta possibile, ma solo dove e' dichiarata: il
+   * wizard «Disconnetti e rimuovi dati», che chiede il dominio come conferma.
+   */
   async disconnect(tenantId: string): Promise<void> {
     await this.revokeShopifyAccessToken(tenantId);
     await this.shopifyConnection.clearSetupStatus(tenantId);
-    await this.shopifyShopChange.cleanupResidualShopifyLocations(tenantId);
     await this.prisma.$transaction([
       this.prisma.shopifyCredential.deleteMany({ where: { tenantId } }),
       this.prisma.shopifyConnection.updateMany({

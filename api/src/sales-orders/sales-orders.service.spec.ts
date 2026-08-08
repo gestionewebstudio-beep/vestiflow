@@ -55,6 +55,61 @@ describe('SalesOrdersService', () => {
     expect(result.total).toBe(1);
   });
 
+  // Ordine evaso: l'impegno è stato consumato, quindi la colonna non può più
+  // leggerlo. La merce però è uscita da un magazzino, e a dirlo resta la
+  // vendita online. Senza il ripiego la colonna si svuota proprio quando il
+  // dato smette di essere una previsione e diventa storia.
+  it("list legge la location dalla vendita online quando l'ordine è evaso e non ha piu' impegni attivi", async () => {
+    const prisma = createPrismaMock();
+    prisma.salesOrder.findMany.mockResolvedValue([
+      {
+        id: 'order-2',
+        orderNumber: '1004',
+        onlineSale: {
+          id: 'sale-1',
+          reference: 'VO-2026-0001',
+          fulfilledAt: new Date('2026-08-08T13:32:35.000Z'),
+          inventoryStatus: 'unloaded',
+          refundedAt: null,
+          location: { name: 'Magazzino test 3' },
+          corrispettivo: null,
+        },
+        reservations: [],
+      },
+    ]);
+    prisma.salesOrder.count.mockResolvedValue(1);
+    const service = new SalesOrdersService(prisma as unknown as PrismaService);
+
+    const result = await service.list(tenantId, { page: 1, pageSize: 10 });
+
+    expect(result.items[0]?.locationName).toBe('Magazzino test 3');
+    expect(result.items[0]?.committedQuantity).toBe(0);
+    // La location serve solo alla colonna: non deve comparire nella riga.
+    expect(result.items[0]?.onlineSale).toEqual({
+      id: 'sale-1',
+      reference: 'VO-2026-0001',
+      fulfilledAt: new Date('2026-08-08T13:32:35.000Z'),
+      inventoryStatus: 'unloaded',
+      refundedAt: null,
+      corrispettivo: null,
+    });
+  });
+
+  // Annullato: gli impegni sono stati rilasciati e non esiste vendita online,
+  // perché non è uscito niente da nessun magazzino. Il vuoto è la verità.
+  it("list lascia la location vuota su un ordine annullato", async () => {
+    const prisma = createPrismaMock();
+    prisma.salesOrder.findMany.mockResolvedValue([
+      { id: 'order-3', orderNumber: '1003', onlineSale: null, reservations: [] },
+    ]);
+    prisma.salesOrder.count.mockResolvedValue(1);
+    const service = new SalesOrdersService(prisma as unknown as PrismaService);
+
+    const result = await service.list(tenantId, { page: 1, pageSize: 10 });
+
+    expect(result.items[0]?.locationName).toBeNull();
+  });
+
   it('getById include righe e cliente', async () => {
     const prisma = createPrismaMock();
     prisma.salesOrder.findFirst.mockResolvedValue({

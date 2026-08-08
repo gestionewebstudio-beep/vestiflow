@@ -388,14 +388,10 @@ export class ShopifyShopChangeService {
     return deleted;
   }
 
-  /** Ripulisso sedi Shopify residue dopo disconnect/purge (idempotente). */
-  async cleanupResidualShopifyLocations(tenantId: string): Promise<{ deleted: number }> {
-    let deleted = 0;
-    await this.prisma.$transaction(async (tx) => {
-      deleted = await this.cleanupShopifyLocations(tx, tenantId, true);
-    }, PURGE_TRANSACTION_OPTIONS);
-    return { deleted };
-  }
+  // Qui c'era `cleanupResidualShopifyLocations`, unico chiamante `disconnect()`.
+  // Rimossa l'08/08/2026: disconnettere deve sospendere, non cancellare
+  // (registro difetti 1.3). La pulizia per sede resta disponibile SOLO dentro
+  // la purge, dove l'operatore conferma digitando il dominio.
 
   /**
    * Rimuove dipendenze inventariali (e ordini fornitore chiusi) che impediscono

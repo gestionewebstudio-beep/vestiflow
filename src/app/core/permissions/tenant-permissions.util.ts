@@ -119,7 +119,7 @@ export function canSyncCatalogFromShopify(user: User | null | undefined): boolea
   return canImportExportCatalog(user);
 }
 
-/** Sync giacenze Shopify da magazzino (permesso CSV giacenze). */
+/** Riallineamento giacenze verso Shopify da magazzino (permesso CSV giacenze). */
 export function canSyncInventoryFromShopify(user: User | null | undefined): boolean {
   if (hasFullTenantAccess(user)) {
     return true;

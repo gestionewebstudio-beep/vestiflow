@@ -30,10 +30,21 @@ describe('ShopifyOAuthService', () => {
       },
       shopifyConnection: {
         findFirst: vi.fn(),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       shopifyCredential: {
         findUnique: vi.fn(),
+        deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      location: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      // Spie sul magazzino: la disconnessione non deve toccarle mai.
+      inventoryLevel: { deleteMany: vi.fn() },
+      stockMovement: { deleteMany: vi.fn() },
+      inventoryCountSession: { deleteMany: vi.fn() },
+      supplierOrder: { deleteMany: vi.fn() },
+      $transaction: vi.fn().mockImplementation((ops: unknown) => Promise.resolve(ops)),
     };
 
     const shopifyConfig = {
@@ -57,18 +68,42 @@ describe('ShopifyOAuthService', () => {
       assertConfigured: vi.fn(),
     };
 
+    const shopifyConnection = {
+      clearSetupStatus: vi.fn().mockResolvedValue(undefined),
+    };
+
     const service = new ShopifyOAuthService(
       prisma as unknown as PrismaService,
       shopifyConfig as unknown as ShopifyConfigService,
       shopifyCrypto as unknown as ShopifyCryptoService,
       shopifyAdmin as unknown as ShopifyAdminClient,
-      {} as ShopifyConnectionService,
+      shopifyConnection as unknown as ShopifyConnectionService,
       {} as ShopifyLocationSyncService,
-      {} as never,
     );
 
-    return { service, prisma, shopifyConfig, shopifyCrypto, shopifyAdmin };
+    return { service, prisma, shopifyConfig, shopifyCrypto, shopifyAdmin, shopifyConnection };
   }
+
+  // Registro difetti 1.3: disconnettere sospende, non cancella. Prima dell'
+  // 08/08/2026 questo percorso cancellava sessioni di conteggio, giacenze,
+  // movimenti e ordini fornitore chiusi delle sedi Shopify — e riusciva in
+  // silenzio. Il test fallisce se qualcuno rimette una pulizia qui dentro.
+  it('disconnect non cancella giacenze, movimenti, conteggi né ordini fornitore', async () => {
+    const { service, prisma, shopifyConnection } = createService();
+
+    await service.disconnect('tenant-1');
+
+    expect(prisma.inventoryLevel.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.stockMovement.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.inventoryCountSession.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.supplierOrder.deleteMany).not.toHaveBeenCalled();
+
+    // Quello che deve fare invece: revocare, scollegare, conservare.
+    expect(shopifyConnection.clearSetupStatus).toHaveBeenCalledWith('tenant-1');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.shopifyCredential.deleteMany).toHaveBeenCalled();
+    expect(prisma.location.updateMany).toHaveBeenCalled();
+  });
 
   it('beginAuth genera authorizeUrl e salva stato OAuth', async () => {
     const { service, prisma, shopifyConfig } = createService();

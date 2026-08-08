@@ -593,7 +593,7 @@ npm run serve:pwa
 <td><code>catalog.import_export</code></td>
 </tr>
 <tr>
-<td>Sync giacenze</td>
+<td>Riallinea giacenze</td>
 <td><code>inventory.import_export</code></td>
 </tr>
 <tr>
@@ -1840,6 +1840,10 @@ cd api &amp;&amp; npm run test
 <tr>
 <td>Documenti — filtri lista / incoming PO / seriali / prezzo fornitore</td>
 <td><code>api/src/documents/documents.service.spec.ts</code>, <code>document-supplier-order.util.spec.ts</code>, <code>document-supplier-price.util.spec.ts</code>, <code>inventory-serial.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>E2E arrivo merce (bozza manuale, column picker, flusso da ordine)</td>
+<td><code>e2e/goods-receipt.spec.ts</code>, <code>e2e/supplier-order-send-receive.spec.ts</code>, helper <code>e2e/helpers/goods-receipt-form.ts</code> — flusso ordine richiede seed (<code>Confezioni Sud</code>, <code>PO-2026-0003</code>)</td>
 </tr>
 <tr>
 <td>Impostazioni operative tenant</td>

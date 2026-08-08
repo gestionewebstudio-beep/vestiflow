@@ -279,7 +279,13 @@
         Sync manuale da Shopify
       </h3>
       <p class="shopify-integration__bulk-sync-hint">
-        Avvia un import completo quando serve allineare VestiFlow allo store collegato.
+        Operazioni manuali sul negozio collegato: catalogo, clienti, vendite e sedi entrano in
+        VestiFlow.
+      </p>
+      <p class="shopify-integration__bulk-sync-hint">
+        Le giacenze no: le comanda VestiFlow. «Riallinea le giacenze su Shopify» confronta e riporta
+        il negozio online al valore del gestionale. Con gli aggiornamenti automatici attivi lo
+        stesso avviene da solo, a ogni rettifica fatta nell'admin di Shopify.
       </p>
       <div class="shopify-integration__bulk-sync-actions">
         <app-button
@@ -314,7 +320,7 @@
           @if (syncInventoryLoading()) {
             <i class="pi pi-sync" aria-hidden="true"></i>
           }
-          Sync giacenze
+          Riallinea le giacenze su Shopify
         </app-button>
         <app-button
           variant="secondary"
@@ -429,10 +435,17 @@
         <app-button
           loadingIndicator="icon"
           [loading]="disconnectLoading()"
-          [disabled]="disconnectLoading() || syncLocationsLoading() || syncWebhooksLoading()"
+          [disabled]="
+            disconnectLoading() ||
+            syncLocationsLoading() ||
+            syncWebhooksLoading() ||
+            shopifyBulkSyncBusy()
+          "
           (click)="disconnectShopify()"
         >
-          <i class="pi pi-sync" aria-hidden="true"></i>
+          @if (disconnectLoading()) {
+            <i class="pi pi-sync" aria-hidden="true"></i>
+          }
           Disconnetti Shopify
         </app-button>
         <app-button

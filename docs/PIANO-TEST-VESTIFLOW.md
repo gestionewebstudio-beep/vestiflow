@@ -1375,7 +1375,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 ---
 
-### T-072 — Sincronizza giacenze da Shopify
+### T-072 — Riallinea le giacenze su Shopify
 
 |              |                |
 | ------------ | -------------- |
@@ -1385,10 +1385,13 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 
 **Passaggi:**
 
-1. Giacenze → **Sincronizza giacenze da Shopify**.
+1. Giacenze → **Riallinea le giacenze su Shopify**.
 2. Attendi completamento.
 
-**Risultato atteso:** messaggio esito. Quantità aggiornate rispetto a Shopify.
+**Risultato atteso:** messaggio esito che nomina la direzione. **Le giacenze di VestiFlow non
+cambiano**: l'operazione legge Shopify e, dove trova una differenza, riporta il negozio online al
+valore del gestionale. Chi si aspetta di veder cambiare le quantità in VestiFlow sta verificando la
+cosa sbagliata.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |

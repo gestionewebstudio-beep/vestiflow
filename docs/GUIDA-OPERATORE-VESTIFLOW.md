@@ -363,7 +363,7 @@ Per `admin`, `manager`, `clerk` valgono chiavi `TenantPermission` (FE: `tenant-p
 | Operazione           | Permesso                  |
 | -------------------- | ------------------------- |
 | Import/sync catalogo | `catalog.import_export`   |
-| Sync giacenze        | `inventory.import_export` |
+| Riallinea giacenze   | `inventory.import_export` |
 | Sync vendite/clienti | `reports.export`          |
 
 Route Angular sensibili: `tenantPermissionGuard` (sostituisce il vecchio guard solo-ruolo dove applicabile).

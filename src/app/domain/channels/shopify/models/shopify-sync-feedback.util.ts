@@ -78,7 +78,11 @@ function republishSuffix(result: ShopifySyncInventoryDto): string {
 export function formatShopifyInventorySyncFeedback(
   result: ShopifySyncInventoryDto,
 ): ShopifySyncFeedback {
-  const changedCount = result.imported + result.updated;
+  // `imported` non entra nel conteggio: il ramo che lo alimenta e' codice
+  // morto lato server, quindi vale sempre zero. Mostrarlo come «N nuove»
+  // prometteva giacenze entrate in VestiFlow, che questa operazione non fa
+  // mai — legge Shopify e semmai corregge Shopify (registro difetti 1.2).
+  const changedCount = result.updated;
   const republish = republishSuffix(result);
   // Se qualcosa resta disallineato il tono non può essere di successo: la
   // sincronizzazione è finita, ma i due sistemi non dicono la stessa cosa.
@@ -102,7 +106,7 @@ export function formatShopifyInventorySyncFeedback(
 
   return {
     tone,
-    message: `Giacenze sincronizzate da Shopify: ${result.imported} nuove, ${result.updated} aggiornate (${result.remoteLevelCount} livelli letti).${republish}`,
+    message: `Giacenze confrontate con Shopify: ${result.updated} disallineate su ${result.remoteLevelCount} livelli letti. Le giacenze di VestiFlow non cambiano.${republish}`,
   };
 }
 

@@ -124,7 +124,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
         timeout: 30_000,
       });
 
-      await expectButtonAbsent(page, 'Sincronizza giacenze da Shopify');
+      await expectButtonAbsent(page, 'Riallinea le giacenze su Shopify');
       await expectButtonAbsent(page, 'Esporta CSV');
       await expectButtonAbsent(page, 'Importa CSV');
     });
@@ -254,7 +254,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
       });
 
       const syncVisible = await page
-        .getByRole('button', { name: 'Sincronizza giacenze da Shopify' })
+        .getByRole('button', { name: 'Riallinea le giacenze su Shopify' })
         .isVisible();
       const exportVisible = await page.getByRole('button', { name: 'Esporta CSV' }).isVisible();
       const importVisible = await page.getByRole('button', { name: 'Importa CSV' }).isVisible();

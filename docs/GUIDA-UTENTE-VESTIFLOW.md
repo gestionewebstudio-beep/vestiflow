@@ -190,7 +190,7 @@ Per **Amministratore**, **Manager** e **Commesso** il referente VestiFlow assegn
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | **Vedere giacenze di tutte le sedi** | Consulta stock e movimenti oltre la sede assegnata (le **azioni** restano sulla sede operativa in topbar). |
 | **Gestire giacenze**                 | Carichi, scarichi, trasferimenti, rettifiche, inventario fisico, **Registra movimento**.                   |
-| **Import/export e sync giacenze**    | Export/import CSV giacenze e pulsante **Sincronizza giacenze da Shopify**.                                 |
+| **Import/export e sync giacenze**    | Export/import CSV giacenze e pulsante **Riallinea le giacenze su Shopify**.                                |
 | **Gestire catalogo**                 | Crea e modifica prodotti, varianti e prezzi.                                                               |
 | **Import/export e sync prodotti**    | Export/import CSV catalogo, **Importa da Shopify** e **Sincronizza catalogo** dalla lista prodotti.        |
 | **Eliminare prodotti**               | Rimozione prodotti dal catalogo (nei limiti previsti da Fonte/sync).                                       |
@@ -597,12 +597,12 @@ Nella tabella **Giacenze** la colonna **In arrivo** mostra quantità **attese** 
 
 ### Azioni principali (Giacenze)
 
-| Pulsante                            | Funzione                                   | Permesso richiesto                |
-| ----------------------------------- | ------------------------------------------ | --------------------------------- |
-| **Sincronizza giacenze da Shopify** | Allinea quantità da Shopify                | Import/export e sync **giacenze** |
-| **Esporta CSV**                     | Scarica giacenze (SKU, sede, quantità)     | **Esportare dati**                |
-| **Importa CSV**                     | Carica rettifiche da file                  | Import/export e sync **giacenze** |
-| **Registra movimento**              | Carico, scarico, trasferimento o rettifica | Gestire **giacenze**              |
+| Pulsante                             | Funzione                                         | Permesso richiesto                |
+| ------------------------------------ | ------------------------------------------------ | --------------------------------- |
+| **Riallinea le giacenze su Shopify** | Riporta il negozio online al valore di VestiFlow | Import/export e sync **giacenze** |
+| **Esporta CSV**                      | Scarica giacenze (SKU, sede, quantità)           | **Esportare dati**                |
+| **Importa CSV**                      | Carica rettifiche da file                        | Import/export e sync **giacenze** |
+| **Registra movimento**               | Carico, scarico, trasferimento o rettifica       | Gestire **giacenze**              |
 
 ### Registrare un movimento
 
