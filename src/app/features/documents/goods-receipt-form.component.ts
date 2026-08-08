@@ -165,6 +165,8 @@ import {
   type VatLineAmounts,
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
@@ -214,6 +216,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
   selector: 'app-goods-receipt-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    InlineBannerComponent,
     ReactiveFormsModule,
     RouterLink,
     BackButtonComponent,
@@ -333,6 +336,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   // Stato del dialog «protocollo già assegnato»: la macchina vive in domain,
   // il form decide solo quale controllo riceve il numero e cosa risalvare.
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
+  protected readonly prefillError = new DocumentPrefillErrorStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
   /**
@@ -3989,7 +3994,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (doc) => this.applyDuplicatePrefill(doc),
-        error: () => undefined,
+        error: () => this.prefillError.fail('duplicate'),
       });
   }
 

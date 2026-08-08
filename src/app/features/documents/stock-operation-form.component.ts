@@ -31,6 +31,8 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { AdjustmentDirection, DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
@@ -80,6 +82,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
   selector: 'app-stock-operation-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,
     ButtonComponent,
@@ -157,7 +160,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (doc) => this.applyDuplicatePrefill(doc),
-        error: () => undefined,
+        error: () => this.prefillError.fail('duplicate'),
       });
   }
 
@@ -329,6 +332,8 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   // Avviso «numero già assegnato»: la macchina a stati vive in domain, qui
   // resta solo quale controllo della testata riceve il numero aggiornato.
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
+  protected readonly prefillError = new DocumentPrefillErrorStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
 

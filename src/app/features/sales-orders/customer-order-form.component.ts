@@ -98,6 +98,8 @@ import {
   netFromGrossMinor,
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
@@ -221,6 +223,7 @@ interface AvailabilityIssue {
   selector: 'app-customer-order-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    InlineBannerComponent,
     ReactiveFormsModule,
     CustomerOrderLineCardComponent,
     CdkDropList,
@@ -720,6 +723,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // Stato del dialog «numero già assegnato»: la macchina vive in domain, il
   // form decide solo quale controllo riceve il numero e cosa risalvare.
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
+  protected readonly prefillError = new DocumentPrefillErrorStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
   /** Serie configurate per il tipo: con una sola resta una label statica. */
@@ -1458,7 +1463,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (doc) => this.applyDuplicateFromDocument(doc),
-        error: () => undefined,
+        error: () => this.prefillError.fail('duplicate'),
       });
   }
 
@@ -1498,7 +1503,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (order) => this.onDocumentIncluded(includedPayloadFromSalesOrder(order)),
-        error: () => undefined,
+        error: () => this.prefillError.fail('include'),
       });
   }
 
@@ -1519,7 +1524,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (doc) => this.applyConversionPrefill(doc),
-        error: () => undefined,
+        error: () => this.prefillError.fail('convert'),
       });
   }
 
