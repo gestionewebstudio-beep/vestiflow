@@ -262,29 +262,29 @@ che prima o poi diverge. Ed era già divergente.
   tracciava per **identità**, vedeva ogni volta una collezione nuova e rispondeva NG0956
   distruggendo l'intera tabella. Sull'Ordine fornitore corretto con `track $index`.
 
-## Resta: il passo 5, l'Ordine cliente
+## Il passo 5, l'Ordine cliente — fatto
 
-È il più delicato dei tre. **Non usa il servizio**: ha ancora la sua copia, con
-`SESSION_UNLOCKED_ORDER_IDS`, ed è per questo che oggi funziona mentre gli altri no.
+Era il più delicato dei tre, perché la maschera **non usava il servizio**: aveva ancora la
+sua copia con `SESSION_UNLOCKED_ORDER_IDS`, ed è per questo che funzionava mentre le altre
+no. Ora la copia non c'è più.
 
-Il passo 5 fa **solo il blocco**: niente altro entra in quel giro, così resta rivedibile.
-Tre cose, tutte con la decisione già presa:
+1. **Adotta il servizio** e **si riblocca al salvataggio**, come le altre cinque maschere.
+2. **DDT vendita e Scarico manuale si aprono protetti.** Quella maschera ospita quattro
+   tipi documento e il blocco era stato scritto per uno solo: gli altri due avevano preso
+   `editUnlocked = true` come ripiego. Era un residuo, non una scelta, e la decisione
+   dell'08/2026 non fa eccezioni per tipo documento.
+3. **Il divieto sugli ordini da canale esterno è rimasto un divieto**, ma ha smesso di
+   essere un errore tecnico. La decisione di trasformarlo in avviso è stata **rovesciata
+   dalle verifiche**: vedi `ORDINI-CANALE-ESTERNO.md`, che è la consegna di quel pezzo.
 
-1. **Adotta il servizio** al posto della copia a mano, e **si riblocca al salvataggio** —
-   oggi resta sbloccato, come faceva l'Arrivo merce prima del passo 4.
-2. **Il DDT aperto dall'Ordine cliente non si blocca.** Quella maschera ospita quattro tipi
-   di documento e il blocco fu scritto per uno solo: gli altri presero `editUnlocked = true`
-   come ripiego. È un **residuo**, non una scelta — confermato: è lo stesso documento che
-   dalla sua maschera il blocco ce l'ha. Va tolto.
-3. **Il divieto assoluto sugli ordini da canale esterno** (`order.source === Manual && …`):
-   un ordine da Shopify o POS non è sbloccabile in nessun caso. Diventa un **avviso**, non
-   un divieto — coerente con la regola di progetto «i controlli sono avvisi, mai blocchi».
-   Il testo deve dire la conseguenza, non chiedere conferma generica:
-   _«questo ordine viene da Shopify, la modifica resta solo in VestiFlow»_. I due sistemi
-   diranno cose diverse e nessuno dei due sa dell'altro; a volte serve davvero — un cliente
-   telefona e cambia una taglia — ma chi lo fa deve saperlo.
+Un difetto trovato strada facendo, dentro il perimetro: **il `<fieldset disabled>` ferma i
+controlli del form, non il drag & drop**. Su un documento protetto le righe si riordinavano
+ancora, e siccome `markFormDirty()` gatea su `formReadOnly()` il riordino non accendeva
+nemmeno «Modifiche non salvate» — restava una modifica invisibile in attesa che qualcuno
+sbloccasse e salvasse per un altro motivo. Chiuso nel template (`cdkDropListDisabled`) **e**
+nell'handler, perché un binding si perde in un refactor senza che niente diventi rosso.
 
-I dettagli con i numeri di riga stanno nei messaggi di commit da `4fd3d16` a `cd01098`.
+I dettagli con i numeri di riga stanno nei messaggi di commit da `4fd3d16` a `1574117`.
 
 ---
 
