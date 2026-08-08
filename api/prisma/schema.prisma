@@ -1571,7 +1571,23 @@ model ShopifyConnection {
   lastConnectedAt     DateTime?               @map("last_connected_at")
   lastSyncAt          DateTime?               @map("last_sync_at")
   webhooksActivatedAt DateTime?               @map("webhooks_activated_at")
+  /// Derivata da webhookTopics (un solo scrittore). Si elimina dopo l'unione dei rami:
+  /// il database e' condiviso e il client Prisma dell'altro ramo la seleziona ancora.
   webhooksActiveCount Int?                    @map("webhooks_active_count")
+  /// Indirizzo a cui le sottoscrizioni risultano registrate. La deduplica Shopify
+  /// confronta per uguaglianza esatta: un indirizzo diverso da quello configurato
+  /// significa sottoscrizioni che consegnano altrove, e nessuno se ne accorgerebbe.
+  webhookAddress      String?                 @map("webhook_address")
+  /// QUALI topic, non quanti. Vuoto = «non lo sappiamo», MAI «zero attivi»:
+  /// la distinzione deve arrivare fino alla UI.
+  webhookTopics       String[]                @default([]) @map("webhook_topics")
+  /// Quando l'elenco qui sopra e' stato osservato (registrazione o «Verifica ora»).
+  /// Un'osservazione senza data non si sa quando era vera.
+  webhooksCheckedAt   DateTime?               @map("webhooks_checked_at")
+  /// Ultimo evento webhook verificato RICEVUTO da Shopify. Mai su lastSyncAt, che ha
+  /// sette scrittori di cui sei manuali: non potrebbe distinguere un bottone premuto
+  /// dall'operatore da un evento in arrivo.
+  lastWebhookEventAt  DateTime?               @map("last_webhook_event_at")
   /// Webhook Shopify attivi: ordini, clienti, prodotti e giacenze in tempo reale.
   autoSyncEnabled     Boolean                 @default(false) @map("auto_sync_enabled")
   lastErrorMessage    String?                 @map("last_error_message")
