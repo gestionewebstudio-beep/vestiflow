@@ -44,6 +44,12 @@ export interface ShopifyConnectionDto {
   readonly webhookUnexpectedTopics?: readonly string[];
   /** Quando l'osservazione qui sopra e' stata fatta. Senza data non si sa quando era vera. */
   readonly webhooksCheckedAt?: string | null;
+  /**
+   * Ultimo evento webhook ACCOLTO. Distinto da `lastSyncAt`, che si muove anche quando
+   * qualcuno preme un pulsante: e' l'unica cosa che separa «non e' cambiato niente» da
+   * «non arriva piu' niente». `null` = nessun evento da quando esiste questo campo.
+   */
+  readonly lastWebhookEventAt?: string | null;
   readonly autoSyncEnabled?: boolean;
   readonly lastError?: {
     readonly message: string;

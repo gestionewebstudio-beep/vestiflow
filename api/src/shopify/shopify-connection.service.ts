@@ -20,6 +20,12 @@ export interface ClearShopifyErrorsResult {
 }
 
 /**
+ * Ogni quanto si aggiorna la data dell'ultimo evento ricevuto. Vedi
+ * `recordWebhookEventReceived`: e' una spia di freschezza, non un contatore.
+ */
+const WEBHOOK_EVENT_STAMP_INTERVAL_MS = 60_000;
+
+/**
  * La parte che descrive un'osservazione, senza toccare l'attivazione.
  *
  * E' separata perche' osservare e attivare sono due cose diverse: «Verifica ora» chiede a
@@ -244,6 +250,33 @@ export class ShopifyConnectionService {
     });
   }
 
+  /**
+   * Timbra l'arrivo di un webhook **accolto**: e' l'unica cosa che distingue «non e'
+   * cambiato niente» da «non arriva piu' niente».
+   *
+   * Non si riusa `lastSyncAt`, che ha sette scrittori di cui sei manuali: una data che si
+   * muove sia per un evento in arrivo sia perche' qualcuno ha premuto un pulsante non
+   * distingue niente, e durante l'analisi ha gia' prodotto una deduzione sbagliata.
+   *
+   * **Si scrive al massimo una volta al minuto.** I webhook delle giacenze arrivano a
+   * raffica — il controller salta apposta il limite di frequenza per non perderne — e un
+   * UPDATE per evento metterebbe in contesa sempre la stessa riga. Per una spia che risponde
+   * «e' arrivato qualcosa di recente?» la precisione al minuto e' abbondante, e la
+   * condizione sta nella query: nessuna lettura in piu', nessuna corsa fra due eventi.
+   */
+  async recordWebhookEventReceived(tenantId: string): Promise<void> {
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - WEBHOOK_EVENT_STAMP_INTERVAL_MS);
+
+    await this.prisma.shopifyConnection.updateMany({
+      where: {
+        tenantId,
+        OR: [{ lastWebhookEventAt: null }, { lastWebhookEventAt: { lt: staleBefore } }],
+      },
+      data: { lastWebhookEventAt: now },
+    });
+  }
+
   async isAutoSyncEnabled(tenantId: string): Promise<boolean> {
     const connection = await this.prisma.shopifyConnection.findUnique({
       where: { tenantId },
@@ -338,6 +371,7 @@ export class ShopifyConnectionService {
       webhookMissingTopics: [],
       webhookUnexpectedTopics: [],
       webhooksCheckedAt: null,
+      lastWebhookEventAt: null,
       autoSyncEnabled: false,
       lastError: null,
       createdAt: now,
@@ -386,6 +420,9 @@ export class ShopifyConnectionService {
       webhooksCheckedAt: disconnected
         ? null
         : (connection.webhooksCheckedAt?.toISOString() ?? null),
+      lastWebhookEventAt: disconnected
+        ? null
+        : (connection.lastWebhookEventAt?.toISOString() ?? null),
       autoSyncEnabled: disconnected ? false : connection.autoSyncEnabled,
       lastError:
         !disconnected &&

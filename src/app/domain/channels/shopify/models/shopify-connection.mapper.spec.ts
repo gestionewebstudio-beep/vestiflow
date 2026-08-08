@@ -60,8 +60,10 @@ describe('shopifyConnectionFromDto', () => {
       webhookMissingTopics: ['orders/cancelled'],
       webhookUnexpectedTopics: [],
       webhooksCheckedAt: '2026-08-08T10:00:00.000Z',
+      lastWebhookEventAt: '2026-08-08T16:30:00.000Z',
     });
 
+    expect(connection.lastWebhookEventAt).toBe('2026-08-08T16:30:00.000Z');
     expect(connection.webhookAddress).toBe('https://vestiflow.example/api/v1/shopify/webhooks');
     expect(connection.webhookAddressMatchesConfigured).toBe(false);
     expect(connection.webhookTopics).toEqual(['inventory_levels/update', 'orders/create']);

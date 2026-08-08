@@ -12,6 +12,18 @@ export const SHOPIFY_WEBHOOK_TOPICS = [
 
 export type ShopifyWebhookTopic = (typeof SHOPIFY_WEBHOOK_TOPICS)[number];
 
+/**
+ * Il topic e' fra quelli che VestiFlow sa trattare.
+ *
+ * Serve a distinguere un evento **accolto** da uno che arriva e non viene preso in carico —
+ * i GDPR che Shopify manda di sua iniziativa, per esempio. Sono due fatti diversi e devono
+ * restare due fatti diversi: confonderli farebbe dire «arrivano eventi» a una connessione
+ * che li sta buttando tutti.
+ */
+export function isExpectedShopifyWebhookTopic(topic: string): topic is ShopifyWebhookTopic {
+  return (SHOPIFY_WEBHOOK_TOPICS as readonly string[]).includes(topic);
+}
+
 /** Richiedono Protected customer data approval su Shopify Partners. */
 export const SHOPIFY_PROTECTED_WEBHOOK_TOPICS: ReadonlySet<ShopifyWebhookTopic> = new Set([
   'orders/create',

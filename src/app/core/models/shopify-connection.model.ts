@@ -75,6 +75,12 @@ export interface ShopifyConnection extends TenantScoped, Timestamped {
   readonly webhookUnexpectedTopics?: readonly string[];
   /** Quando l'elenco e' stato osservato. Senza data non si sa quando era vero. */
   readonly webhooksCheckedAt?: IsoDateString | null;
+  /**
+   * Ultimo evento webhook **accolto** da Shopify. Distinto da `lastSyncAt`, che si muove
+   * anche quando qualcuno preme un pulsante: e' l'unica cosa che separa «non e' cambiato
+   * niente» da «non arriva piu' niente».
+   */
+  readonly lastWebhookEventAt?: IsoDateString | null;
   /** Webhook attivi: ordini, clienti, prodotti e giacenze in tempo reale da Shopify. */
   readonly autoSyncEnabled?: boolean;
   readonly lastError?: ShopifyConnectionError;

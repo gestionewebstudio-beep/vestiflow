@@ -48,6 +48,7 @@ export function shopifyConnectionFromDto(dto: ShopifyConnectionDto): ShopifyConn
     webhookMissingTopics: dto.webhookMissingTopics,
     webhookUnexpectedTopics: dto.webhookUnexpectedTopics,
     webhooksCheckedAt: dto.webhooksCheckedAt,
+    lastWebhookEventAt: dto.lastWebhookEventAt,
     autoSyncEnabled: dto.autoSyncEnabled,
     lastError: dto.lastError ? errorFromDto(dto.lastError) : undefined,
     createdAt: dto.createdAt,

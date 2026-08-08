@@ -194,6 +194,8 @@ _Seconda correzione, sulla parola._ Lo stato «disattivato» non viene scritto _
 
 **La registrazione post-autenticazione viene saltata in silenzio** se l'indirizzo non è configurato. Un negozio può risultare connesso con zero webhook e nessuna traccia.
 
+**E la lettura delle sottoscrizioni esistenti tronca a cinquanta.** Sia la registrazione sia la cancellazione chiedono a Shopify `/webhooks.json` **senza `limit`**, e il valore predefinito è 50. Con quattordici sottoscrizioni oggi non fa danno. Ma è esattamente nello scenario descritto qui sopra — le orfane che si accumulano perché si sommano invece di sostituirsi — che la deduplica smetterebbe di vedere quelle oltre la cinquantesima e la cancellazione ne lascerebbe indietro: **si romperebbe nel momento in cui servirebbe di più**, e in silenzio. Il client di sola lettura introdotto per «Verifica ora» chiede già `limit=250`; **i due metodi esistenti restano da correggere**, quando si tocca quel percorso.
+
 **Come lo sappiamo.** Lettura del codice e del file modello. Verificato l'08/08 riga per riga: `api/.env.example:29`, l'assenza di vincoli di forma sulla variabile in `env.validation.ts`, l'interruttore unico in `shopify-integration-panel.component.ts`, l'`if (webhookUrl)` senza `else` in `shopify-oauth.service.ts`, e l'ordine delle chiamate in `disableWebhooks`.
 
 **Cosa deve fare invece.** Correggere il modello e validare l'indirizzo (schema obbligatorio, no localhost in produzione). **Esporre** l'operazione additiva che già esiste, separandola dall'interruttore, così che «aggiungi i topic mancanti» sia raggiungibile anche ad aggiornamenti accesi. Scrivere lo stato **dopo** aver guardato l'esito, e non scriverlo affatto se le cancellazioni non sono riuscite.

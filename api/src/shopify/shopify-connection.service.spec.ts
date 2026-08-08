@@ -256,6 +256,35 @@ describe('ShopifyConnectionService', () => {
     expect(data).not.toHaveProperty('lastWebhookEventAt');
   });
 
+  it('recordWebhookEventReceived scrive solo se la data e vecchia: la riga e calda', async () => {
+    const { service, prisma } = createService(connectedRow);
+
+    await service.recordWebhookEventReceived('tenant-1');
+
+    const call = prisma.shopifyConnection.updateMany.mock.calls[0]?.[0] as {
+      where: { OR: { lastWebhookEventAt: unknown }[] };
+      data: { lastWebhookEventAt: Date };
+    };
+    // La condizione sta nella query: nessuna lettura in piu' e nessuna corsa fra due eventi
+    // della stessa raffica di giacenze.
+    expect(call.where.OR).toHaveLength(2);
+    expect(call.where.OR[0]).toEqual({ lastWebhookEventAt: null });
+    expect(call.data.lastWebhookEventAt).toBeInstanceOf(Date);
+  });
+
+  it('la data dell ultimo evento arriva nel DTO, distinta da lastSyncAt', async () => {
+    const { service } = createService({
+      ...connectedRow,
+      lastSyncAt: new Date('2026-08-01T09:00:00Z'),
+      lastWebhookEventAt: new Date('2026-08-08T16:30:00Z'),
+    });
+
+    const dto = await service.getForTenant('tenant-1');
+
+    expect(dto.lastWebhookEventAt).toBe('2026-08-08T16:30:00.000Z');
+    expect(dto.lastSyncAt).toBe('2026-08-01T09:00:00.000Z');
+  });
+
   // ── Il DTO: «non lo sappiamo» non deve diventare «zero attivi» ───────────────────
   describe('verita sullo stato dei webhook nel DTO', () => {
     it('senza osservazione: topicsKnown false e NESSUN mancante, non «mancano tutti»', async () => {

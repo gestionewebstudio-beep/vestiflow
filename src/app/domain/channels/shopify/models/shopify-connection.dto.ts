@@ -44,6 +44,7 @@ export interface ShopifyConnectionDto {
   readonly webhookMissingTopics?: readonly string[];
   readonly webhookUnexpectedTopics?: readonly string[];
   readonly webhooksCheckedAt?: IsoDateString | null;
+  readonly lastWebhookEventAt?: IsoDateString | null;
   readonly autoSyncEnabled?: boolean;
   readonly lastError?: ShopifyConnectionErrorDto;
   readonly createdAt: IsoDateString;
