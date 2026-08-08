@@ -147,7 +147,10 @@ describe('ShopifyIntegrationPanelComponent', () => {
       await setup();
 
       expect(await screen.findByText(/Manca una notifica su Shopify/i)).toBeVisible();
-      expect(screen.getByText(/orders\/cancelled/)).toBeVisible();
+      // Il nome sta in due posti apposta: nella banda, e nei fatti sempre visibili — che
+      // restano leggibili anche quando la banda parla di un altro problema.
+      expect(screen.getByText(/Non registrate: orders\/cancelled/i)).toBeVisible();
+      expect(screen.getByText('1 su 2 — manca orders/cancelled')).toBeVisible();
     });
 
     it('indirizzo diverso: dice che gli eventi vanno altrove', async () => {
@@ -166,6 +169,71 @@ describe('ShopifyIntegrationPanelComponent', () => {
       await setup();
 
       expect(await screen.findByText(/Le notifiche non arrivano qui/i)).toBeVisible();
+    });
+
+    // ⚠ GUARDIA — nessuna informazione importante dietro una priorità.
+    // Il difetto che questo test impedisce di ripetere: il nome del topic mancante viveva
+    // solo dentro una banda che doveva prima vincere sulle altre, e con l'indirizzo
+    // sbagliato non compariva più da nessuna parte. Restava «7 su 8», un numero muto.
+    it('due problemi insieme: si dicono ENTRAMBI, e il nome resta nei fatti', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(
+          connectionWith({
+            webhookTopicsKnown: true,
+            webhookTopics: ['orders/create'],
+            webhookMissingTopics: ['orders/cancelled'],
+            webhookAddress: 'https://vecchio-dominio.example/api/v1/shopify/webhooks',
+            webhookAddressMatchesConfigured: false,
+            webhookAddressComparable: true,
+            webhooksCheckedAt: '2026-08-08T17:00:00.000Z',
+          }),
+        ),
+      );
+      await setup();
+
+      // Nessuno dei due nasconde l'altro.
+      expect(await screen.findByText(/2 problemi sulle notifiche/i)).toBeVisible();
+      expect(screen.getByText(/gli eventi vengono consegnati altrove/i)).toBeVisible();
+      expect(screen.getByText(/Non registrate: orders\/cancelled/i)).toBeVisible();
+
+      // E il nome sta comunque nei fatti sempre visibili, che non competono con niente.
+      expect(screen.getByText(/1 su 2 — manca orders\/cancelled/i)).toBeVisible();
+    });
+
+    it('il conteggio da solo non basta: la riga dei fatti nomina il mancante', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(
+          connectionWith({
+            webhookTopicsKnown: true,
+            webhookTopics: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+            webhookMissingTopics: ['orders/cancelled'],
+            webhooksCheckedAt: '2026-08-08T17:00:00.000Z',
+          }),
+        ),
+      );
+      await setup();
+
+      expect(await screen.findByText('7 su 8 — manca orders/cancelled')).toBeVisible();
+    });
+
+    it('da locale il confronto si spegne e lo dichiara, invece di tacere', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(
+          connectionWith({
+            webhookTopicsKnown: true,
+            webhookTopics: ['orders/create'],
+            webhookMissingTopics: [],
+            webhookAddress: 'https://vestiflow-production.up.railway.app/api/v1/shopify/webhooks',
+            webhookAddressMatchesConfigured: null,
+            webhookAddressComparable: false,
+            webhooksCheckedAt: '2026-08-08T17:00:00.000Z',
+          }),
+        ),
+      );
+      await setup();
+
+      expect(await screen.findByText(/confronto non possibile da questo ambiente/i)).toBeVisible();
+      expect(screen.queryByText(/Le notifiche non arrivano qui/i)).toBeNull();
     });
 
     it('indirizzo non confrontabile: nessun allarme dato per ignoranza', async () => {
@@ -211,6 +279,7 @@ describe('ShopifyIntegrationPanelComponent', () => {
           configuredAddress: 'https://vestiflow.example/api/v1/shopify/webhooks',
           observedAddress: 'https://vestiflow.example/api/v1/shopify/webhooks',
           addressMatchesConfigured: true,
+          addressComparable: true,
           topics: ['orders/create'],
           missingTopics: ['orders/cancelled'],
           unexpectedTopics: [],

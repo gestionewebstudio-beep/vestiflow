@@ -43,6 +43,7 @@ export function shopifyConnectionFromDto(dto: ShopifyConnectionDto): ShopifyConn
     webhooksActiveCount: dto.webhooksActiveCount,
     webhookAddress: dto.webhookAddress,
     webhookAddressMatchesConfigured: dto.webhookAddressMatchesConfigured,
+    webhookAddressComparable: dto.webhookAddressComparable,
     webhookTopics: dto.webhookTopics,
     webhookTopicsKnown: dto.webhookTopicsKnown,
     webhookMissingTopics: dto.webhookMissingTopics,

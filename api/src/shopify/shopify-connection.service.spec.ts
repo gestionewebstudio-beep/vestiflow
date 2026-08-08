@@ -354,6 +354,57 @@ describe('ShopifyConnectionService', () => {
       expect(dto.webhookAddressMatchesConfigured).toBeNull();
     });
 
+    it('da un ambiente locale il confronto si spegne, e lo dichiara', async () => {
+      const { service } = createService(
+        {
+          ...connectedRow,
+          webhooksCheckedAt: new Date('2026-08-08T10:00:00Z'),
+          webhookAddress: 'https://vestiflow-production.up.railway.app/api/v1/shopify/webhooks',
+        },
+        { webhookUrl: 'http://localhost:3000/api/v1/shopify/webhooks' },
+      );
+
+      const dto = await service.getForTenant('tenant-1');
+
+      // Le sottoscrizioni sono giuste: e' il termine di paragone locale a non esserlo.
+      // Segnalarle come sbagliate sarebbe un allarme prodotto da dove gira il codice.
+      expect(dto.webhookAddressComparable).toBe(false);
+      expect(dto.webhookAddressMatchesConfigured).toBeNull();
+    });
+
+    it('dall ambiente pubblicato il confronto resta acceso e dice verde', async () => {
+      const published = 'https://vestiflow-production.up.railway.app/api/v1/shopify/webhooks';
+      const { service } = createService(
+        {
+          ...connectedRow,
+          webhooksCheckedAt: new Date('2026-08-08T10:00:00Z'),
+          webhookAddress: published,
+        },
+        { webhookUrl: published },
+      );
+
+      const dto = await service.getForTenant('tenant-1');
+
+      expect(dto.webhookAddressComparable).toBe(true);
+      expect(dto.webhookAddressMatchesConfigured).toBe(true);
+    });
+
+    it('dall ambiente pubblicato un indirizzo estraneo resta un rosso vero', async () => {
+      const { service } = createService(
+        {
+          ...connectedRow,
+          webhooksCheckedAt: new Date('2026-08-08T10:00:00Z'),
+          webhookAddress: 'https://vecchio-dominio.example/api/v1/shopify/webhooks',
+        },
+        { webhookUrl: 'https://vestiflow-production.up.railway.app/api/v1/shopify/webhooks' },
+      );
+
+      const dto = await service.getForTenant('tenant-1');
+
+      expect(dto.webhookAddressComparable).toBe(true);
+      expect(dto.webhookAddressMatchesConfigured).toBe(false);
+    });
+
     it('indirizzo non configurato sul server: non confrontabile, non sbagliato', async () => {
       const { service } = createService(
         {

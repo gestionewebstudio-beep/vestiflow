@@ -6,6 +6,7 @@ import type { ShopifyConnectionDto, ShopifyScopeDiagnosticsDto } from './shopify
 import { ShopifyConfigService } from './shopify-config.service';
 import { buildShopifyScopeDiagnostics } from './shopify-scopes.util';
 import { toShopifyUserMessage } from './shopify-user-error.util';
+import { isShopifyDeliverableAddress } from './shopify-webhook-address.util';
 import {
   missingShopifyWebhookTopics,
   normalizeObservedTopics,
@@ -370,6 +371,7 @@ export class ShopifyConnectionService {
       webhookTopicsKnown: false,
       webhookMissingTopics: [],
       webhookUnexpectedTopics: [],
+      webhookAddressComparable: false,
       webhooksCheckedAt: null,
       lastWebhookEventAt: null,
       autoSyncEnabled: false,
@@ -394,6 +396,10 @@ export class ShopifyConnectionService {
     const observedTopics = topicsKnown ? normalizeObservedTopics(connection.webhookTopics) : [];
     const observedAddress = disconnected ? null : connection.webhookAddress;
     const configuredAddress = this.shopifyConfig.webhookUrl ?? null;
+    // Da un ambiente locale l'indirizzo configurato e' `http://localhost:...`, a cui Shopify
+    // non potra' mai consegnare: trovarlo diverso da quello vero non e' una scoperta, e'
+    // un artefatto di dove sta girando il codice.
+    const addressComparable = isShopifyDeliverableAddress(configuredAddress);
 
     return {
       id: connection.id,
@@ -412,7 +418,10 @@ export class ShopifyConnectionService {
       // Un confronto, non un'inferenza: o i due indirizzi sono uguali o non lo sono.
       // `null` quando non c'e' niente da confrontare — mai `false` per ignoranza.
       webhookAddressMatchesConfigured:
-        observedAddress && configuredAddress ? observedAddress === configuredAddress : null,
+        observedAddress && configuredAddress && addressComparable
+          ? observedAddress === configuredAddress
+          : null,
+      webhookAddressComparable: addressComparable,
       webhookTopics: observedTopics,
       webhookTopicsKnown: topicsKnown,
       webhookMissingTopics: topicsKnown ? missingShopifyWebhookTopics(observedTopics) : [],

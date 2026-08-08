@@ -30,6 +30,13 @@ export interface ShopifyConnectionDto {
    * `null` = non confrontabile: indirizzo mai osservato, oppure SHOPIFY_APP_URL assente.
    */
   readonly webhookAddressMatchesConfigured?: boolean | null;
+  /**
+   * `false` = il confronto non e' possibile da qui, perche' l'indirizzo configurato in
+   * questo ambiente non e' uno a cui Shopify potrebbe consegnare (tipicamente `localhost`).
+   * Va **mostrato**, non solo usato per tacere: un controllo spento in silenzio e' peggio
+   * del falso allarme che evita.
+   */
+  readonly webhookAddressComparable?: boolean;
   /** I topic osservati sul negozio. Vuoto NON vuol dire «nessuno»: vedi `webhookTopicsKnown`. */
   readonly webhookTopics?: readonly string[];
   /**

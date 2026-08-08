@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyCryptoService } from './shopify-crypto.service';
+import { isShopifyDeliverableAddress } from './shopify-webhook-address.util';
 import { ShopifyWebhookReaderClient } from './shopify-webhook-reader.client';
 import {
   chooseObservedAddressGroup,
@@ -22,6 +23,8 @@ export interface ShopifyWebhookStatusResult {
   readonly observedAddress: string | null;
   /** `null` quando manca un termine del confronto: non e' un allarme, e' un non-confronto. */
   readonly addressMatchesConfigured: boolean | null;
+  /** `false` = da questo ambiente il confronto non e' possibile (indirizzo non pubblico). */
+  readonly addressComparable: boolean;
   readonly topics: readonly string[];
   readonly missingTopics: readonly string[];
   readonly unexpectedTopics: readonly string[];
@@ -71,6 +74,7 @@ export class ShopifyWebhookStatusService {
 
     const groups = groupWebhooksByAddress(subscriptions);
     const configuredAddress = this.shopifyConfig.webhookUrl ?? null;
+    const addressComparable = isShopifyDeliverableAddress(configuredAddress);
     const observed = chooseObservedAddressGroup(groups, configuredAddress);
     const topics = observed?.topics ?? [];
 
@@ -93,8 +97,11 @@ export class ShopifyWebhookStatusService {
       shopDomain: credential.shopDomain,
       configuredAddress,
       observedAddress: observed?.address ?? null,
+      addressComparable,
       addressMatchesConfigured:
-        observed && configuredAddress ? observed.address === configuredAddress : null,
+        observed && configuredAddress && addressComparable
+          ? observed.address === configuredAddress
+          : null,
       topics,
       missingTopics,
       unexpectedTopics: unexpectedShopifyWebhookTopics(topics),

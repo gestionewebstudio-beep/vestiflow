@@ -14,4 +14,10 @@ export interface SetupStatusItem {
   readonly problem?: boolean;
   readonly label: string;
   readonly detail: string;
+  /**
+   * Piu' problemi veri insieme. Quando ce n'e' piu' di uno si elencano **tutti**: nessuna
+   * informazione importante deve stare dietro una priorita', perche' la prima nasconderebbe
+   * le altre proprio quando ce ne sono di piu'.
+   */
+  readonly problems?: readonly string[];
 }

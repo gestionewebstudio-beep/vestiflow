@@ -34,6 +34,7 @@ export interface ShopifyWebhookCheckDto {
   readonly configuredAddress: string | null;
   readonly observedAddress: string | null;
   readonly addressMatchesConfigured: boolean | null;
+  readonly addressComparable: boolean;
   readonly topics: readonly string[];
   readonly missingTopics: readonly string[];
   readonly unexpectedTopics: readonly string[];

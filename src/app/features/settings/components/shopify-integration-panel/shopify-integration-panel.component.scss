@@ -353,6 +353,15 @@
   color: var(--color-text-muted);
 }
 
+.shopify-integration__setup-problems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  list-style: disc;
+}
+
 .shopify-integration__post-connect {
   display: flex;
   flex-direction: column;

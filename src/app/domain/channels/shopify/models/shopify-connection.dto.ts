@@ -39,6 +39,7 @@ export interface ShopifyConnectionDto {
   // del file usa il solo `?` perche' li' la differenza non cambia cosa si mostra.
   readonly webhookAddress?: string | null;
   readonly webhookAddressMatchesConfigured?: boolean | null;
+  readonly webhookAddressComparable?: boolean;
   readonly webhookTopics?: readonly string[];
   readonly webhookTopicsKnown?: boolean;
   readonly webhookMissingTopics?: readonly string[];

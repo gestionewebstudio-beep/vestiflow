@@ -202,6 +202,7 @@ export class ShopifyIntegrationPanelComponent {
       expectedCount: known ? registered.length + missing.length : 0,
       missingTopics: missing,
       addressWrong: conn?.webhookAddressMatchesConfigured === false,
+      addressComparable: conn?.webhookAddressComparable !== false,
       address: conn?.webhookAddress ?? null,
       checkedAt: conn?.webhooksCheckedAt ?? null,
       lastEventAt: conn?.lastWebhookEventAt ?? null,
@@ -233,26 +234,39 @@ export class ShopifyIntegrationPanelComponent {
       };
     }
 
+    // Due problemi veri insieme si dicono insieme. Prima qui c'era una catena di `if` con
+    // uscita anticipata, e il primo ramo nascondeva gli altri: il nome del topic mancante
+    // non compariva da nessuna parte perche' l'indirizzo vinceva sempre la gara.
+    const problems: { readonly label: string; readonly detail: string }[] = [];
+
     if (truth.addressWrong) {
-      return {
-        active: true,
-        problem: true,
+      problems.push({
         label: 'Le notifiche non arrivano qui',
         detail: `Su Shopify risultano registrate verso ${truth.address}, che non è l'indirizzo di questo ambiente: gli eventi vengono consegnati altrove.`,
-      };
+      });
     }
 
     if (truth.missingTopics.length > 0) {
-      const names = truth.missingTopics.join(', ');
-      return {
-        active: true,
-        problem: true,
+      problems.push({
         label:
           truth.missingTopics.length === 1
             ? 'Manca una notifica su Shopify'
             : `Mancano ${truth.missingTopics.length} notifiche su Shopify`,
-        detail: `Non registrate: ${names}. Gli eventi di questo tipo non arrivano e non lasciano traccia.`,
-      };
+        detail: `Non registrate: ${truth.missingTopics.join(', ')}. Gli eventi di questo tipo non arrivano e non lasciano traccia.`,
+      });
+    }
+
+    const [firstProblem, ...otherProblems] = problems;
+    if (firstProblem) {
+      return otherProblems.length === 0
+        ? { active: true, problem: true, label: firstProblem.label, detail: firstProblem.detail }
+        : {
+            active: true,
+            problem: true,
+            label: `${problems.length} problemi sulle notifiche`,
+            detail: '',
+            problems: problems.map((entry) => entry.detail),
+          };
     }
 
     const partial = conn.lastError?.code === 'webhook_partial_registration';
@@ -272,17 +286,37 @@ export class ShopifyIntegrationPanelComponent {
     return at ? this.formatDateTime(at) : 'Nessun evento ricevuto finora';
   });
 
+  /**
+   * Il conteggio **e i nomi**. «7 su 8» manda a cercare quale sia l'ottavo; «manca
+   * orders/cancelled» dice cosa. E sta qui, nei fatti sempre visibili, non dentro una banda
+   * che deve prima vincere una gara di priorita' contro le altre segnalazioni.
+   */
   protected readonly webhookTopicsLabel = computed(() => {
     const truth = this.webhookTruth();
     if (!truth.known) {
       return 'Non verificate';
     }
-    return `${truth.registeredCount} su ${truth.expectedCount}`;
+
+    const counted = `${truth.registeredCount} su ${truth.expectedCount}`;
+    if (truth.missingTopics.length === 0) {
+      return counted;
+    }
+
+    const verb = truth.missingTopics.length === 1 ? 'manca' : 'mancano';
+    return `${counted} — ${verb} ${truth.missingTopics.join(', ')}`;
   });
 
-  protected readonly webhookAddressLabel = computed(
-    () => this.webhookTruth().address ?? 'Non verificato',
-  );
+  protected readonly webhookAddressLabel = computed(() => {
+    const truth = this.webhookTruth();
+    if (!truth.address) {
+      return 'Non verificato';
+    }
+    // Detto, non taciuto: un confronto spento in silenzio e' peggio del falso allarme
+    // che evita, perche' nessuno si accorge che non sta piu' controllando.
+    return truth.addressComparable
+      ? truth.address
+      : `${truth.address} — confronto non possibile da questo ambiente`;
+  });
 
   protected readonly webhookCheckedAtLabel = computed(() => {
     const at = this.webhookTruth().checkedAt;
@@ -839,39 +873,40 @@ function formatDisableWebhooksFeedback(result: ShopifyDisableWebhooksDto): Actio
  * manda a cercare, «manca orders/cancelled» dice cosa fare.
  */
 function formatWebhookCheckFeedback(result: ShopifyWebhookCheckDto): ActionFeedback {
+  // Si raccolgono TUTTI i rilievi e si dicono insieme. La versione precedente usciva al
+  // primo, e il nome del topic mancante spariva ogni volta che c'era anche altro.
+  const findings: string[] = [];
+
   if (result.addressMatchesConfigured === false) {
-    return {
-      tone: 'warning',
-      message: `Le notifiche risultano registrate verso ${result.observedAddress}, non verso questo ambiente: gli eventi vengono consegnati altrove.`,
-    };
+    findings.push(
+      `risultano registrate verso ${result.observedAddress}, non verso questo ambiente`,
+    );
   }
 
   if (result.missingTopics.length > 0) {
-    return {
-      tone: 'warning',
-      message: `Verifica completata: mancano ${result.missingTopics.length === 1 ? 'la notifica' : 'le notifiche'} ${result.missingTopics.join(', ')}.`,
-    };
+    const verb = result.missingTopics.length === 1 ? 'manca' : 'mancano';
+    findings.push(`${verb} ${result.missingTopics.join(', ')}`);
   }
 
   if (result.totalSubscriptions === 0) {
-    return {
-      tone: 'warning',
-      message: 'Verifica completata: su Shopify non risulta registrata nessuna notifica.',
-    };
+    findings.push('su Shopify non risulta registrata nessuna notifica');
   }
 
   const others = result.otherAddresses.length;
   if (others > 0) {
+    findings.push(
+      `ce ne sono altre verso ${others === 1 ? 'un altro indirizzo' : `${others} altri indirizzi`}, residui che continuano a ricevere eventi`,
+    );
+  }
+
+  if (findings.length === 0) {
     return {
-      tone: 'warning',
-      message: `Notifiche a posto, ma su Shopify ne risultano altre verso ${others === 1 ? 'un altro indirizzo' : `${others} altri indirizzi`}: sono residui che continuano a ricevere eventi.`,
+      tone: 'success',
+      message: `Verifica completata: ${result.topics.length} notifiche registrate, tutte verso questo ambiente.`,
     };
   }
 
-  return {
-    tone: 'success',
-    message: `Verifica completata: ${result.topics.length} notifiche registrate, tutte verso questo ambiente.`,
-  };
+  return { tone: 'warning', message: `Verifica completata: ${findings.join('; ')}.` };
 }
 
 function formatWebhooksFeedback(result: ShopifySyncWebhooksDto): ActionFeedback {

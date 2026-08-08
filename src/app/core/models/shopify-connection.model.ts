@@ -65,6 +65,12 @@ export interface ShopifyConnection extends TenantScoped, Timestamped {
    * dato per ignoranza, ed e' il difetto che questa parte serve a togliere.
    */
   readonly webhookAddressMatchesConfigured?: boolean | null;
+  /**
+   * `false` = da questo ambiente il confronto sull'indirizzo non e' possibile, perche'
+   * quello configurato qui non e' uno a cui Shopify potrebbe consegnare (es. `localhost`).
+   * Va **detto a schermo**: un controllo spento in silenzio e' peggio del falso allarme.
+   */
+  readonly webhookAddressComparable?: boolean;
   /** I topic osservati. Vuoto NON vuol dire «nessuno»: guarda `webhookTopicsKnown`. */
   readonly webhookTopics?: readonly string[];
   /** `false` = nessuna osservazione e' mai stata fatta. Distingue «non lo sappiamo» da «zero». */

@@ -258,7 +258,16 @@
         </app-badge>
         <div class="shopify-integration__setup-copy">
           <span class="shopify-integration__setup-label">{{ webhooks.label }}</span>
-          <span class="shopify-integration__setup-detail">{{ webhooks.detail }}</span>
+          @if (webhooks.problems?.length) {
+            <!-- Piu' problemi veri: si elencano tutti, nessuno nasconde gli altri. -->
+            <ul class="shopify-integration__setup-problems">
+              @for (problem of webhooks.problems; track problem) {
+                <li class="shopify-integration__setup-detail">{{ problem }}</li>
+              }
+            </ul>
+          } @else {
+            <span class="shopify-integration__setup-detail">{{ webhooks.detail }}</span>
+          }
         </div>
       </div>
     </div>
