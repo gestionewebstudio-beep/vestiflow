@@ -184,6 +184,46 @@ Il criterio esclude ciò che non è un riferimento, non ciò che è insolito: ch
 
 ---
 
+### 1.8 — Il ramo della cassa ha reso nullabili due colonne che questo ramo dichiara obbligatorie
+
+**Non è un difetto Shopify.** Sta qui perché è della stessa famiglia — il database condiviso che si muove sotto un ramo — e perché fuori di qui andrebbe perso.
+
+**Cosa succede.** Il 6 agosto la migration `20260806233000_corrispettivi_canale_cassa`, del ramo `feature/cassa`, ha applicato al database condiviso:
+
+```sql
+ALTER TABLE "corrispettivo_entries" ALTER COLUMN "online_sale_id" DROP NOT NULL;
+ALTER TABLE "corrispettivo_entries" ALTER COLUMN "sales_order_id"  DROP NOT NULL;
+```
+
+È corretto dal suo punto di vista: uno scontrino di cassa non ha né una vendita online né un ordine cliente, quindi quelle due colonne devono poter essere vuote.
+
+Ma `feature/listini` dichiara le stesse due colonne **obbligatorie** (`schema.prisma`, modello `CorrispettivoEntry`: `onlineSaleId String` e `salesOrderId String`, senza `?`) e legge quella tabella — due `findMany` e due `findFirst`. Quando il client Prisma riceve `null` su un campo che il suo schema dichiara non-nullabile **solleva un'eccezione**: non restituisce un dato sbagliato, fallisce la lettura. Basta **una sola riga** di cassa nel database perché quelle quattro letture smettano di funzionare.
+
+È il difetto 1.1 rovesciato: là era `main` a essere indietro rispetto al database, qui è il database ad essere avanti rispetto a questo ramo.
+
+**Come lo sappiamo.** Verificato: la migration sul ramo remoto, le due colonne nello schema locale, i quattro punti di lettura nel codice.
+
+**E misurato sul database condiviso l'08/08:**
+
+```
+SELECT count(*) FROM corrispettivo_entries WHERE online_sale_id IS NULL OR sales_order_id IS NULL
+→ 1     (su 2 righe totali)
+```
+
+**La riga esiste già. Il difetto è attivo, non potenziale.**
+
+**Il percorso più esposto è l'elenco dei corrispettivi.** `CorrispettivoRegisterService.list()` fa `findMany` con `include: { onlineSale: … }`: non è solo un campo obbligatorio che riceve `null`, è una **relazione obbligatoria** che non può essere risolta perché la chiave esterna è vuota. L'ordinamento è per data fiscale decrescente, quindi una riga di cassa recente sta in prima pagina. Stessa esposizione per `getDetail()`. `count()` invece non materializza le righe e continua a funzionare — il che rende il guasto ancora più confondente: il totale si legge, l'elenco no.
+
+**Non misurato:** a quale tenant appartiene quella riga. Se è di un tenant diverso da quello che si sta guardando, il filtro su `tenantId` la esclude e l'elenco funziona lo stesso — ma è una fortuna, non una protezione.
+
+**Cosa deve fare invece.** All'unione dei rami le due colonne vanno dichiarate opzionali anche qui, e i quattro punti di lettura devono reggere il `null` — è lo stato giusto, perché è quello del database e riflette una decisione di prodotto reale (i corrispettivi della cassa). Fino ad allora, sapere che quel percorso può fallire.
+
+**La lezione generale, che vale oltre questo caso.** Il rischio di tenere due rami separati a lungo **non cresce con i commit**: il codice su un ramo è inerte. Cresce **a ogni migration che qualcuno applica al database comune**. Cinque delle sei migration della cassa sono `CREATE TABLE` e non danno fastidio a nessuno; l'unica che rilassa un vincolo è anche l'unica che fa danno. È la stessa regola del ritorno indietro vista dall'altro lato: **finché le migration sono additive due rami convivono; la prima che toglie o restringe li rompe a vicenda.**
+
+**Urgenza.** Alta e **attiva**: la riga esiste. Non rompe la produzione, perché `main` non ha questo schema — rompe **questo ramo**, cioè lo sviluppo in corso e ciò che verrà rilasciato.
+
+---
+
 ## Livello 2 — Silenzi: il difetto esiste e niente lo dice
 
 Questa sezione è la ragione per cui l'analisi di oggi è stata necessaria. Tutti i difetti che seguono possono durare per sempre, perché il sistema non ha modo di accorgersene né di dirlo.
