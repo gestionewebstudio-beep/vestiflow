@@ -1346,6 +1346,7 @@ ol {
 <li>Torna in VestiFlow.</li>
 </ol>
 <p><strong>Risultato atteso:</strong> badge <strong>Connesso</strong>. Dominio shop visibile. Banner verde di conferma.</p>
+<p><strong>Se la registrazione delle notifiche non parte, deve restare scritto perché.</strong> Dall&#39;agosto 2026 la connessione non si interrompe più per un problema sui webhook — il negozio è collegato, è solo l&#39;automatismo che non è partito — ma non deve nemmeno sparire in silenzio: sul pannello compare un avviso che ne dà il motivo (indirizzo non configurato, oppure indirizzo a cui Shopify non può consegnare). <strong>Connesso e zero notifiche senza nessuna traccia del perché è KO</strong>: era il difetto 2.2-bis.</p>
 <table>
 <thead>
 <tr>
@@ -1430,13 +1431,117 @@ ol {
 <td>Desktop</td>
 </tr>
 </tbody></table>
-<p><strong>Prerequisiti:</strong> Shopify connesso, location sincronizzate.</p>
+<p><strong>Prerequisiti:</strong> Shopify connesso, location sincronizzate. <strong>Da eseguire dall&#39;ambiente pubblicato</strong>: da un computer locale la registrazione è rifiutata di proposito, perché creerebbe notifiche verso un indirizzo a cui Shopify non può consegnare (registro difetti 1.7).</p>
 <p><strong>Passaggi:</strong></p>
 <ol>
 <li>Clicca <strong>Attiva aggiornamenti automatici</strong>.</li>
 <li>Attendi completamento.</li>
 </ol>
 <p><strong>Risultato atteso:</strong> setup status webhook = Attivo (o Parziale con spiegazione). Pulsante diventa <strong>Disattiva aggiornamenti automatici</strong>.</p>
+<p><strong>Da un ambiente locale:</strong> l&#39;operazione viene <strong>rifiutata con un messaggio che nomina l&#39;indirizzo</strong>. Non è un guasto: è la guardia. Un rifiuto silenzioso, o peggio una registrazione riuscita, sono entrambi KO.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-033-bis--la-verità-sullo-stato-delle-notifiche">T-033-bis — La verità sullo stato delle notifiche</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P1 · <strong>Obbligatorio</strong></td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Perché esiste.</strong> Fino ad agosto 2026 il pannello diceva «7 canali attivi»: un numero esatto che descriveva un insieme che nessuno conosceva. È il motivo per cui un topic è rimasto non registrato per un mese senza che nulla lo segnalasse. Questo caso verifica che la schermata dica cosa sa <strong>e cosa non sa</strong>.</p>
+<p><strong>Prerequisiti:</strong> Shopify connesso, aggiornamenti automatici attivi.</p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Apri <strong>Impostazioni → Shopify</strong> su una connessione <strong>mai verificata</strong>.</li>
+<li>Leggi il blocco dei fatti: <em>Ultimo evento ricevuto · Notifiche registrate · Indirizzo di consegna · Ultima verifica</em>.</li>
+<li>Clicca <strong>Verifica ora</strong>.</li>
+<li>Rileggi lo stesso blocco.</li>
+</ol>
+<p><strong>Risultato atteso:</strong></p>
+<p><strong>Al passo 2 — lo stato «non lo sappiamo».</strong> «Notifiche registrate» dice <strong>Non verificate</strong>, non «0»; «Ultima verifica» dice <strong>Mai</strong>; la riga di stato invita a premere «Verifica ora». <strong>È KO se compare un numero</strong>: zero e «non l&#39;abbiamo guardato» sono cose diverse, e confonderle è il difetto che questo caso esiste per intercettare.</p>
+<p><strong>Al passo 4 — i fatti.</strong> «Ultima verifica» porta data e ora. «Notifiche registrate» mostra il conteggio <strong>e i nomi dei mancanti</strong> («7 su 8 — manca orders/cancelled»): un conteggio da solo manda a cercare, un nome dice cosa. Se ci sono più problemi veri insieme (indirizzo diverso <strong>e</strong> notifiche mancanti) devono comparire <strong>entrambi</strong>: uno che nasconde l&#39;altro è KO.</p>
+<p><strong>La data dell&#39;ultimo evento è dichiarativa.</strong> Riporta quando è arrivato l&#39;ultimo evento accolto, oppure «Nessun evento ricevuto finora». Non deve dare giudizi né allarmi sul tempo passato: un negozio può stare giorni senza eventi in modo legittimo.</p>
+<p><strong>Da un ambiente locale</strong> l&#39;indirizzo mostra <strong>«confronto non possibile da questo ambiente»</strong>. Non deve comparire nessun allarme rosso sull&#39;indirizzo: le notifiche sono giuste, è il termine di paragone locale a non esserlo. Un rosso qui è KO.</p>
+<table>
+<thead>
+<tr>
+<th>Esito</th>
+<th>Tester</th>
+<th>Data</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>☐ OK ☐ KO ☐ N/A</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="t-033-ter--registra-le-notifiche-mancanti">T-033-ter — Registra le notifiche mancanti</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Priorità</strong></td>
+<td>P2</td>
+</tr>
+<tr>
+<td><strong>Ruolo</strong></td>
+<td>Titolare o Admin</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Desktop</td>
+</tr>
+</tbody></table>
+<p><strong>Prerequisiti:</strong> T-033-bis eseguito, con almeno una notifica mancante nominata. <strong>Dall&#39;ambiente pubblicato.</strong></p>
+<p><strong>Passaggi:</strong></p>
+<ol>
+<li>Verifica che accanto a <strong>Verifica ora</strong> compaia <strong>Registra le notifiche mancanti</strong>.</li>
+<li>Cliccalo e attendi l&#39;esito.</li>
+</ol>
+<p><strong>Risultato atteso:</strong> il messaggio riporta l&#39;esito <strong>rimisurato</strong>, non quello dichiarato dalla registrazione — cioè quello che risulta su Shopify dopo, non quello che l&#39;operazione crede di aver fatto. Il blocco dei fatti si aggiorna con la nuova ora di verifica e senza i mancanti appena registrati. Nessuna notifica esistente viene rimossa: l&#39;operazione aggiunge soltanto.</p>
+<p><strong>Il pulsante può mancare per due motivi diversi, e vanno distinti:</strong></p>
+<ul>
+<li><strong>non c&#39;è niente da registrare</strong> — nessun mancante, quindi niente da riparare;</li>
+<li><strong>l&#39;ambiente da cui guardi non è raggiungibile da Shopify</strong> — tipicamente da un computer locale. In questo caso i mancanti sono comunque <strong>nominati</strong> nel blocco dei fatti, e l&#39;indirizzo riporta «confronto non possibile da questo ambiente»: è lì che si legge il perché.</li>
+</ul>
+<p>Se il pulsante manca e la schermata <strong>non lascia capire quale dei due casi sia</strong>, è KO: sarebbe una schermata che non spiega sé stessa, cioè il difetto di partenza in un&#39;altra forma.</p>
 <table>
 <thead>
 <tr>

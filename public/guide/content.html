@@ -677,6 +677,11 @@
 <td>Riceve prodotti, giacenze, ordini e clienti in tempo reale</td>
 </tr>
 <tr>
+<td><strong>Verifica ora</strong></td>
+<td>Impostazioni</td>
+<td>Chiede a Shopify quali notifiche sono davvero attive</td>
+</tr>
+<tr>
 <td><strong>Importa catalogo da Shopify</strong></td>
 <td>Impostazioni</td>
 <td>Scarica i prodotti già presenti online</td>
@@ -708,6 +713,14 @@
 <tr>
 <td><strong>Disattiva aggiornamenti automatici</strong></td>
 <td>Pausa sync temporanea</td>
+</tr>
+<tr>
+<td><strong>Verifica ora</strong></td>
+<td>Per sapere cosa risulta davvero su Shopify adesso</td>
+</tr>
+<tr>
+<td><strong>Registra le notifiche mancanti</strong></td>
+<td>Dopo una verifica, se ne manca qualcuna</td>
 </tr>
 <tr>
 <td><strong>Importa catalogo da Shopify</strong></td>
@@ -1722,7 +1735,40 @@
 <ol>
 <li><strong>Importa catalogo da Shopify</strong> in Impostazioni (attendi fine operazione)</li>
 <li>Verifica che <strong>Aggiornamenti automatici</strong> sia attivo</li>
+<li>Premi <strong>Verifica ora</strong>: dice quali notifiche risultano davvero attive su Shopify. Se fra i mancanti compaiono quelle dei prodotti, i cambiamenti fatti online non arrivano — ed è quello il motivo, non l&#39;import</li>
 </ol>
+<h3 id="capire-lo-stato-delle-notifiche">Capire lo stato delle notifiche</h3>
+<p>Sotto lo stato della connessione ci sono quattro informazioni. Servono a distinguere <strong>«non è cambiato niente»</strong> da <strong>«non arriva più niente»</strong>, che viste da fuori si assomigliano.</p>
+<table>
+<thead>
+<tr>
+<th>Cosa leggi</th>
+<th>Cosa significa</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Ultimo evento ricevuto</strong></td>
+<td>quando Shopify ha comunicato qualcosa l&#39;ultima volta</td>
+</tr>
+<tr>
+<td><strong>Notifiche registrate</strong></td>
+<td>quante sono attive sulle attese, <strong>con il nome di quelle che mancano</strong></td>
+</tr>
+<tr>
+<td><strong>Indirizzo di consegna</strong></td>
+<td>dove Shopify sta consegnando</td>
+</tr>
+<tr>
+<td><strong>Ultima verifica</strong></td>
+<td>quando abbiamo chiesto a Shopify come stanno le cose</td>
+</tr>
+</tbody></table>
+<p><strong>«Non verificate» e «Mai» non sono un guasto.</strong> Vogliono dire che non l&#39;abbiamo ancora chiesto a Shopify: è diverso da «non c&#39;è niente». Premi <strong>Verifica ora</strong> e diventano numeri.</p>
+<p><strong>Nessun evento da giorni non è di per sé un problema.</strong> Se non hai ordini online e nessuno tocca le giacenze, non c&#39;è niente da comunicare. Per questo VestiFlow riporta la data e non dà giudizi: l&#39;unico modo di sapere davvero com&#39;è messa la connessione è <strong>Verifica ora</strong>.</p>
+<h3 id="manca-una-notifica-e-non-trovo-il-pulsante-per-registrarla">«Manca una notifica» e non trovo il pulsante per registrarla</h3>
+<p><strong>Registra le notifiche mancanti</strong> compare solo dopo una verifica, e solo quando c&#39;è qualcosa da registrare. Se non lo vedi, i motivi sono due e portano a cose diverse:</p>
+<p><strong>Non c&#39;è niente da registrare.</strong> «Notifiche registrate» non nomina nessun mancante: è tutto a posto e non serve fare niente.</p>
+<p><strong>Stai guardando da un ambiente che Shopify non può raggiungere.</strong> In questo caso i mancanti sono comunque nominati, ma accanto all&#39;indirizzo leggi <strong>«confronto non possibile da questo ambiente»</strong>. Succede quando si apre il gestionale da un computer di sviluppo invece che dall&#39;indirizzo pubblico. Il pulsante è nascosto <strong>apposta</strong>: registrare da lì creerebbe notifiche verso un indirizzo che non riceverà mai niente, e si sommerebbero a quelle buone invece di sostituirle. La riparazione va fatta dall&#39;indirizzo pubblico del gestionale.</p>
 <h3 id="limport-catalogo-è-lento">L&#39;import catalogo è lento</h3>
 <p>Con molti prodotti è <strong>normale</strong>. Attendi il messaggio di esito senza ripremere il pulsante. Se compare un avviso su limiti Shopify, attendi 1–2 minuti e riprova <strong>una volta</strong>.</p>
 <h3 id="le-giacenze-non-coincidono">Le giacenze non coincidono</h3>
