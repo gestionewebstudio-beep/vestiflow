@@ -122,15 +122,26 @@ prossimo scarico, perché il sync fa upsert per `shopifyOrderId`.
 
 Lavoro a sé, non ancora aperto.
 
-### La precondizione, prima di scrivere una riga
+### La precondizione — sciolta: il limite dei 60 giorni c'è
 
-Chiediamo lo scope `read_orders`, non `read_all_orders`. Se Shopify limita l'API ordini agli
-ultimi 60 giorni per le app senza `read_all_orders`, allora **«assente dall'elenco» non
-significa «cancellato»: significa «fuori finestra»**, e una riconciliazione che cancellasse
-tutto ciò che non vede farebbe sparire lo storico.
+Verificato sulla documentazione Shopify (08/2026). **Di default un'app vede solo gli ordini
+degli ultimi 60 giorni.** Per i più vecchi serve lo scope `read_all_orders`, che non si
+aggiunge da soli: va **richiesto e approvato da Shopify** dal Partner Dashboard, motivando
+l'uso. Noi chiediamo `read_orders` e basta.
 
-**Va confermato sulla documentazione Shopify prima di aprire il lavoro.** Non è una
-questione che si risolve leggendo il nostro codice.
+Quindi **«assente dall'elenco» non significa «cancellato»: per tutto ciò che ha più di 60
+giorni significa «fuori finestra»**, e una riconciliazione che cancellasse quello che non
+vede farebbe sparire lo storico.
+
+Le conseguenze per il lavoro, che ora sono decise e non più aperte:
+
+- La riconciliazione **si applica solo agli ordini dentro i 60 giorni**. Fuori da lì
+  l'assenza non è un'informazione, e va ignorata — non segnalata: una segnalazione falsa
+  ripetuta su tutto lo storico è rumore che insegna a ignorare le segnalazioni vere.
+- Dentro la finestra il segnale è affidabile, quindi **lì il rilascio degli impegni può
+  essere immediato**: un ordine cancellato davvero non deve tenere merce bloccata.
+- Se un giorno servisse coprire anche lo storico, la strada è chiedere `read_all_orders` —
+  ed è una richiesta di approvazione, con tempi non nostri, non una riga di configurazione.
 
 ### Cosa succede oggi
 
@@ -181,11 +192,13 @@ Due ragioni, e la seconda è la più importante:
 
 Resta da valutare se serva una traccia esplicita di cos'era e cos'è diventato. Non deciso.
 
-## ⚠️ Per chi lavora sulla cassa: le vendite dalla cassa Shopify potrebbero non scaricare
+## ⚠️ Per chi lavora sulla cassa: le vendite dalla cassa Shopify NON scaricano il magazzino
 
 Emerso rispondendo a «se il negoziante ha la cassa Shopify, quelle vendite arrivano qui e
-sono gestite?». **Arrivano. Ma potrebbero non toccare la giacenza.** Non è stato corretto:
-tocca il lavoro sulla cassa, e va deciso lì.
+sono gestite?». **Arrivano, generano Vendita online e corrispettivo, ma non toccano la
+giacenza — e la riconciliazione rimanda su Shopify la giacenza vecchia.** Verificato sul
+codice e sulla documentazione Shopify (08/2026). **Non corretto**: tocca il lavoro sulla
+cassa, e va deciso lì.
 
 ### Quello che è certo, perché sta nel codice
 
@@ -211,18 +224,48 @@ E il webhook dell'inventario non rimedia, anzi: `inventory_levels/update` **non 
 giacenza di VestiFlow**. La riconciliazione tratta VestiFlow come fonte di verità — «Caso D»
 — e **ripubblica su Shopify il proprio valore**, sovrascrivendo il calo fatto dalla cassa.
 
-### Quello che va confermato, e non si legge nel nostro codice
+### Come arrivano davvero gli ordini POS — verificato su Shopify
 
-Se un ordine Shopify POS arrivi al webhook `orders/create` **già** con
-`fulfillment_status: fulfilled`, oppure prima come non evaso e poi evaso con un secondo
-evento.
+Shopify ha un'impostazione **«Mark as fulfilled»** nelle preferenze di evasione della cassa,
+e la sua stessa guida la raccomanda proprio al nostro caso: _«se i clienti portano via i
+loro acquisti quando escono, è più semplice segnare automaticamente gli ordini come
+evasi»_. Con quella attiva, la vendita al banco nasce **già evasa**.
 
-- **Se arriva già evaso** (l'ipotesi probabile: alla cassa si paga e si consegna insieme),
-  la catena è quella sopra e la giacenza non scende.
-- **Se arriva prima non evaso**, il primo evento crea gli impegni, il secondo li consuma, e
-  lo scarico è corretto.
+Le tre configurazioni, e come le tratta VestiFlow:
 
-**Tutto dipende da questo, ed è una domanda per la documentazione Shopify, non per noi.**
+| Vendita alla cassa                                                      | Stato all'arrivo         | Cosa fa VestiFlow                                        |
+| ----------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------- |
+| Merce portata via, «Mark as fulfilled» **attivo** — il caso del negozio | `fulfilled` subito       | **Nessuno scarico.** E nessuna segnalazione              |
+| Misto: una parte portata via, una spedita                               | `partial` subito         | **Nessuno scarico**, ma l'ordine è marcato da verificare |
+| «Mark as fulfilled» **spento**, o solo spedizione dal negozio           | `unfulfilled`, poi evaso | Corretto: impegni creati e poi consumati                 |
+
+Quindi **funziona solo nella configurazione che un negozio con un banco non userebbe.**
+L'unico dato che la documentazione Shopify non dichiara è il valore _predefinito_ di quel
+toggle: è una scelta del negoziante. Ma la riga da guardare è la prima, ed è quella che
+descrive un negozio di abbigliamento.
+
+Nota la beffa: il caso **totalmente** mancato (`not_applied`) è l'unico che **non** viene
+segnalato, mentre quello parziale sì. `requiresReview` si accende solo su
+`partially_unloaded`.
+
+### E la riconciliazione rimanda indietro la giacenza vecchia
+
+Non è che VestiFlow «non se ne accorge»: **sovrascrive**.
+
+Dopo la vendita al banco Shopify scala la propria giacenza (10 → 9) e manda
+`inventory_levels/update`. VestiFlow non ha fatto nessun movimento, quindi il suo
+pubblicabile è ancora 10. Osservato 9 < atteso 10, e non c'è nessun impegno Shopify attivo
+su quella variante e sede — perché non è mai stato creato. Si finisce nel **«Caso D»**:
+disallineamento non giustificato, **VestiFlow resta fonte di verità** e programma la
+**ripubblicazione** del proprio 10 su Shopify.
+
+Il calo fatto dalla cassa viene quindi annullato **anche su Shopify**. L'errore non resta
+locale: si propaga al canale.
+
+L'unica cosa che lo trattiene è il «Caso C»: se su quella variante e sede esistono altri
+impegni Shopify attivi (per esempio da ordini online in corso), la riconciliazione viene
+**differita** invece di ripubblicare. È un rinvio, non una soluzione — la giacenza resta
+comunque sbagliata da entrambe le parti.
 
 ### Perché il meccanismo è fatto così
 
