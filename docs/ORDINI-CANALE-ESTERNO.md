@@ -537,24 +537,40 @@ commento è un contratto che regge finché qualcuno lo legge.
 
 ---
 
-## Rimasto sul tavolo: i fallimenti silenziosi
+## I fallimenti silenziosi — chiusi
 
-Cercati su richiesta, **elencati e non corretti**: la decisione è da prendere insieme.
+Nati dal caso della Fattura accompagnatoria, dove il rifiuto del server veniva ingoiato e
+restava una fattura vuota. Cercati in tutto il frontend: erano **28** gli
+`error: () => undefined`, ma non tutti uguali.
 
-Sono 28 gli `error: () => undefined` nel frontend, ma non sono tutti uguali. Si dividono in
-due famiglie, e solo una è come il caso della Fattura accompagnatoria.
+**Famiglia pericolosa — il precompilato da parametro di rotta: 10 punti, chiusi.**
+L'operatore preme «Genera documento», «Concludi ordine» o «Duplica», atterra su una maschera
+nuova, e se la precompilazione fallisce si ritrova **una maschera vuota indistinguibile da
+un documento nuovo legittimo**. Crede di aver fatto una cosa che non è avvenuta, e se salva
+crea il documento sbagliato. Riguardava `convertPrefill`, `concludeManualPrefill`,
+`getDocumentById(duplicateFrom / fromDocument)`, `getSalesOrderById(includeOrder)` e
+`applyDuplicatePrefill`, in tutte e sei le maschere documento.
 
-**Famiglia pericolosa — il precompilato da query param (≈10 punti).** L'operatore ha
-premuto «Genera documento», «Concludi ordine» o «Duplica», è atterrato su una maschera
-nuova, e se la chiamata di precompilazione fallisce si ritrova **una maschera vuota che
-sembra un documento nuovo legittimo**. Nessun errore, nessuna spiegazione. Riguarda
-`convertPrefill`, `concludeManualPrefill`, `getDocumentById(duplicateFrom / fromDocument)`,
-`getSalesOrderById(includeOrder)` e `applyDuplicatePrefill`, in `sales-document-form`,
-`customer-order-form`, `goods-receipt-form`, `purchase-invoice-form`, `stock-operation-form`
-e `transfer-form`.
+**Famiglia innocua — lasciata com'è.** `getPriceModePreference` e i contatori documento
+(`available()`): il fallimento produce un default sensato, non una schermata falsa. Un
+avviso lì sarebbe rumore.
 
-**Famiglia innocua.** `getPriceModePreference` e i contatori documento (`available()`): il
-fallimento produce un default sensato, non una schermata falsa.
+### Il messaggio dice la conseguenza, non l'errore
 
-Il punto della Fattura accompagnatoria è chiuso dalla sparizione di «Concludi ordine», ma
-solo per quella strada: la famiglia resta.
+«Si è verificato un errore» non aggiunge niente a una maschera vuota, che l'operatore vede
+già. Quello che non può sapere è **cosa creerebbe salvando lo stesso**, e quello dice il
+messaggio — tre origini, tre conseguenze:
+
+| Da dove veniva                   | Cosa dice                                                              |
+| -------------------------------- | ---------------------------------------------------------------------- |
+| `fromDocument` (conversione)     | «salvando adesso creeresti un documento nuovo, **non la conversione**» |
+| `includeOrder` (concludi ordine) | «un documento che **non conclude nessun ordine**»                      |
+| `duplicateFrom` (duplica)        | «un documento nuovo, **non la copia**»                                 |
+
+### Cosa è stato riusato
+
+Il testo e la transizione stanno in un `DocumentPrefillErrorStore`, sulla forma di
+`DocumentNumberConflictStore`: una classe semplice istanziata per componente
+(`new ...Store()`), non un service — non ha dipendenze e ogni maschera ne vuole una sua.
+L'avviso è **`app-inline-banner`**, il componente unico che `regole-stile-ui` prevede per
+gli errori in linea; con `tone="error"` è quella stessa regola a scegliere il ruolo ARIA.
