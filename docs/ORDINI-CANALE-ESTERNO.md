@@ -118,9 +118,10 @@ prossimo scarico, perché il sync fa upsert per `shopifyOrderId`.
 
 ---
 
-## Da fare: gli ordini spariti da Shopify
+## Gli ordini spariti da Shopify — fatto
 
-Lavoro a sé, non ancora aperto.
+La sincronizzazione ordini adesso se ne accorge. Sotto restano il perché delle scelte e le
+guardie, che sono la parte da non smontare per distrazione.
 
 ### La precondizione — sciolta: il limite dei 60 giorni c'è
 
@@ -143,36 +144,93 @@ Le conseguenze per il lavoro, che ora sono decise e non più aperte:
 - Se un giorno servisse coprire anche lo storico, la strada è chiedere `read_all_orders` —
   ed è una richiesta di approvazione, con tempi non nostri, non una riga di configurazione.
 
-### Cosa succede oggi
+### Da dove arriva il segnale, e perché non serve un webhook
 
-- `orders/delete` **non è fra i webhook a cui siamo iscritti** (`shopify-webhook-topics.ts`),
-  e la stringa non compare da nessuna parte nel codice. Un ordine cancellato su Shopify
-  resta qui per sempre.
-- Il pull (`listAllOrders`, `status=any`, paginazione completa) **ha già in mano l'elenco
-  completo degli ordini remoti**, ma ci passa sopra in un verso solo: cicla sui remoti e fa
-  upsert, non guarda mai i locali che non compaiono più. La riconciliazione non richiede
-  quindi né un webhook nuovo né uno scope nuovo — richiede solo il confronto che manca.
-- **L'annullamento invece funziona**: `orders/cancelled` è iscritto e `applyCancellationTx`
-  scrive `cancelledAt` e rilascia gli impegni. Su Shopify annullare è l'operazione normale,
-  cancellare è più raro — quindi il buco è reale ma stretto.
+`orders/delete` **non è fra i webhook a cui siamo iscritti**, e la stringa non compare da
+nessuna parte nel codice. Ma iscriversi non serviva: il pull (`listAllOrders`, `status=any`,
+paginazione completa) **ha già in mano l'elenco remoto per intero**, e ci passava sopra in
+un verso solo — aggiornava i remoti trovati, senza mai guardare i locali che non compaiono
+più. Mancava il confronto, non il dato.
 
-### Il comportamento voluto
+Il confronto va **in coda allo scarico ordini**, e l'esito compare nel messaggio del
+pulsante «Sincronizza vendite da Shopify» — che sta nell'elenco vendite, cioè nel momento e
+nel posto in cui l'operatore quel controllo se lo aspetta. Non esiste nessuno scheduler
+nell'applicazione: la cadenza è quella con cui si sincronizza.
 
-VestiFlow non cancella niente da solo. Quando scopre che un ordine non risulta più su
-Shopify:
+**L'annullamento è un'altra cosa e funzionava già**: `orders/cancelled` è iscritto e
+`applyCancellationTx` scrive `cancelledAt` e rilascia gli impegni. Su Shopify annullare è
+l'operazione normale, cancellare è più raro — il buco era reale ma stretto.
 
-- **segnala** sull'ordine che non risulta più. È un'informazione, non un'azione.
-- **lascia all'operatore** la decisione se rimuoverlo, anche in selezione multipla.
-- se l'ordine è **già evaso** — c'è una vendita online e un corrispettivo — nessuna
-  rimozione è possibile: la merce è uscita davvero e il registro fiscale esiste. Solo
-  segnalazione. (Il database si opporrebbe comunque: la FK è `onDelete: Restrict`.)
+### Cosa fa, e cosa non fa
 
-**Sul rilascio degli impegni: dipende dalla precondizione.** Se l'ordine è stato cancellato
-davvero, l'impegno non ha più senso e la merce va liberata subito — tenerla bloccata per un
-ordine che non esiste significa non poterla vendere. Ma se l'unico segnale è «non compare
-più nell'elenco», quello non basta: potrebbe essere fuori finestra, e liberare gli impegni
-di un ordine vivo significa venderne la merce due volte. **Prima si stabilisce se il segnale
-è affidabile, poi si decide il rilascio.**
+VestiFlow non cancella niente da solo. Scrive un'osservazione (`channelMissingSince`, una
+data e non un flag: serve sapere da quando) e:
+
+- **libera subito gli impegni** degli ordini **non evasi**, senza aspettare l'operatore.
+  Merce riservata per un ordine che non esiste più è merce che non si può vendere, e dentro
+  la finestra il segnale è affidabile;
+- sugli ordini **già evasi** non tocca niente: gli impegni sono stati consumati
+  all'evasione e la merce è uscita davvero — cancellare l'ordine sul canale non la riporta
+  in magazzino. Resta la sola segnalazione, che serve perché è una situazione da guardare:
+  c'è un corrispettivo registrato per una vendita che sul canale non risulta più;
+- **toglie la segnalazione** se l'ordine ricompare. Una segnalazione rimasta accesa su un
+  ordine tornato è falsa, e le false insegnano a ignorare anche le vere.
+
+La rimozione resta una scelta dell'operatore, anche in selezione multipla.
+
+### Le tre guardie — la parte da non smontare
+
+Tutte contro lo stesso danno: **una segnalazione falsa libera impegni di ordini vivi**, cioè
+fa vendere due volte la stessa merce. Non sono prudenza generica, sono tre scenari
+concreti.
+
+1. **Elenco remoto vuoto → non si conclude niente.** Da un elenco vuoto non si distingue
+   «negozio senza ordini» da «la chiamata non ha portato nulla».
+2. **Finestra più stretta di due giorni dei 60 dichiarati.** Fuori dai 60 Shopify non manda
+   gli ordini, quindi l'assenza è il limite dell'API; il margine tiene fuori il bordo, che
+   i due sistemi calcolano su orologi diversi. Si rinuncia a vedere le cancellazioni fra i
+   58 e i 60 giorni — ordini che stanno comunque per uscire dalla finestra.
+3. **Un'assenza di massa non si crede** (≥ 5 ordini e oltre il 20% dei candidati). Trovata
+   provando a rompere la logica, e copre due scenari reali: `listAllOrders` chiude il ciclo
+   su `page.orders ?? []`, quindi una pagina 2xx senza quella chiave **tronca l'elenco in
+   silenzio**; e dopo un **cambio di negozio Shopify** gli ordini del negozio precedente non
+   compaiono più. In entrambi i casi si segnalerebbero come cancellati centinaia di ordini
+   vivi.
+
+Una quarta, dalla stessa caccia: l'id locale può essere stato scritto come GID o come numero
+nudo, e confrontarne una forma sola avrebbe fatto risultare sparito un ordine presente. Si
+confrontano entrambe.
+
+**Quando una guardia scatta, l'operatore lo sa.** Il controllo che non conclude lo dice nel
+messaggio della sincronizzazione invece di restare nei log: il silenzio verrebbe letto come
+«non è sparito niente», che è la conclusione opposta a quella giusta.
+
+### Cosa è stato riusato invece di aggiungerci accanto
+
+| Serviva                       | Si è usato                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| Dire che l'ordine non c'è più | La colonna **«Stato sync»**, che esiste per dire come sta l'ordine rispetto al canale       |
+| Rimuoverlo                    | L'**eliminazione a due conferme** e la selezione multipla già presenti, con l'avviso esteso |
+| Trovarli tutti                | Un filtro sulla forma di `includable`, che era già lì                                       |
+| Dire l'esito                  | Il **formattatore del messaggio** di sincronizzazione                                       |
+
+L'unica cosa nuova è il campo, e serviva: la rimozione va abilitata su quel fatto preciso, e
+gatearla sul testo di `reviewReason` sarebbe stato fragile.
+
+La colonna «Stato» accanto è la chiave di lettura: **annullato e poi sparito** è la sequenza
+normale e si rimuove senza pensarci; **confermato e sparito** è quella da guardare — lì
+c'era merce impegnata.
+
+### L'eccezione all'eliminazione, e perché è stretta
+
+Gli ordini di canale non si eliminano: appartengono a Shopify, e cancellarli qui non
+servirebbe — il prossimo scarico li riporterebbe, perché il sync fa upsert sull'id Shopify.
+
+Il motivo cade **solo** quando sul canale non risultano più: lì non c'è più niente da cui
+tornare. La guardia sulla Vendita online resta comunque in piedi, quindi **un ordine evaso
+non si elimina** nemmeno se sparito.
+
+### Rimuovere un ordine da VestiFlow non rimette mai merce in giacenza
 
 ### Rimuovere un ordine da VestiFlow non rimette mai merce in giacenza
 

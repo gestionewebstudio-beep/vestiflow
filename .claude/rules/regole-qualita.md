@@ -78,10 +78,14 @@ nessuno ha cambiato davvero, e una revisione impossibile da fare.
 - Si formatta **solo quello che si è toccato**, file per file.
 - Sul frontend non serve nemmeno: ci pensa `lint-staged` al commit.
 
-Portare `api/**` dentro `lint-staged` risolverebbe alla radice — ogni file API si
-formatterebbe quando lo si mette in staging, e nessuno avrebbe più motivo di lanciare
-Prettier in grande. È una decisione di progetto, non una correzione: va presa sapendo che
-il primo commit che tocca un file API lo riformatta.
+**Deciso e rimandato (08/2026): `api/**` entrerà in `lint-staged`, ma non adesso.** È la
+soluzione alla radice — ogni file API si formatterebbe quando lo si mette in staging, e
+nessuno avrebbe più motivo di lanciare Prettier in grande.
+
+Si aspetta che questo ramo sia **unito con quello della cassa**. Il motivo è pratico: una
+riformattazione di massa mentre due rami vanno in parallelo complica l'unione, ed è lo
+stesso danno che la regola vuole evitare — solo distribuito nel tempo invece che in un
+commit solo. Fino ad allora vale il divieto qui sopra.
 
 ---
 
