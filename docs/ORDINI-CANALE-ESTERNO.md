@@ -174,6 +174,100 @@ più nell'elenco», quello non basta: potrebbe essere fuori finestra, e liberare
 di un ordine vivo significa venderne la merce due volte. **Prima si stabilisce se il segnale
 è affidabile, poi si decide il rilascio.**
 
+### Rimuovere un ordine da VestiFlow non rimette mai merce in giacenza
+
+Verificato, perché è la domanda che viene subito dopo. Oggi non si può — è bloccato tre
+volte: bottone nascosto in UI, `source !== manual` lato API, e sugli ordini evasi anche la
+guardia `onlineSale` più la foreign key in `Restrict`. Ma quando l'operatore potrà
+rimuoverli, `delete()` fa **una cosa sola**: rilascia gli impegni **attivi** — `committed`
+scende, `available` risale, e la nuova disponibilità viene spinta a Shopify.
+
+**`onHand` non viene toccato, e nessun movimento viene creato o annullato.** Che è il
+comportamento giusto in entrambi i casi:
+
+- **ordine non evaso** → non era uscito niente, si libera solo la prenotazione;
+- **ordine evaso** → gli impegni sono già consumati, quindi non c'è niente da rilasciare e
+  lo scarico resta dov'è. La merce è uscita davvero, e cancellare un ordine non la riporta
+  indietro.
+
+### Se l'ordine evaso viene annullato su Shopify — verificato
+
+Prima cosa, e cambia la domanda: **su Shopify un ordine già evaso non si annulla in un
+gesto solo.** _«After an order is partially fulfilled, you can't cancel it directly. You can
+cancel the fulfillment to make the order eligible for cancellation, or issue refunds and
+manage returns.»_ Sono due strade, e portano segnali diversi.
+
+I valori di `restock_type` sui rimborsi lo dicono con precisione: **`cancel`** = articoli
+_non ancora evasi_; **`return`** = articoli _già consegnati che tornano indietro_. VestiFlow
+genera un carico reale **solo** su `return` e `legacy_restock` (`emitRestockEvents`), e
+ignora `cancel`. È già la scelta giusta.
+
+- **Strada A — si annulla prima l'evasione, poi l'ordine.** Shopify rimette la giacenza.
+  VestiFlow no: `fulfilledAt` resta valorizzato e non viene mai azzerato, quindi non ricrea
+  impegni e non carica niente; vendita online, movimento e corrispettivo restano.
+  **VestiFlow ha ragione, e i due divergono.**
+- **Strada B — rimborso con reso.** `restock_type: return` → VestiFlow genera un carico
+  vero. I due restano allineati, ed è corretto: lì il canale sta dichiarando un rientro
+  fisico.
+
+Nella strada A tocca alla riconciliazione rimettere Shopify in riga. **Lo fa** — e come, sta
+nella sezione seguente.
+
+---
+
+## La riconciliazione dell'inventario: lo stesso meccanismo, due esiti opposti
+
+Questa sezione tiene insieme due cose che sembravano separate — l'ordine evaso annullato su
+Shopify e il buco della cassa — perché passano dallo stesso codice.
+
+### La simmetria
+
+Quando Shopify comunica una giacenza diversa dalla nostra e la differenza non è
+giustificata, si finisce nel **«Caso D»**: VestiFlow resta fonte di verità e **ripubblica il
+proprio valore** sul canale.
+
+> **Lo stesso meccanismo corregge Shopify quando VestiFlow ha ragione, e propaga l'errore
+> quando ha torto. A decidere quale dei due, è solo se il movimento di magazzino è stato
+> scritto.**
+
+| Situazione                                    | Movimento scritto?  | Chi ha ragione | Cosa fa il Caso D                                |
+| --------------------------------------------- | ------------------- | -------------- | ------------------------------------------------ |
+| Ordine evaso, annullato su Shopify (strada A) | ✅ sì, allo scarico | VestiFlow      | **Corregge**: Shopify torna al valore giusto     |
+| Vendita dalla cassa Shopify                   | ❌ **no**           | Shopify        | **Propaga**: rimanda al canale il valore stantio |
+
+Il Caso D si raggiunge direttamente in entrambi i casi: il «Caso C», che rimanda la
+decisione, scatta solo quando l'osservato è _minore_ dell'atteso e ci sono impegni Shopify
+attivi — condizione che nello scenario dell'annullamento non si presenta nemmeno.
+
+### Cosa vuol dire per il buco del POS
+
+**Che raddoppia il danno da solo.** Non è solo «VestiFlow non scarica»: non scarica, e poi
+la riconciliazione **fa risalire la giacenza anche sul canale**, cancellando il calo che la
+cassa aveva fatto correttamente. Un errore che nasce locale e si propaga.
+
+Ed è anche il motivo per cui il buco del POS **non si può considerare un problema
+sopportabile in attesa di tempo**: finché c'è, il Caso D — che è un meccanismo di difesa —
+lavora contro.
+
+### La fragilità, comune a tutti i casi — lavoro a sé
+
+Il Caso D funziona, ma **non tiene**. Tre difetti, tutti verificati:
+
+1. **Un tentativo solo.** La ripubblicazione è un `pushLevel` **fire-and-forget**: se
+   fallisce, viene scritto un warning nel log e finisce lì.
+2. **Il segnale di disallineamento non lo legge nessuno.** Viene alzato `mismatchDetected`
+   con una nota che spiega la differenza, ma le uniche occorrenze del campo nel backend sono
+   dentro il servizio stesso, che lo scrive e lo cancella. Nessuna schermata, nessun badge,
+   nessun report.
+3. **Nessuno riprova.** Non esiste alcun job: nessun `@Cron` e nessun `@Interval` in
+   `shopify/` o `inventory/`.
+
+Quindi un solo tentativo, e se va male la divergenza resta lì **per sempre e in silenzio** —
+con un flag acceso nel database che nessuno guarderà.
+
+**Va sistemata, ma è un lavoro a sé** e non va confuso col buco del POS: quello è un
+movimento che manca, questo è un meccanismo di recupero che non ha né memoria né voce.
+
 ---
 
 ## Nota: la rettifica di un corrispettivo sbagliato
@@ -266,6 +360,11 @@ L'unica cosa che lo trattiene è il «Caso C»: se su quella variante e sede esi
 impegni Shopify attivi (per esempio da ordini online in corso), la riconciliazione viene
 **differita** invece di ripubblicare. È un rinvio, non una soluzione — la giacenza resta
 comunque sbagliata da entrambe le parti.
+
+**Il buco raddoppia quindi il danno da solo**: non scarica, e poi fa risalire la giacenza
+anche sul canale. E non è un difetto del Caso D — lo stesso meccanismo, quando il movimento
+c'è, **corregge** Shopify invece di sporcarlo. Vedi «La riconciliazione dell'inventario: lo
+stesso meccanismo, due esiti opposti», che è la sezione dove le due facce stanno insieme.
 
 ### Perché il meccanismo è fatto così
 
