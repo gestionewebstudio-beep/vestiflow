@@ -27,6 +27,7 @@ import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
 import { ShopifyTaxonomyLocalizationService } from './shopify-taxonomy-localization.service';
 import { ShopifyWebhookReaderClient } from './shopify-webhook-reader.client';
+import { ShopifyWebhookRepairService } from './shopify-webhook-repair.service';
 import { ShopifyWebhookService } from './shopify-webhook.service';
 import { ShopifyWebhookStatusService } from './shopify-webhook-status.service';
 import { ShopifyWebhooksController } from './shopify-webhooks.controller';
@@ -62,6 +63,7 @@ import { ShopifyShopChangeService } from './shopify-shop-change.service';
     ShopifySyncService,
     ShopifyWebhookService,
     ShopifyWebhookStatusService,
+    ShopifyWebhookRepairService,
     ShopifyShopChangeService,
   ],
   exports: [

@@ -41,6 +41,7 @@ describe('ShopifyIntegrationPanelComponent', () => {
     syncWebhooks: vi.fn(),
     disableWebhooks: vi.fn(),
     checkWebhooks: vi.fn(),
+    registerMissingWebhooks: vi.fn(),
     clearErrors: vi.fn(),
   };
 
@@ -267,6 +268,94 @@ describe('ShopifyIntegrationPanelComponent', () => {
       await setup();
 
       expect(await screen.findByText('Nessun evento ricevuto finora')).toBeVisible();
+    });
+
+    // ── Il pulsante di riparazione: solo quando ha senso, e solo quando e' sicuro ────
+    it('senza verifica non compare: prima si guarda, poi si ripara', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(connectionWith({ webhookTopicsKnown: false })),
+      );
+      await setup();
+
+      await screen.findByRole('button', { name: /Verifica ora/i });
+      expect(screen.queryByRole('button', { name: /Registra le notifiche mancanti/i })).toBeNull();
+    });
+
+    it('senza mancanti non compare: non c e niente da riparare', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(
+          connectionWith({
+            webhookTopicsKnown: true,
+            webhookTopics: ['orders/create'],
+            webhookMissingTopics: [],
+            webhookAddressComparable: true,
+            webhooksCheckedAt: '2026-08-08T17:00:00.000Z',
+          }),
+        ),
+      );
+      await setup();
+
+      await screen.findByRole('button', { name: /Verifica ora/i });
+      expect(screen.queryByRole('button', { name: /Registra le notifiche mancanti/i })).toBeNull();
+    });
+
+    // ⚠ GUARDIA — registro 1.7. Da un ambiente locale registrare creerebbe sottoscrizioni
+    // verso localhost sul negozio vero, che si sommano alle buone invece di sostituirle.
+    it('da un ambiente non consegnabile NON compare, anche con mancanti', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(
+          connectionWith({
+            webhookTopicsKnown: true,
+            webhookTopics: ['orders/create'],
+            webhookMissingTopics: ['orders/cancelled'],
+            webhookAddressComparable: false,
+            webhooksCheckedAt: '2026-08-08T17:00:00.000Z',
+          }),
+        ),
+      );
+      await setup();
+
+      expect(await screen.findByText(/manca orders\/cancelled/i)).toBeVisible();
+      expect(screen.queryByRole('button', { name: /Registra le notifiche mancanti/i })).toBeNull();
+    });
+
+    it('con mancanti e indirizzo buono: registra e mostra l esito RIMISURATO', async () => {
+      const user = userEvent.setup();
+      connectionService.getConnection.mockReturnValue(
+        of(
+          connectionWith({
+            webhookTopicsKnown: true,
+            webhookTopics: ['orders/create'],
+            webhookMissingTopics: ['orders/cancelled'],
+            webhookAddressComparable: true,
+            webhooksCheckedAt: '2026-08-08T17:00:00.000Z',
+          }),
+        ),
+      );
+      connectionService.registerMissingWebhooks.mockReturnValue(
+        of({
+          checkedAt: '2026-08-08T18:00:00.000Z',
+          shopDomain: 'demo.myshopify.com',
+          configuredAddress: 'https://vestiflow.example/api/v1/shopify/webhooks',
+          observedAddress: 'https://vestiflow.example/api/v1/shopify/webhooks',
+          addressMatchesConfigured: true,
+          addressComparable: true,
+          topics: ['orders/create', 'orders/cancelled'],
+          missingTopics: [],
+          unexpectedTopics: [],
+          otherAddresses: [],
+          totalSubscriptions: 2,
+        }),
+      );
+      await setup();
+
+      await user.click(
+        await screen.findByRole('button', { name: /Registra le notifiche mancanti/i }),
+      );
+
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent('2 notifiche registrate'),
+      );
     });
 
     it('«Verifica ora» chiede a Shopify e riporta cosa manca', async () => {

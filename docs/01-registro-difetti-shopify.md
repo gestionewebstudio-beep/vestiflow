@@ -146,6 +146,28 @@ Non è un'ipotesi: eseguito l'08/08 per aggiungere quattro colonne a `shopify_co
 
 ---
 
+### 1.7 — «Attiva aggiornamenti automatici» registra verso l'ambiente da cui parte, quindi da locale scrive `localhost` sul negozio vero
+
+**Cosa succede.** La registrazione dei webhook usa `shopifyConfig.webhookUrl`, cioè l'indirizzo **dell'ambiente da cui parte la chiamata**, non quello del negozio. Su una macchina di sviluppo quel valore è `http://localhost:3000/api/v1/shopify/webhooks`, ereditato dal modello `.env.example` (vedi 2.2-bis).
+
+Quindi premere **«Attiva aggiornamenti automatici» da un computer locale crea otto sottoscrizioni verso `localhost` sul negozio Shopify reale del cliente.** Non è un'ipotesi di laboratorio: è un pulsante nel pannello Impostazioni, raggiungibile adesso, con un click.
+
+E siccome la deduplica confronta gli indirizzi per **uguaglianza esatta**, quelle otto non sostituiscono le sette buone: **si sommano**. Il negozio si ritrova con due gruppi, uno dei quali non consegnerà mai.
+
+**Cosa produce, in ordine.** Shopify tenta la consegna verso `localhost`, fallisce, e conta i fallimenti: alla lunga rimuove le sottoscrizioni che non rispondono (vedi 2.4). Nel frattempo l'osservazione salvata da VestiFlow può registrare il gruppo sbagliato come «indirizzo di consegna» — e il database è condiviso, quindi quel valore lo legge anche l'ambiente pubblicato. Un gesto fatto su una macchina di sviluppo finisce nella verità che vede la produzione.
+
+**Cosa NON produce**, per non gonfiare la voce: nessun dato di VestiFlow viene cancellato, e le sottoscrizioni buone restano al loro posto.
+
+**Come lo sappiamo.** Verificato sul codice (`resyncWebhooks` passa `shopifyConfig.webhookUrl` a `registerWebhooksForTenant`) e sul valore reale della variabile nell'ambiente locale.
+
+**Cosa deve fare invece.** Rifiutare la registrazione quando l'indirizzo configurato non è uno a cui Shopify possa consegnare — non HTTPS, oppure `localhost`, loopback, rete privata, `.local`. Il controllo va nel **percorso condiviso**, `registerWebhooksForTenant`, dove passano tutte e tre le strade: OAuth iniziale, interruttore, e l'azione di riparazione. Sulla strada dell'OAuth non deve interrompere la connessione ma **lasciare un avviso registrato**, che è anche il rimedio al «saltata in silenzio» del 2.2-bis.
+
+Il criterio esclude ciò che non è un riferimento, non ciò che è insolito: chi sviluppa con ngrok o cloudflared ha un indirizzo pubblico in HTTPS e passa.
+
+**Urgenza.** Alta e attiva. È il 2.2-bis raggiungibile con un click, adesso.
+
+---
+
 ## Livello 2 — Silenzi: il difetto esiste e niente lo dice
 
 Questa sezione è la ragione per cui l'analisi di oggi è stata necessaria. Tutti i difetti che seguono possono durare per sempre, perché il sistema non ha modo di accorgersene né di dirlo.

@@ -297,14 +297,30 @@
           <dd>{{ webhookCheckedAtLabel() }}</dd>
         </div>
       </dl>
-      <app-button
-        variant="secondary"
-        [loading]="checkWebhooksLoading()"
-        [disabled]="checkWebhooksLoading() || disconnectLoading()"
-        (click)="checkWebhooks()"
-      >
-        Verifica ora
-      </app-button>
+      <div class="shopify-integration__webhook-actions">
+        <app-button
+          variant="secondary"
+          [loading]="checkWebhooksLoading()"
+          [disabled]="checkWebhooksLoading() || registerMissingLoading() || disconnectLoading()"
+          (click)="checkWebhooks()"
+        >
+          Verifica ora
+        </app-button>
+        @if (canRegisterMissingWebhooks()) {
+          <!--
+            Compare solo con mancanti nominati e indirizzo consegnabile: prima si verifica,
+            poi si ripara, e mai da un ambiente a cui Shopify non potrebbe consegnare.
+          -->
+          <app-button
+            variant="primary"
+            [loading]="registerMissingLoading()"
+            [disabled]="registerMissingLoading() || checkWebhooksLoading() || disconnectLoading()"
+            (click)="registerMissingWebhooks()"
+          >
+            Registra le notifiche mancanti
+          </app-button>
+        }
+      </div>
     </div>
 
     @if (showPostConnectCta()) {

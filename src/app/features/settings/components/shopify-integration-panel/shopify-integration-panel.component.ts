@@ -56,6 +56,13 @@ import type { SetupStatusItem } from '../../models/setup-status.model';
 
 type ShopifyBanner = 'connected' | 'connected-warn' | 'error' | 'disconnected';
 
+/**
+ * Quante righe di problema puo' contenere una banda prima di smettere di essere un segnale.
+ * Oltre, si dichiara il numero e si rimanda allo stato completo: nessuna lista dentro un
+ * segnale, e nessun troncamento silenzioso.
+ */
+const MAX_PROBLEMS_IN_BANNER = 2;
+
 interface ActionFeedback {
   readonly message: string;
   readonly tone: 'success' | 'warning';
@@ -138,6 +145,7 @@ export class ShopifyIntegrationPanelComponent {
   protected readonly syncLocationsLoading = signal(false);
   protected readonly syncWebhooksLoading = signal(false);
   protected readonly checkWebhooksLoading = signal(false);
+  protected readonly registerMissingLoading = signal(false);
   protected readonly syncProductsLoading = signal(false);
   protected readonly syncInventoryLoading = signal(false);
   protected readonly syncCustomersLoading = signal(false);
@@ -258,15 +266,29 @@ export class ShopifyIntegrationPanelComponent {
 
     const [firstProblem, ...otherProblems] = problems;
     if (firstProblem) {
-      return otherProblems.length === 0
-        ? { active: true, problem: true, label: firstProblem.label, detail: firstProblem.detail }
-        : {
-            active: true,
-            problem: true,
-            label: `${problems.length} problemi sulle notifiche`,
-            detail: '',
-            problems: problems.map((entry) => entry.detail),
-          };
+      if (otherProblems.length === 0) {
+        return {
+          active: true,
+          problem: true,
+          label: firstProblem.label,
+          detail: firstProblem.detail,
+        };
+      }
+
+      // Una banda e' un SEGNALE, dimensionata per un colpo d'occhio: appena contiene un
+      // elenco lungo smette di essere un segnale e diventa un documento che nessuno legge.
+      // Oltre il tetto si dichiara quanti sono e si tronca dicendolo — mai in silenzio.
+      const shown = problems.slice(0, MAX_PROBLEMS_IN_BANNER).map((entry) => entry.detail);
+      const hidden = problems.length - shown.length;
+
+      return {
+        active: true,
+        problem: true,
+        label: `${problems.length} problemi sulle notifiche`,
+        detail: '',
+        problems:
+          hidden > 0 ? [...shown, `e altri ${hidden}: vedi lo stato completo qui sotto.`] : shown,
+      };
     }
 
     const partial = conn.lastError?.code === 'webhook_partial_registration';
@@ -316,6 +338,22 @@ export class ShopifyIntegrationPanelComponent {
     return truth.addressComparable
       ? truth.address
       : `${truth.address} — confronto non possibile da questo ambiente`;
+  });
+
+  /**
+   * Il pulsante di riparazione compare solo quando ha senso e solo quando e' sicuro.
+   *
+   * - **Mancanti nominati**: prima si verifica, poi si ripara. Nessun «registra» su una
+   *   connessione di cui non sappiamo niente.
+   * - **Indirizzo consegnabile**: da un ambiente locale la registrazione creerebbe
+   *   sottoscrizioni verso `localhost` sul negozio vero, che si sommano alle buone invece
+   *   di sostituirle (registro 1.7). Il server rifiuta comunque — questa e' la seconda
+   *   linea, non l'unica: un pulsante che non si puo' premere e' meglio di uno che porta
+   *   a un errore.
+   */
+  protected readonly canRegisterMissingWebhooks = computed(() => {
+    const truth = this.webhookTruth();
+    return truth.known && truth.missingTopics.length > 0 && truth.addressComparable;
   });
 
   protected readonly webhookCheckedAtLabel = computed(() => {
@@ -702,6 +740,37 @@ export class ShopifyIntegrationPanelComponent {
         },
         error: (err: unknown) => {
           this.checkWebhooksLoading.set(false);
+          this.connectError.set(extractErrorMessage(err));
+        },
+      });
+  }
+
+  /**
+   * Registra le notifiche mancanti e mostra l'esito **rimisurato**.
+   *
+   * Una sola chiamata: la risposta e' gia' il referto della rilettura, quindi l'operatore
+   * non resta mai davanti allo stesso schermo di prima chiedendosi se ha funzionato.
+   */
+  protected registerMissingWebhooks(): void {
+    if (this.registerMissingLoading()) {
+      return;
+    }
+
+    this.registerMissingLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .registerMissingWebhooks()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.registerMissingLoading.set(false);
+          this.reloadConnection();
+          this.showActionFeedback(formatWebhookCheckFeedback(result));
+        },
+        error: (err: unknown) => {
+          this.registerMissingLoading.set(false);
           this.connectError.set(extractErrorMessage(err));
         },
       });

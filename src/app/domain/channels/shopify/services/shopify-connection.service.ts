@@ -112,6 +112,24 @@ export class ShopifyConnectionService {
       );
   }
 
+  /**
+   * Registra le notifiche mancanti e restituisce il referto della **rilettura**.
+   *
+   * Una sola chiamata di proposito: incatenarne due qui lascerebbe vivo lo stato «ho
+   * registrato e non so cosa e' successo», che e' il difetto di partenza in un'altra forma.
+   */
+  registerMissingWebhooks(): Observable<ShopifyWebhookCheckDto> {
+    return this.http
+      .post<ShopifyWebhookCheckDto>(
+        `${this.config.apiBaseUrl}/shopify/webhooks/register-missing`,
+        {},
+      )
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        tap(() => this.connectionRefresh.notifyInvalidated()),
+      );
+  }
+
   disableWebhooks(): Observable<ShopifyDisableWebhooksDto> {
     return this.http
       .post<ShopifyDisableWebhooksDto>(
