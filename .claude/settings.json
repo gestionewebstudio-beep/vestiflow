@@ -12,7 +12,15 @@
       "Bash(yarn prisma db push*)",
       "Bash(pnpm prisma db push*)",
       "Bash(prisma migrate reset*)",
-      "Bash(npx prisma migrate reset*)"
+      "Bash(npx prisma migrate reset*)",
+      "Bash(npx prettier --write api/**)",
+      "Bash(npx prettier --write \"api/**)",
+      "Bash(npx prettier --write 'api/**)",
+      "Bash(prettier --write api/**)",
+      "Bash(npx prettier --write **)",
+      "Bash(npx prettier --write \"**)",
+      "Bash(npx prettier --write .)",
+      "Bash(prettier --write **)"
     ]
   }
 }

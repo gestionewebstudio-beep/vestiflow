@@ -45,6 +45,44 @@ resta scritta qui.
 Se `prisma generate` dà `EPERM`: è il watcher dell'API che tiene bloccato il query
 engine. Fermare `npm run start:dev` e rilanciare.
 
+## Lo schema e la sua migration sono una coppia
+
+`prisma generate` da solo **rompe l'applicazione**. Il client rigenerato seleziona le
+colonne dello schema, e se una di quelle nel database non c'è ancora, ogni lettura di
+quella tabella va in 500 — anche le letture che con la colonna nuova non c'entrano
+niente, perché `include` prende tutti gli scalari.
+
+È già successo: colonna aggiunta allo schema, migration scritta ma non applicata «per
+prudenza, il database è condiviso», `generate` lanciato — e l'elenco ordini è andato giù.
+La prudenza ha prodotto lo stato peggiore dei due.
+
+Quindi: **o tutti e tre insieme — schema, migration, `npm run prisma:deploy` — oppure
+nessuno dei tre.** Non esiste una via di mezzo sicura. Se applicare non si può in quel
+momento, non si tocca nemmeno lo schema.
+
+---
+
+# ⛔ FORMATTAZIONE — Mai su un albero intero
+
+`lint-staged` copre `src/**` ed `e2e/**`, **non `api/**`**. Il backend è quindi fuori dal
+cancello di formattazione, e un `prettier --write` su quell'albero non «sistema qualche
+file»: **li riscrive tutti**. È già successo — 157 file riformattati, un commit da 177
+file in cui la modifica vera era invisibile.
+
+Il danno non è estetico. Sono conflitti fantasma con i rami degli altri su file che
+nessuno ha cambiato davvero, e una revisione impossibile da fare.
+
+- **VIETATO** `prettier --write` con un glob che copre una cartella (`api/**`, `**`, `.`).
+  `.claude/settings.json` lo blocca via permessi, ma la regola resta scritta qui perché i
+  permessi non fermano un terminale.
+- Si formatta **solo quello che si è toccato**, file per file.
+- Sul frontend non serve nemmeno: ci pensa `lint-staged` al commit.
+
+Portare `api/**` dentro `lint-staged` risolverebbe alla radice — ogni file API si
+formatterebbe quando lo si mette in staging, e nessuno avrebbe più motivo di lanciare
+Prettier in grande. È una decisione di progetto, non una correzione: va presa sapendo che
+il primo commit che tocca un file API lo riformatta.
+
 ---
 
 # NODE & PACKAGE MANAGER
