@@ -196,6 +196,42 @@ npx lint-staged
 
 ---
 
+# UNIONE DEI RAMI — chi prevale in caso di contesa
+
+Decisione del proprietario del progetto (08/2026): **in caso di conflitto prevale
+l'implementazione di `feature/listini`.** È il ramo che porta le decisioni di prodotto
+prese esplicitamente, e il criterio è deciso prima proprio per non doverlo discutere nel
+momento in cui il conflitto si presenta.
+
+In pratica:
+
+- si unisce **il ramo dell'altro dentro `feature/listini`**, stando su `feature/listini`:
+  così la parte che deve prevalere è già «ours»;
+- nei punti in conflitto vero — le stesse righe toccate da entrambi — si tiene la versione
+  di `feature/listini`, senza aprire una discussione.
+
+## Prevalere non è scartare, e la differenza è tutta qui
+
+**VIETATO `-X ours` alla cieca.** Quell'opzione risolve i conflitti _in silenzio_, e il
+silenzio è il difetto che questo progetto combatte ovunque — dai fallimenti del
+precompilato al tetto delle ripubblicazioni. Le modifiche dell'altro ramo **in punti
+diversi devono sopravvivere**: la regola arbitra le contese, non cancella il lavoro altrui.
+
+Due cose che nessuna strategia di merge risolve, e che vanno verificate a mano dopo:
+
+- **I conflitti che git non vede.** Una rinomina da una parte e una chiamata dall'altra non
+  producono conflitto testuale: il merge riesce e il codice si rompe. Li trovano solo
+  `tsc --noEmit` e i test, che vanno eseguiti **dopo** ogni merge, mai prima soltanto.
+- **Il database è uno solo e porta le migration di entrambi i rami.** Scartare il codice
+  dell'altro lasciando applicate le sue migration produce esattamente lo stato rotto
+  descritto sopra in «Lo schema e la sua migration sono una coppia». Se si scarta del
+  codice, va verificato cosa resta appeso nel database.
+
+Al termine di un merge con conflitti: **riportare cosa è stato scartato e perché**, invece
+di risolvere e passare oltre.
+
+---
+
 # COMMIT CONVENTION — Conventional Commits
 
 - USA il formato [Conventional Commits](https://www.conventionalcommits.org/):
