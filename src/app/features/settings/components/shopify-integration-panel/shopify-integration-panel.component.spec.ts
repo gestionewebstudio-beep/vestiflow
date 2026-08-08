@@ -40,6 +40,7 @@ describe('ShopifyIntegrationPanelComponent', () => {
     syncLocations: vi.fn(),
     syncWebhooks: vi.fn(),
     disableWebhooks: vi.fn(),
+    checkWebhooks: vi.fn(),
     clearErrors: vi.fn(),
   };
 
@@ -110,6 +111,121 @@ describe('ShopifyIntegrationPanelComponent', () => {
         'Seleziona le sedi da attivare in VestiFlow',
       ),
     );
+  });
+
+  // ── La verita' sullo stato dei webhook ──────────────────────────────────────────
+  describe('stato delle notifiche', () => {
+    function connectionWith(extra: Partial<ShopifyConnection>): ShopifyConnection {
+      return { ...CONNECTED, autoSyncEnabled: true, ...extra };
+    }
+
+    it('mai verificate: non dice «zero», dice che non lo sappiamo', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(connectionWith({ webhookTopicsKnown: false, webhookTopics: [] })),
+      );
+      await setup();
+
+      expect(
+        await screen.findByText(/Non sappiamo quali notifiche siano davvero registrate/i),
+      ).toBeVisible();
+      expect(screen.getByText('Non verificate')).toBeVisible();
+      // Il numero esatto che descriveva un insieme sconosciuto non c'e' piu'.
+      expect(screen.queryByText(/canali attivi/i)).toBeNull();
+    });
+
+    it('una notifica mancante viene NOMINATA, non contata', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(
+          connectionWith({
+            webhookTopicsKnown: true,
+            webhookTopics: ['orders/create'],
+            webhookMissingTopics: ['orders/cancelled'],
+            webhooksCheckedAt: '2026-08-08T17:00:00.000Z',
+          }),
+        ),
+      );
+      await setup();
+
+      expect(await screen.findByText(/Manca una notifica su Shopify/i)).toBeVisible();
+      expect(screen.getByText(/orders\/cancelled/)).toBeVisible();
+    });
+
+    it('indirizzo diverso: dice che gli eventi vanno altrove', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(
+          connectionWith({
+            webhookTopicsKnown: true,
+            webhookTopics: ['orders/create'],
+            webhookMissingTopics: [],
+            webhookAddress: 'http://localhost:3000/api/v1/shopify/webhooks',
+            webhookAddressMatchesConfigured: false,
+            webhooksCheckedAt: '2026-08-08T17:00:00.000Z',
+          }),
+        ),
+      );
+      await setup();
+
+      expect(await screen.findByText(/Le notifiche non arrivano qui/i)).toBeVisible();
+    });
+
+    it('indirizzo non confrontabile: nessun allarme dato per ignoranza', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(
+          connectionWith({
+            webhookTopicsKnown: true,
+            webhookTopics: ['orders/create'],
+            webhookMissingTopics: [],
+            webhookAddress: null,
+            // `null` non e' `false`: non sappiamo confrontare, quindi non si segnala niente.
+            webhookAddressMatchesConfigured: null,
+            webhooksCheckedAt: '2026-08-08T17:00:00.000Z',
+          }),
+        ),
+      );
+      await setup();
+
+      // L'affermazione da verificare e' un'ASSENZA: nessun allarme. Cercare il testo
+      // «Aggiornamenti automatici attivi» pescherebbe anche l'avviso sulle giacenze, che
+      // parla d'altro — misurare la cosa accanto invece di quella giusta.
+      expect(await screen.findByText('Indirizzo di consegna')).toBeVisible();
+      expect(screen.queryByText(/Le notifiche non arrivano qui/i)).toBeNull();
+      expect(screen.queryByText('Problema')).toBeNull();
+    });
+
+    it('la data dell ultimo evento e dichiarativa, senza verdetto', async () => {
+      connectionService.getConnection.mockReturnValue(
+        of(connectionWith({ lastWebhookEventAt: null })),
+      );
+      await setup();
+
+      expect(await screen.findByText('Nessun evento ricevuto finora')).toBeVisible();
+    });
+
+    it('«Verifica ora» chiede a Shopify e riporta cosa manca', async () => {
+      const user = userEvent.setup();
+      connectionService.getConnection.mockReturnValue(of(connectionWith({})));
+      connectionService.checkWebhooks.mockReturnValue(
+        of({
+          checkedAt: '2026-08-08T17:00:00.000Z',
+          shopDomain: 'demo.myshopify.com',
+          configuredAddress: 'https://vestiflow.example/api/v1/shopify/webhooks',
+          observedAddress: 'https://vestiflow.example/api/v1/shopify/webhooks',
+          addressMatchesConfigured: true,
+          topics: ['orders/create'],
+          missingTopics: ['orders/cancelled'],
+          unexpectedTopics: [],
+          otherAddresses: [],
+          totalSubscriptions: 1,
+        }),
+      );
+      await setup();
+
+      await user.click(await screen.findByRole('button', { name: /Verifica ora/i }));
+
+      // `alert` e non `status`: il ruolo ARIA segue il tono, e una notifica mancante e' un
+      // avviso che interrompe la lettura, non un'informazione di servizio.
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('orders/cancelled'));
+    });
   });
 
   it('un errore di sync resta a schermo: non e’ un avviso che scade', async () => {

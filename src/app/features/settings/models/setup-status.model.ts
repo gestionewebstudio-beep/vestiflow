@@ -7,6 +7,11 @@
 export interface SetupStatusItem {
   readonly active: boolean;
   readonly partial?: boolean;
+  /**
+   * Qualcosa e' rotto, e lo sappiamo per averlo constatato — non per averlo dedotto.
+   * Distinto da `partial`: quello e' un avviso, questo e' un fatto verificato.
+   */
+  readonly problem?: boolean;
   readonly label: string;
   readonly detail: string;
 }

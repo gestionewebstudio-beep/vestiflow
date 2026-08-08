@@ -47,6 +47,7 @@ import type {
   ShopifyDisableWebhooksDto,
   ShopifySyncLocationsDto,
   ShopifySyncWebhooksDto,
+  ShopifyWebhookCheckDto,
 } from '@domain/channels/shopify/models/shopify-sync.dto';
 import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
 import { ShopifyConnectionStore } from '@domain/channels/shopify/state/shopify-connection.store';
@@ -136,6 +137,7 @@ export class ShopifyIntegrationPanelComponent {
   protected readonly disconnectLoading = signal(false);
   protected readonly syncLocationsLoading = signal(false);
   protected readonly syncWebhooksLoading = signal(false);
+  protected readonly checkWebhooksLoading = signal(false);
   protected readonly syncProductsLoading = signal(false);
   protected readonly syncInventoryLoading = signal(false);
   protected readonly syncCustomersLoading = signal(false);
@@ -180,6 +182,32 @@ export class ShopifyIntegrationPanelComponent {
     return `${areasLabel} · ${permissionsLabel}`;
   });
 
+  /**
+   * Quanto sappiamo davvero delle notifiche di questo negozio.
+   *
+   * `known` e' la distinzione su cui si gioca tutto: elenco vuoto perche' non abbiamo mai
+   * guardato non e' la stessa cosa di elenco vuoto perche' non c'e' niente. E `addressWrong`
+   * si accende SOLO su un `false` esplicito: un `null` significa «non confrontabile», e
+   * segnalare per ignoranza sarebbe la stessa spia bugiarda con un colore nuovo.
+   */
+  protected readonly webhookTruth = computed(() => {
+    const conn = this.connection();
+    const known = conn?.webhookTopicsKnown === true;
+    const missing = conn?.webhookMissingTopics ?? [];
+    const registered = conn?.webhookTopics ?? [];
+
+    return {
+      known,
+      registeredCount: registered.length,
+      expectedCount: known ? registered.length + missing.length : 0,
+      missingTopics: missing,
+      addressWrong: conn?.webhookAddressMatchesConfigured === false,
+      address: conn?.webhookAddress ?? null,
+      checkedAt: conn?.webhooksCheckedAt ?? null,
+      lastEventAt: conn?.lastWebhookEventAt ?? null,
+    };
+  });
+
   protected readonly webhooksSetupStatus = computed((): SetupStatusItem => {
     const conn = this.connection();
     if (!conn?.autoSyncEnabled) {
@@ -191,21 +219,74 @@ export class ShopifyIntegrationPanelComponent {
       };
     }
 
+    const truth = this.webhookTruth();
+
+    // Non aver guardato non e' un allarme e non e' un via libera: e' una terza cosa, e va
+    // detta. Prima di questa versione qui compariva «7 canali attivi» — un numero esatto
+    // che descriveva un insieme che nessuno conosceva.
+    if (!truth.known) {
+      return {
+        active: true,
+        label: 'Aggiornamenti automatici attivi',
+        detail:
+          'Non sappiamo quali notifiche siano davvero registrate su Shopify: premi «Verifica ora».',
+      };
+    }
+
+    if (truth.addressWrong) {
+      return {
+        active: true,
+        problem: true,
+        label: 'Le notifiche non arrivano qui',
+        detail: `Su Shopify risultano registrate verso ${truth.address}, che non è l'indirizzo di questo ambiente: gli eventi vengono consegnati altrove.`,
+      };
+    }
+
+    if (truth.missingTopics.length > 0) {
+      const names = truth.missingTopics.join(', ');
+      return {
+        active: true,
+        problem: true,
+        label:
+          truth.missingTopics.length === 1
+            ? 'Manca una notifica su Shopify'
+            : `Mancano ${truth.missingTopics.length} notifiche su Shopify`,
+        detail: `Non registrate: ${names}. Gli eventi di questo tipo non arrivano e non lasciano traccia.`,
+      };
+    }
+
     const partial = conn.lastError?.code === 'webhook_partial_registration';
-    const countLabel =
-      conn.webhooksActiveCount === 1
-        ? '1 canale attivo'
-        : `${conn.webhooksActiveCount ?? 0} canali attivi`;
-    const activatedAt = conn.webhooksActivatedAt
-      ? ` · ${this.formatDateTime(conn.webhooksActivatedAt)}`
-      : '';
+    const countLabel = `${truth.registeredCount} notifiche su ${truth.expectedCount}`;
 
     return {
       active: true,
       partial,
       label: partial ? 'Aggiornamenti automatici parziali' : 'Aggiornamenti automatici attivi',
-      detail: `${countLabel}${activatedAt}`,
+      detail: countLabel,
     };
+  });
+
+  /** Dichiarativo: si riporta il fatto, non si dà un giudizio sul tempo passato. */
+  protected readonly lastWebhookEventLabel = computed(() => {
+    const at = this.webhookTruth().lastEventAt;
+    return at ? this.formatDateTime(at) : 'Nessun evento ricevuto finora';
+  });
+
+  protected readonly webhookTopicsLabel = computed(() => {
+    const truth = this.webhookTruth();
+    if (!truth.known) {
+      return 'Non verificate';
+    }
+    return `${truth.registeredCount} su ${truth.expectedCount}`;
+  });
+
+  protected readonly webhookAddressLabel = computed(
+    () => this.webhookTruth().address ?? 'Non verificato',
+  );
+
+  protected readonly webhookCheckedAtLabel = computed(() => {
+    const at = this.webhookTruth().checkedAt;
+    return at ? this.formatDateTime(at) : 'Mai';
   });
 
   protected readonly autoSyncEnabled = computed(() => this.connection()?.autoSyncEnabled === true);
@@ -562,6 +643,36 @@ export class ShopifyIntegrationPanelComponent {
       });
   }
 
+  /**
+   * Chiede a Shopify quali notifiche esistono davvero. Legge e basta: non registra e non
+   * cancella niente sul negozio — a garantirlo e' il servizio lato server, che non ha fra
+   * le dipendenze niente capace di farlo.
+   */
+  protected checkWebhooks(): void {
+    if (this.checkWebhooksLoading()) {
+      return;
+    }
+
+    this.checkWebhooksLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .checkWebhooks()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.checkWebhooksLoading.set(false);
+          this.reloadConnection();
+          this.showActionFeedback(formatWebhookCheckFeedback(result));
+        },
+        error: (err: unknown) => {
+          this.checkWebhooksLoading.set(false);
+          this.connectError.set(extractErrorMessage(err));
+        },
+      });
+  }
+
   protected disableAutoSync(): void {
     if (this.syncWebhooksLoading()) {
       return;
@@ -720,6 +831,46 @@ function formatDisableWebhooksFeedback(result: ShopifyDisableWebhooksDto): Actio
       result.deletedCount === 1
         ? 'Aggiornamenti automatici disattivati.'
         : `Aggiornamenti automatici disattivati (${result.deletedCount} canali rimossi).`,
+  };
+}
+
+/**
+ * L'esito della verifica in una riga. Nomina i mancanti invece di contarli: «ne mancano 1»
+ * manda a cercare, «manca orders/cancelled» dice cosa fare.
+ */
+function formatWebhookCheckFeedback(result: ShopifyWebhookCheckDto): ActionFeedback {
+  if (result.addressMatchesConfigured === false) {
+    return {
+      tone: 'warning',
+      message: `Le notifiche risultano registrate verso ${result.observedAddress}, non verso questo ambiente: gli eventi vengono consegnati altrove.`,
+    };
+  }
+
+  if (result.missingTopics.length > 0) {
+    return {
+      tone: 'warning',
+      message: `Verifica completata: mancano ${result.missingTopics.length === 1 ? 'la notifica' : 'le notifiche'} ${result.missingTopics.join(', ')}.`,
+    };
+  }
+
+  if (result.totalSubscriptions === 0) {
+    return {
+      tone: 'warning',
+      message: 'Verifica completata: su Shopify non risulta registrata nessuna notifica.',
+    };
+  }
+
+  const others = result.otherAddresses.length;
+  if (others > 0) {
+    return {
+      tone: 'warning',
+      message: `Notifiche a posto, ma su Shopify ne risultano altre verso ${others === 1 ? 'un altro indirizzo' : `${others} altri indirizzi`}: sono residui che continuano a ricevere eventi.`,
+    };
+  }
+
+  return {
+    tone: 'success',
+    message: `Verifica completata: ${result.topics.length} notifiche registrate, tutte verso questo ambiente.`,
   };
 }
 
