@@ -37,6 +37,12 @@
   text-decoration: underline;
 }
 
+// «Non applicabile», non «mancante»: un corrispettivo di cassa non ha una vendita online
+// né un ordine cliente, e va letto come un vuoto normale — non come un errore.
+.cor-table__none {
+  color: var(--color-text-subtle);
+}
+
 @include bp.media-up('lg') {
   .cor-table th.cor-table__cell--num,
   .cor-table td.cor-table__cell--num {

@@ -178,6 +178,11 @@ enum SalesOrderSource {
   shopify_online
   shopify_pos
   manual
+  /// Vendita al banco: la cassa di VestiFlow. Il database lo conosce dal 06/08 (ramo
+  /// cassa) e ci sono gia' righe che lo usano; dichiararlo qui allinea il client a cio'
+  /// che il database e' — nessuna migration. Un corrispettivo con questo canale non ha
+  /// vendita online ne' ordine cliente, ed e' normale che sia cosi'. Registro 1.8.
+  store
 }
 
 /// Stato fiscale corrispettivi per il commercialista (§8 piano funzionale).
@@ -1490,8 +1495,13 @@ model CorrispettivoEntry {
   year                Int
   /// Riferimento leggibile (es. 'COR-2026-0001').
   reference           String
-  onlineSaleId        String              @unique @map("online_sale_id") @db.Uuid
-  salesOrderId        String              @map("sales_order_id") @db.Uuid
+  /// Opzionali perche' un corrispettivo puo' nascere dalla CASSA, e uno scontrino non ha
+  /// ne' una vendita online ne' un ordine cliente: e' il caso normale di quel canale, non
+  /// un'eccezione. Il database le ha nullabili dal 06/08 (migration del ramo cassa) — qui
+  /// la dichiarazione si allinea a cio' che il database gia' e', quindi NON serve nessuna
+  /// migration. Vedi registro difetti 1.8.
+  onlineSaleId        String?             @unique @map("online_sale_id") @db.Uuid
+  salesOrderId        String?             @map("sales_order_id") @db.Uuid
   channel             SalesOrderSource
   /// Data operativa (evasione).
   operationalDate     DateTime            @map("operational_date")
@@ -1514,7 +1524,7 @@ model CorrispettivoEntry {
   updatedAt           DateTime            @updatedAt @map("updated_at")
 
   tenant     Tenant                   @relation(fields: [tenantId], references: [id])
-  onlineSale OnlineSale               @relation(fields: [onlineSaleId], references: [id], onDelete: Restrict)
+  onlineSale OnlineSale?              @relation(fields: [onlineSaleId], references: [id], onDelete: Restrict)
   lines      CorrispettivoEntryLine[]
 
   @@unique([tenantId, series, year, number])
