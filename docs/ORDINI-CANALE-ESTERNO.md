@@ -307,24 +307,48 @@ Ed è anche il motivo per cui il buco del POS **non si può considerare un probl
 sopportabile in attesa di tempo**: finché c'è, il Caso D — che è un meccanismo di difesa —
 lavora contro.
 
-### La fragilità, comune a tutti i casi — lavoro a sé
+### La fragilità — sistemata, tranne una parte
 
-Il Caso D funziona, ma **non tiene**. Tre difetti, tutti verificati:
+Il Caso D funzionava ma **non teneva**. Tre difetti; due chiusi, uno resta una scelta di
+progetto.
 
-1. **Un tentativo solo.** La ripubblicazione è un `pushLevel` **fire-and-forget**: se
-   fallisce, viene scritto un warning nel log e finisce lì.
-2. **Il segnale di disallineamento non lo legge nessuno.** Viene alzato `mismatchDetected`
-   con una nota che spiega la differenza, ma le uniche occorrenze del campo nel backend sono
-   dentro il servizio stesso, che lo scrive e lo cancella. Nessuna schermata, nessun badge,
-   nessun report.
-3. **Nessuno riprova.** Non esiste alcun job: nessun `@Cron` e nessun `@Interval` in
-   `shopify/` o `inventory/`.
+**Chiusi.** La coda delle ripubblicazioni rimaste in sospeso ora si svuota **in coda allo
+scarico inventario**, che l'operatore già lancia — stessa forma della riconciliazione
+ordini, un servizio suo chiamato in coda al pull, che se fallisce non porta giù
+l'importazione. E l'esito **arriva all'operatore** nel messaggio della sincronizzazione: se
+qualcosa resta disallineato il tono non è di successo. Era questo il difetto vero —
+l'informazione c'era e non usciva da nessuna parte.
 
-Quindi un solo tentativo, e se va male la divergenza resta lì **per sempre e in silenzio** —
-con un flag acceso nel database che nessuno guarderà.
+Due dettagli che valgono più di quanto sembri:
 
-**Va sistemata, ma è un lavoro a sé** e non va confuso col buco del POS: quello è un
-movimento che manca, questo è un meccanismo di recupero che non ha né memoria né voce.
+- **tetto di 50 per passata**, perché l'Admin API è a quota e una coda lunga svuotata tutta
+  insieme se la mangia, penalizzando le sincronizzazioni che l'operatore sta aspettando. I
+  più vecchi per primi: una coda svuotata dal fondo lascia indietro sempre le stesse righe.
+  E **quanti restano viene detto** — un tetto silenzioso si legge come «ho finito»;
+- **non serve spegnere il flag a mano**: la ripubblicazione riuscita torna indietro come
+  webhook, la riconciliazione la riconosce come eco del proprio push (Caso B) e lo spegne
+  lei.
+
+**Resta aperto: il ritentativo automatico.** Oggi si riprova quando l'operatore
+sincronizza, non da solo. Per farlo da solo servirebbe uno scheduler, e
+**nell'applicazione non ce n'è nessuno** — nessun `@Cron`, nessun `@Interval`, nessuno
+`ScheduleModule`. Introdurlo è una decisione di progetto (dipendenza nuova, pattern nuovo,
+e la domanda «dove gira in produzione»), non una correzione da fare di passaggio.
+
+### Com'era prima — per capire cosa si è chiuso
+
+1. **Un tentativo solo.** La ripubblicazione era un `pushLevel` fire-and-forget: se falliva,
+   un warning nel log e finiva lì.
+2. **Il segnale non lo leggeva nessuno.** `mismatchDetected` veniva alzato con una nota che
+   spiegava la differenza, ma le uniche occorrenze del campo nel backend erano dentro il
+   servizio stesso, che lo scriveva e lo cancellava. Nessuna schermata, nessun report.
+3. **Nessuno riprovava.** Nessun job, da nessuna parte.
+
+Un solo tentativo, e se andava male la divergenza restava **per sempre e in silenzio**, con
+un flag acceso nel database che nessuno avrebbe guardato.
+
+Da non confondere col buco del POS, che è un'altra cosa: **quello è un movimento che manca,
+questo era un meccanismo di recupero senza memoria né voce.**
 
 ---
 
