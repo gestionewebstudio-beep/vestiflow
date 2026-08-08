@@ -27,6 +27,8 @@ import { ShopifyConfigService } from './shopify-config.service';
 import type { ClearShopifyErrorsResult } from './shopify-connection.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
+import type { ShopifyWebhookStatusResult } from './shopify-webhook-status.service';
+import { ShopifyWebhookStatusService } from './shopify-webhook-status.service';
 import { ShopifyInventoryPullService } from './shopify-inventory-pull.service';
 import type { ShopifyInventoryPullResult } from './shopify-inventory-pull.service';
 import { ShopifyCustomersPullService } from './shopify-customers-pull.service';
@@ -60,6 +62,7 @@ export class ShopifyController {
     private readonly shopifyOrdersPull: ShopifyOrdersPullService,
     private readonly shopifyTaxonomy: ShopifyTaxonomyService,
     private readonly shopifyShopChange: ShopifyShopChangeService,
+    private readonly shopifyWebhookStatus: ShopifyWebhookStatusService,
     private readonly locationLicensing: LocationLicensingService,
   ) {}
 
@@ -142,6 +145,21 @@ export class ShopifyController {
   async disableWebhooks(@CurrentTenant() tenantId: string) {
     const result = await this.shopifyOAuth.disableWebhooks(tenantId);
     return { disabled: true as const, ...result };
+  }
+
+  /**
+   * «Verifica ora»: chiede a Shopify quali sottoscrizioni esistono e lo registra.
+   *
+   * E' un POST e non un GET perche' lascia una traccia — la data dell'osservazione — e una
+   * scrittura non deve stare dietro un verbo che qualsiasi cosa puo' ripetere da sola.
+   * Verso Shopify pero' e' sola lettura, e a garantirlo non e' questa nota: il servizio che
+   * la esegue non ha fra le mani niente che sappia registrare o cancellare.
+   */
+  @Post('webhooks/check')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
+  checkWebhooks(@CurrentTenant() tenantId: string): Promise<ShopifyWebhookStatusResult> {
+    return this.shopifyWebhookStatus.check(tenantId);
   }
 
   @Post('sync/products')

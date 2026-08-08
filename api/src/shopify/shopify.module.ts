@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { LocationLicensingModule } from '../inventory/location-licensing.module';
 import { OrderReservationsModule } from '../order-reservations/order-reservations.module';
 import { ShopifyAdminClient } from './shopify-admin.client';
+import { ShopifyAdminHttpClient } from './shopify-admin-http.client';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyController } from './shopify.controller';
@@ -25,7 +26,9 @@ import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
 import { ShopifyTaxonomyLocalizationService } from './shopify-taxonomy-localization.service';
+import { ShopifyWebhookReaderClient } from './shopify-webhook-reader.client';
 import { ShopifyWebhookService } from './shopify-webhook.service';
+import { ShopifyWebhookStatusService } from './shopify-webhook-status.service';
 import { ShopifyWebhooksController } from './shopify-webhooks.controller';
 import { ShopifyShopChangeService } from './shopify-shop-change.service';
 
@@ -35,7 +38,9 @@ import { ShopifyShopChangeService } from './shopify-shop-change.service';
   providers: [
     ShopifyConfigService,
     ShopifyCryptoService,
+    ShopifyAdminHttpClient,
     ShopifyAdminClient,
+    ShopifyWebhookReaderClient,
     ShopifyGraphqlClient,
     ShopifyRateLimiterService,
     ShopifyConnectionService,
@@ -56,6 +61,7 @@ import { ShopifyShopChangeService } from './shopify-shop-change.service';
     ShopifyCategoryMetafieldsService,
     ShopifySyncService,
     ShopifyWebhookService,
+    ShopifyWebhookStatusService,
     ShopifyShopChangeService,
   ],
   exports: [

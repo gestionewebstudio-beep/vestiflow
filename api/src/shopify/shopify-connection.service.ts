@@ -25,11 +25,15 @@ export interface ClearShopifyErrorsResult {
  * E' separata perche' osservare e attivare sono due cose diverse: «Verifica ora» chiede a
  * Shopify cosa c'e' e lo scrive qui, ma non deve accendere niente.
  */
-function buildWebhookObservationData(topics: readonly string[], address: string) {
+function buildWebhookObservationData(
+  topics: readonly string[],
+  address: string | null,
+  checkedAt: Date,
+) {
   return {
     webhookTopics: [...topics],
     webhookAddress: address,
-    webhooksCheckedAt: new Date(),
+    webhooksCheckedAt: checkedAt,
     webhooksActiveCount: topics.length,
   };
 }
@@ -190,15 +194,44 @@ export class ShopifyConnectionService {
     if (topics.length === 0) {
       return;
     }
+    const now = new Date();
     await this.prisma.shopifyConnection.updateMany({
       where: { tenantId },
       data: {
         autoSyncEnabled: true,
-        webhooksActivatedAt: new Date(),
-        ...buildWebhookObservationData(topics, observation.address),
+        webhooksActivatedAt: now,
+        ...buildWebhookObservationData(topics, observation.address, now),
       },
     });
     await this.healStaleErrorStatus(tenantId);
+  }
+
+  /**
+   * Registra cio' che «Verifica ora» ha visto su Shopify, senza accendere niente.
+   *
+   * A differenza di `recordWebhooksActivated` NON tocca `autoSyncEnabled` ne'
+   * `webhooksActivatedAt`: osservare non e' attivare, e confondere le due cose rimetterebbe
+   * in piedi proprio la spia che dice «attivo» perche' una volta una registrazione e'
+   * riuscita.
+   *
+   * Scrive la data anche quando non trova NIENTE, e con l'elenco vuoto: «verificato, zero
+   * sottoscrizioni» e' un'informazione, «non abbiamo mai guardato» e' un'altra, e la data e'
+   * cio' che le distingue.
+   */
+  async recordWebhooksObserved(
+    tenantId: string,
+    observation: { readonly topics: readonly string[]; readonly address: string | null },
+  ): Promise<Date> {
+    const checkedAt = new Date();
+    await this.prisma.shopifyConnection.updateMany({
+      where: { tenantId },
+      data: buildWebhookObservationData(
+        normalizeObservedTopics(observation.topics),
+        observation.address,
+        checkedAt,
+      ),
+    });
+    return checkedAt;
   }
 
   async recordAutoSyncDisabled(tenantId: string): Promise<void> {

@@ -9,6 +9,7 @@ import type { ShopifyOrdersPullService } from './shopify-orders-pull.service';
 import type { ShopifyProductPullService } from './shopify-product-pull.service';
 import type { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import type { ShopifyShopChangeService } from './shopify-shop-change.service';
+import type { ShopifyWebhookStatusService } from './shopify-webhook-status.service';
 import { ShopifyController } from './shopify.controller';
 
 describe('ShopifyController', () => {
@@ -38,6 +39,7 @@ describe('ShopifyController', () => {
     preview: vi.fn(),
     purge: vi.fn(),
   };
+  const shopifyWebhookStatus = { check: vi.fn() };
 
   const controller = new ShopifyController(
     shopifyConnection as unknown as ShopifyConnectionService,
@@ -49,6 +51,7 @@ describe('ShopifyController', () => {
     shopifyOrdersPull as unknown as ShopifyOrdersPullService,
     shopifyTaxonomy as unknown as ShopifyTaxonomyService,
     shopifyShopChange as unknown as ShopifyShopChangeService,
+    shopifyWebhookStatus as unknown as ShopifyWebhookStatusService,
     {} as never,
   );
 

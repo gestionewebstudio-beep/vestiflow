@@ -20,6 +20,7 @@ import type {
   ShopifySyncOrdersDto,
   ShopifySyncProductsDto,
   ShopifySyncWebhooksDto,
+  ShopifyWebhookCheckDto,
 } from '../models/shopify-sync.dto';
 import type {
   PurgeShopifyDataRequestDto,
@@ -93,6 +94,22 @@ export class ShopifyConnectionService {
     return this.http
       .post<ShopifySyncWebhooksDto>(`${this.config.apiBaseUrl}/shopify/sync/webhooks`, {})
       .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /**
+   * «Verifica ora»: chiede a Shopify quali sottoscrizioni esistono davvero.
+   *
+   * Non registra e non cancella niente sul negozio — a garantirlo e' il servizio lato
+   * server, che non ha fra le dipendenze niente capace di farlo. Invalida la connessione
+   * perche' l'esito aggiorna l'osservazione salvata, e il pannello deve rileggerla.
+   */
+  checkWebhooks(): Observable<ShopifyWebhookCheckDto> {
+    return this.http
+      .post<ShopifyWebhookCheckDto>(`${this.config.apiBaseUrl}/shopify/webhooks/check`, {})
+      .pipe(
+        timeout(HTTP_TIMEOUT_MS),
+        tap(() => this.connectionRefresh.notifyInvalidated()),
+      );
   }
 
   disableWebhooks(): Observable<ShopifyDisableWebhooksDto> {

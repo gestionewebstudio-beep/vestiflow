@@ -1,3 +1,5 @@
+import type { IsoDateString } from '@core/models/common.model';
+
 export interface ShopifySyncLocationsDto {
   readonly synced: true;
   readonly autoLicensed?: boolean;
@@ -17,6 +19,26 @@ export interface ShopifyDisableWebhooksDto {
   readonly disabled: true;
   readonly deletedCount: number;
   readonly failed: readonly { readonly id: number; readonly message: string }[];
+}
+
+/**
+ * Esito di «Verifica ora»: cosa risulta su Shopify adesso.
+ *
+ * E' una lettura, non una sincronizzazione: niente viene registrato o cancellato sul
+ * negozio. I `| null` distinguono «non confrontabile» da «sbagliato», e vanno mantenuti
+ * distinti anche nella schermata.
+ */
+export interface ShopifyWebhookCheckDto {
+  readonly checkedAt: IsoDateString;
+  readonly shopDomain: string;
+  readonly configuredAddress: string | null;
+  readonly observedAddress: string | null;
+  readonly addressMatchesConfigured: boolean | null;
+  readonly topics: readonly string[];
+  readonly missingTopics: readonly string[];
+  readonly unexpectedTopics: readonly string[];
+  readonly otherAddresses: readonly { readonly address: string; readonly topicCount: number }[];
+  readonly totalSubscriptions: number;
 }
 
 export interface ShopifyClearErrorsDto {
