@@ -42,6 +42,18 @@ I difetti sono ordinati per gravità, non per area. La gravità tiene conto di t
 
 **Urgenza.** Oggi. È l'unico difetto di questo elenco che rompe una funzione in produzione adesso.
 
+> ### La regola sul ritorno indietro
+>
+> **Il codice torna indietro, il database no.** Prisma non ha migration di ritorno e questo progetto non ne ha nessuna: ripristinare un rilascio precedente significa sempre **codice vecchio su database nuovo**, mai lo stato di prima.
+>
+> Quindi il ripristino è una rete di sicurezza **solo finché le migration sono additive**. Una colonna aggiunta il client Prisma vecchio non la seleziona nemmeno — non sa che esiste — e il codice precedente continua a funzionare. Una colonna tolta o rinominata invece la seleziona, non la trova, e ogni lettura di quella tabella va in errore: a quel punto tornare indietro non è più possibile, e non c'è nessun avviso che lo dica prima.
+>
+> **La prima migration che toglie, rinomina o restringe va quindi fatta in due tempi**: nel primo rilascio si aggiunge la forma nuova e si rilascia il codice che sa usare entrambe; nel secondo, quando il ripristino al rilascio precedente non serve più, si toglie la vecchia.
+>
+> Non è teoria. È il motivo per cui `webhooks_active_count` è ancora nello schema, derivata e non più letta da nessuna schermata, invece di essere già stata eliminata: toglierla adesso significherebbe rompere il ramo della cassa, che la seleziona ancora, e togliere la possibilità di ripristinare un rilascio precedente.
+>
+> **Il ritorno indietro non fallisce all'avvio.** L'immagine parte con `prisma migrate deploy`, e quel comando non confronta il database con la cartella: elenca le migration presenti, applica quelle non ancora applicate, e riferisce. Con una cartella che ne contiene meno di quante il database ne ha registrate, applica zero ed esce pulito. La divergenza la segnala `migrate status`, che è un altro comando e non gira all'avvio.
+
 ---
 
 ### 1.2 — Il valore di VestiFlow viene rimbalzato su Shopify, con o senza operatore — **parzialmente chiuso**
