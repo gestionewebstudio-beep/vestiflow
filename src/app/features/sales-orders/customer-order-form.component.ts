@@ -184,7 +184,6 @@ import {
 } from './models/customer-order-line-columns.config';
 import { redistributeColumnWidths } from './models/column-width-distribution.util';
 import type { CustomerOrderLineCardVm } from './models/customer-order-line-card.model';
-import { sourceLabel } from '@domain/sales-orders/models/sales-order-labels.util';
 import {
   SalesOrderService,
   type SaveManualOrderInput,
@@ -345,7 +344,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly currency = DEFAULT_CURRENCY;
   protected readonly formatMoney = formatMoney;
   protected readonly formatVatRate = formatVatRate;
-  protected readonly sourceLabel = sourceLabel;
   protected readonly TransportPort = TransportPort;
   protected readonly lineColumnsView = this.isQuote
     ? QUOTE_LINES_VIEW
@@ -864,10 +862,67 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // volta sola per ogni maschera del gestionale.
   protected readonly unlockDialogOpen = signal(false);
 
-  /** Ordine caricato da un canale esterno (Shopify/POS). */
+  /** Ordine caricato da un canale esterno: sito online oppure cassa Shopify. */
   protected readonly isExternalOrder = computed(() => {
     const order = this.loadedOrder();
     return order != null && order.source !== SalesOrderSource.Manual;
+  });
+
+  /** Vendita battuta in cassa: si corregge con un reso, non modificandola. */
+  private readonly isPosOrder = computed(() => this.loadedOrder()?.source === SalesOrderSource.Pos);
+
+  /**
+   * Evaso DEL TUTTO, e quindi con un corrispettivo registrato. L'evasione
+   * PARZIALE non crea né vendita online né corrispettivo — marca solo l'ordine
+   * come da verificare — quindi qui non basta `isSettledOrder()`: con quello il
+   * banner direbbe che esiste un corrispettivo che non c'è.
+   */
+  private readonly externalOrderFulfilled = computed(() =>
+    Boolean(this.loadedOrder()?.fulfilledAt),
+  );
+
+  /**
+   * Perché un ordine da canale esterno non si modifica qui.
+   *
+   * Non è una formula di cortesia: il divieto c'è per tre motivi verificati, e
+   * finché resta un errore tecnico al salvataggio l'operatore non ne conosce
+   * nessuno. Il salvataggio riscriverebbe l'origine dell'ordine, il prossimo
+   * aggiornamento dal canale cancellerebbe comunque la modifica, e su un ordine
+   * evaso i totali finirebbero per non tornare con quelli riepilogati per il
+   * commercialista — che si ricalcolano dall'ordine, mentre la consegna già
+   * fatta resta congelata.
+   *
+   * La cassa è un caso a parte e va detta a parte: uno scontrino non si
+   * modifica, si fa un reso. E VestiFlow la rettifica del corrispettivo la
+   * PREPARA soltanto — non la emette.
+   */
+  protected readonly externalOrderNotice = computed<readonly string[]>(() => {
+    if (!this.isExternalOrder()) {
+      return [];
+    }
+    if (this.isPosOrder()) {
+      return [
+        'Questa è una vendita registrata dalla cassa Shopify: VestiFlow ne conserva la registrazione e non la riscrive.',
+        'Per correggerla si fa un reso o un rimborso in cassa. Quando arriva qui, VestiFlow prepara la rettifica del corrispettivo: non la emette da solo.',
+      ];
+    }
+    const notice = [
+      'Questo ordine arriva da Shopify: VestiFlow ne conserva la registrazione e non lo riscrive.',
+    ];
+    if (this.externalOrderFulfilled()) {
+      notice.push(
+        'È già stato evaso e il corrispettivo è stato registrato: cambiarlo qui sposterebbe anche i totali riepilogati per il commercialista, lasciandoli diversi da quelli già consegnati.',
+      );
+    }
+    notice.push(
+      'Per cambiarlo, modificalo su Shopify: al prossimo aggiornamento la modifica arriva qui da sola.',
+    );
+    if (!this.externalOrderFulfilled()) {
+      notice.push(
+        "Anche l'evasione la registra Shopify: quando l'ordine risulta evaso lì, VestiFlow crea la vendita online e scarica il magazzino.",
+      );
+    }
+    return notice;
   });
 
   protected readonly canManageOrders = computed(() =>
@@ -876,8 +931,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   /**
    * Sbloccabile se l'utente gestisce i documenti. Gli ordini da canale esterno
-   * restano in sola lettura (Fase 1): la modifica locale non tornerebbe al
-   * canale d'origine.
+   * non lo sono: non è un ripiego in attesa di una fase 2, è la conseguenza del
+   * fatto che quell'ordine registra qualcosa avvenuto altrove. Il perché lo dice
+   * `externalOrderNotice`.
    */
   protected readonly canUnlockDocument = computed(
     () => this.canManageOrders() && !this.isExternalOrder(),
@@ -4191,10 +4247,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   // ── Concludi ordine (§CONCLUDI ORDINE) ──────────────────────────────────
+  //
+  // Gli ordini da canale esterno sono esclusi, e non è una restrizione nuova:
+  // il server li rifiuta già in fondo alla strada. Prima ci si arrivava però
+  // dopo aver lavorato — col DDT si compilava tutto e l'errore usciva al
+  // salvataggio, con la Fattura accompagnatoria il rifiuto veniva ingoiato dal
+  // frontend e restava una fattura vuota senza spiegazione. Meglio non poter
+  // iniziare che scoprire a metà di aver lavorato per niente; il perché lo dice
+  // il banner in testa al documento.
   protected readonly canConclude = computed(
     () =>
       this.isOrder &&
       this.isEditMode() &&
+      !this.isExternalOrder() &&
       this.orderState() === ManualOrderState.Confirmed &&
       !this.dirtySinceLastSave() &&
       this.unloadTypeOptions().length > 0,

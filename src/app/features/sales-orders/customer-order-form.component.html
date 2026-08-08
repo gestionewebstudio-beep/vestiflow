@@ -177,11 +177,12 @@
             </app-button>
           </div>
         } @else if (isExternalOrder()) {
-          <div class="doc-form__unlock-banner" role="status">
-            <p>
-              Ordine proveniente da un canale esterno ({{ sourceLabel(loadedOrder()!.source) }}):
-              consultabile in sola lettura. Le modifiche vanno gestite dal canale d'origine.
-            </p>
+          <!-- Il divieto si spiega invece di limitarsi a dichiararsi: le frasi
+               dipendono dal canale (sito o cassa) e dall'evasione. -->
+          <div class="doc-form__unlock-banner co-form__external-notice" role="status">
+            @for (line of externalOrderNotice(); track line) {
+              <p>{{ line }}</p>
+            }
           </div>
         } @else {
           <div class="doc-form__unlock-banner" role="status">
