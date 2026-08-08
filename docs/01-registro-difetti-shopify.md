@@ -266,6 +266,8 @@ Conseguenza concreta: l'elenco dei topic falliti durante la registrazione finiva
 
 **Cosa deve fare invece.** Gli errori si accumulano in un registro e si risolvono, non si cancellano perché nel frattempo è andata bene un'altra cosa. Un successo su un'operazione non dice niente sul fallimento di un'altra.
 
+> **La tabella nuova non basta da sola, e questa parte va fatta insieme.** Il problema non è la capienza di un campo: è che `touchSync` azzera l'errore a ogni sincronizzazione riuscita, e le sincronizzazioni che lo chiamano sono sette, di operazioni diverse. **Un pull clienti andato bene cancella l'errore di un push prodotti fallito** — due cose che non hanno niente a che vedere fra loro. Se si costruisce il registro degli errori lasciando in piedi quell'azzeramento, la tabella nuova convive con un meccanismo che continua a cancellare le prove: si guadagna la capienza e si perde comunque la storia. Le due cose si tolgono nello stesso passo.
+
 ---
 
 ### 2.8 — Il messaggio vero di Shopify viene buttato e sostituito con uno falso
@@ -303,6 +305,24 @@ Quel testo preconfezionato incolpa il permesso «Protected customer data», che 
 **Come lo sappiamo.** Elenco dei topic registrati, verificato su Shopify.
 
 **Cosa deve fare invece.** I primi due sono la ragione per cui la configurazione fiscale va **riletta a ogni operazione** invece che memorizzata, e per cui il controllo periodico delle differenze serve davvero e non è un residuo. Il terzo va aggiunto ai topic: una connessione verso un'app disinstallata non deve mostrarsi verde.
+
+---
+
+### 2.11 — Il backend non passa da nessun controllo automatico, e un cancello sembra esserci
+
+**Cosa succede.** Il codice di `api/` non viene controllato da niente, né al commit né al push.
+
+`.husky/pre-commit` esegue solo `npx lint-staged`, e le quattro regole configurate coprono `src/**/*.{ts,html}`, `e2e/**/*.ts`, `playwright.config.ts` e `*.{json,md,scss,yaml,yml}`. **`api/**` non compare in nessuna** — è una scelta dichiarata in `regole-qualita`, rimandata di proposito finché i rami non si uniscono, per non fare una riformattazione di massa mentre due lavori vanno in parallelo.
+
+`.husky/pre-push` esegue `npm run test:everything` e `npm run build`. I test dell'API ci sono. **Ma `npm run build` alla radice compila l'app Angular, non l'API**: il passo si chiama «build», passa, e non ha compilato la metà di codice che uno si aspetterebbe. Un errore di tipo in `api/src` attraversa entrambi i cancelli, salvo che rompa un test che importa proprio quel file — quindi un file che nessuna spec tocca non è verificato da niente.
+
+È la stessa forma di quasi tutto questo elenco: **un cancello che sembra esserci e sta guardando altrove.**
+
+**Come lo sappiamo.** Verificato l'08/08 leggendo la configurazione `lint-staged` in `package.json`, i due file in `.husky/`, e gli script di `api/package.json` (che `lint`, `build` e `test` propri li ha — semplicemente nessuno li chiama).
+
+**Cosa deve fare invece.** Il `build` di pre-push deve compilare anche l'API, e `api/**` deve entrare in `lint-staged` — che è già deciso e rimandato all'unione dei rami, insieme alla riformattazione. **Le due cose si chiudono nello stesso momento**, perché è la stessa attesa.
+
+**Nel frattempo** i controlli si eseguono a mano dopo ogni modifica al backend: `npm run lint`, `npm run build` e `npm run test` dentro `api/`, più `npm run lint` e `npm run test:everything` alla radice. **È una protezione che dipende da chi si ricorda di eseguirla**, quindi non è una soluzione: è un rimedio dichiarato, con la sua data di scadenza.
 
 ---
 

@@ -17,6 +17,33 @@ export interface ShopifyConnectionDto {
   readonly lastSyncAt?: string | null;
   readonly webhooksActivatedAt?: string | null;
   readonly webhooksActiveCount?: number | null;
+  /**
+   * Indirizzo a cui le sottoscrizioni risultano registrate. `null` = mai osservato.
+   * VestiFlow deve sapere a chi ha detto di consegnare senza doverlo chiedere a Shopify.
+   */
+  readonly webhookAddress?: string | null;
+  /**
+   * `false` = l'indirizzo osservato non e' quello configurato adesso, quindi ci sono
+   * sottoscrizioni che consegnano altrove e VestiFlow non le riconosce piu' (la deduplica
+   * Shopify confronta per uguaglianza esatta). E' un fatto, non un'inferenza: e' l'unica
+   * di queste spie che puo' essere un rosso senza incertezza.
+   * `null` = non confrontabile: indirizzo mai osservato, oppure SHOPIFY_APP_URL assente.
+   */
+  readonly webhookAddressMatchesConfigured?: boolean | null;
+  /** I topic osservati sul negozio. Vuoto NON vuol dire «nessuno»: vedi `webhookTopicsKnown`. */
+  readonly webhookTopics?: readonly string[];
+  /**
+   * `false` = nessuna osservazione e' mai stata fatta su questa connessione.
+   * E' la distinzione fra «non lo sappiamo» e «zero attivi», e deve arrivare fino alla UI:
+   * sostituire una bugia con un'altra sarebbe peggio che non dire niente.
+   */
+  readonly webhookTopicsKnown?: boolean;
+  /** Attesi meno osservati, con i nomi. Sempre vuoto quando `webhookTopicsKnown` e' `false`. */
+  readonly webhookMissingTopics?: readonly string[];
+  /** Osservati che VestiFlow non si aspetta piu': residui di versioni precedenti. */
+  readonly webhookUnexpectedTopics?: readonly string[];
+  /** Quando l'osservazione qui sopra e' stata fatta. Senza data non si sa quando era vera. */
+  readonly webhooksCheckedAt?: string | null;
   readonly autoSyncEnabled?: boolean;
   readonly lastError?: {
     readonly message: string;

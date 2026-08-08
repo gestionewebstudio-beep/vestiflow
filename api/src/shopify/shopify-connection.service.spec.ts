@@ -7,7 +7,12 @@ import type { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 
 describe('ShopifyConnectionService', () => {
-  function createService(connection: Record<string, unknown> | null = null) {
+  const CONFIGURED_WEBHOOK_URL = 'https://vestiflow.example/api/v1/shopify/webhooks';
+
+  function createService(
+    connection: Record<string, unknown> | null = null,
+    configOverrides: Record<string, unknown> = {},
+  ) {
     const prisma = {
       shopifyConnection: {
         findUnique: vi.fn().mockResolvedValue(connection),
@@ -26,6 +31,8 @@ describe('ShopifyConnectionService', () => {
 
     const shopifyConfig = {
       requestedScopes: ['read_products', 'write_inventory'],
+      webhookUrl: CONFIGURED_WEBHOOK_URL,
+      ...configOverrides,
     };
 
     const service = new ShopifyConnectionService(
@@ -48,6 +55,10 @@ describe('ShopifyConnectionService', () => {
     lastSyncAt: null,
     webhooksActivatedAt: null,
     webhooksActiveCount: null,
+    webhookAddress: null,
+    webhookTopics: [],
+    webhooksCheckedAt: null,
+    lastWebhookEventAt: null,
     autoSyncEnabled: true,
     lastErrorMessage: null,
     lastErrorCode: null,
@@ -182,18 +193,151 @@ describe('ShopifyConnectionService', () => {
     );
   });
 
-  it('recordWebhooksActivated abilita auto-sync', async () => {
+  it('recordWebhooksActivated salva QUALI topic e VERSO DOVE, e il conteggio e derivato', async () => {
     const { service, prisma } = createService(connectedRow);
 
-    await service.recordWebhooksActivated('tenant-1', 3);
+    await service.recordWebhooksActivated('tenant-1', {
+      topics: ['orders/create', 'inventory_levels/update'],
+      address: CONFIGURED_WEBHOOK_URL,
+    });
 
-    expect(prisma.shopifyConnection.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          autoSyncEnabled: true,
-          webhooksActiveCount: 3,
-        }),
-      }),
-    );
+    const data = prisma.shopifyConnection.updateMany.mock.calls[0]?.[0]?.data as Record<
+      string,
+      unknown
+    >;
+    expect(data.autoSyncEnabled).toBe(true);
+    expect(data.webhookTopics).toEqual(['inventory_levels/update', 'orders/create']);
+    expect(data.webhookAddress).toBe(CONFIGURED_WEBHOOK_URL);
+    expect(data.webhooksActiveCount).toBe(2);
+    expect(data.webhooksCheckedAt).toBeInstanceOf(Date);
+  });
+
+  it('recordWebhooksActivated deduplica: l elenco salvato e un insieme', async () => {
+    const { service, prisma } = createService(connectedRow);
+
+    await service.recordWebhooksActivated('tenant-1', {
+      topics: ['orders/create', 'orders/create'],
+      address: CONFIGURED_WEBHOOK_URL,
+    });
+
+    const data = prisma.shopifyConnection.updateMany.mock.calls[0]?.[0]?.data as Record<
+      string,
+      unknown
+    >;
+    expect(data.webhookTopics).toEqual(['orders/create']);
+    expect(data.webhooksActiveCount).toBe(1);
+  });
+
+  it('recordWebhooksActivated non scrive niente se non e attivo nessun topic', async () => {
+    const { service, prisma } = createService(connectedRow);
+
+    await service.recordWebhooksActivated('tenant-1', {
+      topics: [],
+      address: CONFIGURED_WEBHOOK_URL,
+    });
+
+    expect(prisma.shopifyConnection.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('recordAutoSyncDisabled azzera l osservazione ma NON l ultimo evento ricevuto', async () => {
+    const { service, prisma } = createService(connectedRow);
+
+    await service.recordAutoSyncDisabled('tenant-1');
+
+    const data = prisma.shopifyConnection.updateMany.mock.calls[0]?.[0]?.data as Record<
+      string,
+      unknown
+    >;
+    expect(data.autoSyncEnabled).toBe(false);
+    expect(data.webhookTopics).toEqual([]);
+    expect(data.webhookAddress).toBeNull();
+    expect(data.webhooksCheckedAt).toBeNull();
+    // Che un evento sia arrivato resta vero anche a sincronizzazione spenta.
+    expect(data).not.toHaveProperty('lastWebhookEventAt');
+  });
+
+  // ── Il DTO: «non lo sappiamo» non deve diventare «zero attivi» ───────────────────
+  describe('verita sullo stato dei webhook nel DTO', () => {
+    it('senza osservazione: topicsKnown false e NESSUN mancante, non «mancano tutti»', async () => {
+      const { service } = createService(connectedRow);
+
+      const dto = await service.getForTenant('tenant-1');
+
+      expect(dto.webhookTopicsKnown).toBe(false);
+      expect(dto.webhookTopics).toEqual([]);
+      expect(dto.webhookMissingTopics).toEqual([]);
+      expect(dto.webhooksCheckedAt).toBeNull();
+    });
+
+    it('con osservazione incompleta: il mancante viene nominato', async () => {
+      const { service } = createService({
+        ...connectedRow,
+        webhooksCheckedAt: new Date('2026-08-08T10:00:00Z'),
+        webhookTopics: [
+          'inventory_levels/update',
+          'orders/create',
+          'orders/updated',
+          'customers/create',
+          'customers/update',
+          'products/create',
+          'products/update',
+        ],
+      });
+
+      const dto = await service.getForTenant('tenant-1');
+
+      expect(dto.webhookTopicsKnown).toBe(true);
+      expect(dto.webhookMissingTopics).toEqual(['orders/cancelled']);
+      expect(dto.webhookUnexpectedTopics).toEqual([]);
+    });
+
+    it('indirizzo diverso da quello configurato: consegne altrove, ed e un fatto', async () => {
+      const { service } = createService({
+        ...connectedRow,
+        webhooksCheckedAt: new Date('2026-08-08T10:00:00Z'),
+        webhookAddress: 'http://localhost:3000/api/v1/shopify/webhooks',
+      });
+
+      const dto = await service.getForTenant('tenant-1');
+
+      expect(dto.webhookAddress).toBe('http://localhost:3000/api/v1/shopify/webhooks');
+      expect(dto.webhookAddressMatchesConfigured).toBe(false);
+    });
+
+    it('indirizzo uguale a quello configurato: nessun allarme', async () => {
+      const { service } = createService({
+        ...connectedRow,
+        webhooksCheckedAt: new Date('2026-08-08T10:00:00Z'),
+        webhookAddress: CONFIGURED_WEBHOOK_URL,
+      });
+
+      const dto = await service.getForTenant('tenant-1');
+
+      expect(dto.webhookAddressMatchesConfigured).toBe(true);
+    });
+
+    it('indirizzo mai osservato: null, MAI false — non si segnala per ignoranza', async () => {
+      const { service } = createService(connectedRow);
+
+      const dto = await service.getForTenant('tenant-1');
+
+      expect(dto.webhookAddress).toBeNull();
+      expect(dto.webhookAddressMatchesConfigured).toBeNull();
+    });
+
+    it('indirizzo non configurato sul server: non confrontabile, non sbagliato', async () => {
+      const { service } = createService(
+        {
+          ...connectedRow,
+          webhooksCheckedAt: new Date('2026-08-08T10:00:00Z'),
+          webhookAddress: CONFIGURED_WEBHOOK_URL,
+        },
+        { webhookUrl: undefined },
+      );
+
+      const dto = await service.getForTenant('tenant-1');
+
+      expect(dto.webhookAddressMatchesConfigured).toBeNull();
+    });
   });
 });

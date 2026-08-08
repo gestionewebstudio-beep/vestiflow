@@ -6,11 +6,50 @@ import type { ShopifyConnectionDto, ShopifyScopeDiagnosticsDto } from './shopify
 import { ShopifyConfigService } from './shopify-config.service';
 import { buildShopifyScopeDiagnostics } from './shopify-scopes.util';
 import { toShopifyUserMessage } from './shopify-user-error.util';
+import {
+  missingShopifyWebhookTopics,
+  normalizeObservedTopics,
+  unexpectedShopifyWebhookTopics,
+} from './shopify-webhook-topics';
+import type { ShopifyWebhookObservation } from './shopify-webhook-topics';
 
 export interface ClearShopifyErrorsResult {
   readonly cleared: true;
   readonly productsReset: number;
   readonly locationsReset: number;
+}
+
+/**
+ * La parte che descrive un'osservazione, senza toccare l'attivazione.
+ *
+ * E' separata perche' osservare e attivare sono due cose diverse: «Verifica ora» chiede a
+ * Shopify cosa c'e' e lo scrive qui, ma non deve accendere niente.
+ */
+function buildWebhookObservationData(topics: readonly string[], address: string) {
+  return {
+    webhookTopics: [...topics],
+    webhookAddress: address,
+    webhooksCheckedAt: new Date(),
+    webhooksActiveCount: topics.length,
+  };
+}
+
+/**
+ * L'osservazione azzerata: elenco vuoto, indirizzo nullo e — soprattutto — data nulla,
+ * cosi' «vuoto» continua a leggersi «non lo sappiamo» invece di «zero attivi».
+ *
+ * `lastWebhookEventAt` NON sta qui, di proposito: che un evento sia arrivato e' un fatto
+ * del passato, e spegnere gli aggiornamenti automatici non lo rende falso. Lo azzera la
+ * sola disconnessione, dove il negozio che verra' collegato dopo potrebbe essere un altro.
+ */
+function clearedWebhookObservation() {
+  return {
+    webhooksActivatedAt: null,
+    webhooksActiveCount: null,
+    webhookTopics: [] as string[],
+    webhookAddress: null,
+    webhooksCheckedAt: null,
+  };
 }
 
 @Injectable()
@@ -135,8 +174,20 @@ export class ShopifyConnectionService {
     });
   }
 
-  async recordWebhooksActivated(tenantId: string, activeCount: number): Promise<void> {
-    if (activeCount <= 0) {
+  /**
+   * Registra cosa risulta attivo dopo una registrazione riuscita: QUALI topic e VERSO
+   * DOVE, non quanti.
+   *
+   * Il conteggio continua a essere scritto ma e' ormai derivato dall'elenco — un solo
+   * scrittore, quindi i due non possono divergere. Resta finche' i rami non sono uniti:
+   * il database e' condiviso e il client Prisma dell'altro ramo seleziona quella colonna.
+   */
+  async recordWebhooksActivated(
+    tenantId: string,
+    observation: ShopifyWebhookObservation,
+  ): Promise<void> {
+    const topics = normalizeObservedTopics(observation.topics);
+    if (topics.length === 0) {
       return;
     }
     await this.prisma.shopifyConnection.updateMany({
@@ -144,7 +195,7 @@ export class ShopifyConnectionService {
       data: {
         autoSyncEnabled: true,
         webhooksActivatedAt: new Date(),
-        webhooksActiveCount: activeCount,
+        ...buildWebhookObservationData(topics, observation.address),
       },
     });
     await this.healStaleErrorStatus(tenantId);
@@ -155,8 +206,7 @@ export class ShopifyConnectionService {
       where: { tenantId },
       data: {
         autoSyncEnabled: false,
-        webhooksActivatedAt: null,
-        webhooksActiveCount: null,
+        ...clearedWebhookObservation(),
       },
     });
   }
@@ -174,8 +224,7 @@ export class ShopifyConnectionService {
       where: { tenantId },
       data: {
         autoSyncEnabled: false,
-        webhooksActivatedAt: null,
-        webhooksActiveCount: null,
+        ...clearedWebhookObservation(),
       },
     });
   }
@@ -249,6 +298,13 @@ export class ShopifyConnectionService {
       lastSyncAt: null,
       webhooksActivatedAt: null,
       webhooksActiveCount: null,
+      webhookAddress: null,
+      webhookAddressMatchesConfigured: null,
+      webhookTopics: [],
+      webhookTopicsKnown: false,
+      webhookMissingTopics: [],
+      webhookUnexpectedTopics: [],
+      webhooksCheckedAt: null,
       autoSyncEnabled: false,
       lastError: null,
       createdAt: now,
@@ -263,6 +319,15 @@ export class ShopifyConnectionService {
       (connection.lastErrorCode === 'oauth_scope_not_granted' ||
         connection.lastErrorCode === 'oauth_scope_not_requested');
 
+    const disconnected = connection.status === ShopifyConnectionStatus.not_connected;
+
+    // La data dell'osservazione e' cio' che distingue «non lo sappiamo» da «zero attivi»:
+    // senza di essa un elenco vuoto sarebbe indistinguibile da un negozio senza webhook.
+    const topicsKnown = !disconnected && connection.webhooksCheckedAt !== null;
+    const observedTopics = topicsKnown ? normalizeObservedTopics(connection.webhookTopics) : [];
+    const observedAddress = disconnected ? null : connection.webhookAddress;
+    const configuredAddress = this.shopifyConfig.webhookUrl ?? null;
+
     return {
       id: connection.id,
       tenantId: connection.tenantId,
@@ -273,18 +338,24 @@ export class ShopifyConnectionService {
       scopes: connection.scopes,
       scopeDiagnostics,
       lastConnectedAt: connection.lastConnectedAt?.toISOString() ?? null,
-      lastSyncAt:
-        connection.status === ShopifyConnectionStatus.not_connected
-          ? null
-          : (connection.lastSyncAt?.toISOString() ?? null),
+      lastSyncAt: disconnected ? null : (connection.lastSyncAt?.toISOString() ?? null),
       webhooksActivatedAt: connection.webhooksActivatedAt?.toISOString() ?? null,
       webhooksActiveCount: connection.webhooksActiveCount,
-      autoSyncEnabled:
-        connection.status === ShopifyConnectionStatus.not_connected
-          ? false
-          : connection.autoSyncEnabled,
+      webhookAddress: observedAddress,
+      // Un confronto, non un'inferenza: o i due indirizzi sono uguali o non lo sono.
+      // `null` quando non c'e' niente da confrontare — mai `false` per ignoranza.
+      webhookAddressMatchesConfigured:
+        observedAddress && configuredAddress ? observedAddress === configuredAddress : null,
+      webhookTopics: observedTopics,
+      webhookTopicsKnown: topicsKnown,
+      webhookMissingTopics: topicsKnown ? missingShopifyWebhookTopics(observedTopics) : [],
+      webhookUnexpectedTopics: topicsKnown ? unexpectedShopifyWebhookTopics(observedTopics) : [],
+      webhooksCheckedAt: disconnected
+        ? null
+        : (connection.webhooksCheckedAt?.toISOString() ?? null),
+      autoSyncEnabled: disconnected ? false : connection.autoSyncEnabled,
       lastError:
-        connection.status !== ShopifyConnectionStatus.not_connected &&
+        !disconnected &&
         !hideScopeDuplicate &&
         connection.lastErrorMessage
           ? {

@@ -256,6 +256,13 @@ export class ShopifyOAuthService {
           autoSyncEnabled: false,
           webhooksActivatedAt: null,
           webhooksActiveCount: null,
+          webhookTopics: [],
+          webhookAddress: null,
+          webhooksCheckedAt: null,
+          // Qui si azzera anche l'ultimo evento ricevuto, mentre nel semplice spegnimento
+          // degli aggiornamenti automatici resta: li' e' un fatto del passato che vale
+          // ancora, qui il negozio che verra' collegato dopo potrebbe essere un altro.
+          lastWebhookEventAt: null,
           lastErrorMessage: null,
           lastErrorCode: null,
           lastErrorAt: null,
@@ -371,9 +378,16 @@ export class ShopifyOAuthService {
     webhookUrl: string,
   ): Promise<ShopifyWebhookRegistrationResult> {
     const result = await this.shopifyAdmin.registerWebhooks(shopDomain, accessToken, webhookUrl);
-    const activeCount = result.registered.length + result.skipped.length;
-    if (activeCount > 0) {
-      await this.shopifyConnection.recordWebhooksActivated(tenantId, activeCount);
+
+    // Attivi = creati adesso PIU' quelli che c'erano gia'. Il conteggio fondeva le due cose
+    // in un numero solo e i falliti non ci entravano affatto: «7» poteva descrivere sette
+    // insiemi diversi. L'elenco li rende tutti visibili, per differenza dagli attesi.
+    const activeTopics = [...result.registered, ...result.skipped];
+    if (activeTopics.length > 0) {
+      await this.shopifyConnection.recordWebhooksActivated(tenantId, {
+        topics: activeTopics,
+        address: webhookUrl,
+      });
     }
     const warning = this.formatWebhookRegistrationWarning(result);
 
