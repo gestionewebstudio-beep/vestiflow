@@ -105,6 +105,13 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   /** Evasione parziale o anomalia: richiede verifica manuale (fase 1 §7). */
   readonly requiresReview?: boolean;
   readonly reviewReason?: string;
+  /**
+   * Da quando la riconciliazione ha visto che l'ordine non risulta più sul
+   * canale (cancellato su Shopify). È un'osservazione, non un'azione: la
+   * rimozione resta una scelta dell'operatore — ed è l'unico caso in cui un
+   * ordine di canale si può rimuovere.
+   */
+  readonly channelMissingSince?: IsoDateString;
   readonly shopify?: ShopifyLink;
   /** Quantità ancora impegnata dagli impegni attivi dell'ordine (fase 3 §2). */
   readonly committedQuantity?: number;

@@ -1186,6 +1186,11 @@ model SalesOrder {
   /// Evasione parziale o anomalia: fase 1 non la gestisce, richiede verifica (§7).
   requiresReview    Boolean                     @default(false) @map("requires_review")
   reviewReason      String?                     @map("review_reason")
+  /// Quando la riconciliazione ha visto che l'ordine non risulta più sul canale
+  /// (cancellato su Shopify). È un'OSSERVAZIONE, non un'azione: VestiFlow non
+  /// cancella niente da solo, la rimozione resta una scelta dell'operatore.
+  /// Torna null se l'ordine ricompare, perché l'informazione sarebbe scaduta.
+  channelMissingSince DateTime?                 @map("channel_missing_since")
   createdAt         DateTime                    @default(now()) @map("created_at")
   updatedAt         DateTime                    @updatedAt @map("updated_at")
 

@@ -277,7 +277,10 @@
           @if (deletableSelectedOrders().length === selectedOrders().length) {
             Elimina
           } @else {
-            Elimina {{ deletableSelectedOrders().length }} manuali
+            <!-- Non più «manuali»: fra gli eliminabili ci sono anche gli ordini
+                 di canale che su Shopify non risultano più. -->
+            Elimina {{ deletableSelectedOrders().length }} di
+            {{ selectedOrders().length }}
           }
         </app-button>
       }

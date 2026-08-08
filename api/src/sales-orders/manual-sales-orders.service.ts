@@ -591,13 +591,22 @@ export class ManualSalesOrdersService {
         source: true,
         locationId: true,
         orderNumber: true,
+        channelMissingSince: true,
         onlineSale: { select: { id: true } },
       },
     });
     if (!order) {
       throw new NotFoundException('Ordine cliente non trovato');
     }
-    if (order.source !== SalesOrderSource.manual) {
+    // Gli ordini di canale non si eliminano: appartengono a Shopify, e
+    // cancellarli qui non servirebbe a niente — il prossimo scarico li
+    // riporterebbe, perché il sync fa upsert sull'id Shopify.
+    //
+    // UNICA eccezione: quelli che sul canale non risultano più. Lì il motivo
+    // cade — non c'è più niente da cui tornare — ed è l'unica azione prevista
+    // dopo la segnalazione della riconciliazione. Resta una scelta
+    // dell'operatore: VestiFlow non ne cancella nessuno da solo.
+    if (order.source !== SalesOrderSource.manual && order.channelMissingSince === null) {
       throw new ConflictException(
         'Solo gli ordini di origine Manuale sono eliminabili da questa maschera.',
       );

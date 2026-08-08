@@ -107,9 +107,40 @@ export function formatShopifyCustomersSyncFeedback(
   };
 }
 
+/**
+ * Coda del messaggio quando la riconciliazione ha trovato ordini che su Shopify
+ * non risultano più. Non è un errore: è una cosa da sapere, e va detta insieme
+ * all'esito dell'importazione invece che in un avviso a parte.
+ */
+function missingOnChannelSuffix(result: ShopifySyncOrdersDto): string {
+  // Il controllo non eseguito va detto: l'operatore si aspetta che il
+  // «sincronizza» gli dica anche cosa è sparito, e il silenzio verrebbe letto
+  // come «non è sparito niente».
+  if (result.missingCheckInconclusive) {
+    return ` ${result.missingCheckInconclusive}`;
+  }
+  const missing = result.missingOnChannel ?? 0;
+  if (missing === 0) {
+    return '';
+  }
+  const quali =
+    missing === 1
+      ? '1 ordine non risulta più su Shopify'
+      : `${missing} ordini non risultano più su Shopify`;
+  const released = result.reservationsReleased ?? 0;
+  const impegni =
+    released === 0
+      ? ''
+      : released === 1
+        ? ', e per 1 sono stati liberati gli impegni di magazzino'
+        : `, e per ${released} sono stati liberati gli impegni di magazzino`;
+  return ` ${quali}${impegni}: li trovi nell'elenco come «Non su Shopify».`;
+}
+
 export function formatShopifyOrdersSyncFeedback(result: ShopifySyncOrdersDto): ShopifySyncFeedback {
   const failedCount = result.failed.length;
   const changedCount = result.imported + result.updated;
+  const missing = missingOnChannelSuffix(result);
 
   if (failedCount > 0) {
     const firstError = result.failed[0]?.message;
@@ -129,13 +160,13 @@ export function formatShopifyOrdersSyncFeedback(result: ShopifySyncOrdersDto): S
 
   if (changedCount === 0) {
     return {
-      tone: 'success',
-      message: `Vendite già allineate (${result.remoteOrderCount} ordini su Shopify).`,
+      tone: missing ? 'warning' : 'success',
+      message: `Vendite già allineate (${result.remoteOrderCount} ordini su Shopify).${missing}`,
     };
   }
 
   return {
-    tone: 'success',
-    message: `Vendite sincronizzate da Shopify: ${result.imported} nuove, ${result.updated} aggiornate (${result.remoteOrderCount} ordini su Shopify).`,
+    tone: missing ? 'warning' : 'success',
+    message: `Vendite sincronizzate da Shopify: ${result.imported} nuove, ${result.updated} aggiornate (${result.remoteOrderCount} ordini su Shopify).${missing}`,
   };
 }

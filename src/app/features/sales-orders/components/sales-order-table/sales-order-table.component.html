@@ -192,7 +192,7 @@
               }
               @case ('syncState') {
                 <td [attr.data-label]="col.label">
-                  <span class="sales-table__cell-value" [attr.title]="order.reviewReason ?? null">
+                  <span class="sales-table__cell-value" [attr.title]="syncStateHint(order)">
                     <app-badge [tone]="syncStateTone(order)">{{ syncStateLabel(order) }}</app-badge>
                   </span>
                 </td>

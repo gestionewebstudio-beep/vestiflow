@@ -50,6 +50,7 @@ export interface SalesOrderApiRow {
   readonly fulfilledAt?: IsoDateString | null;
   readonly requiresReview?: boolean;
   readonly reviewReason?: string | null;
+  readonly channelMissingSince?: IsoDateString | null;
   readonly shopifyOrderId?: string | null;
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
@@ -211,6 +212,7 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     fulfilledAt: row.fulfilledAt ?? undefined,
     requiresReview: row.requiresReview ?? false,
     reviewReason: row.reviewReason ?? undefined,
+    channelMissingSince: row.channelMissingSince ?? undefined,
     shopify: row.shopifyOrderId
       ? { status: ShopifySyncStatus.Synced, shopifyId: row.shopifyOrderId }
       : undefined,

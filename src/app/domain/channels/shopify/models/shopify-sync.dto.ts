@@ -61,4 +61,10 @@ export interface ShopifySyncOrdersDto {
   readonly skipped: number;
   readonly remoteOrderCount: number;
   readonly failed: readonly { readonly shopifyOrderId: string; readonly message: string }[];
+  /** Ordini che su Shopify non risultano più: segnalati, mai rimossi da soli. */
+  readonly missingOnChannel?: number;
+  /** Fra quelli, i non evasi di cui sono stati liberati gli impegni. */
+  readonly reservationsReleased?: number;
+  /** Perché il controllo sugli ordini spariti non ha concluso, se è successo. */
+  readonly missingCheckInconclusive?: string;
 }

@@ -1,0 +1,33 @@
+-- Un ordine può essere CANCELLATO su Shopify, e VestiFlow oggi non lo sa in
+-- nessun modo: non siamo iscritti a `orders/delete`, e nessun controllo se ne
+-- accorge. Quell'ordine resta qui per sempre — e se non era ancora evaso resta
+-- anche la merce impegnata per lui, cioè merce riservata a un ordine che non
+-- esiste più e quindi non vendibile.
+--
+-- (L'ANNULLAMENTO invece funziona già: siamo iscritti a `orders/cancelled` e gli
+-- impegni vengono rilasciati. Il buco riguarda la sola cancellazione.)
+--
+-- Ce ne accorgiamo confrontando, in coda allo scarico ordini, l'elenco remoto —
+-- che il pull ha già in mano per intero — con gli ordini locali. La colonna
+-- registra QUANDO quel confronto ha visto l'ordine sparire.
+--
+-- Perché una data e non un flag: serve sapere da quando, per distinguere la
+-- segnalazione appena nata da quella che nessuno guarda da settimane, e perché
+-- una data risponde anche alla domanda «quale sincronizzazione l'ha vista».
+--
+-- Nullable e senza default: assente significa «risulta ancora sul canale, o non
+-- è un ordine di canale». Torna a NULL se l'ordine ricompare nell'elenco remoto,
+-- perché a quel punto l'informazione è scaduta e lasciarla accesa sarebbe una
+-- segnalazione falsa — e una segnalazione falsa insegna a ignorare quelle vere.
+--
+-- È un'OSSERVAZIONE, non un'azione: VestiFlow non cancella niente da solo. La
+-- rimozione dell'ordine resta una scelta dell'operatore. L'unica conseguenza
+-- automatica è il rilascio degli impegni sugli ordini NON evasi, e solo perché
+-- tenere merce bloccata per un ordine inesistente non è una decisione da
+-- rimandare.
+--
+-- Additiva: nessun dato esistente cambia, nessun indice necessario (la colonna
+-- si legge insieme alla riga dell'ordine, non ci si filtra sopra in liste
+-- grandi).
+ALTER TABLE "sales_orders"
+  ADD COLUMN "channel_missing_since" TIMESTAMP(3);
