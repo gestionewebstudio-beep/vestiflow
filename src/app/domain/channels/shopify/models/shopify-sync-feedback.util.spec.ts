@@ -93,7 +93,10 @@ describe('shopify-sync-feedback.util', () => {
       expect(feedback.message).toContain('allineate');
     });
 
-    it('successo con modifiche', () => {
+    // L'esito nomina la direzione e non promette giacenze entrate: questa
+    // operazione legge Shopify e semmai corregge Shopify. `imported` non
+    // compare piu' perche' vale sempre zero (registro difetti 1.2).
+    it('successo con disallineamenti: dichiara la direzione e non conta «nuove»', () => {
       const feedback = formatShopifyInventorySyncFeedback({
         ...inventoryBase,
         imported: 2,
@@ -102,7 +105,9 @@ describe('shopify-sync-feedback.util', () => {
         remoteLevelCount: 6,
       });
       expect(feedback.tone).toBe('success');
-      expect(feedback.message).toContain('2 nuove');
+      expect(feedback.message).toContain('3 disallineate');
+      expect(feedback.message).toContain('Le giacenze di VestiFlow non cambiano');
+      expect(feedback.message).not.toContain('nuove');
     });
   });
 

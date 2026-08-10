@@ -15,9 +15,14 @@ export interface SupplierOrderLineApiRow {
   readonly description?: string | null;
   readonly orderedQuantity: number;
   readonly receivedQuantity: number;
-  readonly unitCostMinor: number;
-  readonly enteredUnitCostMinor?: number | null;
-  readonly discountPercent?: number;
+  /**
+   * Colonne `NUMERIC` lato database: arrivano come stringhe decimali, non come
+   * numeri. Il tipo lo dichiara invece di nasconderlo, così chi le legge non
+   * può dimenticare la conversione (vedi `mapLine`).
+   */
+  readonly unitCostMinor: number | string;
+  readonly enteredUnitCostMinor?: number | string | null;
+  readonly discountPercent?: number | string;
   readonly vatCodeId?: string | null;
   readonly vatSnapshot?: Partial<VatSnapshot> | null;
   readonly lineTotalMinor?: number;
@@ -63,17 +68,21 @@ function mapLine(row: SupplierOrderLineApiRow, currency: CurrencyCode): Supplier
     description: row.description ?? row.sku,
     orderedQuantity: row.orderedQuantity,
     receivedQuantity: row.receivedQuantity,
-    unitCost: { amountMinor: row.unitCostMinor, currencyCode: currency },
+    // Colonne NUMERIC: Prisma le serializza come STRINGHE ("411.4754"), quindi
+    // la conversione è obbligatoria. E va fatta DOPO il ripiego, non prima:
+    // `Number(null)` vale 0 e `0 ?? x` resta 0, quindi convertire per primo
+    // trasformerebbe un costo assente in un costo di zero.
+    unitCost: { amountMinor: Number(row.unitCostMinor), currencyCode: currency },
     enteredUnitCost: {
-      amountMinor: row.enteredUnitCostMinor ?? row.unitCostMinor,
+      amountMinor: Number(row.enteredUnitCostMinor ?? row.unitCostMinor),
       currencyCode: currency,
     },
-    discountPercent: row.discountPercent ?? 0,
+    discountPercent: Number(row.discountPercent ?? 0),
     vatCodeId: row.vatCodeId ?? undefined,
     vatCode: row.vatSnapshot?.code,
     vatRatePercent: row.vatSnapshot?.ratePercent,
     lineTotal: {
-      amountMinor: row.lineTotalMinor ?? row.orderedQuantity * row.unitCostMinor,
+      amountMinor: row.lineTotalMinor ?? row.orderedQuantity * Number(row.unitCostMinor),
       currencyCode: currency,
     },
   };
@@ -90,7 +99,13 @@ function mapLinkedDocument(row: SupplierOrderLinkedDocumentApiRow): SupplierOrde
   };
 }
 
-/** Riga in creazione/modifica ordine (costo digitato in unità minori intere). */
+/**
+ * Riga in creazione/modifica ordine. Il costo digitato è in unità minori e NON
+ * è necessariamente intero: quando l'operatore lavora in «Costo ivato» il netto
+ * che se ne ricava porta la coda dello scorporo, ed è quella a far tornare il
+ * costo identico alla riapertura. Lo sconto viaggia come percentuale effettiva
+ * già risolta dalla cascata («4+10%» → 13,6).
+ */
 export interface CreateSupplierOrderLineBody {
   readonly variantId: EntityId;
   readonly description?: string;

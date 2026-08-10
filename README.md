@@ -1,5 +1,41 @@
 # Vestiflow
 
+> ## ⛔ Database e migration — leggere prima di toccare Prisma
+>
+> **Non lanciare mai `prisma migrate dev` né `prisma db push`.**
+>
+> Il database è **condiviso** e la sua storia delle migration può essere più avanti del
+> ramo su cui stai lavorando: chi sta su un altro ramo applica le proprie migration allo
+> stesso database. Con le storie divergenti:
+>
+> - **`prisma migrate dev`** non applica e basta — propone di **azzerare il database**
+>   per riallinearlo. Si perde il lavoro degli altri rami, e i dati.
+> - **`prisma db push`** allinea il database allo schema locale, quindi **cancella** le
+>   tabelle che il ramo corrente non conosce.
+> - **`prisma migrate reset`** fa esattamente quello che dice.
+>
+> Sono i comandi che si digitano per riflesso. Al loro posto:
+>
+> | Devi…                           | Comando                                 |
+> | ------------------------------- | --------------------------------------- |
+> | applicare le migration mancanti | `npm run prisma:deploy` (dentro `api/`) |
+> | rigenerare il client            | `npm run prisma:generate`               |
+> | vedere cosa manca               | `npx prisma migrate status`             |
+> | scrivere una migration nuova    | vedi sotto                              |
+>
+> **Scrivere una migration senza toccare il database**: modifica `prisma/schema.prisma`,
+> poi genera l'SQL con
+> `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`,
+> mettilo in `prisma/migrations/<AAAAMMGGhhmmss>_<nome>/migration.sql` **con un commento
+> che dica perché**, e applicalo con `npm run prisma:deploy`.
+>
+> Due protezioni sono già in piedi, ma **nessuna delle due ferma un terminale**:
+> `.claude/settings.json` blocca quei comandi nelle sessioni Claude Code, e
+> `npm run prisma:migrate` è stato sostituito da una guardia che spiega cosa fare.
+>
+> Se `prisma generate` dà `EPERM`, è il watcher dell'API che tiene bloccato il query
+> engine: ferma `npm run start:dev` e rilancia.
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.3.
 
 ## Development server

@@ -49,4 +49,46 @@ describe('shopifyConnectionFromDto', () => {
     expect(connection.scopeDiagnostics).toBeUndefined();
     expect(connection.lastError).toBeUndefined();
   });
+
+  it('porta lo stato dei webhook senza reinterpretarlo', () => {
+    const connection = shopifyConnectionFromDto({
+      ...baseDto,
+      webhookAddress: 'https://vestiflow.example/api/v1/shopify/webhooks',
+      webhookAddressMatchesConfigured: false,
+      webhookTopics: ['inventory_levels/update', 'orders/create'],
+      webhookTopicsKnown: true,
+      webhookMissingTopics: ['orders/cancelled'],
+      webhookUnexpectedTopics: [],
+      webhooksCheckedAt: '2026-08-08T10:00:00.000Z',
+      lastWebhookEventAt: '2026-08-08T16:30:00.000Z',
+    });
+
+    expect(connection.lastWebhookEventAt).toBe('2026-08-08T16:30:00.000Z');
+    expect(connection.webhookAddress).toBe('https://vestiflow.example/api/v1/shopify/webhooks');
+    expect(connection.webhookAddressMatchesConfigured).toBe(false);
+    expect(connection.webhookTopics).toEqual(['inventory_levels/update', 'orders/create']);
+    expect(connection.webhookTopicsKnown).toBe(true);
+    expect(connection.webhookMissingTopics).toEqual(['orders/cancelled']);
+    expect(connection.webhooksCheckedAt).toBe('2026-08-08T10:00:00.000Z');
+  });
+
+  it('«non lo sappiamo» arriva come null e NON diventa false', () => {
+    const connection = shopifyConnectionFromDto({
+      ...baseDto,
+      webhookAddress: null,
+      webhookAddressMatchesConfigured: null,
+      webhookTopics: [],
+      webhookTopicsKnown: false,
+      webhookMissingTopics: [],
+      webhooksCheckedAt: null,
+    });
+
+    // Sono tre cose diverse e devono restare tali fino alla schermata: nessun indirizzo
+    // osservato, nessun confronto possibile, nessun elenco — non «indirizzo sbagliato».
+    expect(connection.webhookAddress).toBeNull();
+    expect(connection.webhookAddressMatchesConfigured).toBeNull();
+    expect(connection.webhookAddressMatchesConfigured).not.toBe(false);
+    expect(connection.webhookTopicsKnown).toBe(false);
+    expect(connection.webhookMissingTopics).toEqual([]);
+  });
 });

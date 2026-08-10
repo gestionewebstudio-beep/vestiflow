@@ -53,80 +53,113 @@ function operationalLocationsMock() {
   };
 }
 
+/**
+ * Modalità della maschera e documento caricato: l'unica cosa che cambia fra un
+ * Ordine cliente nuovo e un DDT già salvato che si riapre.
+ */
+interface FormOptions {
+  readonly kind?: 'quote' | 'sales-ddt' | 'manual-unload';
+  readonly id?: string;
+  readonly user?: unknown;
+  readonly document?: unknown;
+  readonly order?: unknown;
+  readonly updateDocument?: ReturnType<typeof vi.fn>;
+  readonly saveManualOrder?: ReturnType<typeof vi.fn>;
+  /** Tipi di scarico disponibili: senza, «Concludi ordine» non compare mai. */
+  readonly unloadDocumentTypes?: readonly string[];
+}
+
+function formProviders(options: FormOptions = {}) {
+  return [
+    provideRouter([]),
+    {
+      provide: ActivatedRoute,
+      useValue: {
+        snapshot: {
+          data: options.kind ? { customerDocumentKind: options.kind } : {},
+          queryParamMap: convertToParamMap({}),
+        },
+        paramMap: of(convertToParamMap(options.id ? { id: options.id } : {})),
+      },
+    },
+    {
+      provide: APP_CONFIG,
+      useValue: {
+        production: false,
+        appName: 'VestiFlow',
+        apiBaseUrl: '',
+        features: { barcodeScanner: false, shopify: false },
+      },
+    },
+    { provide: AuthService, useValue: { currentUser: () => options.user ?? null } },
+    { provide: OperationalLocationsService, useValue: operationalLocationsMock() },
+    { provide: VatCodeService, useValue: { list: () => of(VAT_CODES) } },
+    { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+    {
+      provide: CustomerService,
+      useValue: { getAllCustomers: () => of([]), createCustomer: vi.fn() },
+    },
+    {
+      provide: BarcodeLookupService,
+      useValue: { resolveVariantIdByCode: () => of(null), parseScanInput: (v: string) => v },
+    },
+    { provide: BreadcrumbLabelService, useValue: { set: vi.fn(), clear: vi.fn() } },
+    { provide: DocumentActionsService, useValue: { set: vi.fn(), clear: vi.fn() } },
+    {
+      provide: DocumentCountersService,
+      useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+    },
+    {
+      provide: DocumentService,
+      useValue: {
+        getDocumentById: options.document ? () => of(options.document) : vi.fn(),
+        createDocument: vi.fn(),
+        updateDocument: options.updateDocument ?? vi.fn(),
+        previewDocumentNumber: () =>
+          of({ reference: 'OC-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
+        // Solo i documenti a registro leggono la preferenza: l'Ordine
+        // cliente resta a netto (modalita' prezzo ri-gated).
+        getPriceModePreference: () => of(false),
+      },
+    },
+    {
+      provide: ProductService,
+      useValue: {
+        searchVariantSummaries: () => of([]),
+        getSupplierVariantLinks: () => of([]),
+        createProduct: vi.fn(),
+      },
+    },
+    {
+      provide: SalesOrderService,
+      useValue: {
+        getManualOrderMeta: () =>
+          of(
+            options.unloadDocumentTypes
+              ? {
+                  nextReferencePreview: 'OC-2026-0002',
+                  unloadDocumentTypes: options.unloadDocumentTypes,
+                }
+              : null,
+          ),
+        getSalesOrderById: options.order ? () => of(options.order) : vi.fn(),
+        saveManualOrder: options.saveManualOrder ?? vi.fn(),
+        reloadOwnReservations: vi.fn(),
+        getOrderReservations: () => of([]),
+      },
+    },
+    { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
+    {
+      provide: TableViewPreferenceApiService,
+      useValue: { load: () => of(null), save: () => of(undefined) },
+    },
+  ];
+}
+
 describe('CustomerOrderFormComponent — caratterizzazione', () => {
   async function setup() {
     const view = await render(CustomerOrderFormComponent, {
-      providers: [
-        provideRouter([]),
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            snapshot: { data: {}, queryParamMap: convertToParamMap({}) },
-            paramMap: of(convertToParamMap({})),
-          },
-        },
-        {
-          provide: APP_CONFIG,
-          useValue: {
-            production: false,
-            appName: 'VestiFlow',
-            apiBaseUrl: '',
-            features: { barcodeScanner: false, shopify: false },
-          },
-        },
-        { provide: AuthService, useValue: { currentUser: () => null } },
-        { provide: OperationalLocationsService, useValue: operationalLocationsMock() },
-        { provide: VatCodeService, useValue: { list: () => of(VAT_CODES) } },
-        { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
-        {
-          provide: CustomerService,
-          useValue: { getAllCustomers: () => of([]), createCustomer: vi.fn() },
-        },
-        {
-          provide: BarcodeLookupService,
-          useValue: { resolveVariantIdByCode: () => of(null), parseScanInput: (v: string) => v },
-        },
-        { provide: BreadcrumbLabelService, useValue: { set: vi.fn(), clear: vi.fn() } },
-        { provide: DocumentActionsService, useValue: { set: vi.fn(), clear: vi.fn() } },
-        {
-          provide: DocumentCountersService,
-          useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
-        },
-        {
-          provide: DocumentService,
-          useValue: {
-            getDocumentById: vi.fn(),
-            createDocument: vi.fn(),
-            updateDocument: vi.fn(),
-            previewDocumentNumber: () =>
-              of({ reference: 'OC-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
-            // Solo i documenti a registro leggono la preferenza: l'Ordine
-            // cliente resta a netto (modalita' prezzo ri-gated).
-            getPriceModePreference: () => of(false),
-          },
-        },
-        {
-          provide: ProductService,
-          useValue: {
-            searchVariantSummaries: () => of([]),
-            getSupplierVariantLinks: () => of([]),
-            createProduct: vi.fn(),
-          },
-        },
-        {
-          provide: SalesOrderService,
-          useValue: {
-            getManualOrderMeta: () => of(null),
-            getSalesOrderById: vi.fn(),
-            saveManualOrder: vi.fn(),
-          },
-        },
-        { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
-        {
-          provide: TableViewPreferenceApiService,
-          useValue: { load: () => of(null), save: () => of(undefined) },
-        },
-      ],
+      providers: formProviders(),
     });
 
     const component = view.fixture.componentInstance as unknown as {
@@ -378,5 +411,313 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
 
       expect(view.component.numberConflictDialog.isOpen()).toBe(false);
     });
+  });
+});
+
+/**
+ * Il blocco alla riapertura.
+ *
+ * Questa maschera ospita QUATTRO tipi di documento, e fino al 08/2026 il blocco
+ * ne copriva due: DDT vendita e Scarico manuale si aprivano scrivibili perché il
+ * meccanismo era stato scritto per il solo Ordine cliente, e gli altri avevano
+ * preso `editUnlocked = true` come ripiego. Questi test dicono che ora la regola
+ * è una sola, e che dopo il salvataggio il documento torna protetto senza che si
+ * esca dalla maschera.
+ *
+ * Il dialogo di sblocco non viene pilotato dalla UI: usa `<dialog>`, che jsdom
+ * non implementa. Si esercita `confirmUnlockEdit()`, che è ciò che quel dialogo
+ * chiama — è la strada lasciata aperta dal TODO sull'Ordine fornitore.
+ */
+describe('CustomerOrderFormComponent — blocco alla riapertura', () => {
+  const OWNER = { id: 'u-1', role: 'owner' };
+
+  /** Documento a registro già salvato e confermato, con due righe. */
+  function documentoConfermato(type: string, overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'doc-1',
+      type,
+      status: 'confirmed',
+      reference: 'DDT-2026-0001',
+      number: 1,
+      series: 'A',
+      documentDate: '2026-08-01T00:00:00.000Z',
+      customerId: null,
+      customerName: 'Cliente prova',
+      locationId: 'loc-1',
+      currency: 'EUR',
+      pricesIncludeVat: false,
+      documentDiscountPercent: 0,
+      lines: [
+        {
+          id: 'l-1',
+          lineNumber: 1,
+          description: 'Prima riga',
+          quantity: 1,
+          unitPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+          discountPercent: 0,
+          loadsStock: false,
+        },
+        {
+          id: 'l-2',
+          lineNumber: 2,
+          description: 'Seconda riga',
+          quantity: 1,
+          unitPrice: { amountMinor: 2000, currencyCode: 'EUR' },
+          discountPercent: 0,
+          loadsStock: false,
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  function ordineCaricato(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'so-1',
+      orderNumber: 'OC-2026-0001',
+      source: 'manual',
+      currency: 'EUR',
+      documentDate: '2026-08-01T00:00:00.000Z',
+      customerId: null,
+      customerName: 'Cliente prova',
+      locationId: 'loc-1',
+      documentDiscountPercent: 0,
+      lines: [],
+      ...overrides,
+    };
+  }
+
+  interface LockedForm {
+    readonly formReadOnly: () => boolean;
+    readonly canUnlockDocument: () => boolean;
+    readonly canConclude: () => boolean;
+    readonly externalOrderNotice: () => readonly string[];
+    confirmUnlockEdit: () => void;
+    saveDocument: () => void;
+    onLineDrop: (event: { previousIndex: number; currentIndex: number }) => void;
+    readonly lines: {
+      length: number;
+      at: (i: number) => { controls: Record<string, { value: unknown }> };
+    };
+  }
+
+  async function apri(options: FormOptions) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: formProviders({ user: OWNER, ...options }),
+    });
+    return view.fixture.componentInstance as unknown as LockedForm;
+  }
+
+  it('un DDT vendita salvato si riapre protetto', async () => {
+    const form = await apri({
+      kind: 'sales-ddt',
+      id: 'doc-1',
+      document: documentoConfermato('sales_ddt'),
+    });
+
+    expect(form.formReadOnly()).toBe(true);
+  });
+
+  it('uno scarico manuale salvato si riapre protetto', async () => {
+    const form = await apri({
+      kind: 'manual-unload',
+      id: 'doc-1',
+      document: documentoConfermato('manual_unload'),
+    });
+
+    expect(form.formReadOnly()).toBe(true);
+  });
+
+  it('un preventivo confermato si riapre protetto', async () => {
+    const form = await apri({
+      kind: 'quote',
+      id: 'doc-1',
+      document: documentoConfermato('quote'),
+    });
+
+    expect(form.formReadOnly()).toBe(true);
+  });
+
+  // Togliendo il ramo bozza da syncOnLoad il comportamento non doveva cambiare,
+  // perché a gatearlo è `isConfirmedEdit()`. Questa è la verifica.
+  it('una bozza resta subito modificabile, senza passare dallo sblocco', async () => {
+    const form = await apri({
+      kind: 'quote',
+      id: 'doc-1',
+      document: documentoConfermato('quote', { status: 'draft' }),
+    });
+
+    expect(form.formReadOnly()).toBe(false);
+  });
+
+  it('sbloccato e salvato, il documento torna protetto senza uscire dalla maschera', async () => {
+    const documento = documentoConfermato('sales_ddt');
+    const updateDocument = vi.fn(() => of(documento));
+    const form = await apri({
+      kind: 'sales-ddt',
+      id: 'doc-1',
+      document: documento,
+      updateDocument,
+    });
+
+    form.confirmUnlockEdit();
+    expect(form.formReadOnly()).toBe(false);
+
+    form.saveDocument();
+
+    expect(updateDocument).toHaveBeenCalled();
+    expect(form.formReadOnly()).toBe(true);
+  });
+
+  // Il <fieldset disabled> ferma i controlli del form, non il drag & drop: su un
+  // documento protetto le righe si sarebbero riordinate lo stesso, e senza
+  // nemmeno sporcare il form — una modifica invisibile in attesa del primo
+  // salvataggio.
+  it('su un documento protetto il riordino delle righe non ha effetto', async () => {
+    const form = await apri({
+      kind: 'sales-ddt',
+      id: 'doc-1',
+      document: documentoConfermato('sales_ddt'),
+    });
+    expect(form.formReadOnly()).toBe(true);
+    expect(form.lines.length).toBe(2);
+
+    form.onLineDrop({ previousIndex: 0, currentIndex: 1 });
+
+    expect(form.lines.at(0).controls['productName']!.value).toBe('Prima riga');
+  });
+
+  // La sola lettura di un ordine da canale esterno è una proprietà del
+  // documento, non uno stato del lock: non deve dipendere dal set di sessione.
+  it('un ordine da canale esterno resta in sola lettura anche dopo uno sblocco', async () => {
+    const form = await apri({
+      id: 'so-1',
+      order: ordineCaricato({ source: 'online' }),
+    });
+    expect(form.canUnlockDocument()).toBe(false);
+
+    form.confirmUnlockEdit();
+
+    expect(form.formReadOnly()).toBe(true);
+  });
+});
+
+/**
+ * Ordini da canale esterno: il divieto spiega, invece di manifestarsi come un
+ * errore tecnico a lavoro fatto.
+ *
+ * Ogni verifica ha il suo controllo inverso: un test che dice «non compare» va
+ * in verde anche quando quella cosa non compare mai, e allora non sta
+ * verificando la guardia — sta verificando il nulla.
+ */
+describe('CustomerOrderFormComponent — ordini da canale esterno', () => {
+  const OWNER = { id: 'u-1', role: 'owner' };
+
+  interface ExternalForm {
+    readonly externalOrderNotice: () => readonly string[];
+    readonly canConclude: () => boolean;
+    readonly formReadOnly: () => boolean;
+  }
+
+  function ordine(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'so-1',
+      orderNumber: 'OC-2026-0001',
+      source: 'online',
+      currency: 'EUR',
+      documentDate: '2026-08-01T00:00:00.000Z',
+      customerId: null,
+      customerName: 'Cliente prova',
+      locationId: 'loc-1',
+      documentDiscountPercent: 0,
+      lines: [],
+      ...overrides,
+    };
+  }
+
+  async function apri(order: Record<string, unknown>) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: formProviders({
+        user: OWNER,
+        id: 'so-1',
+        order,
+        // Senza tipi di scarico «Concludi ordine» non comparirebbe comunque, e
+        // il test sull'esclusione sarebbe vuoto.
+        unloadDocumentTypes: ['sales_ddt'],
+      }),
+    });
+    return view.fixture.componentInstance as unknown as ExternalForm;
+  }
+
+  /** Una frase del banner che contenga tutte le parole date. */
+  function dice(notice: readonly string[], ...parole: readonly string[]): boolean {
+    return notice.some((line) => parole.every((parola) => line.includes(parola)));
+  }
+
+  it('su un ordine manuale il banner non dice niente', async () => {
+    const form = await apri(ordine({ source: 'manual' }));
+
+    expect(form.externalOrderNotice()).toEqual([]);
+  });
+
+  it('un ordine dal sito rimanda a Shopify per la modifica', async () => {
+    const form = await apri(ordine({ source: 'online' }));
+
+    expect(dice(form.externalOrderNotice(), 'modificalo su Shopify')).toBe(true);
+  });
+
+  // Uno scontrino non si modifica: si fa un reso. Dire «modificalo su Shopify»
+  // a chi ha battuto una vendita in cassa manda a cercare una strada che non
+  // esiste — è lo stesso difetto che stiamo togliendo, spostato altrove.
+  it('una vendita da cassa manda al reso, non alla modifica su Shopify', async () => {
+    const form = await apri(ordine({ source: 'pos' }));
+    const notice = form.externalOrderNotice();
+
+    expect(dice(notice, 'reso')).toBe(true);
+    expect(dice(notice, 'modificalo su Shopify')).toBe(false);
+  });
+
+  // VestiFlow PREPARA la rettifica, non la emette: il banner non deve far
+  // credere che la faccenda si chiuda da sola.
+  it('sulla cassa il banner dice che la rettifica è preparata, non emessa', async () => {
+    const form = await apri(ordine({ source: 'pos' }));
+
+    expect(dice(form.externalOrderNotice(), 'prepara la rettifica')).toBe(true);
+  });
+
+  it('un ordine evaso avvisa che i totali del commercialista si sposterebbero', async () => {
+    const form = await apri(ordine({ source: 'online', fulfilledAt: '2026-08-02T10:00:00.000Z' }));
+
+    expect(dice(form.externalOrderNotice(), 'corrispettivo', 'commercialista')).toBe(true);
+  });
+
+  // Il controllo che vale più degli altri. L'evasione PARZIALE non crea né
+  // vendita online né corrispettivo — marca solo l'ordine da verificare —
+  // quindi il banner non deve dire che ne esiste uno. Agganciarlo allo stato
+  // «evaso anche parzialmente» che la maschera usa altrove lo farebbe mentire.
+  it('un ordine evaso solo in parte non dichiara un corrispettivo che non c’è', async () => {
+    const form = await apri(ordine({ source: 'online', fulfillmentStatus: 'partial' }));
+
+    expect(dice(form.externalOrderNotice(), 'corrispettivo')).toBe(false);
+  });
+
+  it('un ordine non ancora evaso spiega che l’evasione la registra Shopify', async () => {
+    const form = await apri(ordine({ source: 'online' }));
+
+    expect(dice(form.externalOrderNotice(), 'evasione', 'Shopify')).toBe(true);
+  });
+
+  it('«Concludi ordine» non compare su un ordine da canale esterno', async () => {
+    const form = await apri(ordine({ source: 'online' }));
+
+    expect(form.canConclude()).toBe(false);
+  });
+
+  // Il controllo inverso: senza, il test qui sopra passerebbe anche se
+  // «Concludi ordine» fosse sparito per tutti.
+  it('«Concludi ordine» resta su un ordine manuale', async () => {
+    const form = await apri(ordine({ source: 'manual' }));
+
+    expect(form.canConclude()).toBe(true);
   });
 });

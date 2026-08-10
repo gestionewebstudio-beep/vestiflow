@@ -165,8 +165,10 @@ export class SupplierOrderPdfService {
       line.sku,
       line.description || line.sku,
       String(line.orderedQuantity),
-      formatMinorAmount(line.unitCostMinor, currency),
-      line.discountPercent > 0 ? `${line.discountPercent}%` : '—',
+      // Costo e sconto sono colonne NUMERIC: arrivano come Decimal, e la stampa
+      // è un punto di uscita — si convertono qui, dove si arrotondano.
+      formatMinorAmount(Number(line.unitCostMinor), currency),
+      Number(line.discountPercent) > 0 ? `${Number(line.discountPercent)}%` : '—',
       this.vatLabel(line.vatSnapshot),
       formatMinorAmount(line.lineTotalMinor, currency),
     ]);

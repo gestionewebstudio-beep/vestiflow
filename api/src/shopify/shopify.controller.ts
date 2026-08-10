@@ -27,6 +27,9 @@ import { ShopifyConfigService } from './shopify-config.service';
 import type { ClearShopifyErrorsResult } from './shopify-connection.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
+import { ShopifyWebhookRepairService } from './shopify-webhook-repair.service';
+import type { ShopifyWebhookStatusResult } from './shopify-webhook-status.service';
+import { ShopifyWebhookStatusService } from './shopify-webhook-status.service';
 import { ShopifyInventoryPullService } from './shopify-inventory-pull.service';
 import type { ShopifyInventoryPullResult } from './shopify-inventory-pull.service';
 import { ShopifyCustomersPullService } from './shopify-customers-pull.service';
@@ -60,6 +63,8 @@ export class ShopifyController {
     private readonly shopifyOrdersPull: ShopifyOrdersPullService,
     private readonly shopifyTaxonomy: ShopifyTaxonomyService,
     private readonly shopifyShopChange: ShopifyShopChangeService,
+    private readonly shopifyWebhookStatus: ShopifyWebhookStatusService,
+    private readonly shopifyWebhookRepair: ShopifyWebhookRepairService,
     private readonly locationLicensing: LocationLicensingService,
   ) {}
 
@@ -142,6 +147,38 @@ export class ShopifyController {
   async disableWebhooks(@CurrentTenant() tenantId: string) {
     const result = await this.shopifyOAuth.disableWebhooks(tenantId);
     return { disabled: true as const, ...result };
+  }
+
+  /**
+   * «Verifica ora»: chiede a Shopify quali sottoscrizioni esistono e lo registra.
+   *
+   * E' un POST e non un GET perche' lascia una traccia — la data dell'osservazione — e una
+   * scrittura non deve stare dietro un verbo che qualsiasi cosa puo' ripetere da sola.
+   * Verso Shopify pero' e' sola lettura, e a garantirlo non e' questa nota: il servizio che
+   * la esegue non ha fra le mani niente che sappia registrare o cancellare.
+   */
+  @Post('webhooks/check')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
+  checkWebhooks(@CurrentTenant() tenantId: string): Promise<ShopifyWebhookStatusResult> {
+    return this.shopifyWebhookStatus.check(tenantId);
+  }
+
+  /**
+   * Registra le notifiche mancanti e restituisce il referto della **rilettura**, non
+   * l'esito della scrittura: la registrazione dice cosa crede di aver fatto, la verifica
+   * dice cosa c'e', e quando divergono ha ragione la seconda.
+   *
+   * Usa la strada additiva — salta i presenti, aggiunge i mancanti, non cancella niente — e
+   * non passa mai dall'interruttore, che spegnerebbe tutto per poi riaccendere.
+   */
+  @Post('webhooks/register-missing')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
+  registerMissingWebhooks(
+    @CurrentTenant() tenantId: string,
+  ): Promise<ShopifyWebhookStatusResult> {
+    return this.shopifyWebhookRepair.registerMissingAndRecheck(tenantId);
   }
 
   @Post('sync/products')

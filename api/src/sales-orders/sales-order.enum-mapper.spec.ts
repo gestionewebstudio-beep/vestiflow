@@ -61,5 +61,23 @@ describe('sales-order.enum-mapper', () => {
       );
       expect(fulfillmentStatusDisplayLabel(PrismaFulfillment.fulfilled)).toBe('Evaso');
     });
+
+    // ⚠ GUARDIA — registro difetti 1.8.
+    // Prima queste due funzioni chiudevano con «altrimenti online». Quando al canale si e'
+    // aggiunto `store`, quel ramo se lo sarebbe preso in silenzio, e uno scontrino di cassa
+    // sarebbe comparso come vendita online: non un vuoto, una bugia. Ora sono `switch`
+    // esaustivi senza ramo predefinito, quindi il prossimo valore nuovo lo dice il
+    // compilatore — questi test lo dicono a chi legge.
+    it('la cassa ha la sua etichetta, e non finisce nel ramo dell online', () => {
+      expect(sourceDisplayLabel(PrismaSource.store)).toBe('Cassa');
+      expect(fromPrismaSource(PrismaSource.store)).toBe('store');
+    });
+
+    it('ogni valore del canale ha una traduzione propria, nessuno condiviso per difetto', () => {
+      const etichette = Object.values(PrismaSource).map((source) => sourceDisplayLabel(source));
+      // Se due valori diversi dessero la stessa etichetta, uno starebbe usando il ramo
+      // dell'altro — che e' esattamente il difetto che questa guardia impedisce.
+      expect(new Set(etichette).size).toBe(Object.values(PrismaSource).length);
+    });
   });
 });

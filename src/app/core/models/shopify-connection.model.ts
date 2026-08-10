@@ -57,6 +57,36 @@ export interface ShopifyConnection extends TenantScoped, Timestamped {
   readonly lastSyncAt?: IsoDateString;
   readonly webhooksActivatedAt?: IsoDateString;
   readonly webhooksActiveCount?: number;
+  /** Indirizzo a cui le sottoscrizioni risultano registrate. `null` = mai osservato. */
+  readonly webhookAddress?: string | null;
+  /**
+   * `false` = le sottoscrizioni consegnano a un indirizzo diverso da quello in uso.
+   * `null` = non confrontabile. **Mai trattare `null` come `false`**: sarebbe un allarme
+   * dato per ignoranza, ed e' il difetto che questa parte serve a togliere.
+   */
+  readonly webhookAddressMatchesConfigured?: boolean | null;
+  /**
+   * `false` = da questo ambiente il confronto sull'indirizzo non e' possibile, perche'
+   * quello configurato qui non e' uno a cui Shopify potrebbe consegnare (es. `localhost`).
+   * Va **detto a schermo**: un controllo spento in silenzio e' peggio del falso allarme.
+   */
+  readonly webhookAddressComparable?: boolean;
+  /** I topic osservati. Vuoto NON vuol dire «nessuno»: guarda `webhookTopicsKnown`. */
+  readonly webhookTopics?: readonly string[];
+  /** `false` = nessuna osservazione e' mai stata fatta. Distingue «non lo sappiamo» da «zero». */
+  readonly webhookTopicsKnown?: boolean;
+  /** Attesi meno osservati, coi nomi. Sempre vuoto se `webhookTopicsKnown` e' `false`. */
+  readonly webhookMissingTopics?: readonly string[];
+  /** Osservati che non sono piu' attesi: residui di versioni precedenti. */
+  readonly webhookUnexpectedTopics?: readonly string[];
+  /** Quando l'elenco e' stato osservato. Senza data non si sa quando era vero. */
+  readonly webhooksCheckedAt?: IsoDateString | null;
+  /**
+   * Ultimo evento webhook **accolto** da Shopify. Distinto da `lastSyncAt`, che si muove
+   * anche quando qualcuno preme un pulsante: e' l'unica cosa che separa «non e' cambiato
+   * niente» da «non arriva piu' niente».
+   */
+  readonly lastWebhookEventAt?: IsoDateString | null;
   /** Webhook attivi: ordini, clienti, prodotti e giacenze in tempo reale da Shopify. */
   readonly autoSyncEnabled?: boolean;
   readonly lastError?: ShopifyConnectionError;

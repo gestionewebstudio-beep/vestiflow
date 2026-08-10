@@ -14,6 +14,7 @@ import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
 import { ShopifyConnectionService } from './shopify-connection.service';
+import { extractShopifyOrderGid } from './shopify-order-id.util';
 import { resolveShopifyOrderLocationId } from './shopify-order-location.util';
 import { ShopifyProductPullService } from './shopify-product-pull.service';
 
@@ -573,14 +574,11 @@ export class ShopifySyncService {
     return null;
   }
 
+  // La normalizzazione dell'id vive in un util condiviso: la usa anche il
+  // confronto con l'elenco remoto che scopre gli ordini cancellati, e le due
+  // DEVONO coincidere.
   private shopifyOrderId(order: Record<string, unknown>): string | null {
-    if (typeof order.admin_graphql_api_id === 'string') {
-      return order.admin_graphql_api_id;
-    }
-    if (order.id != null) {
-      return shopifyGid('Order', String(order.id));
-    }
-    return null;
+    return extractShopifyOrderGid(order);
   }
 
   private mapOrderSource(order: Record<string, unknown>): SalesOrderSource {
@@ -590,8 +588,7 @@ export class ShopifySyncService {
 
   private extractShippingMinor(order: Record<string, unknown>): number {
     const shippingSet = order.total_shipping_price_set as
-      | { shop_money?: { amount?: string } }
-      | undefined;
+      { shop_money?: { amount?: string } } | undefined;
     if (shippingSet?.shop_money?.amount != null) {
       return shopifyDecimalToMinor(String(shippingSet.shop_money.amount));
     }

@@ -202,23 +202,37 @@
                 {{ formatDate(entry.fiscalDate) }}
               </td>
               <td class="tabular-nums" data-label="Numero">{{ entry.reference }}</td>
+              <!--
+                Un corrispettivo di cassa non ha vendita online né ordine cliente: senza
+                identificativo il collegamento porterebbe a una rotta inesistente, con il
+                testo vuoto. Non c'è niente da segnalare e niente da inventare — la colonna
+                Canale accanto dice «Cassa», ed è lì che si legge il perché.
+              -->
               <td class="tabular-nums" data-label="Vendita online">
-                <a
-                  [routerLink]="['/app/sales/online', entry.onlineSaleId]"
-                  class="cor-table__link"
-                  (click)="$event.stopPropagation()"
-                >
-                  {{ entry.onlineSaleReference }}
-                </a>
+                @if (entry.onlineSaleId) {
+                  <a
+                    [routerLink]="['/app/sales/online', entry.onlineSaleId]"
+                    class="cor-table__link"
+                    (click)="$event.stopPropagation()"
+                  >
+                    {{ entry.onlineSaleReference }}
+                  </a>
+                } @else {
+                  <span class="cor-table__none" aria-label="Nessuna vendita online">—</span>
+                }
               </td>
               <td class="tabular-nums" data-label="Ordine">
-                <a
-                  [routerLink]="['/app/sales', entry.salesOrderId]"
-                  class="cor-table__link"
-                  (click)="$event.stopPropagation()"
-                >
-                  {{ entry.orderNumber }}
-                </a>
+                @if (entry.salesOrderId) {
+                  <a
+                    [routerLink]="['/app/sales', entry.salesOrderId]"
+                    class="cor-table__link"
+                    (click)="$event.stopPropagation()"
+                  >
+                    {{ entry.orderNumber }}
+                  </a>
+                } @else {
+                  <span class="cor-table__none" aria-label="Nessun ordine cliente">—</span>
+                }
               </td>
               <td data-label="Canale">{{ entry.channelLabel }}</td>
               <td class="cor-table__cell--num tabular-nums" data-label="Imponibile">

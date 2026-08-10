@@ -9,6 +9,90 @@ Aree non architetturali ma indispensabili per la qualità nel tempo di VestiFlow
 
 ---
 
+# ⛔ DATABASE — Due comandi VIETATI
+
+Il database di VestiFlow è **condiviso**, e la sua storia delle migration può essere più
+avanti del ramo su cui si sta lavorando: chi sta su un altro ramo applica le proprie
+migration allo stesso database. Non è un'ipotesi — è già successo, con sei migration
+presenti nel database e assenti in locale.
+
+Con le storie divergenti:
+
+- **`prisma migrate dev`** — **VIETATO**. Non applica e basta: propone di **azzerare il
+  database** per riallinearlo. Si perde il lavoro degli altri rami, e i dati.
+- **`prisma db push`** — **VIETATO**. Allinea il database allo schema locale, quindi
+  **cancella** le tabelle che il ramo corrente non conosce.
+- **`prisma migrate reset`** — **VIETATO**, fa quello che dice.
+
+Al loro posto, sempre e solo:
+
+| Devi…                           | Comando                     |
+| ------------------------------- | --------------------------- |
+| applicare le migration mancanti | `npm run prisma:deploy`     |
+| rigenerare il client            | `npm run prisma:generate`   |
+| vedere cosa manca               | `npx prisma migrate status` |
+
+Una **migration nuova** si scrive a mano, senza toccare il database: si modifica
+`prisma/schema.prisma`, si genera l'SQL con `prisma migrate diff`
+(`--from-schema-datasource` → `--to-schema-datamodel`, `--script`), lo si mette in
+`prisma/migrations/<AAAAMMGGhhmmss>_<nome>/migration.sql` **con un commento che dica
+perché**, e lo si applica con `npm run prisma:deploy`.
+
+`.claude/settings.json` blocca quei comandi via permessi, e `npm run prisma:migrate` è
+una guardia che spiega — ma **nessuna delle due ferma un terminale**, quindi la regola
+resta scritta qui.
+
+Se `prisma generate` dà `EPERM`: è il watcher dell'API che tiene bloccato il query
+engine. Fermare `npm run start:dev` e rilanciare.
+
+## Lo schema e la sua migration sono una coppia
+
+`prisma generate` da solo **rompe l'applicazione**. Il client rigenerato seleziona le
+colonne dello schema, e se una di quelle nel database non c'è ancora, ogni lettura di
+quella tabella va in 500 — anche le letture che con la colonna nuova non c'entrano
+niente, perché `include` prende tutti gli scalari.
+
+È già successo: colonna aggiunta allo schema, migration scritta ma non applicata «per
+prudenza, il database è condiviso», `generate` lanciato — e l'elenco ordini è andato giù.
+La prudenza ha prodotto lo stato peggiore dei due.
+
+Quindi: **o tutti e tre insieme — schema, migration, `npm run prisma:deploy` — oppure
+nessuno dei tre.** Non esiste una via di mezzo sicura. Se applicare non si può in quel
+momento, non si tocca nemmeno lo schema.
+
+---
+
+# ⛔ FORMATTAZIONE — Mai su un albero intero
+
+`lint-staged` copre `src/**` ed `e2e/**`, **non `api/**`**. Il backend è quindi fuori dal
+cancello di formattazione, e un `prettier --write` su quell'albero non «sistema qualche
+file»: **li riscrive tutti**. È già successo — 157 file riformattati, un commit da 177
+file in cui la modifica vera era invisibile.
+
+Il danno non è estetico. Sono conflitti fantasma con i rami degli altri su file che
+nessuno ha cambiato davvero, e una revisione impossibile da fare.
+
+- **VIETATO** `prettier --write` con un glob che copre una cartella (`api/**`, `**`, `.`).
+- Si formatta **solo quello che si è toccato**, file per file.
+- Sul frontend non serve nemmeno: ci pensa `lint-staged` al commit.
+
+`.claude/settings.json` blocca le forme più grossolane (`.`, `api`, `api/src`), ma **non
+può fare di più**: i permessi confrontano glob con il testo del comando, quindi un pattern
+su `api/**` bloccherebbe anche `prettier --write api/src/un-file.ts`, che è il caso giusto.
+Una guardia che impedisce il lavoro legittimo viene aggirata, non rispettata — per questo
+il divieto vero è quello scritto qui, e la soluzione vera è `lint-staged` (sotto).
+
+**Deciso e rimandato (08/2026): `api/**` entrerà in `lint-staged`, ma non adesso.** È la
+soluzione alla radice — ogni file API si formatterebbe quando lo si mette in staging, e
+nessuno avrebbe più motivo di lanciare Prettier in grande.
+
+Si aspetta che questo ramo sia **unito con quello della cassa**. Il motivo è pratico: una
+riformattazione di massa mentre due rami vanno in parallelo complica l'unione, ed è lo
+stesso danno che la regola vuole evitare — solo distribuito nel tempo invece che in un
+commit solo. Fino ad allora vale il divieto qui sopra.
+
+---
+
 # NODE & PACKAGE MANAGER
 
 - **Pinna la versione Node**: file `.nvmrc` (o `engines.node` in `package.json`) con la versione LTS attiva. Aggiorna almeno una volta all'anno alla nuova LTS.
@@ -109,6 +193,42 @@ npx lint-staged
 
 - Hook `commit-msg`: valida il messaggio con `@commitlint/cli` (vedi sezione Commit).
 - Hook `pre-push`: esegue `npm run test:everything` e `npm run build` per evitare push rotti.
+
+---
+
+# UNIONE DEI RAMI — chi prevale in caso di contesa
+
+Decisione del proprietario del progetto (08/2026): **in caso di conflitto prevale
+l'implementazione di `feature/listini`.** È il ramo che porta le decisioni di prodotto
+prese esplicitamente, e il criterio è deciso prima proprio per non doverlo discutere nel
+momento in cui il conflitto si presenta.
+
+In pratica:
+
+- si unisce **il ramo dell'altro dentro `feature/listini`**, stando su `feature/listini`:
+  così la parte che deve prevalere è già «ours»;
+- nei punti in conflitto vero — le stesse righe toccate da entrambi — si tiene la versione
+  di `feature/listini`, senza aprire una discussione.
+
+## Prevalere non è scartare, e la differenza è tutta qui
+
+**VIETATO `-X ours` alla cieca.** Quell'opzione risolve i conflitti _in silenzio_, e il
+silenzio è il difetto che questo progetto combatte ovunque — dai fallimenti del
+precompilato al tetto delle ripubblicazioni. Le modifiche dell'altro ramo **in punti
+diversi devono sopravvivere**: la regola arbitra le contese, non cancella il lavoro altrui.
+
+Due cose che nessuna strategia di merge risolve, e che vanno verificate a mano dopo:
+
+- **I conflitti che git non vede.** Una rinomina da una parte e una chiamata dall'altra non
+  producono conflitto testuale: il merge riesce e il codice si rompe. Li trovano solo
+  `tsc --noEmit` e i test, che vanno eseguiti **dopo** ogni merge, mai prima soltanto.
+- **Il database è uno solo e porta le migration di entrambi i rami.** Scartare il codice
+  dell'altro lasciando applicate le sue migration produce esattamente lo stato rotto
+  descritto sopra in «Lo schema e la sua migration sono una coppia». Se si scarta del
+  codice, va verificato cosa resta appeso nel database.
+
+Al termine di un merge con conflitti: **riportare cosa è stato scartato e perché**, invece
+di risolvere e passare oltre.
 
 ---
 

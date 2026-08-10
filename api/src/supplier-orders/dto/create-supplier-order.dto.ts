@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsInt,
   IsISO8601,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -32,16 +33,23 @@ export class CreateSupplierOrderLineDto {
   orderedQuantity!: number;
 
   /**
-   * Costo unitario digitato in unità minori intere (regole-gestionale: mai
-   * float), interpretato netto o ivato secondo costEntryMode di testata.
+   * Costo unitario digitato in unità minori, interpretato netto o ivato secondo
+   * costEntryMode di testata. NON è necessariamente intero: quando nasce da uno
+   * scorporo IVA porta una coda decimale — fino a 4 cifre di centesimo, quante
+   * ne tiene la colonna — ed è quella a far tornare il costo ivato digitato
+   * quando lo si rimostra ivato (§sei decimali).
    */
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   enteredUnitCostMinor!: number;
 
-  /** Sconto riga percentuale intero (0-100). */
+  /**
+   * Sconto riga a cascata già risolto in percentuale effettiva: «4+10%» arriva
+   * qui come 13,6, non come 14. I decimali non sono un vezzo — arrotondarli
+   * farebbe valere l'ordine registrato meno di quello che l'operatore ha letto.
+   */
   @IsOptional()
-  @IsInt()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   @Max(100)
   discountPercent?: number;

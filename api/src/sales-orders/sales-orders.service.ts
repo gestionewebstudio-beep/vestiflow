@@ -80,6 +80,9 @@ export class SalesOrdersService {
               fulfilledAt: true,
               inventoryStatus: true,
               refundedAt: true,
+              // Location di scarico: è la risposta alla colonna quando gli
+              // impegni non ci sono più. Non esce nella riga (vedi sotto).
+              location: { select: { name: true } },
               corrispettivo: { select: { id: true, reference: true, status: true } },
             },
           },
@@ -98,14 +101,30 @@ export class SalesOrdersService {
       this.prisma.salesOrder.count({ where }),
     ]);
 
-    const items: SalesOrderListRow[] = rows.map(({ reservations, customer, ...order }) => ({
+    const items: SalesOrderListRow[] = rows.map(({ reservations, customer, onlineSale, ...order }) => ({
       ...order,
       customer: customer ? { email: customer.party.email } : null,
+      // La location della vendita serve solo a rispondere alla colonna: si
+      // ricostruisce la riga senza, per non cambiare la forma della risposta.
+      onlineSale: onlineSale
+        ? {
+            id: onlineSale.id,
+            reference: onlineSale.reference,
+            fulfilledAt: onlineSale.fulfilledAt,
+            inventoryStatus: onlineSale.inventoryStatus,
+            refundedAt: onlineSale.refundedAt,
+            corrispettivo: onlineSale.corrispettivo,
+          }
+        : null,
       committedQuantity: reservations.reduce(
         (sum, reservation) => sum + reservation.remainingQuantity,
         0,
       ),
-      locationName: reservations[0]?.location.name ?? null,
+      // Da dove esce la merce. Finché l'ordine è aperto lo dice l'impegno
+      // attivo; quando è evaso l'impegno è consumato e risponde la vendita
+      // online. Su un ordine annullato non c'è nessun magazzino da cui sia
+      // uscito qualcosa: resta vuoto, ed è la verità.
+      locationName: reservations[0]?.location.name ?? onlineSale?.location?.name ?? null,
     }));
 
     return { items, total, page: query.page, pageSize: query.pageSize };

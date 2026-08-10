@@ -1,9 +1,10 @@
-import { provideRouter } from '@angular/router';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { AuthService } from '@core/auth';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppErrorKind } from '@core/models/app-error.model';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
@@ -60,8 +61,36 @@ function tableColumnPreferenceMock() {
   };
 }
 
+const VAT_22 = {
+  id: 'vat-22',
+  code: '22',
+  description: 'Aliquota ordinaria',
+  ratePercent: 22,
+  nonDeductiblePercent: 0,
+  calculationMode: 'standard',
+  vatAffectsSupplierTotal: true,
+  isActive: true,
+  isDefault: true,
+  usageScope: 'both',
+};
+
 describe('SupplierOrderFormComponent', () => {
-  async function setup(options?: { createFails?: boolean }) {
+  // jsdom non implementa <dialog>: senza questo, aprire il dialogo di sblocco
+  // esplode con «showModal is not a function». È un limite dell'ambiente di
+  // prova, non del componente.
+  beforeAll(() => {
+    const proto = globalThis.HTMLDialogElement?.prototype;
+    if (proto && !proto.showModal) {
+      proto.showModal = function showModal(this: HTMLDialogElement) {
+        this.open = true;
+      };
+      proto.close = function close(this: HTMLDialogElement) {
+        this.open = false;
+      };
+    }
+  });
+
+  async function setup(options?: { createFails?: boolean; vatCodes?: readonly unknown[] }) {
     const createOrder = options?.createFails
       ? vi.fn(() =>
           throwError(() => ({
@@ -109,7 +138,7 @@ describe('SupplierOrderFormComponent', () => {
         },
         {
           provide: VatCodeService,
-          useValue: { list: () => of([]) },
+          useValue: { list: () => of(options?.vatCodes ?? []) },
         },
         {
           provide: PaymentOptionsService,
@@ -218,5 +247,236 @@ describe('SupplierOrderFormComponent', () => {
       }),
     );
     expect(await screen.findByRole('alert')).toHaveTextContent('Errore del server');
+  });
+
+  // ── Il ciclo del blocco su un ordine già registrato ────────────────────────
+  //
+  // Apre protetto → si sblocca → si modifica → si salva → torna protetto, senza
+  // mai uscire dal documento. È il giro che a mano sembrava a posto due volte
+  // mentre non lo era: la prima perché il blocco non si agganciava, la seconda
+  // perché non si richiudeva mai dopo il primo sblocco.
+  async function setupEdit() {
+    const updateOrder = vi.fn(() => of({ id: 'po-1', status: SupplierOrderStatus.Confirmed }));
+    const ordine = {
+      id: 'po-1',
+      reference: 'OF-2026-0001',
+      supplierId: 'sup-1',
+      supplierName: 'Tessuti Italia',
+      status: SupplierOrderStatus.Confirmed,
+      currency: 'EUR',
+      costEntryMode: 'vat_excluded' as const,
+      orderDate: '2026-08-01T00:00:00.000Z',
+      lines: [
+        {
+          id: 'l-1',
+          variantId: 'var-1',
+          sku: 'MAG-M-ROSSO',
+          description: 'Maglietta',
+          orderedQuantity: 2,
+          receivedQuantity: 0,
+          unitCost: { amountMinor: 1250, currencyCode: 'EUR' as const },
+          enteredUnitCost: { amountMinor: 1250, currencyCode: 'EUR' as const },
+          discountPercent: 0,
+          lineTotal: { amountMinor: 2500, currencyCode: 'EUR' as const },
+        },
+      ],
+      subtotal: { amountMinor: 2500, currencyCode: 'EUR' as const },
+      tax: { amountMinor: 0, currencyCode: 'EUR' as const },
+      totalAmount: { amountMinor: 2500, currencyCode: 'EUR' as const },
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+
+    await render(SupplierOrderFormComponent, {
+      providers: [
+        { provide: AuthService, useValue: { currentUser: () => null } },
+        provideRouter([{ path: '**', children: [] }]),
+        // Rotta /:id/edit: è l'id a far entrare la maschera in modifica.
+        {
+          provide: ActivatedRoute,
+          useValue: { paramMap: of(convertToParamMap({ id: 'po-1' })) },
+        },
+        {
+          provide: SupplierService,
+          useValue: { getSuppliers: () => of(SUPPLIERS), createSupplier: vi.fn() },
+        },
+        { provide: ProductService, useValue: { searchVariantSummaries: () => of(VARIANTS) } },
+        {
+          provide: SupplierOrderService,
+          useValue: {
+            getSupplierOrderById: () => of(ordine),
+            updateOrder,
+            createOrder: vi.fn(),
+            getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
+          },
+        },
+        { provide: DocumentService, useValue: { getPriceModePreference: () => of(false) } },
+        { provide: TableColumnPreferenceService, useValue: tableColumnPreferenceMock() },
+        { provide: VatCodeService, useValue: { list: () => of([]) } },
+        { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+      ],
+    });
+
+    return { updateOrder };
+  }
+
+  it('un ordine registrato si apre protetto', async () => {
+    await setupEdit();
+
+    expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
+    // Protetto = form disabilitato: non si digita a vuoto.
+    expect(screen.getByRole('spinbutton')).toBeDisabled();
+  });
+
+  // TODO(blocco documenti): manca il resto del giro — sblocca, modifica, salva,
+  // torna protetto. Il test è stato scritto e NON passa nell'ambiente di prova:
+  // il dialogo di sblocco usa <dialog>, che jsdom non implementa, e il polyfill
+  // qui sopra non basta a farlo arrivare in fondo. Va ripreso decidendo se
+  // pilotare il dialogo o esercitare direttamente confirmUnlockEdit(): è la
+  // verifica che manca, e va fatta prima di migrare Arrivo merce e Ordine
+  // cliente, che hanno lo stesso giro.
+
+  // ── Salvare non è uscire ───────────────────────────────────────────────────
+  //
+  // Dopo il primo salvataggio si RESTA nel documento: cambia solo l'URL, da
+  // /new a /:id/edit, così un ricaricamento non perde il documento e un secondo
+  // salvataggio aggiorna invece di crearne un altro. Prima portava al dettaglio
+  // in sola lettura, cioè buttava fuori l'operatore da quello che stava
+  // scrivendo — ed è lo stesso pattern dell'Ordine cliente.
+  it('dopo il salvataggio resta nel documento, su /:id/edit', async () => {
+    const user = userEvent.setup();
+    await setup({ vatCodes: [VAT_22] });
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+
+    await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+    await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+
+    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
+    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
+    await user.click(
+      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+    );
+
+    const cost = screen.getByPlaceholderText('0,00');
+    await user.clear(cost);
+    await user.type(cost, '12,50');
+
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+
+    expect(navigate).toHaveBeenCalledWith(
+      ['/app/orders', 'po-1', 'edit'],
+      expect.objectContaining({ replaceUrl: true }),
+    );
+  });
+
+  // ── Il salvataggio non fallisce mai in silenzio ────────────────────────────
+  //
+  // Il pulsante marcava i campi e usciva zitto quando il form era invalido:
+  // all'operatore non succedeva letteralmente NULLA. E con le colonne che
+  // scorrono in orizzontale il campo incriminato può stare fuori schermo,
+  // quindi non c'era nemmeno modo di capire da soli cosa mancasse.
+  it('dice cosa manca invece di non fare nulla, e nomina la riga', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup();
+
+    await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+    await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+
+    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
+    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
+    await user.click(
+      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+    );
+
+    // L'articolo di prova non ha costo d'anagrafica: la riga resta senza costo.
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Riga 1');
+    expect(screen.getByRole('alert')).toHaveTextContent('costo');
+    expect(createOrder).not.toHaveBeenCalled();
+  });
+
+  it('senza fornitore lo dice, invece di restare muto', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup();
+
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('fornitore');
+    expect(createOrder).not.toHaveBeenCalled();
+  });
+
+  // ── Il selettore netto/ivato cambia la VISTA, non il valore ────────────────
+  //
+  // Prima non convertiva affatto: cambiava il significato del numero senza
+  // cambiare il numero. Lo stesso «5,02» passava da lordo a netto e l'ordine
+  // valeva d'improvviso il 22% in meno, senza che nulla si muovesse a schermo.
+  //
+  // La correzione non è «convertire il valore mostrato» — quella perde il
+  // centesimo nel 18% dei costi al 22%. È tenere il netto canonico in memoria e
+  // ridisegnare il campo: passando avanti e indietro il numero non si muove
+  // perché non viene mai ricostruito da ciò che si vede.
+  async function switchCostMode(user: ReturnType<typeof userEvent.setup>, label: string) {
+    await user.click(screen.getByRole('button', { name: 'Modalità costi del documento' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: label }));
+  }
+
+  it('il giro ivato → netto → ivato rimette lo stesso costo ivato', async () => {
+    const user = userEvent.setup();
+    await setup({ vatCodes: [VAT_22] });
+
+    // Serve un articolo sulla riga: è il richiamo a portarle il Codice IVA, e
+    // senza aliquota non c'è nessuno scorporo da fare.
+    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
+    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
+    await user.click(
+      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+    );
+
+    await switchCostMode(user, 'Usa costi ivati');
+
+    const cost = screen.getByPlaceholderText('0,00');
+    await user.clear(cost);
+    // 5,02 al 22% è uno dei costi che il giro arrotondato perdeva: il netto
+    // vale 411,4754 centesimi, e chi lo arrotondava a 411 tornava a 5,01.
+    await user.type(cost, '5,02');
+
+    await switchCostMode(user, 'Usa costi netti');
+    expect(cost).toHaveValue('4,11');
+
+    await switchCostMode(user, 'Usa costi ivati');
+    expect(cost).toHaveValue('5,02');
+  });
+
+  it('al salvataggio manda il costo esatto, non i due decimali che si leggono', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup({ vatCodes: [VAT_22] });
+
+    await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+    await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+
+    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
+    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
+    await user.click(
+      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+    );
+
+    await switchCostMode(user, 'Usa costi ivati');
+    const cost = screen.getByPlaceholderText('0,00');
+    await user.clear(cost);
+    await user.type(cost, '5,02');
+
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+
+    // Il valore parte esatto: è il server a rifare lo scorporo e a ottenere lo
+    // stesso netto. Mandare «502» arrotondato funzionerebbe qui e si romperebbe
+    // appena l'operatore passa a netto prima di salvare.
+    expect(createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        costEntryMode: 'vat_included',
+        lines: [expect.objectContaining({ enteredUnitCostMinor: 502 })],
+      }),
+    );
   });
 });

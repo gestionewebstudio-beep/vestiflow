@@ -87,10 +87,15 @@ export interface CorrispettivoEntryRow {
   readonly reference: string;
   readonly channel: string;
   readonly channelLabel: string;
-  readonly onlineSaleId: EntityId;
-  readonly onlineSaleReference: string;
-  readonly salesOrderId: EntityId;
-  readonly orderNumber: string;
+  /**
+   * Nulli quando il corrispettivo viene dalla **cassa**: uno scontrino non ha una vendita
+   * online né un ordine cliente, ed è il caso normale di quel canale — non un dato
+   * mancante. `channelLabel` per quelle righe dice «Cassa», ed è lì che si legge il perché.
+   */
+  readonly onlineSaleId: EntityId | null;
+  readonly onlineSaleReference: string | null;
+  readonly salesOrderId: EntityId | null;
+  readonly orderNumber: string | null;
   readonly operationalDate: IsoDateString;
   readonly fiscalDate: IsoDateString;
   readonly subtotalMinor: number;

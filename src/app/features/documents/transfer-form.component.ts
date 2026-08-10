@@ -38,6 +38,8 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
@@ -65,7 +67,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
+import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { documentReferenceLabel } from '@domain/documents/models/document-labels.util';
@@ -96,6 +98,7 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
   selector: 'app-transfer-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,
     ButtonComponent,
@@ -173,7 +176,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (doc) => this.applyDuplicatePrefill(doc),
-        error: () => undefined,
+        error: () => this.prefillError.fail('duplicate'),
       });
   }
 
@@ -265,6 +268,8 @@ export class TransferFormComponent implements CanComponentDeactivate {
   // Avviso «numero già assegnato»: la macchina a stati vive in domain, qui
   // resta solo quale controllo della testata riceve il numero aggiornato.
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
+  protected readonly prefillError = new DocumentPrefillErrorStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
 
@@ -397,7 +402,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
             }
             this.loadedDocument.set(doc);
             // Confermato → si riapre bloccato (salvo sblocco già dato in sessione).
-            this.editLock.syncOnLoad(doc.id, confirmedEditable);
+            this.editLock.syncOnLoad(doc.id);
             this.patchFormFromDocument(doc);
             return 'ready' as const;
           }),

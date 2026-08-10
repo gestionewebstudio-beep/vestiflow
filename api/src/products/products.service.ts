@@ -885,8 +885,31 @@ export class ProductsService {
       }
     }
 
+    // Codice fornitore: quando si ordina, il fornitore manda il suo listino con
+    // i SUOI codici, e quello è il codice che si ha sotto gli occhi mentre si
+    // compila. È una chiave di ricerca come le altre, non un dato da guardare.
+    //
+    // Ultimo della catena e solo se non è ambiguo: lo stesso codice può essere
+    // usato da fornitori diversi per articoli diversi, e in quel caso la scelta
+    // resta alla ricerca contestuale invece di indovinare.
     if (!variant) {
-      throw new NotFoundException('Variante non trovata per SKU, barcode o codice articolo');
+      const bySupplierSku = await this.prisma.productVariant.findMany({
+        where: {
+          tenantId,
+          supplierLinks: { some: { supplierSku: { equals: trimmed, mode: 'insensitive' } } },
+        },
+        include: { product: { select: { id: true, name: true, managesStock: true } } },
+        take: 2,
+      });
+      if (bySupplierSku.length === 1) {
+        variant = bySupplierSku[0]!;
+      }
+    }
+
+    if (!variant) {
+      throw new NotFoundException(
+        'Variante non trovata per SKU, barcode, codice articolo o codice fornitore',
+      );
     }
 
     return {

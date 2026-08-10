@@ -216,12 +216,10 @@ export class SalesOrderListComponent {
   protected readonly customerOptions = toSignal(
     this.customerService.getCustomers({ page: 1, pageSize: 100 }).pipe(
       map((response) =>
-        response.data.map(
-          (customer): SelectMenuOption => ({
-            value: customer.id,
-            label: customerDisplayName(customer),
-          }),
-        ),
+        response.data.map((customer): SelectMenuOption => ({
+          value: customer.id,
+          label: customerDisplayName(customer),
+        })),
       ),
       catchError(() => of([] as readonly SelectMenuOption[])),
     ),
@@ -337,13 +335,11 @@ export class SalesOrderListComponent {
     toObservable(this.request).pipe(
       switchMap(({ query }) =>
         this.service.getSalesOrders(query).pipe(
-          map(
-            (response): SalesListState => ({
-              status: 'success',
-              orders: response.data,
-              meta: response.meta,
-            }),
-          ),
+          map((response): SalesListState => ({
+            status: 'success',
+            orders: response.data,
+            meta: response.meta,
+          })),
           startWith<SalesListState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<SalesListState>({ status: 'error', error: this.toAppError(err) }),
@@ -431,9 +427,20 @@ export class SalesOrderListComponent {
   protected readonly selectedOrders = computed(() =>
     this.orders().filter((order) => this.selectedIds().has(order.id)),
   );
-  /** Solo gli ordini manuali sono eliminabili in massa (i non manuali no). */
+  /**
+   * Eliminabili in massa: i manuali, e gli ordini di canale che su Shopify non
+   * risultano più — gli unici non manuali per cui la rimozione ha senso, visto
+   * che non c'è più niente da cui il prossimo scarico possa riportarli.
+   */
   protected readonly deletableSelectedOrders = computed(() =>
-    this.selectedOrders().filter((order) => order.source === SalesOrderSource.Manual),
+    this.selectedOrders().filter(
+      (order) => order.source === SalesOrderSource.Manual || order.channelMissingSince,
+    ),
+  );
+
+  /** Fra quelli in coda di eliminazione, gli ordini spariti dal canale. */
+  private readonly pendingMissingOnChannel = computed(
+    () => this.pendingDeleteOrders().filter((order) => order.channelMissingSince).length,
   );
   protected readonly pendingDeleteOrders = signal<readonly SalesOrder[]>([]);
   protected readonly deleteWarnOpen = signal(false);
@@ -450,9 +457,22 @@ export class SalesOrderListComponent {
 
   protected readonly deleteWarnMessage = computed(() => {
     const count = this.pendingDeleteOrders().length;
-    return count === 1
-      ? "L'ordine verrà eliminato e gli impegni di magazzino rilasciati (la disponibilità torna libera)."
-      : `I ${count} ordini selezionati verranno eliminati e i relativi impegni di magazzino rilasciati.`;
+    const base =
+      count === 1
+        ? "L'ordine verrà eliminato e gli impegni di magazzino rilasciati (la disponibilità torna libera)."
+        : `I ${count} ordini selezionati verranno eliminati e i relativi impegni di magazzino rilasciati.`;
+    // Sugli ordini spariti dal canale l'avviso dice solo quello che è sempre
+    // vero: qui spariscono, su Shopify non li tocchiamo. Non che «restano su
+    // Shopify», perché sono stati proprio cancellati là.
+    const missing = this.pendingMissingOnChannel();
+    if (missing === 0) {
+      return base;
+    }
+    if (missing === 1 && count === 1) {
+      return `${base} Questo ordine arriva da un canale esterno e su Shopify non risulta più: eliminandolo sparisce da VestiFlow, e su Shopify non viene toccato niente.`;
+    }
+    const quanti = missing === count ? 'Questi ordini arrivano' : `${missing} di questi arrivano`;
+    return `${base} ${quanti} da un canale esterno e su Shopify non risultano più: eliminandoli spariscono da VestiFlow, e su Shopify non viene toccato niente.`;
   });
 
   // ── Duplica (con scelta cliente) + avviso «canale esterno» per i non manuali ──

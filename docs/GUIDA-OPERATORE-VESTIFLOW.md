@@ -363,7 +363,7 @@ Per `admin`, `manager`, `clerk` valgono chiavi `TenantPermission` (FE: `tenant-p
 | Operazione           | Permesso                  |
 | -------------------- | ------------------------- |
 | Import/sync catalogo | `catalog.import_export`   |
-| Sync giacenze        | `inventory.import_export` |
+| Riallinea giacenze   | `inventory.import_export` |
 | Sync vendite/clienti | `reports.export`          |
 
 Route Angular sensibili: `tenantPermissionGuard` (sostituisce il vecchio guard solo-ruolo dove applicabile).
@@ -544,6 +544,16 @@ Popolati al provisioning admin (`create-client`). UI: `tenant-client-card` in Im
 ### Webhook
 
 Registrati con **Attiva aggiornamenti automatici**. Idempotenza lato backend per eventi duplicati/out-of-order.
+
+**La registrazione punta all'indirizzo dell'ambiente da cui parte la chiamata** (`SHOPIFY_APP_URL`), non a quello del negozio. Da un ambiente locale l'operazione è **rifiutata**: creerebbe sottoscrizioni verso `localhost` sul negozio reale, e la deduplica di Shopify confronta gli indirizzi per uguaglianza esatta, quindi si sommerebbero a quelle buone invece di sostituirle. Chi sviluppa con un tunnel pubblico in HTTPS (ngrok, cloudflared) passa: il criterio esclude ciò che non è un riferimento raggiungibile, non ciò che è insolito.
+
+**La connessione salva l'elenco dei topic, non il conteggio**, insieme all'indirizzo e alla data dell'osservazione. Il conteggio da solo non permetteva di accorgersi che un topic aggiunto al codice non fosse mai stato registrato sui negozi già collegati — la registrazione avviene solo all'OAuth o su richiesta esplicita, mai da sola.
+
+**«Verifica ora»** interroga `GET /webhooks.json` e confronta con i topic attesi. È **sola lettura verso Shopify**: il servizio che la esegue non ha fra le dipendenze niente in grado di registrare o cancellare, quindi non è una convenzione ma un vincolo. Scrive l'osservazione in locale, con la sua data.
+
+**«Registra le notifiche mancanti»** usa l'operazione **additiva** — salta i presenti, aggiunge i mancanti, non cancella niente — e restituisce il referto della **rilettura**, non l'esito della scrittura: la registrazione riporta cosa crede di aver fatto, la verifica riporta cosa c'è, e in caso di divergenza vale la seconda.
+
+**`lastWebhookEventAt` è distinto da `lastSyncAt`.** Il secondo ha sette scrittori, sei dei quali sono sincronizzazioni manuali: una data che si muove sia per un evento in arrivo sia perché qualcuno ha premuto un pulsante non distingue nulla. Il campo nuovo registra **solo gli eventi accolti** — non quelli scartati perché la sincronizzazione è spenta o perché il topic non è fra quelli gestiti — e si aggiorna al massimo una volta al minuto, per non mettere in contesa la stessa riga durante le raffiche di giacenze.
 
 ### Limiti Shopify Admin API — concetto
 

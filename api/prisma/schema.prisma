@@ -178,6 +178,11 @@ enum SalesOrderSource {
   shopify_online
   shopify_pos
   manual
+  /// Vendita al banco: la cassa di VestiFlow. Il database lo conosce dal 06/08 (ramo
+  /// cassa) e ci sono gia' righe che lo usano; dichiararlo qui allinea il client a cio'
+  /// che il database e' — nessuna migration. Un corrispettivo con questo canale non ha
+  /// vendita online ne' ordine cliente, ed e' normale che sia cosi'. Registro 1.8.
+  store
 }
 
 /// Stato fiscale corrispettivi per il commercialista (§8 piano funzionale).
@@ -1042,11 +1047,14 @@ model SupplierOrderLine {
   orderedQuantity  Int    @map("ordered_quantity")
   receivedQuantity Int    @default(0) @map("received_quantity")
   /// Costo unitario NETTO canonico in unità minori (riferimento fornitore).
-  unitCostMinor    Int    @map("unit_cost_minor")
+  /// Porta la coda decimale dello scorporo IVA (§sei decimali): è quella a far
+  /// tornare identico il costo ivato digitato quando lo si rimostra ivato.
+  unitCostMinor    Decimal @map("unit_cost_minor") @db.Decimal(16, 6)
   /// Costo digitato dall'utente, nella modalità costEntryMode della testata.
-  enteredUnitCostMinor Int? @map("entered_unit_cost_minor")
-  /// Sconto riga percentuale intero (come DocumentLine.discountPercent).
-  discountPercent  Int    @default(0) @map("discount_percent")
+  enteredUnitCostMinor Decimal? @map("entered_unit_cost_minor") @db.Decimal(16, 6)
+  /// Sconto riga a cascata (come DocumentLine.discountPercent): «4+10%» vale
+  /// 13,6% e non 14 — i decimali servono a non arrotondarlo al salvataggio.
+  discountPercent  Decimal @default(0) @map("discount_percent") @db.Decimal(7, 4)
   vatCodeId        String? @map("vat_code_id") @db.Uuid
   /// Snapshot Codice IVA (stesso formato di DocumentLine.vatSnapshot).
   vatSnapshot      Json?  @map("vat_snapshot")
@@ -1183,6 +1191,11 @@ model SalesOrder {
   /// Evasione parziale o anomalia: fase 1 non la gestisce, richiede verifica (§7).
   requiresReview    Boolean                     @default(false) @map("requires_review")
   reviewReason      String?                     @map("review_reason")
+  /// Quando la riconciliazione ha visto che l'ordine non risulta più sul canale
+  /// (cancellato su Shopify). È un'OSSERVAZIONE, non un'azione: VestiFlow non
+  /// cancella niente da solo, la rimozione resta una scelta dell'operatore.
+  /// Torna null se l'ordine ricompare, perché l'informazione sarebbe scaduta.
+  channelMissingSince DateTime?                 @map("channel_missing_since")
   createdAt         DateTime                    @default(now()) @map("created_at")
   updatedAt         DateTime                    @updatedAt @map("updated_at")
 
@@ -1482,8 +1495,13 @@ model CorrispettivoEntry {
   year                Int
   /// Riferimento leggibile (es. 'COR-2026-0001').
   reference           String
-  onlineSaleId        String              @unique @map("online_sale_id") @db.Uuid
-  salesOrderId        String              @map("sales_order_id") @db.Uuid
+  /// Opzionali perche' un corrispettivo puo' nascere dalla CASSA, e uno scontrino non ha
+  /// ne' una vendita online ne' un ordine cliente: e' il caso normale di quel canale, non
+  /// un'eccezione. Il database le ha nullabili dal 06/08 (migration del ramo cassa) — qui
+  /// la dichiarazione si allinea a cio' che il database gia' e', quindi NON serve nessuna
+  /// migration. Vedi registro difetti 1.8.
+  onlineSaleId        String?             @unique @map("online_sale_id") @db.Uuid
+  salesOrderId        String?             @map("sales_order_id") @db.Uuid
   channel             SalesOrderSource
   /// Data operativa (evasione).
   operationalDate     DateTime            @map("operational_date")
@@ -1506,7 +1524,7 @@ model CorrispettivoEntry {
   updatedAt           DateTime            @updatedAt @map("updated_at")
 
   tenant     Tenant                   @relation(fields: [tenantId], references: [id])
-  onlineSale OnlineSale               @relation(fields: [onlineSaleId], references: [id], onDelete: Restrict)
+  onlineSale OnlineSale?              @relation(fields: [onlineSaleId], references: [id], onDelete: Restrict)
   lines      CorrispettivoEntryLine[]
 
   @@unique([tenantId, series, year, number])
@@ -1563,7 +1581,23 @@ model ShopifyConnection {
   lastConnectedAt     DateTime?               @map("last_connected_at")
   lastSyncAt          DateTime?               @map("last_sync_at")
   webhooksActivatedAt DateTime?               @map("webhooks_activated_at")
+  /// Derivata da webhookTopics (un solo scrittore). Si elimina dopo l'unione dei rami:
+  /// il database e' condiviso e il client Prisma dell'altro ramo la seleziona ancora.
   webhooksActiveCount Int?                    @map("webhooks_active_count")
+  /// Indirizzo a cui le sottoscrizioni risultano registrate. La deduplica Shopify
+  /// confronta per uguaglianza esatta: un indirizzo diverso da quello configurato
+  /// significa sottoscrizioni che consegnano altrove, e nessuno se ne accorgerebbe.
+  webhookAddress      String?                 @map("webhook_address")
+  /// QUALI topic, non quanti. Vuoto = «non lo sappiamo», MAI «zero attivi»:
+  /// la distinzione deve arrivare fino alla UI.
+  webhookTopics       String[]                @default([]) @map("webhook_topics")
+  /// Quando l'elenco qui sopra e' stato osservato (registrazione o «Verifica ora»).
+  /// Un'osservazione senza data non si sa quando era vera.
+  webhooksCheckedAt   DateTime?               @map("webhooks_checked_at")
+  /// Ultimo evento webhook verificato RICEVUTO da Shopify. Mai su lastSyncAt, che ha
+  /// sette scrittori di cui sei manuali: non potrebbe distinguere un bottone premuto
+  /// dall'operatore da un evento in arrivo.
+  lastWebhookEventAt  DateTime?               @map("last_webhook_event_at")
   /// Webhook Shopify attivi: ordini, clienti, prodotti e giacenze in tempo reale.
   autoSyncEnabled     Boolean                 @default(false) @map("auto_sync_enabled")
   lastErrorMessage    String?                 @map("last_error_message")

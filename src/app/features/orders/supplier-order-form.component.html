@@ -226,6 +226,13 @@
         </div>
       }
 
+      <!-- Blocco alla riapertura: un ordine già registrato si apre protetto,
+           come ogni altro documento del gestionale. Stesso componente delle
+           altre maschere — il banner non si riscrive per feature. -->
+      @if (formReadOnly()) {
+        <app-edit-lock-banner (unlock)="requestUnlockEdit()" />
+      }
+
       <section class="doc-form__lines" aria-labelledby="po-lines-title">
         <div class="doc-form__lines-head">
           <h2 id="po-lines-title" class="doc-form__subtitle">Righe ordine</h2>
@@ -404,29 +411,16 @@
                     <span appTableColumnResize (resized)="onLineColumnResize('vat', $event)"></span>
                   </th>
                 }
-                @if (isLineColumnVisible('sellingPrice')) {
+                @if (isLineColumnVisible('discountedCost')) {
                   <th
                     scope="col"
-                    class="doc-form__col--sale doc-form__col--sep doc-form__num"
-                    [style.width]="lineColumnWidth('sellingPrice')"
+                    class="doc-form__col--calc doc-form__num"
+                    [style.width]="lineColumnWidth('discountedCost')"
                   >
-                    Prezzo al pubblico
+                    Costo scontato
                     <span
                       appTableColumnResize
-                      (resized)="onLineColumnResize('sellingPrice', $event)"
-                    ></span>
-                  </th>
-                }
-                @if (isLineColumnVisible('compareAtPrice')) {
-                  <th
-                    scope="col"
-                    class="doc-form__col--sale doc-form__num"
-                    [style.width]="lineColumnWidth('compareAtPrice')"
-                  >
-                    Prezzo barrato
-                    <span
-                      appTableColumnResize
-                      (resized)="onLineColumnResize('compareAtPrice', $event)"
+                      (resized)="onLineColumnResize('discountedCost', $event)"
                     ></span>
                   </th>
                 }
@@ -473,26 +467,85 @@
               </tr>
             </thead>
             <tbody formArrayName="lines">
-              @for (line of lines.controls; track line; let i = $index) {
+              <!-- track per POSIZIONE, non per identità: la FormArray viene
+                   svuotata e ricostruita a ogni caricamento del documento, e con
+                   `track line` Angular vedeva ogni volta una collezione tutta
+                   nuova — NG0956, con distruzione e ricreazione dell'intera
+                   tabella. In una FormArray la posizione È l'identità della
+                   riga, e queste righe non si riordinano. -->
+              @for (line of lines.controls; track $index; let i = $index) {
                 <tr class="doc-form__table-row" [formGroupName]="i">
+                  <!-- Le quattro chiavi di ricerca: si digitano per trovare
+                       l'articolo, e restano il dato che finisce in anagrafica se
+                       l'articolo va creato. Invio cerca, Tab attraversa. -->
                   @if (isLineColumnVisible('articleCode')) {
-                    <td class="doc-form__cell tabular-nums" data-label="Cod. articolo">
-                      {{ lineDisplay(i, 'articleCode') }}
+                    <td class="doc-form__cell doc-form__cell--code" data-label="Cod. articolo">
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'po-code-' + i"
+                        ariaLabel="Codice articolo"
+                        placeholder="Cerca codice"
+                        [value]="line.controls.articleCode.value"
+                        [linked]="lineHasLinkedProduct(i)"
+                        [linkedValue]="line.controls.articleCode.value"
+                        (valueChange)="onLineCodeChange(i, 'articleCode', $event)"
+                        (commit)="commitCodeLookup(i, 'articleCode')"
+                        (lineRetreat)="focusPreviousLineField(i, 'articleCode')"
+                        (lineRowAdvance)="advanceToNextLine(i)"
+                      />
                     </td>
                   }
                   @if (isLineColumnVisible('sku')) {
-                    <td class="doc-form__cell tabular-nums" data-label="SKU">
-                      {{ lineDisplay(i, 'sku') }}
+                    <td class="doc-form__cell doc-form__cell--code" data-label="SKU">
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'po-sku-' + i"
+                        ariaLabel="SKU"
+                        placeholder="Cerca SKU"
+                        [value]="line.controls.sku.value"
+                        [linked]="lineHasLinkedProduct(i)"
+                        [linkedValue]="line.controls.sku.value"
+                        (valueChange)="onLineCodeChange(i, 'sku', $event)"
+                        (commit)="commitCodeLookup(i, 'sku')"
+                        (lineRetreat)="focusPreviousLineField(i, 'sku')"
+                        (lineRowAdvance)="advanceToNextLine(i)"
+                      />
                     </td>
                   }
                   @if (isLineColumnVisible('barcode')) {
-                    <td class="doc-form__cell tabular-nums" data-label="EAN">
-                      {{ lineDisplay(i, 'barcode') }}
+                    <td class="doc-form__cell doc-form__cell--code" data-label="EAN">
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'po-barcode-' + i"
+                        ariaLabel="EAN"
+                        placeholder="Scansiona EAN"
+                        [value]="line.controls.barcode.value"
+                        [linked]="lineHasLinkedProduct(i)"
+                        [linkedValue]="line.controls.barcode.value"
+                        (valueChange)="onLineCodeChange(i, 'barcode', $event)"
+                        (commit)="commitCodeLookup(i, 'barcode')"
+                        (lineRetreat)="focusPreviousLineField(i, 'barcode')"
+                        (lineRowAdvance)="advanceToNextLine(i)"
+                      />
                     </td>
                   }
                   @if (isLineColumnVisible('supplierCode')) {
-                    <td class="doc-form__cell tabular-nums" data-label="Cod. fornitore">
-                      {{ lineDisplay(i, 'supplierSku') }}
+                    <!-- Il fornitore manda il suo listino con i SUOI codici:
+                         qui si digita quello che si ha sotto gli occhi. -->
+                    <td class="doc-form__cell doc-form__cell--code" data-label="Cod. fornitore">
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'po-suppcode-' + i"
+                        ariaLabel="Codice fornitore"
+                        placeholder="Cerca cod. forn."
+                        [value]="line.controls.supplierCode.value"
+                        [linked]="lineHasLinkedProduct(i)"
+                        [linkedValue]="line.controls.supplierCode.value"
+                        (valueChange)="onLineCodeChange(i, 'supplierCode', $event)"
+                        (commit)="commitCodeLookup(i, 'supplierCode')"
+                        (lineRetreat)="focusPreviousLineField(i, 'supplierCode')"
+                        (lineRowAdvance)="advanceToNextLine(i)"
+                      />
                     </td>
                   }
                   @if (isLineColumnVisible('product')) {
@@ -540,6 +593,7 @@
                         min="1"
                         step="1"
                         formControlName="orderedQuantity"
+                        (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
                         [attr.aria-invalid]="lineFieldInvalid(i, 'orderedQuantity')"
                       />
                       @if (lineFieldInvalid(i, 'orderedQuantity')) {
@@ -548,8 +602,18 @@
                     </td>
                   }
                   @if (isLineColumnVisible('unitOfMeasure')) {
+                    <!-- Editabile: quando l'articolo esiste mostra il suo dato,
+                         quando lo si sta creando È il dato che va in anagrafica. -->
                     <td class="doc-form__col--stock doc-form__cell" data-label="U.m.">
-                      {{ lineDisplay(i, 'unitOfMeasure') }}
+                      <input
+                        [id]="'po-uom-' + i"
+                        class="doc-form__input doc-form__input--table"
+                        type="text"
+                        maxlength="8"
+                        formControlName="unitOfMeasure"
+                        placeholder="pz"
+                        aria-label="Unità di misura"
+                      />
                     </td>
                   }
                   @if (isLineColumnVisible('unitCost')) {
@@ -557,6 +621,10 @@
                       class="doc-form__col--calc doc-form__col--sep doc-form__cell doc-form__num"
                       [attr.data-label]="costModeLabel()"
                     >
+                      <!-- Il campo è una VISTA sul netto canonico: quello che si
+                           digita qui aggiorna il netto, e il selettore
+                           netto/ivato ridisegna il campo senza mai ricostruire
+                           il netto da ciò che si vede. -->
                       <input
                         [id]="'po-cost-' + i"
                         class="doc-form__input doc-form__input--table doc-form__input--num"
@@ -564,6 +632,8 @@
                         inputmode="decimal"
                         formControlName="unitCost"
                         placeholder="0,00"
+                        (input)="onUnitCostInput(i, $any($event.target).value)"
+                        (keydown)="onLineFieldKeydown(i, 'unitCost', $event)"
                         [attr.aria-invalid]="unitCostInvalid(i)"
                       />
                       @if (unitCostInvalid(i)) {
@@ -603,20 +673,12 @@
                       />
                     </td>
                   }
-                  @if (isLineColumnVisible('sellingPrice')) {
+                  @if (isLineColumnVisible('discountedCost')) {
                     <td
-                      class="doc-form__col--sale doc-form__col--sep doc-form__cell doc-form__num tabular-nums"
-                      data-label="Prezzo al pubblico"
+                      class="doc-form__col--calc doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums"
+                      [attr.data-label]="'Costo scontato'"
                     >
-                      {{ linePrice(i, 'sellingPrice') }}
-                    </td>
-                  }
-                  @if (isLineColumnVisible('compareAtPrice')) {
-                    <td
-                      class="doc-form__col--sale doc-form__cell doc-form__num tabular-nums"
-                      data-label="Prezzo barrato"
-                    >
-                      {{ linePrice(i, 'compareAtPrice') }}
+                      {{ lineDiscountedCost(i) }}
                     </td>
                   }
                   @if (isLineColumnVisible('stockOnHand')) {
@@ -784,3 +846,12 @@
     />
   }
 </app-slide-panel>
+
+<!-- Sblocco di un ordine gia' registrato: stesso dialogo delle altre maschere. -->
+<app-confirm-dialog
+  [(open)]="unlockDialogOpen"
+  title="Sblocca modifica ordine"
+  message="Modificando l'ordine, VestiFlow aggiornerà lo storico della modifica."
+  confirmLabel="Sblocca e modifica"
+  (confirmed)="confirmUnlockEdit()"
+/>

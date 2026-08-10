@@ -17,6 +17,7 @@ describe('ShopifyWebhookService', () => {
     const shopifyConnection = {
       isAutoSyncEnabled: vi.fn(),
       recordSetupWarning: vi.fn(),
+      recordWebhookEventReceived: vi.fn(),
     };
     const prisma = { product: { updateMany: vi.fn() } };
 
@@ -54,6 +55,56 @@ describe('ShopifyWebhookService', () => {
     await service.process('shop.myshopify.com', 'products/update', { id: 1 });
 
     expect(shopifySync.handleWebhook).not.toHaveBeenCalled();
+  });
+
+  // ── La data dell'ultimo evento: solo gli ACCOLTI ─────────────────────────────────
+  describe('data dell ultimo evento ricevuto', () => {
+    it('un evento accolto la aggiorna', async () => {
+      const { service, shopifyOAuth, shopifyConnection } = createService();
+      shopifyOAuth.resolveTenantByShopDomain.mockResolvedValue('tenant-1');
+      shopifyConnection.isAutoSyncEnabled.mockResolvedValue(true);
+
+      await service.process('shop.myshopify.com', 'orders/create', { id: 1 });
+
+      expect(shopifyConnection.recordWebhookEventReceived).toHaveBeenCalledWith('tenant-1');
+    });
+
+    it('con sincronizzazione spenta NON la aggiorna: quell evento e stato buttato', async () => {
+      const { service, shopifyOAuth, shopifyConnection } = createService();
+      shopifyOAuth.resolveTenantByShopDomain.mockResolvedValue('tenant-1');
+      shopifyConnection.isAutoSyncEnabled.mockResolvedValue(false);
+
+      await service.process('shop.myshopify.com', 'orders/create', { id: 1 });
+
+      // Dire «arrivano eventi» mentre li si scarta tutti sarebbe la stessa spia ottimista
+      // spostata di un metro. Lo scarto e' un fatto diverso e avra' una traccia propria.
+      expect(shopifyConnection.recordWebhookEventReceived).not.toHaveBeenCalled();
+    });
+
+    it('un topic che non trattiamo NON la aggiorna', async () => {
+      const { service, shopifyOAuth, shopifyConnection } = createService();
+      shopifyOAuth.resolveTenantByShopDomain.mockResolvedValue('tenant-1');
+      shopifyConnection.isAutoSyncEnabled.mockResolvedValue(true);
+
+      await service.process('shop.myshopify.com', 'customers/data_request', { id: 1 });
+
+      expect(shopifyConnection.recordWebhookEventReceived).not.toHaveBeenCalled();
+    });
+
+    it('un trattamento fallito NON toglie il fatto che sia arrivato', async () => {
+      const { service, shopifyOAuth, shopifyConnection, shopifySync } = createService();
+      shopifyOAuth.resolveTenantByShopDomain.mockResolvedValue('tenant-1');
+      shopifyConnection.isAutoSyncEnabled.mockResolvedValue(true);
+      shopifySync.handleWebhook.mockRejectedValue(new Error('sync fallita'));
+
+      await expect(
+        service.process('shop.myshopify.com', 'orders/create', { id: 1 }),
+      ).rejects.toThrow('sync fallita');
+
+      // «Arriva ma fallisce» e «non arriva» sono due diagnosi diverse, e il fallimento ha
+      // gia' il suo posto in lastError.
+      expect(shopifyConnection.recordWebhookEventReceived).toHaveBeenCalledWith('tenant-1');
+    });
   });
 
   it('process delega a sync se auto-sync attivo', async () => {

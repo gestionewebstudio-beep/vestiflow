@@ -190,7 +190,7 @@ Per **Amministratore**, **Manager** e **Commesso** il referente VestiFlow assegn
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | **Vedere giacenze di tutte le sedi** | Consulta stock e movimenti oltre la sede assegnata (le **azioni** restano sulla sede operativa in topbar). |
 | **Gestire giacenze**                 | Carichi, scarichi, trasferimenti, rettifiche, inventario fisico, **Registra movimento**.                   |
-| **Import/export e sync giacenze**    | Export/import CSV giacenze e pulsante **Sincronizza giacenze da Shopify**.                                 |
+| **Import/export e sync giacenze**    | Export/import CSV giacenze e pulsante **Riallinea le giacenze su Shopify**.                                |
 | **Gestire catalogo**                 | Crea e modifica prodotti, varianti e prezzi.                                                               |
 | **Import/export e sync prodotti**    | Export/import CSV catalogo, **Importa da Shopify** e **Sincronizza catalogo** dalla lista prodotti.        |
 | **Eliminare prodotti**               | Rimozione prodotti dal catalogo (nei limiti previsti da Fonte/sync).                                       |
@@ -337,6 +337,7 @@ Magazzino, movimenti, giacenze e selettore in topbar mostrano **solo le sedi att
 | **Sincronizza location**            | Impostazioni | Importa le sedi da Shopify                                 |
 | **Sedi attive in VestiFlow**        | Impostazioni | Scegli quali sedi usare nel gestionale (entro il piano)    |
 | **Attiva aggiornamenti automatici** | Impostazioni | Riceve prodotti, giacenze, ordini e clienti in tempo reale |
+| **Verifica ora**                    | Impostazioni | Chiede a Shopify quali notifiche sono davvero attive       |
 | **Importa catalogo da Shopify**     | Impostazioni | Scarica i prodotti già presenti online                     |
 
 > Con cataloghi grandi l'import può richiedere **diversi minuti**. Resta sulla pagina finché compare il messaggio di esito. **Non premere più volte** lo stesso pulsante.
@@ -349,6 +350,8 @@ Magazzino, movimenti, giacenze e selettore in topbar mostrano **solo le sedi att
 | **Salva sedi attive**                  | Dopo sync: conferma quali sedi usare in VestiFlow   |
 | **Attiva aggiornamenti automatici**    | Dopo connessione o cambio permessi app              |
 | **Disattiva aggiornamenti automatici** | Pausa sync temporanea                               |
+| **Verifica ora**                       | Per sapere cosa risulta davvero su Shopify adesso   |
+| **Registra le notifiche mancanti**     | Dopo una verifica, se ne manca qualcuna             |
 | **Importa catalogo da Shopify**        | Allineamento completo del catalogo                  |
 | **Ripristina connessione**             | Errore stale ma negozio ancora raggiungibile        |
 | **Cambia negozio**                     | Passare a un **altro dominio** Shopify              |
@@ -597,12 +600,12 @@ Nella tabella **Giacenze** la colonna **In arrivo** mostra quantità **attese** 
 
 ### Azioni principali (Giacenze)
 
-| Pulsante                            | Funzione                                   | Permesso richiesto                |
-| ----------------------------------- | ------------------------------------------ | --------------------------------- |
-| **Sincronizza giacenze da Shopify** | Allinea quantità da Shopify                | Import/export e sync **giacenze** |
-| **Esporta CSV**                     | Scarica giacenze (SKU, sede, quantità)     | **Esportare dati**                |
-| **Importa CSV**                     | Carica rettifiche da file                  | Import/export e sync **giacenze** |
-| **Registra movimento**              | Carico, scarico, trasferimento o rettifica | Gestire **giacenze**              |
+| Pulsante                             | Funzione                                         | Permesso richiesto                |
+| ------------------------------------ | ------------------------------------------------ | --------------------------------- |
+| **Riallinea le giacenze su Shopify** | Riporta il negozio online al valore di VestiFlow | Import/export e sync **giacenze** |
+| **Esporta CSV**                      | Scarica giacenze (SKU, sede, quantità)           | **Esportare dati**                |
+| **Importa CSV**                      | Carica rettifiche da file                        | Import/export e sync **giacenze** |
+| **Registra movimento**               | Carico, scarico, trasferimento o rettifica       | Gestire **giacenze**              |
 
 ### Registrare un movimento
 
@@ -1016,6 +1019,30 @@ Entrambi usano lo **stesso form Documenti → Arrivo merce**. Da un ordine **Inv
 
 1. **Importa catalogo da Shopify** in Impostazioni (attendi fine operazione)
 2. Verifica che **Aggiornamenti automatici** sia attivo
+3. Premi **Verifica ora**: dice quali notifiche risultano davvero attive su Shopify. Se fra i mancanti compaiono quelle dei prodotti, i cambiamenti fatti online non arrivano — ed è quello il motivo, non l'import
+
+### Capire lo stato delle notifiche
+
+Sotto lo stato della connessione ci sono quattro informazioni. Servono a distinguere **«non è cambiato niente»** da **«non arriva più niente»**, che viste da fuori si assomigliano.
+
+| Cosa leggi                 | Cosa significa                                                         |
+| -------------------------- | ---------------------------------------------------------------------- |
+| **Ultimo evento ricevuto** | quando Shopify ha comunicato qualcosa l'ultima volta                   |
+| **Notifiche registrate**   | quante sono attive sulle attese, **con il nome di quelle che mancano** |
+| **Indirizzo di consegna**  | dove Shopify sta consegnando                                           |
+| **Ultima verifica**        | quando abbiamo chiesto a Shopify come stanno le cose                   |
+
+**«Non verificate» e «Mai» non sono un guasto.** Vogliono dire che non l'abbiamo ancora chiesto a Shopify: è diverso da «non c'è niente». Premi **Verifica ora** e diventano numeri.
+
+**Nessun evento da giorni non è di per sé un problema.** Se non hai ordini online e nessuno tocca le giacenze, non c'è niente da comunicare. Per questo VestiFlow riporta la data e non dà giudizi: l'unico modo di sapere davvero com'è messa la connessione è **Verifica ora**.
+
+### «Manca una notifica» e non trovo il pulsante per registrarla
+
+**Registra le notifiche mancanti** compare solo dopo una verifica, e solo quando c'è qualcosa da registrare. Se non lo vedi, i motivi sono due e portano a cose diverse:
+
+**Non c'è niente da registrare.** «Notifiche registrate» non nomina nessun mancante: è tutto a posto e non serve fare niente.
+
+**Stai guardando da un ambiente che Shopify non può raggiungere.** In questo caso i mancanti sono comunque nominati, ma accanto all'indirizzo leggi **«confronto non possibile da questo ambiente»**. Succede quando si apre il gestionale da un computer di sviluppo invece che dall'indirizzo pubblico. Il pulsante è nascosto **apposta**: registrare da lì creerebbe notifiche verso un indirizzo che non riceverà mai niente, e si sommerebbero a quelle buone invece di sostituirle. La riparazione va fatta dall'indirizzo pubblico del gestionale.
 
 ### L'import catalogo è lento
 

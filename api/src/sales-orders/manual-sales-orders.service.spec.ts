@@ -53,6 +53,7 @@ function createPrismaMock() {
       findUniqueOrThrow: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
     salesOrderLine: {
       create: vi.fn(),
@@ -347,5 +348,71 @@ describe('ManualSalesOrdersService.conclude', () => {
     await expect(
       service.concludePrefill(tenantId, 'order-1', 'manual_unload', testOwnerUser()),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+/**
+ * Eliminazione: gli ordini di canale non si toccano, con UNA eccezione.
+ *
+ * Cancellarli qui non servirebbe a niente — il prossimo scarico li
+ * riporterebbe, perché il sync fa upsert sull'id Shopify. Il motivo cade solo
+ * quando sul canale non risultano più, ed è l'unica azione prevista dopo la
+ * segnalazione della riconciliazione.
+ */
+describe('ManualSalesOrdersService.delete', () => {
+  let prisma: ReturnType<typeof createPrismaMock>;
+
+  beforeEach(() => {
+    prisma = createPrismaMock();
+  });
+
+  it('un ordine di canale ancora presente su Shopify non è eliminabile', async () => {
+    prisma.salesOrder.findFirst.mockResolvedValue({
+      id: 'order-1',
+      source: 'shopify_online',
+      locationId: null,
+      orderNumber: '#1001',
+      channelMissingSince: null,
+      onlineSale: null,
+    });
+    const { service } = createService(prisma);
+
+    await expect(service.delete(tenantId, 'order-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.salesOrder.delete).not.toHaveBeenCalled();
+  });
+
+  // Il controllo inverso: senza, il test qui sopra passerebbe anche se
+  // l'eliminazione fosse rimasta vietata a tutti gli ordini di canale.
+  it('lo stesso ordine, segnalato come sparito, si può rimuovere', async () => {
+    prisma.salesOrder.findFirst.mockResolvedValue({
+      id: 'order-1',
+      source: 'shopify_online',
+      locationId: null,
+      orderNumber: '#1001',
+      channelMissingSince: new Date('2026-08-08T12:00:00.000Z'),
+      onlineSale: null,
+    });
+    const { service } = createService(prisma);
+
+    await service.delete(tenantId, 'order-1');
+
+    expect(prisma.salesOrder.delete).toHaveBeenCalledWith({ where: { id: 'order-1' } });
+  });
+
+  // L'eccezione non scavalca la Vendita online: la merce è uscita davvero e il
+  // corrispettivo è registrato. Resta la sola segnalazione.
+  it('un ordine sparito ma già evaso resta non eliminabile', async () => {
+    prisma.salesOrder.findFirst.mockResolvedValue({
+      id: 'order-1',
+      source: 'shopify_online',
+      locationId: null,
+      orderNumber: '#1001',
+      channelMissingSince: new Date('2026-08-08T12:00:00.000Z'),
+      onlineSale: { id: 'vo-1' },
+    });
+    const { service } = createService(prisma);
+
+    await expect(service.delete(tenantId, 'order-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.salesOrder.delete).not.toHaveBeenCalled();
   });
 });

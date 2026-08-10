@@ -738,7 +738,7 @@ npm run serve:pwa
 <td><code>catalog.import_export</code></td>
 </tr>
 <tr>
-<td>Sync giacenze</td>
+<td>Riallinea giacenze</td>
 <td><code>inventory.import_export</code></td>
 </tr>
 <tr>
@@ -1063,6 +1063,11 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </ul>
 <h3 id="webhook">Webhook</h3>
 <p>Registrati con <strong>Attiva aggiornamenti automatici</strong>. Idempotenza lato backend per eventi duplicati/out-of-order.</p>
+<p><strong>La registrazione punta all&#39;indirizzo dell&#39;ambiente da cui parte la chiamata</strong> (<code>SHOPIFY_APP_URL</code>), non a quello del negozio. Da un ambiente locale l&#39;operazione è <strong>rifiutata</strong>: creerebbe sottoscrizioni verso <code>localhost</code> sul negozio reale, e la deduplica di Shopify confronta gli indirizzi per uguaglianza esatta, quindi si sommerebbero a quelle buone invece di sostituirle. Chi sviluppa con un tunnel pubblico in HTTPS (ngrok, cloudflared) passa: il criterio esclude ciò che non è un riferimento raggiungibile, non ciò che è insolito.</p>
+<p><strong>La connessione salva l&#39;elenco dei topic, non il conteggio</strong>, insieme all&#39;indirizzo e alla data dell&#39;osservazione. Il conteggio da solo non permetteva di accorgersi che un topic aggiunto al codice non fosse mai stato registrato sui negozi già collegati — la registrazione avviene solo all&#39;OAuth o su richiesta esplicita, mai da sola.</p>
+<p><strong>«Verifica ora»</strong> interroga <code>GET /webhooks.json</code> e confronta con i topic attesi. È <strong>sola lettura verso Shopify</strong>: il servizio che la esegue non ha fra le dipendenze niente in grado di registrare o cancellare, quindi non è una convenzione ma un vincolo. Scrive l&#39;osservazione in locale, con la sua data.</p>
+<p><strong>«Registra le notifiche mancanti»</strong> usa l&#39;operazione <strong>additiva</strong> — salta i presenti, aggiunge i mancanti, non cancella niente — e restituisce il referto della <strong>rilettura</strong>, non l&#39;esito della scrittura: la registrazione riporta cosa crede di aver fatto, la verifica riporta cosa c&#39;è, e in caso di divergenza vale la seconda.</p>
+<p><strong><code>lastWebhookEventAt</code> è distinto da <code>lastSyncAt</code>.</strong> Il secondo ha sette scrittori, sei dei quali sono sincronizzazioni manuali: una data che si muove sia per un evento in arrivo sia perché qualcuno ha premuto un pulsante non distingue nulla. Il campo nuovo registra <strong>solo gli eventi accolti</strong> — non quelli scartati perché la sincronizzazione è spenta o perché il topic non è fra quelli gestiti — e si aggiorna al massimo una volta al minuto, per non mettere in contesa la stessa riga durante le raffiche di giacenze.</p>
 <h3 id="limiti-shopify-admin-api--concetto">Limiti Shopify Admin API — concetto</h3>
 <p>Shopify <strong>non addebita le chiamate API</strong> a consumo. Il piano del negozio definisce <strong>quanto velocemente</strong> puoi chiamare le Admin API prima di essere <strong>rallentato</strong> (HTTP <strong>429 Too Many Requests</strong> / throttling). Non esiste un contatore “a pagamento per chiamata”.</p>
 <p>VestiFlow usa oggi soprattutto la <strong>REST Admin API</strong> (prodotti, location, inventario, immagini).</p>
@@ -1985,6 +1990,10 @@ cd api &amp;&amp; npm run test
 <tr>
 <td>Documenti — filtri lista / incoming PO / seriali / prezzo fornitore</td>
 <td><code>api/src/documents/documents.service.spec.ts</code>, <code>document-supplier-order.util.spec.ts</code>, <code>document-supplier-price.util.spec.ts</code>, <code>inventory-serial.util.spec.ts</code></td>
+</tr>
+<tr>
+<td>E2E arrivo merce (bozza manuale, column picker, flusso da ordine)</td>
+<td><code>e2e/goods-receipt.spec.ts</code>, <code>e2e/supplier-order-send-receive.spec.ts</code>, helper <code>e2e/helpers/goods-receipt-form.ts</code> — flusso ordine richiede seed (<code>Confezioni Sud</code>, <code>PO-2026-0003</code>)</td>
 </tr>
 <tr>
 <td>Impostazioni operative tenant</td>

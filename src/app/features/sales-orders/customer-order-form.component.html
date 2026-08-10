@@ -1,6 +1,17 @@
 <!-- doc-form--m-ref: adotta la vista mobile di riferimento promossa in
      styles/_document-form-mobile.scss (pannelli, totali, dock, azioni). -->
 <section class="doc-form doc-form--m-ref co-form">
+  @if (prefillError.message(); as prefillFailed) {
+    <!-- Il precompilato non è arrivato. Senza questo avviso resterebbe una
+         maschera vuota, indistinguibile da un documento nuovo legittimo: chi
+         salvasse creerebbe la cosa sbagliata credendo di aver fatto l'altra. -->
+    <app-inline-banner
+      tone="error"
+      [message]="prefillFailed"
+      dismissLabel="Ho capito"
+      (dismissed)="prefillError.dismiss()"
+    />
+  }
   <div class="doc-form__head-row">
     <!-- Ritorno alla schermata precedente: nel mockup è il quadratino col
          chevron a sinistra del titolo, non un link sopra. -->
@@ -162,7 +173,7 @@
       [formGroup]="form"
     >
       @if (formReadOnly()) {
-        @if (canUnlockOrder()) {
+        @if (canUnlockDocument()) {
           <div
             class="doc-form__unlock-banner"
             role="status"
@@ -177,11 +188,12 @@
             </app-button>
           </div>
         } @else if (isExternalOrder()) {
-          <div class="doc-form__unlock-banner" role="status">
-            <p>
-              Ordine proveniente da un canale esterno ({{ sourceLabel(loadedOrder()!.source) }}):
-              consultabile in sola lettura. Le modifiche vanno gestite dal canale d'origine.
-            </p>
+          <!-- Il divieto si spiega invece di limitarsi a dichiararsi: le frasi
+               dipendono dal canale (sito o cassa) e dall'evasione. -->
+          <div class="doc-form__unlock-banner co-form__external-notice" role="status">
+            @for (line of externalOrderNotice(); track line) {
+              <p>{{ line }}</p>
+            }
           </div>
         } @else {
           <div class="doc-form__unlock-banner" role="status">
@@ -1198,7 +1210,16 @@
                     }
                   </tr>
                 </thead>
-                <tbody formArrayName="lines" cdkDropList (cdkDropListDropped)="onLineDrop($event)">
+                <!-- Il riordino va disabilitato a mano: il <fieldset disabled>
+                     sopra ferma i controlli del form, non il drag & drop, che
+                     controllo non è. Su un documento protetto le righe si
+                     sarebbero ancora trascinate. -->
+                <tbody
+                  formArrayName="lines"
+                  cdkDropList
+                  [cdkDropListDisabled]="formReadOnly()"
+                  (cdkDropListDropped)="onLineDrop($event)"
+                >
                   @for (line of lines.controls; track line; let i = $index) {
                     <tr
                       class="doc-form__table-row"

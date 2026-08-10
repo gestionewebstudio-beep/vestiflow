@@ -69,6 +69,8 @@ import { BackButtonComponent } from '@shared/components/back-button/back-button.
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
@@ -80,7 +82,7 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
-import { DocumentEditLockService } from '@shared/services/document-edit-lock.service';
+import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
@@ -132,6 +134,7 @@ type SubmitState =
   selector: 'app-sales-document-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,
     ButtonComponent,
@@ -371,6 +374,8 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   // Avviso «numero già assegnato»: la macchina a stati vive in domain, qui
   // resta solo quale controllo della testata riceve il numero aggiornato.
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
+  protected readonly prefillError = new DocumentPrefillErrorStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
 
@@ -417,7 +422,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
             }
             this.loadedDocument.set(doc);
             // Confermato → si riapre bloccato (salvo sblocco già dato in sessione).
-            this.editLock.syncOnLoad(doc.id, isConfirmedEditableDocumentStatus(doc.status));
+            this.editLock.syncOnLoad(doc.id);
             this.patchFormFromDocument(doc);
             return 'ready' as const;
           }),
@@ -1668,7 +1673,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (prefill) => this.prefillFromConversion(prefill),
-        error: () => undefined,
+        error: () => this.prefillError.fail('convert'),
       });
   }
 
@@ -1691,7 +1696,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (prefill) => this.prefillFromConversion(prefill),
-        error: () => undefined,
+        error: () => this.prefillError.fail('include'),
       });
   }
 
@@ -1713,7 +1718,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (doc) => this.applyDuplicatePrefill(doc),
-        error: () => undefined,
+        error: () => this.prefillError.fail('duplicate'),
       });
   }
 
