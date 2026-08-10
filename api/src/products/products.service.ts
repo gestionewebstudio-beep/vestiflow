@@ -65,6 +65,14 @@ const PRODUCT_INCLUDE = {
   images: { orderBy: { sortOrder: 'asc' as const } },
 } satisfies Prisma.ProductInclude;
 
+/**
+ * Quanti collegamenti fornitore leggere per variante quando NON si filtra per
+ * fornitore: servono a trovare quale codice ha fatto scattare la ricerca. Un
+ * articolo con più di così tanti fornitori diversi non esiste in pratica, e il
+ * limite evita che una variante patologica pesi sull'intera pagina.
+ */
+const SUPPLIER_LINKS_SCANNED = 20;
+
 /** Select leggero per GET /products (lista catalogo): niente varianti né immagini. */
 const PRODUCT_LIST_SELECT = {
   id: true,
@@ -284,18 +292,27 @@ export class ProductsService {
               },
             },
           },
-          ...(query.supplierId
-            ? {
-                supplierLinks: {
-                  where: { supplierId: query.supplierId },
-                  select: {
-                    supplierSku: true,
-                    lastPurchasePriceMinor: true,
-                  },
-                  take: 1,
-                },
-              }
-            : {}),
+          // Codici fornitore: SEMPRE selezionati, non solo quando si filtra per
+          // fornitore. Il campo «Cod. fornitore» della riga documento confronta
+          // il valore digitato col catalogo intero, senza filtri di contesto: se
+          // il codice tornasse solo passando `supplierId`, lo stesso codice
+          // sarebbe riconosciuto in un documento e ignorato in un altro — che è
+          // peggio di non riconoscerlo mai.
+          //
+          // Con `supplierId` si resta al solo collegamento di quel fornitore,
+          // perché `lastPurchasePriceMinor` è il suo prezzo e non quello di un
+          // altro. Senza, si prendono i primi collegamenti in ordine
+          // deterministico (preferito prima, poi il più vecchio) e la scelta di
+          // QUALE codice restituire avviene nel mapper, sotto.
+          supplierLinks: {
+            ...(query.supplierId ? { where: { supplierId: query.supplierId } } : {}),
+            select: {
+              supplierSku: true,
+              lastPurchasePriceMinor: true,
+            },
+            orderBy: [{ isPreferred: 'desc' as const }, { createdAt: 'asc' as const }],
+            take: query.supplierId ? 1 : SUPPLIER_LINKS_SCANNED,
+          },
           // Con locationId: giacenza della sola sede. Senza: tutte le righe,
           // sommate a valle (totale multi-sede invece di nessun dato).
           inventoryLevels: {
@@ -310,8 +327,34 @@ export class ProductsService {
       this.prisma.productVariant.count({ where }),
     ]);
 
+    const searchLower = search?.toLowerCase();
+
     const items: VariantSummaryDto[] = rows.map((row) => {
-      const supplierLink = 'supplierLinks' in row ? row.supplierLinks?.[0] : undefined;
+      // Quando si cerca, il codice fornitore restituito è QUELLO CHE HA FATTO
+      // SCATTARE la corrispondenza. Un articolo può avere più fornitori con
+      // codici diversi: restituirne uno a caso farebbe confrontare al filtro
+      // esatto della riga la stringa sbagliata, e il caso ambiguo non si
+      // aprirebbe quando deve. Senza ricerca vale il primo dell'ordine
+      // deterministico (preferito, poi il più vecchio).
+      const supplierLinks = row.supplierLinks ?? [];
+
+      // Il collegamento da cui leggere il CODICE fornitore: quello che ha fatto
+      // scattare la corrispondenza, così il confronto esatto lato riga è sulla
+      // stringa giusta. Senza ricerca è il primo dell'ordine deterministico —
+      // ATTENZIONE: in quel caso è uno ARBITRARIO fra i fornitori dell'articolo,
+      // non «il» codice fornitore dell'articolo, che non esiste. Non usarlo come
+      // se lo fosse.
+      const codeSupplierLink =
+        (searchLower
+          ? supplierLinks.find((link) => link.supplierSku?.toLowerCase().includes(searchLower))
+          : undefined) ?? supplierLinks[0];
+
+      // Il collegamento da cui leggere il PREZZO, che è un'altra cosa: solo
+      // quando il fornitore è stato chiesto esplicitamente. Senza, il prezzo
+      // resta quello della variante — leggere il «last purchase» di un
+      // fornitore arbitrario significherebbe seminare nella riga il costo
+      // pattuito con qualcun altro.
+      const pricingSupplierLink = query.supplierId ? supplierLinks[0] : undefined;
       const levels = row.inventoryLevels ?? [];
       // Con location: giacenza puntuale della sede. Senza: totale multi-sede;
       // null solo se la variante non ha alcuna riga giacenza (mai movimentata).
@@ -335,7 +378,7 @@ export class ProductsService {
           : null;
       // Senza permesso il costo non entra proprio nella risposta.
       const purchaseMinor = showPurchaseCosts
-        ? (supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null)
+        ? (pricingSupplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null)
         : null;
       return {
         variantId: row.id,
@@ -362,7 +405,7 @@ export class ProductsService {
           2: listinoMoney(row.product.listino2PriceMinor, row.currency),
           3: listinoMoney(row.product.listino3PriceMinor, row.currency),
         },
-        supplierSku: supplierLink?.supplierSku ?? null,
+        supplierSku: codeSupplierLink?.supplierSku ?? null,
         stockOnHand,
         stockAvailable,
         stockMinThreshold,
@@ -869,8 +912,14 @@ export class ProductsService {
 
     // Codice articolo come criterio di scan (specifica §DOVE VIENE USATO 4a),
     // dopo SKU/barcode: identifica il prodotto, quindi risolve una variante
-    // solo se il prodotto ne ha una sola (altrimenti la scelta resta alla
-    // ricerca contestuale, che ora include il codice articolo).
+    // solo se il prodotto ne ha una sola. Con più varianti questo endpoint
+    // TACE apposta, perché non gli spetta indovinare quale taglia.
+    //
+    // Chi risolve l'ambiguità (aggiornato 08/2026): non più «la ricerca
+    // contestuale» — quella non esiste più, i campi codice hanno smesso di
+    // cercare mentre si digita. È la riga documento che, alla conferma,
+    // interroga `listVariantSummaries`, filtra per corrispondenza esatta e
+    // apre un pannello «di questo articolo, quale variante».
     if (!variant) {
       const byArticleCode = await this.prisma.productVariant.findMany({
         where: {
@@ -890,8 +939,14 @@ export class ProductsService {
     // compila. È una chiave di ricerca come le altre, non un dato da guardare.
     //
     // Ultimo della catena e solo se non è ambiguo: lo stesso codice può essere
-    // usato da fornitori diversi per articoli diversi, e in quel caso la scelta
-    // resta alla ricerca contestuale invece di indovinare.
+    // usato da fornitori diversi per articoli diversi, e in quel caso indovinare
+    // sarebbe peggio che tacere.
+    //
+    // Chi risolve l'ambiguità (aggiornato 08/2026): la riga documento, come per
+    // il codice articolo — con la differenza che qui la scelta è fra ARTICOLI
+    // diversi, non fra varianti dello stesso. Vedi `listVariantSummaries`, che
+    // dal 08/2026 restituisce sempre il codice fornitore, e restituisce quello
+    // che ha fatto scattare la ricerca.
     if (!variant) {
       const bySupplierSku = await this.prisma.productVariant.findMany({
         where: {

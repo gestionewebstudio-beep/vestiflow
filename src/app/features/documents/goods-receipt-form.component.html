@@ -1264,6 +1264,8 @@
                             [disabled]="formReadOnly()"
                             [suggestions]="codeSuggestions(i, 'articleCode')"
                             [suggestionsOpen]="codeSuggestionsOpen(i, 'articleCode')"
+                            [activeSuggestionIndex]="codeActiveSuggestionIndex()"
+                            (suggestionNavigate)="onCodeSuggestionNavigate($event)"
                             (valueChange)="onLineArticleCodeChange(i, $event)"
                             (focused)="onLineCodeFocus(i, 'articleCode')"
                             (blurred)="onLineCodeBlur(i)"
@@ -1291,6 +1293,8 @@
                             [disabled]="formReadOnly()"
                             [suggestions]="codeSuggestions(i, 'sku')"
                             [suggestionsOpen]="codeSuggestionsOpen(i, 'sku')"
+                            [activeSuggestionIndex]="codeActiveSuggestionIndex()"
+                            (suggestionNavigate)="onCodeSuggestionNavigate($event)"
                             (valueChange)="onLineSkuChange(i, $event)"
                             (focused)="onLineCodeFocus(i, 'sku')"
                             (blurred)="onLineCodeBlur(i)"
@@ -1318,6 +1322,8 @@
                             [disabled]="formReadOnly()"
                             [suggestions]="codeSuggestions(i, 'barcode')"
                             [suggestionsOpen]="codeSuggestionsOpen(i, 'barcode')"
+                            [activeSuggestionIndex]="codeActiveSuggestionIndex()"
+                            (suggestionNavigate)="onCodeSuggestionNavigate($event)"
                             (valueChange)="onLineBarcodeChange(i, $event)"
                             (focused)="onLineCodeFocus(i, 'barcode')"
                             (blurred)="onLineCodeBlur(i)"
@@ -1334,24 +1340,29 @@
                       }
                       @if (isLineColumnVisible('supplierCode')) {
                         <td class="doc-form__cell doc-form__cell--code">
-                          @if (lineHasLinkedProduct(i)) {
-                            <span class="doc-form__readonly-cell">{{
-                              line.controls.supplierSku.value || '—'
-                            }}</span>
-                          } @else {
-                            <input
-                              [id]="'gr-supplier-code-' + i"
-                              class="doc-form__input doc-form__input--table"
-                              type="text"
-                              [value]="line.controls.supplierSku.value"
-                              [disabled]="formReadOnly()"
-                              aria-label="Codice fornitore"
-                              autocomplete="off"
-                              (input)="onLineSupplierSkuChange(i, $any($event.target).value)"
-                              (blur)="commitSupplierSkuLookup(i)"
-                              (keydown)="onLineFieldKeydown(i, 'supplierCode', $event)"
-                            />
-                          }
+                          <app-document-line-code-cell
+                            [lineIndex]="i"
+                            [inputId]="'gr-supplier-code-' + i"
+                            ariaLabel="Codice fornitore"
+                            [value]="line.controls.supplierSku.value"
+                            [linked]="lineHasLinkedProduct(i)"
+                            [linkedValue]="line.controls.supplierSku.value"
+                            [disabled]="formReadOnly()"
+                            [suggestions]="codeSuggestions(i, 'supplierCode')"
+                            [suggestionsOpen]="codeSuggestionsOpen(i, 'supplierCode')"
+                            [activeSuggestionIndex]="codeActiveSuggestionIndex()"
+                            (suggestionNavigate)="onCodeSuggestionNavigate($event)"
+                            (valueChange)="onLineSupplierSkuChange(i, $event)"
+                            (blurred)="onLineCodeBlur(i)"
+                            (commit)="commitSupplierSkuLookup(i)"
+                            (lineRetreat)="focusPreviousLineField(i, 'supplierCode')"
+                            (lineRowAdvance)="advanceToNextLine(i)"
+                            (lineRowRetreat)="advanceToPreviousLine(i)"
+                            (suggestionPick)="
+                              onCodeSuggestionPick($event.lineIndex, $event.variantId)
+                            "
+                            (escapePressed)="onLineSearchEscape(i)"
+                          />
                         </td>
                       }
                       @if (isLineColumnVisible('product')) {
