@@ -1,21 +1,16 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  input,
-  output,
-  signal,
-  viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { formatMoney } from '@core/utils/money.util';
 
+import { DocumentLineSuggestionsComponent } from '../document-line-suggestions/document-line-suggestions.component';
+import type { DocumentLineSuggestionItem } from '../document-line-suggestions/document-line-suggestions.model';
+
 @Component({
   selector: 'app-document-line-product-cell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, DocumentLineSuggestionsComponent],
   templateUrl: './document-line-product-cell.component.html',
   styleUrl: './document-line-product-cell.component.scss',
 })
@@ -47,8 +42,6 @@ export class DocumentLineProductCellComponent {
   /** Scollega l'articolo dalla riga: nome e codici tornano modificabili. */
   readonly unlinkRequest = output<number>();
   readonly escapePressed = output<number>();
-
-  private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('productInput');
 
   protected readonly listboxId = signal(
     `gr-product-list-${Math.random().toString(36).slice(2, 9)}`,
@@ -86,14 +79,26 @@ export class DocumentLineProductCellComponent {
     this.unlinkRequest.emit(this.lineIndex());
   }
 
-  protected pickSuggestion(variantId: string): void {
+  /**
+   * Testo già pronto per il pannello condiviso, che non sa cosa sta elencando:
+   * compone qui titolo e dettaglio e tiene per sé l'identità della variante.
+   */
+  protected readonly suggestionItems = computed<readonly DocumentLineSuggestionItem[]>(() =>
+    this.suggestions().map((variant) => ({
+      title: variant.title,
+      detail: this.suggestionDetail(variant),
+    })),
+  );
+
+  private pickSuggestion(variantId: string): void {
     this.suggestionPick.emit({ lineIndex: this.lineIndex(), variantId });
   }
 
-  protected onSuggestionKeydown(event: KeyboardEvent, variantId: string): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      this.pickSuggestion(variantId);
+  /** Il pannello restituisce l'indice: l'id lo risolve chi possiede la lista. */
+  protected pickAt(index: number): void {
+    const variant = this.suggestions()[index];
+    if (variant) {
+      this.pickSuggestion(variant.variantId);
     }
   }
 
@@ -170,9 +175,5 @@ export class DocumentLineProductCellComponent {
       parts.push(`Acq. ${formatMoney(variant.purchasePrice)}`);
     }
     return parts.join(' · ');
-  }
-
-  focusInput(): void {
-    this.inputRef()?.nativeElement.focus();
   }
 }

@@ -41,7 +41,6 @@
   <div class="doc-product-cell">
     <div class="doc-product-cell__field" [class.doc-product-cell__field--invalid]="invalid()">
       <input
-        #productInput
         class="doc-product-cell__input"
         type="text"
         [id]="inputId() || null"
@@ -70,33 +69,20 @@
         <i class="pi pi-search" aria-hidden="true"></i>
       </button>
     </div>
-    @if (suggestionsOpen()) {
-      <ul
-        class="doc-product-cell__suggestions"
-        role="listbox"
-        [id]="listboxId()"
-        aria-label="Suggerimenti prodotto"
-      >
-        @for (item of suggestions(); track item.variantId; let i = $index) {
-          <li
-            role="option"
-            tabindex="0"
-            class="doc-product-cell__suggestion"
-            [class.doc-product-cell__suggestion--active]="i === activeSuggestionIndex()"
-            [attr.aria-selected]="i === activeSuggestionIndex()"
-            (mousedown)="$event.preventDefault()"
-            (click)="pickSuggestion(item.variantId)"
-            (keydown)="onSuggestionKeydown($event, item.variantId)"
-          >
-            <span class="doc-product-cell__suggestion-title">{{ item.title }}</span>
-            <span class="doc-product-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
-          </li>
-        } @empty {
-          <li class="doc-product-cell__suggestion-empty" role="presentation">
-            Nessun articolo trovato a catalogo.
-          </li>
-        }
-      </ul>
+    <!--
+      Nessun messaggio «nessun articolo trovato»: senza risultati il pannello
+      non si apre. Non trovare nulla non è un errore — si continua a compilare
+      la riga a mano, e la creazione dell'articolo ha le sue vie proprie
+      («Completa anagrafica» qui sotto, «Nuovo prodotto» sopra le righe).
+    -->
+    @if (suggestionsOpen() && suggestions().length > 0) {
+      <app-document-line-suggestions
+        [items]="suggestionItems()"
+        [activeIndex]="activeSuggestionIndex()"
+        [listboxId]="listboxId()"
+        ariaLabel="Suggerimenti prodotto"
+        (picked)="pickAt($event)"
+      />
     }
     <button
       type="button"

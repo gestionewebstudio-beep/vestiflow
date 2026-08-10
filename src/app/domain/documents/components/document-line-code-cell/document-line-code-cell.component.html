@@ -3,7 +3,6 @@
 } @else {
   <div class="doc-code-cell">
     <input
-      #codeInput
       class="doc-code-cell__input"
       type="text"
       [id]="inputId() || null"
@@ -20,28 +19,13 @@
       (keydown)="onKeydown($event)"
     />
     @if (suggestionsOpen() && suggestions().length > 0) {
-      <ul
-        class="doc-code-cell__suggestions"
-        role="listbox"
-        [id]="listboxId()"
-        [attr.aria-label]="'Suggerimenti ' + ariaLabel()"
-      >
-        @for (item of suggestions(); track item.variantId; let i = $index) {
-          <li
-            role="option"
-            tabindex="0"
-            class="doc-code-cell__suggestion"
-            [class.doc-code-cell__suggestion--active]="i === activeSuggestionIndex()"
-            [attr.aria-selected]="i === activeSuggestionIndex()"
-            (mousedown)="$event.preventDefault()"
-            (click)="pickSuggestion(item.variantId)"
-            (keydown)="onSuggestionKeydown($event, item.variantId)"
-          >
-            <span class="doc-code-cell__suggestion-title">{{ item.title }}</span>
-            <span class="doc-code-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
-          </li>
-        }
-      </ul>
+      <app-document-line-suggestions
+        [items]="suggestionItems()"
+        [activeIndex]="activeSuggestionIndex()"
+        [listboxId]="listboxId()"
+        [ariaLabel]="'Suggerimenti ' + ariaLabel()"
+        (picked)="pickAt($event)"
+      />
     }
   </div>
 }

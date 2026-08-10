@@ -63,51 +63,10 @@
   }
 }
 
-.doc-product-cell__suggestions {
-  position: absolute;
-  inset-block-start: 100%;
-  inset-inline: 0;
-  z-index: var(--z-tooltip);
-  margin: 0;
-  padding: var(--space-1);
-  list-style: none;
-  max-block-size: calc(var(--space-8) * 8);
-  overflow: auto;
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
-}
-
-.doc-product-cell__suggestion {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-
-  &--active,
-  &:hover {
-    background-color: var(--color-interactive-subtle);
-  }
-}
-
-.doc-product-cell__suggestion-title,
-.doc-product-cell__suggestion-detail {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.doc-product-cell__suggestion-title {
-  font-size: var(--text-sm);
-}
-
-.doc-product-cell__suggestion-detail {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
+// Il pannello suggerimenti non si veste più qui: lo disegna
+// `app-document-line-suggestions`, che dal 08/2026 è l'unica copia. Questa
+// cella resta `position: relative` perché è l'ancora su cui il pannello si
+// stende — il componente lo dichiara nel proprio commento e conta su di noi.
 
 // Riga collegata: etichetta + lente SEMPRE visibile (ricerca/sostituzione
 // articolo) + "Apri anagrafica" all'hover.
@@ -163,9 +122,6 @@
   margin-inline-end: var(--space-2);
 }
 
-/* Messaggio "nessun risultato" nel dropdown (punto D). */
-.doc-product-cell__suggestion-empty {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
+// Il messaggio «nessun risultato» non esiste più (08/2026): senza risultati il
+// pannello non si apre. Non trovare nulla non è un errore — si compila la riga
+// a mano, e la creazione ha le sue vie proprie.
