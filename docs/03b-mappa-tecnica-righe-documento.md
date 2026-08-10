@@ -122,9 +122,122 @@ Altri chiamanti: `commitLineIfSignificant` (bersaglio di tutti i blur di riga), 
 
 **Uso:** la cella codice in tutte e tre le maschere, la cella prodotto solo in Ordine cliente e Arrivo merce. **Ordine fornitore non usa la cella prodotto**: al suo posto ha un `app-select-menu`.
 
-**Il pannello suggerimenti è già estratto e quasi non usato.** `document-line-suggestions` esiste e ha il suo spec, ma i suoi consumatori sono le due card mobile; le due celle desktop portano la propria `<ul role="listbox">` inline. Lo stesso pannello è duplicato tre volte, e una delle tre copie è già un componente condiviso.
+**Il pannello suggerimenti — ✅ terza copia chiusa (08/2026).** `document-line-suggestions` era estratto, aveva il suo spec, ma i suoi consumatori erano solo le due card mobile: le due celle desktop portavano la propria `<ul role="listbox">` inline, e lo stesso pannello era duplicato **tre volte**. Ora lo usano anche le due celle; i consumatori sono quattro e la copia inline non esiste più, insieme a ~90 righe di SCSS che differivano solo per il prefisso.
 
-**`focusInput()` è API pubblica morta.** Dichiarata su entrambe le celle, zero chiamanti in `src/` e in `e2e/`. Non è una base utile per sostituire `getElementById`: richiederebbe nel form un elenco di viste indicizzato per riga _e_ per campo — più codice, non meno.
+Ogni cella compone il testo (titolo e dettaglio) e tiene per sé l'identità della variante: il pannello restituisce **l'indice**, la cella lo risolve in id. È il contratto che quel componente già dichiarava.
+
+> ⚠️ **Il pannello deve restare DENTRO le celle.** Ogni cella riceve il proprio `activeSuggestionIndex` — quella codice dal signal dei codici, quella prodotto da quello dei nomi — e lo passa al pannello. Sono due liste con lunghezze diverse. Tirare il pannello su nella maschera «per semplificare» sembrerebbe più pulito e **riunificherebbe in silenzio due stati separati apposta**: un pannello, un indice, e l'indice si sfasa passando dall'una all'altra. Nessun test se ne accorgerebbe.
+
+**`focusInput()` era API pubblica morta — ✅ RIMOSSA (08/2026).** Dichiarata su entrambe le celle, zero chiamanti in `src/` e in `e2e/`. Non era una base utile per sostituire `getElementById`: avrebbe richiesto nel form un elenco di viste indicizzato per riga _e_ per campo — più codice, non meno. Rimossa insieme al `viewChild` che la serviva, al riferimento di template (`#codeInput` / `#productInput`) e agli import rimasti orfani. Era la **seconda strada** verso il fuoco, mai imboccata: lasciarla era una pista falsa per chi implementerà il punto unico.
+
+### 3-bis. La ricerca nei campi codice — cosa c'è oggi, e cosa la decisione richiede
+
+Registrato qui perché la decisione di prodotto («il campo codice non cerca», spec) cambia **la sorgente** di un meccanismo, non lo rimuove. Chi esegue deve sapere cosa tocca.
+
+**Come si apre oggi il pannello della cella codice** — due strade, misurate _(mis. 08/2026)_:
+
+| Strada                    | Su quali campi     | Condizione                                                                                                                                  |
+| ------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mentre digiti             | Cod. articolo, SKU | da **2 caratteri**, se la riga non ha già un articolo. Ricerca al server, attesa 300 ms                                                     |
+| Alla conferma (Tab/Invio) | tutti              | il codice viene cercato, i risultati filtrati per corrispondenza **esatta**; se ne restano più d'uno, il pannello si apre per far scegliere |
+
+Due precisazioni che smentiscono quanto sembra:
+
+- **Il campo EAN non cerca mentre digiti**: il suo gestore _chiude_ il pannello a ogni carattere. La ricerca live vive su due campi su tre.
+- **Il commento nel codice dice «da 3 caratteri in su»; la costante è 2.** Commento vecchio.
+- **Lo scanner non usa questo pannello.** Verificato: né la scansione riuscita né il codice sconosciuto toccano quello stato. Rimuovere la ricerca a digitazione **non tocca la scansione**.
+
+**Il ripiego non dichiarato.** Alla conferma, se nessun risultato ha il codice esatto, il filtro restituisce **tutti** i risultati della ricerca — e la ricerca del server guarda dentro codice articolo, nome, marca, SKU ed EAN. Perciò oggi il campo codice funziona anche come ricerca per nome, ma **solo quando il codice non viene trovato**. Non è dichiarato da nessuna parte e non è prevedibile: è il comportamento che la decisione rimuove.
+
+**Il codice non riconosciuto**: il valore **resta scritto** (nessuna riga lo cancella) e la riga prosegue. Fino a 08/2026 compariva anche un banner d'errore in testa alla maschera, aggiunto deliberatamente perché _«senza feedback l'utente crede di aver collegato l'articolo»_.
+
+> **Il banner è stato rimosso SENZA sostituto** _(deciso 08/2026)_ — e non è un lavoro lasciato a metà.
+>
+> Si era valutato di rimpiazzarlo con un segno sulla riga. La valutazione ha mostrato che **lo stato è già visibile**: una riga collegata mostra il nome del prodotto e ha le celle d'identità come **testo**; una riga non collegata le ha come **campi**, e il nome resta vuoto. Chi digita un codice e non vede comparire nulla capisce da sé — o l'articolo non esiste, o non ha quel codice assegnato — e prosegue compilando la riga a mano, che è **un uso legittimo, non un errore da segnalare**.
+>
+> Vale il principio delle etichette: **se serve un avviso per spiegare uno stato che si vede già, l'avviso è di troppo.** Il banner per giunta stava in testa alla maschera, lontano dalla riga a cui si riferiva.
+>
+> **E c'è di più: quel banner era anche sbagliato.** Diceva _«crea l'articolo dal campo Nome prodotto (azione "Crea" nell'elenco)»_ — ma **quell'azione nell'elenco non esiste**: il pannello dei suggerimenti contiene solo risultati, e a zero risultati una riga di testo non cliccabile. Mandava l'operatore a cercare un pulsante che non c'è. Non era solo di troppo: era una falsa indicazione. La rimozione non è una scelta di gusto.
+>
+> Quindi: nessun segno da progettare, nessun punto aperto. Chi rilegge non deve cercare il pezzo mancante.
+
+**Dove vive davvero la creazione di un articolo dalla riga** _(mis. 08/2026)_ — verificato prima di togliere il messaggio di vuoto dal pannello, per accertare che non chiudesse una porta:
+
+- **nella cella**, il pulsante «Completa anagrafica» (`link-action`), che apre l'anagrafica precompilata coi campi della riga;
+- **sopra le righe**, «Nuovo prodotto» in Arrivo merce e «Crea nuovo prodotto» in Ordine cliente, sempre disponibili.
+
+Nessuna delle due passa dal pannello: togliere il messaggio di vuoto non chiude nulla, e **§9 resta un miglioramento, non un prerequisito**.
+
+⚠️ **Ma §9 non è opzionale a lungo.** Oggi «Completa anagrafica» è visibile mentre si digita **solo perché la cella ha il fuoco** (`:focus-within`). Regge, ma è un'azione la cui presenza dipende da uno stato transitorio: basta che il fuoco si sposti perché la via per creare sparisca dalla vista. È la stessa fragilità che §9 rimuove trasformandola in un'icona fissa.
+
+**Verifica sul backend — nessuna modifica necessaria.** La regola chiede che tutti e quattro i campi cerchino sul catalogo con corrispondenza esatta, e che il caso ambiguo apra una scelta.
+
+- L'endpoint `by-code` risolve già **solo se non è ambiguo**: SKU/EAN esatti; codice articolo solo se il prodotto ha una variante sola; codice fornitore solo se non è condiviso. Quando è ambiguo tace (404) — e il suo commento delega la scelta «alla ricerca contestuale», cioè proprio a ciò che la decisione rimuove. **Quel commento va aggiornato nello stesso commit: diventa falso.**
+- I candidati per il caso ambiguo arrivano invece da `listVariantSummaries`, che il frontend già chiama: la sua ricerca passa da `buildInventoryVariantSearchWhere`, che **include il codice fornitore**, e il riepilogo restituito **porta `supplierSku`**. Filtro esatto lato client, come già si fa per il codice articolo.
+
+**Correzione a quanto sopra, dopo l'esecuzione (08/2026): l'API andava toccata.** La verifica iniziale era incompleta. `listVariantSummaries` _cerca_ dentro i codici fornitore anche senza `supplierId`, ma **non li restituisce**: il collegamento fornitore era selezionato solo passando `supplierId`, e quel parametro **filtra anche i risultati**. Le due cose stavano nello stesso interruttore, quindi «tutto il catalogo» e «so quale codice ha corrisposto» erano incompatibili.
+
+Modifica fatta, additiva, **nessuna migration**: i collegamenti fornitore si leggono sempre; con `supplierId` si resta al suo, senza si prendono i primi in ordine deterministico (preferito, poi più vecchio).
+
+Tre cose che ne discendono, tutte annotate nel codice:
+
+1. **Il codice restituito è quello che ha fatto scattare la ricerca.** Un articolo con tre fornitori ha tre codici diversi: restituirne uno a caso farebbe confrontare al filtro esatto della riga la stringa sbagliata, e il caso ambiguo non si aprirebbe.
+2. **Senza ricerca e senza fornitore, il codice restituito è arbitrario** — il primo dell'ordine. Va bene per l'uso attuale, ma non è «il codice fornitore dell'articolo»: quello non esiste, perché i fornitori sono più d'uno. Il commento nel codice lo dice, perché è la classica cosa che qualcuno userà come se fosse.
+3. **Prezzo e codice si leggono da collegamenti diversi.** Il prezzo d'acquisto usa il collegamento **solo** quando il fornitore è stato chiesto: leggere il «last purchase» di un fornitore arbitrario significherebbe seminare nella riga il costo pattuito con qualcun altro. Difetto introdotto e corretto nella stessa passata — è comparso proprio perché la lettura dei codici è diventata incondizionata.
+
+⚠️ **Soglia arbitraria**: senza `supplierId` si leggono al massimo **20 collegamenti fornitore per variante**. Numero **scelto senza misura**, non fondato: serve solo a evitare che una variante patologica pesi sull'intera pagina. Se un giorno sembrerà una decisione motivata, non lo è — va misurato prima di trattarlo come tale.
+
+#### I costi sono tre, non uno _(mis. 08/2026)_
+
+Emerso verificando cosa dipendesse dal filtro per fornitore. Confonderli è facile, e le conseguenze non sono visibili subito.
+
+| Dove vive                                    | Cosa rappresenta                                     | Aggiornato al carico                                                                                   |
+| -------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `SupplierVariantLink.lastPurchasePriceMinor` | l'ultimo prezzo pagato **a quel fornitore**          | **sempre**                                                                                             |
+| `ProductVariant.purchasePriceMinor`          | il costo effettivo **della variante** (della taglia) | **sempre**                                                                                             |
+| `Product.purchasePriceMinor`                 | il costo di **riferimento dell'articolo**            | solo se la spunta «Aggiorna anche il costo di riferimento in anagrafica» è accesa — **default acceso** |
+
+Il ciclo si chiude su sé stesso: l'arrivo merce li scrive, e `findSupplierPriceDiffs` rilegge il primo alla conferma del documento successivo per segnalare gli scostamenti («lo pagavi X, ora paghi Y»).
+
+**Cosa semina la riga, e perché è giusto così.** La riga legge il costo **della variante**: la riga documento aggancia sempre una variante specifica, quindi è il dato che le corrisponde. Il costo di riferimento dell'articolo **non è un'alternativa da cui pescare**: è un dato del prodotto, di natura diversa. Nessun punto aperto.
+
+**Cosa è cambiato (08/2026).** La ricerca dei codici passava il fornitore della testata, e questo faceva sì che il riepilogo portasse `lastPurchasePriceMinor` al posto del costo della variante. Tolto il filtro, la riga parte dal costo dichiarato in anagrafica invece che dall'ultimo prezzo pagato — che è un fatto storico, magari un lotto in saldo, e non il costo dell'articolo. Lo scostamento resta visibile dove l'avviso esiste già: alla conferma.
+
+`findSupplierPriceDiffs` **non è toccato**: prende il fornitore dalla testata del documento, non dalla ricerca. Verificato prima di togliere il filtro.
+
+**Unicità dei codici — è nel database, non una convenzione** _(mis. 08/2026)_: `@@unique([tenantId, articleCode])` sul prodotto, `@@unique([tenantId, sku])` e `@@unique([tenantId, barcode])` sulla variante. Niente migration, nessun rischio sui dati. Ne segue che più corrispondenze **esatte** sul codice articolo sono per forza varianti dello **stesso** prodotto: la scelta è «quale taglia», non «quale articolo». Il codice fornitore invece non è unico, e lì la scelta è davvero fra articoli diversi.
+
+**Più fornitori per articolo: il modello lo ammette, la funzione no** _(deciso 08/2026)_. `SupplierVariantLink` non ha vincolo di unicità per variante: un articolo **può** avere più collegamenti fornitore. Ma la funzione non è mai stata progettata né richiesta, e il comportamento attuale si scrive **assumendo un fornitore**: il costo che semina la riga è quello della variante, e «quale fornitore» non si pone. Non si impone il vincolo nel database e non si dichiara impossibile il caso. Se un giorno servirà davvero, la domanda aperta sarà **cosa significhi il costo di riferimento con due fornitori** — non è una questione di codice, è di dominio.
+
+**La scelta è navigabile con le frecce** _(fatto 08/2026)_. Era il vincolo posto quando `suggestionNavigate` è passato da «da rimuovere» a «da aggiungere», e alla prima stesura del commit **non era stato soddisfatto**: la cella codice ingoiava ancora le frecce a pannello aperto. Ora le emette, la maschera tiene un indice attivo **proprio** dei codici — distinto da quello dei suggerimenti sul nome, perché sono due collezioni con lunghezze diverse — e Invio prende la voce evidenziata. Il fuoco resta nel campo perché il ramo «più corrispondenze» non lo sposta.
+
+#### ⚠️ Decisa per tre maschere, applicata a una — come è successo _(08/2026)_
+
+Vale la pena tenerlo scritto, perché il modo in cui è successo è più insidioso dell'errore.
+
+La regola sui codici è stata decisa **per tutte le maschere**. È stata implementata in **Arrivo merce**, e per una ragione che sul momento sembrava sufficiente: era l'unica in cui il comportamento sbagliato esisteva. La ricerca a digitazione, il ripiego, il banner — vivevano lì. Nelle altre due non c'era niente da togliere, quindi sembravano già conformi.
+
+**Erano conformi solo per assenza.** Misurando si è visto che la metà positiva della regola mancava: alla conferma di un codice che corrisponde a più varianti, Ordine cliente e Ordine fornitore **non aprivano nessuna scelta** — la risoluzione restituiva `null` e il caso finiva in silenzio, indistinguibile da un codice inesistente. Cioè la peggiore delle tre risposte: hai digitato il codice giusto e il sistema si comporta come se non esistesse.
+
+Peggio: la divergenza fra le maschere era **aumentata** proprio mentre il piano era ridurla. Prima erano diverse a caso; dopo, Arrivo merce faceva la cosa giusta e le altre due no — a parità di aspetto e di gesto, che è la forma di divergenza più difficile da notare.
+
+**E la taglia vera è emersa solo misurando.** Sembrava «passare due input alle celle». Non lo era: la funzione che quelle due maschere usano per confermare un codice restituisce `string | null` e **non può esprimere «eccone tre»** — scarta i candidati al proprio interno, in tre punti diversi. Serviva un percorso di conferma proprio, sul modello di Arrivo merce, lasciando la risoluzione singola alla scansione, che ha esigenze opposte: il lettore spara e va, una scelta lo interromperebbe.
+
+**Il pezzo condiviso, già in uso da una maschera** _(08/2026)_: `domain/documents/utils/document-code-match.util.ts` porta il filtro delle corrispondenze esatte sui quattro campi codice, la regola dei **tre** esiti (nessuna · una · più d'una — mai due), e la dimensione di pagina della ricerca di conferma. Arrivo merce lo usa già; Ordine cliente e Ordine fornitore lo importeranno **senza riscriverlo**. ⚠️ Al momento di collegarlo, verificare che nessuna delle due si scriva una variante locale della stessa logica: il punto di quel file è che esista **un posto solo**.
+
+**Perché le due maschere hanno bisogno di un percorso proprio, e la scansione no** _(mis. 08/2026)_. `resolveVariantIdByCode` — che oggi entrambe usano per confermare un codice — restituisce `string | null` e **non può esprimere «eccone tre»**: scarta i candidati al proprio interno, in tre stadi che trattano l'ambiguità in tre modi diversi. L'endpoint tace (i candidati restano sul server); la mappa locale **non può rappresentarla** (una chiave, un valore) e aggancerebbe arbitrariamente — inerte oggi in quelle due, che non ne passano una; solo la ricerca ha le righe in mano, e le scarta con `onlyMatch`.
+
+Quella funzione **resta alla scansione**, che ha esigenze opposte: il lettore spara e va, e una scelta interromperebbe un gesto che deve essere immediato. La conferma da tastiera è il contrario — l'operatore è lì, sta guardando, ed è l'unico che può risolvere. ⚠️ Il commento di `onlyMatch` («due risultati portano allo stesso esito») **va corretto**: per la scansione resta vero, ma è una scelta di quel percorso, non una regola generale, e chi legge la applica anche altrove.
+
+Due cose da non ereditare nel percorso nuovo: la **pagina da 5** (un articolo con più di cinque varianti avrebbe corrispondenze fuori pagina) e i **filtri di contesto** fornitore e sede — è lo stesso filtro appena tolto da Arrivo merce, che rientrerebbe da un'altra porta. Su `resolveVariantIdByCode` restano: è la scansione, ed è una decisione che non è stata presa.
+
+> **La regola che ne discende** (in testa alla specifica, vale da qui in avanti):
+>
+> 1. **Ogni decisione dichiara su quali documenti vale, per nome, prima di essere implementata.** Non «vale ovunque»: l'elenco scritto prima. Scritto dopo, coincide sempre con ciò che è stato fatto.
+> 2. **Una decisione è chiusa solo quando ogni documento dell'elenco è stato verificato** — implementato, oppure **misurato** già conforme. «Sembra a posto» non è una verifica.
+> 3. **Il controllo che intercetta il caso insidioso:** quando la modifica tocca un documento solo, chiediti se la decisione ne riguardava uno solo. Se no, il lavoro non è finito **anche se il codice da cambiare stava tutto lì**. Succede quando una regola si applica _togliendo_ qualcosa: il comportamento sbagliato vive dove vive, rimuoverlo sembra chiudere il lavoro — ma ogni regola ha due metà, e la seconda riguarda tutto il perimetro.
+
+**La forma del pannello di scelta.** `document-line-suggestions` è già estratto, ha il suo spec, ed è agnostico rispetto al contenuto: riceve `items: [{ title, detail? }]`, un `activeIndex` per l'evidenziazione da tastiera, e restituisce **l'indice** della voce scelta. I due contenuti diversi — «quale variante» dal codice articolo, «quale articolo» dal codice fornitore — si risolvono nella composizione del chiamante, non in due pannelli gemelli che divergono.
 
 ---
 
@@ -328,7 +441,9 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 2. **La cella prodotto di Ordine fornitore non ha identificativo** ed è un `app-select-menu` senza `(keydown)`. Ma `product` è nel giro del Tab: da «Cod. fornitore» il fuoco si perde.
 3. **`advanceToNextLine` di Ordine fornitore non controlla `formReadOnly()`** — e non ha nemmeno il `<fieldset [disabled]>` che protegge le altre due. Su documento bloccato il Tab aggiunge righe.
 4. **L'identificativo IVA dell'Arrivo merce è nella mappa ma non esiste nel DOM** (la cella è un `app-select-menu`). Innocuo solo perché `visibleLineFocusFields` esclude `vat` a mano.
-5. **Le celle gemelle divergono a suggerimenti aperti**: la cella prodotto usa le frecce per scorrere la lista, la cella codice le ingoia con `preventDefault`.
+5. ~~**Le celle gemelle divergono a suggerimenti aperti**: la cella prodotto usa le frecce per scorrere la lista, la cella codice le ingoia con `preventDefault`.~~
+   **CHIUSO da una decisione di prodotto (08/2026), non corretto — non cercare il commit che lo sistema, non c'è.** La regola «il campo codice non cerca» (spec §codici) toglie la ricerca a digitazione e apre il pannello alla **conferma**, per far scegliere fra più corrispondenze esatte. Quella scelta deve essere navigabile con le frecce, quindi la cella codice **riceve** `suggestionNavigate` — che è precisamente ciò che le mancava. Il difetto non viene sanato: smette di esistere perché il meccanismo che lo conteneva cambia sorgente.
+   Corollario verificato prima di agire: la divergenza **non** sarebbe stata cementata dal punto unico. Le frecce a lista aperta sono gestite dentro le celle e non raggiungono mai il form, che vede solo `lineRowAdvance` / `lineRowRetreat`, emessi a lista chiusa. La collocazione di questo difetto fra i prerequisiti dell'unificazione era sbagliata.
 
 **Gruppo B**
 
@@ -337,7 +452,7 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 8. **Arrivo merce, mappa inversa** (usata da Ctrl+frecce): il prefisso del lotto è testato **prima** di quello della scadenza lotto, e il secondo inizia col primo. Da «Scadenza» il fuoco torna su «Lotto».
 9. **Ordine fornitore: U.M. e sconto sono nel giro ma non hanno `(keydown)`.** Il template ha **due gestori per nove campi**, contro i nove dell'Arrivo merce e i quattro dell'Ordine cliente _(mis. 08/2026)_.
 10. **Arrivo merce: su riga collegata prezzo di vendita e prezzo di confronto sono esclusi dal Tab ma le celle restano editabili col mouse**, senza commento che spieghi l'incoerenza.
-11. **e2e già rotto**: gli helper e lo spec dell'Arrivo merce cercano una classe CSS rinominata in `src/`. Finché resta così, ogni prova e2e dell'Arrivo merce è rossa a prescindere.
+11. ~~**e2e già rotto**: gli helper e lo spec dell'Arrivo merce cercano una classe CSS rinominata in `src/`.~~ ✅ **Chiuso (08/2026)**, insieme al fronte più largo che ha aperto — vedi §12.
 12. **U.M. di Ordine fornitore fallisce in silenzio** (§5.2).
 
 ---
@@ -387,8 +502,10 @@ Ordine di grandezza _(mis. 08/2026)_: **~126 righe** dall'Ordine cliente, **~115
 
 Criterio: **prima la semantica, poi la copertura.** Partire da Arrivo merce «perché ha già tutto» porterebbe le sue eccezioni nel contratto come se fossero regole.
 
-0. **Riparare l'e2e rotto** (difetto 11). Finché è rosso, nessuna prova e2e dell'Arrivo merce distingue una rottura vera.
-1. **I difetti in `domain/`** che il punto unico cementerebbe (difetto 5, e la rimozione di `focusInput()`).
+0. ✅ **Fatto (08/2026) — riparare l'e2e rotto** (difetto 11). Finché era rosso, nessuna prova e2e dell'Arrivo merce distingueva una rottura vera. Rinominata la classe cercata in due punti; riscritta la guardia del test §8 come **elenco di ciò che deve esserci** invece che di ciò che non deve, perché una guardia scritta come divieto fallisce dicendo la cosa sbagliata. Trovati nella stessa passata **tre selettori morti fuori area** (`.login__alert`, `.sales-detail__totals`, `.sales-detail__badges`, due dei quali rendono rosse le rispettive spec) e **38 errori di tipo preesistenti** su `e2e/`: annotati, non toccati — fronte separato, da chiudere **prima del passo 3**, che è quando il lavoro comincia a produrre rossi propri.
+1. ✅ **Fatto in parte (08/2026) — i difetti in `domain/`**. Rimossa `focusInput()` da entrambe le celle (§3). Il difetto 5 **non è stato corretto**: la decisione sui campi codice lo rende inesistente (§9).
+   1-bis. **I campi codice smettono di cercare** (§3-bis). Va **prima** della classe, non dopo: cambia il contratto che la classe dovrà esporre — la cella codice comincia a emettere `suggestionNavigate` e nasce un pannello di scelta che prima non c'era. Scrivere la classe adesso significherebbe scriverla contro un comportamento che sta per cambiare.
+   **Due commit distinti:** prima il comportamento nuovo sul pannello esistente, poi la sostituzione della `<ul>` scritta a mano con `document-line-suggestions`. Insieme, se qualcosa si rompe non si sa se è la regola o l'estrazione.
 2. **La classe con il suo spec, senza innestarla.** Rischio zero. _Attenzione: la copertura esclude i `*.component.spec.ts`, quindi questo file **entra nel gate**. Senza il suo spec la verifica completa fallisce, e alzare la soglia è vietato dalle regole._
 3. **Ordine cliente** — porta la semantica, è l'unica che esercita la voce 4, non ha il gancio asincrono, ha la rete di test migliore, e copre quattro tipi documento.
 4. **Ordine fornitore** — il contratto arriva collaudato; qui si aggiunge la voce 10 e si chiudono i difetti 2, 3, 9.
@@ -407,6 +524,19 @@ Un test per maschera nei rispettivi spec («il fuoco atterra dove deve»): non e
 **Zero copertura** sull'area _(mis. 08/2026)_. I tre spec di componente non contengono `keydown`, `focus`, `Tab`, `ArrowUp`/`ArrowDown`, `advanceToNextLine` né `LineFocus`. In `e2e/` l'unico uso di tastiera è un `Escape`.
 
 Le due celle condivise non hanno spec. `app-select-menu` non ha spec: le sue uniche verifiche automatiche sono le chiamate e2e legate ai ruoli ARIA. `document-line-suggestions` ha il suo spec — è l'unico pezzo dell'area coperto.
+
+### 12.1 Il fronte `e2e/` — ✅ chiuso (08/2026), tranne una specifica
+
+**`tsc -p e2e/tsconfig.json` è verde.** Prima erano **38 errori**, e finché c'erano non esisteva modo di sapere se un helper era rotto se non lanciando la suite intera con app e segreti. È il motivo per cui questo fronte andava chiuso **prima** di innestare la classe della navigazione: da lì in poi i rossi nuovi si sarebbero mescolati a questi.
+
+- **37 erano una sola forma**: `process.env.X` invece di `process.env['X']` (`noPropertyAccessFromIndexSignature`), su 17 variabili in sei file. Conversione meccanica.
+- **1 era altro**: in `e2e/helpers/a11y.ts` il tipo locale dichiarava `impact?: string` mentre axe può restituire `null`. Allargato invece di convertire al confine — quel tipo esiste per descrivere l'uscita di axe, quindi la descrive.
+
+**Selettori morti**: erano **quattro**, non tre — il primo controllo guardava solo le classi e non gli id.
+
+- `.gl.login__alert` → sostituito con `getByRole('alert')`: l'errore di accesso è un `app-inline-banner`, che a tono errore espone quel ruolo. **Si aggancia il ruolo, non la classe** — una classe cambia con una rinomina e il test smette di guardare in silenzio, che è esattamente ciò che era successo.
+- `#sales-general`, `#sales-lines`, `.sales-detail__totals`, `.sales-detail__badges`, più `h1.sales-detail__title` nel suo helper → **non è una rinomina**: in `src/` non esiste più nulla che si chiami `sales-detail__`, e nella cartella non c'è un componente di dettaglio vendita. La schermata provata **è stata sostituita**, e `e2e/sales-detail.spec.ts` è rimasta indietro per intero: tre test più l'helper che li apre.
+  **Deciso: marcarla saltata con una nota di lavoro** — che dica che la schermata è stata sostituita, che nessuno dei cinque riferimenti esiste più, e che va **riscritta contro il dettaglio vendita attuale**. Non «test obsoleto, da rivedere»: chi la trova deve sapere cosa fare. **Non ancora eseguito.**
 
 ---
 

@@ -8,9 +8,9 @@ loadEnvFile(resolve(__dirname, '.env'));
 
 const authFile = 'e2e/.auth/user.json';
 const mockAuthFile = 'e2e/.auth/mock-user.json';
-const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:4200';
-const apiURL = process.env.E2E_API_URL ?? 'http://localhost:3000';
-const useE2eFrontend = process.env.E2E_USE_MOCK_AUTH === '1' || Boolean(process.env.CI);
+const baseURL = process.env['E2E_BASE_URL'] ?? 'http://localhost:4200';
+const apiURL = process.env['E2E_API_URL'] ?? 'http://localhost:3000';
+const useE2eFrontend = process.env['E2E_USE_MOCK_AUTH'] === '1' || Boolean(process.env['CI']);
 
 const frontendStartCommand = useE2eFrontend
   ? 'npm run start -- --host 127.0.0.1 --port 4200 --configuration e2e'
@@ -52,10 +52,10 @@ const authenticatedProjects = hasE2eCredentials()
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
-  forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 2 : 1,
+  forbidOnly: Boolean(process.env['CI']),
+  retries: process.env['CI'] ? 2 : 1,
   workers: 1,
-  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : [['list'], ['html']],
+  reporter: process.env['CI'] ? [['github'], ['html', { open: 'never' }]] : [['list'], ['html']],
   timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {
@@ -85,20 +85,20 @@ export default defineConfig({
     },
     ...authenticatedProjects,
   ],
-  webServer: process.env.E2E_SKIP_WEBSERVER
+  webServer: process.env['E2E_SKIP_WEBSERVER']
     ? undefined
     : [
         {
           command: 'npm run start:api',
           url: `${apiURL}/api/v1/health`,
-          reuseExistingServer: !process.env.CI,
+          reuseExistingServer: !process.env['CI'],
           timeout: 120_000,
           cwd: '.',
         },
         {
           command: frontendStartCommand,
           url: baseURL,
-          reuseExistingServer: !process.env.CI,
+          reuseExistingServer: !process.env['CI'],
           timeout: 120_000,
           cwd: '.',
         },
