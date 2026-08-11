@@ -767,6 +767,22 @@ Tre di questi sono sopravvissuti a una compilazione pulita e li ho tolti a mano.
 
 > Dopo aver tolto un `output()`, si cerca il suo nome nei template. Il compilatore copre gli ingressi, non le uscite.
 
+### 12.0-ter-quater ⚠️ Un'affermazione mai verificata, trovata da una domanda
+
+_(11/08/2026)_ Chiudendo il blocco sul nome di riga ho scritto, nella specifica e nel riepilogo al proprietario: «Trasferimento e Rettifica non hanno un nome libero». **Falso.** Ce l'hanno entrambi — un `formControlName="description"` sempre modificabile — perché in quelle due maschere l'articolo si sceglie in una colonna a parte.
+
+Non l'ha trovato una prova, non l'ha trovato il compilatore. L'ha trovato **una domanda**: «come mai?». Se non fosse arrivata, la frase sarebbe rimasta lì a dire che il perimetro era di sei tipi su dieci, quando la decisione vale su tutti.
+
+**Come ci ero arrivato.** Avevo verificato le tre maschere che usano la cella condivisa e le tre delle fatture. Delle ultime due ho **dedotto** il comportamento dalla forma della riga — variante scelta da una tendina, quindi «niente nome libero» — e l'ho scritto con lo stesso tono delle cose misurate. La deduzione era ragionevole e sbagliata: la tendina sceglie la variante, la descrizione sta nella colonna dopo.
+
+> **La specifica deve distinguere ciò che è MISURATO da ciò che è RICOSTRUITO.**
+>
+> Un'affermazione verificata sul codice e una dedotta dalla forma si leggono uguali, ma reggono pesi diversi: sulla prima si può costruire una decisione, sulla seconda no. Quando una parte del perimetro non è stata aperta, si scrive che non è stata aperta — «da verificare» costa una riga e vale più di una frase sicura che nessuno ricontrollerà.
+>
+> È anche il motivo per cui §11-bis esiste e va tenuto vivo: separa ciò che è confermato sul codice da ciò che non lo è.
+
+**Il segnale da cercare in sé stessi:** una frase che chiude un elenco («…e gli altri due non ce l'hanno») scritta senza aver aperto quei due file. La comodità di chiudere l'elenco è esattamente la spinta che produce l'affermazione non verificata.
+
 ### 12.0-quater ⚠️ Tre regole in fila per tornare al punto di partenza
 
 _(11/08/2026)_ Il blocco righe a testata incompleta era spento al 55% dal foglio globale, spento **ancora** dal foglio mobile, e **riacceso** con `opacity: 1` dal foglio mobile di riferimento — che nel suo commento portava già la conclusione giusta: «titolo e stato vuoto vanno letti, sono proprio loro a spiegare cosa fare».
@@ -858,6 +874,59 @@ Novantaquattro migration, alcune con timestamp doppi, diverse che sono esperimen
 **Il momento giusto per compattarle in una baseline unica è quello, non adesso**: da qui al primo cliente se ne aggiungeranno altre decine, e compattare ora vorrebbe dire rifarlo dopo. Compattando allora, i timestamp doppi e gli esperimenti spariscono in un colpo solo, e la storia che i clienti si portano dietro parte pulita.
 
 ⚠️ Va **concordato col collega**: la baseline riscrive la cartella `migrations/` di entrambi i rami, e va fatta quando i rami sono uniti, non mentre corrono in parallelo.
+
+---
+
+## 13-ter. Le tre maschere: cosa le tiene separate, e cosa no
+
+_(11/08/2026, richiesto dal proprietario.)_ Arrivo merce, Ordine fornitore e Ordine cliente sono tre componenti e restano tre. La domanda non è «si possono fondere» — è **quali differenze hanno una ragione di dominio e quali sono solo storia**. Le prime restano per definizione. Sulle seconde decide il proprietario.
+
+Misure di partenza: Arrivo merce 4719 + 2428 righe, Ordine cliente 4758 + 2716, Ordine fornitore 1935 + 1112. Il terzo è meno della metà degli altri due, e non perché sia più semplice il documento.
+
+### A. Differenze vere — restano
+
+Ognuna risponde a «il documento è un'altra cosa», non a «è stato scritto in un altro momento».
+
+| Differenza                       | Arrivo merce                                                    | Ordine fornitore                    | Ordine cliente                                            | Perché è vera                                                                                                        |
+| -------------------------------- | --------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Cosa fa la riga al magazzino** | carica (`loadsStock`)                                           | **niente**: ordinare non è ricevere | impegna (`commitsStock`)                                  | tre effetti diversi sulla giacenza, e uno è l'assenza di effetto. Non è una colonna in più: è il senso del documento |
+| **Costo o prezzo**               | costo d'acquisto (`unitCost`)                                   | costo d'acquisto (`unitCost`)       | prezzo di vendita (`unitPrice`) + costo in sola lettura   | non sono lo stesso numero e non hanno le stesse regole. Sul venduto il costo serve solo a leggere il margine         |
+| **Listini**                      | —                                                               | —                                   | 25 riferimenti: il prezzo dipende dal listino del cliente | comprando non esiste un listino del fornitore da applicare alla riga                                                 |
+| **Lotto e scadenza**             | ✅                                                              | —                                   | —                                                         | nascono quando la merce **entra**. Ordinandola non esistono ancora                                                   |
+| **Numeri di serie**              | ✅ (si registrano)                                              | —                                   | ✅ (si scelgono)                                          | stesso campo, due momenti diversi della vita del pezzo                                                               |
+| **Il documento a monte**         | ordine fornitore collegato (`poOrdered/poReceived/poRemaining`) | —                                   | documento di origine (preventivo → ordine)                | due catene diverse, e l'ordine fornitore è l'inizio della sua                                                        |
+| **Quanti tipi serve**            | 1                                                               | 1                                   | **4** (ordine, DDT, preventivo, scarico manuale)          | il `documentType` cambia colonne e regole dentro lo stesso componente. È la ragione principale della sua dimensione  |
+| **Quale giacenza si guarda**     | disponibile                                                     | **giacenza e** disponibile          | disponibile                                               | ordinando si guarda quanta ce n'è; vendendo, quanta se ne può promettere. Domanda diversa, colonna diversa           |
+| **Codice fornitore in colonna**  | ✅                                                              | ✅                                  | —                                                         | esiste solo dove c'è un fornitore                                                                                    |
+
+### B. Divergenze rimaste lì — sul tavolo del proprietario
+
+Nessuna ragione di dominio trovata. In quasi tutte l'Ordine fornitore è quello che manca — non perché il suo documento non ne abbia bisogno, ma perché è la maschera nata prima e aggiornata meno.
+
+| Divergenza                              | Chi ce l'ha                                   | Chi no                      | Nota                                                                                                                                                                          |
+| --------------------------------------- | --------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Stato del pannello prodotto**         | GR, CO (store condiviso)                      | **PO** (stato locale)       | stesso pannello, due modi di ricordare cosa sta mostrando. Già scritto in §8 della specifica                                                                                  |
+| **Conflitto di numero documento**       | GR, CO                                        | **PO**                      | eppure l'ordine fornitore un numero ce l'ha, dai Numeratori (`OF-2026-0042`). Oggi due ordini possono nascere con lo stesso senza che nessuno lo dica                         |
+| **Allegati**                            | GR, CO                                        | **PO**                      | zero riferimenti nel file. La conferma d'ordine del fornitore è esattamente il tipo di file che si allega                                                                     |
+| **Sconto extra di documento**           | GR, CO                                        | **PO**                      | uno sconto di chiusura su un ordine al fornitore è pratica comune                                                                                                             |
+| **Duplica riga**                        | GR, CO                                        | **PO**                      | in PO la parola compare solo dentro un commento                                                                                                                               |
+| **«Nuovo prodotto» sopra le righe**     | GR, CO                                        | **PO**                      | il pannello di creazione c'è, il comando diretto no                                                                                                                           |
+| **Lettore di codici a barre**           | GR, CO                                        | **PO**                      | in PO un commento dichiara «questa maschera non ha lettore»: è una scelta scritta, ma la ragione è circolare                                                                  |
+| **Ctrl + ↑/↓ per spostare la riga**     | **solo GR**                                   | PO, CO                      | §7.3 della specifica lo dichiara «lasciato perdere»: è una divergenza **parcheggiata**, non una differenza. Ora che il trascinamento c'è ovunque, o si toglie o si dà a tutte |
+| **Le righe su telefono**                | GR (`doc-form__cards`), CO (`co-form__cards`) | **PO** (tabella che scorre) | **tre risposte diverse alla stessa domanda**, e due delle tre sono la stessa cosa scritta con due prefissi. Vedi `regole-stile-ui` §6                                         |
+| **`app-hover-tooltip`**                 | GR, CO                                        | **PO**                      | spiegazioni che in una maschera ci sono e in un'altra no                                                                                                                      |
+| **Nome della colonna «dopo lo sconto»** | PO `discountedCost`, CO `discountedPrice`     | GR non ce l'ha              | stessa colonna, due nomi. Che il nome giusto dipenda da A (costo o prezzo) è vero; che manchi in Arrivo merce no                                                              |
+| **`description` come colonna a sé**     | **solo GR**                                   | PO, CO                      | accanto a «Nome prodotto»: due celle per una cosa sola. È il primo punto del Filone B                                                                                         |
+
+### Come leggere le due liste insieme
+
+La colonna A spiega perché i tre file **esistono**. Non spiega perché il terzo sia meno della metà degli altri: quello lo spiega la colonna B, che non parla di documenti diversi ma di **manutenzione arrivata a due su tre**. Ogni volta che una funzione è stata aggiunta «alle maschere documento», l'Ordine fornitore è rimasto indietro — ed è il motivo per cui questo lavoro conta i **tipi documento**, non i componenti.
+
+### Come è stata fatta questa lista, e cosa NON dice
+
+Conteggi di riferimenti nei file (`.ts` e `.html` insieme), definizioni di colonna lette nei tre `*-line-columns.config.ts`, e verifica **una per una** delle assenze prima di dichiararle: quattro delle presunte mancanze dell'Ordine fornitore erano parole dentro commenti, e senza aprirle sarebbero finite in tabella come funzioni presenti. È la contromisura dell'episodio in §12.0-ter-quater, applicata subito.
+
+**Non** è stata verificata a schermo: è una lettura del codice. Le voci della colonna B vanno confermate provando la maschera prima di deciderne una — soprattutto «Allegati» e «Sconto extra», dove l'assenza potrebbe essere una scelta di prodotto mai scritta.
 
 ---
 
