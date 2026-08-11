@@ -861,6 +861,7 @@
                           <input
                             [id]="'po-cost-' + i"
                             class="doc-form__input doc-form__input--table doc-form__input--num"
+                            [class.doc-form__input--waiting]="unitCostMissing(i)"
                             type="text"
                             inputmode="decimal"
                             formControlName="unitCost"

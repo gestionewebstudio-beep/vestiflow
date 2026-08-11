@@ -1699,14 +1699,40 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return control.invalid && (control.touched || control.dirty);
   }
 
+  /**
+   * Costo ERRATO: illeggibile o negativo. Rosso e messaggio, perché blocca.
+   *
+   * Il campo **vuoto** non è più un errore da quando il costo non è
+   * obbligatorio (11/08/2026): `parseMoneyInput('')` torna `null`, e questa
+   * regola lo leggeva come «importo non valido» — un rosso da errore su un
+   * documento che si salva benissimo. Il vuoto ha la sua tinta, sotto.
+   */
   protected unitCostInvalid(index: number): boolean {
     const control = this.lines.at(index).controls.unitCost;
-    const touched = control.touched || control.dirty;
-    if (!touched) {
+    if (!control.touched && !control.dirty) {
+      return false;
+    }
+    if (!control.value.trim()) {
       return false;
     }
     const parsed = parseMoneyInput(control.value, this.currency);
     return control.invalid || parsed === null || parsed.amountMinor < 0;
+  }
+
+  /**
+   * Costo che MANCA su una riga con un articolo: si segna in ambra, la tinta
+   * del campo in attesa (`--color-field-waiting`, regole-stile-ui §5) — non in
+   * rosso. Il rosso vuol dire «hai sbagliato»; qui non è sbagliato niente, il
+   * documento si salva e al salvataggio l'avviso lo dice.
+   *
+   * Solo su righe con articolo: su una riga vuota non manca niente.
+   */
+  protected unitCostMissing(index: number): boolean {
+    const line = this.lines.at(index);
+    if (!line?.controls.variantId.value) {
+      return false;
+    }
+    return !line.controls.unitCost.value.trim();
   }
 
   /**
