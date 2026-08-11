@@ -25,6 +25,9 @@ describe('SupplierOrderPdfService', () => {
     costEntryMode: 'vat_excluded',
     orderDate: new Date('2026-07-10T09:00:00.000Z'),
     supplierReference: 'ORD-77/2026',
+    // Nessuno sconto di chiusura in questo dato: il campo esiste dal
+    // 11/08/2026 ed è obbligatorio nel tipo — il compilatore l'ha chiesto.
+    documentDiscountPercent: new Prisma.Decimal(0),
     subtotalMinor: 30000,
     taxMinor: 6600,
     totalMinor: 36600,

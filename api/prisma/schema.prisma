@@ -1018,6 +1018,11 @@ model SupplierOrder {
   orderDate             DateTime            @default(now()) @map("order_date")
   /// "Rif. ordine fornitore": riferimento libero comunicato dal fornitore.
   supplierReference     String?             @map("supplier_reference")
+  /// Sconto extra di chiusura sull'intero ordine, in percentuale con coda
+  /// decimale (stesso pattern di Document.documentDiscountPercent e
+  /// SalesOrder.documentDiscountPercent). Aggiunto 11/08/2026: era l'unico
+  /// documento a non averlo, e non per scelta.
+  documentDiscountPercent Decimal           @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
   subtotalMinor         Int                 @default(0) @map("subtotal_minor")
   taxMinor              Int                 @default(0) @map("tax_minor")
   totalMinor            Int                 @default(0) @map("total_minor")

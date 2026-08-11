@@ -123,6 +123,7 @@ import { FirstClickSelectsDirective } from '@shared/directives/first-click-selec
 import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/attachments-panel.component';
+import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -517,6 +518,13 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     orderDate: this.fb.control(todayIsoDate(), { validators: [Validators.required] }),
     expectedAt: this.fb.control(''),
     supplierReference: this.fb.control(''),
+    /**
+     * Sconto extra di chiusura sull'intero ordine. Campo SEMPRE visibile che
+     * mostra 0% quando non c'è, non un pulsante che lo riveli: un pulsante
+     * nasconde uno stato, e guardando il riepilogo non si saprebbe se lo sconto
+     * è zero o se il campo è chiuso (decisione 08/2026, regole-stile-ui §7).
+     */
+    documentDiscountPercent: this.fb.control(''),
     lines: this.fb.array([this.createLine()]),
   });
 
@@ -701,32 +709,36 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     });
   }
 
-  protected readonly orderSubtotal = computed<Money>(() => {
+  /**
+   * I totali passano dalla stessa funzione degli altri documenti: lo sconto
+   * documento si applica dopo quelli di riga, e l'IVA si ricalcola ripartendo
+   * lo sconto fra le aliquote in proporzione. Prima qui c'erano tre somme
+   * scritte a mano — corrette finché lo sconto non esisteva, e destinate a
+   * divergere dagli altri il giorno in cui fosse arrivato. È arrivato.
+   */
+  protected readonly documentTotals = computed(() => {
     this.formValue();
     this.costEntryMode();
     this.vatCodesById();
-    const amount = this.lines.controls.reduce(
-      (sum, _line, index) => sum + this.lineAmounts(index).net,
-      0,
-    );
-    return { amountMinor: amount, currencyCode: this.currency };
-  });
-
-  protected readonly orderTax = computed<Money>(() => {
-    this.formValue();
-    this.costEntryMode();
-    this.vatCodesById();
-    const amount = this.lines.controls.reduce((sum, _line, index) => {
+    const lines = this.lines.controls.map((_line, index) => {
       const amounts = this.lineAmounts(index);
-      return sum + (amounts.affects ? amounts.vat : 0);
-    }, 0);
-    return { amountMinor: amount, currencyCode: this.currency };
+      return {
+        netMinor: amounts.net,
+        vatMinor: amounts.vat,
+        vatRate: this.lineRate(index),
+        countsVatInTotal: amounts.affects,
+      };
+    });
+    return computeDocumentTotals(
+      lines,
+      parseEffectiveDiscountPercent(this.form.controls.documentDiscountPercent.value),
+      this.currency,
+    );
   });
 
-  protected readonly orderTotal = computed<Money>(() => ({
-    amountMinor: this.orderSubtotal().amountMinor + this.orderTax().amountMinor,
-    currencyCode: this.currency,
-  }));
+  protected readonly orderSubtotal = computed<Money>(() => this.documentTotals().subtotal);
+  protected readonly orderTax = computed<Money>(() => this.documentTotals().tax);
+  protected readonly orderTotal = computed<Money>(() => this.documentTotals().total);
 
   protected readonly formatMoney = formatMoney;
 
@@ -1743,6 +1755,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       orderDate: raw.orderDate ? new Date(raw.orderDate).toISOString() : undefined,
       expectedAt: raw.expectedAt ? new Date(raw.expectedAt).toISOString() : undefined,
       supplierReference: raw.supplierReference.trim() || undefined,
+      documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
       costEntryMode: this.costEntryMode(),
       currency: this.currency,
       lines,
@@ -1819,6 +1832,9 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : todayIsoDate(),
       expectedAt: order.expectedAt ? order.expectedAt.slice(0, 10) : '',
       supplierReference: order.supplierReference ?? '',
+      documentDiscountPercent: order.documentDiscountPercent
+        ? String(order.documentDiscountPercent).replace('.', ',')
+        : '',
     });
     this.costEntryMode.set(order.costEntryMode);
     this.lines.clear();

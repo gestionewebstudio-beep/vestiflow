@@ -78,6 +78,17 @@ export class CreateSupplierOrderDto {
   @MaxLength(120)
   supplierReference?: string;
 
+/**
+   * Sconto extra di chiusura sull'intero ordine (percentuale, fino a 4
+   * decimali). Stessa forma di `documentDiscountPercent` su arrivo merce e
+   * ordine cliente: il calcolo è già condiviso, qui arriva solo il numero.
+   */
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
+  @Min(0)
+  @Max(100)
+  documentDiscountPercent?: number;
+
   /** Switch costi netto/ivato (come Arrivo merce). Default: netti. */
   @IsOptional()
   @IsEnum(PurchaseCostEntryMode)
