@@ -52,9 +52,12 @@
   }
 
   <div class="gr-product-search__actions">
-    <!-- Sempre raggiungibile, non solo a ricerca vuota: si puo' sapere in
-         partenza che l'articolo non esiste. -->
-    @if (canCreate()) {
+    <!-- Il comando esiste UNA volta sola. Quando la ricerca non trova niente sta
+         nello stato vuoto, dove l'occhio è già; negli altri casi sta qui, perché
+         si può sapere in partenza che l'articolo non esiste. Averlo in entrambi
+         i posti — com'era — significa mostrarlo due volte proprio nel momento in
+         cui serve, e chi lo vede si chiede quale dei due faccia cosa. -->
+    @if (showCreateInActions()) {
       <app-button type="button" variant="secondary" (click)="requestCreate()">
         <i class="pi pi-plus" aria-hidden="true"></i>
         Crea articolo

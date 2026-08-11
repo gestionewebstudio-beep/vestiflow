@@ -54,6 +54,18 @@ export class DocumentProductSearchPanelComponent {
       : 'Prova con un altro termine.',
   );
 
+  /**
+   * «Crea articolo» in barra solo quando NON è già nello stato vuoto.
+   *
+   * Il comando è uno, il posto cambia: dove la ricerca non trova niente vive nel
+   * riquadro centrale, che è dove l'occhio si trova in quel momento; altrimenti
+   * vive in barra, perché si può sapere in partenza che l'articolo non esiste.
+   */
+  protected readonly showCreateInActions = computed(
+    () =>
+      this.canCreate() && !(this.searchQuery().trim().length > 0 && this.results().length === 0),
+  );
+
   readonly variantSelected = output<{ readonly variantId: string }>();
   /**
    * L'articolo non c'è e va creato. Il pannello non sa COME si crea — i campi

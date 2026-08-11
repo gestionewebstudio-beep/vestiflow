@@ -681,6 +681,14 @@ Non è la nota di un caso: è lo **schema** che si è ripetuto **tre volte in un
 
 **Il segnale che sei nel caso sbagliato:** il red-check resta **verde**. Rompere deliberatamente la cosa e vedere la prova passare non significa che la cosa non conti — significa che la prova non la stava guardando. Un red-check verde è un risultato, non un contrattempo: dice che la guardia è nel posto sbagliato.
 
+**Quinta variante, e forse la più subdola: anche il GESTO che rompe va verificato** _(11/08/2026)_.
+
+Un red-check è verde in due casi diversi, e non li distingue: «la prova non guarda il posto giusto» e «non ho rotto niente». Il secondo è successo davvero — una sostituzione che doveva introdurre il difetto non ha agganciato il testo, il file è rimasto intatto, la prova è passata, e per un attimo la conclusione è stata «la guardia non morde». Due informazioni sbagliate al prezzo di una: si dubita di una prova buona, e si crede rotto un codice che non lo è.
+
+È la più insidiosa della famiglia perché **il segnale di sicurezza arriva proprio quando la sicurezza non c'è**: il verde dice «tutto a posto» mentre in realtà non è stato provato niente.
+
+**La contromisura è una riga in più, non un ragionamento:** dopo aver rotto, si verifica che la rottura ci sia — `grep` del testo che si è messo, o il conteggio delle sostituzioni. Se il red-check è verde e la rottura non è confermata, non si sa ancora niente.
+
 ⚠️ Vale anche per i **mock**: un mock che semplifica proprio la differenza da cui nasce il difetto lo nasconde per costruzione. Prima di scriverne uno, chiedersi **su quale asse** il difetto si manifesta, e tenere quell'asse diverso.
 
 ### 12.0-bis-ter ⚠️ Le rimozioni si fanno con modifiche puntuali, mai con sostituzioni automatiche
