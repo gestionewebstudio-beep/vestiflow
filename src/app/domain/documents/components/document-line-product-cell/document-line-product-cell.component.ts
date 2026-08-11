@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { caretAtEdge } from '@domain/documents/utils/caret-edge.util';
+import { classifyLineCellKey } from '@domain/documents/utils/document-line-cell-keys.util';
 
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { formatMoney } from '@core/utils/money.util';
@@ -92,65 +92,48 @@ export class DocumentLineProductCellComponent {
 
   protected onKeydown(event: KeyboardEvent): void {
     const suggestions = this.suggestions();
-    const open = this.suggestionsOpen() && suggestions.length > 0;
-    const active = this.activeSuggestionIndex();
-
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      this.escapePressed.emit(this.lineIndex());
+    const esito = classifyLineCellKey(event, {
+      suggestionsOpen: this.suggestionsOpen() && suggestions.length > 0,
+      activeSuggestionIndex: this.activeSuggestionIndex(),
+    });
+    if (!esito) {
       return;
     }
-    if (event.key === 'ArrowDown' && !open) {
-      event.preventDefault();
-      this.lineRowAdvance.emit(this.lineIndex());
-      return;
-    }
-    if (event.key === 'ArrowUp' && !open) {
-      event.preventDefault();
-      this.lineRowRetreat.emit(this.lineIndex());
-      return;
-    }
-    if (event.key === 'ArrowDown' && open) {
-      event.preventDefault();
-      this.suggestionNavigate.emit('next');
-      return;
-    }
-    if (event.key === 'ArrowUp' && open) {
-      event.preventDefault();
-      this.suggestionNavigate.emit('prev');
-      return;
-    }
-    // ←/→ a due tempi (§4.2): finché il cursore ha strada dentro il nome la
-    // freccia resta al browser; al bordo porta al campo accanto.
-    if (event.key === 'ArrowRight' && !event.shiftKey && caretAtEdge(event.target, 'end')) {
-      event.preventDefault();
-      this.lineAdvance.emit(this.lineIndex());
-      return;
-    }
-    if (event.key === 'ArrowLeft' && !event.shiftKey && caretAtEdge(event.target, 'start')) {
-      event.preventDefault();
-      this.lineRetreat.emit(this.lineIndex());
-      return;
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      if (open && suggestions[active]) {
-        this.pickSuggestion(suggestions[active].variantId);
+    event.preventDefault();
+    switch (esito.kind) {
+      case 'escape':
+        event.stopPropagation();
+        this.escapePressed.emit(this.lineIndex());
+        return;
+      case 'row-advance':
+        this.lineRowAdvance.emit(this.lineIndex());
+        return;
+      case 'row-retreat':
+        this.lineRowRetreat.emit(this.lineIndex());
+        return;
+      case 'suggestion-move':
+        this.suggestionNavigate.emit(esito.direction);
+        return;
+      case 'suggestion-pick': {
+        const variant = suggestions[esito.index];
+        if (variant) {
+          this.pickSuggestion(variant.variantId);
+        }
         return;
       }
-      this.lineAdvance.emit(this.lineIndex());
-      return;
-    }
-    if (event.key === 'Tab') {
-      // Tab va SEMPRE al campo dati successivo/precedente: mai sui pulsanti
-      // icona della cella (lente, «Completa anagrafica»…) — velocità inserimento.
-      event.preventDefault();
-      if (event.shiftKey) {
+      case 'field-retreat':
         this.lineRetreat.emit(this.lineIndex());
         return;
-      }
-      this.lineAdvance.emit(this.lineIndex());
+      case 'confirm':
+        // ⚠️ Qui il nome NON registra niente — non c'è un codice da confrontare
+        // col catalogo — quindi `advance` non cambia l'esito: si va al campo
+        // dopo in entrambi i casi. Vuol dire che su questa cella **Invio
+        // avanza**, mentre sulla cella codice resta (§4.5). È una divergenza
+        // vera fra le due, non un residuo dell'estrazione: la funzione
+        // condivisa la rende visibile invece di tenerla sepolta in sessanta
+        // righe uguali. Da decidere, non da correggere di nascosto.
+        this.lineAdvance.emit(this.lineIndex());
+        return;
     }
   }
 
