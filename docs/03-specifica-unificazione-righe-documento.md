@@ -601,7 +601,13 @@ Prima la cella aveva **due aspetti diversi**: un campo scrivibile su riga libera
 
 **Su riga agganciata la lente cerca per CODICE, non per testo** _(correzione dello stesso giorno, segnalata dal proprietario)_. La decisione qui sopra si reggeva su «dalla lente ci si arriva lo stesso, perché il pannello si apre col nome della riga» — e quella via si rompeva **proprio per la funzione appena aggiunta**: bastava correggere la descrizione perché l'articolo non si trovasse più, e con lui sparisse l'unica strada rimasta per aprirne l'anagrafica. Il codice invece non cambia quando si riscrive il nome, ed è esatto: il risultato è uno solo, quello della riga. Chi vuole sostituire l'articolo scrive sopra, come prima.
 
-**Perimetro: 6 tipi documento su 10.** Ordine cliente, DDT vendita, Preventivo, Scarico manuale, Arrivo merce, Ordine fornitore — le tre maschere che usano la cella condivisa. Proforma, Fattura e Fattura accompagnatoria hanno **già** la descrizione sempre scrivibile (con l'articolo su una colonna a parte): stessa sostanza, meccanismo diverso, che si allineerà col Filone B. Trasferimento e Rettifica non hanno un nome libero.
+**Perimetro: la decisione vale su tutti i tipi. Il lavoro ne ha richiesti 6.**
+
+Ordine cliente, DDT vendita, Preventivo, Scarico manuale, Arrivo merce e Ordine fornitore sono i sei serviti dalla cella condivisa, che aveva due facce: lì c'era da lavorare.
+
+Negli altri — Proforma, Fattura, Fattura accompagnatoria, Trasferimento, Rettifica — la descrizione di riga è **già** un campo normale sempre scrivibile, perché l'articolo si sceglie in una **colonna a parte**. Stessa sostanza, meccanismo diverso: due celle invece di una. È il Filone B a doverle fondere, e quando lo farà dovrà arrivare a questo comportamento, non a un altro.
+
+_(Correzione dello stesso giorno: qui era scritto «Trasferimento e Rettifica non hanno un nome libero». È falso — ce l'hanno entrambi, con `formControlName="description"` sempre modificabile. La verifica è arrivata dalla domanda del proprietario, non dal codice letto prima di scriverlo.)_
 
 _Difetto trovato applicando la decisione:_ l'**Ordine fornitore** mandava al salvataggio il **titolo del catalogo** invece del nome della riga. Finché la cella non era scrivibile non si vedeva; da oggi il testo scritto sarebbe sparito alla riapertura, **senza dire niente**. Lo spazio dove il nome vive esisteva già in tutti e sei — sull'Ordine cliente lo schema lo chiama perfino «snapshot al momento della vendita».
 
