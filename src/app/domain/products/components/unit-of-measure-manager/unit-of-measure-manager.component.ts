@@ -16,7 +16,6 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
 import { ToastService } from '@core/services/toast.service';
-import { BadgeComponent } from '@shared/components/badge/badge.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
@@ -25,27 +24,28 @@ import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measur
 import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
 
 /**
- * Gestione delle unità di misura del tenant: aggiungere, rinominare,
- * disattivare, eliminare.
+ * Gestione delle unità di misura del tenant: **aggiungi, rinomina, elimina.**
  *
- * **Eliminare qui non è pericoloso**, ed è la differenza che il pannello deve
- * rendere leggibile. Documenti e anagrafiche portano la stringa, non un
- * riferimento a questa riga: un arrivo merce che dice «3 conf» continuerà a
- * dirlo anche dopo che «conf» è sparita da qui. Sparisce il suggerimento, non
- * il dato — per questo la conferma non mostra nessun conteggio d'uso, che per
- * i tipi documento serviva e qui non risponderebbe a niente.
+ * **Eliminare qui non è pericoloso**, ed è ciò che decide la forma del
+ * pannello. Documenti e anagrafiche portano la stringa, non un riferimento a
+ * questa riga: un arrivo merce che dice «3 conf» continuerà a dirlo anche dopo
+ * che «conf» è sparita da qui. Sparisce il suggerimento, non il dato.
  *
- * Disattivare resta comunque utile: toglie la voce dalle tendine lasciandola
- * qui, riattivabile in un click.
+ * Da lì discendono le tre assenze, che sono scelte e non dimenticanze:
  *
- * **Non ha il riordino** (11/08/2026): il seed mette per prime le unità che si
- * usano di più e le nuove nascono in coda, che è dove servono. Aggiungerlo
- * costerebbe due chiamate per ogni spostamento su un elenco di sei voci.
+ * - **nessun conteggio d'uso nella conferma** — per i tipi documento rispondeva
+ *   alla domanda che l'operatore si stava facendo; qui non risponderebbe a
+ *   niente;
+ * - **niente disattivazione.** Esiste per togliere una voce dalle tendine senza
+ *   perderla: ma qui eliminare non perde niente, quindi sarebbe uno stato in più
+ *   da capire in cambio di nulla;
+ * - **niente riordino.** Il seed mette per prime le unità più usate e le nuove
+ *   nascono in coda; spostarne una costerebbe due chiamate su un elenco di sei.
  */
 @Component({
   selector: 'app-unit-of-measure-manager',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BadgeComponent, ButtonComponent, ConfirmDialogComponent, InlineBannerComponent],
+  imports: [ButtonComponent, ConfirmDialogComponent, InlineBannerComponent],
   templateUrl: './unit-of-measure-manager.component.html',
   styleUrl: './unit-of-measure-manager.component.scss',
 })
@@ -148,16 +148,6 @@ export class UnitOfMeasureManagerComponent {
     }
     this.run(this.service.update(id, { name }), 'Unità di misura aggiornata.', () =>
       this.editingId.set(null),
-    );
-  }
-
-  protected toggleActive(option: UnitOfMeasureOption): void {
-    if (this.busy()) {
-      return;
-    }
-    this.run(
-      this.service.update(option.id, { isActive: !option.isActive }),
-      option.isActive ? 'Unità disattivata: non compare più nelle tendine.' : 'Unità riattivata.',
     );
   }
 

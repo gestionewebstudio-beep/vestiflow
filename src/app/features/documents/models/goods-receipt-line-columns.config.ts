@@ -68,8 +68,10 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
     id: 'unitOfMeasure',
     label: 'U.m.',
     defaultVisible: false,
-    defaultWidthPx: 44,
-    minWidthPx: 36,
+    // Larghezza cresciuta con la cella: era una colonna di sola lettura larga
+    // quanto «pz», ora ospita un campo con il suo indizio di apertura.
+    defaultWidthPx: 60,
+    minWidthPx: 48,
   },
   { id: 'unitCost', label: 'Costo', numeric: true, defaultWidthPx: 84, minWidthPx: 56 },
   {

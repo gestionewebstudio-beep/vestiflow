@@ -1,9 +1,7 @@
 <div class="uom-manager">
   <p class="uom-manager__hint">
-    Le unità di misura proposte quando compili una riga o una scheda articolo.
-    <strong>Disattivare</strong> toglie una voce dalle tendine lasciandola qui, riattivabile.
-    <strong>Eliminare</strong> la toglie anche da qui. In nessuno dei due casi cambia un documento
-    già salvato: sulla riga l'unità è scritta come testo, non come collegamento a questo elenco.
+    Le unità proposte quando compili una riga o una scheda articolo. Quelle già scritte sui
+    documenti non cambiano.
   </p>
 
   @if (loadError(); as message) {
@@ -37,7 +35,7 @@
 
   <ul class="uom-manager__list">
     @for (option of options(); track trackById($index, option)) {
-      <li class="uom-manager__item" [class.uom-manager__item--inactive]="!option.isActive">
+      <li class="uom-manager__item">
         @if (editingId() === option.id) {
           <input
             class="uom-manager__input"
@@ -56,39 +54,17 @@
             <app-button type="button" variant="ghost" (click)="cancelEdit()">Annulla</app-button>
           </div>
         } @else {
-          <span class="uom-manager__label">
-            {{ option.name }}
-            @if (option.isSystem) {
-              <app-badge tone="info">Sistema</app-badge>
-            }
-            @if (!option.isActive) {
-              <app-badge tone="warning">Disattivata</app-badge>
-            }
-          </span>
+          <span class="uom-manager__label">{{ option.name }}</span>
+          <!--
+            Due azioni, non quattro. Disattivare esisteva per tenere una voce
+            fuori dalle tendine senza perderla, ma qui eliminare non perde
+            niente: i documenti portano il testo. Uno stato in meno da capire.
+          -->
           <div class="uom-manager__actions">
             <button
               type="button"
               class="uom-manager__icon-btn"
-              [attr.aria-label]="option.isActive ? 'Disattiva unità' : 'Riattiva unità'"
-              [attr.title]="
-                option.isActive
-                  ? 'Disattiva: esce dalle tendine, resta in questo elenco'
-                  : 'Riattiva: torna proposta'
-              "
-              [disabled]="busy()"
-              (click)="toggleActive(option)"
-            >
-              <i
-                class="pi"
-                [class.pi-eye]="option.isActive"
-                [class.pi-eye-slash]="!option.isActive"
-                aria-hidden="true"
-              ></i>
-            </button>
-            <button
-              type="button"
-              class="uom-manager__icon-btn"
-              aria-label="Rinomina unità"
+              [attr.aria-label]="'Rinomina ' + option.name"
               title="Rinomina"
               [disabled]="busy()"
               (click)="startEdit(option)"
@@ -98,8 +74,8 @@
             <button
               type="button"
               class="uom-manager__icon-btn uom-manager__icon-btn--danger"
-              aria-label="Elimina unità"
-              title="Elimina: esce anche da questo elenco"
+              [attr.aria-label]="'Elimina ' + option.name"
+              title="Elimina"
               [disabled]="busy()"
               (click)="requestDelete(option)"
             >
@@ -123,7 +99,7 @@
 <app-confirm-dialog
   [(open)]="confirmOpen"
   [title]="confirmTitle()"
-  message="Sparisce dalle tendine e da questo elenco. I documenti che la portano continuano a mostrarla."
+  message="Non verrà più proposta. I documenti che la portano continuano a mostrarla."
   confirmLabel="Elimina"
   [danger]="true"
   (confirmed)="onConfirmDelete()"

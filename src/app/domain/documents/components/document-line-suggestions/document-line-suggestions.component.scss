@@ -60,7 +60,7 @@
   // pannello restano attive fino a lg, dove il token responsive tornerebbe
   // alla densità desktop e il target scenderebbe sotto il minimo tappabile.
   min-block-size: var(--doc-suggestions-item-min-h, var(--control-h-touch));
-  padding: var(--space-1) var(--space-2);
+  padding: var(--doc-suggestions-item-pad, var(--space-1) var(--space-2));
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--transition-fast) var(--ease-standard);
@@ -79,7 +79,7 @@
 }
 
 .doc-suggestions__title {
-  font-size: var(--text-sm);
+  font-size: var(--doc-suggestions-title-size, var(--text-sm));
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
@@ -98,9 +98,9 @@
   inline-size: 100%;
   min-block-size: var(--doc-suggestions-item-min-h, var(--control-h-touch));
   margin-block-start: var(--space-1);
-  padding: var(--space-1) var(--space-2);
+  padding: var(--doc-suggestions-item-pad, var(--space-1) var(--space-2));
   font-family: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--doc-suggestions-title-size, var(--text-sm));
   font-weight: var(--font-weight-semibold);
   color: var(--color-link);
   text-align: start;

@@ -78,10 +78,6 @@
   gap: var(--space-2);
   font-size: var(--text-sm);
   color: var(--color-text);
-
-  .uom-manager__item--inactive & {
-    color: var(--color-text-muted);
-  }
 }
 
 .uom-manager__actions {
