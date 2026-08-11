@@ -21,6 +21,7 @@ import { DocumentService } from '@domain/documents/services/document.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { signal } from '@angular/core';
+import { APP_CONFIG } from '@core/config/app-config.token';
 
 const SUPPLIERS = [
   { id: 'sup-1', tenantId: 't1', name: 'Tessuti Italia', email: null, phone: null },
@@ -156,6 +157,17 @@ describe('SupplierOrderFormComponent', () => {
         { provide: AuthService, useValue: { currentUser: () => null } },
         // Catch-all: il test «ritorno alla lista» naviga davvero verso /app/orders.
         provideRouter([{ path: '**', children: [] }]),
+        // Serve da quando l'ordine fornitore ha gli allegati: in modifica il
+        // pannello costruisce AttachmentsApiService, che legge la config.
+        {
+          provide: APP_CONFIG,
+          useValue: {
+            production: false,
+            appName: 'VestiFlow',
+            apiBaseUrl: '',
+            features: { barcodeScanner: false, shopify: false },
+          },
+        },
         {
           provide: SupplierService,
           useValue: {
@@ -475,6 +487,17 @@ describe('SupplierOrderFormComponent', () => {
       providers: [
         { provide: AuthService, useValue: { currentUser: () => null } },
         provideRouter([{ path: '**', children: [] }]),
+        // Serve da quando l'ordine fornitore ha gli allegati: in modifica il
+        // pannello costruisce AttachmentsApiService, che legge la config.
+        {
+          provide: APP_CONFIG,
+          useValue: {
+            production: false,
+            appName: 'VestiFlow',
+            apiBaseUrl: '',
+            features: { barcodeScanner: false, shopify: false },
+          },
+        },
         // Rotta /:id/edit: è l'id a far entrare la maschera in modifica.
         {
           provide: ActivatedRoute,
@@ -770,6 +793,17 @@ describe('SupplierOrderFormComponent', () => {
         providers: [
           { provide: AuthService, useValue: { currentUser: () => null } },
           provideRouter([{ path: '**', children: [] }]),
+          // Serve da quando l'ordine fornitore ha gli allegati: in modifica il
+          // pannello costruisce AttachmentsApiService, che legge la config.
+          {
+            provide: APP_CONFIG,
+            useValue: {
+              production: false,
+              appName: 'VestiFlow',
+              apiBaseUrl: '',
+              features: { barcodeScanner: false, shopify: false },
+            },
+          },
           {
             provide: SupplierService,
             useValue: { getSuppliers: () => of(SUPPLIERS), createSupplier: vi.fn() },
