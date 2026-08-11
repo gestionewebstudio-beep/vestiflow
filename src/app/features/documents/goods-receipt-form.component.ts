@@ -1905,7 +1905,40 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         `Riga ${index + 1}: nessun articolo collegato, la riga è stata salvata senza carico magazzino.`,
       );
     }
+    warnings.push(...this.missingCostWarnings());
     return warnings;
+  }
+
+  /**
+   * Righe salvate senza costo: si AVVISA, non si blocca (11/08/2026).
+   *
+   * Vale su questo documento e sull'Ordine fornitore, con le stesse parole.
+   * Un ordine si fa spesso al volo, senza avere ancora il listino del
+   * fornitore sotto mano, e un costo mancante non rompe niente: il documento
+   * vale zero su quella riga finché non lo si scrive. Chi invece il costo lo
+   * conosce va avvisato che se n'è dimenticato — che è un'altra cosa dal non
+   * poter salvare.
+   */
+  private missingCostWarnings(): readonly string[] {
+    const righe: string[] = [];
+    for (let index = 0; index < this.lines.length; index += 1) {
+      const line = this.lines.at(index);
+      if (!lineDraftPersistableForExplicitSave(this.lineDraft(line))) {
+        continue;
+      }
+      if (line.controls.unitCost.value.trim()) {
+        continue;
+      }
+      righe.push(String(index + 1));
+    }
+    if (righe.length === 0) {
+      return [];
+    }
+    return [
+      righe.length === 1
+        ? `Riga ${righe[0]}: salvata senza costo.`
+        : `Righe ${righe.join(', ')}: salvate senza costo.`,
+    ];
   }
 
   protected get lines(): FormArray<ReturnType<GoodsReceiptFormComponent['createLine']>> {

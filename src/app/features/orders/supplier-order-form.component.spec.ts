@@ -677,7 +677,11 @@ describe('SupplierOrderFormComponent', () => {
   // all'operatore non succedeva letteralmente NULLA. E con le colonne che
   // scorrono in orizzontale il campo incriminato può stare fuori schermo,
   // quindi non c'era nemmeno modo di capire da soli cosa mancasse.
-  it('dice cosa manca invece di non fare nulla, e nomina la riga', async () => {
+  // ⛔ Il costo MANCANTE non blocca più (11/08/2026): un ordine si fa al volo,
+  // senza il listino del fornitore sotto mano. Il documento si salva e l'avviso
+  // dice quali righe sono partite senza costo. Questo test è la guardia del
+  // NUOVO comportamento: prima asseriva il blocco.
+  it('senza costo l’ordine si salva, e l’avviso dice quale riga', async () => {
     const user = userEvent.setup();
     const { createOrder } = await setup();
 
@@ -689,8 +693,26 @@ describe('SupplierOrderFormComponent', () => {
     // L'articolo di prova non ha costo d'anagrafica: la riga resta senza costo.
     await user.click(salvaDocumento());
 
+    expect(createOrder).toHaveBeenCalled();
+    expect(await screen.findByText(/Riga 1: salvata senza costo/)).toBeVisible();
+  });
+
+  // Un costo NEGATIVO invece è un valore sbagliato, non un valore assente: resta
+  // un blocco, e continua a nominare la riga.
+  it('il costo negativo resta un blocco, e dice quale riga', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup();
+
+    await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+    await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+    await scegliArticoloSullaRiga(user);
+
+    const costo = screen.getByPlaceholderText('0,00');
+    await user.clear(costo);
+    await user.type(costo, '-5,00');
+    await user.click(salvaDocumento());
+
     expect(await screen.findByRole('alert')).toHaveTextContent('Riga 1');
-    expect(screen.getByRole('alert')).toHaveTextContent('costo');
     expect(createOrder).not.toHaveBeenCalled();
   });
 

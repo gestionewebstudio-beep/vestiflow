@@ -1059,6 +1059,16 @@
         </section>
       }
 
+      <!-- Avvisi non bloccanti: il documento È stato salvato, questo racconta
+           cosa gli manca. Stesso posto e stesse parole dell'Arrivo merce. -->
+      @if (saveWarnings().length > 0) {
+        <div class="doc-form__warning-banner" role="status">
+          @for (warning of saveWarnings(); track warning) {
+            <p>{{ warning }}</p>
+          }
+        </div>
+      }
+
       @if (submitError(); as appError) {
         <p class="doc-form__submit-error" role="alert">
           <i class="pi pi-times-circle" aria-hidden="true"></i>

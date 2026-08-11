@@ -1769,6 +1769,36 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       });
   }
 
+  /** Avvisi non bloccanti mostrati dopo il salvataggio. */
+  protected readonly saveWarnings = signal<readonly string[]>([]);
+
+  /**
+   * Righe salvate senza costo: si AVVISA, non si blocca. Stesse parole
+   * dell'Arrivo merce — è lo stesso avviso sullo stesso dato, e due formulazioni
+   * diverse per la stessa cosa sono la divergenza di domani.
+   */
+  private missingCostWarnings(): readonly string[] {
+    const righe: string[] = [];
+    for (let index = 0; index < this.lines.length; index += 1) {
+      const line = this.lines.at(index);
+      if (!line?.controls.variantId.value) {
+        continue;
+      }
+      if (line.controls.unitCost.value.trim()) {
+        continue;
+      }
+      righe.push(String(index + 1));
+    }
+    if (righe.length === 0) {
+      return [];
+    }
+    return [
+      righe.length === 1
+        ? `Riga ${righe[0]}: salvata senza costo.`
+        : `Righe ${righe.join(', ')}: salvate senza costo.`,
+    ];
+  }
+
   protected submit(onSaved?: () => void): void {
     if (this.saving()) {
       return;
@@ -1840,6 +1870,9 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     const editId = this.editOrderId();
     this._submitState.set({ status: 'saving' });
 
+    // Raccolti PRIMA dell'invio: dopo, le righe possono essere state riadottate
+    // dal server e il confronto non direbbe più cosa aveva scritto l'operatore.
+    const avvisi = this.missingCostWarnings();
     const request$ = editId
       ? this.orderService.updateOrder(editId, body)
       : this.orderService.createOrder(body);
@@ -1849,6 +1882,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         // Ordine salvato: il guard di uscita non deve più fermare la navigazione.
         this.dirtySinceLastSave.set(false);
         this._submitState.set({ status: 'idle' });
+        this.saveWarnings.set(avvisi);
         if (onSaved) {
           // «Salva e chiudi» dal dialogo di uscita: l'operatore sta uscendo di
           // proposito, non lo si porta da un'altra parte.
@@ -1995,11 +2029,17 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       if (!Number.isInteger(quantity) || quantity < 1) {
         return `${riga}: la quantità deve essere un numero intero maggiore di zero.`;
       }
+      // ⛔ Il costo MANCANTE non blocca più (11/08/2026, decisione del
+      // proprietario). Un ordine si fa spesso al volo, senza il listino del
+      // fornitore sotto mano, e un costo assente non rompe niente: la riga vale
+      // zero finché non lo si scrive. Al salvataggio si avvisa, e basta.
+      //
+      // Era anche un blocco che qualcuno non poteva superare: chi non ha il
+      // permesso «Visualizza costi d'acquisto» riceve dal server le varianti
+      // senza costo, quindi il campo gli resta vuoto — e gli si chiedeva di
+      // scrivere un numero che non gli è dato vedere.
       const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
-      if (cost === null) {
-        return `${riga}: manca il costo. Se l'articolo non ne ha uno in anagrafica va scritto qui.`;
-      }
-      if (cost.amountMinor < 0) {
+      if (cost !== null && cost.amountMinor < 0) {
         return `${riga}: il costo non può essere negativo.`;
       }
       if (this.discountValueInvalid(line.controls.discountPercent.value)) {
@@ -2028,7 +2068,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
        * Il campo del costo è una VISTA: contiene il netto o l'ivato secondo il
        * selettore di testata, ed è quello che l'operatore legge e digita.
        */
-      unitCost: this.fb.control('', { validators: [Validators.required] }),
+      // Senza `required`: il costo mancante è un avviso, non un blocco (§sopra).
+      unitCost: this.fb.control(''),
       /**
        * Il costo NETTO canonico in unità minori, con la coda dello scorporo.
        * È il valore vero della riga: `unitCost` si ridisegna da qui, mai il
