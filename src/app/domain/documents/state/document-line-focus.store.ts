@@ -190,7 +190,14 @@ export class DocumentLineFocusStore<F extends string> {
     this.advanceToNextRow(lineIndex);
   }
 
-  /** Shift+Tab: campo precedente; dal primo, ultima cella della riga sopra. */
+  /**
+   * Shift+Tab: campo precedente; dal primo, ultima cella della riga sopra.
+   *
+   * Uscendo dalla riga verso l'alto vale la stessa regola di ↑: **la riga
+   * appena nata e mai compilata sparisce**. La regola descrive l'effetto —
+   * andarsene risalendo senza aver scritto niente — non un tasto: Shift+Tab e
+   * ← escono di qui, ↑ da `rowUp`, e devono fare la stessa cosa.
+   */
   previous(lineIndex: number, field: F): void {
     const order = this.fieldsOf(lineIndex);
     const position = order.indexOf(field);
@@ -203,7 +210,14 @@ export class DocumentLineFocusStore<F extends string> {
     if (above === null) {
       return;
     }
-    this.withRowChange(lineIndex, () => this.focusLastField(above));
+    const disposable = this.isDisposableNewRow(lineIndex);
+    this.withRowChange(lineIndex, () => {
+      if (disposable) {
+        this.bornRow = null;
+        this.contract.removeLine(lineIndex);
+      }
+      this.focusLastField(above);
+    });
   }
 
   /**
@@ -257,9 +271,17 @@ export class DocumentLineFocusStore<F extends string> {
    * La riga è quella nata dalla navigazione, è ancora l'ultima, ed è ancora
    * vuota. Tutte e tre servono: se nel frattempo ne sono nate altre sotto, o se
    * qualcosa ci è stato scritto, non è più la riga di troppo.
+   *
+   * ⚠️ La guardia di **sola lettura sta qui**, non nei chiamanti. `rowUp` ce
+   * l'ha già in cima e `previous` no — di proposito, perché su documento
+   * bloccato il fuoco deve poter girare lo stesso. Se la condizione non la
+   * portasse con sé, Shift+Tab toglierebbe righe da un documento che nessuno
+   * può modificare, e il difetto nascerebbe qui ogni volta che si aggiunge un
+   * terzo modo di risalire.
    */
   private isDisposableNewRow(lineIndex: number): boolean {
     return (
+      !this.contract.isReadOnly() &&
       this.bornRow === lineIndex &&
       lineIndex === this.contract.lineCount() - 1 &&
       this.contract.isLineEmpty(lineIndex)

@@ -691,9 +691,22 @@ La variante di prova dell'Ordine fornitore era scritta a mano con cinque campi s
 
 **Come ci era arrivato:** il dato non era tipizzato come variante. Passava per una lista generica e nessuno gli chiedeva di essere completo — il compilatore, che avrebbe segnalato il campo mancante in un attimo, non era stato messo in condizione di guardare.
 
-**La contromisura:** i dati di prova delle entità di dominio si dichiarano **con il loro tipo**, non con la forma minima che serve al caso. Se un campo obbligatorio dà fastidio in un test, il posto dove dirlo è il modello, non il dato.
+**LA CONTROMISURA — è questa, e vale ben oltre l'episodio.**
 
-**Il segnale:** una prova che fallisce dicendo «non trovo l'elemento» quando lo stato interno è giusto. Se lo stato dice che ci sono i risultati e il DOM non li mostra, il sospetto va al calcolo che li trasforma — e spesso al dato che lo alimenta.
+> **I dati di prova delle entità di dominio si dichiarano con il tipo del modello.**
+>
+> ```ts
+> const VARIANTI: readonly VariantSummary[] = [ … ];   // ✅ il compilatore controlla
+> const VARIANTI = [ … ];                              // ⛔ nessuno controlla niente
+> ```
+>
+> Così un campo obbligatorio che manca è un **errore di compilazione**, immediato e con il nome del campo scritto sopra. Senza, diventa un calcolo che esplode a runtime dentro un `computed`, che Angular assorbe in silenzio, e che si presenta come «l'elemento non c'è» a tre passaggi di distanza dalla causa.
+>
+> Se un campo obbligatorio dà fastidio a un test, il posto dove dirlo è il **modello** — «forse non è davvero obbligatorio» —, non il dato che finge di non saperlo.
+
+**Perché è la più insidiosa delle quattro.** Nelle altre tre la prova era **verde** e non guardava il posto giusto: il rimedio è spostare la guardia. Qui la prova è **rossa** e la guardia è al posto giusto — solo che il rosso racconta una storia falsa, e più la si insegue più ci si allontana. Un red-check non aiuta: la cosa è già rotta, per un'altra ragione.
+
+**Il segnale:** una prova che fallisce dicendo «non trovo l'elemento» **mentre lo stato interno è giusto**. Se lo stato dice che i risultati ci sono e il DOM non li mostra, il sospetto va al calcolo che li trasforma — e quasi sempre al dato che lo alimenta, non al calcolo.
 
 ---
 

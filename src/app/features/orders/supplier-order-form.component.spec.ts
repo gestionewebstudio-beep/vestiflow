@@ -5,6 +5,7 @@ import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
 import type { UserEvent } from '@testing-library/user-event';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { of, throwError } from 'rxjs';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -24,7 +25,10 @@ import { signal } from '@angular/core';
 const SUPPLIERS = [
   { id: 'sup-1', tenantId: 't1', name: 'Tessuti Italia', email: null, phone: null },
 ];
-const VARIANTS = [
+// Dichiarato COL TIPO: un campo obbligatorio che manca deve essere un errore di
+// compilazione, non un calcolo che esplode in silenzio dentro il pannello dei
+// suggerimenti e una prova che poi dice «non trovo la voce».
+const VARIANTS: readonly VariantSummary[] = [
   {
     variantId: 'var-1',
     productId: 'prod-1',

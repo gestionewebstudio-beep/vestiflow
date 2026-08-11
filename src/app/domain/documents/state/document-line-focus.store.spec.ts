@@ -33,7 +33,9 @@ interface Opzioni {
   readonly righe?: number;
   readonly campoAbilitato?: (riga: number, campo: Campo) => boolean;
   readonly rigaScavalcata?: (riga: number) => boolean;
-  readonly solaLettura?: boolean;
+  /** Booleano, oppure una funzione se il test deve cambiarlo in corsa. */
+
+  readonly solaLettura?: boolean | (() => boolean);
   readonly rigaVuota?: (riga: number) => boolean;
   readonly campi?: readonly Campo[];
   readonly gancio?: DocumentLineFocusContract<Campo>['onRowChange'];
@@ -56,7 +58,10 @@ function crea(opzioni: Opzioni = {}) {
     elementId: (riga, campo) => `r${riga}-${campo}`,
     isFieldEnabled: opzioni.campoAbilitato ?? (() => true),
     isRowSkipped: opzioni.rigaScavalcata,
-    isReadOnly: () => opzioni.solaLettura ?? false,
+    isReadOnly: () =>
+      typeof opzioni.solaLettura === 'function'
+        ? opzioni.solaLettura()
+        : (opzioni.solaLettura ?? false),
     lineCount: () => stato.righe,
     createLine,
     onRowChange: opzioni.gancio,
@@ -535,6 +540,42 @@ describe('DocumentLineFocusStore', () => {
       });
       store.rowUp(1, 'qty');
       expect(removeLine).not.toHaveBeenCalled();
+    });
+
+    // La regola descrive l'EFFETTO — andarsene risalendo a mani vuote — non un
+    // tasto. Le tre vie di uscita verso l'alto devono fare la stessa cosa.
+    it('Shift+Tab dal primo campo toglie la riga come ↑', () => {
+      const { store, removeLine, stato } = crea({ righe: 1, rigaVuota: (riga) => riga === 1 });
+      store.rowDown(0, 'qty');
+      store.previous(1, 'code');
+      expect(removeLine).toHaveBeenCalledWith(1);
+      expect(stato.righe).toBe(1);
+      expect(fuoco()).toBe('r0-price');
+    });
+
+    it('Shift+Tab da un campo interno non tocca niente: non si sta uscendo dalla riga', () => {
+      const { store, removeLine } = crea({ righe: 1, rigaVuota: (riga) => riga === 1 });
+      store.rowDown(0, 'qty');
+      store.previous(1, 'qty');
+      expect(removeLine).not.toHaveBeenCalled();
+      expect(fuoco()).toBe('r1-name');
+    });
+
+    // Il documento si blocca DOPO che la riga è nata: se il blocco arrivasse
+    // prima, la riga non esisterebbe e il test passerebbe anche senza guardia.
+    it('Shift+Tab non toglie righe da un documento in sola lettura', () => {
+      let bloccato = false;
+      const { store, removeLine, stato } = crea({
+        righe: 1,
+        rigaVuota: (riga) => riga === 1,
+        solaLettura: () => bloccato,
+      });
+      store.rowDown(0, 'qty');
+      bloccato = true;
+      store.previous(1, 'code');
+      expect(removeLine).not.toHaveBeenCalled();
+      expect(stato.righe).toBe(2);
+      expect(fuoco()).toBe('r0-price');
     });
   });
 });
