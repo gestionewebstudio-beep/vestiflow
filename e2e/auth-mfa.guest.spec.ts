@@ -7,7 +7,7 @@ test.describe('Login MFA (guest)', () => {
   test('login con TOTP arriva alla dashboard', async ({ page }) => {
     test.skip(!hasE2eCredentials(), 'Credenziali E2E mancanti.');
     test.skip(
-      !process.env.E2E_MFA_CODE?.trim(),
+      !process.env['E2E_MFA_CODE']?.trim(),
       'E2E_MFA_CODE non impostato — skip test MFA dedicato.',
     );
 

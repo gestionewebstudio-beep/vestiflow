@@ -111,13 +111,6 @@
     display: none;
   }
 
-  // Il banner del gate in tinta warning (forma OC): promosso col nome neutro.
-  .doc-form--m-ref .doc-form__gate-banner--warn {
-    color: var(--status-warning-fg);
-    background-color: var(--status-warning-bg);
-    border: var(--border-width) solid var(--status-warning-border);
-  }
-
   // Le maschere senza dock fisso (niente scanner né selettore prodotti) non
   // devono riservare i 116px del dock: basta un respiro sotto le azioni.
   .doc-form--m-ref:not(:has(.doc-form__sticky-bar, .doc-form__dock)) {

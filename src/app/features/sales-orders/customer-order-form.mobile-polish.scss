@@ -17,11 +17,6 @@
     padding: var(--space-3);
   }
 
-  // Sotto-azione della riga totali (es. «+ Aggiungi sconto»): secondaria.
-  .co-form .co-form__add-discount {
-    font-size: var(--text-sm);
-  }
-
   // ── Elenco righe: le card si staccano una dall'altra ─────────────────────
   .co-form .co-form__cards {
     gap: var(--space-3);

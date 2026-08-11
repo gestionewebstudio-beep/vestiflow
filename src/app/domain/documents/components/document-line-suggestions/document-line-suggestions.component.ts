@@ -27,8 +27,6 @@ export class DocumentLineSuggestionsComponent {
   /** Indice evidenziato dalla navigazione tastiera del campo; null = nessuno. */
   readonly activeIndex = input<number | null>(null);
   readonly placement = input<'below' | 'above'>('below');
-  /** Messaggio a lista vuota; se assente, a lista vuota il pannello non compare. */
-  readonly emptyText = input<string | undefined>(undefined);
   /** Id del listbox, riferito da `aria-controls` sul campo del chiamante. */
   readonly listboxId = input('');
   readonly ariaLabel = input('Suggerimenti prodotto');

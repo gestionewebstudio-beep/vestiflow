@@ -22,7 +22,7 @@ import { ensureAttachmentBucket } from '../common/attachments/attachment-storage
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Tipi di entità a cui si possono agganciare allegati (estendibile). */
-export const ATTACHMENT_ENTITY_TYPES = ['document', 'sales_order'] as const;
+export const ATTACHMENT_ENTITY_TYPES = ['document', 'sales_order', 'supplier_order'] as const;
 export type AttachmentEntityType = (typeof ATTACHMENT_ENTITY_TYPES)[number];
 
 export function isAttachmentEntityType(value: string): value is AttachmentEntityType {
@@ -249,6 +249,20 @@ export class AttachmentsService {
       });
       if (!found) {
         throw new NotFoundException('Ordine non trovato');
+      }
+      return;
+    }
+    // 11/08/2026: l'ordine fornitore era l'unico documento senza allegati, e
+    // non per scelta — la conferma d'ordine che il fornitore rimanda è
+    // esattamente il file che si tiene attaccato all'ordine. Il meccanismo era
+    // già dichiarato «estendibile»: qui si estende.
+    if (entityType === 'supplier_order') {
+      const found = await this.prisma.supplierOrder.findFirst({
+        where: { id: entityId, tenantId },
+        select: { id: true },
+      });
+      if (!found) {
+        throw new NotFoundException('Ordine fornitore non trovato');
       }
       return;
     }

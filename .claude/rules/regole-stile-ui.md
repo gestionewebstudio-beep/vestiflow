@@ -2,7 +2,7 @@
 
 Fonte di verità visiva per l'intera app. Ogni modifica UI deve rispettare questo documento. In caso di conflitto con altri file o mockup precedenti, vince questo.
 
-Ultima revisione: luglio 2026.
+Ultima revisione: agosto 2026.
 
 ---
 
@@ -78,16 +78,17 @@ Colori dedicati **esclusivamente** alla sidebar. Non usare questi token altrove:
 
 ### Stati
 
-| Uso                               | Valore    | Token                    |
-| --------------------------------- | --------- | ------------------------ |
-| OK / successo / stock disponibile | `#2d7557` | `--color-ok`             |
-| OK tinta chiara                   | `#edf6f1` | `--color-ok-subtle`      |
-| Warning / allerta stock / ambra   | `#9a640c` | `--color-warning`        |
-| Warning tinta chiara              | `#fff6e7` | `--color-warning-subtle` |
-| Danger / errore / eliminazione    | `#b33a32` | `--color-danger`         |
-| Danger tinta chiara               | `#fff0ee` | `--color-danger-subtle`  |
-| Info / neutro attivo              | `#2d6685` | `--color-info`           |
-| Info tinta chiara                 | `#eef6fa` | `--color-info-subtle`    |
+| Uso                               | Valore                 | Token                    |
+| --------------------------------- | ---------------------- | ------------------------ |
+| OK / successo / stock disponibile | `#2d7557`              | `--color-ok`             |
+| OK tinta chiara                   | `#edf6f1`              | `--color-ok-subtle`      |
+| Warning / allerta stock / ambra   | `#9a640c`              | `--color-warning`        |
+| Warning tinta chiara              | `#fff6e7`              | `--color-warning-subtle` |
+| Danger / errore / eliminazione    | `#b33a32`              | `--color-danger`         |
+| Danger tinta chiara               | `#fff0ee`              | `--color-danger-subtle`  |
+| Info / neutro attivo              | `#2d6685`              | `--color-info`           |
+| Info tinta chiara                 | `#eef6fa`              | `--color-info-subtle`    |
+| Campo obbligatorio ancora vuoto   | `rgb(157 69 16 / .63)` | `--color-field-waiting`  |
 
 ### Brand Shopify (distinto dall'ok generico)
 
@@ -371,9 +372,12 @@ Il pattern di "salvataggio e uscita da un documento in edit" cambia con la largh
 
 - Altezza 60–62px
 - Background `rgba(255,255,255,.94)` + `backdrop-filter: blur(12px)`
+- La banda note/totali che le sta sopra è invece **opaca**: è appiccicata in basso e su un documento corto passa sopra il piede della tabella. A tinta velata il testo sotto traspariva e si leggeva sovrapposto — coperto è coperto, e torna visibile scorrendo
 - Bordo superiore `--color-border`, ombra `--shadow-footer`
 - Contenuto: a sinistra info sintetica di stato (es. "Modifiche non salvate", "Documento salvato"); a destra i pulsanti azione (primary a destra estrema)
 - Sequenza pulsanti (destra a sinistra): **Chiudi** (ghost) · **Salva bozza** o simile (secondary) · **Salva/Concludi** (primary)
+
+**Le etichette sono le stesse in ogni documento** _(08/2026)_. Il salvataggio dice **«Salva documento»** ovunque — non «Salva ordine», non «Salva registrazione», non «Salva»: chi passa da una maschera all'altra cerca lo stesso pulsante, e il tipo di documento è già scritto nel titolo della pagina. L'uscita dice **«Chiudi»** su desktop e **«Annulla»** nella coppia mobile.
 
 **Mobile e tablet (≤ 1024px)** — Azioni in fondo al documento:
 
@@ -424,6 +428,22 @@ testo, ed è un'altra cosa (vedi «Error state» sotto).
 - Empty state: icona in medaglione tondo 48×48px su `--color-surface-soft`, titolo H2, descrizione muted, CTA se ha senso
 - Loading: skeleton per liste, tabelle, card. Spinner solo per attese brevi
 - Error: banner inline sopra il contenuto, testo `--color-danger`, bg `--color-danger-subtle`
+
+### Campo in attesa — `--color-field-waiting` _(08/2026)_
+
+Un campo **obbligatorio, ancora vuoto, che tiene fermo il resto della schermata** si segna con una tinta propria: bordo del controllo in `--color-field-waiting` (terracotta smorzata), impostato dal contenitore via `--field-border-color`.
+
+**Non è `--color-danger`, e la distinzione è il punto.** Il rosso in una maschera vuol dire «hai provato a salvare e questo è sbagliato». Usarlo anche per «non l'hai ancora compilato» rende i due stati indistinguibili proprio dove servirebbe distinguerli: dopo un salvataggio rifiutato il campo sarebbe rosso come un minuto prima. Aprire un documento nuovo non è un errore dell'operatore.
+
+**Il colore sta sul CONTROLLO, non sulla cella.** Una cella di testata è alta — etichetta, campo, e spesso un comando sotto («+ Nuovo cliente») —: un filo sul suo bordo inferiore finisce lontano dal campo e si legge come una riga di separazione. Il canale è `--field-border-color`, che i campi condivisi espongono apposta: il contenitore lo imposta su di sé, il campo dentro lo legge. Mai `::ng-deep`.
+
+**Sfondo: no.** Tingere la cella intera la fa sembrare in errore, che è la lettura da evitare.
+
+### L'errore sotto un campo non ripete il segnaposto _(08/2026)_
+
+Un campo a selezione che dice «Seleziona un fornitore…» e, sotto, un messaggio «Seleziona un fornitore.» sono la stessa frase due volte a quaranta pixel di distanza. Il messaggio dice **«Campo obbligatorio.»**
+
+**Il messaggio non si toglie del tutto**, e non è pignoleria: al rifiuto il segnaposto cambia **solo tinta**, dice le stesse parole di prima. Chi non distingue i colori non vedrebbe accadere nulla. Due parole diverse sotto il campo sono l'unico segnale d'errore che non sia il colore.
 
 ---
 
@@ -506,6 +526,7 @@ Card unica con griglia campi bordati. Ogni campo:
 - Input **senza bordo proprio**, h 27–29, dentro la cella
 - Focus: la cella intera prende bordo `--color-focus` inset + bg `--color-primary-subtle`
 - Divisori: bordo destro `--color-border` tra le celle; l'ultima colonna della riga non ha bordo destro
+- **Campo obbligatorio ancora vuoto**: bordo del controllo in `--color-field-waiting` finché le righe restano ferme (vedi §5). Sparisce appena compilato, e cede al colore del fuoco quando si entra nel campo
 
 Griglia esempio Ordine cliente: `Cliente · Location · Data · Stato · Riferimento` prima riga; `Consegna · Pagamento · Note` seconda riga (secondaria, bg `--color-surface-soft`).
 
@@ -534,6 +555,12 @@ Spaziature della testata su mobile: padding verticale della cella 4px, orizzonta
 
 Vedi §6.
 
+**A testata incompleta le righe non si mostrano** _(08/2026)_. Finché mancano i campi obbligatori che le governano — cliente e location, fornitore e magazzino, il solo fornitore — al posto della tabella (e delle card) c'è **uno stato vuoto**: icona, titolo che dice **cosa manca**, una riga su come si riempirà. Il campo che le tiene ferme si segna in testata (vedi «Campo in attesa», §5).
+
+**Non si spegne, non si sbiadisce.** Una tabella intera a metà tinta occupa mezzo schermo per non poter essere usata, e l'opacità crea un gruppo di composizione che fa trasparire ciò che le sta sotto. Se una cosa non è utilizzabile non si veste di grigio: non c'è.
+
+Vale su **tutte** le viste: desktop e mobile mostrano lo stesso stato vuoto, con lo stesso testo.
+
 ### Riga "Documento collegato" (preventivo, ordine origine)
 
 - Full-width, occupa tutta la riga tabella (`colspan`)
@@ -547,12 +574,14 @@ Vedi §6.
 
 ### Riepilogo totali
 
-**Desktop.** Griglia orizzontale in card compatta, posizionata dopo la tabella righe: Imponibile righe · Sconto extra · Imponibile · IVA · Totale documento. Il **Grand total** è l'ultimo box, con piena tinta brand `--color-primary`, testo bianco, valore 22–24px weight 700. Valori intermedi weight 600, non tutti bold. Caselle dimensionate sul contenuto, non stirate.
+**Desktop.** Griglia orizzontale in card compatta, posizionata dopo la tabella righe: Imponibile righe · Sconto extra · Imponibile · IVA · Totale documento. Il **Grand total** è l'ultimo box, con piena tinta brand `--color-primary`, testo bianco, valore 22–24px weight 700. Valori intermedi weight 600, non tutti bold.
+
+**Caselle dimensionate sul contenuto, non stirate** — e va preso alla lettera: spartire la banda in parti uguali fa sì che la stessa casella sia larga il doppio in un documento con tre voci e la metà in uno con otto, e in una maschera senza fascia note il riepilogo si stira per tutta la pagina. La misura minima di una casella è il suo contenuto, non zero: dove la cella ospita **due cose che si alternano** — il campo sconto e, finché lo sconto non c'è, il pulsante «+ Aggiungi sconto» — la larghezza fissa va sul **campo**, non sulla cella, o il pulsante sborda sopra la casella accanto.
 
 **Mobile e tablet.** Sezione finale del documento (dopo le righe e le note), non sticky. Lista verticale con label a sinistra e valore a destra:
 
 - Subtotale
-- Sconto extra (con link "Aggiungi sconto" se non valorizzato)
+- Sconto extra — **campo sempre visibile**, che mostra `0%` quando non c'è. Non un pulsante che lo riveli: il pulsante nasconde uno stato, e guardando il riepilogo non si saprebbe se lo sconto è zero o se il campo è chiuso. Un campo che mostra 0% dice entrambe le cose senza chiedere niente, e costa un clic in meno _(deciso 08/2026)_
 - IVA
 - **Totale documento** più marcato, 20px weight 700, valore in colore `--color-primary`
 

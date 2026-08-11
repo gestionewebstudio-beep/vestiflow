@@ -282,7 +282,7 @@
                   />
 
                   @if (!isManualUnload && fieldInvalid('customerId')) {
-                    <p id="co-m-customer-error" class="doc-form__error">Seleziona un cliente.</p>
+                    <p id="co-m-customer-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                   @if (isManualUnload && !form.controls.customerId.value) {
                     <!-- Cliente digitato liberamente (prompt Scarico manuale):
@@ -333,7 +333,7 @@
                     </p>
                   }
                   @if (fieldInvalid('locationId')) {
-                    <p id="co-m-location-error" class="doc-form__error">Seleziona la location.</p>
+                    <p id="co-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                 </div>
               </div>
@@ -497,7 +497,10 @@
             <div
               class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row"
             >
-              <div class="doc-form__field doc-form__field--span2">
+              <div
+                class="doc-form__field doc-form__field--span2"
+                [class.doc-form__field--waiting]="fieldWaiting('customerId')"
+              >
                 <span class="doc-form__label" id="co-customer-label">
                   {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
                 </span>
@@ -518,7 +521,7 @@
                   (valueChange)="onCustomerSelect($event)"
                 />
                 @if (!isManualUnload && fieldInvalid('customerId')) {
-                  <p id="co-customer-error" class="doc-form__error">Seleziona un cliente.</p>
+                  <p id="co-customer-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
                 @if (isManualUnload && !form.controls.customerId.value) {
                   <!-- Cliente digitato liberamente (prompt Scarico manuale):
@@ -560,7 +563,10 @@
                 </div>
               </div>
 
-              <div class="doc-form__field">
+              <div
+                class="doc-form__field"
+                [class.doc-form__field--waiting]="fieldWaiting('locationId')"
+              >
                 <span class="doc-form__label">{{
                   isQuote ? 'Location' : 'Location di origine'
                 }}</span>
@@ -586,7 +592,7 @@
                   </p>
                 }
                 @if (fieldInvalid('locationId')) {
-                  <p id="co-location-error" class="doc-form__error">Seleziona la location.</p>
+                  <p id="co-location-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
               </div>
 
@@ -752,13 +758,6 @@
           </div>
         }
 
-        @if (headerGateActive()) {
-          <p class="doc-form__gate-banner doc-form__gate-banner--warn" role="status">
-            <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-            {{ gateBannerMessage() }}
-          </p>
-        }
-
         <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
           <section class="doc-form__lines" aria-labelledby="co-lines-title">
             <div class="doc-form__lines-head">
@@ -776,8 +775,12 @@
 
               <!-- Mobile: «Includi documento» accanto al titolo delle righe.
                    Sta dentro il fieldset del gate, quindi si abilita insieme
-                   alle altre azioni sulle righe. Su desktop resta in toolbar. -->
-              @if (includeSourceKinds.length > 0) {
+                   alle altre azioni sulle righe. Su desktop resta in toolbar.
+                   ⚠️ `compactView()` non è di contorno: senza, il pulsante
+                   compariva DUE VOLTE su desktop — qui e nella barra strumenti,
+                   affiancati e identici. Stessa famiglia della «vista sola
+                   viva» (§4.11): un comando, un posto. -->
+              @if (compactView() && includeSourceKinds.length > 0) {
                 <div class="co-lines__include">
                   <app-button type="button" variant="secondary" (click)="openIncludePanel()">
                     Includi documento
@@ -790,7 +793,7 @@
                    e Aggiungi prodotto nella barra sticky. Il selettore colonne
                    non serve: le card mostrano già ciò che conta. -->
               <div class="doc-form__lines-tools co-form__lines-tools">
-                <app-table-column-picker [viewId]="lineColumnsView" />
+                <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
                 @if (includeSourceKinds.length > 0) {
                   <app-button type="button" variant="secondary" (click)="openIncludePanel()">
                     <i class="pi pi-file-import" aria-hidden="true"></i>
@@ -830,851 +833,978 @@
               </ul>
             }
 
-            <div class="doc-form__table-wrap">
-              <table class="doc-form__table">
-                <colgroup>
-                  <col class="doc-form__col--index" [style.width]="lineIndexColumnWidth()" />
-                  @if (isLineColumnVisible('articleCode')) {
-                    <col [style.width]="lineColumnWidth('articleCode')" />
-                  }
-                  @if (isLineColumnVisible('sku')) {
-                    <col [style.width]="lineColumnWidth('sku')" />
-                  }
-                  @if (isLineColumnVisible('barcode')) {
-                    <col [style.width]="lineColumnWidth('barcode')" />
-                  }
-                  @if (isLineColumnVisible('product')) {
-                    <col [style.width]="lineColumnWidth('product')" />
-                  }
-                  @if (isLineColumnVisible('quantity')) {
-                    <col [style.width]="lineColumnWidth('quantity')" />
-                  }
-                  @if (isLineColumnVisible('stockAvailable')) {
-                    <col [style.width]="lineColumnWidth('stockAvailable')" />
-                  }
-                  @if (isLineColumnVisible('unitOfMeasure')) {
-                    <col [style.width]="lineColumnWidth('unitOfMeasure')" />
-                  }
-                  @if (isLineColumnVisible('purchaseCost')) {
-                    <col [style.width]="lineColumnWidth('purchaseCost')" />
-                  }
-                  @if (isLineColumnVisible('unitPrice')) {
-                    <col [style.width]="lineColumnWidth('unitPrice')" />
-                  }
-                  @if (isLineColumnVisible('discount')) {
-                    <col [style.width]="lineColumnWidth('discount')" />
-                  }
-                  @if (isLineColumnVisible('discountedPrice')) {
-                    <col [style.width]="lineColumnWidth('discountedPrice')" />
-                  }
-                  @if (isLineColumnVisible('vat')) {
-                    <col [style.width]="lineColumnWidth('vat')" />
-                  }
-                  @if (isLineColumnVisible('serials')) {
-                    <col [style.width]="lineColumnWidth('serials')" />
-                  }
-                  @if (isLineColumnVisible('commitsStock')) {
-                    <col [style.width]="lineColumnWidth('commitsStock')" />
-                  }
-                  @if (isLineColumnVisible('lineTotal')) {
-                    <col [style.width]="lineColumnWidth('lineTotal')" />
-                  }
-                  @if (isLineColumnVisible('actions')) {
-                    <col [style.width]="lineColumnWidth('actions')" />
-                  }
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
+            <!-- Le due viste sono ESCLUSIVE, non una nascosta sotto l'altra.
+                 Prima la tabella restava viva sotto il breakpoint, solo
+                 invisibile: su un documento da trenta righe erano circa 1.700
+                 nodi e 420 controlli resi per niente sul telefono, e gli
+                 identificativi dei campi esistevano in doppia copia — «l'id
+                 della riga i, campo x» non era univoco, e ogni stato condiviso
+                 poteva aprirsi nella vista che non si vede.
+                 La soglia è la stessa del CSS: nasce da un token solo. -->
+            @if (!compactView() && !headerGateActive()) {
+              <div class="doc-form__table-wrap">
+                <table class="doc-form__table">
+                  <colgroup>
+                    <col class="doc-form__col--index" [style.width]="lineIndexColumnWidth()" />
                     @if (isLineColumnVisible('articleCode')) {
-                      <th scope="col" [style.width]="lineColumnWidth('articleCode')">
-                        Cod. articolo
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('articleCode')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('articleCode', $event)"
-                          (resized)="onLineColumnResize('articleCode', $event)"
-                        ></span>
-                      </th>
+                      <col [style.width]="lineColumnWidth('articleCode')" />
                     }
                     @if (isLineColumnVisible('sku')) {
-                      <th scope="col" [style.width]="lineColumnWidth('sku')">
-                        SKU
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('sku')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('sku', $event)"
-                          (resized)="onLineColumnResize('sku', $event)"
-                        ></span>
-                      </th>
+                      <col [style.width]="lineColumnWidth('sku')" />
                     }
                     @if (isLineColumnVisible('barcode')) {
-                      <th scope="col" [style.width]="lineColumnWidth('barcode')">
-                        EAN
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('barcode')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('barcode', $event)"
-                          (resized)="onLineColumnResize('barcode', $event)"
-                        ></span>
-                      </th>
+                      <col [style.width]="lineColumnWidth('barcode')" />
                     }
                     @if (isLineColumnVisible('product')) {
-                      <th
-                        scope="col"
-                        class="doc-form__th--product doc-form__col--sep"
-                        [style.width]="lineColumnWidth('product')"
-                      >
-                        Nome prodotto
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('product')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('product', $event)"
-                          (resized)="onLineColumnResize('product', $event)"
-                        ></span>
-                      </th>
+                      <col [style.width]="lineColumnWidth('product')" />
                     }
                     @if (isLineColumnVisible('quantity')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--stock"
-                        [style.width]="lineColumnWidth('quantity')"
-                      >
-                        Q.tà
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('quantity')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('quantity', $event)"
-                          (resized)="onLineColumnResize('quantity', $event)"
-                        ></span>
-                      </th>
+                      <col [style.width]="lineColumnWidth('quantity')" />
                     }
                     @if (isLineColumnVisible('stockAvailable')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--stock"
-                        [style.width]="lineColumnWidth('stockAvailable')"
-                      >
-                        Q.tà disp.
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('stockAvailable')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('stockAvailable', $event)"
-                          (resized)="onLineColumnResize('stockAvailable', $event)"
-                        ></span>
-                      </th>
+                      <col [style.width]="lineColumnWidth('stockAvailable')" />
                     }
                     @if (isLineColumnVisible('unitOfMeasure')) {
-                      <th
-                        scope="col"
-                        class="doc-form__col--stock doc-form__col--sep"
-                        [style.width]="lineColumnWidth('unitOfMeasure')"
-                      >
-                        U.m.
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('unitOfMeasure')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('unitOfMeasure', $event)"
-                          (resized)="onLineColumnResize('unitOfMeasure', $event)"
-                        ></span>
-                      </th>
+                      <col [style.width]="lineColumnWidth('unitOfMeasure')" />
                     }
                     @if (isLineColumnVisible('purchaseCost')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--calc"
-                        [style.width]="lineColumnWidth('purchaseCost')"
-                      >
-                        Costo
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('purchaseCost')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('purchaseCost', $event)"
-                          (resized)="onLineColumnResize('purchaseCost', $event)"
-                        ></span>
-                      </th>
+                      <col [style.width]="lineColumnWidth('purchaseCost')" />
                     }
                     @if (isLineColumnVisible('unitPrice')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--sale doc-form__th--menu"
-                        [style.width]="lineColumnWidth('unitPrice')"
-                      >
-                        <!-- Modalità prezzo netto/ivato integrata nell'header di
+                      <col [style.width]="lineColumnWidth('unitPrice')" />
+                    }
+                    @if (isLineColumnVisible('discount')) {
+                      <col [style.width]="lineColumnWidth('discount')" />
+                    }
+                    @if (isLineColumnVisible('discountedPrice')) {
+                      <col [style.width]="lineColumnWidth('discountedPrice')" />
+                    }
+                    @if (isLineColumnVisible('vat')) {
+                      <col [style.width]="lineColumnWidth('vat')" />
+                    }
+                    @if (isLineColumnVisible('serials')) {
+                      <col [style.width]="lineColumnWidth('serials')" />
+                    }
+                    @if (isLineColumnVisible('commitsStock')) {
+                      <col [style.width]="lineColumnWidth('commitsStock')" />
+                    }
+                    @if (isLineColumnVisible('lineTotal')) {
+                      <col [style.width]="lineColumnWidth('lineTotal')" />
+                    }
+                    @if (isLineColumnVisible('actions')) {
+                      <col [style.width]="lineColumnWidth('actions')" />
+                    }
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
+                      @if (isLineColumnVisible('articleCode')) {
+                        <th scope="col" [style.width]="lineColumnWidth('articleCode')">
+                          <button
+                            type="button"
+                            class="doc-form__th-sort"
+                            [disabled]="!lineSortAvailable()"
+                            [attr.aria-label]="lineSortAriaLabel('articleCode', 'Cod. articolo')"
+                            [attr.title]="lineSortDisabledReason()"
+                            (click)="toggleLineSort('articleCode')"
+                          >
+                            Cod. articolo
+                            @if (lineSort.column() === 'articleCode') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
+                          </button>
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('articleCode')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('articleCode', $event)"
+                            (resized)="onLineColumnResize('articleCode', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('sku')) {
+                        <th scope="col" [style.width]="lineColumnWidth('sku')">
+                          <button
+                            type="button"
+                            class="doc-form__th-sort"
+                            [disabled]="!lineSortAvailable()"
+                            [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
+                            [attr.title]="lineSortDisabledReason()"
+                            (click)="toggleLineSort('sku')"
+                          >
+                            SKU
+                            @if (lineSort.column() === 'sku') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
+                          </button>
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('sku')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('sku', $event)"
+                            (resized)="onLineColumnResize('sku', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('barcode')) {
+                        <th scope="col" [style.width]="lineColumnWidth('barcode')">
+                          <button
+                            type="button"
+                            class="doc-form__th-sort"
+                            [disabled]="!lineSortAvailable()"
+                            [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
+                            [attr.title]="lineSortDisabledReason()"
+                            (click)="toggleLineSort('barcode')"
+                          >
+                            EAN
+                            @if (lineSort.column() === 'barcode') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
+                          </button>
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('barcode')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('barcode', $event)"
+                            (resized)="onLineColumnResize('barcode', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('product')) {
+                        <th
+                          scope="col"
+                          class="doc-form__th--product doc-form__col--sep"
+                          [style.width]="lineColumnWidth('product')"
+                        >
+                          <button
+                            type="button"
+                            class="doc-form__th-sort"
+                            [disabled]="!lineSortAvailable()"
+                            [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
+                            [attr.title]="lineSortDisabledReason()"
+                            (click)="toggleLineSort('product')"
+                          >
+                            Nome prodotto
+                            @if (lineSort.column() === 'product') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
+                          </button>
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('product')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('product', $event)"
+                            (resized)="onLineColumnResize('product', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('quantity')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num doc-form__col--stock"
+                          [style.width]="lineColumnWidth('quantity')"
+                        >
+                          Q.tà
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('quantity')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('quantity', $event)"
+                            (resized)="onLineColumnResize('quantity', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('stockAvailable')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num doc-form__col--stock"
+                          [style.width]="lineColumnWidth('stockAvailable')"
+                        >
+                          Q.tà disp.
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('stockAvailable')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('stockAvailable', $event)"
+                            (resized)="onLineColumnResize('stockAvailable', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('unitOfMeasure')) {
+                        <th
+                          scope="col"
+                          class="doc-form__col--stock doc-form__col--sep"
+                          [style.width]="lineColumnWidth('unitOfMeasure')"
+                        >
+                          U.m.
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('unitOfMeasure')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('unitOfMeasure', $event)"
+                            (resized)="onLineColumnResize('unitOfMeasure', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('purchaseCost')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num doc-form__col--calc"
+                          [style.width]="lineColumnWidth('purchaseCost')"
+                        >
+                          Costo
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('purchaseCost')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('purchaseCost', $event)"
+                            (resized)="onLineColumnResize('purchaseCost', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('unitPrice')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num doc-form__col--sale doc-form__th--menu"
+                          [style.width]="lineColumnWidth('unitPrice')"
+                        >
+                          <!-- Modalità prezzo netto/ivato integrata nell'header di
                              colonna (stesso pattern dell'Arrivo merce): l'etichetta
                              riflette la modalità corrente e il menu la cambia.
                              L'Ordine cliente (isOrder) resta netto finché non
                              arriva il supporto backend dedicato (SalesOrder). -->
-                        @if (isOrder) {
-                          Prezzo
-                        } @else {
-                          <span class="doc-form__th-menu-wrap">
-                            <button
-                              type="button"
-                              class="doc-form__th-sort doc-form__th-sort--num"
-                              aria-haspopup="menu"
-                              [attr.aria-expanded]="priceModeMenuOpen()"
-                              aria-label="Modalità prezzo del documento"
-                              (click)="togglePriceModeMenu()"
-                            >
-                              {{ priceRowLabel() }}
-                            </button>
-                            <button
-                              type="button"
-                              class="doc-form__th-menu-trigger"
-                              aria-haspopup="menu"
-                              [attr.aria-expanded]="priceModeMenuOpen()"
-                              aria-label="Modalità prezzo del documento"
-                              (click)="togglePriceModeMenu()"
-                            >
-                              <i class="pi pi-chevron-down" aria-hidden="true"></i>
-                            </button>
-                            @if (priceModeMenuOpen()) {
-                              <div
-                                class="doc-form__th-menu"
-                                role="menu"
-                                aria-label="Modalità prezzo"
+                          @if (isOrder) {
+                            Prezzo
+                          } @else {
+                            <span class="doc-form__th-menu-wrap">
+                              <button
+                                type="button"
+                                class="doc-form__th-sort doc-form__th-sort--num"
+                                aria-haspopup="menu"
+                                [attr.aria-expanded]="priceModeMenuOpen()"
+                                aria-label="Modalità prezzo del documento"
+                                (click)="togglePriceModeMenu()"
                               >
-                                <button
-                                  type="button"
-                                  class="doc-form__th-menu-item"
-                                  role="menuitemradio"
-                                  [attr.aria-checked]="!pricesIncludeVat()"
-                                  (click)="setPriceMode(false)"
+                                {{ priceRowLabel() }}
+                              </button>
+                              <button
+                                type="button"
+                                class="doc-form__th-menu-trigger"
+                                aria-haspopup="menu"
+                                [attr.aria-expanded]="priceModeMenuOpen()"
+                                aria-label="Modalità prezzo del documento"
+                                (click)="togglePriceModeMenu()"
+                              >
+                                <i class="pi pi-chevron-down" aria-hidden="true"></i>
+                              </button>
+                              @if (priceModeMenuOpen()) {
+                                <div
+                                  class="doc-form__th-menu"
+                                  role="menu"
+                                  aria-label="Modalità prezzo"
                                 >
-                                  @if (!pricesIncludeVat()) {
-                                    <i class="pi pi-check" aria-hidden="true"></i>
-                                  } @else {
-                                    <span class="doc-form__th-menu-check" aria-hidden="true"></span>
-                                  }
-                                  Usa prezzi netti
-                                </button>
-                                <button
-                                  type="button"
-                                  class="doc-form__th-menu-item"
-                                  role="menuitemradio"
-                                  [attr.aria-checked]="pricesIncludeVat()"
-                                  (click)="setPriceMode(true)"
-                                >
-                                  @if (pricesIncludeVat()) {
-                                    <i class="pi pi-check" aria-hidden="true"></i>
-                                  } @else {
-                                    <span class="doc-form__th-menu-check" aria-hidden="true"></span>
-                                  }
-                                  Usa prezzi ivati
-                                </button>
-                              </div>
-                            }
+                                  <button
+                                    type="button"
+                                    class="doc-form__th-menu-item"
+                                    role="menuitemradio"
+                                    [attr.aria-checked]="!pricesIncludeVat()"
+                                    (click)="setPriceMode(false)"
+                                  >
+                                    @if (!pricesIncludeVat()) {
+                                      <i class="pi pi-check" aria-hidden="true"></i>
+                                    } @else {
+                                      <span
+                                        class="doc-form__th-menu-check"
+                                        aria-hidden="true"
+                                      ></span>
+                                    }
+                                    Usa prezzi netti
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="doc-form__th-menu-item"
+                                    role="menuitemradio"
+                                    [attr.aria-checked]="pricesIncludeVat()"
+                                    (click)="setPriceMode(true)"
+                                  >
+                                    @if (pricesIncludeVat()) {
+                                      <i class="pi pi-check" aria-hidden="true"></i>
+                                    } @else {
+                                      <span
+                                        class="doc-form__th-menu-check"
+                                        aria-hidden="true"
+                                      ></span>
+                                    }
+                                    Usa prezzi ivati
+                                  </button>
+                                </div>
+                              }
+                            </span>
+                          }
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('unitPrice')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('unitPrice', $event)"
+                            (resized)="onLineColumnResize('unitPrice', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('discount')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num doc-form__col--sale"
+                          [style.width]="lineColumnWidth('discount')"
+                        >
+                          <span class="doc-form__th-label">
+                            Sconto
+                            <app-hover-tooltip
+                              text="Percentuale singola o cascata: «10%», «4+10%» (prima 4%, poi 10% sul residuo)."
+                              position="bottom"
+                            >
+                              <i
+                                class="pi pi-info-circle doc-form__th-info"
+                                aria-label="Info sconto"
+                              ></i>
+                            </app-hover-tooltip>
                           </span>
-                        }
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('unitPrice')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('unitPrice', $event)"
-                          (resized)="onLineColumnResize('unitPrice', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('discount')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--sale"
-                        [style.width]="lineColumnWidth('discount')"
-                      >
-                        <span class="doc-form__th-label">
-                          Sconto
-                          <app-hover-tooltip
-                            text="Percentuale singola o cascata: «10%», «4+10%» (prima 4%, poi 10% sul residuo)."
-                            position="bottom"
-                          >
-                            <i
-                              class="pi pi-info-circle doc-form__th-info"
-                              aria-label="Info sconto"
-                            ></i>
-                          </app-hover-tooltip>
-                        </span>
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('discount')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('discount', $event)"
-                          (resized)="onLineColumnResize('discount', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('discountedPrice')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--calc"
-                        [style.width]="lineColumnWidth('discountedPrice')"
-                      >
-                        Prezzo scontato
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('discountedPrice')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('discountedPrice', $event)"
-                          (resized)="onLineColumnResize('discountedPrice', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('vat')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--tax doc-form__col--sep"
-                        [style.width]="lineColumnWidth('vat')"
-                      >
-                        IVA
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('vat')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('vat', $event)"
-                          (resized)="onLineColumnResize('vat', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('serials')) {
-                      <th scope="col" [style.width]="lineColumnWidth('serials')">
-                        <span class="doc-form__th-label">
-                          Seriali
-                          <app-hover-tooltip
-                            text="Numeri seriali consumati dallo scarico, separati da virgola (es. SN001, SN002). Richiesti per i prodotti con tracciamento seriale."
-                            position="bottom"
-                          >
-                            <i
-                              class="pi pi-info-circle doc-form__th-info"
-                              aria-label="Info colonna Seriali"
-                            ></i>
-                          </app-hover-tooltip>
-                        </span>
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('serials')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('serials', $event)"
-                          (resized)="onLineColumnResize('serials', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('commitsStock')) {
-                      <th
-                        scope="col"
-                        class="doc-form__col--stock"
-                        [style.width]="lineColumnWidth('commitsStock')"
-                      >
-                        <span class="doc-form__th-label">
-                          {{ commitsColumnLabel }}
-                          <app-hover-tooltip [text]="commitsStockTooltip" position="bottom">
-                            <i
-                              class="pi pi-info-circle doc-form__th-info"
-                              [attr.aria-label]="
-                                isSalesDdt || isManualUnload
-                                  ? 'Info colonna Scarica magazzino'
-                                  : 'Info colonna Impegna magazzino'
-                              "
-                            ></i>
-                          </app-hover-tooltip>
-                        </span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('lineTotal')) {
-                      <th
-                        scope="col"
-                        class="doc-form__num doc-form__col--total"
-                        [style.width]="lineColumnWidth('lineTotal')"
-                      >
-                        Totale
-                        <span
-                          appTableColumnResize
-                          [minWidthPx]="lineColumnMinWidth('lineTotal')"
-                          [live]="true"
-                          (resizing)="onLineColumnResizing('lineTotal', $event)"
-                          (resized)="onLineColumnResize('lineTotal', $event)"
-                        ></span>
-                      </th>
-                    }
-                    @if (isLineColumnVisible('actions')) {
-                      <th scope="col" [style.width]="lineColumnWidth('actions')">
-                        <span class="sr-only">Azioni</span>
-                      </th>
-                    }
-                  </tr>
-                </thead>
-                <!-- Il riordino va disabilitato a mano: il <fieldset disabled>
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('discount')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('discount', $event)"
+                            (resized)="onLineColumnResize('discount', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('discountedPrice')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num doc-form__col--calc"
+                          [style.width]="lineColumnWidth('discountedPrice')"
+                        >
+                          Prezzo scontato
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('discountedPrice')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('discountedPrice', $event)"
+                            (resized)="onLineColumnResize('discountedPrice', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('vat')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num doc-form__col--tax doc-form__col--sep"
+                          [style.width]="lineColumnWidth('vat')"
+                        >
+                          IVA
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('vat')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('vat', $event)"
+                            (resized)="onLineColumnResize('vat', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('serials')) {
+                        <th scope="col" [style.width]="lineColumnWidth('serials')">
+                          <span class="doc-form__th-label">
+                            Seriali
+                            <app-hover-tooltip
+                              text="Numeri seriali consumati dallo scarico, separati da virgola (es. SN001, SN002). Richiesti per i prodotti con tracciamento seriale."
+                              position="bottom"
+                            >
+                              <i
+                                class="pi pi-info-circle doc-form__th-info"
+                                aria-label="Info colonna Seriali"
+                              ></i>
+                            </app-hover-tooltip>
+                          </span>
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('serials')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('serials', $event)"
+                            (resized)="onLineColumnResize('serials', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('commitsStock')) {
+                        <th
+                          scope="col"
+                          class="doc-form__col--stock"
+                          [style.width]="lineColumnWidth('commitsStock')"
+                        >
+                          <span class="doc-form__th-label">
+                            {{ commitsColumnLabel }}
+                            <app-hover-tooltip [text]="commitsStockTooltip" position="bottom">
+                              <i
+                                class="pi pi-info-circle doc-form__th-info"
+                                [attr.aria-label]="
+                                  isSalesDdt || isManualUnload
+                                    ? 'Info colonna Scarica magazzino'
+                                    : 'Info colonna Impegna magazzino'
+                                "
+                              ></i>
+                            </app-hover-tooltip>
+                          </span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('lineTotal')) {
+                        <th
+                          scope="col"
+                          class="doc-form__num doc-form__col--total"
+                          [style.width]="lineColumnWidth('lineTotal')"
+                        >
+                          Totale
+                          <span
+                            appTableColumnResize
+                            [minWidthPx]="lineColumnMinWidth('lineTotal')"
+                            [live]="true"
+                            (resizing)="onLineColumnResizing('lineTotal', $event)"
+                            (resized)="onLineColumnResize('lineTotal', $event)"
+                          ></span>
+                        </th>
+                      }
+                      @if (isLineColumnVisible('actions')) {
+                        <th scope="col" [style.width]="lineColumnWidth('actions')">
+                          <span class="sr-only">Azioni</span>
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <!-- Il riordino va disabilitato a mano: il <fieldset disabled>
                      sopra ferma i controlli del form, non il drag & drop, che
                      controllo non è. Su un documento protetto le righe si
                      sarebbero ancora trascinate. -->
-                <tbody
-                  formArrayName="lines"
-                  cdkDropList
-                  [cdkDropListDisabled]="formReadOnly()"
-                  (cdkDropListDropped)="onLineDrop($event)"
-                >
-                  @for (line of lines.controls; track line; let i = $index) {
-                    <tr
-                      class="doc-form__table-row"
-                      cdkDrag
-                      [cdkDragStartDelay]="{ touch: 250, mouse: 0 }"
-                      [class.doc-form__table-row--incomplete]="!lineRowComplete(i)"
-                      [class.co-form__row--reference]="lineIsReference(i)"
-                      [formGroupName]="i"
-                    >
-                      <!-- Il numero è la maniglia di trascinamento: il resto
-                           della riga resta cliccabile per modificare le celle. -->
-                      <td
-                        class="doc-form__cell--index doc-form__drag-handle"
-                        [class.doc-form__source-cell]="lineIsReference(i)"
-                        cdkDragHandle
+                  <tbody
+                    formArrayName="lines"
+                    cdkDropList
+                    [cdkDropListDisabled]="formReadOnly()"
+                    (cdkDropListDropped)="onLineDrop($event)"
+                  >
+                    @for (line of lines.controls; track line; let i = $index) {
+                      <tr
+                        class="doc-form__table-row"
+                        cdkDrag
+                        [cdkDragStartDelay]="{ touch: 250, mouse: 0 }"
+                        [class.doc-form__table-row--incomplete]="!lineRowComplete(i)"
+                        [class.co-form__row--reference]="lineIsReference(i)"
+                        [formGroupName]="i"
                       >
-                        <span class="tabular-nums co-form__source-index">{{ i + 1 }}</span>
-                      </td>
-                      @if (lineIsReference(i)) {
+                        <!-- Il numero è la maniglia di trascinamento: il resto
+                           della riga resta cliccabile per modificare le celle. -->
                         <td
-                          class="doc-form__source-cell co-form__source-info-cell"
-                          [attr.colspan]="identityColumnCount()"
+                          class="doc-form__cell--index doc-form__drag-handle"
+                          [class.doc-form__source-cell]="lineIsReference(i)"
+                          cdkDragHandle
                         >
-                          <div class="co-form__source-info">
-                            <span class="co-form__source-icon" aria-hidden="true">
-                              <i class="pi pi-file"></i>
-                            </span>
-                            <span class="co-form__source-kind">Documento collegato</span>
-                            <!-- Titolo e data stanno nello stesso testo, che resta
+                          <span class="tabular-nums co-form__source-index">{{ i + 1 }}</span>
+                        </td>
+                        @if (lineIsReference(i)) {
+                          <td
+                            class="doc-form__source-cell co-form__source-info-cell"
+                            [attr.colspan]="identityColumnCount()"
+                          >
+                            <div class="co-form__source-info">
+                              <span class="co-form__source-icon" aria-hidden="true">
+                                <i class="pi pi-file"></i>
+                              </span>
+                              <span class="co-form__source-kind">Documento collegato</span>
+                              <!-- Titolo e data stanno nello stesso testo, che resta
                                  modificabile: il campo è reso come il titolo. -->
-                            <input
-                              class="co-form__source-title"
-                              type="text"
-                              formControlName="productName"
-                              aria-label="Riferimento al documento collegato"
-                            />
-                          </div>
-                        </td>
-                      } @else if (isLineColumnVisible('articleCode')) {
-                        <td class="doc-form__cell doc-form__cell--code">
-                          <app-document-line-code-cell
-                            [lineIndex]="i"
-                            [inputId]="'co-code-' + i"
-                            ariaLabel="Codice articolo"
-                            placeholder="Cerca codice"
-                            [value]="line.controls.articleCode.value"
-                            [linked]="lineHasLinkedProduct(i)"
-                            [linkedValue]="lineArticleCode(i)"
-                            (valueChange)="onLineArticleCodeChange(i, $event)"
-                            (commit)="commitCodeLookup(i, 'articleCode')"
-                            (lineRetreat)="focusPreviousLineField(i, 'articleCode')"
-                            (lineRowAdvance)="advanceToNextLine(i)"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (!lineIsReference(i) && isLineColumnVisible('sku')) {
-                        <td class="doc-form__cell doc-form__cell--code">
-                          <app-document-line-code-cell
-                            [lineIndex]="i"
-                            [inputId]="'co-sku-' + i"
-                            ariaLabel="SKU"
-                            placeholder="Cerca SKU"
-                            [value]="line.controls.sku.value"
-                            [linked]="lineHasLinkedProduct(i)"
-                            [linkedValue]="line.controls.sku.value"
-                            (valueChange)="onLineSkuChange(i, $event)"
-                            (commit)="commitCodeLookup(i, 'sku')"
-                            (lineRetreat)="focusPreviousLineField(i, 'sku')"
-                            (lineRowAdvance)="advanceToNextLine(i)"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (!lineIsReference(i) && isLineColumnVisible('barcode')) {
-                        <td class="doc-form__cell doc-form__cell--code">
-                          <app-document-line-code-cell
-                            [lineIndex]="i"
-                            [inputId]="'co-barcode-' + i"
-                            ariaLabel="EAN"
-                            placeholder="Scansiona EAN"
-                            [value]="line.controls.barcode.value"
-                            [linked]="lineHasLinkedProduct(i)"
-                            [linkedValue]="line.controls.barcode.value"
-                            (valueChange)="onLineBarcodeChange(i, $event)"
-                            (commit)="commitCodeLookup(i, 'barcode')"
-                            (lineRetreat)="focusPreviousLineField(i, 'barcode')"
-                            (lineRowAdvance)="advanceToNextLine(i)"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (!lineIsReference(i) && isLineColumnVisible('product')) {
-                        <td class="doc-form__cell doc-form__cell--product doc-form__col--sep">
-                          <app-document-line-product-cell
-                            [lineIndex]="i"
-                            [inputId]="'co-product-' + i"
-                            [value]="line.controls.productName.value"
-                            [linked]="lineHasLinkedProduct(i)"
-                            [linkedLabel]="linkedProductLabel(i)"
-                            [invalid]="lineFieldInvalid(i, 'productName')"
-                            [suggestions]="lineSuggestions(i)"
-                            [suggestionsOpen]="lineSuggestionsOpen(i)"
-                            [activeSuggestionIndex]="activeSuggestionIndex()"
-                            (valueChange)="onLineProductNameChange(i, $event)"
-                            (focused)="onLineProductFocus(i)"
-                            (blurred)="onLineProductBlur(i)"
-                            (searchOpen)="openLineProductSearch(i)"
-                            (anagraphicOpen)="openProductAnagraphic(i)"
-                            (detailOpen)="openProductDetail(i)"
-                            (unlinkRequest)="onLineUnlink(i)"
-                            (suggestionPick)="
-                              onProductSuggestionPick($event.lineIndex, $event.variantId)
-                            "
-                            (suggestionNavigate)="onProductSuggestionNavigate($event)"
-                            (lineAdvance)="focusNextLineField(i, 'product')"
-                            (lineRetreat)="focusPreviousLineField(i, 'product')"
-                            (lineRowAdvance)="advanceToNextLine(i)"
-                            (escapePressed)="onLineSearchEscape(i)"
-                          />
-                        </td>
-                      }
-                      @if (isLineColumnVisible('quantity')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--stock"
-                          [class.doc-form__cell--exceeds]="lineExceedsAvailability(i)"
-                        >
-                          @if (!lineIsReference(i)) {
-                            <input
-                              [id]="'co-qty-' + i"
-                              class="doc-form__input doc-form__input--table doc-form__input--num"
-                              [class.doc-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
-                              type="number"
-                              min="0"
-                              step="1"
-                              formControlName="quantity"
-                              (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
-                              [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
-                              [title]="
-                                lineAvailabilityHint(i) ??
-                                (lineFieldInvalid(i, 'quantity')
-                                  ? 'Inserisci una quantità maggiore di zero.'
-                                  : null)
+                              <input
+                                class="co-form__source-title"
+                                type="text"
+                                formControlName="productName"
+                                aria-label="Riferimento al documento collegato"
+                              />
+                            </div>
+                          </td>
+                        } @else if (isLineColumnVisible('articleCode')) {
+                          <td class="doc-form__cell doc-form__cell--code">
+                            <app-document-line-code-cell
+                              [lineIndex]="i"
+                              [inputId]="'co-code-' + i"
+                              ariaLabel="Codice articolo"
+                              placeholder="Cerca codice"
+                              [value]="line.controls.articleCode.value"
+                              [linked]="lineHasLinkedProduct(i)"
+                              [linkedValue]="lineArticleCode(i)"
+                              [suggestions]="codeLookup.matchesFor(i, 'articleCode')"
+                              [suggestionsOpen]="codeLookup.isOpenOn(i, 'articleCode')"
+                              [activeSuggestionIndex]="codeLookup.activeIndex()"
+                              (suggestionNavigate)="codeLookup.navigate($event)"
+                              (suggestionPick)="
+                                onCodeSuggestionPick($event.lineIndex, $event.variantId)
                               "
+                              (valueChange)="onLineArticleCodeChange(i, $event)"
+                              (focused)="onLineCodeFocus(i, 'articleCode')"
+                              (blurred)="onLineCodeBlur(i)"
+                              (commit)="commitCodeLookup(i, 'articleCode', $event.advance)"
+                              (lineRetreat)="lineFocus.previous(i, 'articleCode')"
+                              (lineRowAdvance)="lineFocus.rowDown(i, 'articleCode')"
+                              (lineRowRetreat)="lineFocus.rowUp(i, 'articleCode')"
+                              (escapePressed)="onLineSearchEscape(i)"
                             />
-                            @if (lineAvailabilityHint(i); as hint) {
-                              <span class="doc-form__exceeds-hint">{{ hint }}</span>
-                            }
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('stockAvailable')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--stock doc-form__col--avail"
-                        >
-                          @if (!lineIsReference(i)) {
-                            {{ lineStockAvailable(i) }}
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('unitOfMeasure')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__col--stock doc-form__col--sep"
-                        >
-                          @if (!lineIsReference(i)) {
-                            {{ lineUnitOfMeasure(i) }}
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('purchaseCost')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--calc"
-                        >
-                          @if (!lineIsReference(i)) {
-                            {{ linePurchaseCost(i) }}
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('unitPrice')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--sale"
-                        >
-                          @if (!lineIsReference(i)) {
-                            <input
-                              [id]="'co-price-' + i"
-                              class="doc-form__input doc-form__input--table doc-form__input--num"
-                              type="text"
-                              inputmode="decimal"
-                              formControlName="unitPrice"
-                              placeholder="0,00"
-                              (keydown)="onLineFieldKeydown(i, 'unitPrice', $event)"
+                          </td>
+                        }
+                        @if (!lineIsReference(i) && isLineColumnVisible('sku')) {
+                          <td class="doc-form__cell doc-form__cell--code">
+                            <app-document-line-code-cell
+                              [lineIndex]="i"
+                              [inputId]="'co-sku-' + i"
+                              ariaLabel="SKU"
+                              placeholder="Cerca SKU"
+                              [value]="line.controls.sku.value"
+                              [linked]="lineHasLinkedProduct(i)"
+                              [linkedValue]="line.controls.sku.value"
+                              [suggestions]="codeLookup.matchesFor(i, 'sku')"
+                              [suggestionsOpen]="codeLookup.isOpenOn(i, 'sku')"
+                              [activeSuggestionIndex]="codeLookup.activeIndex()"
+                              (suggestionNavigate)="codeLookup.navigate($event)"
+                              (suggestionPick)="
+                                onCodeSuggestionPick($event.lineIndex, $event.variantId)
+                              "
+                              (valueChange)="onLineSkuChange(i, $event)"
+                              (focused)="onLineCodeFocus(i, 'sku')"
+                              (blurred)="onLineCodeBlur(i)"
+                              (commit)="commitCodeLookup(i, 'sku', $event.advance)"
+                              (lineRetreat)="lineFocus.previous(i, 'sku')"
+                              (lineRowAdvance)="lineFocus.rowDown(i, 'sku')"
+                              (lineRowRetreat)="lineFocus.rowUp(i, 'sku')"
+                              (escapePressed)="onLineSearchEscape(i)"
                             />
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('discount')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--sale"
-                        >
-                          @if (!lineIsReference(i)) {
-                            <input
-                              [id]="'co-discount-' + i"
-                              class="doc-form__input doc-form__input--table doc-form__input--num"
-                              type="text"
-                              formControlName="discount"
-                              placeholder="0%"
-                              title="Percentuale singola o cascata: «10%», «4+10%»"
-                              (keydown)="onLineFieldKeydown(i, 'discount', $event)"
+                          </td>
+                        }
+                        @if (!lineIsReference(i) && isLineColumnVisible('barcode')) {
+                          <td class="doc-form__cell doc-form__cell--code">
+                            <app-document-line-code-cell
+                              [lineIndex]="i"
+                              [inputId]="'co-barcode-' + i"
+                              ariaLabel="EAN"
+                              placeholder="Scansiona EAN"
+                              [value]="line.controls.barcode.value"
+                              [linked]="lineHasLinkedProduct(i)"
+                              [linkedValue]="line.controls.barcode.value"
+                              [suggestions]="codeLookup.matchesFor(i, 'barcode')"
+                              [suggestionsOpen]="codeLookup.isOpenOn(i, 'barcode')"
+                              [activeSuggestionIndex]="codeLookup.activeIndex()"
+                              (suggestionNavigate)="codeLookup.navigate($event)"
+                              (suggestionPick)="
+                                onCodeSuggestionPick($event.lineIndex, $event.variantId)
+                              "
+                              (valueChange)="onLineBarcodeChange(i, $event)"
+                              (focused)="onLineCodeFocus(i, 'barcode')"
+                              (blurred)="onLineCodeBlur(i)"
+                              (commit)="commitCodeLookup(i, 'barcode', $event.advance)"
+                              (lineRetreat)="lineFocus.previous(i, 'barcode')"
+                              (lineRowAdvance)="lineFocus.rowDown(i, 'barcode')"
+                              (lineRowRetreat)="lineFocus.rowUp(i, 'barcode')"
+                              (escapePressed)="onLineSearchEscape(i)"
                             />
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('discountedPrice')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--calc"
-                        >
-                          @if (!lineIsReference(i)) {
-                            {{ formatMoney(lineDiscountedUnitMoney(i)) }}
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('vat')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--editable doc-form__cell--vat doc-form__col--tax doc-form__col--sep"
-                          [title]="lineVatTooltip(i)"
-                        >
-                          @if (!lineIsReference(i)) {
-                            <app-select-menu
-                              [options]="lineVatOptions(i)"
-                              [value]="lineVatValue(i)"
-                              ariaLabel="Codice IVA riga"
-                              placeholder="—"
-                              [compact]="true"
-                              [matchInputHeight]="true"
-                              [includeEmptyOption]="false"
-                              [searchable]="true"
-                              [inlineDetail]="true"
-                              searchPlaceholder="Codice, aliquota, descrizione…"
-                              searchAriaLabel="Cerca Codice IVA"
-                              (valueChange)="onLineVatSelect(i, $event)"
+                          </td>
+                        }
+                        @if (!lineIsReference(i) && isLineColumnVisible('product')) {
+                          <td class="doc-form__cell doc-form__cell--product doc-form__col--sep">
+                            <app-document-line-product-cell
+                              [lineIndex]="i"
+                              [inputId]="'co-product-' + i"
+                              [value]="line.controls.productName.value"
+                              [linked]="lineHasLinkedProduct(i)"
+                              [invalid]="lineFieldInvalid(i, 'productName')"
+                              [suggestions]="lineSuggestions(i)"
+                              [suggestionsOpen]="lineSuggestionsOpen(i)"
+                              [activeSuggestionIndex]="productSuggest.activeIndex()"
+                              (valueChange)="onLineProductNameChange(i, $event)"
+                              (focused)="onLineProductFocus(i)"
+                              (blurred)="onLineProductBlur(i)"
+                              (searchOpen)="openLineProductSearch(i)"
+                              (suggestionPick)="
+                                onProductSuggestionPick($event.lineIndex, $event.variantId)
+                              "
+                              (suggestionNavigate)="onProductSuggestionNavigate($event)"
+                              (lineAdvance)="lineFocus.next(i, 'product')"
+                              (lineRetreat)="lineFocus.previous(i, 'product')"
+                              (lineRowAdvance)="lineFocus.rowDown(i, 'product')"
+                              (lineRowRetreat)="lineFocus.rowUp(i, 'product')"
+                              (escapePressed)="onLineSearchEscape(i)"
                             />
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('serials')) {
-                        <td class="doc-form__cell doc-form__cell--editable">
-                          @if (!lineIsReference(i)) {
-                            <input
-                              [id]="'co-serials-' + i"
-                              class="doc-form__input doc-form__input--table"
-                              type="text"
-                              formControlName="serialNumbersText"
-                              placeholder="SN001, SN002"
-                              autocomplete="off"
-                              (keydown)="onLineFieldKeydown(i, 'serials', $event)"
-                            />
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('commitsStock')) {
-                        <td class="doc-form__cell doc-form__cell--check doc-form__col--stock">
-                          @if (!lineIsReference(i)) {
-                            <label class="doc-form__check">
-                              <input type="checkbox" formControlName="commitsStock" />
-                              <span class="sr-only">{{
-                                isSalesDdt || isManualUnload
-                                  ? 'Scarica magazzino'
-                                  : 'Impegna magazzino'
-                              }}</span>
-                            </label>
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('lineTotal')) {
-                        <td
-                          class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--total"
-                        >
-                          @if (!lineIsReference(i)) {
-                            @if (lineHasDiscount(i)) {
-                              <span class="doc-form__line-total-gross">{{
-                                formatMoney(lineGrossMoney(i))
-                              }}</span>
-                            }
-                            <span>{{ formatMoney(lineTotalMoney(i)) }}</span>
-                          }
-                        </td>
-                      }
-                      @if (isLineColumnVisible('actions')) {
-                        <td class="doc-form__cell doc-form__cell--actions">
-                          <div class="doc-form__line-actions">
+                          </td>
+                        }
+                        @if (isLineColumnVisible('quantity')) {
+                          <td
+                            class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--stock"
+                            [class.doc-form__cell--exceeds]="lineExceedsAvailability(i)"
+                          >
                             @if (!lineIsReference(i)) {
+                              <input
+                                [id]="'co-qty-' + i"
+                                class="doc-form__input doc-form__input--table doc-form__input--num"
+                                [class.doc-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
+                                type="number"
+                                min="0"
+                                step="1"
+                                formControlName="quantity"
+                                (keydown)="lineFocus.handleKeydown(i, 'quantity', $event)"
+                                [attr.aria-invalid]="
+                                  lineFieldInvalid(i, 'quantity') ? 'true' : null
+                                "
+                                [title]="
+                                  lineAvailabilityHint(i) ??
+                                  (lineFieldInvalid(i, 'quantity')
+                                    ? 'Inserisci una quantità maggiore di zero.'
+                                    : null)
+                                "
+                              />
+                              @if (lineAvailabilityHint(i); as hint) {
+                                <span class="doc-form__exceeds-hint">{{ hint }}</span>
+                              }
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('stockAvailable')) {
+                          <td
+                            class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--stock doc-form__col--avail"
+                          >
+                            @if (!lineIsReference(i)) {
+                              {{ lineStockAvailable(i) }}
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('unitOfMeasure')) {
+                          <td
+                            class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__col--stock doc-form__col--sep"
+                          >
+                            @if (!lineIsReference(i)) {
+                              {{ lineUnitOfMeasure(i) }}
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('purchaseCost')) {
+                          <td
+                            class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--calc"
+                          >
+                            @if (!lineIsReference(i)) {
+                              {{ linePurchaseCost(i) }}
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('unitPrice')) {
+                          <td
+                            class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--sale"
+                          >
+                            @if (!lineIsReference(i)) {
+                              <input
+                                [id]="'co-price-' + i"
+                                class="doc-form__input doc-form__input--table doc-form__input--num"
+                                type="text"
+                                inputmode="decimal"
+                                formControlName="unitPrice"
+                                placeholder="0,00"
+                                (keydown)="lineFocus.handleKeydown(i, 'unitPrice', $event)"
+                              />
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('discount')) {
+                          <td
+                            class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--sale"
+                          >
+                            @if (!lineIsReference(i)) {
+                              <input
+                                [id]="'co-discount-' + i"
+                                class="doc-form__input doc-form__input--table doc-form__input--num"
+                                type="text"
+                                formControlName="discount"
+                                placeholder="0%"
+                                title="Percentuale singola o cascata: «10%», «4+10%»"
+                                (keydown)="lineFocus.handleKeydown(i, 'discount', $event)"
+                              />
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('discountedPrice')) {
+                          <td
+                            class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--calc"
+                          >
+                            @if (!lineIsReference(i)) {
+                              {{ formatMoney(lineDiscountedUnitMoney(i)) }}
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('vat')) {
+                          <td
+                            class="doc-form__cell doc-form__cell--editable doc-form__cell--vat doc-form__col--tax doc-form__col--sep"
+                            [title]="lineVatTooltip(i)"
+                          >
+                            @if (!lineIsReference(i)) {
+                              <app-select-menu
+                                [options]="lineVatOptions(i)"
+                                [value]="lineVatValue(i)"
+                                ariaLabel="Codice IVA riga"
+                                placeholder="—"
+                                [compact]="true"
+                                [matchInputHeight]="true"
+                                [includeEmptyOption]="false"
+                                [searchable]="true"
+                                [inlineDetail]="true"
+                                searchPlaceholder="Codice, aliquota, descrizione…"
+                                searchAriaLabel="Cerca Codice IVA"
+                                (valueChange)="onLineVatSelect(i, $event)"
+                              />
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('serials')) {
+                          <td class="doc-form__cell doc-form__cell--editable">
+                            @if (!lineIsReference(i)) {
+                              <input
+                                [id]="'co-serials-' + i"
+                                class="doc-form__input doc-form__input--table"
+                                type="text"
+                                formControlName="serialNumbersText"
+                                placeholder="SN001, SN002"
+                                autocomplete="off"
+                                (keydown)="lineFocus.handleKeydown(i, 'serials', $event)"
+                              />
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('commitsStock')) {
+                          <td class="doc-form__cell doc-form__cell--check doc-form__col--stock">
+                            @if (!lineIsReference(i)) {
+                              <label class="doc-form__check">
+                                <input type="checkbox" formControlName="commitsStock" />
+                                <span class="sr-only">{{
+                                  isSalesDdt || isManualUnload
+                                    ? 'Scarica magazzino'
+                                    : 'Impegna magazzino'
+                                }}</span>
+                              </label>
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('lineTotal')) {
+                          <td
+                            class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums doc-form__col--total"
+                          >
+                            @if (!lineIsReference(i)) {
+                              @if (lineHasDiscount(i)) {
+                                <span class="doc-form__line-total-gross">{{
+                                  formatMoney(lineGrossMoney(i))
+                                }}</span>
+                              }
+                              <span>{{ formatMoney(lineTotalMoney(i)) }}</span>
+                            }
+                          </td>
+                        }
+                        @if (isLineColumnVisible('actions')) {
+                          <td class="doc-form__cell doc-form__cell--actions">
+                            <div class="doc-form__line-actions">
+                              @if (!lineIsReference(i)) {
+                                <button
+                                  type="button"
+                                  class="doc-form__line-move"
+                                  tabindex="-1"
+                                  aria-label="Duplica riga"
+                                  (click)="duplicateLine(i)"
+                                >
+                                  <i class="pi pi-clone" aria-hidden="true"></i>
+                                </button>
+                              }
                               <button
                                 type="button"
-                                class="doc-form__line-move"
+                                class="doc-form__line-remove"
                                 tabindex="-1"
-                                aria-label="Duplica riga"
-                                (click)="duplicateLine(i)"
+                                [attr.aria-label]="
+                                  lineIsReference(i) ? 'Rimuovi collegamento' : 'Rimuovi riga'
+                                "
+                                (click)="removeLine(i)"
                               >
-                                <i class="pi pi-clone" aria-hidden="true"></i>
+                                <i class="pi pi-trash" aria-hidden="true"></i>
                               </button>
-                            }
-                            <button
-                              type="button"
-                              class="doc-form__line-remove"
-                              tabindex="-1"
-                              [attr.aria-label]="
-                                lineIsReference(i) ? 'Rimuovi collegamento' : 'Rimuovi riga'
-                              "
-                              (click)="removeLine(i)"
-                            >
-                              <i class="pi pi-trash" aria-hidden="true"></i>
-                            </button>
-                          </div>
-                        </td>
-                      }
-                    </tr>
-                  }
-                  <!-- Riga di inserimento rapido: sempre in fondo alla tabella
-                       (stessa meccanica dell'Arrivo merce, sintassi qta*codice). -->
-                  <tr class="co-form__quick-row">
-                    <td class="doc-form__cell--index">
-                      <i class="pi pi-barcode" aria-hidden="true"></i>
-                    </td>
-                    <td [attr.colspan]="99">
-                      <div class="co-form__quick-cell">
-                        <input
-                          #quickScanInput
-                          id="co-quick-scan"
-                          class="doc-form__input co-form__quick-input"
-                          type="text"
-                          [value]="quickScanDraft()"
-                          [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
-                          autocomplete="off"
-                          placeholder="Scansiona o cerca prodotto… (Invio per aggiungere)"
-                          aria-describedby="co-quick-scan-hint"
-                          (input)="onQuickScanInput($any($event.target).value)"
-                          (keydown.enter)="commitQuickScan(); $event.preventDefault()"
-                        />
-                        <p id="co-quick-scan-hint" class="doc-form__scan-hint">
-                          <kbd>3*</kbd> + codice = quantità (es. 3*8032911100142)
-                        </p>
-                        @if (quickScanError(); as scanError) {
-                          <p class="doc-form__error" role="alert">{{ scanError }}</p>
+                            </div>
+                          </td>
                         }
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                      </tr>
+                    }
+                    <!-- Riga di inserimento rapido: sempre in fondo alla tabella
+                       (stessa meccanica dell'Arrivo merce, sintassi qta*codice). -->
+                    <tr class="co-form__quick-row">
+                      <td class="doc-form__cell--index">
+                        <i class="pi pi-barcode" aria-hidden="true"></i>
+                      </td>
+                      <td [attr.colspan]="99">
+                        <div class="co-form__quick-cell">
+                          <input
+                            #quickScanInput
+                            id="co-quick-scan"
+                            class="doc-form__input co-form__quick-input"
+                            type="text"
+                            [value]="quickScanDraft()"
+                            [disabled]="formReadOnly() || quickScanBusy() || headerGateActive()"
+                            autocomplete="off"
+                            placeholder="Scansiona o cerca prodotto… (Invio per aggiungere)"
+                            aria-describedby="co-quick-scan-hint"
+                            (input)="onQuickScanInput($any($event.target).value)"
+                            (keydown.enter)="commitQuickScan(); $event.preventDefault()"
+                          />
+                          <p id="co-quick-scan-hint" class="doc-form__scan-hint">
+                            <kbd>3*</kbd> + codice = quantità (es. 3*8032911100142)
+                          </p>
+                          @if (quickScanError(); as scanError) {
+                            <p class="doc-form__error" role="alert">{{ scanError }}</p>
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            }
 
             <!-- Piede della tabella (mockup v3): conteggio righe a sinistra,
-                 imponibile delle sole righe a destra. -->
-            <div class="doc-form__table-summary">
-              <span>
-                <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
-                · <span class="tabular-nums">{{ totalPiecesCount() }}</span> pezzi
-              </span>
-              <span>
-                Imponibile righe
-                <strong class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</strong>
-              </span>
-            </div>
+                 imponibile delle sole righe a destra. Segue la tabella: dove la
+                 tabella non c'è, non c'è nemmeno il suo piede. -->
+            @if (!compactView() && !headerGateActive()) {
+              <div class="doc-form__table-summary">
+                <span>
+                  <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
+                  · <span class="tabular-nums">{{ totalPiecesCount() }}</span> pezzi
+                </span>
+                <span>
+                  Imponibile righe
+                  <strong class="tabular-nums">{{
+                    formatMoney(documentTotals().linesTotal)
+                  }}</strong>
+                </span>
+              </div>
+            }
 
             <!-- Vista mobile (mockup responsive v3): sotto lg la tabella lascia
                  il posto a una card per riga, che si apre sui campi. Stesse
                  regole e stessi controlli del form: cambia solo la vista. -->
-            <div class="co-form__cards" formArrayName="lines">
-              <!-- Finché il documento non ha righe vere la lista resta vuota:
+            @if (compactView() && !headerGateActive()) {
+              <div class="co-form__cards" formArrayName="lines">
+                <!-- Finché il documento non ha righe vere la lista resta vuota:
                    niente card placeholder (vedi mobileRowsVisible). -->
-              @if (mobileRowsVisible()) {
-                @for (line of lines.controls; track line; let i = $index) {
-                  @if (lineIsReference(i)) {
-                    <!-- Documento collegato: banda bassa che separa il gruppo,
+                @if (mobileRowsVisible()) {
+                  @for (line of lines.controls; track line; let i = $index) {
+                    @if (lineIsReference(i)) {
+                      <!-- Documento collegato: banda bassa che separa il gruppo,
                        non una card prodotto. -->
-                    <article class="co-form__mobile-source-row" [formGroupName]="i">
-                      <span class="co-form__mobile-source-icon" aria-hidden="true">
-                        <i class="pi pi-file"></i>
-                      </span>
-                      <span class="co-form__mobile-source-copy">
-                        <small>Documento collegato</small>
-                        <input
-                          class="co-form__source-title"
-                          type="text"
-                          formControlName="productName"
-                          aria-label="Riferimento al documento collegato"
-                        />
-                      </span>
-                      <button
-                        type="button"
-                        class="doc-form__line-remove"
-                        aria-label="Rimuovi collegamento"
-                        (click)="removeLine(i)"
-                      >
-                        <i class="pi pi-trash" aria-hidden="true"></i>
-                      </button>
-                    </article>
-                  } @else {
-                    <app-customer-order-line-card
-                      [line]="line"
-                      [vm]="lineCardVm(i)"
-                      [open]="isLineCardOpen(i)"
-                      [layout]="isOrder ? 'order' : 'registry'"
-                      (toggled)="toggleLineCard(i)"
-                      (removeRequested)="requestRemoveLine(i)"
-                      (removed)="removeLine(i)"
-                      (duplicated)="duplicateLine(i)"
-                      (quantityStepped)="onLineQuantityStep(i, $event)"
-                      (codeCommitted)="commitCodeLookup(i, $event)"
-                      (productNameTyped)="onMobileProductNameInput(i, $event)"
-                      (productNameFocused)="onMobileProductFocus(i, $event)"
-                      (productNameBlurred)="onLineProductBlur(i)"
-                      (productSearchOpened)="openLineProductSearch(i)"
-                      (suggestionPicked)="onProductSuggestionPick(i, $event)"
-                      (commitsChanged)="onLineCommitsSelect(i, $event)"
-                      (vatSelected)="onLineVatSelect(i, $event)"
-                    />
+                      <article class="co-form__mobile-source-row" [formGroupName]="i">
+                        <span class="co-form__mobile-source-icon" aria-hidden="true">
+                          <i class="pi pi-file"></i>
+                        </span>
+                        <span class="co-form__mobile-source-copy">
+                          <small>Documento collegato</small>
+                          <input
+                            class="co-form__source-title"
+                            type="text"
+                            formControlName="productName"
+                            aria-label="Riferimento al documento collegato"
+                          />
+                        </span>
+                        <button
+                          type="button"
+                          class="doc-form__line-remove"
+                          aria-label="Rimuovi collegamento"
+                          (click)="removeLine(i)"
+                        >
+                          <i class="pi pi-trash" aria-hidden="true"></i>
+                        </button>
+                      </article>
+                    } @else {
+                      <app-customer-order-line-card
+                        [line]="line"
+                        [vm]="lineCardVm(i)"
+                        [open]="isLineCardOpen(i)"
+                        [layout]="isOrder ? 'order' : 'registry'"
+                        (toggled)="toggleLineCard(i)"
+                        (removeRequested)="requestRemoveLine(i)"
+                        (removed)="removeLine(i)"
+                        (duplicated)="duplicateLine(i)"
+                        (quantityStepped)="onLineQuantityStep(i, $event)"
+                        (codeCommitted)="commitCodeLookup(i, $event)"
+                        (codeFocused)="onLineCodeFocus(i, $event)"
+                        (codeBlurred)="onMobileCodeBlur(i, $event)"
+                        (codeSuggestionPicked)="onCodeSuggestionPick(i, $event)"
+                        (productNameTyped)="onMobileProductNameInput(i, $event)"
+                        (productNameFocused)="onMobileProductFocus(i, $event)"
+                        (productNameBlurred)="onLineProductBlur(i)"
+                        (productSearchOpened)="openLineProductSearch(i)"
+                        (suggestionPicked)="onProductSuggestionPick(i, $event)"
+                        (commitsChanged)="onLineCommitsSelect(i, $event)"
+                        (vatSelected)="onLineVatSelect(i, $event)"
+                      />
+                    }
                   }
                 }
-              }
-            </div>
-
-            <!-- Mobile: finché non c'è nessuna riga la lista non è vuota e basta,
-                 dice cosa serve per riempirla. -->
-            @if (!mobileRowsVisible()) {
-              <div class="co-lines__empty">
-                <strong>Nessuna riga inserita</strong>
-                <p>
-                  Dopo aver selezionato cliente e location potrai aggiungere articoli o includere un
-                  altro documento.
-                </p>
               </div>
+            }
+
+            <!-- Lo stato vuoto delle righe, uno solo per le due viste e per i
+                 due motivi per cui le righe non ci sono:
+                 · la testata non è completa — e allora la tabella NON si mostra
+                   affatto, invece di stare lì spenta a metà tinta;
+                 · la testata c'è ma nessuno ha ancora inserito niente (mobile).
+                 Il titolo dice cosa manca, il testo dice come si riempie. -->
+            @if (headerGateActive() || (compactView() && !mobileRowsVisible())) {
+              <app-empty-state
+                [title]="linesEmptyTitle()"
+                [description]="linesEmptyDescription()"
+                icon="pi-list"
+              />
             }
 
             <!-- Mobile: le due azioni che partono da qui. Le frequenti (cerca e
                  scansiona) stanno nella barra in basso; queste due sono
                  l'articolo fuori catalogo e l'anagrafica nuova. -->
-            <div class="co-lines__actions">
-              <button
-                type="button"
-                class="co-lines__action co-lines__action--empty"
-                (click)="addLineMobile()"
-              >
-                <i class="pi pi-plus" aria-hidden="true"></i>
-                Inserisci riga vuota
-              </button>
-              <button
-                type="button"
-                class="co-lines__action co-lines__action--product"
-                (click)="openNewProduct()"
-              >
-                <i class="pi pi-box" aria-hidden="true"></i>
-                Crea nuovo prodotto
-              </button>
-            </div>
+            @if (compactView() && !headerGateActive()) {
+              <div class="co-lines__actions">
+                <button
+                  type="button"
+                  class="co-lines__action co-lines__action--empty"
+                  (click)="addLineMobile()"
+                >
+                  <i class="pi pi-plus" aria-hidden="true"></i>
+                  Inserisci riga vuota
+                </button>
+                <button
+                  type="button"
+                  class="co-lines__action co-lines__action--product"
+                  (click)="openNewProduct()"
+                >
+                  <i class="pi pi-box" aria-hidden="true"></i>
+                  Crea nuovo prodotto
+                </button>
+              </div>
+            }
           </section>
 
           <!-- Totali sticky in fondo + note documento (stessa banda dell'Arrivo merce). -->
@@ -1690,26 +1820,22 @@
                     <label for="co-doc-discount">Sconto extra</label>
                   </dt>
                   <dd>
-                    <!-- A scomparsa dietro «+ Aggiungi sconto» finché è vuoto:
-                         il control resta nel form, cambia solo la vista. -->
-                    @if (docDiscountActive()) {
-                      <input
-                        id="co-doc-discount"
-                        class="doc-form__input doc-form__input--num doc-form__totals-input"
-                        type="text"
-                        formControlName="documentDiscountPercent"
-                        placeholder="0%"
-                        aria-label="Sconto extra documento"
-                      />
-                    } @else {
-                      <button
-                        type="button"
-                        class="co-form__add-discount"
-                        (click)="revealDocDiscount()"
-                      >
-                        + Aggiungi sconto
-                      </button>
-                    }
+                    <!-- Campo sempre visibile, come in ogni altro documento.
+                         Stava dietro un «+ Aggiungi sconto», e il pulsante
+                         nascondeva uno stato: guardando la riga non si sapeva se
+                         lo sconto fosse zero o se il campo fosse chiuso. Un
+                         campo che mostra 0% dice entrambe le cose senza chiedere
+                         niente, e costa un clic in meno. Il pulsante si
+                         giustificherebbe se guadagnasse spazio, ma la casella
+                         nel riepilogo c'è comunque. -->
+                    <input
+                      id="co-doc-discount"
+                      class="doc-form__input doc-form__input--num doc-form__totals-input"
+                      type="text"
+                      formControlName="documentDiscountPercent"
+                      placeholder="0%"
+                      aria-label="Sconto extra documento"
+                    />
                   </dd>
                 </div>
                 @if (documentTotals().documentDiscount.amountMinor > 0) {
@@ -2291,7 +2417,11 @@
             [disabled]="saving()"
             (click)="requestSaveDocument()"
           >
-            {{ isOrder ? 'Salva ordine' : 'Salva documento' }}
+            <!-- «Salva documento» anche qui: sul telefono diceva «Salva ordine»
+                 e sul computer «Salva documento» — la stessa maschera, due
+                 parole, a seconda dello schermo. Il modello deve essere coerente
+                 con sé stesso prima di essere copiato altrove. -->
+            Salva documento
           </app-button>
         </div>
       }
@@ -2480,6 +2610,9 @@
       [launchSeq]="productSearchLaunchSeq()"
       [locationId]="form.controls.locationId.value"
       (variantSelected)="onLineProductSearchPick($event.variantId)"
+      [canCreate]="productSearchCanCreate()"
+      (createRequested)="onProductSearchCreate()"
+      (detailRequested)="onProductSearchDetail($event)"
       (dismissed)="closeLineProductSearch()"
     />
   }
@@ -2517,6 +2650,16 @@
     />
   }
 </app-slide-panel>
+
+<!-- Avviso del primo riordino, una volta per documento (specifica §7.1). -->
+<app-confirm-dialog
+  [open]="lineSort.confirmOpen()"
+  title="Riordino righe"
+  message="L'ordine di inserimento non è registrato da nessuna parte: salvando, non sarà più ricostruibile. Fino al salvataggio puoi chiudere il documento senza salvare per ritrovarlo com'era."
+  confirmLabel="Riordina"
+  (confirmed)="confirmLineSort()"
+  (dismissed)="lineSort.dismiss()"
+/>
 
 <app-confirm-dialog
   [(open)]="attachWithoutAddDialogOpen"

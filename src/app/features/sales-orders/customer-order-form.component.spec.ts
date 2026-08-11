@@ -1,7 +1,7 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { render } from '@testing-library/angular';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
@@ -19,6 +19,7 @@ import { ProductService } from '@domain/products/services/product.service';
 import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 import { TableViewPreferenceApiService } from '@shared/table-columns/table-view-preference-api.service';
+import { ViewportService } from '@core/services/viewport.service';
 
 import { CustomerOrderFormComponent } from './customer-order-form.component';
 
@@ -155,6 +156,165 @@ function formProviders(options: FormOptions = {}) {
     },
   ];
 }
+
+/**
+ * Le due viste di riga sono ESCLUSIVE, non una nascosta sotto l'altra.
+ *
+ * Prima la tabella restava viva sotto il breakpoint, solo invisibile: gli
+ * identificativi dei campi esistevano in doppia copia, e ogni stato condiviso
+ * poteva aprirsi nella vista che non si vede — è già successo con la scelta fra
+ * più codici. È anche il presupposto del punto unico della navigazione, che
+ * lavora per identificativo: con due viste vive «l'id della riga i, campo x»
+ * non è univoco.
+ */
+describe('CustomerOrderFormComponent — le due viste di riga', () => {
+  async function apri(compatta: boolean) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(),
+        { provide: ViewportService, useValue: { compact: () => compatta } },
+      ],
+    });
+    const comp = view.fixture.componentInstance as unknown as {
+      addLine: () => void;
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      lines: {
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+    };
+    // La testata va completata: finché mancano cliente e location le righe non
+    // esistono in NESSUNA delle due viste — al loro posto c'è lo stato vuoto.
+    comp.form.controls['customerId']!.setValue('cus-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
+    comp.addLine();
+    comp.lines.at(0).controls['productName']!.setValue('Articolo');
+    view.fixture.detectChanges();
+    return view.container;
+  }
+
+  it('sopra la soglia vive la tabella, e le card non esistono', async () => {
+    const c = await apri(false);
+
+    expect(c.querySelector('.doc-form__table-wrap')).not.toBeNull();
+    expect(c.querySelector('.co-form__cards')).toBeNull();
+  });
+
+  it('sotto la soglia vivono le card, e la tabella non esiste', async () => {
+    const c = await apri(true);
+
+    expect(c.querySelector('.co-form__cards')).not.toBeNull();
+    // Non «nascosta»: assente. Se tornasse a esserci, tornerebbero i doppioni
+    // di identificativo su cui la navigazione andrà a poggiare.
+    expect(c.querySelector('.doc-form__table-wrap')).toBeNull();
+  });
+
+  // Il presupposto del punto unico: un identificativo, un elemento. Prima
+  // `co-sku-0` e `co-m-sku-0` esistevano insieme, e `getElementById` trovava
+  // quello nascosto — `.focus()` diventava un no-op silenzioso.
+  it('sopra la soglia esiste solo l’identificativo della tabella', async () => {
+    const c = await apri(false);
+
+    expect(c.querySelectorAll('#co-sku-0')).toHaveLength(1);
+    expect(c.querySelectorAll('#co-m-sku-0')).toHaveLength(0);
+  });
+
+  // La card tiene i codici nel corpo, che si apre: si espande prima di
+  // guardare, altrimenti la prova misurerebbe una card chiusa e passerebbe
+  // anche se la tabella fosse ancora viva.
+  it('sotto la soglia esiste solo l’identificativo della card', async () => {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(),
+        { provide: ViewportService, useValue: { compact: () => true } },
+      ],
+    });
+    const comp = view.fixture.componentInstance as unknown as {
+      addLine: () => void;
+      toggleLineCard: (i: number) => void;
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      lines: {
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+    };
+    comp.form.controls['customerId']!.setValue('cus-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
+    comp.addLine();
+    comp.lines.at(0).controls['productName']!.setValue('Articolo');
+    comp.toggleLineCard(0);
+    view.fixture.detectChanges();
+
+    expect(view.container.querySelectorAll('#co-m-sku-0')).toHaveLength(1);
+    expect(view.container.querySelectorAll('#co-sku-0')).toHaveLength(0);
+  });
+});
+
+/**
+ * Il giro del fuoco, innestato sul punto unico.
+ *
+ * Prova sul DOM vero: `focus()` su un id inesistente è un no-op silenzioso, ed è
+ * il difetto da cui questo lavoro parte.
+ */
+describe('CustomerOrderFormComponent — il fuoco atterra dove deve', () => {
+  async function conRighe(quante: number) {
+    const view = await render(CustomerOrderFormComponent, { providers: formProviders() });
+    const comp = view.fixture.componentInstance as unknown as {
+      addLine: () => void;
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      lines: {
+        length: number;
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+      lineFocus: {
+        rowDown: (i: number, field: string) => void;
+        next: (i: number, field: string) => void;
+      };
+    };
+    // Le righe vivono dentro un `fieldset` disabilitato finché cliente e
+    // location non ci sono: un campo dentro un fieldset disabilitato NON prende
+    // il fuoco, e la prova misurerebbe il cancello invece del giro.
+    comp.form.controls['customerId']!.setValue('cli-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
+    while (comp.lines.length < quante) {
+      comp.addLine();
+    }
+    for (let i = 0; i < quante; i += 1) {
+      comp.lines.at(i).controls['productName']!.setValue(`Articolo ${i}`);
+    }
+    view.fixture.detectChanges();
+    return { view, comp };
+  }
+
+  const fuoco = () => globalThis.document.activeElement?.id ?? '';
+
+  /**
+   * Il cambio riga passa dal gancio, che rimanda di un tick: è lì che vive il
+   * tempismo del fuoco, perché una riga appena creata dev'essere resa prima che
+   * qualcuno provi a metterci il fuoco dentro.
+   */
+  const dopoIlGancio = () => new Promise((risolvi) => setTimeout(risolvi));
+
+  it('↓ conserva la colonna', async () => {
+    const { comp } = await conRighe(2);
+
+    comp.lineFocus.rowDown(0, 'unitPrice');
+    await dopoIlGancio();
+
+    expect(fuoco()).toBe('co-price-1');
+  });
+
+  // Difetto chiuso dall'innesto: la riga «documento collegato» non rende alcun
+  // controllo del giro, quindi il fuoco ci finiva sopra e MORIVA.
+  it('la riga «documento collegato» viene scavalcata, non è una fermata', async () => {
+    const { view, comp } = await conRighe(3);
+    comp.lines.at(1).controls['isReference']!.setValue(true);
+    view.fixture.detectChanges();
+
+    comp.lineFocus.rowDown(0, 'quantity');
+    await dopoIlGancio();
+
+    expect(fuoco()).toBe('co-qty-2');
+  });
+});
 
 describe('CustomerOrderFormComponent — caratterizzazione', () => {
   async function setup() {
@@ -719,5 +879,231 @@ describe('CustomerOrderFormComponent — ordini da canale esterno', () => {
     const form = await apri(ordine({ source: 'manual' }));
 
     expect(form.canConclude()).toBe(true);
+  });
+});
+
+/**
+ * Conferma di un codice: gli esiti sono TRE, non due.
+ *
+ * Prima di 08/2026 questa maschera passava da `resolveVariantIdByCode`, che
+ * restituisce `string | null`: un codice articolo condiviso da più taglie
+ * tornava `null` e finiva in silenzio, indistinguibile da un codice
+ * inesistente. Senza queste due prove la regressione tornerebbe muta — è
+ * esattamente il modo in cui era passata inosservata.
+ */
+describe('CustomerOrderFormComponent — conferma dei codici', () => {
+  function variante(overrides: Record<string, unknown>) {
+    return {
+      productId: 'prod-1',
+      articleCode: 'ART-9',
+      productName: 'Maglietta',
+      title: 'Maglietta',
+      sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+      ...overrides,
+    };
+  }
+
+  interface CodeForm {
+    readonly commitCodeLookup: (
+      index: number,
+      field: 'articleCode' | 'sku' | 'barcode',
+      advance?: boolean,
+    ) => void;
+    readonly codeLookup: {
+      readonly isOpenOn: (index: number, field: string) => boolean;
+      readonly matches: () => readonly { readonly variantId: string }[];
+    };
+    readonly lineCardVm: (index: number) => {
+      readonly codeChoice: {
+        readonly field: string;
+        readonly items: readonly { readonly variantId: string }[];
+      } | null;
+    };
+    readonly addLine: () => void;
+    readonly onMobileCodeBlur: (index: number, field: 'articleCode' | 'sku' | 'barcode') => void;
+    readonly onCodeSuggestionPick: (index: number, variantId: string) => void;
+    readonly lines: {
+      at: (i: number) => {
+        controls: Record<string, { setValue: (v: unknown) => void; value: unknown }>;
+      };
+    };
+  }
+
+  async function apri(catalogo: readonly Record<string, unknown>[]) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(),
+        // Ultimo provider per lo stesso token: vince su quello di base.
+        {
+          provide: ProductService,
+          useValue: {
+            searchVariantSummaries: () => of(catalogo),
+            // L'endpoint per codice tace sui casi ambigui: qui non deve mai
+            // essere la strada che salva il test.
+            findVariantByCode: () => throwError(() => new Error('404')),
+            getSupplierVariantLinks: () => of([]),
+            createProduct: vi.fn(),
+          },
+        },
+      ],
+    });
+    return view.fixture.componentInstance as unknown as CodeForm;
+  }
+
+  it('più corrispondenze esatte aprono la scelta invece di tacere', async () => {
+    const form = await apri([
+      variante({ variantId: 'var-M', sku: 'MAG-M' }),
+      variante({ variantId: 'var-L', sku: 'MAG-L' }),
+    ]);
+    form.lines.at(0).controls['articleCode']!.setValue('ART-9');
+
+    form.commitCodeLookup(0, 'articleCode');
+
+    expect(form.codeLookup.isOpenOn(0, 'articleCode')).toBe(true);
+    expect(form.codeLookup.matches().map((row) => row.variantId)).toEqual(['var-M', 'var-L']);
+  });
+
+  // §4.5: Invio registra e RESTA. Senza corrispondenza la cella è ancora un
+  // campo, quindi «restare» è possibile ed è lì che la regola morde. Prima Tab
+  // e Invio emettevano lo stesso esito e il form non poteva distinguerli.
+  it('Invio senza corrispondenza non sposta il fuoco; il Tab sì', async () => {
+    const form = await apri([]);
+    const avanza = vi.spyOn(
+      form as unknown as { focusNextLineField: (i: number, f: string) => void },
+      'focusNextLineField',
+    );
+    form.lines.at(0).controls['sku']!.setValue('IGNOTO');
+
+    form.commitCodeLookup(0, 'sku', false);
+    expect(avanza).not.toHaveBeenCalled();
+
+    form.commitCodeLookup(0, 'sku', true);
+    expect(avanza).toHaveBeenCalledWith(0, 'sku');
+  });
+
+  // Il controllo inverso: senza, la prova qui sopra passerebbe anche se la
+  // scelta si aprisse sempre, pure quando l'articolo è uno solo.
+  it('una corrispondenza sola aggancia la riga, senza chiedere niente', async () => {
+    const form = await apri([variante({ variantId: 'var-M', sku: 'MAG-M' })]);
+    form.lines.at(0).controls['sku']!.setValue('MAG-M');
+
+    form.commitCodeLookup(0, 'sku');
+
+    expect(form.codeLookup.isOpenOn(0, 'sku')).toBe(false);
+    expect(form.lines.at(0).controls['variantId']!.value).toBe('var-M');
+  });
+
+  // La stessa scelta deve avere dove mostrarsi anche nella card mobile: la
+  // decisione vale su Ordine cliente, non su Ordine cliente desktop. Senza
+  // questa, da telefono la riga non si agganciava e non lo diceva.
+  it('la card mobile riceve la scelta sotto il campo da cui si è confermato', async () => {
+    const form = await apri([
+      variante({ variantId: 'var-M', sku: 'MAG-M' }),
+      variante({ variantId: 'var-L', sku: 'MAG-L' }),
+    ]);
+    form.lines.at(0).controls['articleCode']!.setValue('ART-9');
+
+    form.commitCodeLookup(0, 'articleCode');
+
+    const choice = form.lineCardVm(0).codeChoice;
+    expect(choice?.field).toBe('articleCode');
+    expect(choice?.items.map((item) => item.variantId)).toEqual(['var-M', 'var-L']);
+  });
+
+  // Il controllo inverso: la card non deve mostrare un pannello quando non c'è
+  // niente da scegliere, e nemmeno su una riga che non è quella della scelta.
+  it('la card mobile non mostra niente senza scelta, né sulle altre righe', async () => {
+    const form = await apri([
+      variante({ variantId: 'var-M', sku: 'MAG-M' }),
+      variante({ variantId: 'var-L', sku: 'MAG-L' }),
+    ]);
+    form.addLine();
+    expect(form.lineCardVm(0).codeChoice).toBeNull();
+
+    form.lines.at(0).controls['articleCode']!.setValue('ART-9');
+    form.commitCodeLookup(0, 'articleCode');
+
+    // La scelta è della riga che l'ha aperta: la seconda card non deve
+    // mostrare il pannello di un'altra riga.
+    expect(form.lineCardVm(1).codeChoice).toBeNull();
+  });
+
+  /**
+   * Lo sfocamento conferma anche su mobile, come Tab sul desktop — e si incrocia
+   * con la grazia che lascia arrivare il tocco su una voce della scelta.
+   *
+   * I due meccanismi vanno provati INSIEME: presi separatamente sembrano
+   * entrambi a posto, ed è nell'incrocio che si pestano.
+   */
+  describe('sfocamento sulla card mobile', () => {
+    /** Fa scadere la grazia: prima di allora non è ancora stato deciso nulla. */
+    function passaLaGrazia(): void {
+      vi.advanceTimersByTime(250);
+    }
+
+    it('lo sfocamento conferma un codice mai confermato, come Tab sul desktop', async () => {
+      const form = await apri([variante({ variantId: 'var-M', sku: 'MAG-M' })]);
+      vi.useFakeTimers();
+      try {
+        form.lines.at(0).controls['sku']!.setValue('MAG-M');
+
+        form.onMobileCodeBlur(0, 'sku');
+        passaLaGrazia();
+
+        expect(form.lines.at(0).controls['variantId']!.value).toBe('var-M');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    // Il caso in cui i due meccanismi si pesterebbero: se lo sfocamento
+    // confermasse comunque, partirebbe una seconda ricerca il cui esito
+    // riaprirebbe la scelta DOPO che il tocco l'aveva già risolta.
+    it('dopo il tocco su una voce lo sfocamento non riapre niente', async () => {
+      const form = await apri([
+        variante({ variantId: 'var-M', sku: 'MAG-M' }),
+        variante({ variantId: 'var-L', sku: 'MAG-L' }),
+      ]);
+      vi.useFakeTimers();
+      try {
+        form.lines.at(0).controls['articleCode']!.setValue('ART-9');
+        form.commitCodeLookup(0, 'articleCode');
+        // Il tocco arriva dentro la grazia, prima che lo sfocamento decida.
+        form.onMobileCodeBlur(0, 'articleCode');
+        form.onCodeSuggestionPick(0, 'var-L');
+
+        passaLaGrazia();
+
+        expect(form.lines.at(0).controls['variantId']!.value).toBe('var-L');
+        expect(form.lineCardVm(0).codeChoice).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    // Uscire senza scegliere non è un errore: il valore digitato resta scritto,
+    // la scelta si chiude, e NON si cerca di nuovo — cercare la farebbe
+    // ricomparire su una riga che l'operatore ha già lasciato.
+    it('uscire con la scelta aperta la chiude e non la fa ricomparire', async () => {
+      const form = await apri([
+        variante({ variantId: 'var-M', sku: 'MAG-M' }),
+        variante({ variantId: 'var-L', sku: 'MAG-L' }),
+      ]);
+      vi.useFakeTimers();
+      try {
+        form.lines.at(0).controls['articleCode']!.setValue('ART-9');
+        form.commitCodeLookup(0, 'articleCode');
+
+        form.onMobileCodeBlur(0, 'articleCode');
+        passaLaGrazia();
+
+        expect(form.lineCardVm(0).codeChoice).toBeNull();
+        expect(form.lines.at(0).controls['variantId']!.value).toBe('');
+        // Il codice digitato resta: è quello che l'operatore voleva.
+        expect(form.lines.at(0).controls['articleCode']!.value).toBe('ART-9');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

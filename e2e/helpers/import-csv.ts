@@ -58,7 +58,7 @@ export async function openInventoryImport(page: Page): Promise<boolean> {
 }
 
 export async function resolveTestLocation(page: Page, sku: string): Promise<string> {
-  const fromEnv = process.env.E2E_TEST_LOCATION?.trim();
+  const fromEnv = process.env['E2E_TEST_LOCATION']?.trim();
   if (fromEnv) {
     return fromEnv;
   }

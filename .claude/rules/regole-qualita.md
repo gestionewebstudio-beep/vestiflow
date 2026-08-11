@@ -32,11 +32,48 @@ Al loro posto, sempre e solo:
 | rigenerare il client            | `npm run prisma:generate`   |
 | vedere cosa manca               | `npx prisma migrate status` |
 
-Una **migration nuova** si scrive a mano, senza toccare il database: si modifica
-`prisma/schema.prisma`, si genera l'SQL con `prisma migrate diff`
-(`--from-schema-datasource` → `--to-schema-datamodel`, `--script`), lo si mette in
+⛔ **Mai** `prisma migrate diff --from-schema-datasource` per generare una migration
+nuova: su questo database condiviso propone di cancellare le tabelle degli altri
+rami. Vedi sotto.
+
+Una **migration nuova** si scrive **a mano**, davvero a mano: si modifica
+`prisma/schema.prisma`, si scrive l'SQL in
 `prisma/migrations/<AAAAMMGGhhmmss>_<nome>/migration.sql` **con un commento che dica
 perché**, e lo si applica con `npm run prisma:deploy`.
+
+### ⛔ Un quarto comando vietato: `prisma migrate diff --from-schema-datasource`
+
+**Questa regola diceva di generare l'SQL così. Era sbagliato, e il 11/08/2026 quel
+comando ha proposto di cancellare mezzo database.** Chiesto di generare l'SQL per
+aggiungere UNA colonna, ha risposto con oltre quaranta istruzioni: `DROP` di
+`cash_sessions`, `fiscal_receipts`, `pos_terminals`, `store_sale_payments`,
+`corrispettivo_entries.document_id`, i campi documento esterno degli ordini…
+
+**Perché succede, e perché succederà ancora.** Quel comando fa una domanda
+**dichiarativa**: «quale SQL rende il database identico a questo file di schema?».
+Il tribunale è il file, e tutto ciò che sta nel database e non sta nel file è, per
+definizione dello strumento, roba da togliere. Non esiste il concetto di «questo è
+di un altro ramo, lascialo stare».
+
+Ma su un database condiviso **il proprio schema è una descrizione parziale**: le
+tabelle della cassa e dei documenti fiscali esistono nel database e non stanno né
+nello `schema.prisma` di questo ramo né fra le sue migration — le ha applicate il
+ramo del collega. Uno strumento dichiarativo non può lavorare contro una
+descrizione parziale, e finché due rami condividono un database la descrizione è
+parziale **per costruzione**.
+
+**Il campanello non suona.** `prisma migrate status` in quel momento rispondeva
+«Database schema is up to date!»: controlla che le migration locali siano
+applicate, non si accorge che il database ne ha altre. Non è una rete.
+
+**La variante innocua esiste**, e se un giorno servirà è questa:
+`--from-migrations <cartella> --to-schema-datamodel` confronta la storia delle
+migration con lo schema, quindi ciò che vive nel database non entra mai nel
+confronto. Richiede però un **database ombra** (`--shadow-database-url`), che qui
+non è configurato: finché non lo sarà, l'SQL si scrive a mano.
+
+**`npm run prisma:deploy` non ha mai avuto questo rischio**: applica i file e
+basta, non confronta niente. Il pericolo stava nel _generare_ il file.
 
 `.claude/settings.json` blocca quei comandi via permessi, e `npm run prisma:migrate` è
 una guardia che spiega — ma **nessuna delle due ferma un terminale**, quindi la regola

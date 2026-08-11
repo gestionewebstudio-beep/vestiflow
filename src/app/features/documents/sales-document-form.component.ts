@@ -120,6 +120,7 @@ import { SalesOrderService } from '@domain/sales-orders/services/sales-order.ser
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { pickVatCodeId, toVatCodeById } from './utils/vat-code-resolution.util';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 
 const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
@@ -134,6 +135,7 @@ type SubmitState =
   selector: 'app-sales-document-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,
@@ -282,8 +284,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   protected readonly confirmDialogTitle = computed(() => 'Salva documento');
 
   protected readonly confirmButtonLabel = computed(() => 'Salva');
-
-  protected readonly submitConfirmLabel = computed(() => 'Salva');
 
   protected readonly isConfirmedEdit = computed(() => {
     const doc = this.loadedDocument();

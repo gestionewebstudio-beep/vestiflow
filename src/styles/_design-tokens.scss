@@ -80,6 +80,12 @@
   --color-info: #2d6685;
   --color-info-subtle: #eef6fa;
 
+  // Campo obbligatorio ancora da compilare, mentre le righe aspettano.
+  // NON è `--color-danger`: il rosso qui vuol dire «hai provato a salvare e
+  // questo è sbagliato», e aprire un documento nuovo non è un errore. Terracotta
+  // smorzata: si nota senza allarmare.
+  --color-field-waiting: rgb(157 69 16 / 0.63);
+
   --color-danger-hover: #96302a;
   --color-danger-fg: #ffffff;
   --color-danger-border: rgb(179 58 50 / 0.25);
@@ -296,6 +302,9 @@
   --color-danger-subtle: rgb(224 121 111 / 0.14);
   --color-info: #6aa8c9;
   --color-info-subtle: rgb(106 168 201 / 0.14);
+
+  // Stessa terracotta schiarita: sul fondo scuro quella chiara sparirebbe.
+  --color-field-waiting: rgb(214 130 74 / 0.72);
 
   --color-danger-hover: #ec8f86;
   --color-danger-fg: #14191b;
@@ -697,6 +706,10 @@
   // Il pannello puo' essere piu' largo del trigger (es. IVA: trigger 72px,
   // opzioni «22 · 22% · Imponibile 22%») ma mai oltre questo tetto.
   --select-menu-panel-max-width: 22rem;
+  // Stesso principio per i suggerimenti di riga, con un tetto piu' alto: la
+  // voce porta titolo E dettaglio («Maglietta / M / Rosso» + SKU, EAN, prezzo),
+  // e la cella che li apre e' larga una manciata di caratteri.
+  --doc-suggestions-max-width: 28rem;
   --container-pad-inline: var(--space-4);
 
   --border-width: 1px;
@@ -711,6 +724,19 @@
   --transition-page: 240ms; // ingresso contenuto pagina (polish v2)
   --transition-slow: 600ms;
   --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+
+  // ── 6b. VISTA COMPATTA — la soglia sotto cui le card sostituiscono le tabelle
+  //
+  // È l'unico breakpoint che serve anche al TypeScript: `ViewportService` lo
+  // legge da qui per sapere QUALE VISTA È ATTIVA, e da quella risposta dipende
+  // quale delle due righe documento è viva nel DOM.
+  //
+  // ⚠️ Il valore non va MAI ripetuto in TypeScript. Nasce da
+  // `$breakpoint-lg` e dalla stessa aritmetica di `media-down`, così la soglia
+  // del CSS e quella del segnale sono la stessa cosa e non possono divergere.
+  // `npm run check:tokens` fallisce se questo nome sparisce mentre il
+  // TypeScript continua a leggerlo.
+  --viewport-compact-max: #{bp.down-max('lg')};
 }
 
 // -----------------------------------------------------------------------------

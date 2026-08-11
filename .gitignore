@@ -71,3 +71,9 @@ Thumbs.db
 # Claude Code local state
 .claude/settings.local.json
 .claude/worktrees/
+
+# Trascrizioni delle chat di progettazione: materiale di lavoro, non documenti
+# del progetto. Le decisioni che ne escono vivono in docs/*.md — la chat serve a
+# ricostruire il perche', si tiene sul disco e non nel repo.
+# (Ci e' gia' finita per sbaglio una volta, con un `git add docs`.)
+docs/*.txt

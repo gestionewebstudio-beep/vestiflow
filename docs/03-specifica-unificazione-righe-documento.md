@@ -88,9 +88,19 @@ Una funzione decisa qui si applica a **tutti i documenti elencati nello stesso p
 
 _Unica eccezione (temporale, imposta da fuori):_ i documenti su **file contesi** dai rami del collega non si toccano finché quei file non sono liberi — è una separazione di **tempistica**, non una scelta di trattarli diversi. Vedi §2 (in sospeso: fatture, vendite/reso in negozio).
 
+### Il perimetro include le VISTE — e mobile è un discorso a parte
+
+**[DECISIONE, 11/08/2026]** Una decisione vale su un documento, non su «quel documento da computer». Se una funzione arriva sulla tabella e non sulla card, l'operatore ha lo stesso campo e lo stesso gesto che si comportano in due modi a seconda dello schermo: è la divergenza del punto precedente, spostata da un documento a una vista.
+
+**Ma «vale ovunque» non vuol dire «si fa allo stesso modo».** Su un telefono non c'è la tastiera fisica, non c'è il passaggio del mouse sopra un elemento, e lo spazio è un altro. Un gesto che sul computer si fa con le frecce, su un telefono si fa **toccando**: cambia il meccanismo, non la regola.
+
+**Regola operativa: ogni volta che si progetta un comportamento, si dice anche come funziona su mobile.** Se la risposta è «uguale», va bene — ma dev'essere una risposta, non una dimenticanza. È già successo che una funzione nascesse completa sul computer e muta sul telefono, e da telefono l'operatore non vedeva nulla e non sapeva perché.
+
+_Perché conta qui più che altrove: questo è un gestionale che si usa in magazzino col telefono in mano. Una funzione che esiste solo su schermo grande non è una funzione a metà — manca proprio dove si lavora._
+
 ---
 
-## 2. Perimetro: nove tipi, cinque componenti
+## 2. Perimetro: dieci tipi, cinque maschere
 
 | Tipi documento                                           | Componente                   | Celle condivise | Conteso                  |
 | -------------------------------------------------------- | ---------------------------- | --------------- | ------------------------ |
@@ -104,16 +114,36 @@ _Unica eccezione (temporale, imposta da fuori):_ i documenti su **file contesi**
 
 ### Documenti da allineare — subito
 
-**Sette tipi, tre file, zero collisioni:** `customer-order-form` (Ordine cliente, DDT vendita, Preventivi, Scarico manuale), `goods-receipt-form` (Arrivi merce), `supplier-order-form` (Ordine fornitore). Nessuno toccato dai rami attivi del collega. Tutte le funzioni decise qui si applicano a **queste maschere insieme** (principio anti-divergenza, §1).
+**Dieci tipi documento, cinque maschere** _(elenco verificato 11/08/2026: tre componenti non sono tre documenti, e contarli male e' il modo piu' facile per lasciare indietro qualcosa)_.
 
-### Due tipi IN SOSPESO — da chiarire/decidere in seguito
+| Tipo documento       | Maschera               |
+| -------------------- | ---------------------- |
+| Ordine cliente       | `customer-order-form`  |
+| DDT vendita          | `customer-order-form`  |
+| Preventivo           | `customer-order-form`  |
+| Scarico manuale      | `customer-order-form`  |
+| Arrivo merce         | `goods-receipt-form`   |
+| Carico manuale       | `goods-receipt-form`   |
+| Carico iniziale      | `goods-receipt-form`   |
+| Ordine fornitore     | `supplier-order-form`  |
+| Trasferimento        | `transfer-form`        |
+| Rettifica inventario | `stock-operation-form` |
 
-Non si fissa niente su di loro ora: né che rientrano, né quando, né come.
+L'Arrivo merce ne serve **tre**, non uno: carico manuale e carico iniziale sono lo stesso modulo col tipo scelto in testata — ed e' la ragione per cui li' il fornitore non e' obbligatorio.
 
-- **Fatture (Proforma, Fattura, Fattura accompagnatoria)** — `SalesDocumentFormComponent`, **file conteso** col ramo fattura elettronica del collega. Rientrano nello standard come comportamento (nessuna eccezione di regole), ma **il quando e il come eseguirle è da decidere** in seguito, in coordinamento col collega. Non tocca a questo documento fissarlo.
-- **Vendite/reso in negozio** — `StoreSaleRegisterComponent`, file conteso col ramo cassa. **[DA VERIFICARE prima di tutto]:** "vendite/reso in negozio", "vendita al banco" (termine Danea) e `StoreSaleRegisterComponent` sono **lo stesso documento o cose distinte**? Potrebbe essere un documento a righe come gli altri, oppure il POS/cassa che è un'altra bestia. Finché non è chiarito cos'è, nessuna decisione.
+**Trasferimento e Rettifica rientrano** _(deciso 11/08/2026)_. Erano stati lasciati fuori perche' «sono documenti brevi»: e' vero oggi, ma e' una previsione sull'uso, non una proprieta' del documento — un trasferimento fra magazzini a fine stagione puo' avere trenta righe. E il costo e' lo stesso innesto: escluderli per dimensione presunta creerebbe la quarta variante che tutto questo lavoro toglie.
 
-I due componenti in sospeso sono anche gli unici due che **non** usano le celle condivise, e oggi non hanno navigazione tastiera: lì l'allineamento (quando/se si farà) è prima "adottare le celle condivise", poi la tastiera.
+Tutte le funzioni decise qui si applicano a **queste maschere insieme** (principio anti-divergenza, §1).
+
+### Gli altri due — uno aspetta, l'altro è fuori _(chiarito 08/2026)_
+
+- **Fatture (Proforma, Fattura, Fattura accompagnatoria)** — **rientrano nello standard**: nessuna regola di questo documento fa eccezione per loro. Ciò che resta da concordare non è _se_, ma _quando_: la maschera è contesa col lavoro sulla fattura elettronica, e le regole si applicano **quando quel ramo rientra**. Fino ad allora quanto scritto qui vale per loro come specifica, non come lavoro fatto.
+- **Registrazione fattura fornitore — fuori DOMINIO, non rimandata** _(11/08/2026)_. Le sue righe sono **contabili**, non articoli: non hanno SKU, EAN, codice fornitore ne' costo unitario. Le colonne su cui si ordinerebbe **non esistono**, e la navigazione fra celle articolo non ha niente da attraversare.
+  La distinzione conta: le Fatture sono un'esclusione **temporanea** (stesse regole, momento diverso), questa e' un'esclusione **definitiva** — e chi rilegge l'elenco fra sei mesi non deve chiedersi quando tocchera' a lei.
+- **Vendita e reso al banco — fuori perimetro, per natura.** Non è una maschera documento con righe da compilare: è un **carrello**, dove si aggiungono articoli scansionando e si incassa. La tastiera, l'ordinamento righe, il pannello suggerimenti e le celle condivise sono risposte a un problema che lì non si pone.
+  È un'**esclusione dichiarata, non un pezzo mancante**: chi rileggerà l'elenco delle maschere allineate non deve concludere che una sia stata dimenticata.
+
+Le Fatture sono anche l'unica maschera del perimetro che **non** usa ancora le celle condivise: lì l'allineamento è prima "adottare le celle condivise", poi la tastiera.
 
 ---
 
@@ -132,7 +162,7 @@ Nessuna delle due è copiabile intera → serve un **punto unico** condiviso.
 
 Il file è `document-line-focus.store.ts` → `DocumentLineFocusStore<F extends string>`, **generico sul tipo del campo**. Un'unione piatta a 18 voci farebbe compilare `focusLineField(i, 'lot')` dentro Ordine cliente: la generica è l'unica forma che tiene il compilatore come rete.
 
-**Il contratto ha DIECI voci** (non nove — la mappa iniziale ne aveva saltata una):
+**Il contratto ha NOVE voci** _(aggiornato 08/2026: erano dieci — la 9 è caduta, vedi sotto. La numerazione è stata compattata, quindi l'ex voce 10 è ora la 9)_:
 
 | #   | Voce                                          | Chi la richiede                                      |
 | --- | --------------------------------------------- | ---------------------------------------------------- |
@@ -143,15 +173,23 @@ Il file è `document-line-focus.store.ts` → `DocumentLineFocusStore<F extends 
 | 5   | guardia sola-lettura                          | tutte                                                |
 | 6   | numero righe                                  | tutte                                                |
 | 7   | creazione riga (corpi diversi)                | tutte                                                |
-| 8   | gancio d'uscita riga                          | solo Arrivo merce                                    |
-| 9   | intercettazione Invio + ingressi nominali     | Arrivo merce                                         |
-| 10  | **predicato "riga vuota"**                    | tutte — **assente in Ordine fornitore, da scrivere** |
+| 8   | gancio di **cambio riga**                     | solo Arrivo merce                                    |
+| 9   | **predicato "riga vuota"**                    | tutte — **assente in Ordine fornitore, da scrivere** |
 
 Note vincolanti:
 
 - **Voce 2 — serve la mappa, non un prefisso.** I suffissi degli id sono irregolari nella stessa maschera (`co-price-` ma `gr-selling-`; `gr-supplier-code-` ma `po-suppcode-`; `co-serials-` ma `gr-serial-` al singolare). Un prefisso+indice non basta.
-- **Voce 9 — entrate nominali, non solo un keydown handler.** Le celle condivise non consegnano l'evento: decidono da sole ed emettono esiti (`lineRowAdvance`, commit). Il punto unico deve **esporre** `next()`, `rowDown()`, non solo ascoltare la tastiera. È la ragione per cui "la freccia non salva" va gestito spezzando il metodo.
-- **Voce 10 — "riga vuota" di Ordine fornitore = nessun articolo selezionato** (decisione presa; nelle altre due il predicato esiste già).
+- **Voce 8 — il gancio è su OGNI cambio riga, non solo sull'uscita in avanti.** In Arrivo merce `linkLineCodesThen` (già `commitLineAndSave`) avvolge sia la discesa sia la risalita. Scritto come "uscita", produce un'implementazione che funziona in una direzione sola, e il difetto si vede solo risalendo con ↑ — il gesto meno provato. È anche il posto dove vive il **tempismo del fuoco**: riceve `(riga, poi)` e decide quando chiamare `poi`, così la classe non possiede nessun timer.
+- **Voce 9 — "riga vuota" di Ordine fornitore = nessun articolo selezionato** (decisione presa; nelle altre due il predicato esiste già).
+
+**La vecchia voce 9 — perché è caduta, e cosa NON è caduto con lei** _(verificato 08/2026)_.
+
+Bundlava due cose diverse, ed è la ragione per cui serve distinguerle:
+
+- **L'intercettazione di Invio — CADUTA.** I suoi due casi speciali di Arrivo merce sono spariti entrambi: Invio su "Q.tà" con articolo collegato **navigava**, e cade con §4.5 ("Invio non naviga"); Invio su "Cod. fornitore" **registrava il valore**, e non passa più dal form — da quando quel campo è una cella codice condivisa, Invio lo gestisce la cella. Il ramo rimasto nel gestore era codice morto verificato (il gestore è agganciato a otto campi, e quello non è tra loro), ed è stato rimosso. **Invio è ora uniforme nelle tre maschere**, perché la registrazione del valore è scesa dentro le celle.
+- **Gli ingressi nominali — NON caduti, e non erano una voce.** Che il punto unico debba **esporre** `next()`, `previous()`, `rowDown()`, `rowUp()`, `focusField()` resta obbligatorio: le celle condivise non consegnano l'evento, decidono da sole ed emettono esiti. Ma è un **requisito sulla forma della classe**, non qualcosa che una maschera le passa — e stava nella tabella del contratto solo perché era stato scritto insieme all'altro. Ora sta scritto dove appartiene, qui sotto.
+
+**Entrate nominali obbligatorie** (requisito di forma, non voce del contratto): `next()`, `previous()`, `rowDown()`, `rowUp()`, `focusField()`. `rowDown`/`rowUp` ricevono **il campo**, perché conservare la colonna lo richiede: il template lo conosce staticamente, quindi si aggiunge nel binding senza toccare le celle.
 
 ---
 
@@ -166,6 +204,14 @@ Note vincolanti:
 ### 4.2 Frecce ← / → (campi di testo)
 
 - Primo colpo: valore evidenziato. Secondo colpo nella stessa direzione: cursore di scrittura al bordo corrispondente.
+
+**A due tempi anche per uscire dal campo** _(deciso e applicato 08/2026)_. Finché il cursore ha strada dentro il campo, la freccia lo muove e basta. Solo quando il cursore è **già al bordo**, e non c'è testo selezionato, la freccia porta al campo accanto: → a quello a destra, ← a quello a sinistra. È la regola che chiunque conosce dai fogli di calcolo, e l'alternativa — uscire al primo colpo — renderebbe impossibile correggere una lettera in mezzo a un nome.
+
+**→ dall'ultimo campo crea la riga nuova**, con la **stessa** condizione di Tab e ↓: solo se la riga corrente ha contenuto. La regola della creazione appartiene all'**effetto**, non al gesto: tre tasti che fanno nascere la stessa riga nello stesso posto non possono avere tre regole diverse (vedi §4.4).
+
+**Fin dove arriva la regola — è il suo DOMINIO, non un'eccezione.** Sui campi numerici — quantità, sconto, aliquota — il browser **non dice** dove sia il cursore: non è un'informazione che si possa chiedere. Lì la freccia porta subito al campo accanto, al primo colpo.
+
+Non è una deroga ai due tempi: è il confine di dove quella regola si può applicare. E il confine cade in un posto ragionevole — sono campi di poche cifre, dove non c'è una parola da percorrere, e chi li compila si aspetta esattamente quello che fa un foglio di calcolo.
 
 ### 4.3 Celle a selezione (IVA e U.M.) — "ricerca e selezione"
 
@@ -199,6 +245,14 @@ Frecce ←/→ su queste celle: **cambiano cella al primo colpo, senza il second
 - Precedente giusto: **`date-input`** — ha `inputId`, `triggerKeydown`, un vero `<input>`, e **funziona già dentro una cella riga** (`gr-lot-date`). È la base da cui partire.
 - Le due celle gemelle hanno ~120 righe TS **identiche**; il pannello suggerimenti è **già estratto** (`document-line-suggestions`) ma usato solo da 2 dei 5 posti. Scrivere la terza cella com'è oggi produrrebbe **la terza copia** — dentro il lavoro che si chiama "semplificare". **Estrarre prima, poi aggiungere la terza cella.**
 
+**✅ Fatto per la cella «Nome prodotto» dell'Ordine fornitore** _(11/08/2026)_. Era l'unica delle tre maschere dove l'articolo si sceglieva da una **tendina** invece di digitarne il nome: ora ha la stessa cella di ricerca dell'Ordine cliente e dell'Arrivo merce, con il pannello descritto in §4.12.
+
+La previsione dell'estrazione si è avverata, e in un modo che vale la pena registrare: cercando di scrivere la terza copia si è scoperto che **le due esistenti non erano uguali fra loro** — quattro comportamenti diversi, nessuno dichiarato. Il pezzo condiviso non ha risparmiato righe: ha reso visibile una divergenza che nessuno sapeva di avere.
+
+Con la cella arriva anche il resto: il campo «Nome prodotto» **rientra nel giro del Tab** dell'Ordine fornitore (ne era uscito perché una tendina non è un campo su cui il cursore possa atterrare), la lente apre la ricerca articolo a tutta pagina, e «Apri anagrafica» porta alla scheda dell'articolo collegato.
+
+**Restano da sostituire** le celle a tendina di IVA e U.M., in tutte le maschere.
+
 ### 4.3-ter Unità di misura — modello dati
 
 > Comportamento **unico in tutti i documenti elencati**. Ogni maschera che oggi fa diverso si **allinea** a questo; i comportamenti attuali sono materiale d'esecuzione per Claude Code (cosa aggiungere, cosa rimuovere), non varianti da mantenere.
@@ -231,12 +285,20 @@ Frecce ←/→ su queste celle: **cambiano cella al primo colpo, senza il second
 - **Conservano la colonna:** da "Nome" a "Nome" sopra/sotto; da "Prezzo" a "Prezzo".
 - **↓** su riga esistente: riga sotto, stessa colonna. In fondo **e** con la riga corrente compilata: **crea** nuova riga, focus da sinistra. Su riga vuota appena creata: **non fa nulla**.
 - **↑** sulla prima riga: **non fa nulla**.
-- **Ripiego colonna mancante:** se la riga sotto è "documento collegato" (non ha quella colonna), si **scavalca** — il fuoco va alla riga successiva ad essa, stessa colonna. La riga "documento collegato" non è una fermata.
+- **Uscendo in alto dalla riga appena nata e ancora vuota, la riga sparisce** _(deciso 08/2026 — è la terza parte di una regola che ne aveva scritte solo due)_.
+  È la **simmetrica** della creazione. Le tre parti si leggono insieme: ↓ fra righe con contenuto scende restando nella stessa colonna; ↓ dall'ultima riga con contenuto fa **nascere** la riga nuova; risalendo da quella riga, se non ci si è scritto niente, la riga **sparisce**. Se esiste solo perché si è scesi, e si risale a mani vuote, non la si voleva.
+  **La regola descrive l'effetto, non un tasto**, esattamente come per la creazione: risalire sono ↑, Shift+Tab dal primo campo e ← dal primo campo, e fanno tutti e tre la stessa cosa. Dire «↑ toglie la riga» produrrebbe la stessa divergenza fra gesti che questa specifica toglie fra documenti.
+  Sparisce **solo** la riga nata dalla navigazione e mai compilata. Non una riga vuota lasciata lì di proposito — quella nessuno l'ha creata scendendo. Non una riga che nel frattempo ha smesso di essere l'ultima. E non una riga in cui si è scritto e poi cancellato: il segno di «appena nata» si consuma appena qualcosa la riempie. Su un documento bloccato non sparisce niente, mentre il fuoco continua a girare.
+- **Ripiego riga non attraversabile:** se la riga sotto è "documento collegato" (non ha quella colonna), si **scavalca** — il fuoco va alla riga successiva ad essa, stessa colonna. La riga "documento collegato" non è una fermata.
+- **Ripiego colonna mancante — REGOLA, non dettaglio** _(aggiunta 08/2026)_: se la riga di destinazione **esiste ed è attraversabile** ma quel campo lì è disabilitato — succede sulle righe collegate a un articolo, dove i codici diventano testo — il fuoco va al **primo campo attraversabile di quella riga**. Non si scavalca la riga: la riga è una fermata legittima, è la colonna che manca.
+  È distinto dal ripiego qui sopra e va tenuto distinto: uno riguarda righe che non sono fermate, l'altro colonne che su quella fermata non ci sono. Senza questa regola il fuoco si perde — che è il difetto da cui l'intero lavoro è partito.
 
-> **Due cose che cambiano un gesto in uso — da dichiarare, o si scambiano per regressioni:**
+> **TRE cose che cambiano un gesto in uso — da dichiarare, o si scambiano per regressioni:**
 >
 > - "↓ crea solo se la riga ha contenuto" **è NUOVO**: oggi `advanceToNextLine` crea sempre in fondo, senza guardare il contenuto.
 > - **↓ cambia firma:** oggi va **sempre alla prima cella** della riga sotto, in tutte e tre. "Conservare la colonna" è un cambio su un gesto in uso, non un travaso.
+> - **Anche il Tab dall'ultimo campo crea solo se la riga ha contenuto** _(aggiunta 08/2026)_. Oggi tutte e tre creano **sempre**: attraversando col Tab una riga vuota se ne aggiunge un'altra.
+>   La regola della creazione è **una sola**, e non appartiene alla freccia: appartiene all'**effetto**. Tab dall'ultimo campo e ↓ in fondo fanno nascere la stessa riga nello stesso posto, quindi non possono avere due regole diverse — sarebbe la stessa divergenza che questo lavoro toglie, applicata ai gesti invece che ai documenti.
 
 ### 4.5 Invio — registra e resta (NON naviga, NON salva)
 
@@ -245,18 +307,32 @@ Frecce ←/→ su queste celle: **cambiano cella al primo colpo, senza il second
 - **Registrare il valore** = prendere ciò che hai digitato e agganciarlo (es. il codice all'articolo). Questo sì, sempre. **Non** significa "chiudere la riga" né "passare oltre".
 - **[Cambio da dichiarare]** Oggi in **Ordine cliente Invio fa la funzione di Tab** (naviga alla cella successiva). Va **cambiato**: Invio smette di navigare. La navigazione resta a **Tab** (cella successiva) e **frecce** (↓ riga sotto). Se non dichiarato, chi esegue lo scambia per regressione.
 - **Nessun salvataggio su Invio, mai** — coerente col principio "il salvataggio è solo col pulsante". Qualsiasi maschera dove Invio oggi salva va allineata.
-- **[DA VERIFICARE]** Ogni maschera "ha una cosa sua": quali gesti (freccia, Invio, Tab dall'ultimo campo) passano oggi da `commitLineAndSave`, per maschera. Serve per intervenire sulla **sola** freccia (§4.5-bis) e sul **solo** Invio senza rompere la registrazione del valore che Tab deve continuare a fare.
+
+**Fin dove arriva la regola — è il suo DOMINIO, non un'eccezione** _(precisato 08/2026, eseguendola)_.
+
+«Resta sulla cella» presuppone che la cella ci sia ancora. Su un campo codice, quando il codice trova **una** corrispondenza, l'articolo si aggancia e **la cella smette di essere un campo**: diventa il testo del valore collegato. Lì «restare» non è una cosa che si possa fare male o bene — non c'è più niente su cui restare, e il fuoco va comunque altrove.
+
+Quindi la regola **morde dove la cella resta un campo**: nessuna corrispondenza (il valore digitato resta scritto e si rimane lì) e più corrispondenze (la scelta è aperta e si rimane lì). Con una corrispondenza sola il fuoco si sposta, e non è una deroga: è il limite di ciò che la frase può descrivere.
+
+⚠️ Va scritto perché, letta senza questo, la regola sembra disattesa proprio nel caso più frequente — e chi la rilegge tra sei mesi «corregge» un comportamento corretto.
+
+- **[RISOLTO]** La domanda «quali gesti passano da `commitLineAndSave`» è caduta col contratto del punto unico: il gancio di cambio riga (voce 8) è ora esplicito, e il metodo — rinominato `linkLineCodesThen` — è chiamato solo da lì e dallo sfocamento. Serve per intervenire sulla **sola** freccia (§4.5-bis) e sul **solo** Invio senza rompere la registrazione del valore che Tab deve continuare a fare.
 
 ### 4.5-bis La freccia non salva
 
 - Nessuna navigazione da tastiera persiste il documento. Salvataggio **solo col pulsante**.
-- **[VERIFICATO]** `commitLineAndSave` **non salva** (nessuna scrittura HTTP) — collega i codici alla variante e scrive nel reactive form. Il nome **mente**: va rinominato, e vanno ripuliti due commenti su un autosave rimosso a luglio (o chi valuta crederà si tolga una persistenza).
+- **[FATTO 11/08/2026]** `commitLineAndSave` **non salvava** (nessuna scrittura HTTP): collegava i codici alla variante e scriveva nel reactive form. Il nome mentiva, ed è ora **`linkLineCodesThen`** — quello che fa davvero. Ripuliti anche i commenti che citavano un salvataggio inesistente.
 - **[DA VERIFICARE] Tempismo del focus:** la chiamata asincrona interna oggi, per effetto collaterale, darebbe al DOM il tempo di rendere la riga nuova prima del focus. Reso sincrono, la freccia giù sull'ultima riga smetterebbe di dar focus alla riga creata. Le maschere sorelle avrebbero già un `setTimeout` con commento: il tempismo va **ricreato deliberatamente**. (Da confermare sul codice.)
 - **[DA VERIFICARE]** Il metodo sarebbe raggiunto **anche da Invio e da Tab dall'ultimo campo**: per colpire la sola freccia va spezzato. (Vedi §4.5 — conferma per maschera.)
 
-### 4.6 Mouse (a due tempi, coerente con la tastiera)
+### 4.6 Mouse (a due tempi, coerente con la tastiera) — ✅ fatto 11/08/2026
 
 - **1° click:** seleziona tutto. **2° click:** posiziona il cursore senza cancellare. **Trascinamento** al primo ingresso: lasciato passare.
+
+**Vale su ogni campo di riga, in tutti i documenti** — e non perché sia stato aggiunto a ognuno: si applica da sé a qualunque campo di una riga documento. Una colonna nuova lo eredita senza che nessuno se ne ricordi, che è l'unico modo perché una regola così resti vera.
+
+**Il limite del dominio:** sui campi dove il browser rifiuta la selezione (alcuni tipi numerici e le date) il clic resta quello normale del browser. Non è una deroga: è il confine di dove la regola può arrivare, e lascia comunque un comportamento sensato.
+
 - Nota: "1° click seleziona tutto" **non** è nativo del browser (mette il cursore dove clicchi). Va costruito tenendo traccia se la cella aveva già il focus. **Select all'ingresso da tastiera, non al click** — la formulazione ingenua "seleziona al focus" cancellerebbe il valore al primo tasto dopo un click a metà cifra.
 
 ### 4.7 Vincolo architetturale — la porta che resta aperta
@@ -267,6 +343,109 @@ Frecce ←/→ su queste celle: **cambiano cella al primo colpo, senza il second
 - Guadagno: i tre elenchi di campi del focus scritti a mano (82 righe in Arrivo merce, 24 nelle altre) si **derivano** dall'array — il giro del Tab diventa la proiezione dei campi, semplifica.
 
 > **Verificato — l'assunto che tiene aperta la porta di §6.** Anche senza il data-driven (tolto in §6), il giro si può derivare dalla configurazione delle colonne **senza toccare i template e senza cambiare il comportamento di oggi**, perché in tutte e tre le maschere l'ordine di fuoco è un **sottoinsieme dell'ordine delle colonne, nella stessa sequenza relativa** — nessuna maschera inverte due campi. Vale anche per Ordine fornitore (il caso dubbio): le colonne in posizione diversa tra config e schermo — Giacenza, Q.tà disp., IVA, Costo scontato — **non sono nel giro del Tab** (sono calcolate o sono la tendina IVA), quindi il sottoinsieme focalizzabile ha lo stesso ordine. Se un domani servirà lo spostamento colonne, il giro seguirà l'array senza riscrivere la navigazione.
+
+### 4.8 I campi codice non cercano: confrontano
+
+**[DECISIONE, 08/2026 — vale su tutti e sette i tipi documento]**
+
+Chi digita un codice **sa già cosa cerca**. Il campo codice non è un campo di ricerca: mentre si scrive non succede niente — nessun elenco che si apre, nessuna attesa, nessun suggerimento. Il confronto col catalogo avviene **alla conferma** (Tab o Invio), e cerca la corrispondenza **esatta**.
+
+Gli esiti sono **tre**, e vanno tenuti distinti:
+
+| Corrispondenze | Cosa vede l'operatore                                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| **Una**        | l'articolo si aggancia alla riga                                                                     |
+| **Più d'una**  | si apre una **scelta** fra quelle corrispondenze — è l'operatore a dire quale                        |
+| **Nessuna**    | il valore digitato **resta scritto** e la riga prosegue: non è un errore, è un articolo da compilare |
+
+**Cosa cambia rispetto a prima**, ed è tutto da dichiarare o si scambia per regressione:
+
+- Digitando due caratteri partiva una ricerca e compariva un elenco che si aggiornava mentre si scriveva. **Non succede più.**
+- Quando il codice non veniva trovato, il campo si comportava **anche da ricerca per nome** — digitando «100» comparivano i «Jeans 100 slim». Non era scritto da nessuna parte e capitava solo in caso di fallimento: **tolto**.
+- Un codice **corretto ma condiviso da più articoli** si comportava come un codice inesistente: nessun aggancio e nessuna spiegazione. Era la peggiore delle tre risposte, ed è il motivo per cui gli esiti sono tre e non due.
+- Spariva anche un avviso «codice non trovato» in testa alla maschera, **senza sostituto e deliberatamente**: lo stato si vede già dalla riga — se l'articolo si è agganciato compare il suo nome, altrimenti no — e quell'avviso per giunta rimandava a un'azione che non esiste.
+
+**Il limite è il dominio della regola, non un'eccezione.** «Non cerca» significa che da un campo codice **non si trova un articolo di cui non si conosce il codice**: per quello ci sono il campo Nome prodotto e il pannello di ricerca articoli, che è il posto dove si cerca quando non si sa. Il campo codice serve a chi il codice ce l'ha davanti — sul listino del fornitore, sull'etichetta, sul documento cartaceo.
+
+### 4.9 Il codice fornitore che resta nella riga
+
+**[DECISIONE, 11/08/2026 — vale su Arrivo merce e Ordine fornitore, gli unici due documenti che hanno quella colonna]**
+
+Agganciando un articolo, nel campo Cod. fornitore va **il codice con cui lo si è agganciato**: quello che l'operatore ha digitato, preso dal listino che ha davanti. Se l'articolo è stato richiamato per altra via — nome, SKU, EAN, scansione — vale il codice **del fornitore del documento**. Se nessuno dei due esiste, il campo **resta vuoto**.
+
+**Cosa cambia rispetto a prima:** l'operatore digitava il codice del proprio fornitore, l'articolo si agganciava, e nel campo compariva **un codice diverso** — quello di un altro fornitore dello stesso articolo, che al suo fornitore non dice niente. E in Arrivo merce il codice appena digitato poteva essere sostituito **un istante dopo**, in silenzio, dal riallineamento della riga.
+
+**Il limite del dominio:** un articolo fornito da più fornitori **non ha «un» codice fornitore** — ne ha uno per ciascuno. La regola non sceglie il codice «giusto» in assoluto: sceglie quello **pertinente al documento che si sta scrivendo**. Fuori da un documento la domanda non ha risposta, ed è il motivo per cui un campo vuoto è preferibile a un campo riempito con il codice di qualcun altro.
+
+_Oggi in Ordine fornitore la seconda fonte non è ancora disponibile: richiamando un articolo per nome il campo resta vuoto e lo compila l'operatore. È corretto, non è il meglio possibile._
+
+### 4.10 Mobile: la scelta si prende toccando
+
+**[DECISIONE, 11/08/2026 — vale su Ordine cliente, DDT vendita, Preventivi e Scarico manuale, che sono i documenti con i campi codice anche nella vista a card]**
+
+Le regole di §4.8 valgono identiche da telefono. **Cambia il gesto, non la regola.**
+
+- La scelta fra più corrispondenze **si prende toccando** la voce.
+- **Nessuna voce è evidenziata**: su un telefono non ci sono le frecce che la spostano, e una voce accesa somiglierebbe a una preselezione — un invito a confermare senza guardare.
+- **Uscire da un campo conferma il codice**, esattamente come il Tab sul computer: lo scorrimento non toglie il fuoco a un campo, quindi se lo si perde è perché si è toccato un altro campo — un gesto deliberato quanto un Tab.
+
+**Cosa cambia rispetto a prima:** da telefono un codice con più corrispondenze apriva una scelta **che non aveva dove mostrarsi**: la riga non si agganciava e nulla lo diceva. E passando da un campo all'altro col dito il codice non veniva confrontato affatto: si digitava un codice giusto e non succedeva niente.
+
+**Il limite del dominio:** «Invio prende la voce evidenziata» (§4.5) su mobile **non ha bersaglio**, perché una voce evidenziata non c'è. Non è una deroga: è che quella frase descrive un gesto da tastiera, e la tastiera lì non comanda la scelta.
+
+### 4.11 La stessa riga non esiste due volte
+
+**[DECISIONE, 11/08/2026 — vale su tutti i documenti a righe]**
+
+Il documento ha **una sola vista delle righe per volta**: la tabella sugli schermi larghi, le card su quelli stretti. Non due, con una nascosta sotto l'altra.
+
+**Cosa cambia rispetto a prima:** entrambe esistevano sempre, e quella non visibile poteva **aprire pannelli che nessuno vedeva** — è esattamente come la scelta fra più codici spariva da telefono. Ogni funzione nuova che tocca una riga avrebbe rischiato di rifare la stessa cosa, e in silenzio.
+
+**Il limite del dominio, accettato:** attraversando la soglia — si ruota un tablet, si ridimensiona una finestra — **il cursore si perde**, perché il campo su cui stava appartiene alla vista che non c'è più. Quello che si è scritto **non si perde**: valori, modifiche non salvate e campi bloccati restano. Si attraversa la soglia ruotando un dispositivo, non lavorando, ed è la ragione per cui il costo è accettabile.
+
+### 4.12 Il pannello dei suggerimenti sul nome prodotto
+
+**[DECISIONE, 11/08/2026 — vale su tutti i documenti a righe articolo]**
+
+Digitando nel campo «Nome prodotto» si apre sotto un elenco di articoli fra cui scegliere. Il comportamento è **uno solo**. Prima differiva fra Ordine cliente e Arrivo merce in quattro punti, e **nessuno dei quattro era dichiarato da nessuna parte**: sono differenze che non si notano leggendo, si notano usando due documenti di seguito.
+
+Le quattro decisioni, prese una per una:
+
+1. **L'elenco è il catalogo, e nient'altro.** Gli articoli già presenti in altre righe dello stesso documento **non** vengono riproposti in cima. Un articolo già in riga non è un risultato diverso dagli altri, e metterlo per primo è rumore proprio dove si sta guardando.
+2. **Senza risultati il pannello non si apre**, e non dice niente — nessun «nessun articolo trovato». Non trovare nulla **non è un errore**: si continua a compilare la riga a mano. La creazione di un articolo nuovo **non vive nel pannello**: sta sulla riga, con «Completa anagrafica».
+3. **Su riga già agganciata il pannello tace.** Lì non c'è più niente da scegliere, e l'elenco coprirebbe la riga sotto.
+4. **Le frecce ↑ ↓ dentro l'elenco si fermano agli estremi**, non girano in tondo. È la stessa regola della navigazione fra righe (§4.4): dall'ultima voce ↓ non fa nulla, come dalla prima riga non fa nulla ↑.
+
+**Cosa cambia rispetto a prima.** L'Arrivo merce proponeva in cima gli articoli già nel documento e teneva il pannello aperto anche a vuoto: entrambe le cose spariscono. L'Ordine cliente continuava a proporre anche su riga già agganciata e faceva girare le frecce in tondo: entrambe si allineano. L'Ordine fornitore non aveva affatto questo campo — aveva una tendina (§4.3-bis) — e ora ha la stessa cella degli altri due.
+
+**Mobile: uguale.** Stesso elenco, stesse quattro regole. Cambia solo dove appare — sotto il campo nome della card invece che sotto la cella della tabella — e il fatto che la scelta si prende toccando (§4.10). Il messaggio di vuoto che la card dell'Arrivo merce mostrava è stato tolto: era l'unico punto dell'app dove la regola 2 non valeva.
+
+### 4.13 Prima la testata: le righe non ci sono ancora
+
+**[DECISIONE, 11/08/2026 — Ordine cliente e famiglia, Arrivo merce]**
+
+Un documento nuovo non può avere righe finché non si sa **a chi** e **da quale magazzino**. Finché quei campi mancano:
+
+- **le righe non si mostrano affatto.** Al loro posto c'è uno stato vuoto con l'icona, un titolo che dice **cosa manca** — «Scegli il cliente e la location», «Scegli il fornitore e il magazzino» — e una riga che dice come si riempirà: cercando un articolo, scansionando un codice o includendo un altro documento.
+- appena la testata è completa, le righe compaiono e il documento è pronto.
+
+**Cosa cambia rispetto a prima.** Le righe c'erano già, ma **spente a metà tinta**: una tabella intera, con le sue intestazioni e la sua riga vuota, occupava mezzo schermo per non poter essere usata. Sopra, un avviso ripeteva a parole quello che il grigio già suggeriva. Era poco leggibile e — parole dell'operatore — «quasi disturba».
+
+Non si è scelta la strada dell'altro gestionale, che apre una finestra sopra il documento e chiede il cliente prima di mostrare qualsiasi cosa. La finestra **non fa risparmiare un solo tasto** — scegliere il cliente costa gli stessi gesti dentro o fuori — e ha due costi: va soppressa quando il cliente arriva da un documento incluso e quando si riapre un documento salvato, e le eccezioni a una regola d'ingresso si dimenticano. Qui poi i campi obbligatori sono due, non uno.
+
+**Vale anche per l'Ordine fornitore, e lì la ragione è diversa** _(11/08/2026)_. Un ordine al fornitore non muove giacenze e non ha nemmeno un magazzino da indicare: le righe si potrebbero compilare senza sapere a chi si ordina. Il motivo per cui non si compilano è **di documento**: fra le colonne c'è **«Cod. fornitore»**, cioè _il codice con cui quel fornitore chiama questo articolo_. Scriverlo prima di aver detto chi è il fornitore è la frase senza il suo soggetto.
+
+Si è scelto il cancello sul documento invece che sulla sola colonna: una regola per tutte e tre le maschere vale più di un'eccezione da ricordare su una cella.
+
+**Il riconoscimento del codice resta indipendente dal fornitore scelto** (§4.8): se lo stesso codice appartiene ad articoli di fornitori diversi, la scelta si apre comunque e la decide l'operatore. Il fornitore della testata dice **quando** si può compilare, non **cosa** si può trovare.
+
+**Il campo che tiene ferme le righe si vede.** Lo stato vuoto dice cosa manca, ma sta al centro della pagina mentre l'azione è in testata: il campo obbligatorio ancora vuoto porta quindi un bordo di una tinta propria, e sparisce appena lo si compila.
+
+Non è rosso, di proposito. Il rosso in queste maschere vuol già dire «hai provato a salvare e questo campo è sbagliato»: usarlo anche per «non l'hai ancora compilato» renderebbe i due stati indistinguibili proprio dopo un salvataggio rifiutato, quando distinguerli serve.
+
+**L'errore sotto un campo non ripete quello che il campo già dice.** Un campo che mostra «Seleziona un fornitore…» e sotto un messaggio «Seleziona un fornitore.» dice la stessa frase due volte. Il messaggio dice **«Campo obbligatorio.»** — e resta, perché al rifiuto il campo cambia solo tinta, e chi non distingue i colori non vedrebbe accadere niente.
+
+**Mobile: uguale.** Stesso stato vuoto, stesso testo, stessa regola. Su mobile era già così — le card non si mostravano e lo stato vuoto spiegava — quindi non è una novità mobile: è il desktop che ha adottato quello che sul telefono era già stato deciso.
 
 ---
 
@@ -308,9 +487,15 @@ Lo spostamento costa **il pezzo più grosso di tutto il piano** — la trasforma
 
 ### 6.1 Pannello "Colonne" — resta, con l'interruttore
 
-Il pannello è **condiviso** su 11 schermate. Le sue frecce ↑↓ (riordino) **funzionano su sei elenchi** (Registro documenti, Giacenze, Movimenti, Situazione, Ordini cliente, Fornitori) e sono **inerti** su Prodotti, Clienti e su **tutte le maschere documento** (tabelle a ordine fisso).
+Il pannello è **condiviso** su 11 schermate.
 
-**Decisione:** il pannello riceve un **interruttore** (`reorderable`); le maschere documento lo passano **spento** → sui documenti restano le **checkbox** mostra/nascondi, spariscono le frecce inerti. Sugli elenchi tutto invariato. Toglie comandi che oggi **fingono di funzionare** — una bugia in meno nell'interfaccia. Costo: un `input()`.
+> ⚠️ **Correzione misurata sul codice (11/08/2026).** Qui era scritto che le frecce ↑↓ funzionano «su sei elenchi» e sono inerti «su Prodotti, Clienti e su tutte le maschere documento». **È falso per Prodotti e Clienti**: entrambi rendono la tabella da `tableColumns()`, che risolve le colonne partendo dall'ordine salvato — esattamente come gli altri elenchi. Su di loro le frecce **funzionano**.
+>
+> Il conto vero: le frecce sono **vive su otto elenchi** (Registro documenti, Giacenze, Movimenti, Situazione, Ordini cliente, Fornitori, **Prodotti**, **Clienti**) e **inerti sulle sole tre maschere documento** che usano il pannello — lì le colonne sono rese da blocchi condizionali in sequenza fissa nel template, e l'ordine salvato non lo legge nessuno.
+>
+> Spegnerle su Prodotti e Clienti avrebbe tolto una funzione viva credendo di rimuovere un inganno: peggio del difetto che la decisione voleva correggere.
+
+**Decisione:** il pannello riceve un **interruttore** (`reorderable`, acceso di default); **le sole maschere documento** lo passano spento → lì restano le **checkbox** mostra/nascondi e spariscono le frecce inerti. Su tutti gli elenchi, Prodotti e Clienti compresi, non cambia niente. Toglie comandi che oggi **fingono di funzionare** — una bugia in meno nell'interfaccia. Costo: un `input()`.
 _Precisazione pin:_ sui documenti il pin **non compare già oggi** (le config non dichiarano colonne bloccabili) — l'interruttore nasconde **solo le frecce**.
 
 ### 6.2 Nascondere e ridimensionare — restano come sono
@@ -343,12 +528,25 @@ Prodotti e Clienti hanno le frecce inerti come i documenti (sequenza fissa scrit
 
 - **Solo col mouse**, trascinando la riga. Niente Ctrl+↑/↓ (§7.3).
 - Eccezione all'ordinamento automatico: dopo un ordine, una riga si sposta a mano.
-- Precedente: **Ordine cliente ha già il drag** (`cdkDropList`/`cdkDrag`, `lineNumber` da indice, `orderBy` in lettura). **Unica** maschera che ce l'ha → copiare. Il salvataggio c'è quasi ovunque (tranne Ordine fornitore); il gesto va propagato.
-- Priorità: non alta.
+- **✅ Fatto (11/08/2026).** Il gesto c'è su Arrivo merce, Ordine fornitore e Trasferimento, oltre all'Ordine cliente che l'aveva già. La maniglia è **la cella del numero riga**: si afferra il `#`, il resto della riga resta cliccabile per modificare le celle.
+- L'Ordine fornitore non aveva nemmeno dove salvare l'ordine delle righe: la colonna `lineNumber` è stata aggiunta con una migration scritta a mano (§0).
+- _Trovato aggiungendo la colonna `#` dove non c'era:_ la stessa colonna nasce **larga zero** dove le altre sono in percentuale — aggiunta e invisibile — e **larga un sesto della tabella** dove le larghezze sono automatiche. La misura va detta esplicitamente, e ora è la stessa ovunque.
+- Rettifica inventario resta in attesa, come per l'ordinamento: prima si decidono le sue colonne.
 
-### 7.3 Ctrl + ↑ / ↓ — non incluso
+### 7.3 Ctrl + ↑ / ↓ — TOLTO, e rimandato
 
-Esiste solo in Arrivo merce. **Lasciato perdere.** Da nominare nell'allineamento, così non sparisce né si intrufola per inerzia.
+**[DECISIONE, 11/08/2026]** Esisteva nel solo Arrivo merce. Con il trascinamento arrivato su tutte le maschere la scelta era fra darlo anche alle altre due o toglierlo. **Tolto.**
+
+Le ragioni, nell'ordine in cui contano:
+
+- **Spostare una riga è un aggiustamento occasionale**, non un gesto del flusso di compilazione. Non sta nella stessa categoria di Tab e delle frecce, che si premono cento volte a documento.
+- **Ora c'è anche l'ordinamento per colonna**, che risolve il caso più frequente — rimettere in ordine un documento — meglio di quanto lo risolva spostare righe una per una.
+- **Una combinazione che si scopre solo da un suggerimento sulla maniglia la trova chi sta già usando il mouse**, cioè esattamente chi può trascinare. La scoperta e il bisogno non si incontrano mai.
+- Un gesto che nessuno scopre e che duplica una funzione disponibile è **codice da mantenere senza ritorno**.
+
+_L'argomento contrario, per onestà: il trascinamento non è azionabile da tastiera, quindi oggi riordinare senza mouse non si può. È stato pesato e accettato — riordinare non è compilare._
+
+**È un rimando, non una rimozione secca.** Se servirà riordinare da tastiera si progetta bene, con un **comando visibile** — non una scorciatoia nascosta. Questa riga esiste perché la ragione non vada persa: chi ritroverà il buco deve sapere che è stato scelto, e su quale argomento.
 
 ### 7.4 Ordinamento righe ↔ navigazione ↓
 
@@ -376,7 +574,59 @@ _(Tecnicamente: `mode()` non è letto da alcun template; il pannello ricalcola i
 
 ---
 
+## 8-ter. «Crea articolo» compare solo dove ha senso, e parte sempre pulito
+
+**[DECISIONE, 11/08/2026]**
+
+**Il comando compare solo se la riga non ha ancora un articolo.** Su una riga già agganciata non stai cercando cosa aggiungere: stai guardando quello che c'è, e il pannello di ricerca è di sola consultazione.
+
+**E quando compare, parte da zero.** «Crea articolo» porta a una scheda vuota, o precompilata coi dati che si sono digitati nella riga — **mai** all'anagrafica di un articolo che esiste.
+
+_Difetto corretto insieme alla decisione:_ i campi di una riga agganciata sono quelli dell'articolo collegato — nome, SKU, EAN. Il precompilato li copiava in una scheda **nuova**, producendo un doppione vestito coi codici di un altro: al salvataggio o sbatte contro l'unicità dello SKU, o nasce un gemello. Nascondere il comando non sarebbe bastato: **un comando che apre la cosa sbagliata non si sistema rendendolo meno raggiungibile**, e la creazione da riga vuota — che è una via prevista — sarebbe rimasta rotta.
+
+## 8-bis. Aprire l'anagrafica non porta mai fuori dal documento
+
+**[DECISIONE, 11/08/2026 — vale ovunque si apra la scheda di un articolo]**
+
+Da qualunque punto si apra l'anagrafica — l'icona sulla riga già agganciata, l'icona nei risultati di ricerca, «Crea articolo» — si torna sempre dove si era, **con il documento in compilazione intatto**. Nessuna via porta fuori perdendo il lavoro.
+
+La scheda si apre **sopra** il documento, che resta dov'è con tutto quello che si è scritto e non si è ancora salvato. Chiudendola si è di nuovo sulla riga da cui si era partiti.
+
+_Verificato sul codice (11/08/2026): è già così in tutte e tre le maschere — nessuna di esse porta a un'altra pagina per i prodotti. La regola è scritta qui perché smetta di essere una proprietà accidentale e diventi un vincolo: chi aggiungerà una quarta via deve trovarla._
+
+---
+
+## 9-bis. La riga porta il proprio nome — e la cella torna a essere UN campo
+
+**[DECISIONE, 11/08/2026]**
+
+**Il nome dell'articolo si scrive anche quando l'articolo è agganciato.** Quel testo è la descrizione di **quella riga**, non dell'anagrafica: correggerlo sul documento non torna indietro sulla scheda articolo, esattamente come il prezzo di riga non riscrive il listino. Chi vende «Maglietta / M / Rosso» e sul documento vuole scrivere «Rosso scuro, seconda scelta» lo fa senza scollegare niente e senza toccare il catalogo.
+
+Prima la cella aveva **due aspetti diversi**: un campo scrivibile su riga libera, un testo fisso con tre icone su riga agganciata. Adesso è un campo solo, sempre.
+
+**La ✕ non c'è più.** Era nata per svuotare la riga, e la riga si toglie **col cestino in fondo**: due gesti per la stessa cosa. Il peggio è che ne faceva tre diverse — l'arrivo merce teneva il nome e riportava il cursore, l'ordine fornitore lasciava nella riga i codici di un articolo ormai scollegato, l'ordine cliente svuotava tutto compresa l'unità di misura. Nessuna delle tre era scritta da nessuna parte.
+
+**Anche «apri anagrafica» perde la sua icona.** Stava su **ogni riga di ogni documento**, in una colonna che già tronca il nome, per un gesto che si fa di rado. Ci si arriva dalla lente: il pannello si apre col nome della riga, quindi l'articolo collegato è il primo risultato e da lì si apre la scheda. Un gesto in più in un caso raro, un'icona in meno sempre. Resta valido §8-bis: da qualunque punto si apra l'anagrafica, si torna dove si era col documento intatto.
+
+**Cosa resta nella cella:** il campo, e la lente. Su riga agganciata la lente dice «Cerca un altro prodotto» — è anche il modo di **sostituire** l'articolo, che è ciò che la ✕ voleva fare a metà.
+
+**Su riga agganciata la lente cerca per CODICE, non per testo** _(correzione dello stesso giorno, segnalata dal proprietario)_. La decisione qui sopra si reggeva su «dalla lente ci si arriva lo stesso, perché il pannello si apre col nome della riga» — e quella via si rompeva **proprio per la funzione appena aggiunta**: bastava correggere la descrizione perché l'articolo non si trovasse più, e con lui sparisse l'unica strada rimasta per aprirne l'anagrafica. Il codice invece non cambia quando si riscrive il nome, ed è esatto: il risultato è uno solo, quello della riga. Chi vuole sostituire l'articolo scrive sopra, come prima.
+
+**Perimetro: la decisione vale su tutti i tipi. Il lavoro ne ha richiesti 6.**
+
+Ordine cliente, DDT vendita, Preventivo, Scarico manuale, Arrivo merce e Ordine fornitore sono i sei serviti dalla cella condivisa, che aveva due facce: lì c'era da lavorare.
+
+Negli altri — Proforma, Fattura, Fattura accompagnatoria, Trasferimento, Rettifica — la descrizione di riga è **già** un campo normale sempre scrivibile, perché l'articolo si sceglie in una **colonna a parte**. Stessa sostanza, meccanismo diverso: due celle invece di una. È il Filone B a doverle fondere, e quando lo farà dovrà arrivare a questo comportamento, non a un altro.
+
+_(Correzione dello stesso giorno: qui era scritto «Trasferimento e Rettifica non hanno un nome libero». È falso — ce l'hanno entrambi, con `formControlName="description"` sempre modificabile. La verifica è arrivata dalla domanda del proprietario, non dal codice letto prima di scriverlo.)_
+
+_Difetto trovato applicando la decisione:_ l'**Ordine fornitore** mandava al salvataggio il **titolo del catalogo** invece del nome della riga. Finché la cella non era scrivibile non si vedeva; da oggi il testo scritto sarebbe sparito alla riapertura, **senza dire niente**. Lo spazio dove il nome vive esisteva già in tutti e sei — sull'Ordine cliente lo schema lo chiama perfino «snapshot al momento della vendita».
+
+---
+
 ## 9. Cella prodotto: striscia icone (`domain/`, nessuna collisione)
+
+> ⚠️ **Superata da §9-bis (11/08/2026).** Questa sezione descriveva una striscia di **tre** icone dentro la cella. Le icone sono rimaste **una**: la ✕ e «apri anagrafica» sono state tolte, e il nome è scrivibile sempre. Resta valido il principio che l'ha scritta — spazio riservato invece di comparsa all'hover, niente testo che ruba larghezza al nome — e la storia del difetto che l'ha motivata. Non vale più il conteggio delle icone né la biforcazione del template su `linked()`, che oggi decide solo se i suggerimenti tacciono.
 
 Difetto: la cella "Nome prodotto" fa tre lavori; l'hover fa comparire un link che ruba larghezza al nome (a capo sporco) o altezza. Causa: elemento senza spazio riservato (`display:none`→`inline-flex` su hover).
 
@@ -411,7 +661,7 @@ Difetto: la cella "Nome prodotto" fa tre lavori; l'hover fa comparire un link ch
 | 1       | **Si unifica il comportamento, NON i dati:** acquisto (costo/fornitore) vs vendita (prezzo/cliente) restano distinti; si condividono i meccanismi, non colonne né natura                                                                                                           | ✔     | —                                                |
 | 1       | **Anti-divergenza:** una funzione si applica a tutti i documenti insieme, mai "di prova" su uno (eccezione: file contesi dal collega, tempistica)                                                                                                                                  | ✔     | —                                                |
 | —       | Perimetro 9 tipi / 5 componenti; 4 già sul modello. **7 tipi da allineare subito** (3 file, zero collisioni); **2 in sospeso**: fatture (comportamento nello standard, quando/come da decidere) e vendite/reso in negozio (prima [DA VERIFICARE] cos'è)                            | ✔     | —                                                |
-| 3-bis   | Punto unico = classe-campo generica in `domain/documents/state/`; contratto a **10 voci**; mappa id completa; entrate nominali                                                                                                                                                     | ✔     | —                                                |
+| 3-bis   | Punto unico = classe-campo generica in `domain/documents/state/`; contratto a **9 voci** (erano 10: l'intercettazione di Invio è caduta, 08/2026); mappa id completa; entrate nominali                                                                                             | ✔     | —                                                |
 | 4.1     | Tab: sx→dx, seleziona tutto (cambia gesto in uso)                                                                                                                                                                                                                                  | ✔     | —                                                |
 | 4.2     | Frecce ←/→ testo: due tempi                                                                                                                                                                                                                                                        | ✔     | —                                                |
 | 4.3     | Celle IVA/U.M. = ricerca-e-selezione; "» Altro…" in coda fissa; **testo libero: U.M. sì, IVA no**; frecce cambiano cella al 1° colpo                                                                                                                                               | ✔     | —                                                |
@@ -433,7 +683,12 @@ Difetto: la cella "Nome prodotto" fa tre lavori; l'hover fa comparire un link ch
 | 8       | Modo ispezione cade; nome cliccabile (apri) vs riga (aggiungi); ritorno alla ricerca; ristrutturare il risultato                                                                                                                                                                   | ✔     | —                                                |
 | 9       | Cella prodotto: striscia icone fisse, `+` creazione precompilata, disabilitato preventivo, `tabindex=-1`; **su entrambe le maschere insieme** (`domain/` condiviso)                                                                                                                | ✔     | —                                                |
 | 10      | Aggiornare `CORE-FORM-DOCUMENTO.md`; correggere contraddizione in `ORDINE-FORNITORE-RIGA.md`; **registrare la cella nuova** in `regole-stile-ui.md`; il **separatore** in `regole-stile-ui.md:455` **non** si tocca (token non orfani)                                             | ✔     | —                                                |
-| —       | Card mobile: fuori scope. Dimensioni/peso articolo: fuori scope.                                                                                                                                                                                                                   | ✔     | —                                                |
+| 1       | **Il perimetro include le VISTE:** una decisione vale sul documento, non su «quel documento da computer». Il meccanismo può cambiare — su mobile si tocca — la regola no. Ogni progetto dice anche come funziona su mobile                                                         | ✔     | —                                                |
+| 4.8     | **I campi codice non cercano: confrontano** alla conferma, per corrispondenza esatta. **Tre esiti** (una aggancia · più d'una apre la scelta · nessuna lascia il valore scritto). Via la ricerca a digitazione, via il ripiego per nome, via l'avviso «non trovato»                | ✔     | —                                                |
+| 4.9     | **Nel Cod. fornitore va il codice con cui hai agganciato**, poi quello del fornitore del documento, poi niente — mai quello di un fornitore qualsiasi (Arrivo merce e Ordine fornitore)                                                                                            | ✔     | —                                                |
+| 4.10    | **Su mobile la scelta si prende toccando**, nessuna voce evidenziata, e **uscire da un campo conferma** come il Tab                                                                                                                                                                | ✔     | —                                                |
+| 4.11    | **La stessa riga non esiste due volte:** una sola vista viva per volta. Attraversando la soglia si perde il cursore, non il lavoro                                                                                                                                                 | ✔     | —                                                |
+| —       | Card mobile: fuori scope il **rifacimento grafico**, non le regole (vedi §12). Dimensioni/peso articolo: fuori scope.                                                                                                                                                              | ✔     | —                                                |
 | —       | **Fatture e vendite/reso in negozio: IN SOSPESO** — nulla di deciso su quando/come; vendite/reso prima da chiarire cos'è                                                                                                                                                           | ✔     | —                                                |
 
 ---
@@ -475,7 +730,7 @@ Difetto: la cella "Nome prodotto" fa tre lavori; l'hover fa comparire un link ch
 
 **Decisioni di prodotto: tutte prese.** Restano verifiche di costo per Claude Code (sola lettura; la scelta resta a Luigi dove indicato).
 
-1. **Mappa esecutiva del punto unico** (§3-bis): collocazione della classe-campo generica, le 10 voci del contratto, il collo di bottiglia `getElementById` con id irregolari.
+1. **Mappa esecutiva del punto unico** (§3-bis): collocazione della classe-campo generica, le 9 voci del contratto, il collo di bottiglia `getElementById` con id irregolari.
 2. **U.M.** (§4.3-ter): conferma modello `PaymentOption`; colonna U.M. da aggiungere a `DocumentLine` (copre 4 tipi) e `SupplierOrderLine`; valori distinti per il seed.
 3. **`app-select-menu`** (§4.3-bis): estrazione delle celle gemelle + del pannello suggerimenti prima di scrivere la terza cella; base `date-input`.
 4. **Ordinamento righe** (§7.1): se Arrivo merce ha già la conferma al primo sort.
@@ -523,4 +778,6 @@ Il lavoro ha **tre filoni**: tastiera, celle-a-selezione+U.M., blocco righe. Non
 - **Fatture** (Proforma/Fattura/Fattura accompagnatoria): comportamento nello standard come gli altri, ma **quando e come eseguirle è da decidere** (file conteso col ramo fattura elettronica). Nulla fissato ora.
 - **Vendite/reso in negozio:** prima **[DA VERIFICARE] cos'è** ("vendita al banco"? POS/cassa? documento a sé?), poi si decide. Nulla fissato ora.
 
-**Fuori scope:** spostamento colonne (porta aperta via §4.7); elenchi Prodotti/Clienti + riepiloghi; card mobile; dimensioni/peso articolo.
+**Fuori scope:** spostamento colonne (porta aperta via §4.7); elenchi Prodotti/Clienti + riepiloghi; **il RIFACIMENTO grafico delle card mobile**; dimensioni/peso articolo.
+
+> ⚠️ **Correzione (11/08/2026): «card mobile: fuori scope» diceva troppo, e ora è precisato.** Fuori scope è **rifarle**: la loro forma, il loro aspetto, la loro disposizione non si toccano. Ma le **regole** decise qui valgono anche lì (§1, «il perimetro include le viste»), e infatti le card sono già state toccate — la scelta fra più codici e la conferma allo sfocamento ci sono arrivate. Letta come stava, questa riga avrebbe autorizzato a lasciare mobile indietro, che è il difetto che §4.10 corregge.

@@ -1,7 +1,7 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
@@ -60,64 +60,73 @@ const NON_STOCK_SUMMARY = {
   managesStock: false,
 } as const;
 
+interface GoodsReceiptSetupOptions {
+  readonly writeLocations?: readonly { id: string; name: string }[];
+  readonly defaultLocation?: { id: string; name: string } | null;
+  readonly variantSummaries?: readonly (typeof NON_STOCK_SUMMARY)[];
+  readonly vatCodes?: readonly unknown[];
+}
+
+/**
+ * I provider di base della maschera. Estratti da `setup` perché un secondo
+ * gruppo di prove ne sovrascrive due (catalogo e collegamenti fornitore): in
+ * Angular vince l'ultimo provider per lo stesso token, quindi basta accodarli.
+ */
+function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
+  return [
+    {
+      provide: DocumentCountersService,
+      useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+    },
+    provideRouter([]),
+    {
+      provide: ActivatedRoute,
+      useValue: {
+        snapshot: { data: {}, queryParamMap: convertToParamMap({}) },
+        paramMap: of(convertToParamMap({})),
+      },
+    },
+    { provide: OperationalLocationsService, useValue: operationalLocationsMock(options) },
+    { provide: AuthService, useValue: { currentUser: () => null } },
+    {
+      provide: DocumentService,
+      useValue: {
+        getDocumentById: vi.fn(),
+        previewDocumentNumber: () =>
+          of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
+        saveGoodsReceipt: vi.fn(),
+        getPriceModePreference: () => of(false),
+      },
+    },
+    // Serie del protocollo: una sola configurata → label statica.
+    { provide: DocumentSettingsService, useValue: { getSettings: () => of([]) } },
+    { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
+    {
+      provide: SupplierService,
+      useValue: { getSuppliers: () => of([]), getVariantLinksBySupplier: () => of([]) },
+    },
+    { provide: SupplierOrderService, useValue: {} },
+    { provide: ProductLabelPrintService, useValue: {} },
+    {
+      provide: ProductService,
+      useValue: {
+        searchVariantSummaries: () => of(options?.variantSummaries ?? []),
+        getSupplierVariantLinks: () => of([]),
+      },
+    },
+    { provide: VatCodeService, useValue: { list: () => of(options?.vatCodes ?? []) } },
+    { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+    { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
+    {
+      provide: TableViewPreferenceApiService,
+      useValue: { load: () => of(null), save: () => of(undefined) },
+    },
+  ];
+}
+
 describe('GoodsReceiptFormComponent', () => {
-  async function setup(options?: {
-    readonly writeLocations?: readonly { id: string; name: string }[];
-    readonly defaultLocation?: { id: string; name: string } | null;
-    readonly variantSummaries?: readonly (typeof NON_STOCK_SUMMARY)[];
-    readonly vatCodes?: readonly unknown[];
-  }) {
-    return render(GoodsReceiptFormComponent, {
-      providers: [
-        {
-          provide: DocumentCountersService,
-          useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
-        },
-        provideRouter([]),
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            snapshot: { data: {}, queryParamMap: convertToParamMap({}) },
-            paramMap: of(convertToParamMap({})),
-          },
-        },
-        { provide: OperationalLocationsService, useValue: operationalLocationsMock(options) },
-        { provide: AuthService, useValue: { currentUser: () => null } },
-        {
-          provide: DocumentService,
-          useValue: {
-            getDocumentById: vi.fn(),
-            previewDocumentNumber: () =>
-              of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
-            saveGoodsReceipt: vi.fn(),
-            getPriceModePreference: () => of(false),
-          },
-        },
-        // Serie del protocollo: una sola configurata → label statica.
-        { provide: DocumentSettingsService, useValue: { getSettings: () => of([]) } },
-        { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
-        {
-          provide: SupplierService,
-          useValue: { getSuppliers: () => of([]), getVariantLinksBySupplier: () => of([]) },
-        },
-        { provide: SupplierOrderService, useValue: {} },
-        { provide: ProductLabelPrintService, useValue: {} },
-        {
-          provide: ProductService,
-          useValue: {
-            searchVariantSummaries: () => of(options?.variantSummaries ?? []),
-            getSupplierVariantLinks: () => of([]),
-          },
-        },
-        { provide: VatCodeService, useValue: { list: () => of(options?.vatCodes ?? []) } },
-        { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
-        { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
-        {
-          provide: TableViewPreferenceApiService,
-          useValue: { load: () => of(null), save: () => of(undefined) },
-        },
-      ],
-    });
+  async function setup(options?: GoodsReceiptSetupOptions) {
+    return render(GoodsReceiptFormComponent, { providers: goodsReceiptProviders(options) });
   }
 
   // Specifica «sede predefinita»: nessuna autoselezione della location in
@@ -190,24 +199,31 @@ describe('GoodsReceiptFormComponent', () => {
 
   // Gate compilazione: fornitore + magazzino vanno scelti PRIMA delle righe,
   // altrimenti si inserirebbero articoli in un documento "nullo".
-  it('blocca le righe finché fornitore e magazzino non sono selezionati', async () => {
+  // Cambio dichiarato (11/08/2026): a testata incompleta le righe non sono più
+  // «lì, spente a metà tinta» — non ci sono affatto, e al loro posto c'è uno
+  // stato vuoto che dice cosa manca. Il fieldset disabilitato resta comunque,
+  // perché copre anche i comandi della barra strumenti.
+  it('a testata incompleta le righe non ci sono, e lo stato vuoto dice cosa manca', async () => {
     const { fixture } = await setup();
 
-    const input = screen.getAllByLabelText('Nome prodotto')[0]!;
-    expect(input.closest('fieldset[disabled]')).not.toBeNull();
-    expect(screen.getByText(/Seleziona fornitore e magazzino/i)).toBeVisible();
+    expect(screen.queryAllByLabelText('Nome prodotto')).toHaveLength(0);
+    expect(screen.getByText('Scegli il fornitore e il magazzino')).toBeVisible();
 
     fixture.componentInstance.form.controls.supplierId.setValue('sup-1');
     fixture.componentInstance.form.controls.locationId.setValue('loc-1');
     fixture.detectChanges();
 
+    const input = screen.getAllByLabelText('Nome prodotto')[0]!;
     expect(input.closest('fieldset[disabled]')).toBeNull();
-    expect(screen.queryByText(/Seleziona fornitore e magazzino/i)).toBeNull();
+    expect(screen.queryByText('Scegli il fornitore e il magazzino')).toBeNull();
   });
 
   // Dropdown essenziale: solo i suggerimenti dal catalogo (o il messaggio
   // vuoto) — nessuna azione "Crea", nessuna scheda completa, nessun badge.
-  it('dropdown senza risultati: solo il messaggio, nessuna azione extra', async () => {
+  // Decisione 11/08/2026: senza risultati il pannello non si apre, e non dice
+  // niente. Non trovare nulla non è un errore — si continua a compilare la riga
+  // a mano, e la creazione dell'articolo passa da «Completa anagrafica».
+  it('senza risultati il pannello non si apre e non c’è nessun messaggio', async () => {
     const user = userEvent.setup();
     const { fixture } = await setup();
 
@@ -219,9 +235,8 @@ describe('GoodsReceiptFormComponent', () => {
     const input = screen.getAllByLabelText('Nome prodotto')[0];
     await user.type(input!, 'maglia');
 
-    expect(
-      (await screen.findAllByText('Nessun articolo trovato a catalogo.')).length,
-    ).toBeGreaterThan(0);
+    expect(screen.queryByRole('listbox', { name: 'Suggerimenti prodotto' })).toBeNull();
+    expect(screen.queryByText('Nessun articolo trovato a catalogo.')).toBeNull();
     expect(screen.queryByRole('button', { name: /^Crea/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Apri scheda completa…' })).toBeNull();
     expect(screen.queryByText('Nuovo articolo al salvataggio')).toBeNull();
@@ -397,6 +412,188 @@ describe('GoodsReceiptFormComponent', () => {
         linesTotal: { amountMinor: 10000 },
         total: { amountMinor: 10000 },
       });
+    });
+  });
+
+  /**
+   * Il giro del fuoco, innestato sul punto unico. Qui si provano le due cose che
+   * questa maschera ha e le gemelle no: il gancio di cambio riga, e `Ctrl` +
+   * frecce che resta fuori dal contratto.
+   */
+  describe('il giro del fuoco', () => {
+    interface FocusForm {
+      readonly lineFocus: { fieldsOf: (i: number) => readonly string[] };
+      readonly onLineFieldKeydown: (i: number, field: string, e: KeyboardEvent) => void;
+      readonly moveLineDown: (i: number) => void;
+      readonly lines: { length: number };
+    }
+
+    async function apriForm() {
+      const view = await setup();
+      return view.fixture.componentInstance as unknown as FocusForm;
+    }
+
+    // La cella IVA è un `app-select-menu`: `gr-vat-{i}` è nella mappa degli id
+    // ma NON esiste nel DOM. Elencarla farebbe morire il fuoco.
+    it('l’IVA non è nel giro: quella cella non ha un campo su cui atterrare', async () => {
+      const form = await apriForm();
+
+      expect(form.lineFocus.fieldsOf(0)).not.toContain('vat');
+    });
+
+    // ⛔ Ctrl+↑/↓ NON sposta più la riga (11/08/2026, §7.3): esisteva solo qui,
+    // duplicava il trascinamento che ora c'è ovunque, e si scopriva solo col
+    // mouse — cioè da chi poteva già trascinare. La guardia serve perché
+    // «tolto» non torni indietro per inerzia insieme a un'altra modifica.
+    it('Ctrl+↓ non sposta la riga, e il tasto resta al browser', async () => {
+      const form = await apriForm();
+      const spostaGiu = vi.spyOn(
+        form as unknown as { moveLineDown: (i: number) => void },
+        'moveLineDown',
+      );
+      const evento = new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        ctrlKey: true,
+        cancelable: true,
+      });
+
+      form.onLineFieldKeydown(0, 'quantity', evento);
+
+      expect(spostaGiu).not.toHaveBeenCalled();
+      // Non si trattiene un tasto che non si serve: fermarlo senza fare niente
+      // fa sembrare rotta la tastiera.
+      expect(evento.defaultPrevented).toBe(false);
+    });
+
+    // §4.5: Invio non naviga più. Qui cade il caso speciale «Invio su Q.tà con
+    // articolo collegato salta riga», che era metà della vecchia voce 9.
+    it('Invio non crea righe e non naviga', async () => {
+      const form = await apriForm();
+      const righePrima = form.lines.length;
+      const evento = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+
+      form.onLineFieldKeydown(0, 'quantity', evento);
+
+      expect(evento.defaultPrevented).toBe(true);
+      expect(form.lines.length).toBe(righePrima);
+    });
+  });
+
+  /**
+   * Quale codice fornitore finisce nella riga quando si aggancia un articolo.
+   *
+   * Le fonti sono due e vanno in quest'ordine: il codice DIGITATO con cui si è
+   * agganciato, poi quello del collegamento con il fornitore DELLA TESTATA. Non
+   * è una fonte `VariantSummary.supplierSku`: da quando la conferma non filtra
+   * per fornitore, quel campo è il primo collegamento in ordine deterministico
+   * — il codice di un fornitore qualsiasi.
+   */
+  describe('codice fornitore scritto nella riga', () => {
+    interface CodeForm {
+      readonly commitSkuLookup: (index: number) => void;
+      readonly commitSupplierSkuLookup: (index: number) => void;
+      readonly form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      readonly lines: {
+        at: (i: number) => {
+          controls: Record<string, { setValue: (v: unknown) => void; value: string }>;
+        };
+      };
+    }
+
+    /**
+     * `catalogo` risponde alla RICERCA (query con `search`), dove il codice
+     * fornitore restituito è quello che ha fatto scattare la ricerca;
+     * `perVariante` risponde al caricamento per id, dove nessuna ricerca ha
+     * scelto un collegamento e il codice è arbitrario. Mockarle uguali
+     * nasconderebbe il difetto.
+     */
+    async function apri(options: {
+      readonly catalogo: readonly Record<string, unknown>[];
+      readonly perVariante?: readonly Record<string, unknown>[];
+      readonly collegamentiDelFornitore?: readonly Record<string, unknown>[];
+    }) {
+      const view = await render(GoodsReceiptFormComponent, {
+        providers: [
+          ...goodsReceiptProviders(),
+          {
+            provide: SupplierService,
+            useValue: {
+              getSuppliers: () => of([{ id: 'sup-1', name: 'Tessuti Italia' }]),
+              getVariantLinksBySupplier: () => of(options.collegamentiDelFornitore ?? []),
+            },
+          },
+          {
+            provide: ProductService,
+            useValue: {
+              searchVariantSummaries: (query?: { search?: string }) =>
+                of(query?.search ? options.catalogo : (options.perVariante ?? options.catalogo)),
+              findVariantByCode: () => throwError(() => new Error('404')),
+              getSupplierVariantLinks: () => of([]),
+            },
+          },
+        ],
+      });
+      const form = view.fixture.componentInstance as unknown as CodeForm;
+      // La testata sceglie il fornitore: e' cio' che carica i suoi codici.
+      form.form.controls['supplierId']!.setValue('sup-1');
+      return { form, fixture: view.fixture };
+    }
+
+    /**
+     * In questa maschera il codice fornitore lo scrive il RIALLINEAMENTO, non
+     * l'aggancio: assegnare la variante fa ricaricare i riepiloghi, e un effect
+     * riempie i codici. Senza far girare il ciclo il campo resta vuoto e la
+     * prova non misura niente.
+     */
+    async function lasciaGirareIlCiclo(fixture: { detectChanges: () => void }): Promise<void> {
+      for (let giro = 0; giro < 3; giro += 1) {
+        fixture.detectChanges();
+        await Promise.resolve();
+      }
+      fixture.detectChanges();
+    }
+
+    const ARTICOLO = {
+      variantId: 'var-1',
+      productId: 'prod-1',
+      articleCode: 'ART-1',
+      productName: 'Maglietta',
+      title: 'Maglietta',
+      sku: 'MAG-M',
+      sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+    };
+
+    it('agganciando per SKU vale il codice del fornitore della testata, non quello del riepilogo', async () => {
+      const { form, fixture } = await apri({
+        catalogo: [{ ...ARTICOLO, supplierSku: 'F-999' }],
+        collegamentiDelFornitore: [{ variantId: 'var-1', supplierSku: 'F-777' }],
+      });
+      form.lines.at(0).controls['sku']!.setValue('MAG-M');
+
+      form.commitSkuLookup(0);
+      await lasciaGirareIlCiclo(fixture);
+
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+      expect(form.lines.at(0).controls['supplierSku']!.value).toBe('F-777');
+    });
+
+    // Il controllo inverso: senza, la prova qui sopra passerebbe anche se il
+    // codice della testata vincesse SEMPRE, pure su quello appena digitato.
+    // Vale anche come guardia sul riallineamento, che gira su un effect: se
+    // tornasse a sovrascrivere, il codice digitato sparirebbe un istante dopo.
+    it('agganciando da Cod. fornitore resta il codice digitato', async () => {
+      const { form, fixture } = await apri({
+        catalogo: [{ ...ARTICOLO, supplierSku: 'F-100' }],
+        perVariante: [{ ...ARTICOLO, supplierSku: 'F-999' }],
+        collegamentiDelFornitore: [{ variantId: 'var-1', supplierSku: 'F-777' }],
+      });
+      form.lines.at(0).controls['supplierSku']!.setValue('F-100');
+
+      form.commitSupplierSkuLookup(0);
+      await lasciaGirareIlCiclo(fixture);
+
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+      expect(form.lines.at(0).controls['supplierSku']!.value).toBe('F-100');
     });
   });
 });
