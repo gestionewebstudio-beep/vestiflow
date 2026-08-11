@@ -453,6 +453,31 @@ Il documento ha **una sola vista delle righe per volta**: la tabella sugli scher
 
 **Il limite del dominio, accettato:** attraversando la soglia — si ruota un tablet, si ridimensiona una finestra — **il cursore si perde**, perché il campo su cui stava appartiene alla vista che non c'è più. Quello che si è scritto **non si perde**: valori, modifiche non salvate e campi bloccati restano. Si attraversa la soglia ruotando un dispositivo, non lavorando, ed è la ragione per cui il costo è accettabile.
 
+#### Dov'è applicata davvero _(verificato 11/08/2026)_
+
+⚠️ **La regola valeva su tutti i documenti, l'applicazione no.** Fino a oggi il
+gate esisteva **in una maschera su tre**, mentre questo paragrafo la dava per
+chiusa ovunque — ed è il difetto peggiore dei due, perché chi legge la specifica
+non va a verificare. La tabella qui sotto dice cosa c'è, non cosa dovrebbe
+esserci, e va aggiornata insieme al codice.
+
+| Maschera             | Due viste? | Esclusive?                                          |
+| -------------------- | ---------- | --------------------------------------------------- |
+| Ordine cliente       | sì         | ✅ da sempre                                        |
+| Arrivo merce         | sì         | ✅ **dall'11/08/2026**                              |
+| Ordine fornitore     | sì         | ✅ **dall'11/08/2026** (la card mobile è nata oggi) |
+| Trasferimento        | sì         | ❌ **entrambe vive**                                |
+| Rettifica inventario | sì         | ❌ **entrambe vive**                                |
+| Fatture              | no         | — (solo tabella, nessuna card)                      |
+
+Il meccanismo è uno solo e sta in `core/services/viewport.service.ts`: il
+segnale `compact`, letto nel template come `compactView()`. Chi aggiunge una
+vista a card a una maschera lo innesta, altrimenti la sua riga esiste due volte.
+
+**Trasferimento e Rettifica** non usano la card condivisa: hanno un blocco di
+riga proprio dentro `doc-form__cards`, e il loro allineamento è un lavoro a sé —
+prima adottano la card, poi il gate arriva con lei.
+
 ### 4.12 Il pannello dei suggerimenti sul nome prodotto
 
 **[DECISIONE, 11/08/2026 — vale su tutti i documenti a righe articolo]**

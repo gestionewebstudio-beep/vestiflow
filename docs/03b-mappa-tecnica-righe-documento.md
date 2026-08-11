@@ -162,6 +162,28 @@ Altri chiamanti: `commitLineIfSignificant` (bersaglio di tutti i blur di riga), 
 
 **Uso:** la cella codice in tutte e tre le maschere, la cella prodotto solo in Ordine cliente e Arrivo merce. **Ordine fornitore non usa la cella prodotto**: al suo posto ha un `app-select-menu`.
 
+> **La card di riga è una sola** _(11/08/2026)_. Era due — Ordine cliente e
+> Arrivo merce — e **non erano copie**: 47 elementi strutturali contro 24, con
+> **7 nomi in comune**, quasi tutti generici. Due disegni diversi della stessa
+> idea, non una divergenza da fondere; ed è la ragione per cui il commento
+> dentro la card diceva che fonderle avrebbe richiesto una dozzina di flag.
+>
+> La strada presa è stata **adottare la migliore**: la card dell'Ordine cliente
+> è salita a `domain/documents/components/document-line-card/` come **forma**, e
+> ogni documento ci proietta dentro i propri campi attraverso due imbocchi
+> (`cardControls`, `cardBody`) e tre pezzi piccoli (`-control`, `-group`,
+> `-field`). Nessun interruttore è servito, che era la condizione posta.
+>
+> I fogli di stile: Ordine cliente **654 → ~130 righe**, Arrivo merce
+> **184 → ~100**. L'Ordine fornitore, che una card non l'aveva affatto, ne ha
+> una senza scriverne la forma.
+>
+> ⚠️ **Perché i pezzi sono componenti e non classi CSS:** il contenuto proiettato
+> porta l'incapsulamento di **chi lo scrive**, non di chi lo ospita. Una regola
+> nel foglio della card non raggiunge un campo che arriva dalla maschera, e
+> `::ng-deep` per arrivarci è vietato. Sale al livello globale solo la misura dei
+> controlli dentro il campo, accanto alle altre regole di `doc-form__input`.
+
 > **Le celle condivise sono quattro** _(agg. 11/08/2026)_: codice, nome prodotto,
 > ricerca-e-selezione (§4-bis) e unità di misura, che è la terza configurata —
 > testo libero acceso e comando in coda. Il pannello `document-line-suggestions`
