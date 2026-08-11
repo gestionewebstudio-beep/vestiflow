@@ -687,7 +687,10 @@ app-customer-order-form {
   margin-inline-start: auto;
 }
 
-.doc-form__totals-row--field dd {
+// Vedi più sotto: la misura sta sul campo, non sulla cella — altrimenti il
+// pulsante «+ Aggiungi sconto», che nella stessa cella si alterna al campo,
+// sborda.
+.doc-form__totals-row--field dd .doc-form__totals-input {
   inline-size: var(--space-16);
 }
 
@@ -2065,7 +2068,16 @@ app-customer-order-form {
   white-space: nowrap;
 }
 
+// La cella ospita DUE cose che si alternano: il campo percentuale (stretto) e,
+// finché lo sconto non c'è, il pulsante «+ Aggiungi sconto» (largo). Una
+// larghezza fissa andava bene al primo e faceva sbordare il secondo — invisibile
+// finché la casella era stirata, sopra la casella accanto da quando è
+// dimensionata sul contenuto. La misura va al campo, non alla cella.
 .doc-form .doc-form__totals-row--field dd {
+  inline-size: auto;
+}
+
+.doc-form .doc-form__totals-row--field dd .doc-form__totals-input {
   inline-size: var(--space-16);
 }
 

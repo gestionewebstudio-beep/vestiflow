@@ -283,8 +283,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   protected readonly confirmButtonLabel = computed(() => 'Salva');
 
-  protected readonly submitConfirmLabel = computed(() => 'Salva');
-
   protected readonly isConfirmedEdit = computed(() => {
     const doc = this.loadedDocument();
     return doc != null && isConfirmedEditableDocumentStatus(doc.status);

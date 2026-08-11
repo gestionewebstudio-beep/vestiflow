@@ -814,7 +814,7 @@
       <!-- Banda finale: stessa anatomia dell'Ordine cliente — lista etichetta
            a sinistra, valore a destra, totale in evidenza in coda. -->
       <div class="doc-form__footer-grid">
-        <aside class="doc-form__totals-bar" aria-label="Totali ordine">
+        <aside class="doc-form__totals-bar" aria-label="Totali documento">
           <dl class="doc-form__totals">
             <div class="doc-form__totals-row">
               <dt>Imponibile</dt>
@@ -825,7 +825,7 @@
               <dd class="tabular-nums">{{ formatMoney(orderTax()) }}</dd>
             </div>
             <div class="doc-form__totals-row doc-form__totals-row--total">
-              <dt>Totale ordine</dt>
+              <dt>Totale documento</dt>
               <dd class="tabular-nums">
                 <strong>{{ formatMoney(orderTotal()) }}</strong>
               </dd>

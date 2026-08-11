@@ -863,16 +863,10 @@
       </fieldset>
 
       <div class="doc-form__actions">
-        <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
-        @if (isConfirmedEdit()) {
-          <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
-            Salva documento
-          </app-button>
-        } @else {
-          <app-button type="submit" [loading]="saving()" [disabled]="saving()">
-            {{ submitConfirmLabel() }}
-          </app-button>
-        }
+        <app-button type="button" variant="ghost" (click)="cancel()">Chiudi</app-button>
+        <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
+          Salva documento
+        </app-button>
       </div>
 
       <!-- Azioni su mobile/tablet (regole-stile-ui §5): coppia in fondo al
@@ -882,15 +876,9 @@
         <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
           Annulla
         </app-button>
-        @if (isConfirmedEdit()) {
-          <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
-            Salva documento
-          </app-button>
-        } @else {
-          <app-button type="submit" [loading]="saving()" [disabled]="saving()">
-            {{ submitConfirmLabel() }}
-          </app-button>
-        }
+        <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
+          Salva documento
+        </app-button>
       </div>
     </form>
   }

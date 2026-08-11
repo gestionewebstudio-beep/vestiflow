@@ -1697,8 +1697,13 @@
             }
 
             <!-- Mobile: finché non c'è nessuna riga la lista non è vuota e basta,
-                 dice cosa serve per riempirla. -->
-            @if (!mobileRowsVisible()) {
+                 dice cosa serve per riempirla.
+                 ⚠️ `compactView()` non è di contorno: senza, questo blocco e le
+                 azioni qui sotto venivano resi ANCHE su desktop, dove finivano
+                 sopra la fascia note e il riepilogo. È la «vista sola viva» di
+                 §4.11 applicata a ciò che sta intorno alle righe, non solo alle
+                 righe. -->
+            @if (compactView() && !mobileRowsVisible()) {
               <div class="co-lines__empty">
                 <strong>Nessuna riga inserita</strong>
                 <p>
@@ -1711,24 +1716,26 @@
             <!-- Mobile: le due azioni che partono da qui. Le frequenti (cerca e
                  scansiona) stanno nella barra in basso; queste due sono
                  l'articolo fuori catalogo e l'anagrafica nuova. -->
-            <div class="co-lines__actions">
-              <button
-                type="button"
-                class="co-lines__action co-lines__action--empty"
-                (click)="addLineMobile()"
-              >
-                <i class="pi pi-plus" aria-hidden="true"></i>
-                Inserisci riga vuota
-              </button>
-              <button
-                type="button"
-                class="co-lines__action co-lines__action--product"
-                (click)="openNewProduct()"
-              >
-                <i class="pi pi-box" aria-hidden="true"></i>
-                Crea nuovo prodotto
-              </button>
-            </div>
+            @if (compactView()) {
+              <div class="co-lines__actions">
+                <button
+                  type="button"
+                  class="co-lines__action co-lines__action--empty"
+                  (click)="addLineMobile()"
+                >
+                  <i class="pi pi-plus" aria-hidden="true"></i>
+                  Inserisci riga vuota
+                </button>
+                <button
+                  type="button"
+                  class="co-lines__action co-lines__action--product"
+                  (click)="openNewProduct()"
+                >
+                  <i class="pi pi-box" aria-hidden="true"></i>
+                  Crea nuovo prodotto
+                </button>
+              </div>
+            }
           </section>
 
           <!-- Totali sticky in fondo + note documento (stessa banda dell'Arrivo merce). -->
