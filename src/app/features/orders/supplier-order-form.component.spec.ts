@@ -283,6 +283,33 @@ describe('SupplierOrderFormComponent', () => {
     expect(form.productPanelEditProductId()).toBeNull();
   });
 
+  // ⛔ Da quando il nome è modificabile anche a articolo agganciato (11/08/2026),
+  // quel testo è la descrizione di QUESTA riga. Qui si mandava il titolo del
+  // catalogo: il documento si riapriva col nome di prima, senza dire niente.
+  it('il nome cambiato sulla riga agganciata è quello che va al salvataggio', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup({ vatCodes: [VAT_22] });
+    await scegliArticoloSullaRiga(user);
+
+    // L'articolo di prova non ha costo: senza, il salvataggio si ferma prima e
+    // il carico utile non parte nemmeno.
+    const costo = screen.getByPlaceholderText('0,00');
+    await user.clear(costo);
+    await user.type(costo, '12,50');
+
+    const nome = screen.getAllByLabelText('Nome prodotto')[0]!;
+    await user.clear(nome);
+    await user.type(nome, 'Rosso scuro, seconda scelta');
+    await user.click(salvaDocumento());
+
+    // Il finto è dichiarato senza argomenti, quindi TypeScript vede una tupla
+    // vuota: si passa da `unknown[]` per leggere ciò che ha davvero ricevuto.
+    const inviato = (
+      createOrder.mock.calls[0] as unknown as readonly unknown[] | undefined
+    )?.[0] as { readonly lines: readonly { readonly description?: string }[] } | undefined;
+    expect(inviato?.lines[0]?.description).toBe('Rosso scuro, seconda scelta');
+  });
+
   it('il primo clic sull’intestazione chiede conferma invece di riordinare', async () => {
     const user = userEvent.setup();
     await setup();

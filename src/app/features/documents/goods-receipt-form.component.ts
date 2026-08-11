@@ -1193,21 +1193,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * Scollega l'articolo dalla riga (correzione refusi): il nome resta nel
    * campo, di nuovo modificabile insieme ai codici; quantità/costi invariati.
    */
-  protected onLineUnlink(index: number): void {
-    const line = this.lines.at(index);
-    if (!line || this.formReadOnly()) {
-      return;
-    }
-    line.controls.variantId.setValue('');
-    // I codici appartengono all'articolo scollegato: lasciarli farebbe
-    // ri-collegare la riga al blur (o collidere lo SKU alla creazione).
-    line.controls.articleCode.setValue('', { emitEvent: false });
-    line.controls.sku.setValue('', { emitEvent: false });
-    line.controls.barcode.setValue('', { emitEvent: false });
-    this.syncLineFieldAccess();
-    this.focusLineField(index, 'product');
-  }
-
   /**
    * Badge "Nuovo articolo" sulla riga: creazione implicita, basta il nome
    * digitato (≥ 2 caratteri) senza articolo collegato. L'articolo nasce al
@@ -2918,35 +2903,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected openNewProduct(): void {
     this.productPanel.openForNewProduct();
-  }
-
-  protected openProductDetail(index: number): void {
-    const variantId = this.lines.at(index)?.controls.variantId.value;
-    if (!variantId) {
-      return;
-    }
-    this.productService
-      .searchVariantSummaries({ variantId })
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (rows) => {
-          const productId = rows[0]?.productId;
-          if (!productId) {
-            this._submitState.set({
-              status: 'error',
-              error: {
-                kind: AppErrorKind.NotFound,
-                message: 'Prodotto collegato non trovato.',
-              },
-            });
-            return;
-          }
-          this.openProductEditInPanel(index, productId);
-        },
-        error: (err: unknown) => {
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
   }
 
   protected poLineContext(index: number): {

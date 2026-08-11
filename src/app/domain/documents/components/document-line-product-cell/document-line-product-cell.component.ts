@@ -21,8 +21,12 @@ export class DocumentLineProductCellComponent {
   readonly lineIndex = input.required<number>();
   readonly inputId = input('');
   readonly value = input.required<string>();
+  /**
+   * C'è un articolo di catalogo dietro la riga. **Non** cambia la modificabilità
+   * del nome — quella non dipende più da qui (11/08/2026) — decide solo se
+   * esiste un'anagrafica da aprire e se i suggerimenti devono tacere.
+   */
   readonly linked = input(false);
-  readonly linkedLabel = input('');
   readonly disabled = input(false);
   readonly invalid = input(false);
   readonly suggestions = input<readonly VariantSummary[]>([]);
@@ -33,7 +37,6 @@ export class DocumentLineProductCellComponent {
   readonly focused = output<number>();
   readonly blurred = output<number>();
   readonly searchOpen = output<number>();
-  readonly detailOpen = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
   readonly suggestionNavigate = output<'next' | 'prev'>();
   readonly lineAdvance = output<number>();
@@ -41,8 +44,6 @@ export class DocumentLineProductCellComponent {
   readonly lineRetreat = output<number>();
   readonly lineRowAdvance = output<number>();
   readonly lineRowRetreat = output<number>();
-  /** Scollega l'articolo dalla riga: nome e codici tornano modificabili. */
-  readonly unlinkRequest = output<number>();
   readonly escapePressed = output<number>();
 
   protected readonly listboxId = signal(
@@ -64,16 +65,6 @@ export class DocumentLineProductCellComponent {
   protected openSearch(event: Event): void {
     event.stopPropagation();
     this.searchOpen.emit(this.lineIndex());
-  }
-
-  protected openDetail(event: Event): void {
-    event.stopPropagation();
-    this.detailOpen.emit(this.lineIndex());
-  }
-
-  protected requestUnlink(event: Event): void {
-    event.stopPropagation();
-    this.unlinkRequest.emit(this.lineIndex());
   }
 
   /**

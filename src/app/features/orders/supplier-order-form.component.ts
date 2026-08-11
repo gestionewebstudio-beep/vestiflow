@@ -1041,15 +1041,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   }
 
   /** Scollega l'articolo lasciando i codici digitati: la riga torna bozza. */
-  protected onLineUnlink(index: number): void {
-    const line = this.lines.at(index);
-    if (!line) {
-      return;
-    }
-    line.controls.variantId.setValue('');
-    this.markFormDirty();
-  }
-
   /**
    * Prezzi di vendita dell'articolo, in sola lettura.
    *
@@ -1282,17 +1273,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   }
 
   /** «Apri anagrafica» su riga agganciata: la scheda dell'articolo collegato. */
-  protected openProductDetail(index: number): void {
-    const productId = this.lineSummary(index)?.productId;
-    if (!productId) {
-      return;
-    }
-    this.productPanelPrefill.set(null);
-    this.productPanelEditProductId.set(productId);
-    this.productPanelLineIndex.set(index);
-    this.productPanelOpen.set(true);
-  }
-
   /** Tornati dalla scheda: la riga rilegge l'articolo, che può essere cambiato. */
   protected onProductUpdatedFromPanel(): void {
     const index = this.productPanelLineIndex();
@@ -1711,7 +1691,13 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         : toStorableMinor(net);
       return {
         variantId: line.variantId,
-        description: summary?.title || undefined,
+        // Il nome scritto sulla RIGA, non il titolo del catalogo (11/08/2026).
+        // Da quando la cella è modificabile anche ad articolo agganciato, quel
+        // testo è la descrizione di questa riga — mandare il titolo del
+        // catalogo la butterebbe via nell'unico passaggio che doveva
+        // conservarla, e in silenzio: il documento si sarebbe riaperto col nome
+        // di prima. Il catalogo resta il ripiego di una riga senza nome proprio.
+        description: line.productName.trim() || summary?.title || undefined,
         orderedQuantity: Number(line.orderedQuantity),
         enteredUnitCostMinor,
         // La cascata si risolve QUI, una volta: al documento va la percentuale

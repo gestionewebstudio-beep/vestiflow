@@ -1435,7 +1435,6 @@
                               [inputId]="'co-product-' + i"
                               [value]="line.controls.productName.value"
                               [linked]="lineHasLinkedProduct(i)"
-                              [linkedLabel]="linkedProductLabel(i)"
                               [invalid]="lineFieldInvalid(i, 'productName')"
                               [suggestions]="lineSuggestions(i)"
                               [suggestionsOpen]="lineSuggestionsOpen(i)"
@@ -1444,8 +1443,6 @@
                               (focused)="onLineProductFocus(i)"
                               (blurred)="onLineProductBlur(i)"
                               (searchOpen)="openLineProductSearch(i)"
-                              (detailOpen)="openProductDetail(i)"
-                              (unlinkRequest)="onLineUnlink(i)"
                               (suggestionPick)="
                                 onProductSuggestionPick($event.lineIndex, $event.variantId)
                               "

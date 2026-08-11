@@ -3009,19 +3009,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.mobileSuggestAbove.set(viewportBottom - rect.bottom < 272);
   }
 
-  protected onLineUnlink(index: number): void {
-    const line = this.lines.at(index);
-    line.patchValue({
-      variantId: '',
-      articleCode: '',
-      sku: '',
-      barcode: '',
-      productName: '',
-      unitOfMeasure: '',
-    });
-    this.markFormDirty();
-  }
-
   // ── Celle codice (Cod. articolo / SKU / EAN): lookup esatto alla conferma ──
   //
   // Il campo codice NON cerca mentre si digita: si confronta col catalogo alla
@@ -3385,32 +3372,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /** Riga già collegata: apre la scheda del prodotto in modifica nel pannello. */
-  protected openProductDetail(index: number): void {
-    const variantId = this.lines.at(index)?.controls.variantId.value;
-    if (!variantId) {
-      return;
-    }
-    this.productService
-      .searchVariantSummaries({ variantId })
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (rows) => {
-          const productId = rows[0]?.productId;
-          if (!productId) {
-            this._submitState.set({
-              status: 'error',
-              error: { kind: AppErrorKind.NotFound, message: 'Prodotto collegato non trovato.' },
-            });
-            return;
-          }
-          this.productPanel.openForEdit(index, productId);
-        },
-        error: (err: unknown) => {
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
-  }
-
   protected closeProductPanel(): void {
     this.productPanel.close();
   }
