@@ -99,7 +99,7 @@
                     (valueChange)="onCustomerSelect($event)"
                   />
                   @if (fieldInvalid('customerId')) {
-                    <p id="sd-m-customer-error" class="doc-form__error">Seleziona un cliente.</p>
+                    <p id="sd-m-customer-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                   @if (customerCommercialHint(); as hint) {
                     <p class="doc-panel__helper" role="note">{{ hint }}</p>
@@ -275,7 +275,7 @@
                 (valueChange)="onCustomerSelect($event)"
               />
               @if (fieldInvalid('customerId')) {
-                <p id="sd-customer-error" class="doc-form__error">Seleziona un cliente.</p>
+                <p id="sd-customer-error" class="doc-form__error">Campo obbligatorio.</p>
               }
               @if (customerCommercialHint(); as hint) {
                 <p class="doc-form__hint" role="note">{{ hint }}</p>

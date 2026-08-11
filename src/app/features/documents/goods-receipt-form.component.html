@@ -192,7 +192,7 @@
                     (valueChange)="onSupplierSelect($event)"
                   />
                   @if (fieldInvalid('supplierId')) {
-                    <p id="gr-m-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
+                    <p id="gr-m-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                   @if (form.controls.supplierId.value) {
                     <button
@@ -229,7 +229,7 @@
                     </p>
                   }
                   @if (fieldInvalid('locationId')) {
-                    <p id="gr-m-location-error" class="doc-form__error">Seleziona la location.</p>
+                    <p id="gr-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                   @if (suggestedLocation(); as suggested) {
                     @if (!form.controls.locationId.value && !formReadOnly()) {
@@ -376,7 +376,7 @@
                 (valueChange)="onSupplierSelect($event)"
               />
               @if (fieldInvalid('supplierId')) {
-                <p id="gr-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
+                <p id="gr-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
               }
               <!-- Scorciatoie sulla stessa riga, come nel riferimento. -->
               <div class="doc-form__inline-links">
@@ -433,7 +433,7 @@
                 </p>
               }
               @if (fieldInvalid('locationId')) {
-                <p id="gr-location-error" class="doc-form__error">Seleziona la location.</p>
+                <p id="gr-location-error" class="doc-form__error">Campo obbligatorio.</p>
               }
               @if (suggestedLocation(); as suggested) {
                 @if (!form.controls.locationId.value && !formReadOnly()) {

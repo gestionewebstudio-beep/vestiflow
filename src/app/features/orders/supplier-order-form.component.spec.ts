@@ -212,7 +212,10 @@ describe('SupplierOrderFormComponent', () => {
 
     await user.click(salvaDocumento());
 
-    expect(await screen.findByText('Seleziona un fornitore.')).toBeVisible();
+    // Il messaggio non ripete più il segnaposto del campo («Seleziona un
+    // fornitore…»), che al submit rifiutato si tinge già di rosso: dirlo due
+    // volte a quaranta pixel di distanza non aggiungeva niente.
+    expect(await screen.findByText('Campo obbligatorio.')).toBeVisible();
   });
 
   // Prima la testata, come nelle altre due maschere. Qui la ragione non è

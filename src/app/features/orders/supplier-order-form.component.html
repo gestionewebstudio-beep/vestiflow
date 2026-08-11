@@ -153,7 +153,7 @@
               (valueChange)="onSupplierSelect($event)"
             />
             @if (fieldInvalid('supplierId')) {
-              <p id="po-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
+              <p id="po-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
             }
             <button type="button" class="doc-form__inline-toggle" (click)="toggleSupplierForm()">
               <i
@@ -672,7 +672,7 @@
                             (escapePressed)="onLineSearchEscape(i)"
                           />
                           @if (lineFieldInvalid(i, 'variantId')) {
-                            <p class="doc-form__error">Seleziona l'articolo.</p>
+                            <p class="doc-form__error">Campo obbligatorio.</p>
                           }
                         </td>
                       }

@@ -80,9 +80,7 @@
                     (valueChange)="onOriginSelect($event)"
                   />
                   @if (fieldInvalid('locationId')) {
-                    <p id="tr-m-origin-error" class="doc-form__error">
-                      Seleziona la location di origine.
-                    </p>
+                    <p id="tr-m-origin-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                 </div>
 
@@ -99,9 +97,7 @@
                     (valueChange)="onTargetSelect($event)"
                   />
                   @if (fieldInvalid('targetLocationId')) {
-                    <p id="tr-m-target-error" class="doc-form__error">
-                      Seleziona la location di destinazione.
-                    </p>
+                    <p id="tr-m-target-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                 </div>
 
@@ -153,9 +149,7 @@
                   (valueChange)="onOriginSelect($event)"
                 />
                 @if (fieldInvalid('locationId')) {
-                  <p id="tr-origin-error" class="doc-form__error">
-                    Seleziona la location di origine.
-                  </p>
+                  <p id="tr-origin-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
               </div>
 
@@ -173,9 +167,7 @@
                   (valueChange)="onTargetSelect($event)"
                 />
                 @if (fieldInvalid('targetLocationId')) {
-                  <p id="tr-target-error" class="doc-form__error">
-                    Seleziona la location di destinazione.
-                  </p>
+                  <p id="tr-target-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
               </div>
 
@@ -255,7 +247,7 @@
                         (valueChange)="onVariantSelect(i, $event)"
                       />
                       @if (lineFieldInvalid(i, 'variantId')) {
-                        <p class="doc-form__error">Seleziona una variante.</p>
+                        <p class="doc-form__error">Campo obbligatorio.</p>
                       }
                     </td>
                     <td class="doc-form__cell doc-form__cell--editable">
@@ -327,7 +319,7 @@
                       (valueChange)="onVariantSelect(i, $event)"
                     />
                     @if (lineFieldInvalid(i, 'variantId')) {
-                      <p class="doc-form__error">Seleziona una variante.</p>
+                      <p class="doc-form__error">Campo obbligatorio.</p>
                     }
                   </div>
 

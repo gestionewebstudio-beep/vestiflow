@@ -282,7 +282,7 @@
                   />
 
                   @if (!isManualUnload && fieldInvalid('customerId')) {
-                    <p id="co-m-customer-error" class="doc-form__error">Seleziona un cliente.</p>
+                    <p id="co-m-customer-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                   @if (isManualUnload && !form.controls.customerId.value) {
                     <!-- Cliente digitato liberamente (prompt Scarico manuale):
@@ -333,7 +333,7 @@
                     </p>
                   }
                   @if (fieldInvalid('locationId')) {
-                    <p id="co-m-location-error" class="doc-form__error">Seleziona la location.</p>
+                    <p id="co-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                 </div>
               </div>
@@ -521,7 +521,7 @@
                   (valueChange)="onCustomerSelect($event)"
                 />
                 @if (!isManualUnload && fieldInvalid('customerId')) {
-                  <p id="co-customer-error" class="doc-form__error">Seleziona un cliente.</p>
+                  <p id="co-customer-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
                 @if (isManualUnload && !form.controls.customerId.value) {
                   <!-- Cliente digitato liberamente (prompt Scarico manuale):
@@ -592,7 +592,7 @@
                   </p>
                 }
                 @if (fieldInvalid('locationId')) {
-                  <p id="co-location-error" class="doc-form__error">Seleziona la location.</p>
+                  <p id="co-location-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
               </div>
 
