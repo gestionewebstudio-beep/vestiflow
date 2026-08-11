@@ -1362,23 +1362,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       this.canGenerateDocuments() ||
       (this.isOrder && this.loadedOrder() != null),
   );
-  /** Sconto extra: input dietro «+ Aggiungi sconto» finché è vuoto. */
-  protected readonly showDocDiscountField = signal(false);
-  protected readonly docDiscountActive = computed(() => {
-    this.formValue();
-    return this.showDocDiscountField() || !!this.form.controls.documentDiscountPercent.value.trim();
-  });
-
   protected toggleHeaderMenu(): void {
     this.headerMenuOpen.update((open) => !open);
   }
 
   protected closeHeaderMenu(): void {
     this.headerMenuOpen.set(false);
-  }
-
-  protected revealDocDiscount(): void {
-    this.showDocDiscountField.set(true);
   }
 
   /** Porta in vista la sezione Allegati (in fondo alla pagina su mobile). */

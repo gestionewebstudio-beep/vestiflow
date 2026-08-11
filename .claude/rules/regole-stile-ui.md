@@ -581,7 +581,7 @@ Vale su **tutte** le viste: desktop e mobile mostrano lo stesso stato vuoto, con
 **Mobile e tablet.** Sezione finale del documento (dopo le righe e le note), non sticky. Lista verticale con label a sinistra e valore a destra:
 
 - Subtotale
-- Sconto extra (con link "Aggiungi sconto" se non valorizzato)
+- Sconto extra — **campo sempre visibile**, che mostra `0%` quando non c'è. Non un pulsante che lo riveli: il pulsante nasconde uno stato, e guardando il riepilogo non si saprebbe se lo sconto è zero o se il campo è chiuso. Un campo che mostra 0% dice entrambe le cose senza chiedere niente, e costa un clic in meno _(deciso 08/2026)_
 - IVA
 - **Totale documento** più marcato, 20px weight 700, valore in colore `--color-primary`
 

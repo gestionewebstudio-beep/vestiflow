@@ -1756,26 +1756,22 @@
                     <label for="co-doc-discount">Sconto extra</label>
                   </dt>
                   <dd>
-                    <!-- A scomparsa dietro «+ Aggiungi sconto» finché è vuoto:
-                         il control resta nel form, cambia solo la vista. -->
-                    @if (docDiscountActive()) {
-                      <input
-                        id="co-doc-discount"
-                        class="doc-form__input doc-form__input--num doc-form__totals-input"
-                        type="text"
-                        formControlName="documentDiscountPercent"
-                        placeholder="0%"
-                        aria-label="Sconto extra documento"
-                      />
-                    } @else {
-                      <button
-                        type="button"
-                        class="co-form__add-discount"
-                        (click)="revealDocDiscount()"
-                      >
-                        + Aggiungi sconto
-                      </button>
-                    }
+                    <!-- Campo sempre visibile, come in ogni altro documento.
+                         Stava dietro un «+ Aggiungi sconto», e il pulsante
+                         nascondeva uno stato: guardando la riga non si sapeva se
+                         lo sconto fosse zero o se il campo fosse chiuso. Un
+                         campo che mostra 0% dice entrambe le cose senza chiedere
+                         niente, e costa un clic in meno. Il pulsante si
+                         giustificherebbe se guadagnasse spazio, ma la casella
+                         nel riepilogo c'è comunque. -->
+                    <input
+                      id="co-doc-discount"
+                      class="doc-form__input doc-form__input--num doc-form__totals-input"
+                      type="text"
+                      formControlName="documentDiscountPercent"
+                      placeholder="0%"
+                      aria-label="Sconto extra documento"
+                    />
                   </dd>
                 </div>
                 @if (documentTotals().documentDiscount.amountMinor > 0) {
