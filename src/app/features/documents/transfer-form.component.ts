@@ -77,6 +77,11 @@ import { DocumentCountersService } from '@domain/documents/services/document-cou
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
+import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
+import {
+  sortByLineValue,
+  type DocumentLineSortKind,
+} from '@domain/documents/utils/document-line-sort.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -94,6 +99,15 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
   }
   return null;
 }
+
+/** Colonne del Trasferimento su cui si può ordinare le righe (§7.1). */
+export type TransferLineSortColumn = 'sku' | 'description' | 'quantity';
+
+const TRANSFER_SORTABLE_LINE_COLUMNS: readonly TransferLineSortColumn[] = [
+  'sku',
+  'description',
+  'quantity',
+];
 
 @Component({
   selector: 'app-transfer-form',
@@ -206,6 +220,72 @@ export class TransferFormComponent implements CanComponentDeactivate {
 
   protected readonly listPath = '/app/documents';
   protected readonly currency = DEFAULT_CURRENCY;
+
+  /**
+   * Riordino righe e avviso: stato e regole in `domain/`. Qui resta solo quali
+   * colonne e come si legge il loro valore.
+   *
+   * Un trasferimento «e' un documento breve» era la ragione per cui era stato
+   * lasciato fuori: e' una previsione sull'uso, non una proprieta' del
+   * documento — a fine stagione fra due magazzini le righe sono trenta.
+   */
+  protected readonly lineSort = new DocumentLineSortStore<TransferLineSortColumn>();
+
+  private readonly lineSortKinds: Readonly<Record<TransferLineSortColumn, DocumentLineSortKind>> = {
+    sku: 'text',
+    description: 'text',
+    quantity: 'number',
+  };
+
+  protected isLineColumnSortable(columnId: string): boolean {
+    return (TRANSFER_SORTABLE_LINE_COLUMNS as readonly string[]).includes(columnId);
+  }
+
+  protected toggleLineSort(columnId: TransferLineSortColumn): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    if (this.lineSort.request(columnId)) {
+      this.applyLineSort();
+    }
+  }
+
+  protected confirmLineSort(): void {
+    if (this.lineSort.confirm() !== null) {
+      this.applyLineSort();
+    }
+  }
+
+  protected lineSortAriaLabel(columnId: TransferLineSortColumn, label: string): string {
+    if (this.lineSort.column() !== columnId) {
+      return `Ordina per ${label}`;
+    }
+    return this.lineSort.direction() === 'asc'
+      ? `${label}: ordinamento crescente`
+      : `${label}: ordinamento decrescente`;
+  }
+
+  private applyLineSort(): void {
+    const column = this.lineSort.column();
+    if (!column || this.lines.length <= 1) {
+      return;
+    }
+    const controls = sortByLineValue(
+      this.lines.controls,
+      (control) => {
+        const raw = control.getRawValue();
+        return column === 'quantity' ? Number(raw.quantity) || 0 : raw[column];
+      },
+      this.lineSortKinds[column],
+      this.lineSort.direction(),
+      this.currency,
+    );
+    this.lines.clear();
+    for (const control of controls) {
+      this.lines.push(control);
+    }
+    this.markFormDirty();
+  }
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
@@ -406,6 +486,8 @@ export class TransferFormComponent implements CanComponentDeactivate {
             // Confermato → si riapre bloccato (salvo sblocco già dato in sessione).
             this.editLock.syncOnLoad(doc.id);
             this.patchFormFromDocument(doc);
+            // Un altro documento e' un'altra storia: l'avviso torna dovuto.
+            this.lineSort.reset();
             return 'ready' as const;
           }),
           startWith<'ready' | 'loading' | 'not-found' | 'error'>('loading'),

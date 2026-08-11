@@ -219,9 +219,60 @@
             <table class="doc-form__table">
               <thead>
                 <tr>
-                  <th scope="col">Variante / SKU</th>
-                  <th scope="col">Descrizione</th>
-                  <th scope="col" class="doc-form__num">Quantità</th>
+                  <th scope="col">
+                    <button
+                      type="button"
+                      class="doc-form__th-sort"
+                      [attr.aria-label]="lineSortAriaLabel('sku', 'Variante / SKU')"
+                      (click)="toggleLineSort('sku')"
+                    >
+                      Variante / SKU
+                      @if (lineSort.column() === 'sku') {
+                        <i
+                          class="pi"
+                          [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                          [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                          aria-hidden="true"
+                        ></i>
+                      }
+                    </button>
+                  </th>
+                  <th scope="col">
+                    <button
+                      type="button"
+                      class="doc-form__th-sort"
+                      [attr.aria-label]="lineSortAriaLabel('description', 'Descrizione')"
+                      (click)="toggleLineSort('description')"
+                    >
+                      Descrizione
+                      @if (lineSort.column() === 'description') {
+                        <i
+                          class="pi"
+                          [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                          [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                          aria-hidden="true"
+                        ></i>
+                      }
+                    </button>
+                  </th>
+                  <th scope="col" class="doc-form__num">
+                    <button
+                      type="button"
+                      class="doc-form__th-sort"
+                      [attr.aria-label]="lineSortAriaLabel('quantity', 'Quantità')"
+                      (click)="toggleLineSort('quantity')"
+                    >
+                      Quantità
+                      @if (lineSort.column() === 'quantity') {
+                        <i
+                          class="pi"
+                          [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                          [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                          aria-hidden="true"
+                        ></i>
+                      }
+                    </button>
+                  </th>
                   <th scope="col">Seriali</th>
                   <th scope="col" class="doc-form__cell--actions">
                     <span class="sr-only">Azioni</span>
@@ -435,6 +486,16 @@
       }
     </form>
   }
+
+  <!-- Avviso del primo riordino, una volta per documento (specifica §7.1). -->
+  <app-confirm-dialog
+    [open]="lineSort.confirmOpen()"
+    title="Riordino righe"
+    message="L'ordine di inserimento non è registrato da nessuna parte: salvando, non sarà più ricostruibile. Fino al salvataggio puoi chiudere il documento senza salvare per ritrovarlo com'era."
+    confirmLabel="Riordina"
+    (confirmed)="confirmLineSort()"
+    (dismissed)="lineSort.dismiss()"
+  />
 
   <app-confirm-dialog
     [(open)]="confirmDialogOpen"
