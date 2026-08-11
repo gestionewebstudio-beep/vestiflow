@@ -250,6 +250,13 @@
                     <span class="doc-panel__label" id="co-m-customer-label">
                       {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
                     </span>
+                    <!--
+                      I due comandi stanno insieme sulla riga dell'etichetta.
+                      «Scheda cliente» stava sotto il campo, e da lì spingeva in
+                      basso tutto il resto del pannello per un collegamento che
+                      si usa di rado: in alto costa zero altezza, ed è accanto
+                      al nome a cui si riferisce.
+                    -->
                     <button
                       type="button"
                       class="doc-panel__field-action"
@@ -263,6 +270,16 @@
                       ></i>
                       {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
                     </button>
+                    @if (form.controls.customerId.value) {
+                      <button
+                        type="button"
+                        class="doc-panel__field-action"
+                        (click)="openCustomerDetail()"
+                      >
+                        <i class="pi pi-external-link" aria-hidden="true"></i>
+                        Scheda cliente
+                      </button>
+                    }
                   </div>
 
                   <app-select-menu
@@ -295,16 +312,6 @@
                       aria-label="Cliente a testo libero (solo stampa)"
                       autocomplete="off"
                     />
-                  }
-                  @if (form.controls.customerId.value) {
-                    <button
-                      type="button"
-                      class="doc-panel__field-action"
-                      (click)="openCustomerDetail()"
-                    >
-                      <i class="pi pi-external-link" aria-hidden="true"></i>
-                      Scheda cliente
-                    </button>
                   }
                 </div>
 
