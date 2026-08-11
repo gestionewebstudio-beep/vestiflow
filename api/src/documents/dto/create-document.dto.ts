@@ -178,6 +178,11 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @IsISO8601()
   externalDocDate?: string;
 
+  /** Tipo del documento della controparte (tabella per tenant, estendibile). */
+  @IsOptional()
+  @IsUUID()
+  externalDocumentTypeId?: string;
+
   @IsOptional()
   @IsUUID()
   sourceDocumentId?: string;

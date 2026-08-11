@@ -5,7 +5,10 @@ import { APP_CONFIG } from '@core/config/app-config.token';
 import { ApiHttpClient } from '@core/http/api-http.client';
 import type { EntityId } from '@core/models/common.model';
 
-import type { ExternalDocumentType } from '../models/external-document-type.model';
+import type {
+  ExternalDocumentType,
+  ExternalDocumentTypeUsage,
+} from '@domain/documents/models/external-document-type.model';
 
 const HTTP_TIMEOUT_MS = 15000;
 
@@ -74,6 +77,22 @@ export class ExternalDocumentTypeService {
       );
   }
 
+  /**
+   * Quanti documenti portano il tipo. Si chiede solo quando l'operatore preme
+   * il cestino: la lista si carica a ogni apertura di maschera, questo conteggio
+   * no.
+   */
+  usage(id: EntityId): Observable<ExternalDocumentTypeUsage> {
+    return this.http
+      .get<ExternalDocumentTypeUsage>(this.url(`/${id}/usage`))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /**
+   * Elimina il tipo. Se non l'ha mai usato nessuno sparisce; se invece qualche
+   * documento lo porta, l'API lo conserva e i documenti storici continuano a
+   * mostrarlo — di qui non si vede la differenza, ed e' voluto.
+   */
   delete(id: EntityId): Observable<void> {
     return this.http.delete<void>(this.url(`/${id}`)).pipe(timeout(HTTP_TIMEOUT_MS));
   }

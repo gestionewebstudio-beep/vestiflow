@@ -76,6 +76,23 @@ export interface SupplierOrder extends TenantScoped, Timestamped {
   readonly orderDate: IsoDateString;
   /** "Rif. ordine fornitore": riferimento libero comunicato dal fornitore. */
   readonly supplierReference?: string;
+  // ── Documento della controparte ─────────────────────────────────────────
+  //
+  // Tipo, numero e data del documento che l'ALTRA parte ha emesso — qui la
+  // conferma d'ordine del fornitore. È un'altra cosa da `supplierReference`,
+  // che resta il riferimento libero: questo è un documento, con un tipo scelto
+  // dall'elenco del tenant e una data propria.
+  /** Numero del documento emesso dal fornitore (es. «145»). */
+  readonly externalDocNumber?: string;
+  /** Data del documento del fornitore (solo giorno). */
+  readonly externalDocDate?: IsoDateString;
+  readonly externalDocumentTypeId?: EntityId;
+  /**
+   * Etichetta del tipo fotografata al salvataggio. Un tipo può essere
+   * eliminato: lo snapshot è ciò che tiene leggibile la dicitura sull'ordine
+   * quando l'elenco non la porta più.
+   */
+  readonly externalDocumentTypeSnapshot?: string;
   readonly lines: readonly SupplierOrderLine[];
   /** Presente in lista: conteggio righe senza caricare il payload completo. */
   readonly lineCount?: number;

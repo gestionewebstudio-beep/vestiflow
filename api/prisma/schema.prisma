@@ -1018,6 +1018,15 @@ model SupplierOrder {
   orderDate             DateTime            @default(now()) @map("order_date")
   /// "Rif. ordine fornitore": riferimento libero comunicato dal fornitore.
   supplierReference     String?             @map("supplier_reference")
+  // ── Documento della controparte (la conferma d'ordine del fornitore) ──
+  /// Numero del documento della controparte.
+  externalDocNumber     String?             @map("external_doc_number")
+  /// Data del documento della controparte (solo giorno).
+  externalDocDate       DateTime?           @map("external_doc_date") @db.Date
+  /// Tipo documento della controparte (tabella per tenant, estendibile).
+  externalDocumentTypeId String?            @map("external_document_type_id") @db.Uuid
+  /// Snapshot etichetta breve del tipo al salvataggio (storico stabile).
+  externalDocumentTypeSnapshot String?       @map("external_document_type_snapshot")
   subtotalMinor         Int                 @default(0) @map("subtotal_minor")
   taxMinor              Int                 @default(0) @map("tax_minor")
   totalMinor            Int                 @default(0) @map("total_minor")
@@ -1028,6 +1037,7 @@ model SupplierOrder {
   tenant              Tenant              @relation(fields: [tenantId], references: [id])
   supplier            Supplier            @relation(fields: [supplierId], references: [id])
   destinationLocation Location?           @relation(fields: [destinationLocationId], references: [id])
+  externalDocumentType ExternalDocumentType? @relation(fields: [externalDocumentTypeId], references: [id], onDelete: SetNull)
   lines               SupplierOrderLine[]
   documents           Document[]
 
@@ -1173,6 +1183,16 @@ model SalesOrder {
   locationId        String?                     @map("location_id") @db.Uuid
   /// Rif. ordine cliente esterno (testo libero, es. numero d'ordine del cliente).
   externalRef       String?                     @map("external_ref")
+  // ── Documento della controparte (l'ordine emesso dal cliente) ──
+  /// Numero del documento della controparte.
+  externalDocNumber String?                     @map("external_doc_number")
+  /// Data del documento della controparte (solo giorno).
+  externalDocDate   DateTime?                   @map("external_doc_date") @db.Date
+  /// Tipo documento della controparte (tabella per tenant, estendibile).
+  externalDocumentTypeId String?                @map("external_document_type_id") @db.Uuid
+  /// Snapshot etichetta breve del tipo al salvataggio (storico stabile: il tipo
+  /// puo' essere eliminato, l'etichetta scritta sull'ordine no).
+  externalDocumentTypeSnapshot String?          @map("external_document_type_snapshot")
   /// Data prevista consegna (solo giorno).
   expectedDeliveryDate DateTime?                @map("expected_delivery_date") @db.Date
   /// Note documento.
@@ -1203,6 +1223,7 @@ model SalesOrder {
   customer     Customer?          @relation(fields: [customerId], references: [id])
   document     Document?          @relation(fields: [documentId], references: [id], onDelete: SetNull)
   location     Location?          @relation(fields: [locationId], references: [id])
+  externalDocumentType ExternalDocumentType? @relation(fields: [externalDocumentTypeId], references: [id], onDelete: SetNull)
   lines        SalesOrderLine[]
   reservations StockReservation[]
   orderEvents  OnlineOrderEvent[]
@@ -2118,11 +2139,19 @@ model ExternalDocumentType {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  tenant    Tenant               @relation(fields: [tenantId], references: [id])
-  documents Document[]
-  causals   GoodsReceiptCausal[]
+  tenant         Tenant               @relation(fields: [tenantId], references: [id])
+  documents      Document[]
+  causals        GoodsReceiptCausal[]
+  salesOrders    SalesOrder[]
+  supplierOrders SupplierOrder[]
 
-  @@unique([tenantId, name])
+  // Il nome e' univoco per tenant SOLO fra i tipi vivi: un tipo eliminato
+  // (deleted_at valorizzato) resta in tabella per lo storico ma libera il
+  // proprio nome. E' un indice parziale `WHERE deleted_at IS NULL`, che Prisma
+  // non sa esprimere: vive nella migration 20260810120000, in due forme —
+  // esatta e case-insensitive. Niente `@@unique` qui, o il prossimo
+  // `migrate diff` rimetterebbe l'indice totale e il soft-delete smetterebbe
+  // di permettere di ricreare un tipo con lo stesso nome.
   @@index([tenantId, sortOrder])
   @@map("external_document_types")
 }

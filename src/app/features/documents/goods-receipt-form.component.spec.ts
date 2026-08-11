@@ -1,12 +1,17 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
+import { fireEvent, render, screen, waitFor } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
+import { DocumentType } from '@core/models/document.model';
+import type { DocumentRecord } from '@core/models/document.model';
+import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
+import type { SaveGoodsReceiptBody } from '@domain/documents/services/document-api.mapper';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
+import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { ProductService } from '@domain/products/services/product.service';
 import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
@@ -19,7 +24,7 @@ import { GoodsReceiptFormComponent } from './goods-receipt-form.component';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentSettingsService } from './services/document-settings.service';
-import { ExternalDocumentTypeService } from './services/external-document-type.service';
+import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 
 const MILANO = { id: 'loc-1', name: 'Milano' };
 const ROMA = { id: 'loc-2', name: 'Roma' };
@@ -45,6 +50,18 @@ function operationalLocationsMock(options?: {
   };
 }
 
+/** Numerazione predefinita: all'apertura della maschera il primo libero è 42. */
+const COUNTER: DocumentCounterView = {
+  id: 'cnt-1',
+  type: DocumentType.GoodsReceipt,
+  series: null,
+  locationId: null,
+  locationName: null,
+  isDefault: true,
+  nextNumber: 42,
+  documentCount: 41,
+};
+
 const NON_STOCK_SUMMARY = {
   variantId: 'var-nostock',
   productId: 'prod-nostock',
@@ -66,14 +83,37 @@ describe('GoodsReceiptFormComponent', () => {
     readonly defaultLocation?: { id: string; name: string } | null;
     readonly variantSummaries?: readonly (typeof NON_STOCK_SUMMARY)[];
     readonly vatCodes?: readonly unknown[];
+    /** Contatori restituiti da GET /document-counters: alimentano la proposta. */
+    readonly counters?: readonly DocumentCounterView[];
+    /** Protocollo che il server assegna davvero al salvataggio. */
+    readonly assignedNumber?: number;
   }) {
-    return render(GoodsReceiptFormComponent, {
+    const counters = options?.counters ?? [];
+    const showInfo = vi.fn();
+    // Del documento salvato la maschera legge il numero assegnato: è il
+    // confronto con quello mostrato che decide se avvisare l'operatore.
+    const saveGoodsReceipt = vi.fn((_body: SaveGoodsReceiptBody) =>
+      of({
+        document: {
+          id: 'gr-1',
+          number: options?.assignedNumber ?? 1,
+        } as unknown as DocumentRecord,
+        warnings: [] as readonly string[],
+        createdProducts: [],
+      }),
+    );
+
+    const result = await render(GoodsReceiptFormComponent, {
       providers: [
         {
           provide: DocumentCountersService,
-          useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+          useValue: {
+            available: () => of({ counters, proposedCounterId: counters[0]?.id ?? null }),
+          },
         },
-        provideRouter([]),
+        // Rotta jolly: creato il documento la maschera passa a /:id/edit, e una
+        // navigazione senza rotte da agganciare fallirebbe in modo rumoroso.
+        provideRouter([{ path: '**', children: [] }]),
         {
           provide: ActivatedRoute,
           useValue: {
@@ -89,10 +129,11 @@ describe('GoodsReceiptFormComponent', () => {
             getDocumentById: vi.fn(),
             previewDocumentNumber: () =>
               of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
-            saveGoodsReceipt: vi.fn(),
+            saveGoodsReceipt,
             getPriceModePreference: () => of(false),
           },
         },
+        { provide: ToastService, useValue: { showInfo, showError: vi.fn() } },
         // Serie del protocollo: una sola configurata → label statica.
         { provide: DocumentSettingsService, useValue: { getSettings: () => of([]) } },
         { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
@@ -118,6 +159,14 @@ describe('GoodsReceiptFormComponent', () => {
         },
       ],
     });
+
+    return Object.assign(result, { saveGoodsReceipt, showInfo });
+  }
+
+  /** Il campo Protocollo vive in due viste (mobile + desktop): stesso controllo. */
+  async function protocolInput(): Promise<HTMLInputElement> {
+    const inputs = await screen.findAllByLabelText<HTMLInputElement>('Protocollo');
+    return inputs[0]!;
   }
 
   // Specifica «sede predefinita»: nessuna autoselezione della location in
@@ -241,6 +290,85 @@ describe('GoodsReceiptFormComponent', () => {
     const line = component['lines'].at(0);
     expect(line.controls.loadsStock.value).toBe(false);
     expect(line.controls.loadsStock.disabled).toBe(true);
+  });
+
+  // ── Il protocollo proposto non torna al server come imposizione ─────────────
+  //
+  // Il numero che la maschera mostra all'apertura è il primo libero: una
+  // proposta, non una scelta. Rimandarlo al salvataggio lo trasformava in
+  // un'imposizione, e il secondo operatore si prendeva un dialogo di conflitto
+  // per un numero che non aveva mai digitato — glielo aveva scritto la maschera.
+  it('non manda il protocollo proposto: lo assegna il server', async () => {
+    const { fixture } = await setup({ counters: [COUNTER] });
+    const component = fixture.componentInstance;
+
+    await waitFor(() => expect(component.form.controls.protocolNumber.value).toBe(42));
+    const input = await protocolInput();
+    await waitFor(() => expect(input.value).toBe('42'));
+
+    expect(component['buildSaveGoodsReceiptBody']().number).toBeUndefined();
+  });
+
+  // Il numero digitato a mano resta una scelta dell'operatore, e va difesa: si
+  // manda, e se è occupato il dialogo di conflitto ha qualcosa da dire.
+  //
+  // `fireEvent` e non `userEvent`: il campo Protocollo esiste in due viste e su
+  // quella non attiva il CSS lo nasconde — la digitazione simulata rifiuterebbe
+  // di interagirci. L'evento `input` è comunque quello che il campo ascolta.
+  it('manda il protocollo digitato dall’operatore', async () => {
+    const { fixture } = await setup({ counters: [COUNTER] });
+    const component = fixture.componentInstance;
+
+    // Gate compilazione: senza fornitore e magazzino la testata è disabilitata.
+    component.form.controls.supplierId.setValue('sup-1');
+    component.form.controls.locationId.setValue('loc-1');
+    fixture.detectChanges();
+
+    const input = await protocolInput();
+    fireEvent.input(input, { target: { value: '77' } });
+
+    expect(component.form.controls.protocolNumber.value).toBe(77);
+    expect(component['buildSaveGoodsReceiptBody']().number).toBe(77);
+  });
+
+  // Numero proposto e numero assegnato possono divergere: fra l'apertura e il
+  // salvataggio un altro operatore può aver preso il 42. Non è un errore, ma chi
+  // l'aveva già trascritto su carta deve sapere di avere il numero sbagliato.
+  it('avvisa quando il server assegna un protocollo diverso da quello proposto', async () => {
+    const { fixture, saveGoodsReceipt, showInfo } = await setup({
+      counters: [COUNTER],
+      assignedNumber: 46,
+    });
+    const component = fixture.componentInstance;
+
+    await waitFor(() => expect(component.form.controls.protocolNumber.value).toBe(42));
+    component.form.controls.supplierId.setValue('sup-1');
+    component.form.controls.locationId.setValue('loc-1');
+
+    component['requestSaveDocument']();
+    await fixture.whenStable();
+
+    expect(saveGoodsReceipt.mock.calls[0]![0].number).toBeUndefined();
+    expect(showInfo).toHaveBeenCalledWith(
+      'Salvato con il n. 46: il 42 è stato preso da un altro operatore.',
+    );
+    // La testata si allinea al numero vero: continuare a mostrare il 42 quando
+    // il documento è il 46 è peggio che non mostrare niente.
+    expect(component.form.controls.protocolNumber.value).toBe(46);
+  });
+
+  it('nessun avviso quando il server conferma il protocollo proposto', async () => {
+    const { fixture, showInfo } = await setup({ counters: [COUNTER], assignedNumber: 42 });
+    const component = fixture.componentInstance;
+
+    await waitFor(() => expect(component.form.controls.protocolNumber.value).toBe(42));
+    component.form.controls.supplierId.setValue('sup-1');
+    component.form.controls.locationId.setValue('loc-1');
+
+    component['requestSaveDocument']();
+    await fixture.whenStable();
+
+    expect(showInfo).not.toHaveBeenCalled();
   });
 
   /**

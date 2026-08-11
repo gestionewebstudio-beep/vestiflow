@@ -12,7 +12,13 @@ import {
   isCounterConfigurableDocumentType,
 } from './document-defaults';
 import { nextDocumentNumber, numberSourceForType } from './document-numbering.util';
-import { documentNumberingType } from './document-type.util';
+import { documentNumberingType, documentNumberingTypes } from './document-type.util';
+
+/**
+ * Quanti numeri liberi si elencano per esteso. Oltre questa soglia si dice solo
+ * quanti sono: una serie con mille buchi non deve gonfiare la risposta.
+ */
+export const MISSING_NUMBERS_PREVIEW = 10;
 
 /** Contatore + valori calcolati per la schermata Impostazioni. */
 export interface DocumentCounterView {
@@ -28,6 +34,69 @@ export interface DocumentCounterView {
   readonly nextNumber: number;
   /** Documenti che condividono questa numerazione (avviso eliminazione). */
   readonly documentCount: number;
+  /**
+   * Quanti numeri restano liberi fra 1 e l'ultimo assegnato. Sono i buchi
+   * lasciati dalle cancellazioni in mezzo alla serie: nessuno li riempie
+   * d'ufficio, ma l'operatore deve poterli vedere.
+   *
+   * Assente su `GET /document-counters/available`: quella rotta la chiama ogni
+   * maschera documento a ogni apertura, e i buchi lì non servono a nessuno —
+   * meglio niente che uno zero che sembra «serie integra».
+   */
+  readonly missingCount?: number;
+  /** I primi numeri liberi (al più `MISSING_NUMBERS_PREVIEW`), in ordine. */
+  readonly missingNumbers?: readonly number[];
+}
+
+/** Buchi di una serie: quanti sono in tutto e i primi da mostrare. */
+export interface DocumentCounterGaps {
+  readonly missingCount: number;
+  readonly missingNumbers: readonly number[];
+}
+
+/**
+ * Numeri liberi fra 1 e il massimo assegnato, dati i numeri già in uso.
+ *
+ * Funzione pura: la lettura dal database porta la colonna numero e basta, il
+ * confronto avviene qui — una query per serie, mai una per numero. I duplicati
+ * e i valori non positivi vengono ignorati (il vincolo unico li esclude già,
+ * ma la funzione non ci fa affidamento), l'ordine di arrivo non conta.
+ *
+ * Il conteggio è sempre completo; l'elenco si ferma a `limit` perché una serie
+ * con mille buchi non deve gonfiare la risposta.
+ */
+export function findMissingNumbers(
+  assigned: readonly (number | null)[],
+  limit: number = MISSING_NUMBERS_PREVIEW,
+): DocumentCounterGaps {
+  const used = new Set<number>();
+  for (const value of assigned) {
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+      used.add(value);
+    }
+  }
+  const sorted = [...used].sort((a, b) => a - b);
+
+  const missingNumbers: number[] = [];
+  let missingCount = 0;
+  // Si parte dal PRIMO numero usato, non da 1: una serie che comincia da 143 —
+  // chi migra da un altro gestionale a metà anno, o riprende la numerazione in
+  // corso — non ha 142 buchi, ne ha zero. Quei numeri non li ha mai avuti
+  // nessuno, e invitare a riusarli su una serie di fatture sarebbe sbagliato.
+  //
+  // `expected` è il prossimo numero che ci si aspetta: ogni salto oltre di esso
+  // è un buco, e si conta per intero senza percorrerlo.
+  let expected = sorted[0] ?? 1;
+  for (const number of sorted) {
+    if (number > expected) {
+      missingCount += number - expected;
+      for (let free = expected; free < number && missingNumbers.length < limit; free += 1) {
+        missingNumbers.push(free);
+      }
+    }
+    expected = number + 1;
+  }
+  return { missingCount, missingNumbers };
 }
 
 /** Dati in ingresso per creare/aggiornare un contatore. */
@@ -51,6 +120,12 @@ interface NormalizedCounter {
  * di disponibilità in testata. Il contatore NON memorizza il progressivo: il
  * prossimo numero è sempre max+1 sui documenti reali. Ogni tipo con
  * numerazione configurabile ha un contatore «senza serie» seminato di default.
+ *
+ * Da «max+1» discende che cancellare l'ULTIMO documento libera il suo numero,
+ * mentre cancellarne uno IN MEZZO lascia un buco che nessuno riempie d'ufficio
+ * (riempirlo sposterebbe numeri già comunicati). La vista li espone —
+ * `missingCount` / `missingNumbers` — perché un buco invisibile è l'unica cosa
+ * peggiore di un buco.
  */
 @Injectable()
 export class DocumentCountersService {
@@ -87,7 +162,8 @@ export class DocumentCountersService {
       include: { location: { select: { name: true } } },
       orderBy: [{ isDefault: 'desc' }, { series: { sort: 'asc', nulls: 'first' } }],
     });
-    const views = await Promise.all(counters.map((counter) => this.toView(tenantId, counter)));
+    // Senza buchi: qui si propone un numero, non si fa il punto sulla serie.
+    const views = await Promise.all(counters.map((c) => this.toView(tenantId, c, false)));
     const proposed = views.find((view) => view.isDefault) ?? (views.length === 1 ? views[0] : null);
     return { counters: views, proposedCounterId: proposed?.id ?? null };
   }
@@ -255,9 +331,14 @@ export class DocumentCountersService {
     });
   }
 
+  /**
+   * `withGaps` false = niente lettura dei numeri: la usa `available`, chiamata
+   * a ogni apertura di maschera, dove i buchi non servono.
+   */
   private async toView(
     tenantId: string,
     counter: DocumentCounter & { location?: { name: string } | null },
+    withGaps = true,
   ): Promise<DocumentCounterView> {
     const [nextNumber, documentCount] = await Promise.all([
       this.nextNumber(tenantId, counter.type, counter.series),
@@ -272,7 +353,71 @@ export class DocumentCountersService {
       isDefault: counter.isDefault,
       nextNumber,
       documentCount,
+      ...(withGaps ? await this.gaps(tenantId, counter, nextNumber) : {}),
     };
+  }
+
+  /**
+   * Buchi della serie: i numeri liberi fra 1 e l'ultimo assegnato.
+   *
+   * Con l'ultimo numero a 0 o 1 un buco non può esistere — la serie è vuota o
+   * ha il solo numero 1 — e la lettura si evita del tutto: è il caso della gran
+   * parte delle serie di un tenant.
+   */
+  private async gaps(
+    tenantId: string,
+    counter: DocumentCounter,
+    nextNumber: number,
+  ): Promise<DocumentCounterGaps> {
+    const lastAssigned = nextNumber - 1;
+    if (lastAssigned < 2) {
+      return { missingCount: 0, missingNumbers: [] };
+    }
+    return findMissingNumbers(await this.assignedNumbers(tenantId, counter.type, counter.series));
+  }
+
+  /**
+   * Numeri già assegnati nella partizione del contatore — (tenant, tipo che
+   * possiede il numeratore, serie), la stessa di `lastAssignedNumber`. Una sola
+   * lettura per serie, e della sola colonna numero: i buchi si calcolano poi in
+   * memoria con `findMissingNumbers`.
+   *
+   * Le righe senza numero (bozze, ordini che arrivano dai canali col numero del
+   * canale) sono escluse: non occupano un progressivo, quindi non chiudono un
+   * buco né ne aprono uno.
+   */
+  private async assignedNumbers(
+    tenantId: string,
+    type: DocumentType,
+    series: string | null,
+  ): Promise<(number | null)[]> {
+    const source = numberSourceForType(type);
+    if (source === 'sales_order') {
+      const rows = await this.prisma.salesOrder.findMany({
+        where: { tenantId, source: 'manual', series, number: { not: null } },
+        select: { number: true },
+      });
+      return rows.map((row) => row.number);
+    }
+    if (source === 'supplier_order') {
+      const rows = await this.prisma.supplierOrder.findMany({
+        where: { tenantId, series, number: { not: null } },
+        select: { number: true },
+      });
+      return rows.map((row) => row.number);
+    }
+    const rows = await this.prisma.document.findMany({
+      // `in`: i tipi che condividono il numeratore occupano gli stessi numeri, e
+      // leggerne uno solo li farebbe comparire come «liberi» pur essendo presi.
+      where: {
+        tenantId,
+        type: { in: [...documentNumberingTypes(type)] },
+        series,
+        number: { not: null },
+      },
+      select: { number: true },
+    });
+    return rows.map((row) => row.number);
   }
 
   /**
@@ -308,7 +453,7 @@ export class DocumentCountersService {
       return this.prisma.supplierOrder.count({ where: { tenantId, series } });
     }
     return this.prisma.document.count({
-      where: { tenantId, type: documentNumberingType(type), series },
+      where: { tenantId, type: { in: [...documentNumberingTypes(type)] }, series },
     });
   }
 }

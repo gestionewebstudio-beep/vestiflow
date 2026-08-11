@@ -110,6 +110,20 @@ export class SaveManualSalesOrderDto {
   @MaxLength(120)
   externalRef?: string;
 
+  // ── Documento della controparte: l'ordine emesso dal cliente ──
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  externalDocNumber?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  externalDocDate?: string;
+
+  @IsOptional()
+  @IsUUID()
+  externalDocumentTypeId?: string;
+
   @IsOptional()
   @IsISO8601()
   expectedDeliveryDate?: string;

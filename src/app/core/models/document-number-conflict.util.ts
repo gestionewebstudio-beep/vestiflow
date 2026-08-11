@@ -3,16 +3,20 @@ import { HttpErrorResponse } from '@angular/common/http';
 import type { AppError } from './app-error.model';
 
 /**
- * Conflitto sul numero documento restituito dal server (409): il numero
- * scelto è già usato in quella serie/anno. Il vincolo unico del database è
- * l'unica verità — non esiste un «mantieni il numero», si può solo prendere
- * il primo libero proposto oppure annullare e correggere a mano.
+ * Conflitto sul numero documento restituito dal server (409): il numero che il
+ * salvataggio ha tentato di scrivere è già usato in quella serie. Il vincolo
+ * unico del database è l'unica verità — non esiste un «mantieni il numero»: si
+ * corregge il numero in testata e si risalva.
  */
 export interface DocumentNumberConflict {
   readonly code: 'document_number_taken';
-  /** Numero rifiutato (già assegnato a un altro documento). */
+  /**
+   * Numero RIFIUTATO: quello che l'operatore ha in testata, digitato da lui o
+   * già scritto sul documento in modifica. È l'unico numero che ha senso
+   * nominargli — non l'ultimo occupato della serie, che non ha mai visto.
+   */
   readonly number: number;
-  /** Primo numero libero della serie, da proporre all'operatore. */
+  /** Primo numero libero della serie, da suggerire all'operatore. */
   readonly nextAvailable: number;
   /** null = senza serie. */
   readonly series: string | null;
@@ -51,19 +55,31 @@ export function documentNumberConflictOf(error: unknown): DocumentNumberConflict
 }
 
 /**
- * Avviso di presa d'atto, non una domanda: il numero è già stato aggiornato
- * nella testata e il documento NON è stato salvato. Il salvataggio resta una
- * pressione esplicita di Salva da parte dell'operatore.
+ * Avviso di presa d'atto, non una domanda: il documento NON è stato salvato e
+ * la testata è rimasta com'era. Nomina entrambi i numeri — quello rifiutato e
+ * il primo libero — e lascia la scelta all'operatore.
  *
- * "Il numero 5 della serie A nel frattempo è stato assegnato a un altro
- *  documento. Il numero è stato aggiornato al 7: il documento non è ancora
- *  salvato, premi Salva per confermare."
+ * Il numero NON viene sostituito d'ufficio: chi digita un numero a mano lo fa
+ * per tappare un buco preciso della serie, e rimpiazzarglielo col primo libero
+ * butterebbe via quell'intento senza chiederglielo. Sapendo qual è il primo
+ * libero può scriverlo in un secondo, o provare un altro buco.
+ *
+ * "Il numero 7 della serie A è già stato assegnato a un altro documento: il
+ *  documento non è stato salvato. Il prossimo numero della serie è il 44. Il
+ *  numero in testata non è stato modificato: correggilo e premi di nuovo Salva."
+ *
+ * «PROSSIMO numero», non «primo libero»: `nextAvailable` è massimo + 1, e su una
+ * serie con buchi il primo libero è il buco, non la coda. Chiamarlo «primo
+ * libero» direbbe all'operatore l'esatto contrario di quello che gli dice la
+ * scheda dei numeratori, che i buchi glieli elenca.
  */
 export function documentNumberConflictMessage(conflict: DocumentNumberConflict): string {
   const seriePart = conflict.series ? ` della serie ${conflict.series}` : '';
+  const seriePartNext = conflict.series ? ' della serie' : '';
   return (
-    `Il numero ${conflict.number}${seriePart} nel frattempo è stato assegnato a un altro ` +
-    `documento. Il numero è stato aggiornato al ${conflict.nextAvailable}: il documento non ` +
-    `è ancora salvato, premi Salva per confermare.`
+    `Il numero ${conflict.number}${seriePart} è già stato assegnato a un altro documento: ` +
+    `il documento non è stato salvato. Il prossimo numero${seriePartNext} è il ` +
+    `${conflict.nextAvailable}. Il numero in testata non è stato modificato: correggilo e ` +
+    `premi di nuovo Salva.`
   );
 }

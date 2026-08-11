@@ -16,6 +16,15 @@ export interface DocumentCounterView {
   readonly nextNumber: number;
   /** Documenti che usano questa numerazione (avviso eliminazione). */
   readonly documentCount: number;
+  /**
+   * Quanti numeri restano liberi fra 1 e l'ultimo assegnato: i buchi lasciati
+   * dai documenti cancellati in mezzo alla serie. Li valorizza solo l'elenco
+   * (`GET /document-counters`); `available` non li calcola, perché la maschera
+   * documento chiede un numero da proporre e non il punto sulla serie.
+   */
+  readonly missingCount?: number;
+  /** I primi numeri liberi; se sono di più lo dice `missingCount`. */
+  readonly missingNumbers?: readonly number[];
 }
 
 /** Corpo per creazione/modifica contatore. */

@@ -26,6 +26,17 @@ export class DocumentNumberFieldComponent {
   readonly hint = input<string>('');
 
   readonly number = input<number | null>(null);
+  /**
+   * Il numero mostrato e' una PROPOSTA (il primo libero), non un'assegnazione:
+   * finche' nessuno lo tocca puo' cambiare, perche' lo prende chi salva per
+   * primo. Il campo lo dice invece di far sembrare il numero gia' acquisito —
+   * un operatore che lo trascrive su un documento cartaceo prima di salvare
+   * scriverebbe altrimenti un numero che non sara' suo.
+   *
+   * Passare `false` sui documenti gia' salvati e appena l'operatore lo modifica:
+   * li' il numero e' una scelta, e va difesa (vedi il conflitto sul numero).
+   */
+  readonly isProposal = input<boolean>(false);
   readonly series = input<string>('');
   readonly seriesOptions = input<readonly SelectMenuOption[]>([]);
   readonly disabled = input<boolean>(false);

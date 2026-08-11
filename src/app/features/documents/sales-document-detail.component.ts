@@ -30,6 +30,7 @@ import {
   isSalesDdtDocumentType,
 } from '@domain/documents/models/document-sales.util';
 import { isManualUnloadDocumentType } from './models/document-stock-operation.util';
+import { counterpartyDocLabel } from '@domain/documents/models/document-labels.util';
 import type { DocumentListProfile } from '@domain/documents/models/document-list-query.model';
 
 const TRANSPORT_PORT_LABELS: Record<TransportPort, string> = {
@@ -152,6 +153,12 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
     if (doc.billingCause) {
       facts.push({ label: 'Causale', value: doc.billingCause });
     }
+    // Documento della controparte (tipo + numero + data): vale per ogni tipo di
+    // vendita, non più solo per la bozza fattura registrata.
+    const counterpartyDoc = counterpartyDocLabel(doc);
+    if (counterpartyDoc) {
+      facts.push({ label: 'Documento controparte', value: counterpartyDoc });
+    }
     if (doc.externalRef && !doc.linkedSalesOrder) {
       facts.push({ label: 'Riferimento collegato', value: doc.externalRef });
     }
@@ -198,9 +205,6 @@ export class SalesDocumentDetailComponent extends DocumentDetailComponent {
           value: formatDate(doc.externallyIssuedAt),
           numeric: true,
         });
-      }
-      if (doc.externalDocNumber) {
-        facts.push({ label: 'Doc. esterno', value: doc.externalDocNumber });
       }
       if (doc.registrationDate) {
         facts.push({

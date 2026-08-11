@@ -49,6 +49,11 @@ export interface SupplierOrderApiRow {
   readonly costEntryMode?: PurchaseCostEntryMode;
   readonly orderDate?: IsoDateString;
   readonly supplierReference?: string | null;
+  // Documento della controparte (conferma d'ordine del fornitore).
+  readonly externalDocNumber?: string | null;
+  readonly externalDocDate?: IsoDateString | null;
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocumentTypeSnapshot?: string | null;
   readonly subtotalMinor?: number;
   readonly taxMinor?: number;
   readonly totalMinor: number;
@@ -121,6 +126,15 @@ export interface CreateSupplierOrderBody {
   readonly orderDate?: string;
   readonly expectedAt?: string;
   readonly supplierReference?: string;
+  // ── Documento della controparte ─────────────────────────────────────────
+  //
+  // I tre campi viaggiano come `T | null`: `null` toglie il valore dall'ordine,
+  // l'assenza lo lascia com'è. L'API distingue i due casi apposta — un
+  // salvataggio che non nomina il campo non deve poter cancellare la dicitura
+  // e il suo snapshot da un ordine già registrato.
+  readonly externalDocNumber?: string | null;
+  readonly externalDocDate?: IsoDateString | null;
+  readonly externalDocumentTypeId?: EntityId | null;
   readonly costEntryMode?: PurchaseCostEntryMode;
   readonly currency?: CurrencyCode;
   readonly lines: readonly CreateSupplierOrderLineBody[];
@@ -142,6 +156,10 @@ export function mapSupplierOrderApiRow(row: SupplierOrderApiRow): SupplierOrder 
     costEntryMode: row.costEntryMode ?? 'vat_excluded',
     orderDate: row.orderDate ?? row.createdAt,
     supplierReference: row.supplierReference ?? undefined,
+    externalDocNumber: row.externalDocNumber ?? undefined,
+    externalDocDate: row.externalDocDate ?? undefined,
+    externalDocumentTypeId: row.externalDocumentTypeId ?? undefined,
+    externalDocumentTypeSnapshot: row.externalDocumentTypeSnapshot ?? undefined,
     lines: row.lines.map((line) => mapLine(line, row.currency)),
     lineCount: row.lineCount,
     subtotal: { amountMinor: row.subtotalMinor ?? row.totalMinor, currencyCode: row.currency },

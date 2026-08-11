@@ -90,6 +90,22 @@ export class SaveAdjustmentDto {
   @IsEnum(AdjustmentDirection)
   adjustmentDirection!: AdjustmentDirection;
 
+  /** Numero del documento emesso dalla controparte (verbale, nota di reso…). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  externalDocNumber?: string;
+
+  /** Data del documento della controparte. */
+  @IsOptional()
+  @IsISO8601()
+  externalDocDate?: string;
+
+  /** Tipo del documento della controparte: l'etichetta viene fotografata in testata. */
+  @IsOptional()
+  @IsUUID()
+  externalDocumentTypeId?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(2000)

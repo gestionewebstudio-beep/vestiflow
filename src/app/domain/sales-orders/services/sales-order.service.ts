@@ -50,6 +50,14 @@ export interface SaveManualOrderInput {
   readonly locationId?: EntityId;
   readonly documentDate: string;
   readonly externalRef?: string;
+  // ── Documento della controparte: l'ordine emesso dal cliente ──
+  // Il salvataggio riscrive sempre la testata: un campo assente NON viene
+  // ignorato, viene azzerato. Vanno quindi inviati a ogni salvataggio con il
+  // valore corrente — omettere significa «l'operatore l'ha svuotato».
+  readonly externalDocumentTypeId?: EntityId;
+  readonly externalDocNumber?: string;
+  /** Data del documento del cliente in ISO `AAAA-MM-GG` (solo giorno). */
+  readonly externalDocDate?: string;
   readonly expectedDeliveryDate?: string;
   readonly status?: 'confirmed' | 'cancelled';
   readonly notes?: string;

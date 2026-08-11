@@ -11,12 +11,19 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormArray,
+  NonNullableFormBuilder,
+  PristineChangeEvent,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
   debounceTime,
   distinctUntilChanged,
+  filter,
   map,
   of,
   startWith,
@@ -54,6 +61,7 @@ import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.s
 import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
 import { DocumentActionsService } from '@core/services/document-actions.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
   applyCascadeDiscountMinor,
@@ -78,6 +86,7 @@ import {
   createCustomerFormGroup,
   mapCustomerFormToInput,
 } from '@domain/customers/utils/customer-form.util';
+import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
@@ -237,6 +246,7 @@ interface AvailabilityIssue {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentCounterpartyRefComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentIncludePanelComponent,
@@ -295,6 +305,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly navHistory = inject(NavigationHistoryService);
+  private readonly toast = inject(ToastService);
 
   /** Scanner fotocamera disponibile (feature flag tenant). */
   protected readonly barcodeScannerEnabled = this.appConfig.features.barcodeScanner;
@@ -405,6 +416,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     () => this.isConcluded() || this.isPartiallyConcluded(),
   );
 
+  /**
+   * Etichetta del tipo di documento del cliente fotografata sull'ordine. La
+   * passiamo al componente condiviso perché possa ricostruire l'opzione quando
+   * il tipo è stato eliminato dall'elenco: senza, riaprire un vecchio ordine
+   * mostrerebbe la tendina vuota e il salvataggio successivo ne cancellerebbe
+   * davvero la dicitura.
+   */
+  protected readonly counterpartyTypeSnapshot = computed(
+    () => this.loadedOrder()?.externalDocumentTypeSnapshot,
+  );
+
   protected readonly pageTitle = computed(() => {
     if (this.isQuote) {
       return this.isEditMode() ? 'Modifica preventivo' : 'Nuovo preventivo';
@@ -468,6 +490,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
     externalRef: this.fb.control(''),
+    // Documento della controparte: tipo, numero e data dell'ordine che il
+    // cliente ha emesso. Trio, non tre campi sparsi: lo rende il componente
+    // condiviso, qui restano solo i controlli che lo alimentano.
+    externalDocumentTypeId: this.fb.control(''),
+    externalDocNumber: this.fb.control(''),
+    externalDocDate: this.fb.control(''),
     expectedDeliveryDate: this.fb.control(''),
     status: this.fb.control<'confirmed' | 'cancelled'>('confirmed'),
     paymentTerms: this.fb.control(''),
@@ -518,6 +546,34 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly formValue = toSignal(
     this.form.valueChanges.pipe(startWith(this.form.getRawValue())),
     { initialValue: this.form.getRawValue() },
+  );
+
+  // ── Numero proposto vs numero scelto ────────────────────────────────────
+  /**
+   * `pristine` del numero come signal: `AbstractControl` non lo espone
+   * reattivo, e senza signal la maschera non ridisegnerebbe l'avviso «primo
+   * libero» nel momento in cui l'operatore digita il primo carattere.
+   */
+  private readonly numberPristine = toSignal(
+    this.form.controls.documentNumber.events.pipe(
+      filter((event): event is PristineChangeEvent => event instanceof PristineChangeEvent),
+      map((event) => event.pristine),
+    ),
+    { initialValue: this.form.controls.documentNumber.pristine },
+  );
+
+  /**
+   * Il numero in testata è una PROPOSTA, non un'assegnazione: su un documento
+   * nuovo il numeratore mostra il primo libero, ma a prenderlo è chi salva per
+   * primo. Finché resta una proposta NON viene inviata al server — rimandarla
+   * indietro la trasformerebbe in un'imposizione, e il secondo operatore si
+   * vedrebbe il dialogo di conflitto per un numero che non ha mai digitato.
+   *
+   * In modifica non è mai una proposta: lì il numero è l'identità del documento
+   * (o la rinumerazione che segue un cambio di serie), e va inviato.
+   */
+  protected readonly numberIsProposal = computed(
+    () => this.isRegistryDocument && !this.isEditMode() && this.numberPristine(),
   );
 
   protected readonly dirtySinceLastSave = signal(false);
@@ -3448,6 +3504,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         locationId: order.locationId ?? '',
         documentDate: order.placedAt ? toIsoDateLocal(new Date(order.placedAt)) : '',
         externalRef: order.externalRef ?? '',
+        externalDocumentTypeId: order.externalDocumentTypeId ?? '',
+        externalDocNumber: order.externalDocNumber ?? '',
+        // Data di giornata memorizzata a mezzanotte UTC: si prendono le prime
+        // dieci cifre, come fa la maschera coi documenti del registro. La
+        // conversione a data locale la sposterebbe di un giorno a ovest di
+        // Greenwich, e sarebbe la data di un altro documento.
+        externalDocDate: order.externalDocDate?.slice(0, 10) ?? '',
         expectedDeliveryDate: order.expectedDeliveryDate
           ? toIsoDateLocal(new Date(order.expectedDeliveryDate))
           : '',
@@ -3776,6 +3839,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       locationId: value.locationId || undefined,
       documentDate: value.documentDate,
       externalRef: value.externalRef.trim() || undefined,
+      // Documento della controparte: il valore che c'è adesso in testata.
+      // Vuoto vuol dire svuotato — la testata viene riscritta per intero, e il
+      // campo assente azzera quello che il documento portava.
+      externalDocumentTypeId: value.externalDocumentTypeId || undefined,
+      externalDocNumber: value.externalDocNumber.trim() || undefined,
+      externalDocDate: value.externalDocDate || undefined,
       expectedDeliveryDate: value.expectedDeliveryDate || undefined,
       status: value.status,
       notes: value.notes.trim() || undefined,
@@ -3942,11 +4011,22 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     const freeTextCustomer =
       this.isManualUnload && !value.customerId ? value.customerFreeText.trim() : '';
 
+    // Al server va SOLO il numero scelto dall'operatore. Finché in testata c'è
+    // la proposta del numeratore il campo si omette: il numero lo assegna il
+    // server, dentro la transazione che scrive il documento, e due maschere
+    // aperte sullo stesso tipo non litigano più su un numero che nessuno dei
+    // due ha digitato. Il numero letto qui è quello MOSTRATO prima dell'invio:
+    // serve anche a dire, dopo, se il server ne ha assegnato un altro.
+    const numberWasProposal = this.numberIsProposal();
+    const shownNumber = value.documentNumber;
+    const requestedNumber = numberWasProposal ? undefined : (shownNumber ?? undefined);
+
     const save$ = editId
       ? this.documentService.updateDocument(editId, {
           documentDate: value.documentDate,
-          // Numero imposto in testata: non sposta il progressivo della serie.
-          number: value.documentNumber ?? undefined,
+          // Presente solo se imposto in testata: un numero scelto a mano non
+          // sposta il progressivo della serie. Assente = lo assegna il server.
+          ...(requestedNumber !== undefined ? { number: requestedNumber } : {}),
           series: (value.series ?? '').trim() || undefined,
           customerId: this.isManualUnload ? value.customerId || null : value.customerId,
           ...(this.isManualUnload ? { customerName: freeTextCustomer || null } : {}),
@@ -3967,8 +4047,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           // Conversione proforma→DDT: collega l'origine (null sugli altri tipi).
           sourceDocumentId: this._sourceDocumentId() ?? undefined,
           documentDate: value.documentDate,
-          // Numero imposto in testata: non sposta il progressivo della serie.
-          number: value.documentNumber ?? undefined,
+          // Presente solo se imposto in testata: un numero scelto a mano non
+          // sposta il progressivo della serie. Assente = lo assegna il server.
+          ...(requestedNumber !== undefined ? { number: requestedNumber } : {}),
           series: (value.series ?? '').trim() || undefined,
           customerId: this.isManualUnload ? value.customerId || undefined : value.customerId,
           ...(freeTextCustomer ? { customerName: freeTextCustomer } : {}),
@@ -3989,6 +4070,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     save$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (doc) => {
         this._submitState.set({ status: 'idle' });
+        this.notifyAssignedNumberChanged(numberWasProposal, shownNumber, doc.number ?? null);
         this.loadedQuoteDoc.set(doc);
         this.dirtySinceLastSave.set(false);
         // Come per l'ordine: salvato il documento, i campi tornano protetti.
@@ -4018,6 +4100,32 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this._submitState.set({ status: 'error', error: this.toAppError(err) });
       },
     });
+  }
+
+  /**
+   * Il numero assegnato non è quello che la maschera mostrava: lo si dice.
+   * Succede quando la proposta («primo libero») viene presa da un altro
+   * operatore mentre questo documento è in compilazione: il server ne assegna
+   * uno buono e il salvataggio riesce, ma chi aveva già trascritto il numero
+   * proposto altrove deve sapere che ora è un altro.
+   *
+   * Solo sulla proposta: un numero imposto dall'operatore e già occupato ha il
+   * suo dialogo di conflitto, e questo avviso lo doppierebbe.
+   */
+  private notifyAssignedNumberChanged(
+    wasProposal: boolean,
+    shownNumber: number | null,
+    assignedNumber: number | null,
+  ): void {
+    if (!wasProposal || shownNumber === null || assignedNumber === null) {
+      return;
+    }
+    if (assignedNumber === shownNumber) {
+      return;
+    }
+    this.toast.showInfo(
+      `Salvato con il n. ${assignedNumber}: il ${shownNumber} è stato preso da un altro operatore.`,
+    );
   }
 
   /** Numero digitato in testata: da qui in poi non si riallinea al progressivo. */
@@ -4072,18 +4180,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       });
   }
 
-  /** «Usa N»: prende il primo numero libero e risalva. */
   /**
-   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
-   * ferma. Il salvataggio resta una pressione esplicita di Salva.
+   * Presa d'atto dell'avviso: chiude e basta. Il numero in testata non si
+   * tocca — il messaggio nomina il numero rifiutato e il primo libero, la
+   * correzione è dell'operatore.
    */
   protected acknowledgeConflictNumber(): void {
-    const nextAvailable = this.numberConflictDialog.acknowledge();
-    if (nextAvailable === null) {
-      return;
-    }
-    this.form.controls.documentNumber.setValue(nextAvailable);
-    this.form.controls.documentNumber.markAsDirty();
+    this.numberConflictDialog.acknowledge();
   }
 
   /** POST creazione: i campi vuoti si omettono invece di inviare null. */

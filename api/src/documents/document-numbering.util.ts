@@ -1,7 +1,7 @@
 import { DocumentType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 
-import { documentNumberingType } from './document-type.util';
+import { documentNumberingType, documentNumberingTypes } from './document-type.util';
 import { formatDocumentReference } from './document-totals.util';
 
 /**
@@ -72,7 +72,11 @@ export async function lastAssignedNumber(input: NextNumberInput): Promise<number
 
   const result = await tx.document.aggregate({
     _max: { number: true },
-    where: { tenantId, type: documentNumberingType(input.type), series },
+    // `in` e non uguaglianza: la colonna porta il tipo GREZZO, e i tipi che
+    // condividono il numeratore vanno letti tutti insieme — altrimenti il
+    // massimo vede metà partizione e propone un numero che l'indice unico,
+    // partizionato sul numeratore, poi rifiuta.
+    where: { tenantId, type: { in: [...documentNumberingTypes(input.type)] }, series },
   });
   return result._max?.number ?? 0;
 }
@@ -98,6 +102,42 @@ export async function defaultCounterSeries(
 /** Prossimo numero libero del contatore (massimo esistente + 1). */
 export async function nextDocumentNumber(input: NextNumberInput): Promise<number> {
   return (await lastAssignedNumber(input)) + 1;
+}
+
+/**
+ * Serializza l'assegnazione del numero fra operatori concorrenti.
+ *
+ * «Massimo + 1» letto e scritto da due transazioni contemporanee dà lo stesso
+ * numero a entrambe: PostgreSQL in READ COMMITTED non fa vedere all'una la riga
+ * non ancora confermata dell'altra. L'indice unico poi ne boccia una — il numero
+ * doppio non passa — ma il secondo operatore si ritrova un errore dopo aver
+ * finito il lavoro, per una collisione che il sistema poteva evitare da solo.
+ *
+ * Con questo lock la seconda transazione aspetta qualche millisecondo, poi legge
+ * un massimo aggiornato e prende il numero successivo. Il lock è
+ * **transazionale**: si rilascia da sé al commit o al rollback, quindi un
+ * salvataggio che fallisce non lascia né numeri bruciati né lock appesi — è la
+ * stessa ragione per cui non esiste una «prenotazione» del numero, che sarebbe
+ * proprio ciò che crea i buchi.
+ *
+ * La chiave è il singolo contatore (tenant + tipo + serie): due operatori su
+ * tipi diversi, o su serie diverse, non si aspettano a vicenda.
+ *
+ * Va chiamato DENTRO la transazione e PRIMA di leggere il massimo. Stesso
+ * meccanismo già usato dal progressivo del codice articolo
+ * (`products/article-code.util.ts`).
+ */
+export async function lockDocumentCounter(
+  tx: Prisma.TransactionClient,
+  input: { tenantId: string; type: DocumentType; series: string | null },
+): Promise<void> {
+  // La partizione del numero è (tenant, tipo-che-possiede-il-numeratore, serie):
+  // la chiave del lock deve coincidere con quella, o due tipi che condividono il
+  // numeratore (Fattura accompagnatoria → Fattura) non si serializzerebbero.
+  const key = `${input.tenantId}:${documentNumberingType(input.type)}:${input.series ?? ''}`;
+  // Cast ::text obbligatorio: pg_advisory_xact_lock ritorna `void`, che Prisma
+  // non sa deserializzare (500 «Failed to deserialize column of type 'void'»).
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('document_number'), hashtext(${key}))::text`;
 }
 
 /**
@@ -130,6 +170,10 @@ export async function resolveDocumentNumber(
  */
 export interface DocumentNumberConflict {
   readonly code: 'document_number_taken';
+  /**
+   * Numero RIFIUTATO: quello che il salvataggio ha tentato di scrivere. È il
+   * numero che l'operatore vede in testata, e l'unico che ha senso nominargli.
+   */
   readonly number: number;
   readonly nextAvailable: number;
   /** null = senza serie. */
@@ -137,18 +181,31 @@ export interface DocumentNumberConflict {
 }
 
 /**
- * Conflitto da restituire al client: il primo numero libero della serie e
- * quello che l'ha appena bruciato. Unico punto in cui si compone il payload,
- * così i flussi (registro, arrivo merce, trasferimento/rettifica) rispondono
- * tutti allo stesso modo.
+ * Conflitto da restituire al client: il numero rifiutato e il primo libero
+ * della serie. Unico punto in cui si compone il payload, così i flussi
+ * (registro, arrivo merce, trasferimento/rettifica) rispondono tutti allo
+ * stesso modo.
+ *
+ * `requestedNumber` è il numero che il salvataggio ha tentato di scrivere, e va
+ * passato SEMPRE che lo si conosca. Prima non c'era e il payload dichiarava
+ * `nextAvailable - 1`: per un numero assegnato d'ufficio i due coincidono — il
+ * server aveva preso «massimo + 1», qualcuno lo ha bruciato, quindi ora quel
+ * numero è il massimo — ma per un numero DIGITATO dall'operatore no. Chi digita
+ * un numero lo fa per tappare un buco in mezzo alla serie: rispondergli con
+ * l'ultimo numero occupato significa nominargli un numero che non ha mai
+ * scritto (serie fino a 43, digita il 7, il messaggio parlava del 43).
+ *
+ * Il fallback resta `nextAvailable - 1` proprio per il caso «numero assegnato
+ * d'ufficio», dove è la risposta giusta e il chiamante non ha nulla da passare.
  */
 export async function buildDocumentNumberConflict(
-  input: NextNumberInput,
+  input: NextNumberInput & { readonly requestedNumber?: number | null },
 ): Promise<DocumentNumberConflict> {
   const nextAvailable = await nextDocumentNumber(input);
+  const requested = input.requestedNumber;
   return {
     code: 'document_number_taken',
-    number: nextAvailable - 1,
+    number: requested != null && requested > 0 ? requested : nextAvailable - 1,
     nextAvailable,
     series: input.series,
   };

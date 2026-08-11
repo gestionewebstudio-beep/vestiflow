@@ -26,6 +26,7 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { DocumentCountersComponent } from '@domain/documents/components/document-counters/document-counters.component';
+import { ExternalDocumentTypeManagerComponent } from '@domain/documents/components/external-document-type-manager/external-document-type-manager.component';
 import { documentTypeLabel } from '@domain/documents/models/document-labels.util';
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
@@ -53,6 +54,12 @@ type PageState = 'loading' | 'ready' | 'error';
  * prefisso e note. La modalità prezzo netto/ivato non vive più qui: è un campo
  * di testata del documento con default dalla preferenza operatore. Un form per
  * tipo, salvataggio indipendente per riga.
+ *
+ * Sopra la griglia sta il pannello dei **tipi documento della controparte**
+ * (`app-external-document-type-manager`): non e' una proprieta' di un tipo
+ * documento, e' l'elenco che alimenta la tendina «Documento della controparte»
+ * di tutte le maschere. Si carica da solo, e per questo vive fuori dai rami
+ * loading/errore delle impostazioni per-tipo.
  */
 @Component({
   selector: 'app-document-settings',
@@ -64,6 +71,7 @@ type PageState = 'loading' | 'ready' | 'error';
     ErrorStateComponent,
     TableSkeletonComponent,
     DocumentCountersComponent,
+    ExternalDocumentTypeManagerComponent,
   ],
   templateUrl: './document-settings.component.html',
   styleUrl: './document-settings.component.scss',

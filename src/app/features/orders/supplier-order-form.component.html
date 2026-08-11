@@ -129,6 +129,27 @@
                 />
               </div>
             </div>
+
+            <!-- Stesso dato della testata desktop, altra vista: `layout="stack"`
+                 impila le tre celle, e l'`idPrefix` cambia perché le due viste
+                 convivono nel DOM e gli id devono restare univoci. Titolo di
+                 sezione e contenitore dei campi li disegna il componente:
+                 `sectionTitle` porta le parole di questa maschera. -->
+            <fieldset class="doc-form__gate-fields" [disabled]="formReadOnly()">
+              <app-document-counterparty-ref
+                idPrefix="po-m"
+                layout="stack"
+                sectionTitle="Documento del fornitore"
+                [typeId]="form.controls.externalDocumentTypeId.value"
+                [docNumber]="form.controls.externalDocNumber.value"
+                [docDate]="form.controls.externalDocDate.value"
+                [snapshotLabel]="counterpartyTypeSnapshot()"
+                [disabled]="formReadOnly()"
+                (typeIdChange)="onCounterpartyTypeChange($event)"
+                (docNumberChange)="onCounterpartyNumberChange($event)"
+                (docDateChange)="onCounterpartyDateChange($event)"
+              />
+            </fieldset>
           </app-document-mobile-panel>
         </div>
 
@@ -201,6 +222,28 @@
             />
           </div>
         </div>
+
+        <!-- Seconda fascia della testata (regole-stile-ui §7): il documento
+             della controparte — tipo, numero e data della conferma d'ordine
+             del fornitore. La fascia la disegna il componente condiviso col
+             suo layout di default (`band`): fondo tenue, filo sopra, angoli in
+             basso e sparizione sotto lg arrivano da lì, uguali in tutte le
+             maschere. Qui non resta niente da impaginare.
+             Il fieldset è il gate di sola lettura: tendina e data non sono
+             controlli del form, quindi `form.disable()` non le raggiunge. -->
+        <fieldset class="doc-form__gate-fields" [disabled]="formReadOnly()">
+          <app-document-counterparty-ref
+            idPrefix="po"
+            [typeId]="form.controls.externalDocumentTypeId.value"
+            [docNumber]="form.controls.externalDocNumber.value"
+            [docDate]="form.controls.externalDocDate.value"
+            [snapshotLabel]="counterpartyTypeSnapshot()"
+            [disabled]="formReadOnly()"
+            (typeIdChange)="onCounterpartyTypeChange($event)"
+            (docNumberChange)="onCounterpartyNumberChange($event)"
+            (docDateChange)="onCounterpartyDateChange($event)"
+          />
+        </fieldset>
       </div>
 
       @if (showSupplierForm()) {

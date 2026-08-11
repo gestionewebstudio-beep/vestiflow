@@ -263,6 +263,7 @@
                     numberInputId="gr-m-protocol"
                     hint="Numero interno di catalogazione."
                     [number]="form.controls.protocolNumber.value"
+                    [isProposal]="protocolNumberIsProposal()"
                     [series]="form.controls.series.value"
                     [seriesOptions]="seriesOptions()"
                     [canManageSeries]="true"
@@ -281,46 +282,30 @@
               [summaryParts]="supplierDocPanelSummaryParts()"
               icon="pi-file"
             >
-              <p class="doc-panel__section">Dati del documento ricevuto</p>
-
               <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-                <div class="doc-panel__fields">
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Tipo di documento</span>
-                    <app-select-menu
-                      [options]="externalDocTypeOptions()"
-                      [value]="form.controls.externalDocumentTypeId.value"
-                      ariaLabel="Tipo di documento (vista mobile)"
-                      placeholder="DDT, Fattura…"
-                      [fullWidth]="true"
-                      (valueChange)="onExternalDocTypeSelect($event)"
-                    />
-                  </div>
-
-                  <div class="doc-panel__fields doc-panel__fields--two">
-                    <div class="doc-panel__field">
-                      <label class="doc-panel__label" for="gr-m-ext-num">N. documento</label>
-                      <input
-                        id="gr-m-ext-num"
-                        class="doc-panel__control"
-                        type="text"
-                        formControlName="externalDocNumber"
-                        placeholder="Es. 145"
-                      />
-                    </div>
-
-                    <div class="doc-panel__field">
-                      <label class="doc-panel__label" for="gr-m-ext-date">Data doc.</label>
-                      <app-date-input
-                        inputId="gr-m-ext-date"
-                        formControlName="externalDocDate"
-                        ariaLabel="Data documento fornitore (vista mobile)"
-                        placeholder="Opzionale"
-                        [fullWidth]="true"
-                      />
-                    </div>
-                  </div>
-
+                <!-- Stesso componente della testata desktop, in colonna. Titolo
+                     di sezione e contenitore dei campi li disegna lui: qui
+                     restano solo le celle affini (pagamento, copertura
+                     fattura), proiettate nella stessa sezione invece di
+                     aprirne una seconda. Gli id degli input hanno prefisso
+                     proprio: le due viste stanno entrambe nel DOM. -->
+                <app-document-counterparty-ref
+                  idPrefix="gr-m"
+                  layout="stack"
+                  sectionTitle="Dati del documento ricevuto"
+                  typeLabel="Tipo di documento"
+                  numberLabel="N. documento fornitore"
+                  dateLabel="Data doc. fornitore"
+                  [typeId]="form.controls.externalDocumentTypeId.value"
+                  [docNumber]="form.controls.externalDocNumber.value"
+                  [docDate]="form.controls.externalDocDate.value"
+                  [snapshotLabel]="externalDocTypeSnapshot()"
+                  [disabled]="formReadOnly()"
+                  (typeIdChange)="onExternalDocTypeChange($event)"
+                  (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
+                  (docDateChange)="form.controls.externalDocDate.setValue($event)"
+                  (typesChanged)="onExternalDocTypesChanged()"
+                >
                   <div class="doc-panel__field">
                     <span class="doc-panel__label">Pagamento</span>
                     <app-select-menu
@@ -344,14 +329,15 @@
                     />
                     <span>Seguirà registrazione fattura</span>
                   </label>
-                </div>
+                </app-document-counterparty-ref>
               </fieldset>
             </app-document-mobile-panel>
           </div>
 
-          <!-- Testata a due fasce (riferimento OC): la prima porta i dati di
-               registrazione VestiFlow, la seconda (fondo soft) il documento del
-               fornitore. Le vecchie etichette di blocco non servono più: la
+          <!-- Testata a due fasce (riferimento OC): questa, la prima, porta i
+               dati di registrazione VestiFlow; la seconda (fondo soft) è quella
+               del documento del fornitore, e la disegna il componente condiviso
+               qui sotto. Le vecchie etichette di blocco non servono più: la
                separazione la danno le fasce stesse. -->
           <div
             class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
@@ -461,6 +447,7 @@
                 numberInputId="gr-protocol"
                 hint="Numero interno di catalogazione."
                 [number]="form.controls.protocolNumber.value"
+                [isProposal]="protocolNumberIsProposal()"
                 [series]="form.controls.series.value"
                 [seriesOptions]="seriesOptions()"
                 [canManageSeries]="true"
@@ -471,49 +458,30 @@
             </fieldset>
           </div>
 
-          <!-- Seconda fascia (fondo soft automatico): i dati letti dal
-               documento cartaceo/PDF del fornitore, più pagamento e copertura
-               fattura. Interamente dietro il gate fornitore + magazzino. -->
+          <!-- Seconda fascia: i dati letti dal documento cartaceo/PDF del
+               fornitore, più pagamento e copertura fattura. La fascia non la
+               disegna più la maschera — se la porta dietro il componente del
+               documento della controparte, che è la stessa forma in tutte le
+               maschere. Qui resta solo il gate fornitore + magazzino
+               (`display: contents`, non rompe la griglia). -->
           <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
-            <div
-              class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row doc-form__header-row--secondary"
+            <app-document-counterparty-ref
+              idPrefix="gr"
+              typeLabel="Tipo di documento"
+              numberLabel="N. documento fornitore"
+              dateLabel="Data doc. fornitore"
+              [typeId]="form.controls.externalDocumentTypeId.value"
+              [docNumber]="form.controls.externalDocNumber.value"
+              [docDate]="form.controls.externalDocDate.value"
+              [snapshotLabel]="externalDocTypeSnapshot()"
+              [disabled]="formReadOnly()"
+              (typeIdChange)="onExternalDocTypeChange($event)"
+              (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
+              (docDateChange)="form.controls.externalDocDate.setValue($event)"
+              (typesChanged)="onExternalDocTypesChanged()"
             >
-              <div class="doc-form__field">
-                <span class="doc-form__label">Tipo di documento</span>
-                <app-select-menu
-                  [options]="externalDocTypeOptions()"
-                  [value]="form.controls.externalDocumentTypeId.value"
-                  ariaLabel="Tipo di documento"
-                  placeholder="DDT, Fattura…"
-                  [compact]="true"
-                  [fullWidth]="true"
-                  (valueChange)="onExternalDocTypeSelect($event)"
-                />
-              </div>
-
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="gr-ext-num">N. documento fornitore</label>
-                <input
-                  id="gr-ext-num"
-                  class="doc-form__input"
-                  type="text"
-                  formControlName="externalDocNumber"
-                  placeholder="Es. 145"
-                />
-              </div>
-
-              <div class="doc-form__field">
-                <label class="doc-form__label" for="gr-ext-date">Data doc. fornitore</label>
-                <app-date-input
-                  inputId="gr-ext-date"
-                  formControlName="externalDocDate"
-                  ariaLabel="Data documento fornitore"
-                  placeholder="Opzionale"
-                  [compact]="true"
-                  [fullWidth]="true"
-                />
-              </div>
-
+              <!-- Celle affini: stanno nella stessa fascia del documento
+                   fornitore, proiettate dopo le tre del componente. -->
               <div class="doc-form__field doc-form__field--end-md">
                 <span class="doc-form__label">Pagamento</span>
                 <app-select-menu
@@ -539,7 +507,7 @@
                   <span>Seguirà registrazione fattura</span>
                 </label>
               </div>
-            </div>
+            </app-document-counterparty-ref>
           </fieldset>
         </div>
 
@@ -2077,261 +2045,6 @@
   <div class="doc-form__menu-backdrop" aria-hidden="true" (click)="closeHeaderMenus()"></div>
 }
 
-@if (newTypeDialogOpen()) {
-  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="closeNewTypeDialog()"></div>
-  <div
-    class="doc-form__exit-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="gr-new-type-title"
-  >
-    <h2 id="gr-new-type-title" class="doc-form__exit-title">Nuovo tipo documento fornitore</h2>
-    @if (newTypeError(); as typeError) {
-      <p class="doc-form__submit-error" role="alert">{{ typeError }}</p>
-    }
-    <div class="doc-form__type-dialog-fields">
-      <div class="doc-form__field">
-        <label class="doc-form__label" for="gr-new-type-name">Nome</label>
-        <input
-          id="gr-new-type-name"
-          class="doc-form__input"
-          type="text"
-          placeholder="Es. Documento conto visione"
-          [value]="newTypeName()"
-          (input)="newTypeName.set($any($event.target).value)"
-        />
-      </div>
-      <div class="doc-form__field">
-        <label class="doc-form__label" for="gr-new-type-short">Etichetta breve</label>
-        <input
-          id="gr-new-type-short"
-          class="doc-form__input"
-          type="text"
-          placeholder="Es. Conto visione"
-          [value]="newTypeShortLabel()"
-          (input)="newTypeShortLabel.set($any($event.target).value)"
-        />
-      </div>
-      <div class="doc-form__field">
-        <label class="doc-form__label" for="gr-new-type-template">Modello causale</label>
-        <input
-          id="gr-new-type-template"
-          class="doc-form__input"
-          type="text"
-          placeholder="Es. Conto visione {numero} del {data}"
-          [value]="newTypeTemplate()"
-          (input)="newTypeTemplate.set($any($event.target).value)"
-        />
-        <p class="doc-form__hint">
-          Usa {{ '{' }}numero{{ '}' }} e {{ '{' }}data{{ '}' }} come segnaposto.
-        </p>
-      </div>
-    </div>
-    <div class="doc-form__exit-actions">
-      <app-button
-        type="button"
-        variant="ghost"
-        [disabled]="newTypeBusy()"
-        (click)="closeNewTypeDialog()"
-      >
-        Annulla
-      </app-button>
-      <app-button
-        type="button"
-        [loading]="newTypeBusy()"
-        [disabled]="newTypeBusy() || !newTypeName().trim()"
-        (click)="saveAndUseNewType()"
-      >
-        Salva e usa
-      </app-button>
-    </div>
-  </div>
-}
-
-<app-slide-panel
-  [open]="typePanelOpen()"
-  title="Gestisci tipi documento fornitore"
-  (closed)="closeTypePanel()"
->
-  @if (typePanelOpen()) {
-    <div class="doc-form__causal-panel">
-      <p class="doc-form__causal-panel-hint">
-        I tipi documento classificano il documento del fornitore (DDT, Fattura…). Un tipo già
-        utilizzato può essere disattivato ma resta visibile nei documenti storici.
-      </p>
-
-      @if (typePanelError(); as panelError) {
-        <p class="doc-form__submit-error" role="alert">{{ panelError }}</p>
-      }
-
-      <div class="doc-form__type-new">
-        <input
-          class="doc-form__input"
-          type="text"
-          placeholder="Nome (es. Bolla doganale)"
-          aria-label="Nome nuovo tipo documento"
-          [value]="addTypeName()"
-          (input)="addTypeName.set($any($event.target).value)"
-          (keydown.enter)="createTypeFromPanel(); $event.preventDefault()"
-        />
-        <input
-          class="doc-form__input"
-          type="text"
-          placeholder="Etichetta breve"
-          aria-label="Etichetta breve nuovo tipo documento"
-          [value]="addTypeShortLabel()"
-          (input)="addTypeShortLabel.set($any($event.target).value)"
-        />
-        <input
-          class="doc-form__input"
-          type="text"
-          placeholder="Modello causale (es. Bolla doganale {numero} del {data})"
-          aria-label="Modello causale nuovo tipo documento"
-          [value]="addTypeTemplate()"
-          (input)="addTypeTemplate.set($any($event.target).value)"
-        />
-        <app-button
-          type="button"
-          [disabled]="typePanelBusy() || !addTypeName().trim()"
-          (click)="createTypeFromPanel()"
-        >
-          Aggiungi
-        </app-button>
-      </div>
-
-      <ul class="doc-form__causal-manage-list">
-        @for (
-          docType of externalDocTypes();
-          track docType.id;
-          let first = $first;
-          let last = $last
-        ) {
-          <li
-            class="doc-form__causal-manage-item"
-            [class.doc-form__type-inactive]="!docType.isActive"
-          >
-            @if (editingTypeId() === docType.id) {
-              <div class="doc-form__type-edit-fields">
-                <input
-                  class="doc-form__input"
-                  type="text"
-                  aria-label="Nome tipo documento"
-                  [value]="editingTypeName()"
-                  (input)="editingTypeName.set($any($event.target).value)"
-                  (keydown.escape)="cancelEditType()"
-                />
-                <input
-                  class="doc-form__input"
-                  type="text"
-                  aria-label="Etichetta breve tipo documento"
-                  [value]="editingTypeShortLabel()"
-                  (input)="editingTypeShortLabel.set($any($event.target).value)"
-                />
-                <input
-                  class="doc-form__input"
-                  type="text"
-                  aria-label="Modello causale tipo documento"
-                  [value]="editingTypeTemplate()"
-                  (input)="editingTypeTemplate.set($any($event.target).value)"
-                />
-              </div>
-              <div class="doc-form__causal-manage-actions">
-                <app-button
-                  type="button"
-                  variant="secondary"
-                  [disabled]="typePanelBusy()"
-                  (click)="saveEditType()"
-                >
-                  Salva
-                </app-button>
-                <app-button type="button" variant="ghost" (click)="cancelEditType()">
-                  Annulla
-                </app-button>
-              </div>
-            } @else {
-              <span class="doc-form__causal-manage-label">
-                {{ docType.name }}
-                @if (docType.shortLabel && docType.shortLabel !== docType.name) {
-                  <span class="doc-form__type-short">({{ docType.shortLabel }})</span>
-                }
-                @if (docType.isSystem) {
-                  <app-badge tone="info">Sistema</app-badge>
-                }
-                @if (!docType.isActive) {
-                  <app-badge tone="warning">Disattivato</app-badge>
-                }
-              </span>
-              <div class="doc-form__causal-manage-actions">
-                <button
-                  type="button"
-                  class="doc-form__causal-icon-btn"
-                  aria-label="Sposta su"
-                  [disabled]="first || typePanelBusy()"
-                  (click)="moveType(docType, -1)"
-                >
-                  <i class="pi pi-arrow-up" aria-hidden="true"></i>
-                </button>
-                <button
-                  type="button"
-                  class="doc-form__causal-icon-btn"
-                  aria-label="Sposta giù"
-                  [disabled]="last || typePanelBusy()"
-                  (click)="moveType(docType, 1)"
-                >
-                  <i class="pi pi-arrow-down" aria-hidden="true"></i>
-                </button>
-                <button
-                  type="button"
-                  class="doc-form__causal-icon-btn"
-                  [attr.aria-label]="docType.isActive ? 'Disattiva tipo' : 'Riattiva tipo'"
-                  [disabled]="typePanelBusy()"
-                  (click)="toggleTypeActive(docType)"
-                >
-                  <i
-                    class="pi"
-                    [class.pi-eye]="docType.isActive"
-                    [class.pi-eye-slash]="!docType.isActive"
-                    aria-hidden="true"
-                  ></i>
-                </button>
-                <button
-                  type="button"
-                  class="doc-form__causal-icon-btn"
-                  aria-label="Duplica tipo"
-                  [disabled]="typePanelBusy()"
-                  (click)="duplicateType(docType)"
-                >
-                  <i class="pi pi-copy" aria-hidden="true"></i>
-                </button>
-                <button
-                  type="button"
-                  class="doc-form__causal-icon-btn"
-                  aria-label="Modifica tipo"
-                  [disabled]="typePanelBusy()"
-                  (click)="startEditType(docType)"
-                >
-                  <i class="pi pi-pencil" aria-hidden="true"></i>
-                </button>
-                <button
-                  type="button"
-                  class="doc-form__causal-icon-btn doc-form__causal-icon-btn--danger"
-                  aria-label="Elimina tipo (solo se mai utilizzato)"
-                  [disabled]="typePanelBusy()"
-                  (click)="deleteType(docType)"
-                >
-                  <i class="pi pi-trash" aria-hidden="true"></i>
-                </button>
-              </div>
-            }
-          </li>
-        } @empty {
-          <li class="doc-form__causal-empty">Nessun tipo documento configurato.</li>
-        }
-      </ul>
-    </div>
-  }
-</app-slide-panel>
-
 <app-slide-panel
   [open]="includeOrderPanelOpen()"
   title="Includi ordine fornitore"
@@ -2415,9 +2128,9 @@
   }
 </app-slide-panel>
 
-<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il numero
-     è già stato aggiornato al primo libero; il salvataggio resta una
-     pressione esplicita di Salva. -->
+<!-- Protocollo già assegnato: avviso di presa d'atto, non una scelta. La
+     testata resta com'era e il documento non è salvato; il messaggio nomina il
+     numero rifiutato e il primo libero, la correzione è dell'operatore. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
   title="Protocollo già usato"

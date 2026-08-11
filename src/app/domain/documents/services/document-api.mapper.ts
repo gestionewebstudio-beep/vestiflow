@@ -432,6 +432,12 @@ export interface CreateDocumentBody {
   readonly internalComment?: string;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
+  /**
+   * Tipo del documento della controparte. Omesso lascia il valore invariato,
+   * `null` lo toglie: l'API distingue i due casi apposta, cosi' un salvataggio
+   * che non nomina il campo non puo' cancellare lo snapshot del documento.
+   */
+  readonly externalDocumentTypeId?: EntityId | null;
   readonly sourceDocumentId?: EntityId;
   readonly supplierOrderId?: EntityId;
   readonly billingCause?: string;
@@ -468,6 +474,11 @@ type NullableUpdateHeaderField =
   | 'customerId'
   | 'customerName'
   | 'externalRef'
+  // Documento della controparte: una volta compilato dev'essere anche
+  // cancellabile. Senza `null` il PATCH non ha modo di dire «svuota», e la data
+  // resterebbe appiccicata al documento per sempre.
+  | 'externalDocNumber'
+  | 'externalDocDate'
   | 'paymentTerms'
   | 'paymentMethod'
   | 'expectedDeliveryDate'
@@ -595,6 +606,10 @@ export interface SaveTransferBody {
   readonly documentDate: IsoDateString;
   readonly locationId: EntityId;
   readonly targetLocationId: EntityId;
+  // ── Documento della controparte ──
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
   readonly notes?: string;
   readonly internalComment?: string;
   readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
@@ -612,6 +627,10 @@ export interface SaveAdjustmentBody {
   readonly documentDate: IsoDateString;
   readonly locationId: EntityId;
   readonly adjustmentDirection: AdjustmentDirection;
+  // ── Documento della controparte ──
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
   readonly notes?: string;
   readonly internalComment: string;
   readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
@@ -646,6 +665,8 @@ export interface SavePurchaseInvoiceBody {
   readonly series?: string;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
+  /** Tipo del documento della controparte (proposto: «Fattura»). */
+  readonly externalDocumentTypeId?: EntityId | null;
   readonly notes?: string;
   readonly internalComment?: string;
   /** Tipo pagamento (auto-compilato dall'anagrafica fornitore, modificabile). */

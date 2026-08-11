@@ -13,7 +13,11 @@
       [attr.aria-label]="numberLabel()"
       (input)="onNumberInput($event)"
     />
-    @if (hint()) {
+    @if (isProposal()) {
+      <p class="doc-number__hint doc-number__hint--proposal">
+        Primo libero: lo prende chi salva per primo.
+      </p>
+    } @else if (hint()) {
       <p class="doc-number__hint">{{ hint() }}</p>
     }
   </div>

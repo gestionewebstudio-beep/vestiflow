@@ -53,6 +53,7 @@ import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service'
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
+import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import {
@@ -114,6 +115,7 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import type { VariantByCodeDto } from '@domain/products/models/product.dto';
 import { GoodsReceiptLineCardComponent } from './components/goods-receipt-line-card/goods-receipt-line-card.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
+import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
@@ -131,12 +133,12 @@ import {
 } from '@domain/documents/models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
 import { renderCausalTemplate } from './models/causal-template.util';
-import type { ExternalDocumentType } from './models/external-document-type.model';
+import type { ExternalDocumentType } from '@domain/documents/models/external-document-type.model';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { DocumentSettingsService } from './services/document-settings.service';
-import { ExternalDocumentTypeService } from './services/external-document-type.service';
+import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 import type {
   GoodsReceiptCreatedProductApiRow,
   SaveGoodsReceiptBody,
@@ -235,6 +237,7 @@ type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode';
     TableColumnResizeDirective,
     DocumentAttachmentsPanelComponent,
     GoodsReceiptLineCardComponent,
+    DocumentCounterpartyRefComponent,
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
     DocumentMobilePanelComponent,
@@ -267,6 +270,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
+  private readonly toasts = inject(ToastService);
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -331,6 +335,26 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   );
 
   protected readonly previewReference = signal<string | null>(null);
+
+  /**
+   * Il protocollo l'ha scelto l'operatore (digitato in testata o accettato dal
+   * dialogo di conflitto), non è più la proposta della serie. È la stessa cosa
+   * che dice `protocolNumber.dirty`, in forma di signal: il template ha bisogno
+   * di una fonte reattiva, e i flag dei form control non lo sono. Le due forme
+   * restano allineate perché il protocollo si scrive solo da
+   * `imposeProtocolNumber` / `proposeProtocolNumber`.
+   */
+  private readonly protocolNumberImposed = signal(false);
+
+  /**
+   * Il protocollo mostrato è una PROPOSTA — il primo libero al momento in cui
+   * la maschera si è aperta — finché il documento non esiste e l'operatore non
+   * ne ha scelto uno: lo prende chi salva per primo. Il campo lo dice, invece
+   * di far sembrare acquisito un numero che può ancora cambiare.
+   */
+  protected readonly protocolNumberIsProposal = computed(
+    () => this.persistedDocumentId() === null && !this.protocolNumberImposed(),
+  );
 
   /** Conflitto protocollo restituito dal server: dialogo «Usa N» / «Annulla». */
   // Stato del dialog «protocollo già assegnato»: la macchina vive in domain,
@@ -811,61 +835,26 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.onLocationSelect(suggested.id);
   }
 
-  // ── Documento fornitore: tipi per tenant (prompt §3-6) ─────────────────────
-  /** Valore-azione nella tendina: apre la finestra "Nuovo tipo documento". */
-  protected readonly NEW_TYPE_OPTION = '__new-type__';
-  /** Valore-azione nella tendina: apre il pannello "Gestisci tipi documento". */
-  protected readonly MANAGE_TYPES_OPTION = '__manage-types__';
+  // ── Documento della controparte: i tipi documento del tenant ────────────────
+  /**
+   * La tendina dei tipi, la voce «Gestisci tipi documento…» e il pannello che
+   * apre vivono ora nel componente condiviso `app-document-counterparty-ref`.
+   * Qui resta la sola LISTA, perché da lei dipendono due cose che il
+   * componente non conosce: il modello della causale di carico
+   * (`templateForType`) e il riepilogo del pannello di testata mobile.
+   */
+  private readonly _externalDocTypes = signal<readonly ExternalDocumentType[]>([]);
+  protected readonly externalDocTypes = this._externalDocTypes.asReadonly();
 
-  private readonly externalTypesReload = signal(0);
-  protected readonly externalDocTypes = toSignal(
-    toObservable(this.externalTypesReload).pipe(
-      switchMap(() =>
-        this.externalTypeService
-          .list()
-          .pipe(catchError(() => of([] as readonly ExternalDocumentType[]))),
-      ),
-    ),
-    { initialValue: [] as readonly ExternalDocumentType[] },
+  /**
+   * Etichetta del tipo fotografata sul documento al salvataggio. Un tipo
+   * eliminato non arriva più dalla lista: senza lo snapshot il campo si
+   * riaprirebbe vuoto e al salvataggio successivo la dicitura sparirebbe
+   * davvero.
+   */
+  protected readonly externalDocTypeSnapshot = computed(
+    () => this.loadedDocument()?.externalDocumentTypeSnapshot,
   );
-
-  protected readonly externalDocTypeOptions = computed<readonly SelectMenuOption[]>(() => {
-    const selectedId = this.selectedExternalTypeId();
-    const options: SelectMenuOption[] = [{ value: '', label: '—' }];
-    for (const type of this.externalDocTypes()) {
-      // I tipi disattivati non si propongono, ma restano visibili se già
-      // selezionati sul documento storico (§6).
-      if (type.isActive || type.id === selectedId) {
-        options.push({ value: type.id, label: type.shortLabel || type.name });
-      }
-    }
-    options.push({ value: this.NEW_TYPE_OPTION, label: 'Altro / Nuovo tipo…' });
-    options.push({ value: this.MANAGE_TYPES_OPTION, label: 'Gestisci tipi documento…' });
-    return options;
-  });
-
-  /** Id tipo selezionato (specchio del form control, per computed reattivi). */
-  private readonly selectedExternalTypeId = signal('');
-
-  // Finestra "Nuovo tipo documento fornitore" (§5).
-  protected readonly newTypeDialogOpen = signal(false);
-  protected readonly newTypeName = signal('');
-  protected readonly newTypeShortLabel = signal('');
-  protected readonly newTypeTemplate = signal('');
-  protected readonly newTypeBusy = signal(false);
-  protected readonly newTypeError = signal<string | null>(null);
-
-  // Pannello "Gestisci tipi documento…" (§6).
-  protected readonly typePanelOpen = signal(false);
-  protected readonly typePanelBusy = signal(false);
-  protected readonly typePanelError = signal<string | null>(null);
-  protected readonly addTypeName = signal('');
-  protected readonly addTypeShortLabel = signal('');
-  protected readonly addTypeTemplate = signal('');
-  protected readonly editingTypeId = signal<string | null>(null);
-  protected readonly editingTypeName = signal('');
-  protected readonly editingTypeShortLabel = signal('');
-  protected readonly editingTypeTemplate = signal('');
 
   // ── Causale di carico (punto E: invisibile, sempre generata in silenzio) ───
   /**
@@ -927,16 +916,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .subscribe(() => this.refreshNumberPreview());
     this.form.controls.externalDocumentTypeId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((typeId) => {
-        this.selectedExternalTypeId.set(typeId);
-        this.applyTemplateFromType(typeId);
-      });
+      .subscribe((typeId) => this.applyTemplateFromType(typeId));
     this.form.controls.externalDocNumber.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.regenerateCausalFromTemplate());
     this.form.controls.externalDocDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.regenerateCausalFromTemplate());
+    // La lista dei tipi serve alla causale di carico e al riepilogo mobile:
+    // si carica all'avvio e si ricarica a ogni scelta fatta nel componente
+    // condiviso.
+    this.loadExternalDocTypes();
     this.refreshNumberPreview();
     this.setupDirtyTracking();
     this.form.controls.supplierId.valueChanges
@@ -2694,16 +2684,48 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   // ── Documento fornitore (tipo) e Causale di carico ─────────────────────────
 
-  protected onExternalDocTypeSelect(value: string | null): void {
-    if (value === this.NEW_TYPE_OPTION) {
-      this.openNewTypeDialog();
-      return;
-    }
-    if (value === this.MANAGE_TYPES_OPTION) {
-      this.openTypePanel();
-      return;
-    }
-    this.form.controls.externalDocumentTypeId.setValue(value ?? '');
+  /**
+   * Tipo scelto nel componente condiviso. Il valore vive nel form — da lì va
+   * al salvataggio — e la lista locale si ricarica: il tipo può essere nato
+   * un attimo prima nel pannello «Gestisci tipi documento…», e finché non
+   * arriva qui il suo modello di causale non esiste.
+   */
+  protected onExternalDocTypeChange(typeId: string): void {
+    const known = !typeId || this.externalDocTypes().some((type) => type.id === typeId);
+    this.form.controls.externalDocumentTypeId.setValue(typeId);
+    this.loadExternalDocTypes(() => {
+      // Il giro di rete può finire quando l'operatore ha già cambiato idea:
+      // il modello si applica solo se il tipo scelto è ancora quello.
+      if (!known && this.form.controls.externalDocumentTypeId.value === typeId) {
+        this.applyTemplateFromType(typeId);
+      }
+    });
+  }
+
+  /**
+   * L'operatore ha toccato i tipi nel pannello di gestione. Anche senza cambiare
+   * la selezione la lista locale va riallineata: un tipo rinominato lascerebbe
+   * altrimenti l'etichetta vecchia nel riepilogo di testata mobile e il modello
+   * vecchio nella causale di carico.
+   */
+  protected onExternalDocTypesChanged(): void {
+    this.loadExternalDocTypes();
+  }
+
+  /** Ricarica la lista locale dei tipi (la tendina la serve il componente condiviso). */
+  private loadExternalDocTypes(onLoaded?: () => void): void {
+    this.externalTypeService
+      .list()
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (types) => {
+          this._externalDocTypes.set(types);
+          onLoaded?.();
+        },
+        // Una lista che non arriva non svuota quella in mano: al massimo la
+        // causale generata resta indietro di un giro.
+        error: () => undefined,
+      });
   }
 
   /** Cambio tipo documento in modalità AUTO: applica il modello del tipo (§10). */
@@ -2747,175 +2769,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       dateIso: this.form.controls.externalDocDate.value || undefined,
     });
     this.form.controls.causalText.setValue(generated, { emitEvent: options.emitEvent });
-  }
-
-  // ── Nuovo tipo documento fornitore (§5) ────────────────────────────────────
-
-  protected openNewTypeDialog(): void {
-    this.newTypeName.set('');
-    this.newTypeShortLabel.set('');
-    this.newTypeTemplate.set('');
-    this.newTypeError.set(null);
-    this.newTypeDialogOpen.set(true);
-  }
-
-  protected closeNewTypeDialog(): void {
-    this.newTypeDialogOpen.set(false);
-  }
-
-  /** "Salva e usa": crea il tipo, lo seleziona e genera la causale (§5). */
-  protected saveAndUseNewType(): void {
-    const name = this.newTypeName().trim();
-    if (!name || this.newTypeBusy()) {
-      return;
-    }
-    const shortLabel = this.newTypeShortLabel().trim() || name;
-    const causalTemplate = this.newTypeTemplate().trim() || `${shortLabel} {numero} del {data}`;
-    this.newTypeBusy.set(true);
-    this.newTypeError.set(null);
-    this.externalTypeService
-      .create({ name, shortLabel, causalTemplate })
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (created) => {
-          this.newTypeBusy.set(false);
-          this.newTypeDialogOpen.set(false);
-          this.externalTypesReload.update((tick) => tick + 1);
-          this.causalMode.set(CausalGenerationMode.Auto);
-          this.form.controls.externalDocumentTypeId.setValue(created.id, { emitEvent: false });
-          this.selectedExternalTypeId.set(created.id);
-          this.causalTemplate.set(created.causalTemplate ?? causalTemplate);
-          this.applyGeneratedCausal({ emitEvent: true });
-        },
-        error: (err: unknown) => {
-          this.newTypeBusy.set(false);
-          this.newTypeError.set(this.toAppError(err).message);
-        },
-      });
-  }
-
-  // ── Gestione tipi documento fornitore (§6) ─────────────────────────────────
-
-  protected openTypePanel(): void {
-    this.typePanelError.set(null);
-    this.typePanelOpen.set(true);
-  }
-
-  protected closeTypePanel(): void {
-    this.typePanelOpen.set(false);
-    this.editingTypeId.set(null);
-    this.addTypeName.set('');
-    this.addTypeShortLabel.set('');
-    this.addTypeTemplate.set('');
-  }
-
-  protected createTypeFromPanel(): void {
-    const name = this.addTypeName().trim();
-    if (!name || this.typePanelBusy()) {
-      return;
-    }
-    const shortLabel = this.addTypeShortLabel().trim() || name;
-    this.runTypeAction(
-      this.externalTypeService.create({
-        name,
-        shortLabel,
-        causalTemplate: this.addTypeTemplate().trim() || `${shortLabel} {numero} del {data}`,
-      }),
-      () => {
-        this.addTypeName.set('');
-        this.addTypeShortLabel.set('');
-        this.addTypeTemplate.set('');
-      },
-    );
-  }
-
-  protected startEditType(type: ExternalDocumentType): void {
-    this.editingTypeId.set(type.id);
-    this.editingTypeName.set(type.name);
-    this.editingTypeShortLabel.set(type.shortLabel);
-    this.editingTypeTemplate.set(type.causalTemplate ?? '');
-  }
-
-  protected cancelEditType(): void {
-    this.editingTypeId.set(null);
-  }
-
-  protected saveEditType(): void {
-    const id = this.editingTypeId();
-    const name = this.editingTypeName().trim();
-    if (!id || !name || this.typePanelBusy()) {
-      return;
-    }
-    this.runTypeAction(
-      this.externalTypeService.update(id, {
-        name,
-        shortLabel: this.editingTypeShortLabel().trim() || name,
-        causalTemplate: this.editingTypeTemplate().trim(),
-      }),
-      () => this.editingTypeId.set(null),
-    );
-  }
-
-  protected duplicateType(type: ExternalDocumentType): void {
-    if (this.typePanelBusy()) {
-      return;
-    }
-    this.runTypeAction(
-      this.externalTypeService.create({
-        name: `${type.name} (copia)`,
-        shortLabel: type.shortLabel,
-        causalTemplate: type.causalTemplate,
-      }),
-    );
-  }
-
-  protected toggleTypeActive(type: ExternalDocumentType): void {
-    if (this.typePanelBusy()) {
-      return;
-    }
-    this.runTypeAction(this.externalTypeService.update(type.id, { isActive: !type.isActive }));
-  }
-
-  protected deleteType(type: ExternalDocumentType): void {
-    if (this.typePanelBusy()) {
-      return;
-    }
-    this.runTypeAction(this.externalTypeService.delete(type.id));
-  }
-
-  protected moveType(type: ExternalDocumentType, direction: -1 | 1): void {
-    if (this.typePanelBusy()) {
-      return;
-    }
-    const ordered = [...this.externalDocTypes()].map((item) => item.id);
-    const index = ordered.indexOf(type.id);
-    const target = index + direction;
-    if (index < 0 || target < 0 || target >= ordered.length) {
-      return;
-    }
-    const swapped = ordered[target];
-    if (swapped === undefined) {
-      return;
-    }
-    ordered[target] = type.id;
-    ordered[index] = swapped;
-    this.runTypeAction(this.externalTypeService.reorder(ordered));
-  }
-
-  private runTypeAction(action$: Observable<unknown>, onSuccess?: () => void): void {
-    this.typePanelBusy.set(true);
-    this.typePanelError.set(null);
-    action$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => {
-        this.typePanelBusy.set(false);
-        onSuccess?.();
-        this.externalTypesReload.update((tick) => tick + 1);
-      },
-      error: (err: unknown) => {
-        this.typePanelBusy.set(false);
-        this.typePanelError.set(this.toAppError(err).message);
-      },
-    });
   }
 
   protected onVariantSelect(index: number, value: string | null): void {
@@ -3667,6 +3520,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     this.exitDialogOpen.set(false);
+    // Come nel salvataggio esplicito: il numero mostrato si legge prima dell'invio.
+    const shownProtocolNumber = this.form.controls.protocolNumber.value;
+    const protocolWasImposed = this.form.controls.protocolNumber.dirty;
     this._submitState.set({ status: 'saving' });
     this.linkAllLineCodes$()
       .pipe(
@@ -3679,6 +3535,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this._submitState.set({ status: 'idle' });
           this.dirtySinceLastSave.set(false);
           this.loadedDocument.set(doc);
+          this.reconcileAssignedProtocolNumber(doc, shownProtocolNumber, protocolWasImposed);
           this.resolveExit(true);
         },
         error: (err: unknown) => {
@@ -4271,6 +4128,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
 
     this.syncActiveFieldBeforeSave();
+    // Il protocollo mostrato va letto PRIMA di partire: se il server ne assegna
+    // un altro serve il confronto con quello che l'operatore aveva sotto gli occhi.
+    const shownProtocolNumber = this.form.controls.protocolNumber.value;
+    const protocolWasImposed = this.form.controls.protocolNumber.dirty;
     this._submitState.set({ status: 'saving' });
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = this.linkAllLineCodes$()
@@ -4284,6 +4145,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this._submitState.set({ status: 'idle' });
           this.dirtySinceLastSave.set(false);
           this.loadedDocument.set(doc);
+          this.reconcileAssignedProtocolNumber(doc, shownProtocolNumber, protocolWasImposed);
           this.pendingSupplierOrderId.set(null);
           this.pendingLinkedSupplierOrderRef.set(null);
           // "Salva documento" salva e resta nella maschera (§10.7): si esce solo
@@ -4314,18 +4176,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       });
   }
 
-  /** «Usa N»: prende il primo protocollo libero e risalva. */
   /**
-   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
-   * ferma. Il salvataggio resta una pressione esplicita di Salva.
+   * Presa d'atto dell'avviso: chiude e basta. Il protocollo in testata resta
+   * quello che l'operatore aveva scelto — se lo aveva digitato, lo aveva fatto
+   * per tappare un buco preciso, e sostituirglielo col primo libero
+   * butterebbe via l'intento. Il messaggio gli dice qual è quel numero: sta a
+   * lui correggere e premere Salva.
    */
   protected acknowledgeConflictNumber(): void {
-    const nextAvailable = this.numberConflictDialog.acknowledge();
-    if (nextAvailable === null) {
-      return;
-    }
-    this.form.controls.protocolNumber.setValue(nextAvailable);
-    this.form.controls.protocolNumber.markAsDirty();
+    this.numberConflictDialog.acknowledge();
   }
 
   private reloadSupplierVariantLinks(supplierId: string): void {
@@ -4395,6 +4254,29 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     readonly registryOnly: boolean;
   }[] = [];
 
+  /**
+   * Protocollo da inviare: SOLO quello digitato dall'operatore.
+   *
+   * Quello proposto all'apertura è il primo libero *di quel momento*: rimandarlo
+   * indietro lo trasformerebbe in una pretesa, e due maschere aperte insieme si
+   * contenderebbero un numero che nessuna delle due ha scelto — con un dialogo
+   * di conflitto a lavoro finito per il secondo che salva. Omesso, il numero lo
+   * assegna il server dentro la transazione che scrive il documento, e la
+   * contesa si risolve da sola, in silenzio.
+   *
+   * `dirty` è la distinzione: la proposta si scrive senza sporcare il controllo
+   * (`proposeProtocolNumber`), la scelta sì (`imposeProtocolNumber`).
+   */
+  private requestedProtocolNumber(): number | undefined {
+    // Si omette SOLO la proposta di un documento nuovo. In modifica il
+    // protocollo è del documento e va sempre mandato: ometterlo dopo un cambio
+    // di serie lascerebbe il documento con il protocollo della serie vecchia.
+    if (!this.isEditMode() && !this.form.controls.protocolNumber.dirty) {
+      return undefined;
+    }
+    return this.form.controls.protocolNumber.value ?? undefined;
+  }
+
   private buildSaveGoodsReceiptBody(): SaveGoodsReceiptBody {
     const raw = this.form.getRawValue();
     const supplierOrderId = this.resolveSupplierOrderId();
@@ -4434,7 +4316,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       externalDocNumber: raw.externalDocNumber.trim() || undefined,
       externalDocDate: raw.externalDocDate || undefined,
       // Protocollo imposto a mano: non sposta il progressivo della serie.
-      number: raw.protocolNumber ?? undefined,
+      number: this.requestedProtocolNumber(),
       series: (raw.series ?? '').trim() || undefined,
       ...(supplierOrderId ? { supplierOrderId } : {}),
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
@@ -4693,7 +4575,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     });
     // Ripristina modalità e modello causale DOPO il patch (il patch dei campi
     // numero/data non deve rigenerare sopra il testo storico, §10/§13).
-    this.selectedExternalTypeId.set(doc.externalDocumentTypeId ?? '');
     this.causalMode.set(
       doc.causalGenerationMode ??
         (doc.causalText?.trim() ? CausalGenerationMode.Manual : CausalGenerationMode.Auto),
@@ -4847,7 +4728,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           const proposed = counters.find((entry) => entry.id === proposedCounterId);
           if (proposed) {
             this.form.controls.series.setValue(proposed.series ?? '');
-            this.form.controls.protocolNumber.setValue(proposed.nextNumber);
+            this.proposeProtocolNumber(proposed.nextNumber);
           }
         },
         error: () => undefined,
@@ -4856,8 +4737,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   /** Protocollo digitato in testata: vuoto = «assegnalo tu». */
   protected onProtocolNumberChange(value: number | null): void {
-    this.form.controls.protocolNumber.setValue(value);
-    this.form.controls.protocolNumber.markAsDirty();
+    this.imposeProtocolNumber(value);
   }
 
   /** Serie scelta: il protocollo passa al progressivo di quel contatore. */
@@ -4866,9 +4746,64 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.form.controls.series.markAsDirty();
     const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
     if (counter) {
-      this.form.controls.protocolNumber.setValue(counter.nextNumber);
-      this.form.controls.protocolNumber.markAsPristine();
+      this.proposeProtocolNumber(counter.nextNumber);
     }
+  }
+
+  /**
+   * Protocollo SCELTO dall'operatore: viaggia al server, e se è già occupato il
+   * dialogo di conflitto è un'informazione utile. Un protocollo imposto non
+   * sposta il progressivo della serie.
+   */
+  private imposeProtocolNumber(value: number | null): void {
+    this.form.controls.protocolNumber.setValue(value);
+    this.form.controls.protocolNumber.markAsDirty();
+    this.protocolNumberImposed.set(true);
+  }
+
+  /**
+   * Protocollo PROPOSTO dalla serie: si mostra ma non si manda al salvataggio
+   * (vedi `requestedProtocolNumber`). Resta «pristine» apposta — è quel flag a
+   * distinguere la proposta dalla scelta.
+   */
+  private proposeProtocolNumber(value: number | null): void {
+    this.form.controls.protocolNumber.setValue(value);
+    this.form.controls.protocolNumber.markAsPristine();
+    this.protocolNumberImposed.set(false);
+  }
+
+  /**
+   * Numero assegnato dal server diverso da quello che la testata mostrava: la
+   * proposta era «il primo libero adesso», e nel frattempo l'ha preso un altro.
+   * La testata si allinea al numero vero — un campo che continua a mostrare il
+   * 42 quando il documento è il 46 è peggio di nessun numero — e l'operatore lo
+   * viene a sapere: senza avviso trascriverebbe altrove un protocollo che non è
+   * il suo.
+   *
+   * Niente avviso se il numero l'aveva imposto lui: quel caso ha già il suo
+   * dialogo di conflitto, e due messaggi per lo stesso fatto sono uno di troppo.
+   * Niente avviso nemmeno se la testata non mostrava alcun numero: non c'è
+   * nulla che cambia sotto gli occhi di chi guarda.
+   */
+  private reconcileAssignedProtocolNumber(
+    doc: DocumentRecord,
+    shownNumber: number | null,
+    imposed: boolean,
+  ): void {
+    const assigned = doc.number ?? null;
+    if (assigned == null || assigned === shownNumber) {
+      return;
+    }
+    // Allineare il campo non è una modifica dell'operatore: il documento resta
+    // salvato, e `setValue` non tocca `dirty` — la proposta resta proposta e la
+    // scelta resta scelta.
+    this.withDirtySuppressed(() => this.form.controls.protocolNumber.setValue(assigned));
+    if (imposed || shownNumber == null) {
+      return;
+    }
+    this.toasts.showInfo(
+      `Salvato con il n. ${assigned}: il ${shownNumber} è stato preso da un altro operatore.`,
+    );
   }
 
   private toAppError(err: unknown): AppError {

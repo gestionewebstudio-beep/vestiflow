@@ -11,6 +11,7 @@ import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant'
 import { TenantPermission } from '../auth/tenant-permission.constants';
 
 import type { DocumentSettingsService } from './document-settings.service';
+import type { ExternalDocumentTypesService } from './external-document-types.service';
 import type { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
 import type { ResolvedDocumentTypeSetting } from './document-defaults';
 import { DocumentsService } from './documents.service';
@@ -121,6 +122,10 @@ function createPrismaMock() {
       findUnique: vi.fn().mockResolvedValue({ defaultVatCodeId: null }),
     },
     supplierVariantLink: { findUnique: vi.fn(), upsert: vi.fn() },
+    // Advisory lock sul contatore, preso prima di leggere il massimo quando il
+    // numero è automatico: la tx dei test è il mock stesso, quindi la chiamata
+    // arriva qui.
+    $queryRaw: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(),
   };
   prisma.$transaction.mockImplementation((arg: unknown) => {
@@ -145,14 +150,23 @@ function createService(prisma: ReturnType<typeof createPrismaMock>, setting = re
     resolvePricesIncludeVat: vi.fn().mockResolvedValue(false),
     remember: vi.fn().mockResolvedValue(undefined),
   };
+  // Nessun tipo documento controparte nei casi di questo file: il risolutore
+  // ritorna la coppia vuota, che e' quello che il servizio scriverebbe comunque.
+  const externalTypes = {
+    resolveForWrite: vi
+      .fn()
+      .mockResolvedValue({ externalDocumentTypeId: null, externalDocumentTypeSnapshot: null }),
+    findByIdIncludingDeleted: vi.fn().mockResolvedValue(null),
+  };
   const service = new DocumentsService(
     prisma as unknown as PrismaService,
     settings as unknown as DocumentSettingsService,
     channelSync as unknown as ChannelSyncFacade,
     stockReservations as unknown as StockReservationService,
     priceModePreference as unknown as DocumentPriceModePreferenceService,
+    externalTypes as unknown as ExternalDocumentTypesService,
   );
-  return { service, settings, channelSync, stockReservations, priceModePreference };
+  return { service, settings, channelSync, stockReservations, priceModePreference, externalTypes };
 }
 
 /** Bozza minima per i test sul numero imposto in modifica. */
@@ -364,6 +378,57 @@ describe('DocumentsService', () => {
       const data = prisma.document.create.mock.calls[0]![0]!.data;
       expect(data.number).toBeNull();
       expect(data.reference).toBeNull();
+    });
+
+    // Due salvataggi simultanei in READ COMMITTED leggono lo stesso massimo e
+    // scelgono lo stesso numero: uno dei due lo scopre dal vincolo unico, a
+    // lavoro finito. Il lock lo evita solo se precede la lettura del massimo —
+    // l'ordine è la sostanza della correzione.
+    it('numero automatico: il lock del contatore precede la lettura del massimo', async () => {
+      const { service } = createService(prisma);
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
+
+      await service.create(tenantId, {
+        type: DocumentType.proforma,
+        documentDate: '2026-03-01',
+        lines: [{ description: 'Capo', quantity: 1, unitPriceMinor: 1000 }],
+      });
+
+      expect(prisma.document.aggregate).toHaveBeenCalled();
+      const lockOrder = prisma.$queryRaw.mock.invocationCallOrder[0] ?? 0;
+      const maxOrder = prisma.document.aggregate.mock.invocationCallOrder[0] ?? 0;
+      expect(lockOrder).toBeGreaterThan(0);
+      expect(lockOrder).toBeLessThan(maxOrder);
+    });
+
+    it('numero imposto in testata: nessun lock, il progressivo non si legge', async () => {
+      const { service } = createService(prisma, resolvedSetting({ numberPrefix: 'DDT' }));
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.draft,
+        number: 100,
+        reference: 'DDT-0100',
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
+
+      await service.create(tenantId, {
+        type: DocumentType.proforma,
+        documentDate: '2026-03-01',
+        number: 100,
+        lines: [{ description: 'Capo', quantity: 1, unitPriceMinor: 1000 }],
+      });
+
+      // Un numero scelto a mano non legge il massimo: non c'è nulla da
+      // serializzare, e il conflitto sul vincolo unico resta l'informazione
+      // utile da mostrare all'operatore.
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+      expect(prisma.document.aggregate).not.toHaveBeenCalled();
     });
 
     it('calcola totali riga e IVA con prezzi IVA esclusa', async () => {

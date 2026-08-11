@@ -45,6 +45,9 @@ import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflo
   exports: [
     DocumentsService,
     DocumentSettingsService,
+    // Ordine cliente e Ordine fornitore scrivono anche loro il tipo documento
+    // della controparte: il risolutore id + snapshot e' uno solo, sta qui.
+    ExternalDocumentTypesService,
     GoodsReceiptWorkflowService,
     TransferAdjustmentWorkflowService,
     DocumentPriceModePreferenceService,

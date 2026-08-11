@@ -12,6 +12,7 @@ import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import type { DocumentSettingsService } from './document-settings.service';
+import type { ExternalDocumentTypesService } from './external-document-types.service';
 import type { SaveAdjustmentDto } from './dto/save-adjustment.dto';
 import type { SaveTransferDto } from './dto/save-transfer.dto';
 
@@ -65,6 +66,10 @@ function createPrismaMock() {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([{ id: variantId }]),
     },
+    // Advisory lock sul contatore: serve solo quando il numero è automatico
+    // (documento senza numero e testata che non ne impone uno), ma la tx dei
+    // test è il mock stesso e la chiamata arriverebbe qui.
+    $queryRaw: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(),
   };
   prisma.$transaction.mockImplementation((arg: unknown) => {
@@ -83,12 +88,21 @@ function createService(prisma: ReturnType<typeof createPrismaMock>, settingOverr
     }),
   };
   const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+  // Documento della controparte: senza tipo scelto la coppia risolta è vuota,
+  // che è il caso di ogni test qui sotto.
+  const externalTypes = {
+    resolveForWrite: vi.fn().mockResolvedValue({
+      externalDocumentTypeId: null,
+      externalDocumentTypeSnapshot: null,
+    }),
+  };
   const service = new TransferAdjustmentWorkflowService(
     prisma as unknown as PrismaService,
     settings as unknown as DocumentSettingsService,
     channelSync as unknown as ChannelSyncFacade,
+    externalTypes as unknown as ExternalDocumentTypesService,
   );
-  return { service, settings, channelSync };
+  return { service, settings, channelSync, externalTypes };
 }
 
 function existingTransferDocument(overrides: Record<string, unknown> = {}) {

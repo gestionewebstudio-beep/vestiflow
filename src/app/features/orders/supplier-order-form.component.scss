@@ -17,6 +17,10 @@
   display: none;
 }
 
+// La fascia del documento della controparte non ha più regole qui: forma,
+// fondo tenue, filo superiore e sparizione sotto lg li porta con sé il
+// componente condiviso (app-document-counterparty-ref, layout `band`).
+
 @include bp.media-down('lg') {
   .doc-form__mode-mobile {
     display: flex;

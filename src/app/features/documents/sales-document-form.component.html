@@ -65,7 +65,8 @@
         }
 
         <!-- Testata a celle unite (forma Ordine cliente): prima fascia con i
-             dati del documento, seconda fascia fiscale solo per le fatture. -->
+             dati del documento, fascia fiscale solo per le fatture e, in coda,
+             la fascia del documento del cliente disegnata dal blocco condiviso. -->
         <div class="doc-form__header">
           <!-- Vista mobile: pannelli apribili come la reference «Ordine
                cliente». Vivono nel DOM accanto alle fasce desktop e si
@@ -134,6 +135,7 @@
                 <app-document-number-field
                   numberInputId="sd-m-number"
                   [number]="form.controls.documentNumber.value"
+                  [isProposal]="numberIsProposal()"
                   [series]="form.controls.series.value"
                   [seriesOptions]="seriesOptions()"
                   [canManageSeries]="true"
@@ -157,6 +159,25 @@
                   </div>
                 }
               </div>
+
+              <!-- Il documento che ha emesso il cliente (il suo ordine): stesso
+                   blocco condiviso della vista desktop, che qui disegna da sé
+                   titolo di sezione e campi in colonna. L'idPrefix è diverso
+                   perché le due viste convivono nel DOM e gli id degli input
+                   devono restare univoci nella pagina. -->
+              <app-document-counterparty-ref
+                idPrefix="sd-m"
+                layout="stack"
+                sectionTitle="Documento del cliente"
+                [typeId]="form.controls.externalDocumentTypeId.value"
+                [docNumber]="form.controls.externalDocNumber.value"
+                [docDate]="form.controls.externalDocDate.value"
+                [snapshotLabel]="counterpartyTypeSnapshot()"
+                [disabled]="formReadOnly()"
+                (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
+                (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
+                (docDateChange)="form.controls.externalDocDate.setValue($event)"
+              />
             </app-document-mobile-panel>
 
             <!-- Solo fatture: la fascia fiscale diventa il secondo pannello,
@@ -293,11 +314,13 @@
               />
             </div>
 
-            <!-- Identificativo del documento: Data + Numero + Serie. Il numero è
-               proposto dal progressivo di serie ma resta modificabile. -->
+            <!-- Identificativo del documento: Data + Numero + Serie. Finché non lo
+               si tocca il numero è solo il primo libero (isProposal): lo prende
+               chi salva per primo, e il campo lo dice. -->
             <app-document-number-field
               numberInputId="sd-number"
               [number]="form.controls.documentNumber.value"
+              [isProposal]="numberIsProposal()"
               [series]="form.controls.series.value"
               [seriesOptions]="seriesOptions()"
               [canManageSeries]="true"
@@ -433,6 +456,29 @@
               </div>
             </div>
           }
+
+          <!--
+            Documento del cliente: tipo, numero e data del documento emesso
+            dalla controparte (il suo ordine). Blocco condiviso da tutte le
+            maschere documento — si porta dietro la tendina dei tipi, la voce
+            «Gestisci tipi documento…» e il pannello che apre.
+
+            Nessun contenitore attorno: la fascia — fondo tenue, filo sopra,
+            angoli in basso e sparizione sotto lg, dove la testata passa ai
+            pannelli — la disegna il componente stesso, uguale in ogni maschera.
+            Sta in fondo alla testata perché è lì che va una fascia secondaria.
+          -->
+          <app-document-counterparty-ref
+            idPrefix="sd"
+            [typeId]="form.controls.externalDocumentTypeId.value"
+            [docNumber]="form.controls.externalDocNumber.value"
+            [docDate]="form.controls.externalDocDate.value"
+            [snapshotLabel]="counterpartyTypeSnapshot()"
+            [disabled]="formReadOnly()"
+            (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
+            (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
+            (docDateChange)="form.controls.externalDocDate.setValue($event)"
+          />
         </div>
 
         <section class="doc-form__lines" aria-labelledby="sd-lines-title">
@@ -939,9 +985,9 @@
   (dismissed)="dismissIncompleteData()"
 />
 
-<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il numero
-     è già stato aggiornato al primo libero; il salvataggio resta una
-     pressione esplicita di Salva. -->
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La testata
+     resta com'era e il documento non è salvato; il messaggio nomina il numero
+     rifiutato e il primo libero, la correzione è dell'operatore. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
   title="Numero già usato"

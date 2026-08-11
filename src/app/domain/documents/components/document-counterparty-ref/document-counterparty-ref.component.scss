@@ -1,0 +1,36 @@
+// L'host non deve esistere nel layout: le tre celle sono figlie dirette della
+// griglia di testata che le ospita. Con un box in mezzo le colonne salterebbero
+// e ogni maschera dovrebbe rimediare con una regola sua — che e' esattamente il
+// contrario del motivo per cui questo componente esiste.
+:host {
+  display: contents;
+}
+
+// Le celle portano `doc-form__field` (desktop) o `doc-panel__field` (mobile) e
+// prendono da `styles/_document-form.scss` tutto quello che una cella di
+// testata ha: padding compatto, fili di separazione, `:focus-within`, misura
+// delle etichette, larghezza dei controlli. Qui resta SOLO cio' che quei fogli
+// non danno — ricopiarli significherebbe avere due verita' sull'aspetto di una
+// cella, e la seconda invecchierebbe in silenzio.
+.cp-ref__cell {
+  min-inline-size: 0;
+}
+
+// Il numero e' un input nativo e prende `doc-form__input` / `doc-panel__control`
+// dai fogli condivisi. Un'unica aggiunta: da fermo il campo dev'essere
+// riconoscibile come compilabile anche quando il foglio di testata gli toglie
+// bordo e fondo.
+.cp-ref__input:disabled {
+  opacity: var(--opacity-disabled);
+}
+
+// Il titolo della sezione mobile ha margine sopra solo quando questo blocco
+// segue altri campi nello stesso pannello: senza, il titolino resta incollato
+// all'ultimo campo e sembra appartenergli.
+//
+// La condizione sta sull'host e non sul `<p>`: con `display: contents` il
+// paragrafo e' comunque il primo figlio del componente, quindi `:first-child`
+// su di lui direbbe sempre di si'. L'host, invece, sa se qualcosa lo precede.
+:host(:not(:first-child)) .doc-panel__section {
+  margin-block-start: var(--space-3);
+}

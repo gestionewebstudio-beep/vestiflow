@@ -66,6 +66,7 @@ import {
 } from '@domain/documents/models/document-transport.util';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
+import { counterpartyDocLabel } from '@domain/documents/models/document-labels.util';
 import { take } from 'rxjs';
 
 type ActionState =
@@ -256,6 +257,12 @@ export class DocumentDetailComponent {
     if (doc.billingCause) {
       facts.push({ label: 'Causale', value: doc.billingCause });
     }
+    // Documento della controparte (tipo + numero + data): una voce sola, e solo
+    // se almeno uno dei tre campi è compilato.
+    const counterpartyDoc = counterpartyDocLabel(doc);
+    if (counterpartyDoc) {
+      facts.push({ label: 'Documento controparte', value: counterpartyDoc });
+    }
     if (doc.externalRef && !doc.linkedSalesOrder) {
       facts.push({ label: 'Riferimento collegato', value: doc.externalRef });
     }
@@ -301,9 +308,6 @@ export class DocumentDetailComponent {
         value: formatDate(doc.externallyIssuedAt),
         numeric: true,
       });
-    }
-    if (doc.externalDocNumber) {
-      facts.push({ label: 'Doc. esterno', value: doc.externalDocNumber });
     }
     if (doc.registrationDate) {
       facts.push({

@@ -78,6 +78,20 @@ export class CreateSupplierOrderDto {
   @MaxLength(120)
   supplierReference?: string;
 
+  // ── Documento della controparte: la conferma d'ordine del fornitore ──
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  externalDocNumber?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  externalDocDate?: string;
+
+  @IsOptional()
+  @IsUUID()
+  externalDocumentTypeId?: string;
+
   /** Switch costi netto/ivato (come Arrivo merce). Default: netti. */
   @IsOptional()
   @IsEnum(PurchaseCostEntryMode)

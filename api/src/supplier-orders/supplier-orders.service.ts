@@ -25,8 +25,13 @@ import { DocumentSettingsService } from '../documents/document-settings.service'
 import { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import { costEntryModeToPricesIncludeVat } from '../documents/document-price-mode.util';
 import { formatDocumentReference } from '../documents/document-totals.util';
-import { defaultCounterSeries, nextDocumentNumber } from '../documents/document-numbering.util';
+import {
+  defaultCounterSeries,
+  lockDocumentCounter,
+  nextDocumentNumber,
+} from '../documents/document-numbering.util';
 import { computeGoodsReceiptTotals } from '../documents/goods-receipt-vat.util';
+import { ExternalDocumentTypesService } from '../documents/external-document-types.service';
 import {
   computeVatLineAmounts,
   entryIncludesVat,
@@ -95,6 +100,7 @@ export class SupplierOrdersService {
     private readonly documentSettings: DocumentSettingsService,
     private readonly vatCodes: VatCodesService,
     private readonly priceModePreference: DocumentPriceModePreferenceService,
+    private readonly externalTypes: ExternalDocumentTypesService,
   ) {}
 
   listSuppliers(tenantId: string): Promise<Supplier[]> {
@@ -148,9 +154,18 @@ export class SupplierOrdersService {
     const computedLines = await this.computeLines(tenantId, dto.lines, costEntryMode);
     const totals = computeGoodsReceiptTotals(computedLines, 0);
     const orderDate = dto.orderDate ? new Date(dto.orderDate) : new Date();
+    const externalType = await this.externalTypes.resolveForWrite(
+      tenantId,
+      dto.externalDocumentTypeId,
+    );
 
     const result = await this.prisma.$transaction(async (tx) => {
       const series = await defaultCounterSeries(tx, tenantId, DocumentType.supplier_order);
+      // Serializza gli operatori sullo stesso contatore: senza lock due
+      // creazioni simultanee leggono lo stesso massimo e il secondo si becca il
+      // vincolo unico a lavoro finito. Il lock è transazionale (si rilascia al
+      // commit o al rollback) e va preso PRIMA della lettura.
+      await lockDocumentCounter(tx, { tenantId, type: DocumentType.supplier_order, series });
       const number = await nextDocumentNumber({
         tx,
         tenantId,
@@ -174,6 +189,10 @@ export class SupplierOrdersService {
           costEntryMode,
           orderDate,
           supplierReference: dto.supplierReference?.trim() || null,
+          // Documento della controparte: la conferma d'ordine del fornitore.
+          externalDocNumber: dto.externalDocNumber?.trim() || null,
+          externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
+          ...externalType,
           subtotalMinor: totals.subtotalMinor,
           taxMinor: totals.taxMinor,
           totalMinor: totals.totalMinor,
@@ -226,6 +245,10 @@ export class SupplierOrdersService {
     const costEntryMode = dto.costEntryMode ?? order.costEntryMode;
     const computedLines = await this.computeLines(tenantId, dto.lines, costEntryMode);
     const totals = computeGoodsReceiptTotals(computedLines, 0);
+    const externalType = await this.externalTypes.resolveForWrite(
+      tenantId,
+      dto.externalDocumentTypeId,
+    );
 
     return this.prisma.$transaction(async (tx) => {
       await tx.supplierOrderLine.deleteMany({ where: { orderId: id } });
@@ -241,6 +264,19 @@ export class SupplierOrdersService {
             dto.supplierReference === undefined
               ? order.supplierReference
               : dto.supplierReference?.trim() || null,
+          externalDocNumber:
+            dto.externalDocNumber === undefined
+              ? order.externalDocNumber
+              : dto.externalDocNumber?.trim() || null,
+          externalDocDate:
+            dto.externalDocDate === undefined
+              ? order.externalDocDate
+              : dto.externalDocDate
+                ? new Date(dto.externalDocDate)
+                : null,
+          // Assente = si lascia com'e', con il suo snapshot: un client che non
+          // conosce il campo non deve poter cancellare la dicitura dall'ordine.
+          ...(dto.externalDocumentTypeId === undefined ? {} : externalType),
           subtotalMinor: totals.subtotalMinor,
           taxMinor: totals.taxMinor,
           totalMinor: totals.totalMinor,

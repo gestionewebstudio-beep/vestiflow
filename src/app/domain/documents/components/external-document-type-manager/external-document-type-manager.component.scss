@@ -1,0 +1,136 @@
+// Gestione tipi documento della controparte.
+//
+// Lo stile viene dal pannello che stava dentro l'Arrivo merce, dove le classi
+// si chiamavano ancora `doc-form__causal-*`: erano il residuo del combobox
+// causale, che non esiste piu'. Qui ripartono con il proprio nome, e restano in
+// questo foglio invece che nel globale perche' il markup e' tutto del
+// componente — al livello globale sale solo cio' che non puo' stare altrove.
+
+.edt-manager {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.edt-manager__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.edt-manager__input {
+  inline-size: 100%;
+  block-size: var(--field-height);
+  padding-inline: var(--space-3);
+  font-size: var(--text-base);
+  font-family: inherit;
+  color: var(--color-text);
+  background-color: var(--color-input-bg);
+  border: var(--border-width) solid var(--color-input-border);
+  border-radius: var(--radius-md);
+
+  &:focus-visible {
+    border-color: var(--color-interactive);
+    outline: none;
+    box-shadow: var(--field-focus-ring);
+  }
+
+  &:disabled {
+    opacity: var(--opacity-disabled);
+  }
+}
+
+.edt-manager__new {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+
+  .edt-manager__input {
+    flex: 1;
+    min-inline-size: 0;
+  }
+}
+
+.edt-manager__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.edt-manager__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.edt-manager__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+
+  .edt-manager__item--inactive & {
+    color: var(--color-text-muted);
+  }
+}
+
+.edt-manager__short {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.edt-manager__edit-fields {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.edt-manager__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.edt-manager__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  inline-size: var(--btn-min-height);
+  block-size: var(--btn-min-height);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+
+  &:hover:not(:disabled) {
+    color: var(--color-text);
+    background-color: var(--color-surface);
+  }
+
+  &:disabled {
+    opacity: var(--opacity-disabled); // allineato allo stato disabled di app-button
+    cursor: default;
+  }
+
+  &--danger:hover:not(:disabled) {
+    color: var(--color-danger);
+  }
+}
+
+.edt-manager__empty {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

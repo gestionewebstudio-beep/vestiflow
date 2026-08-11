@@ -42,6 +42,7 @@ import {
   buildDocumentNumberConflict,
   defaultCounterSeries,
   isDocumentNumberConflict,
+  lockDocumentCounter,
   resolveDocumentNumber,
 } from './document-numbering.util';
 import {
@@ -165,18 +166,30 @@ export class GoodsReceiptWorkflowService {
       }
       return result;
     } catch (error) {
-      await this.throwNumberConflict(error, tenantId, dto.type, dto.series, dto.documentDate);
+      await this.throwNumberConflict(
+        error,
+        tenantId,
+        dto.type,
+        dto.series,
+        dto.documentDate,
+        dto.number ?? null,
+      );
       throw error;
     }
   }
 
-  /** Conflitto sul numero → 409 con il primo libero della serie. */
+  /**
+   * Conflitto sul numero → 409 con il numero rifiutato e il primo libero della
+   * serie. `requestedNumber` è il protocollo che la testata ha imposto: senza,
+   * il messaggio nominerebbe all'operatore un numero che non ha digitato.
+   */
   private async throwNumberConflict(
     error: unknown,
     tenantId: string,
     type: DocumentType,
     series: string | null | undefined,
     _documentDate: string,
+    requestedNumber: number | null,
   ): Promise<never | void> {
     if (!isDocumentNumberConflict(error)) {
       return;
@@ -190,6 +203,7 @@ export class GoodsReceiptWorkflowService {
         series: series ?? null,
         source: 'document',
         prefix: setting.numberPrefix,
+        requestedNumber,
       }),
     );
   }
@@ -323,11 +337,20 @@ export class GoodsReceiptWorkflowService {
       createdByName: user?.displayName ?? 'API',
     };
 
-    // Tipo documento fornitore: validato per tenant e fotografato in snapshot
+    // Tipo documento controparte: validato per tenant e fotografato in snapshot
     // (lo storico resta leggibile anche se il tipo viene rinominato, §13).
+    //
+    // La lettura vede ANCHE i tipi eliminati, ed e' voluto: eliminare un tipo lo
+    // toglie dalle tendine, non dai documenti che lo portano. Con `getById`
+    // (che filtra i cancellati) riaprire e risalvare un vecchio arrivo merce
+    // darebbe 404 — e prima ancora, sotto, azzererebbe id e snapshot insieme,
+    // cancellando dall'elenco la dicitura «DDT 145 del 08/05/2026».
     const externalDocumentType = dto.externalDocumentTypeId
-      ? await this.externalTypes.getById(tenantId, dto.externalDocumentTypeId)
+      ? await this.externalTypes.findByIdIncludingDeleted(tenantId, dto.externalDocumentTypeId)
       : null;
+    if (dto.externalDocumentTypeId && !externalDocumentType) {
+      throw new NotFoundException('Tipo documento controparte non trovato');
+    }
 
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
     const createdProducts: GoodsReceiptCreatedProduct[] = [];
@@ -403,6 +426,16 @@ export class GoodsReceiptWorkflowService {
       let number = existing?.number ?? null;
       let reference = existing?.reference ?? null;
       if (number == null) {
+        const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
+        if (requestedNumber == null) {
+          // Numero automatico: il lock serializza gli operatori sullo stesso
+          // contatore, così il secondo legge un massimo aggiornato invece di
+          // scoprire la collisione dal vincolo unico a lavoro finito. Si
+          // rilascia al commit (o al rollback) di questa transazione.
+          // Un numero imposto dalla testata non passa di qui: non legge alcun
+          // massimo, e il conflitto lì è l'informazione utile all'operatore.
+          await lockDocumentCounter(tx, { tenantId, type: dto.type, series });
+        }
         const assigned = await resolveDocumentNumber({
           tx,
           tenantId,
@@ -410,7 +443,7 @@ export class GoodsReceiptWorkflowService {
           series,
           source: 'document',
           prefix: setting.numberPrefix,
-          requestedNumber: dto.number ?? null,
+          requestedNumber,
         });
         number = assigned.number;
         reference = assigned.reference;
@@ -431,8 +464,17 @@ export class GoodsReceiptWorkflowService {
         causalText: dto.causalText?.trim() || null,
         causalGenerationMode: dto.causalGenerationMode ?? null,
         causalTemplateSnapshot: dto.causalTemplateSnapshot?.trim() || null,
-        externalDocumentTypeId: externalDocumentType?.id ?? null,
-        externalDocumentTypeSnapshot: externalDocumentType?.shortLabel ?? null,
+        // Se il DTO non porta il tipo, il documento tiene il proprio: un client
+        // che non conosce il campo non deve poter cancellare uno snapshot.
+        ...(dto.externalDocumentTypeId === undefined
+          ? {
+              externalDocumentTypeId: existing?.externalDocumentTypeId ?? null,
+              externalDocumentTypeSnapshot: existing?.externalDocumentTypeSnapshot ?? null,
+            }
+          : {
+              externalDocumentTypeId: externalDocumentType?.id ?? null,
+              externalDocumentTypeSnapshot: externalDocumentType?.shortLabel ?? null,
+            }),
         externalDocNumber: dto.externalDocNumber?.trim() || null,
         externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
         notes: dto.notes ?? existing?.notes ?? setting.defaultNotes,
@@ -752,7 +794,34 @@ export class GoodsReceiptWorkflowService {
    * supplier_invoice, le righe riepilogative e i collegamenti agli arrivi.
    * NON genera mai movimenti di magazzino.
    */
+  /**
+   * Come l'arrivo merce: il conflitto sul protocollo diventa un 409 leggibile,
+   * con il primo numero libero. Senza questa rete il P2002 del vincolo unico
+   * risaliva grezzo — nessun filtro globale lo mappa — e la maschera, che il
+   * dialogo del conflitto ce l'ha, mostrava un errore imprevisto senza dire
+   * quale numero fosse libero.
+   */
   async savePurchaseInvoice(
+    tenantId: string,
+    dto: SavePurchaseInvoiceDto,
+    user?: UserProfileDto,
+  ): Promise<PurchaseInvoiceSaveResult> {
+    try {
+      return await this.savePurchaseInvoiceInner(tenantId, dto, user);
+    } catch (error) {
+      await this.throwNumberConflict(
+        error,
+        tenantId,
+        DocumentType.supplier_invoice,
+        dto.series,
+        dto.documentDate,
+        dto.number ?? null,
+      );
+      throw error;
+    }
+  }
+
+  private async savePurchaseInvoiceInner(
     tenantId: string,
     dto: SavePurchaseInvoiceDto,
     user?: UserProfileDto,
@@ -837,6 +906,20 @@ export class GoodsReceiptWorkflowService {
       createdByName: user?.displayName ?? 'API',
     };
 
+    // Tipo del documento ricevuto dal fornitore, risolto fuori dalla
+    // transazione. `resolveForWrite` vede anche i tipi eliminati, ed è voluto:
+    // eliminare un tipo lo toglie dalle tendine, non dalle registrazioni che lo
+    // portano — risalvare una vecchia fattura darebbe altrimenti 404, e la
+    // dicitura «Fatt. 145 del 08/05/2026» sparirebbe dall'elenco.
+    //
+    // `undefined` resta distinto da `null`: il primo significa «il client non
+    // conosce il campo» e lascia in pace ciò che è già scritto, il secondo è
+    // una cancellazione voluta dall'operatore.
+    const resolvedExternalType =
+      dto.externalDocumentTypeId !== undefined
+        ? await this.externalTypes.resolveForWrite(tenantId, dto.externalDocumentTypeId)
+        : null;
+
     const document = await this.prisma.$transaction(async (tx) => {
       let existing: (Document & { lines: DocumentLine[] }) | null = null;
       if (dto.id) {
@@ -870,6 +953,14 @@ export class GoodsReceiptWorkflowService {
       const protocolChanged = dto.number != null && dto.number !== number;
       const seriesChanged = existing != null && series !== existing.series;
       if (number == null || protocolChanged || seriesChanged) {
+        const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
+        if (requestedNumber == null) {
+          // Protocollo automatico: stesso lock dell'arrivo merce, preso prima di
+          // leggere il massimo e dentro questa transazione. Il protocollo
+          // imposto a mano non lo prende: non legge il massimo, e un suo
+          // conflitto va mostrato all'operatore, non risolto in silenzio.
+          await lockDocumentCounter(tx, { tenantId, type: DocumentType.supplier_invoice, series });
+        }
         const assigned = await resolveDocumentNumber({
           tx,
           tenantId,
@@ -877,7 +968,7 @@ export class GoodsReceiptWorkflowService {
           series,
           source: 'document',
           prefix: setting.numberPrefix,
-          requestedNumber: dto.number ?? null,
+          requestedNumber,
         });
         number = assigned.number;
         reference = assigned.reference;
@@ -902,6 +993,10 @@ export class GoodsReceiptWorkflowService {
         // La data della fattura è la Data documento: lo snapshot esterno resta
         // allineato per le etichette "Fattura forn. n. X del …".
         externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : documentDate,
+        ...(resolvedExternalType ?? {
+          externalDocumentTypeId: existing?.externalDocumentTypeId ?? null,
+          externalDocumentTypeSnapshot: existing?.externalDocumentTypeSnapshot ?? null,
+        }),
         notes: dto.notes ?? existing?.notes ?? setting.defaultNotes,
         internalComment: dto.internalComment?.trim() || null,
         paymentMethod: dto.paymentMethod?.trim() || null,

@@ -65,8 +65,6 @@
             [statusReady]="supplierPanelReady()"
             [initiallyOpen]="true"
           >
-            <p class="doc-panel__section">Documento fornitore</p>
-
             <div class="doc-panel__fields">
               <div class="doc-panel__field">
                 <span class="doc-panel__label" id="pi-m-supplier-label">Fornitore</span>
@@ -87,30 +85,28 @@
                   <p id="pi-m-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
                 }
               </div>
-
-              <div class="doc-panel__fields doc-panel__fields--two">
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="pi-m-doc-date">Data fattura</label>
-                  <app-date-input
-                    inputId="pi-m-doc-date"
-                    formControlName="documentDate"
-                    ariaLabel="Data della fattura del fornitore"
-                    [fullWidth]="true"
-                  />
-                </div>
-
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="pi-m-ext-num">N. fattura</label>
-                  <input
-                    id="pi-m-ext-num"
-                    class="doc-panel__control"
-                    type="text"
-                    formControlName="externalDocNumber"
-                    placeholder="Es. 58/2026"
-                  />
-                </div>
-              </div>
             </div>
+
+            <!-- Stesse tre celle della testata desktop, in colonna. Titolo di
+                 sezione e contenitore dei campi li disegna il componente
+                 condiviso: la maschera passa solo le proprie parole
+                 («Documento fornitore»). L'`idPrefix` cambia perché le due
+                 viste convivono nel DOM e gli id devono restare univoci. -->
+            <app-document-counterparty-ref
+              idPrefix="pi-m"
+              layout="stack"
+              sectionTitle="Documento fornitore"
+              [typeId]="form.controls.externalDocumentTypeId.value"
+              [docNumber]="form.controls.externalDocNumber.value"
+              [docDate]="form.controls.documentDate.value"
+              [snapshotLabel]="counterpartyTypeSnapshot()"
+              numberLabel="N. fattura"
+              dateLabel="Data fattura"
+              numberPlaceholder="Es. 58/2026"
+              (typeIdChange)="onCounterpartyTypeChange($event)"
+              (docNumberChange)="onCounterpartyNumberChange($event)"
+              (docDateChange)="onCounterpartyDateChange($event)"
+            />
           </app-document-mobile-panel>
 
           <!-- I dati interni hanno già default validi: chiuso, si apre per cambiarli. -->
@@ -139,6 +135,7 @@
                 numberInputId="pi-m-protocol"
                 hint="Numero interno di catalogazione, non quello del fornitore."
                 [number]="form.controls.protocolNumber.value"
+                [isProposal]="protocolIsProposal()"
                 [series]="form.controls.series.value"
                 [seriesOptions]="seriesOptions()"
                 [canManageSeries]="true"
@@ -165,10 +162,11 @@
           </app-document-mobile-panel>
         </div>
 
-        <!-- Testata a due fasce (riferimento OC): la prima porta il documento
-             del fornitore, la seconda (fondo soft) la registrazione VestiFlow.
-             Le vecchie etichette di blocco non servono più: la separazione la
-             danno le fasce stesse. -->
+        <!-- Testata a due fasce (riferimento OC): la prima porta la
+             registrazione VestiFlow (fornitore, data, protocollo, commento), la
+             seconda (fondo soft) il documento del fornitore. Le vecchie
+             etichette di blocco non servono più: la separazione la danno le
+             fasce stesse. -->
         <div
           class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
         >
@@ -194,32 +192,6 @@
           </div>
 
           <div class="doc-form__field">
-            <label class="doc-form__label" for="pi-doc-date">Data fattura</label>
-            <app-date-input
-              inputId="pi-doc-date"
-              formControlName="documentDate"
-              ariaLabel="Data della fattura del fornitore"
-              [compact]="true"
-              [fullWidth]="true"
-            />
-          </div>
-
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="pi-ext-num">N. fattura</label>
-            <input
-              id="pi-ext-num"
-              class="doc-form__input"
-              type="text"
-              formControlName="externalDocNumber"
-              placeholder="Es. 58/2026"
-            />
-          </div>
-        </div>
-
-        <div
-          class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row doc-form__header-row--secondary"
-        >
-          <div class="doc-form__field">
             <label class="doc-form__label" for="pi-reg-date">Data registrazione</label>
             <app-date-input
               inputId="pi-reg-date"
@@ -235,6 +207,7 @@
             numberInputId="pi-protocol"
             hint="Numero interno di catalogazione, non quello del fornitore."
             [number]="form.controls.protocolNumber.value"
+            [isProposal]="protocolIsProposal()"
             [series]="form.controls.series.value"
             [seriesOptions]="seriesOptions()"
             [canManageSeries]="true"
@@ -254,6 +227,26 @@
             />
           </div>
         </div>
+
+        <!-- Documento della controparte: la fascia secondaria in fondo alla
+             testata la disegna il componente condiviso, non la maschera — è la
+             stessa in tutte e sette. Le parole restano quelle che l'operatore
+             legge da sempre — «N. fattura» e «Data fattura» — e la data e'
+             `documentDate`: qui la data del documento del fornitore E' la data
+             del documento. -->
+        <app-document-counterparty-ref
+          idPrefix="pi"
+          [typeId]="form.controls.externalDocumentTypeId.value"
+          [docNumber]="form.controls.externalDocNumber.value"
+          [docDate]="form.controls.documentDate.value"
+          [snapshotLabel]="counterpartyTypeSnapshot()"
+          numberLabel="N. fattura"
+          dateLabel="Data fattura"
+          numberPlaceholder="Es. 58/2026"
+          (typeIdChange)="onCounterpartyTypeChange($event)"
+          (docNumberChange)="onCounterpartyNumberChange($event)"
+          (docDateChange)="onCounterpartyDateChange($event)"
+        />
       </div>
 
       <!-- ── Arrivi merce inclusi ─────────────────────────────────────────── -->
@@ -757,9 +750,9 @@
   }
 </app-slide-panel>
 
-<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il numero
-     è già stato aggiornato al primo libero; il salvataggio resta una
-     pressione esplicita di Salva. -->
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La testata
+     resta com'era e il documento non è salvato; il messaggio nomina il numero
+     rifiutato e il primo libero, la correzione è dell'operatore. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
   title="Protocollo già usato"

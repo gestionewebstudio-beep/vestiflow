@@ -9,3 +9,8 @@
     display: none;
   }
 }
+
+// Il documento della controparte non ha più regole qui: forma, fascia e passo
+// dei campi li porta il componente condiviso
+// domain/documents/components/document-counterparty-ref, e le misure dei
+// controlli gliele danno i selettori di testata di styles/_document-form.scss.

@@ -124,6 +124,7 @@
                 <app-document-number-field
                   numberInputId="tr-m-number"
                   [number]="form.controls.documentNumber.value"
+                  [isProposal]="numberIsProposal()"
                   [series]="form.controls.series.value"
                   [seriesOptions]="seriesOptions()"
                   [canManageSeries]="true"
@@ -132,6 +133,26 @@
                   (manageSeries)="seriesDialogOpen.set(true)"
                 />
               </div>
+
+              <!-- Stesso trio della testata desktop, in colonna. Titolo di
+                   sezione e contenitore dei campi li disegna il componente:
+                   dove finiscono le tre celle non è più una decisione di
+                   questa maschera. L'idPrefix cambia perché le due viste
+                   convivono nel DOM e gli id degli input devono restare
+                   univoci. -->
+              <app-document-counterparty-ref
+                idPrefix="tr-m"
+                layout="stack"
+                sectionTitle="Documento della controparte"
+                [typeId]="form.controls.externalDocumentTypeId.value"
+                [docNumber]="form.controls.externalDocNumber.value"
+                [docDate]="form.controls.externalDocDate.value"
+                [snapshotLabel]="counterpartyTypeSnapshot()"
+                [disabled]="formReadOnly()"
+                (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
+                (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
+                (docDateChange)="form.controls.externalDocDate.setValue($event)"
+              />
             </app-document-mobile-panel>
           </div>
 
@@ -196,10 +217,13 @@
                 />
               </div>
 
-              <!-- Identificativo del documento: Data + Numero + Serie. -->
+              <!-- Identificativo del documento: Data + Numero + Serie. Su un
+                   documento nuovo il numero è una proposta finché nessuno lo
+                   tocca: il campo lo dice, invece di farlo sembrare acquisito. -->
               <app-document-number-field
                 numberInputId="tf-number"
                 [number]="form.controls.documentNumber.value"
+                [isProposal]="numberIsProposal()"
                 [series]="form.controls.series.value"
                 [seriesOptions]="seriesOptions()"
                 [canManageSeries]="true"
@@ -209,6 +233,24 @@
               />
             </div>
           </div>
+
+          <!-- Documento della controparte: un trasferimento fra sedi proprie
+               non ne ha una, il trio resta quindi facoltativo e senza tipo
+               proposto. La fascia secondaria della testata la disegna il
+               componente (layout `band`, il default): sta in fondo alla card,
+               sotto la fascia principale, e sotto lg si spegne da sé come
+               ogni altra fascia, lasciando il posto al pannello. -->
+          <app-document-counterparty-ref
+            idPrefix="tr"
+            [typeId]="form.controls.externalDocumentTypeId.value"
+            [docNumber]="form.controls.externalDocNumber.value"
+            [docDate]="form.controls.externalDocDate.value"
+            [snapshotLabel]="counterpartyTypeSnapshot()"
+            [disabled]="formReadOnly()"
+            (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
+            (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
+            (docDateChange)="form.controls.externalDocDate.setValue($event)"
+          />
         </div>
 
         <section class="doc-form__lines" aria-labelledby="tr-lines-title">
@@ -462,9 +504,9 @@
   />
 </section>
 
-<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il numero
-     è già stato aggiornato al primo libero; il salvataggio resta una
-     pressione esplicita di Salva. -->
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La testata
+     resta com'era e il documento non è salvato; il messaggio nomina il numero
+     rifiutato e il primo libero, la correzione è dell'operatore. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
   title="Numero già usato"

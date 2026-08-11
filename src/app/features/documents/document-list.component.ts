@@ -98,7 +98,7 @@ import {
   type DocumentListQuery,
 } from '@domain/documents/models/document-list-query.model';
 import { DocumentService } from '@domain/documents/services/document.service';
-import { ExternalDocumentTypeService } from './services/external-document-type.service';
+import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 import { isPrintableDocumentType } from './models/document-print.util';
 import {
   GOODS_RECEIPT_LIST_EXPORT,

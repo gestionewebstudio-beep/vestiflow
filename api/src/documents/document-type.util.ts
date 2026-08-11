@@ -36,6 +36,28 @@ export function documentNumberingType(type: DocumentType): DocumentType {
   return type === DocumentType.invoice_accompanying ? DocumentType.invoice_draft : type;
 }
 
+/**
+ * TUTTI i tipi che pescano dallo stesso numeratore, incluso quello passato.
+ *
+ * Serve a LEGGERE la partizione del numero. `documentNumberingType` da sola
+ * indica solo chi «possiede» il numeratore, e usarla come filtro di uguaglianza
+ * sulla colonna `type` è un errore silenzioso: la colonna porta il tipo grezzo,
+ * quindi una Fattura accompagnatoria non rientra mai in `type = invoice_draft`.
+ * Chi legge vedrebbe metà partizione — massimo, anteprima, buchi, conteggi — e
+ * proporrebbe numeri già occupati, che l'indice unico (partizionato sul
+ * numeratore, migration 20260811090000) boccerebbe. Il risultato è peggiore del
+ * difetto che l'indice chiude: il tipo diventa insalvabile.
+ *
+ * Ogni lettura della partizione usa `{ type: { in: documentNumberingTypes(t) } }`.
+ */
+export function documentNumberingTypes(type: DocumentType): readonly DocumentType[] {
+  const owner = documentNumberingType(type);
+  if (owner === DocumentType.invoice_draft) {
+    return [DocumentType.invoice_draft, DocumentType.invoice_accompanying];
+  }
+  return [owner];
+}
+
 /** Avviso obbligatorio in stampa/note proforma (§9.1). */
 export const PROFORMA_FISCAL_DISCLAIMER =
   'Documento non fiscale / Proforma non valida ai fini IVA.';

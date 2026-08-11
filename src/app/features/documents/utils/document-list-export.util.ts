@@ -9,17 +9,18 @@ import type { Money } from '@core/models/money.model';
 import { formatDate } from '@core/utils/date.util';
 import { DEFAULT_CURRENCY, formatMoney, moneyToDecimalString } from '@core/utils/money.util';
 
-import { goodsReceiptLinkStatusLabel } from '@domain/documents/models/document-labels.util';
+import {
+  counterpartyDocLabel,
+  goodsReceiptLinkStatusLabel,
+} from '@domain/documents/models/document-labels.util';
 
-/** "DDT 145 del 08/05/2026" da snapshot tipo + numero + data documento fornitore. */
+/**
+ * Colonna «Doc. fornitore» dell'elenco arrivi merce: l'etichetta della
+ * controparte, con il riferimento collegato come ripiego per gli arrivi
+ * storici che portano solo quello.
+ */
 export function goodsReceiptExternalDocLabel(doc: DocumentRecord): string {
-  const number = doc.externalDocNumber?.trim();
-  if (!number) {
-    return doc.externalRef?.trim() ?? '';
-  }
-  const typePrefix = doc.externalDocumentTypeSnapshot?.trim();
-  const label = typePrefix ? `${typePrefix} ${number}` : number;
-  return doc.externalDocDate ? `${label} del ${formatDate(doc.externalDocDate)}` : label;
+  return counterpartyDocLabel(doc) || (doc.externalRef?.trim() ?? '');
 }
 
 /** Aggregazione a piè di lista di una colonna (somma monetaria o intera). */

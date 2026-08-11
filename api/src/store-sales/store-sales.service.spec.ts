@@ -385,6 +385,9 @@ function createFakePrisma(db: FakeDb): PrismaService {
       findMany: ({ where }: { where: { id: { in: string[] } } }) =>
         Promise.resolve(db.vatCodes.filter((vatCode) => where.id.in.includes(vatCode.id))),
     },
+    // Advisory lock sul contatore del documento: nel fake non serializza
+    // niente, ma senza la mock la chiamata romperebbe vendita e reso.
+    $queryRaw: () => Promise.resolve([]),
     $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
       const snapshot = structuredClone({
         levels: db.levels,

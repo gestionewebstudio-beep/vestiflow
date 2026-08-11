@@ -90,6 +90,7 @@ import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-selec
 
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
+import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import {
   grossFromNetExact,
@@ -159,6 +160,7 @@ function todayIsoDate(): string {
     SupplierFormFieldsComponent,
     SlidePanelComponent,
     ProductFormComponent,
+    DocumentCounterpartyRefComponent,
     DocumentMobilePanelComponent,
     DocumentLineCodeCellComponent,
     ConfirmDialogComponent,
@@ -337,8 +339,24 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     orderDate: this.fb.control(todayIsoDate(), { validators: [Validators.required] }),
     expectedAt: this.fb.control(''),
     supplierReference: this.fb.control(''),
+    // ── Documento della controparte ───────────────────────────────────────
+    // Tipo, numero e data della conferma d'ordine del fornitore. Il rendering
+    // è del componente condiviso: qui vive solo il dato.
+    externalDocumentTypeId: this.fb.control(''),
+    externalDocNumber: this.fb.control(''),
+    /** Data in formato ISO `AAAA-MM-GG` (solo giorno), come `orderDate`. */
+    externalDocDate: this.fb.control(''),
     lines: this.fb.array([this.createLine()]),
   });
+
+  /**
+   * Etichetta del tipo fotografata sull'ordine. Va passata SEMPRE al
+   * componente condiviso: se il tipo è stato eliminato dall'elenco, è l'unica
+   * cosa che tiene in piedi l'opzione nella tendina — senza, la dicitura
+   * apparirebbe vuota e il salvataggio successivo la cancellerebbe davvero.
+   */
+  private readonly _counterpartyTypeSnapshot = signal<string | undefined>(undefined);
+  protected readonly counterpartyTypeSnapshot = this._counterpartyTypeSnapshot.asReadonly();
 
   protected get lines(): FormArray<ReturnType<SupplierOrderFormComponent['createLine']>> {
     return this.form.controls.lines;
@@ -820,6 +838,26 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.form.controls.supplierId.markAsTouched();
   }
 
+  // ── Documento della controparte ─────────────────────────────────────────
+  //
+  // Il componente condiviso non conosce il form: emette il valore e basta. I
+  // tre campi rientrano così dalla porta di sempre — `valueChanges` marca le
+  // modifiche non salvate, il patch al caricamento li riempie, `getRawValue()`
+  // li porta al salvataggio. Testata desktop e pannello mobile chiamano questi
+  // stessi metodi: sono due viste dello stesso dato.
+
+  protected onCounterpartyTypeChange(value: string): void {
+    this.form.controls.externalDocumentTypeId.setValue(value);
+  }
+
+  protected onCounterpartyNumberChange(value: string): void {
+    this.form.controls.externalDocNumber.setValue(value);
+  }
+
+  protected onCounterpartyDateChange(value: string): void {
+    this.form.controls.externalDocDate.setValue(value);
+  }
+
   /** "Mostra avviso" (anagrafica fornitore): banner alla selezione. */
   protected readonly supplierDocumentAlert = computed(() => {
     const supplierId = this.formValue()?.supplierId;
@@ -847,12 +885,18 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     const orderDate = this.form.controls.orderDate.value;
     const expectedAt = this.form.controls.expectedAt.value;
     const reference = this.form.controls.supplierReference.value.trim();
+    const externalNumber = this.form.controls.externalDocNumber.value.trim();
     const parts: string[] = [orderDate ? formatItalianInputDate(orderDate) : 'Data non indicata'];
     if (expectedAt) {
       parts.push(`Consegna ${formatItalianInputDate(expectedAt)}`);
     }
     if (reference) {
       parts.push(`Rif. ${reference}`);
+    }
+    if (externalNumber) {
+      // A pannello chiuso il documento del fornitore si vede dal numero: il
+      // tipo lo sa la tendina, che qui non c'è.
+      parts.push(`Doc. ${externalNumber}`);
     }
     return parts;
   });
@@ -1270,6 +1314,12 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       orderDate: raw.orderDate ? new Date(raw.orderDate).toISOString() : undefined,
       expectedAt: raw.expectedAt ? new Date(raw.expectedAt).toISOString() : undefined,
       supplierReference: raw.supplierReference.trim() || undefined,
+      // Documento della controparte: i tre campi vanno SEMPRE, e vuoti valgono
+      // `null` — non `undefined`. In modifica l'assenza significa «lascialo
+      // com'è», quindi svuotare un campo e salvare non lo cancellerebbe.
+      externalDocumentTypeId: raw.externalDocumentTypeId || null,
+      externalDocNumber: raw.externalDocNumber.trim() || null,
+      externalDocDate: raw.externalDocDate ? new Date(raw.externalDocDate).toISOString() : null,
       costEntryMode: this.costEntryMode(),
       currency: this.currency,
       lines,
@@ -1346,7 +1396,15 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : todayIsoDate(),
       expectedAt: order.expectedAt ? order.expectedAt.slice(0, 10) : '',
       supplierReference: order.supplierReference ?? '',
+      externalDocumentTypeId: order.externalDocumentTypeId ?? '',
+      externalDocNumber: order.externalDocNumber ?? '',
+      // Il campo lavora sul solo giorno: la colonna è una `date`, ma in JSON
+      // arriva come istante (`…T00:00:00.000Z`).
+      externalDocDate: order.externalDocDate ? order.externalDocDate.slice(0, 10) : '',
     });
+    // Prima che la tendina si ridisegni: se il tipo è stato eliminato, è
+    // questa etichetta a ricostruirne l'opzione.
+    this._counterpartyTypeSnapshot.set(order.externalDocumentTypeSnapshot);
     this.costEntryMode.set(order.costEntryMode);
     this.lines.clear();
     for (const line of order.lines) {

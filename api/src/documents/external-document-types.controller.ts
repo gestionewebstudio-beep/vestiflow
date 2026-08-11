@@ -41,6 +41,17 @@ export class ExternalDocumentTypesController {
     return this.types.list(tenantId);
   }
 
+  /**
+   * Quanti documenti portano il tipo. Sta su un endpoint suo e non dentro
+   * `list()` apposta: la lista si carica all'apertura di ogni maschera, questo
+   * conteggio serve solo quando l'operatore preme il cestino.
+   */
+  @Get(':id/usage')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  usage(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.types.countUsage(tenantId, id);
+  }
+
   @Post()
   @RequirePermissions(TenantPermission.DocumentsManage)
   create(@CurrentTenant() tenantId: string, @Body() dto: CreateExternalDocumentTypeDto) {

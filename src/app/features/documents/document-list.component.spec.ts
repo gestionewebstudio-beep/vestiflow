@@ -13,7 +13,7 @@ import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { TableViewPreferenceApiService } from '@shared/table-columns/table-view-preference-api.service';
 
 import { DocumentListComponent } from './document-list.component';
-import { ExternalDocumentTypeService } from './services/external-document-type.service';
+import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 
 /**
  * Test di CARATTERIZZAZIONE.

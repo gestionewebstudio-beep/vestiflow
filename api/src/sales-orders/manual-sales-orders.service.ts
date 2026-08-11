@@ -21,9 +21,14 @@ import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { partyDisplayName } from '../common/party/party.util';
 import { DOCUMENT_STOCK_UNLOAD_TYPES } from '../documents/document-stock.constants';
 import { DocumentSettingsService } from '../documents/document-settings.service';
+import { ExternalDocumentTypesService } from '../documents/external-document-types.service';
 import type { CreateDocumentDto } from '../documents/dto/create-document.dto';
 import { formatDocumentReference } from '../documents/document-totals.util';
-import { defaultCounterSeries, nextDocumentNumber } from '../documents/document-numbering.util';
+import {
+  defaultCounterSeries,
+  lockDocumentCounter,
+  nextDocumentNumber,
+} from '../documents/document-numbering.util';
 import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
 import { StockReservationService } from '../order-reservations/stock-reservation.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -75,6 +80,7 @@ export class ManualSalesOrdersService {
     private readonly reservations: StockReservationService,
     private readonly documentSettings: DocumentSettingsService,
     private readonly channelSync: ChannelSyncFacade,
+    private readonly externalTypes: ExternalDocumentTypesService,
   ) {}
 
   async getMeta(tenantId: string): Promise<ManualSalesOrderMeta> {
@@ -214,6 +220,12 @@ export class ManualSalesOrdersService {
     const customerName = partyDisplayName(customer.party) || 'Cliente';
     const documentDate = new Date(dto.documentDate);
     const setting = await this.documentSettings.getResolved(tenantId, DocumentType.customer_order);
+    // Vede anche i tipi eliminati: toglierne uno dalla tendina non deve
+    // cancellarlo dagli ordini che lo portano.
+    const externalType = await this.externalTypes.resolveForWrite(
+      tenantId,
+      dto.externalDocumentTypeId,
+    );
 
     const syncTargets = new Set<string>();
 
@@ -254,6 +266,11 @@ export class ManualSalesOrdersService {
       let number = existing?.number ?? null;
       if (!orderNumber) {
         series = await defaultCounterSeries(tx, tenantId, DocumentType.customer_order);
+        // Serializza gli operatori sullo stesso contatore: senza lock due
+        // salvataggi simultanei leggono lo stesso massimo e il secondo si
+        // becca il vincolo unico a lavoro finito. Il lock è transazionale (si
+        // rilascia al commit o al rollback) e va preso PRIMA della lettura.
+        await lockDocumentCounter(tx, { tenantId, type: DocumentType.customer_order, series });
         number = await nextDocumentNumber({
           tx,
           tenantId,
@@ -276,6 +293,10 @@ export class ManualSalesOrdersService {
         customerName,
         locationId: dto.locationId ?? null,
         externalRef: dto.externalRef?.trim() || null,
+        // Documento della controparte: l'ordine che il cliente ha emesso.
+        externalDocNumber: dto.externalDocNumber?.trim() || null,
+        externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
+        ...externalType,
         expectedDeliveryDate: dto.expectedDeliveryDate ? new Date(dto.expectedDeliveryDate) : null,
         notes: dto.notes?.trim() || null,
         paymentTerms: dto.paymentTerms?.trim() || null,

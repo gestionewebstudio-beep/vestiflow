@@ -1310,41 +1310,11 @@ app-customer-order-form {
   gap: var(--space-2);
 }
 
-// Punto E: il combobox "Causale di carico" non esiste più (causale generata
-// in silenzio). Le classi doc-form__causal-* residue servono al pannello
-// "Gestisci tipi documento fornitore", che ne riusa la struttura.
-
-.doc-form__causal-empty {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-// ── Pannello "Gestisci tipi documento" (struttura condivisa) ────────────────
-
-.doc-form__causal-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.doc-form__causal-panel-hint {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  line-height: var(--leading-normal);
-}
-
-.doc-form__type-new {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-
-  .doc-form__input {
-    flex: 1;
-    min-inline-size: 0;
-  }
-}
+// Le classi doc-form__causal-* sono il residuo del combobox "Causale di carico",
+// che non esiste più (la causale si genera in silenzio). Quelle rimaste vestono
+// la gestione delle causali dentro il Documento di vendita: il pannello
+// "Gestisci tipi documento" ha traslocato in un componente di dominio e si porta
+// dietro il proprio foglio, quindi le sue regole sono state tolte da qui.
 
 .doc-form__causal-manage-list {
   margin: 0;
@@ -1410,31 +1380,6 @@ app-customer-order-form {
   &--danger:hover:not(:disabled) {
     color: var(--color-danger);
   }
-}
-
-// Gestione tipi documento fornitore (§6) — riusa il layout del pannello causali.
-.doc-form__type-inactive .doc-form__causal-manage-label {
-  color: var(--color-text-muted);
-}
-
-.doc-form__type-short {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-}
-
-.doc-form__type-edit-fields {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-// Finestra "Nuovo tipo documento fornitore" (§5).
-.doc-form__type-dialog-fields {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-block-end: var(--space-4);
 }
 
 .doc-form__actions-note-sep {
@@ -1655,6 +1600,14 @@ app-customer-order-form {
 .doc-form .doc-form__header .doc-form__header-row--secondary {
   background-color: var(--color-surface-soft);
   border-block-start: var(--border-width) solid var(--color-border);
+}
+
+// Gli angoli bassi li arrotonda SOLO l'ultima fascia: e' lei a chiudere la card.
+// Da quando il documento della controparte porta la propria fascia, una testata
+// puo' averne due (Fattura di vendita: fascia fiscale + controparte), e dando i
+// raggi a entrambe si vedrebbe il bianco della card affiorare ai due angoli a
+// meta' testata.
+.doc-form .doc-form__header .doc-form__header-row--secondary:last-child {
   border-end-start-radius: var(--radius-lg);
   border-end-end-radius: var(--radius-lg);
 }

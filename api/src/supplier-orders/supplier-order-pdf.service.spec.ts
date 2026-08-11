@@ -25,6 +25,11 @@ describe('SupplierOrderPdfService', () => {
     costEntryMode: 'vat_excluded',
     orderDate: new Date('2026-07-10T09:00:00.000Z'),
     supplierReference: 'ORD-77/2026',
+    // Documento della controparte: non compilato in questa fixture.
+    externalDocNumber: null,
+    externalDocDate: null,
+    externalDocumentTypeId: null,
+    externalDocumentTypeSnapshot: null,
     subtotalMinor: 30000,
     taxMinor: 6600,
     totalMinor: 36600,

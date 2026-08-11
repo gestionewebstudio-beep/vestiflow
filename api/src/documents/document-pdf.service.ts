@@ -434,6 +434,13 @@ export class DocumentPdfService {
       }
     }
 
+    // Documento emesso dall'altra parte: sta con gli altri riferimenti di
+    // testata e vale per ogni tipo, non più solo per l'arrivo merce.
+    const counterparty = counterpartyDocLabel(document);
+    if (counterparty) {
+      y = drawPdfMetaLine(doc, 'Documento controparte', counterparty, y);
+    }
+
     return y;
   }
 
@@ -532,6 +539,24 @@ function formatPdfAddress(value: unknown): string | null {
     Boolean,
   );
   return parts.length > 0 ? parts.join('\n') : null;
+}
+
+/**
+ * «DDT 145 del 08/05/2026»: il documento della controparte in una riga sola,
+ * '' quando nessuno dei tre campi è compilato — così la riga non si stampa
+ * affatto. Gemella di `counterpartyDocLabel` del frontend: stesso testo, qui
+ * con la data nel fuso Europa/Roma come il resto della stampa.
+ */
+function counterpartyDocLabel(document: DocumentDetail): string {
+  const head = [document.externalDocumentTypeSnapshot, document.externalDocNumber]
+    .map((part) => part?.trim() ?? '')
+    .filter((part) => part.length > 0)
+    .join(' ');
+  if (!document.externalDocDate) {
+    return head;
+  }
+  const date = formatRomeDate(document.externalDocDate);
+  return head ? `${head} del ${date}` : date;
 }
 
 function parseSerialNumbers(value: unknown): string[] {

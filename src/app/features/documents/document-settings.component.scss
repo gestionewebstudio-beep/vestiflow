@@ -29,6 +29,39 @@
   color: var(--color-text-muted);
 }
 
+// Pannello trasversale (tipi documento della controparte): stessa superficie
+// delle card della griglia, ma a larghezza piena — la sua configurazione vale
+// per tutte le maschere, non per il tipo documento accanto a cui starebbe.
+.doc-settings__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.doc-settings__panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.doc-settings__panel-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.doc-settings__panel-subtitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
 .doc-settings__grid {
   display: grid;
   grid-template-columns: 1fr;

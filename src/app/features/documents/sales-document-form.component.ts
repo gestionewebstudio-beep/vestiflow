@@ -48,6 +48,7 @@ import {
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
+import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import {
@@ -85,6 +86,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
+import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import {
@@ -139,6 +141,7 @@ type SubmitState =
     BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
+    DocumentCounterpartyRefComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DateInputComponent,
@@ -171,6 +174,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private readonly router = inject(Router);
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
+  private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly listPath = '/app/documents';
@@ -315,6 +319,16 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       : `Modifica ${label.toLowerCase()}`;
   });
 
+  /**
+   * Etichetta del tipo documento controparte fotografata sul documento. Serve
+   * al blocco condiviso per ricostruire l'opzione quando il tipo è stato
+   * eliminato dalla tabella: senza, riaprire il documento mostrerebbe il campo
+   * vuoto e il salvataggio successivo ne cancellerebbe davvero la dicitura.
+   */
+  protected readonly counterpartyTypeSnapshot = computed(
+    () => this.loadedDocument()?.externalDocumentTypeSnapshot,
+  );
+
   protected readonly form = this.fb.group({
     customerId: this.fb.control('', { validators: [Validators.required] }),
     locationId: this.fb.control(''),
@@ -324,6 +338,13 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     /** Numero documento: proposto dal progressivo di serie, editabile. */
     documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
+    // ── Documento della controparte ────────────────────────────────────
+    // Tipo, numero e data del documento che ha emesso il cliente (il suo
+    // ordine): non identificano questo documento, lo agganciano al foglio
+    // che sta dall'altra parte della transazione.
+    externalDocumentTypeId: this.fb.control(''),
+    externalDocNumber: this.fb.control(''),
+    externalDocDate: this.fb.control(''),
     billingCause: this.fb.control(''),
     relatedDdtRef: this.fb.control(''),
     notes: this.fb.control(this.routeType === DocumentType.Proforma ? PROFORMA_DISCLAIMER : ''),
@@ -387,6 +408,20 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       label: counter.series ?? 'Senza serie',
     })),
   );
+
+  /**
+   * Il numero in testata è una PROPOSTA, non un'assegnazione: su un documento
+   * nuovo mostra il primo libero, ma lo prende chi salva per primo. Vale finché
+   * l'operatore non lo tocca (`dirty`), e mai su un documento già salvato: lì il
+   * numero è assegnato e non può cambiare da solo.
+   *
+   * `formValue()` è la dipendenza che rende reattivo un `dirty` che signal non è:
+   * ogni scrittura del controllo passa da `setValue`, che emette `valueChanges`.
+   */
+  protected readonly numberIsProposal = computed(() => {
+    this.formValue();
+    return !this.isEditMode() && !this.form.controls.documentNumber.dirty;
+  });
 
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
@@ -1306,6 +1341,21 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       return;
     }
     const raw = this.form.getRawValue();
+    // Serve prima del body: il documento della controparte si serializza in
+    // modo diverso in creazione e in modifica (vedi sotto).
+    const editId = this.editDocumentId();
+    const counterpartyNumber = raw.externalDocNumber.trim();
+    // Il numero si manda SOLO se l'operatore l'ha scelto. La proposta viene
+    // scritta senza sporcare il controllo (withoutDirtyMarking + patchValue),
+    // quindi `dirty` distingue davvero i due casi.
+    // Si omette SOLO la proposta di un documento nuovo. In modifica il numero
+    // è una proprietà del documento, non una proposta: va sempre mandato,
+    // altrimenti un cambio di serie lascerebbe il documento con il numero della
+    // serie vecchia e un riferimento che la contraddice.
+    const numberImposed = !this.numberIsProposal();
+    // Numero che la maschera stava mostrando: letto PRIMA dell'invio, perché è
+    // con questo che si confronta quello assegnato dal server.
+    const shownNumber = raw.documentNumber;
     const body = {
       type: this.documentType(),
       // Conversione: collega il documento generato all'origine (proforma/DDT).
@@ -1319,12 +1369,26 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       customerId: raw.customerId,
       currency: this.currency,
       // Numero imposto in testata: non sposta il progressivo della serie.
-      number: raw.documentNumber ?? undefined,
+      // Se invece è la proposta (nessuno l'ha digitato) il campo si omette: il
+      // server assegna il primo libero sotto lock, e due operatori che salvano
+      // insieme prendono due numeri diversi senza vedere alcun conflitto.
+      number: numberImposed ? (raw.documentNumber ?? undefined) : undefined,
       series: (raw.series ?? '').trim() || undefined,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
       billingCause: raw.billingCause.trim() || undefined,
       externalRef: raw.relatedDdtRef.trim() || undefined,
+      // ── Documento della controparte ──────────────────────────────────
+      // Il tipo si nomina SEMPRE, anche vuoto: nel PATCH un campo assente
+      // vuol dire «non toccare», quindi senza il null esplicito togliere il
+      // tipo da un documento salvato non lo toglierebbe davvero (e con lui
+      // resterebbe appeso lo snapshot dell'etichetta).
+      externalDocumentTypeId: raw.externalDocumentTypeId || null,
+      // In CREAZIONE un campo vuoto non si manda affatto, per non scrivere ''
+      // al posto di NULL. In modifica servono i `null` espliciti — vedi sotto:
+      // il body del POST non li ammette, quindi si aggiungono solo al PATCH.
+      ...(counterpartyNumber ? { externalDocNumber: counterpartyNumber } : {}),
+      ...(raw.externalDocDate ? { externalDocDate: raw.externalDocDate } : {}),
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
       pricesIncludeVat: this.pricesIncludeVat(),
       ...(this.isSalesInvoice()
@@ -1387,11 +1451,17 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         }),
     };
 
-    const editId = this.editDocumentId();
     this._submitState.set({ status: 'saving' });
 
     const save$ = editId
-      ? this.documentService.updateDocument(editId, body)
+      ? this.documentService.updateDocument(editId, {
+          ...body,
+          // Nel PATCH un campo assente vuol dire «non toccare»: senza questi due
+          // null, svuotare numero o data del documento della controparte non li
+          // toglierebbe davvero — resterebbero scritti sul documento.
+          externalDocNumber: counterpartyNumber || null,
+          externalDocDate: raw.externalDocDate || null,
+        })
       : this.documentService.createDocument(body);
 
     // Nascita-confermato (Fase 3): create e update producono già un documento
@@ -1402,6 +1472,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (doc) => {
         this._submitState.set({ status: 'idle' });
+        this.notifyIfNumberChanged({ numberImposed, shownNumber, assigned: doc.number ?? null });
         // Documento salvato: il guard di uscita non deve più fermare la
         // navigazione — azzerare PRIMA di navigare, o il dialogo si riapre.
         this.dirtySinceLastSave.set(false);
@@ -1425,6 +1496,28 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         this._submitState.set({ status: 'error', error: this.toAppError(err) });
       },
     });
+  }
+
+  /**
+   * Il numero proposto poteva essere già di qualcun altro: se il server ne ha
+   * assegnato un altro l'operatore deve saperlo, altrimenti scriverebbe sul
+   * cartaceo (o al cliente) il numero che aveva davanti fino a un attimo prima.
+   *
+   * Vale solo per la proposta: un numero scelto a mano e già preso non arriva
+   * qui — il server lo rifiuta e se ne occupa il dialogo di conflitto.
+   */
+  private notifyIfNumberChanged(outcome: {
+    readonly numberImposed: boolean;
+    readonly shownNumber: number | null;
+    readonly assigned: number | null;
+  }): void {
+    const { numberImposed, shownNumber, assigned } = outcome;
+    if (numberImposed || shownNumber === null || assigned === null || assigned === shownNumber) {
+      return;
+    }
+    this.toast.showInfo(
+      `Salvato con il n. ${assigned}: il ${shownNumber} è stato preso da un altro operatore.`,
+    );
   }
 
   /** Numero digitato in testata: vuoto = «assegnalo tu». */
@@ -1641,18 +1734,13 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       });
   }
 
-  /** «Usa N»: prende il primo numero libero e risalva. */
   /**
-   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
-   * ferma. Il salvataggio resta una pressione esplicita di Salva.
+   * Presa d'atto dell'avviso: chiude e basta. Il numero in testata non si
+   * tocca — il messaggio nomina il numero rifiutato e il primo libero, la
+   * correzione è dell'operatore.
    */
   protected acknowledgeConflictNumber(): void {
-    const nextAvailable = this.numberConflictDialog.acknowledge();
-    if (nextAvailable === null) {
-      return;
-    }
-    this.form.controls.documentNumber.setValue(nextAvailable);
-    this.form.controls.documentNumber.markAsDirty();
+    this.numberConflictDialog.acknowledge();
   }
 
   /**
@@ -1782,6 +1870,12 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       locationId: prefill.locationId ?? '',
       documentDate: prefill.documentDate.slice(0, 10),
       billingCause: prefill.billingCause ?? '',
+      // Se il precompilato porta il documento della controparte (ordine del
+      // cliente, documento d'origine) il riferimento passa al documento
+      // generato: è la stessa transazione vista dall'altra parte.
+      externalDocumentTypeId: prefill.externalDocumentTypeId ?? '',
+      externalDocNumber: prefill.externalDocNumber ?? '',
+      externalDocDate: prefill.externalDocDate?.slice(0, 10) ?? '',
       relatedDdtRef: prefill.externalRef ?? '',
       notes: prefill.notes ?? '',
       internalComment: prefill.internalComment ?? '',
@@ -1841,6 +1935,10 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       documentDate: doc.documentDate.slice(0, 10),
       documentNumber: doc.number ?? null,
       series: doc.series ?? '',
+      externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
+      externalDocNumber: doc.externalDocNumber ?? '',
+      // Il campo data lavora sul giorno: dell'ISO tiene solo «AAAA-MM-GG».
+      externalDocDate: doc.externalDocDate?.slice(0, 10) ?? '',
       billingCause: doc.billingCause ?? '',
       relatedDdtRef: doc.externalRef ?? '',
       notes: doc.notes ?? '',

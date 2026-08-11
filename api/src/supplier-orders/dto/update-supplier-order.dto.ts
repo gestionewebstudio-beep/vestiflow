@@ -34,6 +34,21 @@ export class UpdateSupplierOrderDto {
   @MaxLength(120)
   supplierReference?: string | null;
 
+  // ── Documento della controparte: la conferma d'ordine del fornitore ──
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  externalDocNumber?: string | null;
+
+  @IsOptional()
+  @IsISO8601()
+  externalDocDate?: string | null;
+
+  /** `null` lo toglie dall'ordine; assente lo lascia com'e' (snapshot incluso). */
+  @IsOptional()
+  @IsUUID()
+  externalDocumentTypeId?: string | null;
+
   @IsOptional()
   @IsEnum(PurchaseCostEntryMode)
   costEntryMode?: PurchaseCostEntryMode;

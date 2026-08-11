@@ -24,6 +24,7 @@ import {
 import type { Subscription } from 'rxjs';
 
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
+import { ToastService } from '@core/services/toast.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
@@ -53,6 +54,7 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -88,6 +90,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentCounterpartyRefComponent,
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
@@ -110,6 +113,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -209,6 +213,16 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     return doc != null && isConfirmedEditableDocumentStatus(doc.status);
   });
 
+  /**
+   * Etichetta del tipo controparte fotografata sul documento. Serve alla
+   * tendina per ricostruire l'opzione di un tipo eliminato: senza, il campo
+   * si riaprirebbe vuoto e il salvataggio successivo cancellerebbe davvero
+   * la dicitura.
+   */
+  protected readonly counterpartyTypeSnapshot = computed(
+    () => this.loadedDocument()?.externalDocumentTypeSnapshot,
+  );
+
   /** Un confermato si apre bloccato: sola lettura finché l'operatore non sblocca. */
   protected readonly formReadOnly = computed(
     () => this.isConfirmedEdit() && !this.editLock.unlocked(),
@@ -261,6 +275,13 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     /** Numero documento: proposto dal progressivo di serie, editabile. */
     documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
+    // ── Documento della controparte (tipo · numero · data) ────────────────
+    // Una rettifica nasce da un riscontro interno: la controparte spesso non
+    // c'è. Il trio resta quindi facoltativo (nessun validatore) e nessun tipo
+    // viene proposto di default.
+    externalDocumentTypeId: this.fb.control(''),
+    externalDocNumber: this.fb.control(''),
+    externalDocDate: this.fb.control(''),
     notes: this.fb.control(''),
     internalComment: this.fb.control('', { validators: [Validators.required] }),
     lines: this.fb.array([this.createLine()]),
@@ -326,6 +347,21 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       : 'La location è obbligatoria.';
   });
 
+  /**
+   * Il numero in testata è una PROPOSTA, non un'assegnazione: finché nessuno lo
+   * tocca lo prende chi salva per primo, e il campo deve dirlo. Vale solo sul
+   * documento NUOVO — su uno già salvato il numero è suo — e cade appena
+   * l'operatore lo digita: da lì è una scelta, difesa dal dialogo di conflitto.
+   *
+   * Dipende da `formValue()` perché `dirty` non è un signal: senza quella
+   * lettura il computed resterebbe fermo al primo valore (stesso schema dei
+   * testi del pannello mobile qui sopra).
+   */
+  protected readonly numberIsProposal = computed(() => {
+    this.formValue();
+    return !this.isEditMode() && !this.form.controls.documentNumber.dirty;
+  });
+
   protected readonly confirmDialogOpen = signal(false);
 
   /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
@@ -367,8 +403,12 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
 
   /** Numero digitato in testata: vuoto = «assegnalo tu». */
   protected onDocumentNumberChange(value: number | null): void {
-    this.form.controls.documentNumber.setValue(value);
+    // `markAsDirty` PRIMA di `setValue`: è `setValue` a emettere `valueChanges`,
+    // ed è quell'emissione a far ricalcolare `numberIsProposal()`. Nell'ordine
+    // inverso il campo continuerebbe a dichiararsi «proposta» dopo che
+    // l'operatore ha già scelto, fino al successivo tocco su un altro campo.
     this.form.controls.documentNumber.markAsDirty();
+    this.form.controls.documentNumber.setValue(value);
   }
 
   /** Serie scelta dall'operatore: il numero passa al progressivo di quel contatore. */
@@ -377,8 +417,11 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     this.form.controls.series.markAsDirty();
     const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
     if (counter) {
-      this.form.controls.documentNumber.setValue(counter.nextNumber);
+      // Il numero della nuova serie torna a essere una proposta: `markAsPristine`
+      // prima di `setValue`, così l'emissione che aggiorna `numberIsProposal()`
+      // vede già lo stato giusto (speculare a onDocumentNumberChange).
       this.form.controls.documentNumber.markAsPristine();
+      this.form.controls.documentNumber.setValue(counter.nextNumber);
     }
   }
 
@@ -401,6 +444,9 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
           const proposed = counters.find((entry) => entry.id === proposedCounterId);
           if (proposed) {
             // Proposta programmatica di serie/numero: non è una modifica utente.
+            // `setValue` non sporca il controllo, e la cosa è voluta: è proprio
+            // `documentNumber.dirty` a distinguere poi il numero proposto (che
+            // non si rimanda al server) da quello scelto dall'operatore.
             this.suppressDirtyMarking = true;
             try {
               this.form.controls.series.setValue(proposed.series ?? '');
@@ -414,18 +460,13 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       });
   }
 
-  /** «Usa N»: prende il primo numero libero e risalva. */
   /**
-   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
-   * ferma. Il salvataggio resta una pressione esplicita di Salva.
+   * Presa d'atto dell'avviso: chiude e basta. Il numero in testata non si
+   * tocca — il messaggio nomina il numero rifiutato e il primo libero, la
+   * correzione è dell'operatore.
    */
   protected acknowledgeConflictNumber(): void {
-    const nextAvailable = this.numberConflictDialog.acknowledge();
-    if (nextAvailable === null) {
-      return;
-    }
-    this.form.controls.documentNumber.setValue(nextAvailable);
-    this.form.controls.documentNumber.markAsDirty();
+    this.numberConflictDialog.acknowledge();
   }
 
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
@@ -705,6 +746,11 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     const raw = this.form.getRawValue();
     const editId = this.editDocumentId();
     const confirmedEdit = this.isConfirmedEdit();
+    // Numero mostrato in testata al momento dell'invio, e se era una proposta:
+    // servono dopo, per dire all'operatore che quello assegnato è un altro. Si
+    // leggono PRIMA della richiesta — al ritorno la maschera naviga via.
+    const shownNumber = this.form.controls.documentNumber.value;
+    const numberWasProposal = !this.form.controls.documentNumber.dirty;
     this._submitState.set({ status: 'saving' });
 
     // Rettifica già confermata: la modifica righe deve preservare gli id
@@ -718,10 +764,17 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
             id: editId!,
             documentDate: new Date(raw.documentDate).toISOString(),
             // Numero imposto in testata: non sposta il progressivo della serie.
-            number: raw.documentNumber ?? undefined,
+            // Solo se l'operatore l'ha davvero scelto — vedi il metodo.
+            number: this.imposedNumberForSubmit(),
             series: (raw.series ?? '').trim() || undefined,
             locationId: raw.locationId,
             adjustmentDirection: raw.adjustmentDirection,
+            // Documento della controparte: l'endpoint dedicato riscrive sempre
+            // i tre campi, quindi vanno inviati anche vuoti — `null` sul tipo
+            // dice «nessuno», non «non toccare».
+            externalDocumentTypeId: raw.externalDocumentTypeId || null,
+            externalDocNumber: raw.externalDocNumber.trim() || undefined,
+            externalDocDate: raw.externalDocDate || undefined,
             notes: raw.notes.trim() || undefined,
             internalComment: raw.internalComment.trim(),
             lines: raw.lines
@@ -742,6 +795,7 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     this.submitSubscription = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (doc) => {
         this._submitState.set({ status: 'idle' });
+        this.notifyNumberReassigned(shownNumber, numberWasProposal, doc.number ?? null);
         // Documento salvato: il guard di uscita non deve più fermare la navigazione.
         this.dirtySinceLastSave.set(false);
         void this.router.navigate([this.listPath, doc.id]);
@@ -760,6 +814,51 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   }
 
   /**
+   * Numero da inviare al salvataggio.
+   *
+   * Un numero PROPOSTO (controllo pristine) non si manda: è il primo libero
+   * letto all'apertura della maschera, e rispedirlo lo trasformerebbe in
+   * un'imposizione — con il dialogo di conflitto addosso al secondo operatore
+   * per una scelta che non ha mai fatto. Omesso, il numero lo assegna il server
+   * dentro la transazione che scrive il documento, e la concorrenza si risolve
+   * da sé: chi salva per secondo prende il primo libero, in silenzio.
+   *
+   * Un numero DIGITATO viaggia sempre: riempire un buco a mano deve continuare
+   * a funzionare identico, dialogo di conflitto compreso.
+   */
+  private imposedNumberForSubmit(): number | undefined {
+    // Si omette SOLO la proposta di un documento nuovo: in modifica il numero è
+    // del documento, e ometterlo dopo un cambio di serie lo lascerebbe con il
+    // numero della serie vecchia — o lo farebbe collidere in quella nuova.
+    if (this.numberIsProposal()) {
+      return undefined;
+    }
+    return this.form.controls.documentNumber.value ?? undefined;
+  }
+
+  /**
+   * Il server ha assegnato un numero diverso da quello che la maschera stava
+   * mostrando: lo si dice. Senza avviso l'operatore ritroverebbe nel dettaglio
+   * un numero che non riconosce, e chi lo avesse già trascritto su un cartaceo
+   * non saprebbe di doverlo correggere.
+   *
+   * Solo per il numero proposto: se l'aveva imposto lui, il numero occupato ha
+   * già il suo dialogo dedicato e l'avviso non va doppiato.
+   */
+  private notifyNumberReassigned(
+    shown: number | null,
+    wasProposal: boolean,
+    assigned: number | null,
+  ): void {
+    if (!wasProposal || shown === null || assigned === null || assigned === shown) {
+      return;
+    }
+    this.toast.showInfo(
+      `Salvato con il n. ${assigned}: il ${shown} è stato preso da un altro operatore.`,
+    );
+  }
+
+  /**
    * Documento nuovo o modifica di una bozza residua: passa dal flusso generico
    * create/update, che con la nascita-confermato produce già una rettifica/
    * scarico confermato (il percorso confirmedEdit usa POST /documents/adjustment/save
@@ -770,12 +869,24 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     raw: ReturnType<StockOperationFormComponent['form']['getRawValue']>,
   ) {
     const docType = this.documentType();
+    // Il numero viaggia solo se l'operatore l'ha digitato: la proposta la omette
+    // `imposedNumberForSubmit()`, e il server assegna il primo libero dentro la
+    // transazione, sotto lock. Prima il numero non partiva MAI, nemmeno digitato:
+    // la testata lo accettava e il create lo ignorava, quindi chi voleva tappare
+    // un buco si ritrovava il buco ancora lì. La serie resta al server, che usa
+    // la predefinita: la stessa su cui la maschera ha calcolato la proposta.
     const body = {
       type: docType,
       documentDate: new Date(raw.documentDate).toISOString(),
+      number: this.imposedNumberForSubmit(),
       locationId: raw.locationId,
       adjustmentDirection: this.isAdjustment() ? raw.adjustmentDirection : undefined,
       currency: this.currency,
+      // Documento della controparte: il tipo viaggia come `null` quando non
+      // c'è, così il PATCH di una bozza lo toglie invece di lasciarlo com'era.
+      externalDocumentTypeId: raw.externalDocumentTypeId || null,
+      externalDocNumber: raw.externalDocNumber.trim() || undefined,
+      externalDocDate: raw.externalDocDate || undefined,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim(),
       lines: raw.lines
@@ -809,6 +920,9 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
         documentDate: doc.documentDate.slice(0, 10),
         documentNumber: doc.number ?? null,
         series: doc.series ?? '',
+        externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
+        externalDocNumber: doc.externalDocNumber ?? '',
+        externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
         notes: doc.notes ?? '',
         internalComment: doc.internalComment ?? '',
       });

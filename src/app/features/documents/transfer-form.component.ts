@@ -31,6 +31,7 @@ import {
 import type { Subscription } from 'rxjs';
 
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
+import { ToastService } from '@core/services/toast.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
@@ -60,6 +61,7 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -74,6 +76,7 @@ import { documentReferenceLabel } from '@domain/documents/models/document-labels
 import { isTransferDocumentType } from './models/document-transfer.util';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import type { SaveTransferBody } from '@domain/documents/services/document-api.mapper';
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 
@@ -104,6 +107,7 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
+    DocumentCounterpartyRefComponent,
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
@@ -126,6 +130,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
+  private readonly toasts = inject(ToastService);
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -215,6 +220,16 @@ export class TransferFormComponent implements CanComponentDeactivate {
     return doc != null && isConfirmedEditableDocumentStatus(doc.status);
   });
 
+  /**
+   * Etichetta del tipo controparte fotografata sul documento. Serve alla
+   * tendina per ricostruire l'opzione di un tipo eliminato: senza, il campo
+   * si riaprirebbe vuoto e il salvataggio successivo cancellerebbe davvero
+   * la dicitura.
+   */
+  protected readonly counterpartyTypeSnapshot = computed(
+    () => this.loadedDocument()?.externalDocumentTypeSnapshot,
+  );
+
   /** Un confermato si apre bloccato: sola lettura finché l'operatore non sblocca. */
   protected readonly formReadOnly = computed(
     () => this.isConfirmedEdit() && !this.editLock.unlocked(),
@@ -247,6 +262,13 @@ export class TransferFormComponent implements CanComponentDeactivate {
       /** Numero documento: proposto dal progressivo di serie, editabile. */
       documentNumber: this.fb.control<number | null>(null),
       series: this.fb.control(''),
+      // ── Documento della controparte (tipo · numero · data) ──────────────
+      // Un trasferimento fra sedi proprie non ha una controparte esterna: il
+      // trio c'è per uniformità con le altre maschere, resta facoltativo
+      // (nessun validatore) e nessun tipo viene proposto di default.
+      externalDocumentTypeId: this.fb.control(''),
+      externalDocNumber: this.fb.control(''),
+      externalDocDate: this.fb.control(''),
       notes: this.fb.control(''),
       internalComment: this.fb.control(''),
       lines: this.fb.array([this.createLine()]),
@@ -303,6 +325,21 @@ export class TransferFormComponent implements CanComponentDeactivate {
       });
   }
 
+  /**
+   * Il numero mostrato è una PROPOSTA, non un'assegnazione: su un documento
+   * nuovo lo prende chi salva per primo, e finché nessuno lo tocca può ancora
+   * cambiare. Su un documento già salvato il numero è invece assegnato, e
+   * appena l'operatore lo digita diventa una scelta da difendere.
+   *
+   * `dirty` non è un signal: la dipendenza da `formValue()` fa ricalcolare il
+   * computed a ogni scrittura sul form, che è dove lo stato del controllo può
+   * cambiare (ogni `markAsDirty` di questa maschera segue un `setValue`).
+   */
+  protected readonly numberIsProposal = computed(() => {
+    this.formValue();
+    return !this.isEditMode() && !this.form.controls.documentNumber.dirty;
+  });
+
   /** Numero digitato in testata: vuoto = «assegnalo tu». */
   protected onDocumentNumberChange(value: number | null): void {
     this.form.controls.documentNumber.setValue(value);
@@ -316,8 +353,40 @@ export class TransferFormComponent implements CanComponentDeactivate {
     const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
     if (counter) {
       this.form.controls.documentNumber.setValue(counter.nextNumber);
-      this.form.controls.documentNumber.markAsPristine();
+      // Su un documento NUOVO il progressivo della serie scelta resta una
+      // proposta: pristine, quindi non viaggia al salvataggio e a decidere è
+      // il server (il primo libero di quella serie, nel momento del commit).
+      // Su un documento GIÀ SALVATO cambiare serie sposta una numerazione che
+      // esiste: lì il numero mostrato è quello che dev'essere scritto, quindi
+      // va imposto — altrimenti il server terrebbe il numero vecchio e il
+      // campo direbbe una cosa diversa da quella salvata.
+      if (this.isEditMode()) {
+        this.form.controls.documentNumber.markAsDirty();
+      } else {
+        this.form.controls.documentNumber.markAsPristine();
+      }
     }
+  }
+
+  /**
+   * Numero da mandare al server: SOLO quello scelto dall'operatore.
+   *
+   * La proposta non torna indietro come imposizione. Se il numero mostrato è
+   * quello proposto all'apertura (controllo pristine), il campo si omette: il
+   * server assegna il primo libero dentro la transazione che scrive il
+   * documento, e due operatori che salvano insieme non si contendono più
+   * niente. Se invece l'operatore l'ha digitato — è il caso del buco da
+   * riempire — il numero viaggia, e se è occupato il dialogo di conflitto è
+   * un'informazione che serve.
+   */
+  private imposedDocumentNumber(): number | undefined {
+    // Si omette SOLO la proposta di un documento nuovo: in modifica il numero è
+    // del documento, e ometterlo dopo un cambio di serie lo lascerebbe con il
+    // numero della serie vecchia.
+    if (this.numberIsProposal()) {
+      return undefined;
+    }
+    return this.form.controls.documentNumber.value ?? undefined;
   }
 
   /**
@@ -352,18 +421,13 @@ export class TransferFormComponent implements CanComponentDeactivate {
       });
   }
 
-  /** «Usa N»: prende il primo numero libero e risalva. */
   /**
-   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
-   * ferma. Il salvataggio resta una pressione esplicita di Salva.
+   * Presa d'atto dell'avviso: chiude e basta. Il numero in testata non si
+   * tocca — il messaggio nomina il numero rifiutato e il primo libero, la
+   * correzione è dell'operatore.
    */
   protected acknowledgeConflictNumber(): void {
-    const nextAvailable = this.numberConflictDialog.acknowledge();
-    if (nextAvailable === null) {
-      return;
-    }
-    this.form.controls.documentNumber.setValue(nextAvailable);
-    this.form.controls.documentNumber.markAsDirty();
+    this.numberConflictDialog.acknowledge();
   }
 
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
@@ -703,34 +767,18 @@ export class TransferFormComponent implements CanComponentDeactivate {
     const raw = this.form.getRawValue();
     const editId = this.editDocumentId();
     const confirmedEdit = this.isConfirmedEdit();
+    // Fotografia PRIMA dell'invio: cosa mostrava la testata e se quel numero
+    // era una scelta dell'operatore. Dopo il salvataggio il confronto con il
+    // numero assegnato dice se la proposta è stata soffiata da qualcun altro.
+    const shownNumber = raw.documentNumber;
+    const numberImposed = this.form.controls.documentNumber.dirty;
     this._submitState.set({ status: 'saving' });
 
     // Documento già confermato: la modifica righe deve preservare gli id
     // stabili, così i movimenti per riga si aggiornano invece di duplicarsi
     // (mirror arrivo merce — vedi POST /documents/transfer/save).
     const request$ = confirmedEdit
-      ? this.documentService.saveTransfer({
-          id: editId!,
-          documentDate: new Date(raw.documentDate).toISOString(),
-          // Numero imposto in testata: non sposta il progressivo della serie.
-          number: raw.documentNumber ?? undefined,
-          series: (raw.series ?? '').trim() || undefined,
-          locationId: raw.locationId,
-          targetLocationId: raw.targetLocationId,
-          notes: raw.notes.trim() || undefined,
-          internalComment: raw.internalComment.trim() || undefined,
-          lines: raw.lines
-            .filter((line) => line.variantId || line.description.trim())
-            .map((line) => ({
-              id: line.id || undefined,
-              variantId: line.variantId || undefined,
-              sku: line.sku.trim() || undefined,
-              description: line.description.trim() || 'Riga trasferimento',
-              quantity: Number(line.quantity),
-              loadsStock: Boolean(line.variantId),
-              serialNumbers: parseSerialNumbersText(line.serialNumbersText),
-            })),
-        })
+      ? this.documentService.saveTransfer(this.buildSaveTransferBody(editId!, raw))
       : this.persistNewOrUpdate(editId, raw);
 
     this.submitSubscription?.unsubscribe();
@@ -739,6 +787,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
         this._submitState.set({ status: 'idle' });
         // Documento salvato: il guard di uscita non deve più fermare la navigazione.
         this.dirtySinceLastSave.set(false);
+        this.notifyNumberReassignment(shownNumber, numberImposed, doc.number);
         void this.router.navigate([this.listPath, doc.id]);
       },
       error: (err: unknown) => {
@@ -755,6 +804,71 @@ export class TransferFormComponent implements CanComponentDeactivate {
   }
 
   /**
+   * Body del salvataggio dedicato (documento già confermato). Estratto dal
+   * flusso per poterlo interrogare: la regola sul numero — si manda solo se
+   * l'operatore l'ha scelto — è una decisione, e una decisione va provata.
+   */
+  private buildSaveTransferBody(
+    editId: string,
+    raw: ReturnType<TransferFormComponent['form']['getRawValue']>,
+  ): SaveTransferBody {
+    return {
+      id: editId,
+      documentDate: new Date(raw.documentDate).toISOString(),
+      // Numero imposto in testata: non sposta il progressivo della serie.
+      // Assente = il documento tiene il numero che ha già.
+      number: this.imposedDocumentNumber(),
+      series: (raw.series ?? '').trim() || undefined,
+      locationId: raw.locationId,
+      targetLocationId: raw.targetLocationId,
+      // Documento della controparte: l'endpoint dedicato riscrive sempre
+      // i tre campi, quindi vanno inviati anche vuoti — `null` sul tipo
+      // dice «nessuno», non «non toccare».
+      externalDocumentTypeId: raw.externalDocumentTypeId || null,
+      externalDocNumber: raw.externalDocNumber.trim() || undefined,
+      externalDocDate: raw.externalDocDate || undefined,
+      notes: raw.notes.trim() || undefined,
+      internalComment: raw.internalComment.trim() || undefined,
+      lines: raw.lines
+        .filter((line) => line.variantId || line.description.trim())
+        .map((line) => ({
+          id: line.id || undefined,
+          variantId: line.variantId || undefined,
+          sku: line.sku.trim() || undefined,
+          description: line.description.trim() || 'Riga trasferimento',
+          quantity: Number(line.quantity),
+          loadsStock: Boolean(line.variantId),
+          serialNumbers: parseSerialNumbersText(line.serialNumbersText),
+        })),
+    };
+  }
+
+  /**
+   * Il numero assegnato dal server non è quello che la testata mostrava: la
+   * proposta era solo una proposta, e chi ha salvato per primo se l'è presa.
+   * Va detto — un operatore che avesse già trascritto quel numero altrove
+   * altrimenti non lo saprebbe mai.
+   *
+   * Sul numero IMPOSTO non si dice nulla: là il conflitto ha già il suo
+   * dialogo dedicato, e doppiarlo con un toast confonde invece di informare.
+   */
+  private notifyNumberReassignment(
+    shownNumber: number | null,
+    numberImposed: boolean,
+    assignedNumber: number | undefined,
+  ): void {
+    if (numberImposed || shownNumber === null || assignedNumber === undefined) {
+      return;
+    }
+    if (assignedNumber === shownNumber) {
+      return;
+    }
+    this.toasts.showInfo(
+      `Salvato con il n. ${assignedNumber}: il ${shownNumber} è stato preso da un altro operatore.`,
+    );
+  }
+
+  /**
    * Documento nuovo o modifica di una bozza residua: passa dal flusso generico
    * create/update, che con la nascita-confermato produce già un trasferimento
    * confermato (il percorso confirmedEdit usa invece POST /documents/transfer/save
@@ -764,12 +878,25 @@ export class TransferFormComponent implements CanComponentDeactivate {
     editId: string | null,
     raw: ReturnType<TransferFormComponent['form']['getRawValue']>,
   ) {
+    // Il numero viaggia solo se l'operatore l'ha digitato: la proposta la
+    // omette `imposedDocumentNumber()`, e il server assegna il primo libero
+    // sotto lock. Prima questo flusso non mandava il numero MAI, nemmeno
+    // digitato: il campo lo accetta, quindi il documento nasceva con un altro
+    // numero senza dirlo a nessuno — e chi voleva tappare un buco si ritrovava
+    // il buco ancora lì. La serie resta al server, che usa la predefinita:
+    // è la stessa su cui la maschera ha calcolato la propria proposta.
     const body = {
       type: DocumentType.Transfer,
       documentDate: new Date(raw.documentDate).toISOString(),
+      number: this.imposedDocumentNumber(),
       locationId: raw.locationId,
       targetLocationId: raw.targetLocationId,
       currency: this.currency,
+      // Documento della controparte: il tipo viaggia come `null` quando non
+      // c'è, così il PATCH di una bozza lo toglie invece di lasciarlo com'era.
+      externalDocumentTypeId: raw.externalDocumentTypeId || null,
+      externalDocNumber: raw.externalDocNumber.trim() || undefined,
+      externalDocDate: raw.externalDocDate || undefined,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
       lines: raw.lines
@@ -802,6 +929,9 @@ export class TransferFormComponent implements CanComponentDeactivate {
         documentDate: doc.documentDate.slice(0, 10),
         documentNumber: doc.number ?? null,
         series: doc.series ?? '',
+        externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
+        externalDocNumber: doc.externalDocNumber ?? '',
+        externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
         notes: doc.notes ?? '',
         internalComment: doc.internalComment ?? '',
       });

@@ -9,3 +9,9 @@
     display: none;
   }
 }
+
+// Il documento della controparte non ha più regole qui: la fascia secondaria
+// (desktop) e la sezione del pannello (mobile) le disegna il componente
+// condiviso domain/documents/components/document-counterparty-ref, e le sue
+// celle prendono misure e fili dai fogli in styles/ come ogni altra cella di
+// testata.

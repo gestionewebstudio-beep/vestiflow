@@ -11,17 +11,23 @@ import {
  * stesso derivato, stesse transizioni.
  *
  * È un AVVISO, non una scelta: quando il vincolo unico del database rifiuta il
- * numero, l'operatore viene informato che il numero è stato aggiornato al primo
- * libero — non gli si chiede se vuole usarlo. Il documento NON viene salvato:
- * il salvataggio resta una pressione esplicita di Salva, coerente con la regola
- * VestiFlow che nessun documento nasce senza una decisione dell'operatore.
+ * numero, l'operatore viene informato di quale numero è stato rifiutato e di
+ * quale sia il primo libero. Il documento NON viene salvato: il salvataggio
+ * resta una pressione esplicita di Salva, coerente con la regola VestiFlow che
+ * nessun documento nasce senza una decisione dell'operatore.
+ *
+ * **La testata non si tocca.** Fino al 08/2026 la presa d'atto sostituiva il
+ * numero col primo libero: era innocuo finché il conflitto nasceva da un numero
+ * che nessuno aveva scelto (la maschera rimandava indietro la propria proposta).
+ * Da quando la proposta non viaggia più, questo avviso si raggiunge solo con un
+ * numero DIGITATO — cioè quando l'operatore sta tappando un buco preciso della
+ * serie. Sostituirglielo con un numero in coda butterebbe via l'intento senza
+ * chiederglielo, e per giunta trasformerebbe un numero che il server assegnava
+ * da solo sotto lock in un'imposizione che può collidere di nuovo.
  *
  * Non è un service iniettabile: non ha dipendenze e ogni form ne vuole
  * un'istanza propria, quindi si costruisce come campo del componente
  * (`private readonly conflict = new DocumentNumberConflictStore()`).
- *
- * Il form resta padrone di ciò che è suo: quale controllo della testata riceve
- * il numero aggiornato.
  */
 export class DocumentNumberConflictStore {
   private readonly _conflict = signal<DocumentNumberConflict | null>(null);
@@ -42,25 +48,22 @@ export class DocumentNumberConflictStore {
     return conflict ? documentNumberConflictMessage(conflict) : '';
   });
 
-  /** Il server ha rifiutato il numero: apre l'avviso con il primo libero. */
+  /** Il server ha rifiutato il numero: apre l'avviso col primo libero. */
   open(conflict: DocumentNumberConflict): void {
     this._conflict.set(conflict);
     this.isOpen.set(true);
   }
 
   /**
-   * Presa d'atto: chiude, azzera e restituisce il numero da scrivere nella
-   * testata. Sta al form metterlo nel proprio controllo — e fermarsi lì:
-   * NON deve far ripartire il salvataggio.
+   * Presa d'atto: chiude e azzera. Non restituisce nulla, perché non c'è nulla
+   * da applicare — il messaggio dice che la testata è rimasta com'era, e la
+   * correzione del numero è dell'operatore.
    *
-   * Vale anche per la chiusura con Esc: il messaggio dice che il numero è già
-   * stato aggiornato, quindi va applicato comunque, altrimenti l'avviso
-   * mentirebbe. `null` se non c'era alcun conflitto aperto.
+   * Vale anche per la chiusura con Esc: entrambe le uscite fanno la stessa
+   * cosa, quindi il form può collegarle allo stesso gestore.
    */
-  acknowledge(): number | null {
-    const conflict = this._conflict();
+  acknowledge(): void {
     this._conflict.set(null);
     this.isOpen.set(false);
-    return conflict?.nextAvailable ?? null;
   }
 }

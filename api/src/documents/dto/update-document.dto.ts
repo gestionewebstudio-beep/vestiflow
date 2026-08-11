@@ -95,6 +95,14 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   @IsISO8601()
   externalDocDate?: string | null;
 
+  /**
+   * Tipo del documento della controparte. `null` lo toglie dal documento;
+   * assente lo lascia com'e' (e con lui il suo snapshot).
+   */
+  @IsOptional()
+  @IsUUID()
+  externalDocumentTypeId?: string | null;
+
   @IsOptional()
   @IsString()
   @MaxLength(500)

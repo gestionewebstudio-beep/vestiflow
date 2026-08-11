@@ -38,6 +38,7 @@ import {
   transportDataIncomplete,
 } from '@domain/documents/models/document-transport.util';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { counterpartyDocLabel } from '@domain/documents/models/document-labels.util';
 
 const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
 
@@ -110,6 +111,15 @@ export class DocumentPrintPreviewComponent {
       return '';
     }
     return documentReferenceLabel(doc.type, doc.reference, doc.series);
+  });
+
+  /**
+   * Documento della controparte in testata (tipo + numero + data): '' quando
+   * non è compilato, così il foglio non porta una riga vuota.
+   */
+  protected readonly counterpartyDoc = computed(() => {
+    const doc = this.document();
+    return doc ? counterpartyDocLabel(doc) : '';
   });
 
   protected readonly showProformaDisclaimer = computed(() => {

@@ -396,6 +396,7 @@
                   <app-document-number-field
                     numberInputId="co-m-number"
                     [number]="form.controls.documentNumber.value"
+                    [isProposal]="numberIsProposal()"
                     [series]="form.controls.series.value"
                     [seriesOptions]="seriesOptions()"
                     [canManageSeries]="true"
@@ -488,6 +489,32 @@
                   </div>
                 }
               </div>
+
+              <!-- Il documento del cliente: stesso componente della testata
+                   desktop, in colonna. Titolo di sezione e contenitore dei campi
+                   li disegna lui, quindi qui attorno non resta nulla — ed è per
+                   questo che sta FUORI dal gruppo di campi qui sopra: una sezione
+                   dentro l'altra non sarebbe una sezione. L'idPrefix cambia
+                   perché le due viste convivono nel DOM e gli id degli input
+                   devono restare univoci. -->
+              @if (isOrder) {
+                <app-document-counterparty-ref
+                  idPrefix="co-m"
+                  layout="stack"
+                  sectionTitle="Documento del cliente"
+                  typeLabel="Tipo doc. cliente"
+                  numberLabel="N. documento cliente"
+                  dateLabel="Data doc. cliente"
+                  [typeId]="form.controls.externalDocumentTypeId.value"
+                  [docNumber]="form.controls.externalDocNumber.value"
+                  [docDate]="form.controls.externalDocDate.value"
+                  [snapshotLabel]="counterpartyTypeSnapshot()"
+                  [disabled]="formReadOnly()"
+                  (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
+                  (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
+                  (docDateChange)="form.controls.externalDocDate.setValue($event)"
+                />
+              }
 
               <p class="doc-panel__helper">I valori predefiniti restano modificabili.</p>
             </app-document-mobile-panel>
@@ -607,6 +634,7 @@
                 <app-document-number-field
                   numberInputId="co-number"
                   [number]="form.controls.documentNumber.value"
+                  [isProposal]="numberIsProposal()"
                   [series]="form.controls.series.value"
                   [seriesOptions]="seriesOptions()"
                   [canManageSeries]="true"
@@ -640,11 +668,14 @@
               <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento.
                  Scarico manuale: solo Rif. (niente consegna/pagamento). -->
               <!--
-                Niente riferimento della controparte sui documenti di vendita:
-                gli ordini cliente nascono qui dentro o arrivano dai canali
-                online, il cliente non emette un proprio numero. Il campo resta
-                solo sullo Scarico manuale, dove è una causale libera
-                (es. «campionario fiera»), non il numero di un documento.
+                Il documento della controparte — tipo, numero e data dell'ordine
+                emesso dal cliente — è la seconda fascia qui sotto, e a disegnarla
+                è il componente condiviso: la forma di quel gruppo di campi non è
+                più una decisione di questa maschera (decisione del proprietario,
+                08/2026: prima ogni maschera decideva da sé).
+                Il «Rif.» qui sotto è altra cosa e resta dov'è: sullo Scarico
+                manuale è una causale libera (es. «campionario fiera»), non il
+                numero di un documento.
               -->
               @if (isManualUnload) {
                 <div class="doc-form__field">
@@ -688,27 +719,62 @@
               }
             </div>
 
-            <!-- Seconda fascia della testata (mockup v3): consegna e pagamento su
-               fondo attenuato. Il DDT gestisce il pagamento in prima fascia, lo
-               scarico manuale non ha né consegna né pagamento. «Consegna
-               prevista» resta al solo Preventivo: sull'Ordine cliente non serve. -->
-            @if (!isSalesDdt && !isManualUnload) {
+            <!-- Seconda fascia della testata (mockup v3): fondo attenuato, in
+               fondo alla card. Sull'Ordine cliente NON la disegna più questa
+               maschera: se la porta dietro il componente del documento del
+               cliente, che è la stessa forma in tutte le maschere documento. Il
+               Pagamento ci sta dentro, proiettato dopo le tre celle, invece di
+               aprire una terza fascia.
+               Il Preventivo il documento del cliente non ce l'ha: tiene la
+               propria fascia con «Consegna prevista», che è sua e basta. Il DDT
+               gestisce il pagamento in prima fascia e lo scarico manuale non ha
+               né consegna né pagamento: nessuno dei due ha seconda fascia. -->
+            @if (isOrder) {
+              <app-document-counterparty-ref
+                idPrefix="co"
+                typeLabel="Tipo doc. cliente"
+                numberLabel="N. documento cliente"
+                dateLabel="Data doc. cliente"
+                [typeId]="form.controls.externalDocumentTypeId.value"
+                [docNumber]="form.controls.externalDocNumber.value"
+                [docDate]="form.controls.externalDocDate.value"
+                [snapshotLabel]="counterpartyTypeSnapshot()"
+                [disabled]="formReadOnly()"
+                (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
+                (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
+                (docDateChange)="form.controls.externalDocDate.setValue($event)"
+              >
+                <!-- Celle affini della maschera: stessa fascia, proiettate dopo
+                     le tre del componente. -->
+                <div class="doc-form__field">
+                  <label class="doc-form__label" for="co-payment">Pagamento</label>
+                  <input
+                    id="co-payment"
+                    class="doc-form__input"
+                    type="text"
+                    formControlName="paymentTerms"
+                    placeholder="Es. 30 gg d.f."
+                    autocomplete="off"
+                  />
+                </div>
+
+                <div class="doc-form__field doc-form__header-filler" aria-hidden="true"></div>
+              </app-document-counterparty-ref>
+            } @else if (isQuote) {
               <div
                 class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row doc-form__header-row--secondary"
               >
-                @if (isQuote) {
-                  <div class="doc-form__field">
-                    <label class="doc-form__label" for="co-delivery">Consegna prevista</label>
-                    <app-date-input
-                      inputId="co-delivery"
-                      formControlName="expectedDeliveryDate"
-                      ariaLabel="Data prevista consegna"
-                      placeholder="Opzionale"
-                      [compact]="true"
-                      [fullWidth]="true"
-                    />
-                  </div>
-                }
+                <div class="doc-form__field">
+                  <label class="doc-form__label" for="co-delivery">Consegna prevista</label>
+                  <app-date-input
+                    inputId="co-delivery"
+                    formControlName="expectedDeliveryDate"
+                    ariaLabel="Data prevista consegna"
+                    placeholder="Opzionale"
+                    [compact]="true"
+                    [fullWidth]="true"
+                  />
+                </div>
 
                 <div class="doc-form__field">
                   <label class="doc-form__label" for="co-payment">Pagamento</label>
@@ -2549,9 +2615,9 @@
   (dismissed)="cancelRemoveLine()"
 />
 
-<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il numero
-     è già stato aggiornato al primo libero; il salvataggio resta una
-     pressione esplicita di Salva. -->
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La testata
+     resta com'era e il documento non è salvato; il messaggio nomina il numero
+     rifiutato e il primo libero, la correzione è dell'operatore. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
   title="Numero già usato"

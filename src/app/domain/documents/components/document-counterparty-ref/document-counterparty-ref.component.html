@@ -1,0 +1,68 @@
+<ng-template #celle>
+  <div [class]="cellClass()">
+    <span [class]="labelClass()">{{ typeLabel() }}</span>
+    <app-select-menu
+      [options]="options()"
+      [value]="typeId()"
+      [ariaLabel]="typeLabel()"
+      placeholder="DDT, Fattura…"
+      [compact]="!isStack()"
+      [fullWidth]="true"
+      (valueChange)="onTypeSelect($event)"
+    />
+  </div>
+
+  <div [class]="cellClass()">
+    <label [class]="labelClass()" [attr.for]="numberInputId()">{{ numberLabel() }}</label>
+    <input
+      [class]="inputClass()"
+      type="text"
+      [id]="numberInputId()"
+      [value]="docNumber()"
+      [disabled]="disabled()"
+      [placeholder]="numberPlaceholder()"
+      (input)="onNumberInput($event)"
+    />
+  </div>
+
+  <div [class]="cellClass()">
+    <label [class]="labelClass()" [attr.for]="dateInputId()">{{ dateLabel() }}</label>
+    <app-date-input
+      [inputId]="dateInputId()"
+      [ariaLabel]="dateLabel()"
+      placeholder="Opzionale"
+      [value]="docDate()"
+      [compact]="!isStack()"
+      [fullWidth]="true"
+      (valueChange)="docDateChange.emit($event)"
+    />
+  </div>
+</ng-template>
+
+@if (isStack()) {
+  <p class="doc-panel__section">{{ sectionTitle() }}</p>
+  <div class="doc-panel__fields">
+    <ng-container [ngTemplateOutlet]="celle" />
+    <ng-content />
+  </div>
+} @else {
+  <!-- La fascia secondaria della testata: fondo tenue, filo sopra, angoli in
+       basso. Le classi sono quelle del foglio condiviso, quindi la fascia si
+       comporta come ogni altra — compresa la sparizione sotto `lg`, dove la
+       testata passa al pannello comprimibile. -->
+  <div
+    class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row doc-form__header-row--secondary"
+  >
+    <ng-container [ngTemplateOutlet]="celle" />
+    <!-- Celle affini della maschera (es. Pagamento nell'Arrivo merce): stanno
+         nella stessa fascia invece di aprirne una seconda. -->
+    <ng-content />
+  </div>
+}
+
+<app-external-document-type-manager-dialog
+  [open]="managerOpen()"
+  (closed)="managerOpen.set(false)"
+  (changed)="onManagerChanged()"
+  (created)="onManagerCreated($event)"
+/>

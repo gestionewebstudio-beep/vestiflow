@@ -46,6 +46,7 @@ import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { lineVatFromNetExact } from '../vat/vat-line-calculation.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
+import { ExternalDocumentTypesService } from './external-document-types.service';
 import { receiptVatBreakdown, type VatBreakdownEntry } from './purchase-invoice-vat-summary.util';
 import { syncGoodsReceiptLineMovements } from './document-goods-receipt-sync.util';
 import {
@@ -74,6 +75,7 @@ import {
   buildDocumentNumberConflict,
   defaultCounterSeries,
   isDocumentNumberConflict,
+  lockDocumentCounter,
   nextDocumentNumber,
 } from './document-numbering.util';
 import { formatDocumentReference } from './document-totals.util';
@@ -292,6 +294,7 @@ export class DocumentsService {
     private readonly channelSync: ChannelSyncFacade,
     private readonly stockReservations: StockReservationService,
     private readonly priceModePreference: DocumentPriceModePreferenceService,
+    private readonly externalTypes: ExternalDocumentTypesService,
   ) {}
 
   async list(
@@ -868,6 +871,10 @@ export class DocumentsService {
     const customerName =
       (await this.snapshotCustomerName(tenantId, dto.customerId)) ??
       (dto.customerName?.trim() || null);
+    const externalType = await this.externalTypes.resolveForWrite(
+      tenantId,
+      dto.externalDocumentTypeId,
+    );
 
     // Nascita-confermato (Fase 3): il documento si crea e si conferma in
     // un'unica transazione. `syncTargets` raccoglie i push inventario a valle.
@@ -911,6 +918,7 @@ export class DocumentsService {
             adjustmentDirection: dto.adjustmentDirection ?? null,
             externalDocNumber: dto.externalDocNumber ?? null,
             externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
+            ...externalType,
             sourceDocumentId: dto.sourceDocumentId ?? null,
             supplierOrderId: dto.supplierOrderId ?? null,
             billingCause: dto.billingCause?.trim() || null,
@@ -961,8 +969,10 @@ export class DocumentsService {
         return this.confirmDocumentTx(tx, tenantId, created.id, user, syncTargets, created);
       })
       .catch(async (error: unknown) => {
-        // Numero imposto già preso: 409 con il primo libero da proporre.
-        await this.throwNumberConflict(error, tenantId, dto.type, dto.series);
+        // Numero imposto già preso: 409 con il numero rifiutato e il primo
+        // libero. Senza numero in testata lo assegna la conferma d'ufficio, e
+        // il conflitto (se mai capita) riguarda quello.
+        await this.throwNumberConflict(error, tenantId, dto.type, dto.series, dto.number ?? null);
         throw error;
       });
 
@@ -992,16 +1002,21 @@ export class DocumentsService {
   }
 
   /**
-   * Conflitto sul numero documento → 409 col primo numero libero della serie.
-   * Il vincolo unico del database resta l'unica verità: due operatori che
-   * salvano lo stesso numero non possono duplicarlo, uno dei due sceglie se
-   * prendere il numero proposto.
+   * Conflitto sul numero documento → 409 col numero rifiutato e il primo
+   * libero della serie. Il vincolo unico del database resta l'unica verità: due
+   * operatori che salvano lo stesso numero non possono duplicarlo, uno dei due
+   * si vede rifiutare il numero e lo corregge.
+   *
+   * `requestedNumber` è il numero che la scrittura ha tentato: è quello che
+   * l'operatore ha in testata, ed è l'unico che il messaggio può nominare senza
+   * mentire.
    */
   private async throwNumberConflict(
     error: unknown,
     tenantId: string,
     type: DocumentType,
     series: string | null | undefined,
+    requestedNumber: number | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
       return;
@@ -1019,6 +1034,7 @@ export class DocumentsService {
         series: resolvedSeries,
         source: 'document',
         prefix: setting.numberPrefix,
+        requestedNumber,
       }),
     );
   }
@@ -1413,18 +1429,32 @@ export class DocumentsService {
 
     // Numero imposto in testata: si riscrive solo quando cambia davvero, così
     // un salvataggio che non tocca il numero non rischia il vincolo unico.
-    if (dto.number !== undefined && dto.number !== doc.number) {
+    //
+    // Il RIFERIMENTO però va rifatto anche quando cambia la sola serie: il
+    // riferimento la nomina (`PREFISSO-SERIE-NUMERO`), quindi spostando un
+    // documento dalla serie A alla B con lo stesso numero resterebbe scritto
+    // «FT-A-0007» su un documento che ormai è della serie B — l'elenco e la
+    // stampa direbbero una cosa che la colonna `series` smentisce.
+    const numberChanged = dto.number !== undefined && dto.number !== doc.number;
+    const seriesChanged = effectiveSeries !== doc.series;
+    if (numberChanged || seriesChanged) {
       const numberingType = documentNumberingType(doc.type);
       const numberingSetting =
         numberingType === doc.type
           ? setting
           : await this.settings.getResolved(tenantId, numberingType);
-      data.number = dto.number;
-      data.reference = this.formatReference(
-        numberingSetting.numberPrefix,
-        effectiveSeries,
-        dto.number,
-      );
+      const effectiveNumber = numberChanged ? (dto.number ?? null) : doc.number;
+      if (numberChanged) {
+        data.number = dto.number;
+      }
+      // Senza numero non c'è riferimento da comporre (documento non numerato).
+      if (effectiveNumber !== null) {
+        data.reference = this.formatReference(
+          numberingSetting.numberPrefix,
+          effectiveSeries,
+          effectiveNumber,
+        );
+      }
     }
 
     if (dto.externalDocNumber !== undefined) {
@@ -1432,6 +1462,16 @@ export class DocumentsService {
     }
     if (dto.externalDocDate !== undefined) {
       data.externalDocDate = dto.externalDocDate ? new Date(dto.externalDocDate) : null;
+    }
+    // Solo se il DTO lo nomina: un client che non conosce il campo non deve
+    // poter cancellare id e snapshot di un documento gia' compilato.
+    if (dto.externalDocumentTypeId !== undefined) {
+      const resolved = await this.externalTypes.resolveForWrite(
+        tenantId,
+        dto.externalDocumentTypeId,
+      );
+      data.externalDocumentTypeId = resolved.externalDocumentTypeId;
+      data.externalDocumentTypeSnapshot = resolved.externalDocumentTypeSnapshot;
     }
 
     if (dto.supplierOrderId !== undefined) {
@@ -1955,8 +1995,17 @@ export class DocumentsService {
     });
 
     const updated = await updateTx.catch(async (error: unknown) => {
-      // Numero imposto già preso: 409 con il primo libero da proporre.
-      await this.throwNumberConflict(error, tenantId, doc.type, dto.series ?? doc.series);
+      // Numero già preso: 409 con il numero rifiutato e il primo libero. In
+      // modifica il numero tentato è quello imposto dalla testata oppure, se la
+      // testata non lo tocca, quello che il documento ha già — un cambio di
+      // sola serie può bastare a farlo collidere nella serie nuova.
+      await this.throwNumberConflict(
+        error,
+        tenantId,
+        doc.type,
+        dto.series ?? doc.series,
+        dto.number ?? doc.number,
+      );
       throw error;
     });
 
@@ -2855,11 +2904,26 @@ export class DocumentsService {
   }
 
   /**
-   * Prossimo numero progressivo (atomico via upsert) per serie/anno/tipo.
+   * Primo numero libero del contatore (massimo esistente + 1), assegnato dentro
+   * la transazione che scrive il documento.
    *
-   * La chiave usa `documentNumberingType`, non il tipo grezzo: le fatture di
-   * vendita (Fattura e Fattura accompagnatoria) condividono un unico
-   * progressivo, quindi incrementano la stessa riga di DocumentSequence.
+   * Il lock precede la lettura del massimo, e questo è tutto il punto: due
+   * salvataggi contemporanei in READ COMMITTED leggerebbero lo stesso massimo e
+   * sceglierebbero lo stesso numero, lasciando al vincolo unico il compito di
+   * bocciarne uno — un errore a lavoro finito per una collisione che il sistema
+   * può evitare da sé. Con il lock il secondo aspetta il commit del primo,
+   * rilegge un massimo aggiornato e prende il numero successivo in silenzio.
+   *
+   * Il lock si rilascia al commit o al rollback: un salvataggio fallito non
+   * lascia numeri bruciati né lock appesi.
+   *
+   * La chiave — del lock come del massimo — usa `documentNumberingType`, non il
+   * tipo grezzo: Fattura e Fattura accompagnatoria condividono un solo
+   * progressivo e devono quindi aspettarsi a vicenda.
+   *
+   * Solo per il numero AUTOMATICO: un numero imposto dalla testata non legge
+   * alcun massimo, e il conflitto sul vincolo unico resta lì l'informazione
+   * utile da mostrare all'operatore.
    */
   private async nextNumber(
     tx: Prisma.TransactionClient,
@@ -2867,6 +2931,7 @@ export class DocumentsService {
     type: DocumentType,
     series: string | null,
   ): Promise<number> {
+    await lockDocumentCounter(tx, { tenantId, type, series });
     return nextDocumentNumber({ tx, tenantId, type, series, source: 'document' });
   }
 

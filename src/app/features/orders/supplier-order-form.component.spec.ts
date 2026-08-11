@@ -15,6 +15,7 @@ import { ProductService } from '@domain/products/services/product.service';
 import { SupplierOrderFormComponent } from './supplier-order-form.component';
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { signal } from '@angular/core';
@@ -29,6 +30,18 @@ const VARIANTS = [
     productName: 'Maglietta',
     title: 'Maglietta / M / Rosso',
     sku: 'MAG-M-ROSSO',
+  },
+];
+
+/** Tipi del documento della controparte (tendina condivisa di testata). */
+const EXTERNAL_DOC_TYPES = [
+  {
+    id: 'edt-ddt',
+    name: 'Documento di trasporto',
+    shortLabel: 'DDT',
+    isSystem: true,
+    isActive: true,
+    sortOrder: 1,
   },
 ];
 
@@ -132,6 +145,9 @@ describe('SupplierOrderFormComponent', () => {
           provide: DocumentService,
           useValue: { getPriceModePreference: () => of(false) },
         },
+        // Tendina del documento della controparte (componente condiviso in
+        // testata): senza lo stub cercherebbe l'HTTP vero.
+        { provide: ExternalDocumentTypeService, useValue: { list: () => of(EXTERNAL_DOC_TYPES) } },
         {
           provide: TableColumnPreferenceService,
           useValue: tableColumnPreferenceMock(),
@@ -266,6 +282,13 @@ describe('SupplierOrderFormComponent', () => {
       currency: 'EUR',
       costEntryMode: 'vat_excluded' as const,
       orderDate: '2026-08-01T00:00:00.000Z',
+      // Documento della controparte con un tipo che NON è più nell'elenco:
+      // eliminato dopo che l'ordine era già stato registrato. La dicitura deve
+      // restare leggibile, e a tenerla in piedi c'è solo lo snapshot.
+      externalDocumentTypeId: 'edt-eliminato',
+      externalDocumentTypeSnapshot: 'Nota consegna',
+      externalDocNumber: '145',
+      externalDocDate: '2026-07-25T00:00:00.000Z',
       lines: [
         {
           id: 'l-1',
@@ -311,6 +334,7 @@ describe('SupplierOrderFormComponent', () => {
           },
         },
         { provide: DocumentService, useValue: { getPriceModePreference: () => of(false) } },
+        { provide: ExternalDocumentTypeService, useValue: { list: () => of(EXTERNAL_DOC_TYPES) } },
         { provide: TableColumnPreferenceService, useValue: tableColumnPreferenceMock() },
         { provide: VatCodeService, useValue: { list: () => of([]) } },
         { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
@@ -335,6 +359,60 @@ describe('SupplierOrderFormComponent', () => {
   // pilotare il dialogo o esercitare direttamente confirmUnlockEdit(): è la
   // verifica che manca, e va fatta prima di migrare Arrivo merce e Ordine
   // cliente, che hanno lo stesso giro.
+
+  // ── Documento della controparte ────────────────────────────────────────────
+  //
+  // Tipo, numero e data del documento emesso dal FORNITORE (la sua conferma
+  // d'ordine): stanno su ogni maschera documento, non solo sull'Arrivo merce.
+
+  it('riapre la dicitura del documento fornitore anche se il tipo è stato eliminato', async () => {
+    await setupEdit();
+
+    // Testata desktop e pannello mobile convivono nel DOM: si guarda la prima.
+    const number = (await screen.findAllByLabelText('Numero documento'))[0]!;
+    expect(number).toHaveValue('145');
+
+    // Il tipo non è più nell'elenco: l'etichetta arriva dallo snapshot scritto
+    // sull'ordine. Senza, la tendina sarebbe vuota e il salvataggio successivo
+    // cancellerebbe la dicitura davvero.
+    expect(screen.getAllByRole('button', { name: 'Tipo documento' })[0]!).toHaveTextContent(
+      'Nota consegna',
+    );
+  });
+
+  it('porta al salvataggio tipo e numero del documento fornitore', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup({ vatCodes: [VAT_22] });
+
+    await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+    await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+
+    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
+    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
+    await user.click(
+      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
+    );
+
+    const cost = screen.getByPlaceholderText('0,00');
+    await user.clear(cost);
+    await user.type(cost, '12,50');
+
+    await user.click(screen.getAllByRole('button', { name: 'Tipo documento' })[0]!);
+    await user.click(await screen.findByRole('option', { name: 'DDT' }));
+    await user.type(screen.getAllByLabelText('Numero documento')[0]!, '145');
+
+    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+
+    // La data non è stata compilata: va `null`, non `undefined` — in modifica
+    // l'assenza del campo significa «lascialo com'è».
+    expect(createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        externalDocumentTypeId: 'edt-ddt',
+        externalDocNumber: '145',
+        externalDocDate: null,
+      }),
+    );
+  });
 
   // ── Salvare non è uscire ───────────────────────────────────────────────────
   //
