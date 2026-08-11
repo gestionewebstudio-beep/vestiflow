@@ -19,6 +19,11 @@ export const TableViewId = {
   QuoteLines: 'quote_lines',
   SalesDdtLines: 'sales_ddt_lines',
   ManualUnloadLines: 'manual_unload_lines',
+  // I due movimenti di magazzino hanno la stessa riga, ma vista propria per
+  // ciascuno: chi allarga una colonna nel Trasferimento non se la ritrova
+  // allargata nella Rettifica, che è un'altra schermata.
+  TransferLines: 'transfer_lines',
+  StockAdjustmentLines: 'stock_adjustment_lines',
   ProductsList: 'products_list',
   CustomersList: 'customers_list',
   SalesOrdersList: 'sales_orders_list',

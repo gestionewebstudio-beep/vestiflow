@@ -7,6 +7,7 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { LocationContextService } from '@core/services/location-context.service';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { ToastService } from '@core/services/toast.service';
 import { DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
@@ -83,6 +84,18 @@ describe('TransferFormComponent', () => {
           },
         },
         { provide: ToastService, useValue: toasts },
+        // Serve da quando le righe usano il sistema condiviso delle colonne:
+        // TableColumnPreferenceService costruisce l'API delle preferenze, che
+        // legge la configurazione dell'app.
+        {
+          provide: APP_CONFIG,
+          useValue: {
+            production: false,
+            appName: 'VestiFlow',
+            apiBaseUrl: '',
+            features: { barcodeScanner: false, shopify: false },
+          },
+        },
         // Nessun permesso costi: il selettore articolo non deve mostrare il costo.
         { provide: AuthService, useValue: { currentUser: () => null } },
         provideRouter([]),
@@ -164,14 +177,16 @@ describe('TransferFormComponent', () => {
     );
   });
 
-  // Il trio della controparte (tipo · numero · data) sta su ogni maschera, anche
-  // dove non c'è una controparte esterna: qui resta facoltativo. Due copie
-  // perché testata desktop e pannello mobile convivono nel DOM.
-  it('mostra il documento della controparte in testata e nel pannello mobile', async () => {
+  // Il trio della controparte (tipo · numero · data) NON sta su questa maschera
+  // (08/2026): un trasferimento fra sedi proprie non ha una controparte, e tre
+  // celle sempre vuote in cima alla testata chiedevano di essere compilate senza
+  // che ci fosse niente da scrivere. La prova che c'era qui verificava che
+  // comparissero: ora verifica che non ci siano.
+  it('non chiede il documento della controparte: non c’è una controparte', async () => {
     await setup();
 
-    expect(screen.getAllByLabelText('Numero documento')).toHaveLength(2);
-    expect(screen.getAllByRole('button', { name: 'Tipo documento' })).toHaveLength(2);
+    expect(screen.queryByLabelText('Numero documento')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Tipo documento' })).toBeNull();
   });
 
   // ── Numero: proposta vs imposizione ───────────────────────────────────────

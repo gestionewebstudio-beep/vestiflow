@@ -12,6 +12,7 @@ import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { ProductService } from '@domain/products/services/product.service';
 
@@ -130,6 +131,18 @@ describe('StockOperationFormComponent', () => {
 
     await render(StockOperationFormComponent, {
       providers: [
+        // Serve da quando le righe usano il sistema condiviso delle colonne:
+        // TableColumnPreferenceService costruisce l'API delle preferenze, che
+        // legge la configurazione dell'app.
+        {
+          provide: APP_CONFIG,
+          useValue: {
+            production: false,
+            appName: 'VestiFlow',
+            apiBaseUrl: '',
+            features: { barcodeScanner: false, shopify: false },
+          },
+        },
         {
           provide: DocumentCountersService,
           useValue: {

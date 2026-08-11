@@ -62,7 +62,6 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
-import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -72,6 +71,12 @@ import { StockMovementLineCardComponent } from '@domain/documents/components/sto
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
+import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
+import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
+import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
+import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
+import type { LineCodeChoice } from '@domain/documents/models/document-line-code-choice.model';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
@@ -86,6 +91,14 @@ import type { DocumentCounterView } from '@domain/documents/models/document-coun
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { TableViewId } from '@shared/table-columns/table-column.model';
+import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
+import {
+  STOCK_MOVEMENT_LINE_COLUMNS,
+  STOCK_MOVEMENT_LINE_PRESETS,
+} from '@domain/documents/models/stock-movement-line-columns.config';
 import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 import {
@@ -111,13 +124,33 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
 }
 
 /** Colonne del Trasferimento su cui si può ordinare le righe (§7.1). */
-export type TransferLineSortColumn = 'sku' | 'description' | 'quantity';
+export type TransferLineSortColumn = 'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity';
 
 const TRANSFER_SORTABLE_LINE_COLUMNS: readonly TransferLineSortColumn[] = [
+  'articleCode',
   'sku',
-  'description',
+  'barcode',
+  'product',
   'quantity',
 ];
+
+/**
+ * I campi di riga nell'ordine in cui il Tab li attraversa. I tre codici e il
+ * nome sono gli stessi degli altri documenti: un movimento di magazzino trova
+ * l'articolo come lo trova un ordine — ciò che cambia è cosa ne fa dopo.
+ */
+type MovementLineFocusField =
+  'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'serials';
+
+/**
+ * Quanto si aspetta, allo sfocamento di un campo codice della card, prima di
+ * decidere cosa fare: il tempo che serve al tocco su una voce della scelta per
+ * arrivare. Sotto, lo sfocamento vincerebbe la corsa contro il tocco.
+ */
+const MOBILE_PICK_GRACE_MS = 200;
+
+/** I tre codici di questa maschera: niente codice fornitore, non è un acquisto. */
+type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 'barcode'>;
 
 @Component({
   selector: 'app-transfer-form',
@@ -133,13 +166,15 @@ const TRANSFER_SORTABLE_LINE_COLUMNS: readonly TransferLineSortColumn[] = [
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
-    DocumentCounterpartyRefComponent,
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     EditLockBannerComponent,
     SelectMenuComponent,
     StockMovementLineCardComponent,
+    DocumentLineCodeCellComponent,
+    TableColumnPickerComponent,
+    TableColumnResizeDirective,
     DocumentLineProductCellComponent,
     DocumentProductSearchPanelComponent,
     EmptyStateComponent,
@@ -182,6 +217,12 @@ export class TransferFormComponent implements CanComponentDeactivate {
   });
 
   constructor() {
+    this.columnPreferences.registerView(
+      this.lineColumnsView,
+      STOCK_MOVEMENT_LINE_COLUMNS,
+      STOCK_MOVEMENT_LINE_PRESETS,
+    );
+
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
       id: this.editDocumentId() || null,
@@ -255,11 +296,63 @@ export class TransferFormComponent implements CanComponentDeactivate {
    * lasciato fuori: e' una previsione sull'uso, non una proprieta' del
    * documento — a fine stagione fra due magazzini le righe sono trenta.
    */
+  // ── Larghezza e visibilità delle colonne ──────────────────────────────────
+  //
+  // Stesso sistema condiviso degli altri documenti (`shared/table-columns`):
+  // la vista è propria della maschera, le colonne e le viste salvate sono le
+  // stesse per i due movimenti, che hanno la stessa riga.
+
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+  protected readonly lineColumnsView = TableViewId.TransferLines;
+
+  protected isLineColumnVisible(columnId: string): boolean {
+    return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
+  }
+
+  private lineColumnPx(columnId: string): number {
+    const def = STOCK_MOVEMENT_LINE_COLUMNS.find((column) => column.id === columnId);
+    return this.columnPreferences.columnWidth(
+      this.lineColumnsView,
+      columnId,
+      def?.defaultWidthPx ?? 96,
+    );
+  }
+
+  /** Somma delle sole colonne visibili: è il 100% di cui ciascuna prende una quota. */
+  private lineColumnsTotalPx(): number {
+    return STOCK_MOVEMENT_LINE_COLUMNS.reduce(
+      (total, def) =>
+        this.isLineColumnVisible(def.id) ? total + this.lineColumnPx(def.id) : total,
+      0,
+    );
+  }
+
+  /**
+   * Larghezza come QUOTA percentuale del totale, come nelle altre maschere: la
+   * tabella occupa sempre esattamente il contenitore. Coi pixel assoluti e
+   * `table-layout: fixed` resterebbe larga quanto la somma e scorrerebbe invece
+   * di adattarsi; i pixel salvati dal ridimensionamento non si perdono, fanno
+   * da pesi relativi.
+   */
+  protected lineColumnWidth(columnId: string): string {
+    const totale = this.lineColumnsTotalPx();
+    if (totale <= 0) {
+      return 'auto';
+    }
+    return `${((this.lineColumnPx(columnId) / totale) * 100).toFixed(4)}%`;
+  }
+
+  protected onLineColumnResize(columnId: string, widthPx: number): void {
+    this.columnPreferences.setColumnWidth(this.lineColumnsView, columnId, widthPx);
+  }
+
   protected readonly lineSort = new DocumentLineSortStore<TransferLineSortColumn>();
 
   private readonly lineSortKinds: Readonly<Record<TransferLineSortColumn, DocumentLineSortKind>> = {
+    articleCode: 'text',
     sku: 'text',
-    description: 'text',
+    barcode: 'text',
+    product: 'text',
     quantity: 'number',
   };
 
@@ -300,7 +393,12 @@ export class TransferFormComponent implements CanComponentDeactivate {
       this.lines.controls,
       (control) => {
         const raw = control.getRawValue();
-        return column === 'quantity' ? Number(raw.quantity) || 0 : raw[column];
+        if (column === 'quantity') {
+          return Number(raw.quantity) || 0;
+        }
+        // La colonna si chiama `product` in ogni documento; qui il controllo
+        // sotto porta il nome che aveva prima, `description`.
+        return column === 'product' ? raw.description : raw[column];
       },
       this.lineSortKinds[column],
       this.lineSort.direction(),
@@ -322,16 +420,6 @@ export class TransferFormComponent implements CanComponentDeactivate {
     const doc = this.loadedDocument();
     return doc != null && isConfirmedEditableDocumentStatus(doc.status);
   });
-
-  /**
-   * Etichetta del tipo controparte fotografata sul documento. Serve alla
-   * tendina per ricostruire l'opzione di un tipo eliminato: senza, il campo
-   * si riaprirebbe vuoto e il salvataggio successivo cancellerebbe davvero
-   * la dicitura.
-   */
-  protected readonly counterpartyTypeSnapshot = computed(
-    () => this.loadedDocument()?.externalDocumentTypeSnapshot,
-  );
 
   /** Un confermato si apre bloccato: sola lettura finché l'operatore non sblocca. */
   protected readonly formReadOnly = computed(
@@ -369,9 +457,6 @@ export class TransferFormComponent implements CanComponentDeactivate {
       // Un trasferimento fra sedi proprie non ha una controparte esterna: il
       // trio c'è per uniformità con le altre maschere, resta facoltativo
       // (nessun validatore) e nessun tipo viene proposto di default.
-      externalDocumentTypeId: this.fb.control(''),
-      externalDocNumber: this.fb.control(''),
-      externalDocDate: this.fb.control(''),
       notes: this.fb.control(''),
       internalComment: this.fb.control(''),
       lines: this.fb.array([this.createLine()]),
@@ -692,6 +777,264 @@ export class TransferFormComponent implements CanComponentDeactivate {
   // cambia chi la mostra, non chi la fa.
   protected readonly productSuggest = new DocumentProductSuggestStore();
 
+  // ── Celle codice (Cod. articolo / SKU / EAN): confronto esatto alla conferma
+  //
+  // Stesso meccanismo degli altri documenti: il campo NON cerca mentre si
+  // digita, confronta col catalogo alla conferma (Tab/Invio). Ogni carattere
+  // digitato invalida una scelta rimasta aperta, che si riferiva al valore di
+  // prima.
+
+  protected readonly codeLookup = new DocumentCodeLookupStore();
+  private readonly codeLookupService = inject(DocumentCodeLookupService);
+
+  protected onLineCodeChange(index: number, field: MovementCodeField, value: string): void {
+    this.lines.at(index)?.controls[field].setValue(value);
+    this.codeLookup.clear();
+    this.markFormDirty();
+  }
+
+  protected onLineCodeFocus(index: number, field: MovementCodeField): void {
+    this.productSuggest.clear();
+    if (this.codeLookup.isOpenOn(index, field)) {
+      return;
+    }
+    this.codeLookup.clear();
+  }
+
+  protected onLineCodeBlur(index: number): void {
+    if (this.codeLookup.isOpenOnLine(index)) {
+      this.codeLookup.clear();
+    }
+  }
+
+  protected onLineSearchEscape(index: number): void {
+    this.codeLookup.clear();
+    this.productSuggest.blurLine(index);
+  }
+
+  /**
+   * Conferma di un codice: confronto esatto col catalogo, e gli esiti sono TRE
+   * — una aggancia, più d'una apre la scelta, nessuna lascia il valore scritto
+   * e la riga prosegue.
+   *
+   * `advance` distingue il Tab dall'Invio: «Invio registra e resta».
+   */
+  protected commitCodeLookup(index: number, field: MovementCodeField, advance = true): void {
+    const line = this.lines.at(index);
+    if (!line) {
+      return;
+    }
+    if (line.controls.variantId.value) {
+      if (advance) {
+        this.lineFocus.next(index, field);
+      }
+      return;
+    }
+    const code = line.controls[field].value.trim();
+    if (!code) {
+      this.codeLookup.clear();
+      if (advance) {
+        this.lineFocus.next(index, field);
+      }
+      return;
+    }
+    // `locationId` non filtra i risultati: restringe soltanto le giacenze
+    // mostrate alla sede del movimento.
+    const locationId = this.form.controls.locationId.value || undefined;
+    this.codeLookupService
+      .resolve(code, field, { locationId })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((outcome) => {
+        if (outcome.kind === 'one') {
+          // Il riepilogo arriva già dalla ricerca di conferma: passarlo evita
+          // che `onVariantSelect` debba ritrovarlo in liste dove non c'è ancora.
+          this.onVariantSelect(index, outcome.variantId, outcome.summary);
+          this.codeLookup.clear();
+          this.lineFocus.focusField(index, 'quantity');
+          return;
+        }
+        if (outcome.kind === 'many') {
+          this.codeLookup.open(index, field, outcome.matches);
+          return;
+        }
+        // Nessuna corrispondenza: il valore resta scritto e la riga prosegue.
+        // Non è un errore — può essere un articolo che non esiste ancora.
+        this.codeLookup.clear();
+        if (advance) {
+          this.lineFocus.next(index, field);
+        }
+      });
+  }
+
+  /** La scelta aperta da un codice: la voce presa aggancia la riga. */
+  protected onCodeSuggestionPick(index: number, variantId: string): void {
+    this.onVariantSelect(index, variantId);
+    this.codeLookup.clear();
+    this.lineFocus.focusField(index, 'quantity');
+  }
+
+  /**
+   * Cod. articolo ed EAN di una riga agganciata. **Il documento non li salva**
+   * — sono chiavi di ricerca, non dati della riga — quindi su un documento
+   * riaperto i controlli sono vuoti e a saperli è il riepilogo della variante.
+   *
+   * Lo SKU no: quello il documento lo memorizza, e il controllo basta.
+   */
+  protected lineArticleCode(index: number): string {
+    return (
+      this.lineVariantSummary(index)?.articleCode ||
+      this.lines.at(index)?.controls.articleCode.value ||
+      ''
+    );
+  }
+
+  protected lineBarcode(index: number): string {
+    return (
+      this.lineVariantSummary(index)?.barcode || this.lines.at(index)?.controls.barcode.value || ''
+    );
+  }
+
+  private lineVariantSummary(index: number): VariantSummary | null {
+    const variantId = this.lines.at(index)?.controls.variantId.value;
+    if (!variantId) {
+      return null;
+    }
+    return findVariantSummaryById(variantId, this.pinnedVariants(), this.searchedVariants());
+  }
+
+  // ── I codici sulla card mobile ────────────────────────────────────────────
+
+  /**
+   * La scelta fra più corrispondenze, per la card: quale campo la mostra e con
+   * quali voci. Il testo lo compone qui — la card non sa cosa sta elencando.
+   *
+   * `activeIndex` non viaggia: su mobile non ci sono frecce, quindi non c'è una
+   * voce «evidenziata» da scorrere. Si sceglie toccando.
+   */
+  protected mobileCodeChoice(index: number): LineCodeChoice | null {
+    const field = this.codeLookup.field();
+    if (!field || field === 'supplierCode' || !this.codeLookup.isOpenOnLine(index)) {
+      return null;
+    }
+    return {
+      field,
+      items: this.codeLookup.matches().map((variant) => ({
+        variantId: variant.variantId,
+        title: variant.title,
+        detail: this.movementSuggestionDetail(variant),
+      })),
+    };
+  }
+
+  /**
+   * Dettaglio compatto della voce (nome · SKU · EAN). Niente prezzo, a
+   * differenza degli altri documenti: un movimento non vende e non compra, e
+   * un importo in quella riga inviterebbe a leggerlo come se contasse.
+   */
+  private movementSuggestionDetail(variant: VariantSummary): string {
+    const parts: string[] = [variant.productName];
+    if (variant.sku) {
+      parts.push(variant.sku);
+    }
+    if (variant.barcode) {
+      parts.push(`EAN ${variant.barcode}`);
+    }
+    return parts.join(' · ');
+  }
+
+  /**
+   * Uscita da un campo codice della card. **Lo sfocamento conferma**, come Tab
+   * sul desktop: perdere il fuoco su un telefono non è un caso — lo scorrimento
+   * non lo toglie, e quando si perde è perché l'operatore ha toccato un altro
+   * campo, gesto deliberato quanto un Tab.
+   *
+   * ⚠️ **Perché è un solo punto, e ritardato.** Qui si incrociano due
+   * meccanismi che, presi separatamente, si pestano: la conferma allo
+   * sfocamento e la grazia che lascia arrivare il tocco su una voce della
+   * scelta. Toccando una voce, se lo sfocamento partisse per primo e
+   * confermasse, partirebbe una **seconda ricerca** il cui esito «più d'una»
+   * riaprirebbe la scelta **dopo** che il tocco l'aveva già risolta — un
+   * pannello che ricompare da solo su una riga già agganciata.
+   *
+   * I tre casi sono in ordine, e l'ordine conta.
+   */
+  protected onMobileCodeBlur(index: number, field: MovementCodeField): void {
+    if (this.mobileCodeBlurTimer !== null) {
+      clearTimeout(this.mobileCodeBlurTimer);
+    }
+    this.mobileCodeBlurTimer = setTimeout(() => {
+      this.mobileCodeBlurTimer = null;
+      // 1. Il tocco su una voce ha già agganciato la riga: non c'è altro da fare.
+      if (this.lines.at(index)?.controls.variantId.value) {
+        return;
+      }
+      // 2. Scelta aperta e non presa: si abbandona. Il valore digitato resta
+      //    scritto — è la stessa risposta di «nessuna corrispondenza» — e NON
+      //    si cerca di nuovo, che è ciò che la farebbe ricomparire.
+      if (this.codeLookup.isOpenOn(index, field)) {
+        this.codeLookup.clear();
+        return;
+      }
+      // 3. Codice digitato e mai confermato: qui lo sfocamento fa la conferma.
+      this.commitCodeLookup(index, field);
+    }, MOBILE_PICK_GRACE_MS);
+  }
+
+  private mobileCodeBlurTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // ── Il giro del fuoco fra i campi riga ────────────────────────────────────
+  //
+  // Il meccanismo vive in `domain/`, identico alle altre maschere: qui restano
+  // solo le voci che DIFFERISCONO.
+
+  /**
+   * ⚠️ Gli identificativi presuppongono che le due viste siano **esclusive**:
+   * la card mobile ne ha di propri, e con la tabella viva sotto il breakpoint
+   * questa mappa punterebbe a un elemento nascosto — `.focus()` su
+   * `display:none` è un no-op silenzioso. Vedi `ViewportService`.
+   */
+  protected readonly lineFocus = new DocumentLineFocusStore<MovementLineFocusField>({
+    fields: ['articleCode', 'sku', 'barcode', 'product', 'quantity', 'serials'],
+    elementId: (index, field) =>
+      ({
+        articleCode: `tr-code-` + index,
+        sku: `tr-sku-` + index,
+        barcode: `tr-barcode-` + index,
+        product: `tr-product-` + index,
+        quantity: `tr-qty-` + index,
+        serials: `tr-serials-` + index,
+      })[field],
+    // Su riga già agganciata i tre codici diventano testo: il Tab li salta,
+    // come negli altri documenti.
+    isFieldEnabled: (index, field) => {
+      const identita = field === 'articleCode' || field === 'sku' || field === 'barcode';
+      return !(identita && !!this.lines.at(index)?.controls.variantId.value);
+    },
+    isReadOnly: () => this.formReadOnly(),
+    lineCount: () => this.lines.length,
+    createLine: () => this.addLine(),
+    onRowChange: (_index, then) => {
+      setTimeout(then);
+    },
+    // «Riga vuota» qui è: nessun articolo scelto e niente digitato nei codici
+    // né nel nome. La quantità non conta: nasce a 1 da sola.
+    isLineEmpty: (index) => {
+      const line = this.lines.at(index);
+      if (!line) {
+        return true;
+      }
+      const raw = line.getRawValue();
+      return (
+        !raw.variantId &&
+        !raw.articleCode.trim() &&
+        !raw.sku.trim() &&
+        !raw.barcode.trim() &&
+        !raw.description.trim()
+      );
+    },
+    removeLine: (index) => this.removeLine(index),
+  });
+
   /** Il pannello di ricerca a tutta pagina, aperto dalla lente della riga. */
   protected readonly productPanelOpen = signal(false);
   protected readonly productPanelTerm = signal('');
@@ -732,6 +1075,15 @@ export class TransferFormComponent implements CanComponentDeactivate {
     this.productSuggest.blurLine(index);
   }
 
+  /** Frecce sui suggerimenti del nome: il conteggio lo sa solo la maschera. */
+  protected onProductSuggestionNavigate(direction: 'next' | 'prev'): void {
+    const lineIndex = this.productSuggest.lineIndex();
+    if (lineIndex === null) {
+      return;
+    }
+    this.productSuggest.navigate(direction, this.lineSuggestions(lineIndex).length);
+  }
+
   protected onProductSuggestionPick(index: number, variantId: string): void {
     this.onVariantSelect(index, variantId);
     this.productSuggest.clear();
@@ -752,15 +1104,28 @@ export class TransferFormComponent implements CanComponentDeactivate {
     this.productPanelOpen.set(false);
   }
 
-  protected onVariantSelect(index: number, value: string | null): void {
+  /**
+   * Aggancia la riga a una variante. `known` è il riepilogo quando chi chiama
+   * ce l'ha già in mano — la conferma di un codice lo riceve dalla ricerca —:
+   * senza, si cerca nelle liste, dove una variante appena trovata per codice
+   * non c'è ancora e i campi resterebbero vuoti.
+   */
+  protected onVariantSelect(
+    index: number,
+    value: string | null,
+    known: VariantSummary | null = null,
+  ): void {
     const line = this.lines.at(index);
     line.controls.variantId.setValue(value ?? '');
     line.controls.variantId.markAsTouched();
     if (value) {
-      const summary = findVariantSummaryById(value, this.pinnedVariants(), this.searchedVariants());
+      const summary =
+        known ?? findVariantSummaryById(value, this.pinnedVariants(), this.searchedVariants());
       if (summary) {
         line.controls.description.setValue(`${summary.productName} · ${summary.title}`.trim());
         line.controls.sku.setValue(summary.sku);
+        line.controls.articleCode.setValue(summary.articleCode);
+        line.controls.barcode.setValue(summary.barcode ?? '');
       }
     }
   }
@@ -793,7 +1158,9 @@ export class TransferFormComponent implements CanComponentDeactivate {
     const copy = this.createLine();
     copy.patchValue({
       variantId: source.controls.variantId.value,
+      articleCode: source.controls.articleCode.value,
       sku: source.controls.sku.value,
+      barcode: source.controls.barcode.value,
       description: source.controls.description.value,
       quantity: source.controls.quantity.value,
     });
@@ -1052,9 +1419,6 @@ export class TransferFormComponent implements CanComponentDeactivate {
       // Documento della controparte: l'endpoint dedicato riscrive sempre
       // i tre campi, quindi vanno inviati anche vuoti — `null` sul tipo
       // dice «nessuno», non «non toccare».
-      externalDocumentTypeId: raw.externalDocumentTypeId || null,
-      externalDocNumber: raw.externalDocNumber.trim() || undefined,
-      externalDocDate: raw.externalDocDate || undefined,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
       lines: raw.lines
@@ -1122,9 +1486,6 @@ export class TransferFormComponent implements CanComponentDeactivate {
       currency: this.currency,
       // Documento della controparte: il tipo viaggia come `null` quando non
       // c'è, così il PATCH di una bozza lo toglie invece di lasciarlo com'era.
-      externalDocumentTypeId: raw.externalDocumentTypeId || null,
-      externalDocNumber: raw.externalDocNumber.trim() || undefined,
-      externalDocDate: raw.externalDocDate || undefined,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim() || undefined,
       lines: raw.lines
@@ -1157,31 +1518,36 @@ export class TransferFormComponent implements CanComponentDeactivate {
         documentDate: doc.documentDate.slice(0, 10),
         documentNumber: doc.number ?? null,
         series: doc.series ?? '',
-        externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
-        externalDocNumber: doc.externalDocNumber ?? '',
-        externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
         notes: doc.notes ?? '',
         internalComment: doc.internalComment ?? '',
       });
       this.lines.clear();
       for (const line of doc.lines ?? []) {
-        this.lines.push(
-          this.fb.group({
-            // Id riga esistente: preservato (mai esposto in UI) per consentire
-            // al salvataggio dedicato di aggiornare il movimento collegato
-            // invece di duplicarlo (POST /documents/transfer/save).
-            id: this.fb.control<string | null>(line.id ?? null),
-            variantId: this.fb.control(line.variantId ?? '', {
-              validators: line.loadsStock ? [Validators.required] : [],
-            }),
-            sku: this.fb.control(line.sku ?? ''),
-            description: this.fb.control(line.description, { validators: [Validators.required] }),
-            quantity: this.fb.control(line.quantity, {
-              validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
-            }),
-            serialNumbersText: this.fb.control((line.serialNumbers ?? []).join(', ')),
-          }),
-        );
+        // Una riga sola la sa costruire, ed è `createLine`: qui c'era una
+        // seconda copia dei controlli, che al primo campo aggiunto è rimasta
+        // indietro. Si costruisce quella e le si mettono dentro i valori.
+        //
+        // I tre codici non arrivano dal documento — non sono salvati, sono
+        // campi di ricerca — e restano vuoti nel controllo: a mostrarli su una
+        // riga già agganciata è il riepilogo della variante.
+        const group = this.createLine();
+        group.patchValue({
+          // Id riga esistente: preservato (mai esposto in UI) per consentire al
+          // salvataggio dedicato di aggiornare il movimento collegato invece di
+          // duplicarlo.
+          id: line.id ?? null,
+          variantId: line.variantId ?? '',
+          sku: line.sku ?? '',
+          description: line.description,
+          quantity: line.quantity,
+          serialNumbersText: (line.serialNumbers ?? []).join(', '),
+        });
+        if (!line.loadsStock) {
+          // Riga che non muove giacenza: la variante non è obbligatoria.
+          group.controls.variantId.clearValidators();
+          group.controls.variantId.updateValueAndValidity({ emitEvent: false });
+        }
+        this.lines.push(group);
       }
       if (this.lines.length === 0) {
         this.lines.push(this.createLine());
@@ -1195,7 +1561,12 @@ export class TransferFormComponent implements CanComponentDeactivate {
     return this.fb.group({
       id: this.fb.control<string | null>(null),
       variantId: this.fb.control('', { validators: [Validators.required] }),
+      // Le tre chiavi d'identità. Non sono campi da compilare: si digitano per
+      // TROVARE l'articolo, e restano scritte se non corrisponde niente. Non
+      // vengono salvate — il documento memorizza la variante e lo SKU.
+      articleCode: this.fb.control(''),
       sku: this.fb.control(''),
+      barcode: this.fb.control(''),
       description: this.fb.control('', { validators: [Validators.required] }),
       quantity: this.fb.control(1, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
