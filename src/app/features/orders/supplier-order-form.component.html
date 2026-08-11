@@ -965,6 +965,18 @@
         </aside>
       </div>
 
+      <!-- Solo su un ordine già salvato: un allegato ha bisogno di qualcosa a cui
+           stare attaccato, e prima del primo salvataggio quel qualcosa non c'è. -->
+      @if (editOrderId(); as orderId) {
+        <section class="doc-form__attachments" aria-label="Allegati ordine fornitore">
+          <app-attachments-panel
+            entityType="supplier_order"
+            [entityId]="orderId"
+            [canManage]="canManageAttachments()"
+          />
+        </section>
+      }
+
       @if (submitError(); as appError) {
         <p class="doc-form__submit-error" role="alert">
           <i class="pi pi-times-circle" aria-hidden="true"></i>

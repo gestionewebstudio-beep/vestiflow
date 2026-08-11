@@ -26,7 +26,10 @@ import type { Subscription } from 'rxjs';
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AuthService } from '@core/auth';
-import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
+import {
+  canManageDocuments,
+  canViewPurchaseCosts,
+} from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
@@ -119,6 +122,7 @@ import {
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
+import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/attachments-panel.component';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -187,6 +191,7 @@ function todayIsoDate(): string {
   selector: 'app-supplier-order-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    AttachmentsPanelComponent,
     CdkDropList,
     CdkDrag,
     CdkDragHandle,
@@ -243,6 +248,17 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly editOrderId = computed(() => this.paramMap().get('id'));
+
+  /**
+   * Allegati: stesso permesso degli altri documenti. Fino all'11/08/2026
+   * l'ordine fornitore era l'unico senza — non per scelta di prodotto, ma
+   * perché il sottosistema generico degli allegati, dichiarato «estendibile»,
+   * non era mai stato esteso. La conferma d'ordine che il fornitore rimanda è
+   * esattamente il file che si tiene attaccato all'ordine.
+   */
+  protected readonly canManageAttachments = computed(() =>
+    canManageDocuments(this.authService.currentUser()),
+  );
   protected readonly isEditMode = computed(() => Boolean(this.editOrderId()));
 
   private readonly loadTick = signal(0);
