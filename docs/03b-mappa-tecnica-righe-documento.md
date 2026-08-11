@@ -273,15 +273,23 @@ Chiude §3-bis su tutte e tre le maschere. **La catena non è stata copiata: è 
 
 **Una conseguenza minore, voluta:** in Ordine cliente il riepilogo viaggia dentro l'esito, quindi agganciare una riga da codice **non richiede più due chiamate al server**. Prima `onVariantSelect` non trovava la variante fra le note e la richiedeva, e subito dopo una seconda richiesta la fissava di nuovo.
 
-#### Blocco successivo — il codice fornitore scritto nella riga _(deciso 08/2026, da eseguire)_
+#### ✅ Il codice fornitore scritto nella riga _(deciso e fatto 08/2026)_
 
-**Perimetro, per nome: Arrivo merce e Ordine fornitore.** Sono i due documenti che hanno la colonna Cod. fornitore; Ordine cliente, Preventivi, DDT vendita e Scarico manuale non ce l'hanno, e per loro non c'è niente da fare — verificato, non presunto.
+**Perimetro, per nome: Arrivo merce e Ordine fornitore.** Sono i due documenti che hanno la colonna Cod. fornitore; Ordine cliente, Preventivi, DDT vendita e Scarico manuale non ce l'hanno, e per loro non c'era niente da fare — verificato, non presunto.
 
-**Il difetto.** Agganciando un articolo, la riga riscrive il campo Cod. fornitore con `summary.supplierSku`. Da quando la lettura non filtra più per fornitore, quel valore è **il primo collegamento in ordine deterministico** — che può essere il codice di un altro fornitore. L'operatore digita il codice del listino che ha davanti, l'articolo si aggancia, e nel campo compare un codice diverso da quello che ha scritto.
+**Il difetto.** Agganciando un articolo, la riga riscriveva il campo Cod. fornitore con `summary.supplierSku`. Da quando la lettura non filtra più per fornitore, quel valore è **il primo collegamento in ordine deterministico** — che può essere il codice di un altro fornitore. L'operatore digitava il codice del listino che aveva davanti, l'articolo si agganciava, e nel campo compariva un codice diverso da quello che aveva scritto.
 
-**La decisione, ed è già presa: nel campo va il codice con cui si è agganciato**, non il primo della lista. È la stessa logica applicata alla lettura — «il codice restituito è quello che ha fatto scattare la ricerca» — portata alla scrittura, che era rimasta indietro. Non serve decidere nulla sui fornitori multipli: quella domanda (§«Più fornitori per articolo») resta aperta e **non blocca questa**.
+**La regola, in un posto solo:** `supplierCodeForDocumentLine`, con le fonti in ordine — (1) il codice **digitato** con cui si è agganciato, (2) quello del collegamento col fornitore **della testata**, (3) niente. `VariantSummary.supplierSku` **non è una fonte**. È la stessa logica applicata alla lettura — «il codice restituito è quello che ha fatto scattare la ricerca» — portata alla scrittura, dove era rimasta indietro. Non è servito decidere nulla sui fornitori multipli: quella domanda (§«Più fornitori per articolo») resta aperta e non bloccava questa.
 
-**Dove cade** _(mis. 08/2026)_: `applyVariantToLine` in Ordine fornitore; `syncLineCodesFromVariants` e `onVariantSelect` in Arrivo merce — quest'ultimo ha già un ripiego su `supplierSkuByVariantId`, ma `summary.supplierSku` gli passa davanti, quindi il difetto c'è lo stesso. ⚠️ Il codice digitato va portato fin lì: oggi l'aggancio riceve solo l'id della variante, quindi «con quale codice» è un'informazione che si perde per strada.
+**La sorpresa: la seconda fonte in Arrivo merce esisteva già.** `supplierSkuByVariantId` è costruita da `getVariantLinksBySupplier(supplierId)`, cioè dai codici del fornitore della testata — la fonte giusta. Solo che `summary.supplierSku` le passava davanti. Il difetto era di **precedenza, non di sorgente mancante**: la correzione è un'inversione, non una costruzione.
+
+**Come il codice digitato arriva fino all'aggancio:** `onVariantSelect(index, variantId, linkedWith?)` in entrambe le maschere; lo passa `commitCodeLookup` quando il campo di partenza è `supplierCode`, e `onCodeSuggestionPick` leggendo `codeLookup.field()` **prima** di chiudere la scelta — dopo, il campo d'origine non c'è più.
+
+**Un secondo difetto trovato scrivendo la prova, non prima.** In Arrivo merce il campo lo riempie il **riallineamento in blocco** (`syncLineCodesFromVariants`), non l'aggancio: assegnare la variante fa ricaricare i riepiloghi e un `effect` riscrive i codici. Quel riallineamento sovrascriveva **anche un campo già compilato** — quindi il codice appena digitato spariva un istante dopo, in silenzio, sostituito da quello di un altro fornitore. Ora riempie solo un campo vuoto. Il ricalcolo quando **cambia il fornitore** (`syncSupplierSkuOnAllLines`) resta invece a sostituire, ed è giusto: lì i codici cambiano davvero tutti.
+
+⚠️ **In Ordine fornitore la seconda fonte manca**, e resta il seguito naturale: quella maschera non carica i collegamenti del fornitore di testata, quindi agganciando per nome/SKU/EAN il campo **resta vuoto** e lo compila l'operatore. Vuoto è corretto — meglio di un codice che al proprio fornitore non dice niente — ma non è il meglio possibile. Il pezzo che serve esiste già ed è in uso nell'Arrivo merce: `SupplierService.getVariantLinksBySupplier`.
+
+**Le prove sono quattro, tutte con controllo inverso**, e sono state viste **fallire** togliendo la correzione: in Ordine fornitore «resta il digitato» e «per SKU resta vuoto invece che arbitrario»; in Arrivo merce «per SKU vale il codice della testata» e «da Cod. fornitore resta il digitato» — quest'ultima sorveglia anche il riallineamento asincrono. ⚠️ Nei mock, `searchVariantSummaries` **deve rispondere diversamente** alla ricerca (con `search`) e al caricamento per id: è da quella differenza che nasce il difetto, e mockarle uguali lo nasconde. È già successo alla prima stesura di queste prove.
 
 ---
 
@@ -590,7 +598,7 @@ Le due celle condivise non hanno spec. `app-select-menu` non ha spec: le sue uni
 
 - `.gl.login__alert` → sostituito con `getByRole('alert')`: l'errore di accesso è un `app-inline-banner`, che a tono errore espone quel ruolo. **Si aggancia il ruolo, non la classe** — una classe cambia con una rinomina e il test smette di guardare in silenzio, che è esattamente ciò che era successo.
 - `#sales-general`, `#sales-lines`, `.sales-detail__totals`, `.sales-detail__badges`, più `h1.sales-detail__title` nel suo helper → **non è una rinomina**: in `src/` non esiste più nulla che si chiami `sales-detail__`, e nella cartella non c'è un componente di dettaglio vendita. La schermata provata **è stata sostituita**, e `e2e/sales-detail.spec.ts` è rimasta indietro per intero: tre test più l'helper che li apre.
-  **Deciso: marcarla saltata con una nota di lavoro** — che dica che la schermata è stata sostituita, che nessuno dei cinque riferimenti esiste più, e che va **riscritta contro il dettaglio vendita attuale**. Non «test obsoleto, da rivedere»: chi la trova deve sapere cosa fare. **Non ancora eseguito.**
+  ✅ **Fatto (08/2026, commit `32dbf14`)**: `test.describe.skip` con la nota di lavoro in testa al file — dice che la schermata è stata sostituita, elenca i cinque riferimenti che non esistono più, e dice cosa fare (riscriverla contro il dettaglio vendita attuale, poi togliere la nota e lo `skip`). Non «test obsoleto, da rivedere»: chi la trova sa cosa fare. Marcata saltata invece che cancellata perché l'intento dei tre casi può servire ancora. _(Questa riga ha detto «non ancora eseguito» più a lungo del dovuto: la correzione era stata fatta nello stesso commit che la dichiarava da fare.)_
 
 ---
 

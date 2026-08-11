@@ -1,7 +1,7 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
@@ -60,64 +60,73 @@ const NON_STOCK_SUMMARY = {
   managesStock: false,
 } as const;
 
+interface GoodsReceiptSetupOptions {
+  readonly writeLocations?: readonly { id: string; name: string }[];
+  readonly defaultLocation?: { id: string; name: string } | null;
+  readonly variantSummaries?: readonly (typeof NON_STOCK_SUMMARY)[];
+  readonly vatCodes?: readonly unknown[];
+}
+
+/**
+ * I provider di base della maschera. Estratti da `setup` perché un secondo
+ * gruppo di prove ne sovrascrive due (catalogo e collegamenti fornitore): in
+ * Angular vince l'ultimo provider per lo stesso token, quindi basta accodarli.
+ */
+function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
+  return [
+    {
+      provide: DocumentCountersService,
+      useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+    },
+    provideRouter([]),
+    {
+      provide: ActivatedRoute,
+      useValue: {
+        snapshot: { data: {}, queryParamMap: convertToParamMap({}) },
+        paramMap: of(convertToParamMap({})),
+      },
+    },
+    { provide: OperationalLocationsService, useValue: operationalLocationsMock(options) },
+    { provide: AuthService, useValue: { currentUser: () => null } },
+    {
+      provide: DocumentService,
+      useValue: {
+        getDocumentById: vi.fn(),
+        previewDocumentNumber: () =>
+          of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
+        saveGoodsReceipt: vi.fn(),
+        getPriceModePreference: () => of(false),
+      },
+    },
+    // Serie del protocollo: una sola configurata → label statica.
+    { provide: DocumentSettingsService, useValue: { getSettings: () => of([]) } },
+    { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
+    {
+      provide: SupplierService,
+      useValue: { getSuppliers: () => of([]), getVariantLinksBySupplier: () => of([]) },
+    },
+    { provide: SupplierOrderService, useValue: {} },
+    { provide: ProductLabelPrintService, useValue: {} },
+    {
+      provide: ProductService,
+      useValue: {
+        searchVariantSummaries: () => of(options?.variantSummaries ?? []),
+        getSupplierVariantLinks: () => of([]),
+      },
+    },
+    { provide: VatCodeService, useValue: { list: () => of(options?.vatCodes ?? []) } },
+    { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+    { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
+    {
+      provide: TableViewPreferenceApiService,
+      useValue: { load: () => of(null), save: () => of(undefined) },
+    },
+  ];
+}
+
 describe('GoodsReceiptFormComponent', () => {
-  async function setup(options?: {
-    readonly writeLocations?: readonly { id: string; name: string }[];
-    readonly defaultLocation?: { id: string; name: string } | null;
-    readonly variantSummaries?: readonly (typeof NON_STOCK_SUMMARY)[];
-    readonly vatCodes?: readonly unknown[];
-  }) {
-    return render(GoodsReceiptFormComponent, {
-      providers: [
-        {
-          provide: DocumentCountersService,
-          useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
-        },
-        provideRouter([]),
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            snapshot: { data: {}, queryParamMap: convertToParamMap({}) },
-            paramMap: of(convertToParamMap({})),
-          },
-        },
-        { provide: OperationalLocationsService, useValue: operationalLocationsMock(options) },
-        { provide: AuthService, useValue: { currentUser: () => null } },
-        {
-          provide: DocumentService,
-          useValue: {
-            getDocumentById: vi.fn(),
-            previewDocumentNumber: () =>
-              of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
-            saveGoodsReceipt: vi.fn(),
-            getPriceModePreference: () => of(false),
-          },
-        },
-        // Serie del protocollo: una sola configurata → label statica.
-        { provide: DocumentSettingsService, useValue: { getSettings: () => of([]) } },
-        { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
-        {
-          provide: SupplierService,
-          useValue: { getSuppliers: () => of([]), getVariantLinksBySupplier: () => of([]) },
-        },
-        { provide: SupplierOrderService, useValue: {} },
-        { provide: ProductLabelPrintService, useValue: {} },
-        {
-          provide: ProductService,
-          useValue: {
-            searchVariantSummaries: () => of(options?.variantSummaries ?? []),
-            getSupplierVariantLinks: () => of([]),
-          },
-        },
-        { provide: VatCodeService, useValue: { list: () => of(options?.vatCodes ?? []) } },
-        { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
-        { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
-        {
-          provide: TableViewPreferenceApiService,
-          useValue: { load: () => of(null), save: () => of(undefined) },
-        },
-      ],
-    });
+  async function setup(options?: GoodsReceiptSetupOptions) {
+    return render(GoodsReceiptFormComponent, { providers: goodsReceiptProviders(options) });
   }
 
   // Specifica «sede predefinita»: nessuna autoselezione della location in
@@ -397,6 +406,124 @@ describe('GoodsReceiptFormComponent', () => {
         linesTotal: { amountMinor: 10000 },
         total: { amountMinor: 10000 },
       });
+    });
+  });
+
+  /**
+   * Quale codice fornitore finisce nella riga quando si aggancia un articolo.
+   *
+   * Le fonti sono due e vanno in quest'ordine: il codice DIGITATO con cui si è
+   * agganciato, poi quello del collegamento con il fornitore DELLA TESTATA. Non
+   * è una fonte `VariantSummary.supplierSku`: da quando la conferma non filtra
+   * per fornitore, quel campo è il primo collegamento in ordine deterministico
+   * — il codice di un fornitore qualsiasi.
+   */
+  describe('codice fornitore scritto nella riga', () => {
+    interface CodeForm {
+      readonly commitSkuLookup: (index: number) => void;
+      readonly commitSupplierSkuLookup: (index: number) => void;
+      readonly form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      readonly lines: {
+        at: (i: number) => {
+          controls: Record<string, { setValue: (v: unknown) => void; value: string }>;
+        };
+      };
+    }
+
+    /**
+     * `catalogo` risponde alla RICERCA (query con `search`), dove il codice
+     * fornitore restituito è quello che ha fatto scattare la ricerca;
+     * `perVariante` risponde al caricamento per id, dove nessuna ricerca ha
+     * scelto un collegamento e il codice è arbitrario. Mockarle uguali
+     * nasconderebbe il difetto.
+     */
+    async function apri(options: {
+      readonly catalogo: readonly Record<string, unknown>[];
+      readonly perVariante?: readonly Record<string, unknown>[];
+      readonly collegamentiDelFornitore?: readonly Record<string, unknown>[];
+    }) {
+      const view = await render(GoodsReceiptFormComponent, {
+        providers: [
+          ...goodsReceiptProviders(),
+          {
+            provide: SupplierService,
+            useValue: {
+              getSuppliers: () => of([{ id: 'sup-1', name: 'Tessuti Italia' }]),
+              getVariantLinksBySupplier: () => of(options.collegamentiDelFornitore ?? []),
+            },
+          },
+          {
+            provide: ProductService,
+            useValue: {
+              searchVariantSummaries: (query?: { search?: string }) =>
+                of(query?.search ? options.catalogo : (options.perVariante ?? options.catalogo)),
+              findVariantByCode: () => throwError(() => new Error('404')),
+              getSupplierVariantLinks: () => of([]),
+            },
+          },
+        ],
+      });
+      const form = view.fixture.componentInstance as unknown as CodeForm;
+      // La testata sceglie il fornitore: e' cio' che carica i suoi codici.
+      form.form.controls['supplierId']!.setValue('sup-1');
+      return { form, fixture: view.fixture };
+    }
+
+    /**
+     * In questa maschera il codice fornitore lo scrive il RIALLINEAMENTO, non
+     * l'aggancio: assegnare la variante fa ricaricare i riepiloghi, e un effect
+     * riempie i codici. Senza far girare il ciclo il campo resta vuoto e la
+     * prova non misura niente.
+     */
+    async function lasciaGirareIlCiclo(fixture: { detectChanges: () => void }): Promise<void> {
+      for (let giro = 0; giro < 3; giro += 1) {
+        fixture.detectChanges();
+        await Promise.resolve();
+      }
+      fixture.detectChanges();
+    }
+
+    const ARTICOLO = {
+      variantId: 'var-1',
+      productId: 'prod-1',
+      articleCode: 'ART-1',
+      productName: 'Maglietta',
+      title: 'Maglietta',
+      sku: 'MAG-M',
+      sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+    };
+
+    it('agganciando per SKU vale il codice del fornitore della testata, non quello del riepilogo', async () => {
+      const { form, fixture } = await apri({
+        catalogo: [{ ...ARTICOLO, supplierSku: 'F-999' }],
+        collegamentiDelFornitore: [{ variantId: 'var-1', supplierSku: 'F-777' }],
+      });
+      form.lines.at(0).controls['sku']!.setValue('MAG-M');
+
+      form.commitSkuLookup(0);
+      await lasciaGirareIlCiclo(fixture);
+
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+      expect(form.lines.at(0).controls['supplierSku']!.value).toBe('F-777');
+    });
+
+    // Il controllo inverso: senza, la prova qui sopra passerebbe anche se il
+    // codice della testata vincesse SEMPRE, pure su quello appena digitato.
+    // Vale anche come guardia sul riallineamento, che gira su un effect: se
+    // tornasse a sovrascrivere, il codice digitato sparirebbe un istante dopo.
+    it('agganciando da Cod. fornitore resta il codice digitato', async () => {
+      const { form, fixture } = await apri({
+        catalogo: [{ ...ARTICOLO, supplierSku: 'F-100' }],
+        perVariante: [{ ...ARTICOLO, supplierSku: 'F-999' }],
+        collegamentiDelFornitore: [{ variantId: 'var-1', supplierSku: 'F-777' }],
+      });
+      form.lines.at(0).controls['supplierSku']!.setValue('F-100');
+
+      form.commitSupplierSkuLookup(0);
+      await lasciaGirareIlCiclo(fixture);
+
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+      expect(form.lines.at(0).controls['supplierSku']!.value).toBe('F-100');
     });
   });
 });

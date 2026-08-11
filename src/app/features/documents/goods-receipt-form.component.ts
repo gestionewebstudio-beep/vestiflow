@@ -172,7 +172,10 @@ import { DocumentEditLockService } from '@domain/documents/services/document-edi
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
-import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
+import {
+  supplierCodeForDocumentLine,
+  type DocumentLineCodeField,
+} from '@domain/documents/utils/document-code-match.util';
 import {
   vatCodeSelectOption,
   vatOptionsIncludingSelected,
@@ -1344,7 +1347,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe((outcome) => {
         if (outcome.kind === 'one') {
-          this.onVariantSelect(index, outcome.variantId);
+          // Agganciando da Cod. fornitore, il codice digitato È quello con cui
+          // si aggancia: va tenuto nella riga, non sostituito.
+          this.onVariantSelect(
+            index,
+            outcome.variantId,
+            field === 'supplierCode' ? value : undefined,
+          );
           this.codeLookup.clear();
           this.focusLineField(index, 'quantity');
           return;
@@ -1370,7 +1379,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected onCodeSuggestionPick(index: number, variantId: string): void {
-    this.onVariantSelect(index, variantId);
+    // Da leggere PRIMA di chiudere: dopo, il campo d'origine non c'è più.
+    const linkedWith =
+      this.codeLookup.field() === 'supplierCode'
+        ? this.lines.at(index)?.controls.supplierSku.value.trim()
+        : undefined;
+    this.onVariantSelect(index, variantId, linkedWith);
     this.codeLookup.clear();
     this.focusLineField(index, 'quantity');
   }
@@ -1751,9 +1765,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       if (!line.controls.productName.value.trim()) {
         line.controls.productName.setValue(summary.productName, { emitEvent: false });
       }
-      const supplierSku =
-        summary.supplierSku?.trim() || this.supplierSkuByVariantId().get(variantId) || '';
-      if (supplierSku) {
+      // Riallineamento in blocco: qui un «codice con cui hai agganciato» non
+      // esiste, quindi vale solo quello del fornitore della testata.
+      //
+      // E riempie soltanto un campo VUOTO. Gira su un effect, quindi
+      // sovrascrivere significherebbe vedersi cambiare sotto gli occhi, un
+      // istante dopo, il codice appena digitato — in silenzio. Il ricalcolo su
+      // tutte le righe quando cambia il fornitore resta invece un'altra cosa,
+      // e lì sostituire è giusto: vedi `syncSupplierSkuOnAllLines`.
+      const supplierSku = supplierCodeForDocumentLine({
+        ofDocumentSupplier: this.supplierSkuByVariantId().get(variantId),
+      });
+      if (supplierSku && !line.controls.supplierSku.value.trim()) {
         line.controls.supplierSku.setValue(supplierSku, { emitEvent: false });
       }
     }
@@ -2822,7 +2845,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     });
   }
 
-  protected onVariantSelect(index: number, value: string | null): void {
+  /**
+   * `linkedWith` è il codice fornitore che l'operatore ha digitato e con cui
+   * l'articolo si è agganciato. Passarlo è l'unico modo perché arrivi fin qui:
+   * l'aggancio riceve l'id della variante, e «con quale codice» è
+   * un'informazione che altrimenti si perde per strada.
+   */
+  protected onVariantSelect(index: number, value: string | null, linkedWith?: string): void {
     const line = this.lines.at(index);
     line.controls.variantId.setValue(value ?? '');
     if (value) {
@@ -2881,8 +2910,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             line.controls.discountPercent.setValue(supplierDiscount, { emitEvent: false });
           }
         }
-        const supplierSku =
-          summary.supplierSku?.trim() || this.supplierSkuByVariantId().get(value) || '';
+        // NON da `summary.supplierSku`: da quando la conferma non filtra per
+        // fornitore, quel campo è il primo collegamento in ordine
+        // deterministico — il codice di un fornitore qualsiasi. Vedi
+        // `supplierCodeForDocumentLine`.
+        const supplierSku = supplierCodeForDocumentLine({
+          linkedWith,
+          ofDocumentSupplier: this.supplierSkuByVariantId().get(value),
+        });
         if (supplierSku) {
           line.controls.supplierSku.setValue(supplierSku, { emitEvent: false });
         }

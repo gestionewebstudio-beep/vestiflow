@@ -514,7 +514,19 @@ describe('SupplierOrderFormComponent', () => {
       };
     }
 
-    async function apri(catalogo: readonly Record<string, unknown>[]) {
+    /**
+     * `catalogo` è cosa risponde la RICERCA (query con `search`): lì il codice
+     * fornitore restituito è quello che ha fatto scattare la ricerca.
+     * `perVariante` è cosa risponde il caricamento per id, che il form fa dopo
+     * per riempire la riga: lì nessuna ricerca ha scelto un collegamento, e il
+     * codice restituito è il primo in ordine deterministico — quello di un
+     * fornitore qualsiasi. Sono due risposte diverse per lo stesso articolo, ed
+     * è da questa differenza che nasce il difetto: mockarle uguali lo nasconde.
+     */
+    async function apri(
+      catalogo: readonly Record<string, unknown>[],
+      perVariante?: readonly Record<string, unknown>[],
+    ) {
       const { fixture } = await render(SupplierOrderFormComponent, {
         providers: [
           { provide: AuthService, useValue: { currentUser: () => null } },
@@ -526,7 +538,8 @@ describe('SupplierOrderFormComponent', () => {
           {
             provide: ProductService,
             useValue: {
-              searchVariantSummaries: () => of(catalogo),
+              searchVariantSummaries: (query?: { search?: string }) =>
+                of(query?.search ? catalogo : (perVariante ?? catalogo)),
               // L'endpoint per codice tace sui casi ambigui: non deve essere
               // la strada che salva il test.
               findVariantByCode: () => throwError(() => new Error('404')),
@@ -573,6 +586,41 @@ describe('SupplierOrderFormComponent', () => {
 
       expect(form.codeLookup.isOpenOn(0, 'supplierCode')).toBe(false);
       expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+    });
+
+    // Il riepilogo porta il codice del PRIMO collegamento in ordine
+    // deterministico, che può essere di un altro fornitore: l'operatore
+    // digitava F-100 e nel campo si ritrovava F-999, mai scritto da lui.
+    it('agganciando da Cod. fornitore resta il codice digitato, non quello del riepilogo', async () => {
+      const form = await apri(
+        // La ricerca per «F-100» trova l'articolo e riporta il codice che ha
+        // corrisposto…
+        [variante({ variantId: 'var-1', productId: 'prod-1', supplierSku: 'F-100' })],
+        // …ma il caricamento per id, che riempie la riga, riporta il primo
+        // collegamento: quello di un altro fornitore.
+        [variante({ variantId: 'var-1', productId: 'prod-1', supplierSku: 'F-999' })],
+      );
+      form.lines.at(0).controls['supplierCode']!.setValue('F-100');
+
+      form.commitCodeLookup(0, 'supplierCode');
+
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+      expect(form.lines.at(0).controls['supplierCode']!.value).toBe('F-100');
+    });
+
+    // Il controllo inverso del precedente: agganciando per SKU non esiste un
+    // «codice con cui hai agganciato», e il campo NON va riempito col codice di
+    // un fornitore qualsiasi. Vuoto è la risposta giusta.
+    it('agganciando per SKU il Cod. fornitore resta vuoto invece che arbitrario', async () => {
+      const form = await apri([
+        variante({ variantId: 'var-1', productId: 'prod-1', sku: 'MAG-M', supplierSku: 'F-999' }),
+      ]);
+      form.lines.at(0).controls['sku']!.setValue('MAG-M');
+
+      form.commitCodeLookup(0, 'sku');
+
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+      expect(form.lines.at(0).controls['supplierCode']!.value).toBe('');
     });
   });
 });

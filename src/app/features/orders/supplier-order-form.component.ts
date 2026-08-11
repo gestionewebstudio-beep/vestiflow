@@ -91,7 +91,10 @@ import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
-import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
+import {
+  supplierCodeForDocumentLine,
+  type DocumentLineCodeField,
+} from '@domain/documents/utils/document-code-match.util';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import {
   grossFromNetExact,
@@ -834,7 +837,13 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe((outcome) => {
         if (outcome.kind === 'one') {
-          this.onVariantSelect(index, outcome.variantId);
+          // Agganciando da Cod. fornitore, il codice digitato È quello con cui
+          // si aggancia: va tenuto nella riga, non sostituito.
+          this.onVariantSelect(
+            index,
+            outcome.variantId,
+            field === 'supplierCode' ? code : undefined,
+          );
           this.codeLookup.clear();
           this.focusLineField(index, 'quantity');
           return;
@@ -850,7 +859,12 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
   /** La scelta aperta da un codice: la voce presa aggancia la riga. */
   protected onCodeSuggestionPick(index: number, variantId: string): void {
-    this.onVariantSelect(index, variantId);
+    // Da leggere PRIMA di chiudere: dopo, il campo d'origine non c'è più.
+    const linkedWith =
+      this.codeLookup.field() === 'supplierCode'
+        ? this.lines.at(index)?.controls.supplierCode.value.trim()
+        : undefined;
+    this.onVariantSelect(index, variantId, linkedWith);
     this.codeLookup.clear();
     this.focusLineField(index, 'quantity');
   }
@@ -933,12 +947,17 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.variantSearchDraft.set(value);
   }
 
-  protected onVariantSelect(index: number, value: string | null): void {
+  /**
+   * `linkedWith` è il codice fornitore digitato con cui l'articolo si è
+   * agganciato. Passarlo è l'unico modo perché arrivi fin qui: l'aggancio
+   * riceve l'id della variante, e «con quale codice» si perderebbe per strada.
+   */
+  protected onVariantSelect(index: number, value: string | null, linkedWith?: string): void {
     const control = this.lines.at(index).controls.variantId;
     control.setValue(value ?? '');
     control.markAsTouched();
     if (value) {
-      this.applyVariantToLine(index, value);
+      this.applyVariantToLine(index, value, linkedWith);
     }
   }
 
@@ -1132,7 +1151,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    * uno si prende quello, e SOLO se non ce l'ha si ripiega sul predefinito —
    * lasciare una riga senza IVA le farebbe calcolare imposta zero in silenzio.
    */
-  private applyVariantToLine(index: number, variantId: string): void {
+  private applyVariantToLine(index: number, variantId: string, linkedWith?: string): void {
     const line = this.lines.at(index);
     if (!line) {
       return;
@@ -1145,7 +1164,17 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       line.controls.articleCode.setValue(summary.articleCode ?? '', quiet);
       line.controls.sku.setValue(summary.sku ?? '', quiet);
       line.controls.barcode.setValue(summary.barcode ?? '', quiet);
-      line.controls.supplierCode.setValue(summary.supplierSku ?? '', quiet);
+      // NON da `summary.supplierSku`: da quando la conferma non filtra per
+      // fornitore, quel campo è il primo collegamento in ordine deterministico
+      // — il codice di un fornitore qualsiasi, in un documento indirizzato a un
+      // fornitore preciso. Vedi `supplierCodeForDocumentLine`.
+      //
+      // ⚠️ Qui la seconda fonte MANCA: a differenza dell'Arrivo merce, questa
+      // maschera non carica i collegamenti del fornitore di testata, quindi
+      // agganciando per nome/SKU/EAN il campo resta vuoto e lo compila
+      // l'operatore. Vuoto è corretto, non ottimale — il seguito è caricare
+      // quei collegamenti anche qui.
+      line.controls.supplierCode.setValue(supplierCodeForDocumentLine({ linkedWith }), quiet);
       line.controls.productName.setValue(summary.productName || summary.title || '', quiet);
       line.controls.unitOfMeasure.setValue(summary.unitOfMeasure ?? '', quiet);
       line.controls.orderedQuantity.setValue(1, quiet);
