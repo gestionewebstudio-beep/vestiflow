@@ -1132,6 +1132,19 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return { amountMinor: this.lineAmounts(index).net, currencyCode: this.currency };
   }
 
+  /**
+   * Apre la scheda del fornitore intestatario. Mancava del tutto in questa
+   * maschera mentre c'era in Arrivo merce e, per il cliente, in Ordine cliente:
+   * divergenza rimasta lì, non differenza di documento — un ordine fornitore ha
+   * un fornitore come gli altri hanno la loro controparte.
+   */
+  protected openSupplierDetail(): void {
+    const supplierId = this.form.controls.supplierId.value;
+    if (supplierId) {
+      void this.router.navigate(['/app/suppliers', supplierId]);
+    }
+  }
+
   protected onSupplierSelect(value: string | null): void {
     this.form.controls.supplierId.setValue(value ?? '');
     this.form.controls.supplierId.markAsTouched();

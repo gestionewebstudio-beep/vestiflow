@@ -1612,6 +1612,29 @@ app-customer-order-form {
   gap: var(--space-2);
 }
 
+// ── Riga dell'etichetta: nome del campo a sinistra, comandi a destra ───────
+//
+// I comandi della controparte — «Nuovo cliente», «Scheda cliente» — stavano
+// sotto il campo, e da lì aggiungevano una terza riga a ogni cella di testata.
+// Sulla riga dell'etichetta costano zero altezza, perché lì c'è solo una parola
+// e il resto è vuoto. Stessa disposizione del pannello mobile: un documento non
+// deve mettere i suoi comandi in due posti diversi a seconda dello schermo.
+.doc-form .doc-form__field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+// I comandi restano uniti a destra: senza contenitore proprio, `space-between`
+// con tre figli spargerebbe il primo in mezzo alla riga.
+.doc-form .doc-form__field-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
 // ── Testata: una card, due fasce di celle unite ─────────────────────────────
 .doc-form .doc-form__header {
   gap: 0;

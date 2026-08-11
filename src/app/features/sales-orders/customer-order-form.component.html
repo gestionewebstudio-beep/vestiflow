@@ -541,9 +541,39 @@
                 class="doc-form__field doc-form__field--span2"
                 [class.doc-form__field--waiting]="fieldWaiting('customerId')"
               >
-                <span class="doc-form__label" id="co-customer-label">
-                  {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
-                </span>
+                <div class="doc-form__field-head">
+                  <span class="doc-form__label" id="co-customer-label">
+                    {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
+                  </span>
+                  <!-- I comandi stanno sulla riga dell'etichetta, come nel
+                       pannello mobile: lì c'è solo una parola e il resto è
+                       vuoto, mentre sotto il campo aggiungevano una riga. -->
+                  <span class="doc-form__field-actions">
+                    <button
+                      type="button"
+                      class="doc-form__inline-toggle"
+                      (click)="toggleCustomerForm()"
+                    >
+                      <i
+                        class="pi"
+                        [class.pi-plus]="!showCustomerForm()"
+                        [class.pi-minus]="showCustomerForm()"
+                        aria-hidden="true"
+                      ></i>
+                      {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
+                    </button>
+                    @if (form.controls.customerId.value) {
+                      <button
+                        type="button"
+                        class="doc-form__inline-toggle"
+                        (click)="openCustomerDetail()"
+                      >
+                        <i class="pi pi-external-link" aria-hidden="true"></i>
+                        Scheda cliente
+                      </button>
+                    }
+                  </span>
+                </div>
                 <app-select-menu
                   [options]="customerOptions()"
                   [value]="form.controls.customerId.value"
@@ -575,32 +605,6 @@
                     autocomplete="off"
                   />
                 }
-                <!-- Scorciatoie sulla stessa riga, come nel mockup. -->
-                <div class="doc-form__inline-links">
-                  <button
-                    type="button"
-                    class="doc-form__inline-toggle"
-                    (click)="toggleCustomerForm()"
-                  >
-                    <i
-                      class="pi"
-                      [class.pi-plus]="!showCustomerForm()"
-                      [class.pi-minus]="showCustomerForm()"
-                      aria-hidden="true"
-                    ></i>
-                    {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
-                  </button>
-                  @if (form.controls.customerId.value) {
-                    <button
-                      type="button"
-                      class="doc-form__inline-toggle"
-                      (click)="openCustomerDetail()"
-                    >
-                      <i class="pi pi-external-link" aria-hidden="true"></i>
-                      Scheda cliente
-                    </button>
-                  }
-                </div>
               </div>
 
               <div

@@ -163,19 +163,31 @@
                 <div class="doc-panel__field">
                   <div class="doc-panel__field-head">
                     <span class="doc-panel__label">Fornitore</span>
-                    <button
-                      type="button"
-                      class="doc-panel__field-action"
-                      (click)="toggleSupplierForm()"
-                    >
-                      <i
-                        class="pi"
-                        [class.pi-plus]="!showSupplierForm()"
-                        [class.pi-minus]="showSupplierForm()"
-                        aria-hidden="true"
-                      ></i>
-                      {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
-                    </button>
+                    <span class="doc-panel__field-actions">
+                      <button
+                        type="button"
+                        class="doc-panel__field-action"
+                        (click)="toggleSupplierForm()"
+                      >
+                        <i
+                          class="pi"
+                          [class.pi-plus]="!showSupplierForm()"
+                          [class.pi-minus]="showSupplierForm()"
+                          aria-hidden="true"
+                        ></i>
+                        {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
+                      </button>
+                      @if (form.controls.supplierId.value) {
+                        <button
+                          type="button"
+                          class="doc-panel__field-action"
+                          (click)="openSupplierDetail()"
+                        >
+                          <i class="pi pi-external-link" aria-hidden="true"></i>
+                          Scheda fornitore
+                        </button>
+                      }
+                    </span>
                   </div>
 
                   <app-select-menu
@@ -193,16 +205,6 @@
                   />
                   @if (fieldInvalid('supplierId')) {
                     <p id="gr-m-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
-                  }
-                  @if (form.controls.supplierId.value) {
-                    <button
-                      type="button"
-                      class="doc-panel__field-action"
-                      (click)="openSupplierDetail()"
-                    >
-                      <i class="pi pi-external-link" aria-hidden="true"></i>
-                      Scheda fornitore
-                    </button>
                   }
                 </div>
 
@@ -346,7 +348,34 @@
               class="doc-form__field doc-form__field--span2"
               [class.doc-form__field--waiting]="fieldWaiting('supplierId')"
             >
-              <span class="doc-form__label" id="gr-supplier-label">Fornitore</span>
+              <div class="doc-form__field-head">
+                <span class="doc-form__label" id="gr-supplier-label">Fornitore</span>
+                <span class="doc-form__field-actions">
+                  <button
+                    type="button"
+                    class="doc-form__inline-toggle"
+                    (click)="toggleSupplierForm()"
+                  >
+                    <i
+                      class="pi"
+                      [class.pi-plus]="!showSupplierForm()"
+                      [class.pi-minus]="showSupplierForm()"
+                      aria-hidden="true"
+                    ></i>
+                    {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
+                  </button>
+                  @if (form.controls.supplierId.value) {
+                    <button
+                      type="button"
+                      class="doc-form__inline-toggle"
+                      (click)="openSupplierDetail()"
+                    >
+                      <i class="pi pi-external-link" aria-hidden="true"></i>
+                      Scheda fornitore
+                    </button>
+                  }
+                </span>
+              </div>
               <app-select-menu
                 [options]="supplierOptions()"
                 [value]="form.controls.supplierId.value"
@@ -364,32 +393,6 @@
               @if (fieldInvalid('supplierId')) {
                 <p id="gr-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
               }
-              <!-- Scorciatoie sulla stessa riga, come nel riferimento. -->
-              <div class="doc-form__inline-links">
-                <button
-                  type="button"
-                  class="doc-form__inline-toggle"
-                  (click)="toggleSupplierForm()"
-                >
-                  <i
-                    class="pi"
-                    [class.pi-plus]="!showSupplierForm()"
-                    [class.pi-minus]="showSupplierForm()"
-                    aria-hidden="true"
-                  ></i>
-                  {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
-                </button>
-                @if (form.controls.supplierId.value) {
-                  <button
-                    type="button"
-                    class="doc-form__inline-toggle"
-                    (click)="openSupplierDetail()"
-                  >
-                    <i class="pi pi-external-link" aria-hidden="true"></i>
-                    Scheda fornitore
-                  </button>
-                }
-              </div>
             </div>
 
             <div
