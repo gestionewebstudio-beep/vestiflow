@@ -407,6 +407,12 @@ Un documento nuovo non può avere righe finché non si sa **a chi** e **da quale
 
 Non si è scelta la strada dell'altro gestionale, che apre una finestra sopra il documento e chiede il cliente prima di mostrare qualsiasi cosa. La finestra **non fa risparmiare un solo tasto** — scegliere il cliente costa gli stessi gesti dentro o fuori — e ha due costi: va soppressa quando il cliente arriva da un documento incluso e quando si riapre un documento salvato, e le eccezioni a una regola d'ingresso si dimenticano. Qui poi i campi obbligatori sono due, non uno.
 
+**Vale anche per l'Ordine fornitore, e lì la ragione è diversa** _(11/08/2026)_. Un ordine al fornitore non muove giacenze e non ha nemmeno un magazzino da indicare: le righe si potrebbero compilare senza sapere a chi si ordina. Il motivo per cui non si compilano è **di documento**: fra le colonne c'è **«Cod. fornitore»**, cioè _il codice con cui quel fornitore chiama questo articolo_. Scriverlo prima di aver detto chi è il fornitore è la frase senza il suo soggetto.
+
+Si è scelto il cancello sul documento invece che sulla sola colonna: una regola per tutte e tre le maschere vale più di un'eccezione da ricordare su una cella.
+
+**Il riconoscimento del codice resta indipendente dal fornitore scelto** (§4.8): se lo stesso codice appartiene ad articoli di fornitori diversi, la scelta si apre comunque e la decide l'operatore. Il fornitore della testata dice **quando** si può compilare, non **cosa** si può trovare.
+
 **Mobile: uguale.** Stesso stato vuoto, stesso testo, stessa regola. Su mobile era già così — le card non si mostravano e lo stato vuoto spiegava — quindi non è una novità mobile: è il desktop che ha adottato quello che sul telefono era già stato deciso.
 
 ---

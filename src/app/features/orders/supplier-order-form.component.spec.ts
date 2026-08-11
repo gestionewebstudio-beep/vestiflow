@@ -43,12 +43,27 @@ const VARIANTS: readonly VariantSummary[] = [
 ];
 
 /**
+ * Sceglie il fornitore in testata. Da 11/08/2026 è il PRESUPPOSTO delle righe:
+ * senza, le righe non esistono e al loro posto c'è lo stato vuoto. I test che
+ * toccano una riga devono passare di qui, come ci passa l'operatore.
+ */
+async function scegliFornitore(user: UserEvent): Promise<void> {
+  await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+  await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+}
+
+/**
  * Sceglie l'articolo sulla prima riga passando dalla cella nome CONDIVISA:
  * si digita e si prende dall'elenco che si apre sotto. Prima qui c'era una
  * tendina — era la divergenza rispetto all'Ordine cliente, e questi test la
  * descrivevano.
  */
 async function scegliArticoloSullaRiga(user: UserEvent): Promise<void> {
+  // Le righe esistono solo a fornitore scelto: se non lo è ancora, lo si sceglie
+  // qui invece di lasciare la prova a cercare un campo che non c'è.
+  if (screen.queryAllByLabelText('Nome prodotto').length === 0) {
+    await scegliFornitore(user);
+  }
   await user.type(screen.getAllByLabelText('Nome prodotto')[0]!, 'mag');
   await user.click(await screen.findByRole('option', { name: /MAG-M-ROSSO/ }));
 }
@@ -200,9 +215,28 @@ describe('SupplierOrderFormComponent', () => {
     expect(await screen.findByText('Seleziona un fornitore.')).toBeVisible();
   });
 
+  // Prima la testata, come nelle altre due maschere. Qui la ragione non è
+  // tecnica — un ordine fornitore non muove giacenze — ma di documento: fra le
+  // colonne c'è «Cod. fornitore», e scriverlo prima di aver detto chi è il
+  // fornitore è la frase senza il soggetto.
+  it('a fornitore mancante le righe non ci sono, e lo stato vuoto dice cosa manca', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    expect(screen.queryAllByLabelText('Nome prodotto')).toHaveLength(0);
+    expect(screen.getByText('Scegli il fornitore')).toBeVisible();
+
+    await scegliFornitore(user);
+
+    expect(screen.getAllByLabelText('Nome prodotto').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Scegli il fornitore')).toBeNull();
+  });
+
   it('consente di aggiungere una riga ordine', async () => {
     const user = userEvent.setup();
     await setup();
+
+    await scegliFornitore(user);
 
     const rowsBefore = screen.getAllByRole('button', { name: 'Rimuovi riga' }).length;
     await user.click(screen.getByRole('button', { name: 'Aggiungi riga' }));
@@ -214,6 +248,8 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     await setup();
 
+    await scegliFornitore(user);
+
     expect(screen.getByText('Costo netto')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Modalità costi del documento' }));
     await user.click(screen.getByRole('menuitemradio', { name: 'Usa costi ivati' }));
@@ -224,6 +260,8 @@ describe('SupplierOrderFormComponent', () => {
   it('protegge l’uscita con modifiche non salvate (chip indietro → dialogo)', async () => {
     const user = userEvent.setup();
     await setup();
+
+    await scegliFornitore(user);
 
     const qtyInput = screen.getByRole('spinbutton');
     await user.clear(qtyInput);

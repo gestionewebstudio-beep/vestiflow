@@ -990,6 +990,33 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return Boolean(this.form.controls.supplierId.value);
   });
 
+  /**
+   * Prima la testata, come nell'Ordine cliente e nell'Arrivo merce: finché il
+   * fornitore manca le righe non si mostrano.
+   *
+   * Qui la ragione non è tecnica — un ordine fornitore non muove giacenze e non
+   * ha una location, quindi le righe si potrebbero calcolare lo stesso. È una
+   * ragione di documento: fra le colonne c'è **«Cod. fornitore»**, cioè «il
+   * codice con cui QUEL fornitore chiama questo articolo». Poterlo scrivere
+   * prima di aver detto chi è il fornitore è la scritta senza il suo soggetto.
+   *
+   * Il cancello sul documento risolve la cosa meglio di un cancello sulla sola
+   * colonna: una regola per tutte e tre le maschere invece di un'eccezione da
+   * ricordare.
+   */
+  protected readonly headerGateActive = computed(() => !this.supplierPanelReady());
+
+  /** Titolo dello stato vuoto: dice cosa manca, non che manca qualcosa. */
+  protected readonly linesEmptyTitle = computed(() =>
+    this.headerGateActive() ? 'Scegli il fornitore' : 'Nessuna riga inserita',
+  );
+
+  protected readonly linesEmptyDescription = computed(() =>
+    this.headerGateActive()
+      ? "Le righe si aggiungono dopo: fra le colonne c'è il codice con cui il fornitore chiama l'articolo, e prima va detto quale fornitore."
+      : 'Cerca un articolo o aggiungi una riga.',
+  );
+
   /** Riga di stato dentro il pannello: dice cosa manca. */
   protected readonly supplierPanelStatus = computed(() =>
     this.supplierPanelReady() ? 'Dati principali completi.' : 'Il fornitore è obbligatorio.',
