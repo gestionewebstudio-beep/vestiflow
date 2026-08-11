@@ -101,6 +101,9 @@ import { DocumentNumberConflictStore } from '@domain/documents/state/document-nu
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
+import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
+import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
   vatCodeSelectOption,
@@ -198,6 +201,13 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
 /** Campi riga nel giro Tab/Invio deterministico (stesso pattern Arrivo merce). */
 type CustomerOrderLineFocusField =
   'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount' | 'serials';
+/**
+ * I campi codice di QUESTA maschera: tre, non quattro. Il codice fornitore non
+ * ha senso su un documento di vendita, e restringere l'unione qui lascia al
+ * compilatore il compito di dirlo — invece di scoprirlo a runtime cercando un
+ * controllo che non esiste.
+ */
+type CustomerOrderCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 'barcode'>;
 type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
@@ -281,6 +291,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly customerService = inject(CustomerService);
   private readonly productService = inject(ProductService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
+  private readonly codeLookupService = inject(DocumentCodeLookupService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly operationalLocations = inject(OperationalLocationsService);
@@ -1076,6 +1087,16 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // ── Autocomplete prodotto per riga ──────────────────────────────────────
   protected readonly autocompleteLineIndex = signal<number | null>(null);
   protected readonly activeSuggestionIndex = signal(0);
+  /**
+   * Scelta fra più corrispondenze esatte di un codice. Lo stato vive in
+   * `domain/`, identico nelle tre maschere; qui resta solo cosa farne.
+   *
+   * Il suo indice evidenziato è PROPRIO, distinto da `activeSuggestionIndex`:
+   * quella è la lista dei suggerimenti sul nome prodotto, questa è la scelta
+   * fra codici. Sono due collezioni con lunghezze diverse — un indice solo si
+   * sfaserebbe passando dall'una all'altra.
+   */
+  protected readonly codeLookup = new DocumentCodeLookupStore();
   /**
    * Card mobile: apre l'anteprima sopra il campo invece che sotto, quando sotto
    * non c'è spazio a sufficienza (campo vicino al dock fisso in fondo). Uno solo
@@ -2731,8 +2752,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     );
   }
 
+  /** Esc chiude l'anteprima del nome e la scelta aperta da un codice. */
   protected onLineSearchEscape(_index: number): void {
     this.clearProductAutocomplete();
+    this.codeLookup.clear();
   }
 
   private clearProductAutocomplete(): void {
@@ -2806,22 +2829,59 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   // ── Celle codice (Cod. articolo / SKU / EAN): lookup esatto alla conferma ──
+  //
+  // Il campo codice NON cerca mentre si digita: si confronta col catalogo alla
+  // conferma (Tab/Invio), per corrispondenza esatta. Ogni carattere digitato
+  // invalida una scelta rimasta aperta, che si riferiva al valore di prima.
+
   protected onLineSkuChange(index: number, value: string): void {
     this.lines.at(index).controls.sku.setValue(value);
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
   protected onLineBarcodeChange(index: number, value: string): void {
     this.lines.at(index).controls.barcode.setValue(value);
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
   protected onLineArticleCodeChange(index: number, value: string): void {
     this.lines.at(index).controls.articleCode.setValue(value);
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
-  protected commitCodeLookup(index: number, field: 'articleCode' | 'sku' | 'barcode'): void {
+  protected onLineCodeFocus(index: number, field: CustomerOrderCodeField): void {
+    this.clearProductAutocomplete();
+    if (this.codeLookup.isOpenOn(index, field)) {
+      return;
+    }
+    this.codeLookup.clear();
+  }
+
+  protected onLineCodeBlur(index: number): void {
+    if (this.codeLookup.isOpenOnLine(index)) {
+      this.codeLookup.clear();
+    }
+  }
+
+  /**
+   * Conferma di un codice: si confronta col catalogo per corrispondenza esatta,
+   * e gli esiti sono TRE — una aggancia, più d'una apre la scelta, nessuna
+   * lascia il valore scritto e prosegue.
+   *
+   * Fino a 08/2026 qui si passava da `resolveVariantIdByCode`, che restituisce
+   * `string | null` e **non può esprimere «eccone tre»**: un codice articolo
+   * condiviso da più taglie tornava `null` e finiva in silenzio, indistinguibile
+   * da un codice inesistente. Cioè la peggiore delle tre risposte — hai digitato
+   * il codice giusto e il sistema si comporta come se non esistesse.
+   *
+   * Quella funzione resta alla **scansione** (`applyScannedVariant`), che ha
+   * esigenze opposte: il lettore spara e va, e una scelta interromperebbe un
+   * gesto che deve essere immediato.
+   */
+  protected commitCodeLookup(index: number, field: CustomerOrderCodeField): void {
     const line = this.lines.at(index);
     if (line.controls.variantId.value) {
       this.focusNextLineField(index, field);
@@ -2829,23 +2889,47 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     }
     const code = line.controls[field].value.trim();
     if (!code) {
+      this.codeLookup.clear();
       this.focusNextLineField(index, field);
       return;
     }
+    // `locationId` non filtra i risultati: restringe soltanto le giacenze
+    // mostrate alla sede del documento.
     const locationId = this.form.controls.locationId.value || undefined;
-    this.barcodeLookup
-      .resolveVariantIdByCode(code, { locationId })
+    this.codeLookupService
+      .resolve(code, field, { locationId })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe((variantId) => {
-        if (variantId) {
-          this.onVariantSelect(index, variantId);
-          this.pinVariantSummary(index, variantId);
+      .subscribe((outcome) => {
+        if (outcome.kind === 'one') {
+          // Il riepilogo arriva già dalla ricerca di conferma: fissarlo prima
+          // evita che `onVariantSelect` lo richieda di nuovo al server.
+          const summary = outcome.summary;
+          if (summary) {
+            this.pinnedVariants.update((current) => mergeVariantSummaries([summary], current));
+          }
+          this.onVariantSelect(index, outcome.variantId);
+          this.codeLookup.clear();
           this.focusLineField(index, 'quantity');
           return;
         }
-        // Nessun match esatto (§6c): l'operatore prosegue con gli altri campi.
+        if (outcome.kind === 'many') {
+          this.codeLookup.open(index, field, outcome.matches);
+          return;
+        }
+        // Nessuna corrispondenza: il valore resta scritto e la riga prosegue.
+        // Non è un errore — può essere un articolo che non esiste ancora, e lo
+        // stato si vede già (riga collegata mostra il nome, riga non collegata
+        // no): un avviso che spiega uno stato visibile sarebbe di troppo.
+        this.codeLookup.clear();
         this.focusNextLineField(index, field);
       });
+  }
+
+  /** La scelta aperta da un codice: la voce presa aggancia la riga. */
+  protected onCodeSuggestionPick(index: number, variantId: string): void {
+    this.onVariantSelect(index, variantId);
+    this.codeLookup.clear();
+    this.focusLineField(index, 'quantity');
   }
 
   // ── Tab deterministico tra i campi riga (§10, stesso pattern Arrivo merce) ──

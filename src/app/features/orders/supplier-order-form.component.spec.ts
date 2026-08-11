@@ -479,4 +479,100 @@ describe('SupplierOrderFormComponent', () => {
       }),
     );
   });
+
+  /**
+   * Conferma di un codice: gli esiti sono TRE, non due.
+   *
+   * Qui il caso ambiguo è quello che capita davvero. Il codice fornitore non è
+   * unico — fornitori diversi possono usare lo stesso codice per articoli
+   * diversi — e fino a 08/2026 questa maschera lo risolveva con
+   * `resolveVariantIdByCode`, che restituisce `string | null`: due candidati
+   * tornavano `null`, cioè il codice giusto si comportava come inesistente.
+   */
+  describe('conferma dei codici', () => {
+    function variante(overrides: Record<string, unknown>) {
+      return {
+        articleCode: 'ART-1',
+        productName: 'Maglietta',
+        title: 'Maglietta',
+        sku: 'MAG-M',
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+        ...overrides,
+      };
+    }
+
+    interface CodeForm {
+      readonly commitCodeLookup: (index: number, field: string) => void;
+      readonly codeLookup: {
+        readonly isOpenOn: (index: number, field: string) => boolean;
+        readonly matches: () => readonly { readonly variantId: string }[];
+      };
+      readonly lines: {
+        at: (i: number) => {
+          controls: Record<string, { setValue: (v: unknown) => void; value: unknown }>;
+        };
+      };
+    }
+
+    async function apri(catalogo: readonly Record<string, unknown>[]) {
+      const { fixture } = await render(SupplierOrderFormComponent, {
+        providers: [
+          { provide: AuthService, useValue: { currentUser: () => null } },
+          provideRouter([{ path: '**', children: [] }]),
+          {
+            provide: SupplierService,
+            useValue: { getSuppliers: () => of(SUPPLIERS), createSupplier: vi.fn() },
+          },
+          {
+            provide: ProductService,
+            useValue: {
+              searchVariantSummaries: () => of(catalogo),
+              // L'endpoint per codice tace sui casi ambigui: non deve essere
+              // la strada che salva il test.
+              findVariantByCode: () => throwError(() => new Error('404')),
+            },
+          },
+          {
+            provide: SupplierOrderService,
+            useValue: {
+              createOrder: vi.fn(),
+              getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
+            },
+          },
+          { provide: DocumentService, useValue: { getPriceModePreference: () => of(false) } },
+          { provide: TableColumnPreferenceService, useValue: tableColumnPreferenceMock() },
+          { provide: VatCodeService, useValue: { list: () => of([]) } },
+          { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+        ],
+      });
+      return fixture.componentInstance as unknown as CodeForm;
+    }
+
+    it('un codice fornitore condiviso da due articoli apre la scelta', async () => {
+      const form = await apri([
+        variante({ variantId: 'var-1', productId: 'prod-1', supplierSku: 'F-100' }),
+        variante({ variantId: 'var-2', productId: 'prod-2', supplierSku: 'F-100' }),
+      ]);
+      form.lines.at(0).controls['supplierCode']!.setValue('F-100');
+
+      form.commitCodeLookup(0, 'supplierCode');
+
+      expect(form.codeLookup.isOpenOn(0, 'supplierCode')).toBe(true);
+      expect(form.codeLookup.matches().map((row) => row.variantId)).toEqual(['var-1', 'var-2']);
+    });
+
+    // Il controllo inverso: senza, la prova qui sopra passerebbe anche se la
+    // scelta si aprisse sempre, pure con un solo articolo.
+    it('un codice fornitore di un solo articolo aggancia la riga', async () => {
+      const form = await apri([
+        variante({ variantId: 'var-1', productId: 'prod-1', supplierSku: 'F-100' }),
+      ]);
+      form.lines.at(0).controls['supplierCode']!.setValue('F-100');
+
+      form.commitCodeLookup(0, 'supplierCode');
+
+      expect(form.codeLookup.isOpenOn(0, 'supplierCode')).toBe(false);
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+    });
+  });
 });

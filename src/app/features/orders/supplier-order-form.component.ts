@@ -80,7 +80,6 @@ import type { ProductEmbeddedCreatePrefill } from '@domain/products/models/produ
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
-import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import {
   findVariantSummaryById,
@@ -90,6 +89,9 @@ import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-selec
 
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
+import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
+import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import {
   grossFromNetExact,
@@ -115,8 +117,12 @@ type SubmitState =
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
 
-/** Le quattro chiavi di ricerca dell'articolo, nell'ordine delle colonne. */
-type LineCodeField = 'articleCode' | 'sku' | 'barcode' | 'supplierCode';
+/**
+ * Le quattro chiavi di ricerca dell'articolo, nell'ordine delle colonne. Sono
+ * quelle condivise: il nome locale resta perché il resto del file lo usa, ma
+ * l'insieme è dichiarato una volta sola, in `document-code-match.util`.
+ */
+type LineCodeField = DocumentLineCodeField;
 const CODE_FOCUS_FIELDS: readonly LineCodeField[] = [
   'articleCode',
   'sku',
@@ -176,6 +182,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly orderService = inject(SupplierOrderService);
   private readonly supplierService = inject(SupplierService);
   private readonly productService = inject(ProductService);
+  private readonly codeLookupService = inject(DocumentCodeLookupService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly documentService = inject(DocumentService);
@@ -184,7 +191,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly columnPreferences = inject(TableColumnPreferenceService);
-  private readonly barcodeLookup = inject(BarcodeLookupService);
+  // Il lookup da scanner non serve più qui: questa maschera non ha lettore, e
+  // la conferma dei codici passa ora da `DocumentCodeLookupService`.
   private readonly editLock = inject(DocumentEditLockService);
 
   protected readonly lineColumnsView = TableViewId.SupplierOrderLines;
@@ -316,6 +324,16 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   ];
 
   protected readonly variantSearchDraft = signal('');
+
+  /**
+   * Scelta fra più corrispondenze esatte di un codice. Lo stato vive in
+   * `domain/`, identico nelle tre maschere; qui resta solo cosa farne.
+   *
+   * Qui il caso che la apre più spesso è il **codice fornitore**, che non è
+   * unico: fornitori diversi possono usare lo stesso codice per articoli
+   * diversi, e la scelta è «quale articolo», non «quale taglia».
+   */
+  protected readonly codeLookup = new DocumentCodeLookupStore();
 
   private readonly searchedVariants = toSignal(
     toObservable(this.variantSearchDraft).pipe(
@@ -754,17 +772,50 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
   protected onLineCodeChange(index: number, field: LineCodeField, value: string): void {
     this.lines.at(index)?.controls[field].setValue(value);
+    // Ogni carattere digitato invalida una scelta rimasta aperta: si riferiva
+    // al valore di prima.
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
+  protected onLineCodeFocus(index: number, field: LineCodeField): void {
+    if (this.codeLookup.isOpenOn(index, field)) {
+      return;
+    }
+    this.codeLookup.clear();
+  }
+
+  protected onLineCodeBlur(index: number): void {
+    if (this.codeLookup.isOpenOnLine(index)) {
+      this.codeLookup.clear();
+    }
+  }
+
+  /** Esc chiude la scelta aperta da un codice, senza toccare i dati di riga. */
+  protected onLineSearchEscape(_index: number): void {
+    this.codeLookup.clear();
+  }
+
   /**
-   * Invio su una cella codice: richiamo esatto dell'articolo. Il lookup è quello
-   * condiviso (`BarcodeLookupService`), quindi vale la stessa catena di ogni
-   * altra maschera — EAN, SKU, codice articolo, codice fornitore.
+   * Conferma di un codice (Tab/Invio): si confronta col catalogo per
+   * corrispondenza esatta, e gli esiti sono TRE — una aggancia, più d'una apre
+   * la scelta, nessuna lascia il valore scritto e la riga prosegue (quello che
+   * si è digitato resta la bozza dell'articolo da creare).
    *
-   * Se la riga è già agganciata non si ricerca: si passa al campo successivo.
-   * Un richiamo qui resetterebbe la riga, e non è quello che chiede chi sta solo
-   * attraversando i campi con Invio.
+   * Fino a 08/2026 si passava da `resolveVariantIdByCode`, che restituisce
+   * `string | null` e **non può esprimere «eccone tre»**: scarta i candidati al
+   * proprio interno, quindi un codice giusto ma condiviso tornava `null` e
+   * finiva in silenzio, indistinguibile da un codice inesistente. È il caso più
+   * frequente proprio qui, dove si digitano i codici del fornitore.
+   *
+   * ⚠️ Non si filtra più per il fornitore della testata: era ciò che faceva
+   * riconoscere lo stesso codice in un documento e ignorarlo in un altro, ed è
+   * anche il motivo per cui il caso ambiguo non si presentava mai. Il dettaglio
+   * sta in `DocumentCodeLookupService`.
+   *
+   * Se la riga è già agganciata non si cerca: si passa al campo successivo. Un
+   * richiamo qui resetterebbe la riga, e non è quello che chiede chi sta solo
+   * attraversando i campi.
    */
   protected commitCodeLookup(index: number, field: LineCodeField): void {
     const line = this.lines.at(index);
@@ -774,24 +825,34 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     }
     const code = line.controls[field].value.trim();
     if (!code) {
+      this.codeLookup.clear();
       this.focusNextLineField(index, field);
       return;
     }
-    this.barcodeLookup
-      .resolveVariantIdByCode(code, {
-        supplierId: this.form.controls.supplierId.value || undefined,
-      })
+    this.codeLookupService
+      .resolve(code, field)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe((variantId) => {
-        if (variantId) {
-          this.onVariantSelect(index, variantId);
+      .subscribe((outcome) => {
+        if (outcome.kind === 'one') {
+          this.onVariantSelect(index, outcome.variantId);
+          this.codeLookup.clear();
           this.focusLineField(index, 'quantity');
           return;
         }
-        // Nessun riscontro: l'operatore prosegue con gli altri campi, e quello
-        // che ha digitato resta la bozza dell'articolo da creare.
+        if (outcome.kind === 'many') {
+          this.codeLookup.open(index, field, outcome.matches);
+          return;
+        }
+        this.codeLookup.clear();
         this.focusNextLineField(index, field);
       });
+  }
+
+  /** La scelta aperta da un codice: la voce presa aggancia la riga. */
+  protected onCodeSuggestionPick(index: number, variantId: string): void {
+    this.onVariantSelect(index, variantId);
+    this.codeLookup.clear();
+    this.focusLineField(index, 'quantity');
   }
 
   /** Scollega l'articolo lasciando i codici digitati: la riga torna bozza. */

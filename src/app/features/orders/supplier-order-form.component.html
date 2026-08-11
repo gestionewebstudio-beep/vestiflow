@@ -488,10 +488,18 @@
                         [value]="line.controls.articleCode.value"
                         [linked]="lineHasLinkedProduct(i)"
                         [linkedValue]="line.controls.articleCode.value"
+                        [suggestions]="codeLookup.matchesFor(i, 'articleCode')"
+                        [suggestionsOpen]="codeLookup.isOpenOn(i, 'articleCode')"
+                        [activeSuggestionIndex]="codeLookup.activeIndex()"
+                        (suggestionNavigate)="codeLookup.navigate($event)"
+                        (suggestionPick)="onCodeSuggestionPick($event.lineIndex, $event.variantId)"
                         (valueChange)="onLineCodeChange(i, 'articleCode', $event)"
+                        (focused)="onLineCodeFocus(i, 'articleCode')"
+                        (blurred)="onLineCodeBlur(i)"
                         (commit)="commitCodeLookup(i, 'articleCode')"
                         (lineRetreat)="focusPreviousLineField(i, 'articleCode')"
                         (lineRowAdvance)="advanceToNextLine(i)"
+                        (escapePressed)="onLineSearchEscape(i)"
                       />
                     </td>
                   }
@@ -505,10 +513,18 @@
                         [value]="line.controls.sku.value"
                         [linked]="lineHasLinkedProduct(i)"
                         [linkedValue]="line.controls.sku.value"
+                        [suggestions]="codeLookup.matchesFor(i, 'sku')"
+                        [suggestionsOpen]="codeLookup.isOpenOn(i, 'sku')"
+                        [activeSuggestionIndex]="codeLookup.activeIndex()"
+                        (suggestionNavigate)="codeLookup.navigate($event)"
+                        (suggestionPick)="onCodeSuggestionPick($event.lineIndex, $event.variantId)"
                         (valueChange)="onLineCodeChange(i, 'sku', $event)"
+                        (focused)="onLineCodeFocus(i, 'sku')"
+                        (blurred)="onLineCodeBlur(i)"
                         (commit)="commitCodeLookup(i, 'sku')"
                         (lineRetreat)="focusPreviousLineField(i, 'sku')"
                         (lineRowAdvance)="advanceToNextLine(i)"
+                        (escapePressed)="onLineSearchEscape(i)"
                       />
                     </td>
                   }
@@ -522,10 +538,18 @@
                         [value]="line.controls.barcode.value"
                         [linked]="lineHasLinkedProduct(i)"
                         [linkedValue]="line.controls.barcode.value"
+                        [suggestions]="codeLookup.matchesFor(i, 'barcode')"
+                        [suggestionsOpen]="codeLookup.isOpenOn(i, 'barcode')"
+                        [activeSuggestionIndex]="codeLookup.activeIndex()"
+                        (suggestionNavigate)="codeLookup.navigate($event)"
+                        (suggestionPick)="onCodeSuggestionPick($event.lineIndex, $event.variantId)"
                         (valueChange)="onLineCodeChange(i, 'barcode', $event)"
+                        (focused)="onLineCodeFocus(i, 'barcode')"
+                        (blurred)="onLineCodeBlur(i)"
                         (commit)="commitCodeLookup(i, 'barcode')"
                         (lineRetreat)="focusPreviousLineField(i, 'barcode')"
                         (lineRowAdvance)="advanceToNextLine(i)"
+                        (escapePressed)="onLineSearchEscape(i)"
                       />
                     </td>
                   }
@@ -541,10 +565,18 @@
                         [value]="line.controls.supplierCode.value"
                         [linked]="lineHasLinkedProduct(i)"
                         [linkedValue]="line.controls.supplierCode.value"
+                        [suggestions]="codeLookup.matchesFor(i, 'supplierCode')"
+                        [suggestionsOpen]="codeLookup.isOpenOn(i, 'supplierCode')"
+                        [activeSuggestionIndex]="codeLookup.activeIndex()"
+                        (suggestionNavigate)="codeLookup.navigate($event)"
+                        (suggestionPick)="onCodeSuggestionPick($event.lineIndex, $event.variantId)"
                         (valueChange)="onLineCodeChange(i, 'supplierCode', $event)"
+                        (focused)="onLineCodeFocus(i, 'supplierCode')"
+                        (blurred)="onLineCodeBlur(i)"
                         (commit)="commitCodeLookup(i, 'supplierCode')"
                         (lineRetreat)="focusPreviousLineField(i, 'supplierCode')"
                         (lineRowAdvance)="advanceToNextLine(i)"
+                        (escapePressed)="onLineSearchEscape(i)"
                       />
                     </td>
                   }

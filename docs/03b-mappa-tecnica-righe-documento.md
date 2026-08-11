@@ -130,11 +130,13 @@ Ogni cella compone il testo (titolo e dettaglio) e tiene per sé l'identità del
 
 **`focusInput()` era API pubblica morta — ✅ RIMOSSA (08/2026).** Dichiarata su entrambe le celle, zero chiamanti in `src/` e in `e2e/`. Non era una base utile per sostituire `getElementById`: avrebbe richiesto nel form un elenco di viste indicizzato per riga _e_ per campo — più codice, non meno. Rimossa insieme al `viewChild` che la serviva, al riferimento di template (`#codeInput` / `#productInput`) e agli import rimasti orfani. Era la **seconda strada** verso il fuoco, mai imboccata: lasciarla era una pista falsa per chi implementerà il punto unico.
 
-### 3-bis. La ricerca nei campi codice — cosa c'è oggi, e cosa la decisione richiede
+### 3-bis. La ricerca nei campi codice — cosa c'era, e cosa la decisione richiedeva
+
+> **Sezione storica: eseguita, vedi §3-ter.** Il tempo presente qui sotto descrive il codice **prima** della decisione, che è ciò che serve a chi rilegge un commit o si chiede perché qualcosa sia stato tolto. Per lo stato attuale, §3-ter.
 
 Registrato qui perché la decisione di prodotto («il campo codice non cerca», spec) cambia **la sorgente** di un meccanismo, non lo rimuove. Chi esegue deve sapere cosa tocca.
 
-**Come si apre oggi il pannello della cella codice** — due strade, misurate _(mis. 08/2026)_:
+**Come si apriva il pannello della cella codice** — due strade, misurate _(mis. 08/2026, prima della modifica)_:
 
 | Strada                    | Su quali campi     | Condizione                                                                                                                                  |
 | ------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -211,7 +213,9 @@ Il ciclo si chiude su sé stesso: l'arrivo merce li scrive, e `findSupplierPrice
 
 **La scelta è navigabile con le frecce** _(fatto 08/2026)_. Era il vincolo posto quando `suggestionNavigate` è passato da «da rimuovere» a «da aggiungere», e alla prima stesura del commit **non era stato soddisfatto**: la cella codice ingoiava ancora le frecce a pannello aperto. Ora le emette, la maschera tiene un indice attivo **proprio** dei codici — distinto da quello dei suggerimenti sul nome, perché sono due collezioni con lunghezze diverse — e Invio prende la voce evidenziata. Il fuoco resta nel campo perché il ramo «più corrispondenze» non lo sposta.
 
-#### ⚠️ Decisa per tre maschere, applicata a una — come è successo _(08/2026)_
+#### ✅ Decisa per tre maschere, applicata a una — poi chiusa su tutte e tre _(08/2026)_
+
+> **Stato: chiuso.** Il percorso di conferma esiste ora in **tutte e tre** le maschere — Ordine cliente (e con lui Preventivi, DDT vendita, Scarico manuale), Ordine fornitore, Arrivo merce. Il resoconto qui sotto **resta**: descrive come una decisione presa per tre documenti sia finita su uno solo, ed è il caso che la regola in fondo alla sezione serve a intercettare. Cosa è stato fatto per chiuderla: §3-ter.
 
 Vale la pena tenerlo scritto, perché il modo in cui è successo è più insidioso dell'errore.
 
@@ -238,6 +242,46 @@ Due cose da non ereditare nel percorso nuovo: la **pagina da 5** (un articolo co
 > 3. **Il controllo che intercetta il caso insidioso:** quando la modifica tocca un documento solo, chiediti se la decisione ne riguardava uno solo. Se no, il lavoro non è finito **anche se il codice da cambiare stava tutto lì**. Succede quando una regola si applica _togliendo_ qualcosa: il comportamento sbagliato vive dove vive, rimuoverlo sembra chiudere il lavoro — ma ogni regola ha due metà, e la seconda riguarda tutto il perimetro.
 
 **La forma del pannello di scelta.** `document-line-suggestions` è già estratto, ha il suo spec, ed è agnostico rispetto al contenuto: riceve `items: [{ title, detail? }]`, un `activeIndex` per l'evidenziazione da tastiera, e restituisce **l'indice** della voce scelta. I due contenuti diversi — «quale variante» dal codice articolo, «quale articolo» dal codice fornitore — si risolvono nella composizione del chiamante, non in due pannelli gemelli che divergono.
+
+### 3-ter. Il percorso di conferma, com'è oggi _(fatto 08/2026)_
+
+Chiude §3-bis su tutte e tre le maschere. **La catena non è stata copiata: è stata estratta**, e l'Arrivo merce — che l'aveva per primo — è stato riportato sulla versione condivisa nello stesso passaggio. Scriverla nelle altre due lasciando la sua com'era avrebbe prodotto **tre copie** dentro il lavoro che si chiama «semplificare».
+
+**I tre pezzi, e cosa sta in ognuno.**
+
+| Pezzo                                      | Cosa porta                                                                                                    | Dipendenze                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `utils/document-code-match.util.ts`        | il filtro delle corrispondenze esatte sui quattro campi + la dimensione di pagina                             | nessuna (funzione pura)         |
+| `state/document-code-lookup.store.ts`      | lo stato della scelta: riga, campo, corrispondenze, voce evidenziata; frecce che si fermano ai capi           | nessuna — classe-campo del form |
+| `services/document-code-lookup.service.ts` | la catena: ricerca → filtro esatto → ripiego `by-code`; e **il tipo a tre esiti** `DocumentCodeLookupOutcome` | `ProductService`                |
+
+**Il tipo è la correzione vera.** `resolveVariantIdByCode` restituisce `string | null` e non può dire «eccone tre»; `DocumentCodeLookupOutcome` è `none | one | many`, quindi il caso ambiguo **non è rappresentabile come assenza**. Un chiamante che dimentica un ramo non compila.
+
+**Cosa resta nel form, e perché è giusto:** leggere il valore dal proprio controllo (i nomi divergono — `supplierSku` in Arrivo merce, `supplierCode` in Ordine fornitore), agganciare la variante, spostare il fuoco. Sono le tre cose che cambiano davvero per tipo documento.
+
+**Il blocco di binding delle celle codice è ora identico nelle tre maschere** — dodici celle in tutto, stesso testo. Le maschere non hanno metodi involucro attorno allo store: il template lo interroga direttamente (`codeLookup.matchesFor(i, 'sku')`), come già fa `prefillError.message()`.
+
+**Il tipo dei campi si restringe dove il documento è più piccolo.** Ordine cliente ha **tre** campi codice, non quattro: il codice fornitore non ha senso su un documento di vendita, e `CustomerOrderCodeField` lo esclude con un `Extract` — così è il compilatore a dirlo, invece di scoprirlo a runtime cercando un controllo che non esiste. È la stessa ragione per cui il punto unico della navigazione sarà generico (§10); qui l'insieme è chiuso e dichiarato una volta, quindi lo store non ha bisogno di esserlo.
+
+**Due cose non ereditate**, come previsto: la pagina da 5 e il filtro per fornitore. Su `resolveVariantIdByCode` restano — è la scansione. Su `locationId` la formulazione di §3-bis era **imprecisa**: verificato in `api/src/products/products.service.ts`, entra nella `where` degli `InventoryLevel`, non in quella delle varianti. **Non filtra i risultati**, restringe solo le giacenze mostrate — quindi resta, mentre `supplierId` (che filtra davvero, con `supplierLinks: { some: … }`) non c'è in nessuna delle tre.
+
+**Tre difetti chiusi di passaggio**, tutti verificati prima di toccarli:
+
+1. **Ordine fornitore non chiudeva mai la scelta**: le sue celle codice non agganciavano `escapePressed`, quindi Esc non aveva nessun effetto. Ora c'è, insieme a fuoco e sfocamento.
+2. **Arrivo merce non alzava la riga sul codice fornitore**: `lineRowActive` elencava a mano tre campi su quattro, e il quarto era stato dimenticato quando il codice fornitore è diventato una cella codice. Ora la domanda si fa alla riga (`isOpenOnLine`), che è il motivo per cui quel metodo esiste.
+3. **`BarcodeLookupService` era rimasto iniettato a vuoto in Ordine fornitore**: zero chiamanti dopo il passaggio al percorso nuovo, e quella maschera non ha lettore. Rimosso con l'import.
+
+**Una conseguenza minore, voluta:** in Ordine cliente il riepilogo viaggia dentro l'esito, quindi agganciare una riga da codice **non richiede più due chiamate al server**. Prima `onVariantSelect` non trovava la variante fra le note e la richiedeva, e subito dopo una seconda richiesta la fissava di nuovo.
+
+#### Blocco successivo — il codice fornitore scritto nella riga _(deciso 08/2026, da eseguire)_
+
+**Perimetro, per nome: Arrivo merce e Ordine fornitore.** Sono i due documenti che hanno la colonna Cod. fornitore; Ordine cliente, Preventivi, DDT vendita e Scarico manuale non ce l'hanno, e per loro non c'è niente da fare — verificato, non presunto.
+
+**Il difetto.** Agganciando un articolo, la riga riscrive il campo Cod. fornitore con `summary.supplierSku`. Da quando la lettura non filtra più per fornitore, quel valore è **il primo collegamento in ordine deterministico** — che può essere il codice di un altro fornitore. L'operatore digita il codice del listino che ha davanti, l'articolo si aggancia, e nel campo compare un codice diverso da quello che ha scritto.
+
+**La decisione, ed è già presa: nel campo va il codice con cui si è agganciato**, non il primo della lista. È la stessa logica applicata alla lettura — «il codice restituito è quello che ha fatto scattare la ricerca» — portata alla scrittura, che era rimasta indietro. Non serve decidere nulla sui fornitori multipli: quella domanda (§«Più fornitori per articolo») resta aperta e **non blocca questa**.
+
+**Dove cade** _(mis. 08/2026)_: `applyVariantToLine` in Ordine fornitore; `syncLineCodesFromVariants` e `onVariantSelect` in Arrivo merce — quest'ultimo ha già un ripiego su `supplierSkuByVariantId`, ma `summary.supplierSku` gli passa davanti, quindi il difetto c'è lo stesso. ⚠️ Il codice digitato va portato fin lì: oggi l'aggancio riceve solo l'id della variante, quindi «con quale codice» è un'informazione che si perde per strada.
 
 ---
 
@@ -504,8 +548,8 @@ Criterio: **prima la semantica, poi la copertura.** Partire da Arrivo merce «pe
 
 0. ✅ **Fatto (08/2026) — riparare l'e2e rotto** (difetto 11). Finché era rosso, nessuna prova e2e dell'Arrivo merce distingueva una rottura vera. Rinominata la classe cercata in due punti; riscritta la guardia del test §8 come **elenco di ciò che deve esserci** invece che di ciò che non deve, perché una guardia scritta come divieto fallisce dicendo la cosa sbagliata. Trovati nella stessa passata **tre selettori morti fuori area** (`.login__alert`, `.sales-detail__totals`, `.sales-detail__badges`, due dei quali rendono rosse le rispettive spec) e **38 errori di tipo preesistenti** su `e2e/`: annotati, non toccati — fronte separato, da chiudere **prima del passo 3**, che è quando il lavoro comincia a produrre rossi propri.
 1. ✅ **Fatto in parte (08/2026) — i difetti in `domain/`**. Rimossa `focusInput()` da entrambe le celle (§3). Il difetto 5 **non è stato corretto**: la decisione sui campi codice lo rende inesistente (§9).
-   1-bis. **I campi codice smettono di cercare** (§3-bis). Va **prima** della classe, non dopo: cambia il contratto che la classe dovrà esporre — la cella codice comincia a emettere `suggestionNavigate` e nasce un pannello di scelta che prima non c'era. Scrivere la classe adesso significherebbe scriverla contro un comportamento che sta per cambiare.
-   **Due commit distinti:** prima il comportamento nuovo sul pannello esistente, poi la sostituzione della `<ul>` scritta a mano con `document-line-suggestions`. Insieme, se qualcosa si rompe non si sa se è la regola o l'estrazione.
+   1-bis. ✅ **Fatto (08/2026) — i campi codice smettono di cercare** (§3-bis, §3-ter). Andava **prima** della classe, non dopo: cambia il contratto che la classe dovrà esporre — la cella codice emette `suggestionNavigate` ed è nato un pannello di scelta che prima non c'era. Scrivere la classe contro un comportamento che stava per cambiare l'avrebbe fatta nascere già da rifare.
+   **Tre commit distinti**, non due: il comportamento nuovo sul pannello esistente (Arrivo merce), poi la sostituzione della `<ul>` scritta a mano con `document-line-suggestions`, poi il percorso di conferma sulle altre due maschere **con l'estrazione del pezzo condiviso** — che ha riportato anche l'Arrivo merce sulla versione comune. Separati perché, insieme, una rottura non direbbe se è la regola o l'estrazione.
 2. **La classe con il suo spec, senza innestarla.** Rischio zero. _Attenzione: la copertura esclude i `*.component.spec.ts`, quindi questo file **entra nel gate**. Senza il suo spec la verifica completa fallisce, e alzare la soglia è vietato dalle regole._
 3. **Ordine cliente** — porta la semantica, è l'unica che esercita la voce 4, non ha il gancio asincrono, ha la rete di test migliore, e copre quattro tipi documento.
 4. **Ordine fornitore** — il contratto arriva collaudato; qui si aggiunge la voce 10 e si chiudono i difetti 2, 3, 9.
@@ -521,9 +565,19 @@ Un test per maschera nei rispettivi spec («il fuoco atterra dove deve»): non e
 
 ## 12. Rete di test — stato reale
 
-**Zero copertura** sull'area _(mis. 08/2026)_. I tre spec di componente non contengono `keydown`, `focus`, `Tab`, `ArrowUp`/`ArrowDown`, `advanceToNextLine` né `LineFocus`. In `e2e/` l'unico uso di tastiera è un `Escape`.
+**Zero copertura sulla NAVIGAZIONE** _(mis. 08/2026)_. I tre spec di componente non contengono `keydown`, `focus`, `Tab`, `ArrowUp`/`ArrowDown`, `advanceToNextLine` né `LineFocus`. In `e2e/` l'unico uso di tastiera è un `Escape`. È il fronte che il punto unico dovrà coprire, ed è ancora tutto da fare.
 
-Le due celle condivise non hanno spec. `app-select-menu` non ha spec: le sue uniche verifiche automatiche sono le chiamate e2e legate ai ruoli ARIA. `document-line-suggestions` ha il suo spec — è l'unico pezzo dell'area coperto.
+**La conferma dei codici invece è coperta** _(fatto 08/2026)_, e non per gentilezza: i suoi tre pezzi vivono in `domain/` e **entrano nel gate di copertura**, che senza spec sarebbe fallito.
+
+| File                                | Casi | Cosa sorveglia                                                                                              |
+| ----------------------------------- | ---: | ----------------------------------------------------------------------------------------------------------- |
+| `document-code-match.util.spec`     |    9 | corrispondenza esatta sui quattro campi; niente parziali; il codice articolo ne restituisce più d'una       |
+| `document-code-lookup.store.spec`   |    8 | la scelta si apre sulla prima voce e nella sola cella che l'ha aperta; frecce ai capi; la riga sa di averla |
+| `document-code-lookup.service.spec` |    8 | **i tre esiti**; l'ambiguo non passa dall'endpoint; mai `supplierId`; l'errore di rete degrada a «nessuna»  |
+
+Più **due casi per maschera** negli spec di Ordine cliente e Ordine fornitore — «più corrispondenze aprono la scelta» col suo **controllo inverso** («una sola aggancia»), senza il quale il primo passerebbe anche se la scelta si aprisse sempre. Non entrano nel gate, ma sono la rete del comportamento: la regressione da cui vengono era muta, ed è così che era passata inosservata.
+
+Le due celle condivise non hanno spec. `app-select-menu` non ha spec: le sue uniche verifiche automatiche sono le chiamate e2e legate ai ruoli ARIA. `document-line-suggestions` ha il suo.
 
 ### 12.1 Il fronte `e2e/` — ✅ chiuso (08/2026), tranne una specifica
 

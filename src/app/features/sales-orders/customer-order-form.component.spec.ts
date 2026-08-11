@@ -1,7 +1,7 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { render } from '@testing-library/angular';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
@@ -719,5 +719,86 @@ describe('CustomerOrderFormComponent — ordini da canale esterno', () => {
     const form = await apri(ordine({ source: 'manual' }));
 
     expect(form.canConclude()).toBe(true);
+  });
+});
+
+/**
+ * Conferma di un codice: gli esiti sono TRE, non due.
+ *
+ * Prima di 08/2026 questa maschera passava da `resolveVariantIdByCode`, che
+ * restituisce `string | null`: un codice articolo condiviso da più taglie
+ * tornava `null` e finiva in silenzio, indistinguibile da un codice
+ * inesistente. Senza queste due prove la regressione tornerebbe muta — è
+ * esattamente il modo in cui era passata inosservata.
+ */
+describe('CustomerOrderFormComponent — conferma dei codici', () => {
+  function variante(overrides: Record<string, unknown>) {
+    return {
+      productId: 'prod-1',
+      articleCode: 'ART-9',
+      productName: 'Maglietta',
+      title: 'Maglietta',
+      sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+      ...overrides,
+    };
+  }
+
+  interface CodeForm {
+    readonly commitCodeLookup: (index: number, field: 'articleCode' | 'sku' | 'barcode') => void;
+    readonly codeLookup: {
+      readonly isOpenOn: (index: number, field: string) => boolean;
+      readonly matches: () => readonly { readonly variantId: string }[];
+    };
+    readonly lines: {
+      at: (i: number) => {
+        controls: Record<string, { setValue: (v: unknown) => void; value: unknown }>;
+      };
+    };
+  }
+
+  async function apri(catalogo: readonly Record<string, unknown>[]) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(),
+        // Ultimo provider per lo stesso token: vince su quello di base.
+        {
+          provide: ProductService,
+          useValue: {
+            searchVariantSummaries: () => of(catalogo),
+            // L'endpoint per codice tace sui casi ambigui: qui non deve mai
+            // essere la strada che salva il test.
+            findVariantByCode: () => throwError(() => new Error('404')),
+            getSupplierVariantLinks: () => of([]),
+            createProduct: vi.fn(),
+          },
+        },
+      ],
+    });
+    return view.fixture.componentInstance as unknown as CodeForm;
+  }
+
+  it('più corrispondenze esatte aprono la scelta invece di tacere', async () => {
+    const form = await apri([
+      variante({ variantId: 'var-M', sku: 'MAG-M' }),
+      variante({ variantId: 'var-L', sku: 'MAG-L' }),
+    ]);
+    form.lines.at(0).controls['articleCode']!.setValue('ART-9');
+
+    form.commitCodeLookup(0, 'articleCode');
+
+    expect(form.codeLookup.isOpenOn(0, 'articleCode')).toBe(true);
+    expect(form.codeLookup.matches().map((row) => row.variantId)).toEqual(['var-M', 'var-L']);
+  });
+
+  // Il controllo inverso: senza, la prova qui sopra passerebbe anche se la
+  // scelta si aprisse sempre, pure quando l'articolo è uno solo.
+  it('una corrispondenza sola aggancia la riga, senza chiedere niente', async () => {
+    const form = await apri([variante({ variantId: 'var-M', sku: 'MAG-M' })]);
+    form.lines.at(0).controls['sku']!.setValue('MAG-M');
+
+    form.commitCodeLookup(0, 'sku');
+
+    expect(form.codeLookup.isOpenOn(0, 'sku')).toBe(false);
+    expect(form.lines.at(0).controls['variantId']!.value).toBe('var-M');
   });
 });

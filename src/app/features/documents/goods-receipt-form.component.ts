@@ -170,10 +170,9 @@ import { InlineBannerComponent } from '@shared/components/inline-banner/inline-b
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
-import {
-  DOCUMENT_CODE_MATCH_PAGE_SIZE,
-  filterExactCodeMatches,
-} from '@domain/documents/utils/document-code-match.util';
+import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
+import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
 import {
   vatCodeSelectOption,
   vatOptionsIncludingSelected,
@@ -209,8 +208,6 @@ type GoodsReceiptLineFocusField =
   | 'lot'
   | 'expiry'
   | 'serials';
-
-type GoodsReceiptCodeLookupField = 'sku' | 'barcode' | 'articleCode' | 'supplierCode';
 
 /**
  * Form operativo arrivo merce / carico fornitore (§3). Righe editabili, creazione
@@ -266,6 +263,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly labelPrintService = inject(ProductLabelPrintService);
   private readonly productService = inject(ProductService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
+  private readonly codeLookupService = inject(DocumentCodeLookupService);
   private readonly breadcrumbLabels = inject(BreadcrumbLabelService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly vatCodeService = inject(VatCodeService);
@@ -374,17 +372,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly productSearchLaunchSeq = signal(0);
   protected readonly autocompleteLineIndex = signal<number | null>(null);
   protected readonly activeSuggestionIndex = signal(0);
-  protected readonly codeLookupLineIndex = signal<number | null>(null);
-  protected readonly codeLookupField = signal<GoodsReceiptCodeLookupField | null>(null);
-  protected readonly codeLookupSuggestions = signal<readonly VariantSummary[]>([]);
   /**
-   * Voce evidenziata nella scelta aperta dai codici. Indice PROPRIO, distinto
-   * da `activeSuggestionIndex`: quella è la lista dei suggerimenti sul nome
-   * prodotto, questa è la scelta fra corrispondenze esatte di un codice. Sono
-   * due collezioni diverse, con lunghezze diverse — un indice solo si
+   * Scelta fra più corrispondenze esatte di un codice. Lo stato vive in
+   * `domain/`, identico nelle tre maschere; qui resta solo cosa farne.
+   *
+   * Il suo indice evidenziato è PROPRIO, distinto da `activeSuggestionIndex`:
+   * quella è la lista dei suggerimenti sul nome prodotto, questa è la scelta
+   * fra codici. Sono due collezioni con lunghezze diverse — un indice solo si
    * sfaserebbe passando dall'una all'altra.
    */
-  protected readonly codeActiveSuggestionIndex = signal(0);
+  protected readonly codeLookup = new DocumentCodeLookupStore();
   protected readonly exitDialogOpen = signal(false);
   protected readonly includeOrderPanelOpen = signal(false);
   protected readonly receivableOrders = signal<readonly SupplierOrder[]>([]);
@@ -1120,24 +1117,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return (this.lines.at(index)?.controls.productName.value.trim().length ?? 0) >= 2;
   }
 
-  protected codeSuggestions(
-    index: number,
-    field: GoodsReceiptCodeLookupField,
-  ): readonly VariantSummary[] {
-    if (this.codeLookupLineIndex() !== index || this.codeLookupField() !== field) {
-      return [];
-    }
-    return this.codeLookupSuggestions();
-  }
-
-  protected codeSuggestionsOpen(index: number, field: GoodsReceiptCodeLookupField): boolean {
-    return (
-      this.codeLookupLineIndex() === index &&
-      this.codeLookupField() === field &&
-      this.codeLookupSuggestions().length > 0
-    );
-  }
-
   protected linkedProductLabel(index: number): string {
     const line = this.lines.at(index);
     if (!line) {
@@ -1194,7 +1173,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.lines.at(index).controls.sku.setValue(value);
     this.codesNotFound.clear();
     this.clearProductAutocomplete();
-    this.clearCodeLookup();
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
@@ -1233,13 +1212,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   /** Esc chiude ricerca contestuale e lookup codici senza toccare i dati (§7). */
   protected onLineSearchEscape(_index: number): void {
     this.clearProductAutocomplete();
-    this.clearCodeLookup();
+    this.codeLookup.clear();
   }
 
   protected onLineBarcodeChange(index: number, value: string): void {
     this.lines.at(index).controls.barcode.setValue(value);
     this.codesNotFound.clear();
-    this.clearCodeLookup();
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
@@ -1248,7 +1227,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.lines.at(index).controls.articleCode.setValue(value);
     this.codesNotFound.clear();
     this.clearProductAutocomplete();
-    this.clearCodeLookup();
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
@@ -1258,7 +1237,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.autocompleteLineIndex.set(index);
     this.activeSuggestionIndex.set(0);
     this.variantSearchDraft.set(value);
-    this.clearCodeLookup();
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
@@ -1270,7 +1249,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.autocompleteLineIndex.set(index);
     this.activeSuggestionIndex.set(0);
     this.variantSearchDraft.set(value);
-    this.clearCodeLookup();
+    this.codeLookup.clear();
   }
 
   protected onLineProductFocus(index: number): void {
@@ -1303,17 +1282,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
-  protected onLineCodeFocus(index: number, field: GoodsReceiptCodeLookupField): void {
+  protected onLineCodeFocus(index: number, field: DocumentLineCodeField): void {
     this.clearProductAutocomplete();
-    if (this.codeLookupLineIndex() === index && this.codeLookupField() === field) {
+    if (this.codeLookup.isOpenOn(index, field)) {
       return;
     }
-    this.clearCodeLookup();
+    this.codeLookup.clear();
   }
 
   protected onLineCodeBlur(index: number): void {
-    if (this.codeLookupLineIndex() === index) {
-      this.clearCodeLookup();
+    if (this.codeLookup.isOpenOnLine(index)) {
+      this.codeLookup.clear();
     }
     this.commitLineIfSignificant(index);
   }
@@ -1330,7 +1309,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.commitCodeLookup(index, 'articleCode');
   }
 
-  private commitCodeLookup(index: number, field: GoodsReceiptCodeLookupField): void {
+  /**
+   * Conferma di un codice: si confronta col catalogo per corrispondenza esatta,
+   * e gli esiti sono tre. La catena vive in `DocumentCodeLookupService`, uguale
+   * per le tre maschere; qui resta solo cosa farne — agganciare, aprire la
+   * scelta, o lasciare il valore scritto e proseguire.
+   *
+   * `locationId` non filtra i risultati: restringe soltanto le giacenze
+   * mostrate alla sede del documento. Il fornitore della testata invece NON si
+   * passa, ed è deliberato — vedi il commento in `DocumentCodeLookupService`.
+   */
+  private commitCodeLookup(index: number, field: DocumentLineCodeField): void {
     if (this.lineHasLinkedProduct(index)) {
       this.focusNextLineField(index, field);
       return;
@@ -1345,120 +1334,44 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             ? line.controls.supplierSku.value.trim()
             : line.controls.barcode.value.trim();
     if (!value) {
-      this.clearCodeLookup();
+      this.codeLookup.clear();
       this.focusNextLineField(index, field);
       return;
     }
 
-    // NIENTE `supplierId`: il riconoscimento di un codice non dipende dal
-    // contesto. Filtrando per il fornitore della testata, lo stesso codice
-    // corretto veniva riconosciuto in un documento e ignorato in un altro.
-    //
-    // Conseguenza voluta (08/2026): il costo che il riepilogo porta con sé —
-    // e che semina la riga — diventa quello della VARIANTE in anagrafica,
-    // non l'ultimo prezzo pagato a quel fornitore. Il prezzo pagato l'ultima
-    // volta è un fatto storico, non il costo dell'articolo: averlo
-    // precompilato faceva partire la riga da un numero che nessuno aveva
-    // deciso (magari un lotto in saldo). Si parte dal valore dichiarato, e lo
-    // scostamento si vede alla conferma, dove l'avviso esiste già.
-    //
-    // Nulla si perde: `lastPurchasePriceMinor` continua a essere scritto a
-    // ogni carico e letto da `findSupplierPriceDiffs`, che prende il fornitore
-    // dalla testata e non da qui. La memoria di quanto si paga a quel
-    // fornitore resta intatta, e con essa l'avviso «lo pagavi X, ora Y».
-    //
-    // `locationId` invece resta: non filtra i risultati, restringe soltanto le
-    // giacenze mostrate alla sede del documento.
-    const locationId = this.form.controls.locationId.value || undefined;
-
-    this.productService
-      .searchVariantSummaries({
-        search: value,
-        pageSize: DOCUMENT_CODE_MATCH_PAGE_SIZE,
-        locationId,
-      })
-      .pipe(
-        take(1),
-        catchError(() => of([] as readonly VariantSummary[])),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((results) => {
-        const matches = this.filterLookupMatches(results, value, field);
-        if (matches.length === 1) {
-          const match = matches[0];
-          if (match) {
-            this.onVariantSelect(index, match.variantId);
-            this.clearCodeLookup();
-            this.focusLineField(index, 'quantity');
-          }
+    this.codeLookupService
+      .resolve(value, field, { locationId: this.form.controls.locationId.value || undefined })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((outcome) => {
+        if (outcome.kind === 'one') {
+          this.onVariantSelect(index, outcome.variantId);
+          this.codeLookup.clear();
+          this.focusLineField(index, 'quantity');
           return;
         }
-        if (matches.length > 1) {
-          this.codeLookupLineIndex.set(index);
-          this.codeLookupField.set(field);
-          this.codeLookupSuggestions.set(matches);
-          // La scelta si apre sempre sulla prima voce: il fuoco è rimasto nel
-          // campo, le frecce la scorrono, Invio prende quella evidenziata.
-          this.codeActiveSuggestionIndex.set(0);
+        if (outcome.kind === 'many') {
+          this.codeLookup.open(index, field, outcome.matches);
           return;
         }
-
-        this.productService
-          .findVariantByCode(value)
-          .pipe(
-            take(1),
-            catchError(() => of(null)),
-          )
-          .subscribe((variant) => {
-            if (variant) {
-              this.onVariantSelect(index, variant.variantId);
-              this.clearCodeLookup();
-              this.focusLineField(index, 'quantity');
-              return;
-            }
-            // Nessuna corrispondenza: il valore resta scritto e la riga
-            // prosegue. Non è un errore — può essere il riferimento del
-            // fornitore, o un articolo che non esiste ancora.
-            //
-            // Fino a 08/2026 qui compariva un banner «codice non trovato» in
-            // testa alla maschera. Rimosso SENZA sostituto, deliberatamente:
-            // lo stato si vede già: riga collegata mostra il nome del prodotto,
-            // riga non collegata no. Chi digita un codice e non vede comparire
-            // nulla capisce da sé, e prosegue compilando a mano — che è un uso
-            // legittimo. Un avviso che spiega uno stato già visibile è di
-            // troppo, e stava per giunta in testa alla maschera invece che
-            // sulla riga. Non è un lavoro lasciato a metà.
-            this.clearCodeLookup();
-            this.focusNextLineField(index, field);
-          });
+        // Nessuna corrispondenza: il valore resta scritto e la riga prosegue.
+        // Non è un errore — può essere il riferimento del fornitore, o un
+        // articolo che non esiste ancora.
+        //
+        // Fino a 08/2026 qui compariva un banner «codice non trovato» in testa
+        // alla maschera. Rimosso SENZA sostituto, deliberatamente: lo stato si
+        // vede già — riga collegata mostra il nome del prodotto, riga non
+        // collegata no. Chi digita un codice e non vede comparire nulla capisce
+        // da sé, e prosegue compilando a mano, che è un uso legittimo. Un
+        // avviso che spiega uno stato già visibile è di troppo, e stava per
+        // giunta in testa alla maschera invece che sulla riga.
+        this.codeLookup.clear();
+        this.focusNextLineField(index, field);
       });
-  }
-
-  /**
-   * SOLO corrispondenze esatte. Il campo codice non è un campo di ricerca: chi
-   * digita un codice sa già cosa cerca, e un codice che non esiste resta
-   * scritto perché è quello che l'operatore voleva.
-   *
-   * Fino a 08/2026 qui c'era un ripiego — senza match esatto tornavano TUTTI i
-   * risultati — e siccome la ricerca del server guarda dentro nome e marca, il
-   * campo codice funzionava anche come ricerca per nome, ma solo in caso di
-   * fallimento: digitando «100» comparivano i «Jeans 100 slim». Non era scritto
-   * da nessuna parte e non era prevedibile. Rimosso.
-   */
-  private filterLookupMatches(
-    results: readonly VariantSummary[],
-    value: string,
-    field: GoodsReceiptCodeLookupField,
-  ): readonly VariantSummary[] {
-    // Il filtro vive in `document-code-match.util`: la regola è identica su
-    // tutte e tre le maschere, e tre copie sarebbero il difetto che questo
-    // lavoro rimuove.
-    return filterExactCodeMatches(results, value, field);
   }
 
   protected onCodeSuggestionPick(index: number, variantId: string): void {
     this.onVariantSelect(index, variantId);
-    this.clearCodeLookup();
+    this.codeLookup.clear();
     this.focusLineField(index, 'quantity');
   }
 
@@ -1584,12 +1497,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected lineRowActive(index: number): boolean {
-    return (
-      this.lineSuggestionsOpen(index) ||
-      this.codeSuggestionsOpen(index, 'sku') ||
-      this.codeSuggestionsOpen(index, 'barcode') ||
-      this.codeSuggestionsOpen(index, 'articleCode')
-    );
+    // Si chiede alla riga, non a un campo per volta: l'elenco scritto a mano
+    // aveva dimenticato il codice fornitore da quando è diventato una cella
+    // codice come gli altri, e la sua scelta si apriva senza alzare la riga.
+    return this.lineSuggestionsOpen(index) || this.codeLookup.isOpenOnLine(index);
   }
 
   protected advanceFromProductField(index: number): void {
@@ -1816,24 +1727,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     this.advanceToPreviousLine(index);
-  }
-
-  /** Frecce dentro la scelta aperta da un codice: scorrono le corrispondenze. */
-  protected onCodeSuggestionNavigate(direction: 'next' | 'prev'): void {
-    const count = this.codeLookupSuggestions().length;
-    if (count === 0) {
-      return;
-    }
-    this.codeActiveSuggestionIndex.update((current) =>
-      direction === 'next' ? Math.min(current + 1, count - 1) : Math.max(current - 1, 0),
-    );
-  }
-
-  private clearCodeLookup(): void {
-    this.codeLookupLineIndex.set(null);
-    this.codeLookupField.set(null);
-    this.codeLookupSuggestions.set([]);
-    this.codeActiveSuggestionIndex.set(0);
   }
 
   private clearProductAutocomplete(): void {
@@ -2995,7 +2888,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         }
       }
     }
-    this.clearCodeLookup();
+    this.codeLookup.clear();
     this.clearProductAutocomplete();
     this.syncLineFieldAccess();
     this.markFormDirty();
