@@ -78,6 +78,7 @@ import type { DocumentCounterView } from '@domain/documents/models/document-coun
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
+import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import {
   sortByLineValue,
   type DocumentLineSortKind,
@@ -113,6 +114,9 @@ const TRANSFER_SORTABLE_LINE_COLUMNS: readonly TransferLineSortColumn[] = [
   selector: 'app-transfer-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
     FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
@@ -623,6 +627,26 @@ export class TransferFormComponent implements CanComponentDeactivate {
     if (this.lines.length > 1) {
       this.lines.removeAt(index);
     }
+  }
+
+  /**
+   * Trascinamento riga (§7.2). Non chiede conferma, a differenza del riordino
+   * per colonna: e' un movimento singolo e visibile, e chi lo fa sa cosa sta
+   * facendo. L'avviso serve a chi ribalta tutto in un colpo.
+   */
+  protected onLineDrop(event: CdkDragDrop<unknown>): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const { previousIndex, currentIndex } = event;
+    if (previousIndex === currentIndex) {
+      return;
+    }
+    const line = this.lines.at(previousIndex);
+    this.lines.removeAt(previousIndex, { emitEvent: false });
+    this.lines.insert(currentIndex, line, { emitEvent: false });
+    this.markFormDirty();
+    this.lines.updateValueAndValidity();
   }
 
   protected fieldInvalid(name: 'locationId' | 'targetLocationId' | 'documentDate'): boolean {

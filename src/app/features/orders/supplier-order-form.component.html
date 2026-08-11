@@ -274,6 +274,7 @@
               <table class="doc-form__table">
                 <thead>
                   <tr>
+                    <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
                     @if (isLineColumnVisible('articleCode')) {
                       <th scope="col" [style.width]="lineColumnWidth('articleCode')">
                         <button
@@ -588,15 +589,36 @@
                     }
                   </tr>
                 </thead>
-                <tbody formArrayName="lines">
+                <!-- Il trascinamento sta sul tbody, e il blocco del documento lo
+                     spegne qui: il fieldset disabilitato ferma i controlli del
+                     form, non il drag & drop, che controllo non è. -->
+                <tbody
+                  formArrayName="lines"
+                  cdkDropList
+                  [cdkDropListDisabled]="formReadOnly()"
+                  (cdkDropListDropped)="onLineDrop($event)"
+                >
                   <!-- track per POSIZIONE, non per identità: la FormArray viene
                      svuotata e ricostruita a ogni caricamento del documento, e con
                      `track line` Angular vedeva ogni volta una collezione tutta
                      nuova — NG0956, con distruzione e ricreazione dell'intera
-                     tabella. In una FormArray la posizione È l'identità della
-                     riga, e queste righe non si riordinano. -->
+                     tabella. In una FormArray la posizione È l'identità della riga.
+                     ⚠️ La ragione finale del commento originale — «e queste righe
+                     non si riordinano» — non vale più da 11/08/2026: si riordinano
+                     per colonna e si trascinano. La scelta resta valida lo stesso
+                     (la posizione è l'identità), ma il motivo era un altro. -->
                   @for (line of lines.controls; track $index; let i = $index) {
-                    <tr class="doc-form__table-row" [formGroupName]="i">
+                    <tr
+                      class="doc-form__table-row"
+                      cdkDrag
+                      [cdkDragStartDelay]="{ touch: 250, mouse: 0 }"
+                      [formGroupName]="i"
+                    >
+                      <!-- La cella del numero è la maniglia: il resto della riga
+                           resta cliccabile per modificare le celle. -->
+                      <td class="doc-form__cell--index doc-form__drag-handle" cdkDragHandle>
+                        <span class="tabular-nums">{{ i + 1 }}</span>
+                      </td>
                       <!-- Le quattro chiavi di ricerca: si digitano per trovare
                          l'articolo, e restano il dato che finisce in anagrafica se
                          l'articolo va creato. Invio cerca, Tab attraversa. -->

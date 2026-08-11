@@ -219,6 +219,7 @@
             <table class="doc-form__table">
               <thead>
                 <tr>
+                  <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
                   <th scope="col">
                     <button
                       type="button"
@@ -279,9 +280,22 @@
                   </th>
                 </tr>
               </thead>
-              <tbody formArrayName="lines">
+              <!-- Il trascinamento sta sul tbody, e il blocco del documento lo
+                   spegne qui: il fieldset disabilitato ferma i controlli del form,
+                   non il drag & drop, che controllo non e'. -->
+              <tbody
+                formArrayName="lines"
+                cdkDropList
+                [cdkDropListDisabled]="formReadOnly()"
+                (cdkDropListDropped)="onLineDrop($event)"
+              >
                 @for (line of lines.controls; track line; let i = $index) {
-                  <tr [formGroupName]="i">
+                  <tr cdkDrag [cdkDragStartDelay]="{ touch: 250, mouse: 0 }" [formGroupName]="i">
+                    <!-- La cella del numero e' la maniglia: il resto della riga
+                         resta cliccabile per modificare le celle. -->
+                    <td class="doc-form__cell--index doc-form__drag-handle" cdkDragHandle>
+                      <span class="tabular-nums">{{ i + 1 }}</span>
+                    </td>
                     <td class="doc-form__cell doc-form__cell--editable">
                       <app-select-menu
                         [options]="variantOptions()"

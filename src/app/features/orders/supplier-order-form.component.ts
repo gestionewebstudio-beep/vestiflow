@@ -117,6 +117,7 @@ import {
   resetSupplierFormGroup,
 } from '@domain/suppliers/utils/supplier-form.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
+import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -185,6 +186,9 @@ function todayIsoDate(): string {
   selector: 'app-supplier-order-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
     FirstClickSelectsDirective,
     ReactiveFormsModule,
     BackButtonComponent,
@@ -1562,6 +1566,26 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     if (this.lines.length > 1) {
       this.lines.removeAt(index);
     }
+  }
+
+  /**
+   * Trascinamento riga (§7.2). Non chiede conferma, a differenza del riordino
+   * per colonna: e' un movimento singolo e visibile, e chi lo fa sa cosa sta
+   * facendo. L'avviso serve a chi ribalta tutto in un colpo.
+   */
+  protected onLineDrop(event: CdkDragDrop<unknown>): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const { previousIndex, currentIndex } = event;
+    if (previousIndex === currentIndex) {
+      return;
+    }
+    const line = this.lines.at(previousIndex);
+    this.lines.removeAt(previousIndex, { emitEvent: false });
+    this.lines.insert(currentIndex, line, { emitEvent: false });
+    this.markFormDirty();
+    this.lines.updateValueAndValidity();
   }
 
   protected fieldInvalid(name: 'supplierId' | 'orderDate'): boolean {

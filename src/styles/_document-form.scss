@@ -850,6 +850,18 @@ app-customer-order-form {
   width: var(--space-12);
 }
 
+// La colonna del numero riga è larga uguale ovunque, che la misura arrivi dal
+// <colgroup> (arrivo merce, ordine cliente) o dalla cella (ordine fornitore e
+// trasferimento, che un colgroup non ce l'hanno). Senza questa riga la stessa
+// colonna nasce **a 0px** dove le altre sono in percentuale — aggiunta e
+// invisibile — e **a un sesto della tabella** dove le larghezze sono
+// automatiche. Misurato l'11/08/2026: 0px sull'ordine fornitore, 193px sul
+// trasferimento.
+.doc-form__table th.doc-form__cell--index {
+  inline-size: var(--space-12);
+  width: var(--space-12);
+}
+
 .doc-form__table .doc-form__cell--index {
   text-align: center;
   background-color: var(--color-surface-sunken);
