@@ -91,6 +91,7 @@ import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import {
   supplierCodeForDocumentLine,
   type DocumentLineCodeField,
@@ -820,16 +821,20 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    * richiamo qui resetterebbe la riga, e non è quello che chiede chi sta solo
    * attraversando i campi.
    */
-  protected commitCodeLookup(index: number, field: LineCodeField): void {
+  protected commitCodeLookup(index: number, field: LineCodeField, advance = true): void {
     const line = this.lines.at(index);
     if (!line || line.controls.variantId.value) {
-      this.focusNextLineField(index, field);
+      if (advance) {
+        this.focusNextLineField(index, field);
+      }
       return;
     }
     const code = line.controls[field].value.trim();
     if (!code) {
       this.codeLookup.clear();
-      this.focusNextLineField(index, field);
+      if (advance) {
+        this.focusNextLineField(index, field);
+      }
       return;
     }
     this.codeLookupService
@@ -852,8 +857,12 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
           this.codeLookup.open(index, field, outcome.matches);
           return;
         }
+        // Col Tab si prosegue; con Invio si resta (§4.5): qui la cella è
+        // ancora un campo, quindi «restare» è possibile.
         this.codeLookup.clear();
-        this.focusNextLineField(index, field);
+        if (advance) {
+          this.focusNextLineField(index, field);
+        }
       });
   }
 
@@ -975,111 +984,72 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   // colonna dal tasto Colonne deve toglierla anche dal giro del Tab, altrimenti
   // il fuoco sparisce in una cella che non si vede.
 
-  private visibleLineFocusFields(index: number): readonly LineFocusField[] {
-    const all: readonly LineFocusField[] = [
+  /**
+   * Il giro del fuoco. Il meccanismo vive in `domain/`; qui restano le nove cose
+   * che differiscono.
+   *
+   * ⚠️ **«Nome prodotto» NON è nel giro, ed è una correzione.** Era elencato e
+   * puntava a `po-product-{i}`, **identificativo che non esiste in nessun
+   * template**: quella cella è un `app-select-menu`, che non ha `inputId` né
+   * fuoco pubblico. Il risultato era che da «Cod. fornitore» il fuoco si
+   * perdeva a metà giro. Torna quando la cella verrà sostituita (specifica
+   * §4.3-bis) — finché non c'è un campo su cui atterrare, elencarlo significa
+   * solo far morire il fuoco.
+   */
+  protected readonly lineFocus = new DocumentLineFocusStore<LineFocusField>({
+    fields: [
       'articleCode',
       'sku',
       'barcode',
       'supplierCode',
-      'product',
       'quantity',
       'unitOfMeasure',
       'unitCost',
       'discount',
-    ];
-    const linked = this.lineHasLinkedProduct(index);
-    return all.filter((field) => {
-      // Su riga agganciata i codici e il nome sono bloccati: restano i dati.
-      if (linked && CODE_FOCUS_FIELDS.includes(field as LineCodeField)) {
+    ],
+    elementId: (index, field) =>
+      ({
+        articleCode: `po-code-${index}`,
+        sku: `po-sku-${index}`,
+        barcode: `po-barcode-${index}`,
+        supplierCode: `po-suppcode-${index}`,
+        product: `po-product-${index}`,
+        quantity: `po-qty-${index}`,
+        unitOfMeasure: `po-uom-${index}`,
+        unitCost: `po-cost-${index}`,
+        discount: `po-discount-${index}`,
+      })[field],
+    isFieldEnabled: (index, field) => {
+      // Su riga agganciata i codici sono bloccati: restano i dati.
+      if (this.lineHasLinkedProduct(index) && CODE_FOCUS_FIELDS.includes(field as LineCodeField)) {
         return false;
       }
-      if (linked && field === 'product') {
-        return false;
-      }
-      return this.isLineColumnVisible(field === 'product' ? 'product' : field);
-    });
-  }
+      return this.isLineColumnVisible(field);
+    },
+    // Difetto chiuso: `advanceToNextLine` non guardava la sola-lettura, e questa
+    // maschera non ha nemmeno il `<fieldset [disabled]>` che protegge le altre
+    // due — su documento bloccato il Tab AGGIUNGEVA righe.
+    isReadOnly: () => this.formReadOnly(),
+    lineCount: () => this.lines.length,
+    createLine: () => {
+      this.addLine();
+      this.markFormDirty();
+    },
+    onRowChange: (_index, then) => {
+      setTimeout(then);
+    },
+    // Voce 9, che qui NON esisteva e andava scritta: «riga vuota» in Ordine
+    // fornitore significa nessun articolo selezionato. È ciò che impedisce a ↓
+    // e al Tab di impilare righe vuote in fondo.
+    isLineEmpty: (index) => !this.lines.at(index)?.controls.variantId.value,
+  });
 
   protected focusLineField(index: number, field: LineFocusField): void {
-    const idMap: Record<LineFocusField, string> = {
-      articleCode: `po-code-${index}`,
-      sku: `po-sku-${index}`,
-      barcode: `po-barcode-${index}`,
-      supplierCode: `po-suppcode-${index}`,
-      product: `po-product-${index}`,
-      quantity: `po-qty-${index}`,
-      unitOfMeasure: `po-uom-${index}`,
-      unitCost: `po-cost-${index}`,
-      discount: `po-discount-${index}`,
-    };
-    globalThis.document.getElementById(idMap[field])?.focus();
-  }
-
-  private focusFirstLineField(index: number): void {
-    const first = this.visibleLineFocusFields(index)[0];
-    if (first) {
-      this.focusLineField(index, first);
-    }
+    this.lineFocus.focusField(index, field);
   }
 
   protected focusNextLineField(index: number, current: LineFocusField): void {
-    const order = this.visibleLineFocusFields(index);
-    const pos = order.indexOf(current);
-    if (pos >= 0 && pos < order.length - 1) {
-      this.focusLineField(index, order[pos + 1]!);
-      return;
-    }
-    this.advanceToNextLine(index);
-  }
-
-  protected focusPreviousLineField(index: number, current: LineFocusField): void {
-    const order = this.visibleLineFocusFields(index);
-    const pos = order.indexOf(current);
-    if (pos > 0) {
-      this.focusLineField(index, order[pos - 1]!);
-      return;
-    }
-    if (index > 0) {
-      const previous = this.visibleLineFocusFields(index - 1);
-      const last = previous[previous.length - 1];
-      if (last) {
-        this.focusLineField(index - 1, last);
-      }
-    }
-  }
-
-  /** Ultima cella della riga → prima della successiva; sull'ultima ne crea una. */
-  protected advanceToNextLine(index: number): void {
-    const nextIndex = index + 1;
-    if (nextIndex >= this.lines.length) {
-      this.addLine();
-      this.markFormDirty();
-    }
-    // Il fuoco dopo il render della riga appena creata.
-    setTimeout(() => this.focusFirstLineField(nextIndex));
-  }
-
-  protected onLineFieldKeydown(index: number, field: LineFocusField, event: KeyboardEvent): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      this.focusNextLineField(index, field);
-      return;
-    }
-    if (event.key !== 'Tab') {
-      return;
-    }
-    if (event.shiftKey) {
-      const order = this.visibleLineFocusFields(index);
-      if (order.indexOf(field) <= 0 && index === 0) {
-        // Prima cella della prima riga: l'uscita dalla tabella la fa il browser.
-        return;
-      }
-      event.preventDefault();
-      this.focusPreviousLineField(index, field);
-      return;
-    }
-    event.preventDefault();
-    this.focusNextLineField(index, field);
+    this.lineFocus.next(index, current);
   }
 
   /**

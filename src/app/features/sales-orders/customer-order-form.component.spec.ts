@@ -896,7 +896,11 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
   }
 
   interface CodeForm {
-    readonly commitCodeLookup: (index: number, field: 'articleCode' | 'sku' | 'barcode') => void;
+    readonly commitCodeLookup: (
+      index: number,
+      field: 'articleCode' | 'sku' | 'barcode',
+      advance?: boolean,
+    ) => void;
     readonly codeLookup: {
       readonly isOpenOn: (index: number, field: string) => boolean;
       readonly matches: () => readonly { readonly variantId: string }[];
@@ -949,6 +953,24 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
 
     expect(form.codeLookup.isOpenOn(0, 'articleCode')).toBe(true);
     expect(form.codeLookup.matches().map((row) => row.variantId)).toEqual(['var-M', 'var-L']);
+  });
+
+  // §4.5: Invio registra e RESTA. Senza corrispondenza la cella è ancora un
+  // campo, quindi «restare» è possibile ed è lì che la regola morde. Prima Tab
+  // e Invio emettevano lo stesso esito e il form non poteva distinguerli.
+  it('Invio senza corrispondenza non sposta il fuoco; il Tab sì', async () => {
+    const form = await apri([]);
+    const avanza = vi.spyOn(
+      form as unknown as { focusNextLineField: (i: number, f: string) => void },
+      'focusNextLineField',
+    );
+    form.lines.at(0).controls['sku']!.setValue('IGNOTO');
+
+    form.commitCodeLookup(0, 'sku', false);
+    expect(avanza).not.toHaveBeenCalled();
+
+    form.commitCodeLookup(0, 'sku', true);
+    expect(avanza).toHaveBeenCalledWith(0, 'sku');
   });
 
   // Il controllo inverso: senza, la prova qui sopra passerebbe anche se la

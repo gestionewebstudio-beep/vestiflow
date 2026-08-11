@@ -7,6 +7,21 @@ import { formatMoney } from '@core/utils/money.util';
 import { DocumentLineSuggestionsComponent } from '../document-line-suggestions/document-line-suggestions.component';
 import type { DocumentLineSuggestionItem } from '../document-line-suggestions/document-line-suggestions.model';
 
+/** Conferma di un codice, col gesto che l'ha prodotta. */
+export interface DocumentLineCodeCommit {
+  readonly lineIndex: number;
+  /**
+   * `true` col Tab: dopo aver confrontato il codice, il fuoco prosegue.
+   * `false` con Invio: si conferma e si resta.
+   *
+   * ⚠️ Con una corrispondenza sola il fuoco si sposta **comunque**, e non è una
+   * disobbedienza alla regola: agganciando l'articolo la cella smette di essere
+   * un campo e diventa testo, quindi «restare» non è possibile — non c'è più
+   * niente su cui restare.
+   */
+  readonly advance: boolean;
+}
+
 @Component({
   selector: 'app-document-line-code-cell',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,7 +46,16 @@ export class DocumentLineCodeCellComponent {
   readonly valueChange = output<string>();
   readonly focused = output<number>();
   readonly blurred = output<number>();
-  readonly commit = output<number>();
+  /**
+   * Il valore è confermato: si confronta col catalogo.
+   *
+   * Porta con sé **la conseguenza del gesto**, che solo la cella conosce: Tab
+   * conferma **e va avanti**, Invio conferma **e resta** (specifica §4.5). Prima
+   * i due tasti emettevano lo stesso esito e il form non poteva distinguerli,
+   * quindi Invio navigava — nella stessa riga faceva una cosa diversa a seconda
+   * della colonna, perché sui campi dati resta.
+   */
+  readonly commit = output<DocumentLineCodeCommit>();
   /** Shift+Tab: torna al campo dati precedente (gestito dal form padre). */
   readonly lineRetreat = output<number>();
   readonly lineRowAdvance = output<number>();
@@ -122,7 +146,8 @@ export class DocumentLineCodeCellComponent {
         this.pickSuggestion(suggestions[active].variantId);
         return;
       }
-      this.commit.emit(this.lineIndex());
+      // Invio conferma e RESTA: registra il valore, non naviga (§4.5).
+      this.commit.emit({ lineIndex: this.lineIndex(), advance: false });
       return;
     }
     if (event.key === 'Tab') {
@@ -132,7 +157,7 @@ export class DocumentLineCodeCellComponent {
         this.lineRetreat.emit(this.lineIndex());
         return;
       }
-      this.commit.emit(this.lineIndex());
+      this.commit.emit({ lineIndex: this.lineIndex(), advance: true });
     }
   }
 

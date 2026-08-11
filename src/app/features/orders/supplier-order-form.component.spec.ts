@@ -481,6 +481,73 @@ describe('SupplierOrderFormComponent', () => {
   });
 
   /**
+   * Il giro del fuoco, innestato sul punto unico. Chiude tre difetti che questa
+   * maschera aveva e le gemelle no.
+   */
+  describe('il giro del fuoco', () => {
+    interface FocusForm {
+      readonly lineFocus: {
+        fieldsOf: (i: number) => readonly string[];
+        rowDown: (i: number, field: string) => void;
+      };
+      readonly lines: {
+        length: number;
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+      readonly form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+    }
+
+    async function apriForm() {
+      const { fixture } = await setup({ vatCodes: [VAT_22] });
+      return fixture.componentInstance as unknown as FocusForm;
+    }
+
+    // Difetto: «product» era nel giro e puntava a `po-product-{i}`,
+    // identificativo che non esiste in nessun template — quella cella è un
+    // `app-select-menu`. Da «Cod. fornitore» il fuoco si perdeva a metà giro.
+    it('«Nome prodotto» non è nel giro: non ha un campo su cui atterrare', async () => {
+      const form = await apriForm();
+
+      expect(form.lineFocus.fieldsOf(0)).not.toContain('product');
+    });
+
+    // Difetto: U.M. e sconto erano nel giro ma senza gestore di tastiera —
+    // due gestori per nove campi. Ora ci sono, e il giro li attraversa.
+    it('U.M. e sconto sono attraversabili', async () => {
+      const form = await apriForm();
+
+      expect(form.lineFocus.fieldsOf(0)).toEqual(
+        expect.arrayContaining(['unitOfMeasure', 'discount']),
+      );
+    });
+
+    // Difetto: `advanceToNextLine` non guardava la sola-lettura, e questa
+    // maschera non ha nemmeno il `<fieldset [disabled]>` delle altre due: su
+    // documento bloccato il Tab AGGIUNGEVA righe.
+    it('su documento bloccato non si creano righe', async () => {
+      const form = await apriForm();
+      const righePrima = form.lines.length;
+      (form as unknown as { formReadOnly: () => boolean }).formReadOnly = () => true;
+
+      form.lineFocus.rowDown(righePrima - 1, 'quantity');
+
+      expect(form.lines.length).toBe(righePrima);
+    });
+
+    // Voce 9 del contratto, che qui NON esisteva: «riga vuota» in Ordine
+    // fornitore significa nessun articolo selezionato. Senza, tenere premuto ↓
+    // impilerebbe righe vuote in fondo.
+    it('↓ in fondo non crea righe se l’articolo non c’è', async () => {
+      const form = await apriForm();
+      const righePrima = form.lines.length;
+
+      form.lineFocus.rowDown(righePrima - 1, 'quantity');
+
+      expect(form.lines.length).toBe(righePrima);
+    });
+  });
+
+  /**
    * Conferma di un codice: gli esiti sono TRE, non due.
    *
    * Qui il caso ambiguo è quello che capita davvero. Il codice fornitore non è

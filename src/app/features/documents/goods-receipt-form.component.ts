@@ -1300,16 +1300,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.commitLineIfSignificant(index);
   }
 
-  protected commitSkuLookup(index: number): void {
-    this.commitCodeLookup(index, 'sku');
+  protected commitSkuLookup(index: number, advance = true): void {
+    this.commitCodeLookup(index, 'sku', advance);
   }
 
-  protected commitBarcodeLookup(index: number): void {
-    this.commitCodeLookup(index, 'barcode');
+  protected commitBarcodeLookup(index: number, advance = true): void {
+    this.commitCodeLookup(index, 'barcode', advance);
   }
 
-  protected commitArticleCodeLookup(index: number): void {
-    this.commitCodeLookup(index, 'articleCode');
+  protected commitArticleCodeLookup(index: number, advance = true): void {
+    this.commitCodeLookup(index, 'articleCode', advance);
   }
 
   /**
@@ -1322,9 +1322,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * mostrate alla sede del documento. Il fornitore della testata invece NON si
    * passa, ed è deliberato — vedi il commento in `DocumentCodeLookupService`.
    */
-  private commitCodeLookup(index: number, field: DocumentLineCodeField): void {
+  private commitCodeLookup(index: number, field: DocumentLineCodeField, advance = true): void {
     if (this.lineHasLinkedProduct(index)) {
-      this.focusNextLineField(index, field);
+      if (advance) {
+        this.focusNextLineField(index, field);
+      }
       return;
     }
     const line = this.lines.at(index);
@@ -1338,7 +1340,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             : line.controls.barcode.value.trim();
     if (!value) {
       this.codeLookup.clear();
-      this.focusNextLineField(index, field);
+      if (advance) {
+        this.focusNextLineField(index, field);
+      }
       return;
     }
 
@@ -1373,8 +1377,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         // da sé, e prosegue compilando a mano, che è un uso legittimo. Un
         // avviso che spiega uno stato già visibile è di troppo, e stava per
         // giunta in testa alla maschera invece che sulla riga.
+        //
+        // Col Tab si prosegue; con Invio si resta (§4.5).
         this.codeLookup.clear();
-        this.focusNextLineField(index, field);
+        if (advance) {
+          this.focusNextLineField(index, field);
+        }
       });
   }
 
@@ -1601,8 +1609,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * possono usare lo stesso per articoli diversi, quindi il caso «più di una
    * corrispondenza» qui è una scelta fra ARTICOLI, non fra varianti.
    */
-  protected commitSupplierSkuLookup(index: number): void {
-    this.commitCodeLookup(index, 'supplierCode');
+  protected commitSupplierSkuLookup(index: number, advance = true): void {
+    this.commitCodeLookup(index, 'supplierCode', advance);
   }
 
   private visibleLineFocusFields(index: number): readonly GoodsReceiptLineFocusField[] {

@@ -496,9 +496,10 @@
                         (valueChange)="onLineCodeChange(i, 'articleCode', $event)"
                         (focused)="onLineCodeFocus(i, 'articleCode')"
                         (blurred)="onLineCodeBlur(i)"
-                        (commit)="commitCodeLookup(i, 'articleCode')"
-                        (lineRetreat)="focusPreviousLineField(i, 'articleCode')"
-                        (lineRowAdvance)="advanceToNextLine(i)"
+                        (commit)="commitCodeLookup(i, 'articleCode', $event.advance)"
+                        (lineRetreat)="lineFocus.previous(i, 'articleCode')"
+                        (lineRowAdvance)="lineFocus.rowDown(i, 'articleCode')"
+                        (lineRowRetreat)="lineFocus.rowUp(i, 'articleCode')"
                         (escapePressed)="onLineSearchEscape(i)"
                       />
                     </td>
@@ -521,9 +522,10 @@
                         (valueChange)="onLineCodeChange(i, 'sku', $event)"
                         (focused)="onLineCodeFocus(i, 'sku')"
                         (blurred)="onLineCodeBlur(i)"
-                        (commit)="commitCodeLookup(i, 'sku')"
-                        (lineRetreat)="focusPreviousLineField(i, 'sku')"
-                        (lineRowAdvance)="advanceToNextLine(i)"
+                        (commit)="commitCodeLookup(i, 'sku', $event.advance)"
+                        (lineRetreat)="lineFocus.previous(i, 'sku')"
+                        (lineRowAdvance)="lineFocus.rowDown(i, 'sku')"
+                        (lineRowRetreat)="lineFocus.rowUp(i, 'sku')"
                         (escapePressed)="onLineSearchEscape(i)"
                       />
                     </td>
@@ -546,9 +548,10 @@
                         (valueChange)="onLineCodeChange(i, 'barcode', $event)"
                         (focused)="onLineCodeFocus(i, 'barcode')"
                         (blurred)="onLineCodeBlur(i)"
-                        (commit)="commitCodeLookup(i, 'barcode')"
-                        (lineRetreat)="focusPreviousLineField(i, 'barcode')"
-                        (lineRowAdvance)="advanceToNextLine(i)"
+                        (commit)="commitCodeLookup(i, 'barcode', $event.advance)"
+                        (lineRetreat)="lineFocus.previous(i, 'barcode')"
+                        (lineRowAdvance)="lineFocus.rowDown(i, 'barcode')"
+                        (lineRowRetreat)="lineFocus.rowUp(i, 'barcode')"
                         (escapePressed)="onLineSearchEscape(i)"
                       />
                     </td>
@@ -573,9 +576,10 @@
                         (valueChange)="onLineCodeChange(i, 'supplierCode', $event)"
                         (focused)="onLineCodeFocus(i, 'supplierCode')"
                         (blurred)="onLineCodeBlur(i)"
-                        (commit)="commitCodeLookup(i, 'supplierCode')"
-                        (lineRetreat)="focusPreviousLineField(i, 'supplierCode')"
-                        (lineRowAdvance)="advanceToNextLine(i)"
+                        (commit)="commitCodeLookup(i, 'supplierCode', $event.advance)"
+                        (lineRetreat)="lineFocus.previous(i, 'supplierCode')"
+                        (lineRowAdvance)="lineFocus.rowDown(i, 'supplierCode')"
+                        (lineRowRetreat)="lineFocus.rowUp(i, 'supplierCode')"
                         (escapePressed)="onLineSearchEscape(i)"
                       />
                     </td>
@@ -625,7 +629,7 @@
                         min="1"
                         step="1"
                         formControlName="orderedQuantity"
-                        (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
+                        (keydown)="lineFocus.handleKeydown(i, 'quantity', $event)"
                         [attr.aria-invalid]="lineFieldInvalid(i, 'orderedQuantity')"
                       />
                       @if (lineFieldInvalid(i, 'orderedQuantity')) {
@@ -645,6 +649,7 @@
                         formControlName="unitOfMeasure"
                         placeholder="pz"
                         aria-label="Unità di misura"
+                        (keydown)="lineFocus.handleKeydown(i, 'unitOfMeasure', $event)"
                       />
                     </td>
                   }
@@ -665,7 +670,7 @@
                         formControlName="unitCost"
                         placeholder="0,00"
                         (input)="onUnitCostInput(i, $any($event.target).value)"
-                        (keydown)="onLineFieldKeydown(i, 'unitCost', $event)"
+                        (keydown)="lineFocus.handleKeydown(i, 'unitCost', $event)"
                         [attr.aria-invalid]="unitCostInvalid(i)"
                       />
                       @if (unitCostInvalid(i)) {
@@ -686,6 +691,7 @@
                         formControlName="discountPercent"
                         placeholder="%"
                         [attr.aria-invalid]="discountInvalid(i)"
+                        (keydown)="lineFocus.handleKeydown(i, 'discount', $event)"
                       />
                       @if (discountInvalid(i)) {
                         <p class="doc-form__error">0–100.</p>

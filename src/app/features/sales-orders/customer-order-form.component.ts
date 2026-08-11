@@ -2923,16 +2923,20 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * esigenze opposte: il lettore spara e va, e una scelta interromperebbe un
    * gesto che deve essere immediato.
    */
-  protected commitCodeLookup(index: number, field: CustomerOrderCodeField): void {
+  protected commitCodeLookup(index: number, field: CustomerOrderCodeField, advance = true): void {
     const line = this.lines.at(index);
     if (line.controls.variantId.value) {
-      this.focusNextLineField(index, field);
+      if (advance) {
+        this.focusNextLineField(index, field);
+      }
       return;
     }
     const code = line.controls[field].value.trim();
     if (!code) {
       this.codeLookup.clear();
-      this.focusNextLineField(index, field);
+      if (advance) {
+        this.focusNextLineField(index, field);
+      }
       return;
     }
     // `locationId` non filtra i risultati: restringe soltanto le giacenze
@@ -2962,8 +2966,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         // Non è un errore — può essere un articolo che non esiste ancora, e lo
         // stato si vede già (riga collegata mostra il nome, riga non collegata
         // no): un avviso che spiega uno stato visibile sarebbe di troppo.
+        //
+        // Col Tab si prosegue; con Invio si resta, ed è qui che la regola
+        // «Invio non naviga» morde davvero: la cella è ancora un campo.
         this.codeLookup.clear();
-        this.focusNextLineField(index, field);
+        if (advance) {
+          this.focusNextLineField(index, field);
+        }
       });
   }
 
