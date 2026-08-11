@@ -20,7 +20,11 @@ import type { SelectMenuOption } from '../select-menu/select-menu.model';
   styleUrl: './document-number-field.component.scss',
 })
 export class DocumentNumberFieldComponent {
-  /** Etichetta del numero: «Numero» (categoria A) o «Protocollo» (categoria B). */
+  /**
+   * Etichetta del numero. **Sempre «Numero»**: dal 12/08/2026 la Categoria B non
+   * dice più «Protocollo» (specifica numerazione §5) — sotto c'è lo stesso
+   * contatore, e due parole facevano credere a due meccanismi.
+   */
   readonly numberLabel = input<string>('Numero');
   readonly numberInputId = input.required<string>();
   readonly hint = input<string>('');

@@ -27,7 +27,7 @@
           <app-badge [tone]="statusDisplayTone()!">{{ label }}</app-badge>
         }
         @if (internalReferenceLabel(); as ref) {
-          <span class="doc-form__internal-ref tabular-nums">Protocollo: {{ ref }}</span>
+          <span class="doc-form__internal-ref tabular-nums">N. documento: {{ ref }}</span>
         }
       </div>
     }
@@ -261,15 +261,14 @@
                   </div>
 
                   <app-document-number-field
-                    numberLabel="Protocollo"
-                    numberInputId="gr-m-protocol"
+                    numberInputId="gr-m-number"
                     hint="Numero interno di catalogazione."
-                    [number]="form.controls.protocolNumber.value"
-                    [isProposal]="protocolNumberIsProposal()"
+                    [number]="form.controls.documentNumber.value"
+                    [isProposal]="documentNumberIsProposal()"
                     [series]="form.controls.series.value"
                     [seriesOptions]="seriesOptions()"
                     [canManageSeries]="true"
-                    (numberChange)="onProtocolNumberChange($event)"
+                    (numberChange)="onDocumentNumberChange($event)"
                     (seriesChange)="onSeriesChange($event)"
                     (manageSeries)="seriesDialogOpen.set(true)"
                   />
@@ -434,7 +433,7 @@
               }
             </div>
 
-            <!-- Gate compilazione: data e protocollo si sbloccano solo dopo
+            <!-- Gate compilazione: data e numero si sbloccano solo dopo
                  fornitore + magazzino (display: contents per non rompere la
                  fascia della testata). -->
             <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
@@ -449,18 +448,17 @@
                 />
               </div>
 
-              <!-- Il protocollo è il numero di catalogazione interno, non
+              <!-- Il numero è il numero di catalogazione interno, non
                    quello del fornitore (che sta nella seconda fascia). -->
               <app-document-number-field
-                numberLabel="Protocollo"
-                numberInputId="gr-protocol"
+                numberInputId="gr-number"
                 hint="Numero interno di catalogazione."
-                [number]="form.controls.protocolNumber.value"
-                [isProposal]="protocolNumberIsProposal()"
+                [number]="form.controls.documentNumber.value"
+                [isProposal]="documentNumberIsProposal()"
                 [series]="form.controls.series.value"
                 [seriesOptions]="seriesOptions()"
                 [canManageSeries]="true"
-                (numberChange)="onProtocolNumberChange($event)"
+                (numberChange)="onDocumentNumberChange($event)"
                 (seriesChange)="onSeriesChange($event)"
                 (manageSeries)="seriesDialogOpen.set(true)"
               />
@@ -2169,12 +2167,12 @@
   }
 </app-slide-panel>
 
-<!-- Protocollo già assegnato: avviso di presa d'atto, non una scelta. La
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La
      testata resta com'era e il documento non è salvato; il messaggio nomina il
      numero rifiutato e il primo libero, la correzione è dell'operatore. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
-  title="Protocollo già usato"
+  title="Numero già usato"
   [message]="conflictMessage()"
   confirmLabel="OK"
   [acknowledge]="true"

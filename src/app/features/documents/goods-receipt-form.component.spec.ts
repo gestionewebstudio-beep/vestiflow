@@ -85,7 +85,7 @@ interface GoodsReceiptSetupOptions {
   readonly vatCodes?: readonly unknown[];
   /** Contatori restituiti da GET /document-counters: alimentano la proposta. */
   readonly counters?: readonly DocumentCounterView[];
-  /** Protocollo che il server assegna davvero al salvataggio. */
+  /** Numero che il server assegna davvero al salvataggio. */
   readonly assignedNumber?: number;
 }
 
@@ -129,7 +129,7 @@ function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
         getPriceModePreference: () => of(false),
       },
     },
-    // Serie del protocollo: una sola configurata → label statica.
+    // Serie del numero: una sola configurata → label statica.
     { provide: DocumentSettingsService, useValue: { getSettings: () => of([]) } },
     { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
     {
@@ -203,9 +203,9 @@ describe('GoodsReceiptFormComponent', () => {
     return Object.assign(result, { saveGoodsReceipt, showInfo });
   }
 
-  /** Il campo Protocollo vive in due viste (mobile + desktop): stesso controllo. */
-  async function protocolInput(): Promise<HTMLInputElement> {
-    const inputs = await screen.findAllByLabelText<HTMLInputElement>('Protocollo');
+  /** Il campo Numero vive in due viste (mobile + desktop): stesso controllo. */
+  async function numberInput(): Promise<HTMLInputElement> {
+    const inputs = await screen.findAllByLabelText<HTMLInputElement>('Numero');
     return inputs[0]!;
   }
 
@@ -338,18 +338,18 @@ describe('GoodsReceiptFormComponent', () => {
     expect(line.controls.loadsStock.disabled).toBe(true);
   });
 
-  // ── Il protocollo proposto non torna al server come imposizione ─────────────
+  // ── Il numero proposto non torna al server come imposizione ─────────────
   //
   // Il numero che la maschera mostra all'apertura è il primo libero: una
   // proposta, non una scelta. Rimandarlo al salvataggio lo trasformava in
   // un'imposizione, e il secondo operatore si prendeva un dialogo di conflitto
   // per un numero che non aveva mai digitato — glielo aveva scritto la maschera.
-  it('non manda il protocollo proposto: lo assegna il server', async () => {
+  it('non manda il numero proposto: lo assegna il server', async () => {
     const { fixture } = await setup({ counters: [COUNTER] });
     const component = fixture.componentInstance;
 
-    await waitFor(() => expect(component.form.controls.protocolNumber.value).toBe(42));
-    const input = await protocolInput();
+    await waitFor(() => expect(component.form.controls.documentNumber.value).toBe(42));
+    const input = await numberInput();
     await waitFor(() => expect(input.value).toBe('42'));
 
     expect(component['buildSaveGoodsReceiptBody']().number).toBeUndefined();
@@ -358,10 +358,10 @@ describe('GoodsReceiptFormComponent', () => {
   // Il numero digitato a mano resta una scelta dell'operatore, e va difesa: si
   // manda, e se è occupato il dialogo di conflitto ha qualcosa da dire.
   //
-  // `fireEvent` e non `userEvent`: il campo Protocollo esiste in due viste e su
+  // `fireEvent` e non `userEvent`: il campo Numero esiste in due viste e su
   // quella non attiva il CSS lo nasconde — la digitazione simulata rifiuterebbe
   // di interagirci. L'evento `input` è comunque quello che il campo ascolta.
-  it('manda il protocollo digitato dall’operatore', async () => {
+  it('manda il numero digitato dall’operatore', async () => {
     const { fixture } = await setup({ counters: [COUNTER] });
     const component = fixture.componentInstance;
 
@@ -370,24 +370,24 @@ describe('GoodsReceiptFormComponent', () => {
     component.form.controls.locationId.setValue('loc-1');
     fixture.detectChanges();
 
-    const input = await protocolInput();
+    const input = await numberInput();
     fireEvent.input(input, { target: { value: '77' } });
 
-    expect(component.form.controls.protocolNumber.value).toBe(77);
+    expect(component.form.controls.documentNumber.value).toBe(77);
     expect(component['buildSaveGoodsReceiptBody']().number).toBe(77);
   });
 
   // Numero proposto e numero assegnato possono divergere: fra l'apertura e il
   // salvataggio un altro operatore può aver preso il 42. Non è un errore, ma chi
   // l'aveva già trascritto su carta deve sapere di avere il numero sbagliato.
-  it('avvisa quando il server assegna un protocollo diverso da quello proposto', async () => {
+  it('avvisa quando il server assegna un numero diverso da quello proposto', async () => {
     const { fixture, saveGoodsReceipt, showInfo } = await setup({
       counters: [COUNTER],
       assignedNumber: 46,
     });
     const component = fixture.componentInstance;
 
-    await waitFor(() => expect(component.form.controls.protocolNumber.value).toBe(42));
+    await waitFor(() => expect(component.form.controls.documentNumber.value).toBe(42));
     component.form.controls.supplierId.setValue('sup-1');
     component.form.controls.locationId.setValue('loc-1');
 
@@ -400,14 +400,14 @@ describe('GoodsReceiptFormComponent', () => {
     );
     // La testata si allinea al numero vero: continuare a mostrare il 42 quando
     // il documento è il 46 è peggio che non mostrare niente.
-    expect(component.form.controls.protocolNumber.value).toBe(46);
+    expect(component.form.controls.documentNumber.value).toBe(46);
   });
 
-  it('nessun avviso quando il server conferma il protocollo proposto', async () => {
+  it('nessun avviso quando il server conferma il numero proposto', async () => {
     const { fixture, showInfo } = await setup({ counters: [COUNTER], assignedNumber: 42 });
     const component = fixture.componentInstance;
 
-    await waitFor(() => expect(component.form.controls.protocolNumber.value).toBe(42));
+    await waitFor(() => expect(component.form.controls.documentNumber.value).toBe(42));
     component.form.controls.supplierId.setValue('sup-1');
     component.form.controls.locationId.setValue('loc-1');
 

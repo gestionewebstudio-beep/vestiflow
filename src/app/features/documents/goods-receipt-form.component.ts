@@ -378,27 +378,27 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly previewReference = signal<string | null>(null);
 
   /**
-   * Il protocollo l'ha scelto l'operatore (digitato in testata o accettato dal
+   * Il numero l'ha scelto l'operatore (digitato in testata o accettato dal
    * dialogo di conflitto), non è più la proposta della serie. È la stessa cosa
-   * che dice `protocolNumber.dirty`, in forma di signal: il template ha bisogno
+   * che dice `documentNumber.dirty`, in forma di signal: il template ha bisogno
    * di una fonte reattiva, e i flag dei form control non lo sono. Le due forme
-   * restano allineate perché il protocollo si scrive solo da
-   * `imposeProtocolNumber` / `proposeProtocolNumber`.
+   * restano allineate perché il numero si scrive solo da
+   * `imposeDocumentNumber` / `proposeDocumentNumber`.
    */
-  private readonly protocolNumberImposed = signal(false);
+  private readonly documentNumberImposed = signal(false);
 
   /**
-   * Il protocollo mostrato è una PROPOSTA — il primo libero al momento in cui
+   * Il numero mostrato è una PROPOSTA — il primo libero al momento in cui
    * la maschera si è aperta — finché il documento non esiste e l'operatore non
    * ne ha scelto uno: lo prende chi salva per primo. Il campo lo dice, invece
    * di far sembrare acquisito un numero che può ancora cambiare.
    */
-  protected readonly protocolNumberIsProposal = computed(
-    () => this.persistedDocumentId() === null && !this.protocolNumberImposed(),
+  protected readonly documentNumberIsProposal = computed(
+    () => this.persistedDocumentId() === null && !this.documentNumberImposed(),
   );
 
-  /** Conflitto protocollo restituito dal server: dialogo «Usa N» / «Annulla». */
-  // Stato del dialog «protocollo già assegnato»: la macchina vive in domain,
+  /** Conflitto sul numero restituito dal server: dialogo «Usa N» / «Annulla». */
+  // Stato del dialog «numero già assegnato»: la macchina vive in domain,
   // il form decide solo quale controllo riceve il numero e cosa risalvare.
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
@@ -955,8 +955,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     externalDocumentTypeId: this.fb.control(''),
     externalDocNumber: this.fb.control(''),
     externalDocDate: this.fb.control(''),
-    /** Protocollo interno: proposto dal progressivo di serie, editabile. */
-    protocolNumber: this.fb.control<number | null>(null),
+    /** Numero interno: proposto dal progressivo di serie, editabile. */
+    documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
     causalText: this.fb.control(''),
     notes: this.fb.control(''),
@@ -3458,8 +3458,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     this.exitDialogOpen.set(false);
     // Come nel salvataggio esplicito: il numero mostrato si legge prima dell'invio.
-    const shownProtocolNumber = this.form.controls.protocolNumber.value;
-    const protocolWasImposed = this.form.controls.protocolNumber.dirty;
+    const shownDocumentNumber = this.form.controls.documentNumber.value;
+    const documentNumberWasImposed = this.form.controls.documentNumber.dirty;
     this._submitState.set({ status: 'saving' });
     this.linkAllLineCodes$()
       .pipe(
@@ -3472,7 +3472,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this._submitState.set({ status: 'idle' });
           this.dirtySinceLastSave.set(false);
           this.loadedDocument.set(doc);
-          this.reconcileAssignedProtocolNumber(doc, shownProtocolNumber, protocolWasImposed);
+          this.reconcileAssignedDocumentNumber(doc, shownDocumentNumber, documentNumberWasImposed);
           this.resolveExit(true);
         },
         error: (err: unknown) => {
@@ -3796,7 +3796,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.patchFormFromDocument(doc);
     // Documento indipendente: numero fresco e data odierna.
     this.form.patchValue({
-      protocolNumber: null,
+      documentNumber: null,
       documentDate: new Date().toISOString().slice(0, 10),
     });
     // Nessun aggancio all'ordine fornitore dell'originale e righe come nuove
@@ -4065,10 +4065,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
 
     this.syncActiveFieldBeforeSave();
-    // Il protocollo mostrato va letto PRIMA di partire: se il server ne assegna
+    // Il numero mostrato va letto PRIMA di partire: se il server ne assegna
     // un altro serve il confronto con quello che l'operatore aveva sotto gli occhi.
-    const shownProtocolNumber = this.form.controls.protocolNumber.value;
-    const protocolWasImposed = this.form.controls.protocolNumber.dirty;
+    const shownDocumentNumber = this.form.controls.documentNumber.value;
+    const documentNumberWasImposed = this.form.controls.documentNumber.dirty;
     this._submitState.set({ status: 'saving' });
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = this.linkAllLineCodes$()
@@ -4082,7 +4082,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this._submitState.set({ status: 'idle' });
           this.dirtySinceLastSave.set(false);
           this.loadedDocument.set(doc);
-          this.reconcileAssignedProtocolNumber(doc, shownProtocolNumber, protocolWasImposed);
+          this.reconcileAssignedDocumentNumber(doc, shownDocumentNumber, documentNumberWasImposed);
           this.pendingSupplierOrderId.set(null);
           this.pendingLinkedSupplierOrderRef.set(null);
           // "Salva documento" salva e resta nella maschera (§10.7): si esce solo
@@ -4100,7 +4100,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this.trimDuplicateTrailingEmptyRows();
         },
         error: (err: unknown) => {
-          // Protocollo già preso: il vincolo del database non ammette
+          // Numero già preso: il vincolo del database non ammette
           // duplicati, si può solo prendere il primo libero o correggere.
           const conflict = documentNumberConflictOf(err);
           if (conflict) {
@@ -4114,7 +4114,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Presa d'atto dell'avviso: chiude e basta. Il protocollo in testata resta
+   * Presa d'atto dell'avviso: chiude e basta. Il numero in testata resta
    * quello che l'operatore aveva scelto — se lo aveva digitato, lo aveva fatto
    * per tappare un buco preciso, e sostituirglielo col primo libero
    * butterebbe via l'intento. Il messaggio gli dice qual è quel numero: sta a
@@ -4192,7 +4192,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }[] = [];
 
   /**
-   * Protocollo da inviare: SOLO quello digitato dall'operatore.
+   * Numero da inviare: SOLO quello digitato dall'operatore.
    *
    * Quello proposto all'apertura è il primo libero *di quel momento*: rimandarlo
    * indietro lo trasformerebbe in una pretesa, e due maschere aperte insieme si
@@ -4202,16 +4202,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * contesa si risolve da sola, in silenzio.
    *
    * `dirty` è la distinzione: la proposta si scrive senza sporcare il controllo
-   * (`proposeProtocolNumber`), la scelta sì (`imposeProtocolNumber`).
+   * (`proposeDocumentNumber`), la scelta sì (`imposeDocumentNumber`).
    */
-  private requestedProtocolNumber(): number | undefined {
+  private requestedDocumentNumber(): number | undefined {
     // Si omette SOLO la proposta di un documento nuovo. In modifica il
-    // protocollo è del documento e va sempre mandato: ometterlo dopo un cambio
-    // di serie lascerebbe il documento con il protocollo della serie vecchia.
-    if (!this.isEditMode() && !this.form.controls.protocolNumber.dirty) {
+    // numero è del documento e va sempre mandato: ometterlo dopo un cambio
+    // di serie lascerebbe il documento con il numero della serie vecchia.
+    if (!this.isEditMode() && !this.form.controls.documentNumber.dirty) {
       return undefined;
     }
-    return this.form.controls.protocolNumber.value ?? undefined;
+    return this.form.controls.documentNumber.value ?? undefined;
   }
 
   private buildSaveGoodsReceiptBody(): SaveGoodsReceiptBody {
@@ -4252,8 +4252,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       billingCause: raw.invoicePending ? 'In attesa fattura' : raw.billingCause.trim() || undefined,
       externalDocNumber: raw.externalDocNumber.trim() || undefined,
       externalDocDate: raw.externalDocDate || undefined,
-      // Protocollo imposto a mano: non sposta il progressivo della serie.
-      number: this.requestedProtocolNumber(),
+      // Numero imposto a mano: non sposta il progressivo della serie.
+      number: this.requestedDocumentNumber(),
       series: (raw.series ?? '').trim() || undefined,
       ...(supplierOrderId ? { supplierOrderId } : {}),
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
@@ -4502,7 +4502,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
       externalDocNumber: doc.externalDocNumber ?? '',
       externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
-      protocolNumber: doc.number ?? null,
+      documentNumber: doc.number ?? null,
       series: doc.series ?? '',
       causalText: doc.causalText ?? '',
       notes: doc.notes ?? '',
@@ -4637,7 +4637,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   /**
    * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
-   * serie/protocollo — la selezione resta quella che era. Una serie appena
+   * serie/numero — la selezione resta quella che era. Una serie appena
    * creata diventa scegliibile; cambiando serie il numero si ricalcola come oggi.
    */
   protected onSeriesManagerClosed(): void {
@@ -4653,9 +4653,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Propone il primo protocollo libero della serie. Non tocca un valore
+   * Propone il primo numero libero della serie. Non tocca un valore
    * digitato a mano (control «dirty»): quello è una scelta dell'operatore, e
-   * un protocollo imposto non sposta il progressivo della serie.
+   * un numero imposto non sposta il progressivo della serie.
    */
   private refreshNumberPreview(): void {
     const type = this.form.controls.type.value;
@@ -4666,55 +4666,55 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .subscribe({
         next: ({ counters, proposedCounterId }) => {
           this._availableCounters.set(counters);
-          // Documento già numerato o protocollo digitato: non si tocca.
-          if (this.loadedDocument()?.reference || this.form.controls.protocolNumber.dirty) {
+          // Documento già numerato o numero digitato: non si tocca.
+          if (this.loadedDocument()?.reference || this.form.controls.documentNumber.dirty) {
             return;
           }
           const proposed = counters.find((entry) => entry.id === proposedCounterId);
           if (proposed) {
             this.form.controls.series.setValue(proposed.series ?? '');
-            this.proposeProtocolNumber(proposed.nextNumber);
+            this.proposeDocumentNumber(proposed.nextNumber);
           }
         },
         error: () => undefined,
       });
   }
 
-  /** Protocollo digitato in testata: vuoto = «assegnalo tu». */
-  protected onProtocolNumberChange(value: number | null): void {
-    this.imposeProtocolNumber(value);
+  /** Numero digitato in testata: vuoto = «assegnalo tu». */
+  protected onDocumentNumberChange(value: number | null): void {
+    this.imposeDocumentNumber(value);
   }
 
-  /** Serie scelta: il protocollo passa al progressivo di quel contatore. */
+  /** Serie scelta: il numero passa al progressivo di quel contatore. */
   protected onSeriesChange(value: string): void {
     this.form.controls.series.setValue(value);
     this.form.controls.series.markAsDirty();
     const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
     if (counter) {
-      this.proposeProtocolNumber(counter.nextNumber);
+      this.proposeDocumentNumber(counter.nextNumber);
     }
   }
 
   /**
-   * Protocollo SCELTO dall'operatore: viaggia al server, e se è già occupato il
-   * dialogo di conflitto è un'informazione utile. Un protocollo imposto non
+   * Numero SCELTO dall'operatore: viaggia al server, e se è già occupato il
+   * dialogo di conflitto è un'informazione utile. Un numero imposto non
    * sposta il progressivo della serie.
    */
-  private imposeProtocolNumber(value: number | null): void {
-    this.form.controls.protocolNumber.setValue(value);
-    this.form.controls.protocolNumber.markAsDirty();
-    this.protocolNumberImposed.set(true);
+  private imposeDocumentNumber(value: number | null): void {
+    this.form.controls.documentNumber.setValue(value);
+    this.form.controls.documentNumber.markAsDirty();
+    this.documentNumberImposed.set(true);
   }
 
   /**
-   * Protocollo PROPOSTO dalla serie: si mostra ma non si manda al salvataggio
-   * (vedi `requestedProtocolNumber`). Resta «pristine» apposta — è quel flag a
+   * Numero PROPOSTO dalla serie: si mostra ma non si manda al salvataggio
+   * (vedi `requestedDocumentNumber`). Resta «pristine» apposta — è quel flag a
    * distinguere la proposta dalla scelta.
    */
-  private proposeProtocolNumber(value: number | null): void {
-    this.form.controls.protocolNumber.setValue(value);
-    this.form.controls.protocolNumber.markAsPristine();
-    this.protocolNumberImposed.set(false);
+  private proposeDocumentNumber(value: number | null): void {
+    this.form.controls.documentNumber.setValue(value);
+    this.form.controls.documentNumber.markAsPristine();
+    this.documentNumberImposed.set(false);
   }
 
   /**
@@ -4722,7 +4722,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * proposta era «il primo libero adesso», e nel frattempo l'ha preso un altro.
    * La testata si allinea al numero vero — un campo che continua a mostrare il
    * 42 quando il documento è il 46 è peggio di nessun numero — e l'operatore lo
-   * viene a sapere: senza avviso trascriverebbe altrove un protocollo che non è
+   * viene a sapere: senza avviso trascriverebbe altrove un numero che non è
    * il suo.
    *
    * Niente avviso se il numero l'aveva imposto lui: quel caso ha già il suo
@@ -4730,7 +4730,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * Niente avviso nemmeno se la testata non mostrava alcun numero: non c'è
    * nulla che cambia sotto gli occhi di chi guarda.
    */
-  private reconcileAssignedProtocolNumber(
+  private reconcileAssignedDocumentNumber(
     doc: DocumentRecord,
     shownNumber: number | null,
     imposed: boolean,
@@ -4742,7 +4742,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // Allineare il campo non è una modifica dell'operatore: il documento resta
     // salvato, e `setValue` non tocca `dirty` — la proposta resta proposta e la
     // scelta resta scelta.
-    this.withDirtySuppressed(() => this.form.controls.protocolNumber.setValue(assigned));
+    this.withDirtySuppressed(() => this.form.controls.documentNumber.setValue(assigned));
     if (imposed || shownNumber == null) {
       return;
     }

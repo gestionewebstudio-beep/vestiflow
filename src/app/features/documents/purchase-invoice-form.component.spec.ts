@@ -87,7 +87,7 @@ describe('PurchaseInvoiceFormComponent', () => {
   interface SetupOptions {
     /** Contatori restituiti da GET /document-counters: alimentano la proposta. */
     readonly counters?: readonly DocumentCounterView[];
-    /** Protocollo che il server assegna davvero al salvataggio. */
+    /** Numero che il server assegna davvero al salvataggio. */
     readonly assignedNumber?: number;
   }
 
@@ -149,7 +149,7 @@ describe('PurchaseInvoiceFormComponent', () => {
           provide: ExternalDocumentTypeService,
           useValue: { list: () => of(EXTERNAL_TYPES) },
         },
-        // Serie del protocollo: una sola configurata → label statica.
+        // Serie del numero: una sola configurata → label statica.
         {
           provide: DocumentSettingsService,
           useValue: { getSettings: () => of([]) },
@@ -161,9 +161,9 @@ describe('PurchaseInvoiceFormComponent', () => {
     return { documentService, showInfo };
   }
 
-  /** Il campo Protocollo vive in due viste (mobile + desktop): stesso controllo. */
-  async function protocolInput(): Promise<HTMLInputElement> {
-    const inputs = await screen.findAllByLabelText<HTMLInputElement>('Protocollo');
+  /** Il campo Numero vive in due viste (mobile + desktop): stesso controllo. */
+  async function numberInput(): Promise<HTMLInputElement> {
+    const inputs = await screen.findAllByLabelText<HTMLInputElement>('Numero');
     return inputs[0]!;
   }
 
@@ -243,21 +243,21 @@ describe('PurchaseInvoiceFormComponent', () => {
     expect(typeTriggers[0]!.textContent).toContain('Fatt.');
   });
 
-  // ── Il protocollo proposto non torna al server come imposizione ─────────────
+  // ── Il numero proposto non torna al server come imposizione ─────────────
   //
   // Il numero che la maschera mostra all'apertura è il primo libero: una
   // proposta, non una scelta. Rimandarlo al salvataggio lo trasformava in
   // un'imposizione, e il secondo operatore si prendeva un dialogo di conflitto
   // per un numero che non aveva mai digitato — glielo aveva scritto la maschera.
-  it('non manda il protocollo proposto: lo assegna il server', async () => {
+  it('non manda il numero proposto: lo assegna il server', async () => {
     const user = userEvent.setup();
     const { documentService, showInfo } = await setup({
       counters: [COUNTER],
       assignedNumber: 42,
     });
 
-    const protocol = await protocolInput();
-    await waitFor(() => expect(protocol.value).toBe('42'));
+    const numero = await numberInput();
+    await waitFor(() => expect(numero.value).toBe('42'));
 
     await selectSupplier(user);
     await saveInvoice(user);
@@ -269,11 +269,11 @@ describe('PurchaseInvoiceFormComponent', () => {
 
   // Il numero digitato a mano resta una scelta dell'operatore, e va difesa: si
   // manda, e se è occupato il dialogo di conflitto ha qualcosa da dire.
-  it('manda il protocollo digitato dall’operatore', async () => {
+  it('manda il numero digitato dall’operatore', async () => {
     const user = userEvent.setup();
     const { documentService } = await setup();
 
-    await user.type(await protocolInput(), '77');
+    await user.type(await numberInput(), '77');
 
     await selectSupplier(user);
     await saveInvoice(user);
@@ -284,12 +284,12 @@ describe('PurchaseInvoiceFormComponent', () => {
   // Numero proposto e numero assegnato possono divergere: fra l'apertura e il
   // salvataggio un altro operatore può aver preso il 42. Non è un errore, ma
   // chi l'aveva già trascritto su carta deve sapere di avere il numero sbagliato.
-  it('avvisa quando il server assegna un protocollo diverso da quello proposto', async () => {
+  it('avvisa quando il server assegna un numero diverso da quello proposto', async () => {
     const user = userEvent.setup();
     const { showInfo } = await setup({ counters: [COUNTER], assignedNumber: 46 });
 
-    const protocol = await protocolInput();
-    await waitFor(() => expect(protocol.value).toBe('42'));
+    const numero = await numberInput();
+    await waitFor(() => expect(numero.value).toBe('42'));
 
     await selectSupplier(user);
     await saveInvoice(user);

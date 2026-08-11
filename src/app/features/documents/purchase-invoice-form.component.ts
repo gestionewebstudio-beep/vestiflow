@@ -184,10 +184,10 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
-    // Nuova registrazione: il protocollo proposto è il primo libero della
+    // Nuova registrazione: il numero proposto è il primo libero della
     // serie predefinita (in modifica resta quello già assegnato).
     afterNextRender(() => {
-      this.refreshProtocolProposal();
+      this.refreshDocumentNumberProposal();
       this.prefillFromDuplicateIfRequested();
       this.proposeDefaultCounterpartyType();
     });
@@ -233,8 +233,8 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     externalDocumentTypeId: this.fb.control(''),
     /** Data registrazione interna: default oggi, modificabile. */
     registrationDate: this.fb.control(todayIsoDate(), { validators: [Validators.required] }),
-    /** Protocollo interno: proposto dal progressivo di serie, editabile. */
-    protocolNumber: this.fb.control<number | null>(null),
+    /** Numero interno: proposto dal progressivo di serie, editabile. */
+    documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
     internalComment: this.fb.control(''),
     paymentMethod: this.fb.control(''),
@@ -276,7 +276,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   private readonly _counterpartyTypeSnapshot = signal<string | undefined>(undefined);
   protected readonly counterpartyTypeSnapshot = this._counterpartyTypeSnapshot.asReadonly();
 
-  // ── Protocollo interno (numerazione VestiFlow) ─────────────────────────────
+  // ── Numero interno (numerazione VestiFlow) ─────────────────────────────
 
   /**
    * Serie configurate per la Registrazione fattura. Oggi il tipo documento
@@ -302,27 +302,27 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   );
 
   /**
-   * «L'operatore ha toccato il protocollo?» in forma reattiva. Lo stato vero è
-   * `protocolNumber.dirty` — qui non se ne tiene una copia, si ascolta: gli
+   * «L'operatore ha toccato il numero?» in forma reattiva. Lo stato vero è
+   * `documentNumber.dirty` — qui non se ne tiene una copia, si ascolta: gli
    * eventi del controllo includono `PristineChangeEvent`, quindi il signal si
    * aggiorna DOPO il `markAsDirty()`, cosa che un `computed` appeso a
    * `valueChanges` non farebbe (l'emissione precede la marcatura).
    */
-  private readonly protocolPristine = toSignal(
-    this.form.controls.protocolNumber.events.pipe(
-      map(() => this.form.controls.protocolNumber.pristine),
+  private readonly documentNumberPristine = toSignal(
+    this.form.controls.documentNumber.events.pipe(
+      map(() => this.form.controls.documentNumber.pristine),
     ),
     { initialValue: true },
   );
 
   /**
-   * Il protocollo in testata è una PROPOSTA — il primo libero, che se lo prende
+   * Il numero in testata è una PROPOSTA — il primo libero, che se lo prende
    * chi salva per primo — finché il documento è nuovo e nessuno l'ha digitato.
    * Su un documento già salvato il numero è assegnato, e appena l'operatore lo
    * scrive diventa una sua scelta: in entrambi i casi non è più una proposta.
    */
-  protected readonly protocolIsProposal = computed(
-    () => !this.isEditMode() && this.protocolPristine(),
+  protected readonly documentNumberIsProposal = computed(
+    () => !this.isEditMode() && this.documentNumberPristine(),
   );
 
   /** Tipo documento fisso di questa maschera (per il pannello numerazioni). */
@@ -332,7 +332,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
 
   /**
    * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
-   * serie/protocollo — la selezione resta quella che era.
+   * serie/numero — la selezione resta quella che era.
    */
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
@@ -345,7 +345,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       });
   }
 
-  /** Conflitto protocollo restituito dal server: dialogo «Usa N» / «Annulla». */
+  /** Conflitto sul numero restituito dal server: dialogo «Usa N» / «Annulla». */
   // Avviso «numero già assegnato»: la macchina a stati vive in domain, qui
   // resta solo quale controllo della testata riceve il numero aggiornato.
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
@@ -449,7 +449,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       : 'Seleziona il fornitore per includere gli arrivi merce',
   );
 
-  /** Riepilogo del pannello registrazione: data interna, protocollo, pagamento. */
+  /** Riepilogo del pannello registrazione: data interna, numero, pagamento. */
   protected readonly registrationPanelSummaryParts = computed(() => {
     this.formChanges();
     const raw = this.form.getRawValue();
@@ -457,7 +457,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       raw.registrationDate
         ? `Registrata il ${formatDate(raw.registrationDate)}`
         : 'Data registrazione da indicare',
-      raw.protocolNumber != null ? `Protocollo ${raw.protocolNumber}` : 'Protocollo da assegnare',
+      raw.documentNumber != null ? `N. ${raw.documentNumber}` : 'Numero da assegnare',
       raw.paymentMethod.trim() || 'Pagamento non indicato',
     ];
   });
@@ -591,44 +591,44 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   protected readonly loadError = computed(() => this.loadState() === 'error');
   protected readonly notFound = computed(() => this.loadState() === 'not-found');
 
-  /** Protocollo digitato in testata: mai sotto 1, vuoto = «assegna tu». */
-  protected onProtocolNumberChange(value: number | null): void {
-    this.form.controls.protocolNumber.setValue(value);
-    this.form.controls.protocolNumber.markAsDirty();
+  /** Numero digitato in testata: mai sotto 1, vuoto = «assegna tu». */
+  protected onDocumentNumberChange(value: number | null): void {
+    this.form.controls.documentNumber.setValue(value);
+    this.form.controls.documentNumber.markAsDirty();
   }
 
-  /** Cambio serie: il protocollo si riallinea al progressivo di quella serie. */
+  /** Cambio serie: il numero si riallinea al progressivo di quella serie. */
   protected onSeriesChange(value: string): void {
     this.form.controls.series.setValue(value);
     this.form.controls.series.markAsDirty();
     const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
     if (counter) {
-      this.form.controls.protocolNumber.setValue(counter.nextNumber);
-      this.form.controls.protocolNumber.markAsPristine();
+      this.form.controls.documentNumber.setValue(counter.nextNumber);
+      this.form.controls.documentNumber.markAsPristine();
     }
   }
 
   /**
    * Carica i contatori disponibili e, su documento nuovo, propone il
-   * predefinito (serie + protocollo). Un valore digitato a mano non si tocca.
+   * predefinito (serie + numero). Un valore digitato a mano non si tocca.
    */
-  private refreshProtocolProposal(): void {
+  private refreshDocumentNumberProposal(): void {
     this.countersService
       .available(DocumentType.SupplierInvoice, null)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters, proposedCounterId }) => {
           this._availableCounters.set(counters);
-          if (this.isEditMode() || this.form.controls.protocolNumber.dirty) {
+          if (this.isEditMode() || this.form.controls.documentNumber.dirty) {
             return;
           }
           const proposed = counters.find((entry) => entry.id === proposedCounterId);
           if (proposed) {
-            // Proposta programmatica di serie/protocollo: non è una modifica utente.
+            // Proposta programmatica di serie/numero: non è una modifica utente.
             this.suppressDirtyMarking = true;
             try {
               this.form.controls.series.setValue(proposed.series ?? '');
-              this.form.controls.protocolNumber.setValue(proposed.nextNumber);
+              this.form.controls.documentNumber.setValue(proposed.nextNumber);
             } finally {
               this.suppressDirtyMarking = false;
             }
@@ -704,7 +704,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Presa d'atto dell'avviso: chiude e basta. Il protocollo in testata non si
+   * Presa d'atto dell'avviso: chiude e basta. Il numero in testata non si
    * tocca — il messaggio nomina il numero rifiutato e il primo libero, la
    * correzione è dell'operatore.
    */
@@ -1060,18 +1060,18 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       });
     }
 
-    // Il protocollo si manda solo se l'operatore l'ha davvero digitato. Quello
+    // Il numero si manda solo se l'operatore l'ha davvero digitato. Quello
     // che la maschera mostra all'apertura è una proposta: rimandarlo indietro lo
     // trasformerebbe in un'imposizione, e il secondo operatore si prenderebbe un
     // dialogo di conflitto per un numero che non ha mai scelto — glielo aveva
     // proposto la maschera. Omesso, il server assegna il primo libero al commit
     // e la concorrenza si risolve da sé, in silenzio.
     // Si omette SOLO la proposta di un documento nuovo: in modifica il
-    // protocollo è del documento, non una proposta, e va sempre mandato.
-    const protocolImposed = this.isEditMode() || this.form.controls.protocolNumber.dirty;
+    // numero è del documento, non una proposta, e va sempre mandato.
+    const documentNumberImposed = this.isEditMode() || this.form.controls.documentNumber.dirty;
     // Numero mostrato al momento dell'invio: va letto PRIMA della richiesta,
     // perché è con questo che si confronta quello assegnato dal server.
-    const shownProtocol = raw.protocolNumber;
+    const shownDocumentNumber = raw.documentNumber;
 
     this._submitState.set({ status: 'saving' });
     this.documentService
@@ -1099,9 +1099,9 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
           vatNumber: raw.recipient.vatNumber.trim() || undefined,
         },
         currency: this.currency,
-        // Protocollo imposto a mano: non sposta il progressivo della serie.
+        // Numero imposto a mano: non sposta il progressivo della serie.
         // Non imposto: campo assente, così il server lo assegna lui.
-        number: protocolImposed ? (raw.protocolNumber ?? undefined) : undefined,
+        number: documentNumberImposed ? (raw.documentNumber ?? undefined) : undefined,
         series: (raw.series ?? '').trim() || undefined,
         goodsReceiptIds: this.includedReceipts().map((row) => row.id),
         manualLines,
@@ -1111,7 +1111,11 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       .subscribe({
         next: ({ document }) => {
           this._submitState.set({ status: 'idle' });
-          this.notifyProtocolReassigned(document.number ?? null, shownProtocol, protocolImposed);
+          this.notifyDocumentNumberReassigned(
+            document.number ?? null,
+            shownDocumentNumber,
+            documentNumberImposed,
+          );
           // Registrazione salvata: il guard di uscita non deve più fermarla.
           this.dirtySinceLastSave.set(false);
           if (onSaved) {
@@ -1121,7 +1125,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
           void this.router.navigateByUrl(this.listPath);
         },
         error: (err: unknown) => {
-          // Protocollo già preso: il vincolo del database non ammette
+          // Numero già preso: il vincolo del database non ammette
           // duplicati, si può solo prendere il primo libero o correggere.
           const conflict = documentNumberConflictOf(err);
           if (conflict) {
@@ -1135,7 +1139,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Il protocollo assegnato dal server può non essere quello che la maschera
+   * Il numero assegnato dal server può non essere quello che la maschera
    * mostrava: fra l'apertura e il salvataggio un altro operatore può aver preso
    * il numero. Non è un errore — il primo libero spetta a chi salva prima — ma
    * va detto, perché chi l'aveva già trascritto altrove ha in mano un numero
@@ -1144,7 +1148,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
    * Solo sul numero proposto: se era stato imposto a mano il conflitto ha già
    * il suo dialogo, e raddoppiare l'avviso non aggiunge nulla.
    */
-  private notifyProtocolReassigned(
+  private notifyDocumentNumberReassigned(
     assigned: number | null,
     shown: number | null,
     imposed: boolean,
@@ -1220,7 +1224,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       externalDocNumber: doc.externalDocNumber ?? '',
       externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
       registrationDate: doc.registrationDate ? doc.registrationDate.slice(0, 10) : todayIsoDate(),
-      protocolNumber: doc.number ?? null,
+      documentNumber: doc.number ?? null,
       series: doc.series ?? '',
       internalComment: doc.internalComment ?? '',
       paymentMethod: doc.paymentMethod ?? '',
@@ -1313,7 +1317,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     this.suppressDirtyMarking = true;
     try {
       this.form.patchValue({
-        protocolNumber: null,
+        documentNumber: null,
         documentDate: todayIsoDate(),
         registrationDate: todayIsoDate(),
       });
@@ -1322,7 +1326,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       this.suppressDirtyMarking = false;
     }
     this.includedReceipts.set([]);
-    this.refreshProtocolProposal();
+    this.refreshDocumentNumberProposal();
   }
 
   private moneyToInputText(money: Money): string {

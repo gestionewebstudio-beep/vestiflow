@@ -18,7 +18,7 @@
 
     @if (loadedReference(); as reference) {
       <div class="doc-form__meta">
-        <p class="doc-form__internal-ref tabular-nums">N. interno: {{ reference }}</p>
+        <p class="doc-form__internal-ref tabular-nums">N. documento: {{ reference }}</p>
       </div>
     }
   </div>
@@ -49,7 +49,7 @@
       }
 
       <!-- Testata a celle unite, due blocchi (categoria B): il numero contabile
-           è quello del fornitore, il protocollo è nostro — separarli evita di
+           è quello del fornitore, il numero è nostro — separarli evita di
            confonderli. -->
       <div class="doc-form__header">
         <!-- Vista mobile (m-ref): testata a due pannelli apribili, come la
@@ -131,15 +131,14 @@
               </div>
 
               <app-document-number-field
-                numberLabel="Protocollo"
-                numberInputId="pi-m-protocol"
+                numberInputId="pi-m-number"
                 hint="Numero interno di catalogazione, non quello del fornitore."
-                [number]="form.controls.protocolNumber.value"
-                [isProposal]="protocolIsProposal()"
+                [number]="form.controls.documentNumber.value"
+                [isProposal]="documentNumberIsProposal()"
                 [series]="form.controls.series.value"
                 [seriesOptions]="seriesOptions()"
                 [canManageSeries]="true"
-                (numberChange)="onProtocolNumberChange($event)"
+                (numberChange)="onDocumentNumberChange($event)"
                 (seriesChange)="onSeriesChange($event)"
                 (manageSeries)="seriesDialogOpen.set(true)"
               />
@@ -157,13 +156,13 @@
             </div>
 
             <p class="doc-panel__helper">
-              Protocollo e serie si propongono da soli, restano modificabili.
+              Numero e serie si propongono da soli, restano modificabili.
             </p>
           </app-document-mobile-panel>
         </div>
 
         <!-- Testata a due fasce (riferimento OC): la prima porta la
-             registrazione VestiFlow (fornitore, data, protocollo, commento), la
+             registrazione VestiFlow (fornitore, data, numero, commento), la
              seconda (fondo soft) il documento del fornitore. Le vecchie
              etichette di blocco non servono più: la separazione la danno le
              fasce stesse. -->
@@ -203,15 +202,14 @@
           </div>
 
           <app-document-number-field
-            numberLabel="Protocollo"
-            numberInputId="pi-protocol"
+            numberInputId="pi-number"
             hint="Numero interno di catalogazione, non quello del fornitore."
-            [number]="form.controls.protocolNumber.value"
-            [isProposal]="protocolIsProposal()"
+            [number]="form.controls.documentNumber.value"
+            [isProposal]="documentNumberIsProposal()"
             [series]="form.controls.series.value"
             [seriesOptions]="seriesOptions()"
             [canManageSeries]="true"
-            (numberChange)="onProtocolNumberChange($event)"
+            (numberChange)="onDocumentNumberChange($event)"
             (seriesChange)="onSeriesChange($event)"
             (manageSeries)="seriesDialogOpen.set(true)"
           />
@@ -755,7 +753,7 @@
      rifiutato e il primo libero, la correzione è dell'operatore. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
-  title="Protocollo già usato"
+  title="Numero già usato"
   [message]="conflictMessage()"
   confirmLabel="OK"
   [acknowledge]="true"
