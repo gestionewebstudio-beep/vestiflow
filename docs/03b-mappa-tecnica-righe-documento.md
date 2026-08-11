@@ -733,6 +733,40 @@ La variante di prova dell'Ordine fornitore era scritta a mano con cinque campi s
 
 **Il segnale:** una prova che fallisce dicendo «non trovo l'elemento» **mentre lo stato interno è giusto**. Se lo stato dice che i risultati ci sono e il DOM non li mostra, il sospetto va al calcolo che li trasforma — e quasi sempre al dato che lo alimenta, non al calcolo.
 
+### 12.0-ter-bis ⚠️ Un finto che mente sul TEMPO è la quinta variante
+
+_(11/08/2026)_ La quarta variante era un dato di prova che mentiva sul **tipo**. Questa mente sul **tempo**, e ha tenuto verde un difetto che l'operatore vedeva a occhio.
+
+Il finto `createLine` del banco di prova del punto unico aggiungeva la riga **e montava i suoi elementi nel DOM nella stessa istruzione**. Angular non fa così: la riga entra nella `FormArray` subito, ma viene disegnata al giro di rilevamento successivo. Nella maschera vera, quindi, il fuoco partiva verso un elemento che non c'era ancora — e `focus()` su un elemento assente **non solleva niente e non fa niente**.
+
+Risultato: ↓ dalla quantità creava la riga nuova e lasciava il cursore dov'era, su **tutte e tre le maschere**, con 1104 test verdi.
+
+> **I finti che simulano un'operazione asincrona del framework devono restare asincroni.**
+>
+> ```ts
+> const createLine = vi.fn(() => {
+>   righe += 1;
+>   montaRiga(righe - 1);
+> }); // ⛔ tempo che non esiste
+> const createLine = vi.fn(() => {
+>   righe += 1;
+>   const n = righe - 1;
+>   setTimeout(() => montaRiga(n));
+> }); // ✅ come Angular
+> ```
+>
+> E le prove che contano il fuoco **aspettano quel giro**. Se la prova non aspetta, non sta provando il gesto: sta provando la propria comodità.
+
+**La correzione, e dove va messa.** Il gancio di riga (voce 8 del contratto) NON poteva servire: rimanda la **creazione**, non il fuoco. Sono due tempi diversi — «quando posso lasciare la riga di partenza» (della maschera: l'Arrivo merce deve prima collegare i codici) e «quando è pronta quella di arrivo» (del framework, uguale per tutte). Il secondo sta nel punto unico: si prova subito, si riprova solo finché l'elemento non c'è, al massimo tre giri. E `focusField` ora **restituisce se ha agganciato**, così «non ho trovato niente» smette di essere indistinguibile da «ho messo il fuoco».
+
+### 12.0-ter-ter ⚠️ Togliere un `output()` non fa errore di compilazione
+
+_(11/08/2026)_ Togliendo un `input()` il compilatore protesta subito: `NG8002: Can't bind to 'linkedLabel'`. Togliendo un `output()` **tace**: `(detailOpen)="apri(i)"` su un componente che non ha più quell'uscita viene preso per un **evento del DOM**, si registra su un evento che nessuno emetterà mai, e resta lì come collegamento morto.
+
+Tre di questi sono sopravvissuti a una compilazione pulita e li ho tolti a mano. Non è una svista del framework: è la stessa sintassi per gli eventi nativi e per le uscite dei componenti, quindi «non lo conosco» non può essere un errore.
+
+> Dopo aver tolto un `output()`, si cerca il suo nome nei template. Il compilatore copre gli ingressi, non le uscite.
+
 ### 12.0-quater ⚠️ Tre regole in fila per tornare al punto di partenza
 
 _(11/08/2026)_ Il blocco righe a testata incompleta era spento al 55% dal foglio globale, spento **ancora** dal foglio mobile, e **riacceso** con `opacity: 1` dal foglio mobile di riferimento — che nel suo commento portava già la conclusione giusta: «titolo e stato vuoto vanno letti, sono proprio loro a spiegare cosa fare».

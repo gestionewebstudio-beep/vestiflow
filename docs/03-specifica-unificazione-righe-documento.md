@@ -528,8 +528,10 @@ Prodotti e Clienti hanno le frecce inerti come i documenti (sequenza fissa scrit
 
 - **Solo col mouse**, trascinando la riga. Niente Ctrl+↑/↓ (§7.3).
 - Eccezione all'ordinamento automatico: dopo un ordine, una riga si sposta a mano.
-- Precedente: **Ordine cliente ha già il drag** (`cdkDropList`/`cdkDrag`, `lineNumber` da indice, `orderBy` in lettura). **Unica** maschera che ce l'ha → copiare. Il salvataggio c'è quasi ovunque (tranne Ordine fornitore); il gesto va propagato.
-- Priorità: non alta.
+- **✅ Fatto (11/08/2026).** Il gesto c'è su Arrivo merce, Ordine fornitore e Trasferimento, oltre all'Ordine cliente che l'aveva già. La maniglia è **la cella del numero riga**: si afferra il `#`, il resto della riga resta cliccabile per modificare le celle.
+- L'Ordine fornitore non aveva nemmeno dove salvare l'ordine delle righe: la colonna `lineNumber` è stata aggiunta con una migration scritta a mano (§0).
+- _Trovato aggiungendo la colonna `#` dove non c'era:_ la stessa colonna nasce **larga zero** dove le altre sono in percentuale — aggiunta e invisibile — e **larga un sesto della tabella** dove le larghezze sono automatiche. La misura va detta esplicitamente, e ora è la stessa ovunque.
+- Rettifica inventario resta in attesa, come per l'ordinamento: prima si decidono le sue colonne.
 
 ### 7.3 Ctrl + ↑ / ↓ — non incluso
 
@@ -583,7 +585,29 @@ _Verificato sul codice (11/08/2026): è già così in tutte e tre le maschere �
 
 ---
 
+## 9-bis. La riga porta il proprio nome — e la cella torna a essere UN campo
+
+**[DECISIONE, 11/08/2026]**
+
+**Il nome dell'articolo si scrive anche quando l'articolo è agganciato.** Quel testo è la descrizione di **quella riga**, non dell'anagrafica: correggerlo sul documento non torna indietro sulla scheda articolo, esattamente come il prezzo di riga non riscrive il listino. Chi vende «Maglietta / M / Rosso» e sul documento vuole scrivere «Rosso scuro, seconda scelta» lo fa senza scollegare niente e senza toccare il catalogo.
+
+Prima la cella aveva **due aspetti diversi**: un campo scrivibile su riga libera, un testo fisso con tre icone su riga agganciata. Adesso è un campo solo, sempre.
+
+**La ✕ non c'è più.** Era nata per svuotare la riga, e la riga si toglie **col cestino in fondo**: due gesti per la stessa cosa. Il peggio è che ne faceva tre diverse — l'arrivo merce teneva il nome e riportava il cursore, l'ordine fornitore lasciava nella riga i codici di un articolo ormai scollegato, l'ordine cliente svuotava tutto compresa l'unità di misura. Nessuna delle tre era scritta da nessuna parte.
+
+**Anche «apri anagrafica» perde la sua icona.** Stava su **ogni riga di ogni documento**, in una colonna che già tronca il nome, per un gesto che si fa di rado. Ci si arriva dalla lente: il pannello si apre col nome della riga, quindi l'articolo collegato è il primo risultato e da lì si apre la scheda. Un gesto in più in un caso raro, un'icona in meno sempre. Resta valido §8-bis: da qualunque punto si apra l'anagrafica, si torna dove si era col documento intatto.
+
+**Cosa resta nella cella:** il campo, e la lente. Su riga agganciata la lente dice «Cerca un altro prodotto» — è anche il modo di **sostituire** l'articolo, che è ciò che la ✕ voleva fare a metà.
+
+**Perimetro: 6 tipi documento su 10.** Ordine cliente, DDT vendita, Preventivo, Scarico manuale, Arrivo merce, Ordine fornitore — le tre maschere che usano la cella condivisa. Proforma, Fattura e Fattura accompagnatoria hanno **già** la descrizione sempre scrivibile (con l'articolo su una colonna a parte): stessa sostanza, meccanismo diverso, che si allineerà col Filone B. Trasferimento e Rettifica non hanno un nome libero.
+
+_Difetto trovato applicando la decisione:_ l'**Ordine fornitore** mandava al salvataggio il **titolo del catalogo** invece del nome della riga. Finché la cella non era scrivibile non si vedeva; da oggi il testo scritto sarebbe sparito alla riapertura, **senza dire niente**. Lo spazio dove il nome vive esisteva già in tutti e sei — sull'Ordine cliente lo schema lo chiama perfino «snapshot al momento della vendita».
+
+---
+
 ## 9. Cella prodotto: striscia icone (`domain/`, nessuna collisione)
+
+> ⚠️ **Superata da §9-bis (11/08/2026).** Questa sezione descriveva una striscia di **tre** icone dentro la cella. Le icone sono rimaste **una**: la ✕ e «apri anagrafica» sono state tolte, e il nome è scrivibile sempre. Resta valido il principio che l'ha scritta — spazio riservato invece di comparsa all'hover, niente testo che ruba larghezza al nome — e la storia del difetto che l'ha motivata. Non vale più il conteggio delle icone né la biforcazione del template su `linked()`, che oggi decide solo se i suggerimenti tacciono.
 
 Difetto: la cella "Nome prodotto" fa tre lavori; l'hover fa comparire un link che ruba larghezza al nome (a capo sporco) o altezza. Causa: elemento senza spazio riservato (`display:none`→`inline-flex` su hover).
 
