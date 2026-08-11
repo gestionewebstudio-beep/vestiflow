@@ -1,0 +1,19 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-05);
+  min-inline-size: 0;
+}
+
+// L'ultimo della striscia è il totale: si allinea a destra da sé.
+:host(:last-child) {
+  text-align: end;
+}
+
+// Etichette dei controlli: NON maiuscole, NON le più piccole — sono secondarie
+// per colore, non per dimensione. Distinte apposta dalle etichette dei campi
+// nel corpo, che sono maiuscoletto minuto.
+.doc-line-card-control__label {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}

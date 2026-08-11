@@ -2195,3 +2195,39 @@ app-customer-order-form {
 .doc-form .doc-form__table tbody tr.cdk-drag-dragging {
   opacity: 0.5;
 }
+
+// ── Card di riga: la misura dei controlli proiettati ───────────────────────
+//
+// `app-document-line-card-field` dà al campo la forma (etichetta sopra,
+// controllo sotto, mezza colonna della griglia) ma NON può vestire il controllo:
+// quello arriva proiettato dalla maschera, quindi porta l'incapsulamento di chi
+// lo scrive e nessuna regola del componente lo raggiunge — e `::ng-deep` per
+// arrivarci è vietato.
+//
+// Queste regole stanno qui perché è l'unico livello che vede sia la card sia
+// `doc-form__input`, che è già una classe globale. Sono la stessa misura che la
+// card dell'Ordine cliente applicava dentro di sé quando il markup era suo.
+.doc-line-card-field .doc-form__input,
+.doc-line-card-field select.doc-form__input {
+  block-size: var(--control-h-touch);
+  min-block-size: var(--control-h-touch);
+  padding-inline: var(--space-2);
+  font-size: var(--text-lg);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+// Valori calcolati: stessa altezza dei campi, ma si vede che non si scrivono.
+.doc-line-card-field--readonly p {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  block-size: var(--control-h-touch);
+  padding-inline: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-readonly-fg);
+  background-color: var(--color-readonly-bg);
+  border: var(--border-width) solid var(--color-readonly-border);
+  border-radius: var(--radius-sm);
+}

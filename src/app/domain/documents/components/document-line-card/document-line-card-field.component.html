@@ -1,0 +1,6 @@
+@if (controlId(); as id) {
+  <label class="doc-line-card-field__label" [attr.for]="id">{{ label() }}</label>
+} @else {
+  <span class="doc-line-card-field__label">{{ label() }}</span>
+}
+<ng-content />
