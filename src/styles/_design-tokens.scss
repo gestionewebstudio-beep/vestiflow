@@ -80,6 +80,12 @@
   --color-info: #2d6685;
   --color-info-subtle: #eef6fa;
 
+  // Campo obbligatorio ancora da compilare, mentre le righe aspettano.
+  // NON è `--color-danger`: il rosso qui vuol dire «hai provato a salvare e
+  // questo è sbagliato», e aprire un documento nuovo non è un errore. Terracotta
+  // smorzata: si nota senza allarmare.
+  --color-field-waiting: rgb(157 69 16 / 0.63);
+
   --color-danger-hover: #96302a;
   --color-danger-fg: #ffffff;
   --color-danger-border: rgb(179 58 50 / 0.25);
@@ -296,6 +302,9 @@
   --color-danger-subtle: rgb(224 121 111 / 0.14);
   --color-info: #6aa8c9;
   --color-info-subtle: rgb(106 168 201 / 0.14);
+
+  // Stessa terracotta schiarita: sul fondo scuro quella chiara sparirebbe.
+  --color-field-waiting: rgb(214 130 74 / 0.72);
 
   --color-danger-hover: #ec8f86;
   --color-danger-fg: #14191b;
