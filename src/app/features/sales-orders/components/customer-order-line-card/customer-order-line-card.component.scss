@@ -396,6 +396,12 @@
   grid-column: 1 / -1;
 }
 
+// Ancora della scelta aperta da un codice: il pannello condiviso si stende in
+// assoluto rispetto al campo, come fa gia' per il nome prodotto.
+.co-card__field--anchor {
+  position: relative;
+}
+
 .co-card__field label,
 .co-card__field-label {
   margin-block-end: var(--space-1);

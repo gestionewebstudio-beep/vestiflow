@@ -206,7 +206,10 @@
       <div class="co-card__grid">
         <p class="co-card__group co-card__group--first">Articolo</p>
 
-        <div class="co-card__field">
+        <!-- I tre campi codice ancorano la scelta fra più corrispondenze
+             esatte: uno solo per volta la mostra, quello da cui si è
+             confermato. Su mobile la si prende TOCCANDO — niente frecce. -->
+        <div class="co-card__field co-card__field--anchor">
           <label [attr.for]="'co-m-code-' + v.index">Cod. articolo</label>
           <input
             [id]="'co-m-code-' + v.index"
@@ -215,11 +218,25 @@
             [formControl]="l.articleCode"
             placeholder="—"
             autocomplete="off"
+            [attr.aria-expanded]="v.codeChoice?.field === 'articleCode'"
+            [attr.aria-controls]="'co-m-code-choice-' + v.index"
+            (focus)="codeFocused.emit('articleCode')"
+            (blur)="codeBlurred.emit()"
             (keydown.enter)="codeCommitted.emit('articleCode'); $event.preventDefault()"
           />
+          @if (v.codeChoice?.field === 'articleCode') {
+            <app-document-line-suggestions
+              [items]="v.codeChoice!.items"
+              [activeIndex]="null"
+              [placement]="v.suggestAbove ? 'above' : 'below'"
+              [listboxId]="'co-m-code-choice-' + v.index"
+              ariaLabel="Articoli con questo codice"
+              (picked)="pickCodeSuggestion($event)"
+            />
+          }
         </div>
 
-        <div class="co-card__field">
+        <div class="co-card__field co-card__field--anchor">
           <label [attr.for]="'co-m-sku-' + v.index">SKU</label>
           <input
             [id]="'co-m-sku-' + v.index"
@@ -228,11 +245,25 @@
             [formControl]="l.sku"
             placeholder="—"
             autocomplete="off"
+            [attr.aria-expanded]="v.codeChoice?.field === 'sku'"
+            [attr.aria-controls]="'co-m-sku-choice-' + v.index"
+            (focus)="codeFocused.emit('sku')"
+            (blur)="codeBlurred.emit()"
             (keydown.enter)="codeCommitted.emit('sku'); $event.preventDefault()"
           />
+          @if (v.codeChoice?.field === 'sku') {
+            <app-document-line-suggestions
+              [items]="v.codeChoice!.items"
+              [activeIndex]="null"
+              [placement]="v.suggestAbove ? 'above' : 'below'"
+              [listboxId]="'co-m-sku-choice-' + v.index"
+              ariaLabel="Articoli con questo SKU"
+              (picked)="pickCodeSuggestion($event)"
+            />
+          }
         </div>
 
-        <div class="co-card__field co-card__field--full">
+        <div class="co-card__field co-card__field--full co-card__field--anchor">
           <label [attr.for]="'co-m-barcode-' + v.index">EAN</label>
           <input
             [id]="'co-m-barcode-' + v.index"
@@ -241,8 +272,22 @@
             [formControl]="l.barcode"
             placeholder="—"
             autocomplete="off"
+            [attr.aria-expanded]="v.codeChoice?.field === 'barcode'"
+            [attr.aria-controls]="'co-m-barcode-choice-' + v.index"
+            (focus)="codeFocused.emit('barcode')"
+            (blur)="codeBlurred.emit()"
             (keydown.enter)="codeCommitted.emit('barcode'); $event.preventDefault()"
           />
+          @if (v.codeChoice?.field === 'barcode') {
+            <app-document-line-suggestions
+              [items]="v.codeChoice!.items"
+              [activeIndex]="null"
+              [placement]="v.suggestAbove ? 'above' : 'below'"
+              [listboxId]="'co-m-barcode-choice-' + v.index"
+              ariaLabel="Articoli con questo EAN"
+              (picked)="pickCodeSuggestion($event)"
+            />
+          }
         </div>
 
         <div class="co-card__field co-card__field--full">

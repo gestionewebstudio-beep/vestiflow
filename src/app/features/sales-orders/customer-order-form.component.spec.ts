@@ -749,6 +749,13 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
       readonly isOpenOn: (index: number, field: string) => boolean;
       readonly matches: () => readonly { readonly variantId: string }[];
     };
+    readonly lineCardVm: (index: number) => {
+      readonly codeChoice: {
+        readonly field: string;
+        readonly items: readonly { readonly variantId: string }[];
+      } | null;
+    };
+    readonly addLine: () => void;
     readonly lines: {
       at: (i: number) => {
         controls: Record<string, { setValue: (v: unknown) => void; value: unknown }>;
@@ -800,5 +807,40 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
 
     expect(form.codeLookup.isOpenOn(0, 'sku')).toBe(false);
     expect(form.lines.at(0).controls['variantId']!.value).toBe('var-M');
+  });
+
+  // La stessa scelta deve avere dove mostrarsi anche nella card mobile: la
+  // decisione vale su Ordine cliente, non su Ordine cliente desktop. Senza
+  // questa, da telefono la riga non si agganciava e non lo diceva.
+  it('la card mobile riceve la scelta sotto il campo da cui si è confermato', async () => {
+    const form = await apri([
+      variante({ variantId: 'var-M', sku: 'MAG-M' }),
+      variante({ variantId: 'var-L', sku: 'MAG-L' }),
+    ]);
+    form.lines.at(0).controls['articleCode']!.setValue('ART-9');
+
+    form.commitCodeLookup(0, 'articleCode');
+
+    const choice = form.lineCardVm(0).codeChoice;
+    expect(choice?.field).toBe('articleCode');
+    expect(choice?.items.map((item) => item.variantId)).toEqual(['var-M', 'var-L']);
+  });
+
+  // Il controllo inverso: la card non deve mostrare un pannello quando non c'è
+  // niente da scegliere, e nemmeno su una riga che non è quella della scelta.
+  it('la card mobile non mostra niente senza scelta, né sulle altre righe', async () => {
+    const form = await apri([
+      variante({ variantId: 'var-M', sku: 'MAG-M' }),
+      variante({ variantId: 'var-L', sku: 'MAG-L' }),
+    ]);
+    form.addLine();
+    expect(form.lineCardVm(0).codeChoice).toBeNull();
+
+    form.lines.at(0).controls['articleCode']!.setValue('ART-9');
+    form.commitCodeLookup(0, 'articleCode');
+
+    // La scelta è della riga che l'ha aperta: la seconda card non deve
+    // mostrare il pannello di un'altra riga.
+    expect(form.lineCardVm(1).codeChoice).toBeNull();
   });
 });

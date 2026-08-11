@@ -96,6 +96,18 @@ Un prefisso più indice **non basta**: serve la mappa completa.
 
 **Quarto spazio di nomi, mai raggiunto dal TypeScript:** le card mobile dell'Ordine cliente espongono identificativi propri (`co-m-…`) che nessun `.ts` conosce. Su mobile la navigazione **non esiste**. Peggio: le due viste convivono nel DOM e la tabella è nascosta sotto il breakpoint, quindi `getElementById` trova l'elemento desktop in `display:none` e `.focus()` è un no-op silenzioso.
 
+#### ⚠️ Due viste vive insieme — da guardare al passo 3 _(verificato 08/2026)_
+
+Riconosciuto come difetto a sé, perché non riguarda solo il fuoco e continuerà a produrne altri finché resta.
+
+**Il fatto.** La tabella desktop **non è dentro un `@if`**: sotto il breakpoint è nascosta dal CSS, non rimossa (`doc-form__table-wrap`, sempre reso). Anche le card mobile sono sempre nel DOM. Quindi ogni riga esiste **due volte**, con due insiemi di identificativi (`co-…` e `co-m-…`), e una delle due copie è sempre invisibile.
+
+**Cosa produce, oltre al fuoco.** Ogni stato condiviso fra le due viste si apre in entrambe, e in una non si vede. È già successo: la scelta fra più codici si apriva nella cella desktop nascosta mentre l'operatore guardava la card — la riga non si agganciava e nulla lo diceva. Sanato dando alla card il proprio pannello (§3-ter), ma **il difetto di fondo resta**: il prossimo stato condiviso rifarà la stessa cosa, e di nuovo in silenzio.
+
+**Perché tocca il passo 3.** Il punto unico della navigazione lavora per identificativo (`getElementById`). Con due viste vive, «l'id della riga _i_, campo _x_» **non è univoco**: la risposta giusta dipende da quale vista l'operatore sta guardando, che il TypeScript non sa. Va deciso **prima** di innestare la navigazione, non dopo: (a) rendere le due viste esclusive con un `@if`, e allora l'id torna univoco; (b) dare al punto unico la vista corrente come dato, sullo stesso principio con cui riceve l'ordine dei campi (§4.7 della specifica). Nessuna delle due è stata scelta.
+
+⚠️ La (a) non è gratis: `@if` **smonta e rimonta** i controlli a ogni attraversamento del breakpoint, e va verificato cosa succede allo stato del form e al fuoco quando si ruota un tablet. La (b) non tocca il DOM ma raddoppia la mappa degli id. La misura da fare prima di scegliere è quella, non il conteggio delle righe.
+
 ### 2.4 `commitLineAndSave` — il nome mente
 
 Il commento sopra il metodo lo dichiara già: non salva, il documento si persiste solo con «Salva documento». Cosa fa davvero: collega i codici digitati alla variante di catalogo scrivendo **solo nel reactive form**. **Nessuna scrittura HTTP.**
@@ -286,6 +298,14 @@ Chiude §3-bis su tutte e tre le maschere. **La catena non è stata copiata: è 
 **Come il codice digitato arriva fino all'aggancio:** `onVariantSelect(index, variantId, linkedWith?)` in entrambe le maschere; lo passa `commitCodeLookup` quando il campo di partenza è `supplierCode`, e `onCodeSuggestionPick` leggendo `codeLookup.field()` **prima** di chiudere la scelta — dopo, il campo d'origine non c'è più.
 
 **Un secondo difetto trovato scrivendo la prova, non prima.** In Arrivo merce il campo lo riempie il **riallineamento in blocco** (`syncLineCodesFromVariants`), non l'aggancio: assegnare la variante fa ricaricare i riepiloghi e un `effect` riscrive i codici. Quel riallineamento sovrascriveva **anche un campo già compilato** — quindi il codice appena digitato spariva un istante dopo, in silenzio, sostituito da quello di un altro fornitore. Ora riempie solo un campo vuoto. Il ricalcolo quando **cambia il fornitore** (`syncSupplierSkuOnAllLines`) resta invece a sostituire, ed è giusto: lì i codici cambiano davvero tutti.
+
+**La stessa scelta esiste anche nella card mobile** _(fatto 08/2026)_ — Ordine cliente è l'unica maschera che porta campi codice in vista mobile (la card dell'Arrivo merce ha solo ricerca articolo e IVA, verificato). La decisione vale su **Ordine cliente**, non su Ordine cliente desktop, e senza il pannello nella card da telefono la riga non si agganciava e non lo diceva.
+
+**Su mobile la scelta si prende TOCCANDO**, e non è una replica del desktop: non c'è tastiera fisica, quindi non c'è voce «evidenziata» da scorrere e il pannello riceve `activeIndex: null` invece di zero — accendere la prima voce sarebbe un invito a premere Invio che lì non ha bersaglio. Il pannello è lo stesso (`document-line-suggestions`), che è **già tarato per il tocco**: target minimo fisso e stato `:active`, «perché `:hover` su touch non è affidabile», entrambi con commento nel suo SCSS. ⚠️ Nessun e2e prova però il tap: è intento dichiarato più uso quotidiano sul nome prodotto, non una verifica automatica.
+
+⚠️ **Lo sfocamento chiude con ritardo** (`MOBILE_PICK_GRACE_MS`, 200 ms, **misura mai presa** — è il valore già in uso per i suggerimenti sul nome, adottato invece di sceglierne un secondo). Serve perché il pannello copre i campi sotto: chiudendo subito, il tocco successivo finirebbe su una voce invece che sul campo voluto, agganciando un articolo per sbaglio. Il pannello si difende anche da sé con `mousedown.preventDefault`, ma quella difesa non è mai stata verificata su un dispositivo vero.
+
+⚠️ **Resta aperto, ed è una domanda di prodotto:** nella card mobile i campi codice confermano **solo con Invio**, non allo sfocamento — quindi passando da un campo all'altro col tocco il codice non viene confrontato. Sul desktop lo fanno Tab e lo sfocamento. È una differenza **preesistente**, non introdotta qui, e non è stata decisa.
 
 ⚠️ **In Ordine fornitore la seconda fonte manca**, e resta il seguito naturale: quella maschera non carica i collegamenti del fornitore di testata, quindi agganciando per nome/SKU/EAN il campo **resta vuoto** e lo compila l'operatore. Vuoto è corretto — meglio di un codice che al proprio fornitore non dice niente — ma non è il meglio possibile. Il pezzo che serve esiste già ed è in uso nell'Arrivo merce: `SupplierService.getVariantLinksBySupplier`.
 

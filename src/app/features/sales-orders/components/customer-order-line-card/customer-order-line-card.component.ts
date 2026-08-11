@@ -8,10 +8,10 @@ import { DocumentLineSuggestionsComponent } from '@domain/documents/components/d
 import type {
   CustomerOrderLineCardGroup,
   CustomerOrderLineCardVm,
+  LineCodeField,
 } from '../../models/customer-order-line-card.model';
 
-/** Il campo codice su cui l'utente ha premuto Invio: il form ci cerca il prodotto. */
-export type LineCodeField = 'articleCode' | 'sku' | 'barcode';
+export type { LineCodeField };
 
 /**
  * Riga documento come card, sotto lg.
@@ -65,6 +65,12 @@ export class CustomerOrderLineCardComponent {
   /** +1 o -1 sulla quantita': il form applica il minimo e marca il documento sporco. */
   readonly quantityStepped = output<1 | -1>();
   readonly codeCommitted = output<LineCodeField>();
+  /** Entrata in un campo codice: il form chiude una scelta aperta altrove. */
+  readonly codeFocused = output<LineCodeField>();
+  /** Uscita da un campo codice: il form chiude la scelta rimasta aperta. */
+  readonly codeBlurred = output<void>();
+  /** Voce scelta dalla scelta codici: la card la traduce in id variante. */
+  readonly codeSuggestionPicked = output<string>();
   /** L'elemento, non il testo: il form ci misura dove aprire i suggerimenti. */
   readonly productNameTyped = output<HTMLInputElement>();
   readonly productNameFocused = output<HTMLInputElement>();
@@ -79,6 +85,18 @@ export class CustomerOrderLineCardComponent {
     const item = this.vm().suggestions[index];
     if (item) {
       this.suggestionPicked.emit(item.variantId);
+    }
+  }
+
+  /**
+   * Stessa traduzione per la scelta aperta da un codice, ma su un'altra lista:
+   * indice e voci sono quelli del `codeChoice`, non dei suggerimenti sul nome.
+   * Sono due collezioni con lunghezze diverse — confonderle sfaserebbe il pick.
+   */
+  protected pickCodeSuggestion(index: number): void {
+    const item = this.vm().codeChoice?.items[index];
+    if (item) {
+      this.codeSuggestionPicked.emit(item.variantId);
     }
   }
 }

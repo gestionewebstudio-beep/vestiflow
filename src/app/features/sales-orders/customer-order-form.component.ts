@@ -188,7 +188,10 @@ import {
   SALES_DDT_LINES_VIEW,
 } from './models/customer-order-line-columns.config';
 import { redistributeColumnWidths } from './models/column-width-distribution.util';
-import type { CustomerOrderLineCardVm } from './models/customer-order-line-card.model';
+import type {
+  CustomerOrderLineCardVm,
+  LineCodeChoice,
+} from './models/customer-order-line-card.model';
 import {
   SalesOrderService,
   type SaveManualOrderInput,
@@ -208,6 +211,17 @@ type CustomerOrderLineFocusField =
  * controllo che non esiste.
  */
 type CustomerOrderCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 'barcode'>;
+
+/**
+ * Quanto si aspetta, allo sfocamento di un campo, prima di chiudere un pannello
+ * aperto sotto di esso: il tempo perché il tocco arrivi alla voce.
+ *
+ * Non è una preferenza estetica ed è una **misura mai presa**: 200 ms era il
+ * valore già in uso per i suggerimenti sul nome prodotto, e la scelta dei codici
+ * lo adotta invece di sceglierne un secondo. Se un giorno sembrerà un numero
+ * motivato, non lo è.
+ */
+const MOBILE_PICK_GRACE_MS = 200;
 type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
@@ -1931,6 +1945,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         detail: this.mobileSuggestionDetail(variant),
       })),
       suggestionsOpen: this.lineSuggestionsOpen(index),
+      codeChoice: this.mobileCodeChoice(index),
       suggestAbove: this.mobileSuggestAbove(),
       activeSuggestionIndex: this.activeSuggestionIndex(),
       readOnly: this.formReadOnly(),
@@ -2735,7 +2750,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   protected onLineProductBlur(_index: number): void {
     // Ritardo per lasciar arrivare il click sulla voce del dropdown.
-    setTimeout(() => this.clearProductAutocomplete(), 200);
+    setTimeout(() => this.clearProductAutocomplete(), MOBILE_PICK_GRACE_MS);
   }
 
   protected onProductSuggestionPick(lineIndex: number, variantId: string): void {
@@ -2923,6 +2938,48 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this.codeLookup.clear();
         this.focusNextLineField(index, field);
       });
+  }
+
+  /**
+   * La stessa scelta, per la card mobile: quale campo la mostra e con quali
+   * voci. Il testo lo compone qui — la card non formatta valute.
+   *
+   * `activeIndex` non viaggia: su mobile non ci sono frecce, quindi non c'è una
+   * voce «evidenziata» da scorrere. Si sceglie toccando, e il pannello riceve
+   * `null` invece di zero, che avrebbe acceso la prima voce come se fosse
+   * preselezionata — un invito a premere Invio che qui non ha bersaglio.
+   */
+  protected mobileCodeChoice(index: number): LineCodeChoice | null {
+    const field = this.codeLookup.field();
+    if (!field || field === 'supplierCode' || !this.codeLookup.isOpenOnLine(index)) {
+      return null;
+    }
+    return {
+      field,
+      items: this.codeLookup.matches().map((variant) => ({
+        variantId: variant.variantId,
+        title: variant.title,
+        detail: this.mobileSuggestionDetail(variant),
+      })),
+    };
+  }
+
+  /**
+   * Uscita da un campo codice della card: chiude la scelta rimasta aperta,
+   * **con un ritardo**. Il pannello che sta sotto copre i campi seguenti: se
+   * restasse aperto, il tocco successivo dell'operatore finirebbe su una voce
+   * invece che sul campo che voleva — e aggancerebbe un articolo per sbaglio.
+   *
+   * Il ritardo è lo stesso schema già in uso in questa card per i suggerimenti
+   * sul nome: su touch è l'unica difesa provata qui dentro. Il pannello si
+   * protegge anche da sé (`mousedown.preventDefault` tiene il fuoco), ma quella
+   * difesa non è mai stata verificata su un dispositivo vero, e sbagliarla
+   * significa che il tocco non aggancia niente — proprio il silenzio che questo
+   * lavoro toglie.
+   */
+  protected onMobileCodeBlur(): void {
+    const timer = setTimeout(() => this.codeLookup.clear(), MOBILE_PICK_GRACE_MS);
+    this.destroyRef.onDestroy(() => clearTimeout(timer));
   }
 
   /** La scelta aperta da un codice: la voce presa aggancia la riga. */
