@@ -487,9 +487,15 @@ Lo spostamento costa **il pezzo più grosso di tutto il piano** — la trasforma
 
 ### 6.1 Pannello "Colonne" — resta, con l'interruttore
 
-Il pannello è **condiviso** su 11 schermate. Le sue frecce ↑↓ (riordino) **funzionano su sei elenchi** (Registro documenti, Giacenze, Movimenti, Situazione, Ordini cliente, Fornitori) e sono **inerti** su Prodotti, Clienti e su **tutte le maschere documento** (tabelle a ordine fisso).
+Il pannello è **condiviso** su 11 schermate.
 
-**Decisione:** il pannello riceve un **interruttore** (`reorderable`); le maschere documento lo passano **spento** → sui documenti restano le **checkbox** mostra/nascondi, spariscono le frecce inerti. Sugli elenchi tutto invariato. Toglie comandi che oggi **fingono di funzionare** — una bugia in meno nell'interfaccia. Costo: un `input()`.
+> ⚠️ **Correzione misurata sul codice (11/08/2026).** Qui era scritto che le frecce ↑↓ funzionano «su sei elenchi» e sono inerti «su Prodotti, Clienti e su tutte le maschere documento». **È falso per Prodotti e Clienti**: entrambi rendono la tabella da `tableColumns()`, che risolve le colonne partendo dall'ordine salvato — esattamente come gli altri elenchi. Su di loro le frecce **funzionano**.
+>
+> Il conto vero: le frecce sono **vive su otto elenchi** (Registro documenti, Giacenze, Movimenti, Situazione, Ordini cliente, Fornitori, **Prodotti**, **Clienti**) e **inerti sulle sole tre maschere documento** che usano il pannello — lì le colonne sono rese da blocchi condizionali in sequenza fissa nel template, e l'ordine salvato non lo legge nessuno.
+>
+> Spegnerle su Prodotti e Clienti avrebbe tolto una funzione viva credendo di rimuovere un inganno: peggio del difetto che la decisione voleva correggere.
+
+**Decisione:** il pannello riceve un **interruttore** (`reorderable`, acceso di default); **le sole maschere documento** lo passano spento → lì restano le **checkbox** mostra/nascondi e spariscono le frecce inerti. Su tutti gli elenchi, Prodotti e Clienti compresi, non cambia niente. Toglie comandi che oggi **fingono di funzionare** — una bugia in meno nell'interfaccia. Costo: un `input()`.
 _Precisazione pin:_ sui documenti il pin **non compare già oggi** (le config non dichiarano colonne bloccabili) — l'interruttore nasconde **solo le frecce**.
 
 ### 6.2 Nascondere e ridimensionare — restano come sono

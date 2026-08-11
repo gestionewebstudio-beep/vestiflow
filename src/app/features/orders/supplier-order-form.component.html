@@ -241,7 +241,7 @@
           <div class="doc-form__lines-head">
             <h2 id="po-lines-title" class="doc-form__subtitle">Righe documento</h2>
             <div class="doc-form__lines-tools">
-              <app-table-column-picker [viewId]="lineColumnsView" />
+              <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
               <app-button type="button" variant="ghost" (click)="addLine()">
                 <i class="pi pi-plus" aria-hidden="true"></i>
                 Aggiungi riga
