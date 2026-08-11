@@ -35,6 +35,25 @@ export class DocumentProductSearchPanelComponent {
   readonly launchSeq = input(0);
   readonly locationId = input<string | null>(null);
 
+  /**
+   * «Crea articolo» compare solo se la riga che ha aperto il pannello **non ha
+   * già un articolo**.
+   *
+   * Su una riga agganciata non stai cercando cosa aggiungere: stai guardando
+   * quello che c'è, e il pannello è di sola consultazione. Il comando lì non
+   * significa niente — e finché c'era portava a una scheda nuova vestita coi
+   * codici dell'articolo esistente, cioè un doppione in attesa di essere
+   * salvato.
+   */
+  readonly canCreate = input(true);
+
+  /** Non trovare nulla è un bivio se si può creare, un vicolo cieco se no. */
+  protected readonly emptyDescription = computed(() =>
+    this.canCreate()
+      ? "Prova con un altro termine, oppure crea l'articolo con i dati che hai già scritto."
+      : 'Prova con un altro termine.',
+  );
+
   readonly variantSelected = output<{ readonly variantId: string }>();
   /**
    * L'articolo non c'è e va creato. Il pannello non sa COME si crea — i campi

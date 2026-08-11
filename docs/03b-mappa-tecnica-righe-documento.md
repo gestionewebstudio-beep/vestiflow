@@ -683,6 +683,23 @@ Non è la nota di un caso: è lo **schema** che si è ripetuto **tre volte in un
 
 ⚠️ Vale anche per i **mock**: un mock che semplifica proprio la differenza da cui nasce il difetto lo nasconde per costruzione. Prima di scriverne uno, chiedersi **su quale asse** il difetto si manifesta, e tenere quell'asse diverso.
 
+### 12.0-bis-ter ⚠️ Le rimozioni si fanno con modifiche puntuali, mai con sostituzioni automatiche
+
+_(11/08/2026)_ Una rimozione fatta con una sostituzione automatica su file interi ha **svuotato due componenti**: 940 righe da uno, 3000 dall'altro. Il bersaglio era un metodo; l'espressione ha agganciato la prima chiusura utile e si è portata via tutto il resto.
+
+**Il punto non è la disattenzione: è la forma dello strumento.** Una sostituzione automatica che sbaglia bersaglio **non fallisce — riesce troppo**. Non c'è nessun errore da leggere, nessuna eccezione: il file viene riscritto e sembra tutto a posto finché qualcosa non prova a usarlo. È la stessa famiglia di `parseFloat('1.234,50')` che restituisce `1` invece di sbagliare: gli strumenti che rispondono sempre qualcosa sono più pericolosi di quelli che si fermano.
+
+**Cosa ha salvato il lavoro, e vale la pena essere esatti:**
+
+1. **Il compilatore**, che ha protestato subito — «Property 'form' does not exist» su un componente che non aveva più niente.
+2. **Il commit precedente**, da cui i due file sono stati ripristinati interi.
+
+**Non l'attenzione.** La rete che ha funzionato è stata il commit, non il controllo di chi scriveva: rileggere l'output di quella sostituzione avrebbe voluto dire rileggere tremila righe. È lo stesso schema del red-check e delle guardie automatiche — ci si protegge con qualcosa che agisce da solo, non con il proposito di stare attenti.
+
+**La regola operativa:** una rimozione si fa con **modifiche puntuali** — il testo esatto da togliere, cercato e sostituito una volta sola, con verifica che il bersaglio esistesse. Mai un'espressione che «prende dal metodo fino alla chiusura». E se il pezzo da togliere è lungo, si toglie a pezzi corti.
+
+Corollario, dallo stesso episodio: **committare spesso non è ordine, è rete.** Fra un commit e l'altro c'è la finestra in cui uno strumento che riesce troppo può portare via lavoro che nessuno può ricostruire.
+
 ### 12.0-ter ⚠️ Un dato di prova che mente al tipo nasconde il comportamento vero
 
 Quarta variante dello stesso schema _(11/08/2026)_, e la più insidiosa perché **non c'è niente da rompere**: la guardia è nel posto giusto e la prova fallisce lo stesso, ma per la ragione sbagliata.

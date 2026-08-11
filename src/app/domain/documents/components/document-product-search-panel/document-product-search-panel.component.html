@@ -39,8 +39,8 @@
     <app-empty-state
       icon="pi-search"
       title="Nessun prodotto trovato"
-      description="Prova con un altro termine, oppure crea l'articolo con i dati che hai gia' scritto."
-      ctaLabel="Crea articolo"
+      [description]="emptyDescription()"
+      [ctaLabel]="canCreate() ? 'Crea articolo' : ''"
       (ctaClick)="requestCreate()"
     />
   } @else {
@@ -54,10 +54,12 @@
   <div class="gr-product-search__actions">
     <!-- Sempre raggiungibile, non solo a ricerca vuota: si puo' sapere in
          partenza che l'articolo non esiste. -->
-    <app-button type="button" variant="secondary" (click)="requestCreate()">
-      <i class="pi pi-plus" aria-hidden="true"></i>
-      Crea articolo
-    </app-button>
+    @if (canCreate()) {
+      <app-button type="button" variant="secondary" (click)="requestCreate()">
+        <i class="pi pi-plus" aria-hidden="true"></i>
+        Crea articolo
+      </app-button>
+    }
     <app-button type="button" variant="ghost" (click)="close()">Chiudi</app-button>
   </div>
 </section>

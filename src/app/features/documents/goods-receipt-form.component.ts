@@ -1420,6 +1420,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * dov'e', con quel che si e' scritto finora. Nessuna via porta fuori
    * perdendo il lavoro.
    */
+  /**
+   * «Crea articolo» nel pannello di ricerca ha senso solo se la riga che l'ha
+   * aperto è ancora libera. Su una riga già agganciata il pannello è di sola
+   * consultazione: non stai cercando cosa aggiungere, stai guardando quello che
+   * c'è.
+   */
+  protected readonly productSearchCanCreate = computed(() => {
+    this.formValue();
+    const index = this.productSearchLineIndex();
+    return index === null ? true : !this.lineHasLinkedProduct(index);
+  });
+
   protected onProductSearchCreate(): void {
     const index = this.productSearchLineIndex();
     this.closeLineProductSearch();
@@ -2874,6 +2886,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     const line = this.lines.at(index);
     if (!line) {
+      return null;
+    }
+    // ⛔ Riga già agganciata: NIENTE precompilato.
+    //
+    // I campi della riga sono quelli dell'articolo che c'è già — nome, SKU, EAN.
+    // Copiarli in una scheda NUOVA produce un doppione vestito coi codici di un
+    // altro: al salvataggio o sbatte contro l'unicità dello SKU, o nasce un
+    // gemello. «Crea» deve partire pulito, sempre.
+    if (line.controls.variantId.value) {
       return null;
     }
     const name = line.controls.productName.value.trim();

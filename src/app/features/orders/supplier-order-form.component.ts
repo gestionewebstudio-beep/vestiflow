@@ -1236,6 +1236,18 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    * resta dov'è con quel che si è scritto finora: nessuna via porta fuori
    * perdendo il lavoro.
    */
+  /**
+   * «Crea articolo» nel pannello di ricerca ha senso solo se la riga che l'ha
+   * aperto è ancora libera. Su una riga già agganciata il pannello è di sola
+   * consultazione: non stai cercando cosa aggiungere, stai guardando quello che
+   * c'è.
+   */
+  protected readonly productSearchCanCreate = computed(() => {
+    this.formValue();
+    const index = this.productSearchLineIndex();
+    return index === null ? true : !this.lineHasLinkedProduct(index);
+  });
+
   protected onProductSearchCreate(): void {
     const index = this.productSearchLineIndex();
     this.closeLineProductSearch();
@@ -1404,6 +1416,19 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   protected openProductCreate(index: number): void {
     const line = this.lines.at(index);
     if (!line) {
+      return;
+    }
+    // ⛔ Riga già agganciata: si parte PULITI.
+    //
+    // I campi della riga sono quelli dell'articolo che c'è già — nome, SKU, EAN.
+    // Copiarli in una scheda nuova produce un doppione vestito coi codici di un
+    // altro: al salvataggio o sbatte contro l'unicità dello SKU, o nasce un
+    // gemello. «Crea» non eredita mai l'identità di un articolo esistente.
+    if (line.controls.variantId.value) {
+      this.productPanelPrefill.set(null);
+      this.productPanelEditProductId.set(null);
+      this.productPanelLineIndex.set(index);
+      this.productPanelOpen.set(true);
       return;
     }
     const netMinor = this.lineUnitNetMinor(index);

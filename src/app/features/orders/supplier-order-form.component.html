@@ -1045,6 +1045,7 @@
       [launchTerm]="productSearchLaunchTerm()"
       [launchSeq]="productSearchLaunchSeq()"
       (variantSelected)="onLineProductSearchPick($event.variantId)"
+      [canCreate]="productSearchCanCreate()"
       (createRequested)="onProductSearchCreate()"
       (detailRequested)="onProductSearchDetail($event)"
       (dismissed)="closeLineProductSearch()"

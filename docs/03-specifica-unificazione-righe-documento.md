@@ -561,6 +561,16 @@ _(Tecnicamente: `mode()` non è letto da alcun template; il pannello ricalcola i
 
 ---
 
+## 8-ter. «Crea articolo» compare solo dove ha senso, e parte sempre pulito
+
+**[DECISIONE, 11/08/2026]**
+
+**Il comando compare solo se la riga non ha ancora un articolo.** Su una riga già agganciata non stai cercando cosa aggiungere: stai guardando quello che c'è, e il pannello di ricerca è di sola consultazione.
+
+**E quando compare, parte da zero.** «Crea articolo» porta a una scheda vuota, o precompilata coi dati che si sono digitati nella riga — **mai** all'anagrafica di un articolo che esiste.
+
+_Difetto corretto insieme alla decisione:_ i campi di una riga agganciata sono quelli dell'articolo collegato — nome, SKU, EAN. Il precompilato li copiava in una scheda **nuova**, producendo un doppione vestito coi codici di un altro: al salvataggio o sbatte contro l'unicità dello SKU, o nasce un gemello. Nascondere il comando non sarebbe bastato: **un comando che apre la cosa sbagliata non si sistema rendendolo meno raggiungibile**, e la creazione da riga vuota — che è una via prevista — sarebbe rimasta rotta.
+
 ## 8-bis. Aprire l'anagrafica non porta mai fuori dal documento
 
 **[DECISIONE, 11/08/2026 — vale ovunque si apra la scheda di un articolo]**

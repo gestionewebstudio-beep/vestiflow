@@ -226,6 +226,63 @@ describe('SupplierOrderFormComponent', () => {
   // Le regole vivono in `domain/` e hanno i loro test: qui si prova che questa
   // maschera le abbia davvero agganciate — l'intestazione è un pulsante, e il
   // primo clic apre l'avviso invece di riordinare.
+  // ⛔ Difetto trovato dal proprietario: dopo aver scelto un articolo dai
+  // risultati, «Crea articolo» apriva una scheda vestita coi codici di
+  // QUELL'articolo — un doppione in attesa di essere salvato. Due guardie: il
+  // comando non c'è su riga agganciata, e il precompilato non eredita mai
+  // l'identità di un articolo che esiste.
+  it('su riga già agganciata il pannello non offre «Crea articolo»', async () => {
+    const user = userEvent.setup();
+    const { fixture } = await setup();
+    await scegliArticoloSullaRiga(user);
+
+    const form = fixture.componentInstance as unknown as {
+      openLineProductSearch: (i: number) => void;
+      productSearchCanCreate: () => boolean;
+    };
+    form.openLineProductSearch(0);
+    fixture.detectChanges();
+
+    expect(form.productSearchCanCreate()).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Crea articolo' })).toBeNull();
+  });
+
+  it('su riga libera il pannello offre «Crea articolo»', async () => {
+    const user = userEvent.setup();
+    const { fixture } = await setup();
+    await scegliFornitore(user);
+
+    const form = fixture.componentInstance as unknown as {
+      openLineProductSearch: (i: number) => void;
+      productSearchCanCreate: () => boolean;
+    };
+    form.openLineProductSearch(0);
+    fixture.detectChanges();
+
+    expect(form.productSearchCanCreate()).toBe(true);
+  });
+
+  it('«Crea articolo» non eredita mai l’identità dell’articolo già scelto', async () => {
+    const user = userEvent.setup();
+    const { fixture } = await setup();
+    await scegliArticoloSullaRiga(user);
+
+    const form = fixture.componentInstance as unknown as {
+      openProductCreate: (i: number) => void;
+      productPanelPrefill: () => { sku?: string; name?: string } | null;
+      productPanelEditProductId: () => string | null;
+    };
+    // Niente `detectChanges`: aprire il pannello renderebbe la scheda prodotto,
+    // che qui non ha le sue dipendenze. La prova guarda lo STATO — è lì che il
+    // difetto viveva.
+    form.openProductCreate(0);
+
+    // Nessun codice dell'articolo esistente nella scheda nuova, e nessuna
+    // scheda esistente aperta al posto della creazione.
+    expect(form.productPanelPrefill()).toBeNull();
+    expect(form.productPanelEditProductId()).toBeNull();
+  });
+
   it('il primo clic sull’intestazione chiede conferma invece di riordinare', async () => {
     const user = userEvent.setup();
     await setup();

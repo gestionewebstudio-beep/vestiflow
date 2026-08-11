@@ -3305,6 +3305,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * Il pannello si chiude e l'anagrafica si apre **sopra** il documento, che
    * resta dov'è con quel che si è scritto finora.
    */
+  /**
+   * «Crea articolo» nel pannello di ricerca ha senso solo se la riga che l'ha
+   * aperto è ancora libera. Su una riga già agganciata il pannello è di sola
+   * consultazione: non stai cercando cosa aggiungere, stai guardando quello che
+   * c'è.
+   */
+  protected readonly productSearchCanCreate = computed(() => {
+    this.formValue();
+    const index = this.productSearchLineIndex();
+    return index === null ? true : !this.lineHasLinkedProduct(index);
+  });
+
   protected onProductSearchCreate(): void {
     const index = this.productSearchLineIndex();
     this.closeLineProductSearch();
@@ -3346,6 +3358,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     }
     const line = this.lines.at(index);
     if (!line) {
+      return null;
+    }
+    // ⛔ Riga già agganciata: NIENTE precompilato.
+    //
+    // I campi della riga sono quelli dell'articolo che c'è già — nome, SKU, EAN.
+    // Copiarli in una scheda NUOVA produce un doppione vestito coi codici di un
+    // altro: al salvataggio o sbatte contro l'unicità dello SKU, o nasce un
+    // gemello. «Crea» deve partire pulito, sempre.
+    if (line.controls.variantId.value) {
       return null;
     }
     // Nell'ordine cliente il prezzo digitato è il prezzo di VENDITA.
