@@ -1,4 +1,4 @@
-@if (items().length > 0 || emptyText()) {
+@if (items().length > 0) {
   <ul
     class="doc-suggestions"
     [class.doc-suggestions--above]="placement() === 'above'"
@@ -23,8 +23,6 @@
           <span class="doc-suggestions__detail">{{ item.detail }}</span>
         }
       </li>
-    } @empty {
-      <li class="doc-suggestions__empty" role="presentation">{{ emptyText() }}</li>
     }
   </ul>
 }

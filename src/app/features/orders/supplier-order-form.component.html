@@ -616,33 +616,35 @@
                   }
                   @if (isLineColumnVisible('product')) {
                     <td class="doc-form__cell doc-form__cell--variant" data-label="Nome prodotto">
-                      <app-select-menu
-                        [options]="variantOptions()"
-                        [value]="line.controls.variantId.value"
-                        ariaLabel="Articolo"
-                        placeholder="Seleziona un articolo…"
-                        [compact]="true"
-                        [fullWidth]="true"
-                        [searchable]="true"
-                        [filterOptionsLocally]="false"
-                        searchPlaceholder="Cerca per prodotto o SKU…"
-                        searchAriaLabel="Cerca articolo per prodotto o SKU"
+                      <app-document-line-product-cell
+                        [lineIndex]="i"
+                        [inputId]="'po-product-' + i"
+                        [value]="line.controls.productName.value"
+                        [linked]="lineHasLinkedProduct(i)"
+                        [linkedLabel]="linkedProductLabel(i)"
                         [invalid]="lineFieldInvalid(i, 'variantId')"
-                        (valueChange)="onVariantSelect(i, $event)"
-                        (searchChange)="onVariantSearch($event)"
+                        [suggestions]="lineSuggestions(i)"
+                        [suggestionsOpen]="lineSuggestionsOpen(i)"
+                        [activeSuggestionIndex]="productSuggest.activeIndex()"
+                        (valueChange)="onLineProductNameChange(i, $event)"
+                        (focused)="onLineProductFocus(i)"
+                        (blurred)="onLineProductBlur(i)"
+                        (searchOpen)="openLineProductSearch(i)"
+                        (anagraphicOpen)="openProductAnagraphic(i)"
+                        (detailOpen)="openProductDetail(i)"
+                        (unlinkRequest)="onLineUnlink(i)"
+                        (suggestionPick)="
+                          onProductSuggestionPick($event.lineIndex, $event.variantId)
+                        "
+                        (suggestionNavigate)="onProductSuggestionNavigate($event)"
+                        (lineAdvance)="lineFocus.next(i, 'product')"
+                        (lineRetreat)="lineFocus.previous(i, 'product')"
+                        (lineRowAdvance)="lineFocus.rowDown(i, 'product')"
+                        (lineRowRetreat)="lineFocus.rowUp(i, 'product')"
+                        (escapePressed)="onLineSearchEscape(i)"
                       />
                       @if (lineFieldInvalid(i, 'variantId')) {
                         <p class="doc-form__error">Seleziona l'articolo.</p>
-                      }
-                      @if (!line.controls.variantId.value) {
-                        <button
-                          type="button"
-                          class="doc-form__inline-toggle"
-                          (click)="openProductCreate(i)"
-                        >
-                          <i class="pi pi-plus" aria-hidden="true"></i>
-                          Crea nuovo articolo
-                        </button>
                       }
                     </td>
                   }
@@ -922,6 +924,21 @@
 }
 
 <app-slide-panel
+  [open]="productSearchPanelOpen()"
+  title="Cerca prodotto"
+  (closed)="closeLineProductSearch()"
+>
+  @if (productSearchPanelOpen()) {
+    <app-document-product-search-panel
+      [launchTerm]="productSearchLaunchTerm()"
+      [launchSeq]="productSearchLaunchSeq()"
+      (variantSelected)="onLineProductSearchPick($event.variantId)"
+      (dismissed)="closeLineProductSearch()"
+    />
+  }
+</app-slide-panel>
+
+<app-slide-panel
   [open]="productPanelOpen()"
   title="Anagrafica prodotto"
   (closed)="closeProductPanel()"
@@ -930,8 +947,10 @@
     <app-product-form
       [embeddedPanel]="true"
       [embeddedPrefill]="productPanelPrefill()"
+      [embeddedProductId]="productPanelEditProductId()"
       (productCreatedWithAttach)="onProductCreatedFromPanel($event)"
       (productSavedWithoutAttach)="onProductSavedWithoutAttach($event)"
+      (productUpdatedInPanel)="onProductUpdatedFromPanel()"
       (panelDismissed)="closeProductPanel()"
     />
   }

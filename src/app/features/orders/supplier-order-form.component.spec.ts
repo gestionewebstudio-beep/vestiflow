@@ -3,6 +3,8 @@ import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angul
 import { AuthService } from '@core/auth';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
+
+import type { UserEvent } from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -29,8 +31,23 @@ const VARIANTS = [
     productName: 'Maglietta',
     title: 'Maglietta / M / Rosso',
     sku: 'MAG-M-ROSSO',
+    articleCode: 'ART-MAG',
+    // Obbligatorio nel modello: senza, il dettaglio del suggerimento esplode e
+    // il pannello resta vuoto senza dire perché. Il dato di prova mentiva al tipo.
+    sellingPrice: { amountMinor: 2990, currencyCode: 'EUR' },
   },
 ];
+
+/**
+ * Sceglie l'articolo sulla prima riga passando dalla cella nome CONDIVISA:
+ * si digita e si prende dall'elenco che si apre sotto. Prima qui c'era una
+ * tendina — era la divergenza rispetto all'Ordine cliente, e questi test la
+ * descrivevano.
+ */
+async function scegliArticoloSullaRiga(user: UserEvent): Promise<void> {
+  await user.type(screen.getAllByLabelText('Nome prodotto')[0]!, 'mag');
+  await user.click(await screen.findByRole('option', { name: /MAG-M-ROSSO/ }));
+}
 
 function tableColumnPreferenceMock() {
   const defaultState = {
@@ -232,11 +249,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Fornitore' }));
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
 
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    await scegliArticoloSullaRiga(user);
 
     const qtyInput = screen.getByRole('spinbutton');
     await user.clear(qtyInput);
@@ -366,11 +379,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Fornitore' }));
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
 
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    await scegliArticoloSullaRiga(user);
 
     const cost = screen.getByPlaceholderText('0,00');
     await user.clear(cost);
@@ -397,11 +406,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Fornitore' }));
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
 
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    await scegliArticoloSullaRiga(user);
 
     // L'articolo di prova non ha costo d'anagrafica: la riga resta senza costo.
     await user.click(salvaDocumento());
@@ -442,11 +447,7 @@ describe('SupplierOrderFormComponent', () => {
 
     // Serve un articolo sulla riga: è il richiamo a portarle il Codice IVA, e
     // senza aliquota non c'è nessuno scorporo da fare.
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    await scegliArticoloSullaRiga(user);
 
     await switchCostMode(user, 'Usa costi ivati');
 
@@ -470,11 +471,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Fornitore' }));
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
 
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    await scegliArticoloSullaRiga(user);
 
     await switchCostMode(user, 'Usa costi ivati');
     const cost = screen.getByPlaceholderText('0,00');
@@ -516,13 +513,17 @@ describe('SupplierOrderFormComponent', () => {
       return fixture.componentInstance as unknown as FocusForm;
     }
 
-    // Difetto: «product» era nel giro e puntava a `po-product-{i}`,
-    // identificativo che non esiste in nessun template — quella cella è un
-    // `app-select-menu`. Da «Cod. fornitore» il fuoco si perdeva a metà giro.
-    it('«Nome prodotto» non è nel giro: non ha un campo su cui atterrare', async () => {
+    // «Nome prodotto» era uscito dal giro perché la cella era una tendina e
+    // `po-product-{i}` non esisteva in nessun template: da «Cod. fornitore» il
+    // fuoco si perdeva a metà strada. Ora la cella è quella condivisa, con un
+    // input vero, e il campo è rientrato — la condizione di rientro era questa.
+    it('«Nome prodotto» è nel giro, fra i codici e la quantità', async () => {
       const form = await apriForm();
 
-      expect(form.lineFocus.fieldsOf(0)).not.toContain('product');
+      const giro = form.lineFocus.fieldsOf(0);
+      expect(giro).toContain('product');
+      expect(giro.indexOf('product')).toBeGreaterThan(giro.indexOf('supplierCode'));
+      expect(giro.indexOf('product')).toBeLessThan(giro.indexOf('quantity'));
     });
 
     // Difetto: U.M. e sconto erano nel giro ma senza gestore di tastiera —

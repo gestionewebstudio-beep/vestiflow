@@ -81,16 +81,15 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
-import {
-  findVariantSummaryById,
-  mergeVariantSummaries,
-} from '@domain/products/utils/variant-summary-search.util';
-import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
+import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
+import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
+import { findVariantSummaryById } from '@domain/products/utils/variant-summary-search.util';
 
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import {
   supplierCodeForDocumentLine,
@@ -171,6 +170,8 @@ function todayIsoDate(): string {
     ProductFormComponent,
     DocumentMobilePanelComponent,
     DocumentLineCodeCellComponent,
+    DocumentLineProductCellComponent,
+    DocumentProductSearchPanelComponent,
     ConfirmDialogComponent,
     EditLockBannerComponent,
   ],
@@ -338,6 +339,13 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    * diversi, e la scelta è «quale articolo», non «quale taglia».
    */
   protected readonly codeLookup = new DocumentCodeLookupStore();
+  protected readonly productSuggest = new DocumentProductSuggestStore();
+
+  // Pannello di ricerca articolo aperto dalla lente della cella nome.
+  protected readonly productSearchPanelOpen = signal(false);
+  protected readonly productSearchLineIndex = signal<number | null>(null);
+  protected readonly productSearchLaunchTerm = signal('');
+  protected readonly productSearchLaunchSeq = signal(0);
 
   private readonly searchedVariants = toSignal(
     toObservable(this.variantSearchDraft).pipe(
@@ -399,13 +407,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    */
   private readonly canSeeCosts = computed(() =>
     canViewPurchaseCosts(this.authService.currentUser()),
-  );
-
-  protected readonly variantOptions = computed(() =>
-    toVariantSelectMenuOptions(
-      mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()),
-      { canSeeCosts: this.canSeeCosts() },
-    ),
   );
 
   // Snapshot reattivo del form per totali e celle derivate.
@@ -589,6 +590,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   protected readonly productPanelOpen = signal(false);
   protected readonly productPanelLineIndex = signal<number | null>(null);
   protected readonly productPanelPrefill = signal<ProductEmbeddedCreatePrefill | null>(null);
+  /** Valorizzato quando il pannello apre la scheda di un articolo esistente. */
+  protected readonly productPanelEditProductId = signal<string | null>(null);
 
   // takeUntilDestroyed() gestisce l'unsubscribe; i campi evitano subscription "ignorate".
   private supplierSubscription: Subscription | null = null;
@@ -992,8 +995,121 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.supplierPanelReady() ? 'Dati principali completi.' : 'Il fornitore è obbligatorio.',
   );
 
-  protected onVariantSearch(value: string): void {
+  // ── Cella nome prodotto: ricerca, non tendina ─────────────────────────────
+  //
+  // Fino a oggi qui c'era un `app-select-menu`: una tendina da cui scegliere un
+  // articolo. L'Ordine cliente e l'Arrivo merce hanno invece la cella condivisa
+  // — si digita il nome, si sceglie da un elenco che si apre sotto, e se
+  // l'articolo non esiste il testo digitato resta lì e diventa il nome del
+  // prodotto da creare. Il documento funzionale dice che la riga dell'ordine
+  // fornitore è quella dell'Ordine cliente: la tendina era la divergenza.
+
+  protected lineSuggestions(index: number): readonly VariantSummary[] {
+    return this.productSuggest.suggestionsFor(index, this.suggestInputs(index));
+  }
+
+  protected lineSuggestionsOpen(index: number): boolean {
+    return this.productSuggest.isOpenOn(index, this.suggestInputs(index));
+  }
+
+  private suggestInputs(index: number) {
+    return { hasLinked: this.lineHasLinkedProduct(index), searched: this.searchedVariants() };
+  }
+
+  /** Testo mostrato al posto del campo quando la riga è agganciata. */
+  protected linkedProductLabel(index: number): string {
+    const line = this.lines.at(index);
+    if (!line) {
+      return '';
+    }
+    const name = line.controls.productName.value.trim();
+    return name || this.lineSummary(index)?.title || '';
+  }
+
+  protected onLineProductNameChange(index: number, value: string): void {
+    this.lines.at(index)?.controls.productName.setValue(value);
+    this.productSuggest.focusLine(index);
     this.variantSearchDraft.set(value);
+    // Ogni carattere invalida una scelta di codici rimasta aperta: si riferiva
+    // al valore di prima.
+    this.codeLookup.clear();
+    this.markFormDirty();
+  }
+
+  protected onLineProductFocus(index: number): void {
+    this.productSuggest.focusLine(index);
+    this.variantSearchDraft.set(this.lines.at(index)?.controls.productName.value ?? '');
+  }
+
+  protected onLineProductBlur(index: number): void {
+    this.productSuggest.blurLine(index);
+  }
+
+  protected onProductSuggestionPick(index: number, variantId: string): void {
+    this.productSuggest.clear();
+    this.onVariantSelect(index, variantId);
+    this.focusLineField(index, 'quantity');
+  }
+
+  protected onProductSuggestionNavigate(direction: 'next' | 'prev'): void {
+    const index = this.productSuggest.lineIndex();
+    if (index === null) {
+      return;
+    }
+    this.productSuggest.navigate(direction, this.lineSuggestions(index).length);
+  }
+
+  protected openLineProductSearch(index: number): void {
+    const term = this.lines.at(index)?.controls.productName.value.trim() ?? '';
+    this.productSearchLaunchTerm.set(term);
+    this.productSearchLaunchSeq.update((seq) => seq + 1);
+    this.productSearchLineIndex.set(index);
+    this.productSearchPanelOpen.set(true);
+  }
+
+  protected closeLineProductSearch(): void {
+    this.productSearchPanelOpen.set(false);
+    this.productSearchLineIndex.set(null);
+  }
+
+  protected onLineProductSearchPick(variantId: string): void {
+    const index = this.productSearchLineIndex();
+    if (index !== null) {
+      this.onVariantSelect(index, variantId);
+      this.focusLineField(index, 'quantity');
+    }
+    this.closeLineProductSearch();
+  }
+
+  /**
+   * «Completa anagrafica»: apre il pannello di creazione con quel che c'è già
+   * sulla riga. È la via alla creazione dell'articolo che nel pannello dei
+   * suggerimenti non c'è (e non ci deve essere).
+   */
+  protected openProductAnagraphic(index: number): void {
+    this.openProductCreate(index);
+  }
+
+  /** «Apri anagrafica» su riga agganciata: la scheda dell'articolo collegato. */
+  protected openProductDetail(index: number): void {
+    const productId = this.lineSummary(index)?.productId;
+    if (!productId) {
+      return;
+    }
+    this.productPanelPrefill.set(null);
+    this.productPanelEditProductId.set(productId);
+    this.productPanelLineIndex.set(index);
+    this.productPanelOpen.set(true);
+  }
+
+  /** Tornati dalla scheda: la riga rilegge l'articolo, che può essere cambiato. */
+  protected onProductUpdatedFromPanel(): void {
+    const index = this.productPanelLineIndex();
+    const variantId = index !== null ? this.lines.at(index)?.controls.variantId.value : null;
+    if (index !== null && variantId) {
+      this.applyVariantToLine(index, variantId);
+    }
+    this.closeProductPanel();
   }
 
   /**
@@ -1042,6 +1158,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       'sku',
       'barcode',
       'supplierCode',
+      // Rientrata nel giro: `po-product-{i}` era uscito perché la cella nome
+      // era una tendina, che non ha un campo con quell'identificativo. Ora è la
+      // cella condivisa, con un input vero.
+      'product',
       'quantity',
       'unitOfMeasure',
       'unitCost',
@@ -1082,6 +1202,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     // fornitore significa nessun articolo selezionato. È ciò che impedisce a ↓
     // e al Tab di impilare righe vuote in fondo.
     isLineEmpty: (index) => !this.lines.at(index)?.controls.variantId.value,
+    removeLine: (index) => this.removeLine(index),
   });
 
   protected focusLineField(index: number, field: LineFocusField): void {
@@ -1123,6 +1244,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       // smette di essere calcolato e diventa qualcosa che qualcuno legge.
       purchasePriceMajor: netMinor > 0 ? roundToMinor(netMinor) / 100 : null,
     });
+    this.productPanelEditProductId.set(null);
     this.productPanelLineIndex.set(index);
     this.productPanelOpen.set(true);
   }
@@ -1131,6 +1253,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.productPanelOpen.set(false);
     this.productPanelLineIndex.set(null);
     this.productPanelPrefill.set(null);
+    this.productPanelEditProductId.set(null);
   }
 
   /** Variante appena creata dal pannello: la collega alla riga di origine. */

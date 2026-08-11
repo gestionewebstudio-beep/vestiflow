@@ -15,7 +15,6 @@ async function setup(
     items: readonly DocumentLineSuggestionItem[];
     activeIndex: number | null;
     placement: 'below' | 'above';
-    emptyText: string | undefined;
   }> = {},
 ) {
   const picked = vi.fn();
@@ -63,16 +62,12 @@ describe('DocumentLineSuggestionsComponent', () => {
     expect(options[1]).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('a lista vuota senza emptyText il pannello non compare', async () => {
+  // Decisione 11/08/2026: senza risultati il pannello NON si apre, e non
+  // mostra nessun messaggio di vuoto. Non trovare nulla non è un errore — si
+  // continua a compilare la riga, e la creazione dell'articolo ha vie proprie.
+  it('a lista vuota il pannello non compare', async () => {
     await setup({ items: [] });
 
     expect(screen.queryByRole('listbox')).toBeNull();
-  });
-
-  it('a lista vuota con emptyText mostra il messaggio', async () => {
-    await setup({ items: [], emptyText: 'Nessun articolo trovato a catalogo.' });
-
-    expect(screen.getByRole('listbox')).toBeVisible();
-    expect(screen.getByText('Nessun articolo trovato a catalogo.')).toBeVisible();
   });
 });

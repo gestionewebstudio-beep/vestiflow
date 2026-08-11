@@ -45,6 +45,12 @@ function crea(opzioni: Opzioni = {}) {
     stato.righe += 1;
     montaSoloRiga(stato.righe - 1);
   });
+  const removeLine = vi.fn((riga: number) => {
+    stato.righe -= 1;
+    for (const campo of CAMPI) {
+      globalThis.document.getElementById(`r${riga}-${campo}`)?.remove();
+    }
+  });
   const contratto: DocumentLineFocusContract<Campo> = {
     fields: opzioni.campi ?? CAMPI,
     elementId: (riga, campo) => `r${riga}-${campo}`,
@@ -55,9 +61,10 @@ function crea(opzioni: Opzioni = {}) {
     createLine,
     onRowChange: opzioni.gancio,
     isLineEmpty: opzioni.rigaVuota ?? (() => false),
+    removeLine,
   };
   montaGriglia(stato.righe, opzioni.campi ?? CAMPI);
-  return { store: new DocumentLineFocusStore(contratto), createLine, stato };
+  return { store: new DocumentLineFocusStore(contratto), createLine, removeLine, stato };
 }
 
 function montaSoloRiga(riga: number): void {
@@ -117,6 +124,7 @@ describe('DocumentLineFocusStore', () => {
       lineCount: () => 1,
       createLine: vi.fn(),
       isLineEmpty: () => false,
+      removeLine: vi.fn(),
     };
     const input = globalThis.document.createElement('input');
     input.id = 'riga0-prezzo';
@@ -383,6 +391,150 @@ describe('DocumentLineFocusStore', () => {
 
       expect(evento.defaultPrevented).toBe(false);
       expect(fuoco()).toBe('');
+    });
+  });
+
+  // §4.2 — le frecce orizzontali sono a due tempi: prima il cursore dentro il
+  // campo, poi il campo accanto. Il cursore va simulato perché in un evento
+  // costruito a mano il bersaglio non c'è.
+  describe('frecce ←/→ a due tempi', () => {
+    function tastoSuCampo(key: string, campo: Partial<HTMLInputElement>): KeyboardEvent {
+      const evento = new KeyboardEvent('keydown', { key, cancelable: true });
+      Object.defineProperty(evento, 'target', { value: campo });
+      return evento;
+    }
+
+    const inMezzo = { value: 'Maglietta', selectionStart: 4, selectionEnd: 4 };
+    const inFondo = { value: 'Maglietta', selectionStart: 9, selectionEnd: 9 };
+    const inTesta = { value: 'Maglietta', selectionStart: 0, selectionEnd: 0 };
+
+    it('→ col cursore in mezzo resta nel campo', () => {
+      const { store } = crea();
+      const evento = tastoSuCampo('ArrowRight', inMezzo);
+      store.handleKeydown(0, 'code', evento);
+      expect(evento.defaultPrevented).toBe(false);
+      expect(fuoco()).toBe('');
+    });
+
+    it('→ col cursore in fondo porta al campo accanto', () => {
+      const { store } = crea();
+      store.handleKeydown(0, 'code', tastoSuCampo('ArrowRight', inFondo));
+      expect(fuoco()).toBe('r0-name');
+    });
+
+    it('← col cursore in mezzo resta nel campo', () => {
+      const { store } = crea();
+      const evento = tastoSuCampo('ArrowLeft', inMezzo);
+      store.handleKeydown(0, 'name', evento);
+      expect(evento.defaultPrevented).toBe(false);
+      expect(fuoco()).toBe('');
+    });
+
+    it('← col cursore in testa torna al campo precedente', () => {
+      const { store } = crea();
+      store.handleKeydown(0, 'name', tastoSuCampo('ArrowLeft', inTesta));
+      expect(fuoco()).toBe('r0-code');
+    });
+
+    it('→ dall’ultimo campo crea la riga, come Tab e ↓', () => {
+      const { store, createLine } = crea({ righe: 1 });
+      store.handleKeydown(0, 'price', tastoSuCampo('ArrowRight', inFondo));
+      expect(createLine).toHaveBeenCalledTimes(1);
+      expect(fuoco()).toBe('r1-code');
+    });
+
+    it('→ dall’ultimo campo di una riga vuota non crea niente: stessa condizione di ↓', () => {
+      const { store, createLine } = crea({ righe: 1, rigaVuota: () => true });
+      store.handleKeydown(0, 'price', tastoSuCampo('ArrowRight', inFondo));
+      expect(createLine).not.toHaveBeenCalled();
+    });
+
+    it('→ esce subito da un campo numerico, dove il cursore non è leggibile', () => {
+      const { store } = crea();
+      const numerico = { value: '1234', selectionStart: null, selectionEnd: null };
+      store.handleKeydown(0, 'qty', tastoSuCampo('ArrowRight', numerico));
+      expect(fuoco()).toBe('r0-price');
+    });
+
+    it('Shift+→ non naviga: resta la selezione del testo', () => {
+      const { store } = crea();
+      const evento = new KeyboardEvent('keydown', {
+        key: 'ArrowRight',
+        shiftKey: true,
+        cancelable: true,
+      });
+      Object.defineProperty(evento, 'target', { value: inFondo });
+      store.handleKeydown(0, 'code', evento);
+      expect(evento.defaultPrevented).toBe(false);
+      expect(fuoco()).toBe('');
+    });
+  });
+
+  // §4.4, terza parte — la simmetrica della creazione.
+  describe('la riga appena nata e mai compilata sparisce risalendo', () => {
+    it('↑ toglie la riga nata scendendo e rimasta vuota', () => {
+      const { store, removeLine, stato } = crea({ righe: 1, rigaVuota: (riga) => riga === 1 });
+      store.rowDown(0, 'qty');
+      expect(stato.righe).toBe(2);
+      store.rowUp(1, 'code');
+      expect(removeLine).toHaveBeenCalledWith(1);
+      expect(stato.righe).toBe(1);
+      expect(fuoco()).toBe('r0-code');
+    });
+
+    it('↑ non tocca una riga vuota che nessuno ha creato scendendo', () => {
+      const { store, removeLine } = crea({ righe: 2, rigaVuota: (riga) => riga === 1 });
+      store.rowUp(1, 'qty');
+      expect(removeLine).not.toHaveBeenCalled();
+      expect(fuoco()).toBe('r0-qty');
+    });
+
+    it('↑ non tocca la riga nata se ci è stato scritto qualcosa', () => {
+      let compilata = false;
+      const { store, removeLine } = crea({
+        righe: 1,
+        rigaVuota: (riga) => riga === 1 && !compilata,
+      });
+      store.rowDown(0, 'qty');
+      compilata = true;
+      store.rowUp(1, 'qty');
+      expect(removeLine).not.toHaveBeenCalled();
+      expect(fuoco()).toBe('r0-qty');
+    });
+
+    it('↑ non tocca la riga nata se nel frattempo non è più l’ultima', () => {
+      const { store, removeLine, stato } = crea({ righe: 1, rigaVuota: (riga) => riga >= 1 });
+      store.rowDown(0, 'qty');
+      stato.righe += 1;
+      montaSoloRiga(2);
+      store.rowUp(1, 'qty');
+      expect(removeLine).not.toHaveBeenCalled();
+    });
+
+    it('il segno si consuma: due risalite non tolgono due righe', () => {
+      const { store, removeLine } = crea({ righe: 1, rigaVuota: (riga) => riga >= 1 });
+      store.rowDown(0, 'qty');
+      store.rowUp(1, 'qty');
+      store.rowUp(1, 'qty');
+      expect(removeLine).toHaveBeenCalledTimes(1);
+    });
+
+    it('la riga nata col Tab sparisce allo stesso modo', () => {
+      const { store, removeLine, stato } = crea({ righe: 1, rigaVuota: (riga) => riga === 1 });
+      store.next(0, 'price');
+      expect(stato.righe).toBe(2);
+      store.rowUp(1, 'code');
+      expect(removeLine).toHaveBeenCalledWith(1);
+    });
+
+    it('a documento in sola lettura non si toglie niente', () => {
+      const { store, removeLine } = crea({
+        righe: 2,
+        rigaVuota: (riga) => riga === 1,
+        solaLettura: true,
+      });
+      store.rowUp(1, 'qty');
+      expect(removeLine).not.toHaveBeenCalled();
     });
   });
 });

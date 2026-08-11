@@ -1377,7 +1377,7 @@
                             [invalid]="lineFieldInvalid(i, 'productName')"
                             [suggestions]="lineSuggestions(i)"
                             [suggestionsOpen]="lineSuggestionsOpen(i)"
-                            [activeSuggestionIndex]="activeSuggestionIndex()"
+                            [activeSuggestionIndex]="productSuggest.activeIndex()"
                             (valueChange)="onLineProductNameChange(i, $event)"
                             (focused)="onLineProductFocus(i)"
                             (blurred)="onLineProductBlur(i)"

@@ -216,7 +216,10 @@ describe('GoodsReceiptFormComponent', () => {
 
   // Dropdown essenziale: solo i suggerimenti dal catalogo (o il messaggio
   // vuoto) — nessuna azione "Crea", nessuna scheda completa, nessun badge.
-  it('dropdown senza risultati: solo il messaggio, nessuna azione extra', async () => {
+  // Decisione 11/08/2026: senza risultati il pannello non si apre, e non dice
+  // niente. Non trovare nulla non è un errore — si continua a compilare la riga
+  // a mano, e la creazione dell'articolo passa da «Completa anagrafica».
+  it('senza risultati il pannello non si apre e non c’è nessun messaggio', async () => {
     const user = userEvent.setup();
     const { fixture } = await setup();
 
@@ -228,9 +231,8 @@ describe('GoodsReceiptFormComponent', () => {
     const input = screen.getAllByLabelText('Nome prodotto')[0];
     await user.type(input!, 'maglia');
 
-    expect(
-      (await screen.findAllByText('Nessun articolo trovato a catalogo.')).length,
-    ).toBeGreaterThan(0);
+    expect(screen.queryByRole('listbox', { name: 'Suggerimenti prodotto' })).toBeNull();
+    expect(screen.queryByText('Nessun articolo trovato a catalogo.')).toBeNull();
     expect(screen.queryByRole('button', { name: /^Crea/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Apri scheda completa…' })).toBeNull();
     expect(screen.queryByText('Nuovo articolo al salvataggio')).toBeNull();

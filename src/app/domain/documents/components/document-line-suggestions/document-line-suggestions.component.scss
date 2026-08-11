@@ -68,10 +68,3 @@
   font-variant-numeric: var(--numeric-tabular);
   color: var(--color-text-muted);
 }
-
-// Messaggio «nessun risultato»: compare solo se il chiamante passa emptyText.
-.doc-suggestions__empty {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}

@@ -171,6 +171,7 @@ import { DocumentProductPanelStore } from '@domain/documents/state/document-prod
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import {
@@ -374,13 +375,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly productSearchLineIndex = signal<number | null>(null);
   protected readonly productSearchLaunchTerm = signal('');
   protected readonly productSearchLaunchSeq = signal(0);
-  protected readonly autocompleteLineIndex = signal<number | null>(null);
-  protected readonly activeSuggestionIndex = signal(0);
+  /** Il pannello suggerimenti del nome prodotto: stato e regole in domain/. */
+  protected readonly productSuggest = new DocumentProductSuggestStore();
   /**
    * Scelta fra più corrispondenze esatte di un codice. Lo stato vive in
    * `domain/`, identico nelle tre maschere; qui resta solo cosa farne.
    *
-   * Il suo indice evidenziato è PROPRIO, distinto da `activeSuggestionIndex`:
+   * Il suo indice evidenziato è PROPRIO, distinto da quello di
+   * `productSuggest`:
    * quella è la lista dei suggerimenti sul nome prodotto, questa è la scelta
    * fra codici. Sono due collezioni con lunghezze diverse — un indice solo si
    * sfaserebbe passando dall'una all'altra.
@@ -1082,43 +1084,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected lineSuggestions(index: number): readonly VariantSummary[] {
-    if (this.autocompleteLineIndex() !== index || this.lineHasLinkedProduct(index)) {
-      return [];
-    }
-    // Nessun suggerimento senza testo digitato: al solo focus della cella
-    // vuota gli articoli delle altre righe del documento NON vanno proposti.
-    const term = this.lines.at(index)?.controls.productName.value.trim().toLowerCase() ?? '';
-    if (term.length < VARIANT_SEARCH_MIN_CHARS) {
-      return [];
-    }
-    // Le varianti già presenti nel documento (pinned) entrano nell'elenco
-    // solo se combaciano col testo digitato, come i risultati del server.
-    const pinnedMatching = this.pinnedVariants().filter((variant) =>
-      [
-        variant.productName,
-        variant.title,
-        variant.sku,
-        variant.barcode ?? '',
-        variant.articleCode,
-      ].some((value) => value.toLowerCase().includes(term)),
-    );
-    return mergeVariantSummaries(pinnedMatching, this.searchedVariants());
+    return this.productSuggest.suggestionsFor(index, this.suggestInputs(index));
   }
 
-  /**
-   * Dropdown suggerimenti aperto (punto D): con risultati mostra l'elenco,
-   * senza risultati resta aperto per proporre "Apri scheda completa…"
-   * (da 2 caratteri digitati in su). La creazione e' implicita: il nome
-   * digitato basta, nessuna azione "Crea" dedicata.
-   */
   protected lineSuggestionsOpen(index: number): boolean {
-    if (this.autocompleteLineIndex() !== index || this.lineHasLinkedProduct(index)) {
-      return false;
-    }
-    if (this.lineSuggestions(index).length > 0) {
-      return true;
-    }
-    return (this.lines.at(index)?.controls.productName.value.trim().length ?? 0) >= 2;
+    return this.productSuggest.isOpenOn(index, this.suggestInputs(index));
+  }
+
+  private suggestInputs(index: number) {
+    return { hasLinked: this.lineHasLinkedProduct(index), searched: this.searchedVariants() };
   }
 
   protected linkedProductLabel(index: number): string {
@@ -1238,8 +1212,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected onLineProductNameChange(index: number, value: string): void {
     const line = this.lines.at(index);
     line.controls.productName.setValue(value);
-    this.autocompleteLineIndex.set(index);
-    this.activeSuggestionIndex.set(0);
+    this.productSuggest.focusLine(index);
     this.variantSearchDraft.set(value);
     this.codeLookup.clear();
     this.markFormDirty();
@@ -1250,22 +1223,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * qui si aggiornano solo i segnali della ricerca contestuale (§7).
    */
   protected onCardProductNameInput(index: number, value: string): void {
-    this.autocompleteLineIndex.set(index);
-    this.activeSuggestionIndex.set(0);
+    this.productSuggest.focusLine(index);
     this.variantSearchDraft.set(value);
     this.codeLookup.clear();
   }
 
   protected onLineProductFocus(index: number): void {
-    this.autocompleteLineIndex.set(index);
-    this.activeSuggestionIndex.set(0);
+    this.productSuggest.focusLine(index);
     this.variantSearchDraft.set(this.lines.at(index).controls.productName.value);
   }
 
   protected onLineProductBlur(index: number): void {
-    if (this.autocompleteLineIndex() === index) {
-      this.autocompleteLineIndex.set(null);
-    }
+    this.productSuggest.blurLine(index);
     this.commitLineIfSignificant(index);
   }
 
@@ -1429,20 +1398,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected onProductSuggestionNavigate(direction: 'next' | 'prev'): void {
-    const lineIndex = this.autocompleteLineIndex();
-    if (lineIndex == null) {
+    const lineIndex = this.productSuggest.lineIndex();
+    if (lineIndex === null) {
       return;
     }
-    const suggestions = this.lineSuggestions(lineIndex);
-    if (suggestions.length === 0) {
-      return;
-    }
-    const current = this.activeSuggestionIndex();
-    const nextIndex =
-      direction === 'next'
-        ? Math.min(current + 1, suggestions.length - 1)
-        : Math.max(current - 1, 0);
-    this.activeSuggestionIndex.set(nextIndex);
+    this.productSuggest.navigate(direction, this.lineSuggestions(lineIndex).length);
   }
 
   protected advanceToNextLine(index: number): void {
@@ -1612,6 +1572,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       const line = this.lines.at(index);
       return line ? this.lineIsEmpty(line) : true;
     },
+    removeLine: (index) => this.removeLine(index),
   });
 
   /**
@@ -1685,8 +1646,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   private clearProductAutocomplete(): void {
-    this.autocompleteLineIndex.set(null);
-    this.activeSuggestionIndex.set(0);
+    this.productSuggest.clear();
   }
 
   private syncLineCodesFromVariants(): void {

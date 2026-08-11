@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import { caretAtEdge } from '@domain/documents/utils/caret-edge.util';
+
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { formatMoney } from '@core/utils/money.util';
 
@@ -131,6 +133,18 @@ export class DocumentLineProductCellComponent {
     if (event.key === 'ArrowUp' && open) {
       event.preventDefault();
       this.suggestionNavigate.emit('prev');
+      return;
+    }
+    // ←/→ a due tempi (§4.2): finché il cursore ha strada dentro il nome la
+    // freccia resta al browser; al bordo porta al campo accanto.
+    if (event.key === 'ArrowRight' && !event.shiftKey && caretAtEdge(event.target, 'end')) {
+      event.preventDefault();
+      this.lineAdvance.emit(this.lineIndex());
+      return;
+    }
+    if (event.key === 'ArrowLeft' && !event.shiftKey && caretAtEdge(event.target, 'start')) {
+      event.preventDefault();
+      this.lineRetreat.emit(this.lineIndex());
       return;
     }
     if (event.key === 'Enter') {

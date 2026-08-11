@@ -1,5 +1,7 @@
+import { caretAtEdge } from '@domain/documents/utils/caret-edge.util';
+
 /**
- * Il contratto: **nove voci**, tutte fornite dalla maschera.
+ * Il contratto: **dieci voci**, tutte fornite dalla maschera.
  *
  * Ogni voce esiste perché è ciò che DIFFERISCE fra Ordine cliente, Arrivo merce
  * e Ordine fornitore. Il resto — il giro del Tab, la conservazione della
@@ -77,6 +79,16 @@ export interface DocumentLineFocusContract<F extends string> {
    * articolo selezionato.
    */
   readonly isLineEmpty: (lineIndex: number) => boolean;
+
+  /**
+   * 10 — Toglie una riga. Serve alla sola regola simmetrica della creazione:
+   * la riga nata scendendo e mai compilata sparisce se si risale (§4.4).
+   *
+   * Il contratto passa da nove voci a dieci il 11/08/2026. La voce non è un
+   * ripensamento sulle nove: è la terza parte di una regola che ne aveva
+   * scritte solo due, e senza di lei la riga di troppo resterebbe lì.
+   */
+  readonly removeLine: (lineIndex: number) => void;
 }
 
 /**
@@ -103,6 +115,14 @@ export interface DocumentLineFocusContract<F extends string> {
  * `rowDown`, `rowUp` e `focusField` sono pubbliche e chiamabili per nome.
  */
 export class DocumentLineFocusStore<F extends string> {
+  /**
+   * L'ultima riga **nata dalla navigazione** (Tab, ↓ o → in fondo al giro).
+   * Serve a distinguerla da una riga vuota che l'operatore ha lasciato lì di
+   * proposito: quella non si tocca. Il segno si consuma appena la riga sparisce
+   * o appena ne nasce un'altra.
+   */
+  private bornRow: number | null = null;
+
   constructor(private readonly contract: DocumentLineFocusContract<F>) {}
 
   /** I campi attraversabili di quella riga, nell'ordine ricevuto. */
@@ -207,7 +227,14 @@ export class DocumentLineFocusStore<F extends string> {
     this.createRowAndFocus(lineIndex);
   }
 
-  /** ↑ — conserva la colonna. Sulla prima riga non fa nulla. */
+  /**
+   * ↑ — conserva la colonna. Sulla prima riga non fa nulla.
+   *
+   * **La riga appena nata e mai compilata sparisce.** È la simmetrica della
+   * creazione: se la riga esiste solo perché si è scesi, e si risale senza
+   * averci scritto niente, non la si voleva. Sparisce solo quella — non una
+   * riga vuota lasciata lì di proposito, che nessuno ha creato scendendo.
+   */
   rowUp(lineIndex: number, field: F): void {
     if (this.contract.isReadOnly()) {
       return;
@@ -216,7 +243,27 @@ export class DocumentLineFocusStore<F extends string> {
     if (above === null) {
       return;
     }
-    this.withRowChange(lineIndex, () => this.focusSameColumn(above, field));
+    const disposable = this.isDisposableNewRow(lineIndex);
+    this.withRowChange(lineIndex, () => {
+      if (disposable) {
+        this.bornRow = null;
+        this.contract.removeLine(lineIndex);
+      }
+      this.focusSameColumn(above, field);
+    });
+  }
+
+  /**
+   * La riga è quella nata dalla navigazione, è ancora l'ultima, ed è ancora
+   * vuota. Tutte e tre servono: se nel frattempo ne sono nate altre sotto, o se
+   * qualcosa ci è stato scritto, non è più la riga di troppo.
+   */
+  private isDisposableNewRow(lineIndex: number): boolean {
+    return (
+      this.bornRow === lineIndex &&
+      lineIndex === this.contract.lineCount() - 1 &&
+      this.contract.isLineEmpty(lineIndex)
+    );
   }
 
   /**
@@ -247,6 +294,26 @@ export class DocumentLineFocusStore<F extends string> {
     if (event.key === 'ArrowUp' && !event.shiftKey) {
       event.preventDefault();
       this.rowUp(lineIndex, field);
+      return;
+    }
+    // ←/→ a due tempi: finché il cursore ha strada dentro il campo, la freccia
+    // resta al browser. Al bordo porta al campo accanto — e → dall'ultimo campo
+    // crea la riga nuova con la STESSA condizione di Tab e ↓: solo se la riga
+    // corrente ha contenuto. Stesso effetto, stessa regola.
+    if (event.key === 'ArrowRight' && !event.shiftKey) {
+      if (!caretAtEdge(event.target, 'end')) {
+        return;
+      }
+      event.preventDefault();
+      this.next(lineIndex, field);
+      return;
+    }
+    if (event.key === 'ArrowLeft' && !event.shiftKey) {
+      if (!caretAtEdge(event.target, 'start')) {
+        return;
+      }
+      event.preventDefault();
+      this.previous(lineIndex, field);
       return;
     }
     if (event.key !== 'Tab') {
@@ -302,7 +369,9 @@ export class DocumentLineFocusStore<F extends string> {
   private createRowAndFocus(lineIndex: number): void {
     this.withRowChange(lineIndex, () => {
       this.contract.createLine();
-      this.focusFirstField(this.contract.lineCount() - 1);
+      const born = this.contract.lineCount() - 1;
+      this.bornRow = born;
+      this.focusFirstField(born);
     });
   }
 

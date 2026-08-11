@@ -102,6 +102,7 @@ import { DocumentPrefillErrorStore } from '@domain/documents/state/document-pref
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { ViewportService } from '@core/services/viewport.service';
@@ -1114,8 +1115,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly compactView = this.viewport.compact;
 
   // ── Autocomplete prodotto per riga ──────────────────────────────────────
-  protected readonly autocompleteLineIndex = signal<number | null>(null);
-  protected readonly activeSuggestionIndex = signal(0);
+  /** Il pannello suggerimenti del nome prodotto: stato e regole in domain/. */
+  protected readonly productSuggest = new DocumentProductSuggestStore();
   /**
    * Scelta fra più corrispondenze esatte di un codice. Lo stato vive in
    * `domain/`, identico nelle tre maschere; qui resta solo cosa farne.
@@ -1974,7 +1975,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       suggestionsOpen: this.lineSuggestionsOpen(index),
       codeChoice: this.mobileCodeChoice(index),
       suggestAbove: this.mobileSuggestAbove(),
-      activeSuggestionIndex: this.activeSuggestionIndex(),
+      activeSuggestionIndex: this.productSuggest.activeIndex(),
       readOnly: this.formReadOnly(),
       commitsLabel: this.isQuote ? null : this.commitsColumnLabel,
       showSerials: this.isLineColumnVisible('serials'),
@@ -2753,25 +2754,27 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   // ── Autocomplete nome prodotto ──────────────────────────────────────────
   protected lineSuggestions(index: number): readonly VariantSummary[] {
-    return this.autocompleteLineIndex() === index ? this.searchedVariants() : [];
+    return this.productSuggest.suggestionsFor(index, this.suggestInputs(index));
   }
 
   protected lineSuggestionsOpen(index: number): boolean {
-    return this.autocompleteLineIndex() === index && this.searchedVariants().length > 0;
+    return this.productSuggest.isOpenOn(index, this.suggestInputs(index));
+  }
+
+  private suggestInputs(index: number) {
+    return { hasLinked: this.lineHasLinkedProduct(index), searched: this.searchedVariants() };
   }
 
   protected onLineProductNameChange(index: number, value: string): void {
     const line = this.lines.at(index);
     line.controls.productName.setValue(value);
-    this.autocompleteLineIndex.set(index);
-    this.activeSuggestionIndex.set(0);
+    this.productSuggest.focusLine(index);
     this.variantSearchDraft.set(value);
     this.markFormDirty();
   }
 
   protected onLineProductFocus(index: number): void {
-    this.autocompleteLineIndex.set(index);
-    this.activeSuggestionIndex.set(0);
+    this.productSuggest.focusLine(index);
     this.variantSearchDraft.set(this.lines.at(index).controls.productName.value);
   }
 
@@ -2785,13 +2788,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   protected onProductSuggestionNavigate(direction: 'next' | 'prev'): void {
-    const count = this.searchedVariants().length;
-    if (count === 0) {
+    const lineIndex = this.productSuggest.lineIndex();
+    if (lineIndex === null) {
       return;
     }
-    this.activeSuggestionIndex.update((current) =>
-      direction === 'next' ? (current + 1) % count : (current - 1 + count) % count,
-    );
+    this.productSuggest.navigate(direction, this.lineSuggestions(lineIndex).length);
   }
 
   /** Esc chiude l'anteprima del nome e la scelta aperta da un codice. */
@@ -2801,8 +2802,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   private clearProductAutocomplete(): void {
-    this.autocompleteLineIndex.set(null);
-    this.activeSuggestionIndex.set(0);
+    this.productSuggest.clear();
     this.variantSearchDraft.set('');
   }
 
@@ -3114,6 +3114,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       const line = this.lines.at(index);
       return line ? this.lineIsEmpty(line) : true;
     },
+    removeLine: (index) => this.removeLine(index),
   });
 
   protected focusLineField(index: number, field: CustomerOrderLineFocusField): void {
