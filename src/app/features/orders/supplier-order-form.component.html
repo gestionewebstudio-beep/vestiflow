@@ -424,6 +424,36 @@
                     ></span>
                   </th>
                 }
+                <!-- Prezzi di vendita: informativi e SPENTI di default. Sono i
+                     prezzi dell'articolo in anagrafica, non un dato dell'ordine:
+                     qui si legge il costo, questi si guardano solo se qualcuno
+                     li chiede dal selettore colonne. -->
+                @if (isLineColumnVisible('sellingPrice')) {
+                  <th
+                    scope="col"
+                    class="doc-form__col--calc doc-form__num"
+                    [style.width]="lineColumnWidth('sellingPrice')"
+                  >
+                    Prezzo al pubblico
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('sellingPrice', $event)"
+                    ></span>
+                  </th>
+                }
+                @if (isLineColumnVisible('compareAtPrice')) {
+                  <th
+                    scope="col"
+                    class="doc-form__col--calc doc-form__num"
+                    [style.width]="lineColumnWidth('compareAtPrice')"
+                  >
+                    Prezzo barrato
+                    <span
+                      appTableColumnResize
+                      (resized)="onLineColumnResize('compareAtPrice', $event)"
+                    ></span>
+                  </th>
+                }
                 @if (isLineColumnVisible('stockOnHand')) {
                   <th
                     scope="col"
@@ -717,6 +747,22 @@
                       [attr.data-label]="'Costo scontato'"
                     >
                       {{ lineDiscountedCost(i) }}
+                    </td>
+                  }
+                  @if (isLineColumnVisible('sellingPrice')) {
+                    <td
+                      class="doc-form__col--calc doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums"
+                      data-label="Prezzo al pubblico"
+                    >
+                      {{ lineCatalogPrice(i, 'sellingPrice') }}
+                    </td>
+                  }
+                  @if (isLineColumnVisible('compareAtPrice')) {
+                    <td
+                      class="doc-form__col--calc doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums"
+                      data-label="Prezzo barrato"
+                    >
+                      {{ lineCatalogPrice(i, 'compareAtPrice') }}
                     </td>
                   }
                   @if (isLineColumnVisible('stockOnHand')) {

@@ -91,6 +91,21 @@ describe('DocumentLineFocusStore', () => {
     expect(fuoco()).toBe('r0-qty');
   });
 
+  // §4.1: si entra col valore selezionato, pronto da sovrascrivere. Senza,
+  // richiamando un articolo il fuoco arrivava sulla quantità ma per cambiarla
+  // bisognava prima cancellare l'«1» che c'era.
+  it('entrando in un campo ne seleziona il valore', () => {
+    const { store } = crea({ righe: 1 });
+    const campo = globalThis.document.getElementById('r0-qty') as HTMLInputElement;
+    campo.value = '12';
+
+    store.focusField(0, 'qty');
+
+    expect(fuoco()).toBe('r0-qty');
+    expect(campo.selectionStart).toBe(0);
+    expect(campo.selectionEnd).toBe(2);
+  });
+
   it('la mappa si interroga per campo, non per prefisso', () => {
     const contratto: DocumentLineFocusContract<Campo> = {
       fields: CAMPI,

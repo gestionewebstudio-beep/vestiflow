@@ -704,11 +704,37 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     );
   }
 
-  protected lineColumnWidth(columnId: string): string {
+  private lineColumnPx(columnId: string): number {
     const normalizedId = normalizeSupplierOrderColumnId(columnId);
     const def = SUPPLIER_ORDER_LINE_COLUMNS.find((col) => col.id === normalizedId);
     const fallback = def?.defaultWidthPx ?? 96;
-    return `${this.columnPreferences.columnWidth(SUPPLIER_ORDER_LINES_VIEW, normalizedId, fallback)}px`;
+    return this.columnPreferences.columnWidth(SUPPLIER_ORDER_LINES_VIEW, normalizedId, fallback);
+  }
+
+  /** Somma delle sole colonne visibili: è il 100% di cui ciascuna prende una quota. */
+  private lineColumnsTotalPx(): number {
+    return SUPPLIER_ORDER_LINE_COLUMNS.reduce(
+      (total, def) =>
+        this.isLineColumnVisible(def.id) ? total + this.lineColumnPx(def.id) : total,
+      0,
+    );
+  }
+
+  /**
+   * Larghezza colonna come QUOTA percentuale del totale, come nell'Ordine
+   * cliente: la tabella occupa sempre esattamente il 100% del contenitore.
+   *
+   * Coi pixel assoluti la tabella restava larga quanto la somma delle colonne e
+   * SCORREVA invece di adattarsi — misurato: 1410px contro un contenitore da
+   * 1398, con la colonna Totale che finiva fuori. I pixel salvati dal
+   * ridimensionamento non si perdono: diventano pesi relativi.
+   */
+  protected lineColumnWidth(columnId: string): string {
+    const totale = this.lineColumnsTotalPx();
+    if (totale <= 0) {
+      return 'auto';
+    }
+    return `${((this.lineColumnPx(columnId) / totale) * 100).toFixed(4)}%`;
   }
 
   protected onLineColumnResize(columnId: string, widthPx: number): void {
@@ -886,6 +912,20 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     }
     line.controls.variantId.setValue('');
     this.markFormDirty();
+  }
+
+  /**
+   * Prezzi di vendita dell'articolo, in sola lettura.
+   *
+   * Vengono dall'ANAGRAFICA, non dalla riga: su un ordine al fornitore non c'è
+   * un prezzo di vendita da decidere, si guarda al più quello che l'articolo ha
+   * già. Per questo la colonna è spenta di default e la cella non è editabile —
+   * affiancare al costo un altro numero monetario modificabile sarebbe un
+   * invito a scrivere il valore sbagliato nella colonna sbagliata.
+   */
+  protected lineCatalogPrice(index: number, field: 'sellingPrice' | 'compareAtPrice'): string {
+    const money = this.lineSummary(index)?.[field];
+    return money ? formatMoney(money) : '—';
   }
 
   protected lineStock(index: number, field: 'stockOnHand' | 'stockAvailable'): string {

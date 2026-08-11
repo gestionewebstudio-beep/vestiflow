@@ -110,9 +110,37 @@ export class DocumentLineFocusStore<F extends string> {
     return this.contract.fields.filter((field) => this.contract.isFieldEnabled(lineIndex, field));
   }
 
+  /**
+   * Porta il fuoco sul campo **e ne seleziona il valore**, pronto da
+   * sovrascrivere (specifica §4.1).
+   *
+   * Senza la selezione, richiamando un articolo il fuoco arrivava sulla
+   * quantità ma il cursore restava accanto all'«1» già presente: per cambiarla
+   * bisognava cancellare prima. In un gestionale si digita il numero e basta.
+   *
+   * ⚠️ Si seleziona **all'ingresso da tastiera, non al click** (§4.6): questo
+   * metodo lo chiama la navigazione, mai il mouse. La formulazione ingenua
+   * «seleziona quando il campo prende il fuoco» cancellerebbe il valore al
+   * primo tasto dopo un click a metà cifra.
+   */
   focusField(lineIndex: number, field: F): void {
     const id = this.contract.elementId(lineIndex, field);
-    globalThis.document.getElementById(id)?.focus();
+    const element = globalThis.document.getElementById(id);
+    if (!element) {
+      return;
+    }
+    element.focus();
+    // `select()` esiste solo su input e textarea, e su alcuni tipi di input
+    // (number, date) i browser lo rifiutano: si prova, e se non si può si
+    // lascia il fuoco dov'è arrivato, che è comunque metà del lavoro.
+    const selezionabile = element as Partial<HTMLInputElement>;
+    if (typeof selezionabile.select === 'function') {
+      try {
+        selezionabile.select();
+      } catch {
+        // Tipo di campo che non ammette la selezione: nulla da fare.
+      }
+    }
   }
 
   focusFirstField(lineIndex: number): void {
