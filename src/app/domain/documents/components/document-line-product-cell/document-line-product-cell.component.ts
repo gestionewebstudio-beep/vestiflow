@@ -125,14 +125,21 @@ export class DocumentLineProductCellComponent {
         this.lineRetreat.emit(this.lineIndex());
         return;
       case 'confirm':
-        // ⚠️ Qui il nome NON registra niente — non c'è un codice da confrontare
-        // col catalogo — quindi `advance` non cambia l'esito: si va al campo
-        // dopo in entrambi i casi. Vuol dire che su questa cella **Invio
-        // avanza**, mentre sulla cella codice resta (§4.5). È una divergenza
-        // vera fra le due, non un residuo dell'estrazione: la funzione
-        // condivisa la rende visibile invece di tenerla sepolta in sessanta
-        // righe uguali. Da decidere, non da correggere di nascosto.
-        this.lineAdvance.emit(this.lineIndex());
+        // **Invio non naviga, in nessuna cella** (§4.5, deciso 11/08/2026).
+        // Qui il nome non registra niente — non c'è un codice da confrontare
+        // col catalogo — quindi «conferma e resta» vuol dire semplicemente
+        // restare: l'evento è già trattenuto, e il fuoco non si muove. Per
+        // spostarsi ci sono Tab e le frecce.
+        //
+        // Fino a oggi Invio avanzava, e la divergenza con la cella codice era
+        // sepolta in due blocchi di codice uguali.
+        //
+        // Limite noto, già scritto: se scegliendo dall'elenco la riga si
+        // aggancia a un articolo, questa cella diventa testo e «restare» non è
+        // possibile — non c'è più niente su cui restare.
+        if (esito.advance) {
+          this.lineAdvance.emit(this.lineIndex());
+        }
         return;
     }
   }
