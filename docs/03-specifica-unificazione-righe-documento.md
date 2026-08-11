@@ -413,6 +413,12 @@ Si è scelto il cancello sul documento invece che sulla sola colonna: una regola
 
 **Il riconoscimento del codice resta indipendente dal fornitore scelto** (§4.8): se lo stesso codice appartiene ad articoli di fornitori diversi, la scelta si apre comunque e la decide l'operatore. Il fornitore della testata dice **quando** si può compilare, non **cosa** si può trovare.
 
+**Il campo che tiene ferme le righe si vede.** Lo stato vuoto dice cosa manca, ma sta al centro della pagina mentre l'azione è in testata: il campo obbligatorio ancora vuoto porta quindi un bordo di una tinta propria, e sparisce appena lo si compila.
+
+Non è rosso, di proposito. Il rosso in queste maschere vuol già dire «hai provato a salvare e questo campo è sbagliato»: usarlo anche per «non l'hai ancora compilato» renderebbe i due stati indistinguibili proprio dopo un salvataggio rifiutato, quando distinguerli serve.
+
+**L'errore sotto un campo non ripete quello che il campo già dice.** Un campo che mostra «Seleziona un fornitore…» e sotto un messaggio «Seleziona un fornitore.» dice la stessa frase due volte. Il messaggio dice **«Campo obbligatorio.»** — e resta, perché al rifiuto il campo cambia solo tinta, e chi non distingue i colori non vedrebbe accadere niente.
+
 **Mobile: uguale.** Stesso stato vuoto, stesso testo, stessa regola. Su mobile era già così — le card non si mostravano e lo stato vuoto spiegava — quindi non è una novità mobile: è il desktop che ha adottato quello che sul telefono era già stato deciso.
 
 ---

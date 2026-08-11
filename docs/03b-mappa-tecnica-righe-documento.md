@@ -708,6 +708,26 @@ La variante di prova dell'Ordine fornitore era scritta a mano con cinque campi s
 
 **Il segnale:** una prova che fallisce dicendo «non trovo l'elemento» **mentre lo stato interno è giusto**. Se lo stato dice che i risultati ci sono e il DOM non li mostra, il sospetto va al calcolo che li trasforma — e quasi sempre al dato che lo alimenta, non al calcolo.
 
+### 12.0-quater ⚠️ Tre regole in fila per tornare al punto di partenza
+
+_(11/08/2026)_ Il blocco righe a testata incompleta era spento al 55% dal foglio globale, spento **ancora** dal foglio mobile, e **riacceso** con `opacity: 1` dal foglio mobile di riferimento — che nel suo commento portava già la conclusione giusta: «titolo e stato vuoto vanno letti, sono proprio loro a spiegare cosa fare».
+
+Tre dichiarazioni, l'ultima che annulla la prima, e nessuna cancellata quando la decisione era cambiata. Il costo non è l'ingombro: è che **la regola vera non era leggibile da nessuna parte**. Per sapere cosa succedeva bisognava sapere in che ordine i fogli venivano compilati.
+
+**Lo schema da riconoscere:** quando una regola nuova non convince, si aggiunge una regola che la contrasta invece di toglierla. La contro-regola funziona, quindi nessuno torna indietro. Alla terza, il comportamento è la somma di tre decisioni di cui **due sono state ritirate senza dirlo**.
+
+**La contromisura è nel gesto, non in uno strumento:** quando si scrive una regola che ne annulla un'altra, si **toglie l'altra**. Se non si può — perché vale ancora altrove — allora la regola nuova non va scritta lì: va scritta dove la differenza nasce.
+
+Il segnale che ci si è dentro: si sta scrivendo `opacity: 1`, `display: block` su qualcosa che il foglio sopra ha appena nascosto, o un `!important`. Nessuno dei tre dice cosa deve succedere; dicono soltanto «non quello che ha detto l'altro».
+
+### 12.0-quinquies ⚠️ Il colore di un campo condiviso si cambia dal contenitore, non dal figlio
+
+_(11/08/2026)_ Segnare il campo obbligatorio ancora vuoto voleva dire cambiare il **bordo di `select-menu`**, che è un componente condiviso con 183 istanze. La strada sbagliata e ovvia è `::ng-deep .select-menu__trigger`: dipende dal nome di una classe interna e smette di funzionare **in silenzio** se quel componente la rinomina.
+
+La strada giusta era già pronta: `--field-border-color`, dichiarata dal componente con un ripiego (`var(--field-border-color, var(--color-input-border))`). Il contenitore la imposta **su di sé**, la custom property attraversa il confine per costruzione, e il figlio non sa che qualcuno l'ha configurato.
+
+**La regola generale**, che vale ogni volta che si vuole tingere o misurare un componente condiviso dall'esterno: guardare **prima** l'elenco dei punti di regolazione in `regole-stile-ui.md` §5. Se il punto non c'è, la correzione è **aggiungerlo al componente** — non scavalcarlo. Un `::ng-deep` è un difetto di API del componente, non una scorciatoia.
+
 ---
 
 **Zero copertura sulla NAVIGAZIONE** _(mis. 08/2026)_. I tre spec di componente non contengono `keydown`, `focus`, `Tab`, `ArrowUp`/`ArrowDown`, `advanceToNextLine` né `LineFocus`. In `e2e/` l'unico uso di tastiera è un `Escape`. È il fronte che il punto unico dovrà coprire, ed è ancora tutto da fare.
