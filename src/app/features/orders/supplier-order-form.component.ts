@@ -90,6 +90,11 @@ import { DocumentEditLockService } from '@domain/documents/services/document-edi
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
+import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
+import {
+  sortByLineValue,
+  type DocumentLineSortKind,
+} from '@domain/documents/utils/document-line-sort.util';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import {
   supplierCodeForDocumentLine,
@@ -135,6 +140,30 @@ const CODE_FOCUS_FIELDS: readonly LineCodeField[] = [
 ];
 
 /** Campi della riga che ricevono il fuoco, nell'ordine di attraversamento. */
+/** Colonne dell'Ordine fornitore su cui si può ordinare le righe (§7.1). */
+export type SupplierOrderLineSortColumn =
+  | 'articleCode'
+  | 'sku'
+  | 'barcode'
+  | 'supplierCode'
+  | 'product'
+  | 'unitOfMeasure'
+  | 'quantity'
+  | 'unitCost'
+  | 'discount';
+
+const SUPPLIER_ORDER_SORTABLE_LINE_COLUMNS: readonly SupplierOrderLineSortColumn[] = [
+  'articleCode',
+  'sku',
+  'barcode',
+  'supplierCode',
+  'product',
+  'unitOfMeasure',
+  'quantity',
+  'unitCost',
+  'discount',
+];
+
 type LineFocusField =
   LineCodeField | 'product' | 'quantity' | 'unitOfMeasure' | 'unitCost' | 'discount';
 
@@ -233,6 +262,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
             // blocco lì richiuderebbe la maschera in faccia a chi sta lavorando.
             this.editLock.syncOnLoad(order.id);
             this.patchFormFromOrder(order);
+            // Un altro documento e' un'altra storia: l'avviso torna dovuto. Qui e
+            // non alla creazione del componente, che passando da un ordine
+            // all'altro non riavviene (cambia solo il parametro di rotta).
+            this.lineSort.reset();
             return 'ready' as const;
           }),
           startWith<'ready' | 'loading' | 'not-found' | 'error'>('loading'),
@@ -342,6 +375,100 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    */
   protected readonly codeLookup = new DocumentCodeLookupStore();
   protected readonly productSuggest = new DocumentProductSuggestStore();
+
+  /**
+   * Riordino righe e avviso: stato e regole in `domain/`. Qui resta solo COME
+   * si legge il valore di una colonna e con che modo si confronta.
+   */
+  protected readonly lineSort = new DocumentLineSortStore<SupplierOrderLineSortColumn>();
+
+  private readonly lineSortKinds: Readonly<
+    Record<SupplierOrderLineSortColumn, DocumentLineSortKind>
+  > = {
+    articleCode: 'text',
+    sku: 'text',
+    barcode: 'text',
+    supplierCode: 'text',
+    product: 'text',
+    unitOfMeasure: 'text',
+    quantity: 'number',
+    unitCost: 'money',
+    discount: 'percent',
+  };
+
+  protected isLineColumnSortable(columnId: string): boolean {
+    return (SUPPLIER_ORDER_SORTABLE_LINE_COLUMNS as readonly string[]).includes(columnId);
+  }
+
+  protected toggleLineSort(columnId: SupplierOrderLineSortColumn): void {
+    if (this.formReadOnly() || !this.isLineColumnVisible(columnId)) {
+      return;
+    }
+    // Il primo riordino del documento apre l'avviso e si ferma qui.
+    if (this.lineSort.request(columnId)) {
+      this.applyLineSort();
+    }
+  }
+
+  protected confirmLineSort(): void {
+    if (this.lineSort.confirm() !== null) {
+      this.applyLineSort();
+    }
+  }
+
+  protected lineSortAriaLabel(columnId: SupplierOrderLineSortColumn, label: string): string {
+    if (this.lineSort.column() !== columnId) {
+      return `Ordina per ${label}`;
+    }
+    return this.lineSort.direction() === 'asc'
+      ? `${label}: ordinamento crescente`
+      : `${label}: ordinamento decrescente`;
+  }
+
+  private lineSortValue(
+    raw: ReturnType<ReturnType<SupplierOrderFormComponent['createLine']>['getRawValue']>,
+    column: SupplierOrderLineSortColumn,
+  ): string | number {
+    switch (column) {
+      case 'articleCode':
+        return raw.articleCode;
+      case 'sku':
+        return raw.sku;
+      case 'barcode':
+        return raw.barcode;
+      case 'supplierCode':
+        return raw.supplierCode;
+      case 'product':
+        return raw.productName;
+      case 'unitOfMeasure':
+        return raw.unitOfMeasure;
+      case 'quantity':
+        return Number(raw.orderedQuantity) || 0;
+      case 'unitCost':
+        return raw.unitCost;
+      case 'discount':
+        return raw.discountPercent;
+    }
+  }
+
+  private applyLineSort(): void {
+    const column = this.lineSort.column();
+    if (!column || this.lines.length <= 1) {
+      return;
+    }
+    const controls = sortByLineValue(
+      this.lines.controls,
+      (control) => this.lineSortValue(control.getRawValue(), column),
+      this.lineSortKinds[column],
+      this.lineSort.direction(),
+      this.currency,
+    );
+    this.lines.clear();
+    for (const control of controls) {
+      this.lines.push(control);
+    }
+    this.markFormDirty();
+  }
 
   // Pannello di ricerca articolo aperto dalla lente della cella nome.
   protected readonly productSearchPanelOpen = signal(false);

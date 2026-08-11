@@ -222,6 +222,34 @@ describe('SupplierOrderFormComponent', () => {
   // tecnica — un ordine fornitore non muove giacenze — ma di documento: fra le
   // colonne c'è «Cod. fornitore», e scriverlo prima di aver detto chi è il
   // fornitore è la frase senza il soggetto.
+  // Il riordino righe passa dall'avviso, e l'avviso è una volta per documento.
+  // Le regole vivono in `domain/` e hanno i loro test: qui si prova che questa
+  // maschera le abbia davvero agganciate — l'intestazione è un pulsante, e il
+  // primo clic apre l'avviso invece di riordinare.
+  it('il primo clic sull’intestazione chiede conferma invece di riordinare', async () => {
+    const user = userEvent.setup();
+    await setup();
+    await scegliFornitore(user);
+
+    await user.click(screen.getByRole('button', { name: 'Ordina per Nome prodotto' }));
+
+    expect(await screen.findByText('Riordino righe')).toBeVisible();
+    expect(screen.getByText(/non sarà più ricostruibile/)).toBeVisible();
+  });
+
+  it('rinunciando non si ordina, e la volta dopo richiede di nuovo', async () => {
+    const user = userEvent.setup();
+    await setup();
+    await scegliFornitore(user);
+
+    await user.click(screen.getByRole('button', { name: 'Ordina per SKU' }));
+    await user.click(screen.getByRole('button', { name: 'Annulla' }));
+
+    // L'avviso non è stato consumato: il gesto successivo lo richiede.
+    await user.click(screen.getByRole('button', { name: 'Ordina per SKU' }));
+    expect(await screen.findByText('Riordino righe')).toBeVisible();
+  });
+
   it('a fornitore mancante le righe non ci sono, e lo stato vuoto dice cosa manca', async () => {
     const user = userEvent.setup();
     await setup();
@@ -751,3 +779,10 @@ describe('SupplierOrderFormComponent', () => {
     });
   });
 });
+
+/**
+ * Il riordino righe passa dall'avviso, e l'avviso è una volta per documento.
+ * Le regole vivono in `domain/` e hanno i loro test: qui si prova che questa
+ * maschera le abbia davvero agganciate — l'intestazione è un pulsante, il primo
+ * clic apre l'avviso invece di riordinare.
+ */
