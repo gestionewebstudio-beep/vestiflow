@@ -1628,19 +1628,18 @@
                             [title]="lineVatTooltip(i)"
                           >
                             @if (!lineIsReference(i)) {
-                              <app-select-menu
+                              <app-document-line-select-cell
+                                [lineIndex]="i"
+                                [inputId]="'co-vat-' + i"
+                                ariaLabel="Codice IVA riga"
                                 [options]="lineVatOptions(i)"
                                 [value]="lineVatValue(i)"
-                                ariaLabel="Codice IVA riga"
-                                placeholder="—"
-                                [compact]="true"
-                                [matchInputHeight]="true"
-                                [includeEmptyOption]="false"
-                                [searchable]="true"
-                                [inlineDetail]="true"
-                                searchPlaceholder="Codice, aliquota, descrizione…"
-                                searchAriaLabel="Cerca Codice IVA"
+                                [disabled]="formReadOnly()"
                                 (valueChange)="onLineVatSelect(i, $event)"
+                                (lineAdvance)="lineFocus.next(i, 'vat')"
+                                (lineRetreat)="lineFocus.previous(i, 'vat')"
+                                (lineRowAdvance)="lineFocus.rowDown(i, 'vat')"
+                                (lineRowRetreat)="lineFocus.rowUp(i, 'vat')"
                               />
                             }
                           </td>
@@ -1808,6 +1807,7 @@
                     } @else {
                       <app-customer-order-line-card
                         [line]="line"
+                        [lineIndex]="i"
                         [vm]="lineCardVm(i)"
                         [open]="isLineCardOpen(i)"
                         [layout]="isOrder ? 'order' : 'registry'"

@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { ReactiveFormsModule } from '@angular/forms';
 
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { DocumentLineSuggestionsComponent } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.component';
 
 import type {
@@ -33,9 +33,9 @@ export type { LineCodeField };
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ButtonComponent,
+    DocumentLineSelectCellComponent,
     DocumentLineSuggestionsComponent,
     ReactiveFormsModule,
-    SelectMenuComponent,
   ],
   templateUrl: './customer-order-line-card.component.html',
   styleUrl: './customer-order-line-card.component.scss',
@@ -44,6 +44,8 @@ export class CustomerOrderLineCardComponent {
   readonly line = input.required<CustomerOrderLineCardGroup>();
   readonly vm = input.required<CustomerOrderLineCardVm>();
   readonly open = input(false);
+  /** Serve alle celle condivise, che riportano la riga negli esiti che emettono. */
+  readonly lineIndex = input.required<number>();
 
   /**
    * Due disposizioni della testata compatta per lo stesso contenuto. `order` e'

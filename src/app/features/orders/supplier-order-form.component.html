@@ -896,15 +896,23 @@
                         </td>
                       }
                       @if (isLineColumnVisible('vat')) {
-                        <td class="doc-form__col--tax doc-form__cell" data-label="IVA">
-                          <app-select-menu
-                            [options]="vatCodeOptions()"
-                            [value]="line.controls.vatCodeId.value"
+                        <td
+                          class="doc-form__col--tax doc-form__cell"
+                          data-label="IVA"
+                          [title]="lineVatTooltip(i)"
+                        >
+                          <app-document-line-select-cell
+                            [lineIndex]="i"
+                            [inputId]="'po-vat-' + i"
                             ariaLabel="Codice IVA riga"
-                            placeholder="—"
-                            [compact]="true"
-                            [fullWidth]="true"
+                            [options]="lineVatOptions(i)"
+                            [value]="line.controls.vatCodeId.value"
+                            [disabled]="formReadOnly()"
                             (valueChange)="onLineVatSelect(i, $event)"
+                            (lineAdvance)="lineFocus.next(i, 'vat')"
+                            (lineRetreat)="lineFocus.previous(i, 'vat')"
+                            (lineRowAdvance)="lineFocus.rowDown(i, 'vat')"
+                            (lineRowRetreat)="lineFocus.rowUp(i, 'vat')"
                           />
                         </td>
                       }

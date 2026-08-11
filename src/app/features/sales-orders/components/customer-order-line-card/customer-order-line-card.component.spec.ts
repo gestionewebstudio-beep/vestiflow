@@ -65,7 +65,7 @@ async function setup(
     commitsChanged: vi.fn(),
   };
   await render(CustomerOrderLineCardComponent, {
-    inputs: { line, vm: { ...VM, ...vm }, open, layout },
+    inputs: { line, lineIndex: 0, vm: { ...VM, ...vm }, open, layout },
     on,
   });
   return { line, on };

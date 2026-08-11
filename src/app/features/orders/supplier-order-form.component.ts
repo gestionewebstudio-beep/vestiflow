@@ -84,6 +84,11 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import {
+  vatCodeSelectOption,
+  vatOptionsIncludingSelected,
+} from '@domain/documents/utils/document-vat-options.util';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { findVariantSummaryById } from '@domain/products/utils/variant-summary-search.util';
@@ -174,7 +179,7 @@ const SUPPLIER_ORDER_SORTABLE_LINE_COLUMNS: readonly SupplierOrderLineSortColumn
 ];
 
 type LineFocusField =
-  LineCodeField | 'product' | 'quantity' | 'unitOfMeasure' | 'unitCost' | 'discount';
+  LineCodeField | 'product' | 'quantity' | 'unitOfMeasure' | 'unitCost' | 'discount' | 'vat';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -215,6 +220,7 @@ function todayIsoDate(): string {
     DocumentCounterpartyRefComponent,
     DocumentMobilePanelComponent,
     DocumentLineCodeCellComponent,
+    DocumentLineSelectCellComponent,
     DocumentLineProductCellComponent,
     DocumentProductSearchPanelComponent,
     ConfirmDialogComponent,
@@ -357,12 +363,17 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly purchaseVatCodes = computed(() =>
     this.vatCodes().filter((vatCode) => vatCode.isActive && isPurchaseVatCode(vatCode)),
   );
-  protected readonly vatCodeOptions = computed<readonly SelectMenuOption[]>(() => [
+  /**
+   * Le voci della cella IVA, composte come nelle altre due maschere: **il codice
+   * è l'etichetta**, aliquota e descrizione stanno nel dettaglio.
+   *
+   * Qui l'etichetta era la riga intera («22 · 22% · Imponibile 22%»), che sulla
+   * cella a ricerca-e-selezione toglie senso al filtro: la precedenza è sul
+   * codice, e un codice che comincia con «22 · 22%…» non comincia con niente.
+   */
+  private readonly vatCodeOptionsBase = computed<readonly SelectMenuOption[]>(() => [
     { value: '', label: '—' },
-    ...this.purchaseVatCodes().map((vatCode) => ({
-      value: vatCode.id,
-      label: vatCodeOptionLabel(vatCode),
-    })),
+    ...this.purchaseVatCodes().map(vatCodeSelectOption),
   ]);
   private readonly vatCodesById = computed(
     () => new Map(this.vatCodes().map((vatCode) => [vatCode.id, vatCode])),
@@ -1383,6 +1394,27 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     }
   }
 
+  /**
+   * Le voci per una riga: quelle attive più, se serve, il codice già scelto su
+   * questa riga anche se nel frattempo è stato disattivato. Senza, riaprendo un
+   * ordine di mesi fa la cella IVA risulterebbe vuota — e al salvataggio
+   * successivo il codice sparirebbe davvero. È la stessa protezione che le altre
+   * due maschere avevano già.
+   */
+  protected lineVatOptions(index: number): readonly SelectMenuOption[] {
+    return vatOptionsIncludingSelected(
+      this.vatCodeOptionsBase(),
+      this.lines.at(index)?.controls.vatCodeId.value,
+      this.vatCodesById(),
+    );
+  }
+
+  /** Sulla cella si legge il codice; il resto sta qui, come nelle altre due. */
+  protected lineVatTooltip(index: number): string {
+    const vatCode = this.vatCodesById().get(this.lines.at(index)?.controls.vatCodeId.value ?? '');
+    return vatCode ? vatCodeOptionLabel(vatCode) : 'Nessun Codice IVA';
+  }
+
   protected onLineVatSelect(index: number, value: string | null): void {
     this.lines.at(index).controls.vatCodeId.setValue(value ?? '');
   }
@@ -1423,6 +1455,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       'unitOfMeasure',
       'unitCost',
       'discount',
+      // Rientrata nel giro: era fuori perché la cella IVA era un
+      // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
+      // la cella a ricerca-e-selezione, con un input vero.
+      'vat',
     ],
     elementId: (index, field) =>
       ({
@@ -1435,6 +1471,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         unitOfMeasure: `po-uom-${index}`,
         unitCost: `po-cost-${index}`,
         discount: `po-discount-${index}`,
+        vat: `po-vat-${index}`,
       })[field],
     isFieldEnabled: (index, field) => {
       // Su riga agganciata i codici sono bloccati: restano i dati.

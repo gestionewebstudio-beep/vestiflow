@@ -91,6 +91,7 @@ import { DocumentIncludePanelComponent } from '@domain/documents/components/docu
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
   CUSTOMER_ORDER_INCLUDE_SOURCES,
@@ -245,7 +246,15 @@ const CUSTOMER_ORDER_SORTABLE_LINE_COLUMNS: readonly CustomerOrderLineSortColumn
 ];
 
 type CustomerOrderLineFocusField =
-  'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount' | 'serials';
+  | 'articleCode'
+  | 'sku'
+  | 'barcode'
+  | 'product'
+  | 'quantity'
+  | 'unitPrice'
+  | 'discount'
+  | 'vat'
+  | 'serials';
 /**
  * I campi codice di QUESTA maschera: tre, non quattro. Il codice fornitore non
  * ha senso su un documento di vendita, e restringere l'unione qui lascia al
@@ -321,6 +330,7 @@ interface AvailabilityIssue {
     CustomerFormFieldsComponent,
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
+    DocumentLineSelectCellComponent,
     DocumentProductSearchPanelComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
@@ -3270,6 +3280,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       'quantity',
       'unitPrice',
       'discount',
+      // Rientrata nel giro: era fuori perché la cella IVA era un
+      // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
+      // la cella a ricerca-e-selezione, con un input vero.
+      'vat',
       'serials',
     ],
     elementId: (index, field) =>
@@ -3281,6 +3295,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         quantity: `co-qty-${index}`,
         unitPrice: `co-price-${index}`,
         discount: `co-discount-${index}`,
+        vat: `co-vat-${index}`,
         serials: `co-serials-${index}`,
       })[field],
     isFieldEnabled: (index, field) => {

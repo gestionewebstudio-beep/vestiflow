@@ -118,6 +118,7 @@ import { DocumentLineCodeCellComponent } from '@domain/documents/components/docu
 import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
   GOODS_RECEIPT_LINE_COLUMNS,
@@ -258,6 +259,7 @@ type GoodsReceiptLineFocusField =
     DocumentCounterpartyRefComponent,
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
+    DocumentLineSelectCellComponent,
     DocumentMobilePanelComponent,
     DocumentProductSearchPanelComponent,
     SlidePanelComponent,
@@ -1590,6 +1592,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       'discount',
       'sellingPrice',
       'compareAtPrice',
+      // Rientrata nel giro: era fuori perché la cella IVA era un
+      // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
+      // la cella a ricerca-e-selezione, con un input vero.
+      'vat',
       'lot',
       'expiry',
       'serials',
@@ -1630,17 +1636,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     removeLine: (index) => this.removeLine(index),
   });
 
-  /**
-   * ⚠️ `vat` NON è nel giro: quella cella è un `app-select-menu`, che non ha
-   * `inputId` né fuoco pubblico — l'identificativo `gr-vat-{i}` esiste nella
-   * mappa ma **non nel DOM**. Prima era escluso a mano dentro il filtro; ora non
-   * è proprio elencato, che è la stessa cosa detta una volta invece che due.
-   *
-   * **Condizione di rientro**, uguale a quella del nome prodotto in Ordine
-   * fornitore: torna nel giro quando `app-select-menu` sarà sostituito dalla
-   * cella a ricerca-e-selezione (specifica §4.3-bis). Senza questa riga
-   * l'esclusione diventa permanente per inerzia.
-   */
   private lineFieldElementId(index: number, field: GoodsReceiptLineFocusField): string {
     return {
       articleCode: `gr-code-${index}`,

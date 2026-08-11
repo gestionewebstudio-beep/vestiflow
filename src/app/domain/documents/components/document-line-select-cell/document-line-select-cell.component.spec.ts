@@ -57,6 +57,15 @@ describe('DocumentLineSelectCellComponent', () => {
     expect(campo.value).toBe('22');
   });
 
+  // È il motivo per cui questa cella esiste: il giro del fuoco raggiunge i campi
+  // per identificativo, e su un `app-select-menu` quell'id non stava sul DOM.
+  it('l’identificativo ricevuto finisce sull’input, dove il fuoco lo cerca', async () => {
+    const { campo } = await apri();
+
+    expect(campo.id).toBe('cella');
+    expect(globalThis.document.getElementById('cella')).toBe(campo);
+  });
+
   // §4.3 — il filtro dà precedenza al codice. È il caso a un carattere, quello
   // più usato: si digita una cifra e si guarda cosa compare in cima.
   it('digitando filtra col codice davanti alla descrizione', async () => {
@@ -184,6 +193,34 @@ describe('DocumentLineSelectCellComponent', () => {
 
     expect(manageRequested).toHaveBeenCalled();
     expect(valueChange).not.toHaveBeenCalled();
+  });
+
+  // Su card le colonne non ci sono: trattenere il Tab senza avere dove mandarlo
+  // chiuderebbe dentro chi naviga da tastiera. Invio invece si tiene comunque,
+  // o dentro un <form> manderebbe il documento in salvataggio.
+  it('fuori dal giro delle colonne il Tab resta al browser, Invio no', async () => {
+    const user = userEvent.setup();
+    const valueChange = vi.fn();
+    const lineAdvance = vi.fn();
+    await render(DocumentLineSelectCellComponent, {
+      inputs: {
+        lineIndex: 2,
+        ariaLabel: 'Codice IVA riga',
+        options: IVA,
+        value: 'id-22',
+        inColumnCycle: false,
+      },
+      on: { valueChange, lineAdvance },
+    });
+    const campo = screen.getByRole<HTMLInputElement>('textbox');
+
+    campo.focus();
+    await user.keyboard('{Control>}a{/Control}4{Tab}');
+    expect(lineAdvance).not.toHaveBeenCalled();
+
+    campo.focus();
+    await user.keyboard('{Control>}a{/Control}10{Enter}');
+    expect(valueChange).toHaveBeenCalledWith('id-10');
   });
 
   it('da tastiera «Altro…» è l’ultima fermata dell’elenco', async () => {

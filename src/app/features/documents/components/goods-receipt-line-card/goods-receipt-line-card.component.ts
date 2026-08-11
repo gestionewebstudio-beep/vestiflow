@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { ReactiveFormsModule, type FormControl } from '@angular/forms';
 
-import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { DocumentLineSuggestionsComponent } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import type { DocumentLineSuggestionItem } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.model';
@@ -37,7 +37,7 @@ export interface GoodsReceiptLineCardGroup {
 @Component({
   selector: 'app-goods-receipt-line-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DocumentLineSuggestionsComponent, ReactiveFormsModule, SelectMenuComponent],
+  imports: [DocumentLineSelectCellComponent, DocumentLineSuggestionsComponent, ReactiveFormsModule],
   templateUrl: './goods-receipt-line-card.component.html',
   styleUrl: './goods-receipt-line-card.component.scss',
 })

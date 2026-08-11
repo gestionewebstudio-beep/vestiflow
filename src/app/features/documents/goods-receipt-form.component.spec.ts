@@ -582,12 +582,16 @@ describe('GoodsReceiptFormComponent', () => {
       return view.fixture.componentInstance as unknown as FocusForm;
     }
 
-    // La cella IVA è un `app-select-menu`: `gr-vat-{i}` è nella mappa degli id
-    // ma NON esiste nel DOM. Elencarla farebbe morire il fuoco.
-    it('l’IVA non è nel giro: quella cella non ha un campo su cui atterrare', async () => {
+    // L'IVA è rientrata nel giro con la cella a ricerca-e-selezione (B3). La
+    // guardia era «non c'è» e ora è «c'è»: `gr-vat-{i}` stava nella mappa degli
+    // id anche quando quella cella era un `app-select-menu` e nel DOM non
+    // esisteva — è quel disallineamento che faceva morire il fuoco, e ora i due
+    // lati dicono la stessa cosa. Che l'id finisca davvero sull'input lo prova
+    // lo spec della cella.
+    it('l’IVA è nel giro del fuoco', async () => {
       const form = await apriForm();
 
-      expect(form.lineFocus.fieldsOf(0)).not.toContain('vat');
+      expect(form.lineFocus.fieldsOf(0)).toContain('vat');
     });
 
     // ⛔ Ctrl+↑/↓ NON sposta più la riga (11/08/2026, §7.3): esisteva solo qui,

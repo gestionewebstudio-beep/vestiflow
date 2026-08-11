@@ -117,14 +117,18 @@
       </label>
       <div class="gr-card__field">
         <span class="gr-card__label" [id]="'gr-card-vat-' + lineIndex()">IVA</span>
-        <app-select-menu
+        <!--
+          Stessa cella della tabella, fuori dal giro delle colonne: su card le
+          colonne non ci sono, quindi il Tab resta al browser (§1 — la regola
+          vale ovunque, il meccanismo può cambiare).
+        -->
+        <app-document-line-select-cell
+          [lineIndex]="lineIndex()"
+          ariaLabel="Codice IVA riga"
           [options]="vatOptions()"
           [value]="vatValue()"
-          ariaLabel="Codice IVA riga"
-          placeholder="—"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="false"
+          [disabled]="disabled()"
+          [inColumnCycle]="false"
           (valueChange)="vatChange.emit($event)"
         />
       </div>

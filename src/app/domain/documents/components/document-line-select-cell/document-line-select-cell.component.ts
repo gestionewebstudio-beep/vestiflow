@@ -104,6 +104,17 @@ export class DocumentLineSelectCellComponent {
    */
   readonly manageLabel = input('');
   readonly panelPlacement = input<'below' | 'above'>('below');
+  /**
+   * La cella sta nel **giro delle colonne** — cioè nella tabella, dove Tab e
+   * frecce sono della maschera e il fuoco lo governa il punto unico.
+   *
+   * Su **card** è `false`, e non è un adattamento: lì le colonne non ci sono, e
+   * una cella che trattiene il Tab senza avere dove mandarlo chiuderebbe dentro
+   * chi naviga da tastiera. L'elenco invece si comporta uguale — si apre, si
+   * filtra, si sceglie — perché quella è la regola, e cambia solo il gesto
+   * (specifica §1, §4.10).
+   */
+  readonly inColumnCycle = input(true);
 
   readonly valueChange = output<string>();
   readonly focused = output<number>();
@@ -231,11 +242,11 @@ export class DocumentLineSelectCellComponent {
     if (!esito) {
       return;
     }
-    event.preventDefault();
     switch (esito.kind) {
       case 'escape':
         // Come nelle celle gemelle: Esc dentro la cella non deve arrivare a chi
         // chiuderebbe l'intera maschera.
+        event.preventDefault();
         event.stopPropagation();
         if (this.open()) {
           this.close();
@@ -243,35 +254,58 @@ export class DocumentLineSelectCellComponent {
         }
         this.escapePressed.emit(this.lineIndex());
         return;
-      case 'row-advance':
-        this.resolveTyped();
-        this.lineRowAdvance.emit(this.lineIndex());
-        return;
-      case 'row-retreat':
-        this.resolveTyped();
-        this.lineRowRetreat.emit(this.lineIndex());
-        return;
       case 'suggestion-move':
+        event.preventDefault();
         this.moveActive(esito.direction);
         return;
       case 'suggestion-pick':
+        event.preventDefault();
         if (esito.index === this.filtered().length) {
           this.onManage();
           return;
         }
         this.pickAt(esito.index);
         return;
+      case 'confirm':
+        // Invio si tiene **sempre**: dentro un `<form>` lasciarlo passare
+        // manderebbe il documento in salvataggio, che è l'opposto di «registra e
+        // resta» (§4.5). Tab e → invece sono del giro delle colonne, e dove il
+        // giro non c'è restano al browser.
+        if (!esito.advance) {
+          event.preventDefault();
+          this.resolveTyped();
+          return;
+        }
+        if (!this.inColumnCycle()) {
+          return;
+        }
+        event.preventDefault();
+        this.resolveTyped();
+        this.lineAdvance.emit(this.lineIndex());
+        return;
+      case 'row-advance':
+        if (!this.inColumnCycle()) {
+          return;
+        }
+        event.preventDefault();
+        this.resolveTyped();
+        this.lineRowAdvance.emit(this.lineIndex());
+        return;
+      case 'row-retreat':
+        if (!this.inColumnCycle()) {
+          return;
+        }
+        event.preventDefault();
+        this.resolveTyped();
+        this.lineRowRetreat.emit(this.lineIndex());
+        return;
       case 'field-retreat':
+        if (!this.inColumnCycle()) {
+          return;
+        }
+        event.preventDefault();
         this.close();
         this.lineRetreat.emit(this.lineIndex());
-        return;
-      case 'confirm':
-        // Col pannello aperto, «confermare» è prendere la voce evidenziata: è la
-        // risoluzione di ciò che si è digitato, non un gesto diverso.
-        this.resolveTyped();
-        if (esito.advance) {
-          this.lineAdvance.emit(this.lineIndex());
-        }
         return;
     }
   }

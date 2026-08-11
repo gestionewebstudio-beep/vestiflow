@@ -417,19 +417,19 @@
 
         <div class="co-card__field">
           <span class="co-card__field-label">IVA</span>
-          <app-select-menu
+          <!--
+            Stessa cella della tabella, fuori dal giro delle colonne: su card le
+            colonne non ci sono, quindi il Tab resta al browser (§1 — la regola
+            vale ovunque, il meccanismo può cambiare).
+          -->
+          <app-document-line-select-cell
+            [lineIndex]="lineIndex()"
+            ariaLabel="Codice IVA riga"
             [options]="v.vatOptions"
             [value]="v.vatValue"
-            ariaLabel="Codice IVA riga"
-            placeholder="—"
-            [compact]="true"
-            [fullWidth]="true"
-            [includeEmptyOption]="false"
-            [searchable]="true"
-            [inlineDetail]="true"
-            searchPlaceholder="Codice, aliquota, descrizione…"
-            searchAriaLabel="Cerca Codice IVA"
-            (valueChange)="vatSelected.emit($event ?? '')"
+            [disabled]="v.readOnly"
+            [inColumnCycle]="false"
+            (valueChange)="vatSelected.emit($event)"
           />
         </div>
 
