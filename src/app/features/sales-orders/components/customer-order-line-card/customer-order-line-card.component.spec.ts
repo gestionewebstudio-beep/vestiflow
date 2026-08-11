@@ -47,11 +47,7 @@ const VM: CustomerOrderLineCardVm = {
   showPurchaseCost: true,
 };
 
-async function setup(
-  vm: Partial<CustomerOrderLineCardVm> = {},
-  open = false,
-  layout: 'order' | 'registry' = 'order',
-) {
+async function setup(vm: Partial<CustomerOrderLineCardVm> = {}, open = false) {
   const line = makeLine();
   const on = {
     toggled: vi.fn(),
@@ -65,7 +61,7 @@ async function setup(
     commitsChanged: vi.fn(),
   };
   await render(CustomerOrderLineCardComponent, {
-    inputs: { line, lineIndex: 0, vm: { ...VM, ...vm }, open, layout },
+    inputs: { line, lineIndex: 0, vm: { ...VM, ...vm }, open },
     on,
   });
   return { line, on };
@@ -141,9 +137,14 @@ describe('CustomerOrderLineCardComponent', () => {
     expect(screen.getByText('€ 39,80')).toBeVisible();
   });
 
-  it('la testata «order» chiede conferma prima di eliminare', async () => {
+  // Le testate erano due — «order» e «registry» — e la seconda era dichiarata
+  // ramo temporaneo nel foglio di stile. Con la card condivisa ne resta una, e i
+  // due modi di eliminare non dipendono più da quale testata si ha davanti ma da
+  // DOVE si preme: dalla testata passa dalla conferma, dal piede del corpo
+  // aperto no — lì la riga è già sotto gli occhi.
+  it('dalla testata l’eliminazione chiede conferma', async () => {
     const user = userEvent.setup();
-    const { on } = await setup({}, false, 'order');
+    const { on } = await setup();
 
     await user.click(screen.getByRole('button', { name: 'Elimina riga' }));
 
@@ -151,11 +152,11 @@ describe('CustomerOrderLineCardComponent', () => {
     expect(on.removed).not.toHaveBeenCalled();
   });
 
-  it('la testata «registry» elimina diretta: la riga non e’ ancora un impegno', async () => {
+  it('dal piede del corpo aperto l’eliminazione è diretta', async () => {
     const user = userEvent.setup();
-    const { on } = await setup({}, false, 'registry');
+    const { on } = await setup({}, true);
 
-    await user.click(screen.getByRole('button', { name: 'Rimuovi riga' }));
+    await user.click(screen.getByRole('button', { name: /^elimina$/i }));
 
     expect(on.removed).toHaveBeenCalled();
   });

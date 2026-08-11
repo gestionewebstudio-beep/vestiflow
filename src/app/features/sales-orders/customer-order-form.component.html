@@ -1836,7 +1836,6 @@
                         [vm]="lineCardVm(i)"
                         [unitOfMeasureOptions]="unitOfMeasureOptions()"
                         [open]="isLineCardOpen(i)"
-                        [layout]="isOrder ? 'order' : 'registry'"
                         (toggled)="toggleLineCard(i)"
                         (removeRequested)="requestRemoveLine(i)"
                         (removed)="removeLine(i)"
