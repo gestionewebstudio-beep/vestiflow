@@ -36,6 +36,14 @@ export class DocumentProductSearchPanelComponent {
   readonly locationId = input<string | null>(null);
 
   readonly variantSelected = output<{ readonly variantId: string }>();
+  /**
+   * L'articolo non c'è e va creato. Il pannello non sa COME si crea — i campi
+   * da precompilare stanno nella riga del documento, che è della maschera —
+   * quindi chiede, e chi lo ospita apre l'anagrafica con quel che ha.
+   */
+  readonly createRequested = output<void>();
+  /** Apri la scheda di un articolo trovato, invece di aggiungerlo alla riga. */
+  readonly detailRequested = output<string>();
   readonly dismissed = output<void>();
 
   private readonly productService = inject(ProductService);
@@ -102,5 +110,13 @@ export class DocumentProductSearchPanelComponent {
 
   protected close(): void {
     this.dismissed.emit();
+  }
+
+  protected requestCreate(): void {
+    this.createRequested.emit();
+  }
+
+  protected requestDetail(productId: string): void {
+    this.detailRequested.emit(productId);
   }
 }

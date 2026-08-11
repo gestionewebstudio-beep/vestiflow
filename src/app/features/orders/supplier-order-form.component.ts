@@ -1228,6 +1228,34 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.productSearchLineIndex.set(null);
   }
 
+  /**
+   * «Crea articolo» dal pannello di ricerca. La riga che ha aperto il pannello
+   * porta già i dati digitati: la scheda nuova nasce precompilata con quelli.
+   *
+   * Il pannello si chiude e l'anagrafica si apre **sopra** il documento, che
+   * resta dov'è con quel che si è scritto finora: nessuna via porta fuori
+   * perdendo il lavoro.
+   */
+  protected onProductSearchCreate(): void {
+    const index = this.productSearchLineIndex();
+    this.closeLineProductSearch();
+    if (index !== null) {
+      this.openProductCreate(index);
+    }
+  }
+
+  /** Apri la scheda di un articolo trovato, senza aggiungerlo alla riga. */
+  protected onProductSearchDetail(productId: string): void {
+    const index = this.productSearchLineIndex();
+    this.closeLineProductSearch();
+    if (index !== null) {
+      this.productPanelPrefill.set(null);
+      this.productPanelEditProductId.set(productId);
+      this.productPanelLineIndex.set(index);
+      this.productPanelOpen.set(true);
+    }
+  }
+
   protected onLineProductSearchPick(variantId: string): void {
     const index = this.productSearchLineIndex();
     if (index !== null) {
@@ -1235,15 +1263,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       this.focusLineField(index, 'quantity');
     }
     this.closeLineProductSearch();
-  }
-
-  /**
-   * «Completa anagrafica»: apre il pannello di creazione con quel che c'è già
-   * sulla riga. È la via alla creazione dell'articolo che nel pannello dei
-   * suggerimenti non c'è (e non ci deve essere).
-   */
-  protected openProductAnagraphic(index: number): void {
-    this.openProductCreate(index);
   }
 
   /** «Apri anagrafica» su riga agganciata: la scheda dell'articolo collegato. */

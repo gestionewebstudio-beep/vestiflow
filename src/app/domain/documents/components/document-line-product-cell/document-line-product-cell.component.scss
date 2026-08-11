@@ -92,36 +92,6 @@
   word-break: break-word;
 }
 
-.doc-product-cell__link-action {
-  display: none;
-  align-self: flex-start;
-  padding: 0;
-  margin-block-start: var(--space-1);
-  font-size: var(--text-xs);
-  color: var(--color-interactive);
-  background: none;
-  border: none;
-  cursor: pointer;
-  line-height: var(--leading-normal);
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.doc-product-cell:focus-within .doc-product-cell__link-action,
-.doc-product-cell:hover .doc-product-cell__link-action {
-  display: inline-flex;
-}
-
-.doc-product-cell--linked .doc-product-cell__link-action {
-  align-self: center;
-  flex-shrink: 0;
-  margin-block-start: 0;
-  margin-inline-end: var(--space-2);
-}
-
 // Il messaggio «nessun risultato» non esiste più (08/2026): senza risultati il
 // pannello non si apre. Non trovare nulla non è un errore — si compila la riga
 // a mano, e la creazione ha le sue vie proprie.

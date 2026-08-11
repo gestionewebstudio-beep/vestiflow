@@ -3293,6 +3293,35 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.productSearchLineIndex.set(null);
   }
 
+  /**
+   * «Crea articolo» dal pannello di ricerca. La riga che ha aperto il pannello
+   * porta già i dati digitati: la scheda nuova nasce precompilata con quelli.
+   *
+   * ⚠️ Apre il pannello **direttamente**, senza passare da `openProductAnagraphic`
+   * — che pretendeva almeno SKU, EAN o nome e altrimenti rispondeva con un
+   * errore. Da qui quella pretesa sarebbe sbagliata: da una riga vuota si deve
+   * poter creare un articolo da zero, ed è uno dei modi previsti.
+   *
+   * Il pannello si chiude e l'anagrafica si apre **sopra** il documento, che
+   * resta dov'è con quel che si è scritto finora.
+   */
+  protected onProductSearchCreate(): void {
+    const index = this.productSearchLineIndex();
+    this.closeLineProductSearch();
+    if (index !== null) {
+      this.productPanel.openForLine(index);
+    }
+  }
+
+  /** Apri la scheda di un articolo trovato, senza aggiungerlo alla riga. */
+  protected onProductSearchDetail(productId: string): void {
+    const index = this.productSearchLineIndex();
+    this.closeLineProductSearch();
+    if (index !== null) {
+      this.productPanel.openForEdit(index, productId);
+    }
+  }
+
   protected onLineProductSearchPick(variantId: string): void {
     const index = this.productSearchLineIndex();
     this.closeLineProductSearch();
@@ -3332,29 +3361,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   protected openNewProduct(): void {
     this.productPanel.openForNewProduct();
-  }
-
-  /** Completa anagrafica dalla riga: serve almeno un dato digitato. */
-  protected openProductAnagraphic(index: number): void {
-    const line = this.lines.at(index);
-    if (!line) {
-      return;
-    }
-    const hasLineData =
-      line.controls.productName.value.trim() ||
-      line.controls.sku.value.trim() ||
-      line.controls.barcode.value.trim();
-    if (!hasLineData) {
-      this._submitState.set({
-        status: 'error',
-        error: {
-          kind: AppErrorKind.Validation,
-          message: "Inserisci almeno SKU, EAN o nome prodotto prima di completare l'anagrafica.",
-        },
-      });
-      return;
-    }
-    this.productPanel.openForLine(index);
   }
 
   /** Riga già collegata: apre la scheda del prodotto in modifica nel pannello. */

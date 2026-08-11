@@ -27,14 +27,20 @@
     >
       <i class="pi pi-times" aria-hidden="true"></i>
     </button>
+    <!-- Era una riga di TESTO sotto il campo, su ogni riga del documento: su un
+         arrivo da trenta righe erano trenta righe di altezza. Come icona sta
+         nella striscia accanto alle altre due, e la cella torna alta una riga. -->
     <button
       type="button"
-      class="doc-product-cell__link-action"
+      class="doc-product-cell__search"
       tabindex="-1"
       [disabled]="disabled()"
+      aria-label="Apri l'anagrafica dell'articolo collegato"
+      title="Apri anagrafica"
+      (mousedown)="$event.preventDefault()"
       (click)="openDetail($event)"
     >
-      Apri anagrafica
+      <i class="pi pi-external-link" aria-hidden="true"></i>
     </button>
   </div>
 } @else {
@@ -85,14 +91,5 @@
         (picked)="pickAt($event)"
       />
     }
-    <button
-      type="button"
-      class="doc-product-cell__link-action"
-      tabindex="-1"
-      [disabled]="disabled()"
-      (click)="openAnagraphic($event)"
-    >
-      Completa anagrafica
-    </button>
   </div>
 }

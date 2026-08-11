@@ -2,7 +2,8 @@
   <div class="gr-product-search__head">
     <label class="gr-product-search__label" for="gr-product-search-input">Cerca prodotto</label>
     <p class="gr-product-search__hint">
-      Cerca per nome, SKU o EAN. Seleziona un risultato per aggiungerlo alla riga in modifica.
+      Cerca per nome, SKU o EAN. La riga aggiunge l'articolo al documento; l'icona in coda ne apre
+      l'anagrafica.
     </p>
     <div class="gr-product-search__field">
       <input
@@ -33,16 +34,30 @@
       description="Inserisci almeno un carattere e premi Cerca o Invio."
     />
   } @else if (results().length === 0) {
+    <!-- Non trovarlo non e' un vicolo cieco: e' il momento in cui l'articolo si
+         crea, e da qui il nome digitato arriva gia' nella scheda nuova. -->
     <app-empty-state
       icon="pi-search"
       title="Nessun prodotto trovato"
-      description="Prova con un altro termine o crea un nuovo prodotto dalla riga del documento."
+      description="Prova con un altro termine, oppure crea l'articolo con i dati che hai gia' scritto."
+      ctaLabel="Crea articolo"
+      (ctaClick)="requestCreate()"
     />
   } @else {
-    <app-product-search-results [results]="results()" (variantSelected)="selectVariant($event)" />
+    <app-product-search-results
+      [results]="results()"
+      (variantSelected)="selectVariant($event)"
+      (detailRequested)="requestDetail($event)"
+    />
   }
 
   <div class="gr-product-search__actions">
+    <!-- Sempre raggiungibile, non solo a ricerca vuota: si puo' sapere in
+         partenza che l'articolo non esiste. -->
+    <app-button type="button" variant="secondary" (click)="requestCreate()">
+      <i class="pi pi-plus" aria-hidden="true"></i>
+      Crea articolo
+    </app-button>
     <app-button type="button" variant="ghost" (click)="close()">Chiudi</app-button>
   </div>
 </section>

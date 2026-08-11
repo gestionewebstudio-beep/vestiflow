@@ -1412,6 +1412,31 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.productSearchLineIndex.set(null);
   }
 
+  /**
+   * «Crea articolo» dal pannello di ricerca. La riga che ha aperto il pannello
+   * porta gia' i dati digitati: la scheda nuova nasce precompilata con quelli.
+   *
+   * Il pannello si chiude, l'anagrafica si apre SOPRA il documento — che resta
+   * dov'e', con quel che si e' scritto finora. Nessuna via porta fuori
+   * perdendo il lavoro.
+   */
+  protected onProductSearchCreate(): void {
+    const index = this.productSearchLineIndex();
+    this.closeLineProductSearch();
+    if (index !== null) {
+      this.openFullProductCreate(index);
+    }
+  }
+
+  /** Apri la scheda di un articolo trovato, senza aggiungerlo alla riga. */
+  protected onProductSearchDetail(productId: string): void {
+    const index = this.productSearchLineIndex();
+    this.closeLineProductSearch();
+    if (index !== null) {
+      this.productPanel.openForEdit(index, productId);
+    }
+  }
+
   protected onLineProductSearchPick(variantId: string): void {
     const index = this.productSearchLineIndex();
     if (index != null) {
@@ -2866,28 +2891,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       defaultVatCodeId: line.controls.vatCodeId.value.trim() || null,
     };
   });
-
-  protected openProductAnagraphic(index: number): void {
-    const line = this.lines.at(index);
-    if (!line) {
-      return;
-    }
-    const hasLineData =
-      line.controls.productName.value.trim() ||
-      line.controls.sku.value.trim() ||
-      line.controls.barcode.value.trim();
-    if (!hasLineData) {
-      this._submitState.set({
-        status: 'error',
-        error: {
-          kind: AppErrorKind.Validation,
-          message: "Inserisci almeno SKU, EAN o nome prodotto prima di completare l'anagrafica.",
-        },
-      });
-      return;
-    }
-    this.openFullProductCreate(index);
-  }
 
   protected openNewProduct(): void {
     this.productPanel.openForNewProduct();

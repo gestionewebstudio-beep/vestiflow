@@ -33,7 +33,6 @@ export class DocumentLineProductCellComponent {
   readonly focused = output<number>();
   readonly blurred = output<number>();
   readonly searchOpen = output<number>();
-  readonly anagraphicOpen = output<number>();
   readonly detailOpen = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
   readonly suggestionNavigate = output<'next' | 'prev'>();
@@ -65,11 +64,6 @@ export class DocumentLineProductCellComponent {
   protected openSearch(event: Event): void {
     event.stopPropagation();
     this.searchOpen.emit(this.lineIndex());
-  }
-
-  protected openAnagraphic(event: Event): void {
-    event.stopPropagation();
-    this.anagraphicOpen.emit(this.lineIndex());
   }
 
   protected openDetail(event: Event): void {

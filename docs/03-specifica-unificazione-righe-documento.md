@@ -561,6 +561,18 @@ _(Tecnicamente: `mode()` non è letto da alcun template; il pannello ricalcola i
 
 ---
 
+## 8-bis. Aprire l'anagrafica non porta mai fuori dal documento
+
+**[DECISIONE, 11/08/2026 — vale ovunque si apra la scheda di un articolo]**
+
+Da qualunque punto si apra l'anagrafica — l'icona sulla riga già agganciata, l'icona nei risultati di ricerca, «Crea articolo» — si torna sempre dove si era, **con il documento in compilazione intatto**. Nessuna via porta fuori perdendo il lavoro.
+
+La scheda si apre **sopra** il documento, che resta dov'è con tutto quello che si è scritto e non si è ancora salvato. Chiudendola si è di nuovo sulla riga da cui si era partiti.
+
+_Verificato sul codice (11/08/2026): è già così in tutte e tre le maschere — nessuna di esse porta a un'altra pagina per i prodotti. La regola è scritta qui perché smetta di essere una proprietà accidentale e diventi un vincolo: chi aggiungerà una quarta via deve trovarla._
+
+---
+
 ## 9. Cella prodotto: striscia icone (`domain/`, nessuna collisione)
 
 Difetto: la cella "Nome prodotto" fa tre lavori; l'hover fa comparire un link che ruba larghezza al nome (a capo sporco) o altezza. Causa: elemento senza spazio riservato (`display:none`→`inline-flex` su hover).

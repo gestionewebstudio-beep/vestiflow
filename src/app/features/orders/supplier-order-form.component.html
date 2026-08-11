@@ -733,7 +733,6 @@
                             (focused)="onLineProductFocus(i)"
                             (blurred)="onLineProductBlur(i)"
                             (searchOpen)="openLineProductSearch(i)"
-                            (anagraphicOpen)="openProductAnagraphic(i)"
                             (detailOpen)="openProductDetail(i)"
                             (unlinkRequest)="onLineUnlink(i)"
                             (suggestionPick)="
@@ -1046,6 +1045,8 @@
       [launchTerm]="productSearchLaunchTerm()"
       [launchSeq]="productSearchLaunchSeq()"
       (variantSelected)="onLineProductSearchPick($event.variantId)"
+      (createRequested)="onProductSearchCreate()"
+      (detailRequested)="onProductSearchDetail($event)"
       (dismissed)="closeLineProductSearch()"
     />
   }
