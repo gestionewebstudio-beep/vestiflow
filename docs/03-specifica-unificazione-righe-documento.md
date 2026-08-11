@@ -100,7 +100,7 @@ _Perché conta qui più che altrove: questo è un gestionale che si usa in magaz
 
 ---
 
-## 2. Perimetro: nove tipi, cinque componenti
+## 2. Perimetro: dieci tipi, cinque maschere
 
 | Tipi documento                                           | Componente                   | Celle condivise | Conteso                  |
 | -------------------------------------------------------- | ---------------------------- | --------------- | ------------------------ |
@@ -114,11 +114,32 @@ _Perché conta qui più che altrove: questo è un gestionale che si usa in magaz
 
 ### Documenti da allineare — subito
 
-**Sette tipi, tre file, zero collisioni:** `customer-order-form` (Ordine cliente, DDT vendita, Preventivi, Scarico manuale), `goods-receipt-form` (Arrivi merce), `supplier-order-form` (Ordine fornitore). Nessuno toccato dai rami attivi del collega. Tutte le funzioni decise qui si applicano a **queste maschere insieme** (principio anti-divergenza, §1).
+**Dieci tipi documento, cinque maschere** _(elenco verificato 11/08/2026: tre componenti non sono tre documenti, e contarli male e' il modo piu' facile per lasciare indietro qualcosa)_.
+
+| Tipo documento       | Maschera               |
+| -------------------- | ---------------------- |
+| Ordine cliente       | `customer-order-form`  |
+| DDT vendita          | `customer-order-form`  |
+| Preventivo           | `customer-order-form`  |
+| Scarico manuale      | `customer-order-form`  |
+| Arrivo merce         | `goods-receipt-form`   |
+| Carico manuale       | `goods-receipt-form`   |
+| Carico iniziale      | `goods-receipt-form`   |
+| Ordine fornitore     | `supplier-order-form`  |
+| Trasferimento        | `transfer-form`        |
+| Rettifica inventario | `stock-operation-form` |
+
+L'Arrivo merce ne serve **tre**, non uno: carico manuale e carico iniziale sono lo stesso modulo col tipo scelto in testata — ed e' la ragione per cui li' il fornitore non e' obbligatorio.
+
+**Trasferimento e Rettifica rientrano** _(deciso 11/08/2026)_. Erano stati lasciati fuori perche' «sono documenti brevi»: e' vero oggi, ma e' una previsione sull'uso, non una proprieta' del documento — un trasferimento fra magazzini a fine stagione puo' avere trenta righe. E il costo e' lo stesso innesto: escluderli per dimensione presunta creerebbe la quarta variante che tutto questo lavoro toglie.
+
+Tutte le funzioni decise qui si applicano a **queste maschere insieme** (principio anti-divergenza, §1).
 
 ### Gli altri due — uno aspetta, l'altro è fuori _(chiarito 08/2026)_
 
 - **Fatture (Proforma, Fattura, Fattura accompagnatoria)** — **rientrano nello standard**: nessuna regola di questo documento fa eccezione per loro. Ciò che resta da concordare non è _se_, ma _quando_: la maschera è contesa col lavoro sulla fattura elettronica, e le regole si applicano **quando quel ramo rientra**. Fino ad allora quanto scritto qui vale per loro come specifica, non come lavoro fatto.
+- **Registrazione fattura fornitore — fuori DOMINIO, non rimandata** _(11/08/2026)_. Le sue righe sono **contabili**, non articoli: non hanno SKU, EAN, codice fornitore ne' costo unitario. Le colonne su cui si ordinerebbe **non esistono**, e la navigazione fra celle articolo non ha niente da attraversare.
+  La distinzione conta: le Fatture sono un'esclusione **temporanea** (stesse regole, momento diverso), questa e' un'esclusione **definitiva** — e chi rilegge l'elenco fra sei mesi non deve chiedersi quando tocchera' a lei.
 - **Vendita e reso al banco — fuori perimetro, per natura.** Non è una maschera documento con righe da compilare: è un **carrello**, dove si aggiungono articoli scansionando e si incassa. La tastiera, l'ordinamento righe, il pannello suggerimenti e le celle condivise sono risposte a un problema che lì non si pone.
   È un'**esclusione dichiarata, non un pezzo mancante**: chi rileggerà l'elenco delle maschere allineate non deve concludere che una sia stata dimenticata.
 
