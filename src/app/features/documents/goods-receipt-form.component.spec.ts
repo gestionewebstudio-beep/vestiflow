@@ -441,10 +441,11 @@ describe('GoodsReceiptFormComponent', () => {
       expect(form.lineFocus.fieldsOf(0)).not.toContain('vat');
     });
 
-    // §11.1: `moveLineUp`/`moveLineDown` restano nel form, fuori dal contratto —
-    // è l'unica maschera ad avere lo spostamento riga da tastiera. Il punto
-    // unico ignora `ctrlKey`, e qui si intercetta prima.
-    it('Ctrl+↓ sposta la riga e non passa al punto unico', async () => {
+    // ⛔ Ctrl+↑/↓ NON sposta più la riga (11/08/2026, §7.3): esisteva solo qui,
+    // duplicava il trascinamento che ora c'è ovunque, e si scopriva solo col
+    // mouse — cioè da chi poteva già trascinare. La guardia serve perché
+    // «tolto» non torni indietro per inerzia insieme a un'altra modifica.
+    it('Ctrl+↓ non sposta la riga, e il tasto resta al browser', async () => {
       const form = await apriForm();
       const spostaGiu = vi.spyOn(
         form as unknown as { moveLineDown: (i: number) => void },
@@ -458,8 +459,10 @@ describe('GoodsReceiptFormComponent', () => {
 
       form.onLineFieldKeydown(0, 'quantity', evento);
 
-      expect(spostaGiu).toHaveBeenCalledWith(0);
-      expect(evento.defaultPrevented).toBe(true);
+      expect(spostaGiu).not.toHaveBeenCalled();
+      // Non si trattiene un tasto che non si serve: fermarlo senza fare niente
+      // fa sembrare rotta la tastiera.
+      expect(evento.defaultPrevented).toBe(false);
     });
 
     // §4.5: Invio non naviga più. Qui cade il caso speciale «Invio su Q.tà con

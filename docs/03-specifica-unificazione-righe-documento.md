@@ -533,9 +533,20 @@ Prodotti e Clienti hanno le frecce inerti come i documenti (sequenza fissa scrit
 - _Trovato aggiungendo la colonna `#` dove non c'era:_ la stessa colonna nasce **larga zero** dove le altre sono in percentuale — aggiunta e invisibile — e **larga un sesto della tabella** dove le larghezze sono automatiche. La misura va detta esplicitamente, e ora è la stessa ovunque.
 - Rettifica inventario resta in attesa, come per l'ordinamento: prima si decidono le sue colonne.
 
-### 7.3 Ctrl + ↑ / ↓ — non incluso
+### 7.3 Ctrl + ↑ / ↓ — TOLTO, e rimandato
 
-Esiste solo in Arrivo merce. **Lasciato perdere.** Da nominare nell'allineamento, così non sparisce né si intrufola per inerzia.
+**[DECISIONE, 11/08/2026]** Esisteva nel solo Arrivo merce. Con il trascinamento arrivato su tutte le maschere la scelta era fra darlo anche alle altre due o toglierlo. **Tolto.**
+
+Le ragioni, nell'ordine in cui contano:
+
+- **Spostare una riga è un aggiustamento occasionale**, non un gesto del flusso di compilazione. Non sta nella stessa categoria di Tab e delle frecce, che si premono cento volte a documento.
+- **Ora c'è anche l'ordinamento per colonna**, che risolve il caso più frequente — rimettere in ordine un documento — meglio di quanto lo risolva spostare righe una per una.
+- **Una combinazione che si scopre solo da un suggerimento sulla maniglia la trova chi sta già usando il mouse**, cioè esattamente chi può trascinare. La scoperta e il bisogno non si incontrano mai.
+- Un gesto che nessuno scopre e che duplica una funzione disponibile è **codice da mantenere senza ritorno**.
+
+_L'argomento contrario, per onestà: il trascinamento non è azionabile da tastiera, quindi oggi riordinare senza mouse non si può. È stato pesato e accettato — riordinare non è compilare._
+
+**È un rimando, non una rimozione secca.** Se servirà riordinare da tastiera si progetta bene, con un **comando visibile** — non una scorciatoia nascosta. Questa riga esiste perché la ragione non vada persa: chi ritroverà il buco deve sapere che è stato scelto, e su quale argomento.
 
 ### 7.4 Ordinamento righe ↔ navigazione ↓
 

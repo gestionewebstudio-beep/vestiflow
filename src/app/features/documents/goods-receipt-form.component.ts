@@ -1692,20 +1692,31 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * ignora gli eventi con `ctrlKey`, e qui si intercettano prima di passargli
    * tutto il resto.
    */
+  /**
+   * ⛔ Ctrl+↑/↓ non sposta più la riga (11/08/2026, decisione del proprietario).
+   *
+   * Esisteva solo qui, e la scelta era fra darlo alle altre due o toglierlo.
+   * Tolto: spostare una riga è un aggiustamento occasionale, non un gesto del
+   * flusso di compilazione — e da oggi c'è anche l'ordinamento per colonna.
+   * Chi lo fa due volte al mese può staccare la mano dalla tastiera.
+   *
+   * L'argomento dell'accessibilità non regge quanto sembra, ed era il mio: una
+   * combinazione che si scopre solo dal suggerimento sulla maniglia la trova
+   * **chi sta già usando il mouse**, cioè chi può trascinare. Un gesto che
+   * nessuno scopre e che duplica una funzione disponibile è codice da mantenere
+   * senza ritorno.
+   *
+   * Non è «funzione rimossa e basta»: è un **rimando**. Se servirà riordinare da
+   * tastiera si progetta con un comando visibile (specifica §7.3).
+   *
+   * Le frecce di spostamento in colonna Azioni restano, e restano
+   * `moveLineUp`/`moveLineDown`: quelle si vedono.
+   */
   protected onLineFieldKeydown(
     index: number,
     field: GoodsReceiptLineFocusField,
     event: KeyboardEvent,
   ): void {
-    if (event.ctrlKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
-      event.preventDefault();
-      if (event.key === 'ArrowUp') {
-        this.moveLineUp(index);
-      } else {
-        this.moveLineDown(index);
-      }
-      return;
-    }
     this.lineFocus.handleKeydown(index, field, event);
   }
 
