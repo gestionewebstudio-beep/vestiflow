@@ -711,6 +711,19 @@
   --transition-page: 240ms; // ingresso contenuto pagina (polish v2)
   --transition-slow: 600ms;
   --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+
+  // ── 6b. VISTA COMPATTA — la soglia sotto cui le card sostituiscono le tabelle
+  //
+  // È l'unico breakpoint che serve anche al TypeScript: `ViewportService` lo
+  // legge da qui per sapere QUALE VISTA È ATTIVA, e da quella risposta dipende
+  // quale delle due righe documento è viva nel DOM.
+  //
+  // ⚠️ Il valore non va MAI ripetuto in TypeScript. Nasce da
+  // `$breakpoint-lg` e dalla stessa aritmetica di `media-down`, così la soglia
+  // del CSS e quella del segnale sono la stessa cosa e non possono divergere.
+  // `npm run check:tokens` fallisce se questo nome sparisce mentre il
+  // TypeScript continua a leggerlo.
+  --viewport-compact-max: #{bp.down-max('lg')};
 }
 
 // -----------------------------------------------------------------------------

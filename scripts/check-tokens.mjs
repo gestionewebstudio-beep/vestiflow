@@ -11,6 +11,13 @@
  * 2. TOKEN FANTASMA. Un `var(--x)` senza fallback su un token che non esiste
  *    fa la stessa fine, e capita ogni volta che si rinomina.
  *
+ * 3. TOKEN LETTI DAL TYPESCRIPT. Un `getPropertyValue('--x')` su un nome che
+ *    nessuno dichiara restituisce stringa vuota: nessun errore, nessun test
+ *    rosso, e il codice prosegue con un valore che non c'è. È il caso di
+ *    `--viewport-compact-max`, da cui dipende quale delle due viste di riga
+ *    documento è viva nel DOM — rinominarlo senza accorgersene lascerebbe
+ *    l'app sempre sulla vista desktop, anche su un telefono.
+ *
  * Non controlla i valori: quelli sono una scelta di design, e la fonte di
  * verità è `.claude/rules/regole-stile-ui.md`.
  */
@@ -62,11 +69,14 @@ for (const t of [...dark].sort()) {
 
 // ── Token usati e mai dichiarati ───────────────────────────────────────────
 const files = [];
+const tsFiles = [];
 (function walk(dir) {
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry);
     if (statSync(p).isDirectory()) walk(p);
     else if (entry.endsWith('.scss')) files.push(p.split(sep).join('/'));
+    else if (entry.endsWith('.ts') && !entry.endsWith('.spec.ts'))
+      tsFiles.push(p.split(sep).join('/'));
   }
 })('src');
 
@@ -91,6 +101,27 @@ for (const file of files) {
 }
 for (const [name, where] of [...ghosts].sort()) {
   problems.push(`${name} — usato senza fallback e mai dichiarato (${[...where].join(', ')})`);
+}
+
+// ── Token letti a runtime dal TypeScript ───────────────────────────────────
+//
+// Leggere un token inesistente torna stringa vuota, e il codice prosegue con un
+// valore che non c'è: nessun errore, nessun test rosso. Succede al segnale della
+// vista compatta e al tema dei grafici.
+//
+// Si cerca il NOME come stringa, non la chiamata: chi legge lo fa in modi
+// diversi — `getPropertyValue(NOME)` con una costante, `readCssToken('--x',
+// fallback)` — e agganciarsi alla forma della chiamata lascia fuori proprio i
+// casi scritti bene. In `src/**/*.ts` una stringa che comincia per `--` è una
+// custom property e nient'altro: verificato, non ce ne sono di altro tipo.
+const TOKEN_IN_TS = /['"`](--[a-z][\w-]*)['"`]/g;
+for (const file of tsFiles) {
+  const text = stripComments(readFileSync(file, 'utf8'));
+  for (const m of text.matchAll(TOKEN_IN_TS)) {
+    const name = m[1];
+    if (all.has(name)) continue;
+    problems.push(`${name} — letto da ${file.replace('src/app/', '')} e mai dichiarato`);
+  }
 }
 
 if (problems.length > 0) {

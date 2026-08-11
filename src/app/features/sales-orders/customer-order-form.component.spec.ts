@@ -19,6 +19,7 @@ import { ProductService } from '@domain/products/services/product.service';
 import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 import { TableViewPreferenceApiService } from '@shared/table-columns/table-view-preference-api.service';
+import { ViewportService } from '@core/services/viewport.service';
 
 import { CustomerOrderFormComponent } from './customer-order-form.component';
 
@@ -155,6 +156,89 @@ function formProviders(options: FormOptions = {}) {
     },
   ];
 }
+
+/**
+ * Le due viste di riga sono ESCLUSIVE, non una nascosta sotto l'altra.
+ *
+ * Prima la tabella restava viva sotto il breakpoint, solo invisibile: gli
+ * identificativi dei campi esistevano in doppia copia, e ogni stato condiviso
+ * poteva aprirsi nella vista che non si vede — è già successo con la scelta fra
+ * più codici. È anche il presupposto del punto unico della navigazione, che
+ * lavora per identificativo: con due viste vive «l'id della riga i, campo x»
+ * non è univoco.
+ */
+describe('CustomerOrderFormComponent — le due viste di riga', () => {
+  async function apri(compatta: boolean) {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(),
+        { provide: ViewportService, useValue: { compact: () => compatta } },
+      ],
+    });
+    const comp = view.fixture.componentInstance as unknown as {
+      addLine: () => void;
+      lines: {
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+    };
+    comp.addLine();
+    comp.lines.at(0).controls['productName']!.setValue('Articolo');
+    view.fixture.detectChanges();
+    return view.container;
+  }
+
+  it('sopra la soglia vive la tabella, e le card non esistono', async () => {
+    const c = await apri(false);
+
+    expect(c.querySelector('.doc-form__table-wrap')).not.toBeNull();
+    expect(c.querySelector('.co-form__cards')).toBeNull();
+  });
+
+  it('sotto la soglia vivono le card, e la tabella non esiste', async () => {
+    const c = await apri(true);
+
+    expect(c.querySelector('.co-form__cards')).not.toBeNull();
+    // Non «nascosta»: assente. Se tornasse a esserci, tornerebbero i doppioni
+    // di identificativo su cui la navigazione andrà a poggiare.
+    expect(c.querySelector('.doc-form__table-wrap')).toBeNull();
+  });
+
+  // Il presupposto del punto unico: un identificativo, un elemento. Prima
+  // `co-sku-0` e `co-m-sku-0` esistevano insieme, e `getElementById` trovava
+  // quello nascosto — `.focus()` diventava un no-op silenzioso.
+  it('sopra la soglia esiste solo l’identificativo della tabella', async () => {
+    const c = await apri(false);
+
+    expect(c.querySelectorAll('#co-sku-0')).toHaveLength(1);
+    expect(c.querySelectorAll('#co-m-sku-0')).toHaveLength(0);
+  });
+
+  // La card tiene i codici nel corpo, che si apre: si espande prima di
+  // guardare, altrimenti la prova misurerebbe una card chiusa e passerebbe
+  // anche se la tabella fosse ancora viva.
+  it('sotto la soglia esiste solo l’identificativo della card', async () => {
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders(),
+        { provide: ViewportService, useValue: { compact: () => true } },
+      ],
+    });
+    const comp = view.fixture.componentInstance as unknown as {
+      addLine: () => void;
+      toggleLineCard: (i: number) => void;
+      lines: {
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+    };
+    comp.addLine();
+    comp.lines.at(0).controls['productName']!.setValue('Articolo');
+    comp.toggleLineCard(0);
+    view.fixture.detectChanges();
+
+    expect(view.container.querySelectorAll('#co-m-sku-0')).toHaveLength(1);
+    expect(view.container.querySelectorAll('#co-sku-0')).toHaveLength(0);
+  });
+});
 
 describe('CustomerOrderFormComponent — caratterizzazione', () => {
   async function setup() {

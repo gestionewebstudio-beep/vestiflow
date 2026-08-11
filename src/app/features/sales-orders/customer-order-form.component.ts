@@ -103,6 +103,7 @@ import { InlineBannerComponent } from '@shared/components/inline-banner/inline-b
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
+import { ViewportService } from '@core/services/viewport.service';
 import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
@@ -306,6 +307,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly productService = inject(ProductService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
   private readonly codeLookupService = inject(DocumentCodeLookupService);
+  private readonly viewport = inject(ViewportService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly operationalLocations = inject(OperationalLocationsService);
@@ -1097,6 +1099,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly loading = computed(() => this.loadState() === 'loading');
   protected readonly loadError = computed(() => this.loadState() === 'error');
   protected readonly notEditable = computed(() => this.loadState() === 'not-editable');
+
+  /**
+   * Quale delle due viste di riga è viva. Le due sono **esclusive**: sotto la
+   * soglia esiste la card, sopra la tabella, mai entrambe.
+   *
+   * ⚠️ Attraversando la soglia i controlli vengono smontati e rimontati, e **il
+   * fuoco si perde**. Misurato e accettato: si attraversa ruotando un tablet o
+   * ridimensionando una finestra, non lavorando. Lo stato del form invece
+   * sopravvive — valore, «toccato», «sporco», «disabilitato» vivono nel
+   * componente, non nel template.
+   */
+  protected readonly compactView = this.viewport.compact;
 
   // ── Autocomplete prodotto per riga ──────────────────────────────────────
   protected readonly autocompleteLineIndex = signal<number | null>(null);
