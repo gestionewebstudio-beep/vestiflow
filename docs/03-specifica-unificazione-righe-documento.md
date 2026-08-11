@@ -239,12 +239,16 @@ Frecce ←/→ su queste celle: **cambiano cella al primo colpo, senza il second
 - **Conservano la colonna:** da "Nome" a "Nome" sopra/sotto; da "Prezzo" a "Prezzo".
 - **↓** su riga esistente: riga sotto, stessa colonna. In fondo **e** con la riga corrente compilata: **crea** nuova riga, focus da sinistra. Su riga vuota appena creata: **non fa nulla**.
 - **↑** sulla prima riga: **non fa nulla**.
-- **Ripiego colonna mancante:** se la riga sotto è "documento collegato" (non ha quella colonna), si **scavalca** — il fuoco va alla riga successiva ad essa, stessa colonna. La riga "documento collegato" non è una fermata.
+- **Ripiego riga non attraversabile:** se la riga sotto è "documento collegato" (non ha quella colonna), si **scavalca** — il fuoco va alla riga successiva ad essa, stessa colonna. La riga "documento collegato" non è una fermata.
+- **Ripiego colonna mancante — REGOLA, non dettaglio** _(aggiunta 08/2026)_: se la riga di destinazione **esiste ed è attraversabile** ma quel campo lì è disabilitato — succede sulle righe collegate a un articolo, dove i codici diventano testo — il fuoco va al **primo campo attraversabile di quella riga**. Non si scavalca la riga: la riga è una fermata legittima, è la colonna che manca.
+  È distinto dal ripiego qui sopra e va tenuto distinto: uno riguarda righe che non sono fermate, l'altro colonne che su quella fermata non ci sono. Senza questa regola il fuoco si perde — che è il difetto da cui l'intero lavoro è partito.
 
-> **Due cose che cambiano un gesto in uso — da dichiarare, o si scambiano per regressioni:**
+> **TRE cose che cambiano un gesto in uso — da dichiarare, o si scambiano per regressioni:**
 >
 > - "↓ crea solo se la riga ha contenuto" **è NUOVO**: oggi `advanceToNextLine` crea sempre in fondo, senza guardare il contenuto.
 > - **↓ cambia firma:** oggi va **sempre alla prima cella** della riga sotto, in tutte e tre. "Conservare la colonna" è un cambio su un gesto in uso, non un travaso.
+> - **Anche il Tab dall'ultimo campo crea solo se la riga ha contenuto** _(aggiunta 08/2026)_. Oggi tutte e tre creano **sempre**: attraversando col Tab una riga vuota se ne aggiunge un'altra.
+>   La regola della creazione è **una sola**, e non appartiene alla freccia: appartiene all'**effetto**. Tab dall'ultimo campo e ↓ in fondo fanno nascere la stessa riga nello stesso posto, quindi non possono avere due regole diverse — sarebbe la stessa divergenza che questo lavoro toglie, applicata ai gesti invece che ai documenti.
 
 ### 4.5 Invio — registra e resta (NON naviga, NON salva)
 

@@ -106,7 +106,28 @@ Riconosciuto come difetto a sé, perché non riguarda solo il fuoco e continuer�
 
 **Perché tocca il passo 3.** Il punto unico della navigazione lavora per identificativo (`getElementById`). Con due viste vive, «l'id della riga _i_, campo _x_» **non è univoco**: la risposta giusta dipende da quale vista l'operatore sta guardando, che il TypeScript non sa. Va deciso **prima** di innestare la navigazione, non dopo: (a) rendere le due viste esclusive con un `@if`, e allora l'id torna univoco; (b) dare al punto unico la vista corrente come dato, sullo stesso principio con cui riceve l'ordine dei campi (§4.7 della specifica). Nessuna delle due è stata scelta.
 
-⚠️ La (a) non è gratis: `@if` **smonta e rimonta** i controlli a ogni attraversamento del breakpoint, e va verificato cosa succede allo stato del form e al fuoco quando si ruota un tablet. La (b) non tocca il DOM ma raddoppia la mappa degli id. La misura da fare prima di scegliere è quella, non il conteggio delle righe.
+#### La misura, fatta prima di scegliere _(08/2026)_
+
+**1. Lo stato del form sopravvive allo smontaggio.** Provato su un componente ridotto con `[formGroup]` + `formArrayName` + `@if`, alternando le due viste: **valore, «toccato», «sporco» e «disabilitato» restano**, e il valore ricompare nel campo della vista appena montata. Il modello vive nel componente, non nel template: `@if` toglie l'elemento, non il controllo. **Il timore principale della strada (a) non si verifica.**
+
+**2. Il fuoco invece si perde**, verificato: l'elemento che lo aveva non esiste più. Costo reale ma circoscritto — si paga solo attraversando il breakpoint, cioè ruotando un tablet o ridimensionando una finestra, non durante il lavoro.
+
+**3. La strada (a) non costa: RISPARMIA.** Conteggio dei nodi DOM resi dall'Ordine cliente, a righe compilate _(mis. 08/2026)_:
+
+| Righe        | Tabella (nodi / controlli) | Card (nodi / controlli) |
+| ------------ | -------------------------- | ----------------------- |
+| 3            | 293 / 57                   | 108 / 24                |
+| 10           | 664 / 155                  | 297 / 66                |
+| **per riga** | **≈ 53 / 14**              | **≈ 27 / 6**            |
+| parte fissa  | 134                        | 27                      |
+
+Su un documento da **30 righe** la tabella pesa ≈ **1.724 nodi e 420 controlli**. Oggi su telefono sono **tutti resi, tutti legati al form, tutti invisibili** — e li paga il dispositivo che meno se lo può permettere. Rendere le viste esclusive non aggiunge lavoro: lo toglie.
+
+**4. Il costo vero della (a) è un altro, e non è nel DOM: il breakpoint non esiste in TypeScript.** `matchMedia` è usato in tutta l'app **solo** in `theme.service` (per `prefers-color-scheme`); il confine fra le due viste vive esclusivamente nel CSS — `$breakpoint-lg: 64rem` in `_breakpoints.scss`, applicato con `@include bp.media-down('lg')`. La (a) richiede quindi di **costruire un segnale di viewport** che oggi non c'è, e con esso **una seconda fonte di verità per lo stesso confine**: se il valore in TypeScript e quello in SCSS divergono, la vista viva e la vista mostrata non coincidono più — un fallimento silenzioso, della stessa famiglia di quelli che questo lavoro sta togliendo.
+
+**Mitigazione possibile, non ancora scelta:** dichiarare il breakpoint come token CSS in `_design-tokens.scss` e farlo leggere al segnale, invece di ripeterne il valore in TypeScript. Resterebbe una fonte sola, e `npm run check:tokens` la sorveglia già.
+
+**Cosa resta alla (b).** Non tocca il DOM e non introduce nessun segnale, ma lascia **entrambe le viste vive**: il costo di rendering misurato al punto 3 resta tutto, e ogni stato condiviso continua a potersi aprire nella vista che non si vede — è già successo con la scelta dei codici (§3-ter). Sposta il problema dentro la mappa degli id invece di toglierlo.
 
 ### 2.4 `commitLineAndSave` — il nome mente
 
@@ -612,6 +633,26 @@ Un test per maschera nei rispettivi spec («il fuoco atterra dove deve»): non e
 ---
 
 ## 12. Rete di test — stato reale
+
+### 12.0 ⚠️ Limite noto del gate di copertura — un file nuovo può entrare scoperto
+
+Registrato perché **non riguarda un file solo**, e perché il gate, se lo si legge male, dà una sicurezza che non ha.
+
+**Il fatto** _(misurato 08/2026)_. Le soglie di `test:coverage` sono **globali**, non per file: 80% righe, 75% rami sull'intera codebase. Un file nuovo entra nella media, e la media lo porta. La classe del giro del fuoco è stata scritta con tredici casi e copriva il **60%** del proprio file: `npm run test:coverage` era **verde**, perché il resto della codebase compensava. Nessun controllo automatico lo avrebbe segnalato.
+
+**Perché è peggio di quanto sembra.** Il file scoperto è sempre quello **nuovo**, cioè quello che nessuno ha ancora usato in produzione e su cui non esiste esperienza. La copertura protegge di più proprio dove serve di meno, e il numero verde sul totale dice il contrario.
+
+**La contromisura, ed è un gesto, non uno strumento: la copertura di un file nuovo si misura SUL FILE, non sul totale.**
+
+```
+npx ng test --watch=false --coverage --include "**/<il-file>.spec.ts"
+```
+
+La tabella che esce riguarda solo ciò che quello spec tocca: se il file nuovo non è vicino al 100%, mancano casi — e vanno scritti prima del commit, non «quando si abbassa la media». Sulla classe del fuoco questo passaggio ha portato i casi da tredici a ventisei e la copertura da 60% a 100% righe / 96,7% rami.
+
+**Non si alza la soglia globale per accorgersene**: la soglia globale non può distinguere un file nuovo scoperto da uno vecchio ben coperto, ed è per questo che alzarla non è la risposta.
+
+---
 
 **Zero copertura sulla NAVIGAZIONE** _(mis. 08/2026)_. I tre spec di componente non contengono `keydown`, `focus`, `Tab`, `ArrowUp`/`ArrowDown`, `advanceToNextLine` né `LineFocus`. In `e2e/` l'unico uso di tastiera è un `Escape`. È il fronte che il punto unico dovrà coprire, ed è ancora tutto da fare.
 
