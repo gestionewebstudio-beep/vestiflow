@@ -16,10 +16,9 @@ describe('user-permissions.util', () => {
     expect(hasFullTenantAccess({ role: UserRole.admin, permissions: [] })).toBe(false);
   });
 
-  it('resolveEffectivePermissions usa preset ruolo se array vuoto', () => {
+  it('resolveEffectivePermissions: array vuoto = nessun permesso (mai fallback ai preset)', () => {
     const perms = resolveEffectivePermissions({ role: UserRole.clerk, permissions: [] });
-    expect(perms).not.toContain(TenantPermission.InventoryViewAllLocations);
-    expect(perms).toContain(TenantPermission.RetailRegister);
+    expect(perms).toEqual([]);
   });
 
   it('hasTenantPermission rispetta permessi salvati', () => {
@@ -42,6 +41,23 @@ describe('user-permissions.util', () => {
 
     expect(perms).not.toContain('settings.integrations');
     expect(perms).toContain(TenantPermission.InventoryManage);
+  });
+
+  it('normalizeStoredPermissions materializza i preset del ruolo se non c’è input', () => {
+    const normalized = normalizeStoredPermissions(UserRole.clerk, undefined);
+    expect(normalized).toContain(TenantPermission.RetailRegister);
+    expect(normalized).not.toContain(TenantPermission.InventoryViewAllLocations);
+  });
+
+  it('normalizeStoredPermissions conserva l’array vuoto esplicito (zero permessi)', () => {
+    expect(normalizeStoredPermissions(UserRole.clerk, [])).toEqual([]);
+    expect(normalizeStoredPermissions(UserRole.manager, [])).toEqual([]);
+  });
+
+  it('normalizeStoredPermissions per il titolare restituisce sempre array vuoto', () => {
+    expect(
+      normalizeStoredPermissions(UserRole.owner, [TenantPermission.ReportsView]),
+    ).toEqual([]);
   });
 
   it('normalizeStoredPermissions filtra chiavi obsolete prima del salvataggio', () => {

@@ -111,6 +111,43 @@ describe('ProductsService', () => {
     expect(result.total).toBe(1);
   });
 
+  it('list espone il costo d’acquisto solo a chi ha il permesso', async () => {
+    const { service, prisma } = createService();
+    const rows = [
+      {
+        id: 'prod-1',
+        name: 'Maglietta',
+        purchasePriceMinor: 990,
+        variants: [{ id: 'var-1', purchasePriceMinor: 990 }],
+        images: [],
+      },
+    ];
+    prisma.product.findMany.mockResolvedValue(rows);
+    prisma.product.count.mockResolvedValue(1);
+
+    const visible = await service.list(tenantId, { page: 1, pageSize: 10 }, userWithCosts);
+    expect(visible.items[0]).toMatchObject({ purchasePriceMinor: 990 });
+
+    prisma.product.findMany.mockResolvedValue(rows);
+    const masked = await service.list(tenantId, { page: 1, pageSize: 10 }, userWithoutCosts);
+    expect(masked.items[0]).toMatchObject({ purchasePriceMinor: null });
+    expect(
+      (masked.items[0] as { variants: readonly { purchasePriceMinor: unknown }[] }).variants[0],
+    ).toMatchObject({ purchasePriceMinor: null });
+  });
+
+  it('list senza utente (chiamate interne) non espone il costo: default prudente', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findMany.mockResolvedValue([
+      { id: 'prod-1', name: 'Maglietta', purchasePriceMinor: 990, variants: [], images: [] },
+    ]);
+    prisma.product.count.mockResolvedValue(1);
+
+    const result = await service.list(tenantId, { page: 1, pageSize: 10 });
+
+    expect(result.items[0]).toMatchObject({ purchasePriceMinor: null });
+  });
+
   it('list con search cerca anche su barcode variante (scanner alla mano)', async () => {
     const { service, prisma } = createService();
     prisma.product.findMany.mockResolvedValue([]);

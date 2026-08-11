@@ -21,7 +21,12 @@ export function hasFullTenantAccess(user: PermissionUser | null | undefined): bo
   return user.role === UserRole.owner;
 }
 
-/** Permessi effettivi: titolare = tutti; altrimenti salvati o default di ruolo. */
+/**
+ * Permessi effettivi: titolare = tutti; per gli altri ruoli l'array salvato È
+ * la verità — anche vuoto (nessun permesso, scelta esplicita). I default di
+ * ruolo entrano in gioco solo al salvataggio (`normalizeStoredPermissions`),
+ * materializzati: mai come fallback silenzioso a runtime.
+ */
 export function resolveEffectivePermissions(
   user: PermissionUser | null | undefined,
 ): readonly TenantPermissionKey[] {
@@ -31,11 +36,7 @@ export function resolveEffectivePermissions(
   if (hasFullTenantAccess(user)) {
     return ALL_TENANT_PERMISSIONS;
   }
-  const stored = user.permissions ?? [];
-  if (stored.length > 0) {
-    return stored.filter(isTenantPermissionKey);
-  }
-  return ROLE_DEFAULT_PERMISSIONS[user.role] ?? [];
+  return (user.permissions ?? []).filter(isTenantPermissionKey);
 }
 
 export function hasTenantPermission(
@@ -79,6 +80,12 @@ export function hasAllTenantPermissions(
   return permissions.every((permission) => effective.includes(permission));
 }
 
+/**
+ * Normalizza i permessi da memorizzare: titolare = array vuoto (ignorato);
+ * input assente = default del ruolo, materializzati; input presente = l'elenco
+ * fornito, anche vuoto. `[]` e `undefined` sono DIVERSI: il primo è «nessun
+ * permesso», il secondo è «nessuna scelta, usa i preset».
+ */
 export function normalizeStoredPermissions(
   role: UserRole,
   permissions: readonly string[] | undefined,
@@ -86,9 +93,8 @@ export function normalizeStoredPermissions(
   if (role === UserRole.owner) {
     return [];
   }
-  if (!permissions?.length) {
+  if (permissions === undefined) {
     return [...ROLE_DEFAULT_PERMISSIONS[role]];
   }
-  const unique = [...new Set(permissions.filter(isTenantPermissionKey))];
-  return unique.length > 0 ? unique : [...ROLE_DEFAULT_PERMISSIONS[role]];
+  return [...new Set(permissions.filter(isTenantPermissionKey))];
 }

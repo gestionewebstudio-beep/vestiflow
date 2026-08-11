@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { User } from '../models/user.model';
 import { UserRole } from '../models/user.model';
 import { TenantChannelProfile } from '../models/tenant-channel-profile.model';
-import { TenantPermission } from '../models/tenant-permission.model';
+import { TenantPermission, defaultPermissionsForRole } from '../models/tenant-permission.model';
 
 import {
   canDeleteProducts,
@@ -45,7 +45,9 @@ function userWithRole(role: User['role'], overrides: Partial<User> = {}): User {
     assignedLocations: [],
     defaultLocationId: null,
     defaultLocation: null,
-    permissions: [],
+    // I preset di ruolo sono materializzati al salvataggio (l'array salvato È
+    // la verità): la fixture rispecchia i dati reali, non l'array vuoto.
+    permissions: [...defaultPermissionsForRole(role)],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,

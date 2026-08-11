@@ -1,0 +1,309 @@
+<section class="settings-users">
+  <header class="settings-users__header">
+    <div class="settings-users__heading">
+      <app-back-button />
+      <h1 class="settings-users__title">Utenti</h1>
+      <p class="settings-users__subtitle">
+        Crea gli account dei tuoi collaboratori e decidi ruoli, sedi e permessi. Gli account
+        titolare si gestiscono con l’assistenza Vestiflow.
+      </p>
+    </div>
+    <app-button
+      [disabled]="!hasActiveLocations() && !createFormOpen()"
+      [attr.aria-expanded]="createFormOpen()"
+      aria-controls="settings-users-create-panel"
+      (click)="toggleCreateForm()"
+    >
+      {{ createFormOpen() ? 'Annulla' : 'Nuovo utente' }}
+    </app-button>
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="6" [rows]="4" />
+  } @else if (loadError()) {
+    <app-error-state
+      description="Impossibile caricare gli utenti."
+      retryLabel="Riprova"
+      (retry)="reload()"
+    />
+  } @else {
+    @if (createSuccess()) {
+      <p class="settings-users__success" role="status">
+        Utente creato. Al primo accesso dovrà scegliere una nuova password.
+      </p>
+    }
+    @if (rowError(); as message) {
+      <p class="settings-users__alert" role="alert">{{ message }}</p>
+    }
+
+    <div class="settings-users__table-wrap">
+      <table class="settings-users__table">
+        <thead>
+          <tr>
+            <th scope="col">Nome</th>
+            <th scope="col">Email</th>
+            <th scope="col">Attivo</th>
+            <th scope="col">Ruolo</th>
+            <th scope="col">Sede operativa</th>
+            <th scope="col">Permessi</th>
+            <th scope="col">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of users(); track user.id) {
+            <tr [class.settings-users__row--inactive]="!user.isActive">
+              <td>{{ user.displayName }}</td>
+              <td>{{ user.email }}</td>
+              <td>
+                @if (canEditUser(user)) {
+                  <label class="settings-users__check">
+                    <input
+                      type="checkbox"
+                      [checked]="user.isActive"
+                      [attr.aria-label]="'Account attivo per ' + user.displayName"
+                      (change)="onRowActiveToggle(user, $any($event.target).checked)"
+                    />
+                  </label>
+                } @else {
+                  <span class="settings-users__muted">{{ user.isActive ? 'Sì' : 'No' }}</span>
+                }
+              </td>
+              @if (canEditUser(user)) {
+                <td class="settings-users__cell-select">
+                  <app-select-menu
+                    [options]="roleOptions"
+                    [value]="user.role"
+                    ariaLabel="Ruolo utente"
+                    placeholder="Ruolo"
+                    [compact]="true"
+                    [includeEmptyOption]="false"
+                    (valueChange)="onRowRoleSelect(user, $event)"
+                  />
+                </td>
+                <td class="settings-users__cell-select settings-users__cell-locations">
+                  @if (rowShowsAllLocationsToggle(user.role)) {
+                    <label class="settings-users__check">
+                      <input
+                        type="checkbox"
+                        [checked]="user.hasAllLocationsAccess"
+                        (change)="onRowAllLocationsAccessToggle(user, $any($event.target).checked)"
+                      />
+                      <span>Tutte le sedi</span>
+                    </label>
+                  }
+                  @if (rowRequiresLocation(user)) {
+                    <app-select-menu
+                      [options]="locationOptions()"
+                      [multiple]="true"
+                      [values]="user.assignedLocationIds"
+                      ariaLabel="Sedi operative utente"
+                      placeholder="Seleziona sedi"
+                      [compact]="true"
+                      [includeEmptyOption]="false"
+                      (valuesChange)="onRowLocationsSelect(user, $event)"
+                    />
+                  }
+                  @if (rowDefaultLocationOptions(user).length > 0) {
+                    <app-select-menu
+                      [options]="rowDefaultLocationOptions(user)"
+                      [value]="user.defaultLocationId ?? ''"
+                      ariaLabel="Sede predefinita utente"
+                      placeholder="Predefinita: nessuna"
+                      [compact]="true"
+                      (valueChange)="onRowDefaultLocationSelect(user, $event)"
+                    />
+                  }
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="settings-users__permissions-toggle"
+                    [attr.aria-expanded]="permissionsExpanded(user.id)"
+                    (click)="togglePermissionsPanel(user.id)"
+                  >
+                    Personalizza
+                  </button>
+                </td>
+                <td class="settings-users__cell-actions">
+                  <button
+                    type="button"
+                    class="settings-users__delete-btn"
+                    [attr.aria-label]="'Elimina utente ' + user.displayName"
+                    [attr.title]="'Elimina utente'"
+                    [disabled]="rowDeletingId() !== null || rowSavingId() !== null"
+                    [attr.aria-busy]="rowDeletingId() === user.id ? true : null"
+                    (click)="openDeleteDialog(user)"
+                  >
+                    @if (rowDeletingId() === user.id) {
+                      <app-inline-spinner />
+                      <span class="sr-only">Eliminazione in corso</span>
+                    } @else {
+                      <i class="pi pi-trash" aria-hidden="true"></i>
+                    }
+                  </button>
+                </td>
+              } @else {
+                <td>{{ roleLabels[user.role] }}</td>
+                <td class="settings-users__cell-locations">
+                  <span class="settings-users__muted">
+                    {{ isOwnerRole(user.role) ? 'Tutte le sedi' : '—' }}
+                  </span>
+                </td>
+                <td colspan="2">
+                  <span class="settings-users__muted">{{ lockedRowHint(user) }}</span>
+                </td>
+              }
+            </tr>
+            @if (canEditUser(user) && permissionsExpanded(user.id)) {
+              <tr class="settings-users__permissions-row">
+                <td colspan="7">
+                  <app-user-permissions-editor
+                    [role]="user.role"
+                    [permissions]="effectivePermissions(user)"
+                    [compact]="true"
+                    (permissionsChange)="onRowPermissionsChange(user, $event)"
+                  />
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (!hasActiveLocations()) {
+      <p class="settings-users__note" role="note">
+        Nessuna sede attiva nel piano: completa la selezione sedi in Impostazioni prima di creare
+        manager e commessi.
+      </p>
+    }
+
+    <div
+      id="settings-users-create-panel"
+      class="settings-users__create-panel"
+      [class.settings-users__create-panel--open]="createFormOpen()"
+      [attr.aria-hidden]="!createFormOpen()"
+    >
+      <div class="settings-users__create-panel-inner">
+        <form
+          class="settings-users__create-form"
+          [formGroup]="createForm"
+          (ngSubmit)="submitCreate()"
+        >
+          <h2 class="settings-users__create-title">Nuovo utente</h2>
+          @if (createError(); as message) {
+            <p class="settings-users__alert" role="alert">{{ message }}</p>
+          }
+          <div class="settings-users__create-fields">
+            <label class="settings-users__field">
+              <span class="settings-users__label">Nome visualizzato</span>
+              <input class="settings-users__input" type="text" formControlName="displayName" />
+            </label>
+            <label class="settings-users__field">
+              <span class="settings-users__label">Email</span>
+              <input
+                class="settings-users__input"
+                type="email"
+                formControlName="email"
+                autocomplete="off"
+              />
+            </label>
+            <label class="settings-users__field">
+              <span class="settings-users__label">Password iniziale</span>
+              <input
+                class="settings-users__input"
+                type="password"
+                formControlName="password"
+                autocomplete="new-password"
+              />
+              <span class="settings-users__field-hint">
+                Comunicagliela a voce: al primo accesso dovrà sostituirla con una scelta da lui.
+              </span>
+            </label>
+            <div class="settings-users__field">
+              <span class="settings-users__label">Ruolo</span>
+              <app-select-menu
+                [options]="roleOptions"
+                [value]="createForm.controls.role.value"
+                ariaLabel="Ruolo nuovo utente"
+                placeholder="Ruolo"
+                [fullWidth]="true"
+                [matchInputHeight]="true"
+                [includeEmptyOption]="false"
+                (valueChange)="onCreateRoleSelect($event)"
+              />
+            </div>
+            @if (createShowsAllLocationsToggle()) {
+              <div class="settings-users__field">
+                <label class="settings-users__check">
+                  <input
+                    type="checkbox"
+                    [checked]="createForm.controls.hasAllLocationsAccess.value"
+                    (change)="onCreateAllLocationsAccessToggle($any($event.target).checked)"
+                  />
+                  <span>Accesso a tutte le sedi</span>
+                </label>
+              </div>
+            }
+            @if (createRequiresLocation()) {
+              <div class="settings-users__field">
+                <span class="settings-users__label">Sedi operative</span>
+                <app-select-menu
+                  [options]="locationOptions()"
+                  [multiple]="true"
+                  [values]="createForm.controls.assignedLocationIds.value"
+                  ariaLabel="Sedi operative nuovo utente"
+                  placeholder="Seleziona sedi"
+                  [fullWidth]="true"
+                  [matchInputHeight]="true"
+                  [includeEmptyOption]="false"
+                  (valuesChange)="onCreateLocationsSelect($event)"
+                />
+              </div>
+            }
+            @if (createDefaultLocationOptions().length > 0) {
+              <div class="settings-users__field">
+                <span class="settings-users__label">Sede predefinita (facoltativa)</span>
+                <app-select-menu
+                  [options]="createDefaultLocationOptions()"
+                  [value]="createForm.controls.defaultLocationId.value"
+                  ariaLabel="Sede predefinita nuovo utente"
+                  placeholder="Nessuna"
+                  [fullWidth]="true"
+                  [matchInputHeight]="true"
+                  (valueChange)="onCreateDefaultLocationSelect($event)"
+                />
+              </div>
+            }
+          </div>
+          <div class="settings-users__create-permissions">
+            <app-user-permissions-editor
+              [role]="createForm.controls.role.value"
+              [permissions]="createPermissions()"
+              (permissionsChange)="onCreatePermissionsChange($event)"
+            />
+          </div>
+          <div class="settings-users__create-actions">
+            <app-button type="submit" [loading]="createLoading()" [disabled]="createLoading()">
+              Crea utente
+            </app-button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  @if (userPendingDelete(); as pendingUser) {
+    <app-confirm-dialog
+      [(open)]="deleteDialogOpen"
+      title="Eliminare l'utente?"
+      [message]="deleteDialogMessage()"
+      confirmLabel="Elimina utente"
+      cancelLabel="Annulla"
+      [danger]="true"
+      [busy]="rowDeletingId() === pendingUser.id"
+      (confirmed)="confirmDeleteUser()"
+      (dismissed)="cancelDeleteUser()"
+    />
+  }
+</section>

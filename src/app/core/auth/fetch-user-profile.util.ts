@@ -32,6 +32,7 @@ export interface UserProfileApi {
   readonly defaultLocation?: { readonly id: string; readonly name: string } | null;
   readonly permissions?: readonly string[];
   readonly isActive: boolean;
+  readonly mustChangePassword?: boolean;
   readonly isPlatformAdmin: boolean;
   readonly supportSession?: SupportSessionApi;
   readonly tenantChannelProfile?: TenantChannelProfileType;
@@ -56,6 +57,7 @@ export function mapUserProfileFromApi(row: UserProfileApi): User {
     defaultLocation: row.defaultLocation ?? null,
     permissions: row.permissions ?? [],
     isActive: row.isActive,
+    mustChangePassword: row.mustChangePassword ?? false,
     isPlatformAdmin: row.isPlatformAdmin,
     supportSession: row.supportSession,
     tenantChannelProfile: row.tenantChannelProfile ?? TenantChannelProfile.Shopify,

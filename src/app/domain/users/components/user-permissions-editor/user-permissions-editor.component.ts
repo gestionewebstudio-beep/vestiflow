@@ -11,13 +11,13 @@ import {
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 
 @Component({
-  selector: 'app-admin-tenant-user-permissions-editor',
+  selector: 'app-user-permissions-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [HoverTooltipComponent],
-  templateUrl: './admin-tenant-user-permissions-editor.component.html',
-  styleUrl: './admin-tenant-user-permissions-editor.component.scss',
+  templateUrl: './user-permissions-editor.component.html',
+  styleUrl: './user-permissions-editor.component.scss',
 })
-export class AdminTenantUserPermissionsEditorComponent {
+export class UserPermissionsEditorComponent {
   readonly role = input.required<UserRole>();
   readonly permissions = input.required<readonly TenantPermissionKey[]>();
   readonly compact = input<boolean>(false);

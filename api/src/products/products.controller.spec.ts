@@ -40,13 +40,14 @@ describe('ProductsController', () => {
     priceModePreference as never,
   );
 
-  it('list delega al service', async () => {
+  it('list delega al service passando l’utente (mascheramento costi)', async () => {
     const query = { page: 1, pageSize: 10 };
+    const user = { id: 'user-1', role: 'owner' } as never;
     products.list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 10 });
 
-    await controller.list(tenantId, query);
+    await controller.list(tenantId, user, query);
 
-    expect(products.list).toHaveBeenCalledWith(tenantId, query);
+    expect(products.list).toHaveBeenCalledWith(tenantId, query, user);
   });
 
   it('checkSku delega al service', async () => {

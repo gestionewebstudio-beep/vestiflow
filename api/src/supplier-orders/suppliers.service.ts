@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { Prisma, type SupplierVariantLink } from '@prisma/client';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { canViewPurchaseCosts } from '../auth/user-permissions.util';
 import type { Paginated } from '../common/dto/pagination.dto';
 import {
   SUPPLIER_PARTY_INCLUDE,
@@ -241,9 +243,16 @@ export class SuppliersService {
       .then((rows) => rows.map((row) => this.toVariantLinkRow(row)));
   }
 
+  /**
+   * Collegamenti fornitore visti dall'anagrafica articolo (sezione Prodotti):
+   * l'ultimo prezzo d'acquisto è un dato sensibile (§permessi) e senza
+   * "Visualizza costi d'acquisto" non entra nella risposta. Gli endpoint del
+   * mondo acquisti (ordini fornitore) non passano da qui e restano integri.
+   */
   async listVariantLinksByProduct(
     tenantId: string,
     productId: string,
+    user?: UserProfileDto,
   ): Promise<SupplierVariantLinkRow[]> {
     const product = await this.prisma.product.findFirst({
       where: { id: productId, tenantId },
@@ -258,7 +267,11 @@ export class SuppliersService {
       include: SUPPLIER_VARIANT_LINK_INCLUDE,
       orderBy: [{ variant: { sku: 'asc' } }, { supplier: { party: { companyName: 'asc' } } }],
     });
-    return rows.map((row) => this.toVariantLinkRow(row));
+    const showPurchaseCosts = canViewPurchaseCosts(user);
+    return rows.map((row) => {
+      const mapped = this.toVariantLinkRow(row);
+      return showPurchaseCosts ? mapped : { ...mapped, lastPurchasePriceMinor: null };
+    });
   }
 
   async upsertVariantLink(

@@ -131,7 +131,9 @@ export class ProductsService {
   async list(
     tenantId: string,
     query: ListProductsQueryDto,
+    user?: UserProfileDto,
   ): Promise<Paginated<ProductWithVariants>> {
+    const showPurchaseCosts = canViewPurchaseCosts(user);
     const where: Prisma.ProductWhereInput = {
       tenantId,
       ...(query.status ? { status: query.status } : {}),
@@ -169,15 +171,39 @@ export class ProductsService {
     await this.taxonomyLocalization.prepareProductLocalization();
 
     return {
-      items: items.map((item) =>
-        withReadableShopifyErrors(
+      items: items.map((item) => {
+        const mapped = withReadableShopifyErrors(
           this.taxonomyLocalization.localizeProductForResponseSync(normalizeListProductRow(item)),
-        ),
-      ),
+        );
+        // Costo d'acquisto (dato sensibile §permessi): stessa regola dei
+        // riepiloghi varianti — senza permesso il campo non entra in risposta.
+        return showPurchaseCosts ? mapped : this.stripPurchaseCosts(mapped);
+      }),
       total,
       page: query.page,
       pageSize: query.pageSize,
     };
+  }
+
+  /** Azzera i costi d'acquisto (articolo e varianti) in una risposta prodotto. */
+  private stripPurchaseCosts<
+    T extends {
+      readonly purchasePriceMinor?: unknown;
+      readonly variants?: readonly { readonly purchasePriceMinor?: unknown }[];
+    },
+  >(product: T): T {
+    return {
+      ...product,
+      purchasePriceMinor: null,
+      ...(product.variants
+        ? {
+            variants: product.variants.map((variant) => ({
+              ...variant,
+              purchasePriceMinor: null,
+            })),
+          }
+        : {}),
+    } as T;
   }
 
   /** Facets distinti per filtri lista prodotti (intero catalogo tenant). */

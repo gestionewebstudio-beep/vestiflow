@@ -16,6 +16,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { canViewPurchaseCosts } from '../auth/user-permissions.util';
 import { buildInventoryVariantSearchWhere } from './inventory-variant-search.util';
 import { applyInventoryDelta } from './inventory-level-delta.util';
 import {
@@ -360,8 +361,12 @@ export class InventoryService {
         : [];
     const onlineSaleRefById = new Map(onlineSales.map((sale) => [sale.id, sale.reference]));
 
+    // Costo d'acquisto congelato sul movimento (dato sensibile §permessi):
+    // senza permesso i campi non entrano nella risposta.
+    const showPurchaseCosts = canViewPurchaseCosts(user);
     const items = rawItems.map(({ variant, ...movement }) => ({
       ...movement,
+      ...(showPurchaseCosts ? {} : { unitCostMinor: null, totalCostMinor: null }),
       productTitle: variant?.product?.name ?? null,
       documentReference: resolveMovementDocumentReference(
         movement,

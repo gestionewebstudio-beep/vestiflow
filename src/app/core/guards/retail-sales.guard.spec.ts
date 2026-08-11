@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
+import { defaultPermissionsForRole } from '@core/models/tenant-permission.model';
 import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 
@@ -27,7 +28,9 @@ function userWithProfile(profile: User['tenantChannelProfile']): User {
     assignedLocations: [],
     defaultLocationId: null,
     defaultLocation: null,
-    permissions: [],
+    // Preset clerk materializzato (l'array salvato È la verità): il commesso
+    // reale porta retail.register nell'array, non lo eredita a runtime.
+    permissions: [...defaultPermissionsForRole(UserRole.Clerk)],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };

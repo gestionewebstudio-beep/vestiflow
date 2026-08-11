@@ -12,6 +12,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 
 import type { AuthenticatedRequest } from '../common/auth/authenticated-request';
 import { avatarUploadMulterOptions } from '../common/upload/multer-upload.options';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuthProfileCacheService } from './auth-profile-cache.service';
 import { CurrentUser } from './current-user.decorator';
 import type { UserProfileDto } from './dto/user-profile.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -23,6 +25,8 @@ export class AuthController {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly userAvatar: UserAvatarService,
+    private readonly prisma: PrismaService,
+    private readonly profileCache: AuthProfileCacheService,
   ) {}
 
   /** Profilo applicativo dell'utente autenticato (tenant, ruolo, negozi). */
@@ -52,6 +56,25 @@ export class AuthController {
     @CurrentUser() user: UserProfileDto,
   ): Promise<UserProfileDto> {
     return this.userAvatar.removeAvatar(user.id, request.authUserId);
+  }
+
+  /**
+   * L'utente ha cambiato la password iniziale (impostata da chi gli ha creato
+   * l'account): azzera il flag e invalida il profilo in cache. Il cambio vero
+   * avviene client-side su Supabase Auth; questo endpoint registra solo che il
+   * promemoria non serve più — non è un confine di sicurezza.
+   */
+  @Post('password-changed')
+  @UseGuards(JwtAuthGuard)
+  async passwordChanged(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<{ readonly mustChangePassword: boolean }> {
+    await this.prisma.user.update({
+      where: { id: request.appUser.id },
+      data: { mustChangePassword: false },
+    });
+    this.profileCache.invalidate(request.authUserId);
+    return { mustChangePassword: false };
   }
 
   /**

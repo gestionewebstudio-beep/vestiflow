@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
 
+import { tenantOwnerGuard } from '@core/guards/tenant-owner.guard';
+
 // Unica feature di business senza tenantPermissionGuard: oggi codici-iva e
 // pagamenti sono raggiungibili da ogni utente autenticato del tenant. Il gate
 // candidato è TenantPermission.SettingsCompany («preferenze generali del
@@ -24,5 +26,14 @@ export const settingsRoutes: Routes = [
       import('./pages/payment-options/payment-options-page.component').then(
         (m) => m.PaymentOptionsPageComponent,
       ),
+  },
+  {
+    // Unica rotta settings con un gate: riservata al titolare per scelta di
+    // prodotto (2026-08-11). Il confine vero è il TenantOwnerGuard dell'API.
+    path: 'utenti',
+    title: 'Utenti',
+    canActivate: [tenantOwnerGuard],
+    loadComponent: () =>
+      import('./pages/users/users-page.component').then((m) => m.UsersPageComponent),
   },
 ];

@@ -2,7 +2,6 @@ import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 import {
   ALL_TENANT_PERMISSIONS,
-  ROLE_DEFAULT_PERMISSIONS,
   type TenantPermissionKey,
   isTenantPermissionKey,
 } from '@core/models/tenant-permission.model';
@@ -21,6 +20,11 @@ export function hasFullTenantAccess(user: PermissionUser | null | undefined): bo
   return user.role === UserRole.Owner;
 }
 
+/**
+ * Permessi effettivi (specchio della regola API): titolare = tutti; per gli
+ * altri ruoli l'array salvato È la verità, anche vuoto. I default di ruolo
+ * servono solo come preset negli editor, mai come fallback a runtime.
+ */
 export function resolveEffectivePermissions(
   user: PermissionUser | null | undefined,
 ): readonly TenantPermissionKey[] {
@@ -30,11 +34,7 @@ export function resolveEffectivePermissions(
   if (hasFullTenantAccess(user)) {
     return ALL_TENANT_PERMISSIONS;
   }
-  const stored = user.permissions ?? [];
-  if (stored.length > 0) {
-    return stored.filter(isTenantPermissionKey);
-  }
-  return ROLE_DEFAULT_PERMISSIONS[user.role] ?? [];
+  return (user.permissions ?? []).filter(isTenantPermissionKey);
 }
 
 export function hasTenantPermission(

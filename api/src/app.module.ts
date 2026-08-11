@@ -27,6 +27,7 @@ import { PaymentOptionsModule } from './payment-options/payment-options.module';
 import { SupplierOrdersModule } from './supplier-orders/supplier-orders.module';
 import { VatModule } from './vat/vat.module';
 import { SupportSessionModule } from './support/support-session.module';
+import { TenantUsersModule } from './tenant-users/tenant-users.module';
 import { UserPreferencesModule } from './user-preferences/user-preferences.module';
 
 @Module({
@@ -60,6 +61,7 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     AnalyticsModule,
     DashboardModule,
     TenantModule,
+    TenantUsersModule,
     AdminModule,
     UserPreferencesModule,
   ],

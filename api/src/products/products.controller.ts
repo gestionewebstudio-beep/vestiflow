@@ -108,13 +108,16 @@ export class ProductsController {
     private readonly priceModePreference: ProductPriceModePreferenceService,
   ) {}
 
+  // L'utente serve al service per il costo d'acquisto (dato sensibile
+  // §permessi): senza permesso il campo non entra nella risposta.
   @Get()
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   list(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListProductsQueryDto,
   ): Promise<Paginated<ProductWithVariants>> {
-    return this.products.list(tenantId, query);
+    return this.products.list(tenantId, query, user);
   }
 
   @Get('facets')
@@ -258,9 +261,10 @@ export class ProductsController {
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   listSupplierLinks(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.suppliers.listVariantLinksByProduct(tenantId, id);
+    return this.suppliers.listVariantLinksByProduct(tenantId, id, user);
   }
 
   /**
