@@ -359,6 +359,28 @@ describe('SupplierOrderFormComponent', () => {
     expect(screen.queryByText('Scegli il fornitore')).toBeNull();
   });
 
+  // ⛔ Difetto segnalato dal proprietario: creata per sbaglio la riga sotto e
+  // lasciata vuota, il documento non si salvava più — «Riga 2: manca
+  // l'articolo» — finché non la si cancellava a mano. La riga vuota in coda la
+  // crea la navigazione, non l'operatore: al salvataggio si scarta.
+  it('la riga vuota in coda non blocca il salvataggio: si scarta', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup({ vatCodes: [VAT_22] });
+    await scegliArticoloSullaRiga(user);
+    const costo = screen.getByPlaceholderText('0,00');
+    await user.clear(costo);
+    await user.type(costo, '12,50');
+
+    await user.click(screen.getByRole('button', { name: 'Aggiungi riga' }));
+    await user.click(salvaDocumento());
+
+    const inviato = (
+      createOrder.mock.calls[0] as unknown as readonly unknown[] | undefined
+    )?.[0] as { readonly lines: readonly unknown[] } | undefined;
+    // Salvato, e con la sola riga compilata.
+    expect(inviato?.lines).toHaveLength(1);
+  });
+
   it('consente di aggiungere una riga ordine', async () => {
     const user = userEvent.setup();
     await setup();

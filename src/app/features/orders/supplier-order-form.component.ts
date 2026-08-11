@@ -124,6 +124,7 @@ import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/attachments-panel.component';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
+import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -1704,6 +1705,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     if (this.saving()) {
       return;
     }
+    this.dropTrailingEmptyLines();
     const problem = this.validationProblem();
     if (problem) {
       this.form.markAllAsTouched();
@@ -1963,5 +1965,36 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
+  }
+
+  /**
+   * Le righe vuote in coda si SCARTANO al salvataggio, non si segnalano.
+   *
+   * Le crea la navigazione stessa — Tab o ↓ dall'ultimo campo dell'ultima riga
+   * — e basta arrivarci per sbaglio perché in fondo al documento resti una riga
+   * che nessuno ha compilato. Prima il salvataggio la trattava come una riga da
+   * completare («manca l'articolo») e non partiva finché non la si cancellava a
+   * mano: si chiedeva all'operatore di rimediare a qualcosa che aveva fatto la
+   * maschera. (Difetto segnalato dal proprietario, 11/08/2026.)
+   *
+   * Solo in coda e solo vuote: una riga vuota in mezzo l'ha lasciata lì
+   * qualcuno, e quella va segnalata. La regola vive in `domain/` — è la stessa
+   * per tutte le maschere, e scritta tre volte divergerebbe.
+   */
+  private dropTrailingEmptyLines(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const indices = trailingEmptyLineIndices(
+      this.lines.length,
+      (index) => !this.lines.at(index)?.controls.variantId.value,
+    );
+    if (indices.length === 0) {
+      return;
+    }
+    for (const index of indices) {
+      this.lines.removeAt(index, { emitEvent: false });
+    }
+    this.lines.updateValueAndValidity();
   }
 }
