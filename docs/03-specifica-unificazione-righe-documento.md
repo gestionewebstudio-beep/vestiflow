@@ -257,6 +257,15 @@ Frecce ←/→ su queste celle: **cambiano cella al primo colpo, senza il second
 - **Registrare il valore** = prendere ciò che hai digitato e agganciarlo (es. il codice all'articolo). Questo sì, sempre. **Non** significa "chiudere la riga" né "passare oltre".
 - **[Cambio da dichiarare]** Oggi in **Ordine cliente Invio fa la funzione di Tab** (naviga alla cella successiva). Va **cambiato**: Invio smette di navigare. La navigazione resta a **Tab** (cella successiva) e **frecce** (↓ riga sotto). Se non dichiarato, chi esegue lo scambia per regressione.
 - **Nessun salvataggio su Invio, mai** — coerente col principio "il salvataggio è solo col pulsante". Qualsiasi maschera dove Invio oggi salva va allineata.
+
+**Fin dove arriva la regola — è il suo DOMINIO, non un'eccezione** _(precisato 08/2026, eseguendola)_.
+
+«Resta sulla cella» presuppone che la cella ci sia ancora. Su un campo codice, quando il codice trova **una** corrispondenza, l'articolo si aggancia e **la cella smette di essere un campo**: diventa il testo del valore collegato. Lì «restare» non è una cosa che si possa fare male o bene — non c'è più niente su cui restare, e il fuoco va comunque altrove.
+
+Quindi la regola **morde dove la cella resta un campo**: nessuna corrispondenza (il valore digitato resta scritto e si rimane lì) e più corrispondenze (la scelta è aperta e si rimane lì). Con una corrispondenza sola il fuoco si sposta, e non è una deroga: è il limite di ciò che la frase può descrivere.
+
+⚠️ Va scritto perché, letta senza questo, la regola sembra disattesa proprio nel caso più frequente — e chi la rilegge tra sei mesi «corregge» un comportamento corretto.
+
 - **[DA VERIFICARE]** Ogni maschera "ha una cosa sua": quali gesti (freccia, Invio, Tab dall'ultimo campo) passano oggi da `commitLineAndSave`, per maschera. Serve per intervenire sulla **sola** freccia (§4.5-bis) e sul **solo** Invio senza rompere la registrazione del valore che Tab deve continuare a fare.
 
 ### 4.5-bis La freccia non salva

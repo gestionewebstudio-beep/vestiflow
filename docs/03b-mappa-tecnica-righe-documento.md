@@ -537,7 +537,11 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 **Gruppo A — divergenze che il punto unico cementerebbe**
 
 1. **↑ è un tasto morto** in Ordine cliente e Ordine fornitore: le celle emettono `lineRowRetreat` e nessuno dei due template lo aggancia. Il tasto fa `preventDefault` e poi niente — non fa nemmeno il comportamento nativo.
-2. **La cella prodotto di Ordine fornitore non ha identificativo** ed è un `app-select-menu` senza `(keydown)`. Ma `product` è nel giro del Tab: da «Cod. fornitore» il fuoco si perde.
+2. ~~**La cella prodotto di Ordine fornitore non ha identificativo**~~ — ✅ **chiuso (08/2026), ma con una TOPPA TEMPORANEA che ha una condizione di rientro.**
+   Il campo era nel giro del Tab e puntava a `po-product-{i}`, identificativo che non esiste in nessun template: quella cella è un `app-select-menu`, senza `inputId` né fuoco pubblico. Da «Cod. fornitore» il fuoco si perdeva a metà giro.
+   **La correzione è stata TOGLIERE `product` dal giro**, non dargli un identificativo: elencare un campo su cui non si può atterrare fa solo morire il fuoco. Ma è una sottrazione, non una soluzione — oggi il nome prodotto in Ordine fornitore **non si raggiunge da tastiera**.
+   ⚠️ **Condizione di rientro, da eseguire e non da ricordare: quando `app-select-menu` verrà sostituito dalla cella a ricerca-e-selezione (specifica §4.3-bis, filone B), `product` torna nel giro.** Senza questa riga la sottrazione diventa permanente per inerzia, e nessuno saprà che era provvisoria: il codice non lo dice, dice solo che il campo non c'è.
+   _Lo stesso vale per l'IVA (difetto 4): stessa causa, stessa cella, stessa condizione di rientro._
 3. **`advanceToNextLine` di Ordine fornitore non controlla `formReadOnly()`** — e non ha nemmeno il `<fieldset [disabled]>` che protegge le altre due. Su documento bloccato il Tab aggiunge righe.
 4. **L'identificativo IVA dell'Arrivo merce è nella mappa ma non esiste nel DOM** (la cella è un `app-select-menu`). Innocuo solo perché `visibleLineFocusFields` esclude `vat` a mano.
 5. ~~**Le celle gemelle divergono a suggerimenti aperti**: la cella prodotto usa le frecce per scorrere la lista, la cella codice le ingoia con `preventDefault`.~~
@@ -651,6 +655,22 @@ npx ng test --watch=false --coverage --include "**/<il-file>.spec.ts"
 La tabella che esce riguarda solo ciò che quello spec tocca: se il file nuovo non è vicino al 100%, mancano casi — e vanno scritti prima del commit, non «quando si abbassa la media». Sulla classe del fuoco questo passaggio ha portato i casi da tredici a ventisei e la copertura da 60% a 100% righe / 96,7% rami.
 
 **Non si alza la soglia globale per accorgersene**: la soglia globale non può distinguere un file nuovo scoperto da uno vecchio ben coperto, ed è per questo che alzarla non è la risposta.
+
+### 12.0-bis ⚠️ La guardia va scritta DOVE NASCE il difetto, non dove si manifesta
+
+Non è la nota di un caso: è lo **schema** che si è ripetuto **tre volte in una sola sessione** _(08/2026)_, sempre uguale e sempre difficile da vedere dall'interno. Ogni volta la prova era verde, ogni volta non stava guardando il posto giusto.
+
+| Il difetto nasceva…                                                                | …ma la prova guardava                        | Come si è visto                                                                                     |
+| ---------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| nella **differenza** fra due risposte del server (ricerca vs caricamento per id)   | un mock che rispondeva **uguale** a entrambe | la prova passava anche col difetto: il codice arbitrario non arrivava mai                           |
+| nell'**incrocio** fra due meccanismi (conferma allo sfocamento + grazia del tocco) | i due meccanismi **separatamente**           | separatamente passavano entrambi; insieme il pannello si riapriva da solo                           |
+| nella **cella**, che decide il gesto ed emette l'esito                             | il **form**, che l'esito lo riceve           | il red-check restava verde rompendo la cella: il form gestiva bene un esito che nessuno gli mandava |
+
+**La contromisura è una domanda, da farsi prima di scrivere la prova: in quale file vive la decisione che sto sorvegliando?** La prova va lì. Se la decisione è «quale gesto produce quale esito», vive nella cella e la prova sta nella cella; se è «cosa fare di quell'esito», vive nel form. Sorvegliare il secondo non dice niente sul primo.
+
+**Il segnale che sei nel caso sbagliato:** il red-check resta **verde**. Rompere deliberatamente la cosa e vedere la prova passare non significa che la cosa non conti — significa che la prova non la stava guardando. Un red-check verde è un risultato, non un contrattempo: dice che la guardia è nel posto sbagliato.
+
+⚠️ Vale anche per i **mock**: un mock che semplifica proprio la differenza da cui nasce il difetto lo nasconde per costruzione. Prima di scriverne uno, chiedersi **su quale asse** il difetto si manifesta, e tenere quell'asse diverso.
 
 ---
 

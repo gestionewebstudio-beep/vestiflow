@@ -410,6 +410,67 @@ describe('GoodsReceiptFormComponent', () => {
   });
 
   /**
+   * Il giro del fuoco, innestato sul punto unico. Qui si provano le due cose che
+   * questa maschera ha e le gemelle no: il gancio di cambio riga, e `Ctrl` +
+   * frecce che resta fuori dal contratto.
+   */
+  describe('il giro del fuoco', () => {
+    interface FocusForm {
+      readonly lineFocus: { fieldsOf: (i: number) => readonly string[] };
+      readonly onLineFieldKeydown: (i: number, field: string, e: KeyboardEvent) => void;
+      readonly moveLineDown: (i: number) => void;
+      readonly lines: { length: number };
+    }
+
+    async function apriForm() {
+      const view = await setup();
+      return view.fixture.componentInstance as unknown as FocusForm;
+    }
+
+    // La cella IVA è un `app-select-menu`: `gr-vat-{i}` è nella mappa degli id
+    // ma NON esiste nel DOM. Elencarla farebbe morire il fuoco.
+    it('l’IVA non è nel giro: quella cella non ha un campo su cui atterrare', async () => {
+      const form = await apriForm();
+
+      expect(form.lineFocus.fieldsOf(0)).not.toContain('vat');
+    });
+
+    // §11.1: `moveLineUp`/`moveLineDown` restano nel form, fuori dal contratto —
+    // è l'unica maschera ad avere lo spostamento riga da tastiera. Il punto
+    // unico ignora `ctrlKey`, e qui si intercetta prima.
+    it('Ctrl+↓ sposta la riga e non passa al punto unico', async () => {
+      const form = await apriForm();
+      const spostaGiu = vi.spyOn(
+        form as unknown as { moveLineDown: (i: number) => void },
+        'moveLineDown',
+      );
+      const evento = new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        ctrlKey: true,
+        cancelable: true,
+      });
+
+      form.onLineFieldKeydown(0, 'quantity', evento);
+
+      expect(spostaGiu).toHaveBeenCalledWith(0);
+      expect(evento.defaultPrevented).toBe(true);
+    });
+
+    // §4.5: Invio non naviga più. Qui cade il caso speciale «Invio su Q.tà con
+    // articolo collegato salta riga», che era metà della vecchia voce 9.
+    it('Invio non crea righe e non naviga', async () => {
+      const form = await apriForm();
+      const righePrima = form.lines.length;
+      const evento = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+
+      form.onLineFieldKeydown(0, 'quantity', evento);
+
+      expect(evento.defaultPrevented).toBe(true);
+      expect(form.lines.length).toBe(righePrima);
+    });
+  });
+
+  /**
    * Quale codice fornitore finisce nella riga quando si aggancia un articolo.
    *
    * Le fonti sono due e vanno in quest'ordine: il codice DIGITATO con cui si è

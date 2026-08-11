@@ -171,6 +171,7 @@ import { DocumentProductPanelStore } from '@domain/documents/state/document-prod
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import {
   supplierCodeForDocumentLine,
@@ -1460,7 +1461,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     this.commitLineAndSave(index, () => {
-      this.focusLastLineField(index - 1);
+      this.lineFocus.focusLastField(index - 1);
     });
   }
 
@@ -1533,65 +1534,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.focusNextLineField(index, 'product');
   }
 
-  protected onLineFieldKeydown(
-    index: number,
-    field: GoodsReceiptLineFocusField,
-    event: KeyboardEvent,
-  ): void {
-    if (event.ctrlKey && event.key === 'ArrowUp') {
-      event.preventDefault();
-      this.moveLineUp(index);
-      return;
-    }
-    if (event.ctrlKey && event.key === 'ArrowDown') {
-      event.preventDefault();
-      this.moveLineDown(index);
-      return;
-    }
-    if (event.key === 'ArrowDown' && !event.shiftKey && !event.ctrlKey) {
-      event.preventDefault();
-      this.advanceToNextLine(index);
-      return;
-    }
-    if (event.key === 'ArrowUp' && !event.shiftKey && !event.ctrlKey) {
-      event.preventDefault();
-      this.advanceToPreviousLine(index);
-      return;
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      // Qui c'era un ramo per «Cod. fornitore», morto da 08/2026: da quando quel
-      // campo è una cella codice condivisa, Invio lo gestisce la cella, che
-      // decide da sé ed emette `commit`. Questo gestore è agganciato a otto
-      // campi e `supplierCode` non è tra loro, quindi il ramo non era più
-      // raggiungibile. Tolto perché, letto qui, sembra una regola da riportare
-      // dentro il punto unico della navigazione.
-      if (field === 'quantity' && this.lineHasLinkedProduct(index)) {
-        this.advanceToNextLine(index);
-        return;
-      }
-      this.focusNextLineField(index, field);
-      return;
-    }
-    if (event.key !== 'Tab') {
-      return;
-    }
-    // Tab deterministico (velocità inserimento): sempre e solo tra i campi
-    // dati della riga — mai su icone, checkbox o pulsanti di servizio.
-    if (event.shiftKey) {
-      const order = this.visibleLineFocusFields(index);
-      if (order.indexOf(field) <= 0 && index === 0) {
-        // Prima cella della prima riga: lascia al browser l'uscita dalla tabella.
-        return;
-      }
-      event.preventDefault();
-      this.focusPreviousLineField(index, field);
-      return;
-    }
-    event.preventDefault();
-    this.focusNextLineField(index, field);
-  }
-
   protected onLineSupplierSkuChange(index: number, value: string): void {
     this.lines.at(index).controls.supplierSku.setValue(value);
     this.markFormDirty();
@@ -1613,8 +1555,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.commitCodeLookup(index, 'supplierCode', advance);
   }
 
-  private visibleLineFocusFields(index: number): readonly GoodsReceiptLineFocusField[] {
-    const all: GoodsReceiptLineFocusField[] = [
+  /**
+   * Il giro del fuoco. Il meccanismo vive in `domain/`; qui restano le nove voci
+   * del contratto — ed è la maschera che le esercita tutte, gancio compreso.
+   *
+   * Le 82 righe di `visibleLineFocusFields` erano quasi tutte la stessa riga
+   * ripetuta (`if (field === X) return isLineColumnVisible(X)`): quattordici
+   * volte lo stesso controllo, scritto una per campo.
+   */
+  protected readonly lineFocus = new DocumentLineFocusStore<GoodsReceiptLineFocusField>({
+    fields: [
       'articleCode',
       'sku',
       'barcode',
@@ -1625,79 +1575,58 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       'discount',
       'sellingPrice',
       'compareAtPrice',
-      'vat',
       'lot',
       'expiry',
       'serials',
-    ];
-    const linked = this.lineHasLinkedProduct(index);
-    return all.filter((field) => {
-      // La cella IVA è una select custom (§9.2): fuori dal giro Tab/Invio degli input.
-      if (field === 'vat') {
+    ],
+    elementId: (index, field) => this.lineFieldElementId(index, field),
+    isFieldEnabled: (index, field) => {
+      // Su riga collegata i codici e il nome sono testo: restano i dati.
+      const identita =
+        field === 'articleCode' ||
+        field === 'sku' ||
+        field === 'barcode' ||
+        field === 'supplierCode' ||
+        field === 'product';
+      if (this.lineHasLinkedProduct(index) && identita) {
         return false;
       }
-      if (linked) {
-        if (field === 'quantity' || field === 'unitCost' || field === 'discount') {
-          return this.isLineColumnVisible(
-            field === 'quantity' ? 'quantity' : field === 'unitCost' ? 'unitCost' : 'discount',
-          );
-        }
-        if (field === 'lot' && this.isLineColumnVisible('lot')) {
-          return true;
-        }
-        if (field === 'expiry' && this.isLineColumnVisible('expiry')) {
-          return true;
-        }
-        if (field === 'serials' && this.isLineColumnVisible('serials')) {
-          return true;
-        }
-        return false;
-      }
-      if (field === 'articleCode') {
-        return this.isLineColumnVisible('articleCode');
-      }
-      if (field === 'sku') {
-        return this.isLineColumnVisible('sku');
-      }
-      if (field === 'barcode') {
-        return this.isLineColumnVisible('barcode');
-      }
-      if (field === 'supplierCode') {
-        return this.isLineColumnVisible('supplierCode');
-      }
-      if (field === 'product') {
-        return this.isLineColumnVisible('product');
-      }
-      if (field === 'quantity') {
-        return this.isLineColumnVisible('quantity');
-      }
-      if (field === 'unitCost') {
-        return this.isLineColumnVisible('unitCost');
-      }
-      if (field === 'discount') {
-        return this.isLineColumnVisible('discount');
-      }
-      if (field === 'sellingPrice') {
-        return this.isLineColumnVisible('sellingPrice');
-      }
-      if (field === 'compareAtPrice') {
-        return this.isLineColumnVisible('compareAtPrice');
-      }
-      if (field === 'lot') {
-        return this.isLineColumnVisible('lot');
-      }
-      if (field === 'expiry') {
-        return this.isLineColumnVisible('expiry');
-      }
-      if (field === 'serials') {
-        return this.isLineColumnVisible('serials');
-      }
-      return false;
-    });
-  }
+      return this.isLineColumnVisible(field);
+    },
+    isReadOnly: () => this.formReadOnly(),
+    lineCount: () => this.lines.length,
+    createLine: () => {
+      this.lines.push(this.createLine());
+      // La pulizia può togliere la riga appena nata se in fondo ce n'era già una
+      // vuota: il fuoco va all'ULTIMA esistente, che il punto unico rilegge dopo
+      // questa chiamata. Prima puntava a un indice che non c'era più.
+      this.trimDuplicateTrailingEmptyRows();
+    },
+    // Voce 8, e questa è l'unica maschera che la esercita davvero: il gancio
+    // collega i codici digitati alla variante PRIMA che il fuoco si sposti, e la
+    // sua asincronia è ciò che dà al DOM il tempo di rendere la riga nuova.
+    onRowChange: (index, then) => {
+      this.commitLineAndSave(index, then);
+    },
+    isLineEmpty: (index) => {
+      const line = this.lines.at(index);
+      return line ? this.lineIsEmpty(line) : true;
+    },
+  });
 
-  protected focusLineField(index: number, field: GoodsReceiptLineFocusField): void {
-    const idMap: Record<GoodsReceiptLineFocusField, string> = {
+  /**
+   * ⚠️ `vat` NON è nel giro: quella cella è un `app-select-menu`, che non ha
+   * `inputId` né fuoco pubblico — l'identificativo `gr-vat-{i}` esiste nella
+   * mappa ma **non nel DOM**. Prima era escluso a mano dentro il filtro; ora non
+   * è proprio elencato, che è la stessa cosa detta una volta invece che due.
+   *
+   * **Condizione di rientro**, uguale a quella del nome prodotto in Ordine
+   * fornitore: torna nel giro quando `app-select-menu` sarà sostituito dalla
+   * cella a ricerca-e-selezione (specifica §4.3-bis). Senza questa riga
+   * l'esclusione diventa permanente per inerzia.
+   */
+  private lineFieldElementId(index: number, field: GoodsReceiptLineFocusField): string {
+    return {
       articleCode: `gr-code-${index}`,
       sku: `gr-sku-${index}`,
       barcode: `gr-barcode-${index}`,
@@ -1712,45 +1641,47 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       lot: `gr-lot-${index}`,
       expiry: `gr-lot-date-${index}`,
       serials: `gr-serial-${index}`,
-    };
-    globalThis.document.getElementById(idMap[field])?.focus();
+    }[field];
+  }
+
+  protected focusLineField(index: number, field: GoodsReceiptLineFocusField): void {
+    this.lineFocus.focusField(index, field);
   }
 
   protected focusFirstLineField(index: number): void {
-    const order = this.visibleLineFocusFields(index);
-    const first = order[0];
-    if (first) {
-      this.focusLineField(index, first);
-    }
-  }
-
-  private focusLastLineField(index: number): void {
-    const order = this.visibleLineFocusFields(index);
-    const last = order[order.length - 1];
-    if (last) {
-      this.focusLineField(index, last);
-    }
+    this.lineFocus.focusFirstField(index);
   }
 
   protected focusNextLineField(index: number, current: GoodsReceiptLineFocusField): void {
-    const order = this.visibleLineFocusFields(index);
-    const pos = order.indexOf(current);
-    if (pos >= 0 && pos < order.length - 1) {
-      this.focusLineField(index, order[pos + 1]!);
-      return;
-    }
-    this.advanceToNextLine(index);
+    this.lineFocus.next(index, current);
   }
 
   /** Shift+Tab: campo precedente della riga, o ultima cella della riga sopra. */
   protected focusPreviousLineField(index: number, current: GoodsReceiptLineFocusField): void {
-    const order = this.visibleLineFocusFields(index);
-    const pos = order.indexOf(current);
-    if (pos > 0) {
-      this.focusLineField(index, order[pos - 1]!);
+    this.lineFocus.previous(index, current);
+  }
+
+  /**
+   * Ctrl + ↑↓ sposta la RIGA, e resta **fuori dal contratto**: è l'unica delle
+   * tre maschere ad averlo, quindi non è un meccanismo condiviso. Il punto unico
+   * ignora gli eventi con `ctrlKey`, e qui si intercettano prima di passargli
+   * tutto il resto.
+   */
+  protected onLineFieldKeydown(
+    index: number,
+    field: GoodsReceiptLineFocusField,
+    event: KeyboardEvent,
+  ): void {
+    if (event.ctrlKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      event.preventDefault();
+      if (event.key === 'ArrowUp') {
+        this.moveLineUp(index);
+      } else {
+        this.moveLineDown(index);
+      }
       return;
     }
-    this.advanceToPreviousLine(index);
+    this.lineFocus.handleKeydown(index, field, event);
   }
 
   private clearProductAutocomplete(): void {
