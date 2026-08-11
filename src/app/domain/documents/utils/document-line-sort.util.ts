@@ -44,6 +44,26 @@ export function compareDocumentLineValues(
   }
 }
 
+/**
+ * Riordina le righe leggendo da ognuna il valore della colonna scelta.
+ *
+ * Restituisce un array NUOVO: chi chiama decide se e come sostituire le proprie
+ * righe. Il verso decrescente è il crescente rovesciato — un solo confronto da
+ * mantenere, invece di due che possono divergere.
+ */
+export function sortByLineValue<C>(
+  controls: readonly C[],
+  read: (control: C) => string | number,
+  kind: DocumentLineSortKind,
+  direction: 'asc' | 'desc',
+  currencyCode: string,
+): C[] {
+  const verso = direction === 'asc' ? 1 : -1;
+  return [...controls].sort(
+    (left, right) => verso * compareDocumentLineValues(read(left), read(right), kind, currencyCode),
+  );
+}
+
 function toNumber(value: string | number): number {
   return typeof value === 'number' ? value : Number.parseFloat(value) || 0;
 }

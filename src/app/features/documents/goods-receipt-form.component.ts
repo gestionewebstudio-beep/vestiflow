@@ -150,7 +150,6 @@ import {
 } from './utils/goods-receipt-lines-csv.util';
 import {
   GOODS_RECEIPT_SORTABLE_LINE_COLUMNS,
-  compareGoodsReceiptLines,
   type GoodsReceiptLineSortColumn,
 } from './utils/goods-receipt-line-sort.util';
 import {
@@ -172,6 +171,11 @@ import { DocumentEditLockService } from '@domain/documents/services/document-edi
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
+import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
+import {
+  sortByLineValue,
+  type DocumentLineSortKind,
+} from '@domain/documents/utils/document-line-sort.util';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import {
@@ -400,8 +404,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly barcodeScanMode = signal(false);
   protected readonly barcodeScanDraft = signal('');
   protected readonly barcodeScanBusy = signal(false);
-  protected readonly lineSortColumn = signal<GoodsReceiptLineSortColumn | null>(null);
-  protected readonly lineSortDirection = signal<'asc' | 'desc'>('asc');
+  /**
+   * Riordino righe e avviso: stato e regole in `domain/`, identici a ogni altro
+   * documento. Qui resta solo COME si legge il valore di una colonna.
+   */
+  protected readonly lineSort = new DocumentLineSortStore<GoodsReceiptLineSortColumn>();
   /**
    * Spunta per-documento «Aggiorna anche il costo di riferimento in anagrafica».
    * Il costo EFFETTIVO della variante è comunque SEMPRE aggiornato dal carico
@@ -769,6 +776,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             }
             this.loadedDocument.set(doc);
             this.patchFormFromDocument(doc);
+            // Un altro documento è un'altra storia: l'avviso del riordino torna
+            // dovuto. Serve QUI e non alla creazione del componente, perché
+            // passando da un documento all'altro senza uscire dalla rotta
+            // Angular riusa la stessa istanza — cambia solo il parametro — e il
+            // ricordo di aver già avvisato sopravviverebbe al documento che
+            // l'aveva ricevuto.
+            this.lineSort.reset();
             this.refreshNumberPreview();
             if (confirmedEditable) {
               this.form.controls.type.disable({ emitEvent: false });
@@ -3193,58 +3207,80 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (this.formReadOnly() || !this.isLineColumnVisible(columnId)) {
       return;
     }
-    if (this.lineSortColumn() === columnId) {
-      this.lineSortDirection.update((dir) => (dir === 'asc' ? 'desc' : 'asc'));
-    } else {
-      this.lineSortColumn.set(columnId);
-      this.lineSortDirection.set('asc');
+    // Il primo riordino del documento apre l'avviso e si ferma qui: riprende
+    // dalla conferma. Dal secondo in poi `request` ordina e basta.
+    if (this.lineSort.request(columnId)) {
+      this.applyLineSort();
     }
-    this.applyLineSort();
+  }
+
+  /** L'operatore ha confermato l'avviso: il riordino in attesa parte. */
+  protected confirmLineSort(): void {
+    if (this.lineSort.confirm() !== null) {
+      this.applyLineSort();
+    }
   }
 
   protected lineSortAriaLabel(columnId: GoodsReceiptLineSortColumn, label: string): string {
-    if (this.lineSortColumn() !== columnId) {
+    if (this.lineSort.column() !== columnId) {
       return `Ordina per ${label}`;
     }
-    return this.lineSortDirection() === 'asc'
+    return this.lineSort.direction() === 'asc'
       ? `${label}: ordinamento crescente`
       : `${label}: ordinamento decrescente`;
   }
 
+  /**
+   * Come si confronta ogni colonna. E' l'UNICA cosa che questa maschera deve
+   * dire sul riordino: il resto — il confronto, il verso, l'avviso — vive in
+   * `domain/` ed e' identico in ogni documento.
+   */
+  private readonly lineSortKinds: Readonly<
+    Record<GoodsReceiptLineSortColumn, DocumentLineSortKind>
+  > = {
+    sku: 'text',
+    barcode: 'text',
+    supplierCode: 'text',
+    product: 'text',
+    quantity: 'number',
+    unitCost: 'money',
+    vat: 'percent',
+  };
+
+  private lineSortValue(
+    raw: ReturnType<ReturnType<GoodsReceiptFormComponent['createLine']>['getRawValue']>,
+    column: GoodsReceiptLineSortColumn,
+  ): string | number {
+    switch (column) {
+      case 'sku':
+        return raw.sku;
+      case 'barcode':
+        return raw.barcode;
+      case 'supplierCode':
+        return raw.supplierSku;
+      case 'product':
+        return raw.productName;
+      case 'quantity':
+        return Number(raw.quantity) || 0;
+      case 'unitCost':
+        return raw.unitCost;
+      case 'vat':
+        return raw.vatRatePercent;
+    }
+  }
+
   private applyLineSort(): void {
-    const column = this.lineSortColumn();
+    const column = this.lineSort.column();
     if (!column || this.lines.length <= 1) {
       return;
     }
-    const direction = this.lineSortDirection();
-    const controls = [...this.lines.controls];
-    controls.sort((left, right) => {
-      const leftRaw = left.getRawValue();
-      const rightRaw = right.getRawValue();
-      const cmp = compareGoodsReceiptLines(
-        {
-          sku: leftRaw.sku,
-          barcode: leftRaw.barcode,
-          supplierSku: leftRaw.supplierSku,
-          productName: leftRaw.productName,
-          quantity: Number(leftRaw.quantity) || 0,
-          unitCost: leftRaw.unitCost,
-          vatRatePercent: leftRaw.vatRatePercent,
-        },
-        {
-          sku: rightRaw.sku,
-          barcode: rightRaw.barcode,
-          supplierSku: rightRaw.supplierSku,
-          productName: rightRaw.productName,
-          quantity: Number(rightRaw.quantity) || 0,
-          unitCost: rightRaw.unitCost,
-          vatRatePercent: rightRaw.vatRatePercent,
-        },
-        column,
-        this.currency,
-      );
-      return direction === 'asc' ? cmp : -cmp;
-    });
+    const controls = sortByLineValue(
+      this.lines.controls,
+      (control) => this.lineSortValue(control.getRawValue(), column),
+      this.lineSortKinds[column],
+      this.lineSort.direction(),
+      this.currency,
+    );
     this.lines.clear();
     for (const control of controls) {
       this.lines.push(control);

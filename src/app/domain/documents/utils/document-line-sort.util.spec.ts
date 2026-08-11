@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { compareDocumentLineValues } from './document-line-sort.util';
+import { compareDocumentLineValues, sortByLineValue } from './document-line-sort.util';
 
 const EUR = 'EUR';
 
@@ -74,5 +74,41 @@ describe('compareDocumentLineValues', () => {
     it('di uno sconto a cascata legge la prima quota — è l’ordine che l’operatore vede', () => {
       expect(compareDocumentLineValues('4+10', '10', 'percent', EUR)).toBeLessThan(0);
     });
+  });
+});
+
+describe('sortByLineValue', () => {
+  const righe = [
+    { nome: 'Zoccolo', qta: 2 },
+    { nome: 'Albero', qta: 10 },
+    { nome: 'Maglia', qta: 1 },
+  ];
+
+  it('riordina leggendo la colonna scelta', () => {
+    const ordinate = sortByLineValue(righe, (r) => r.nome, 'text', 'asc', EUR);
+
+    expect(ordinate.map((r) => r.nome)).toEqual(['Albero', 'Maglia', 'Zoccolo']);
+  });
+
+  it('il decrescente è il crescente rovesciato', () => {
+    const su = sortByLineValue(righe, (r) => r.qta, 'number', 'asc', EUR);
+    const giu = sortByLineValue(righe, (r) => r.qta, 'number', 'desc', EUR);
+
+    expect(giu.map((r) => r.qta)).toEqual([...su.map((r) => r.qta)].reverse());
+  });
+
+  // Chi chiama decide se e come sostituire le proprie righe: se questo array
+  // fosse lo stesso, riordinare mescolerebbe il FormArray a metà operazione.
+  it('restituisce un array nuovo e non tocca quello ricevuto', () => {
+    const originale = [...righe];
+
+    const ordinate = sortByLineValue(righe, (r) => r.nome, 'text', 'asc', EUR);
+
+    expect(ordinate).not.toBe(righe);
+    expect(righe).toEqual(originale);
+  });
+
+  it('un elenco vuoto resta vuoto', () => {
+    expect(sortByLineValue([], () => '', 'text', 'asc', EUR)).toEqual([]);
   });
 });

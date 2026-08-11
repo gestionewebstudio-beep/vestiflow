@@ -808,11 +808,11 @@
                             (click)="toggleLineSort('sku')"
                           >
                             SKU
-                            @if (lineSortColumn() === 'sku') {
+                            @if (lineSort.column() === 'sku') {
                               <i
                                 class="pi"
-                                [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                                [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
                                 aria-hidden="true"
                               ></i>
                             }
@@ -833,11 +833,11 @@
                             (click)="toggleLineSort('barcode')"
                           >
                             EAN
-                            @if (lineSortColumn() === 'barcode') {
+                            @if (lineSort.column() === 'barcode') {
                               <i
                                 class="pi"
-                                [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                                [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
                                 aria-hidden="true"
                               ></i>
                             }
@@ -860,11 +860,11 @@
                             (click)="toggleLineSort('supplierCode')"
                           >
                             Cod. fornitore
-                            @if (lineSortColumn() === 'supplierCode') {
+                            @if (lineSort.column() === 'supplierCode') {
                               <i
                                 class="pi"
-                                [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                                [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
                                 aria-hidden="true"
                               ></i>
                             }
@@ -889,11 +889,11 @@
                             (click)="toggleLineSort('product')"
                           >
                             Nome prodotto
-                            @if (lineSortColumn() === 'product') {
+                            @if (lineSort.column() === 'product') {
                               <i
                                 class="pi"
-                                [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                                [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
                                 aria-hidden="true"
                               ></i>
                             }
@@ -954,11 +954,11 @@
                             (click)="toggleLineSort('quantity')"
                           >
                             Q.tà
-                            @if (lineSortColumn() === 'quantity') {
+                            @if (lineSort.column() === 'quantity') {
                               <i
                                 class="pi"
-                                [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                                [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
                                 aria-hidden="true"
                               ></i>
                             }
@@ -1008,11 +1008,11 @@
                               (click)="toggleLineSort('unitCost')"
                             >
                               {{ costModeLabel() }}
-                              @if (lineSortColumn() === 'unitCost') {
+                              @if (lineSort.column() === 'unitCost') {
                                 <i
                                   class="pi"
-                                  [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                                  [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                                  [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                  [class.pi-sort-down]="lineSort.direction() === 'desc'"
                                   aria-hidden="true"
                                 ></i>
                               }
@@ -1127,11 +1127,11 @@
                               (click)="toggleLineSort('vat')"
                             >
                               IVA
-                              @if (lineSortColumn() === 'vat') {
+                              @if (lineSort.column() === 'vat') {
                                 <i
                                   class="pi"
-                                  [class.pi-sort-up]="lineSortDirection() === 'asc'"
-                                  [class.pi-sort-down]="lineSortDirection() === 'desc'"
+                                  [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                  [class.pi-sort-down]="lineSort.direction() === 'desc'"
                                   aria-hidden="true"
                                 ></i>
                               }
@@ -1990,6 +1990,18 @@
     </form>
   }
 </section>
+
+<!-- Avviso del primo riordino, una volta per documento (specifica §7.1). Dice
+     «non si torna indietro», non «l'ordine attuale si perde»: l'ordine di
+     inserimento non è registrato da nessuna parte. -->
+<app-confirm-dialog
+  [open]="lineSort.confirmOpen()"
+  title="Riordino righe"
+  message="L'ordine di inserimento non è registrato da nessuna parte: salvando, non sarà più ricostruibile. Fino al salvataggio puoi chiudere il documento senza salvare per ritrovarlo com'era."
+  confirmLabel="Riordina"
+  (confirmed)="confirmLineSort()"
+  (dismissed)="lineSort.dismiss()"
+/>
 
 <app-confirm-dialog
   [(open)]="unlockDialogOpen"
