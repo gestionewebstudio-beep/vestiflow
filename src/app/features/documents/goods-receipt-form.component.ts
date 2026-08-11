@@ -1552,10 +1552,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     if (event.key === 'Enter') {
       event.preventDefault();
-      if (field === 'supplierCode') {
-        this.commitSupplierSkuLookup(index);
-        return;
-      }
+      // Qui c'era un ramo per «Cod. fornitore», morto da 08/2026: da quando quel
+      // campo è una cella codice condivisa, Invio lo gestisce la cella, che
+      // decide da sé ed emette `commit`. Questo gestore è agganciato a otto
+      // campi e `supplierCode` non è tra loro, quindi il ramo non era più
+      // raggiungibile. Tolto perché, letto qui, sembra una regola da riportare
+      // dentro il punto unico della navigazione.
       if (field === 'quantity' && this.lineHasLinkedProduct(index)) {
         this.advanceToNextLine(index);
         return;

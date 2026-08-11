@@ -543,22 +543,34 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 
 **Il tipo.** I tre insiemi di campi non sono annidati: `unitPrice` solo in Ordine cliente, `unitCost` solo nelle altre due, `unitOfMeasure` come campo-fuoco solo in Ordine fornitore, lotto/scadenza/prezzi solo in Arrivo merce. **Un'unione piatta di tutti i campi toglierebbe il controllo del compilatore.** La forma che lo conserva è una classe generica sul tipo del campo, con `Record<F, …>` che esige tutte le chiavi.
 
-**Le dieci voci.**
+**Le NOVE voci** _(erano dieci fino a 08/2026 — vedi sotto dove è andata la 9)_.
 
-| #   | Voce                                      | Chi la richiede                                                |
-| --- | ----------------------------------------- | -------------------------------------------------------------- |
-| 1   | array ordinato dei campi                  | tutte                                                          |
-| 2   | mappa completa degli id                   | tutte — non un prefisso (§2.3)                                 |
-| 3   | predicato di abilitazione `(riga, campo)` | tutte — assorbe visibilità colonna, riga collegata, esclusioni |
-| 4   | riga non attraversabile                   | **solo Ordine cliente** (`lineIsReference`)                    |
-| 5   | guardia sola-lettura                      | tutte — è dove divergono                                       |
-| 6   | numero righe                              | tutte                                                          |
-| 7   | creazione riga                            | tutte, con tre corpi diversi                                   |
-| 8   | gancio d'uscita riga                      | **solo Arrivo merce** (`commitLineAndSave`)                    |
-| 9   | intercettazione Invio                     | Arrivo merce                                                   |
-| 10  | predicato «riga vuota»                    | tutte — **assente in Ordine fornitore**                        |
+| #   | Voce                                      | Chi la richiede                                                 |
+| --- | ----------------------------------------- | --------------------------------------------------------------- |
+| 1   | array ordinato dei campi                  | tutte                                                           |
+| 2   | mappa completa degli id                   | tutte — non un prefisso (§2.3)                                  |
+| 3   | predicato di abilitazione `(riga, campo)` | tutte — assorbe visibilità colonna, riga collegata, esclusioni  |
+| 4   | riga non attraversabile                   | **solo Ordine cliente** (`lineIsReference`)                     |
+| 5   | guardia sola-lettura                      | tutte — è dove divergono                                        |
+| 6   | numero righe                              | tutte                                                           |
+| 7   | creazione riga                            | tutte, con tre corpi diversi                                    |
+| 8   | gancio di **cambio riga**                 | **solo Arrivo merce** (`commitLineAndSave`) — vedi precisazione |
+| 9   | predicato «riga vuota»                    | tutte — **assente in Ordine fornitore**                         |
 
-**Voce 9 — cosa resta e cosa cade.** I due casi speciali di Arrivo merce si separano: Invio su «Cod. fornitore» **registra il valore** e resta necessario; Invio su «Q.tà» con articolo collegato **salta riga**, cioè naviga, e cade con la decisione «Invio non naviga».
+> La numerazione è stata **compattata**: l'ex voce 10 («riga vuota») è ora la 9. Chi cerca «la voce 10» in un testo più vecchio cerca questa.
+
+**Voce 8 — è un gancio su OGNI cambio riga, non solo sull'uscita in avanti** _(precisato 08/2026)_. Il nome «uscita riga» inganna: in Arrivo merce `commitLineAndSave` avvolge **sia** `advanceToNextLine` **sia** `advanceToPreviousLine`. Scritto come «uscita», produce un'implementazione che aggancia il gancio in una direzione sola e lo dimentica nell'altra — e il difetto si vede solo risalendo con ↑, che è il gesto meno provato.
+
+Il gancio è anche il posto dove vive il **tempismo del fuoco**: riceve `(riga, poi)` e decide quando chiamare `poi`. Arrivo merce lo fa a collegamento avvenuto; le altre due passano un rinvio di un tick, che è ciò che oggi fanno col loro `setTimeout` esplicito. Così **la classe non possiede nessun timer** — e §4.5-bis della specifica («il tempismo va ricreato deliberatamente») è soddisfatta dal chiamante, che è l'unico a sapere quando la riga nuova è resa.
+
+**Dove è andata la voce 9 — «intercettazione Invio»** _(caduta 08/2026, verificata)_. Era richiesta da Arrivo merce per due casi speciali, e **sono spariti entrambi, per due strade diverse**:
+
+- **Invio su «Q.tà» con articolo collegato** salta riga, cioè naviga: cade con la decisione «Invio non naviga» (specifica §4.5). Era già previsto.
+- **Invio su «Cod. fornitore»** registrava il valore, e la mappa lo dava per superstite. **Non lo è più:** da quando quel campo è una cella codice condivisa, Invio lo gestisce la cella — decide da sé ed emette `commit` — e il form non lo vede mai. Il ramo rimasto in `onLineFieldKeydown` era **codice morto verificato**: quel gestore è agganciato a otto campi e `supplierCode` non è tra loro, né in template né in TS. Rimosso nello stesso passaggio, perché letto lì sembrava una regola da riportare dentro il punto unico.
+
+**Conseguenza: Invio diventa uniforme nelle tre maschere.** Nessuna ha più niente da intercettare a quel livello, perché **la registrazione del valore è scesa dentro le celle**. La classe gestisce comunque Invio — `preventDefault` e ferma lì, che dentro un `<form>` serve anche a impedire l'invio implicito — ma è comportamento suo, non una voce che qualcuno le passa dall'esterno.
+
+> **Come è passata inosservata**, perché la forma si ripete: il lavoro sui codici e il contratto della tastiera erano stati **verificati separatamente**, e la voce 9 viveva nell'incrocio. È lo stesso schema dei mock che dovevano rispondere diversamente alla ricerca e al caricamento per id: **se provi separatamente ciò che si incrocia, il difetto vive proprio nell'incrocio.**
 
 **Entrate nominali obbligatorie.** Le celle condivise non consegnano l'evento (§3): il punto unico deve esporre `next()`, `previous()`, `rowDown()`, `rowUp()`, `focusField()`, non solo un gestore di tastiera. E `rowDown`/`rowUp` devono ricevere **il campo**, perché conservare la colonna lo richiede — il template lo conosce staticamente, quindi si aggiunge nel binding senza toccare le celle.
 
@@ -591,7 +603,9 @@ Criterio: **prima la semantica, poi la copertura.** Partire da Arrivo merce «pe
 
 ### 11.3 Test minimi
 
-Nel file dello store, undici casi: l'ordine ricevuto comanda; un campo disabilitato non è una fermata; la mappa si interroga per campo; `rowDown` conserva la colonna; crea sull'ultima riga con contenuto; **non** crea sulla riga vuota; `rowUp` sulla prima riga non fa nulla; la riga saltata viene scavalcata in entrambi i versi; con sola-lettura nessuna creazione e nessuno spostamento; `onEnter` che ritorna vero ferma il giro; il gancio d'uscita gira **prima** del fuoco.
+Nel file dello store, **dieci** casi: l'ordine ricevuto comanda; un campo disabilitato non è una fermata; la mappa si interroga per campo; `rowDown` conserva la colonna; crea sull'ultima riga con contenuto; **non** crea sulla riga vuota; `rowUp` sulla prima riga non fa nulla; la riga saltata viene scavalcata in entrambi i versi; con sola-lettura nessuna creazione e nessuno spostamento; il gancio di cambio riga gira **prima** del fuoco.
+
+_Erano undici: «`onEnter` che ritorna vero ferma il giro» è caduto con la voce 9 (§10). Non c'è più un `onEnter` da passare._
 
 Un test per maschera nei rispettivi spec («il fuoco atterra dove deve»): non entrano nel gate, ma sono la rete del comportamento. E un e2e: inserire due righe usando **solo** Tab e ↓.
 

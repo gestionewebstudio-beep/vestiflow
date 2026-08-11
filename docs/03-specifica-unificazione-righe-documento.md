@@ -132,7 +132,7 @@ Nessuna delle due è copiabile intera → serve un **punto unico** condiviso.
 
 Il file è `document-line-focus.store.ts` → `DocumentLineFocusStore<F extends string>`, **generico sul tipo del campo**. Un'unione piatta a 18 voci farebbe compilare `focusLineField(i, 'lot')` dentro Ordine cliente: la generica è l'unica forma che tiene il compilatore come rete.
 
-**Il contratto ha DIECI voci** (non nove — la mappa iniziale ne aveva saltata una):
+**Il contratto ha NOVE voci** _(aggiornato 08/2026: erano dieci — la 9 è caduta, vedi sotto. La numerazione è stata compattata, quindi l'ex voce 10 è ora la 9)_:
 
 | #   | Voce                                          | Chi la richiede                                      |
 | --- | --------------------------------------------- | ---------------------------------------------------- |
@@ -143,15 +143,23 @@ Il file è `document-line-focus.store.ts` → `DocumentLineFocusStore<F extends 
 | 5   | guardia sola-lettura                          | tutte                                                |
 | 6   | numero righe                                  | tutte                                                |
 | 7   | creazione riga (corpi diversi)                | tutte                                                |
-| 8   | gancio d'uscita riga                          | solo Arrivo merce                                    |
-| 9   | intercettazione Invio + ingressi nominali     | Arrivo merce                                         |
-| 10  | **predicato "riga vuota"**                    | tutte — **assente in Ordine fornitore, da scrivere** |
+| 8   | gancio di **cambio riga**                     | solo Arrivo merce                                    |
+| 9   | **predicato "riga vuota"**                    | tutte — **assente in Ordine fornitore, da scrivere** |
 
 Note vincolanti:
 
 - **Voce 2 — serve la mappa, non un prefisso.** I suffissi degli id sono irregolari nella stessa maschera (`co-price-` ma `gr-selling-`; `gr-supplier-code-` ma `po-suppcode-`; `co-serials-` ma `gr-serial-` al singolare). Un prefisso+indice non basta.
-- **Voce 9 — entrate nominali, non solo un keydown handler.** Le celle condivise non consegnano l'evento: decidono da sole ed emettono esiti (`lineRowAdvance`, commit). Il punto unico deve **esporre** `next()`, `rowDown()`, non solo ascoltare la tastiera. È la ragione per cui "la freccia non salva" va gestito spezzando il metodo.
-- **Voce 10 — "riga vuota" di Ordine fornitore = nessun articolo selezionato** (decisione presa; nelle altre due il predicato esiste già).
+- **Voce 8 — il gancio è su OGNI cambio riga, non solo sull'uscita in avanti.** In Arrivo merce `commitLineAndSave` avvolge sia la discesa sia la risalita. Scritto come "uscita", produce un'implementazione che funziona in una direzione sola, e il difetto si vede solo risalendo con ↑ — il gesto meno provato. È anche il posto dove vive il **tempismo del fuoco**: riceve `(riga, poi)` e decide quando chiamare `poi`, così la classe non possiede nessun timer.
+- **Voce 9 — "riga vuota" di Ordine fornitore = nessun articolo selezionato** (decisione presa; nelle altre due il predicato esiste già).
+
+**La vecchia voce 9 — perché è caduta, e cosa NON è caduto con lei** _(verificato 08/2026)_.
+
+Bundlava due cose diverse, ed è la ragione per cui serve distinguerle:
+
+- **L'intercettazione di Invio — CADUTA.** I suoi due casi speciali di Arrivo merce sono spariti entrambi: Invio su "Q.tà" con articolo collegato **navigava**, e cade con §4.5 ("Invio non naviga"); Invio su "Cod. fornitore" **registrava il valore**, e non passa più dal form — da quando quel campo è una cella codice condivisa, Invio lo gestisce la cella. Il ramo rimasto nel gestore era codice morto verificato (il gestore è agganciato a otto campi, e quello non è tra loro), ed è stato rimosso. **Invio è ora uniforme nelle tre maschere**, perché la registrazione del valore è scesa dentro le celle.
+- **Gli ingressi nominali — NON caduti, e non erano una voce.** Che il punto unico debba **esporre** `next()`, `previous()`, `rowDown()`, `rowUp()`, `focusField()` resta obbligatorio: le celle condivise non consegnano l'evento, decidono da sole ed emettono esiti. Ma è un **requisito sulla forma della classe**, non qualcosa che una maschera le passa — e stava nella tabella del contratto solo perché era stato scritto insieme all'altro. Ora sta scritto dove appartiene, qui sotto.
+
+**Entrate nominali obbligatorie** (requisito di forma, non voce del contratto): `next()`, `previous()`, `rowDown()`, `rowUp()`, `focusField()`. `rowDown`/`rowUp` ricevono **il campo**, perché conservare la colonna lo richiede: il template lo conosce staticamente, quindi si aggiunge nel binding senza toccare le celle.
 
 ---
 
@@ -411,7 +419,7 @@ Difetto: la cella "Nome prodotto" fa tre lavori; l'hover fa comparire un link ch
 | 1       | **Si unifica il comportamento, NON i dati:** acquisto (costo/fornitore) vs vendita (prezzo/cliente) restano distinti; si condividono i meccanismi, non colonne né natura                                                                                                           | ✔     | —                                                |
 | 1       | **Anti-divergenza:** una funzione si applica a tutti i documenti insieme, mai "di prova" su uno (eccezione: file contesi dal collega, tempistica)                                                                                                                                  | ✔     | —                                                |
 | —       | Perimetro 9 tipi / 5 componenti; 4 già sul modello. **7 tipi da allineare subito** (3 file, zero collisioni); **2 in sospeso**: fatture (comportamento nello standard, quando/come da decidere) e vendite/reso in negozio (prima [DA VERIFICARE] cos'è)                            | ✔     | —                                                |
-| 3-bis   | Punto unico = classe-campo generica in `domain/documents/state/`; contratto a **10 voci**; mappa id completa; entrate nominali                                                                                                                                                     | ✔     | —                                                |
+| 3-bis   | Punto unico = classe-campo generica in `domain/documents/state/`; contratto a **9 voci** (erano 10: l'intercettazione di Invio è caduta, 08/2026); mappa id completa; entrate nominali                                                                                             | ✔     | —                                                |
 | 4.1     | Tab: sx→dx, seleziona tutto (cambia gesto in uso)                                                                                                                                                                                                                                  | ✔     | —                                                |
 | 4.2     | Frecce ←/→ testo: due tempi                                                                                                                                                                                                                                                        | ✔     | —                                                |
 | 4.3     | Celle IVA/U.M. = ricerca-e-selezione; "» Altro…" in coda fissa; **testo libero: U.M. sì, IVA no**; frecce cambiano cella al 1° colpo                                                                                                                                               | ✔     | —                                                |
@@ -475,7 +483,7 @@ Difetto: la cella "Nome prodotto" fa tre lavori; l'hover fa comparire un link ch
 
 **Decisioni di prodotto: tutte prese.** Restano verifiche di costo per Claude Code (sola lettura; la scelta resta a Luigi dove indicato).
 
-1. **Mappa esecutiva del punto unico** (§3-bis): collocazione della classe-campo generica, le 10 voci del contratto, il collo di bottiglia `getElementById` con id irregolari.
+1. **Mappa esecutiva del punto unico** (§3-bis): collocazione della classe-campo generica, le 9 voci del contratto, il collo di bottiglia `getElementById` con id irregolari.
 2. **U.M.** (§4.3-ter): conferma modello `PaymentOption`; colonna U.M. da aggiungere a `DocumentLine` (copre 4 tipi) e `SupplierOrderLine`; valori distinti per il seed.
 3. **`app-select-menu`** (§4.3-bis): estrazione delle celle gemelle + del pannello suggerimenti prima di scrivere la terza cella; base `date-input`.
 4. **Ordinamento righe** (§7.1): se Arrivo merce ha già la conferma al primo sort.
