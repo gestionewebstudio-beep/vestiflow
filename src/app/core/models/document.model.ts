@@ -176,6 +176,11 @@ export interface DocumentLine {
   /** Costo unitario digitato (unità minori) nella modalità costo del documento. */
   readonly enteredUnitCostMinor?: number;
   readonly lineTotal: Money;
+  /**
+   * Unità di misura fotografata sulla riga. Assente sulle righe salvate prima
+   * che la colonna esistesse: lì vale quella dell'anagrafica.
+   */
+  readonly unitOfMeasure?: string;
   /** Flag "carica magazzino": righe spese/servizi non movimentano stock. */
   readonly loadsStock: boolean;
   /** Riga «documento collegato»: separatore informativo, fuori dai totali. */

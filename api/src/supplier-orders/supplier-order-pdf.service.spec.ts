@@ -44,6 +44,7 @@ describe('SupplierOrderPdfService', () => {
         id: 'line-1',
         orderId: 'po-1',
         lineNumber: 1,
+        unitOfMeasure: null,
         variantId: 'var-1',
         sku: 'SKU-001',
         description: 'T-shirt Basic — M / Bianco',

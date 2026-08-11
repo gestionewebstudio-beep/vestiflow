@@ -35,6 +35,7 @@ export interface DocumentLineApiRow {
   /** Costo digitato (Decimal serializzato come stringa dal backend). */
   readonly enteredUnitCost?: string | number | null;
   readonly lineTotalMinor: number;
+  readonly unitOfMeasure?: string | null;
   readonly loadsStock: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId | null;
@@ -215,6 +216,7 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     enteredUnitCostMinor:
       row.enteredUnitCost != null ? Math.round(Number(row.enteredUnitCost) * 100) : undefined,
     lineTotal: { amountMinor: row.lineTotalMinor, currencyCode: currency },
+    unitOfMeasure: row.unitOfMeasure ?? undefined,
     loadsStock: row.loadsStock,
     isReference: row.isReference === true,
     supplierOrderLineId: row.supplierOrderLineId ?? undefined,
@@ -402,6 +404,7 @@ export interface DocumentLineInputBody {
   readonly vatCodeId?: EntityId;
   /** Costo unitario digitato (unità minori) nella modalità costo del documento. */
   readonly enteredUnitCostMinor?: number;
+  readonly unitOfMeasure?: string;
   readonly loadsStock?: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId;

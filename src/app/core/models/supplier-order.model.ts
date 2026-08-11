@@ -43,6 +43,11 @@ export interface SupplierOrderLine {
   readonly vatRatePercent?: number;
   /** Totale riga netto (qty × costo netto − sconto). */
   readonly lineTotal: Money;
+  /**
+   * Unità di misura fotografata sulla riga. Assente sulle righe salvate prima
+   * che la colonna esistesse: lì vale quella dell'anagrafica.
+   */
+  readonly unitOfMeasure?: string;
 }
 
 /** Documento collegato (arrivo merce): collegamento visibile nell'ordine. */

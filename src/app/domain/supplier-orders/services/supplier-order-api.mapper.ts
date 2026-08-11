@@ -26,6 +26,7 @@ export interface SupplierOrderLineApiRow {
   readonly vatCodeId?: string | null;
   readonly vatSnapshot?: Partial<VatSnapshot> | null;
   readonly lineTotalMinor?: number;
+  readonly unitOfMeasure?: string | null;
 }
 
 export interface SupplierOrderLinkedDocumentApiRow {
@@ -92,6 +93,7 @@ function mapLine(row: SupplierOrderLineApiRow, currency: CurrencyCode): Supplier
       amountMinor: row.lineTotalMinor ?? row.orderedQuantity * Number(row.unitCostMinor),
       currencyCode: currency,
     },
+    unitOfMeasure: row.unitOfMeasure ?? undefined,
   };
 }
 
@@ -120,6 +122,7 @@ export interface CreateSupplierOrderLineBody {
   readonly enteredUnitCostMinor: number;
   readonly discountPercent?: number;
   readonly vatCodeId?: EntityId;
+  readonly unitOfMeasure?: string;
 }
 
 /** Body POST /supplier-orders. */

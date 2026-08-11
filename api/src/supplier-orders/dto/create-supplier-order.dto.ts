@@ -57,6 +57,15 @@ export class CreateSupplierOrderLineDto {
   @IsOptional()
   @IsUUID()
   vatCodeId?: string;
+
+  /**
+   * Unità di misura della riga, fotografata all'inserimento. Testo libero: la
+   * tabella delle unità suggerisce, non obbliga (specifica §4.3-ter).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  unitOfMeasure?: string;
 }
 
 export class CreateSupplierOrderDto {

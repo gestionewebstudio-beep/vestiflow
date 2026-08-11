@@ -80,6 +80,8 @@ interface ComputedOrderLine {
   readonly discountPercent: number;
   readonly vatCodeId: string | null;
   readonly vatSnapshot: Prisma.InputJsonObject | null;
+  /** Fotografia dell'unità di misura al momento dell'ordine. */
+  readonly unitOfMeasure: string | null;
   readonly lineTotalMinor: number;
   readonly lineVatTotalMinor: number;
   readonly vatAffectsSupplierTotal: boolean;
@@ -449,7 +451,7 @@ export class SupplierOrdersService {
       select: {
         id: true,
         sku: true,
-        product: { select: { name: true } },
+        product: { select: { name: true, unitOfMeasure: true } },
       },
     });
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
@@ -521,6 +523,10 @@ export class SupplierOrdersService {
         discountPercent,
         vatCodeId: vatCode?.id ?? null,
         vatSnapshot: vatCode ? this.vatCodes.buildSnapshot(vatCode) : null,
+        // Se la riga non la porta vale quella dell'articolo: è il valore che la
+        // maschera propone come default, e fotografarlo qui evita che una riga
+        // salvata oggi cambi unità perché domani l'anagrafica cambia.
+        unitOfMeasure: line.unitOfMeasure?.trim() || variant.product.unitOfMeasure || null,
         lineTotalMinor: amounts.lineNetMinor,
         lineVatTotalMinor: amounts.lineVatMinor,
         vatAffectsSupplierTotal: vat.vatAffectsSupplierTotal,
@@ -551,6 +557,7 @@ export class SupplierOrdersService {
       enteredUnitCostMinor: new Prisma.Decimal(line.enteredUnitCostMinor),
       discountPercent: new Prisma.Decimal(line.discountPercent),
       lineTotalMinor: line.lineTotalMinor,
+      unitOfMeasure: line.unitOfMeasure,
       vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
       ...(line.vatCodeId ? { vatCode: { connect: { id: line.vatCodeId } } } : {}),
     };

@@ -598,6 +598,7 @@ export class GoodsReceiptWorkflowService {
           reverseChargeVatMinor: line.reverseChargeVatMinor,
           nonDeductibleVatMinor: line.nonDeductibleVatMinor,
           loadsStock: line.loadsStock,
+          unitOfMeasure: line.unitOfMeasure,
           supplierOrderLineId: line.supplierOrderLineId,
           lotCode: line.lotCode,
           lotExpiryDate: line.lotExpiryDate,

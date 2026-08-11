@@ -257,6 +257,8 @@ interface ComputedLine {
   lineNetExactMinor: number;
   vatCodeId: string | null;
   vatSnapshot: Prisma.InputJsonObject | null;
+  /** Fotografia dell'unità di misura: il documento la tiene per sé. */
+  unitOfMeasure: string | null;
   loadsStock: boolean;
   /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
   isReference: boolean;
@@ -1528,6 +1530,7 @@ export class DocumentsService {
             discountPercent: Number(line.discountPercent),
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot) ?? undefined,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure ?? undefined,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? undefined,
             lotCode: line.lotCode ?? undefined,
@@ -1616,6 +1619,7 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure,
             // Riga tecnica per il ricalcolo movimenti: mai un riferimento.
             isReference: false,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
@@ -1644,6 +1648,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1686,6 +1691,7 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1711,6 +1717,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1755,6 +1762,7 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1788,6 +1796,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1837,6 +1846,7 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1867,6 +1877,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
+            unitOfMeasure: line.unitOfMeasure,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -3236,6 +3247,7 @@ export class DocumentsService {
         lineNetExactMinor,
         vatCodeId,
         vatSnapshot,
+        unitOfMeasure: line.unitOfMeasure?.trim() || null,
         loadsStock: line.loadsStock ?? defaultLoadsStock,
         isReference: line.isReference === true,
         supplierOrderLineId: line.supplierOrderLineId ?? null,

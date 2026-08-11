@@ -31,6 +31,15 @@ export class DocumentLineInputDto {
   @MaxLength(120)
   sku?: string;
 
+  /**
+   * Unità di misura della riga, fotografata all'inserimento. Testo libero: la
+   * tabella delle unità suggerisce, non obbliga (specifica §4.3-ter).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  unitOfMeasure?: string;
+
   @IsString()
   @Length(1, 300)
   description!: string;
