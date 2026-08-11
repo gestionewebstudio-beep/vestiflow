@@ -12,7 +12,7 @@ import {
   isCounterConfigurableDocumentType,
 } from './document-defaults';
 import { nextDocumentNumber, numberSourceForType } from './document-numbering.util';
-import { documentNumberingType, documentNumberingTypes } from './document-type.util';
+import { documentNumberingTypes } from './document-type.util';
 
 /**
  * Quanti numeri liberi si elencano per esteso. Oltre questa soglia si dice solo
