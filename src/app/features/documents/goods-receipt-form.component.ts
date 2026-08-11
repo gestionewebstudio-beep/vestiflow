@@ -194,6 +194,7 @@ import {
 } from './utils/goods-receipt-line-state.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -1389,7 +1390,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const line = this.lines.at(index);
     const term = line?.controls.productName.value.trim() ?? '';
     line?.controls.productName.setValue(term, { emitEvent: false });
-    this.productSearchLaunchTerm.set(term);
+    this.productSearchLaunchTerm.set(
+      documentSearchLaunchTerm({
+        linked: this.lineHasLinkedProduct(index),
+        name: term,
+        sku: line?.controls.sku.value,
+        articleCode: line?.controls.articleCode.value,
+        barcode: line?.controls.barcode.value,
+      }),
+    );
     this.productSearchLaunchSeq.update((seq) => seq + 1);
     this.productSearchLineIndex.set(index);
     this.productSearchPanelOpen.set(true);

@@ -206,6 +206,7 @@ import {
   type SaveManualOrderLineInput,
 } from '@domain/sales-orders/services/sales-order.service';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
+import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
@@ -3270,7 +3271,16 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    */
   protected openLineProductSearch(index: number): void {
     this.productSearchLineIndex.set(index);
-    this.productSearchLaunchTerm.set(this.lines.at(index).controls.productName.value.trim());
+    const line = this.lines.at(index);
+    this.productSearchLaunchTerm.set(
+      documentSearchLaunchTerm({
+        linked: this.lineHasLinkedProduct(index),
+        name: line.controls.productName.value,
+        sku: line.controls.sku.value,
+        articleCode: line.controls.articleCode.value,
+        barcode: line.controls.barcode.value,
+      }),
+    );
     this.productSearchLaunchSeq.update((seq) => seq + 1);
     this.productSearchPanelOpen.set(true);
   }

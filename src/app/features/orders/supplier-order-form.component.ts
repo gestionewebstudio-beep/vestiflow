@@ -118,6 +118,7 @@ import {
 } from '@domain/suppliers/utils/supplier-form.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -1211,8 +1212,20 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   }
 
   protected openLineProductSearch(index: number): void {
-    const term = this.lines.at(index)?.controls.productName.value.trim() ?? '';
-    this.productSearchLaunchTerm.set(term);
+    const line = this.lines.at(index);
+    const term = line?.controls.productName.value.trim() ?? '';
+    const summary = this.lineSummary(index);
+    this.productSearchLaunchTerm.set(
+      documentSearchLaunchTerm({
+        linked: this.lineHasLinkedProduct(index),
+        name: term,
+        // L'ordine fornitore non tiene i codici sulla riga: li ha il riepilogo
+        // dell'articolo agganciato.
+        sku: summary?.sku,
+        articleCode: summary?.articleCode,
+        barcode: summary?.barcode,
+      }),
+    );
     this.productSearchLaunchSeq.update((seq) => seq + 1);
     this.productSearchLineIndex.set(index);
     this.productSearchPanelOpen.set(true);
