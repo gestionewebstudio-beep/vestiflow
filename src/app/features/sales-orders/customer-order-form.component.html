@@ -2345,7 +2345,11 @@
             [disabled]="saving()"
             (click)="requestSaveDocument()"
           >
-            {{ isOrder ? 'Salva ordine' : 'Salva documento' }}
+            <!-- «Salva documento» anche qui: sul telefono diceva «Salva ordine»
+                 e sul computer «Salva documento» — la stessa maschera, due
+                 parole, a seconda dello schermo. Il modello deve essere coerente
+                 con sé stesso prima di essere copiato altrove. -->
+            Salva documento
           </app-button>
         </div>
       }

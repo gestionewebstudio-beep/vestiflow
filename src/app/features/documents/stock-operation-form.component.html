@@ -424,7 +424,7 @@
         <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
         @if (isConfirmedEdit()) {
           <app-button type="submit" [disabled]="formReadOnly() || saving()"
-            >Salva modifiche</app-button
+            >Salva documento</app-button
           >
         } @else {
           <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
@@ -442,7 +442,7 @@
             Chiudi
           </app-button>
           @if (isConfirmedEdit()) {
-            <app-button type="submit" [disabled]="saving()">Salva modifiche</app-button>
+            <app-button type="submit" [disabled]="saving()">Salva documento</app-button>
           } @else {
             <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
           }

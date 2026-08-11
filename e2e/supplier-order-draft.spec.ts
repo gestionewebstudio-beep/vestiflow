@@ -36,7 +36,7 @@ test.describe('Ordine fornitore — creazione (Confermato)', () => {
     await createButton.click();
     await expect(page).toHaveURL(/\/app\/orders\/new/);
 
-    await page.getByRole('button', { name: 'Salva ordine' }).click();
+    await page.getByRole('button', { name: 'Salva documento' }).click();
     await expect(page.getByText('Seleziona un fornitore.', { exact: true })).toBeVisible();
     await expect(page).toHaveURL(/\/app\/orders\/new/);
   });

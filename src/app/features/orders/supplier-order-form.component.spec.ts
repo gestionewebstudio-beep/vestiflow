@@ -74,6 +74,20 @@ const VAT_22 = {
   usageScope: 'both',
 };
 
+/**
+ * Il pulsante di salvataggio esiste DUE volte: barra desktop e barra mobile,
+ * entrambe nel DOM perché questa maschera non ha ancora viste esclusive (vedi
+ * il difetto «due viste vive» nella mappa tecnica). Finché non le ha, la prova
+ * pilota la prima — quella desktop.
+ *
+ * ⚠️ Prima i due pulsanti si distinguevano per NOME («Salva ordine» contro
+ * «Salva»): l'ambiguità c'era già, la differenza di etichetta la nascondeva.
+ * Allineare i nomi non l'ha creata, l'ha resa visibile.
+ */
+function salvaDocumento(): HTMLElement {
+  return screen.getAllByRole('button', { name: 'Salva documento' })[0]!;
+}
+
 describe('SupplierOrderFormComponent', () => {
   // jsdom non implementa <dialog>: senza questo, aprire il dialogo di sblocco
   // esplode con «showModal is not a function». È un limite dell'ambiente di
@@ -160,7 +174,7 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     await setup();
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     expect(await screen.findByText('Seleziona un fornitore.')).toBeVisible();
   });
@@ -231,7 +245,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.clear(costInput);
     await user.type(costInput, '12,50');
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     expect(createOrder).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -362,7 +376,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.clear(cost);
     await user.type(cost, '12,50');
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     expect(navigate).toHaveBeenCalledWith(
       ['/app/orders', 'po-1', 'edit'],
@@ -390,7 +404,7 @@ describe('SupplierOrderFormComponent', () => {
     );
 
     // L'articolo di prova non ha costo d'anagrafica: la riga resta senza costo.
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Riga 1');
     expect(screen.getByRole('alert')).toHaveTextContent('costo');
@@ -401,7 +415,7 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     const { createOrder } = await setup();
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     expect(await screen.findByRole('alert')).toHaveTextContent('fornitore');
     expect(createOrder).not.toHaveBeenCalled();
@@ -467,7 +481,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.clear(cost);
     await user.type(cost, '5,02');
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     // Il valore parte esatto: è il server a rifare lo scorporo e a ottenere lo
     // stesso netto. Mandare «502» arrotondato funzionerebbe qui e si romperebbe

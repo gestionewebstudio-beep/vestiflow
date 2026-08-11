@@ -999,6 +999,14 @@ app-customer-order-form {
   padding: 0;
   font: inherit;
   font-weight: var(--font-weight-medium);
+  // Il browser mette `text-transform: none` sui controlli di form, e il
+  // maiuscoletto dell'intestazione NON arriva dentro il pulsante: nella stessa
+  // tabella le colonne ordinabili si leggevano «Cod. fornitore» accanto a
+  // «COD. ARTICOLO». Non era una scelta — era il default del browser che
+  // vinceva. `font: inherit` non basta: la scorciatoia `font` non porta
+  // `text-transform`.
+  text-transform: inherit;
+  letter-spacing: inherit;
   color: inherit;
   background: none;
   border: none;

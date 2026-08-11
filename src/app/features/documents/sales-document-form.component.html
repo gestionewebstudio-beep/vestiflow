@@ -866,7 +866,7 @@
         <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
         @if (isConfirmedEdit()) {
           <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
-            Salva modifiche
+            Salva documento
           </app-button>
         } @else {
           <app-button type="submit" [loading]="saving()" [disabled]="saving()">
@@ -884,7 +884,7 @@
         </app-button>
         @if (isConfirmedEdit()) {
           <app-button type="submit" [loading]="saving()" [disabled]="formReadOnly() || saving()">
-            Salva modifiche
+            Salva documento
           </app-button>
         } @else {
           <app-button type="submit" [loading]="saving()" [disabled]="saving()">
