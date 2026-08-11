@@ -1591,6 +1591,30 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   }
 
   /**
+   * Duplica la riga, come le altre due maschere (11/08/2026). Mancava qui e
+   * basta: su un ordine al fornitore si ordina spesso lo stesso articolo in
+   * taglie diverse, ed è il caso in cui serve di più.
+   *
+   * La copia porta tutto tranne l'identità: nuova riga, stesso articolo, stesso
+   * costo, stesso sconto. Il fuoco va sulla quantità della copia, che è il
+   * campo che si cambia subito dopo.
+   */
+  protected duplicateLine(index: number): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const source = this.lines.at(index);
+    if (!source) {
+      return;
+    }
+    const copy = this.createLine();
+    copy.setValue(source.getRawValue());
+    this.lines.insert(index + 1, copy);
+    this.markFormDirty();
+    this.lineFocus.focusField(index + 1, 'quantity');
+  }
+
+  /**
    * Trascinamento riga (§7.2). Non chiede conferma, a differenza del riordino
    * per colonna: e' un movimento singolo e visibile, e chi lo fa sa cosa sta
    * facendo. L'avviso serve a chi ribalta tutto in un colpo.
