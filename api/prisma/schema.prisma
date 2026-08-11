@@ -1039,6 +1039,18 @@ model SupplierOrder {
 model SupplierOrderLine {
   id               String @id @default(uuid()) @db.Uuid
   orderId          String @map("order_id") @db.Uuid
+  /// Posizione della riga nel documento, 1-based — come `DocumentLine.lineNumber`,
+  /// che gli altri sei tipi documento hanno da sempre.
+  ///
+  /// Serve a due cose. La prima esisteva già ed era muta: le righe si
+  /// rileggevano senza `orderBy`, quindi il loro ordine era quello che
+  /// PostgreSQL restituiva — di norma l'inserimento, ma senza nessuna garanzia,
+  /// e bastava un aggiornamento a cambiarlo. La seconda è l'ordinamento righe
+  /// per contenuto (specifica §7.1): riordinare significa scrivere un ordine
+  /// nuovo, e un ordine si scrive solo se c'è dove metterlo.
+  lineNumber       Int    @default(0) @map("line_number")
+
+  @@index([orderId, lineNumber])
   variantId        String @map("variant_id") @db.Uuid
   /// Snapshot SKU al momento dell'ordine.
   sku              String
