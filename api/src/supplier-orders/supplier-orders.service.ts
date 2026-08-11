@@ -26,7 +26,9 @@ import { DocumentPriceModePreferenceService } from '../documents/document-price-
 import { costEntryModeToPricesIncludeVat } from '../documents/document-price-mode.util';
 import { formatDocumentReference } from '../documents/document-totals.util';
 import {
+  buildDocumentNumberConflict,
   defaultCounterSeries,
+  isDocumentNumberConflict,
   lockDocumentCounter,
   nextDocumentNumber,
 } from '../documents/document-numbering.util';
@@ -165,21 +167,35 @@ export class SupplierOrdersService {
       dto.externalDocumentTypeId,
     );
 
+    // Serie scelta in testata; assente = la predefinita del tipo. Il campo
+    // vuoto è una scelta legittima («Senza serie»), quindi si distingue
+    // `undefined` (non passato) da stringa vuota (passato e vuoto).
+    const requestedSeries =
+      dto.series !== undefined ? (dto.series ?? '').trim() || null : undefined;
+    const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
+
     const result = await this.prisma.$transaction(async (tx) => {
-      const series = await defaultCounterSeries(tx, tenantId, DocumentType.supplier_order);
+      const series =
+        requestedSeries !== undefined
+          ? requestedSeries
+          : await defaultCounterSeries(tx, tenantId, DocumentType.supplier_order);
       // Serializza gli operatori sullo stesso contatore: senza lock due
       // creazioni simultanee leggono lo stesso massimo e il secondo si becca il
       // vincolo unico a lavoro finito. Il lock è transazionale (si rilascia al
       // commit o al rollback) e va preso PRIMA della lettura.
       await lockDocumentCounter(tx, { tenantId, type: DocumentType.supplier_order, series });
-      const number = await nextDocumentNumber({
-        tx,
-        tenantId,
-        type: DocumentType.supplier_order,
-        series,
-        source: 'supplier_order',
-        prefix: setting.numberPrefix,
-      });
+      // Numero imposto dalla testata: si scrive com'è, e il vincolo unico fa
+      // da giudice. Senza, lo assegna il server prendendo il primo libero.
+      const number =
+        requestedNumber ??
+        (await nextDocumentNumber({
+          tx,
+          tenantId,
+          type: DocumentType.supplier_order,
+          series,
+          source: 'supplier_order',
+          prefix: setting.numberPrefix,
+        }));
       const reference = formatDocumentReference(setting.numberPrefix, series, number);
 
       const order = await tx.supplierOrder.create({
@@ -211,6 +227,9 @@ export class SupplierOrdersService {
         include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
       return { ...order, linkedDocuments: [] };
+    }).catch(async (error: unknown) => {
+      await this.throwNumberConflict(error, tenantId, requestedSeries, requestedNumber);
+      throw error;
     });
 
     // Ricorda la modalità costo (netto/ivato) scelta per l'ordine fornitore,
@@ -440,6 +459,41 @@ export class SupplierOrdersService {
    * netto/IVA/totale con lo stesso motore dell'Arrivo merce (switch
    * netto/ivato incluso).
    */
+  /**
+   * Numero già occupato: risponde 409 col conflitto, nella stessa forma degli
+   * altri documenti — così la maschera riusa la modale che ha già («Usa nuovo
+   * numero / Mantieni attuale / Annulla») senza un secondo formato da imparare.
+   */
+  private async throwNumberConflict(
+    error: unknown,
+    tenantId: string,
+    series: string | null | undefined,
+    requestedNumber: number | null,
+  ): Promise<void> {
+    if (!isDocumentNumberConflict(error)) {
+      return;
+    }
+    const setting = await this.documentSettings.getResolved(
+      tenantId,
+      DocumentType.supplier_order,
+    );
+    const resolvedSeries =
+      series !== undefined
+        ? series
+        : await defaultCounterSeries(this.prisma, tenantId, DocumentType.supplier_order);
+    throw new ConflictException(
+      await buildDocumentNumberConflict({
+        tx: this.prisma,
+        tenantId,
+        type: DocumentType.supplier_order,
+        series: resolvedSeries,
+        source: 'supplier_order',
+        prefix: setting.numberPrefix,
+        requestedNumber,
+      }),
+    );
+  }
+
   private async computeLines(
     tenantId: string,
     lines: readonly CreateSupplierOrderLineDto[],

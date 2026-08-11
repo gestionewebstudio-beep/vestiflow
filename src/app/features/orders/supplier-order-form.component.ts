@@ -125,6 +125,12 @@ import {
 } from '@domain/documents/utils/document-vat.util';
 
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
+import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { SupplierFormFieldsComponent } from '@domain/suppliers/components/supplier-form-fields/supplier-form-fields.component';
 import {
@@ -219,6 +225,8 @@ function todayIsoDate(): string {
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    DocumentNumberFieldComponent,
+    DocumentSeriesManagerDialogComponent,
     TableColumnPickerComponent,
     TableColumnResizeDirective,
     SupplierFormFieldsComponent,
@@ -246,6 +254,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly authService = inject(AuthService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly orderService = inject(SupplierOrderService);
+  private readonly countersService = inject(DocumentCountersService);
   private readonly supplierService = inject(SupplierService);
   private readonly productService = inject(ProductService);
   private readonly codeLookupService = inject(DocumentCodeLookupService);
@@ -545,9 +554,91 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     { initialValue: [] as readonly VariantSummary[] },
   );
 
+  // ── Numerazione ───────────────────────────────────────────────────────────
+  //
+  // Il meccanismo vive in `domain/` (`DocumentNumberingStore`): proposta,
+  // scelta della serie, numero imposto. Qui restano solo le voci che
+  // differiscono — dove sta il numero, dove sta la serie, e quando il documento
+  // è in modifica.
+
+  protected readonly documentType = DocumentType.SupplierOrder;
+  protected readonly seriesDialogOpen = signal(false);
+
+  protected readonly numbering = new DocumentNumberingStore({
+    isEdit: () => this.isEditMode(),
+    number: () => this.form.controls.documentNumber.value,
+    setNumber: (value) => this.form.controls.documentNumber.setValue(value),
+    series: () => this.form.controls.series.value,
+    setSeries: (value) => this.form.controls.series.setValue(value),
+    numberIsDirty: () => this.form.controls.documentNumber.dirty,
+    markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
+    markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    asProgrammatic: (write) => {
+      // La proposta iniziale non è una modifica dell'operatore: scriverla non
+      // deve accendere il guard di uscita.
+      this.suppressDirtyMarking = true;
+      try {
+        write();
+      } finally {
+        this.suppressDirtyMarking = false;
+      }
+    },
+  });
+
+  /**
+   * `dirty` non è un signal: la dipendenza da `formValue()` fa ricalcolare il
+   * computed a ogni scrittura sul form, che è dove lo stato del controllo può
+   * cambiare.
+   */
+  protected readonly numberIsProposal = computed(() => {
+    this.formValue();
+    return this.numbering.isProposal();
+  });
+
+  /** Conflitto numero restituito dal server: avviso di presa d'atto. */
+  private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
+  protected readonly conflictMessage = this.numberConflictDialog.message;
+
+  protected acknowledgeConflictNumber(): void {
+    this.numberConflictDialog.acknowledge();
+  }
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
+   * serie e numero — la selezione resta quella che era.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    this.countersService
+      .available(DocumentType.SupplierOrder, null)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this.numbering.setCounters(counters),
+        error: () => undefined,
+      });
+  }
+
+  private refreshNumberProposal(): void {
+    this.countersService
+      .available(DocumentType.SupplierOrder, null)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters, proposedCounterId }) =>
+          this.numbering.applyProposal(counters, proposedCounterId),
+        error: () => undefined,
+      });
+  }
+
   readonly form = this.fb.group({
     supplierId: this.fb.control('', { validators: [Validators.required] }),
     orderDate: this.fb.control(todayIsoDate(), { validators: [Validators.required] }),
+    // Numerazione propria (specifica numerazione §5, Categoria A). Fino al
+    // 12/08/2026 l'Ordine fornitore era l'unico documento della categoria
+    // senza: il server lo numerava d'ufficio e l'operatore non vedeva né
+    // sceglieva niente.
+    documentNumber: this.fb.control<number | null>(null),
+    series: this.fb.control(''),
     expectedAt: this.fb.control(''),
     supplierReference: this.fb.control(''),
     // ── Documento della controparte ───────────────────────────────────────
@@ -832,6 +923,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.markFormDirty();
     });
+
+    // Numero e serie proposti all'apertura. Su un documento in modifica non
+    // fa nulla: lì il numero è assegnato, non proposto.
+    this.refreshNumberProposal();
 
     // Sola lettura = form disabilitato. Un solo punto invece di una guardia in
     // ogni gestore: lasciare i campi scrivibili e bloccare solo il salvataggio
@@ -1900,6 +1995,14 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
           this.form.controls.supplierId.setValue(supplier.id);
         },
         error: (err: unknown) => {
+          // Numero già preso: avviso di presa d'atto, non una scelta. Il
+          // messaggio nomina il numero rifiutato e il primo libero.
+          const conflict = documentNumberConflictOf(err);
+          if (conflict) {
+            this._submitState.set({ status: 'idle' });
+            this.numberConflictDialog.open(conflict);
+            return;
+          }
           this._savingSupplier.set(false);
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
         },
@@ -1992,6 +2095,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
     const body = {
       supplierId: raw.supplierId,
+      series: raw.series || undefined,
+      // Vedi `DocumentNumberingStore`: la proposta NON torna indietro come
+      // imposizione. Viaggia solo il numero che l'operatore ha digitato.
+      number: this.numbering.imposedNumber(),
       orderDate: raw.orderDate ? new Date(raw.orderDate).toISOString() : undefined,
       expectedAt: raw.expectedAt ? new Date(raw.expectedAt).toISOString() : undefined,
       supplierReference: raw.supplierReference.trim() || undefined,
@@ -2079,6 +2186,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private applyOrderToForm(order: SupplierOrder): void {
     this.form.patchValue({
       supplierId: order.supplierId,
+      documentNumber: order.number ?? null,
+      series: order.series ?? '',
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : todayIsoDate(),
       expectedAt: order.expectedAt ? order.expectedAt.slice(0, 10) : '',
       supplierReference: order.supplierReference ?? '',

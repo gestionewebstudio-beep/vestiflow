@@ -77,6 +77,28 @@ export class CreateSupplierOrderDto {
   @IsISO8601()
   orderDate?: string;
 
+  /**
+   * Serie del numeratore. Assente = la serie predefinita del tipo.
+   *
+   * Fino al 12/08/2026 il client non poteva sceglierla: il server prendeva
+   * sempre la predefinita, e l'Ordine fornitore era l'unico documento di
+   * Categoria A senza serie in testata (specifica numerazione §5).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /**
+   * Numero imposto dalla testata. Assente = lo assegna il server, primo libero
+   * della serie. Se è già occupato risponde 409 col conflitto, come gli altri
+   * documenti: chi salva sceglie fra numero nuovo e numero attuale.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @IsOptional()
   @IsISO8601()
   expectedAt?: string;

@@ -42,6 +42,8 @@ export interface SupplierOrderApiRow {
   readonly id: EntityId;
   readonly tenantId: EntityId;
   readonly reference: string;
+  readonly number?: number | null;
+  readonly series?: string | null;
   readonly supplierId: EntityId;
   readonly supplierName: string;
   readonly destinationLocationId?: EntityId | null;
@@ -131,6 +133,15 @@ export interface CreateSupplierOrderBody {
   readonly orderDate?: string;
   readonly expectedAt?: string;
   readonly supplierReference?: string;
+  /** Serie del numeratore; assente = la predefinita del tipo. */
+  readonly series?: string;
+  /**
+   * Numero imposto dalla testata. **Assente = «assegnalo tu»**, ed è il caso
+   * normale: la proposta mostrata non torna indietro come imposizione, così due
+   * operatori che salvano insieme non si contendono lo stesso numero. Viaggia
+   * solo quando l'operatore l'ha digitato — il buco da tappare.
+   */
+  readonly number?: number;
   // ── Documento della controparte ─────────────────────────────────────────
   //
   // I tre campi viaggiano come `T | null`: `null` toglie il valore dall'ordine,
@@ -155,6 +166,8 @@ export function mapSupplierOrderApiRow(row: SupplierOrderApiRow): SupplierOrder 
     tenantId: row.tenantId,
     id: row.id,
     reference: row.reference,
+    number: row.number ?? undefined,
+    series: row.series ?? undefined,
     supplierId: row.supplierId,
     supplierName: row.supplierName,
     destinationLocationId: row.destinationLocationId ?? undefined,

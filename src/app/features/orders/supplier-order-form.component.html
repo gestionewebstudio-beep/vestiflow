@@ -231,6 +231,24 @@
             }
           </div>
 
+          <!-- Numero e serie propri (specifica numerazione §5, Categoria A).
+               Fino al 12/08/2026 l'ordine era numerato d'ufficio dal server e
+               l'operatore non vedeva né sceglieva niente: era l'unico documento
+               della categoria senza. -->
+          <div class="doc-form__field">
+            <app-document-number-field
+              numberInputId="po-number"
+              [number]="form.controls.documentNumber.value"
+              [isProposal]="numberIsProposal()"
+              [series]="form.controls.series.value"
+              [seriesOptions]="numbering.seriesOptions()"
+              [canManageSeries]="true"
+              (numberChange)="numbering.onNumberChange($event)"
+              (seriesChange)="numbering.onSeriesChange($event)"
+              (manageSeries)="seriesDialogOpen.set(true)"
+            />
+          </div>
+
           <div class="doc-form__field">
             <label class="doc-form__label" for="po-expected">Consegna prevista</label>
             <app-date-input
@@ -873,6 +891,7 @@
                               min="1"
                               step="1"
                               formControlName="orderedQuantity"
+                              aria-label="Quantità ordinata"
                               (keydown)="lineFocus.handleKeydown(i, 'quantity', $event)"
                               [attr.aria-invalid]="lineFieldInvalid(i, 'orderedQuantity')"
                             />
@@ -1318,4 +1337,24 @@
   message="Modificando l'ordine, VestiFlow aggiornerà lo storico della modifica."
   confirmLabel="Sblocca e modifica"
   (confirmed)="confirmUnlockEdit()"
+/>
+
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La testata
+     resta com'era e l'ordine non è salvato; il messaggio nomina il numero
+     rifiutato e il primo libero, la correzione è dell'operatore. -->
+<app-confirm-dialog
+  [(open)]="conflictDialogOpen"
+  title="Numero già usato"
+  [message]="conflictMessage()"
+  confirmLabel="OK"
+  [acknowledge]="true"
+  (confirmed)="acknowledgeConflictNumber()"
+  (dismissed)="acknowledgeConflictNumber()"
+/>
+
+<!-- Gestione numerazioni del tipo, aperta dall'ingranaggio del campo Serie. -->
+<app-document-series-manager-dialog
+  [type]="documentType"
+  [open]="seriesDialogOpen()"
+  (closed)="onSeriesManagerClosed()"
 />

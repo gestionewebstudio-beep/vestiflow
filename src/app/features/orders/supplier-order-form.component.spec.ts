@@ -17,6 +17,8 @@ import { ProductService } from '@domain/products/services/product.service';
 
 import { SupplierOrderFormComponent } from './supplier-order-form.component';
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import { DocumentType } from '@core/models/document.model';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
@@ -210,6 +212,29 @@ describe('SupplierOrderFormComponent', () => {
         // Tendina del documento della controparte (componente condiviso in
         // testata): senza lo stub cercherebbe l'HTTP vero.
         { provide: ExternalDocumentTypeService, useValue: { list: () => of(EXTERNAL_DOC_TYPES) } },
+        // Numerazione propria (§5 Categoria A): il contatore predefinito
+        // propone serie e primo numero libero.
+        {
+          provide: DocumentCountersService,
+          useValue: {
+            available: () =>
+              of({
+                counters: [
+                  {
+                    id: 'cnt-1',
+                    type: DocumentType.SupplierOrder,
+                    series: 'A',
+                    locationId: null,
+                    locationName: null,
+                    isDefault: true,
+                    nextNumber: 42,
+                    documentCount: 41,
+                  },
+                ],
+                proposedCounterId: 'cnt-1',
+              }),
+          },
+        },
         {
           provide: TableColumnPreferenceService,
           useValue: tableColumnPreferenceMock(),
@@ -234,6 +259,45 @@ describe('SupplierOrderFormComponent', () => {
     expect(await screen.findByText('OF-2026-0042')).toBeVisible();
   });
 
+  // ── Numerazione propria (specifica numerazione §5, Categoria A) ────────────
+  //
+  // Fino al 12/08/2026 l'Ordine fornitore era l'unico documento della categoria
+  // senza numero né serie in testata: il server lo numerava d'ufficio e
+  // l'operatore non vedeva niente.
+
+  it('propone in testata serie e primo numero libero', async () => {
+    await setup();
+
+    const numero = await screen.findByLabelText<HTMLInputElement>('Numero');
+    expect(numero.value).toBe('42');
+  });
+
+  // La regola centrale: la proposta NON torna indietro come imposizione, o due
+  // operatori che salvano insieme si contenderebbero lo stesso numero.
+  it('numero non toccato: il salvataggio non porta il numero', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup();
+
+    await scegliArticoloSullaRiga(user);
+    await user.click(salvaDocumento());
+
+    expect(createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ series: 'A', number: undefined }),
+    );
+  });
+
+  it('numero digitato: viaggia al server, dove il conflitto ha senso', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup();
+
+    const numero = await screen.findByLabelText<HTMLInputElement>('Numero');
+    await user.clear(numero);
+    await user.type(numero, '7');
+    await scegliArticoloSullaRiga(user);
+    await user.click(salvaDocumento());
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({ number: 7 }));
+  });
   it('mostra errori di validazione al submit senza dati obbligatori', async () => {
     const user = userEvent.setup();
     await setup();
@@ -428,7 +492,7 @@ describe('SupplierOrderFormComponent', () => {
 
     await scegliFornitore(user);
 
-    const qtyInput = screen.getByRole('spinbutton');
+    const qtyInput = screen.getByLabelText('Quantità ordinata');
     await user.clear(qtyInput);
     await user.type(qtyInput, '3');
 
@@ -458,7 +522,7 @@ describe('SupplierOrderFormComponent', () => {
 
     await scegliArticoloSullaRiga(user);
 
-    const qtyInput = screen.getByRole('spinbutton');
+    const qtyInput = screen.getByLabelText('Quantità ordinata');
     await user.clear(qtyInput);
     await user.type(qtyInput, '2');
     const costInput = screen.getByPlaceholderText('0,00');
@@ -578,7 +642,7 @@ describe('SupplierOrderFormComponent', () => {
 
     expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
     // Protetto = form disabilitato: non si digita a vuoto.
-    expect(screen.getByRole('spinbutton')).toBeDisabled();
+    expect(screen.getByLabelText('Quantità ordinata')).toBeDisabled();
   });
 
   // TODO(blocco documenti): manca il resto del giro — sblocca, modifica, salva,

@@ -68,6 +68,10 @@ export interface SupplierOrder extends TenantScoped, Timestamped {
   readonly id: EntityId;
   /** Riferimento leggibile dal numeratore (es. 'OF-2026-0042'). */
   readonly reference: string;
+  /** Numero interno, dal numeratore del tipo. Assente sugli ordini più vecchi. */
+  readonly number?: number | null;
+  /** Serie del numeratore; assente o vuota = «Senza serie». */
+  readonly series?: string | null;
   readonly supplierId: EntityId;
   /** Snapshot del nome fornitore per la visualizzazione. */
   readonly supplierName: string;

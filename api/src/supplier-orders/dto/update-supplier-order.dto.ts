@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsEnum,
+  IsInt,
   IsISO8601,
   IsNumber,
   IsOptional,
@@ -23,6 +24,22 @@ export class UpdateSupplierOrderDto {
   @IsOptional()
   @IsUUID()
   supplierId?: string;
+
+  /** Serie del numeratore. Assente = quella che l'ordine ha gia'. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /**
+   * Numero in testata. Assente = quello che l'ordine ha gia'. Cambiarlo
+   * ricalcola il riferimento e passa dal vincolo unico: se il numero e' preso,
+   * risponde 409 col conflitto, come gli altri documenti.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
 
   @IsOptional()
   @IsISO8601()
