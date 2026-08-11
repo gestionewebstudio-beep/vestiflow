@@ -1878,6 +1878,28 @@ app-customer-order-form {
   flex-wrap: wrap;
 }
 
+// ── Intestazioni: due righe, poi si taglia ─────────────────────────────────
+//
+// Prima andavano a capo quante volte serviva, e restringendo una colonna
+// l'intera riga di intestazione si alzava — spazio verticale tolto alle righe
+// del documento, che sono la ragione per cui la tabella esiste. Ora il tetto è
+// **due righe**: quasi tutte le etichette ci stanno per intero («Prezzo al
+// pubblico» diventa due parole su due righe), e solo le più lunghe si tagliano.
+//
+// ⚠️ Il taglio sta sull'ETICHETTA, non sulla cella, e non è una raffinatezza:
+// dentro l'intestazione dell'IVA vive un menu a tendina, e `overflow: hidden`
+// sulla cella lo taglierebbe insieme all'etichetta. La maniglia per
+// ridimensionare, che sporge di 4px oltre il bordo, sparirebbe con lui.
+//
+// L'etichetta tagliata resta leggibile per intero al passaggio del mouse: le
+// intestazioni portano il proprio nome nel `title`.
+.doc-form .doc-form__th-label,
+.doc-form .doc-form__th-sort,
+.doc-form .doc-form__th-menu-wrap {
+  max-block-size: calc(2 * var(--leading-tight) * var(--text-label));
+  overflow: hidden;
+}
+
 // I tooltip delle intestazioni (Sconto, Impegna) si aprono verso SINISTRA:
 // il componente decide da solo in base al bordo dello schermo, ma qui il
 // limite è la tabella — aperti verso destra la farebbero scorrere.

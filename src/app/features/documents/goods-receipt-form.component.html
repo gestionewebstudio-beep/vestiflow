@@ -702,7 +702,9 @@
                   </colgroup>
                   <thead>
                     <tr>
-                      <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
+                      <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">
+                        <span class="doc-form__th-label" title="#">#</span>
+                      </th>
                       @if (isLineColumnVisible('articleCode')) {
                         <th scope="col" [style.width]="lineColumnWidth('articleCode')">
                           Cod. articolo
@@ -719,6 +721,7 @@
                             type="button"
                             class="doc-form__th-sort"
                             [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
+                            title="SKU"
                             (click)="toggleLineSort('sku')"
                           >
                             SKU
@@ -744,6 +747,7 @@
                             type="button"
                             class="doc-form__th-sort"
                             [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
+                            title="EAN"
                             (click)="toggleLineSort('barcode')"
                           >
                             EAN
@@ -800,6 +804,7 @@
                             type="button"
                             class="doc-form__th-sort"
                             [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
+                            title="Nome prodotto"
                             (click)="toggleLineSort('product')"
                           >
                             Nome prodotto
@@ -865,6 +870,7 @@
                             type="button"
                             class="doc-form__th-sort doc-form__th-sort--num"
                             [attr.aria-label]="lineSortAriaLabel('quantity', 'Quantità')"
+                            title="Quantità"
                             (click)="toggleLineSort('quantity')"
                           >
                             Q.tà
@@ -1038,6 +1044,7 @@
                               type="button"
                               class="doc-form__th-sort doc-form__th-sort--num"
                               [attr.aria-label]="lineSortAriaLabel('vat', 'IVA')"
+                              title="IVA"
                               (click)="toggleLineSort('vat')"
                             >
                               IVA
@@ -1086,13 +1093,19 @@
                         </th>
                       }
                       @if (isLineColumnVisible('lot')) {
-                        <th scope="col" [style.width]="lineColumnWidth('lot')">Lotto</th>
+                        <th scope="col" [style.width]="lineColumnWidth('lot')">
+                          <span class="doc-form__th-label" title="Lotto">Lotto</span>
+                        </th>
                       }
                       @if (isLineColumnVisible('expiry')) {
-                        <th scope="col" [style.width]="lineColumnWidth('expiry')">Scadenza</th>
+                        <th scope="col" [style.width]="lineColumnWidth('expiry')">
+                          <span class="doc-form__th-label" title="Scadenza">Scadenza</span>
+                        </th>
                       }
                       @if (isLineColumnVisible('serials')) {
-                        <th scope="col" [style.width]="lineColumnWidth('serials')">Seriali</th>
+                        <th scope="col" [style.width]="lineColumnWidth('serials')">
+                          <span class="doc-form__th-label" title="Seriali">Seriali</span>
+                        </th>
                       }
                       @if (isLineColumnVisible('loadsStock')) {
                         <th scope="col" [style.width]="lineColumnWidth('loadsStock')">

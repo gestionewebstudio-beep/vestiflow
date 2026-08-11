@@ -963,7 +963,9 @@
                   </colgroup>
                   <thead>
                     <tr>
-                      <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
+                      <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">
+                        <span class="doc-form__th-label" title="#">#</span>
+                      </th>
                       @if (isLineColumnVisible('articleCode')) {
                         <th scope="col" [style.width]="lineColumnWidth('articleCode')">
                           <button
@@ -971,6 +973,7 @@
                             class="doc-form__th-sort"
                             [disabled]="!lineSortAvailable()"
                             [attr.aria-label]="lineSortAriaLabel('articleCode', 'Cod. articolo')"
+                            title="Cod. articolo"
                             [attr.title]="lineSortDisabledReason()"
                             (click)="toggleLineSort('articleCode')"
                           >
@@ -1000,6 +1003,7 @@
                             class="doc-form__th-sort"
                             [disabled]="!lineSortAvailable()"
                             [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
+                            title="SKU"
                             [attr.title]="lineSortDisabledReason()"
                             (click)="toggleLineSort('sku')"
                           >
@@ -1029,6 +1033,7 @@
                             class="doc-form__th-sort"
                             [disabled]="!lineSortAvailable()"
                             [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
+                            title="EAN"
                             [attr.title]="lineSortDisabledReason()"
                             (click)="toggleLineSort('barcode')"
                           >
@@ -1062,6 +1067,7 @@
                             class="doc-form__th-sort"
                             [disabled]="!lineSortAvailable()"
                             [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
+                            title="Nome prodotto"
                             [attr.title]="lineSortDisabledReason()"
                             (click)="toggleLineSort('product')"
                           >

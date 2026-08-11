@@ -317,13 +317,16 @@
               <table class="doc-form__table">
                 <thead>
                   <tr>
-                    <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
+                    <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">
+                      <span class="doc-form__th-label" title="#">#</span>
+                    </th>
                     @if (isLineColumnVisible('articleCode')) {
                       <th scope="col" [style.width]="lineColumnWidth('articleCode')">
                         <button
                           type="button"
                           class="doc-form__th-sort"
                           [attr.aria-label]="lineSortAriaLabel('articleCode', 'Cod. articolo')"
+                          title="Cod. articolo"
                           (click)="toggleLineSort('articleCode')"
                         >
                           Cod. articolo
@@ -348,6 +351,7 @@
                           type="button"
                           class="doc-form__th-sort"
                           [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
+                          title="SKU"
                           (click)="toggleLineSort('sku')"
                         >
                           SKU
@@ -372,6 +376,7 @@
                           type="button"
                           class="doc-form__th-sort"
                           [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
+                          title="EAN"
                           (click)="toggleLineSort('barcode')"
                         >
                           EAN
@@ -396,6 +401,7 @@
                           type="button"
                           class="doc-form__th-sort"
                           [attr.aria-label]="lineSortAriaLabel('supplierCode', 'Cod. fornitore')"
+                          title="Cod. fornitore"
                           (click)="toggleLineSort('supplierCode')"
                         >
                           Cod. fornitore
@@ -420,6 +426,7 @@
                           type="button"
                           class="doc-form__th-sort"
                           [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
+                          title="Nome prodotto"
                           (click)="toggleLineSort('product')"
                         >
                           Nome prodotto
