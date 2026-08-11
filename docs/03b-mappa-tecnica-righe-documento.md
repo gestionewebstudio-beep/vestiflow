@@ -537,11 +537,11 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 **Gruppo A — divergenze che il punto unico cementerebbe**
 
 1. **↑ è un tasto morto** in Ordine cliente e Ordine fornitore: le celle emettono `lineRowRetreat` e nessuno dei due template lo aggancia. Il tasto fa `preventDefault` e poi niente — non fa nemmeno il comportamento nativo.
-2. ~~**La cella prodotto di Ordine fornitore non ha identificativo**~~ — ✅ **chiuso (08/2026), ma con una TOPPA TEMPORANEA che ha una condizione di rientro.**
-   Il campo era nel giro del Tab e puntava a `po-product-{i}`, identificativo che non esiste in nessun template: quella cella è un `app-select-menu`, senza `inputId` né fuoco pubblico. Da «Cod. fornitore» il fuoco si perdeva a metà giro.
-   **La correzione è stata TOGLIERE `product` dal giro**, non dargli un identificativo: elencare un campo su cui non si può atterrare fa solo morire il fuoco. Ma è una sottrazione, non una soluzione — oggi il nome prodotto in Ordine fornitore **non si raggiunge da tastiera**.
-   ⚠️ **Condizione di rientro, da eseguire e non da ricordare: quando `app-select-menu` verrà sostituito dalla cella a ricerca-e-selezione (specifica §4.3-bis, filone B), `product` torna nel giro.** Senza questa riga la sottrazione diventa permanente per inerzia, e nessuno saprà che era provvisoria: il codice non lo dice, dice solo che il campo non c'è.
-   _Lo stesso vale per l'IVA (difetto 4): stessa causa, stessa cella, stessa condizione di rientro._
+2. ~~**La cella prodotto di Ordine fornitore non ha identificativo**~~ — ✅ **chiuso davvero (11/08/2026). La toppa temporanea è stata tolta e la condizione di rientro si è avverata.**
+   Il campo era nel giro del Tab e puntava a `po-product-{i}`, identificativo che non esiste in nessun template: quella cella era un `app-select-menu`, senza `inputId` né fuoco pubblico. Da «Cod. fornitore» il fuoco si perdeva a metà giro.
+   **La correzione provvisoria era stata TOGLIERE `product` dal giro** — una sottrazione, non una soluzione: il nome prodotto non si raggiungeva da tastiera.
+   **Ora la cella è quella condivisa a ricerca-e-selezione** (specifica §4.3-bis e §4.12), quindi esiste un `<input id="po-product-{i}">` vero e `product` è **rientrato nel giro**, fra «Cod. fornitore» e «Q.tà». Lo spec che registrava l'assenza è stato girato: adesso asserisce la presenza e la posizione, così se qualcuno rifacesse la cella una tendina il test lo direbbe.
+   _Per l'IVA (difetto 4) la condizione di rientro resta aperta: stessa causa, stessa cella, e quella tendina non è ancora stata sostituita._
 3. **`advanceToNextLine` di Ordine fornitore non controlla `formReadOnly()`** — e non ha nemmeno il `<fieldset [disabled]>` che protegge le altre due. Su documento bloccato il Tab aggiunge righe.
 4. **L'identificativo IVA dell'Arrivo merce è nella mappa ma non esiste nel DOM** (la cella è un `app-select-menu`). Innocuo solo perché `visibleLineFocusFields` esclude `vat` a mano.
 5. ~~**Le celle gemelle divergono a suggerimenti aperti**: la cella prodotto usa le frecce per scorrere la lista, la cella codice le ingoia con `preventDefault`.~~
@@ -581,8 +581,19 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 | 7   | creazione riga                            | tutte, con tre corpi diversi                                    |
 | 8   | gancio di **cambio riga**                 | **solo Arrivo merce** (`commitLineAndSave`) — vedi precisazione |
 | 9   | predicato «riga vuota»                    | tutte — **assente in Ordine fornitore**                         |
+| 10  | rimozione riga                            | tutte — aggiunta 11/08/2026, vedi sotto                         |
 
-> La numerazione è stata **compattata**: l'ex voce 10 («riga vuota») è ora la 9. Chi cerca «la voce 10» in un testo più vecchio cerca questa.
+> La numerazione è stata **compattata**: l'ex voce 10 («riga vuota») è ora la 9. Chi cerca «la voce 10» in un testo più vecchio cerca la 9, non l'attuale 10.
+
+**Voce 10 — «rimozione riga»** _(aggiunta 11/08/2026)_. Nove voci sono diventate dieci, e va detto **perché non è un ripensamento**: la regola della creazione riga aveva tre parti e ne erano state scritte solo due. La terza — ↑ dalla riga appena nata e mai compilata la fa sparire (specifica §4.4) — richiede di togliere una riga, e la classe non ha modo di farlo senza chiederlo alla maschera. Tutte e tre ce l'hanno già, con corpi diversi: una protegge il minimo di una riga, un'altra ricrea la riga se resta vuoto, una terza non segna il form come modificato.
+
+La voce è **obbligatoria, non opzionale**, di proposito: una voce facoltativa avrebbe prodotto maschere in cui la regola tace, ed è esattamente la divergenza silenziosa che questo lavoro toglie. Il segno di «riga appena nata» vive nella classe e si consuma da sé — appena la riga si riempie, appena ne nasce un'altra, appena viene tolta.
+
+**Il pannello suggerimenti è la quarta classe di `state/`** _(11/08/2026)_. `DocumentProductSuggestStore` sta accanto alle altre tre, stessa forma: nessuna dipendenza, un'istanza per maschera. Nasce da un'estrazione che **non ha risparmiato righe** — ne ha rese visibili quattro divergenze fra Ordine cliente e Arrivo merce (specifica §4.12).
+
+Da lì una semplificazione che vale la pena registrare: decise le quattro regole, il testo digitato **non serve più** allo stato del pannello. La soglia dei due caratteri non è duplicata qui, perché la ricerca a catalogo non parte sotto quella soglia: l'elenco arriva già vuoto, e «senza risultati non si apre» chiude il pannello da sé. Ripetere la soglia darebbe due posti da cambiare per una regola sola.
+
+**Le frecce ←/→ e il cursore che non si può leggere** _(11/08/2026)_. La regola dei due tempi ha bisogno di sapere se il cursore è al bordo del campo. Su `<input type="number">` il browser **non lo dice**: Chrome restituisce `null`, altri sollevano un errore. Il pezzo che risponde alla domanda tratta l'impossibilità di leggere come «sono al bordo», così la freccia passa subito alla colonna accanto — ed è il comportamento giusto per campi di poche cifre. Il limite è dichiarato nella specifica §4.2 come limite del dominio, non come eccezione.
 
 **Voce 8 — è un gancio su OGNI cambio riga, non solo sull'uscita in avanti** _(precisato 08/2026)_. Il nome «uscita riga» inganna: in Arrivo merce `commitLineAndSave` avvolge **sia** `advanceToNextLine` **sia** `advanceToPreviousLine`. Scritto come «uscita», produce un'implementazione che aggancia il gancio in una direzione sola e lo dimentica nell'altra — e il difetto si vede solo risalendo con ↑, che è il gesto meno provato.
 
@@ -671,6 +682,18 @@ Non è la nota di un caso: è lo **schema** che si è ripetuto **tre volte in un
 **Il segnale che sei nel caso sbagliato:** il red-check resta **verde**. Rompere deliberatamente la cosa e vedere la prova passare non significa che la cosa non conti — significa che la prova non la stava guardando. Un red-check verde è un risultato, non un contrattempo: dice che la guardia è nel posto sbagliato.
 
 ⚠️ Vale anche per i **mock**: un mock che semplifica proprio la differenza da cui nasce il difetto lo nasconde per costruzione. Prima di scriverne uno, chiedersi **su quale asse** il difetto si manifesta, e tenere quell'asse diverso.
+
+### 12.0-ter ⚠️ Un dato di prova che mente al tipo nasconde il comportamento vero
+
+Quarta variante dello stesso schema _(11/08/2026)_, e la più insidiosa perché **non c'è niente da rompere**: la guardia è nel posto giusto e la prova fallisce lo stesso, ma per la ragione sbagliata.
+
+La variante di prova dell'Ordine fornitore era scritta a mano con cinque campi su quindici, e fra i mancanti c'era il **prezzo di vendita**, che nel modello è obbligatorio. Il pannello dei suggerimenti compone il dettaglio della voce a partire da quel prezzo: il calcolo esplodeva, Angular lasciava il pannello vuoto **senza dire niente**, e la prova falliva con «non trovo la voce nell'elenco» — che porta a cercare il difetto nel pannello, nella ricerca, nel rilevamento delle modifiche. Ovunque tranne che nel dato.
+
+**Come ci era arrivato:** il dato non era tipizzato come variante. Passava per una lista generica e nessuno gli chiedeva di essere completo — il compilatore, che avrebbe segnalato il campo mancante in un attimo, non era stato messo in condizione di guardare.
+
+**La contromisura:** i dati di prova delle entità di dominio si dichiarano **con il loro tipo**, non con la forma minima che serve al caso. Se un campo obbligatorio dà fastidio in un test, il posto dove dirlo è il modello, non il dato.
+
+**Il segnale:** una prova che fallisce dicendo «non trovo l'elemento» quando lo stato interno è giusto. Se lo stato dice che ci sono i risultati e il DOM non li mostra, il sospetto va al calcolo che li trasforma — e spesso al dato che lo alimenta.
 
 ---
 
