@@ -76,6 +76,7 @@ import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -98,6 +99,7 @@ function distinctLocations(control: AbstractControl): ValidationErrors | null {
   selector: 'app-transfer-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,

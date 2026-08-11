@@ -42,6 +42,7 @@
     <div class="doc-product-cell__field" [class.doc-product-cell__field--invalid]="invalid()">
       <input
         class="doc-product-cell__input"
+        appFirstClickSelects
         type="text"
         [id]="inputId() || null"
         [disabled]="disabled()"

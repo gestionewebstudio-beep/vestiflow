@@ -111,6 +111,7 @@ import {
   mapSupplierFormToInput,
   resetSupplierFormGroup,
 } from '@domain/suppliers/utils/supplier-form.util';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -155,6 +156,7 @@ function todayIsoDate(): string {
   selector: 'app-supplier-order-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FirstClickSelectsDirective,
     ReactiveFormsModule,
     BackButtonComponent,
     ButtonComponent,

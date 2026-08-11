@@ -8,11 +8,12 @@ import { formatMoney } from '@core/utils/money.util';
 
 import { DocumentLineSuggestionsComponent } from '../document-line-suggestions/document-line-suggestions.component';
 import type { DocumentLineSuggestionItem } from '../document-line-suggestions/document-line-suggestions.model';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 
 @Component({
   selector: 'app-document-line-product-cell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, DocumentLineSuggestionsComponent],
+  imports: [FirstClickSelectsDirective, FormsModule, DocumentLineSuggestionsComponent],
   templateUrl: './document-line-product-cell.component.html',
   styleUrl: './document-line-product-cell.component.scss',
 })

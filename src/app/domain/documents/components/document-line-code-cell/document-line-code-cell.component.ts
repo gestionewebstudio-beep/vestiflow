@@ -8,6 +8,7 @@ import { formatMoney } from '@core/utils/money.util';
 
 import { DocumentLineSuggestionsComponent } from '../document-line-suggestions/document-line-suggestions.component';
 import type { DocumentLineSuggestionItem } from '../document-line-suggestions/document-line-suggestions.model';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 
 /** Conferma di un codice, col gesto che l'ha prodotta. */
 export interface DocumentLineCodeCommit {
@@ -27,7 +28,7 @@ export interface DocumentLineCodeCommit {
 @Component({
   selector: 'app-document-line-code-cell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, DocumentLineSuggestionsComponent],
+  imports: [FirstClickSelectsDirective, FormsModule, DocumentLineSuggestionsComponent],
   templateUrl: './document-line-code-cell.component.html',
   styleUrl: './document-line-code-cell.component.scss',
 })

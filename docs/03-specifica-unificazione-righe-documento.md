@@ -304,9 +304,14 @@ Quindi la regola **morde dove la cella resta un campo**: nessuna corrispondenza 
 - **[DA VERIFICARE] Tempismo del focus:** la chiamata asincrona interna oggi, per effetto collaterale, darebbe al DOM il tempo di rendere la riga nuova prima del focus. Reso sincrono, la freccia giù sull'ultima riga smetterebbe di dar focus alla riga creata. Le maschere sorelle avrebbero già un `setTimeout` con commento: il tempismo va **ricreato deliberatamente**. (Da confermare sul codice.)
 - **[DA VERIFICARE]** Il metodo sarebbe raggiunto **anche da Invio e da Tab dall'ultimo campo**: per colpire la sola freccia va spezzato. (Vedi §4.5 — conferma per maschera.)
 
-### 4.6 Mouse (a due tempi, coerente con la tastiera)
+### 4.6 Mouse (a due tempi, coerente con la tastiera) — ✅ fatto 11/08/2026
 
 - **1° click:** seleziona tutto. **2° click:** posiziona il cursore senza cancellare. **Trascinamento** al primo ingresso: lasciato passare.
+
+**Vale su ogni campo di riga, in tutti i documenti** — e non perché sia stato aggiunto a ognuno: si applica da sé a qualunque campo di una riga documento. Una colonna nuova lo eredita senza che nessuno se ne ricordi, che è l'unico modo perché una regola così resti vera.
+
+**Il limite del dominio:** sui campi dove il browser rifiuta la selezione (alcuni tipi numerici e le date) il clic resta quello normale del browser. Non è una deroga: è il confine di dove la regola può arrivare, e lascia comunque un comportamento sensato.
+
 - Nota: "1° click seleziona tutto" **non** è nativo del browser (mette il cursore dove clicchi). Va costruito tenendo traccia se la cella aveva già il focus. **Select all'ingresso da tastiera, non al click** — la formulazione ingenua "seleziona al focus" cancellerebbe il valore al primo tasto dopo un click a metà cifra.
 
 ### 4.7 Vincolo architetturale — la porta che resta aperta

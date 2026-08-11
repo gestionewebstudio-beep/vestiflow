@@ -188,6 +188,7 @@ import {
   lineDraftPersistableForExplicitSave,
   type GoodsReceiptLineDraft,
 } from './utils/goods-receipt-line-state.util';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -222,6 +223,7 @@ type GoodsReceiptLineFocusField =
   selector: 'app-goods-receipt-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
     RouterLink,

@@ -200,6 +200,7 @@ import {
   type SaveManualOrderInput,
   type SaveManualOrderLineInput,
 } from '@domain/sales-orders/services/sales-order.service';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
@@ -250,6 +251,7 @@ interface AvailabilityIssue {
   selector: 'app-customer-order-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
     CustomerOrderLineCardComponent,
