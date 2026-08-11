@@ -49,12 +49,16 @@ valore stale). Un test l'ha fermato prima del commit.
 
 ## Fatto
 
-| Fetta                    | Dove                                                  | Test |
-| ------------------------ | ----------------------------------------------------- | ---- |
-| Caratterizzazione totali | `customer-order-form.component.spec.ts`               | 12   |
-| Caratterizzazione totali | `goods-receipt-form.component.spec.ts`                | 7    |
-| Algoritmo totali         | `domain/documents/utils/document-totals.util.ts`      | 11   |
-| Opzioni Codice IVA riga  | `domain/documents/utils/document-vat-options.util.ts` | 7    |
+| Fetta                                   | Dove                                                                                                | Test |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------- | ---- |
+| Caratterizzazione totali                | `customer-order-form.component.spec.ts`                                                             | 12   |
+| Caratterizzazione totali                | `goods-receipt-form.component.spec.ts`                                                              | 7    |
+| Algoritmo totali                        | `domain/documents/utils/document-totals.util.ts`                                                    | 11   |
+| Opzioni Codice IVA riga                 | `domain/documents/utils/document-vat-options.util.ts`                                               | 7    |
+| Tastiera delle celle di riga            | `domain/documents/utils/document-line-cell-keys.util.ts`                                            | 8    |
+| Cella a ricerca-e-selezione (IVA, U.M.) | `domain/documents/components/document-line-select-cell/`                                            | 13   |
+| Filtro a precedenza-codice              | `domain/documents/utils/document-line-select-filter.util.ts`                                        | 5    |
+| Unità di misura di riga                 | `domain/documents/components/document-line-unit-cell/` + `domain/products/` (elenco, pannello, API) | 3    |
 
 L'algoritmo dei totali era duplicato e divergeva su un solo punto: come
 si decide se l'IVA di una riga concorre al totale. Nell'Ordine cliente

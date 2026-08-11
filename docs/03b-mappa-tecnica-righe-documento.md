@@ -27,6 +27,13 @@ Prima di tutto il resto, perché il database Supabase è unico e condiviso.
 | Elenco U.M. gestibile dall'operatore                              | **sì** — tabella nuova per-tenant, con RLS        | additiva            |
 | Tutto il resto in questo documento                                | nessuna                                           | —                   |
 
+**✅ Applicate le tre dell'U.M.** _(11/08/2026)_, in due file:
+`20260811200000_unita_di_misura_sulla_riga` (le due colonne) e
+`20260811200100_elenco_unita_di_misura` (la tabella con la RLS). Timestamp
+verificati liberi **prima**, come vuole §13-bis: il database portava già
+`20260811190000` del ramo del collega, quindi queste partono da `202608112000`.
+`npm run check:rls` verde, 62 tabelle.
+
 ---
 
 ## 1. Perimetro reale: nove tipi, cinque componenti
@@ -154,6 +161,16 @@ Altri chiamanti: `commitLineIfSignificant` (bersaglio di tutti i blur di riga), 
 **Non sono legate ai reactive form**: ricevono un valore ed emettono un cambiamento. Funzionano identiche sopra una `FormArray` o sopra un carrello a segnali — è ciò che le rende adottabili anche dove il modello della riga è diverso (§1).
 
 **Uso:** la cella codice in tutte e tre le maschere, la cella prodotto solo in Ordine cliente e Arrivo merce. **Ordine fornitore non usa la cella prodotto**: al suo posto ha un `app-select-menu`.
+
+> **Le celle condivise sono quattro** _(agg. 11/08/2026)_: codice, nome prodotto,
+> ricerca-e-selezione (§4-bis) e unità di misura, che è la terza configurata —
+> testo libero acceso e comando in coda. Il pannello `document-line-suggestions`
+> le serve tutte, ed è anche il posto dove vive la voce-comando in coda fissa.
+>
+> **Solo la cella U.M. ha un livello in più**, e vale la pena sapere perché: la
+> configurazione (testo libero + etichetta del comando) è la stessa in cinque
+> punti, e ripeterla è il modo in cui cinque chiamanti finiscono per divergerne
+> quattro. Ma resta **muta**: le voci le riceve, non se le carica.
 
 **Il pannello suggerimenti — ✅ terza copia chiusa (08/2026).** `document-line-suggestions` era estratto, aveva il suo spec, ma i suoi consumatori erano solo le due card mobile: le due celle desktop portavano la propria `<ul role="listbox">` inline, e lo stesso pannello era duplicato **tre volte**. Ora lo usano anche le due celle; i consumatori sono quattro e la copia inline non esiste più, insieme a ~90 righe di SCSS che differivano solo per il prefisso.
 
@@ -340,7 +357,11 @@ _Nota su (1): `commitCodeLookup` rifiuterebbe da sé su riga agganciata, quindi 
 
 ---
 
-## 4. `app-select-menu` — perché è fuori dal giro
+## 4. `app-select-menu` — perché era fuori dal giro
+
+> **Sezione storica: eseguita.** Il tempo presente qui sotto descrive il codice
+> **prima** della sostituzione, che è ciò che serve a chi rilegge un commit o si
+> chiede perché sia nata una cella nuova. Per lo stato attuale, §4-bis.
 
 **183 istanze in 36 template** _(mis. 08/2026 — è la misura che si muove più in fretta di tutte)_. Di queste, nelle tre maschere da allineare le istanze in gioco sono **quattro**: IVA in Ordine cliente e Arrivo merce, IVA e **prodotto** in Ordine fornitore.
 
@@ -365,6 +386,36 @@ _Nota su (1): `commitCodeLookup` rifiuterebbe da sé su riga agganciata, quindi 
 **Il pattern esistente, da non replicare.** La catena «voce-azione → pannello di gestione» esiste già e funziona, in Arrivo merce per i tipi documento fornitore — ma con un **valore-sentinella** (`'__manage-types__'`) che ogni chiamante deve intercettare. Se un chiamante se ne dimentica, il valore finto finisce nel form control. E la voce riceve `role="option"` dentro `role="listbox"`, quindi viene annunciata come valore selezionabile: difetto di accessibilità già presente in più punti.
 
 **Il filtro non fa quello che serve.** `select-menu-filter.util.ts` cerca la stringa **ovunque** dentro etichetta _e_ descrizione. Digitando `1` si pesca anche un codice IVA la cui descrizione contiene «art. 17» — rumore proprio nel caso a un carattere. Serve un filtro a **precedenza sul codice**: prima le voci il cui codice inizia con quanto digitato, poi il resto. Chi riusa la funzione esistente ottiene il comportamento sbagliato senza accorgersene.
+
+### 4-bis. La cella nuova, com'è oggi _(fatto 11/08/2026)_
+
+`domain/documents/components/document-line-select-cell/` — un `<input>` vero che
+porta l'`id` ricevuto, classifica i tasti con lo **stesso** `classifyLineCellKey`
+delle celle gemelle ed emette esiti. Le quattro istanze di `app-select-menu` in
+gioco sono sparite; le altre **179 non sono state toccate**, che era il punto
+della decisione «sostituzione locale».
+
+I due punti che la specifica diceva di non riusare, e come stanno ora:
+
+- **il filtro** è `document-line-select-filter.util.ts`, a precedenza sul
+  prefisso del codice, col suo spec sul caso «1» che ha fatto nascere la regola.
+  `filterSelectMenuOptions` resta dov'era: serve le liste dove si cerca per nome
+  (varianti, clienti), dove un codice non c'è e la precedenza non significa
+  niente. **I due filtri convivono di proposito.**
+- **la voce-comando** è un `output` (`manageRequested`), non un valore-sentinella,
+  e vive fuori dalla `<ul role="listbox">` come `<button>`: il difetto di
+  accessibilità del pattern vecchio non è stato replicato. Il pannello che apre
+  sta **una volta per maschera**.
+
+Tre cose scoperte applicandola, tutte registrate nella specifica §4.3-bis:
+l'Ordine fornitore componeva le voci IVA in un'altra forma e non ricostruiva
+l'opzione del codice disattivato; la cella ha bisogno di sapere se sta in una
+tabella o in una card (`inColumnCycle`); il pannello di gestione non può stare
+nella cella.
+
+**Il contesto in più su `classifyLineCellKey`:** `arrowsLeaveAtOnce`. Su una
+cella a selezione ←/→ escono al primo colpo (specifica §4.3) — non è una deroga
+ai due tempi, è il confine del loro dominio, come già lo sono i campi numerici.
 
 ---
 
@@ -397,6 +448,31 @@ L'elenco delle unità è una costante compilata (`COMMON_UNIT_OF_MEASURE`, sei v
 **Nessuna maschera scrive l'U.M. di riga sull'anagrafica di un articolo esistente** — non esiste in tutto il repo un `product.update` che tocchi `unitOfMeasure` partendo da una riga. L'anagrafica non viene corrotta.
 
 Ma su tre maschere: una salva e non rimostra, una perde, una è corretta.
+
+### 5.4 ✅ Chiuso su tutte e tre _(11/08/2026)_
+
+Le colonne ci sono (`DocumentLine`, `SupplierOrderLine`), il valore parte e
+torna, e la precedenza è la stessa ovunque: **prima la riga, poi l'anagrafica,
+poi `pz`**.
+
+- **Ordine cliente** — la precedenza era invertita. Siccome
+  `Product.unitOfMeasure` è NOT NULL con default, l'anagrafica vinceva sempre e
+  lo snapshot salvato **non si vedeva mai**: c'era, veniva scritto e riletto, e
+  restava invisibile. È una riga, ed è il punto in cui la regola entra in vigore.
+- **Ordine fornitore** — il fallimento silenzioso è chiuso: la colonna esiste,
+  il DTO la porta, il servizio la scrive.
+- **Arrivo merce** — i controlli erano due (`unitOfMeasure` per la riga non
+  esisteva, `newProductUnitOfMeasure` serviva solo alla creazione articolo) e
+  ora è **uno**: l'unità della riga è anche quella che va in anagrafica quando
+  l'articolo nasce.
+- **Preventivi / DDT / Scarico manuale** — ereditano dalla colonna su
+  `DocumentLine`, come previsto.
+
+L'elenco delle unità vive in `unit_of_measure_options` (per-tenant, forma
+`PaymentOption`) ed è **suggerimento, non autorità**: nessuna FK dalle righe,
+quindi eliminare una voce non ha guardie da superare e non tocca un dato
+salvato. Chi copierà il servizio da quello dei codici IVA non deve aggiungerne
+una per simmetria — c'è uno spec che lo ferma.
 
 ---
 

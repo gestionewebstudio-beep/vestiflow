@@ -253,7 +253,28 @@ La previsione dell'estrazione si è avverata, e in un modo che vale la pena regi
 
 Con la cella arriva anche il resto: il campo «Nome prodotto» **rientra nel giro del Tab** dell'Ordine fornitore (ne era uscito perché una tendina non è un campo su cui il cursore possa atterrare), la lente apre la ricerca articolo a tutta pagina, e «Apri anagrafica» porta alla scheda dell'articolo collegato.
 
-**Restano da sostituire** le celle a tendina di IVA e U.M., in tutte le maschere.
+**✅ Fatto anche per IVA e U.M.** _(11/08/2026)_. La cella condivisa è
+`app-document-line-select-cell`, e le celle sostituite sono cinque per l'IVA
+(tabella e card di Ordine cliente, tabella e card di Arrivo merce, tabella di
+Ordine fornitore) e cinque per l'U.M. Con l'input vero **entrambe rientrano nel
+giro del Tab** in tutte e tre le maschere.
+
+Tre cose emerse applicandola, che la previsione non conteneva:
+
+- **L'Ordine fornitore componeva le voci IVA in un altro modo** — etichetta =
+  riga intera («22 · 22% · Imponibile 22%») invece del solo codice. Sulla cella
+  nuova quella forma toglie senso al filtro a precedenza-codice: ora usa
+  `vatCodeSelectOption` come le sorelle, e non ricostruiva nemmeno l'opzione del
+  codice disattivato (`vatOptionsIncludingSelected`), quindi un ordine vecchio si
+  riapriva con la cella vuota.
+- **La cella deve sapere se sta in una tabella o in una card.** Su card il giro
+  delle colonne non esiste, e trattenere il Tab senza avere dove mandarlo
+  chiuderebbe dentro chi naviga da tastiera: `inColumnCycle` a `false` lo lascia
+  al browser. Invio invece si tiene sempre, o dentro un `<form>` manderebbe il
+  documento in salvataggio.
+- **Il pannello «» Altro…» sta nella maschera, non nella cella.** Montarlo nella
+  cella metterebbe trenta pannelli in un documento da trenta righe, e
+  trascinerebbe un service HTTP dentro le card, che sono dumb per contratto.
 
 ### 4.3-ter Unità di misura — modello dati
 
@@ -281,6 +302,33 @@ Con la cella arriva anche il resto: il campo «Nome prodotto» **rientra nel gir
 **Seed:** dato il testo libero, ci sono probabilmente valori fuori dai sei della costante `COMMON_UNIT_OF_MEASURE`. Il seed include i valori distinti realmente presenti per tenant → **misurare sul database prima di scrivere la migration**. (Con dati di test è banale, ma il passo resta.)
 
 **Verifiche per Claude Code:** (a) conferma struttura `PaymentOption` come modello; (b) `DocumentLine`/`SupplierOrderLine` — aggiungere la colonna U.M.; (c) valori distinti presenti per il seed.
+
+**✅ Fatto** _(11/08/2026)_. Le tre verifiche hanno risposto sì: `PaymentOption`
+è il modello (sette colonne, nessuna FK), le due colonne sono additive, e il
+seed non aveva niente da recuperare — **misurato sul database prima di
+scriverlo**, le uniche unità realmente presenti erano `pz` e `kg`, entrambe già
+fra le sei della costante.
+
+Applicato con due migration (`20260811200000_unita_di_misura_sulla_riga`,
+`20260811200100_elenco_unita_di_misura`), un modulo API
+`unit-of-measure-options` sulla forma di `payment-options`, e la cella U.M. in
+tutti e cinque i punti.
+
+Due scelte prese eseguendo, che non erano scritte:
+
+- **I permessi di scrittura non sono quelli delle voci pagamento.** Quelle
+  stanno dietro `settings.company` perché si configurano una volta; un'unità
+  nasce mentre si scrive una riga, dal comando in coda alla tendina. Chiuderla
+  dietro un permesso di amministrazione renderebbe quel comando visibile e
+  inutile proprio a chi lo incontra: scrive chi gestisce documenti, ordini
+  fornitore o catalogo.
+- **Il gestore delle voci non ha il riordino.** Il seed mette per prime le unità
+  più usate e le nuove nascono in coda; spostare una voce costerebbe due
+  chiamate su un elenco di sei. Da riprendere se l'elenco crescerà.
+
+**In Arrivo merce i controlli erano due** — uno per la riga e uno per l'articolo
+da creare — e sono diventati uno: quando l'articolo nasce, il valore va anche in
+anagrafica, ma è lo stesso dato.
 
 ### 4.4 Frecce ↑ / ↓
 
@@ -754,11 +802,14 @@ Il lavoro ha **tre filoni**: tastiera, celle-a-selezione+U.M., blocco righe. Non
 
 > La cella U.M. **non esiste**: la crea §4.3-bis, che dice "estrarre prima". Se l'U.M. parte prima della cella, la sua cella si scrive da zero e diventa **la terza copia** — esattamente ciò che §4.3-bis vuole evitare. Ordine non negoziabile:
 
-- **B1.** Estrazione del nucleo comune delle celle gemelle + del pannello suggerimenti (`document-line-suggestions`, oggi usato da 2 dei 5 posti).
-- **B2.** Nuova cella **ricerca-e-selezione** su base `date-input` (vero `<input>`, `inputId`, `triggerKeydown`).
-- **B3.** Applicarla alle celle **IVA** e **U.M.** (testo libero: U.M. sì, IVA no).
-- **B4.** Tabella U.M. (modello `PaymentOption` + RLS) e pannello **"» Altro…"** (voce-azione in coda fissa). Registrare la cella nuova in `regole-stile-ui.md` (§10).
-- **DB:** tabella U.M. + RLS; colonna U.M. su `DocumentLine` e `SupplierOrderLine`. Scritte da noi, a mano, avvisando il collega prima di applicarle (database condiviso).
+- **B1.** ✅ _(11/08/2026)_ Estrazione del nucleo comune delle celle gemelle + del pannello suggerimenti (`document-line-suggestions`, oggi usato da 2 dei 5 posti).
+- **B2.** ✅ _(11/08/2026)_ Nuova cella **ricerca-e-selezione** su base `date-input` (vero `<input>`, `inputId`, `triggerKeydown`).
+- **B3.** ✅ _(11/08/2026)_ Applicarla alle celle **IVA** e **U.M.** (testo libero: U.M. sì, IVA no).
+- **B4.** ✅ _(11/08/2026)_ Tabella U.M. (modello `PaymentOption` + RLS) e pannello **"» Altro…"** (voce-azione in coda fissa). Registrare la cella nuova in `regole-stile-ui.md`.
+- **DB:** ✅ tabella U.M. + RLS; colonna U.M. su `DocumentLine` e `SupplierOrderLine`. Scritte a mano e applicate con `npm run prisma:deploy` il 11/08/2026.
+
+> **Il filone B è chiuso.** Resta fuori solo la maschera Fatture, che non usa
+> ancora le celle condivise ed è contesa col ramo fattura elettronica (§2).
 
 **Filone C — Blocco righe:**
 

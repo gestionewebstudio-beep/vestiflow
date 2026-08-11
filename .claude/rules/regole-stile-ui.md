@@ -250,7 +250,8 @@ dal più corretto al più invasivo:
    | `attachments-panel` | `--attachments-gap`, `--attachments-title-size`, `--attachments-item-pad`                                                                                             |
    | `barcode-scanner`   | `--barcode-scanner-w`                                                                                                                                                 |
    | `hover-tooltip`     | `--hover-tooltip-inset`                                                                                                                                               |
-   | celle di riga       | `--doc-code-cell-fg`, `--doc-product-cell-weight`                                                                                                                     |
+   | celle di riga       | `--doc-code-cell-fg`, `--doc-product-cell-weight`, `--doc-select-cell-toggle-w`                                                                                       |
+   | pannello riga       | `--doc-suggestions-z`, `--doc-suggestions-offset`, `--doc-suggestions-inset`, `--doc-suggestions-max-h`, `--doc-suggestions-item-min-h`                               |
 
    **`app-button` ha l'host `display: contents`**: e' il `<button>` interno a
    stare nel flusso del contenitore. `flex` e `grid-column` vanno quindi
@@ -398,6 +399,31 @@ Distinta dalle azioni documento: quella barra riguarda **salvare e uscire**, que
   - **Scansiona** (secondary) a sinistra — icona fotocamera, apre lo scanner
   - **Aggiungi prodotto** (primary) a destra — apre la modale selezione prodotti
 - Le azioni rare (es. «Nuovo prodotto», che crea un articolo da zero) non stanno qui: vivono come ghost compatto sopra la lista righe
+
+### Cella a ricerca-e-selezione (`app-document-line-select-cell`) _(08/2026)_
+
+La cella di riga documento dove il valore si **sceglie da un elenco breve di
+voci con un codice**: Codice IVA, unità di misura. Sostituisce `app-select-menu`
+dentro le righe, e solo lì — le altre 179 istanze del menu restano dove sono.
+
+È un `<input>` vero, non un `<button>` con l'etichetta dentro, e da qui discende
+tutto il resto: porta l'`id` che riceve, quindi il giro del fuoco la raggiunge
+come ogni altro campo, e all'ingresso il valore si può evidenziare.
+
+- **Entri** → valore selezionato, pronto da sovrascrivere.
+- **Digiti** → l'elenco si apre e filtra, **prima per prefisso del codice**, poi
+  per il resto. La voce in cima è quella che Invio sceglie senza guardare: un
+  ordinamento sbagliato lì scrive un valore sbagliato sulla riga.
+- **Invio** prende la voce evidenziata e resta; **Tab** risolve e va al campo
+  dopo; **←/→ escono al primo colpo**, senza il secondo tempo del cursore.
+- **Testo libero** acceso o spento (`freeText`): U.M. sì, IVA no. Sull'insieme
+  chiuso un valore inventato non entra e la cella torna a quello di prima.
+- **«» Altro…»** in coda fissa, **fuori** dall'elenco filtrato e fuori dalla
+  `listbox`: è un comando, non un valore, e arriva da un `output`. Il pannello
+  che apre sta **una volta per maschera**, mai dentro la cella.
+- Su **card** si passa `inColumnCycle="false"`: lì le colonne non esistono e il
+  Tab resta al browser. L'elenco si comporta uguale, e la scelta si prende
+  toccando.
 
 ### Modale selezione prodotti
 
