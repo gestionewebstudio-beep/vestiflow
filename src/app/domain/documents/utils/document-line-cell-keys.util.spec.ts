@@ -73,6 +73,21 @@ describe('classifyLineCellKey', () => {
     });
   });
 
+  // §4.3: sulle celle a ricerca-e-selezione il secondo tempo non esiste. Non è
+  // una deroga al due-tempi, è il confine del suo dominio: dove il valore si
+  // sceglie da un elenco, percorrere il testo con la freccia non porta da
+  // nessuna parte.
+  it('sulle celle a selezione le frecce ←/→ escono al PRIMO colpo', () => {
+    const aSelezione = { ...chiuso, arrowsLeaveAtOnce: true };
+    expect(classifyLineCellKey(tasto('ArrowRight', campo('pz', 0)), aSelezione)).toEqual({
+      kind: 'confirm',
+      advance: true,
+    });
+    expect(classifyLineCellKey(tasto('ArrowLeft', campo('pz', 2)), aSelezione)).toEqual({
+      kind: 'field-retreat',
+    });
+  });
+
   it('Tab conferma e avanza, Shift+Tab torna indietro', () => {
     expect(classifyLineCellKey(tasto('Tab'), chiuso)).toEqual({ kind: 'confirm', advance: true });
     expect(classifyLineCellKey(tasto('Tab', undefined, true), chiuso)).toEqual({

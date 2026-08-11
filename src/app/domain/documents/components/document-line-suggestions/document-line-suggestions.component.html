@@ -1,28 +1,42 @@
-@if (items().length > 0) {
-  <ul
-    class="doc-suggestions"
-    [class.doc-suggestions--above]="placement() === 'above'"
-    role="listbox"
-    [attr.id]="listboxId() || null"
-    [attr.aria-label]="ariaLabel()"
-  >
-    @for (item of items(); track $index; let i = $index) {
-      <li
-        role="option"
-        tabindex="0"
-        class="doc-suggestions__item"
-        [class.doc-suggestions__item--active]="i === activeIndex()"
-        [attr.aria-selected]="i === activeIndex()"
-        (mousedown)="$event.preventDefault()"
-        (click)="picked.emit(i)"
-        (keydown.enter)="pickWithKeyboard($event, i)"
-        (keydown.space)="pickWithKeyboard($event, i)"
+@if (items().length > 0 || tailLabel()) {
+  <div class="doc-suggestions" [class.doc-suggestions--above]="placement() === 'above'">
+    @if (items().length > 0) {
+      <ul
+        class="doc-suggestions__list"
+        role="listbox"
+        [attr.id]="listboxId() || null"
+        [attr.aria-label]="ariaLabel()"
       >
-        <span class="doc-suggestions__title">{{ item.title }}</span>
-        @if (item.detail) {
-          <span class="doc-suggestions__detail">{{ item.detail }}</span>
+        @for (item of items(); track $index; let i = $index) {
+          <li
+            role="option"
+            tabindex="0"
+            class="doc-suggestions__item"
+            [class.doc-suggestions__item--active]="i === activeIndex()"
+            [attr.aria-selected]="i === activeIndex()"
+            (mousedown)="$event.preventDefault()"
+            (click)="picked.emit(i)"
+            (keydown.enter)="pickWithKeyboard($event, i)"
+            (keydown.space)="pickWithKeyboard($event, i)"
+          >
+            <span class="doc-suggestions__title">{{ item.title }}</span>
+            @if (item.detail) {
+              <span class="doc-suggestions__detail">{{ item.detail }}</span>
+            }
+          </li>
         }
-      </li>
+      </ul>
     }
-  </ul>
+    @if (tailLabel(); as tail) {
+      <button
+        type="button"
+        class="doc-suggestions__tail"
+        [class.doc-suggestions__tail--active]="tailActive()"
+        (mousedown)="$event.preventDefault()"
+        (click)="tailPicked.emit()"
+      >
+        {{ tail }}
+      </button>
+    }
+  </div>
 }

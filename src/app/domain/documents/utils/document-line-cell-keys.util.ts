@@ -43,6 +43,21 @@ export interface DocumentLineCellKeyContext {
   /** L'elenco dei suggerimenti è aperto **e** ha voci. */
   readonly suggestionsOpen: boolean;
   readonly activeSuggestionIndex: number;
+  /**
+   * Le frecce ←/→ portano al campo accanto **al primo colpo**, senza il secondo
+   * tempo del cursore (specifica §4.3).
+   *
+   * Serve alle celle a **ricerca-e-selezione**: lì il valore non si scrive
+   * lettera per lettera, si sceglie da un elenco, e percorrere il testo con la
+   * freccia non porta da nessuna parte. Il due-tempi resta il default perché è
+   * la regola dei campi di testo (§4.2), dove uscire al primo colpo renderebbe
+   * impossibile correggere una lettera in mezzo a un nome.
+   *
+   * Non è una deroga al due-tempi: è il confine del suo dominio, come già lo
+   * sono i campi numerici — dove il cursore non si può leggere e `caretAtEdge`
+   * risponde «sono al bordo» per la stessa ragione.
+   */
+  readonly arrowsLeaveAtOnce?: boolean;
 }
 
 /**
@@ -65,11 +80,14 @@ export function classifyLineCellKey(
     return open ? { kind: 'suggestion-move', direction: 'prev' } : { kind: 'row-retreat' };
   }
   // ←/→ a due tempi (§4.2): finché il cursore ha strada dentro il campo la
-  // freccia resta al browser; solo al bordo porta al campo accanto.
-  if (event.key === 'ArrowRight' && !event.shiftKey && caretAtEdge(event.target, 'end')) {
+  // freccia resta al browser; solo al bordo porta al campo accanto. Sulle celle
+  // a selezione il secondo tempo non esiste (§4.3) e si esce subito.
+  const alBordo = (edge: 'start' | 'end'): boolean =>
+    context.arrowsLeaveAtOnce === true || caretAtEdge(event.target, edge);
+  if (event.key === 'ArrowRight' && !event.shiftKey && alBordo('end')) {
     return { kind: 'confirm', advance: true };
   }
-  if (event.key === 'ArrowLeft' && !event.shiftKey && caretAtEdge(event.target, 'start')) {
+  if (event.key === 'ArrowLeft' && !event.shiftKey && alBordo('start')) {
     return { kind: 'field-retreat' };
   }
   if (event.key === 'Enter') {

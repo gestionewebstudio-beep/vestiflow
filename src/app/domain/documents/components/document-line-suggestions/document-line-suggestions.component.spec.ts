@@ -15,14 +15,16 @@ async function setup(
     items: readonly DocumentLineSuggestionItem[];
     activeIndex: number | null;
     placement: 'below' | 'above';
+    tailLabel: string;
   }> = {},
 ) {
   const picked = vi.fn();
+  const tailPicked = vi.fn();
   await render(DocumentLineSuggestionsComponent, {
     inputs: { items: ITEMS, ...inputs },
-    on: { picked },
+    on: { picked, tailPicked },
   });
-  return { picked };
+  return { picked, tailPicked };
 }
 
 describe('DocumentLineSuggestionsComponent', () => {
@@ -69,5 +71,26 @@ describe('DocumentLineSuggestionsComponent', () => {
     await setup({ items: [] });
 
     expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  // §4.3: la voce-comando sta FUORI dall'elenco filtrato. Messa dentro, il
+  // filtro se la mangia al primo carattere — cioè proprio quando serve.
+  it('la coda resta anche quando il filtro ha svuotato l’elenco', async () => {
+    const user = userEvent.setup();
+    const { tailPicked } = await setup({ items: [], tailLabel: '» Altro…' });
+
+    expect(screen.queryByRole('listbox')).toBeNull();
+    await user.click(screen.getByRole('button', { name: '» Altro…' }));
+
+    expect(tailPicked).toHaveBeenCalled();
+  });
+
+  // Un lettore di schermo annuncerebbe un comando come un valore scegliibile:
+  // la coda è un <button>, e sta fuori dalla listbox.
+  it('la coda non è una voce dell’elenco', async () => {
+    await setup({ tailLabel: '» Altro…' });
+
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: '» Altro…' })).toBeVisible();
   });
 });
