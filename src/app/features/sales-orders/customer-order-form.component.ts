@@ -3762,6 +3762,22 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   // ── Testata: select handlers ────────────────────────────────────────────
+  /**
+   * C'è un cliente scelto? Da qui dipende «Scheda cliente», che senza cliente
+   * non ha niente da aprire.
+   *
+   * ⚠️ Tocca `formValue()` come ogni altra lettura del form in questa maschera,
+   * e non è una formalità: il componente è OnPush, e un `FormControl` letto
+   * direttamente nel template non lo sveglia. La condizione rimaneva vera o
+   * falsa da quando la maschera si era disegnata, e il comando compariva —
+   * quando compariva — solo perché qualcos'altro aveva fatto girare il
+   * rilevamento.
+   */
+  protected hasCustomer(): boolean {
+    this.formValue();
+    return !!this.form.controls.customerId.value;
+  }
+
   protected onCustomerSelect(value: string | null): void {
     this.form.controls.customerId.setValue(value ?? '');
     this.form.controls.customerId.markAsTouched();

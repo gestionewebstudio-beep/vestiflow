@@ -275,7 +275,7 @@
                         ></i>
                         {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
                       </button>
-                      @if (form.controls.customerId.value) {
+                      @if (hasCustomer()) {
                         <button
                           type="button"
                           class="doc-panel__field-action"
@@ -562,7 +562,7 @@
                       ></i>
                       {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
                     </button>
-                    @if (form.controls.customerId.value) {
+                    @if (hasCustomer()) {
                       <button
                         type="button"
                         class="doc-form__inline-toggle"

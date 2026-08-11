@@ -3025,6 +3025,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.syncLineFieldAccess();
   }
 
+  /** C'è un fornitore scelto? Tocca `formValue()`: vedi `hasCustomer` in Ordine cliente. */
+  protected hasSupplier(): boolean {
+    this.formValue();
+    return !!this.form.controls.supplierId.value;
+  }
+
   protected openSupplierDetail(): void {
     const supplierId = this.form.controls.supplierId.value;
     if (supplierId) {

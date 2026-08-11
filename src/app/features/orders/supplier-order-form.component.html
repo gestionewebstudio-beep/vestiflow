@@ -78,7 +78,7 @@
                       ></i>
                       {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Crea nuovo fornitore' }}
                     </button>
-                    @if (form.controls.supplierId.value) {
+                    @if (hasSupplier()) {
                       <button
                         type="button"
                         class="doc-panel__field-action"
@@ -186,7 +186,7 @@
                   ></i>
                   {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
                 </button>
-                @if (form.controls.supplierId.value) {
+                @if (hasSupplier()) {
                   <button
                     type="button"
                     class="doc-form__inline-toggle"
