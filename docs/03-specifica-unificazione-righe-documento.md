@@ -17,7 +17,9 @@
 
 ## 0. Impatto database (da leggere per primo)
 
-> Le migration si applicano sul **branch dedicato**, coi dati di test, dove sbagliare non costa. La migration non banale (U.M.) va **concordata col collega** prima di toccare il database condiviso: il codice su un ramo è inerte, ma una migration agisce subito su tutti gli ambienti.
+> **[CORRETTO 11/08/2026]** «Concordare col collega» significa **avvisarlo** che una migration sta per toccare il database condiviso — perché il codice su un ramo è inerte, mentre una migration agisce subito su tutti gli ambienti. **Non** significa che la scriva lui: il lavoro è nostro e si fa qui, sul ramo in corso. Nei riepiloghi la frase era scivolata in «c'è una dipendenza dal collega», e da lì in «si apre un altro ramo»: non era la stessa cosa.
+>
+> Restano le cautele che proteggono le sue tabelle, e non frenano niente: mai `prisma migrate dev` né `db push` né `migrate diff --from-schema-datasource`, SQL scritto a mano, timestamp verificato libero, `npm run prisma:deploy` per applicare.
 
 La maggior parte del lavoro è **frontend puro**. Gli interventi sul database sono pochi e tutti **additivi** (aggiungono, non tolgono né rinominano). In ordine di peso:
 
@@ -756,7 +758,7 @@ Il lavoro ha **tre filoni**: tastiera, celle-a-selezione+U.M., blocco righe. Non
 - **B2.** Nuova cella **ricerca-e-selezione** su base `date-input` (vero `<input>`, `inputId`, `triggerKeydown`).
 - **B3.** Applicarla alle celle **IVA** e **U.M.** (testo libero: U.M. sì, IVA no).
 - **B4.** Tabella U.M. (modello `PaymentOption` + RLS) e pannello **"» Altro…"** (voce-azione in coda fissa). Registrare la cella nuova in `regole-stile-ui.md` (§10).
-- **DB:** tabella U.M. + RLS; colonna U.M. su `DocumentLine` e `SupplierOrderLine`. **Concordare col collega** (database condiviso).
+- **DB:** tabella U.M. + RLS; colonna U.M. su `DocumentLine` e `SupplierOrderLine`. Scritte da noi, a mano, avvisando il collega prima di applicarle (database condiviso).
 
 **Filone C — Blocco righe:**
 
@@ -769,7 +771,7 @@ Il lavoro ha **tre filoni**: tastiera, celle-a-selezione+U.M., blocco righe. Non
 - B e A si incrociano su `app-select-menu`: la cella IVA/U.M. (B2-B3) tocca le stesse maschere della tastiera. Conviene che B1-B2 (estrazione + cella) precedano o accompagnino A3-A5, così ogni maschera riceve la cella nuova quando la tastiera la tocca — non due passaggi sulla stessa maschera.
 - C è il più indipendente: l'ordinamento/drag non dipende dalla cella né dal punto unico. Può procedere in parallelo, con la sola accortezza della migration `lineNumber` concordata.
 
-**Branch dedicato.** Tutte le migration lì, coi dati di test; le non-banali (tabella U.M.) concordate col collega.
+**Dove si fanno.** Sul ramo in corso, coi dati di prova: non ci sono clienti, e rimandare una modifica di schema costa più che farla (decisione del proprietario, 11/08/2026). Il collega va avvisato prima di applicare, non prima di scrivere.
 
 **Documentazione:** aggiornare `CORE-FORM-DOCUMENTO.md`; correggere la contraddizione in `ORDINE-FORNITORE-RIGA.md`; registrare la cella nuova in `regole-stile-ui.md` (§10). Il separatore in `regole-stile-ui.md:455` **non** si tocca.
 
