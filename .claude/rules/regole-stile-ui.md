@@ -686,3 +686,49 @@ Su mobile: la barra diventa un'icona lente; il tap apre la palette full-screen.
 | Desktop largo   | ≥ 1800px    | `max-width` contenuto a 1720px, no stiramento                                                   |
 
 Token breakpoint: solo variabili CSS, mai valori px in `@media`.
+
+### La vista a card di un documento non è la vista stretta: è la vista del dito _(deciso 11/08/2026, da eseguire)_
+
+Il confine unico a `lg` misura la cosa sbagliata. La tabella non vive nella
+finestra: vive nell'area contenuto, **232px più stretta** finché la sidebar è
+aperta — e a 1024px di finestra le restano ~790px per nove-quattordici colonne.
+Ma il problema vero non è lo spazio: è che la tabella si regge su tre cose che
+un tablet non ha — il **passaggio del mouse** (con cui si rileggono le
+intestazioni tagliate, §6), il **puntatore fine** (la maniglia di
+ridimensionamento è larga pochi pixel) e il **Tab**. Un tablet dalla parte della
+tabella non è scomodo: è privato degli attrezzi.
+
+E nessuna linea fissa sulla larghezza chiude la questione, perché separa i pixel
+e non i dispositivi: alzandola a 1280 resta fuori l'iPad Pro in orizzontale
+(1366), alzandola ancora se ne trova un altro sopra.
+
+**Due soglie, non una:**
+
+| Puntatore primario | Card sotto | Perché                                                           |
+| ------------------ | ---------- | ---------------------------------------------------------------- |
+| **fine** (mouse)   | **820px**  | col mouse la tabella resta usabile e scorre; sotto, non basta    |
+| **grosso** (dito)  | **1400px** | appena sopra l'iPad Pro 12.9 in orizzontale, il tablet più largo |
+
+I 2-in-1 si sistemano da soli: tastiera agganciata → puntatore fine → tabella;
+staccata → dito → card.
+
+**Più la scelta manuale**, che è la valvola e non il default: l'operatore può
+imporre la vista e quel dispositivo se la ricorda. Serve ai casi che nessuna
+soglia prende — il monitor touch grande, chi sul portatile preferisce le card.
+Il predefinito deve restare giusto per il dispositivo: un comando manuale rimedia
+alle eccezioni, non a un default che sbaglia di sistema.
+
+**Vincoli per chi esegue:**
+
+- le due condizioni si scrivono **una volta sola**, in un mixin di
+  `styles/_breakpoints.scss`. Se ognuno le riderivasse, la vista doppia
+  tornerebbe alla prima soglia scritta a mano;
+- si muovono **entrambe le direzioni insieme** — i blocchi che accendono il
+  mobile e quelli che accendono il desktop, ~14 fogli. Muoverne una sola accende
+  **tutte e due le viste** nella fascia di mezzo, che è ciò che la specifica
+  righe documento §4.11 vieta: «la stessa riga non esiste due volte»;
+- si muove **tutta la vista documento**, non le sole righe: a `lg` commutano
+  anche la testata comprimibile e gli attrezzi mobili, e spostare solo la tabella
+  darebbe tabella desktop dentro una testata mobile;
+- la **sidebar resta sulla larghezza**: è della shell, e un cassetto a 900px è
+  giusto con qualunque puntatore.
