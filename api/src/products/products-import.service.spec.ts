@@ -1,9 +1,14 @@
 import { BadRequestException, UnprocessableEntityException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TenantPermission } from '../auth/tenant-permission.constants';
+import { canViewPurchaseCosts } from '../auth/user-permissions.util';
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
+import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { ProductsImportService } from './products-import.service';
+
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 
 const CSV_HEADER = `Handle,Title,Body (HTML),Vendor,Type,Tags,Published,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Option3 Name,Option3 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare-at Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / AdWords Grouping,Google Shopping / AdWords Labels,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Variant Tax Code,Cost per item,Status`;
 
@@ -243,5 +248,181 @@ dup-b,Prodotto Doppio,<p>B</p>,Brand,Abbigliamento,,TRUE,Taglia,M,,,,,SKU-DUP-B,
     expect(result.failed).toBe(1);
     expect(result.imported).toBe(0);
     expect(result.products[0]).toMatchObject({ status: 'failed' });
+  });
+
+  /**
+   * Costi d'acquisto in import CSV — il ramo NEGATO di
+   * `catalog.view_purchase_costs`.
+   *
+   * PERCHE' QUESTO BLOCCO ESISTE. La regola dichiarata (§permessi, commento in
+   * products-import.service.ts sopra `canWriteCosts`) e' «chi non vede i costi
+   * non li scrive, nemmeno da CSV»: la guardia forza `purchasePriceMinor` a
+   * `null` sull'articolo e su OGNI variante prima che il payload arrivi a
+   * Prisma. Nessun altro test di questo file guarda quel campo — le asserzioni
+   * esistenti contano righe importate, saltate e fallite. Bastava quindi
+   * togliere il ternario, o aggiungere un campo costo alla `create`, perche' un
+   * commesso importasse i listini d'acquisto del fornitore con la suite tutta
+   * verde: il permesso smetteva di funzionare in silenzio.
+   *
+   * PERIMETRO. Per questa via si CREA soltanto: i prodotti gia' a catalogo
+   * vengono saltati (mai aggiornati), quindi l'import CSV non puo' azzerare un
+   * costo preesistente. La difesa che serve davvero e' che il valore del file
+   * non entri, ed e' quella che i test qui sotto fissano.
+   */
+  describe("costi d'acquisto in import CSV (permesso catalog.view_purchase_costs)", () => {
+    /**
+     * Riga CSV larga quanto l'header, con «Cost per item» valorizzato: e' lo
+     * scenario della regola — un file fornitore che porta i costi dentro un
+     * import fatto da chi non puo' vederli. Le colonne si indirizzano per nome
+     * (non per posizione) cosi' una colonna aggiunta all'header non sposta in
+     * silenzio il costo su un'altra cella.
+     */
+    function csvWithCost(costPerItem: string): string {
+      const columns = CSV_HEADER.split(',');
+      const cells = columns.map(() => '');
+      const set = (header: string, value: string): void => {
+        const index = columns.indexOf(header);
+        if (index < 0) {
+          throw new Error(`Colonna assente nell'header di test: ${header}`);
+        }
+        cells[index] = value;
+      };
+      set('Handle', 'costo-test');
+      set('Title', 'Prodotto Con Costo');
+      set('Published', 'TRUE');
+      set('Option1 Name', 'Taglia');
+      set('Option1 Value', 'S');
+      set('Variant SKU', 'SKU-COSTO-1');
+      set('Variant Price', '29.90');
+      set('Cost per item', costPerItem);
+      set('Status', 'active');
+      return `${CSV_HEADER}\n${cells.join(',')}\n`;
+    }
+
+    /** Solo i campi costo del payload passato a `product.create`. */
+    interface CreateCostPayload {
+      readonly purchasePriceMinor: number | null | undefined;
+      readonly variants: {
+        readonly create: readonly { readonly purchasePriceMinor: number | null | undefined }[];
+      };
+    }
+
+    async function importWithCost(
+      user: UserProfileDto | undefined,
+      costPerItem = '12.50',
+    ): Promise<CreateCostPayload> {
+      const { service, prisma } = createService();
+      prisma.product.create.mockResolvedValue({
+        id: 'prod-costo',
+        name: 'Prodotto Con Costo',
+        variants: [{ sku: 'SKU-COSTO-1' }],
+      });
+
+      const result = await service.importCsv('tenant-1', csvWithCost(costPerItem), {}, user);
+      // Se il prodotto non venisse importato il resto non proverebbe nulla.
+      expect(result.imported).toBe(1);
+
+      const call = prisma.product.create.mock.calls[0]?.[0] as
+        | { data: CreateCostPayload }
+        | undefined;
+      if (!call) {
+        throw new Error('product.create non chiamato: nessun payload da ispezionare.');
+      }
+      return call.data;
+    }
+
+    it('senza il permesso il costo del CSV non entra nella create: articolo e varianti restano a null', async () => {
+      const commesso = testClerkUser();
+      // Presidio della fixture: se un giorno il preset commesso includesse il
+      // permesso, questo test smetterebbe di provare qualcosa senza dirlo.
+      expect(canViewPurchaseCosts(commesso)).toBe(false);
+
+      const data = await importWithCost(commesso);
+
+      // Questa e' l'asserzione che discrimina: tolta la guardia sulla variante
+      // il campo tornerebbe quello del mappatore (`undefined`), non `null`.
+      expect(data.variants.create.length).toBeGreaterThan(0);
+      for (const variant of data.variants.create) {
+        expect(variant.purchasePriceMinor).toBeNull();
+      }
+      // Sull'articolo la guardia scrive null. Oggi ci arriverebbe comunque
+      // anche il ramo permesso, perche' il costo dal CSV non viene letto
+      // affatto (vedi l'ultimo test): l'asserzione fissa il contratto
+      // osservabile — «nessun costo nel payload» — e diventera' discriminante
+      // il giorno in cui la colonna verra' mappata.
+      expect(data.purchasePriceMinor).toBeNull();
+    });
+
+    it('con il permesso la guardia non azzera il costo delle varianti', async () => {
+      const commesso = testClerkUser({ permissions: [TenantPermission.CatalogViewPurchaseCosts] });
+      expect(canViewPurchaseCosts(commesso)).toBe(true);
+
+      const data = await importWithCost(commesso);
+
+      // Con il permesso il costo del file passa intatto. Il contraltare — lo
+      // stesso file importato da chi il permesso non ce l'ha — e' il test
+      // «senza il permesso il costo del CSV non entra nella create»: la
+      // differenza fra i due e' tutta la regola.
+      expect(data.variants.create.length).toBeGreaterThan(0);
+      for (const variant of data.variants.create) {
+        expect(variant.purchasePriceMinor).toBe(1250);
+      }
+    });
+
+    it("il titolare non e' mai mascherato: scrive i costi anche con l'elenco permessi vuoto", async () => {
+      // hasFullTenantAccess: per il titolare l'array salvato e' ignorato.
+      const titolare = testOwnerUser({ permissions: [] });
+      expect(canViewPurchaseCosts(titolare)).toBe(true);
+
+      const data = await importWithCost(titolare);
+
+      expect(data.variants.create.length).toBeGreaterThan(0);
+      for (const variant of data.variants.create) {
+        expect(variant.purchasePriceMinor).toBe(1250);
+      }
+    });
+
+    it("una chiamata senza profilo utente vale come «non puo'»: nessun costo nel payload", async () => {
+      // `user` e' opzionale nella firma: il default deve essere il diniego, non
+      // il permesso. Tutte le altre prove di questo file chiamano cosi'.
+      const data = await importWithCost(undefined);
+
+      expect(data.purchasePriceMinor).toBeNull();
+      for (const variant of data.variants.create) {
+        expect(variant.purchasePriceMinor).toBeNull();
+      }
+    });
+
+    /**
+     * Il verso positivo della regola.
+     *
+     * Fino a poco fa questo test non poteva esistere: la colonna «Cost per
+     * item» non veniva letta da nessuno — nessun alias di intestazione, nessun
+     * campo nella riga — e il costo dichiarato nel file si perdeva prima ancora
+     * di incontrare il permesso. Un catalogo importato da Shopify nasceva con
+     * tutti i costi vuoti, senza un errore che lo dicesse: niente margini,
+     * niente valorizzazione di magazzino.
+     *
+     * Ora la colonna arriva fino in fondo, e questo test è ciò che tiene
+     * insieme le tre parti: alias, campo di riga e mappatura della variante.
+     * Toglierne una qualsiasi lo fa cadere.
+     */
+    it('con il permesso il costo dichiarato nel CSV arriva fino al payload', async () => {
+      const data = await importWithCost(testOwnerUser(), '12.50');
+
+      expect(data.variants.create.length).toBeGreaterThan(0);
+      for (const variant of data.variants.create) {
+        expect(variant.purchasePriceMinor).toBe(1250);
+      }
+    });
+
+    it('una colonna costo vuota non diventa zero: resta assente', async () => {
+      const data = await importWithCost(testOwnerUser(), '');
+
+      // Uno zero implicito sarebbe un dato inventato, e falserebbe i margini.
+      for (const variant of data.variants.create) {
+        expect(variant.purchasePriceMinor).toBeUndefined();
+      }
+    });
   });
 });

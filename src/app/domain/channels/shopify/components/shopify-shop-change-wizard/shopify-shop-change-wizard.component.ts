@@ -150,6 +150,20 @@ export class ShopifyShopChangeWizardComponent {
     this.error.set(null);
   }
 
+  /** Un campo della conferma mostra il proprio errore solo dopo che l'utente l'ha toccato. */
+  protected showConfirmError(controlName: string): boolean {
+    const control =
+      this.confirmForm.controls[controlName as keyof typeof this.confirmForm.controls];
+    return control.invalid && control.touched;
+  }
+
+  /** Un campo del collegamento mostra il proprio errore solo dopo che l'utente l'ha toccato. */
+  protected showConnectError(controlName: string): boolean {
+    const control =
+      this.connectForm.controls[controlName as keyof typeof this.connectForm.controls];
+    return control.invalid && control.touched;
+  }
+
   protected onConfirmPurge(): void {
     const previewData = this.preview();
     if (!previewData?.currentShopDomain || this.actionLoading()) {

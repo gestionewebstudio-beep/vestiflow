@@ -97,7 +97,9 @@ export class ChangePasswordComponent {
     this.form.disable();
 
     this.auth
-      .updatePassword(this.form.controls.password.value)
+      // La sessione resta aperta: il passo dopo è una chiamata autenticata, e
+      // da qui si prosegue verso la dashboard invece di tornare all'accesso.
+      .updatePassword(this.form.controls.password.value, true)
       .pipe(
         switchMap(() => this.passwordChange.confirmPasswordChanged()),
         takeUntilDestroyed(this.destroyRef),

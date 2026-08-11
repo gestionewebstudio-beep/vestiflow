@@ -155,6 +155,11 @@ export class TransferFormComponent implements CanComponentDeactivate {
     // Ogni modifica utente al form marca il documento come «da salvare».
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.markFormDirty();
+      // L'avviso di blocco si spegne appena il motivo non c'è più: tenerlo
+      // acceso su un form ormai valido sarebbe un secondo modo di mentire.
+      if (this._formErrorMessage() !== null && this.form.valid && this.hasStockLine()) {
+        this._formErrorMessage.set(null);
+      }
     });
   }
 
@@ -372,6 +377,14 @@ export class TransferFormComponent implements CanComponentDeactivate {
     const state = this._submitState();
     return state.status === 'error' ? state.error : null;
   });
+
+  /**
+   * Perché il salvataggio non è partito. Senza questo testo il `markAllAsTouched`
+   * + `return` di validateForm() resterebbe muto: l'operatore preme Salva e non
+   * succede niente (modello «Ordine cliente»).
+   */
+  private readonly _formErrorMessage = signal<string | null>(null);
+  protected readonly formErrorMessage = this._formErrorMessage.asReadonly();
 
   // ── Uscita con modifiche non salvate (pattern Ordine fornitore) ─────────────
   protected readonly dirtySinceLastSave = signal(false);
@@ -685,9 +698,43 @@ export class TransferFormComponent implements CanComponentDeactivate {
   private validateForm(): boolean {
     if (this.form.invalid || !this.hasStockLine()) {
       this.form.markAllAsTouched();
+      this._formErrorMessage.set(this.describeInvalidForm());
       return false;
     }
+    this._formErrorMessage.set(null);
     return true;
+  }
+
+  /**
+   * Il motivo del blocco, detto per esteso: «Controlla i campi» non dice a chi
+   * guarda dove guardare. I motivi si sommano, così una sola lettura basta.
+   */
+  private describeInvalidForm(): string {
+    const problems: string[] = [];
+    if (this.form.hasError('sameLocation')) {
+      problems.push('origine e destinazione devono essere due location diverse');
+    } else if (
+      this.form.controls.locationId.invalid ||
+      this.form.controls.targetLocationId.invalid
+    ) {
+      problems.push('scegli la location di origine e quella di destinazione');
+    }
+    if (this.form.controls.documentDate.invalid) {
+      problems.push('indica la data del documento');
+    }
+    if (this.lines.invalid) {
+      problems.push(
+        'completa le righe evidenziate: variante, descrizione e quantità sono obbligatorie',
+      );
+    } else if (!this.hasStockLine()) {
+      // Righe formalmente valide ma nessuna che muova giacenza (es. righe
+      // descrittive caricate da un documento esistente).
+      problems.push('aggiungi almeno una riga con una variante e quantità maggiore di zero');
+    }
+    if (problems.length === 0) {
+      return 'Non è possibile salvare il trasferimento: controlla i campi evidenziati.';
+    }
+    return `Non è possibile salvare il trasferimento: ${problems.join('; ')}.`;
   }
 
   private hasStockLine(): boolean {

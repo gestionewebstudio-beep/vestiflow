@@ -38,6 +38,17 @@
   font-size: var(--text-sm);
 }
 
+.admin-users__field-error {
+  color: var(--color-danger);
+  font-size: var(--text-xs);
+}
+
+// Il bordo colorato accompagna il messaggio: chi scorre il form con lo sguardo
+// trova il campo, chi lo legge trova il motivo.
+.admin-users__input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
 .admin-users__table-wrap {
   overflow: visible;
 }

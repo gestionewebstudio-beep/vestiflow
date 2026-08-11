@@ -261,20 +261,40 @@
                     <td class="doc-form__cell doc-form__cell--editable">
                       <input
                         class="doc-form__input doc-form__input--table"
+                        [class.doc-form__input--invalid]="lineFieldInvalid(i, 'description')"
                         type="text"
                         formControlName="description"
                         aria-label="Descrizione"
+                        [attr.aria-invalid]="lineFieldInvalid(i, 'description') ? 'true' : null"
+                        [attr.aria-describedby]="
+                          lineFieldInvalid(i, 'description') ? 'tr-desc-error-' + i : null
+                        "
                       />
+                      @if (lineFieldInvalid(i, 'description')) {
+                        <p [id]="'tr-desc-error-' + i" class="doc-form__error">
+                          Inserisci una descrizione per la riga.
+                        </p>
+                      }
                     </td>
                     <td class="doc-form__cell doc-form__cell--editable doc-form__num">
                       <input
                         class="doc-form__input doc-form__input--table doc-form__input--num"
+                        [class.doc-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
                         type="number"
                         min="1"
                         step="1"
                         formControlName="quantity"
                         aria-label="Quantità"
+                        [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
+                        [attr.aria-describedby]="
+                          lineFieldInvalid(i, 'quantity') ? 'tr-qty-error-' + i : null
+                        "
                       />
+                      @if (lineFieldInvalid(i, 'quantity')) {
+                        <p [id]="'tr-qty-error-' + i" class="doc-form__error">
+                          La quantità deve essere un numero intero maggiore di zero.
+                        </p>
+                      }
                     </td>
                     <td class="doc-form__cell doc-form__cell--editable">
                       <input
@@ -336,9 +356,19 @@
                     <input
                       [id]="'tr-desc-' + i"
                       class="doc-form__input"
+                      [class.doc-form__input--invalid]="lineFieldInvalid(i, 'description')"
                       type="text"
                       formControlName="description"
+                      [attr.aria-invalid]="lineFieldInvalid(i, 'description') ? 'true' : null"
+                      [attr.aria-describedby]="
+                        lineFieldInvalid(i, 'description') ? 'tr-m-desc-error-' + i : null
+                      "
                     />
+                    @if (lineFieldInvalid(i, 'description')) {
+                      <p [id]="'tr-m-desc-error-' + i" class="doc-form__error">
+                        Inserisci una descrizione per la riga.
+                      </p>
+                    }
                   </div>
 
                   <div class="doc-form__line-field doc-form__line-field--qty">
@@ -346,11 +376,21 @@
                     <input
                       [id]="'tr-qty-' + i"
                       class="doc-form__input doc-form__input--qty"
+                      [class.doc-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
                       type="number"
                       min="1"
                       step="1"
                       formControlName="quantity"
+                      [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
+                      [attr.aria-describedby]="
+                        lineFieldInvalid(i, 'quantity') ? 'tr-m-qty-error-' + i : null
+                      "
                     />
+                    @if (lineFieldInvalid(i, 'quantity')) {
+                      <p [id]="'tr-m-qty-error-' + i" class="doc-form__error">
+                        La quantità deve essere un numero intero maggiore di zero.
+                      </p>
+                    }
                   </div>
 
                   <div class="doc-form__line-field doc-form__line-field--serials">
@@ -404,6 +444,14 @@
           <app-error-state [description]="err.message" />
         }
       </fieldset>
+
+      <!-- Perché il salvataggio non è partito. Senza questa riga il pulsante
+           resta muto (validateForm() marca i campi e torna indietro) e la
+           maschera sembra rotta: qui vale anche il caso «nessuna riga valida»,
+           che nessun campo può segnalare da solo. -->
+      @if (formErrorMessage(); as blockedReason) {
+        <p class="doc-form__submit-error" role="alert">{{ blockedReason }}</p>
+      }
 
       <div class="doc-form__actions">
         <p class="doc-form__actions-note">

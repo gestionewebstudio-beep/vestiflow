@@ -391,6 +391,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
 
+  /**
+   * Perché il salvataggio non è partito, in parole. `validateForm()` usciva
+   * muto su tre condizioni diverse — form invalido, prezzo illeggibile,
+   * nessuna riga valida — e l'utente premeva il pulsante senza vedere nulla.
+   */
+  private readonly _validationError = signal<string | null>(null);
+  protected readonly validationError = this._validationError.asReadonly();
+
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });
   protected readonly saving = computed(() => this._submitState().status === 'saving');
   protected readonly submitError = computed(() => {
@@ -860,9 +868,33 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     return this.form.controls.lines;
   }
 
-  protected fieldInvalid(name: 'customerId' | 'locationId'): boolean {
+  protected fieldInvalid(name: 'customerId' | 'locationId' | 'documentDate'): boolean {
     const control = this.form.controls[name];
     return control.invalid && (control.touched || control.dirty);
+  }
+
+  /**
+   * Un campo di riga si accende in rosso solo dopo che l'utente l'ha toccato
+   * (o dopo il `markAllAsTouched()` del salvataggio): prima sarebbe un
+   * rimprovero a chi non ha ancora scritto niente.
+   */
+  protected lineFieldInvalid(index: number, name: 'description' | 'quantity'): boolean {
+    const control = this.lines.at(index).controls[name];
+    return control.invalid && (control.touched || control.dirty);
+  }
+
+  /**
+   * Prezzo di riga illeggibile o negativo: è la condizione che fa uscire
+   * `validateForm()` senza che nessun validator del form la registri, quindi
+   * senza questo segnale la cella non direbbe nulla.
+   */
+  protected lineUnitPriceInvalid(index: number): boolean {
+    const control = this.lines.at(index).controls.unitPrice;
+    if (!(control.touched || control.dirty) || !control.value.trim()) {
+      return false;
+    }
+    const parsed = parseMoneyInput(control.value, this.currency);
+    return parsed === null || parsed.amountMinor < 0;
   }
 
   protected onCustomerSelect(value: string | null): void {
@@ -1265,9 +1297,40 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private validateForm(): boolean {
     if (this.form.invalid || this.hasInvalidPrice() || !this.hasValidLine()) {
       this.form.markAllAsTouched();
+      this._validationError.set(this.buildValidationMessage());
       return false;
     }
+    this._validationError.set(null);
     return true;
+  }
+
+  /**
+   * Dice cosa manca, non che «qualcosa» manca: il documento è una fattura e
+   * chi la emette deve sapere dove guardare. I campi elencati qui sono anche
+   * evidenziati singolarmente nel template.
+   */
+  private buildValidationMessage(): string {
+    const problems: string[] = [];
+    if (this.form.controls.customerId.invalid) {
+      problems.push('seleziona il cliente');
+    }
+    if (this.form.controls.documentDate.invalid) {
+      problems.push('indica la data del documento');
+    }
+    if (!this.hasValidLine()) {
+      problems.push('aggiungi almeno una riga con descrizione e quantità (minimo 1)');
+    } else if (this.lines.invalid) {
+      problems.push('completa descrizione e quantità delle righe evidenziate');
+    }
+    if (this.hasInvalidPrice()) {
+      problems.push('correggi i prezzi delle righe evidenziate (numeri positivi, es. 12,50)');
+    }
+    if (problems.length === 0) {
+      // Rete di sicurezza: un validator aggiunto in futuro senza voce qui non
+      // deve far tornare la maschera muta.
+      return 'Impossibile salvare: controlla i campi obbligatori del documento.';
+    }
+    return `Impossibile salvare: ${problems.join('; ')}.`;
   }
 
   private hasValidLine(): boolean {
@@ -1299,6 +1362,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           error: {
             kind: AppErrorKind.Validation,
             message:
+              this._validationError() ??
               'Impossibile salvare: controlla cliente e righe (campi obbligatori o valori non validi).',
           },
         });

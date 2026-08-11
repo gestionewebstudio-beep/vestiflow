@@ -197,7 +197,17 @@
           <div class="settings-users__create-fields">
             <label class="settings-users__field">
               <span class="settings-users__label">Nome visualizzato</span>
-              <input class="settings-users__input" type="text" formControlName="displayName" />
+              <input
+                class="settings-users__input"
+                type="text"
+                formControlName="displayName"
+                [attr.aria-invalid]="showCreateError('displayName')"
+              />
+              @if (showCreateError('displayName')) {
+                <span class="settings-users__field-error">
+                  Inserisci il nome del collaboratore (almeno 2 caratteri).
+                </span>
+              }
             </label>
             <label class="settings-users__field">
               <span class="settings-users__label">Email</span>
@@ -206,7 +216,13 @@
                 type="email"
                 formControlName="email"
                 autocomplete="off"
+                [attr.aria-invalid]="showCreateError('email')"
               />
+              @if (showCreateError('email')) {
+                <span class="settings-users__field-error">
+                  Inserisci un indirizzo email valido: sarà quello con cui accede.
+                </span>
+              }
             </label>
             <label class="settings-users__field">
               <span class="settings-users__label">Password iniziale</span>
@@ -215,7 +231,13 @@
                 type="password"
                 formControlName="password"
                 autocomplete="new-password"
+                [attr.aria-invalid]="showCreateError('password')"
               />
+              @if (showCreateError('password')) {
+                <span class="settings-users__field-error">
+                  La password iniziale deve avere almeno 8 caratteri.
+                </span>
+              }
               <span class="settings-users__field-hint">
                 Comunicagliela a voce: al primo accesso dovrà sostituirla con una scelta da lui.
               </span>

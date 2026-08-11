@@ -82,8 +82,13 @@ export class AuthService {
     return this.gateway.requestPasswordReset(email);
   }
 
-  updatePassword(newPassword: string): Observable<void> {
-    return this.gateway.updatePassword(newPassword);
+  /**
+   * `keepSession` serve al primo accesso: dopo aver impostato la password
+   * l'operatore deve proseguire, e serve ancora il token per registrare
+   * sull'API che il promemoria è stato soddisfatto.
+   */
+  updatePassword(newPassword: string, keepSession = false): Observable<void> {
+    return this.gateway.updatePassword(newPassword, keepSession);
   }
 
   private applySession(session: AuthSession | null): void {

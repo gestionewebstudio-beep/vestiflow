@@ -41,6 +41,12 @@ export class SupplierFormFieldsComponent {
     this.buildPaymentOptions('terms', this.formGroup().controls.paymentTerms.value),
   );
 
+  /** Un campo mostra il proprio errore solo dopo che l'utente l'ha toccato. */
+  protected showError(controlName: keyof SupplierFormGroup['controls']): boolean {
+    const control = this.formGroup().controls[controlName];
+    return control.invalid && control.touched;
+  }
+
   protected onVatSelect(value: string | null): void {
     this.formGroup().controls.defaultVatCodeId.setValue(value ?? '');
   }

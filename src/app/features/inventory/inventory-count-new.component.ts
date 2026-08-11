@@ -145,7 +145,8 @@ export class InventoryCountNewComponent {
       });
   }
 
-  protected fieldInvalid(name: 'name' | 'locationId'): boolean {
+  /** Un campo mostra il proprio errore solo dopo che l'utente l'ha toccato. */
+  protected fieldInvalid(name: keyof typeof this.form.controls): boolean {
     const control = this.form.controls[name];
     return control.invalid && control.touched;
   }

@@ -223,6 +223,17 @@ export class AdminTenantUsersPanelComponent {
     this.saveUser(user, { defaultLocationId: next });
   }
 
+  /**
+   * Un campo mostra il proprio errore solo dopo che l'utente l'ha toccato — o
+   * dopo il primo invio, che li marca tutti. Senza questo, il pulsante «Crea
+   * titolare» non faceva niente e sembrava rotto: la validazione falliva e il
+   * metodo usciva in silenzio.
+   */
+  protected showCreateError(controlName: keyof typeof this.createForm.controls): boolean {
+    const control = this.createForm.controls[controlName];
+    return control.invalid && control.touched;
+  }
+
   protected submitCreate(): void {
     this.createForm.markAllAsTouched();
     if (this.createForm.invalid || this.createLoading()) {

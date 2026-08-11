@@ -114,7 +114,14 @@
                       formControlName="documentDate"
                       ariaLabel="Data documento"
                       [fullWidth]="true"
+                      [invalid]="fieldInvalid('documentDate')"
+                      describedBy="sd-m-date-error"
                     />
+                    @if (fieldInvalid('documentDate')) {
+                      <p id="sd-m-date-error" class="doc-form__error">
+                        Inserisci la data del documento (GG/MM/AAAA).
+                      </p>
+                    }
                   </div>
 
                   <div class="doc-panel__field">
@@ -290,7 +297,14 @@
                 ariaLabel="Data documento"
                 [compact]="true"
                 [fullWidth]="true"
+                [invalid]="fieldInvalid('documentDate')"
+                describedBy="sd-date-error"
               />
+              @if (fieldInvalid('documentDate')) {
+                <p id="sd-date-error" class="doc-form__error">
+                  Inserisci la data del documento (GG/MM/AAAA).
+                </p>
+              }
             </div>
 
             <!-- Identificativo del documento: Data + Numero + Serie. Il numero è
@@ -452,6 +466,13 @@
             </div>
           </div>
 
+          <!-- «Nessuna riga valida» e «prezzo illeggibile» non appartengono a un
+               campo solo: senza questo testo il salvataggio si fermava e la
+               maschera non diceva perché. -->
+          @if (validationError(); as blockingIssue) {
+            <p class="doc-form__submit-error" role="alert">{{ blockingIssue }}</p>
+          }
+
           <div class="doc-form__table-wrap">
             <table class="doc-form__table">
               <colgroup>
@@ -507,9 +528,16 @@
                       <input
                         [id]="'sd-desc-' + i"
                         class="doc-form__input doc-form__input--table"
+                        [class.doc-form__input--invalid]="lineFieldInvalid(i, 'description')"
                         type="text"
                         formControlName="description"
                         aria-label="Descrizione"
+                        [attr.aria-invalid]="lineFieldInvalid(i, 'description') ? 'true' : null"
+                        [title]="
+                          lineFieldInvalid(i, 'description')
+                            ? 'Inserisci una descrizione per la riga.'
+                            : null
+                        "
                       />
                     </td>
                     <td
@@ -518,10 +546,17 @@
                       <input
                         [id]="'sd-qty-' + i"
                         class="doc-form__input doc-form__input--table doc-form__input--num"
+                        [class.doc-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
                         type="number"
                         min="1"
                         formControlName="quantity"
                         aria-label="Qtà"
+                        [attr.aria-invalid]="lineFieldInvalid(i, 'quantity') ? 'true' : null"
+                        [title]="
+                          lineFieldInvalid(i, 'quantity')
+                            ? 'La quantità deve essere un numero intero, almeno 1.'
+                            : null
+                        "
                       />
                     </td>
                     <td
@@ -530,11 +565,18 @@
                       <input
                         [id]="'sd-price-' + i"
                         class="doc-form__input doc-form__input--table doc-form__input--num"
+                        [class.doc-form__input--invalid]="lineUnitPriceInvalid(i)"
                         type="text"
                         inputmode="decimal"
                         formControlName="unitPrice"
                         placeholder="0,00"
                         [attr.aria-label]="priceRowLabel()"
+                        [attr.aria-invalid]="lineUnitPriceInvalid(i) ? 'true' : null"
+                        [title]="
+                          lineUnitPriceInvalid(i)
+                            ? 'Prezzo non valido: scrivi un numero positivo, es. 12,50.'
+                            : null
+                        "
                       />
                     </td>
                     <td
@@ -861,6 +903,13 @@
           </div>
         </div>
       </fieldset>
+
+      <!-- Stesso motivo, ripetuto dove sta il pulsante: su un documento lungo
+           il messaggio in cima alle righe resterebbe fuori schermo. È già stato
+           annunciato lassù, qui serve solo agli occhi. -->
+      @if (validationError(); as blockingIssue) {
+        <p class="doc-form__submit-error" aria-hidden="true">{{ blockingIssue }}</p>
+      }
 
       <div class="doc-form__actions">
         <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>

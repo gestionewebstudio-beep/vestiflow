@@ -17,6 +17,17 @@
   font-size: var(--text-sm);
 }
 
+.settings-users__field-error {
+  color: var(--color-danger);
+  font-size: var(--text-xs);
+}
+
+// Il bordo colorato accompagna il messaggio: chi scorre il form con lo sguardo
+// trova il campo, chi lo legge trova il motivo.
+.settings-users__input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
 .settings-users__note,
 .settings-users__muted {
   margin: 0;
