@@ -164,9 +164,13 @@ describe('SalesDocumentFormComponent', () => {
     await user.type(screen.getByLabelText('Descrizione'), 'Maglietta');
   }
 
-  /** Salva: bottone in barra azioni + conferma nel dialogo. */
+  /**
+   * Salva: bottone in barra azioni + conferma nel dialogo. Da 08/2026 il
+   * bottone si chiama «Salva documento» (un nome solo per lo stesso gesto su
+   * tutte le maschere); la conferma nel dialogo resta «Salva».
+   */
   async function save(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-    await user.click(screen.getAllByRole('button', { name: 'Salva' })[0]!);
+    await user.click(screen.getAllByRole('button', { name: 'Salva documento' })[0]!);
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Salva' }));
   }

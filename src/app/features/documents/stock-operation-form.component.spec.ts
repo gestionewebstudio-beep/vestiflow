@@ -182,7 +182,7 @@ describe('StockOperationFormComponent', () => {
 
   /** Salva la rettifica confermata: nessun dialogo, il submit è diretto. */
   async function save(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-    await user.click(screen.getAllByRole('button', { name: 'Salva modifiche' })[0]!);
+    await user.click(screen.getAllByRole('button', { name: 'Salva documento' })[0]!);
   }
 
   /** Il campo Numero della testata (desktop e pannello mobile convivono). */

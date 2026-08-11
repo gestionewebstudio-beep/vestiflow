@@ -616,11 +616,9 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Fornitore' }));
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
 
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    // L'articolo si sceglie dalla cella nome condivisa (il vecchio pulsante
+    // «Articolo» non esiste più): stesso gesto delle altre prove di riga.
+    await scegliArticoloSullaRiga(user);
 
     const cost = screen.getByPlaceholderText('0,00');
     await user.clear(cost);
@@ -630,7 +628,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(await screen.findByRole('option', { name: 'DDT' }));
     await user.type(screen.getAllByLabelText('Numero documento')[0]!, '145');
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     // La data non è stata compilata: va `null`, non `undefined` — in modifica
     // l'assenza del campo significa «lascialo com'è».

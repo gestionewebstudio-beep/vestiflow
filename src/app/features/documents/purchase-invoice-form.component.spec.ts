@@ -168,7 +168,7 @@ describe('PurchaseInvoiceFormComponent', () => {
   }
 
   async function saveInvoice(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getAllByRole('button', { name: 'Salva registrazione' })[0]!);
+    await user.click(screen.getAllByRole('button', { name: 'Salva documento' })[0]!);
   }
 
   async function selectSupplier(user: ReturnType<typeof userEvent.setup>) {
