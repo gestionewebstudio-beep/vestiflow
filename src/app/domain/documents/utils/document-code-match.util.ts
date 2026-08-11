@@ -72,3 +72,43 @@ export function filterExactCodeMatches(
  * di una pagina di ricerca.
  */
 export const DOCUMENT_CODE_MATCH_PAGE_SIZE = 100;
+
+/** Le fonti da cui può venire il codice fornitore di una riga, in ordine. */
+export interface DocumentLineSupplierCodeSources {
+  /**
+   * Il codice che l'operatore ha digitato e con cui l'articolo si è agganciato.
+   * Vince su tutto: è quello che ha davanti agli occhi, sul listino da cui sta
+   * ordinando.
+   */
+  readonly linkedWith?: string | null;
+  /**
+   * Il codice del collegamento con il fornitore **della testata**. Secondo, non
+   * primo: vale quando l'aggancio è avvenuto per altra via (nome, SKU, EAN,
+   * scansione), dove un «codice con cui hai agganciato» non esiste.
+   */
+  readonly ofDocumentSupplier?: string | null;
+}
+
+/**
+ * Quale codice fornitore scrivere nella riga quando si aggancia un articolo.
+ *
+ * ⚠️ **Ciò che NON è una fonte: `VariantSummary.supplierSku`.** Da quando la
+ * ricerca di conferma non filtra più per fornitore, quel campo è il **primo
+ * collegamento in ordine deterministico** — un codice che può appartenere a un
+ * fornitore diverso da quello del documento. Scriverlo nella riga significa
+ * mostrare all'operatore un codice che non ha mai digitato e che al suo
+ * fornitore non dice niente. L'API lo dichiara già nel proprio commento: senza
+ * ricerca e senza fornitore, il codice restituito è arbitrario.
+ *
+ * La regola è la stessa applicata alla lettura — «il codice restituito è quello
+ * che ha fatto scattare la ricerca» — portata alla scrittura, dove era rimasta
+ * indietro. Vale su **Arrivo merce e Ordine fornitore**, gli unici due documenti
+ * con la colonna Cod. fornitore.
+ *
+ * Nessuna fonte disponibile ⇒ stringa vuota, e chi chiama **non deve
+ * sovrascrivere**: meglio un campo vuoto che l'operatore riempie, di un campo
+ * pieno con il codice di qualcun altro.
+ */
+export function supplierCodeForDocumentLine(sources: DocumentLineSupplierCodeSources): string {
+  return sources.linkedWith?.trim() || sources.ofDocumentSupplier?.trim() || '';
+}

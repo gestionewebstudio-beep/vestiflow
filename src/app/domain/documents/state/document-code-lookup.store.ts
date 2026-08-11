@@ -37,6 +37,13 @@ export class DocumentCodeLookupStore {
 
   readonly matches = this._matches.asReadonly();
   readonly activeIndex = this._activeIndex.asReadonly();
+  /**
+   * Da quale campo è stata aperta la scelta. Serve a chi la risolve: prendere
+   * una voce dopo aver digitato un **codice fornitore** non è la stessa cosa
+   * che prenderla dopo uno SKU — nel primo caso il codice digitato è quello con
+   * cui si aggancia, e va scritto nella riga.
+   */
+  readonly field = this._field.asReadonly();
 
   /**
    * Apre la scelta. Sempre sulla prima voce: il fuoco è rimasto nel campo, le

@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 
-import { DOCUMENT_CODE_MATCH_PAGE_SIZE, filterExactCodeMatches } from './document-code-match.util';
+import {
+  DOCUMENT_CODE_MATCH_PAGE_SIZE,
+  filterExactCodeMatches,
+  supplierCodeForDocumentLine,
+} from './document-code-match.util';
 
 function variant(overrides: Partial<VariantSummary> & { variantId: string }): VariantSummary {
   return {
@@ -97,5 +101,25 @@ describe('filterExactCodeMatches', () => {
   // il codice, e sei taglie per cinque colori fanno trenta.
   it('la pagina della ricerca di conferma sta larga', () => {
     expect(DOCUMENT_CODE_MATCH_PAGE_SIZE).toBeGreaterThanOrEqual(100);
+  });
+});
+
+describe('supplierCodeForDocumentLine', () => {
+  it('il codice con cui si è agganciato vince: è quello che l’operatore ha davanti', () => {
+    expect(
+      supplierCodeForDocumentLine({ linkedWith: ' F-100 ', ofDocumentSupplier: 'F-999' }),
+    ).toBe('F-100');
+  });
+
+  it('agganciando per altra via vale il codice del fornitore della testata', () => {
+    expect(supplierCodeForDocumentLine({ ofDocumentSupplier: ' F-999 ' })).toBe('F-999');
+  });
+
+  // Il caso che dà il nome a tutto il blocco: senza nessuna delle due fonti il
+  // campo resta vuoto. Meglio vuoto e riempito a mano, che pieno col codice di
+  // un altro fornitore — che è quello che `summary.supplierSku` porterebbe.
+  it('senza fonti non inventa un codice', () => {
+    expect(supplierCodeForDocumentLine({})).toBe('');
+    expect(supplierCodeForDocumentLine({ linkedWith: '   ', ofDocumentSupplier: null })).toBe('');
   });
 });
