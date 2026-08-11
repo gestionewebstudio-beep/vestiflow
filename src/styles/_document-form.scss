@@ -65,7 +65,6 @@ app-customer-order-form {
   --doc-m-dock-icon: 1.75rem; // 28px — medaglione icona nel dock
   --doc-m-back-h: 2.625rem; // 42px — pulsante Indietro
   --doc-m-include-h: 2.5rem; // 40px — «Includi documento»
-  --doc-m-empty-h: 10rem; // 160px — riquadro dello stato vuoto
   --doc-m-gutter: 0.75rem; // 12px — margine laterale della pagina
   --doc-m-totals-pad: 0.75rem; // 12px — padding della card totali
   --doc-m-notes-min: 5rem; // 80px — note documento: altezza di partenza
@@ -81,7 +80,6 @@ app-customer-order-form {
 
   --doc-m-accent-soft: #e9f2f1; // tinta del medaglione icona
   --doc-m-lines-bg: rgb(255 255 255 / 0.58);
-  --doc-m-empty-bg: rgb(255 255 255 / 0.46);
 }
 
 // Titolo + stato/riferimento sulla stessa riga; il back e' il chip standard
@@ -228,25 +226,21 @@ app-customer-order-form {
 // `display: contents` lascia i figli dentro la griglia/flex del contenitore
 // (il fieldset non genera box: margin/padding/border non servono);
 // l'attributo disabled del fieldset blocca comunque i controlli nativi.
+// Il gruppo dei campi che restano bloccati finché la testata non è completa.
+// Blocca e basta: **non spegne**.
+//
+// Spegneva al 55%, e le conseguenze erano tre. Una tabella intera resa a metà
+// tinta occupava mezzo schermo per non poter essere usata; il gruppo di
+// composizione creato dall'opacità faceva trasparire il piede della tabella
+// sopra la fascia note; e sopra tutto questo il layout mobile di riferimento
+// riaccendeva con `opacity: 1`, perché lì si era già capito che «titolo e
+// stato vuoto vanno letti — sono proprio loro a spiegare cosa fare».
+//
+// Tre regole in fila per tornare al punto di partenza. Ora la regola è una: a
+// testata incompleta le righe **non si mostrano affatto**, e al loro posto c'è
+// uno stato vuoto che dice cosa manca.
 .doc-form__gate-fields {
   display: contents;
-}
-
-.doc-form__gate-fields:disabled > * {
-  opacity: 0.55;
-}
-
-.doc-form__gate-banner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  background-color: var(--color-primary-subtle);
-  border: var(--border-width) solid var(--color-primary);
-  border-radius: var(--radius-md);
 }
 
 // Ultima colonna della riga senza bordo destro, per ogni breakpoint della

@@ -869,21 +869,36 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return !this.form.controls.customerId.value || !this.form.controls.locationId.value;
   });
 
-  /** Testo del banner warning: dice cosa manca per sbloccare le righe. */
-  protected readonly gateBannerMessage = computed(() => {
+  /**
+   * Titolo dello stato vuoto delle righe: dice **cosa manca**, non che manca
+   * qualcosa.
+   *
+   * Prima era il testo di un banner d'avviso sopra una tabella spenta a metà
+   * tinta. Ora è il titolo di ciò che sta al posto della tabella: le righe non
+   * si mostrano affatto finché la testata non è completa, quindi non c'è niente
+   * da sbiadire e niente da spiegare due volte.
+   */
+  protected readonly linesEmptyTitle = computed(() => {
     this.formValue();
+    if (!this.headerGateActive()) {
+      return 'Nessuna riga inserita';
+    }
     const noCustomer = !this.isManualUnload && !this.form.controls.customerId.value;
     const noLocation = !this.form.controls.locationId.value;
     if (noCustomer && noLocation) {
-      return 'Seleziona cliente e location per iniziare ad aggiungere righe.';
+      return 'Scegli il cliente e la location';
     }
     if (noCustomer) {
-      return 'Seleziona il cliente per iniziare ad aggiungere righe.';
+      return 'Scegli il cliente';
     }
-    return this.isManualUnload
-      ? 'Seleziona la location di scarico per iniziare ad aggiungere righe.'
-      : 'Seleziona la location per iniziare ad aggiungere righe.';
+    return this.isManualUnload ? 'Scegli la location di scarico' : 'Scegli la location';
   });
+
+  protected readonly linesEmptyDescription = computed(() =>
+    this.headerGateActive()
+      ? 'Le righe si aggiungono dopo: da qui potrai cercare un articolo, scansionare un codice o includere un altro documento.'
+      : 'Cerca un articolo, scansiona un codice o includi un altro documento.',
+  );
 
   // ── Apertura in sola lettura ─────────────────────────────────────────────
   //

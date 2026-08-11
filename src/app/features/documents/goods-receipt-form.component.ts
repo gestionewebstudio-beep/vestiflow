@@ -561,20 +561,34 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return supplierMissing || locationMissing;
   });
 
-  protected readonly headerGateMessage = computed(() => {
+  /**
+   * Titolo dello stato vuoto delle righe: dice **cosa manca**, non che manca
+   * qualcosa. Stessa forma dell'Ordine cliente: a testata incompleta le righe
+   * non si mostrano affatto, e questo sta al loro posto.
+   */
+  protected readonly linesEmptyTitle = computed(() => {
     this.formValue();
+    if (!this.headerGateActive()) {
+      return 'Nessuna riga inserita';
+    }
     const type = this.form.controls.type.value;
     const supplierRequired = type !== DocumentType.ManualLoad && type !== DocumentType.InitialLoad;
     const supplierMissing = supplierRequired && !this.form.controls.supplierId.value;
     const locationMissing = !this.form.controls.locationId.value;
     if (supplierMissing && locationMissing) {
-      return 'Seleziona fornitore e magazzino di destinazione per compilare il documento.';
+      return 'Scegli il fornitore e il magazzino';
     }
     if (supplierMissing) {
-      return 'Seleziona il fornitore per compilare il documento.';
+      return 'Scegli il fornitore';
     }
-    return 'Seleziona il magazzino di destinazione per compilare il documento.';
+    return 'Scegli il magazzino di destinazione';
   });
+
+  protected readonly linesEmptyDescription = computed(() =>
+    this.headerGateActive()
+      ? 'Le righe si aggiungono dopo: da qui potrai cercare un articolo, scansionare un codice o includere un ordine fornitore.'
+      : 'Cerca un articolo, scansiona un codice o includi un ordine fornitore.',
+  );
 
   // ── Testata mobile a due pannelli (riferimento «Ordine cliente») ──────────
   // Solo testi display-only: concatenano valori già presenti nel form. Lo

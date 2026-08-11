@@ -394,6 +394,21 @@ Le quattro decisioni, prese una per una:
 
 **Mobile: uguale.** Stesso elenco, stesse quattro regole. Cambia solo dove appare — sotto il campo nome della card invece che sotto la cella della tabella — e il fatto che la scelta si prende toccando (§4.10). Il messaggio di vuoto che la card dell'Arrivo merce mostrava è stato tolto: era l'unico punto dell'app dove la regola 2 non valeva.
 
+### 4.13 Prima la testata: le righe non ci sono ancora
+
+**[DECISIONE, 11/08/2026 — Ordine cliente e famiglia, Arrivo merce]**
+
+Un documento nuovo non può avere righe finché non si sa **a chi** e **da quale magazzino**. Finché quei campi mancano:
+
+- **le righe non si mostrano affatto.** Al loro posto c'è uno stato vuoto con l'icona, un titolo che dice **cosa manca** — «Scegli il cliente e la location», «Scegli il fornitore e il magazzino» — e una riga che dice come si riempirà: cercando un articolo, scansionando un codice o includendo un altro documento.
+- appena la testata è completa, le righe compaiono e il documento è pronto.
+
+**Cosa cambia rispetto a prima.** Le righe c'erano già, ma **spente a metà tinta**: una tabella intera, con le sue intestazioni e la sua riga vuota, occupava mezzo schermo per non poter essere usata. Sopra, un avviso ripeteva a parole quello che il grigio già suggeriva. Era poco leggibile e — parole dell'operatore — «quasi disturba».
+
+Non si è scelta la strada dell'altro gestionale, che apre una finestra sopra il documento e chiede il cliente prima di mostrare qualsiasi cosa. La finestra **non fa risparmiare un solo tasto** — scegliere il cliente costa gli stessi gesti dentro o fuori — e ha due costi: va soppressa quando il cliente arriva da un documento incluso e quando si riapre un documento salvato, e le eccezioni a una regola d'ingresso si dimenticano. Qui poi i campi obbligatori sono due, non uno.
+
+**Mobile: uguale.** Stesso stato vuoto, stesso testo, stessa regola. Su mobile era già così — le card non si mostravano e lo stato vuoto spiegava — quindi non è una novità mobile: è il desktop che ha adottato quello che sul telefono era già stato deciso.
+
 ---
 
 ## 5. Difetti da raddrizzare PRIMA di unificare

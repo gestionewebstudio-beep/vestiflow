@@ -752,13 +752,6 @@
           </div>
         }
 
-        @if (headerGateActive()) {
-          <p class="doc-form__gate-banner doc-form__gate-banner--warn" role="status">
-            <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-            {{ gateBannerMessage() }}
-          </p>
-        }
-
         <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
           <section class="doc-form__lines" aria-labelledby="co-lines-title">
             <div class="doc-form__lines-head">
@@ -776,8 +769,12 @@
 
               <!-- Mobile: «Includi documento» accanto al titolo delle righe.
                    Sta dentro il fieldset del gate, quindi si abilita insieme
-                   alle altre azioni sulle righe. Su desktop resta in toolbar. -->
-              @if (includeSourceKinds.length > 0) {
+                   alle altre azioni sulle righe. Su desktop resta in toolbar.
+                   ⚠️ `compactView()` non è di contorno: senza, il pulsante
+                   compariva DUE VOLTE su desktop — qui e nella barra strumenti,
+                   affiancati e identici. Stessa famiglia della «vista sola
+                   viva» (§4.11): un comando, un posto. -->
+              @if (compactView() && includeSourceKinds.length > 0) {
                 <div class="co-lines__include">
                   <app-button type="button" variant="secondary" (click)="openIncludePanel()">
                     Includi documento
@@ -838,7 +835,7 @@
                  della riga i, campo x» non era univoco, e ogni stato condiviso
                  poteva aprirsi nella vista che non si vede.
                  La soglia è la stessa del CSS: nasce da un token solo. -->
-            @if (!compactView()) {
+            @if (!compactView() && !headerGateActive()) {
               <div class="doc-form__table-wrap">
                 <table class="doc-form__table">
                   <colgroup>
@@ -1621,22 +1618,27 @@
             }
 
             <!-- Piede della tabella (mockup v3): conteggio righe a sinistra,
-                 imponibile delle sole righe a destra. -->
-            <div class="doc-form__table-summary">
-              <span>
-                <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
-                · <span class="tabular-nums">{{ totalPiecesCount() }}</span> pezzi
-              </span>
-              <span>
-                Imponibile righe
-                <strong class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</strong>
-              </span>
-            </div>
+                 imponibile delle sole righe a destra. Segue la tabella: dove la
+                 tabella non c'è, non c'è nemmeno il suo piede. -->
+            @if (!compactView() && !headerGateActive()) {
+              <div class="doc-form__table-summary">
+                <span>
+                  <strong class="tabular-nums">{{ validLinesCount() }} righe valide</strong>
+                  · <span class="tabular-nums">{{ totalPiecesCount() }}</span> pezzi
+                </span>
+                <span>
+                  Imponibile righe
+                  <strong class="tabular-nums">{{
+                    formatMoney(documentTotals().linesTotal)
+                  }}</strong>
+                </span>
+              </div>
+            }
 
             <!-- Vista mobile (mockup responsive v3): sotto lg la tabella lascia
                  il posto a una card per riga, che si apre sui campi. Stesse
                  regole e stessi controlli del form: cambia solo la vista. -->
-            @if (compactView()) {
+            @if (compactView() && !headerGateActive()) {
               <div class="co-form__cards" formArrayName="lines">
                 <!-- Finché il documento non ha righe vere la lista resta vuota:
                    niente card placeholder (vedi mobileRowsVisible). -->
@@ -1696,27 +1698,24 @@
               </div>
             }
 
-            <!-- Mobile: finché non c'è nessuna riga la lista non è vuota e basta,
-                 dice cosa serve per riempirla.
-                 ⚠️ `compactView()` non è di contorno: senza, questo blocco e le
-                 azioni qui sotto venivano resi ANCHE su desktop, dove finivano
-                 sopra la fascia note e il riepilogo. È la «vista sola viva» di
-                 §4.11 applicata a ciò che sta intorno alle righe, non solo alle
-                 righe. -->
-            @if (compactView() && !mobileRowsVisible()) {
-              <div class="co-lines__empty">
-                <strong>Nessuna riga inserita</strong>
-                <p>
-                  Dopo aver selezionato cliente e location potrai aggiungere articoli o includere un
-                  altro documento.
-                </p>
-              </div>
+            <!-- Lo stato vuoto delle righe, uno solo per le due viste e per i
+                 due motivi per cui le righe non ci sono:
+                 · la testata non è completa — e allora la tabella NON si mostra
+                   affatto, invece di stare lì spenta a metà tinta;
+                 · la testata c'è ma nessuno ha ancora inserito niente (mobile).
+                 Il titolo dice cosa manca, il testo dice come si riempie. -->
+            @if (headerGateActive() || (compactView() && !mobileRowsVisible())) {
+              <app-empty-state
+                [title]="linesEmptyTitle()"
+                [description]="linesEmptyDescription()"
+                icon="pi-list"
+              />
             }
 
             <!-- Mobile: le due azioni che partono da qui. Le frequenti (cerca e
                  scansiona) stanno nella barra in basso; queste due sono
                  l'articolo fuori catalogo e l'anagrafica nuova. -->
-            @if (compactView()) {
+            @if (compactView() && !headerGateActive()) {
               <div class="co-lines__actions">
                 <button
                   type="button"

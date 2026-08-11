@@ -199,19 +199,23 @@ describe('GoodsReceiptFormComponent', () => {
 
   // Gate compilazione: fornitore + magazzino vanno scelti PRIMA delle righe,
   // altrimenti si inserirebbero articoli in un documento "nullo".
-  it('blocca le righe finché fornitore e magazzino non sono selezionati', async () => {
+  // Cambio dichiarato (11/08/2026): a testata incompleta le righe non sono più
+  // «lì, spente a metà tinta» — non ci sono affatto, e al loro posto c'è uno
+  // stato vuoto che dice cosa manca. Il fieldset disabilitato resta comunque,
+  // perché copre anche i comandi della barra strumenti.
+  it('a testata incompleta le righe non ci sono, e lo stato vuoto dice cosa manca', async () => {
     const { fixture } = await setup();
 
-    const input = screen.getAllByLabelText('Nome prodotto')[0]!;
-    expect(input.closest('fieldset[disabled]')).not.toBeNull();
-    expect(screen.getByText(/Seleziona fornitore e magazzino/i)).toBeVisible();
+    expect(screen.queryAllByLabelText('Nome prodotto')).toHaveLength(0);
+    expect(screen.getByText('Scegli il fornitore e il magazzino')).toBeVisible();
 
     fixture.componentInstance.form.controls.supplierId.setValue('sup-1');
     fixture.componentInstance.form.controls.locationId.setValue('loc-1');
     fixture.detectChanges();
 
+    const input = screen.getAllByLabelText('Nome prodotto')[0]!;
     expect(input.closest('fieldset[disabled]')).toBeNull();
-    expect(screen.queryByText(/Seleziona fornitore e magazzino/i)).toBeNull();
+    expect(screen.queryByText('Scegli il fornitore e il magazzino')).toBeNull();
   });
 
   // Dropdown essenziale: solo i suggerimenti dal catalogo (o il messaggio

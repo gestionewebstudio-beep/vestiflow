@@ -787,13 +787,19 @@
         }
 
         <!-- Banda finale (forma Ordine cliente): note a sinistra, totali a fila
-             di celle a destra con il Totale su fondo brand. Sulle fatture i
-             totali sono definitivi: «stimato» resta solo sui non fiscali. -->
+             di celle a destra con il Totale su fondo brand.
+             Le etichette sono le stesse di ogni altro documento. «Stimato» è
+             caduto (11/08/2026): una proforma ha articoli, quantità, prezzi e
+             aliquote, quindi il numero è esatto quanto quello di una fattura.
+             Che il cliente possa non accettarla è un fatto commerciale, e non
+             lo dice l'etichetta di un totale — in un gestionale un totale o è
+             calcolato o non è, e «stimato» prometteva un'approssimazione che
+             non esiste. -->
         <div class="doc-form__footer-grid">
           <aside class="doc-form__totals-bar" aria-label="Totali documento">
             <dl class="doc-form__totals">
               <div class="doc-form__totals-row">
-                <dt>{{ isSalesInvoice() ? 'Imponibile righe' : 'Imponibile stimato' }}</dt>
+                <dt>Imponibile righe</dt>
                 <dd class="tabular-nums">
                   @if (lineTotals().hasDocumentDiscount) {
                     <span class="doc-form__line-total-gross">{{
@@ -805,7 +811,7 @@
               </div>
               <div class="doc-form__totals-row doc-form__totals-row--field">
                 <dt>
-                  <label for="sd-doc-discount">Sconto extra documento</label>
+                  <label for="sd-doc-discount">Sconto extra</label>
                 </dt>
                 <dd>
                   <input
@@ -828,11 +834,11 @@
                 }
               }
               <div class="doc-form__totals-row">
-                <dt>{{ isSalesInvoice() ? 'IVA' : 'IVA stimata' }}</dt>
+                <dt>IVA</dt>
                 <dd class="tabular-nums">{{ formatMoney(lineTotals().tax) }}</dd>
               </div>
               <div class="doc-form__totals-row doc-form__totals-row--total">
-                <dt>{{ isSalesInvoice() ? 'Totale documento' : 'Totale stimato' }}</dt>
+                <dt>Totale documento</dt>
                 <dd class="tabular-nums">{{ formatMoney(lineTotals().total) }}</dd>
               </div>
             </dl>

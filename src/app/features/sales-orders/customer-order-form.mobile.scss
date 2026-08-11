@@ -149,32 +149,18 @@
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// F3 — sezione righe disabilitata finché mancano cliente/location.
+// F3 — sezione righe a testata incompleta.
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// Qui c'era l'«aspetto in attesa»: opacità ridotta, bordi tratteggiati, testi
+// pallidi sulle card. Non serve più — a testata incompleta le righe non si
+// mostrano affatto, e al loro posto c'è lo stato vuoto che dice cosa manca.
+// Vestire di grigio una cosa che non c'è è lavoro per nessuno.
 @include bp.media-down('lg') {
-  // Aspetto chiaramente «in attesa»: opacità ridotta, bordi tenui tratteggiati,
-  // testi pallidi. Torna normale quando il gate si sblocca (fieldset non più
-  // disabled). Il cosa-fare è nel banner warning sopra la sezione.
-  .co-form .doc-form__gate-fields:disabled {
-    opacity: var(--opacity-disabled);
-  }
-
   .co-form .doc-form__gate-fields:disabled .co-form__mobile-quick {
     border-style: dashed;
     border-color: var(--color-border);
     box-shadow: none;
-  }
-
-  // Finche' manca il cliente le righe non si toccano: le card lo dicono con il
-  // bordo tratteggiato e il testo smorzato, configurate da qui.
-  .co-form .doc-form__gate-fields:disabled .co-form__cards {
-    --co-card-border: var(--border-width) dashed var(--color-border);
-    --co-card-shadow: none;
-    --co-card-fg: var(--color-text-muted);
-  }
-
-  .co-form .doc-form__gate-fields:disabled .doc-form__subtitle {
-    color: var(--color-text-muted);
   }
 }
 

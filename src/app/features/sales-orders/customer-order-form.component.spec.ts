@@ -177,10 +177,15 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
     });
     const comp = view.fixture.componentInstance as unknown as {
       addLine: () => void;
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
       lines: {
         at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
       };
     };
+    // La testata va completata: finché mancano cliente e location le righe non
+    // esistono in NESSUNA delle due viste — al loro posto c'è lo stato vuoto.
+    comp.form.controls['customerId']!.setValue('cus-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
     comp.addLine();
     comp.lines.at(0).controls['productName']!.setValue('Articolo');
     view.fixture.detectChanges();
@@ -226,10 +231,13 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
     const comp = view.fixture.componentInstance as unknown as {
       addLine: () => void;
       toggleLineCard: (i: number) => void;
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
       lines: {
         at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
       };
     };
+    comp.form.controls['customerId']!.setValue('cus-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
     comp.addLine();
     comp.lines.at(0).controls['productName']!.setValue('Articolo');
     comp.toggleLineCard(0);
