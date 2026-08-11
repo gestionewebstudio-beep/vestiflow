@@ -1160,15 +1160,27 @@
                       }
                     </tr>
                   </thead>
-                  <tbody formArrayName="lines">
+                  <!-- Il trascinamento sta sul tbody, e il blocco del documento
+                       lo spegne qui: il fieldset disabilitato ferma i controlli
+                       del form, non il drag & drop, che controllo non e'. -->
+                  <tbody
+                    formArrayName="lines"
+                    cdkDropList
+                    [cdkDropListDisabled]="formReadOnly()"
+                    (cdkDropListDropped)="onLineDrop($event)"
+                  >
                     @for (line of lines.controls; track line; let i = $index) {
                       <tr
                         class="doc-form__table-row"
+                        cdkDrag
+                        [cdkDragStartDelay]="{ touch: 250, mouse: 0 }"
                         [class.doc-form__table-row--active]="lineRowActive(i)"
                         [class.doc-form__table-row--incomplete]="!lineRowComplete(i)"
                         [formGroupName]="i"
                       >
-                        <td class="doc-form__cell--index">
+                        <!-- La cella del numero e' la maniglia: il resto della
+                             riga resta cliccabile per modificare le celle. -->
+                        <td class="doc-form__cell--index doc-form__drag-handle" cdkDragHandle>
                           <div class="doc-form__index-cell">
                             <span class="doc-form__line-move-stack">
                               <button

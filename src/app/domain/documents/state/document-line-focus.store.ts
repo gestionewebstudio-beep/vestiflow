@@ -58,7 +58,7 @@ export interface DocumentLineFocusContract<F extends string> {
 
   /**
    * 8 — Gancio su **ogni cambio riga**, non solo sull'uscita in avanti: in
-   * Arrivo merce `commitLineAndSave` avvolge tanto la discesa quanto la
+   * Arrivo merce `linkLineCodesThen` avvolge tanto la discesa quanto la
    * risalita, e scriverlo come «uscita» produce un'implementazione che funziona
    * in una direzione sola — difetto che si vedrebbe solo risalendo con ↑, il
    * gesto meno provato.

@@ -193,6 +193,7 @@ import {
   type GoodsReceiptLineDraft,
 } from './utils/goods-receipt-line-state.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
+import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -227,6 +228,9 @@ type GoodsReceiptLineFocusField =
   selector: 'app-goods-receipt-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
     FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
@@ -1278,8 +1282,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     if (this.lineHasSignificantProductData(line) || Number(line.controls.quantity.value) > 0) {
-      // Il blur collega i codici digitati; nessun salvataggio parte da qui.
-      this.commitLineAndSave(index);
+      this.linkLineCodesThen(index);
       return;
     }
     this.markFormDirty();
@@ -1473,7 +1476,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   protected advanceToNextLine(index: number): void {
-    this.commitLineAndSave(index, () => {
+    this.linkLineCodesThen(index, () => {
       const nextIndex = index + 1;
       if (nextIndex >= this.lines.length) {
         this.lines.push(this.createLine());
@@ -1487,7 +1490,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (index <= 0) {
       return;
     }
-    this.commitLineAndSave(index, () => {
+    this.linkLineCodesThen(index, () => {
       this.lineFocus.focusLastField(index - 1);
     });
   }
@@ -1633,7 +1636,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // collega i codici digitati alla variante PRIMA che il fuoco si sposti, e la
     // sua asincronia è ciò che dà al DOM il tempo di rendere la riga nuova.
     onRowChange: (index, then) => {
-      this.commitLineAndSave(index, then);
+      this.linkLineCodesThen(index, then);
     },
     isLineEmpty: (index) => {
       const line = this.lines.at(index);
@@ -3139,7 +3142,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     const lastIndex = Math.max(0, this.lines.length - 1);
-    this.commitLineAndSave(lastIndex, () => {
+    this.linkLineCodesThen(lastIndex, () => {
       const line = this.createLine();
       this.applySupplierDefaultsToLine(line);
       this.lines.push(line);
@@ -3308,7 +3311,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const currentQty = Number(line.controls.quantity.value) || 0;
     line.controls.quantity.setValue(currentQty + quantity);
     line.controls.loadsStock.setValue(true);
-    this.commitLineAndSave(targetIndex, () => this.scheduleBarcodeScanFocus());
+    this.linkLineCodesThen(targetIndex, () => this.scheduleBarcodeScanFocus());
   }
 
   private applyUnknownBarcodeScan(code: string, quantity: number): void {
@@ -3328,7 +3331,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         message: `Codice "${code}" non trovato. Completa SKU e nome prodotto sulla riga evidenziata.`,
       },
     });
-    this.commitLineAndSave(targetIndex, () => this.focusLineField(targetIndex, 'sku'));
+    this.linkLineCodesThen(targetIndex, () => this.focusLineField(targetIndex, 'sku'));
   }
 
   private scheduleBarcodeScanFocus(): void {
@@ -3369,6 +3372,31 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.ensureMinimumOneRow();
     this.trimDuplicateTrailingEmptyRows();
     this.markFormDirty();
+  }
+
+  /**
+   * Trascinamento riga (§7.2). Non chiede conferma, a differenza del riordino
+   * per colonna: e' un movimento singolo e visibile, si vede dove la riga
+   * finisce, e chi lo fa sa cosa sta facendo. L'avviso serve al riordino che
+   * ribalta tutto in un colpo.
+   */
+  protected onLineDrop(event: CdkDragDrop<unknown>): void {
+    // Guardia, non ridondanza: il template disabilita gia' il drop su documento
+    // protetto, ma quella e' una riga di binding che si perde in un refactor
+    // senza che niente diventi rosso.
+    if (this.formReadOnly()) {
+      return;
+    }
+    const { previousIndex, currentIndex } = event;
+    if (previousIndex === currentIndex) {
+      return;
+    }
+    const line = this.lines.at(previousIndex);
+    this.lines.removeAt(previousIndex, { emitEvent: false });
+    this.lines.insert(currentIndex, line, { emitEvent: false });
+    this.markFormDirty();
+    // removeAt/insert silenziosi: un giro esplicito riallinea vista e totali.
+    this.lines.updateValueAndValidity();
   }
 
   /**
@@ -4396,11 +4424,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Gesto sulla riga (Invio / aggiungi riga / scansione / blur): collega
-   * eventuali codici digitati e prosegue. NON salva: il documento si
-   * persiste solo con "Salva documento".
+   * Gesto sulla riga (Invio / aggiungi riga / scansione / sfocamento): collega
+   * eventuali codici digitati, poi prosegue con `after`.
+   *
+   * Si chiamava `commitLineAndSave`, e il nome mentiva: nessun salvataggio è
+   * mai partito da qui — il documento si persiste solo col pulsante. Un nome che
+   * promette una scrittura fa esitare chi legge proprio dove servirebbe
+   * scorrere veloce, e fa cercare una persistenza che non esiste.
    */
-  private commitLineAndSave(index: number, after?: () => void): void {
+  private linkLineCodesThen(index: number, after?: () => void): void {
     if (this.formReadOnly()) {
       after?.();
       return;

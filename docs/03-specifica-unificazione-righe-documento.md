@@ -179,7 +179,7 @@ Il file è `document-line-focus.store.ts` → `DocumentLineFocusStore<F extends 
 Note vincolanti:
 
 - **Voce 2 — serve la mappa, non un prefisso.** I suffissi degli id sono irregolari nella stessa maschera (`co-price-` ma `gr-selling-`; `gr-supplier-code-` ma `po-suppcode-`; `co-serials-` ma `gr-serial-` al singolare). Un prefisso+indice non basta.
-- **Voce 8 — il gancio è su OGNI cambio riga, non solo sull'uscita in avanti.** In Arrivo merce `commitLineAndSave` avvolge sia la discesa sia la risalita. Scritto come "uscita", produce un'implementazione che funziona in una direzione sola, e il difetto si vede solo risalendo con ↑ — il gesto meno provato. È anche il posto dove vive il **tempismo del fuoco**: riceve `(riga, poi)` e decide quando chiamare `poi`, così la classe non possiede nessun timer.
+- **Voce 8 — il gancio è su OGNI cambio riga, non solo sull'uscita in avanti.** In Arrivo merce `linkLineCodesThen` (già `commitLineAndSave`) avvolge sia la discesa sia la risalita. Scritto come "uscita", produce un'implementazione che funziona in una direzione sola, e il difetto si vede solo risalendo con ↑ — il gesto meno provato. È anche il posto dove vive il **tempismo del fuoco**: riceve `(riga, poi)` e decide quando chiamare `poi`, così la classe non possiede nessun timer.
 - **Voce 9 — "riga vuota" di Ordine fornitore = nessun articolo selezionato** (decisione presa; nelle altre due il predicato esiste già).
 
 **La vecchia voce 9 — perché è caduta, e cosa NON è caduto con lei** _(verificato 08/2026)_.
@@ -316,12 +316,12 @@ Quindi la regola **morde dove la cella resta un campo**: nessuna corrispondenza 
 
 ⚠️ Va scritto perché, letta senza questo, la regola sembra disattesa proprio nel caso più frequente — e chi la rilegge tra sei mesi «corregge» un comportamento corretto.
 
-- **[DA VERIFICARE]** Ogni maschera "ha una cosa sua": quali gesti (freccia, Invio, Tab dall'ultimo campo) passano oggi da `commitLineAndSave`, per maschera. Serve per intervenire sulla **sola** freccia (§4.5-bis) e sul **solo** Invio senza rompere la registrazione del valore che Tab deve continuare a fare.
+- **[RISOLTO]** La domanda «quali gesti passano da `commitLineAndSave`» è caduta col contratto del punto unico: il gancio di cambio riga (voce 8) è ora esplicito, e il metodo — rinominato `linkLineCodesThen` — è chiamato solo da lì e dallo sfocamento. Serve per intervenire sulla **sola** freccia (§4.5-bis) e sul **solo** Invio senza rompere la registrazione del valore che Tab deve continuare a fare.
 
 ### 4.5-bis La freccia non salva
 
 - Nessuna navigazione da tastiera persiste il documento. Salvataggio **solo col pulsante**.
-- **[VERIFICATO]** `commitLineAndSave` **non salva** (nessuna scrittura HTTP) — collega i codici alla variante e scrive nel reactive form. Il nome **mente**: va rinominato, e vanno ripuliti due commenti su un autosave rimosso a luglio (o chi valuta crederà si tolga una persistenza).
+- **[FATTO 11/08/2026]** `commitLineAndSave` **non salvava** (nessuna scrittura HTTP): collegava i codici alla variante e scriveva nel reactive form. Il nome mentiva, ed è ora **`linkLineCodesThen`** — quello che fa davvero. Ripuliti anche i commenti che citavano un salvataggio inesistente.
 - **[DA VERIFICARE] Tempismo del focus:** la chiamata asincrona interna oggi, per effetto collaterale, darebbe al DOM il tempo di rendere la riga nuova prima del focus. Reso sincrono, la freccia giù sull'ultima riga smetterebbe di dar focus alla riga creata. Le maschere sorelle avrebbero già un `setTimeout` con commento: il tempismo va **ricreato deliberatamente**. (Da confermare sul codice.)
 - **[DA VERIFICARE]** Il metodo sarebbe raggiunto **anche da Invio e da Tab dall'ultimo campo**: per colpire la sola freccia va spezzato. (Vedi §4.5 — conferma per maschera.)
 
