@@ -331,6 +331,22 @@ abbozzo — il giro è completo:
 Quindi sposti, salvi, riapri, e le righe sono dove le hai messe. Chi implementa gli altri
 documenti **copia questo**, non inventa.
 
+> ⚠️ **Fotografia superata dall'11/08/2026.** Quello che segue descriveva lo
+> stato prima del lavoro sulle righe documento. Oggi:
+>
+> - **l'ordinamento per colonna c'è su nove tipi documento su dieci** (manca la
+>   sola Rettifica inventario, in attesa che si decidano le sue colonne), con
+>   l'avviso al primo ordinamento — una volta per sessione di lavoro sul
+>   documento, mai persistito;
+> - **il trascinamento c'è su tutte le maschere righe**, con la maniglia sulla
+>   cella del numero riga;
+> - **`SupplierOrderLine.lineNumber` esiste** (migration scritta a mano
+>   l'11/08/2026, con backfill per posizione) e le quattro letture dell'API
+>   ordinano per quella colonna: l'ordine non è più «giusto per fortuna».
+>
+> Il testo qui sotto, e la tabella «Cosa manca, per documento», restano come
+> fotografia di partenza. **Non sono più lo stato del codice.**
+
 **Nessun documento ordina le righe per colonna.** Zero: quella metà della regola è tutta
 da fare, ovunque.
 

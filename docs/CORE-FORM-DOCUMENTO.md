@@ -109,6 +109,28 @@ un contratto stretto (numero proposto, esito).
 `focusLastLineField`, `focusNextLineField`, `focusPreviousLineField`,
 `advanceToNextLine`, `onLineFieldKeydown`.
 
+> ⚠️ **Superato: estratto l'11/08/2026.** Questa voce diceva «da NON estrarre
+> così com'è» e rimandava «a quando si decide quale delle due navigazioni è
+> quella giusta». La decisione è stata presa — sta in
+> `docs/03-specifica-unificazione-righe-documento.md` — e il punto unico
+> esiste: `DocumentLineFocusStore` in `domain/documents/state/`, classe-campo
+> generica sul tipo del campo, con un contratto di **dieci voci** che la
+> maschera fornisce.
+>
+> **La stima che reggeva il «no» era vecchia**: parlava di due maschere e ~45
+> righe. Erano **tre** maschere e circa **seicento** righe, e divergevano già —
+> le frecce funzionavano in una sola, la guardia di sola-lettura mancava in
+> un'altra, un identificativo puntava a un elemento inesistente. Il timore
+> dell'astrazione prematura era giusto in linea di principio e sbagliato sui
+> numeri: la scelta non era fra estrarre e non estrarre, ma fra un punto solo e
+> la quarta copia.
+>
+> Ciò che ha evitato «la flag che tiene insieme due comportamenti diversi»: le
+> differenze vere sono passate come **dati** (le dieci voci del contratto), non
+> come condizioni dentro la classe.
+>
+> Il testo qui sotto resta per la storia.
+
 **Da NON estrarre così com'è.** È aritmetica su indici di 5-11 righe,
 accoppiata al DOM, e le due versioni divergono davvero: l'Ordine cliente
 risale alla riga precedente inline, l'Arrivo merce delega a
