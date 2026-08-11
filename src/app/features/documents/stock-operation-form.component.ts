@@ -72,6 +72,7 @@ import { DocumentCountersService } from '@domain/documents/services/document-cou
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
+import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -742,7 +743,11 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   }
 
   private persist(): void {
-    if (this.formReadOnly() || this.saving() || !this.validateForm()) {
+    if (this.formReadOnly() || this.saving()) {
+      return;
+    }
+    this.dropTrailingEmptyLines();
+    if (!this.validateForm()) {
       return;
     }
     const raw = this.form.getRawValue();
@@ -974,5 +979,37 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       return err;
     }
     return { kind: AppErrorKind.Unknown, message: 'Operazione non riuscita.' };
+  }
+
+  /**
+   * Le righe vuote in coda si SCARTANO al salvataggio, non bloccano.
+   *
+   * Stessa regola delle altre maschere documento (`domain/`, 11/08/2026). Qui
+   * la riga vuota non nasce dalla navigazione ma dal pulsante «Aggiungi riga»,
+   * e il blocco era anche peggio: ogni riga ha campi obbligatori propri, quindi
+   * una riga aggiunta e lasciata lì rendeva invalido l'intero form — e il
+   * salvataggio usciva **in silenzio**, senza dire perché.
+   *
+   * Vuota = nessun articolo e nessuna descrizione. La quantità non conta: nasce
+   * a 1 da sola.
+   */
+  private dropTrailingEmptyLines(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const indices = trailingEmptyLineIndices(this.lines.length, (index) => {
+      const line = this.lines.at(index);
+      if (!line) {
+        return true;
+      }
+      return !line.controls.variantId.value.trim() && !line.controls.description.value.trim();
+    });
+    if (indices.length === 0) {
+      return;
+    }
+    for (const index of indices) {
+      this.lines.removeAt(index, { emitEvent: false });
+    }
+    this.lines.updateValueAndValidity();
   }
 }
