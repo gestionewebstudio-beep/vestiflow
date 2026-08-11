@@ -776,6 +776,32 @@ _(mis. 08/2026)_
 
 ---
 
+## 13-bis. Migration su database condiviso — due cose imparate sul campo
+
+### La regola operativa: il timestamp si verifica libero PRIMA
+
+_(11/08/2026)_ Il nome della cartella di una migration è la sua identità: Prisma lo registra in `_prisma_migrations` **quando la applica**, e le esegue in ordine **di nome**, non di data reale.
+
+Due migration con lo stesso istante non fanno danni — l'ordine alfabetico del suffisso le separa — ma **dopo l'applicazione il nome non si tocca più**: rinominare la cartella la fa risultare _mancante_ a Prisma, cioè un problema vero al posto di uno estetico.
+
+**Quindi il controllo va fatto prima, e costa un secondo:**
+
+```bash
+ls api/prisma/migrations | grep <AAAAMMGGhhmmss>
+```
+
+È già successo: `20260811120000_supplier_order_line_number` condivide l'istante con `20260811120000_permessi_sezioni_e_documenti`. Resta così, con la nota in testa al suo file SQL — chi ci inciampa deve trovarla lì.
+
+### Da fare prima del primo cliente vero: una baseline sola
+
+Novantaquattro migration, alcune con timestamp doppi, diverse che sono esperimenti di sviluppo — colonne aggiunte e tolte, tentativi rifatti. Finché il database è un banco di prova non costano niente; al primo cliente reale diventano storia che **non si può più riscrivere**.
+
+**Il momento giusto per compattarle in una baseline unica è quello, non adesso**: da qui al primo cliente se ne aggiungeranno altre decine, e compattare ora vorrebbe dire rifarlo dopo. Compattando allora, i timestamp doppi e gli esperimenti spariscono in un colpo solo, e la storia che i clienti si portano dietro parte pulita.
+
+⚠️ Va **concordato col collega**: la baseline riscrive la cartella `migrations/` di entrambi i rami, e va fatta quando i rami sono uniti, non mentre corrono in parallelo.
+
+---
+
 ## 14. Domande ancora aperte
 
 - **Costo dell'estrazione** del nucleo comune delle due celle gemelle e della terza cella: stimato, non misurato.

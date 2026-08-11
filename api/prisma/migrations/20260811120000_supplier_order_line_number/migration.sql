@@ -1,3 +1,17 @@
+-- ⚠️ TIMESTAMP DOPPIO, ed e' voluto lasciarlo cosi'.
+--
+-- `20260811120000` e' lo stesso istante di `20260811120000_permessi_sezioni_e_documenti`.
+-- Non fa danni: Prisma applica le migration in ordine di NOME, e «permessi»
+-- viene prima di «supplier», quindi questa e' andata dopo — come doveva.
+--
+-- Non si rinomina. Il nome della cartella e' registrato in `_prisma_migrations`
+-- quando la migration viene applicata: cambiarlo dopo la fa risultare MANCANTE a
+-- Prisma, cioe' un problema vero al posto di uno estetico. Chi ci inciampa deve
+-- trovare questa nota qui, non doverla ricostruire.
+--
+-- La lezione operativa: il timestamp si verifica libero PRIMA di creare la
+-- cartella. Costa un secondo, e dopo non e' piu' correggibile.
+
 -- Posizione della riga nell'ordine fornitore (1-based), come `document_lines`
 -- ce l'ha da sempre per gli altri sei tipi documento.
 --

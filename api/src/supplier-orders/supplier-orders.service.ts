@@ -178,9 +178,11 @@ export class SupplierOrdersService {
           taxMinor: totals.taxMinor,
           totalMinor: totals.totalMinor,
           expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
-          lines: { create: computedLines.map((line) => this.toLineCreateData(line)) },
+          lines: {
+            create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
+          },
         },
-        include: { lines: true },
+        include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
       return { ...order, linkedDocuments: [] };
     });
@@ -250,9 +252,11 @@ export class SupplierOrdersService {
               : dto.expectedAt
                 ? new Date(dto.expectedAt)
                 : order.expectedAt,
-          lines: { create: computedLines.map((line) => this.toLineCreateData(line)) },
+          lines: {
+            create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
+          },
         },
-        include: { lines: true },
+        include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
       return { ...updated, linkedDocuments: order.linkedDocuments ?? [] };
     });
@@ -273,7 +277,7 @@ export class SupplierOrdersService {
     const updated = await this.prisma.supplierOrder.update({
       where: { id },
       data: { status: SupplierOrderStatus.cancelled },
-      include: { lines: true },
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
     });
     return { ...updated, linkedDocuments: order.linkedDocuments ?? [] };
   }
@@ -354,7 +358,7 @@ export class SupplierOrdersService {
     const order = await this.prisma.supplierOrder.findFirst({
       where: { id, tenantId },
       include: {
-        lines: true,
+        lines: { orderBy: { lineNumber: 'asc' } },
         documents: {
           where: { status: { not: DocumentStatus.cancelled } },
           select: {
@@ -479,10 +483,18 @@ export class SupplierOrdersService {
     });
   }
 
+  /**
+   * `position` e' l'indice della riga nel payload, 1-based: l'ordine in cui le
+   * righe arrivano E' l'ordine del documento. Va scritto, perche' senza il
+   * database le restituisce come gli pare — di norma per inserimento, ma senza
+   * nessuna garanzia.
+   */
   private toLineCreateData(
     line: ComputedOrderLine,
+    position: number,
   ): Prisma.SupplierOrderLineCreateWithoutOrderInput {
     return {
+      lineNumber: position,
       variantId: line.variantId,
       sku: line.sku,
       description: line.description,
