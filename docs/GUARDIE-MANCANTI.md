@@ -13,7 +13,7 @@ Ogni voce porta uno **stato di verifica**, e va preso sul serio:
 | ✅ **VERIFICATO**    | riaperto e ricontrollato a mano sul codice, con le prove qui sotto          |
 | ◻️ **DA VERIFICARE** | risultato dell'analisi, non ricontrollato: **da confermare prima di agire** |
 
-Nove voci, di cui **due verificate a mano** — le due che hanno conseguenze più serie. Le
+Dieci voci, di cui **tre verificate a mano** — quelle che hanno conseguenze più serie. Le
 altre sette sono attendibili ma non confermate: valgono come punti di partenza, non come
 fatti.
 
@@ -298,6 +298,44 @@ mai stata enunciata; gli altri quattro campi sono rimasti scoperti.
 esistente valorizzato e l'importazione ridotta che il pulsante produce davvero, il pacchetto
 scritto non deve contenere valori vuoti per nessun campo che l'importazione non ha letto.
 **Il test fallisce oggi**: è quindi anche la specifica della correzione.
+
+---
+
+## 10. ✅ Il service worker mette in cache l'avvio ma non l'applicazione
+
+_Trovato durante il lavoro sui permessi (11/08/2026), verificato sulla build di
+produzione. Non c'entra con i permessi: è annotato qui e lasciato fuori da quel ramo
+per scelta esplicita — va corretto con una build e una prova offline vera, non a
+occhio._
+
+**Il fatto.** `ngsw-config.json` elenca in `assetGroups` soltanto `index.html`,
+`main-*.js`, `styles-*.css`, il manifest e la favicon. La build di produzione emette
+**213 file `chunk-*.js`**, e la prima riga di `main-*.js` li importa staticamente:
+`import{a as Dt}from"./chunk-5RQIOJQY.js";…`. Il `ngsw.json` generato lo conferma:
+**cinque** URL nell'assetGroup «app», duecentotredici file nella cartella.
+
+**Le due conseguenze**, e la seconda è peggiore della prima:
+
+1. **Offline la PWA non parte affatto.** Non è «le rotte pigre non funzionano»: il
+   service worker serve `index.html` e `main.js` dalla cache, i moduli che il main
+   importa vanno in rete e falliscono. L'applicazione non si avvia.
+2. **Dopo una pubblicazione, un client fermo sulla versione vecchia chiede file che
+   non esistono più.** Con `outputHashing: "all"` e `navigationRequestStrategy:
+"performance"`, chi ha in cache il vecchio `index.html` + `main.js` continua a
+   chiedere al server chunk con l'hash di prima: 404, e avvio fallito. È l'unico
+   meccanismo nel repository per cui un browser può restare su codice più vecchio del
+   server — e produce una pagina che non si apre, non una schermata sbagliata.
+
+**Forma della correzione:** aggiungere i chunk all'assetGroup, e verificare con
+`npm run build` seguito da una prova offline reale (DevTools → Network → Offline,
+ricaricare). Una verifica statica non basta: il file che conta è il `ngsw.json`
+generato, non quello scritto a mano.
+
+**Nota collegata, stesso giro:** `serve:pwa` (`package.json:13`) pubblica il contenuto
+di `dist/` senza dipendere da alcuna build. Chi lo lancia da solo serve qualunque
+artefatto sia rimasto su disco — e se l'ultima build era `production`, quel bundle
+parla con l'API di produzione mentre si crede di provare in locale. La guida operatore
+prescrive i due comandi in coppia; il difetto è che nulla lo fa rispettare.
 
 ---
 
