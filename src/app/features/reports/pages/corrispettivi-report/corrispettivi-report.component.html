@@ -38,13 +38,15 @@
           <i class="pi pi-download" aria-hidden="true"></i>
           Export per commercialista
         </app-button>
-        <app-button
-          variant="primary"
-          [disabled]="!summary() || summary()!.pendingDeliveryCount === 0"
-          (click)="openMarkDelivered()"
-        >
-          Segna consegnato
-        </app-button>
+        @if (canManageFiscalRegister()) {
+          <app-button
+            variant="primary"
+            [disabled]="!summary() || summary()!.pendingDeliveryCount === 0"
+            (click)="openMarkDelivered()"
+          >
+            Segna consegnato
+          </app-button>
+        }
       </div>
     }
   </header>

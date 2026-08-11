@@ -101,31 +101,37 @@ describe('ProductsController', () => {
     } as Express.Multer.File;
     productsImport.importCsv.mockResolvedValue({ imported: 1, skipped: 0, failed: 0, products: [] });
 
-    await controller.importProducts(tenantId, file, { handles: ['handle-a'] });
+    const importer = { id: 'user-1', role: 'owner' } as never;
+    await controller.importProducts(tenantId, importer, file, { handles: ['handle-a'] });
 
+    // L'utente arriva al service: l'import CSV rispetta il permesso sui costi.
     expect(productsImport.importCsv).toHaveBeenCalledWith(
       tenantId,
       'handle,title\n',
       { handles: ['handle-a'] },
+      importer,
     );
   });
 
   it('getById delega al service', async () => {
     products.getById.mockResolvedValue({ id: 'prod-1', name: 'Giacca' });
 
-    await expect(controller.getById(tenantId, 'prod-1')).resolves.toEqual({
+    const user = { id: 'user-1', role: 'owner' } as never;
+    await expect(controller.getById(tenantId, user, 'prod-1')).resolves.toEqual({
       id: 'prod-1',
       name: 'Giacca',
     });
+
   });
 
   it('create delega al service', async () => {
     const dto = { name: 'Nuovo', status: 'active', options: [], variants: [] };
     products.create.mockResolvedValue({ id: 'prod-new' });
 
-    await controller.create(tenantId, { id: 'user-1' } as never, dto as never);
+    const user = { id: 'user-1' } as never;
+    await controller.create(tenantId, user, dto as never);
 
-    expect(products.create).toHaveBeenCalledWith(tenantId, dto);
+    expect(products.create).toHaveBeenCalledWith(tenantId, dto, user);
   });
 
   it('create ricorda la modalità Listini scelta (solo su create)', async () => {
@@ -162,9 +168,10 @@ describe('ProductsController', () => {
     const dto = { name: 'Aggiornato' };
     products.update.mockResolvedValue({ id: 'prod-1', name: 'Aggiornato' });
 
-    await controller.update(tenantId, 'prod-1', dto);
+    const user = { id: 'user-1', role: 'owner' } as never;
+    await controller.update(tenantId, user, 'prod-1', dto);
 
-    expect(products.update).toHaveBeenCalledWith(tenantId, 'prod-1', dto);
+    expect(products.update).toHaveBeenCalledWith(tenantId, 'prod-1', dto, user);
   });
 
   it('delete delega al service', async () => {

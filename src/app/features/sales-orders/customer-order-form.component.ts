@@ -29,8 +29,9 @@ import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
+import type { DocumentPermissionFamily } from '@core/models/tenant-permission.model';
 import {
-  canManageDocuments,
+  canManageDocFamily,
   canViewPurchaseCosts,
 } from '@core/permissions/tenant-permissions.util';
 import { AppErrorKind, isAppError, type AppError } from '@core/models/app-error.model';
@@ -930,8 +931,18 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return notice;
   });
 
+  /** Famiglia della matrice permessi corrispondente alla modalità della maschera. */
+  private readonly permissionFamily: DocumentPermissionFamily =
+    this.formKind === 'quote'
+      ? 'quote'
+      : this.formKind === 'sales-ddt'
+        ? 'sales_ddt'
+        : this.formKind === 'manual-unload'
+          ? 'manual_unload'
+          : 'sales_order';
+
   protected readonly canManageOrders = computed(() =>
-    canManageDocuments(this.authService.currentUser()),
+    canManageDocFamily(this.authService.currentUser(), this.permissionFamily),
   );
 
   /**

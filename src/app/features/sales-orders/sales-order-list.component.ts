@@ -28,7 +28,7 @@ import type { PageMeta } from '@core/models/api.model';
 import { AuthService } from '@core/auth';
 import {
   canExportOperationalData,
-  canManageDocuments,
+  canManageDocFamily,
 } from '@core/permissions/tenant-permissions.util';
 import { SALES_ORDERS_CORRISPETTIVI_CSV_EXPORT_ID } from '@core/export/background-blob-export.constants';
 import { vestiflowExportFilename } from '@core/export/background-blob-export-filename.util';
@@ -308,7 +308,8 @@ export class SalesOrderListComponent {
 
   /** "Nuovo ordine": solo nel registro generale, per chi gestisce documenti. */
   protected readonly canCreateManualOrder = computed(
-    () => !this.isShopifyView() && canManageDocuments(this.authService.currentUser()),
+    () =>
+      !this.isShopifyView() && canManageDocFamily(this.authService.currentUser(), 'sales_order'),
   );
 
   protected readonly pageTitle = computed(() =>
@@ -422,7 +423,9 @@ export class SalesOrderListComponent {
   });
 
   // ── Selezione multipla + eliminazione a due conferme (come Arrivi merce) ──
-  protected readonly canManage = computed(() => canManageDocuments(this.authService.currentUser()));
+  protected readonly canManage = computed(() =>
+    canManageDocFamily(this.authService.currentUser(), 'sales_order'),
+  );
   protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
   protected readonly selectedOrders = computed(() =>
     this.orders().filter((order) => this.selectedIds().has(order.id)),

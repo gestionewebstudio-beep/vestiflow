@@ -20,12 +20,13 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
-  SUPPLIER_ORDERS_VIEW_PERMISSIONS,
+  SUPPLIER_ORDERS_MANAGE_PERMISSIONS,
+  SUPPLIERS_LOOKUP_PERMISSIONS,
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
+  RequireAllPermissionGroups,
   RequireAnyPermissions,
-  RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { documentAttachmentUploadMulterOptions } from '../common/upload/multer-upload.options';
@@ -37,13 +38,11 @@ import { ListSuppliersQueryDto } from './dto/list-suppliers.query.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { UpsertSupplierVariantLinkDto } from './dto/upsert-supplier-variant-link.dto';
 import { SupplierMediaService } from './supplier-media.service';
-import {
-  SuppliersService,
-  type SupplierVariantLinkRow,
-} from './suppliers.service';
+import { SuppliersService, type SupplierVariantLinkRow } from './suppliers.service';
 
 @Controller('suppliers')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
+@RequireAllPermissionGroups([SUPPLIERS_LOOKUP_PERMISSIONS])
 export class SuppliersController {
   constructor(
     private readonly suppliers: SuppliersService,
@@ -52,13 +51,13 @@ export class SuppliersController {
 
   /** Elenco completo (select inline ordini/arrivi merce). */
   @Get('all')
-  @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
+  @RequireAnyPermissions(SUPPLIERS_LOOKUP_PERMISSIONS)
   listAll(@CurrentTenant() tenantId: string): Promise<SupplierView[]> {
     return this.suppliers.listAll(tenantId);
   }
 
   @Get()
-  @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
+  @RequireAnyPermissions(SUPPLIERS_LOOKUP_PERMISSIONS)
   list(
     @CurrentTenant() tenantId: string,
     @Query() query: ListSuppliersQueryDto,
@@ -67,13 +66,13 @@ export class SuppliersController {
   }
 
   @Get('preview-code')
-  @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
+  @RequireAnyPermissions(SUPPLIERS_LOOKUP_PERMISSIONS)
   previewCode(@CurrentTenant() tenantId: string): Promise<{ readonly code: string }> {
     return this.suppliers.previewNextCode(tenantId);
   }
 
   @Get(':id')
-  @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
+  @RequireAnyPermissions(SUPPLIERS_LOOKUP_PERMISSIONS)
   getById(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -82,16 +81,13 @@ export class SuppliersController {
   }
 
   @Get(':id/attachments')
-  @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
-  listAttachments(
-    @CurrentTenant() tenantId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  @RequireAnyPermissions(SUPPLIERS_LOOKUP_PERMISSIONS)
+  listAttachments(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.supplierMedia.listAttachments(tenantId, id);
   }
 
   @Post(':id/attachments')
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   @UseInterceptors(FileInterceptor('file', documentAttachmentUploadMulterOptions))
   uploadAttachment(
     @CurrentTenant() tenantId: string,
@@ -103,7 +99,7 @@ export class SuppliersController {
   }
 
   @Delete(':id/attachments/:attachmentId')
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteAttachment(
     @CurrentTenant() tenantId: string,
@@ -114,13 +110,13 @@ export class SuppliersController {
   }
 
   @Post()
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   create(@CurrentTenant() tenantId: string, @Body() dto: CreateSupplierDto): Promise<SupplierView> {
     return this.suppliers.create(tenantId, dto);
   }
 
   @Patch(':id')
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   update(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -130,7 +126,7 @@ export class SuppliersController {
   }
 
   @Delete(':id')
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   async delete(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -140,16 +136,17 @@ export class SuppliersController {
   }
 
   @Get(':id/variant-links')
-  @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
+  @RequireAnyPermissions(SUPPLIERS_LOOKUP_PERMISSIONS)
   listVariantLinks(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SupplierVariantLinkRow[]> {
-    return this.suppliers.listVariantLinksBySupplier(tenantId, id);
+    return this.suppliers.listVariantLinksBySupplier(tenantId, id, user);
   }
 
   @Post('variant-links')
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   upsertVariantLink(
     @CurrentTenant() tenantId: string,
     @Body() dto: UpsertSupplierVariantLinkDto,
@@ -158,7 +155,7 @@ export class SuppliersController {
   }
 
   @Delete('variant-links/:linkId')
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   async deleteVariantLink(
     @CurrentTenant() tenantId: string,
     @Param('linkId', ParseUUIDPipe) linkId: string,

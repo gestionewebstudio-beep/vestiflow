@@ -13,6 +13,7 @@ import unzipper from 'unzipper';
 
 import type { User } from '@prisma/client';
 import { SupabaseService } from '../../auth/supabase.service';
+import { PlatformAdminService } from '../../common/platform-admin/platform-admin.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   TENANT_BACKUP_ATTACHMENTS_DIR,
@@ -37,6 +38,7 @@ export class TenantBackupImportService {
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
     private readonly config: ConfigService,
+    private readonly platformAdmin: PlatformAdminService,
   ) {}
 
   async importFromZipBuffer(
@@ -74,7 +76,7 @@ export class TenantBackupImportService {
             if (rows.length === 0) {
               continue;
             }
-            await this.createEntityRows(tx, key, rows);
+            await this.createEntityRows(tx, key, rows, tenantId);
           }
         },
         { timeout: 300_000, maxWait: 30_000 },
@@ -295,10 +297,36 @@ export class TenantBackupImportService {
     if (!row) {
       return;
     }
-    const { id: _id, createdAt: _c, ...rest } = row;
+    // Anagrafica e preferenze sì; NON i termini di contratto
+    // (`licensedLocationCount`, i flag di sblocco sedi): quelli li decide
+    // l'admin di piattaforma, e un file caricato dal cliente non li tocca.
+    const allowed = [
+      'name',
+      'channelProfile',
+      'legalName',
+      'vatNumber',
+      'fiscalCode',
+      'phone',
+      'pec',
+      'sdiCode',
+      'iban',
+      'addressLine1',
+      'addressLine2',
+      'city',
+      'province',
+      'postalCode',
+      'countryCode',
+      'updatedAt',
+    ] as const;
+    const data: Record<string, unknown> = {};
+    for (const key of allowed) {
+      if (row[key] !== undefined) {
+        data[key] = row[key];
+      }
+    }
     await tx.tenant.update({
       where: { id: tenantId },
-      data: rest as never,
+      data: data as never,
     });
   }
 
@@ -308,6 +336,10 @@ export class TenantBackupImportService {
     currentUser: User,
     rows: Record<string, unknown>[],
   ): Promise<void> {
+    // Il file arriva dal cliente e può essere modificato prima di essere
+    // ricaricato: nessun campo passa senza essere stato nominato qui (§sicurezza).
+    this.assertNoPlatformAdminEmails(rows);
+
     const backupSelf = rows.find(
       (row) =>
         typeof row['authUserId'] === 'string' &&
@@ -323,16 +355,77 @@ export class TenantBackupImportService {
 
     if (others.length > 0) {
       await tx.user.createMany({
-        data: others.map((row) => ({ ...row, tenantId })) as never[],
+        data: others.map((row) => ({
+          ...this.pickUserColumns(row),
+          ...(typeof row['id'] === 'string' ? { id: row['id'] } : {}),
+          ...(typeof row['authUserId'] === 'string' ? { authUserId: row['authUserId'] } : {}),
+          ...(typeof row['email'] === 'string' ? { email: row['email'] } : {}),
+          tenantId,
+        })) as never[],
       });
     }
 
     if (backupSelf) {
-      const { id: _id, ...rest } = backupSelf;
+      // Identità di chi importa: MAI dal file. `email` decide l'admin di
+      // piattaforma (jwt-auth.guard) e `authUserId` lega il profilo a Supabase:
+      // riscriverli dal backup permetterebbe a un titolare di elevarsi.
       await tx.user.update({
         where: { id: currentUser.id },
-        data: { ...rest, tenantId, id: currentUser.id } as never,
+        data: {
+          ...this.pickUserColumns(backupSelf),
+          tenantId,
+          id: currentUser.id,
+          email: currentUser.email,
+          authUserId: currentUser.authUserId,
+        } as never,
       });
+    }
+  }
+
+  /**
+   * Campi di `User` ripristinabili da backup. L'elenco è esplicito per
+   * costruzione: `id`, `tenantId`, `email` e `authUserId` non compaiono perché
+   * sono identità, non dati di negozio, e vengono decisi dal chiamante.
+   */
+  private pickUserColumns(row: Record<string, unknown>): Record<string, unknown> {
+    const allowed = [
+      'displayName',
+      'role',
+      'avatarUrl',
+      'avatarStoragePath',
+      'isActive',
+      'hasAllLocationsAccess',
+      'defaultLocationId',
+      'permissions',
+      'mustChangePassword',
+      'createdAt',
+      'updatedAt',
+    ] as const;
+    const picked: Record<string, unknown> = {};
+    for (const key of allowed) {
+      if (row[key] !== undefined) {
+        picked[key] = row[key];
+      }
+    }
+    return picked;
+  }
+
+  /**
+   * Un'email della lista PLATFORM_ADMIN_EMAILS in un backup di tenant è sempre
+   * un tentativo di scalata: l'admin di piattaforma si riconosce dall'email del
+   * profilo, e nessun cliente ha motivo di avere quella riga nei propri dati.
+   */
+  private assertNoPlatformAdminEmails(rows: Record<string, unknown>[]): void {
+    const offending = rows.some(
+      (row) => typeof row['email'] === 'string' && this.platformAdmin.isPlatformAdmin(row['email']),
+    );
+    if (offending) {
+      this.logger.error(
+        'Import backup rifiutato: il file contiene un utente con email di amministratore piattaforma.',
+      );
+      throw new BadRequestException(
+        'Il backup contiene un utente non valido per questo negozio. Import annullato.',
+      );
     }
   }
 
@@ -340,8 +433,12 @@ export class TenantBackupImportService {
     tx: PrismaTx,
     key: TenantBackupEntityFile,
     rows: Record<string, unknown>[],
+    tenantId: string,
   ): Promise<void> {
-    const data = rows as never[];
+    // Il file lo fornisce il cliente: se `tenantId` passasse così com'è, un
+    // backup ritoccato scriverebbe righe dentro il negozio di un ALTRO cliente
+    // (l'id altrui è visibile negli URL degli allegati). Si impone sempre.
+    const data = rows.map((row) => ({ ...row, tenantId })) as never[];
     switch (key) {
       case 'stores':
         await tx.store.createMany({ data });
@@ -465,7 +562,7 @@ export class TenantBackupImportService {
     }
   }
 
-  private async restoreAttachments(tempDir: string, _tenantId: string): Promise<number> {
+  private async restoreAttachments(tempDir: string, tenantId: string): Promise<number> {
     const client = this.supabase.getStorageClient();
     if (!client) {
       return 0;
@@ -484,7 +581,7 @@ export class TenantBackupImportService {
     for (const bucket of buckets) {
       const bucketDir = join(attachmentsRoot, bucket);
       try {
-        uploaded += await this.uploadAttachmentTree(client, bucket, bucketDir, bucketDir);
+        uploaded += await this.uploadAttachmentTree(client, bucket, bucketDir, bucketDir, tenantId);
       } catch (error) {
         this.logger.warn(`Restore storage ${bucket}: ${error instanceof Error ? error.message : error}`);
       }
@@ -498,6 +595,7 @@ export class TenantBackupImportService {
     bucket: string,
     bucketRootDir: string,
     currentDir: string,
+    tenantId: string,
   ): Promise<number> {
     const { readdir, stat, readFile } = await import('node:fs/promises');
     let count = 0;
@@ -513,7 +611,7 @@ export class TenantBackupImportService {
       const fullPath = join(currentDir, entry);
       const info = await stat(fullPath);
       if (info.isDirectory()) {
-        count += await this.uploadAttachmentTree(client, bucket, bucketRootDir, fullPath);
+        count += await this.uploadAttachmentTree(client, bucket, bucketRootDir, fullPath, tenantId);
         continue;
       }
 
@@ -521,6 +619,19 @@ export class TenantBackupImportService {
         .slice(bucketRootDir.length + 1)
         .split(/[/\\]/)
         .join('/');
+
+      // Ogni oggetto dello Storage vive sotto la cartella del proprio tenant
+      // (vedi product-media/document-attachments/user-avatars). Con `upsert`
+      // attivo, un percorso che punta altrove SOVRASCRIVE i file di un altro
+      // cliente: si rifiuta, non si "corregge".
+      if (objectPath !== `${tenantId}` && !objectPath.startsWith(`${tenantId}/`)) {
+        this.logger.error(
+          `Backup rifiutato per ${bucket}: percorso fuori dal negozio corrente (${objectPath}).`,
+        );
+        throw new BadRequestException(
+          'Il backup contiene allegati che non appartengono a questo negozio. Import annullato.',
+        );
+      }
 
       const buffer = await readFile(fullPath);
       const { error } = await client.storage.from(bucket).upload(objectPath, buffer, {

@@ -17,7 +17,7 @@ export class AccountantRegisterController {
   constructor(private readonly accountantRegister: AccountantRegisterService) {}
 
   @Get('summary')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequirePermissions(TenantPermission.SectionReports)
   getSummary(
     @CurrentTenant() tenantId: string,
     @Query() query: AccountantRegisterQueryDto,

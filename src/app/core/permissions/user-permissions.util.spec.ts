@@ -27,7 +27,7 @@ describe('user-permissions.util (FE)', () => {
       hasTenantPermission(
         {
           role: UserRole.Clerk,
-          permissions: ['settings.integrations', TenantPermission.ReportsView],
+          permissions: ['settings.integrations', TenantPermission.SectionReports],
         },
         TenantPermission.InventoryManage,
       ),
@@ -36,9 +36,9 @@ describe('user-permissions.util (FE)', () => {
       hasTenantPermission(
         {
           role: UserRole.Clerk,
-          permissions: ['settings.integrations', TenantPermission.ReportsView],
+          permissions: ['settings.integrations', TenantPermission.SectionReports],
         },
-        TenantPermission.ReportsView,
+        TenantPermission.SectionReports,
       ),
     ).toBe(true);
   });

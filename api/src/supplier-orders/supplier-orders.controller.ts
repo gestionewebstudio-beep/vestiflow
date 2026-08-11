@@ -17,12 +17,13 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
+  SUPPLIER_ORDERS_MANAGE_PERMISSIONS,
   SUPPLIER_ORDERS_VIEW_PERMISSIONS,
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
+  RequireAllPermissionGroups,
   RequireAnyPermissions,
-  RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
@@ -39,6 +40,7 @@ import {
 
 @Controller('supplier-orders')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
+@RequireAllPermissionGroups([[TenantPermission.SectionSuppliers]])
 export class SupplierOrdersController {
   constructor(
     private readonly supplierOrders: SupplierOrdersService,
@@ -93,7 +95,7 @@ export class SupplierOrdersController {
   }
 
   @Post()
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   create(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -103,7 +105,7 @@ export class SupplierOrdersController {
   }
 
   @Patch(':id')
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   update(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -114,7 +116,7 @@ export class SupplierOrdersController {
   }
 
   @Post(':id/cancel')
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   cancel(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -124,7 +126,7 @@ export class SupplierOrdersController {
   }
 
   @Delete(':id')
-  @RequirePermissions(TenantPermission.SupplierOrdersManage)
+  @RequireAnyPermissions(SUPPLIER_ORDERS_MANAGE_PERMISSIONS)
   delete(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,

@@ -210,9 +210,9 @@ export class DocumentService {
     if (excludeInvoiceId) params = params.set('excludeInvoiceId', excludeInvoiceId);
 
     return this.http
-      .get<
-        readonly LinkableGoodsReceiptApiRow[]
-      >(this.url('/documents/linkable-goods-receipts'), { params })
+      .get<readonly LinkableGoodsReceiptApiRow[]>(this.url('/documents/linkable-goods-receipts'), {
+        params,
+      })
       .pipe(
         timeout(HTTP_TIMEOUT_MS),
         map((rows) =>
@@ -341,7 +341,7 @@ export class DocumentService {
    */
   getPriceModePreference(type: DocumentType): Observable<boolean> {
     return this.http
-      .get<{ pricesIncludeVat: boolean }>(this.url(`/documents/price-mode-preference/${type}`))
+      .get<{ pricesIncludeVat: boolean }>(this.url(`/users/me/document-price-mode/${type}`))
       .pipe(
         timeout(HTTP_TIMEOUT_MS),
         map((response) => response.pricesIncludeVat),

@@ -136,6 +136,118 @@ describe('ProductsService', () => {
     ).toMatchObject({ purchasePriceMinor: null });
   });
 
+  // ── Write-guard sui costi ────────────────────────────────────────────
+  // Chi non vede il costo non lo scrive: senza questo, il form di un
+  // operatore col costo mascherato rimanderebbe indietro un valore assente e
+  // AZZEREREBBE il costo a database salvando l'articolo.
+
+  it('update di chi NON vede i costi non tocca il costo a database', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta',
+      sellingPriceMinor: 1990,
+      purchasePriceMinor: 990,
+      variants: [],
+      images: [],
+    });
+
+    // Il ramo prezzi interroga il canale del tenant: senza, update non arriva.
+    (prisma as unknown as { tenant: { findUnique: ReturnType<typeof vi.fn> } }).tenant = {
+      findUnique: vi.fn().mockResolvedValue({ channelProfile: 'gestionale' }),
+    };
+
+    await service.update(
+      tenantId,
+      'prod-1',
+      { sellingPrice: { amountMinor: 2490, currencyCode: 'EUR' } } as never,
+      userWithoutCosts,
+    );
+
+    const data = prisma.product.update.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data).toMatchObject({ sellingPriceMinor: 2490 });
+    // La chiave non compare proprio: il valore a database resta il suo.
+    expect(data).not.toHaveProperty('purchasePriceMinor');
+  });
+
+  it('update di chi vede i costi continua a scriverli (anche per azzerarli)', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta',
+      sellingPriceMinor: 1990,
+      purchasePriceMinor: 990,
+      variants: [],
+      images: [],
+    });
+
+    // Il ramo prezzi interroga il canale del tenant: senza, update non arriva.
+    (prisma as unknown as { tenant: { findUnique: ReturnType<typeof vi.fn> } }).tenant = {
+      findUnique: vi.fn().mockResolvedValue({ channelProfile: 'gestionale' }),
+    };
+
+    await service.update(
+      tenantId,
+      'prod-1',
+      { sellingPrice: { amountMinor: 2490, currencyCode: 'EUR' } } as never,
+      userWithCosts,
+    );
+
+    const data = prisma.product.update.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data).toHaveProperty('purchasePriceMinor', null);
+  });
+
+  it('create di chi NON vede i costi nasce senza costo, non col costo inviato', async () => {
+    const { service, prisma } = createService();
+    prisma.product.create.mockResolvedValue({ id: 'prod-new' });
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-new',
+      name: 'Nuovo',
+      variants: [],
+      images: [],
+    });
+
+    await service.create(
+      tenantId,
+      {
+        name: 'Nuovo',
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+        purchasePrice: { amountMinor: 700, currencyCode: 'EUR' },
+        options: [],
+        variants: [],
+      } as never,
+      userWithoutCosts,
+    );
+
+    const data = prisma.product.create.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data).toMatchObject({ purchasePriceMinor: null });
+  });
+
+  it('getById maschera il costo a chi non lo può vedere', async () => {
+    const { service, prisma } = createService();
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta',
+      purchasePriceMinor: 990,
+      variants: [{ id: 'var-1', purchasePriceMinor: 990 }],
+      images: [],
+    });
+
+    const masked = await service.getById(tenantId, 'prod-1', userWithoutCosts);
+    expect(masked).toMatchObject({ purchasePriceMinor: null });
+    expect(masked.variants[0]).toMatchObject({ purchasePriceMinor: null });
+
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Maglietta',
+      purchasePriceMinor: 990,
+      variants: [{ id: 'var-1', purchasePriceMinor: 990 }],
+      images: [],
+    });
+    const visible = await service.getById(tenantId, 'prod-1', userWithCosts);
+    expect(visible).toMatchObject({ purchasePriceMinor: 990 });
+  });
+
   it('list senza utente (chiamate interne) non espone il costo: default prudente', async () => {
     const { service, prisma } = createService();
     prisma.product.findMany.mockResolvedValue([

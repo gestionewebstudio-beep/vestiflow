@@ -23,12 +23,14 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
+  DOCUMENTS_MANAGE_PERMISSIONS,
+  docManagePermission,
   DOCUMENTS_VIEW_PERMISSIONS,
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
+  RequireAllPermissionGroups,
   RequireAnyPermissions,
-  RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { attachmentDownloadFilename } from '../common/attachments/attachment-rules.util';
@@ -67,6 +69,9 @@ import { DocumentType } from '@prisma/client';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
+// Porta della sezione: vale per OGNI rotta del registro, in aggiunta al gate
+// di famiglia del singolo handler (§sezioni+documenti).
+@RequireAllPermissionGroups([[TenantPermission.SectionDocuments]])
 export class DocumentsController {
   constructor(
     private readonly documents: DocumentsService,
@@ -88,29 +93,6 @@ export class DocumentsController {
     return this.documents.list(tenantId, query, user);
   }
 
-  /**
-   * Modalità prezzo (netto/ivato) da proporre alla creazione di un documento
-   * del tipo indicato: preferenza ricordata dell'operatore ?? primo utilizzo
-   * (vendita ivato, acquisto netto).
-   */
-  @Get('price-mode-preference/:type')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  async getPriceModePreference(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('type') type: string,
-  ): Promise<{ pricesIncludeVat: boolean }> {
-    if (!(Object.values(DocumentType) as string[]).includes(type)) {
-      throw new UnprocessableEntityException('Tipo documento non valido.');
-    }
-    const pricesIncludeVat = await this.priceModePreference.resolvePricesIncludeVat(
-      tenantId,
-      user.id,
-      type as DocumentType,
-    );
-    return { pricesIncludeVat };
-  }
-
   /** Operatori che hanno creato documenti dei tipi indicati (filtro elenco). */
   @Get('operators')
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
@@ -127,12 +109,14 @@ export class DocumentsController {
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   listLinkableGoodsReceipts(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListLinkableGoodsReceiptsQueryDto,
   ) {
     return this.goodsReceiptWorkflow.listLinkableGoodsReceipts(
       tenantId,
       query.supplierId,
       query.excludeInvoiceId,
+      user,
     );
   }
 
@@ -141,7 +125,7 @@ export class DocumentsController {
    * movimenti per riga + giacenze in un'unica operazione idempotente.
    */
   @Post('goods-receipt/save')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions([docManagePermission('goods_receipt')])
   async saveGoodsReceipt(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -156,8 +140,8 @@ export class DocumentsController {
     const warnings: string[] = [];
     if (document.linkStatus === 'linked') {
       warnings.push(
-        'Totali da verificare: l\'arrivo merce è collegato a una fattura registrata. ' +
-          'Controlla l\'allineamento dei totali sulla registrazione fattura.',
+        "Totali da verificare: l'arrivo merce è collegato a una fattura registrata. " +
+          "Controlla l'allineamento dei totali sulla registrazione fattura.",
       );
     }
     return { document, warnings, createdProducts: saved.createdProducts };
@@ -165,7 +149,7 @@ export class DocumentsController {
 
   /** Registrazione fattura fornitore (prompt §5-6): mai movimenti di magazzino. */
   @Post('purchase-invoice/save')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions([docManagePermission('purchase_invoice')])
   async savePurchaseInvoice(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -191,7 +175,7 @@ export class DocumentsController {
    * (POST /documents + POST /documents/:id/confirm).
    */
   @Post('transfer/save')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions([docManagePermission('transfer')])
   async saveTransfer(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -208,7 +192,7 @@ export class DocumentsController {
    * (POST /documents + POST /documents/:id/confirm).
    */
   @Post('adjustment/save')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions([docManagePermission('adjustment')])
   async saveAdjustment(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -220,10 +204,7 @@ export class DocumentsController {
 
   @Get('preview-number')
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
-  previewNumber(
-    @CurrentTenant() tenantId: string,
-    @Query() query: PreviewDocumentNumberQueryDto,
-  ) {
+  previewNumber(@CurrentTenant() tenantId: string, @Query() query: PreviewDocumentNumberQueryDto) {
     return this.documents.previewNextReference(tenantId, query.type, query.series);
   }
 
@@ -279,7 +260,7 @@ export class DocumentsController {
   }
 
   @Post(':id/attachments')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   @UseInterceptors(FileInterceptor('file', documentAttachmentUploadMulterOptions))
   async uploadAttachment(
     @CurrentTenant() tenantId: string,
@@ -294,7 +275,7 @@ export class DocumentsController {
 
   /** Rinomina allegato: cambia solo il nome mostrato, i byte restano dove sono. */
   @Patch(':id/attachments/:attachmentId')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   async renameAttachment(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -307,7 +288,7 @@ export class DocumentsController {
   }
 
   @Delete(':id/attachments/:attachmentId')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteAttachment(
     @CurrentTenant() tenantId: string,
@@ -353,7 +334,7 @@ export class DocumentsController {
   }
 
   @Get(':id/supplier-price-diffs')
-  @RequirePermissions(TenantPermission.DocumentsView)
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   listSupplierPriceDiffs(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -373,7 +354,7 @@ export class DocumentsController {
   }
 
   @Post()
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   create(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -383,7 +364,7 @@ export class DocumentsController {
   }
 
   @Patch(':id')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   update(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -393,10 +374,9 @@ export class DocumentsController {
     return this.documents.update(tenantId, id, dto, user);
   }
 
-
   /** Prefill di conversione (form di destinazione): non crea nulla. */
   @Post(':id/convert-prefill')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   convertPrefill(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -408,7 +388,7 @@ export class DocumentsController {
 
   /** «Inviata al commercialista»: unica azione di ciclo di vita fiscale. */
   @Post(':id/register-external')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   registerExternal(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -419,7 +399,7 @@ export class DocumentsController {
   }
 
   @Post(':id/cancel')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   cancel(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -429,7 +409,7 @@ export class DocumentsController {
   }
 
   @Delete(':id')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
   delete(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,

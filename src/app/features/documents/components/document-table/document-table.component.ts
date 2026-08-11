@@ -28,12 +28,7 @@ import { goodsReceiptExternalDocLabel } from '../../utils/document-list-export.u
 
 /** Azioni disponibili dal menu "···" della riga (audit cliente §1: azioni dalla lista). */
 export type DocumentTableActionId =
-  | 'open'
-  | 'duplicate'
-  | 'delete'
-  | 'print'
-  | 'labels'
-  | 'attachments';
+  'open' | 'duplicate' | 'delete' | 'print' | 'labels' | 'attachments';
 
 export interface DocumentTableActionEvent {
   readonly action: DocumentTableActionId;
@@ -64,6 +59,13 @@ export class DocumentTableComponent {
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
   /** Azioni di gestione (duplica/elimina) mostrate solo con permesso DocumentsManage. */
   readonly canManage = input<boolean>(false);
+  /**
+   * Tipi documento che l'utente può gestire. Nel registro generico convivono
+   * tipi di famiglie diverse: le azioni di riga si decidono su questo elenco,
+   * non su un unico booleano — il componente resta dumb e riceve il dato già
+   * risolto dal contenitore.
+   */
+  readonly manageableTypes = input<readonly string[]>([]);
   /** Selezione multipla per operazioni massive (lista Arrivi merce). */
   readonly selectable = input<boolean>(false);
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
@@ -192,12 +194,17 @@ export class DocumentTableComponent {
    * questo tipo/stato documento — mai voci disabilitate silenziosamente.
    */
   protected rowActions(doc: DocumentRecord): readonly ActionMenuItem[] {
+    // Nel registro generico convivono tipi diversi: ogni riga decide sulla
+    // PROPRIA famiglia, altrimenti «Duplica» ed «Elimina» comparirebbero su
+    // documenti che l'API poi rifiuta.
+    const canManageRow = this.canManage() && this.manageableTypes().includes(doc.type);
+
     // Vendite/resi negozio: il dettaglio è di sola lettura, mai una modifica.
     const items: ActionMenuItem[] = isStoreFlowDocumentType(doc.type)
       ? [{ id: 'open', label: 'Apri', icon: 'pi-eye' }]
       : [{ id: 'open', label: 'Apri / Modifica', icon: 'pi-pencil' }];
 
-    if (this.canManage() && !isStoreFlowDocumentType(doc.type)) {
+    if (canManageRow && !isStoreFlowDocumentType(doc.type)) {
       items.push({ id: 'duplicate', label: 'Duplica', icon: 'pi-copy' });
     }
     if (isPrintableDocumentType(doc.type)) {
@@ -213,7 +220,7 @@ export class DocumentTableComponent {
     }
     items.push({ id: 'attachments', label: 'Allegati', icon: 'pi-paperclip' });
     if (
-      this.canManage() &&
+      canManageRow &&
       !isStoreFlowDocumentType(doc.type) &&
       (doc.status === DocumentStatus.Draft ||
         doc.status === DocumentStatus.Cancelled ||

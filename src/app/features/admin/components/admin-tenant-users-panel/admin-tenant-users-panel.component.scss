@@ -97,29 +97,109 @@
   font-size: var(--text-sm);
 }
 
-// Diagnosi permessi in sola lettura (i dipendenti si modificano dal titolare).
-.admin-users__perm-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  margin: 0;
+// Diagnosi permessi in sola lettura (i dipendenti si modificano dal titolare):
+// gruppi in riquadri, sezioni come chip, livello documenti come pill.
+.admin-users__perm-groups {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr);
+
+  @include bp.media-up('md') {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include bp.media-up('lg') {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .admin-users__perm-group {
   min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+// Sezioni e Documenti respirano su tutta la larghezza; le azioni si affiancano.
+.admin-users__perm-group--full {
+  grid-column: 1 / -1;
 }
 
 .admin-users__perm-group-title {
-  margin: 0 0 var(--space-1);
+  margin: 0 0 var(--space-2);
   font-size: var(--text-xs);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
-.admin-users__perm-item {
+.admin-users__perm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-users__perm-chip {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+// Griglia a colonne uguali: le caselle si incolonnano invece di frastagliarsi
+// come farebbe un flex-wrap con contenuti di lunghezza diversa. `auto-fill` +
+// `minmax` decide da sé quante colonne stanno nella larghezza disponibile.
+.admin-users__perm-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--field-w-xl), 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-users__perm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-soft);
   font-size: var(--text-sm);
+}
+
+.admin-users__perm-item-label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-users__perm-pill {
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-info-subtle);
+  color: var(--color-info);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.admin-users__perm-pill--manage {
+  background: var(--color-ok-subtle);
+  color: var(--color-ok);
 }
 
 .admin-users__create {

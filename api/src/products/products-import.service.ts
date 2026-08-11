@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { Prisma, CatalogOrigin, ShopifyCatalogLinkKind } from '@prisma/client';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { canViewPurchaseCosts } from '../auth/user-permissions.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
@@ -64,7 +66,11 @@ export class ProductsImportService {
     tenantId: string,
     csvText: string,
     options: ImportProductsOptions = {},
+    user?: UserProfileDto,
   ): Promise<ImportProductsResult> {
+    // Costo d'acquisto (dato sensibile §permessi): stessa regola della
+    // maschera articolo — chi non lo vede non lo scrive, nemmeno da CSV.
+    const canWriteCosts = canViewPurchaseCosts(user);
     const rows = this.parseCsvOrThrow(csvText);
     const existingSkus = await this.loadTenantSkus(tenantId);
     const existingArticleCodes = await this.loadTenantArticleCodes(tenantId);
@@ -120,7 +126,12 @@ export class ProductsImportService {
       }
 
       try {
-        const created = await this.createFromParsedProduct(tenantId, product, existingBarcodes);
+        const created = await this.createFromParsedProduct(
+          tenantId,
+          product,
+          existingBarcodes,
+          canWriteCosts,
+        );
         if (handleKey.length > 0) {
           existingHandles.add(handleKey);
         }
@@ -221,13 +232,14 @@ export class ProductsImportService {
     tenantId: string,
     parsed: ParsedImportProduct,
     existingBarcodes: Set<string> = new Set<string>(),
+    canWriteCosts = false,
   ): Promise<ProductWithVariants> {
     this.assertNoDuplicateSkusInPayload(parsed.dto.variants);
 
     // Copia locale: i barcode si "consumano" solo se la create va a buon fine.
     const usedBarcodes = new Set(existingBarcodes);
     const variantInputs = parsed.dto.variants.map((variant) =>
-      this.toVariantCreateInput(tenantId, variant, usedBarcodes),
+      this.toVariantCreateInput(tenantId, variant, usedBarcodes, canWriteCosts),
     );
 
     const importHandle = parsed.handle.trim() || null;
@@ -260,7 +272,9 @@ export class ProductsImportService {
           // Prezzo Shopify precompilato dal prezzo articolo alla creazione (§B).
           shopifyPriceMinor: parsed.dto.sellingPrice.amountMinor,
           compareAtPriceMinor: parsed.dto.compareAtPrice?.amountMinor ?? null,
-          purchasePriceMinor: parsed.dto.purchasePrice?.amountMinor ?? null,
+          purchasePriceMinor: canWriteCosts
+            ? (parsed.dto.purchasePrice?.amountMinor ?? null)
+            : null,
           options: parsed.dto.options as unknown as Prisma.InputJsonValue,
           variants: {
             create: variantInputs,
@@ -300,6 +314,7 @@ export class ProductsImportService {
     tenantId: string,
     variant: CreateVariantDto,
     usedBarcodes: Set<string>,
+    canWriteCosts: boolean,
   ): Prisma.ProductVariantCreateWithoutProductInput {
     return {
       tenant: { connect: { id: tenantId } },
@@ -310,7 +325,7 @@ export class ProductsImportService {
       sellingPriceMinor: variant.sellingPrice.amountMinor,
       // Prezzo Shopify precompilato dal prezzo variante alla creazione (§B).
       shopifyPriceMinor: variant.sellingPrice.amountMinor,
-      purchasePriceMinor: variant.purchasePrice?.amountMinor,
+      purchasePriceMinor: canWriteCosts ? variant.purchasePrice?.amountMinor : null,
     };
   }
 

@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -20,6 +21,12 @@ import {
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import {
+  canManageDocumentType,
+  canViewDocumentType,
+  intersectViewableDocumentTypes,
+  viewableDocumentTypesFor,
+} from '../auth/document-permission.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { partyDisplayName } from '../common/party/party.util';
@@ -304,6 +311,15 @@ export class DocumentsService {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
 
+    // Matrice permessi documenti (§sezioni+documenti): il registro restituisce
+    // solo i tipi delle famiglie che l'utente può consultare. Filtro nel where,
+    // in AND con l'eventuale filtro tipi richiesto dal client: non basta la UI.
+    // `user` assente = chiamata interna, nessuna restrizione.
+    const viewableTypes = user ? viewableDocumentTypesFor(user) : null;
+    if (viewableTypes !== null && viewableTypes.length === 0) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
     // Il filtro location dell'utente e la ricerca libera usano entrambi una
     // clausola OR: vanno composti in AND separati per non sovrascriversi
     // (un solo `OR` per livello nel `where` di Prisma).
@@ -317,6 +333,9 @@ export class DocumentsService {
       andClauses.push({
         OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }],
       });
+    }
+    if (viewableTypes !== null) {
+      andClauses.push({ type: { in: [...viewableTypes] } });
     }
 
     const where: Prisma.DocumentWhereInput = {
@@ -431,12 +450,21 @@ export class DocumentsService {
     if (locationScope === null) {
       return [];
     }
+    // Il filtro tipi arriva dal client: si interseca con le famiglie
+    // consultabili, altrimenti il filtro «Operatore» rivelerebbe chi firma
+    // documenti che l'utente non può vedere.
+    const allowedTypes = user
+      ? intersectViewableDocumentTypes(user, query.types)
+      : (query.types ?? null);
+    if (allowedTypes !== null && allowedTypes.length === 0) {
+      return [];
+    }
 
     const rows = await this.prisma.document.findMany({
       where: {
         tenantId,
         createdById: { not: null },
-        ...(query.types?.length ? { type: { in: query.types } } : {}),
+        ...(allowedTypes ? { type: { in: [...allowedTypes] } } : {}),
         ...(locationScope !== 'unrestricted'
           ? { OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }] }
           : {}),
@@ -470,6 +498,23 @@ export class DocumentsService {
   }
 
   /**
+   * Matrice permessi documenti: le mutazioni richiedono «Gestisci» sulla
+   * famiglia del tipo. `user` assente (chiamate interne) passa: i flussi di
+   * sistema non sono azioni operatore.
+   */
+  private assertDocumentTypeManageable(
+    user: UserProfileDto | undefined,
+    type: DocumentType,
+  ): void {
+    if (!user) {
+      return;
+    }
+    if (!canManageDocumentType(user, type)) {
+      throw new ForbiddenException('Non hai il permesso di gestire questo tipo di documento.');
+    }
+  }
+
+  /**
    * Gate di SCRITTURA per le mutazioni di un documento legato a una sede:
    * l'utente deve poter operare sulla sede del documento (e, per i
    * trasferimenti, la destinazione segue la regola 'transferDestination').
@@ -492,7 +537,10 @@ export class DocumentsService {
 
   /**
    * Gate riusabile dai controller (es. allegati): carica il documento con lo
-   * scope di lettura dell'utente e applica il gate di scrittura sulla sede.
+   * scope di lettura dell'utente e applica i due gate di scrittura — la
+   * famiglia del tipo e la sede. Senza il primo, chi gestisce una sola
+   * famiglia potrebbe caricare ed ELIMINARE gli allegati di ogni altra
+   * (il gate di rotta chiede solo «gestisce almeno una famiglia»).
    */
   async assertWritableById(
     tenantId: string,
@@ -500,6 +548,7 @@ export class DocumentsService {
     user: UserProfileDto | undefined,
   ): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
     return doc;
   }
@@ -710,6 +759,11 @@ export class DocumentsService {
       throw new NotFoundException('Documento non trovato');
     }
     this.assertDocumentLocationReadable(user, doc.locationId);
+    // Matrice permessi documenti: la famiglia del tipo decide chi lo apre
+    // (`user` assente = chiamata interna, passa).
+    if (user && !canViewDocumentType(user, doc.type)) {
+      throw new ForbiddenException('Accesso negato al documento.');
+    }
     const {
       salesOrders = [],
       supplierOrder,
@@ -815,6 +869,7 @@ export class DocumentsService {
     dto: CreateDocumentDto,
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
+    this.assertDocumentTypeManageable(user, dto.type);
     if (isInternalOnlyDocumentType(dto.type)) {
       throw new UnprocessableEntityException(
         'Questo tipo documento è generato automaticamente dal sistema e non può essere creato manualmente.',
@@ -1211,6 +1266,7 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
@@ -2321,6 +2377,7 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
     const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
     if (
       doc.status !== DocumentStatus.confirmed &&
@@ -2346,6 +2403,7 @@ export class DocumentsService {
 
   async cancel(tenantId: string, id: string, user?: UserProfileDto): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
@@ -2626,6 +2684,7 @@ export class DocumentsService {
 
   async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
     const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(

@@ -3,11 +3,30 @@ import { Routes } from '@angular/router';
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
 import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { DocumentType } from '@core/models/document.model';
-import { TenantPermission } from '@core/models/tenant-permission.model';
 import {
-  DOCUMENTS_SECTION_PERMISSIONS,
-  REQUIRED_TENANT_PERMISSIONS_KEY,
+  TenantPermission,
+  docManagePermission,
+  docViewPermission,
+  type DocumentPermissionFamily,
+} from '@core/models/tenant-permission.model';
+import {
+  DOCUMENTS_SECTION_GROUPS,
+  REQUIRED_TENANT_PERMISSION_GROUPS_KEY,
 } from '@core/permissions/tenant-permissions.util';
+
+// Matrice permessi documenti: ogni rotta chiede la SEZIONE (porta) E la
+// FAMIGLIA del tipo — gli stessi due gruppi che l'API esige a livello di
+// classe e di handler. «Gestisci» implica «Consulta». L'hub, il registro
+// generico e il dettaglio per id chiedono la sezione e almeno una famiglia:
+// il contenuto lo filtra comunque l'API per tipo.
+const familyView = (family: DocumentPermissionFamily) => [
+  [TenantPermission.SectionDocuments],
+  [docViewPermission(family), docManagePermission(family)],
+];
+const familyManage = (family: DocumentPermissionFamily) => [
+  [TenantPermission.SectionDocuments],
+  [docManagePermission(family)],
+];
 
 export const documentsRoutes: Routes = [
   {
@@ -15,7 +34,7 @@ export const documentsRoutes: Routes = [
     title: 'Documenti',
     loadComponent: () => import('./documents-hub.component').then((m) => m.DocumentsHubComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS, reuse: true },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: DOCUMENTS_SECTION_GROUPS, reuse: true },
   },
   {
     path: 'registro',
@@ -23,7 +42,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: DOCUMENTS_SECTION_GROUPS,
       documentListProfile: 'generic',
       reuse: true,
     },
@@ -34,7 +53,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('goods_receipt'),
       documentListProfile: 'goods-receipt',
       reuse: true,
     },
@@ -48,7 +67,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('quote'),
       documentListProfile: 'quote',
       reuse: true,
     },
@@ -59,7 +78,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('proforma'),
       documentListProfile: 'proforma',
       reuse: true,
     },
@@ -70,7 +89,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('sales_ddt'),
       documentListProfile: 'sales-ddt',
       reuse: true,
     },
@@ -83,7 +102,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('invoice'),
       documentListProfile: 'invoice',
       reuse: true,
     },
@@ -102,7 +121,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('purchase_invoice'),
       documentListProfile: 'purchase-invoice',
       reuse: true,
     },
@@ -116,7 +135,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('store_sale'),
       documentListProfile: 'store-sale',
       reuse: true,
     },
@@ -128,7 +147,7 @@ export const documentsRoutes: Routes = [
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('store_sale'),
       documentListProfile: 'store-sale',
     },
   },
@@ -140,7 +159,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('manual_unload'),
       documentListProfile: 'manual-unload',
       reuse: true,
     },
@@ -153,7 +172,7 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('proforma'),
       salesDocumentType: DocumentType.Proforma,
     },
   },
@@ -165,7 +184,7 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('invoice'),
       salesDocumentType: DocumentType.InvoiceDraft,
     },
   },
@@ -179,7 +198,7 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('invoice'),
       salesDocumentType: DocumentType.InvoiceAccompanying,
     },
   },
@@ -196,7 +215,7 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('sales_ddt'),
       customerDocumentKind: 'sales-ddt',
     },
   },
@@ -210,7 +229,7 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('sales_ddt'),
       customerDocumentKind: 'sales-ddt',
     },
   },
@@ -226,7 +245,7 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('quote'),
       customerDocumentKind: 'quote',
     },
   },
@@ -240,7 +259,7 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('quote'),
       customerDocumentKind: 'quote',
     },
   },
@@ -253,7 +272,7 @@ export const documentsRoutes: Routes = [
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('quote'),
       documentListProfile: 'quote',
     },
   },
@@ -264,7 +283,7 @@ export const documentsRoutes: Routes = [
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('proforma'),
       documentListProfile: 'proforma',
     },
   },
@@ -275,7 +294,7 @@ export const documentsRoutes: Routes = [
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('sales_ddt'),
       documentListProfile: 'sales-ddt',
     },
   },
@@ -287,18 +306,27 @@ export const documentsRoutes: Routes = [
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('invoice'),
       documentListProfile: 'invoice',
     },
   },
   {
+    // Form condiviso proforma/fattura: la famiglia effettiva dipende dal
+    // documento caricato, l'API rifiuta comunque il tipo non gestibile.
     path: 'sales/:id/edit',
     title: 'Modifica documento vendita',
     loadComponent: () =>
       import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    data: {
+      // Form condiviso: basta gestire una delle due famiglie per aprirlo,
+      // l'API rifiuta comunque il documento del tipo non gestibile.
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: [
+        [TenantPermission.SectionDocuments],
+        [docManagePermission('invoice'), docManagePermission('proforma')],
+      ],
+    },
   },
   {
     path: ':id/print',
@@ -306,7 +334,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () =>
       import('./document-print-preview.component').then((m) => m.DocumentPrintPreviewComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: DOCUMENTS_SECTION_GROUPS },
   },
   {
     path: 'goods-receipt/new',
@@ -315,7 +343,7 @@ export const documentsRoutes: Routes = [
       import('./goods-receipt-form.component').then((m) => m.GoodsReceiptFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('goods_receipt') },
   },
   {
     path: 'registrazione-fattura/new',
@@ -324,7 +352,7 @@ export const documentsRoutes: Routes = [
       import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('purchase_invoice') },
   },
   {
     path: 'registrazione-fattura/:id/edit',
@@ -333,7 +361,7 @@ export const documentsRoutes: Routes = [
       import('./purchase-invoice-form.component').then((m) => m.PurchaseInvoiceFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('purchase_invoice') },
   },
   {
     path: 'transfer/new',
@@ -341,7 +369,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./transfer-form.component').then((m) => m.TransferFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('transfer') },
   },
   {
     path: 'transfer/:id/edit',
@@ -349,7 +377,7 @@ export const documentsRoutes: Routes = [
     loadComponent: () => import('./transfer-form.component').then((m) => m.TransferFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('transfer') },
   },
   {
     // Scarico manuale: stessa maschera del DDT vendita in modalità
@@ -364,7 +392,7 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('manual_unload'),
       customerDocumentKind: 'manual-unload',
     },
   },
@@ -378,7 +406,7 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('manual_unload'),
       customerDocumentKind: 'manual-unload',
     },
   },
@@ -391,7 +419,7 @@ export const documentsRoutes: Routes = [
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('manual_unload'),
       documentListProfile: 'manual-unload',
     },
   },
@@ -403,7 +431,7 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('adjustment'),
       stockDocumentType: DocumentType.Adjustment,
     },
   },
@@ -415,17 +443,24 @@ export const documentsRoutes: Routes = [
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('adjustment'),
       stockDocumentType: DocumentType.Adjustment,
     },
   },
   {
+    // Numeratori, serie, causali e tipi esterni: configurazione del negozio,
+    // con la sua chiave — non «gestisci una famiglia qualsiasi».
     path: 'settings',
     title: 'Impostazioni documenti',
     loadComponent: () =>
       import('./document-settings.component').then((m) => m.DocumentSettingsComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    data: {
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: [
+        [TenantPermission.SectionDocuments],
+        [TenantPermission.DocumentsConfigure],
+      ],
+    },
   },
   {
     path: ':id/edit',
@@ -434,7 +469,7 @@ export const documentsRoutes: Routes = [
       import('./goods-receipt-form.component').then((m) => m.GoodsReceiptFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('goods_receipt') },
   },
   {
     path: ':id',
@@ -442,6 +477,6 @@ export const documentsRoutes: Routes = [
     loadComponent: () =>
       import('./document-detail.component').then((m) => m.DocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: DOCUMENTS_SECTION_PERMISSIONS },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: DOCUMENTS_SECTION_GROUPS },
   },
 ];

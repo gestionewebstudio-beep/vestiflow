@@ -31,7 +31,12 @@ import type { AppError } from '@core/models/app-error.model';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import type { Money } from '@core/models/money.model';
-import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
+import type { DocumentPermissionFamily } from '@core/models/tenant-permission.model';
+import {
+  documentTypesOfFamily,
+  manageableDocumentFamilies,
+} from '@core/permissions/document-permission.util';
+import { canManageDocFamily, canManageDocuments } from '@core/permissions/tenant-permissions.util';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
@@ -435,9 +440,50 @@ export class DocumentListComponent {
     return this.isGoodsReceiptList() ? this.goodsReceiptTableColumns() : this.genericTableColumns();
   });
 
-  protected readonly canManageDocuments = computed(() =>
-    canManageDocuments(this.authService.currentUser()),
-  );
+  /**
+   * Famiglia della matrice permessi corrispondente all'elenco aperto. Il
+   * registro generico non ne ha una: lì vale «gestisce almeno una famiglia»
+   * (le righe sono di tipi diversi e ognuna si difende da sola).
+   */
+  private readonly listFamily = computed((): DocumentPermissionFamily | null => {
+    switch (this.listProfile()) {
+      case 'goods-receipt':
+        return 'goods_receipt';
+      case 'purchase-invoice':
+        return 'purchase_invoice';
+      case 'quote':
+        return 'quote';
+      case 'proforma':
+        return 'proforma';
+      case 'sales-ddt':
+        return 'sales_ddt';
+      case 'invoice':
+        return 'invoice';
+      case 'store-sale':
+        return 'store_sale';
+      case 'manual-unload':
+        return 'manual_unload';
+      default:
+        return null;
+    }
+  });
+
+  /**
+   * Gate del pulsante «Nuovo …» e delle azioni di riga: la famiglia
+   * dell'elenco, non «almeno una famiglia» — altrimenti il bottone comparirebbe
+   * a chi l'API poi rifiuta.
+   */
+  protected readonly canManageDocuments = computed(() => {
+    const family = this.listFamily();
+    const user = this.authService.currentUser();
+    return family ? canManageDocFamily(user, family) : canManageDocuments(user);
+  });
+
+  /** Tipi gestibili dall'utente: guida le azioni di riga della tabella. */
+  protected readonly manageableTypes = computed(() => {
+    const user = this.authService.currentUser();
+    return manageableDocumentFamilies(user).flatMap((family) => [...documentTypesOfFamily(family)]);
+  });
 
   protected readonly skeletonColumns = 7;
   protected readonly pageSizeOptions = DOCUMENT_PAGE_SIZE_OPTIONS;

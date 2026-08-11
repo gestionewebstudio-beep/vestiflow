@@ -24,7 +24,6 @@ import {
 import { SupportSessionService } from '@core/support/support-session.service';
 import {
   TenantChannelProfile,
-  showRetailSalesRegister,
   showSalesOrderHistory,
 } from '@core/models/tenant-channel-profile.model';
 import type { EntityId } from '@core/models/common.model';
@@ -44,12 +43,16 @@ import { InventoryService } from '@domain/inventory/services/inventory.service';
 import { isShopifySyncUiActive } from '@domain/channels/shopify/models/shopify-connection-state.util';
 import {
   canAccessCatalogSection,
+  canAccessDocumentsSection,
   canAccessInventorySection,
-  canRegisterRetailSales,
+  canAccessSalesSection,
+  canAccessSettingsSection,
+  canAccessSuppliersSection,
+  canOpenRetailRegister,
   canViewCustomers,
-  canViewDocuments,
   canViewReports,
-  canViewSupplierOrders,
+  canViewDocFamily,
+  canViewSalesOrders,
   canManageShopifyConnection,
 } from '@core/permissions/tenant-permissions.util';
 import {
@@ -365,7 +368,7 @@ export class ShellLayoutComponent {
       });
     }
 
-    if (canViewSupplierOrders(user)) {
+    if (canAccessSuppliersSection(user)) {
       mainItems.push({
         label: 'Fornitori',
         icon: 'pi-building',
@@ -374,7 +377,7 @@ export class ShellLayoutComponent {
       });
     }
 
-    if (canViewDocuments(user)) {
+    if (canAccessDocumentsSection(user)) {
       mainItems.push({
         label: 'Documenti',
         icon: 'pi-file',
@@ -387,7 +390,7 @@ export class ShellLayoutComponent {
 
     const salesItems: NavItem[] = [];
 
-    if (showRetailSalesRegister(profile) && canRegisterRetailSales(user)) {
+    if (canOpenRetailRegister(user)) {
       salesItems.push({
         label: 'Vendita negozio',
         icon: 'pi-shopping-bag',
@@ -396,7 +399,10 @@ export class ShellLayoutComponent {
       });
     }
 
-    if (canViewReports(user)) {
+    // Entrambe le rotte chiedono la sezione E la famiglia «Vendite online»:
+    // con la sola sezione i due link sarebbero morti, come per Ordini Shopify
+    // qui sotto.
+    if (canAccessSalesSection(user) && canViewDocFamily(user, 'online_sale')) {
       salesItems.push({
         label: 'Vendite online',
         icon: 'pi-send',
@@ -415,7 +421,9 @@ export class ShellLayoutComponent {
       sections.push({ id: 'sales', label: 'Vendite', items: salesItems });
     }
 
-    if (showSalesOrderHistory(profile) && canViewReports(user)) {
+    // La rotta chiede la famiglia «Ordine cliente»: senza, il link sarebbe
+    // morto (il guard rimbalzerebbe alla dashboard).
+    if (showSalesOrderHistory(profile) && canAccessSalesSection(user) && canViewSalesOrders(user)) {
       sections.push({
         id: 'channels',
         label: 'Canali online',
@@ -457,12 +465,14 @@ export class ShellLayoutComponent {
       });
     }
 
-    manageItems.push({
-      label: 'Impostazioni',
-      icon: 'pi-cog',
-      route: '/app/settings',
-      activeRoutePrefix: '/app/settings',
-    });
+    if (canAccessSettingsSection(user)) {
+      manageItems.push({
+        label: 'Impostazioni',
+        icon: 'pi-cog',
+        route: '/app/settings',
+        activeRoutePrefix: '/app/settings',
+      });
+    }
 
     manageItems.push(this.guideNavItem);
 

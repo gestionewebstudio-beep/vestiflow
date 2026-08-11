@@ -17,7 +17,7 @@ import type { AppError } from '@core/models/app-error.model';
 import { AdjustmentDirection, DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord, DocumentRevision } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
-import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
+import { canManageDocumentType } from '@core/permissions/document-permission.util';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
@@ -320,7 +320,14 @@ export class DocumentDetailComponent {
     return facts;
   });
 
-  protected readonly canManage = computed(() => canManageDocuments(this.authService.currentUser()));
+  /**
+   * Azioni del documento aperto (modifica, annulla, elimina, converti): la
+   * famiglia del SUO tipo, non «almeno una famiglia». Finché il documento non
+   * è caricato non si promette nulla.
+   */
+  protected readonly canManage = computed(() =>
+    canManageDocumentType(this.authService.currentUser(), this.document()?.type ?? null),
+  );
 
   /**
    * «Inviata al commercialista» (registrazione esterna): unica azione di ciclo

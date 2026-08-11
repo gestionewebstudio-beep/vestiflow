@@ -62,6 +62,38 @@ export class TenantUsersCoreService {
     return users.map((user) => this.toDto(user));
   }
 
+  /**
+   * Un tenant senza titolari attivi è un negozio che nessuno può più
+   * amministrare: né creare utenti, né cambiare permessi, né rientrare.
+   * Vale per ogni superficie — declassamento, disattivazione, eliminazione.
+   */
+  async assertOwnerRemains(
+    tenantId: string,
+    targetUserId: string,
+    next: { readonly role?: UserRole; readonly isActive?: boolean },
+  ): Promise<void> {
+    const target = await this.prisma.user.findFirst({
+      where: { id: targetUserId, tenantId },
+      select: { role: true, isActive: true },
+    });
+    if (!target || target.role !== UserRole.owner || !target.isActive) {
+      return;
+    }
+    const staysOwner = (next.role ?? target.role) === UserRole.owner;
+    const staysActive = next.isActive ?? target.isActive;
+    if (staysOwner && staysActive) {
+      return;
+    }
+    const otherActiveOwners = await this.prisma.user.count({
+      where: { tenantId, role: UserRole.owner, isActive: true, id: { not: targetUserId } },
+    });
+    if (otherActiveOwners === 0) {
+      throw new BadRequestException(
+        'Deve restare almeno un titolare attivo: nomina prima un altro titolare.',
+      );
+    }
+  }
+
   /** Utente del tenant o 404: usato dai chiamanti per applicare i propri vincoli. */
   async requireUser(
     tenantId: string,
@@ -188,6 +220,10 @@ export class TenantUsersCoreService {
     if (!existing) {
       throw new NotFoundException('Utente non trovato');
     }
+    await this.assertOwnerRemains(tenantId, userId, {
+      ...(dto.role !== undefined ? { role: dto.role } : {}),
+      ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+    });
     const beforeSnapshot = this.toAuditSnapshot(this.toDto(existing));
 
     const nextRole = dto.role ?? existing.role;

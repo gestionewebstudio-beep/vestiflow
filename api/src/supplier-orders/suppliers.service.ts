@@ -233,14 +233,29 @@ export class SuppliersService {
     });
   }
 
-  listVariantLinksBySupplier(tenantId: string, supplierId: string): Promise<SupplierVariantLinkRow[]> {
+  /**
+   * Collegamenti articolo visti dalla scheda FORNITORE. Stessa regola del
+   * gemello chiamato dalla scheda articolo: l'ultimo prezzo d'acquisto è un
+   * dato sensibile (§permessi) e senza il permesso non entra nella risposta.
+   */
+  listVariantLinksBySupplier(
+    tenantId: string,
+    supplierId: string,
+    user?: UserProfileDto,
+  ): Promise<SupplierVariantLinkRow[]> {
+    const showPurchaseCosts = canViewPurchaseCosts(user);
     return this.prisma.supplierVariantLink
       .findMany({
         where: { tenantId, supplierId },
         include: SUPPLIER_VARIANT_LINK_INCLUDE,
         orderBy: [{ variant: { sku: 'asc' } }],
       })
-      .then((rows) => rows.map((row) => this.toVariantLinkRow(row)));
+      .then((rows) =>
+        rows.map((row) => {
+          const mapped = this.toVariantLinkRow(row);
+          return showPurchaseCosts ? mapped : { ...mapped, lastPurchasePriceMinor: null };
+        }),
+      );
   }
 
   /**

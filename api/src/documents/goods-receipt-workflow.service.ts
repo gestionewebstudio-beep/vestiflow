@@ -15,8 +15,10 @@ import {
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { viewableDocumentTypesFor } from '../auth/document-permission.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { applyInventoryLotsFromDocumentLines } from '../inventory/inventory-lot.util';
+import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
 import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
 import {
   applyInventorySerialsFromDocumentLines,
@@ -704,12 +706,30 @@ export class GoodsReceiptWorkflowService {
     tenantId: string,
     supplierId: string,
     excludeInvoiceId?: string,
+    user?: UserProfileDto,
   ): Promise<LinkableGoodsReceiptRow[]> {
+    // Il lookup espone testate di arrivo merce complete di totali: vale la
+    // stessa regola del registro — famiglie consultabili e sedi leggibili.
+    const viewableTypes = user ? viewableDocumentTypesFor(user) : null;
+    const linkableTypes = viewableTypes
+      ? INVOICE_LINKABLE_RECEIPT_TYPES.filter((type) => viewableTypes.includes(type))
+      : [...INVOICE_LINKABLE_RECEIPT_TYPES];
+    if (linkableTypes.length === 0) {
+      return [];
+    }
+    const locationScope = await resolveReadableListLocationScope(this.prisma, tenantId, user);
+    if (locationScope === null) {
+      return [];
+    }
+
     const rows = await this.prisma.document.findMany({
       where: {
         tenantId,
         supplierId,
-        type: { in: [...INVOICE_LINKABLE_RECEIPT_TYPES] },
+        type: { in: linkableTypes },
+        ...(locationScope === 'unrestricted'
+          ? {}
+          : { OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }] }),
         status: { notIn: [DocumentStatus.draft, DocumentStatus.cancelled] },
         totalMinor: { gt: 0 },
         billingCause: INVOICE_PENDING_BILLING_CAUSE,

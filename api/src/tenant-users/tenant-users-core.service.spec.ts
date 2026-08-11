@@ -319,7 +319,7 @@ describe('TenantUsersCoreService', () => {
       displayName: 'Commesso',
       role: UserRole.clerk,
       hasAllLocationsAccess: false,
-      permissions: [TenantPermission.InventoryManage, TenantPermission.CustomersView],
+      permissions: [TenantPermission.InventoryManage, TenantPermission.SectionCustomers],
       isActive: true,
       createdAt,
       authUserId: 'auth-clerk',
@@ -330,7 +330,7 @@ describe('TenantUsersCoreService', () => {
       permissions: [
         'settings.integrations',
         TenantPermission.InventoryManage,
-        TenantPermission.CustomersView,
+        TenantPermission.SectionCustomers,
       ],
     });
 
@@ -338,7 +338,7 @@ describe('TenantUsersCoreService', () => {
       expect.objectContaining({
         where: { id: 'user-clerk' },
         data: expect.objectContaining({
-          permissions: [TenantPermission.InventoryManage, TenantPermission.CustomersView],
+          permissions: [TenantPermission.InventoryManage, TenantPermission.SectionCustomers],
           // Nessun input sedi/ruolo: l'assegnazione esistente è preservata.
           hasAllLocationsAccess: false,
         }),
@@ -347,7 +347,7 @@ describe('TenantUsersCoreService', () => {
     expect(result.permissions).not.toContain('settings.integrations');
     expect(result.permissions).toEqual([
       TenantPermission.InventoryManage,
-      TenantPermission.CustomersView,
+      TenantPermission.SectionCustomers,
     ]);
     expect(result.assignedLocationIds).toEqual(['loc-1']);
     expect(profileCache.invalidate).toHaveBeenCalledWith('auth-clerk');

@@ -1,7 +1,7 @@
 import { UserRole } from '@prisma/client';
 
 import type { UserProfileDto } from '../../auth/dto/user-profile.dto';
-import { TenantPermission } from '../../auth/tenant-permission.constants';
+import { ROLE_DEFAULT_PERMISSIONS } from '../../auth/tenant-permission.constants';
 
 
 export function testOwnerUser(overrides: Partial<UserProfileDto> = {}): UserProfileDto {
@@ -49,7 +49,9 @@ export function testClerkUser(overrides: Partial<UserProfileDto> = {}): UserProf
     assignedLocations: [],
     defaultLocationId: null,
     defaultLocation: null,
-    permissions: [TenantPermission.InventoryManage],
+    // Preset clerk materializzato: la fixture rispecchia un commesso reale
+    // (l'array salvato È la verità, i default vivono solo al salvataggio).
+    permissions: [...ROLE_DEFAULT_PERMISSIONS[UserRole.clerk]],
     createdAt: '',
     updatedAt: '',
     ...overrides,

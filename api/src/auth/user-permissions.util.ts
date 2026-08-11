@@ -9,7 +9,7 @@ import {
   isTenantPermissionKey,
 } from './tenant-permission.constants';
 
-type PermissionUser = Pick<UserProfileDto, 'role' | 'permissions' | 'supportSession'>;
+export type PermissionUser = Pick<UserProfileDto, 'role' | 'permissions' | 'supportSession'>;
 
 export function hasFullTenantAccess(user: PermissionUser | null | undefined): boolean {
   if (!user) {
@@ -36,7 +36,29 @@ export function resolveEffectivePermissions(
   if (hasFullTenantAccess(user)) {
     return ALL_TENANT_PERMISSIONS;
   }
-  return (user.permissions ?? []).filter(isTenantPermissionKey);
+  return withImpliedDocumentViews((user.permissions ?? []).filter(isTenantPermissionKey));
+}
+
+/**
+ * «Gestisci» implica «Consulta»: chi può creare una fattura può leggerla.
+ * L'implicazione si applica QUI, una volta sola, così ogni controllo la
+ * eredita — l'editor salva sempre entrambe le chiavi, ma un preset, un seed o
+ * un ripristino potrebbero scrivere solo `manage`, e un documento gestibile e
+ * invisibile sarebbe un rompicapo, non una regola.
+ */
+function withImpliedDocumentViews(
+  permissions: readonly TenantPermissionKey[],
+): readonly TenantPermissionKey[] {
+  const result = new Set<TenantPermissionKey>(permissions);
+  for (const permission of permissions) {
+    const family = permission.startsWith('doc.') && permission.endsWith('.manage')
+      ? permission.slice('doc.'.length, -'.manage'.length)
+      : null;
+    if (family) {
+      result.add(`doc.${family}.view` as TenantPermissionKey);
+    }
+  }
+  return [...result];
 }
 
 export function hasTenantPermission(

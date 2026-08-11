@@ -84,7 +84,7 @@ describe('tenant-permissions.util', () => {
     expect(
       isTenantManager(
         userWithRole(UserRole.Clerk, {
-          permissions: [TenantPermission.CustomersView],
+          permissions: [TenantPermission.SectionCustomers],
         }),
       ),
     ).toBe(false);
@@ -178,13 +178,13 @@ describe('tenant-permissions.util', () => {
 
   it('canViewReports e canViewCustomers rispettano permessi espliciti', () => {
     const noReports = userWithRole(UserRole.Clerk, {
-      permissions: [TenantPermission.InventoryManage, TenantPermission.CustomersView],
+      permissions: [TenantPermission.InventoryManage, TenantPermission.SectionCustomers],
     });
     expect(canViewReports(noReports)).toBe(false);
     expect(canViewCustomers(noReports)).toBe(true);
 
     const reportsOnly = userWithRole(UserRole.Clerk, {
-      permissions: [TenantPermission.ReportsView],
+      permissions: [TenantPermission.SectionReports],
     });
     expect(canViewReports(reportsOnly)).toBe(true);
     expect(canViewCustomers(reportsOnly)).toBe(false);
@@ -193,12 +193,12 @@ describe('tenant-permissions.util', () => {
   it('canReceiveSupplierOrders include manage o receive', () => {
     expect(
       canReceiveSupplierOrders(
-        userWithRole(UserRole.Clerk, { permissions: [TenantPermission.SupplierOrdersReceive] }),
+        userWithRole(UserRole.Clerk, { permissions: ['doc.goods_receipt.manage'] }),
       ),
     ).toBe(true);
     expect(
       canReceiveSupplierOrders(
-        userWithRole(UserRole.Clerk, { permissions: [TenantPermission.SupplierOrdersManage] }),
+        userWithRole(UserRole.Clerk, { permissions: ['doc.supplier_order.manage'] }),
       ),
     ).toBe(true);
     expect(
