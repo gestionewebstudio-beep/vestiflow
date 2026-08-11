@@ -221,7 +221,7 @@
             [attr.aria-expanded]="v.codeChoice?.field === 'articleCode'"
             [attr.aria-controls]="'co-m-code-choice-' + v.index"
             (focus)="codeFocused.emit('articleCode')"
-            (blur)="codeBlurred.emit()"
+            (blur)="codeBlurred.emit('articleCode')"
             (keydown.enter)="codeCommitted.emit('articleCode'); $event.preventDefault()"
           />
           @if (v.codeChoice?.field === 'articleCode') {
@@ -248,7 +248,7 @@
             [attr.aria-expanded]="v.codeChoice?.field === 'sku'"
             [attr.aria-controls]="'co-m-sku-choice-' + v.index"
             (focus)="codeFocused.emit('sku')"
-            (blur)="codeBlurred.emit()"
+            (blur)="codeBlurred.emit('sku')"
             (keydown.enter)="codeCommitted.emit('sku'); $event.preventDefault()"
           />
           @if (v.codeChoice?.field === 'sku') {
@@ -275,7 +275,7 @@
             [attr.aria-expanded]="v.codeChoice?.field === 'barcode'"
             [attr.aria-controls]="'co-m-barcode-choice-' + v.index"
             (focus)="codeFocused.emit('barcode')"
-            (blur)="codeBlurred.emit()"
+            (blur)="codeBlurred.emit('barcode')"
             (keydown.enter)="codeCommitted.emit('barcode'); $event.preventDefault()"
           />
           @if (v.codeChoice?.field === 'barcode') {

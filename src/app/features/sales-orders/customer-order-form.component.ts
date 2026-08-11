@@ -1112,6 +1112,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    */
   protected readonly codeLookup = new DocumentCodeLookupStore();
   /**
+   * Una sola attesa in volo per la card mobile: due sfocamenti ravvicinati non
+   * devono lasciare due decisioni pendenti sulla stessa riga.
+   */
+  private mobileCodeBlurTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
    * Card mobile: apre l'anteprima sopra il campo invece che sotto, quando sotto
    * non c'è spazio a sufficienza (campo vicino al dock fisso in fondo). Uno solo
    * per volta è aperto, quindi basta un flag condiviso.
@@ -1351,6 +1356,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   constructor() {
+    // L'attesa della card mobile non deve sopravvivere alla maschera: al
+    // ritorno gireebbe su righe che non ci sono più.
+    this.destroyRef.onDestroy(() => {
+      if (this.mobileCodeBlurTimer !== null) {
+        clearTimeout(this.mobileCodeBlurTimer);
+      }
+    });
     // Colonna "Costo" (dato sensibile §permessi): senza il permesso
     // "Visualizza costi d'acquisto" la definizione non viene registrata,
     // quindi non compare nemmeno tra le opzioni del selettore colonne.
@@ -2965,21 +2977,48 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Uscita da un campo codice della card: chiude la scelta rimasta aperta,
-   * **con un ritardo**. Il pannello che sta sotto copre i campi seguenti: se
-   * restasse aperto, il tocco successivo dell'operatore finirebbe su una voce
-   * invece che sul campo che voleva — e aggancerebbe un articolo per sbaglio.
+   * Uscita da un campo codice della card. **Lo sfocamento conferma**, come Tab
+   * sul desktop: perdere il fuoco su un telefono non è un caso — lo scorrimento
+   * non lo toglie, e quando si perde è perché l'operatore ha toccato un altro
+   * campo, gesto deliberato quanto un Tab.
    *
-   * Il ritardo è lo stesso schema già in uso in questa card per i suggerimenti
-   * sul nome: su touch è l'unica difesa provata qui dentro. Il pannello si
-   * protegge anche da sé (`mousedown.preventDefault` tiene il fuoco), ma quella
-   * difesa non è mai stata verificata su un dispositivo vero, e sbagliarla
-   * significa che il tocco non aggancia niente — proprio il silenzio che questo
-   * lavoro toglie.
+   * ⚠️ **Perché è un solo punto, e ritardato.** Qui si incrociano due
+   * meccanismi che, presi separatamente, si pestano: la conferma allo
+   * sfocamento e la grazia che lascia arrivare il tocco su una voce della
+   * scelta. Toccando una voce, se lo sfocamento partisse per primo e
+   * confermasse, partirebbe una **seconda ricerca** il cui esito «più d'una»
+   * riaprirebbe la scelta **dopo** che il tocco l'aveva già risolta — un
+   * pannello che ricompare da solo su una riga già agganciata.
+   *
+   * Quindi non si decide allo sfocamento: si decide **dopo la grazia**, in base
+   * a cosa è successo davvero. I tre casi sono in ordine, e l'ordine conta.
    */
-  protected onMobileCodeBlur(): void {
-    const timer = setTimeout(() => this.codeLookup.clear(), MOBILE_PICK_GRACE_MS);
-    this.destroyRef.onDestroy(() => clearTimeout(timer));
+  protected onMobileCodeBlur(index: number, field: CustomerOrderCodeField): void {
+    if (this.mobileCodeBlurTimer !== null) {
+      clearTimeout(this.mobileCodeBlurTimer);
+    }
+    this.mobileCodeBlurTimer = setTimeout(() => {
+      this.mobileCodeBlurTimer = null;
+      // 1. Il tocco su una voce ha già agganciato la riga: non c'è altro da
+      //    fare. `commitCodeLookup` rifiuterebbe da sé su riga agganciata —
+      //    quindi nessuna prova distingue questo ramo — ma sposterebbe comunque
+      //    il fuoco al campo successivo, cosa che oggi non si vede solo perché
+      //    su mobile gli identificativi puntano alla tabella nascosta. Quando
+      //    quel difetto sarà chiuso (§2.3 della mappa), il salto diventerebbe
+      //    reale: un tocco su una voce non deve muovere il fuoco.
+      if (this.lines.at(index)?.controls.variantId.value) {
+        return;
+      }
+      // 2. Scelta aperta e non presa: si abbandona. Il valore digitato resta
+      //    scritto — è la stessa risposta di «nessuna corrispondenza» — e NON
+      //    si cerca di nuovo, che è ciò che la farebbe ricomparire.
+      if (this.codeLookup.isOpenOn(index, field)) {
+        this.codeLookup.clear();
+        return;
+      }
+      // 3. Codice digitato e mai confermato: qui lo sfocamento fa la conferma.
+      this.commitCodeLookup(index, field);
+    }, MOBILE_PICK_GRACE_MS);
   }
 
   /** La scelta aperta da un codice: la voce presa aggancia la riga. */

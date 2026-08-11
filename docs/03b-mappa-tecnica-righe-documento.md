@@ -305,7 +305,13 @@ Chiude §3-bis su tutte e tre le maschere. **La catena non è stata copiata: è 
 
 ⚠️ **Lo sfocamento chiude con ritardo** (`MOBILE_PICK_GRACE_MS`, 200 ms, **misura mai presa** — è il valore già in uso per i suggerimenti sul nome, adottato invece di sceglierne un secondo). Serve perché il pannello copre i campi sotto: chiudendo subito, il tocco successivo finirebbe su una voce invece che sul campo voluto, agganciando un articolo per sbaglio. Il pannello si difende anche da sé con `mousedown.preventDefault`, ma quella difesa non è mai stata verificata su un dispositivo vero.
 
-⚠️ **Resta aperto, ed è una domanda di prodotto:** nella card mobile i campi codice confermano **solo con Invio**, non allo sfocamento — quindi passando da un campo all'altro col tocco il codice non viene confrontato. Sul desktop lo fanno Tab e lo sfocamento. È una differenza **preesistente**, non introdotta qui, e non è stata decisa.
+✅ **Lo sfocamento conferma anche su mobile** _(deciso e fatto 08/2026)_, come Tab sul desktop. Il motivo della decisione: **lo scorrimento non toglie il fuoco a un campo** — quando lo perde è perché l'operatore ne ha toccato un altro, gesto deliberato quanto un Tab. L'alternativa (solo Invio) avrebbe richiesto di spiegare all'operatore che lì funziona diversamente, e una spiegazione del genere non ha dove stare: se serve dirlo, la differenza è di troppo.
+
+⚠️ **I due meccanismi si pestavano, e vanno provati INSIEME.** La conferma allo sfocamento e la grazia per il tocco sulla voce, presi separatamente, sembrano entrambi a posto. Insieme no: uscendo con la scelta aperta, lo sfocamento confermava di nuovo e l'esito «più d'una» **riapriva il pannello** appena chiuso. Misurato togliendo il coordinamento: la prova diventa rossa con «expected { field: 'articleCode', … } to be null».
+
+La soluzione è **un punto solo che decide dopo la grazia**, non due gestori che corrono: (1) riga già agganciata dal tocco → non si fa nulla; (2) scelta aperta e non presa → si chiude, e **non si cerca di nuovo**; (3) codice mai confermato → qui lo sfocamento conferma. L'ordine conta.
+
+_Nota su (1): `commitCodeLookup` rifiuterebbe da sé su riga agganciata, quindi nessuna prova distingue quel ramo — ma sposterebbe comunque il fuoco, cosa che oggi non si vede solo perché su mobile gli identificativi puntano alla tabella nascosta (§2.3). Chiuso quel difetto, il salto diventerebbe reale._
 
 ⚠️ **In Ordine fornitore la seconda fonte manca**, e resta il seguito naturale: quella maschera non carica i collegamenti del fornitore di testata, quindi agganciando per nome/SKU/EAN il campo **resta vuoto** e lo compila l'operatore. Vuoto è corretto — meglio di un codice che al proprio fornitore non dice niente — ma non è il meglio possibile. Il pezzo che serve esiste già ed è in uso nell'Arrivo merce: `SupplierService.getVariantLinksBySupplier`.
 

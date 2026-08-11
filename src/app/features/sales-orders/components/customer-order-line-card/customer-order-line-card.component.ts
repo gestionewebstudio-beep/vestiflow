@@ -67,8 +67,11 @@ export class CustomerOrderLineCardComponent {
   readonly codeCommitted = output<LineCodeField>();
   /** Entrata in un campo codice: il form chiude una scelta aperta altrove. */
   readonly codeFocused = output<LineCodeField>();
-  /** Uscita da un campo codice: il form chiude la scelta rimasta aperta. */
-  readonly codeBlurred = output<void>();
+  /**
+   * Uscita da un campo codice. Su mobile lo sfocamento **conferma**, come Tab
+   * sul desktop: porta il campo perché il form sappia cosa confrontare.
+   */
+  readonly codeBlurred = output<LineCodeField>();
   /** Voce scelta dalla scelta codici: la card la traduce in id variante. */
   readonly codeSuggestionPicked = output<string>();
   /** L'elemento, non il testo: il form ci misura dove aprire i suggerimenti. */

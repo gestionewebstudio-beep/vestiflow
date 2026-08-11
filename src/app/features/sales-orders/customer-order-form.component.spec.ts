@@ -756,6 +756,8 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
       } | null;
     };
     readonly addLine: () => void;
+    readonly onMobileCodeBlur: (index: number, field: 'articleCode' | 'sku' | 'barcode') => void;
+    readonly onCodeSuggestionPick: (index: number, variantId: string) => void;
     readonly lines: {
       at: (i: number) => {
         controls: Record<string, { setValue: (v: unknown) => void; value: unknown }>;
@@ -842,5 +844,84 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
     // La scelta è della riga che l'ha aperta: la seconda card non deve
     // mostrare il pannello di un'altra riga.
     expect(form.lineCardVm(1).codeChoice).toBeNull();
+  });
+
+  /**
+   * Lo sfocamento conferma anche su mobile, come Tab sul desktop — e si incrocia
+   * con la grazia che lascia arrivare il tocco su una voce della scelta.
+   *
+   * I due meccanismi vanno provati INSIEME: presi separatamente sembrano
+   * entrambi a posto, ed è nell'incrocio che si pestano.
+   */
+  describe('sfocamento sulla card mobile', () => {
+    /** Fa scadere la grazia: prima di allora non è ancora stato deciso nulla. */
+    function passaLaGrazia(): void {
+      vi.advanceTimersByTime(250);
+    }
+
+    it('lo sfocamento conferma un codice mai confermato, come Tab sul desktop', async () => {
+      const form = await apri([variante({ variantId: 'var-M', sku: 'MAG-M' })]);
+      vi.useFakeTimers();
+      try {
+        form.lines.at(0).controls['sku']!.setValue('MAG-M');
+
+        form.onMobileCodeBlur(0, 'sku');
+        passaLaGrazia();
+
+        expect(form.lines.at(0).controls['variantId']!.value).toBe('var-M');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    // Il caso in cui i due meccanismi si pesterebbero: se lo sfocamento
+    // confermasse comunque, partirebbe una seconda ricerca il cui esito
+    // riaprirebbe la scelta DOPO che il tocco l'aveva già risolta.
+    it('dopo il tocco su una voce lo sfocamento non riapre niente', async () => {
+      const form = await apri([
+        variante({ variantId: 'var-M', sku: 'MAG-M' }),
+        variante({ variantId: 'var-L', sku: 'MAG-L' }),
+      ]);
+      vi.useFakeTimers();
+      try {
+        form.lines.at(0).controls['articleCode']!.setValue('ART-9');
+        form.commitCodeLookup(0, 'articleCode');
+        // Il tocco arriva dentro la grazia, prima che lo sfocamento decida.
+        form.onMobileCodeBlur(0, 'articleCode');
+        form.onCodeSuggestionPick(0, 'var-L');
+
+        passaLaGrazia();
+
+        expect(form.lines.at(0).controls['variantId']!.value).toBe('var-L');
+        expect(form.lineCardVm(0).codeChoice).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    // Uscire senza scegliere non è un errore: il valore digitato resta scritto,
+    // la scelta si chiude, e NON si cerca di nuovo — cercare la farebbe
+    // ricomparire su una riga che l'operatore ha già lasciato.
+    it('uscire con la scelta aperta la chiude e non la fa ricomparire', async () => {
+      const form = await apri([
+        variante({ variantId: 'var-M', sku: 'MAG-M' }),
+        variante({ variantId: 'var-L', sku: 'MAG-L' }),
+      ]);
+      vi.useFakeTimers();
+      try {
+        form.lines.at(0).controls['articleCode']!.setValue('ART-9');
+        form.commitCodeLookup(0, 'articleCode');
+
+        form.onMobileCodeBlur(0, 'articleCode');
+        passaLaGrazia();
+
+        expect(form.lineCardVm(0).codeChoice).toBeNull();
+        expect(form.lines.at(0).controls['variantId']!.value).toBe('');
+        // Il codice digitato resta: è quello che l'operatore voleva.
+        expect(form.lines.at(0).controls['articleCode']!.value).toBe('ART-9');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
