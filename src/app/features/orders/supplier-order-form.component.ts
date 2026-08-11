@@ -10,6 +10,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ViewportService } from '@core/services/viewport.service';
 import {
   catchError,
   debounceTime,
@@ -86,6 +87,7 @@ import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
+import { SupplierOrderLineCardComponent } from './components/supplier-order-line-card/supplier-order-line-card.component';
 import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
 import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
@@ -227,6 +229,7 @@ function todayIsoDate(): string {
     DocumentLineCodeCellComponent,
     DocumentLineSelectCellComponent,
     DocumentLineUnitCellComponent,
+    SupplierOrderLineCardComponent,
     UnitOfMeasureManagerDialogComponent,
     DocumentLineProductCellComponent,
     DocumentProductSearchPanelComponent,
@@ -250,6 +253,14 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly documentService = inject(DocumentService);
   private readonly router = inject(Router);
+  private readonly viewport = inject(ViewportService);
+
+  /**
+   * Quale delle due viste di riga è viva. Le due sono **esclusive**: sotto la
+   * soglia esiste la card, sopra la tabella, mai entrambe (specifica §4.11 —
+   * «la stessa riga non esiste due volte»).
+   */
+  protected readonly compactView = this.viewport.compact;
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
