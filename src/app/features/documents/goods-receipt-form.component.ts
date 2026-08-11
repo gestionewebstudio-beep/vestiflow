@@ -13,6 +13,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ViewportService } from '@core/services/viewport.service';
 import {
   catchError,
   concatMap,
@@ -298,6 +299,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
+  private readonly viewport = inject(ViewportService);
+
+  /**
+   * Quale delle due viste di riga è viva. Le due sono **esclusive**: sotto la
+   * soglia esiste la card, sopra la tabella, mai entrambe (specifica §4.11).
+   *
+   * Qui mancava, ed è l'ultima delle tre maschere a riceverlo: le due viste
+   * erano entrambe rese e una nascosta dal CSS — su un documento da trenta
+   * righe circa 1.700 nodi e 420 controlli invisibili sul telefono, più il
+   * rischio vero, che uno stato condiviso si apra nella vista che non si vede.
+   */
+  protected readonly compactView = this.viewport.compact;
   private readonly toasts = inject(ToastService);
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
