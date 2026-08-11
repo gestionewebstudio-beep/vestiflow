@@ -625,7 +625,20 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
         if (term.length < VARIANT_SEARCH_MIN_CHARS) {
           return of([] as readonly VariantSummary[]);
         }
-        return this.productService.searchVariantSummaries({ search: term, pageSize: 30 });
+        // `locationId` non filtra i risultati: restringe le giacenze mostrate
+        // alla sede del movimento, che è l'unica che conta quando si sposta o
+        // si corregge merce. Senza, il suggerimento mostrava la disponibilità
+        // di un'altra sede o di nessuna.
+        const locationId = this.form.controls.locationId.value || undefined;
+        return (
+          this.productService
+            .searchVariantSummaries({ search: term, pageSize: 30, locationId })
+            // Senza questo, un errore di rete **spegne la ricerca per sempre**:
+            // l'errore chiude il flusso di `toSignal`, e da lì in poi digitare
+            // nel nome non mostra più niente — senza un messaggio, senza un
+            // modo di accorgersene se non riaprendo il documento.
+            .pipe(catchError(() => of([] as readonly VariantSummary[])))
+        );
       }),
     ),
     { initialValue: [] as readonly VariantSummary[] },
@@ -962,6 +975,46 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   //
   // C'era nel Trasferimento e non qui, e i due documenti hanno la stessa riga:
   // era storia, non dominio.
+
+  // ── Prima la testata, poi le righe (§4.13) ────────────────────────────────
+  //
+  // Finché manca la location, al posto della tabella (e delle card) c'è uno
+  // stato vuoto che dice cosa manca. Non una tabella spenta a metà tinta: se
+  // una cosa non è utilizzabile non si veste di grigio, non c'è.
+  //
+  // Qui il campo è uno: la sede su cui si corregge. Un articolo scelto prima di
+  // saperla mostrerebbe una giacenza che non è quella che si sta rettificando.
+
+  protected readonly headerGateActive = computed(() => {
+    if (this.formReadOnly()) {
+      return false;
+    }
+    this.formValue();
+    return !this.form.controls.locationId.value;
+  });
+
+  /** Il titolo dello stato vuoto dice cosa manca, non che manca qualcosa. */
+  protected readonly linesEmptyTitle = computed(() => {
+    this.formValue();
+    return this.headerGateActive() ? 'Scegli la location' : 'Nessuna riga inserita';
+  });
+
+  protected readonly linesEmptyDescription = computed(() =>
+    this.headerGateActive()
+      ? 'Le righe si aggiungono dopo: da qui potrai cercare un articolo per codice, SKU, EAN o nome.'
+      : 'Cerca un articolo per codice, SKU, EAN o nome.',
+  );
+
+  /**
+   * Campo obbligatorio ancora vuoto che tiene ferme le righe: si segna col
+   * colore del **campo in attesa** (`--color-field-waiting`, regole-stile-ui
+   * §5), non col rosso dell'errore. Il rosso vuol dire «hai provato a salvare e
+   * questo è sbagliato»; aprire una rettifica nuova non è un errore.
+   */
+  protected fieldWaiting(): boolean {
+    this.formValue();
+    return this.headerGateActive() && !this.form.controls.locationId.value;
+  }
 
   // ── Larghezza e visibilità delle colonne ──────────────────────────────────
   //

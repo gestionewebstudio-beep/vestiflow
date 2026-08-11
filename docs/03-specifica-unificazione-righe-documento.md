@@ -471,32 +471,77 @@ dovrebbe esserci, e va aggiornata insieme al codice.
 | Fatture              | no         | — solo tabella, nessuna card |
 
 **Chiusa su tutte le maschere che hanno due viste.** Le Fatture non ne hanno una
-seconda: adottare la card è parte del loro rientro (§2), e il gate arriverà con
-lei — non è un'eccezione lasciata aperta, è una maschera che il problema non ce
-l'ha ancora.
+seconda: adottare la card è parte del loro rientro (voce aperta qui sotto), e il
+gate arriverà con lei — non è un'eccezione lasciata aperta, è una maschera che il
+problema non ce l'ha ancora.
 
 Il meccanismo è uno solo e sta in `core/services/viewport.service.ts`: il
 segnale `compact`, letto nel template come `compactView()`. Chi aggiunge una
 vista a card a una maschera lo innesta, altrimenti la sua riga esiste due volte.
 
-#### ⚠️ Voce aperta — in Trasferimento e Rettifica la ricerca articolo è obsoleta
+#### ✅ Chiusa — Trasferimento e Rettifica hanno la riga degli altri documenti
 
-**[DECISIONE, 11/08/2026 — perimetro: Trasferimento e Rettifica inventario]**
+**[CHIUSA il 12/08/2026 — perimetro: Trasferimento e Rettifica inventario]**
 
-Le due maschere scelgono l'articolo da una **tendina con ricerca al server**.
-Non è una variante: è il meccanismo di prima, rimasto lì. Non ha i campi codice,
-non ha la conferma per corrispondenza esatta (§4.8), non ha la scelta fra più
-corrispondenze, non ha il pannello suggerimenti sul nome (§4.12) — cioè non ha
-nessuna delle decisioni prese su come si trova un articolo dentro una riga.
+Le due maschere sceglievano l'articolo da una **tendina con ricerca al server**:
+non una variante, il meccanismo di prima rimasto lì. Ora hanno i tre campi
+codice con la conferma per corrispondenza esatta (§4.8), la scelta fra più
+corrispondenze, il pannello suggerimenti sul nome (§4.12) e il giro del fuoco.
 
-**Va allineato agli altri documenti**: stessa cella codice, stessa cella nome,
-stesso percorso di conferma.
+Le due sono state fatte **insieme**, come previsto: hanno la stessa riga, e
+allinearne una sola avrebbe creato la divergenza che questo lavoro toglie.
 
-È un lavoro suo e non un contorno dell'adozione della card, perché richiede il
-percorso di conferma dei codici — `DocumentCodeLookupStore` e il filtro delle
-corrispondenze — che oggi in queste due maschere non esiste. Le due si fanno
-**insieme**: hanno la stessa riga, e allinearne una sola creerebbe la divergenza
-che questo lavoro toglie.
+Tre cose emerse mentre si faceva, e registrate qui perché non erano previste:
+
+- **I tre codici non si salvano**, e non è una dimenticanza: sono chiavi di
+  ricerca. Il documento memorizza la variante e lo SKU. Su un documento riaperto
+  i codici li mostra il riepilogo della variante, non il controllo.
+- **Le colonne** prendono ora larghezza, gruppi e selettore dal sistema
+  condiviso (`shared/table-columns`), con una vista per maschera —
+  `transfer_lines` e `stock_adjustment_lines`, dichiarate anche lato API.
+- **La Rettifica non aveva la colonna # né l'ordinamento**, che il Trasferimento
+  aveva: era storia, non dominio, ed è stata allineata.
+
+#### ⚠️ Voce aperta — le Fatture, primo lavoro al rientro di `feature/fattura-elettronica`
+
+**[RIMANDATA il 12/08/2026 — perimetro: Proforma · Fattura · Fattura
+accompagnatoria, cioè `sales-document-form.component`, più la rotta di modifica
+di tutti i documenti di vendita]**
+
+**Non si tocca adesso, e il motivo non è la taglia.** Il ramo
+`feature/fattura-elettronica` sta riscrivendo quel template — 1040 righe —, ed è
+per questo che la maschera è rimasta fuori da tutto il lavoro sulle righe.
+Entrarci ora significherebbe creare conflitto su un file che un altro ramo sta
+rifacendo. **Quando quel ramo rientra, questo è il primo lavoro.**
+
+Stato misurato il 12/08/2026, da non ri-misurare al rientro:
+
+| Cosa                         | Stato                                                  |
+| ---------------------------- | ------------------------------------------------------ |
+| Celle codice (Cod./SKU/EAN)  | assenti — una sola colonna «Articolo / SKU»            |
+| Cella nome con suggerimenti  | assente                                                |
+| Conferma per codice (§4.8)   | assente                                                |
+| Giro del fuoco fra i campi   | assente                                                |
+| Vista a card                 | **assente** — a 375px resta una tabella a otto colonne |
+| Gate delle due viste (§4.11) | non applicabile finché non c'è la seconda vista        |
+| Colonna # e ordinamento      | assenti                                                |
+| Larghezza colonne            | assente (i gruppi ci sono)                             |
+| Ricerca articolo             | `app-select-menu` con `filterOptionsLocally=false`     |
+
+La riga che ha oggi — `variantId · description · quantity · unitPrice ·
+vatCodeId · discountPercent · loadsStock` — è la più vicina all'Ordine cliente,
+quindi il modello da cui copiare è quello.
+
+**È l'ultimo posto dove vive il meccanismo vecchio, e quando cade lì cade dal
+progetto**: con lui se ne vanno `onVariantSearch`, `variantOptions` e il
+debounce di ricerca. Dal 12/08/2026 `filterOptionsLocally=false` compare in
+**un solo file** in tutta l'app, ed è questo.
+
+**Fuori perimetro, e non per pigrizia.** La Fattura d'acquisto ha righe
+_contabili_ (descrizione, netto, aliquota, IVA): niente articolo, niente
+quantità — la merce arriva dall'arrivo merce collegato. La Vendita al banco è un
+carrello di signal, scanner-first: è una cassa, non una maschera documento.
+Nessuna delle due ha una «riga articolo» da unificare.
 
 ### 4.12 Il pannello dei suggerimenti sul nome prodotto
 

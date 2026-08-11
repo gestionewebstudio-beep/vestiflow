@@ -136,7 +136,10 @@
                del componente (stesso meccanismo di #co-header-details). -->
           <div class="transfer-form__header-desktop">
             <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
-              <div class="doc-form__field">
+              <div
+                class="doc-form__field"
+                [class.doc-form__field--waiting]="fieldWaiting('locationId')"
+              >
                 <span class="doc-form__label">Location origine</span>
                 <app-select-menu
                   [options]="originLocationOptions()"
@@ -154,7 +157,10 @@
                 }
               </div>
 
-              <div class="doc-form__field">
+              <div
+                class="doc-form__field"
+                [class.doc-form__field--waiting]="fieldWaiting('targetLocationId')"
+              >
                 <span class="doc-form__label">Location destinazione</span>
                 <app-select-menu
                   [options]="targetLocationOptions()"
@@ -212,7 +218,7 @@
             <h2 id="tr-lines-title" class="doc-form__subtitle">Articoli da trasferire</h2>
             <div class="doc-form__lines-tools">
               <app-table-column-picker [viewId]="lineColumnsView" [reorderable]="false" />
-              <app-button type="button" (click)="addLine()">
+              <app-button type="button" [disabled]="headerGateActive()" (click)="addLine()">
                 <i class="pi pi-plus" aria-hidden="true"></i>
                 Aggiungi riga
               </app-button>
@@ -220,7 +226,7 @@
           </div>
 
           <!-- Desktop (lg+): righe in tabella, come l'Ordine cliente. -->
-          @if (!compactView()) {
+          @if (!compactView() && !headerGateActive()) {
             <div class="doc-form__table-wrap">
               <table class="doc-form__table">
                 <thead>
@@ -565,7 +571,7 @@
             Vista mobile: le righe come card condivise. Esclusiva della
             tabella (§4.11): sotto la soglia esiste solo questa.
           -->
-          @if (compactView()) {
+          @if (compactView() && !headerGateActive()) {
             <div class="doc-form__cards">
               @for (line of lines.controls; track line; let i = $index) {
                 <app-stock-movement-line-card
@@ -592,6 +598,20 @@
                 />
               }
             </div>
+          }
+
+          <!-- Lo stato vuoto delle righe, uno solo per le due viste e per i due
+               motivi per cui le righe non ci sono:
+               · la testata non è completa — e allora la tabella NON si mostra
+                 affatto, invece di stare lì spenta a metà tinta;
+               · la testata c'è ma nessuno ha ancora inserito niente.
+               Il titolo dice cosa manca, il testo dice come si riempie. -->
+          @if (headerGateActive()) {
+            <app-empty-state
+              [title]="linesEmptyTitle()"
+              [description]="linesEmptyDescription()"
+              icon="pi-list"
+            />
           }
         </section>
 

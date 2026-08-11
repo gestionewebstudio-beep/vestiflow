@@ -296,6 +296,63 @@ export class TransferFormComponent implements CanComponentDeactivate {
    * lasciato fuori: e' una previsione sull'uso, non una proprieta' del
    * documento — a fine stagione fra due magazzini le righe sono trenta.
    */
+  // ── Prima la testata, poi le righe (§4.13) ────────────────────────────────
+  //
+  // Finché mancano i campi che governano le righe, al posto della tabella (e
+  // delle card) c'è uno stato vuoto che dice **cosa manca**. Non una tabella
+  // spenta a metà tinta: se una cosa non è utilizzabile non si veste di grigio,
+  // non c'è.
+  //
+  // Qui i campi sono DUE, e nessuno dei due è di comodo: senza l'origine non si
+  // sa da quale giacenza si attinge, senza la destinazione non si sa dove
+  // finisce. Un articolo scelto prima di saperlo mostrerebbe una disponibilità
+  // che non è quella su cui si sta lavorando.
+
+  protected readonly headerGateActive = computed(() => {
+    if (this.formReadOnly()) {
+      return false;
+    }
+    this.formValue();
+    return !this.form.controls.locationId.value || !this.form.controls.targetLocationId.value;
+  });
+
+  /** Il titolo dello stato vuoto dice cosa manca, non che manca qualcosa. */
+  protected readonly linesEmptyTitle = computed(() => {
+    this.formValue();
+    if (!this.headerGateActive()) {
+      return 'Nessuna riga inserita';
+    }
+    const senzaOrigine = !this.form.controls.locationId.value;
+    const senzaDestinazione = !this.form.controls.targetLocationId.value;
+    if (senzaOrigine && senzaDestinazione) {
+      return 'Scegli origine e destinazione';
+    }
+    return senzaOrigine ? 'Scegli la location di origine' : 'Scegli la location di destinazione';
+  });
+
+  protected readonly linesEmptyDescription = computed(() =>
+    this.headerGateActive()
+      ? 'Le righe si aggiungono dopo: da qui potrai cercare un articolo per codice, SKU, EAN o nome.'
+      : 'Cerca un articolo per codice, SKU, EAN o nome.',
+  );
+
+  /**
+   * Campo obbligatorio ancora vuoto che tiene ferme le righe: si segna col
+   * colore del **campo in attesa** (`--color-field-waiting`, regole-stile-ui
+   * §5), non col rosso dell'errore. Il rosso vuol dire «hai provato a salvare e
+   * questo è sbagliato»; aprire un trasferimento nuovo non è un errore.
+   *
+   * Il colore sta sul CONTROLLO, via `--field-border-color`: la cella di
+   * testata è alta, e un filo sul suo bordo si leggerebbe come separazione.
+   */
+  protected fieldWaiting(field: 'locationId' | 'targetLocationId'): boolean {
+    this.formValue();
+    if (!this.headerGateActive()) {
+      return false;
+    }
+    return !this.form.controls[field].value;
+  }
+
   // ── Larghezza e visibilità delle colonne ──────────────────────────────────
   //
   // Stesso sistema condiviso degli altri documenti (`shared/table-columns`):
@@ -699,7 +756,20 @@ export class TransferFormComponent implements CanComponentDeactivate {
         if (term.length < VARIANT_SEARCH_MIN_CHARS) {
           return of([] as readonly VariantSummary[]);
         }
-        return this.productService.searchVariantSummaries({ search: term, pageSize: 30 });
+        // `locationId` non filtra i risultati: restringe le giacenze mostrate
+        // alla sede del movimento, che è l'unica che conta quando si sposta o
+        // si corregge merce. Senza, il suggerimento mostrava la disponibilità
+        // di un'altra sede o di nessuna.
+        const locationId = this.form.controls.locationId.value || undefined;
+        return (
+          this.productService
+            .searchVariantSummaries({ search: term, pageSize: 30, locationId })
+            // Senza questo, un errore di rete **spegne la ricerca per sempre**:
+            // l'errore chiude il flusso di `toSignal`, e da lì in poi digitare
+            // nel nome non mostra più niente — senza un messaggio, senza un
+            // modo di accorgersene se non riaprendo il documento.
+            .pipe(catchError(() => of([] as readonly VariantSummary[])))
+        );
       }),
     ),
     { initialValue: [] as readonly VariantSummary[] },

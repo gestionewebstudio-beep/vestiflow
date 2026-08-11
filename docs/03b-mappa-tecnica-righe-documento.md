@@ -917,6 +917,39 @@ Più **due casi per maschera** negli spec di Ordine cliente e Ordine fornitore �
 
 Le due celle condivise non hanno spec. `app-select-menu` non ha spec: le sue uniche verifiche automatiche sono le chiamate e2e legate ai ruoli ARIA. `document-line-suggestions` ha il suo.
 
+### 12.0-sexies ⚠️ Una costruzione scritta a mano accanto a quella vera resta indietro, e in silenzio
+
+_(12/08/2026)_ Trasferimento e Rettifica costruivano la riga in **due posti**: `createLine()`, e una seconda `this.fb.group({...})` scritta a mano dentro `patchFormFromDocument`, per il caricamento di un documento esistente. Gli stessi sei controlli, elencati due volte.
+
+Aggiungendo `articleCode` e `barcode` a `createLine()`, la copia è rimasta a sei campi. **Qui è andata bene**: i due gruppi finiscono nello stesso `FormArray`, quindi i tipi non tornavano e il compilatore ha protestato. Ma è un caso fortunato, non una rete — bastava che il campo nuovo fosse opzionale, o che le due costruzioni non condividessero un contenitore tipizzato, e la riga caricata da documento avrebbe avuto un campo in meno **senza che nulla lo dicesse**: la maschera si apre, il campo è vuoto, e sembra un dato mancante nel documento.
+
+Il difetto non è la duplicazione in sé: è che **la copia serve un caso raro** (aprire un documento esistente) mentre l'originale serve quello comune (documento nuovo). Chi lavora al campo nuovo prova il caso comune, lo vede funzionare, e chiude.
+
+> **Una riga si costruisce in un punto solo.** Il caricamento chiama `createLine()` e poi mette dentro i valori con `patchValue`. Se una riga caricata deve differire — qui: variante non obbligatoria quando la riga non muove giacenza — si costruisce quella vera e si cambia **la differenza**, dichiarandola:
+>
+> ```ts
+> const group = this.createLine();
+> group.patchValue({ ...dal documento });
+> if (!line.loadsStock) {
+>   group.controls.variantId.clearValidators();
+>   group.controls.variantId.updateValueAndValidity({ emitEvent: false });
+> }
+> ```
+>
+> Così la differenza è **una riga leggibile** invece di un elenco da confrontare a occhio con l'originale.
+
+**Il segnale da cercare:** un `this.lines.push(` seguito da `this.fb.group({` invece che da `this.createLine()`.
+
+**Dove sta ancora** _(misurato 12/08/2026)_:
+
+| Maschera                        | Copie a mano | Nota                                                  |
+| ------------------------------- | -----------: | ----------------------------------------------------- |
+| Ordine cliente                  |            0 | —                                                     |
+| Ordine fornitore                |            0 | —                                                     |
+| Trasferimento · Rettifica       |            0 | tolte il 12/08/2026                                   |
+| **Arrivo merce**                |            1 | da togliere; 21 controlli elencati due volte          |
+| **Fatture** (Proforma/Fatt/Acc) |            2 | **non toccabile**: ramo `feature/fattura-elettronica` |
+
 ### 12.1 Il fronte `e2e/` — ✅ chiuso (08/2026), tranne una specifica
 
 **`tsc -p e2e/tsconfig.json` è verde.** Prima erano **38 errori**, e finché c'erano non esisteva modo di sapere se un helper era rotto se non lanciando la suite intera con app e segreti. È il motivo per cui questo fronte andava chiuso **prima** di innestare la classe della navigazione: da lì in poi i rossi nuovi si sarebbero mescolati a questi.
