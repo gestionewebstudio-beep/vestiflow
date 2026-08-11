@@ -88,6 +88,16 @@ Una funzione decisa qui si applica a **tutti i documenti elencati nello stesso p
 
 _Unica eccezione (temporale, imposta da fuori):_ i documenti su **file contesi** dai rami del collega non si toccano finché quei file non sono liberi — è una separazione di **tempistica**, non una scelta di trattarli diversi. Vedi §2 (in sospeso: fatture, vendite/reso in negozio).
 
+### Il perimetro include le VISTE — e mobile è un discorso a parte
+
+**[DECISIONE, 11/08/2026]** Una decisione vale su un documento, non su «quel documento da computer». Se una funzione arriva sulla tabella e non sulla card, l'operatore ha lo stesso campo e lo stesso gesto che si comportano in due modi a seconda dello schermo: è la divergenza del punto precedente, spostata da un documento a una vista.
+
+**Ma «vale ovunque» non vuol dire «si fa allo stesso modo».** Su un telefono non c'è la tastiera fisica, non c'è il passaggio del mouse sopra un elemento, e lo spazio è un altro. Un gesto che sul computer si fa con le frecce, su un telefono si fa **toccando**: cambia il meccanismo, non la regola.
+
+**Regola operativa: ogni volta che si progetta un comportamento, si dice anche come funziona su mobile.** Se la risposta è «uguale», va bene — ma dev'essere una risposta, non una dimenticanza. È già successo che una funzione nascesse completa sul computer e muta sul telefono, e da telefono l'operatore non vedeva nulla e non sapeva perché.
+
+_Perché conta qui più che altrove: questo è un gestionale che si usa in magazzino col telefono in mano. Una funzione che esiste solo su schermo grande non è una funzione a metà — manca proprio dove si lavora._
+
 ---
 
 ## 2. Perimetro: nove tipi, cinque componenti
@@ -289,6 +299,65 @@ Quindi la regola **morde dove la cella resta un campo**: nessuna corrispondenza 
 
 > **Verificato — l'assunto che tiene aperta la porta di §6.** Anche senza il data-driven (tolto in §6), il giro si può derivare dalla configurazione delle colonne **senza toccare i template e senza cambiare il comportamento di oggi**, perché in tutte e tre le maschere l'ordine di fuoco è un **sottoinsieme dell'ordine delle colonne, nella stessa sequenza relativa** — nessuna maschera inverte due campi. Vale anche per Ordine fornitore (il caso dubbio): le colonne in posizione diversa tra config e schermo — Giacenza, Q.tà disp., IVA, Costo scontato — **non sono nel giro del Tab** (sono calcolate o sono la tendina IVA), quindi il sottoinsieme focalizzabile ha lo stesso ordine. Se un domani servirà lo spostamento colonne, il giro seguirà l'array senza riscrivere la navigazione.
 
+### 4.8 I campi codice non cercano: confrontano
+
+**[DECISIONE, 08/2026 — vale su tutti e sette i tipi documento]**
+
+Chi digita un codice **sa già cosa cerca**. Il campo codice non è un campo di ricerca: mentre si scrive non succede niente — nessun elenco che si apre, nessuna attesa, nessun suggerimento. Il confronto col catalogo avviene **alla conferma** (Tab o Invio), e cerca la corrispondenza **esatta**.
+
+Gli esiti sono **tre**, e vanno tenuti distinti:
+
+| Corrispondenze | Cosa vede l'operatore                                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| **Una**        | l'articolo si aggancia alla riga                                                                     |
+| **Più d'una**  | si apre una **scelta** fra quelle corrispondenze — è l'operatore a dire quale                        |
+| **Nessuna**    | il valore digitato **resta scritto** e la riga prosegue: non è un errore, è un articolo da compilare |
+
+**Cosa cambia rispetto a prima**, ed è tutto da dichiarare o si scambia per regressione:
+
+- Digitando due caratteri partiva una ricerca e compariva un elenco che si aggiornava mentre si scriveva. **Non succede più.**
+- Quando il codice non veniva trovato, il campo si comportava **anche da ricerca per nome** — digitando «100» comparivano i «Jeans 100 slim». Non era scritto da nessuna parte e capitava solo in caso di fallimento: **tolto**.
+- Un codice **corretto ma condiviso da più articoli** si comportava come un codice inesistente: nessun aggancio e nessuna spiegazione. Era la peggiore delle tre risposte, ed è il motivo per cui gli esiti sono tre e non due.
+- Spariva anche un avviso «codice non trovato» in testa alla maschera, **senza sostituto e deliberatamente**: lo stato si vede già dalla riga — se l'articolo si è agganciato compare il suo nome, altrimenti no — e quell'avviso per giunta rimandava a un'azione che non esiste.
+
+**Il limite è il dominio della regola, non un'eccezione.** «Non cerca» significa che da un campo codice **non si trova un articolo di cui non si conosce il codice**: per quello ci sono il campo Nome prodotto e il pannello di ricerca articoli, che è il posto dove si cerca quando non si sa. Il campo codice serve a chi il codice ce l'ha davanti — sul listino del fornitore, sull'etichetta, sul documento cartaceo.
+
+### 4.9 Il codice fornitore che resta nella riga
+
+**[DECISIONE, 11/08/2026 — vale su Arrivo merce e Ordine fornitore, gli unici due documenti che hanno quella colonna]**
+
+Agganciando un articolo, nel campo Cod. fornitore va **il codice con cui lo si è agganciato**: quello che l'operatore ha digitato, preso dal listino che ha davanti. Se l'articolo è stato richiamato per altra via — nome, SKU, EAN, scansione — vale il codice **del fornitore del documento**. Se nessuno dei due esiste, il campo **resta vuoto**.
+
+**Cosa cambia rispetto a prima:** l'operatore digitava il codice del proprio fornitore, l'articolo si agganciava, e nel campo compariva **un codice diverso** — quello di un altro fornitore dello stesso articolo, che al suo fornitore non dice niente. E in Arrivo merce il codice appena digitato poteva essere sostituito **un istante dopo**, in silenzio, dal riallineamento della riga.
+
+**Il limite del dominio:** un articolo fornito da più fornitori **non ha «un» codice fornitore** — ne ha uno per ciascuno. La regola non sceglie il codice «giusto» in assoluto: sceglie quello **pertinente al documento che si sta scrivendo**. Fuori da un documento la domanda non ha risposta, ed è il motivo per cui un campo vuoto è preferibile a un campo riempito con il codice di qualcun altro.
+
+_Oggi in Ordine fornitore la seconda fonte non è ancora disponibile: richiamando un articolo per nome il campo resta vuoto e lo compila l'operatore. È corretto, non è il meglio possibile._
+
+### 4.10 Mobile: la scelta si prende toccando
+
+**[DECISIONE, 11/08/2026 — vale su Ordine cliente, DDT vendita, Preventivi e Scarico manuale, che sono i documenti con i campi codice anche nella vista a card]**
+
+Le regole di §4.8 valgono identiche da telefono. **Cambia il gesto, non la regola.**
+
+- La scelta fra più corrispondenze **si prende toccando** la voce.
+- **Nessuna voce è evidenziata**: su un telefono non ci sono le frecce che la spostano, e una voce accesa somiglierebbe a una preselezione — un invito a confermare senza guardare.
+- **Uscire da un campo conferma il codice**, esattamente come il Tab sul computer: lo scorrimento non toglie il fuoco a un campo, quindi se lo si perde è perché si è toccato un altro campo — un gesto deliberato quanto un Tab.
+
+**Cosa cambia rispetto a prima:** da telefono un codice con più corrispondenze apriva una scelta **che non aveva dove mostrarsi**: la riga non si agganciava e nulla lo diceva. E passando da un campo all'altro col dito il codice non veniva confrontato affatto: si digitava un codice giusto e non succedeva niente.
+
+**Il limite del dominio:** «Invio prende la voce evidenziata» (§4.5) su mobile **non ha bersaglio**, perché una voce evidenziata non c'è. Non è una deroga: è che quella frase descrive un gesto da tastiera, e la tastiera lì non comanda la scelta.
+
+### 4.11 La stessa riga non esiste due volte
+
+**[DECISIONE, 11/08/2026 — vale su tutti i documenti a righe]**
+
+Il documento ha **una sola vista delle righe per volta**: la tabella sugli schermi larghi, le card su quelli stretti. Non due, con una nascosta sotto l'altra.
+
+**Cosa cambia rispetto a prima:** entrambe esistevano sempre, e quella non visibile poteva **aprire pannelli che nessuno vedeva** — è esattamente come la scelta fra più codici spariva da telefono. Ogni funzione nuova che tocca una riga avrebbe rischiato di rifare la stessa cosa, e in silenzio.
+
+**Il limite del dominio, accettato:** attraversando la soglia — si ruota un tablet, si ridimensiona una finestra — **il cursore si perde**, perché il campo su cui stava appartiene alla vista che non c'è più. Quello che si è scritto **non si perde**: valori, modifiche non salvate e campi bloccati restano. Si attraversa la soglia ruotando un dispositivo, non lavorando, ed è la ragione per cui il costo è accettabile.
+
 ---
 
 ## 5. Difetti da raddrizzare PRIMA di unificare
@@ -454,7 +523,12 @@ Difetto: la cella "Nome prodotto" fa tre lavori; l'hover fa comparire un link ch
 | 8       | Modo ispezione cade; nome cliccabile (apri) vs riga (aggiungi); ritorno alla ricerca; ristrutturare il risultato                                                                                                                                                                   | ✔     | —                                                |
 | 9       | Cella prodotto: striscia icone fisse, `+` creazione precompilata, disabilitato preventivo, `tabindex=-1`; **su entrambe le maschere insieme** (`domain/` condiviso)                                                                                                                | ✔     | —                                                |
 | 10      | Aggiornare `CORE-FORM-DOCUMENTO.md`; correggere contraddizione in `ORDINE-FORNITORE-RIGA.md`; **registrare la cella nuova** in `regole-stile-ui.md`; il **separatore** in `regole-stile-ui.md:455` **non** si tocca (token non orfani)                                             | ✔     | —                                                |
-| —       | Card mobile: fuori scope. Dimensioni/peso articolo: fuori scope.                                                                                                                                                                                                                   | ✔     | —                                                |
+| 1       | **Il perimetro include le VISTE:** una decisione vale sul documento, non su «quel documento da computer». Il meccanismo può cambiare — su mobile si tocca — la regola no. Ogni progetto dice anche come funziona su mobile                                                         | ✔     | —                                                |
+| 4.8     | **I campi codice non cercano: confrontano** alla conferma, per corrispondenza esatta. **Tre esiti** (una aggancia · più d'una apre la scelta · nessuna lascia il valore scritto). Via la ricerca a digitazione, via il ripiego per nome, via l'avviso «non trovato»                | ✔     | —                                                |
+| 4.9     | **Nel Cod. fornitore va il codice con cui hai agganciato**, poi quello del fornitore del documento, poi niente — mai quello di un fornitore qualsiasi (Arrivo merce e Ordine fornitore)                                                                                            | ✔     | —                                                |
+| 4.10    | **Su mobile la scelta si prende toccando**, nessuna voce evidenziata, e **uscire da un campo conferma** come il Tab                                                                                                                                                                | ✔     | —                                                |
+| 4.11    | **La stessa riga non esiste due volte:** una sola vista viva per volta. Attraversando la soglia si perde il cursore, non il lavoro                                                                                                                                                 | ✔     | —                                                |
+| —       | Card mobile: fuori scope il **rifacimento grafico**, non le regole (vedi §12). Dimensioni/peso articolo: fuori scope.                                                                                                                                                              | ✔     | —                                                |
 | —       | **Fatture e vendite/reso in negozio: IN SOSPESO** — nulla di deciso su quando/come; vendite/reso prima da chiarire cos'è                                                                                                                                                           | ✔     | —                                                |
 
 ---
@@ -544,4 +618,6 @@ Il lavoro ha **tre filoni**: tastiera, celle-a-selezione+U.M., blocco righe. Non
 - **Fatture** (Proforma/Fattura/Fattura accompagnatoria): comportamento nello standard come gli altri, ma **quando e come eseguirle è da decidere** (file conteso col ramo fattura elettronica). Nulla fissato ora.
 - **Vendite/reso in negozio:** prima **[DA VERIFICARE] cos'è** ("vendita al banco"? POS/cassa? documento a sé?), poi si decide. Nulla fissato ora.
 
-**Fuori scope:** spostamento colonne (porta aperta via §4.7); elenchi Prodotti/Clienti + riepiloghi; card mobile; dimensioni/peso articolo.
+**Fuori scope:** spostamento colonne (porta aperta via §4.7); elenchi Prodotti/Clienti + riepiloghi; **il RIFACIMENTO grafico delle card mobile**; dimensioni/peso articolo.
+
+> ⚠️ **Correzione (11/08/2026): «card mobile: fuori scope» diceva troppo, e ora è precisato.** Fuori scope è **rifarle**: la loro forma, il loro aspetto, la loro disposizione non si toccano. Ma le **regole** decise qui valgono anche lì (§1, «il perimetro include le viste»), e infatti le card sono già state toccate — la scelta fra più codici e la conferma allo sfocamento ci sono arrivate. Letta come stava, questa riga avrebbe autorizzato a lasciare mobile indietro, che è il difetto che §4.10 corregge.
