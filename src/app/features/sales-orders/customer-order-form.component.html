@@ -256,30 +256,36 @@
                       basso tutto il resto del pannello per un collegamento che
                       si usa di rado: in alto costa zero altezza, ed è accanto
                       al nome a cui si riferisce.
+
+                      Il contenitore non è di troppo: la riga è `space-between`,
+                      e con tre figli i due comandi si spargerebbero invece di
+                      stare insieme a destra.
                     -->
-                    <button
-                      type="button"
-                      class="doc-panel__field-action"
-                      (click)="toggleCustomerForm()"
-                    >
-                      <i
-                        class="pi"
-                        [class.pi-plus]="!showCustomerForm()"
-                        [class.pi-minus]="showCustomerForm()"
-                        aria-hidden="true"
-                      ></i>
-                      {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
-                    </button>
-                    @if (form.controls.customerId.value) {
+                    <span class="doc-panel__field-actions">
                       <button
                         type="button"
                         class="doc-panel__field-action"
-                        (click)="openCustomerDetail()"
+                        (click)="toggleCustomerForm()"
                       >
-                        <i class="pi pi-external-link" aria-hidden="true"></i>
-                        Scheda cliente
+                        <i
+                          class="pi"
+                          [class.pi-plus]="!showCustomerForm()"
+                          [class.pi-minus]="showCustomerForm()"
+                          aria-hidden="true"
+                        ></i>
+                        {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
                       </button>
-                    }
+                      @if (form.controls.customerId.value) {
+                        <button
+                          type="button"
+                          class="doc-panel__field-action"
+                          (click)="openCustomerDetail()"
+                        >
+                          <i class="pi pi-external-link" aria-hidden="true"></i>
+                          Scheda cliente
+                        </button>
+                      }
+                    </span>
                   </div>
 
                   <app-select-menu
