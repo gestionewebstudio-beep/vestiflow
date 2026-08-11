@@ -3513,6 +3513,25 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return control.invalid && control.touched;
   }
 
+  /**
+   * Il campo tiene ferme le righe: è obbligatorio, è ancora vuoto, e finché
+   * resta così il documento non ha righe da compilare.
+   *
+   * Non è `fieldInvalid`, e la differenza conta: quello dice «hai provato a
+   * salvare e questo campo è sbagliato», questo dice «il lavoro comincia da
+   * qui». Il primo è un errore dell'operatore, il secondo è l'inizio.
+   */
+  protected fieldWaiting(field: 'customerId' | 'locationId'): boolean {
+    this.formValue();
+    if (!this.headerGateActive()) {
+      return false;
+    }
+    if (field === 'customerId' && this.isManualUnload) {
+      return false;
+    }
+    return !this.form.controls[field].value;
+  }
+
   protected openCustomerDetail(): void {
     const id = this.form.controls.customerId.value;
     if (id) {

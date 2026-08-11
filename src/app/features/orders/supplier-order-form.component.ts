@@ -1396,6 +1396,17 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return control.invalid && (control.touched || control.dirty);
   }
 
+  /**
+   * Il campo tiene ferme le righe: obbligatorio, ancora vuoto, e finché resta
+   * così il documento non ha righe da compilare. Distinto da `fieldInvalid`,
+   * che dice «hai provato a salvare e questo è sbagliato»: aprire un documento
+   * nuovo non è un errore, è l'inizio del lavoro.
+   */
+  protected fieldWaiting(): boolean {
+    this.formValue();
+    return this.headerGateActive();
+  }
+
   protected lineFieldInvalid(index: number, name: 'variantId' | 'orderedQuantity'): boolean {
     const control = this.lines.at(index).controls[name];
     return control.invalid && (control.touched || control.dirty);

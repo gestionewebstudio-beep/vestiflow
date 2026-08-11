@@ -3459,6 +3459,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return control.invalid && (control.touched || control.dirty);
   }
 
+  /**
+   * Il campo tiene ferme le righe: obbligatorio, ancora vuoto, e finché resta
+   * così il documento non ha righe da compilare. Distinto da `fieldInvalid`,
+   * che dice «hai provato a salvare e questo è sbagliato»: aprire un documento
+   * nuovo non è un errore, è l'inizio del lavoro.
+   */
+  protected fieldWaiting(name: 'supplierId' | 'locationId'): boolean {
+    this.formValue();
+    if (!this.headerGateActive()) {
+      return false;
+    }
+    return !this.form.controls[name].value;
+  }
+
   protected lineFieldInvalid(index: number, name: 'productName' | 'quantity'): boolean {
     const control = this.lines.at(index).controls[name];
     return control.invalid && (control.touched || control.dirty);

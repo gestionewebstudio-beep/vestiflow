@@ -282,6 +282,33 @@ app-customer-order-form {
   box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--color-primary);
 }
 
+/**
+ * Campo obbligatorio ancora da compilare, mentre le righe aspettano.
+ *
+ * Serve perché lo stato vuoto al centro dice COSA manca ma non DOVE si fa: lo
+ * sguardo resta in mezzo alla pagina mentre l'azione è in testata. Il filo
+ * colorato porta l'occhio lì.
+ *
+ * ⚠️ **Tinta d'attesa, non rossa.** Il rosso in questa maschera vuol dire già
+ * un'altra cosa — «hai provato a salvare e questo campo è sbagliato» — e usarlo
+ * anche per «non l'hai ancora compilato» rende i due stati indistinguibili
+ * proprio quando servirebbe distinguerli: dopo un salvataggio rifiutato il
+ * campo sarebbe rosso come un minuto prima. Aprire un documento nuovo non è un
+ * errore dell'operatore, è l'inizio del lavoro.
+ *
+ * Stessa forma del focus qui sopra — filo in basso, non cornice — così i due
+ * stati si sommano senza litigare.
+ */
+.doc-form__header .doc-form__field--waiting {
+  background-color: var(--color-warning-subtle);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--color-warning);
+}
+
+.doc-form__header .doc-form__field--waiting:focus-within {
+  background-color: var(--color-primary-subtle);
+  box-shadow: inset 0 calc(-1 * var(--border-width-strong)) 0 var(--color-primary);
+}
+
 .doc-form__header .doc-form__label {
   font-size: var(--text-2xs);
   font-weight: var(--font-weight-semibold);

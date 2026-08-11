@@ -133,7 +133,10 @@
         </div>
 
         <div class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact">
-          <div class="doc-form__field doc-form__field--span2">
+          <div
+            class="doc-form__field doc-form__field--span2"
+            [class.doc-form__field--waiting]="fieldWaiting()"
+          >
             <span class="doc-form__label" id="po-supplier-label">Fornitore</span>
             <app-select-menu
               [options]="supplierOptions()"
