@@ -455,28 +455,48 @@ Il documento ha **una sola vista delle righe per volta**: la tabella sugli scher
 
 #### Dov'è applicata davvero _(verificato 11/08/2026)_
 
-⚠️ **La regola valeva su tutti i documenti, l'applicazione no.** Fino a oggi il
-gate esisteva **in una maschera su tre**, mentre questo paragrafo la dava per
-chiusa ovunque — ed è il difetto peggiore dei due, perché chi legge la specifica
-non va a verificare. La tabella qui sotto dice cosa c'è, non cosa dovrebbe
-esserci, e va aggiornata insieme al codice.
+⚠️ **La regola valeva su tutti i documenti, l'applicazione no.** Prima dell'11/08
+il gate esisteva **in una maschera su cinque**, mentre questo paragrafo la dava
+per chiusa ovunque — ed è il difetto peggiore dei due, perché chi legge la
+specifica non va a verificare. La tabella qui sotto dice cosa c'è, non cosa
+dovrebbe esserci, e va aggiornata insieme al codice.
 
-| Maschera             | Due viste? | Esclusive?                                          |
-| -------------------- | ---------- | --------------------------------------------------- |
-| Ordine cliente       | sì         | ✅ da sempre                                        |
-| Arrivo merce         | sì         | ✅ **dall'11/08/2026**                              |
-| Ordine fornitore     | sì         | ✅ **dall'11/08/2026** (la card mobile è nata oggi) |
-| Trasferimento        | sì         | ❌ **entrambe vive**                                |
-| Rettifica inventario | sì         | ❌ **entrambe vive**                                |
-| Fatture              | no         | — (solo tabella, nessuna card)                      |
+| Maschera             | Due viste? | Esclusive?                   |
+| -------------------- | ---------- | ---------------------------- |
+| Ordine cliente       | sì         | ✅ da sempre                 |
+| Arrivo merce         | sì         | ✅ dall'11/08/2026           |
+| Ordine fornitore     | sì         | ✅ dall'11/08/2026           |
+| Trasferimento        | sì         | ✅ dall'11/08/2026           |
+| Rettifica inventario | sì         | ✅ dall'11/08/2026           |
+| Fatture              | no         | — solo tabella, nessuna card |
+
+**Chiusa su tutte le maschere che hanno due viste.** Le Fatture non ne hanno una
+seconda: adottare la card è parte del loro rientro (§2), e il gate arriverà con
+lei — non è un'eccezione lasciata aperta, è una maschera che il problema non ce
+l'ha ancora.
 
 Il meccanismo è uno solo e sta in `core/services/viewport.service.ts`: il
 segnale `compact`, letto nel template come `compactView()`. Chi aggiunge una
 vista a card a una maschera lo innesta, altrimenti la sua riga esiste due volte.
 
-**Trasferimento e Rettifica** non usano la card condivisa: hanno un blocco di
-riga proprio dentro `doc-form__cards`, e il loro allineamento è un lavoro a sé —
-prima adottano la card, poi il gate arriva con lei.
+#### ⚠️ Voce aperta — in Trasferimento e Rettifica la ricerca articolo è obsoleta
+
+**[DECISIONE, 11/08/2026 — perimetro: Trasferimento e Rettifica inventario]**
+
+Le due maschere scelgono l'articolo da una **tendina con ricerca al server**.
+Non è una variante: è il meccanismo di prima, rimasto lì. Non ha i campi codice,
+non ha la conferma per corrispondenza esatta (§4.8), non ha la scelta fra più
+corrispondenze, non ha il pannello suggerimenti sul nome (§4.12) — cioè non ha
+nessuna delle decisioni prese su come si trova un articolo dentro una riga.
+
+**Va allineato agli altri documenti**: stessa cella codice, stessa cella nome,
+stesso percorso di conferma.
+
+È un lavoro suo e non un contorno dell'adozione della card, perché richiede il
+percorso di conferma dei codici — `DocumentCodeLookupStore` e il filtro delle
+corrispondenze — che oggi in queste due maschere non esiste. Le due si fanno
+**insieme**: hanno la stessa riga, e allinearne una sola creerebbe la divergenza
+che questo lavoro toglie.
 
 ### 4.12 Il pannello dei suggerimenti sul nome prodotto
 

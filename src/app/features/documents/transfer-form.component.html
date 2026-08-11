@@ -257,222 +257,176 @@
           </div>
 
           <!-- Desktop (lg+): righe in tabella, come l'Ordine cliente. -->
-          <div class="doc-form__table-wrap">
-            <table class="doc-form__table">
-              <thead>
-                <tr>
-                  <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
-                  <th scope="col">
-                    <button
-                      type="button"
-                      class="doc-form__th-sort"
-                      [attr.aria-label]="lineSortAriaLabel('sku', 'Variante / SKU')"
-                      (click)="toggleLineSort('sku')"
-                    >
-                      Variante / SKU
-                      @if (lineSort.column() === 'sku') {
-                        <i
-                          class="pi"
-                          [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                          [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                          aria-hidden="true"
-                        ></i>
-                      }
-                    </button>
-                  </th>
-                  <th scope="col">
-                    <button
-                      type="button"
-                      class="doc-form__th-sort"
-                      [attr.aria-label]="lineSortAriaLabel('description', 'Descrizione')"
-                      (click)="toggleLineSort('description')"
-                    >
-                      Descrizione
-                      @if (lineSort.column() === 'description') {
-                        <i
-                          class="pi"
-                          [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                          [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                          aria-hidden="true"
-                        ></i>
-                      }
-                    </button>
-                  </th>
-                  <th scope="col" class="doc-form__num">
-                    <button
-                      type="button"
-                      class="doc-form__th-sort"
-                      [attr.aria-label]="lineSortAriaLabel('quantity', 'Quantità')"
-                      (click)="toggleLineSort('quantity')"
-                    >
-                      Quantità
-                      @if (lineSort.column() === 'quantity') {
-                        <i
-                          class="pi"
-                          [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                          [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                          aria-hidden="true"
-                        ></i>
-                      }
-                    </button>
-                  </th>
-                  <th scope="col">Seriali</th>
-                  <th scope="col" class="doc-form__cell--actions">
-                    <span class="sr-only">Azioni</span>
-                  </th>
-                </tr>
-              </thead>
-              <!-- Il trascinamento sta sul tbody, e il blocco del documento lo
-                   spegne qui: il fieldset disabilitato ferma i controlli del form,
-                   non il drag & drop, che controllo non e'. -->
-              <tbody
-                formArrayName="lines"
-                cdkDropList
-                [cdkDropListDisabled]="formReadOnly()"
-                (cdkDropListDropped)="onLineDrop($event)"
-              >
-                @for (line of lines.controls; track line; let i = $index) {
-                  <tr cdkDrag [cdkDragStartDelay]="{ touch: 250, mouse: 0 }" [formGroupName]="i">
-                    <!-- La cella del numero e' la maniglia: il resto della riga
-                         resta cliccabile per modificare le celle. -->
-                    <td class="doc-form__cell--index doc-form__drag-handle" cdkDragHandle>
-                      <span class="tabular-nums">{{ i + 1 }}</span>
-                    </td>
-                    <td class="doc-form__cell doc-form__cell--editable">
-                      <app-select-menu
-                        [options]="variantOptions()"
-                        [value]="line.controls.variantId.value"
-                        ariaLabel="Variante"
-                        placeholder="Cerca SKU o articolo…"
-                        [compact]="true"
-                        [fullWidth]="true"
-                        [searchable]="true"
-                        searchPlaceholder="Min. 2 caratteri…"
-                        searchAriaLabel="Cerca variante"
-                        [invalid]="lineFieldInvalid(i, 'variantId')"
-                        (searchChange)="variantSearchDraft.set($event)"
-                        (valueChange)="onVariantSelect(i, $event)"
-                      />
-                      @if (lineFieldInvalid(i, 'variantId')) {
-                        <p class="doc-form__error">Campo obbligatorio.</p>
-                      }
-                    </td>
-                    <td class="doc-form__cell doc-form__cell--editable">
-                      <input
-                        class="doc-form__input doc-form__input--table"
-                        type="text"
-                        formControlName="description"
-                        aria-label="Descrizione"
-                      />
-                    </td>
-                    <td class="doc-form__cell doc-form__cell--editable doc-form__num">
-                      <input
-                        class="doc-form__input doc-form__input--table doc-form__input--num"
-                        type="number"
-                        min="1"
-                        step="1"
-                        formControlName="quantity"
-                        aria-label="Quantità"
-                      />
-                    </td>
-                    <td class="doc-form__cell doc-form__cell--editable">
-                      <input
-                        class="doc-form__input doc-form__input--table"
-                        type="text"
-                        formControlName="serialNumbersText"
-                        placeholder="SN001, SN002"
-                        autocomplete="off"
-                        aria-label="Seriali"
-                      />
-                    </td>
-                    <td class="doc-form__cell doc-form__cell--actions">
+          @if (!compactView()) {
+            <div class="doc-form__table-wrap">
+              <table class="doc-form__table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
+                    <th scope="col">
                       <button
                         type="button"
-                        class="doc-form__line-remove"
-                        [disabled]="lines.length <= 1"
-                        aria-label="Rimuovi riga"
-                        (click)="removeLine(i)"
+                        class="doc-form__th-sort"
+                        [attr.aria-label]="lineSortAriaLabel('sku', 'Variante / SKU')"
+                        (click)="toggleLineSort('sku')"
                       >
-                        <i class="pi pi-trash" aria-hidden="true"></i>
+                        Variante / SKU
+                        @if (lineSort.column() === 'sku') {
+                          <i
+                            class="pi"
+                            [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                            [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                            aria-hidden="true"
+                          ></i>
+                        }
                       </button>
-                    </td>
+                    </th>
+                    <th scope="col">
+                      <button
+                        type="button"
+                        class="doc-form__th-sort"
+                        [attr.aria-label]="lineSortAriaLabel('description', 'Descrizione')"
+                        (click)="toggleLineSort('description')"
+                      >
+                        Descrizione
+                        @if (lineSort.column() === 'description') {
+                          <i
+                            class="pi"
+                            [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                            [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                            aria-hidden="true"
+                          ></i>
+                        }
+                      </button>
+                    </th>
+                    <th scope="col" class="doc-form__num">
+                      <button
+                        type="button"
+                        class="doc-form__th-sort"
+                        [attr.aria-label]="lineSortAriaLabel('quantity', 'Quantità')"
+                        (click)="toggleLineSort('quantity')"
+                      >
+                        Quantità
+                        @if (lineSort.column() === 'quantity') {
+                          <i
+                            class="pi"
+                            [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                            [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                            aria-hidden="true"
+                          ></i>
+                        }
+                      </button>
+                    </th>
+                    <th scope="col">Seriali</th>
+                    <th scope="col" class="doc-form__cell--actions">
+                      <span class="sr-only">Azioni</span>
+                    </th>
                   </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Sotto lg la tabella sparisce (doc-form__table-wrap è desktop-only):
-               qui la stessa riga resta editabile come lista di campi. Stessi
-               controlli, stesso FormArray. -->
-          <div class="doc-form__cards" formArrayName="lines">
-            @for (line of lines.controls; track line; let i = $index) {
-              <div class="doc-form__line-block">
-                <div class="doc-form__line" [formGroupName]="i">
-                  <div class="doc-form__line-field doc-form__line-field--variant">
-                    <span class="doc-form__label">Variante / SKU</span>
-                    <app-select-menu
-                      [options]="variantOptions()"
-                      [value]="line.controls.variantId.value"
-                      ariaLabel="Variante"
-                      placeholder="Cerca SKU o articolo…"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      [searchable]="true"
-                      searchPlaceholder="Min. 2 caratteri…"
-                      searchAriaLabel="Cerca variante"
-                      [invalid]="lineFieldInvalid(i, 'variantId')"
-                      (searchChange)="variantSearchDraft.set($event)"
-                      (valueChange)="onVariantSelect(i, $event)"
-                    />
-                    @if (lineFieldInvalid(i, 'variantId')) {
-                      <p class="doc-form__error">Campo obbligatorio.</p>
-                    }
-                  </div>
-
-                  <div class="doc-form__line-field">
-                    <label class="doc-form__label" [for]="'tr-desc-' + i">Descrizione</label>
-                    <input
-                      [id]="'tr-desc-' + i"
-                      class="doc-form__input"
-                      type="text"
-                      formControlName="description"
-                    />
-                  </div>
-
-                  <div class="doc-form__line-field doc-form__line-field--qty">
-                    <label class="doc-form__label" [for]="'tr-qty-' + i">Quantità</label>
-                    <input
-                      [id]="'tr-qty-' + i"
-                      class="doc-form__input doc-form__input--qty"
-                      type="number"
-                      min="1"
-                      step="1"
-                      formControlName="quantity"
-                    />
-                  </div>
-
-                  <div class="doc-form__line-field doc-form__line-field--serials">
-                    <label class="doc-form__label" [for]="'tr-serials-' + i">Seriali</label>
-                    <input
-                      [id]="'tr-serials-' + i"
-                      class="doc-form__input"
-                      type="text"
-                      formControlName="serialNumbersText"
-                      placeholder="SN001, SN002"
-                      autocomplete="off"
-                    />
-                  </div>
-
-                  @if (lines.length > 1) {
-                    <app-button type="button" variant="ghost" (click)="removeLine(i)">
-                      Rimuovi
-                    </app-button>
+                </thead>
+                <!-- Il trascinamento sta sul tbody, e il blocco del documento lo
+                   spegne qui: il fieldset disabilitato ferma i controlli del form,
+                   non il drag & drop, che controllo non e'. -->
+                <tbody
+                  formArrayName="lines"
+                  cdkDropList
+                  [cdkDropListDisabled]="formReadOnly()"
+                  (cdkDropListDropped)="onLineDrop($event)"
+                >
+                  @for (line of lines.controls; track line; let i = $index) {
+                    <tr cdkDrag [cdkDragStartDelay]="{ touch: 250, mouse: 0 }" [formGroupName]="i">
+                      <!-- La cella del numero e' la maniglia: il resto della riga
+                         resta cliccabile per modificare le celle. -->
+                      <td class="doc-form__cell--index doc-form__drag-handle" cdkDragHandle>
+                        <span class="tabular-nums">{{ i + 1 }}</span>
+                      </td>
+                      <td class="doc-form__cell doc-form__cell--editable">
+                        <app-select-menu
+                          [options]="variantOptions()"
+                          [value]="line.controls.variantId.value"
+                          ariaLabel="Variante"
+                          placeholder="Cerca SKU o articolo…"
+                          [compact]="true"
+                          [fullWidth]="true"
+                          [searchable]="true"
+                          searchPlaceholder="Min. 2 caratteri…"
+                          searchAriaLabel="Cerca variante"
+                          [invalid]="lineFieldInvalid(i, 'variantId')"
+                          (searchChange)="variantSearchDraft.set($event)"
+                          (valueChange)="onVariantSelect(i, $event)"
+                        />
+                        @if (lineFieldInvalid(i, 'variantId')) {
+                          <p class="doc-form__error">Campo obbligatorio.</p>
+                        }
+                      </td>
+                      <td class="doc-form__cell doc-form__cell--editable">
+                        <input
+                          class="doc-form__input doc-form__input--table"
+                          type="text"
+                          formControlName="description"
+                          aria-label="Descrizione"
+                        />
+                      </td>
+                      <td class="doc-form__cell doc-form__cell--editable doc-form__num">
+                        <input
+                          class="doc-form__input doc-form__input--table doc-form__input--num"
+                          type="number"
+                          min="1"
+                          step="1"
+                          formControlName="quantity"
+                          aria-label="Quantità"
+                        />
+                      </td>
+                      <td class="doc-form__cell doc-form__cell--editable">
+                        <input
+                          class="doc-form__input doc-form__input--table"
+                          type="text"
+                          formControlName="serialNumbersText"
+                          placeholder="SN001, SN002"
+                          autocomplete="off"
+                          aria-label="Seriali"
+                        />
+                      </td>
+                      <td class="doc-form__cell doc-form__cell--actions">
+                        <button
+                          type="button"
+                          class="doc-form__line-remove"
+                          [disabled]="lines.length <= 1"
+                          aria-label="Rimuovi riga"
+                          (click)="removeLine(i)"
+                        >
+                          <i class="pi pi-trash" aria-hidden="true"></i>
+                        </button>
+                      </td>
+                    </tr>
                   }
-                </div>
-              </div>
-            }
-          </div>
+                </tbody>
+              </table>
+            </div>
+          }
+
+          <!--
+            Vista mobile: le righe come card condivise. Esclusiva della
+            tabella (§4.11): sotto la soglia esiste solo questa.
+          -->
+          @if (compactView()) {
+            <div class="doc-form__cards">
+              @for (line of lines.controls; track line; let i = $index) {
+                <app-stock-movement-line-card
+                  [lineIndex]="i"
+                  [line]="line"
+                  idPrefix="tr"
+                  [variantOptions]="variantOptions()"
+                  [variantInvalid]="lineFieldInvalid(i, 'variantId')"
+                  [disabled]="formReadOnly()"
+                  [canRemove]="lines.length > 1"
+                  (variantSearch)="variantSearchDraft.set($event)"
+                  (variantSelected)="onVariantSelect(i, $event)"
+                  (duplicated)="duplicateLine($event)"
+                  (removed)="removeLine($event)"
+                />
+              }
+            </div>
+          }
         </section>
 
         <!-- Banda finale: card note (nessun totale su questa maschera). -->

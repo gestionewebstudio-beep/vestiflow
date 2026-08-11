@@ -10,6 +10,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ViewportService } from '@core/services/viewport.service';
 import {
   catchError,
   debounceTime,
@@ -60,6 +61,7 @@ import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edi
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
+import { StockMovementLineCardComponent } from '@domain/documents/components/stock-movement-line-card/stock-movement-line-card.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
@@ -99,6 +101,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
     DocumentSeriesManagerDialogComponent,
     EditLockBannerComponent,
     SelectMenuComponent,
+    StockMovementLineCardComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
@@ -116,6 +119,14 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
   private readonly productService = inject(ProductService);
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly router = inject(Router);
+  private readonly viewport = inject(ViewportService);
+
+  /**
+   * Quale delle due viste di riga è viva: sotto la soglia la card, sopra la
+   * tabella, mai entrambe (specifica §4.11).
+   */
+  protected readonly compactView = this.viewport.compact;
+
   private readonly toast = inject(ToastService);
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
@@ -629,6 +640,34 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       return;
     }
     this.lines.push(this.createLine());
+  }
+
+  /**
+   * Duplica la riga: stessa variante, stessa descrizione, stessa quantità —
+   * seriali esclusi, perché un numero di serie identifica **un** pezzo e
+   * copiarlo creerebbe due righe che dicono di muovere lo stesso.
+   *
+   * Non c'era in questa maschera, mentre c'è negli altri tre documenti. È
+   * arrivata con la card condivisa, il cui piede porta Duplica ed Elimina:
+   * nasconderlo qui avrebbe richiesto un interruttore, e un piede che è forma
+   * solo per tre documenti su cinque non è forma.
+   */
+  protected duplicateLine(index: number): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const source = this.lines.at(index);
+    if (!source) {
+      return;
+    }
+    const copy = this.createLine();
+    copy.patchValue({
+      variantId: source.controls.variantId.value,
+      sku: source.controls.sku.value,
+      description: source.controls.description.value,
+      quantity: source.controls.quantity.value,
+    });
+    this.lines.insert(index + 1, copy);
   }
 
   protected removeLine(index: number): void {
