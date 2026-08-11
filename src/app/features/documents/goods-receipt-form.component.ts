@@ -2291,34 +2291,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   // ── "Imposta IVA a tutte le righe…" (§10) ──────────────────────────────────
 
-  /** Ambito del dialog IVA: tutte le righe (menu colonna) o solo le selezionate. */
-  protected readonly applyVatScope = signal<'all' | 'selected'>('all');
-
+  // Un perimetro solo: tutte le righe. Ne esisteva un secondo — «le righe
+  // selezionate» — che arrivava dalla barra della selezione multipla: stesso
+  // dialogo, stesso codice che applica, cambiava solo su quante righe. Con le
+  // spunte e' caduto anche lui.
   protected openApplyVatDialog(): void {
     this.vatHeaderMenuOpen.set(false);
     if (this.formReadOnly()) {
       return;
     }
-    this.applyVatScope.set('all');
     this.applyVatCodeId.set(this.defaultVatCodeId());
     this.applyVatDialogOpen.set(true);
   }
 
-  /** Variante massiva dalla barra di selezione: agisce sulle sole righe scelte. */
-  protected openApplyVatDialogForSelection(): void {
-    if (this.formReadOnly() || this.selectedLinesCount() === 0) {
-      return;
-    }
-    this.applyVatScope.set('selected');
-    this.applyVatCodeId.set(this.defaultVatCodeId());
-    this.applyVatDialogOpen.set(true);
-  }
-
-  protected readonly applyVatDialogTitle = computed(() =>
-    this.applyVatScope() === 'selected'
-      ? 'Codice IVA da impostare sulle righe selezionate'
-      : 'Codice IVA da impostare su tutte le righe',
-  );
+  protected readonly applyVatDialogTitle = 'Codice IVA da impostare su tutte le righe';
 
   protected closeApplyVatDialog(): void {
     this.applyVatDialogOpen.set(false);
@@ -2327,12 +2313,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   /** Righe economiche interessate: esclude la riga vuota di inserimento (§10.1). */
   protected readonly applyVatTargetCount = computed(() => {
     this.formValue();
-    const selected = this.selectedLineControls();
-    const scoped =
-      this.applyVatScope() === 'selected'
-        ? this.lines.controls.filter((line) => selected.has(line))
-        : this.lines.controls;
-    return scoped.filter((line) => !this.lineIsEmpty(line)).length;
+    return this.lines.controls.filter((line) => !this.lineIsEmpty(line)).length;
   });
 
   protected readonly applyVatSelectedCode = computed(() => {
@@ -2352,10 +2333,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (!vatCodeId || !this.vatCodeById().has(vatCodeId)) {
       return;
     }
-    const selected = this.selectedLineControls();
-    const selectedOnly = this.applyVatScope() === 'selected';
     for (const line of this.lines.controls) {
-      if (this.lineIsEmpty(line) || (selectedOnly && !selected.has(line))) {
+      if (this.lineIsEmpty(line)) {
         continue;
       }
       line.controls.vatCodeId.setValue(vatCodeId, { emitEvent: false });
@@ -3408,88 +3387,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       { emitEvent: false },
     );
     this.lines.insert(index + 1, copy);
-  }
-
-  // ── Selezione multipla righe: operazioni massive ────────────────────────────
-  /** Righe selezionate, per riferimento al FormGroup: stabile su riordino/sort. */
-  protected readonly selectedLineControls = signal<
-    ReadonlySet<ReturnType<GoodsReceiptFormComponent['createLine']>>
-  >(new Set());
-
-  protected lineSelected(line: ReturnType<GoodsReceiptFormComponent['createLine']>): boolean {
-    return this.selectedLineControls().has(line);
-  }
-
-  protected toggleLineSelected(
-    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
-    checked: boolean,
-  ): void {
-    this.selectedLineControls.update((current) => {
-      const next = new Set(current);
-      if (checked) {
-        next.add(line);
-      } else {
-        next.delete(line);
-      }
-      return next;
-    });
-  }
-
-  /** Conteggio robusto: ignora selezioni di righe nel frattempo rimosse. */
-  protected readonly selectedLinesCount = computed(() => {
-    this.formValue();
-    const selected = this.selectedLineControls();
-    return this.lines.controls.filter((line) => selected.has(line)).length;
-  });
-
-  protected readonly allLinesSelected = computed(() => {
-    this.formValue();
-    const selected = this.selectedLineControls();
-    return this.lines.length > 0 && this.lines.controls.every((line) => selected.has(line));
-  });
-
-  protected readonly someLinesSelected = computed(
-    () => this.selectedLinesCount() > 0 && !this.allLinesSelected(),
-  );
-
-  protected toggleSelectAllLines(checked: boolean): void {
-    this.selectedLineControls.set(checked ? new Set(this.lines.controls) : new Set());
-  }
-
-  protected clearLineSelection(): void {
-    this.selectedLineControls.set(new Set());
-  }
-
-  protected removeSelectedLines(): void {
-    if (this.formReadOnly() || this.selectedLinesCount() === 0) {
-      return;
-    }
-    const selected = this.selectedLineControls();
-    for (let i = this.lines.length - 1; i >= 0; i -= 1) {
-      if (selected.has(this.lines.at(i))) {
-        this.lines.removeAt(i);
-      }
-    }
-    this.clearLineSelection();
-    this.ensureMinimumOneRow();
-    this.trimDuplicateTrailingEmptyRows();
-    this.markFormDirty();
-  }
-
-  protected duplicateSelectedLines(): void {
-    if (this.formReadOnly() || this.selectedLinesCount() === 0) {
-      return;
-    }
-    const selected = this.selectedLineControls();
-    // Dal basso verso l'alto: gli indici delle righe sopra restano validi.
-    for (let i = this.lines.length - 1; i >= 0; i -= 1) {
-      if (selected.has(this.lines.at(i))) {
-        this.insertLineCopy(i);
-      }
-    }
-    this.clearLineSelection();
-    this.syncLineFieldAccess();
-    this.markFormDirty();
   }
 
   protected fieldInvalid(name: 'supplierId' | 'locationId' | 'documentDate'): boolean {

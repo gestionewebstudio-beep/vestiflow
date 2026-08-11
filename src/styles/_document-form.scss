@@ -843,18 +843,6 @@ app-customer-order-form {
   padding-inline: var(--space-1);
 }
 
-// Colonna selezione righe (operazioni massive): checkbox stretta a sinistra.
-.doc-form__col--select {
-  width: var(--space-8);
-}
-
-.doc-form__select-check {
-  inline-size: var(--space-4);
-  block-size: var(--space-4);
-  accent-color: var(--color-primary);
-  cursor: pointer;
-}
-
 // Colonna numero riga (v4): stretta, centrata, su fondo attenuato; ospita
 // anche le frecce compatte di riordino (a sinistra, come da richiesta).
 // Sui <col> vale solo `width` fisico: le logical properties vengono ignorate.
@@ -862,7 +850,6 @@ app-customer-order-form {
   width: var(--space-12);
 }
 
-.doc-form__table .doc-form__cell--select,
 .doc-form__table .doc-form__cell--index {
   text-align: center;
   background-color: var(--color-surface-sunken);
@@ -902,29 +889,6 @@ app-customer-order-form {
 // colgroup: con table-layout fixed una inline-size qui non avrebbe effetto.)
 .doc-form .doc-form__table tbody td.doc-form__cell--actions {
   padding-inline-end: var(--space-2);
-}
-
-// Riga selezionata per operazioni massive: tinta leggera su tutta la riga.
-.doc-form__table tbody tr.doc-form__table-row--selected td {
-  background-color: var(--color-primary-subtle);
-}
-
-// ── Barra operazioni massive (selezione multipla righe) ─────────────────────
-.doc-form__bulk-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  background-color: var(--color-primary-subtle);
-  border: var(--border-width) solid var(--color-primary);
-  border-radius: var(--radius-md);
-}
-
-.doc-form__bulk-count {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-primary);
 }
 
 .doc-form__cell--readonly {

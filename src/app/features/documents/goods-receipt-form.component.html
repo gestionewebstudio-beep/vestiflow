@@ -652,49 +652,6 @@
               <p class="doc-form__import-summary" role="status">{{ summary }}</p>
             }
 
-            @if (selectedLinesCount() > 0) {
-              <div
-                class="doc-form__bulk-bar"
-                role="toolbar"
-                aria-label="Operazioni righe selezionate"
-              >
-                <span class="doc-form__bulk-count tabular-nums">
-                  {{ selectedLinesCount() }}
-                  {{ selectedLinesCount() === 1 ? 'riga selezionata' : 'righe selezionate' }}
-                </span>
-                <app-button
-                  type="button"
-                  variant="secondary"
-                  [disabled]="formReadOnly()"
-                  (click)="duplicateSelectedLines()"
-                >
-                  <i class="pi pi-clone" aria-hidden="true"></i>
-                  Duplica
-                </app-button>
-                <app-button
-                  type="button"
-                  variant="secondary"
-                  [disabled]="formReadOnly()"
-                  (click)="openApplyVatDialogForSelection()"
-                >
-                  <i class="pi pi-percentage" aria-hidden="true"></i>
-                  Imposta IVA…
-                </app-button>
-                <app-button
-                  type="button"
-                  variant="danger"
-                  [disabled]="formReadOnly()"
-                  (click)="removeSelectedLines()"
-                >
-                  <i class="pi pi-trash" aria-hidden="true"></i>
-                  Elimina
-                </app-button>
-                <app-button type="button" variant="ghost" (click)="clearLineSelection()">
-                  Deseleziona
-                </app-button>
-              </div>
-            }
-
             <!-- Righe: tabella su desktop, card su mobile, e il piede della
                  tabella. Finché la testata non è completa NON si mostrano —
                  prima restavano lì spente a metà tinta, mezzo schermo occupato
@@ -704,7 +661,6 @@
               <div class="doc-form__table-wrap">
                 <table class="doc-form__table">
                   <colgroup>
-                    <col class="doc-form__col--select" />
                     <col class="doc-form__col--index" />
                     @if (isLineColumnVisible('articleCode')) {
                       <col [style.width]="lineColumnWidth('articleCode')" />
@@ -778,16 +734,6 @@
                   </colgroup>
                   <thead>
                     <tr>
-                      <th scope="col" class="doc-form__cell--select">
-                        <input
-                          type="checkbox"
-                          class="doc-form__select-check"
-                          aria-label="Seleziona tutte le righe"
-                          [checked]="allLinesSelected()"
-                          [indeterminate]="someLinesSelected()"
-                          (change)="toggleSelectAllLines($any($event.target).checked)"
-                        />
-                      </th>
                       <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
                       @if (isLineColumnVisible('articleCode')) {
                         <th scope="col" [style.width]="lineColumnWidth('articleCode')">
@@ -1221,17 +1167,7 @@
                         [class.doc-form__table-row--active]="lineRowActive(i)"
                         [class.doc-form__table-row--incomplete]="!lineRowComplete(i)"
                         [formGroupName]="i"
-                        [class.doc-form__table-row--selected]="lineSelected(line)"
                       >
-                        <td class="doc-form__cell--select">
-                          <input
-                            type="checkbox"
-                            class="doc-form__select-check"
-                            [attr.aria-label]="'Seleziona riga ' + (i + 1)"
-                            [checked]="lineSelected(line)"
-                            (change)="toggleLineSelected(line, $any($event.target).checked)"
-                          />
-                        </td>
                         <td class="doc-form__cell--index">
                           <div class="doc-form__index-cell">
                             <span class="doc-form__line-move-stack">
@@ -2079,7 +2015,7 @@
     aria-labelledby="gr-apply-vat-title"
   >
     <h2 id="gr-apply-vat-title" class="doc-form__exit-title">
-      {{ applyVatDialogTitle() }}
+      {{ applyVatDialogTitle }}
     </h2>
     <div class="doc-form__field">
       <span class="doc-form__label" id="gr-apply-vat-label">Codice IVA</span>
