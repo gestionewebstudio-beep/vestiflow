@@ -1294,8 +1294,9 @@
                               (focused)="onLineCodeFocus(i, 'articleCode')"
                               (blurred)="onLineCodeBlur(i)"
                               (commit)="commitCodeLookup(i, 'articleCode')"
-                              (lineRetreat)="focusPreviousLineField(i, 'articleCode')"
-                              (lineRowAdvance)="advanceToNextLine(i)"
+                              (lineRetreat)="lineFocus.previous(i, 'articleCode')"
+                              (lineRowAdvance)="lineFocus.rowDown(i, 'articleCode')"
+                              (lineRowRetreat)="lineFocus.rowUp(i, 'articleCode')"
                               (escapePressed)="onLineSearchEscape(i)"
                             />
                           </td>
@@ -1321,8 +1322,9 @@
                               (focused)="onLineCodeFocus(i, 'sku')"
                               (blurred)="onLineCodeBlur(i)"
                               (commit)="commitCodeLookup(i, 'sku')"
-                              (lineRetreat)="focusPreviousLineField(i, 'sku')"
-                              (lineRowAdvance)="advanceToNextLine(i)"
+                              (lineRetreat)="lineFocus.previous(i, 'sku')"
+                              (lineRowAdvance)="lineFocus.rowDown(i, 'sku')"
+                              (lineRowRetreat)="lineFocus.rowUp(i, 'sku')"
                               (escapePressed)="onLineSearchEscape(i)"
                             />
                           </td>
@@ -1348,8 +1350,9 @@
                               (focused)="onLineCodeFocus(i, 'barcode')"
                               (blurred)="onLineCodeBlur(i)"
                               (commit)="commitCodeLookup(i, 'barcode')"
-                              (lineRetreat)="focusPreviousLineField(i, 'barcode')"
-                              (lineRowAdvance)="advanceToNextLine(i)"
+                              (lineRetreat)="lineFocus.previous(i, 'barcode')"
+                              (lineRowAdvance)="lineFocus.rowDown(i, 'barcode')"
+                              (lineRowRetreat)="lineFocus.rowUp(i, 'barcode')"
                               (escapePressed)="onLineSearchEscape(i)"
                             />
                           </td>
@@ -1377,9 +1380,10 @@
                                 onProductSuggestionPick($event.lineIndex, $event.variantId)
                               "
                               (suggestionNavigate)="onProductSuggestionNavigate($event)"
-                              (lineAdvance)="focusNextLineField(i, 'product')"
-                              (lineRetreat)="focusPreviousLineField(i, 'product')"
-                              (lineRowAdvance)="advanceToNextLine(i)"
+                              (lineAdvance)="lineFocus.next(i, 'product')"
+                              (lineRetreat)="lineFocus.previous(i, 'product')"
+                              (lineRowAdvance)="lineFocus.rowDown(i, 'product')"
+                              (lineRowRetreat)="lineFocus.rowUp(i, 'product')"
                               (escapePressed)="onLineSearchEscape(i)"
                             />
                           </td>
@@ -1398,7 +1402,7 @@
                                 min="0"
                                 step="1"
                                 formControlName="quantity"
-                                (keydown)="onLineFieldKeydown(i, 'quantity', $event)"
+                                (keydown)="lineFocus.handleKeydown(i, 'quantity', $event)"
                                 [attr.aria-invalid]="
                                   lineFieldInvalid(i, 'quantity') ? 'true' : null
                                 "
@@ -1454,7 +1458,7 @@
                                 inputmode="decimal"
                                 formControlName="unitPrice"
                                 placeholder="0,00"
-                                (keydown)="onLineFieldKeydown(i, 'unitPrice', $event)"
+                                (keydown)="lineFocus.handleKeydown(i, 'unitPrice', $event)"
                               />
                             }
                           </td>
@@ -1471,7 +1475,7 @@
                                 formControlName="discount"
                                 placeholder="0%"
                                 title="Percentuale singola o cascata: «10%», «4+10%»"
-                                (keydown)="onLineFieldKeydown(i, 'discount', $event)"
+                                (keydown)="lineFocus.handleKeydown(i, 'discount', $event)"
                               />
                             }
                           </td>
@@ -1518,7 +1522,7 @@
                                 formControlName="serialNumbersText"
                                 placeholder="SN001, SN002"
                                 autocomplete="off"
-                                (keydown)="onLineFieldKeydown(i, 'serials', $event)"
+                                (keydown)="lineFocus.handleKeydown(i, 'serials', $event)"
                               />
                             }
                           </td>

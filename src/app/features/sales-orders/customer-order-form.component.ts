@@ -102,6 +102,7 @@ import { DocumentPrefillErrorStore } from '@domain/documents/state/document-pref
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { ViewportService } from '@core/services/viewport.service';
 import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
@@ -3042,11 +3043,20 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.focusLineField(index, 'quantity');
   }
 
-  // ── Tab deterministico tra i campi riga (§10, stesso pattern Arrivo merce) ──
+  // ── Il giro del fuoco fra i campi riga ────────────────────────────────────
+  //
+  // Il meccanismo vive in `domain/`, identico alle altre maschere; qui restano
+  // solo le nove cose che DIFFERISCONO. Prima erano sette metodi scritti a mano,
+  // ~126 righe, che divergevano dalle gemelle senza che nulla lo dicesse.
 
-  /** Campi editabili visibili della riga, nell'ordine delle colonne. */
-  private visibleLineFocusFields(index: number): readonly CustomerOrderLineFocusField[] {
-    const all: readonly CustomerOrderLineFocusField[] = [
+  /**
+   * ⚠️ Gli identificativi presuppongono che le due viste siano **esclusive**:
+   * la card mobile ne ha di propri (`co-m-…`), e finché la tabella restava viva
+   * sotto il breakpoint questa mappa puntava a un elemento nascosto — `.focus()`
+   * su `display:none` è un no-op silenzioso. Vedi `ViewportService`.
+   */
+  protected readonly lineFocus = new DocumentLineFocusStore<CustomerOrderLineFocusField>({
+    fields: [
       'articleCode',
       'sku',
       'barcode',
@@ -3055,117 +3065,60 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       'unitPrice',
       'discount',
       'serials',
-    ];
-    const linked = this.lineHasLinkedProduct(index);
-    return all.filter((field) => {
+    ],
+    elementId: (index, field) =>
+      ({
+        articleCode: `co-code-${index}`,
+        sku: `co-sku-${index}`,
+        barcode: `co-barcode-${index}`,
+        product: `co-product-${index}`,
+        quantity: `co-qty-${index}`,
+        unitPrice: `co-price-${index}`,
+        discount: `co-discount-${index}`,
+        serials: `co-serials-${index}`,
+      })[field],
+    isFieldEnabled: (index, field) => {
       // Su riga collegata i codici/nome sono bloccati: restano i campi dati.
-      if (
-        linked &&
-        (field === 'articleCode' || field === 'sku' || field === 'barcode' || field === 'product')
-      ) {
+      const bloccatoDaCollegamento =
+        field === 'articleCode' || field === 'sku' || field === 'barcode' || field === 'product';
+      if (this.lineHasLinkedProduct(index) && bloccatoDaCollegamento) {
         return false;
       }
-      const columnId = field === 'product' ? 'product' : field;
-      return this.isLineColumnVisible(columnId);
-    });
-  }
+      return this.isLineColumnVisible(field);
+    },
+    // Voce 4, e chiude il difetto 6: la riga «documento collegato» non rende
+    // nessun controllo del giro, quindi finora il fuoco ci finiva sopra e
+    // MORIVA — ogni ricerca per identificativo andava a vuoto.
+    isRowSkipped: (index) => this.lineIsReference(index),
+    isReadOnly: () => this.formReadOnly(),
+    lineCount: () => this.lines.length,
+    createLine: () => {
+      this.lines.push(this.createLine());
+      this.markFormDirty();
+    },
+    // Il tempismo del fuoco vive qui, come prima: la riga appena creata dev'essere
+    // resa prima che qualcuno provi a metterci il fuoco dentro.
+    onRowChange: (_index, then) => {
+      setTimeout(then);
+    },
+    isLineEmpty: (index) => {
+      const line = this.lines.at(index);
+      return line ? this.lineIsEmpty(line) : true;
+    },
+  });
 
   protected focusLineField(index: number, field: CustomerOrderLineFocusField): void {
-    const idMap: Record<CustomerOrderLineFocusField, string> = {
-      articleCode: `co-code-${index}`,
-      sku: `co-sku-${index}`,
-      barcode: `co-barcode-${index}`,
-      product: `co-product-${index}`,
-      quantity: `co-qty-${index}`,
-      unitPrice: `co-price-${index}`,
-      discount: `co-discount-${index}`,
-      serials: `co-serials-${index}`,
-    };
-    globalThis.document.getElementById(idMap[field])?.focus();
-  }
-
-  private focusFirstLineField(index: number): void {
-    const order = this.visibleLineFocusFields(index);
-    if (order[0]) {
-      this.focusLineField(index, order[0]);
-    }
-  }
-
-  private focusLastLineField(index: number): void {
-    const order = this.visibleLineFocusFields(index);
-    const last = order[order.length - 1];
-    if (last) {
-      this.focusLineField(index, last);
-    }
+    this.lineFocus.focusField(index, field);
   }
 
   protected focusNextLineField(index: number, current: CustomerOrderLineFocusField): void {
-    const order = this.visibleLineFocusFields(index);
-    const pos = order.indexOf(current);
-    if (pos >= 0 && pos < order.length - 1) {
-      this.focusLineField(index, order[pos + 1]!);
-      return;
-    }
-    this.advanceToNextLine(index);
-  }
-
-  protected focusPreviousLineField(index: number, current: CustomerOrderLineFocusField): void {
-    const order = this.visibleLineFocusFields(index);
-    const pos = order.indexOf(current);
-    if (pos > 0) {
-      this.focusLineField(index, order[pos - 1]!);
-      return;
-    }
-    if (index > 0) {
-      this.focusLastLineField(index - 1);
-    }
-  }
-
-  /** Ultima cella della riga → prima cella della successiva; sull'ultima riga crea la nuova. */
-  protected advanceToNextLine(index: number): void {
-    if (this.formReadOnly()) {
-      return;
-    }
-    const nextIndex = index + 1;
-    if (nextIndex >= this.lines.length) {
-      this.lines.push(this.createLine());
-      this.markFormDirty();
-    }
-    // Focus dopo il render della riga appena creata.
-    setTimeout(() => this.focusFirstLineField(nextIndex));
+    this.lineFocus.next(index, current);
   }
 
   /**
    * Tab/Shift+Tab deterministici sui campi dati della riga: mai su icone o
    * pulsanti di servizio; dall'ultimo campo si passa alla riga successiva.
    */
-  protected onLineFieldKeydown(
-    index: number,
-    field: CustomerOrderLineFocusField,
-    event: KeyboardEvent,
-  ): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      this.focusNextLineField(index, field);
-      return;
-    }
-    if (event.key !== 'Tab') {
-      return;
-    }
-    if (event.shiftKey) {
-      const order = this.visibleLineFocusFields(index);
-      if (order.indexOf(field) <= 0 && index === 0) {
-        // Prima cella della prima riga: lascia al browser l'uscita dalla tabella.
-        return;
-      }
-      event.preventDefault();
-      this.focusPreviousLineField(index, field);
-      return;
-    }
-    event.preventDefault();
-    this.focusNextLineField(index, field);
-  }
-
   protected openLineProductSearch(index: number): void {
     this.productSearchLineIndex.set(index);
     this.productSearchLaunchTerm.set(this.lines.at(index).controls.productName.value.trim());

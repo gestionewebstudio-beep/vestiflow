@@ -240,6 +240,74 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
   });
 });
 
+/**
+ * Il giro del fuoco, innestato sul punto unico.
+ *
+ * Prova sul DOM vero: `focus()` su un id inesistente è un no-op silenzioso, ed è
+ * il difetto da cui questo lavoro parte.
+ */
+describe('CustomerOrderFormComponent — il fuoco atterra dove deve', () => {
+  async function conRighe(quante: number) {
+    const view = await render(CustomerOrderFormComponent, { providers: formProviders() });
+    const comp = view.fixture.componentInstance as unknown as {
+      addLine: () => void;
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+      lines: {
+        length: number;
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+      lineFocus: {
+        rowDown: (i: number, field: string) => void;
+        next: (i: number, field: string) => void;
+      };
+    };
+    // Le righe vivono dentro un `fieldset` disabilitato finché cliente e
+    // location non ci sono: un campo dentro un fieldset disabilitato NON prende
+    // il fuoco, e la prova misurerebbe il cancello invece del giro.
+    comp.form.controls['customerId']!.setValue('cli-1');
+    comp.form.controls['locationId']!.setValue('loc-1');
+    while (comp.lines.length < quante) {
+      comp.addLine();
+    }
+    for (let i = 0; i < quante; i += 1) {
+      comp.lines.at(i).controls['productName']!.setValue(`Articolo ${i}`);
+    }
+    view.fixture.detectChanges();
+    return { view, comp };
+  }
+
+  const fuoco = () => globalThis.document.activeElement?.id ?? '';
+
+  /**
+   * Il cambio riga passa dal gancio, che rimanda di un tick: è lì che vive il
+   * tempismo del fuoco, perché una riga appena creata dev'essere resa prima che
+   * qualcuno provi a metterci il fuoco dentro.
+   */
+  const dopoIlGancio = () => new Promise((risolvi) => setTimeout(risolvi));
+
+  it('↓ conserva la colonna', async () => {
+    const { comp } = await conRighe(2);
+
+    comp.lineFocus.rowDown(0, 'unitPrice');
+    await dopoIlGancio();
+
+    expect(fuoco()).toBe('co-price-1');
+  });
+
+  // Difetto chiuso dall'innesto: la riga «documento collegato» non rende alcun
+  // controllo del giro, quindi il fuoco ci finiva sopra e MORIVA.
+  it('la riga «documento collegato» viene scavalcata, non è una fermata', async () => {
+    const { view, comp } = await conRighe(3);
+    comp.lines.at(1).controls['isReference']!.setValue(true);
+    view.fixture.detectChanges();
+
+    comp.lineFocus.rowDown(0, 'quantity');
+    await dopoIlGancio();
+
+    expect(fuoco()).toBe('co-qty-2');
+  });
+});
+
 describe('CustomerOrderFormComponent — caratterizzazione', () => {
   async function setup() {
     const view = await render(CustomerOrderFormComponent, {
