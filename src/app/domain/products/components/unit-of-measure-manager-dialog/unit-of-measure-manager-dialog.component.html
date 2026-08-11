@@ -1,0 +1,9 @@
+<app-slide-panel [open]="open()" title="Unità di misura" (closed)="closed.emit()">
+  @if (open()) {
+    <app-unit-of-measure-manager
+      [active]="open()"
+      (changed)="changed.emit()"
+      (created)="created.emit($event)"
+    />
+  }
+</app-slide-panel>

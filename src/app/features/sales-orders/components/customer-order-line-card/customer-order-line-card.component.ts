@@ -3,7 +3,10 @@ import { ReactiveFormsModule } from '@angular/forms';
 
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
 import { DocumentLineSuggestionsComponent } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.component';
+
+import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
 import type {
   CustomerOrderLineCardGroup,
@@ -35,6 +38,7 @@ export type { LineCodeField };
     ButtonComponent,
     DocumentLineSelectCellComponent,
     DocumentLineSuggestionsComponent,
+    DocumentLineUnitCellComponent,
     ReactiveFormsModule,
   ],
   templateUrl: './customer-order-line-card.component.html',
@@ -46,6 +50,8 @@ export class CustomerOrderLineCardComponent {
   readonly open = input(false);
   /** Serve alle celle condivise, che riportano la riga negli esiti che emettono. */
   readonly lineIndex = input.required<number>();
+  /** Le unità del tenant: le carica la maschera, una volta per documento. */
+  readonly unitOfMeasureOptions = input<readonly SelectMenuOption[]>([]);
 
   /**
    * Due disposizioni della testata compatta per lo stesso contenuto. `order` e'
@@ -84,6 +90,8 @@ export class CustomerOrderLineCardComponent {
   readonly suggestionPicked = output<string>();
   readonly commitsChanged = output<string>();
   readonly vatSelected = output<string>();
+  readonly unitOfMeasureChanged = output<string>();
+  readonly unitManagerRequested = output<void>();
 
   /** Il pannello condiviso restituisce l'indice; qui si torna alla variante. */
   protected pickSuggestion(index: number): void {

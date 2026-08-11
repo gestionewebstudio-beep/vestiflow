@@ -343,9 +343,17 @@
           <p class="tabular-nums">{{ v.stockAvailable }} {{ v.unitOfMeasure }}</p>
         </div>
 
-        <div class="co-card__field co-card__field--readonly">
+        <div class="co-card__field">
           <span class="co-card__field-label">U.m.</span>
-          <p>{{ v.unitOfMeasure }}</p>
+          <app-document-line-unit-cell
+            [lineIndex]="lineIndex()"
+            [value]="v.unitOfMeasure"
+            [options]="unitOfMeasureOptions()"
+            [disabled]="v.readOnly"
+            [inColumnCycle]="false"
+            (valueChange)="unitOfMeasureChanged.emit($event)"
+            (manageRequested)="unitManagerRequested.emit()"
+          />
         </div>
 
         @if (v.commitsLabel; as commitsLabel) {

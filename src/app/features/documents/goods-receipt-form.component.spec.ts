@@ -5,6 +5,7 @@ import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
@@ -109,6 +110,15 @@ function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
     },
     { provide: OperationalLocationsService, useValue: operationalLocationsMock(options) },
     { provide: AuthService, useValue: { currentUser: () => null } },
+    {
+      provide: APP_CONFIG,
+      useValue: {
+        production: false,
+        appName: 'VestiFlow',
+        apiBaseUrl: '',
+        features: { barcodeScanner: false, shopify: false },
+      },
+    },
     {
       provide: DocumentService,
       useValue: {

@@ -40,7 +40,6 @@ import type { LinkedSupplierOrderLineContext } from '@core/models/document.model
 import { CausalGenerationMode, DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord, DocumentTypeSetting } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
-import { COMMON_UNIT_OF_MEASURE } from '@core/models/product-catalog.model';
 import {
   formatVatRate,
   isPurchaseVatCode,
@@ -119,6 +118,11 @@ import { DocumentCounterpartyRefComponent } from '@domain/documents/components/d
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
+import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
+import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
+import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
+import { unitOfMeasureSelectOptions } from '@domain/products/utils/unit-of-measure-options.util';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
   GOODS_RECEIPT_LINE_COLUMNS,
@@ -216,6 +220,7 @@ type GoodsReceiptLineFocusField =
   | 'supplierCode'
   | 'product'
   | 'quantity'
+  | 'unitOfMeasure'
   | 'unitCost'
   | 'discount'
   | 'sellingPrice'
@@ -260,6 +265,8 @@ type GoodsReceiptLineFocusField =
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
     DocumentLineSelectCellComponent,
+    DocumentLineUnitCellComponent,
+    UnitOfMeasureManagerDialogComponent,
     DocumentMobilePanelComponent,
     DocumentProductSearchPanelComponent,
     SlidePanelComponent,
@@ -1588,6 +1595,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       'supplierCode',
       'product',
       'quantity',
+      // Rientrata nel giro: la cella era una tendina di sola creazione
+      // articolo e testo calcolato altrove. Ora l'unità si scrive sulla riga.
+      'unitOfMeasure',
       'unitCost',
       'discount',
       'sellingPrice',
@@ -1644,6 +1654,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       supplierCode: `gr-supplier-code-${index}`,
       product: `gr-product-${index}`,
       quantity: `gr-qty-${index}`,
+      unitOfMeasure: `gr-uom-${index}`,
       unitCost: `gr-cost-${index}`,
       discount: `gr-discount-${index}`,
       sellingPrice: `gr-selling-${index}`,
@@ -2171,13 +2182,59 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return Number.isFinite(qty) && qty > 0 ? qty : 0;
   }
 
+  /**
+   * L'unità di misura della riga — **prima quella della riga**, poi quella
+   * dell'articolo, poi `pz`. È la stessa precedenza dell'Ordine cliente, e per
+   * la stessa ragione: il documento è una fotografia, e la riga tiene per sé
+   * l'unità con cui è stata compilata.
+   *
+   * Il controllo è **uno solo**. Prima ce n'era uno per la creazione articolo e
+   * niente per la riga: l'unità si poteva scegliere solo mentre si creava
+   * l'articolo, e su una riga normale era testo calcolato. Ora è lo stesso
+   * dato — quando l'articolo nasce, il valore va anche in anagrafica.
+   */
   protected lineUnitOfMeasure(index: number): string {
+    const line = this.lines.at(index);
     const summary = this.lineVariantSummary(index);
-    return summary?.unitOfMeasure?.trim() || 'pz';
+    return line?.controls.unitOfMeasure.value.trim() || summary?.unitOfMeasure?.trim() || 'pz';
   }
 
-  /** Unità di misura selezionabili per il nuovo articolo in creazione. */
-  protected readonly unitOfMeasureOptions = COMMON_UNIT_OF_MEASURE;
+  // ── Unità di misura di riga ────────────────────────────────────────────────
+  //
+  // L'elenco si carica UNA volta per maschera, non per cella: la cella sta su
+  // ogni riga, e trenta righe non devono fare trenta chiamate uguali.
+  private readonly unitOfMeasureOptionsService = inject(UnitOfMeasureOptionService);
+  private readonly unitOfMeasureCatalog = this.unitOfMeasureOptionsService.options();
+  protected readonly unitOfMeasureOptions = computed(() =>
+    unitOfMeasureSelectOptions(this.unitOfMeasureCatalog()),
+  );
+  protected readonly unitManagerOpen = signal(false);
+  /** La riga da cui è stato chiesto il pannello: ci torna l'unità creata. */
+  private unitManagerLineIndex = -1;
+
+  protected openUnitManager(index: number): void {
+    this.unitManagerLineIndex = index;
+    this.unitManagerOpen.set(true);
+  }
+
+  protected onUnitOptionsChanged(): void {
+    this.unitOfMeasureOptionsService.reload();
+  }
+
+  /** Un'unità creata dal pannello si scrive da sé: è perché lo si è aperto. */
+  protected onUnitOptionCreated(option: UnitOfMeasureOption): void {
+    if (this.unitManagerLineIndex >= 0) {
+      this.onLineUnitOfMeasureChange(this.unitManagerLineIndex, option.name);
+    }
+  }
+
+  protected onLineUnitOfMeasureChange(index: number, value: string): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.lines.at(index)?.controls.unitOfMeasure.setValue(value.trim());
+    this.markFormDirty();
+  }
 
   protected lineRowComplete(index: number): boolean {
     const line = this.lines.at(index);
@@ -3842,7 +3899,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatRatePercent: this.fb.control(''),
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
-      newProductUnitOfMeasure: this.fb.control('pz'),
+      unitOfMeasure: this.fb.control(''),
       supplierOrderLineId: this.fb.control(orderLine.id),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),
@@ -3949,7 +4006,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatRatePercent: this.fb.control(line.vatRatePercentText),
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
-      newProductUnitOfMeasure: this.fb.control('pz'),
+      unitOfMeasure: this.fb.control(''),
       supplierOrderLineId: this.fb.control(''),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),
@@ -4204,6 +4261,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           // con `newProduct` la variante nasce in transazione e il movimento
           // parte nello stesso salvataggio (punto A).
           loadsStock: line.loadsStock && (Boolean(line.variantId) || newProduct != null),
+          unitOfMeasure: line.unitOfMeasure?.trim() || undefined,
           supplierOrderLineId: line.supplierOrderLineId || undefined,
           lotCode: line.lotCode.trim() || undefined,
           lotExpiryDate: line.lotExpiryDate
@@ -4232,7 +4290,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       compareAtPriceMinor: compareAt?.amountMinor || undefined,
       purchasePriceMinor: purchase?.amountMinor || undefined,
       vatCodeId: line.vatCodeId || undefined,
-      unitOfMeasure: line.newProductUnitOfMeasure?.trim() || undefined,
+      unitOfMeasure: line.unitOfMeasure?.trim() || undefined,
     };
   }
 
@@ -4486,7 +4544,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           // tecnico (nessun movimento possibile): in UI il flag resta al
           // default attivo, così al collegamento dell'articolo il carico parte (§11).
           loadsStock: this.fb.control(line.variantId ? line.loadsStock : true),
-          newProductUnitOfMeasure: this.fb.control('pz'),
+          // La fotografia salvata sulla riga, non quella dell'anagrafica di
+          // adesso: è il punto in cui il documento riaperto dice quello che
+          // diceva quando è stato compilato.
+          unitOfMeasure: this.fb.control(line.unitOfMeasure ?? ''),
           supplierOrderLineId: this.fb.control(line.supplierOrderLineId ?? ''),
           lotCode: this.fb.control(line.lotCode ?? ''),
           lotExpiryDate: this.fb.control(line.lotExpiryDate ? line.lotExpiryDate.slice(0, 10) : ''),
@@ -4524,7 +4585,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
       // Toggle "Gestito a magazzino" del nuovo articolo (punto B, default sì).
-      newProductUnitOfMeasure: this.fb.control('pz'),
+      unitOfMeasure: this.fb.control(''),
       supplierOrderLineId: this.fb.control(''),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),

@@ -92,6 +92,11 @@ import { DocumentMobilePanelComponent } from '@domain/documents/components/docum
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
+import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
+import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
+import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
+import { unitOfMeasureSelectOptions } from '@domain/products/utils/unit-of-measure-options.util';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
   CUSTOMER_ORDER_INCLUDE_SOURCES,
@@ -251,6 +256,7 @@ type CustomerOrderLineFocusField =
   | 'barcode'
   | 'product'
   | 'quantity'
+  | 'unitOfMeasure'
   | 'unitPrice'
   | 'discount'
   | 'vat'
@@ -331,6 +337,8 @@ interface AvailabilityIssue {
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
     DocumentLineSelectCellComponent,
+    DocumentLineUnitCellComponent,
+    UnitOfMeasureManagerDialogComponent,
     DocumentProductSearchPanelComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
@@ -2788,13 +2796,65 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return Number.isFinite(rate) && rate > 0 ? rate : 0;
   }
 
+  /**
+   * L'unità di misura della riga — **prima quella della riga**, poi quella
+   * dell'articolo, poi `pz`.
+   *
+   * La precedenza era invertita, e la conseguenza non si vedeva: siccome
+   * `Product.unitOfMeasure` non è mai vuoto, l'anagrafica vinceva sempre e
+   * quello che il documento aveva salvato **non si vedeva mai**. Il valore
+   * c'era, veniva scritto e riletto, e restava invisibile.
+   *
+   * Rovesciarla è la riga in cui la regola del «documento fotografia» entra in
+   * vigore per l'unità di misura, esattamente come vale già per il prezzo: la
+   * riga cattura il valore all'inserimento e se lo tiene, indipendente da come
+   * l'anagrafica cambia dopo.
+   */
   protected lineUnitOfMeasure(index: number): string {
+    this.formValue();
     const summary = this.lineVariantSummary(index);
     return (
-      summary?.unitOfMeasure?.trim() ||
       this.lines.at(index)?.controls.unitOfMeasure.value.trim() ||
+      summary?.unitOfMeasure?.trim() ||
       'pz'
     );
+  }
+
+  // ── Unità di misura di riga ────────────────────────────────────────────────
+  //
+  // L'elenco si carica UNA volta per maschera, non per cella: la cella sta su
+  // ogni riga, e trenta righe non devono fare trenta chiamate uguali.
+  private readonly unitOfMeasureOptionsService = inject(UnitOfMeasureOptionService);
+  private readonly unitOfMeasureCatalog = this.unitOfMeasureOptionsService.options();
+  protected readonly unitOfMeasureOptions = computed(() =>
+    unitOfMeasureSelectOptions(this.unitOfMeasureCatalog()),
+  );
+  protected readonly unitManagerOpen = signal(false);
+  /** La riga da cui è stato chiesto il pannello: ci torna l'unità creata. */
+  private unitManagerLineIndex = -1;
+
+  protected openUnitManager(index: number): void {
+    this.unitManagerLineIndex = index;
+    this.unitManagerOpen.set(true);
+  }
+
+  protected onUnitOptionsChanged(): void {
+    this.unitOfMeasureOptionsService.reload();
+  }
+
+  /** Un'unità creata dal pannello si scrive da sé: è perché lo si è aperto. */
+  protected onUnitOptionCreated(option: UnitOfMeasureOption): void {
+    if (this.unitManagerLineIndex >= 0) {
+      this.onLineUnitOfMeasureChange(this.unitManagerLineIndex, option.name);
+    }
+  }
+
+  protected onLineUnitOfMeasureChange(index: number, value: string): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.lines.at(index).controls.unitOfMeasure.setValue(value.trim());
+    this.markFormDirty();
   }
 
   // ── Vista mobile (mockup responsive v3) ───────────────────────────────────
@@ -3278,6 +3338,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       'barcode',
       'product',
       'quantity',
+      // Rientrata nel giro: la cella era di sola lettura, quindi non c'era
+      // niente su cui atterrare. Ora l'unità si scrive sulla riga.
+      'unitOfMeasure',
       'unitPrice',
       'discount',
       // Rientrata nel giro: era fuori perché la cella IVA era un
@@ -3293,6 +3356,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         barcode: `co-barcode-${index}`,
         product: `co-product-${index}`,
         quantity: `co-qty-${index}`,
+        unitOfMeasure: `co-uom-${index}`,
         unitPrice: `co-price-${index}`,
         discount: `co-discount-${index}`,
         vat: `co-vat-${index}`,

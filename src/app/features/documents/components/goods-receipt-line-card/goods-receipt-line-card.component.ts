@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 import { ReactiveFormsModule, type FormControl } from '@angular/forms';
 
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
 import { DocumentLineSuggestionsComponent } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import type { DocumentLineSuggestionItem } from '@domain/documents/components/document-line-suggestions/document-line-suggestions.model';
@@ -37,7 +38,12 @@ export interface GoodsReceiptLineCardGroup {
 @Component({
   selector: 'app-goods-receipt-line-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DocumentLineSelectCellComponent, DocumentLineSuggestionsComponent, ReactiveFormsModule],
+  imports: [
+    DocumentLineSelectCellComponent,
+    DocumentLineSuggestionsComponent,
+    DocumentLineUnitCellComponent,
+    ReactiveFormsModule,
+  ],
   templateUrl: './goods-receipt-line-card.component.html',
   styleUrl: './goods-receipt-line-card.component.scss',
 })
@@ -53,6 +59,9 @@ export class GoodsReceiptLineCardComponent {
   readonly grossLabel = input<string | null>(null);
   readonly vatOptions = input<readonly SelectMenuOption[]>([]);
   readonly vatValue = input('');
+  readonly unitOfMeasure = input('');
+  /** Le unità del tenant: le carica la maschera, una volta per documento. */
+  readonly unitOfMeasureOptions = input<readonly SelectMenuOption[]>([]);
   readonly disabled = input(false);
   readonly canRemove = input(true);
   /** Suggerimenti ricerca contestuale (§7): stessa sorgente della tabella. */
@@ -61,6 +70,8 @@ export class GoodsReceiptLineCardComponent {
 
   readonly searchProduct = output<number>();
   readonly vatChange = output<string | null>();
+  readonly unitOfMeasureChanged = output<string>();
+  readonly unitManagerRequested = output<void>();
   readonly fieldBlur = output<number>();
   readonly duplicated = output<number>();
   readonly removed = output<number>();

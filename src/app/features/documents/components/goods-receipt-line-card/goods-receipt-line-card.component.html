@@ -77,6 +77,23 @@
         (blur)="fieldBlur.emit(lineIndex())"
       />
     </label>
+    <!--
+      L'unità di misura c'era in tabella e non qui: la stessa riga si comportava
+      in due modi a seconda dello schermo. Vale la decisione «il perimetro
+      include le viste» (specifica §1).
+    -->
+    <div class="gr-card__field">
+      <span class="gr-card__label">U.m.</span>
+      <app-document-line-unit-cell
+        [lineIndex]="lineIndex()"
+        [value]="unitOfMeasure()"
+        [options]="unitOfMeasureOptions()"
+        [disabled]="disabled()"
+        [inColumnCycle]="false"
+        (valueChange)="unitOfMeasureChanged.emit($event)"
+        (manageRequested)="unitManagerRequested.emit()"
+      />
+    </div>
     <div class="gr-card__field gr-card__field--total">
       <span class="gr-card__label">Totale riga</span>
       <span class="gr-card__total tabular-nums">

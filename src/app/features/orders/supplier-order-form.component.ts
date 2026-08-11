@@ -85,6 +85,11 @@ import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
+import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
+import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
+import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
+import { unitOfMeasureSelectOptions } from '@domain/products/utils/unit-of-measure-options.util';
 import {
   vatCodeSelectOption,
   vatOptionsIncludingSelected,
@@ -221,6 +226,8 @@ function todayIsoDate(): string {
     DocumentMobilePanelComponent,
     DocumentLineCodeCellComponent,
     DocumentLineSelectCellComponent,
+    DocumentLineUnitCellComponent,
+    UnitOfMeasureManagerDialogComponent,
     DocumentLineProductCellComponent,
     DocumentProductSearchPanelComponent,
     ConfirmDialogComponent,
@@ -1419,6 +1426,43 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.lines.at(index).controls.vatCodeId.setValue(value ?? '');
   }
 
+  // ── Unità di misura di riga ────────────────────────────────────────────────
+  //
+  // L'elenco si carica UNA volta per maschera, non per cella: la cella sta su
+  // ogni riga, e trenta righe non devono fare trenta chiamate uguali.
+  private readonly unitOfMeasureOptionsService = inject(UnitOfMeasureOptionService);
+  private readonly unitOfMeasureCatalog = this.unitOfMeasureOptionsService.options();
+  protected readonly unitOfMeasureOptions = computed(() =>
+    unitOfMeasureSelectOptions(this.unitOfMeasureCatalog()),
+  );
+  protected readonly unitManagerOpen = signal(false);
+  /** La riga da cui è stato chiesto il pannello: ci torna l'unità creata. */
+  private unitManagerLineIndex = -1;
+
+  protected openUnitManager(index: number): void {
+    this.unitManagerLineIndex = index;
+    this.unitManagerOpen.set(true);
+  }
+
+  protected onUnitOptionsChanged(): void {
+    this.unitOfMeasureOptionsService.reload();
+  }
+
+  /** Un'unità creata dal pannello si scrive da sé: è perché lo si è aperto. */
+  protected onUnitOptionCreated(option: UnitOfMeasureOption): void {
+    if (this.unitManagerLineIndex >= 0) {
+      this.onLineUnitOfMeasureChange(this.unitManagerLineIndex, option.name);
+    }
+  }
+
+  protected onLineUnitOfMeasureChange(index: number, value: string): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.lines.at(index).controls.unitOfMeasure.setValue(value.trim());
+    this.markFormDirty();
+  }
+
   protected addLine(): void {
     this.lines.push(this.createLine());
   }
@@ -1910,6 +1954,9 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
           ? parseEffectiveDiscountPercent(line.discountPercent)
           : undefined,
         vatCodeId: line.vatCodeId || undefined,
+        // La colonna esisteva in maschera e non nel database: si modificava, si
+        // salvava, si riapriva e la modifica era sparita. Ora il valore parte.
+        unitOfMeasure: line.unitOfMeasure.trim() || undefined,
       };
     });
 
@@ -2035,6 +2082,9 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
           discountPercent:
             line.discountPercent > 0 ? formatDiscountPercentValue(line.discountPercent) : '',
           vatCodeId: line.vatCodeId ?? '',
+          // La fotografia salvata sulla riga, non l'unità dell'anagrafica di
+          // adesso: è il punto in cui l'ordine riaperto dice quello che diceva.
+          unitOfMeasure: line.unitOfMeasure ?? '',
         },
         { emitEvent: false },
       );

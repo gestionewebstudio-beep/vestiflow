@@ -1563,10 +1563,22 @@
                         }
                         @if (isLineColumnVisible('unitOfMeasure')) {
                           <td
-                            class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__col--stock doc-form__col--sep"
+                            class="doc-form__cell doc-form__cell--editable doc-form__col--stock doc-form__col--sep"
                           >
                             @if (!lineIsReference(i)) {
-                              {{ lineUnitOfMeasure(i) }}
+                              <app-document-line-unit-cell
+                                [lineIndex]="i"
+                                [inputId]="'co-uom-' + i"
+                                [options]="unitOfMeasureOptions()"
+                                [value]="lineUnitOfMeasure(i)"
+                                [disabled]="formReadOnly()"
+                                (valueChange)="onLineUnitOfMeasureChange(i, $event)"
+                                (lineAdvance)="lineFocus.next(i, 'unitOfMeasure')"
+                                (lineRetreat)="lineFocus.previous(i, 'unitOfMeasure')"
+                                (lineRowAdvance)="lineFocus.rowDown(i, 'unitOfMeasure')"
+                                (lineRowRetreat)="lineFocus.rowUp(i, 'unitOfMeasure')"
+                                (manageRequested)="openUnitManager(i)"
+                              />
                             }
                           </td>
                         }
@@ -1809,6 +1821,7 @@
                         [line]="line"
                         [lineIndex]="i"
                         [vm]="lineCardVm(i)"
+                        [unitOfMeasureOptions]="unitOfMeasureOptions()"
                         [open]="isLineCardOpen(i)"
                         [layout]="isOrder ? 'order' : 'registry'"
                         (toggled)="toggleLineCard(i)"
@@ -1827,6 +1840,8 @@
                         (suggestionPicked)="onProductSuggestionPick(i, $event)"
                         (commitsChanged)="onLineCommitsSelect(i, $event)"
                         (vatSelected)="onLineVatSelect(i, $event)"
+                        (unitOfMeasureChanged)="onLineUnitOfMeasureChange(i, $event)"
+                        (unitManagerRequested)="openUnitManager(i)"
                       />
                     }
                   }
@@ -2491,6 +2506,13 @@
           </app-button>
         </div>
       }
+      <!-- Uno per maschera, non per riga: la cella chiede, il documento ospita. -->
+      <app-unit-of-measure-manager-dialog
+        [open]="unitManagerOpen()"
+        (closed)="unitManagerOpen.set(false)"
+        (changed)="onUnitOptionsChanged()"
+        (created)="onUnitOptionCreated($event)"
+      />
     </form>
   }
 </section>

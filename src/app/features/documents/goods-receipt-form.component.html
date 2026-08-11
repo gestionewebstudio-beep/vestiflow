@@ -1390,25 +1390,30 @@
                           </td>
                         }
                         @if (isLineColumnVisible('unitOfMeasure')) {
-                          @if (lineCreateMode(i)) {
-                            <td class="doc-form__cell doc-form__cell--editable">
-                              <select
-                                class="doc-form__select-inline"
-                                formControlName="newProductUnitOfMeasure"
-                                [attr.aria-label]="'Unità di misura riga ' + (i + 1)"
-                              >
-                                @for (um of unitOfMeasureOptions; track um) {
-                                  <option [value]="um">{{ um }}</option>
-                                }
-                              </select>
-                            </td>
-                          } @else {
-                            <td
-                              class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed"
-                            >
-                              {{ lineUnitOfMeasure(i) }}
-                            </td>
-                          }
+                          <!--
+                            Una cella sola, agganciata o no. Prima erano due: una
+                            tendina in creazione articolo e un testo calcolato
+                            altrove — cioè l'unità si poteva scegliere solo
+                            mentre si creava l'articolo, e su una riga normale
+                            non si toccava. Ora la riga porta la sua unità in
+                            entrambi i casi, come porta il suo prezzo.
+                          -->
+                          <td class="doc-form__cell doc-form__cell--editable">
+                            <app-document-line-unit-cell
+                              [lineIndex]="i"
+                              [inputId]="'gr-uom-' + i"
+                              [options]="unitOfMeasureOptions()"
+                              [ariaLabel]="'Unità di misura riga ' + (i + 1)"
+                              [value]="lineUnitOfMeasure(i)"
+                              [disabled]="formReadOnly()"
+                              (valueChange)="onLineUnitOfMeasureChange(i, $event)"
+                              (lineAdvance)="lineFocus.next(i, 'unitOfMeasure')"
+                              (lineRetreat)="lineFocus.previous(i, 'unitOfMeasure')"
+                              (lineRowAdvance)="lineFocus.rowDown(i, 'unitOfMeasure')"
+                              (lineRowRetreat)="lineFocus.rowUp(i, 'unitOfMeasure')"
+                              (manageRequested)="openUnitManager(i)"
+                            />
+                          </td>
                         }
                         @if (isLineColumnVisible('unitCost')) {
                           <td class="doc-form__cell doc-form__cell--editable doc-form__num">
@@ -1631,12 +1636,16 @@
                     [grossLabel]="lineHasDiscount(i) ? formatMoney(lineGrossMoney(i)) : null"
                     [vatOptions]="lineVatOptions(i)"
                     [vatValue]="lineVatValue(i)"
+                    [unitOfMeasure]="lineUnitOfMeasure(i)"
+                    [unitOfMeasureOptions]="unitOfMeasureOptions()"
                     [disabled]="formReadOnly()"
                     [canRemove]="lines.length > 1"
                     [suggestions]="lineSuggestions(i)"
                     [suggestionsOpen]="lineSuggestionsOpen(i)"
                     (searchProduct)="openLineProductSearch($event)"
                     (vatChange)="onLineVatSelect(i, $event)"
+                    (unitOfMeasureChanged)="onLineUnitOfMeasureChange(i, $event)"
+                    (unitManagerRequested)="openUnitManager(i)"
                     (fieldBlur)="onLineOperationalBlur($event)"
                     (nameInput)="onCardProductNameInput(i, $event)"
                     (nameFocus)="onLineProductFocus($event)"
@@ -1898,6 +1907,13 @@
           }
         </div>
       }
+      <!-- Uno per maschera, non per riga: la cella chiede, il documento ospita. -->
+      <app-unit-of-measure-manager-dialog
+        [open]="unitManagerOpen()"
+        (closed)="unitManagerOpen.set(false)"
+        (changed)="onUnitOptionsChanged()"
+        (created)="onUnitOptionCreated($event)"
+      />
     </form>
   }
 </section>

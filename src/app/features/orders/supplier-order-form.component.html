@@ -834,18 +834,19 @@
                         </td>
                       }
                       @if (isLineColumnVisible('unitOfMeasure')) {
-                        <!-- Editabile: quando l'articolo esiste mostra il suo dato,
-                           quando lo si sta creando È il dato che va in anagrafica. -->
                         <td class="doc-form__col--stock doc-form__cell" data-label="U.m.">
-                          <input
-                            [id]="'po-uom-' + i"
-                            class="doc-form__input doc-form__input--table"
-                            type="text"
-                            maxlength="8"
-                            formControlName="unitOfMeasure"
-                            placeholder="pz"
-                            aria-label="Unità di misura"
-                            (keydown)="lineFocus.handleKeydown(i, 'unitOfMeasure', $event)"
+                          <app-document-line-unit-cell
+                            [lineIndex]="i"
+                            [inputId]="'po-uom-' + i"
+                            [options]="unitOfMeasureOptions()"
+                            [value]="line.controls.unitOfMeasure.value"
+                            [disabled]="formReadOnly()"
+                            (valueChange)="onLineUnitOfMeasureChange(i, $event)"
+                            (lineAdvance)="lineFocus.next(i, 'unitOfMeasure')"
+                            (lineRetreat)="lineFocus.previous(i, 'unitOfMeasure')"
+                            (lineRowAdvance)="lineFocus.rowDown(i, 'unitOfMeasure')"
+                            (lineRowRetreat)="lineFocus.rowUp(i, 'unitOfMeasure')"
+                            (manageRequested)="openUnitManager(i)"
                           />
                         </td>
                       }
@@ -1124,6 +1125,13 @@
           >Salva documento</app-button
         >
       </div>
+      <!-- Uno per maschera, non per riga: la cella chiede, il documento ospita. -->
+      <app-unit-of-measure-manager-dialog
+        [open]="unitManagerOpen()"
+        (closed)="unitManagerOpen.set(false)"
+        (changed)="onUnitOptionsChanged()"
+        (created)="onUnitOptionCreated($event)"
+      />
     </form>
   }
 </section>

@@ -1,0 +1,131 @@
+<div class="uom-manager">
+  <p class="uom-manager__hint">
+    Le unità di misura proposte quando compili una riga o una scheda articolo.
+    <strong>Disattivare</strong> toglie una voce dalle tendine lasciandola qui, riattivabile.
+    <strong>Eliminare</strong> la toglie anche da qui. In nessuno dei due casi cambia un documento
+    già salvato: sulla riga l'unità è scritta come testo, non come collegamento a questo elenco.
+  </p>
+
+  @if (loadError(); as message) {
+    <app-inline-banner tone="error" [message]="message" />
+  }
+  @if (actionError(); as message) {
+    <app-inline-banner
+      tone="error"
+      [message]="message"
+      dismissLabel="Chiudi"
+      (dismissed)="actionError.set(null)"
+    />
+  }
+
+  <div class="uom-manager__new">
+    <input
+      class="uom-manager__input"
+      type="text"
+      placeholder="Nuova unità (es. paio)"
+      aria-label="Nome nuova unità di misura"
+      maxlength="20"
+      [value]="newName()"
+      [disabled]="busy()"
+      (input)="newName.set($any($event.target).value)"
+      (keydown.enter)="create(); $event.preventDefault()"
+    />
+    <app-button type="button" [disabled]="busy() || !newName().trim()" (click)="create()">
+      Aggiungi
+    </app-button>
+  </div>
+
+  <ul class="uom-manager__list">
+    @for (option of options(); track trackById($index, option)) {
+      <li class="uom-manager__item" [class.uom-manager__item--inactive]="!option.isActive">
+        @if (editingId() === option.id) {
+          <input
+            class="uom-manager__input"
+            type="text"
+            aria-label="Nome unità di misura"
+            maxlength="20"
+            [value]="editName()"
+            (input)="editName.set($any($event.target).value)"
+            (keydown.enter)="saveEdit(); $event.preventDefault()"
+            (keydown.escape)="cancelEdit()"
+          />
+          <div class="uom-manager__actions">
+            <app-button type="button" variant="secondary" [disabled]="busy()" (click)="saveEdit()">
+              Salva
+            </app-button>
+            <app-button type="button" variant="ghost" (click)="cancelEdit()">Annulla</app-button>
+          </div>
+        } @else {
+          <span class="uom-manager__label">
+            {{ option.name }}
+            @if (option.isSystem) {
+              <app-badge tone="info">Sistema</app-badge>
+            }
+            @if (!option.isActive) {
+              <app-badge tone="warning">Disattivata</app-badge>
+            }
+          </span>
+          <div class="uom-manager__actions">
+            <button
+              type="button"
+              class="uom-manager__icon-btn"
+              [attr.aria-label]="option.isActive ? 'Disattiva unità' : 'Riattiva unità'"
+              [attr.title]="
+                option.isActive
+                  ? 'Disattiva: esce dalle tendine, resta in questo elenco'
+                  : 'Riattiva: torna proposta'
+              "
+              [disabled]="busy()"
+              (click)="toggleActive(option)"
+            >
+              <i
+                class="pi"
+                [class.pi-eye]="option.isActive"
+                [class.pi-eye-slash]="!option.isActive"
+                aria-hidden="true"
+              ></i>
+            </button>
+            <button
+              type="button"
+              class="uom-manager__icon-btn"
+              aria-label="Rinomina unità"
+              title="Rinomina"
+              [disabled]="busy()"
+              (click)="startEdit(option)"
+            >
+              <i class="pi pi-pencil" aria-hidden="true"></i>
+            </button>
+            <button
+              type="button"
+              class="uom-manager__icon-btn uom-manager__icon-btn--danger"
+              aria-label="Elimina unità"
+              title="Elimina: esce anche da questo elenco"
+              [disabled]="busy()"
+              (click)="requestDelete(option)"
+            >
+              <i class="pi pi-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        }
+      </li>
+    } @empty {
+      <li class="uom-manager__empty">
+        @if (loading()) {
+          Caricamento…
+        } @else {
+          Nessuna unità di misura configurata.
+        }
+      </li>
+    }
+  </ul>
+</div>
+
+<app-confirm-dialog
+  [(open)]="confirmOpen"
+  [title]="confirmTitle()"
+  message="Sparisce dalle tendine e da questo elenco. I documenti che la portano continuano a mostrarla."
+  confirmLabel="Elimina"
+  [danger]="true"
+  (confirmed)="onConfirmDelete()"
+  (dismissed)="onDismissDelete()"
+/>
