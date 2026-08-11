@@ -33,36 +33,29 @@
   <ng-container cardBody>
     <app-document-line-card-group label="Articolo" [first]="true" />
 
-    <app-document-line-card-field label="Variante / SKU" [full]="true">
-      <app-select-menu
-        [options]="variantOptions()"
-        [value]="line().controls.variantId.value"
-        ariaLabel="Variante"
-        placeholder="Cerca SKU o articolo…"
-        [fullWidth]="true"
-        [searchable]="true"
-        searchPlaceholder="Min. 2 caratteri…"
-        searchAriaLabel="Cerca variante"
+    <app-document-line-card-field label="Nome prodotto" [full]="true">
+      <!--
+        Stessa cella nome degli altri documenti: si digita e i suggerimenti
+        arrivano sotto, la lente apre la ricerca a tutta pagina. Prima era una
+        tendina con la ricerca dentro — il meccanismo di prima, rimasto qui.
+      -->
+      <app-document-line-product-cell
+        [lineIndex]="lineIndex()"
+        [value]="line().controls.description.value"
+        [linked]="!!line().controls.variantId.value"
+        [disabled]="disabled()"
         [invalid]="variantInvalid()"
-        (searchChange)="variantSearch.emit($event)"
-        (valueChange)="variantSelected.emit($event)"
+        [suggestions]="suggestions()"
+        [suggestionsOpen]="suggestionsOpen()"
+        (valueChange)="nameInput.emit($event)"
+        (focused)="nameFocus.emit($event)"
+        (blurred)="nameBlur.emit($event)"
+        (searchOpen)="searchProduct.emit($event)"
+        (suggestionPick)="suggestionPick.emit($event)"
       />
       @if (variantInvalid()) {
         <p class="doc-form__error">Campo obbligatorio.</p>
       }
-    </app-document-line-card-field>
-
-    <app-document-line-card-field
-      label="Descrizione"
-      [controlId]="idPrefix() + '-m-desc-' + lineIndex()"
-      [full]="true"
-    >
-      <input
-        [id]="idPrefix() + '-m-desc-' + lineIndex()"
-        class="doc-form__input"
-        type="text"
-        [formControl]="line().controls.description"
-      />
     </app-document-line-card-field>
 
     <app-document-line-card-field

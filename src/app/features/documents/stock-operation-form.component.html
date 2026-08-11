@@ -276,19 +276,27 @@
                   @for (line of lines.controls; track line; let i = $index) {
                     <tr [formGroupName]="i">
                       <td class="doc-form__cell doc-form__cell--editable">
-                        <app-select-menu
-                          [options]="variantOptions()"
-                          [value]="line.controls.variantId.value"
-                          ariaLabel="Variante"
-                          placeholder="Cerca SKU o articolo…"
-                          [compact]="true"
-                          [fullWidth]="true"
-                          [searchable]="true"
-                          searchPlaceholder="Min. 2 caratteri…"
-                          searchAriaLabel="Cerca variante"
+                        <!--
+                          Stessa cella nome degli altri documenti: si digita e i
+                          suggerimenti arrivano sotto, la lente apre la ricerca
+                          a tutta pagina.
+                        -->
+                        <app-document-line-product-cell
+                          [lineIndex]="i"
+                          [inputId]="'mov-name-' + i"
+                          [value]="line.controls.description.value"
+                          [linked]="!!line.controls.variantId.value"
+                          [disabled]="formReadOnly()"
                           [invalid]="lineFieldInvalid(i, 'variantId')"
-                          (searchChange)="variantSearchDraft.set($event)"
-                          (valueChange)="onVariantSelect(i, $event)"
+                          [suggestions]="lineSuggestions(i)"
+                          [suggestionsOpen]="lineSuggestionsOpen(i)"
+                          (valueChange)="onLineProductNameChange(i, $event)"
+                          (focused)="onLineProductFocus($event)"
+                          (blurred)="onLineProductBlur($event)"
+                          (searchOpen)="openLineProductSearch($event)"
+                          (suggestionPick)="
+                            onProductSuggestionPick($event.lineIndex, $event.variantId)
+                          "
                         />
                         @if (lineFieldInvalid(i, 'variantId')) {
                           <p class="doc-form__error">Campo obbligatorio.</p>
@@ -351,12 +359,16 @@
                   [lineIndex]="i"
                   [line]="line"
                   idPrefix="so"
-                  [variantOptions]="variantOptions()"
+                  [suggestions]="lineSuggestions(i)"
+                  [suggestionsOpen]="lineSuggestionsOpen(i)"
                   [variantInvalid]="lineFieldInvalid(i, 'variantId')"
                   [disabled]="formReadOnly()"
                   [canRemove]="lines.length > 1"
-                  (variantSearch)="variantSearchDraft.set($event)"
-                  (variantSelected)="onVariantSelect(i, $event)"
+                  (nameInput)="onLineProductNameChange(i, $event)"
+                  (nameFocus)="onLineProductFocus($event)"
+                  (nameBlur)="onLineProductBlur($event)"
+                  (searchProduct)="openLineProductSearch($event)"
+                  (suggestionPick)="onProductSuggestionPick($event.lineIndex, $event.variantId)"
                   (duplicated)="duplicateLine($event)"
                   (removed)="removeLine($event)"
                 />
@@ -439,6 +451,16 @@
             <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
           }
         </div>
+      }
+      <!-- La ricerca articolo a tutta pagina, aperta dalla lente della riga. -->
+      @if (productPanelOpen()) {
+        <app-document-product-search-panel
+          [launchTerm]="productPanelTerm()"
+          [launchSeq]="productPanelSeq()"
+          [canCreate]="false"
+          (variantSelected)="onProductPanelSelected($event.variantId)"
+          (dismissed)="productPanelOpen.set(false)"
+        />
       }
     </form>
   }

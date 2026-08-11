@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { ReactiveFormsModule, type FormControl } from '@angular/forms';
 
-import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
-import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+
+import { DocumentLineProductCellComponent } from '../document-line-product-cell/document-line-product-cell.component';
 
 import { DocumentLineCardComponent } from '../document-line-card/document-line-card.component';
 import { DocumentLineCardControlComponent } from '../document-line-card/document-line-card-control.component';
@@ -49,8 +50,8 @@ export interface StockMovementLineCardGroup {
     DocumentLineCardControlComponent,
     DocumentLineCardFieldComponent,
     DocumentLineCardGroupComponent,
+    DocumentLineProductCellComponent,
     ReactiveFormsModule,
-    SelectMenuComponent,
   ],
   templateUrl: './stock-movement-line-card.component.html',
   styleUrl: './stock-movement-line-card.component.scss',
@@ -58,16 +59,20 @@ export interface StockMovementLineCardGroup {
 export class StockMovementLineCardComponent {
   readonly lineIndex = input.required<number>();
   readonly line = input.required<StockMovementLineCardGroup>();
-  /** Le varianti fra cui scegliere: la maschera le cerca al server. */
-  readonly variantOptions = input<readonly SelectMenuOption[]>([]);
+  /** I suggerimenti sotto il campo nome: la maschera li cerca al catalogo. */
+  readonly suggestions = input<readonly VariantSummary[]>([]);
+  readonly suggestionsOpen = input(false);
   readonly variantInvalid = input(false);
   /** Prefisso degli id dei campi: le due maschere convivono, gli id no. */
   readonly idPrefix = input('mov');
   readonly disabled = input(false);
   readonly canRemove = input(true);
 
-  readonly variantSelected = output<string | null>();
-  readonly variantSearch = output<string>();
+  readonly nameInput = output<string>();
+  readonly nameFocus = output<number>();
+  readonly nameBlur = output<number>();
+  readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
+  readonly searchProduct = output<number>();
   readonly duplicated = output<number>();
   readonly removed = output<number>();
 

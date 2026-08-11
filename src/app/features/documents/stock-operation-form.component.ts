@@ -62,6 +62,9 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { StockMovementLineCardComponent } from '@domain/documents/components/stock-movement-line-card/stock-movement-line-card.component';
+import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
+import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
+import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
@@ -102,6 +105,8 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
     EditLockBannerComponent,
     SelectMenuComponent,
     StockMovementLineCardComponent,
+    DocumentLineProductCellComponent,
+    DocumentProductSearchPanelComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
@@ -620,6 +625,77 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       this.form.controls.adjustmentDirection.setValue(value);
       this.form.controls.adjustmentDirection.markAsTouched();
     }
+  }
+
+  // ── Ricerca articolo, come negli altri documenti ──────────────────────────
+  //
+  // Prima l'articolo si sceglieva da una tendina con ricerca al server: nessun
+  // suggerimento sotto il campo, nessuna scorciatoia alla ricerca a tutta
+  // pagina. Era il meccanismo di prima, rimasto qui mentre gli altri documenti
+  // andavano avanti.
+  //
+  // La ricerca al catalogo era già qui (`variantSearchDraft` col suo debounce):
+  // cambia chi la mostra, non chi la fa.
+  protected readonly productSuggest = new DocumentProductSuggestStore();
+
+  /** Il pannello di ricerca a tutta pagina, aperto dalla lente della riga. */
+  protected readonly productPanelOpen = signal(false);
+  protected readonly productPanelTerm = signal('');
+  protected readonly productPanelSeq = signal(0);
+  private productPanelLineIndex = -1;
+
+  protected lineSuggestions(index: number): readonly VariantSummary[] {
+    return this.productSuggest.suggestionsFor(index, this.suggestInputs(index));
+  }
+
+  protected lineSuggestionsOpen(index: number): boolean {
+    return this.productSuggest.isOpenOn(index, this.suggestInputs(index));
+  }
+
+  private suggestInputs(index: number): {
+    hasLinked: boolean;
+    searched: readonly VariantSummary[];
+  } {
+    return {
+      hasLinked: !!this.lines.at(index)?.controls.variantId.value,
+      searched: this.searchedVariants() ?? [],
+    };
+  }
+
+  /** Digitando si cerca a catalogo: è la stessa ricerca di prima, altro innesco. */
+  protected onLineProductNameChange(index: number, value: string): void {
+    this.lines.at(index)?.controls.description.setValue(value);
+    this.productSuggest.focusLine(index);
+    this.variantSearchDraft.set(value);
+  }
+
+  protected onLineProductFocus(index: number): void {
+    this.productSuggest.focusLine(index);
+    this.variantSearchDraft.set(this.lines.at(index)?.controls.description.value ?? '');
+  }
+
+  protected onLineProductBlur(index: number): void {
+    this.productSuggest.blurLine(index);
+  }
+
+  protected onProductSuggestionPick(index: number, variantId: string): void {
+    this.onVariantSelect(index, variantId);
+    this.productSuggest.clear();
+  }
+
+  /** La lente: la ricerca a tutta pagina, col testo già digitato dentro. */
+  protected openLineProductSearch(index: number): void {
+    this.productPanelLineIndex = index;
+    this.productPanelTerm.set(this.lines.at(index)?.controls.description.value ?? '');
+    this.productPanelSeq.update((seq) => seq + 1);
+    this.productPanelOpen.set(true);
+  }
+
+  protected onProductPanelSelected(variantId: string): void {
+    if (this.productPanelLineIndex >= 0) {
+      this.onVariantSelect(this.productPanelLineIndex, variantId);
+    }
+    this.productPanelOpen.set(false);
   }
 
   protected onVariantSelect(index: number, value: string | null): void {
