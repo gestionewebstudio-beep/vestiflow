@@ -114,6 +114,15 @@ export interface DocumentLineFocusContract<F extends string> {
  * (`lineRowAdvance`, `lineRowRetreat`, `commit`). Perciò `next`, `previous`,
  * `rowDown`, `rowUp` e `focusField` sono pubbliche e chiamabili per nome.
  */
+/**
+ * Quante volte si torna a cercare la riga nuova nel DOM prima di lasciar
+ * perdere. Tre giri d'orologio: uno basta sempre, gli altri due sono per il
+ * caso in cui il render arrivi dopo un secondo giro di rilevamento. Un numero
+ * finito, non un'attesa aperta: se la riga non compare c'è un difetto altrove,
+ * e insistere lo nasconderebbe.
+ */
+const TENTATIVI_DI_FUOCO = 3;
+
 export class DocumentLineFocusStore<F extends string> {
   /**
    * L'ultima riga **nata dalla navigazione** (Tab, ↓ o → in fondo al giro).
@@ -143,11 +152,14 @@ export class DocumentLineFocusStore<F extends string> {
    * «seleziona quando il campo prende il fuoco» cancellerebbe il valore al
    * primo tasto dopo un click a metà cifra.
    */
-  focusField(lineIndex: number, field: F): void {
+  focusField(lineIndex: number, field: F): boolean {
     const id = this.contract.elementId(lineIndex, field);
     const element = globalThis.document.getElementById(id);
     if (!element) {
-      return;
+      // Non è un errore: può essere una riga che il DOM non ha ancora. Ma
+      // l'esito torna a chi chiama, perché «non ho agganciato niente» e «ho
+      // messo il fuoco» smettano di essere la stessa cosa vista da fuori.
+      return false;
     }
     element.focus();
     // `select()` esiste solo su input e textarea, e su alcuni tipi di input
@@ -161,13 +173,45 @@ export class DocumentLineFocusStore<F extends string> {
         // Tipo di campo che non ammette la selezione: nulla da fare.
       }
     }
+    return true;
   }
 
+  /**
+   * Il primo campo della riga — e **aspetta che la riga ci sia**.
+   *
+   * Quando la riga è appena nata, nel form c'è ma nel DOM no: Angular la
+   * disegna al giro di rilevamento successivo. `focus()` su un elemento che
+   * non esiste non solleva niente e non fa niente, quindi il difetto si
+   * presentava come «la riga si crea, il cursore resta sopra» — su tutte e tre
+   * le maschere, e senza un solo test rosso (11/08/2026).
+   *
+   * Non è un ritardo fisso: si prova subito, e si riprova solo finché
+   * l'elemento non c'è. Dove la riga è già resa — il caso normale della
+   * navigazione — non cambia niente e non si aspetta nulla.
+   *
+   * ⚠️ Il tempismo del gancio di riga (voce 8) è un'altra cosa e resta della
+   * maschera: quello dice quando si può LASCIARE la riga di partenza; questo
+   * quando è arrivata quella di destinazione. Confonderli è ciò che ha
+   * prodotto il difetto: il `setTimeout` delle maschere rimandava la
+   * creazione, non il fuoco.
+   */
   focusFirstField(lineIndex: number): void {
     const first = this.fieldsOf(lineIndex)[0];
-    if (first !== undefined) {
-      this.focusField(lineIndex, first);
+    if (first === undefined || this.focusField(lineIndex, first)) {
+      return;
     }
+    this.focusWhenRendered(lineIndex, first, TENTATIVI_DI_FUOCO);
+  }
+
+  private focusWhenRendered(lineIndex: number, field: F, left: number): void {
+    if (left <= 0) {
+      return;
+    }
+    setTimeout(() => {
+      if (!this.focusField(lineIndex, field)) {
+        this.focusWhenRendered(lineIndex, field, left - 1);
+      }
+    });
   }
 
   focusLastField(lineIndex: number): void {

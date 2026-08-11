@@ -25,6 +25,9 @@ function montaGriglia(righe: number, campi: readonly Campo[] = CAMPI): void {
   }
 }
 
+/** Un giro di orologio: quanto basta perché la riga nuova sia nel DOM. */
+const giro = (): Promise<void> => new Promise((risolvi) => setTimeout(risolvi));
+
 function fuoco(): string {
   return globalThis.document.activeElement?.id ?? '';
 }
@@ -43,9 +46,21 @@ interface Opzioni {
 
 function crea(opzioni: Opzioni = {}) {
   const stato = { righe: opzioni.righe ?? 2 };
+  /**
+   * ⚠️ La riga nuova **non si vede subito**, e il finto deve dire la verità:
+   * Angular la disegna al giro di rilevamento successivo, non dentro la
+   * chiamata che la aggiunge alla FormArray.
+   *
+   * Un finto che monta gli elementi all'istante rende verde un fuoco che nella
+   * maschera vera non arriva mai — ed è successo: ↓ dalla quantità creava la
+   * riga e lasciava il cursore dov'era, su tutte e tre le maschere, con questi
+   * test tutti verdi (11/08/2026). Il difetto non era nel codice provato: era
+   * nel banco di prova, che raccontava un tempismo che non esiste.
+   */
   const createLine = vi.fn(() => {
     stato.righe += 1;
-    montaSoloRiga(stato.righe - 1);
+    const nata = stato.righe - 1;
+    setTimeout(() => montaSoloRiga(nata));
   });
   const removeLine = vi.fn((riga: number) => {
     stato.righe -= 1;
@@ -150,10 +165,13 @@ describe('DocumentLineFocusStore', () => {
     expect(fuoco()).toBe('r1-price');
   });
 
-  it('↓ sull’ultima riga con contenuto crea la riga e ci mette il fuoco da sinistra', () => {
+  it('↓ sull’ultima riga con contenuto crea la riga e ci mette il fuoco da sinistra', async () => {
     const { store, createLine } = crea({ righe: 1, rigaVuota: () => false });
 
     store.rowDown(0, 'price');
+    // ⚠️ Il fuoco sulla riga NUOVA non è istantaneo, perché non lo è la riga
+    // nel DOM. Asserire subito è ciò che teneva verde il difetto.
+    await giro();
 
     expect(createLine).toHaveBeenCalledTimes(1);
     // Da sinistra, non sulla colonna di partenza: su una riga che non esisteva
@@ -249,10 +267,11 @@ describe('DocumentLineFocusStore', () => {
     expect(fuoco()).toBe('r1-code');
   });
 
-  it('Tab dall’ultimo campo dell’ultima riga con contenuto crea la riga', () => {
+  it('Tab dall’ultimo campo dell’ultima riga con contenuto crea la riga', async () => {
     const { store, createLine } = crea({ righe: 1, rigaVuota: () => false });
 
     store.next(0, 'price');
+    await giro();
 
     expect(createLine).toHaveBeenCalledTimes(1);
     expect(fuoco()).toBe('r1-code');
@@ -441,9 +460,10 @@ describe('DocumentLineFocusStore', () => {
       expect(fuoco()).toBe('r0-code');
     });
 
-    it('→ dall’ultimo campo crea la riga, come Tab e ↓', () => {
+    it('→ dall’ultimo campo crea la riga, come Tab e ↓', async () => {
       const { store, createLine } = crea({ righe: 1 });
       store.handleKeydown(0, 'price', tastoSuCampo('ArrowRight', inFondo));
+      await giro();
       expect(createLine).toHaveBeenCalledTimes(1);
       expect(fuoco()).toBe('r1-code');
     });
@@ -553,9 +573,10 @@ describe('DocumentLineFocusStore', () => {
       expect(fuoco()).toBe('r0-price');
     });
 
-    it('Shift+Tab da un campo interno non tocca niente: non si sta uscendo dalla riga', () => {
+    it('Shift+Tab da un campo interno non tocca niente: non si sta uscendo dalla riga', async () => {
       const { store, removeLine } = crea({ righe: 1, rigaVuota: (riga) => riga === 1 });
       store.rowDown(0, 'qty');
+      await giro();
       store.previous(1, 'qty');
       expect(removeLine).not.toHaveBeenCalled();
       expect(fuoco()).toBe('r1-name');
