@@ -80,9 +80,7 @@
                     (valueChange)="onOriginSelect($event)"
                   />
                   @if (fieldInvalid('locationId')) {
-                    <p id="tr-m-origin-error" class="doc-form__error">
-                      Seleziona la location di origine.
-                    </p>
+                    <p id="tr-m-origin-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                 </div>
 
@@ -99,9 +97,7 @@
                     (valueChange)="onTargetSelect($event)"
                   />
                   @if (fieldInvalid('targetLocationId')) {
-                    <p id="tr-m-target-error" class="doc-form__error">
-                      Seleziona la location di destinazione.
-                    </p>
+                    <p id="tr-m-target-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                 </div>
 
@@ -174,9 +170,7 @@
                   (valueChange)="onOriginSelect($event)"
                 />
                 @if (fieldInvalid('locationId')) {
-                  <p id="tr-origin-error" class="doc-form__error">
-                    Seleziona la location di origine.
-                  </p>
+                  <p id="tr-origin-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
               </div>
 
@@ -194,9 +188,7 @@
                   (valueChange)="onTargetSelect($event)"
                 />
                 @if (fieldInvalid('targetLocationId')) {
-                  <p id="tr-target-error" class="doc-form__error">
-                    Seleziona la location di destinazione.
-                  </p>
+                  <p id="tr-target-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
               </div>
 
@@ -269,18 +261,83 @@
             <table class="doc-form__table">
               <thead>
                 <tr>
-                  <th scope="col">Variante / SKU</th>
-                  <th scope="col">Descrizione</th>
-                  <th scope="col" class="doc-form__num">Quantità</th>
+                  <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
+                  <th scope="col">
+                    <button
+                      type="button"
+                      class="doc-form__th-sort"
+                      [attr.aria-label]="lineSortAriaLabel('sku', 'Variante / SKU')"
+                      (click)="toggleLineSort('sku')"
+                    >
+                      Variante / SKU
+                      @if (lineSort.column() === 'sku') {
+                        <i
+                          class="pi"
+                          [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                          [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                          aria-hidden="true"
+                        ></i>
+                      }
+                    </button>
+                  </th>
+                  <th scope="col">
+                    <button
+                      type="button"
+                      class="doc-form__th-sort"
+                      [attr.aria-label]="lineSortAriaLabel('description', 'Descrizione')"
+                      (click)="toggleLineSort('description')"
+                    >
+                      Descrizione
+                      @if (lineSort.column() === 'description') {
+                        <i
+                          class="pi"
+                          [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                          [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                          aria-hidden="true"
+                        ></i>
+                      }
+                    </button>
+                  </th>
+                  <th scope="col" class="doc-form__num">
+                    <button
+                      type="button"
+                      class="doc-form__th-sort"
+                      [attr.aria-label]="lineSortAriaLabel('quantity', 'Quantità')"
+                      (click)="toggleLineSort('quantity')"
+                    >
+                      Quantità
+                      @if (lineSort.column() === 'quantity') {
+                        <i
+                          class="pi"
+                          [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                          [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                          aria-hidden="true"
+                        ></i>
+                      }
+                    </button>
+                  </th>
                   <th scope="col">Seriali</th>
                   <th scope="col" class="doc-form__cell--actions">
                     <span class="sr-only">Azioni</span>
                   </th>
                 </tr>
               </thead>
-              <tbody formArrayName="lines">
+              <!-- Il trascinamento sta sul tbody, e il blocco del documento lo
+                   spegne qui: il fieldset disabilitato ferma i controlli del form,
+                   non il drag & drop, che controllo non e'. -->
+              <tbody
+                formArrayName="lines"
+                cdkDropList
+                [cdkDropListDisabled]="formReadOnly()"
+                (cdkDropListDropped)="onLineDrop($event)"
+              >
                 @for (line of lines.controls; track line; let i = $index) {
-                  <tr [formGroupName]="i">
+                  <tr cdkDrag [cdkDragStartDelay]="{ touch: 250, mouse: 0 }" [formGroupName]="i">
+                    <!-- La cella del numero e' la maniglia: il resto della riga
+                         resta cliccabile per modificare le celle. -->
+                    <td class="doc-form__cell--index doc-form__drag-handle" cdkDragHandle>
+                      <span class="tabular-nums">{{ i + 1 }}</span>
+                    </td>
                     <td class="doc-form__cell doc-form__cell--editable">
                       <app-select-menu
                         [options]="variantOptions()"
@@ -297,7 +354,7 @@
                         (valueChange)="onVariantSelect(i, $event)"
                       />
                       @if (lineFieldInvalid(i, 'variantId')) {
-                        <p class="doc-form__error">Seleziona una variante.</p>
+                        <p class="doc-form__error">Campo obbligatorio.</p>
                       }
                     </td>
                     <td class="doc-form__cell doc-form__cell--editable">
@@ -369,7 +426,7 @@
                       (valueChange)="onVariantSelect(i, $event)"
                     />
                     @if (lineFieldInvalid(i, 'variantId')) {
-                      <p class="doc-form__error">Seleziona una variante.</p>
+                      <p class="doc-form__error">Campo obbligatorio.</p>
                     }
                   </div>
 
@@ -459,10 +516,10 @@
         <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
         @if (isConfirmedEdit()) {
           <app-button type="submit" [disabled]="formReadOnly() || saving()"
-            >Salva modifiche</app-button
+            >Salva documento</app-button
           >
         } @else {
-          <app-button type="submit" [disabled]="saving()">Salva trasferimento</app-button>
+          <app-button type="submit" [disabled]="saving()">Salva documento</app-button>
         }
       </div>
 
@@ -477,14 +534,24 @@
             Chiudi
           </app-button>
           @if (isConfirmedEdit()) {
-            <app-button type="submit" [disabled]="saving()">Salva modifiche</app-button>
+            <app-button type="submit" [disabled]="saving()">Salva documento</app-button>
           } @else {
-            <app-button type="submit" [disabled]="saving()">Salva trasferimento</app-button>
+            <app-button type="submit" [disabled]="saving()">Salva documento</app-button>
           }
         </div>
       }
     </form>
   }
+
+  <!-- Avviso del primo riordino, una volta per documento (specifica §7.1). -->
+  <app-confirm-dialog
+    [open]="lineSort.confirmOpen()"
+    title="Riordino righe"
+    message="L'ordine di inserimento non è registrato da nessuna parte: salvando, non sarà più ricostruibile. Fino al salvataggio puoi chiudere il documento senza salvare per ritrovarlo com'era."
+    confirmLabel="Riordina"
+    (confirmed)="confirmLineSort()"
+    (dismissed)="lineSort.dismiss()"
+  />
 
   <app-confirm-dialog
     [(open)]="confirmDialogOpen"

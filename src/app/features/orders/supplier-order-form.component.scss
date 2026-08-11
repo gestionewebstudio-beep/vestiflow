@@ -59,7 +59,18 @@
 }
 
 // Fallback a card sotto lg (delta funzionale, non coperto dal globale).
-@include rt.stack-table('doc-form__table');
+//
+// ⚠️ SOLO la metà mobile del mixin, e la ragione è misurata. `stack-table`
+// include anche `data-table-desktop`, che rimette `table-layout: auto` sulla
+// classe CONDIVISA `.doc-form__table` — scavalcando il `fixed` del foglio
+// globale, e solo per questa maschera.
+//
+// Con `auto` le larghezze dichiarate diventano suggerimenti che il browser
+// ignora: misurato dal vivo, SKU chiedeva 104px e ne otteneva 58 (una lettera
+// sola a schermo) mentre l'IVA ne chiedeva 96 e se ne prendeva 257, perché
+// ospita una tendina. La somma sfondava di 349px e la colonna Totale finiva
+// fuori dallo schermo. Serviva l'impilamento a card, non lo stile desktop.
+@include rt.data-table-mobile-cards('doc-form__table');
 
 // ── Menu intestazione colonna Costo (switch netto/ivato come Arrivo merce) ──
 .doc-form__th-menu-wrap {

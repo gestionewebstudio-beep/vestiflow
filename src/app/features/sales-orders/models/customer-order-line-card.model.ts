@@ -49,6 +49,25 @@ export interface LineSuggestion extends DocumentLineSuggestionItem {
   readonly detail: string;
 }
 
+/** Il campo codice su cui l'utente ha confermato: il form ci cerca il prodotto. */
+export type LineCodeField = 'articleCode' | 'sku' | 'barcode';
+
+/**
+ * La scelta fra più corrispondenze esatte di un codice, per la vista mobile.
+ *
+ * Su desktop la scelta si scorre con le frecce e si prende con Invio; qui non
+ * c'è tastiera fisica, quindi **si prende toccando** — stesso pannello del nome
+ * prodotto, che è già tarato per il tocco (target minimo fisso e stato
+ * `:active`, perché `:hover` su touch non è affidabile).
+ *
+ * `field` dice sotto quale dei tre campi codice va mostrata: uno solo per volta,
+ * ed è il campo da cui l'operatore ha confermato.
+ */
+export interface LineCodeChoice {
+  readonly field: LineCodeField;
+  readonly items: readonly LineSuggestion[];
+}
+
 export interface CustomerOrderLineCardVm {
   /** Posizione nell'array righe: serve agli id dei campi e alle etichette ARIA. */
   readonly index: number;
@@ -70,6 +89,8 @@ export interface CustomerOrderLineCardVm {
   readonly vatValue: string;
   readonly suggestions: readonly LineSuggestion[];
   readonly suggestionsOpen: boolean;
+  /** Scelta aperta da un codice; `null` quando non c'è niente da scegliere. */
+  readonly codeChoice: LineCodeChoice | null;
   /** L'elenco suggerimenti si apre verso l'alto: sotto non c'e' spazio. */
   readonly suggestAbove: boolean;
   readonly activeSuggestionIndex: number;

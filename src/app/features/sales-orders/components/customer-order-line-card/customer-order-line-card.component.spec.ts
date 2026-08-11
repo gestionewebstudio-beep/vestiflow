@@ -38,6 +38,7 @@ const VM: CustomerOrderLineCardVm = {
   vatValue: '22',
   suggestions: [],
   suggestionsOpen: false,
+  codeChoice: null,
   suggestAbove: false,
   activeSuggestionIndex: 0,
   readOnly: false,

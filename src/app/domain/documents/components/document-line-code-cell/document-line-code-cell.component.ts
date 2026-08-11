@@ -1,21 +1,34 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  input,
-  output,
-  signal,
-  viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+
+import { caretAtEdge } from '@domain/documents/utils/caret-edge.util';
 
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { formatMoney } from '@core/utils/money.util';
 
+import { DocumentLineSuggestionsComponent } from '../document-line-suggestions/document-line-suggestions.component';
+import type { DocumentLineSuggestionItem } from '../document-line-suggestions/document-line-suggestions.model';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
+
+/** Conferma di un codice, col gesto che l'ha prodotta. */
+export interface DocumentLineCodeCommit {
+  readonly lineIndex: number;
+  /**
+   * `true` col Tab: dopo aver confrontato il codice, il fuoco prosegue.
+   * `false` con Invio: si conferma e si resta.
+   *
+   * ⚠️ Con una corrispondenza sola il fuoco si sposta **comunque**, e non è una
+   * disobbedienza alla regola: agganciando l'articolo la cella smette di essere
+   * un campo e diventa testo, quindi «restare» non è possibile — non c'è più
+   * niente su cui restare.
+   */
+  readonly advance: boolean;
+}
+
 @Component({
   selector: 'app-document-line-code-cell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FirstClickSelectsDirective, FormsModule, DocumentLineSuggestionsComponent],
   templateUrl: './document-line-code-cell.component.html',
   styleUrl: './document-line-code-cell.component.scss',
 })
@@ -36,15 +49,31 @@ export class DocumentLineCodeCellComponent {
   readonly valueChange = output<string>();
   readonly focused = output<number>();
   readonly blurred = output<number>();
-  readonly commit = output<number>();
+  /**
+   * Il valore è confermato: si confronta col catalogo.
+   *
+   * Porta con sé **la conseguenza del gesto**, che solo la cella conosce: Tab
+   * conferma **e va avanti**, Invio conferma **e resta** (specifica §4.5). Prima
+   * i due tasti emettevano lo stesso esito e il form non poteva distinguerli,
+   * quindi Invio navigava — nella stessa riga faceva una cosa diversa a seconda
+   * della colonna, perché sui campi dati resta.
+   */
+  readonly commit = output<DocumentLineCodeCommit>();
   /** Shift+Tab: torna al campo dati precedente (gestito dal form padre). */
   readonly lineRetreat = output<number>();
   readonly lineRowAdvance = output<number>();
   readonly lineRowRetreat = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
+  /**
+   * Frecce a pannello aperto: scorrono la scelta, non le righe del documento.
+   * Il pannello di questa cella non è un elenco di risultati — il campo codice
+   * non cerca (§codici) — è la scelta fra più corrispondenze ESATTE: quale
+   * variante dello stesso articolo, o quale articolo per lo stesso codice
+   * fornitore. Una scelta si naviga da tastiera, altrimenti si può solo
+   * prendere la prima o staccare la mano per il mouse.
+   */
+  readonly suggestionNavigate = output<'next' | 'prev'>();
   readonly escapePressed = output<number>();
-
-  private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('codeInput');
 
   protected readonly listboxId = signal(`gr-code-list-${Math.random().toString(36).slice(2, 9)}`);
 
@@ -60,14 +89,26 @@ export class DocumentLineCodeCellComponent {
     this.blurred.emit(this.lineIndex());
   }
 
-  protected pickSuggestion(variantId: string): void {
+  /**
+   * Testo già pronto per il pannello condiviso, che non sa cosa sta elencando:
+   * compone qui titolo e dettaglio e tiene per sé l'identità della variante.
+   */
+  protected readonly suggestionItems = computed<readonly DocumentLineSuggestionItem[]>(() =>
+    this.suggestions().map((variant) => ({
+      title: variant.title,
+      detail: this.suggestionDetail(variant),
+    })),
+  );
+
+  private pickSuggestion(variantId: string): void {
     this.suggestionPick.emit({ lineIndex: this.lineIndex(), variantId });
   }
 
-  protected onSuggestionKeydown(event: KeyboardEvent, variantId: string): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      this.pickSuggestion(variantId);
+  /** Il pannello restituisce l'indice: l'id lo risolve chi possiede la lista. */
+  protected pickAt(index: number): void {
+    const variant = this.suggestions()[index];
+    if (variant) {
+      this.pickSuggestion(variant.variantId);
     }
   }
 
@@ -94,10 +135,25 @@ export class DocumentLineCodeCellComponent {
     }
     if (event.key === 'ArrowDown' && open) {
       event.preventDefault();
+      this.suggestionNavigate.emit('next');
       return;
     }
     if (event.key === 'ArrowUp' && open) {
       event.preventDefault();
+      this.suggestionNavigate.emit('prev');
+      return;
+    }
+    // ←/→ a due tempi (§4.2): finché il cursore ha strada dentro il campo la
+    // freccia resta al browser; al bordo porta al campo accanto. Verso destra
+    // il codice si conferma, come col Tab — è la stessa uscita in avanti.
+    if (event.key === 'ArrowRight' && !event.shiftKey && caretAtEdge(event.target, 'end')) {
+      event.preventDefault();
+      this.commit.emit({ lineIndex: this.lineIndex(), advance: true });
+      return;
+    }
+    if (event.key === 'ArrowLeft' && !event.shiftKey && caretAtEdge(event.target, 'start')) {
+      event.preventDefault();
+      this.lineRetreat.emit(this.lineIndex());
       return;
     }
     if (event.key === 'Enter') {
@@ -106,7 +162,8 @@ export class DocumentLineCodeCellComponent {
         this.pickSuggestion(suggestions[active].variantId);
         return;
       }
-      this.commit.emit(this.lineIndex());
+      // Invio conferma e RESTA: registra il valore, non naviga (§4.5).
+      this.commit.emit({ lineIndex: this.lineIndex(), advance: false });
       return;
     }
     if (event.key === 'Tab') {
@@ -116,7 +173,7 @@ export class DocumentLineCodeCellComponent {
         this.lineRetreat.emit(this.lineIndex());
         return;
       }
-      this.commit.emit(this.lineIndex());
+      this.commit.emit({ lineIndex: this.lineIndex(), advance: true });
     }
   }
 
@@ -129,9 +186,5 @@ export class DocumentLineCodeCellComponent {
       parts.push(formatMoney(variant.purchasePrice));
     }
     return parts.join(' · ');
-  }
-
-  focusInput(): void {
-    this.inputRef()?.nativeElement.focus();
   }
 }

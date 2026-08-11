@@ -152,7 +152,11 @@ export class SupplierOrdersService {
 
     const costEntryMode = dto.costEntryMode ?? 'vat_excluded';
     const computedLines = await this.computeLines(tenantId, dto.lines, costEntryMode);
-    const totals = computeGoodsReceiptTotals(computedLines, 0);
+    // Lo zero fisso che stava qui non era una regola: era il campo che mancava.
+    // Il calcolo accetta lo sconto documento da sempre — è condiviso con
+    // l'arrivo merce — e da 11/08/2026 l'ordine fornitore ha dove tenerlo.
+    const documentDiscountPercent = dto.documentDiscountPercent ?? 0;
+    const totals = computeGoodsReceiptTotals(computedLines, documentDiscountPercent);
     const orderDate = dto.orderDate ? new Date(dto.orderDate) : new Date();
     const externalType = await this.externalTypes.resolveForWrite(
       tenantId,
@@ -193,13 +197,16 @@ export class SupplierOrdersService {
           externalDocNumber: dto.externalDocNumber?.trim() || null,
           externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
           ...externalType,
+          documentDiscountPercent: new Prisma.Decimal(documentDiscountPercent),
           subtotalMinor: totals.subtotalMinor,
           taxMinor: totals.taxMinor,
           totalMinor: totals.totalMinor,
           expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
-          lines: { create: computedLines.map((line) => this.toLineCreateData(line)) },
+          lines: {
+            create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
+          },
         },
-        include: { lines: true },
+        include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
       return { ...order, linkedDocuments: [] };
     });
@@ -244,7 +251,11 @@ export class SupplierOrdersService {
 
     const costEntryMode = dto.costEntryMode ?? order.costEntryMode;
     const computedLines = await this.computeLines(tenantId, dto.lines, costEntryMode);
-    const totals = computeGoodsReceiptTotals(computedLines, 0);
+    // Non passato = quello che l'ordine aveva. Un aggiornamento parziale non
+    // deve azzerare uno sconto che nessuno ha toccato.
+    const documentDiscountPercent =
+      dto.documentDiscountPercent ?? Number(order.documentDiscountPercent);
+    const totals = computeGoodsReceiptTotals(computedLines, documentDiscountPercent);
     const externalType = await this.externalTypes.resolveForWrite(
       tenantId,
       dto.externalDocumentTypeId,
@@ -277,6 +288,7 @@ export class SupplierOrdersService {
           // Assente = si lascia com'e', con il suo snapshot: un client che non
           // conosce il campo non deve poter cancellare la dicitura dall'ordine.
           ...(dto.externalDocumentTypeId === undefined ? {} : externalType),
+          documentDiscountPercent: new Prisma.Decimal(documentDiscountPercent),
           subtotalMinor: totals.subtotalMinor,
           taxMinor: totals.taxMinor,
           totalMinor: totals.totalMinor,
@@ -286,9 +298,11 @@ export class SupplierOrdersService {
               : dto.expectedAt
                 ? new Date(dto.expectedAt)
                 : order.expectedAt,
-          lines: { create: computedLines.map((line) => this.toLineCreateData(line)) },
+          lines: {
+            create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
+          },
         },
-        include: { lines: true },
+        include: { lines: { orderBy: { lineNumber: 'asc' } } },
       });
       return { ...updated, linkedDocuments: order.linkedDocuments ?? [] };
     });
@@ -309,7 +323,7 @@ export class SupplierOrdersService {
     const updated = await this.prisma.supplierOrder.update({
       where: { id },
       data: { status: SupplierOrderStatus.cancelled },
-      include: { lines: true },
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
     });
     return { ...updated, linkedDocuments: order.linkedDocuments ?? [] };
   }
@@ -390,7 +404,7 @@ export class SupplierOrdersService {
     const order = await this.prisma.supplierOrder.findFirst({
       where: { id, tenantId },
       include: {
-        lines: true,
+        lines: { orderBy: { lineNumber: 'asc' } },
         documents: {
           where: { status: { not: DocumentStatus.cancelled } },
           select: {
@@ -515,10 +529,18 @@ export class SupplierOrdersService {
     });
   }
 
+  /**
+   * `position` e' l'indice della riga nel payload, 1-based: l'ordine in cui le
+   * righe arrivano E' l'ordine del documento. Va scritto, perche' senza il
+   * database le restituisce come gli pare — di norma per inserimento, ma senza
+   * nessuna garanzia.
+   */
   private toLineCreateData(
     line: ComputedOrderLine,
+    position: number,
   ): Prisma.SupplierOrderLineCreateWithoutOrderInput {
     return {
+      lineNumber: position,
       variantId: line.variantId,
       sku: line.sku,
       description: line.description,

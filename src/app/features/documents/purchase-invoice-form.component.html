@@ -82,7 +82,7 @@
                   (valueChange)="onSupplierSelect($event)"
                 />
                 @if (fieldInvalid('supplierId')) {
-                  <p id="pi-m-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
+                  <p id="pi-m-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
               </div>
             </div>
@@ -187,7 +187,7 @@
               (valueChange)="onSupplierSelect($event)"
             />
             @if (fieldInvalid('supplierId')) {
-              <p id="pi-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
+              <p id="pi-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
             }
           </div>
 
@@ -630,7 +630,7 @@
               <dd class="tabular-nums">{{ formatMoney(totalVat()) }}</dd>
             </div>
             <div class="doc-form__totals-row doc-form__totals-row--total">
-              <dt>Totale registrazione</dt>
+              <dt>Totale documento</dt>
               <dd class="tabular-nums">
                 <strong>{{ formatMoney(totalGross()) }}</strong>
               </dd>
@@ -661,7 +661,7 @@
           Chiudi
         </app-button>
         <app-button type="submit" [loading]="saving()" [disabled]="saving()">
-          Salva registrazione
+          Salva documento
         </app-button>
       </div>
 
@@ -669,10 +669,10 @@
            documento, scorre col contenuto. Su desktop resta la barra sopra. -->
       <div class="doc-form__mobile-actions">
         <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-          Chiudi
+          Annulla
         </app-button>
         <app-button type="submit" [loading]="saving()" [disabled]="saving()">
-          Salva registrazione
+          Salva documento
         </app-button>
       </div>
     </form>

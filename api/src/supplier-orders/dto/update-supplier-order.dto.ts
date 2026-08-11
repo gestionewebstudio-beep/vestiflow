@@ -5,11 +5,14 @@ import {
   IsArray,
   IsEnum,
   IsISO8601,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  Max,
   MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { PurchaseCostEntryMode } from '@prisma/client';
@@ -48,6 +51,17 @@ export class UpdateSupplierOrderDto {
   @IsOptional()
   @IsUUID()
   externalDocumentTypeId?: string | null;
+
+  /**
+   * Sconto extra di chiusura sull'intero ordine (percentuale, fino a 4
+   * decimali). Stessa forma di `documentDiscountPercent` su arrivo merce e
+   * ordine cliente: il calcolo è già condiviso, qui arriva solo il numero.
+   */
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
+  @Min(0)
+  @Max(100)
+  documentDiscountPercent?: number;
 
   @IsOptional()
   @IsEnum(PurchaseCostEntryMode)

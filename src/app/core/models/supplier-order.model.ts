@@ -93,6 +93,12 @@ export interface SupplierOrder extends TenantScoped, Timestamped {
    * quando l'elenco non la porta più.
    */
   readonly externalDocumentTypeSnapshot?: string;
+  /**
+   * Sconto extra di chiusura sull'intero ordine, in percentuale. Arriva come
+   * stringa decimale (colonna NUMERIC): non si parsa per confrontarlo, si
+   * riporta nel campo. Aggiunto 11/08/2026 — era l'unico documento senza.
+   */
+  readonly documentDiscountPercent?: string | number;
   readonly lines: readonly SupplierOrderLine[];
   /** Presente in lista: conteggio righe senza caricare il payload completo. */
   readonly lineCount?: number;

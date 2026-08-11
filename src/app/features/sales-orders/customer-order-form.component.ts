@@ -110,6 +110,17 @@ import { DocumentNumberConflictStore } from '@domain/documents/state/document-nu
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
+import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
+import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
+import {
+  sortByLineValue,
+  type DocumentLineSortKind,
+} from '@domain/documents/utils/document-line-sort.util';
+import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
+import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
+import { ViewportService } from '@core/services/viewport.service';
+import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import {
   vatCodeSelectOption,
@@ -194,19 +205,65 @@ import {
   SALES_DDT_LINES_VIEW,
 } from './models/customer-order-line-columns.config';
 import { redistributeColumnWidths } from './models/column-width-distribution.util';
-import type { CustomerOrderLineCardVm } from './models/customer-order-line-card.model';
+import type {
+  CustomerOrderLineCardVm,
+  LineCodeChoice,
+} from './models/customer-order-line-card.model';
 import {
   SalesOrderService,
   type SaveManualOrderInput,
   type SaveManualOrderLineInput,
 } from '@domain/sales-orders/services/sales-order.service';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
+import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
+import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
 
 /** Campi riga nel giro Tab/Invio deterministico (stesso pattern Arrivo merce). */
+/** Colonne dell'Ordine cliente su cui si può ordinare le righe (§7.1). */
+export type CustomerOrderLineSortColumn =
+  | 'articleCode'
+  | 'sku'
+  | 'barcode'
+  | 'product'
+  | 'unitOfMeasure'
+  | 'quantity'
+  | 'unitPrice'
+  | 'discount';
+
+const CUSTOMER_ORDER_SORTABLE_LINE_COLUMNS: readonly CustomerOrderLineSortColumn[] = [
+  'articleCode',
+  'sku',
+  'barcode',
+  'product',
+  'unitOfMeasure',
+  'quantity',
+  'unitPrice',
+  'discount',
+];
+
 type CustomerOrderLineFocusField =
   'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount' | 'serials';
+/**
+ * I campi codice di QUESTA maschera: tre, non quattro. Il codice fornitore non
+ * ha senso su un documento di vendita, e restringere l'unione qui lascia al
+ * compilatore il compito di dirlo — invece di scoprirlo a runtime cercando un
+ * controllo che non esiste.
+ */
+type CustomerOrderCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 'barcode'>;
+
+/**
+ * Quanto si aspetta, allo sfocamento di un campo, prima di chiudere un pannello
+ * aperto sotto di esso: il tempo perché il tocco arrivi alla voce.
+ *
+ * Non è una preferenza estetica ed è una **misura mai presa**: 200 ms era il
+ * valore già in uso per i suggerimenti sul nome prodotto, e la scelta dei codici
+ * lo adotta invece di sceglierne un secondo. Se un giorno sembrerà un numero
+ * motivato, non lo è.
+ */
+const MOBILE_PICK_GRACE_MS = 200;
 type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
@@ -232,6 +289,7 @@ interface AvailabilityIssue {
   selector: 'app-customer-order-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
     CustomerOrderLineCardComponent,
@@ -291,6 +349,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly customerService = inject(CustomerService);
   private readonly productService = inject(ProductService);
   private readonly barcodeLookup = inject(BarcodeLookupService);
+  private readonly codeLookupService = inject(DocumentCodeLookupService);
+  private readonly viewport = inject(ViewportService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly operationalLocations = inject(OperationalLocationsService);
@@ -896,21 +956,36 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return !this.form.controls.customerId.value || !this.form.controls.locationId.value;
   });
 
-  /** Testo del banner warning: dice cosa manca per sbloccare le righe. */
-  protected readonly gateBannerMessage = computed(() => {
+  /**
+   * Titolo dello stato vuoto delle righe: dice **cosa manca**, non che manca
+   * qualcosa.
+   *
+   * Prima era il testo di un banner d'avviso sopra una tabella spenta a metà
+   * tinta. Ora è il titolo di ciò che sta al posto della tabella: le righe non
+   * si mostrano affatto finché la testata non è completa, quindi non c'è niente
+   * da sbiadire e niente da spiegare due volte.
+   */
+  protected readonly linesEmptyTitle = computed(() => {
     this.formValue();
+    if (!this.headerGateActive()) {
+      return 'Nessuna riga inserita';
+    }
     const noCustomer = !this.isManualUnload && !this.form.controls.customerId.value;
     const noLocation = !this.form.controls.locationId.value;
     if (noCustomer && noLocation) {
-      return 'Seleziona cliente e location per iniziare ad aggiungere righe.';
+      return 'Scegli il cliente e la location';
     }
     if (noCustomer) {
-      return 'Seleziona il cliente per iniziare ad aggiungere righe.';
+      return 'Scegli il cliente';
     }
-    return this.isManualUnload
-      ? 'Seleziona la location di scarico per iniziare ad aggiungere righe.'
-      : 'Seleziona la location per iniziare ad aggiungere righe.';
+    return this.isManualUnload ? 'Scegli la location di scarico' : 'Scegli la location';
   });
+
+  protected readonly linesEmptyDescription = computed(() =>
+    this.headerGateActive()
+      ? 'Le righe si aggiungono dopo: da qui potrai cercare un articolo, scansionare un codice o includere un altro documento.'
+      : 'Cerca un articolo, scansiona un codice o includi un altro documento.',
+  );
 
   // ── Apertura in sola lettura ─────────────────────────────────────────────
   //
@@ -1113,6 +1188,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             this.editLock.syncOnLoad(order.id);
             this.loadedOrder.set(order);
             this.patchFormFromOrder(order);
+            // Un altro documento è un'altra storia: l'avviso del riordino torna
+            // dovuto. Qui e non alla creazione del componente, che passando da
+            // un documento all'altro non riavviene — cambia solo il parametro.
+            this.lineSort.reset();
             if (order.source === SalesOrderSource.Manual) {
               this.reloadOwnReservations(order.id);
             }
@@ -1129,9 +1208,151 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly loadError = computed(() => this.loadState() === 'error');
   protected readonly notEditable = computed(() => this.loadState() === 'not-editable');
 
+  /**
+   * Quale delle due viste di riga è viva. Le due sono **esclusive**: sotto la
+   * soglia esiste la card, sopra la tabella, mai entrambe.
+   *
+   * ⚠️ Attraversando la soglia i controlli vengono smontati e rimontati, e **il
+   * fuoco si perde**. Misurato e accettato: si attraversa ruotando un tablet o
+   * ridimensionando una finestra, non lavorando. Lo stato del form invece
+   * sopravvive — valore, «toccato», «sporco», «disabilitato» vivono nel
+   * componente, non nel template.
+   */
+  protected readonly compactView = this.viewport.compact;
+
   // ── Autocomplete prodotto per riga ──────────────────────────────────────
-  protected readonly autocompleteLineIndex = signal<number | null>(null);
-  protected readonly activeSuggestionIndex = signal(0);
+  /** Il pannello suggerimenti del nome prodotto: stato e regole in domain/. */
+  protected readonly productSuggest = new DocumentProductSuggestStore();
+
+  /**
+   * Riordino righe e avviso: stato e regole in `domain/`. Qui resta cosa
+   * differisce — quali colonne, come si legge il loro valore, e il limite qui
+   * sotto, che è di questa maschera sola.
+   */
+  protected readonly lineSort = new DocumentLineSortStore<CustomerOrderLineSortColumn>();
+
+  private readonly lineSortKinds: Readonly<
+    Record<CustomerOrderLineSortColumn, DocumentLineSortKind>
+  > = {
+    articleCode: 'text',
+    sku: 'text',
+    barcode: 'text',
+    product: 'text',
+    unitOfMeasure: 'text',
+    quantity: 'number',
+    unitPrice: 'money',
+    discount: 'percent',
+  };
+
+  /**
+   * ⛔ **Con righe «documento collegato» non si riordina**, ed è un limite del
+   * dominio, non una mancanza.
+   *
+   * Quella riga non è una riga: è la TESTATA del gruppo di righe arrivate da un
+   * altro documento, e sta subito prima delle sue. Riordinando per nome
+   * prodotto le righe si spargono e la testata resta dov'è — a quel punto
+   * annuncia righe che non sono più le sue, e mente all'operatore.
+   *
+   * Ancorarla sarebbe peggio del male: sembrerebbe ancora la testata di quello
+   * che ha sotto. Quindi finché il documento contiene un'inclusione le
+   * intestazioni non ordinano, e lo dicono.
+   */
+  protected readonly lineSortAvailable = computed(() => {
+    this.formValue();
+    return !this.lines.controls.some((line) => line.controls.isReference.value === true);
+  });
+
+  protected isLineColumnSortable(columnId: string): boolean {
+    return (CUSTOMER_ORDER_SORTABLE_LINE_COLUMNS as readonly string[]).includes(columnId);
+  }
+
+  protected lineSortDisabledReason(): string | null {
+    return this.lineSortAvailable()
+      ? null
+      : 'Il documento contiene righe incluse da un altro documento: riordinarle staccherebbe le righe dal loro riferimento.';
+  }
+
+  protected toggleLineSort(columnId: CustomerOrderLineSortColumn): void {
+    if (this.formReadOnly() || !this.lineSortAvailable() || !this.isLineColumnVisible(columnId)) {
+      return;
+    }
+    if (this.lineSort.request(columnId)) {
+      this.applyLineSort();
+    }
+  }
+
+  protected confirmLineSort(): void {
+    if (this.lineSort.confirm() !== null) {
+      this.applyLineSort();
+    }
+  }
+
+  protected lineSortAriaLabel(columnId: CustomerOrderLineSortColumn, label: string): string {
+    if (this.lineSort.column() !== columnId) {
+      return `Ordina per ${label}`;
+    }
+    return this.lineSort.direction() === 'asc'
+      ? `${label}: ordinamento crescente`
+      : `${label}: ordinamento decrescente`;
+  }
+
+  private lineSortValue(
+    raw: ReturnType<ReturnType<CustomerOrderFormComponent['createLine']>['getRawValue']>,
+    column: CustomerOrderLineSortColumn,
+  ): string | number {
+    switch (column) {
+      case 'articleCode':
+        return raw.articleCode;
+      case 'sku':
+        return raw.sku;
+      case 'barcode':
+        return raw.barcode;
+      case 'product':
+        return raw.productName;
+      case 'unitOfMeasure':
+        return raw.unitOfMeasure;
+      case 'quantity':
+        return Number(raw.quantity) || 0;
+      case 'unitPrice':
+        return raw.unitPrice;
+      case 'discount':
+        return raw.discount;
+    }
+  }
+
+  private applyLineSort(): void {
+    const column = this.lineSort.column();
+    if (!column || this.lines.length <= 1) {
+      return;
+    }
+    const controls = sortByLineValue(
+      this.lines.controls,
+      (control) => this.lineSortValue(control.getRawValue(), column),
+      this.lineSortKinds[column],
+      this.lineSort.direction(),
+      this.currency,
+    );
+    this.lines.clear();
+    for (const control of controls) {
+      this.lines.push(control);
+    }
+    this.markFormDirty();
+  }
+  /**
+   * Scelta fra più corrispondenze esatte di un codice. Lo stato vive in
+   * `domain/`, identico nelle tre maschere; qui resta solo cosa farne.
+   *
+   * Il suo indice evidenziato è PROPRIO, distinto da `activeSuggestionIndex`:
+   * quella è la lista dei suggerimenti sul nome prodotto, questa è la scelta
+   * fra codici. Sono due collezioni con lunghezze diverse — un indice solo si
+   * sfaserebbe passando dall'una all'altra.
+   */
+  protected readonly codeLookup = new DocumentCodeLookupStore();
+  /**
+   * Una sola attesa in volo per la card mobile: due sfocamenti ravvicinati non
+   * devono lasciare due decisioni pendenti sulla stessa riga.
+   */
+  private mobileCodeBlurTimer: ReturnType<typeof setTimeout> | null = null;
   /**
    * Card mobile: apre l'anteprima sopra il campo invece che sotto, quando sotto
    * non c'è spazio a sufficienza (campo vicino al dock fisso in fondo). Uno solo
@@ -1345,23 +1566,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       this.canGenerateDocuments() ||
       (this.isOrder && this.loadedOrder() != null),
   );
-  /** Sconto extra: input dietro «+ Aggiungi sconto» finché è vuoto. */
-  protected readonly showDocDiscountField = signal(false);
-  protected readonly docDiscountActive = computed(() => {
-    this.formValue();
-    return this.showDocDiscountField() || !!this.form.controls.documentDiscountPercent.value.trim();
-  });
-
   protected toggleHeaderMenu(): void {
     this.headerMenuOpen.update((open) => !open);
   }
 
   protected closeHeaderMenu(): void {
     this.headerMenuOpen.set(false);
-  }
-
-  protected revealDocDiscount(): void {
-    this.showDocDiscountField.set(true);
   }
 
   /** Porta in vista la sezione Allegati (in fondo alla pagina su mobile). */
@@ -1372,6 +1582,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   constructor() {
+    // L'attesa della card mobile non deve sopravvivere alla maschera: al
+    // ritorno gireebbe su righe che non ci sono più.
+    this.destroyRef.onDestroy(() => {
+      if (this.mobileCodeBlurTimer !== null) {
+        clearTimeout(this.mobileCodeBlurTimer);
+      }
+    });
     // Colonna "Costo" (dato sensibile §permessi): senza il permesso
     // "Visualizza costi d'acquisto" la definizione non viene registrata,
     // quindi non compare nemmeno tra le opzioni del selettore colonne.
@@ -1966,8 +2183,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         detail: this.mobileSuggestionDetail(variant),
       })),
       suggestionsOpen: this.lineSuggestionsOpen(index),
+      codeChoice: this.mobileCodeChoice(index),
       suggestAbove: this.mobileSuggestAbove(),
-      activeSuggestionIndex: this.activeSuggestionIndex(),
+      activeSuggestionIndex: this.productSuggest.activeIndex(),
       readOnly: this.formReadOnly(),
       commitsLabel: this.isQuote ? null : this.commitsColumnLabel,
       showSerials: this.isLineColumnVisible('serials'),
@@ -2746,31 +2964,33 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   // ── Autocomplete nome prodotto ──────────────────────────────────────────
   protected lineSuggestions(index: number): readonly VariantSummary[] {
-    return this.autocompleteLineIndex() === index ? this.searchedVariants() : [];
+    return this.productSuggest.suggestionsFor(index, this.suggestInputs(index));
   }
 
   protected lineSuggestionsOpen(index: number): boolean {
-    return this.autocompleteLineIndex() === index && this.searchedVariants().length > 0;
+    return this.productSuggest.isOpenOn(index, this.suggestInputs(index));
+  }
+
+  private suggestInputs(index: number) {
+    return { hasLinked: this.lineHasLinkedProduct(index), searched: this.searchedVariants() };
   }
 
   protected onLineProductNameChange(index: number, value: string): void {
     const line = this.lines.at(index);
     line.controls.productName.setValue(value);
-    this.autocompleteLineIndex.set(index);
-    this.activeSuggestionIndex.set(0);
+    this.productSuggest.focusLine(index);
     this.variantSearchDraft.set(value);
     this.markFormDirty();
   }
 
   protected onLineProductFocus(index: number): void {
-    this.autocompleteLineIndex.set(index);
-    this.activeSuggestionIndex.set(0);
+    this.productSuggest.focusLine(index);
     this.variantSearchDraft.set(this.lines.at(index).controls.productName.value);
   }
 
   protected onLineProductBlur(_index: number): void {
     // Ritardo per lasciar arrivare il click sulla voce del dropdown.
-    setTimeout(() => this.clearProductAutocomplete(), 200);
+    setTimeout(() => this.clearProductAutocomplete(), MOBILE_PICK_GRACE_MS);
   }
 
   protected onProductSuggestionPick(lineIndex: number, variantId: string): void {
@@ -2778,22 +2998,21 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   protected onProductSuggestionNavigate(direction: 'next' | 'prev'): void {
-    const count = this.searchedVariants().length;
-    if (count === 0) {
+    const lineIndex = this.productSuggest.lineIndex();
+    if (lineIndex === null) {
       return;
     }
-    this.activeSuggestionIndex.update((current) =>
-      direction === 'next' ? (current + 1) % count : (current - 1 + count) % count,
-    );
+    this.productSuggest.navigate(direction, this.lineSuggestions(lineIndex).length);
   }
 
+  /** Esc chiude l'anteprima del nome e la scelta aperta da un codice. */
   protected onLineSearchEscape(_index: number): void {
     this.clearProductAutocomplete();
+    this.codeLookup.clear();
   }
 
   private clearProductAutocomplete(): void {
-    this.autocompleteLineIndex.set(null);
-    this.activeSuggestionIndex.set(0);
+    this.productSuggest.clear();
     this.variantSearchDraft.set('');
   }
 
@@ -2848,67 +3067,202 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.mobileSuggestAbove.set(viewportBottom - rect.bottom < 272);
   }
 
-  protected onLineUnlink(index: number): void {
-    const line = this.lines.at(index);
-    line.patchValue({
-      variantId: '',
-      articleCode: '',
-      sku: '',
-      barcode: '',
-      productName: '',
-      unitOfMeasure: '',
-    });
-    this.markFormDirty();
-  }
-
   // ── Celle codice (Cod. articolo / SKU / EAN): lookup esatto alla conferma ──
+  //
+  // Il campo codice NON cerca mentre si digita: si confronta col catalogo alla
+  // conferma (Tab/Invio), per corrispondenza esatta. Ogni carattere digitato
+  // invalida una scelta rimasta aperta, che si riferiva al valore di prima.
+
   protected onLineSkuChange(index: number, value: string): void {
     this.lines.at(index).controls.sku.setValue(value);
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
   protected onLineBarcodeChange(index: number, value: string): void {
     this.lines.at(index).controls.barcode.setValue(value);
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
   protected onLineArticleCodeChange(index: number, value: string): void {
     this.lines.at(index).controls.articleCode.setValue(value);
+    this.codeLookup.clear();
     this.markFormDirty();
   }
 
-  protected commitCodeLookup(index: number, field: 'articleCode' | 'sku' | 'barcode'): void {
+  protected onLineCodeFocus(index: number, field: CustomerOrderCodeField): void {
+    this.clearProductAutocomplete();
+    if (this.codeLookup.isOpenOn(index, field)) {
+      return;
+    }
+    this.codeLookup.clear();
+  }
+
+  protected onLineCodeBlur(index: number): void {
+    if (this.codeLookup.isOpenOnLine(index)) {
+      this.codeLookup.clear();
+    }
+  }
+
+  /**
+   * Conferma di un codice: si confronta col catalogo per corrispondenza esatta,
+   * e gli esiti sono TRE — una aggancia, più d'una apre la scelta, nessuna
+   * lascia il valore scritto e prosegue.
+   *
+   * Fino a 08/2026 qui si passava da `resolveVariantIdByCode`, che restituisce
+   * `string | null` e **non può esprimere «eccone tre»**: un codice articolo
+   * condiviso da più taglie tornava `null` e finiva in silenzio, indistinguibile
+   * da un codice inesistente. Cioè la peggiore delle tre risposte — hai digitato
+   * il codice giusto e il sistema si comporta come se non esistesse.
+   *
+   * Quella funzione resta alla **scansione** (`applyScannedVariant`), che ha
+   * esigenze opposte: il lettore spara e va, e una scelta interromperebbe un
+   * gesto che deve essere immediato.
+   */
+  protected commitCodeLookup(index: number, field: CustomerOrderCodeField, advance = true): void {
     const line = this.lines.at(index);
     if (line.controls.variantId.value) {
-      this.focusNextLineField(index, field);
+      if (advance) {
+        this.focusNextLineField(index, field);
+      }
       return;
     }
     const code = line.controls[field].value.trim();
     if (!code) {
-      this.focusNextLineField(index, field);
+      this.codeLookup.clear();
+      if (advance) {
+        this.focusNextLineField(index, field);
+      }
       return;
     }
+    // `locationId` non filtra i risultati: restringe soltanto le giacenze
+    // mostrate alla sede del documento.
     const locationId = this.form.controls.locationId.value || undefined;
-    this.barcodeLookup
-      .resolveVariantIdByCode(code, { locationId })
+    this.codeLookupService
+      .resolve(code, field, { locationId })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe((variantId) => {
-        if (variantId) {
-          this.onVariantSelect(index, variantId);
-          this.pinVariantSummary(index, variantId);
+      .subscribe((outcome) => {
+        if (outcome.kind === 'one') {
+          // Il riepilogo arriva già dalla ricerca di conferma: fissarlo prima
+          // evita che `onVariantSelect` lo richieda di nuovo al server.
+          const summary = outcome.summary;
+          if (summary) {
+            this.pinnedVariants.update((current) => mergeVariantSummaries([summary], current));
+          }
+          this.onVariantSelect(index, outcome.variantId);
+          this.codeLookup.clear();
           this.focusLineField(index, 'quantity');
           return;
         }
-        // Nessun match esatto (§6c): l'operatore prosegue con gli altri campi.
-        this.focusNextLineField(index, field);
+        if (outcome.kind === 'many') {
+          this.codeLookup.open(index, field, outcome.matches);
+          return;
+        }
+        // Nessuna corrispondenza: il valore resta scritto e la riga prosegue.
+        // Non è un errore — può essere un articolo che non esiste ancora, e lo
+        // stato si vede già (riga collegata mostra il nome, riga non collegata
+        // no): un avviso che spiega uno stato visibile sarebbe di troppo.
+        //
+        // Col Tab si prosegue; con Invio si resta, ed è qui che la regola
+        // «Invio non naviga» morde davvero: la cella è ancora un campo.
+        this.codeLookup.clear();
+        if (advance) {
+          this.focusNextLineField(index, field);
+        }
       });
   }
 
-  // ── Tab deterministico tra i campi riga (§10, stesso pattern Arrivo merce) ──
+  /**
+   * La stessa scelta, per la card mobile: quale campo la mostra e con quali
+   * voci. Il testo lo compone qui — la card non formatta valute.
+   *
+   * `activeIndex` non viaggia: su mobile non ci sono frecce, quindi non c'è una
+   * voce «evidenziata» da scorrere. Si sceglie toccando, e il pannello riceve
+   * `null` invece di zero, che avrebbe acceso la prima voce come se fosse
+   * preselezionata — un invito a premere Invio che qui non ha bersaglio.
+   */
+  protected mobileCodeChoice(index: number): LineCodeChoice | null {
+    const field = this.codeLookup.field();
+    if (!field || field === 'supplierCode' || !this.codeLookup.isOpenOnLine(index)) {
+      return null;
+    }
+    return {
+      field,
+      items: this.codeLookup.matches().map((variant) => ({
+        variantId: variant.variantId,
+        title: variant.title,
+        detail: this.mobileSuggestionDetail(variant),
+      })),
+    };
+  }
 
-  /** Campi editabili visibili della riga, nell'ordine delle colonne. */
-  private visibleLineFocusFields(index: number): readonly CustomerOrderLineFocusField[] {
-    const all: readonly CustomerOrderLineFocusField[] = [
+  /**
+   * Uscita da un campo codice della card. **Lo sfocamento conferma**, come Tab
+   * sul desktop: perdere il fuoco su un telefono non è un caso — lo scorrimento
+   * non lo toglie, e quando si perde è perché l'operatore ha toccato un altro
+   * campo, gesto deliberato quanto un Tab.
+   *
+   * ⚠️ **Perché è un solo punto, e ritardato.** Qui si incrociano due
+   * meccanismi che, presi separatamente, si pestano: la conferma allo
+   * sfocamento e la grazia che lascia arrivare il tocco su una voce della
+   * scelta. Toccando una voce, se lo sfocamento partisse per primo e
+   * confermasse, partirebbe una **seconda ricerca** il cui esito «più d'una»
+   * riaprirebbe la scelta **dopo** che il tocco l'aveva già risolta — un
+   * pannello che ricompare da solo su una riga già agganciata.
+   *
+   * Quindi non si decide allo sfocamento: si decide **dopo la grazia**, in base
+   * a cosa è successo davvero. I tre casi sono in ordine, e l'ordine conta.
+   */
+  protected onMobileCodeBlur(index: number, field: CustomerOrderCodeField): void {
+    if (this.mobileCodeBlurTimer !== null) {
+      clearTimeout(this.mobileCodeBlurTimer);
+    }
+    this.mobileCodeBlurTimer = setTimeout(() => {
+      this.mobileCodeBlurTimer = null;
+      // 1. Il tocco su una voce ha già agganciato la riga: non c'è altro da
+      //    fare. `commitCodeLookup` rifiuterebbe da sé su riga agganciata —
+      //    quindi nessuna prova distingue questo ramo — ma sposterebbe comunque
+      //    il fuoco al campo successivo, cosa che oggi non si vede solo perché
+      //    su mobile gli identificativi puntano alla tabella nascosta. Quando
+      //    quel difetto sarà chiuso (§2.3 della mappa), il salto diventerebbe
+      //    reale: un tocco su una voce non deve muovere il fuoco.
+      if (this.lines.at(index)?.controls.variantId.value) {
+        return;
+      }
+      // 2. Scelta aperta e non presa: si abbandona. Il valore digitato resta
+      //    scritto — è la stessa risposta di «nessuna corrispondenza» — e NON
+      //    si cerca di nuovo, che è ciò che la farebbe ricomparire.
+      if (this.codeLookup.isOpenOn(index, field)) {
+        this.codeLookup.clear();
+        return;
+      }
+      // 3. Codice digitato e mai confermato: qui lo sfocamento fa la conferma.
+      this.commitCodeLookup(index, field);
+    }, MOBILE_PICK_GRACE_MS);
+  }
+
+  /** La scelta aperta da un codice: la voce presa aggancia la riga. */
+  protected onCodeSuggestionPick(index: number, variantId: string): void {
+    this.onVariantSelect(index, variantId);
+    this.codeLookup.clear();
+    this.focusLineField(index, 'quantity');
+  }
+
+  // ── Il giro del fuoco fra i campi riga ────────────────────────────────────
+  //
+  // Il meccanismo vive in `domain/`, identico alle altre maschere; qui restano
+  // solo le nove cose che DIFFERISCONO. Prima erano sette metodi scritti a mano,
+  // ~126 righe, che divergevano dalle gemelle senza che nulla lo dicesse.
+
+  /**
+   * ⚠️ Gli identificativi presuppongono che le due viste siano **esclusive**:
+   * la card mobile ne ha di propri (`co-m-…`), e finché la tabella restava viva
+   * sotto il breakpoint questa mappa puntava a un elemento nascosto — `.focus()`
+   * su `display:none` è un no-op silenzioso. Vedi `ViewportService`.
+   */
+  protected readonly lineFocus = new DocumentLineFocusStore<CustomerOrderLineFocusField>({
+    fields: [
       'articleCode',
       'sku',
       'barcode',
@@ -2917,120 +3271,73 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       'unitPrice',
       'discount',
       'serials',
-    ];
-    const linked = this.lineHasLinkedProduct(index);
-    return all.filter((field) => {
+    ],
+    elementId: (index, field) =>
+      ({
+        articleCode: `co-code-${index}`,
+        sku: `co-sku-${index}`,
+        barcode: `co-barcode-${index}`,
+        product: `co-product-${index}`,
+        quantity: `co-qty-${index}`,
+        unitPrice: `co-price-${index}`,
+        discount: `co-discount-${index}`,
+        serials: `co-serials-${index}`,
+      })[field],
+    isFieldEnabled: (index, field) => {
       // Su riga collegata i codici/nome sono bloccati: restano i campi dati.
-      if (
-        linked &&
-        (field === 'articleCode' || field === 'sku' || field === 'barcode' || field === 'product')
-      ) {
+      const bloccatoDaCollegamento =
+        field === 'articleCode' || field === 'sku' || field === 'barcode' || field === 'product';
+      if (this.lineHasLinkedProduct(index) && bloccatoDaCollegamento) {
         return false;
       }
-      const columnId = field === 'product' ? 'product' : field;
-      return this.isLineColumnVisible(columnId);
-    });
-  }
+      return this.isLineColumnVisible(field);
+    },
+    // Voce 4, e chiude il difetto 6: la riga «documento collegato» non rende
+    // nessun controllo del giro, quindi finora il fuoco ci finiva sopra e
+    // MORIVA — ogni ricerca per identificativo andava a vuoto.
+    isRowSkipped: (index) => this.lineIsReference(index),
+    isReadOnly: () => this.formReadOnly(),
+    lineCount: () => this.lines.length,
+    createLine: () => {
+      this.lines.push(this.createLine());
+      this.markFormDirty();
+    },
+    // Il tempismo del fuoco vive qui, come prima: la riga appena creata dev'essere
+    // resa prima che qualcuno provi a metterci il fuoco dentro.
+    onRowChange: (_index, then) => {
+      setTimeout(then);
+    },
+    isLineEmpty: (index) => {
+      const line = this.lines.at(index);
+      return line ? this.lineIsEmpty(line) : true;
+    },
+    removeLine: (index) => this.removeLine(index),
+  });
 
   protected focusLineField(index: number, field: CustomerOrderLineFocusField): void {
-    const idMap: Record<CustomerOrderLineFocusField, string> = {
-      articleCode: `co-code-${index}`,
-      sku: `co-sku-${index}`,
-      barcode: `co-barcode-${index}`,
-      product: `co-product-${index}`,
-      quantity: `co-qty-${index}`,
-      unitPrice: `co-price-${index}`,
-      discount: `co-discount-${index}`,
-      serials: `co-serials-${index}`,
-    };
-    globalThis.document.getElementById(idMap[field])?.focus();
-  }
-
-  private focusFirstLineField(index: number): void {
-    const order = this.visibleLineFocusFields(index);
-    if (order[0]) {
-      this.focusLineField(index, order[0]);
-    }
-  }
-
-  private focusLastLineField(index: number): void {
-    const order = this.visibleLineFocusFields(index);
-    const last = order[order.length - 1];
-    if (last) {
-      this.focusLineField(index, last);
-    }
+    this.lineFocus.focusField(index, field);
   }
 
   protected focusNextLineField(index: number, current: CustomerOrderLineFocusField): void {
-    const order = this.visibleLineFocusFields(index);
-    const pos = order.indexOf(current);
-    if (pos >= 0 && pos < order.length - 1) {
-      this.focusLineField(index, order[pos + 1]!);
-      return;
-    }
-    this.advanceToNextLine(index);
-  }
-
-  protected focusPreviousLineField(index: number, current: CustomerOrderLineFocusField): void {
-    const order = this.visibleLineFocusFields(index);
-    const pos = order.indexOf(current);
-    if (pos > 0) {
-      this.focusLineField(index, order[pos - 1]!);
-      return;
-    }
-    if (index > 0) {
-      this.focusLastLineField(index - 1);
-    }
-  }
-
-  /** Ultima cella della riga → prima cella della successiva; sull'ultima riga crea la nuova. */
-  protected advanceToNextLine(index: number): void {
-    if (this.formReadOnly()) {
-      return;
-    }
-    const nextIndex = index + 1;
-    if (nextIndex >= this.lines.length) {
-      this.lines.push(this.createLine());
-      this.markFormDirty();
-    }
-    // Focus dopo il render della riga appena creata.
-    setTimeout(() => this.focusFirstLineField(nextIndex));
+    this.lineFocus.next(index, current);
   }
 
   /**
    * Tab/Shift+Tab deterministici sui campi dati della riga: mai su icone o
    * pulsanti di servizio; dall'ultimo campo si passa alla riga successiva.
    */
-  protected onLineFieldKeydown(
-    index: number,
-    field: CustomerOrderLineFocusField,
-    event: KeyboardEvent,
-  ): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      this.focusNextLineField(index, field);
-      return;
-    }
-    if (event.key !== 'Tab') {
-      return;
-    }
-    if (event.shiftKey) {
-      const order = this.visibleLineFocusFields(index);
-      if (order.indexOf(field) <= 0 && index === 0) {
-        // Prima cella della prima riga: lascia al browser l'uscita dalla tabella.
-        return;
-      }
-      event.preventDefault();
-      this.focusPreviousLineField(index, field);
-      return;
-    }
-    event.preventDefault();
-    this.focusNextLineField(index, field);
-  }
-
   protected openLineProductSearch(index: number): void {
     this.productSearchLineIndex.set(index);
-    this.productSearchLaunchTerm.set(this.lines.at(index).controls.productName.value.trim());
+    const line = this.lines.at(index);
+    this.productSearchLaunchTerm.set(
+      documentSearchLaunchTerm({
+        linked: this.lineHasLinkedProduct(index),
+        name: line.controls.productName.value,
+        sku: line.controls.sku.value,
+        articleCode: line.controls.articleCode.value,
+        barcode: line.controls.barcode.value,
+      }),
+    );
     this.productSearchLaunchSeq.update((seq) => seq + 1);
     this.productSearchPanelOpen.set(true);
   }
@@ -3038,6 +3345,47 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected closeLineProductSearch(): void {
     this.productSearchPanelOpen.set(false);
     this.productSearchLineIndex.set(null);
+  }
+
+  /**
+   * «Crea articolo» dal pannello di ricerca. La riga che ha aperto il pannello
+   * porta già i dati digitati: la scheda nuova nasce precompilata con quelli.
+   *
+   * ⚠️ Apre il pannello **direttamente**, senza passare da `openProductAnagraphic`
+   * — che pretendeva almeno SKU, EAN o nome e altrimenti rispondeva con un
+   * errore. Da qui quella pretesa sarebbe sbagliata: da una riga vuota si deve
+   * poter creare un articolo da zero, ed è uno dei modi previsti.
+   *
+   * Il pannello si chiude e l'anagrafica si apre **sopra** il documento, che
+   * resta dov'è con quel che si è scritto finora.
+   */
+  /**
+   * «Crea articolo» nel pannello di ricerca ha senso solo se la riga che l'ha
+   * aperto è ancora libera. Su una riga già agganciata il pannello è di sola
+   * consultazione: non stai cercando cosa aggiungere, stai guardando quello che
+   * c'è.
+   */
+  protected readonly productSearchCanCreate = computed(() => {
+    this.formValue();
+    const index = this.productSearchLineIndex();
+    return index === null ? true : !this.lineHasLinkedProduct(index);
+  });
+
+  protected onProductSearchCreate(): void {
+    const index = this.productSearchLineIndex();
+    this.closeLineProductSearch();
+    if (index !== null) {
+      this.productPanel.openForLine(index);
+    }
+  }
+
+  /** Apri la scheda di un articolo trovato, senza aggiungerlo alla riga. */
+  protected onProductSearchDetail(productId: string): void {
+    const index = this.productSearchLineIndex();
+    this.closeLineProductSearch();
+    if (index !== null) {
+      this.productPanel.openForEdit(index, productId);
+    }
   }
 
   protected onLineProductSearchPick(variantId: string): void {
@@ -3066,6 +3414,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     if (!line) {
       return null;
     }
+    // ⛔ Riga già agganciata: NIENTE precompilato.
+    //
+    // I campi della riga sono quelli dell'articolo che c'è già — nome, SKU, EAN.
+    // Copiarli in una scheda NUOVA produce un doppione vestito coi codici di un
+    // altro: al salvataggio o sbatte contro l'unicità dello SKU, o nasce un
+    // gemello. «Crea» deve partire pulito, sempre.
+    if (line.controls.variantId.value) {
+      return null;
+    }
     // Nell'ordine cliente il prezzo digitato è il prezzo di VENDITA.
     const selling = parseMoneyInput(line.controls.unitPrice.value, this.currency);
     return {
@@ -3081,56 +3438,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.productPanel.openForNewProduct();
   }
 
-  /** Completa anagrafica dalla riga: serve almeno un dato digitato. */
-  protected openProductAnagraphic(index: number): void {
-    const line = this.lines.at(index);
-    if (!line) {
-      return;
-    }
-    const hasLineData =
-      line.controls.productName.value.trim() ||
-      line.controls.sku.value.trim() ||
-      line.controls.barcode.value.trim();
-    if (!hasLineData) {
-      this._submitState.set({
-        status: 'error',
-        error: {
-          kind: AppErrorKind.Validation,
-          message: "Inserisci almeno SKU, EAN o nome prodotto prima di completare l'anagrafica.",
-        },
-      });
-      return;
-    }
-    this.productPanel.openForLine(index);
-  }
-
   /** Riga già collegata: apre la scheda del prodotto in modifica nel pannello. */
-  protected openProductDetail(index: number): void {
-    const variantId = this.lines.at(index)?.controls.variantId.value;
-    if (!variantId) {
-      return;
-    }
-    this.productService
-      .searchVariantSummaries({ variantId })
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (rows) => {
-          const productId = rows[0]?.productId;
-          if (!productId) {
-            this._submitState.set({
-              status: 'error',
-              error: { kind: AppErrorKind.NotFound, message: 'Prodotto collegato non trovato.' },
-            });
-            return;
-          }
-          this.productPanel.openForEdit(index, productId);
-        },
-        error: (err: unknown) => {
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
-  }
-
   protected closeProductPanel(): void {
     this.productPanel.close();
   }
@@ -3397,6 +3705,25 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return control.invalid && control.touched;
   }
 
+  /**
+   * Il campo tiene ferme le righe: è obbligatorio, è ancora vuoto, e finché
+   * resta così il documento non ha righe da compilare.
+   *
+   * Non è `fieldInvalid`, e la differenza conta: quello dice «hai provato a
+   * salvare e questo campo è sbagliato», questo dice «il lavoro comincia da
+   * qui». Il primo è un errore dell'operatore, il secondo è l'inizio.
+   */
+  protected fieldWaiting(field: 'customerId' | 'locationId'): boolean {
+    this.formValue();
+    if (!this.headerGateActive()) {
+      return false;
+    }
+    if (field === 'customerId' && this.isManualUnload) {
+      return false;
+    }
+    return !this.form.controls[field].value;
+  }
+
   protected openCustomerDetail(): void {
     const id = this.form.controls.customerId.value;
     if (id) {
@@ -3561,6 +3888,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     if (this.saving() || this.formReadOnly()) {
       return;
     }
+    this.dropTrailingEmptyLines();
     // Testata minima salvabile: cliente + location (righe opzionali, P6).
     // Scarico manuale: basta la location — il cliente è facoltativo.
     this.form.controls.customerId.markAsTouched();
@@ -4531,5 +4859,36 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   private toAppError(err: unknown): AppError {
     return isAppError(err) ? err : mapHttpErrorToAppError(err);
+  }
+
+  /**
+   * Le righe vuote in coda si SCARTANO al salvataggio, non si segnalano.
+   *
+   * Le crea la navigazione stessa — Tab o ↓ dall'ultimo campo dell'ultima riga
+   * — e basta arrivarci per sbaglio perché in fondo al documento resti una riga
+   * che nessuno ha compilato. Prima il salvataggio la trattava come una riga da
+   * completare («manca l'articolo») e non partiva finché non la si cancellava a
+   * mano: si chiedeva all'operatore di rimediare a qualcosa che aveva fatto la
+   * maschera. (Difetto segnalato dal proprietario, 11/08/2026.)
+   *
+   * Solo in coda e solo vuote: una riga vuota in mezzo l'ha lasciata lì
+   * qualcuno, e quella va segnalata. La regola vive in `domain/` — è la stessa
+   * per tutte le maschere, e scritta tre volte divergerebbe.
+   */
+  private dropTrailingEmptyLines(): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const indices = trailingEmptyLineIndices(this.lines.length, (index) => {
+      const line = this.lines.at(index);
+      return line ? this.lineIsEmpty(line) : true;
+    });
+    if (indices.length === 0) {
+      return;
+    }
+    for (const index of indices) {
+      this.lines.removeAt(index, { emitEvent: false });
+    }
+    this.lines.updateValueAndValidity();
   }
 }

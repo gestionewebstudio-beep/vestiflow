@@ -71,6 +71,7 @@ import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -84,6 +85,7 @@ const VARIANT_SEARCH_MIN_CHARS = 2;
   selector: 'app-stock-operation-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FirstClickSelectsDirective,
     InlineBannerComponent,
     ReactiveFormsModule,
     BackButtonComponent,

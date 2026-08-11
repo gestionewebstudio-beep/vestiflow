@@ -54,6 +54,8 @@ export interface SupplierOrderApiRow {
   readonly externalDocDate?: IsoDateString | null;
   readonly externalDocumentTypeId?: EntityId | null;
   readonly externalDocumentTypeSnapshot?: string | null;
+  /** Colonna NUMERIC: arriva come stringa decimale, non come numero. */
+  readonly documentDiscountPercent?: string | number | null;
   readonly subtotalMinor?: number;
   readonly taxMinor?: number;
   readonly totalMinor: number;
@@ -135,6 +137,8 @@ export interface CreateSupplierOrderBody {
   readonly externalDocNumber?: string | null;
   readonly externalDocDate?: IsoDateString | null;
   readonly externalDocumentTypeId?: EntityId | null;
+  /** Sconto extra di chiusura (percentuale). Assente = nessuno sconto. */
+  readonly documentDiscountPercent?: number;
   readonly costEntryMode?: PurchaseCostEntryMode;
   readonly currency?: CurrencyCode;
   readonly lines: readonly CreateSupplierOrderLineBody[];
@@ -160,6 +164,7 @@ export function mapSupplierOrderApiRow(row: SupplierOrderApiRow): SupplierOrder 
     externalDocDate: row.externalDocDate ?? undefined,
     externalDocumentTypeId: row.externalDocumentTypeId ?? undefined,
     externalDocumentTypeSnapshot: row.externalDocumentTypeSnapshot ?? undefined,
+    documentDiscountPercent: row.documentDiscountPercent ?? undefined,
     lines: row.lines.map((line) => mapLine(line, row.currency)),
     lineCount: row.lineCount,
     subtotal: { amountMinor: row.subtotalMinor ?? row.totalMinor, currencyCode: row.currency },

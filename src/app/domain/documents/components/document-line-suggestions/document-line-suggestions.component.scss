@@ -8,7 +8,22 @@
 
 .doc-suggestions {
   position: absolute;
-  inset-inline: 0;
+  // Il pannello aperto è largo quanto le VOCI, non quanto la cella.
+  //
+  // Con `inset-inline: 0` prendeva esattamente la larghezza del campo, e le
+  // celle codice di una riga documento sono larghe una manciata di caratteri:
+  // dentro ci finiva «Maglietta / M / Rosso» spezzato su tre righe, o troncato.
+  // Allargare la cella per far leggere la tendina è il rimedio sbagliato — la
+  // cella deve restare della misura del dato che ospita (regole-stile-ui §4).
+  //
+  // Stessa regola che `select-menu` applica al suo pannello: mai meno del
+  // campo, quanto serve alle voci, mai oltre il tetto. Il lato d'ancoraggio è
+  // regolabile dal contenitore, perché sull'ultima colonna un pannello ancorato
+  // a sinistra uscirebbe dallo schermo.
+  inset-inline: var(--doc-suggestions-inset, 0 auto);
+  inline-size: max-content;
+  min-inline-size: 100%;
+  max-inline-size: var(--doc-suggestions-max-width);
   inset-block-start: calc(100% + var(--doc-suggestions-offset, var(--space-1)));
   z-index: var(--doc-suggestions-z, var(--z-dropdown));
   margin: 0;
@@ -66,12 +81,5 @@
 .doc-suggestions__detail {
   font-size: var(--text-xs);
   font-variant-numeric: var(--numeric-tabular);
-  color: var(--color-text-muted);
-}
-
-// Messaggio «nessun risultato»: compare solo se il chiamante passa emptyText.
-.doc-suggestions__empty {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
   color: var(--color-text-muted);
 }

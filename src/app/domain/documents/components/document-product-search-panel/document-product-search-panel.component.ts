@@ -35,7 +35,46 @@ export class DocumentProductSearchPanelComponent {
   readonly launchSeq = input(0);
   readonly locationId = input<string | null>(null);
 
+  /**
+   * «Crea articolo» compare solo se la riga che ha aperto il pannello **non ha
+   * già un articolo**.
+   *
+   * Su una riga agganciata non stai cercando cosa aggiungere: stai guardando
+   * quello che c'è, e il pannello è di sola consultazione. Il comando lì non
+   * significa niente — e finché c'era portava a una scheda nuova vestita coi
+   * codici dell'articolo esistente, cioè un doppione in attesa di essere
+   * salvato.
+   */
+  readonly canCreate = input(true);
+
+  /** Non trovare nulla è un bivio se si può creare, un vicolo cieco se no. */
+  protected readonly emptyDescription = computed(() =>
+    this.canCreate()
+      ? "Prova con un altro termine, oppure crea l'articolo con i dati che hai già scritto."
+      : 'Prova con un altro termine.',
+  );
+
+  /**
+   * «Crea articolo» in barra solo quando NON è già nello stato vuoto.
+   *
+   * Il comando è uno, il posto cambia: dove la ricerca non trova niente vive nel
+   * riquadro centrale, che è dove l'occhio si trova in quel momento; altrimenti
+   * vive in barra, perché si può sapere in partenza che l'articolo non esiste.
+   */
+  protected readonly showCreateInActions = computed(
+    () =>
+      this.canCreate() && !(this.searchQuery().trim().length > 0 && this.results().length === 0),
+  );
+
   readonly variantSelected = output<{ readonly variantId: string }>();
+  /**
+   * L'articolo non c'è e va creato. Il pannello non sa COME si crea — i campi
+   * da precompilare stanno nella riga del documento, che è della maschera —
+   * quindi chiede, e chi lo ospita apre l'anagrafica con quel che ha.
+   */
+  readonly createRequested = output<void>();
+  /** Apri la scheda di un articolo trovato, invece di aggiungerlo alla riga. */
+  readonly detailRequested = output<string>();
   readonly dismissed = output<void>();
 
   private readonly productService = inject(ProductService);
@@ -102,5 +141,13 @@ export class DocumentProductSearchPanelComponent {
 
   protected close(): void {
     this.dismissed.emit();
+  }
+
+  protected requestCreate(): void {
+    this.createRequested.emit();
+  }
+
+  protected requestDetail(productId: string): void {
+    this.detailRequested.emit(productId);
   }
 }

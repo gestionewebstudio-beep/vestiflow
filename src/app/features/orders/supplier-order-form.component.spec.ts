@@ -3,6 +3,9 @@ import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angul
 import { AuthService } from '@core/auth';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
+
+import type { UserEvent } from '@testing-library/user-event';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { of, throwError } from 'rxjs';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -19,17 +22,25 @@ import { ExternalDocumentTypeService } from '@domain/documents/services/external
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { signal } from '@angular/core';
+import { APP_CONFIG } from '@core/config/app-config.token';
 
 const SUPPLIERS = [
   { id: 'sup-1', tenantId: 't1', name: 'Tessuti Italia', email: null, phone: null },
 ];
-const VARIANTS = [
+// Dichiarato COL TIPO: un campo obbligatorio che manca deve essere un errore di
+// compilazione, non un calcolo che esplode in silenzio dentro il pannello dei
+// suggerimenti e una prova che poi dice «non trovo la voce».
+const VARIANTS: readonly VariantSummary[] = [
   {
     variantId: 'var-1',
     productId: 'prod-1',
     productName: 'Maglietta',
     title: 'Maglietta / M / Rosso',
     sku: 'MAG-M-ROSSO',
+    articleCode: 'ART-MAG',
+    // Obbligatorio nel modello: senza, il dettaglio del suggerimento esplode e
+    // il pannello resta vuoto senza dire perché. Il dato di prova mentiva al tipo.
+    sellingPrice: { amountMinor: 2990, currencyCode: 'EUR' },
   },
 ];
 
@@ -44,6 +55,32 @@ const EXTERNAL_DOC_TYPES = [
     sortOrder: 1,
   },
 ];
+
+/**
+ * Sceglie il fornitore in testata. Da 11/08/2026 è il PRESUPPOSTO delle righe:
+ * senza, le righe non esistono e al loro posto c'è lo stato vuoto. I test che
+ * toccano una riga devono passare di qui, come ci passa l'operatore.
+ */
+async function scegliFornitore(user: UserEvent): Promise<void> {
+  await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+  await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+}
+
+/**
+ * Sceglie l'articolo sulla prima riga passando dalla cella nome CONDIVISA:
+ * si digita e si prende dall'elenco che si apre sotto. Prima qui c'era una
+ * tendina — era la divergenza rispetto all'Ordine cliente, e questi test la
+ * descrivevano.
+ */
+async function scegliArticoloSullaRiga(user: UserEvent): Promise<void> {
+  // Le righe esistono solo a fornitore scelto: se non lo è ancora, lo si sceglie
+  // qui invece di lasciare la prova a cercare un campo che non c'è.
+  if (screen.queryAllByLabelText('Nome prodotto').length === 0) {
+    await scegliFornitore(user);
+  }
+  await user.type(screen.getAllByLabelText('Nome prodotto')[0]!, 'mag');
+  await user.click(await screen.findByRole('option', { name: /MAG-M-ROSSO/ }));
+}
 
 function tableColumnPreferenceMock() {
   const defaultState = {
@@ -87,6 +124,20 @@ const VAT_22 = {
   usageScope: 'both',
 };
 
+/**
+ * Il pulsante di salvataggio esiste DUE volte: barra desktop e barra mobile,
+ * entrambe nel DOM perché questa maschera non ha ancora viste esclusive (vedi
+ * il difetto «due viste vive» nella mappa tecnica). Finché non le ha, la prova
+ * pilota la prima — quella desktop.
+ *
+ * ⚠️ Prima i due pulsanti si distinguevano per NOME («Salva ordine» contro
+ * «Salva»): l'ambiguità c'era già, la differenza di etichetta la nascondeva.
+ * Allineare i nomi non l'ha creata, l'ha resa visibile.
+ */
+function salvaDocumento(): HTMLElement {
+  return screen.getAllByRole('button', { name: 'Salva documento' })[0]!;
+}
+
 describe('SupplierOrderFormComponent', () => {
   // jsdom non implementa <dialog>: senza questo, aprire il dialogo di sblocco
   // esplode con «showModal is not a function». È un limite dell'ambiente di
@@ -119,6 +170,17 @@ describe('SupplierOrderFormComponent', () => {
         { provide: AuthService, useValue: { currentUser: () => null } },
         // Catch-all: il test «ritorno alla lista» naviga davvero verso /app/orders.
         provideRouter([{ path: '**', children: [] }]),
+        // Serve da quando l'ordine fornitore ha gli allegati: in modifica il
+        // pannello costruisce AttachmentsApiService, che legge la config.
+        {
+          provide: APP_CONFIG,
+          useValue: {
+            production: false,
+            appName: 'VestiFlow',
+            apiBaseUrl: '',
+            features: { barcodeScanner: false, shopify: false },
+          },
+        },
         {
           provide: SupplierService,
           useValue: {
@@ -176,14 +238,170 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     await setup();
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
-    expect(await screen.findByText('Seleziona un fornitore.')).toBeVisible();
+    // Il messaggio non ripete più il segnaposto del campo («Seleziona un
+    // fornitore…»), che al submit rifiutato si tinge già di rosso: dirlo due
+    // volte a quaranta pixel di distanza non aggiungeva niente.
+    expect(await screen.findByText('Campo obbligatorio.')).toBeVisible();
+  });
+
+  // Prima la testata, come nelle altre due maschere. Qui la ragione non è
+  // tecnica — un ordine fornitore non muove giacenze — ma di documento: fra le
+  // colonne c'è «Cod. fornitore», e scriverlo prima di aver detto chi è il
+  // fornitore è la frase senza il soggetto.
+  // Il riordino righe passa dall'avviso, e l'avviso è una volta per documento.
+  // Le regole vivono in `domain/` e hanno i loro test: qui si prova che questa
+  // maschera le abbia davvero agganciate — l'intestazione è un pulsante, e il
+  // primo clic apre l'avviso invece di riordinare.
+  // ⛔ Difetto trovato dal proprietario: dopo aver scelto un articolo dai
+  // risultati, «Crea articolo» apriva una scheda vestita coi codici di
+  // QUELL'articolo — un doppione in attesa di essere salvato. Due guardie: il
+  // comando non c'è su riga agganciata, e il precompilato non eredita mai
+  // l'identità di un articolo che esiste.
+  it('su riga già agganciata il pannello non offre «Crea articolo»', async () => {
+    const user = userEvent.setup();
+    const { fixture } = await setup();
+    await scegliArticoloSullaRiga(user);
+
+    const form = fixture.componentInstance as unknown as {
+      openLineProductSearch: (i: number) => void;
+      productSearchCanCreate: () => boolean;
+    };
+    form.openLineProductSearch(0);
+    fixture.detectChanges();
+
+    expect(form.productSearchCanCreate()).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Crea articolo' })).toBeNull();
+  });
+
+  it('su riga libera il pannello offre «Crea articolo»', async () => {
+    const user = userEvent.setup();
+    const { fixture } = await setup();
+    await scegliFornitore(user);
+
+    const form = fixture.componentInstance as unknown as {
+      openLineProductSearch: (i: number) => void;
+      productSearchCanCreate: () => boolean;
+    };
+    form.openLineProductSearch(0);
+    fixture.detectChanges();
+
+    expect(form.productSearchCanCreate()).toBe(true);
+  });
+
+  it('«Crea articolo» non eredita mai l’identità dell’articolo già scelto', async () => {
+    const user = userEvent.setup();
+    const { fixture } = await setup();
+    await scegliArticoloSullaRiga(user);
+
+    const form = fixture.componentInstance as unknown as {
+      openProductCreate: (i: number) => void;
+      productPanelPrefill: () => { sku?: string; name?: string } | null;
+      productPanelEditProductId: () => string | null;
+    };
+    // Niente `detectChanges`: aprire il pannello renderebbe la scheda prodotto,
+    // che qui non ha le sue dipendenze. La prova guarda lo STATO — è lì che il
+    // difetto viveva.
+    form.openProductCreate(0);
+
+    // Nessun codice dell'articolo esistente nella scheda nuova, e nessuna
+    // scheda esistente aperta al posto della creazione.
+    expect(form.productPanelPrefill()).toBeNull();
+    expect(form.productPanelEditProductId()).toBeNull();
+  });
+
+  // ⛔ Da quando il nome è modificabile anche a articolo agganciato (11/08/2026),
+  // quel testo è la descrizione di QUESTA riga. Qui si mandava il titolo del
+  // catalogo: il documento si riapriva col nome di prima, senza dire niente.
+  it('il nome cambiato sulla riga agganciata è quello che va al salvataggio', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup({ vatCodes: [VAT_22] });
+    await scegliArticoloSullaRiga(user);
+
+    // L'articolo di prova non ha costo: senza, il salvataggio si ferma prima e
+    // il carico utile non parte nemmeno.
+    const costo = screen.getByPlaceholderText('0,00');
+    await user.clear(costo);
+    await user.type(costo, '12,50');
+
+    const nome = screen.getAllByLabelText('Nome prodotto')[0]!;
+    await user.clear(nome);
+    await user.type(nome, 'Rosso scuro, seconda scelta');
+    await user.click(salvaDocumento());
+
+    // Il finto è dichiarato senza argomenti, quindi TypeScript vede una tupla
+    // vuota: si passa da `unknown[]` per leggere ciò che ha davvero ricevuto.
+    const inviato = (
+      createOrder.mock.calls[0] as unknown as readonly unknown[] | undefined
+    )?.[0] as { readonly lines: readonly { readonly description?: string }[] } | undefined;
+    expect(inviato?.lines[0]?.description).toBe('Rosso scuro, seconda scelta');
+  });
+
+  it('il primo clic sull’intestazione chiede conferma invece di riordinare', async () => {
+    const user = userEvent.setup();
+    await setup();
+    await scegliFornitore(user);
+
+    await user.click(screen.getByRole('button', { name: 'Ordina per Nome prodotto' }));
+
+    expect(await screen.findByText('Riordino righe')).toBeVisible();
+    expect(screen.getByText(/non sarà più ricostruibile/)).toBeVisible();
+  });
+
+  it('rinunciando non si ordina, e la volta dopo richiede di nuovo', async () => {
+    const user = userEvent.setup();
+    await setup();
+    await scegliFornitore(user);
+
+    await user.click(screen.getByRole('button', { name: 'Ordina per SKU' }));
+    await user.click(screen.getByRole('button', { name: 'Annulla' }));
+
+    // L'avviso non è stato consumato: il gesto successivo lo richiede.
+    await user.click(screen.getByRole('button', { name: 'Ordina per SKU' }));
+    expect(await screen.findByText('Riordino righe')).toBeVisible();
+  });
+
+  it('a fornitore mancante le righe non ci sono, e lo stato vuoto dice cosa manca', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    expect(screen.queryAllByLabelText('Nome prodotto')).toHaveLength(0);
+    expect(screen.getByText('Scegli il fornitore')).toBeVisible();
+
+    await scegliFornitore(user);
+
+    expect(screen.getAllByLabelText('Nome prodotto').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Scegli il fornitore')).toBeNull();
+  });
+
+  // ⛔ Difetto segnalato dal proprietario: creata per sbaglio la riga sotto e
+  // lasciata vuota, il documento non si salvava più — «Riga 2: manca
+  // l'articolo» — finché non la si cancellava a mano. La riga vuota in coda la
+  // crea la navigazione, non l'operatore: al salvataggio si scarta.
+  it('la riga vuota in coda non blocca il salvataggio: si scarta', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup({ vatCodes: [VAT_22] });
+    await scegliArticoloSullaRiga(user);
+    const costo = screen.getByPlaceholderText('0,00');
+    await user.clear(costo);
+    await user.type(costo, '12,50');
+
+    await user.click(screen.getByRole('button', { name: 'Aggiungi riga' }));
+    await user.click(salvaDocumento());
+
+    const inviato = (
+      createOrder.mock.calls[0] as unknown as readonly unknown[] | undefined
+    )?.[0] as { readonly lines: readonly unknown[] } | undefined;
+    // Salvato, e con la sola riga compilata.
+    expect(inviato?.lines).toHaveLength(1);
   });
 
   it('consente di aggiungere una riga ordine', async () => {
     const user = userEvent.setup();
     await setup();
+
+    await scegliFornitore(user);
 
     const rowsBefore = screen.getAllByRole('button', { name: 'Rimuovi riga' }).length;
     await user.click(screen.getByRole('button', { name: 'Aggiungi riga' }));
@@ -195,6 +413,8 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     await setup();
 
+    await scegliFornitore(user);
+
     expect(screen.getByText('Costo netto')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Modalità costi del documento' }));
     await user.click(screen.getByRole('menuitemradio', { name: 'Usa costi ivati' }));
@@ -205,6 +425,8 @@ describe('SupplierOrderFormComponent', () => {
   it('protegge l’uscita con modifiche non salvate (chip indietro → dialogo)', async () => {
     const user = userEvent.setup();
     await setup();
+
+    await scegliFornitore(user);
 
     const qtyInput = screen.getByRole('spinbutton');
     await user.clear(qtyInput);
@@ -234,11 +456,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Fornitore' }));
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
 
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    await scegliArticoloSullaRiga(user);
 
     const qtyInput = screen.getByRole('spinbutton');
     await user.clear(qtyInput);
@@ -247,7 +465,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.clear(costInput);
     await user.type(costInput, '12,50');
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     expect(createOrder).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -314,6 +532,17 @@ describe('SupplierOrderFormComponent', () => {
       providers: [
         { provide: AuthService, useValue: { currentUser: () => null } },
         provideRouter([{ path: '**', children: [] }]),
+        // Serve da quando l'ordine fornitore ha gli allegati: in modifica il
+        // pannello costruisce AttachmentsApiService, che legge la config.
+        {
+          provide: APP_CONFIG,
+          useValue: {
+            production: false,
+            appName: 'VestiFlow',
+            apiBaseUrl: '',
+            features: { barcodeScanner: false, shopify: false },
+          },
+        },
         // Rotta /:id/edit: è l'id a far entrare la maschera in modifica.
         {
           provide: ActivatedRoute,
@@ -430,17 +659,13 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Fornitore' }));
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
 
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    await scegliArticoloSullaRiga(user);
 
     const cost = screen.getByPlaceholderText('0,00');
     await user.clear(cost);
     await user.type(cost, '12,50');
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     expect(navigate).toHaveBeenCalledWith(
       ['/app/orders', 'po-1', 'edit'],
@@ -461,14 +686,10 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Fornitore' }));
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
 
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    await scegliArticoloSullaRiga(user);
 
     // L'articolo di prova non ha costo d'anagrafica: la riga resta senza costo.
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Riga 1');
     expect(screen.getByRole('alert')).toHaveTextContent('costo');
@@ -479,7 +700,7 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     const { createOrder } = await setup();
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     expect(await screen.findByRole('alert')).toHaveTextContent('fornitore');
     expect(createOrder).not.toHaveBeenCalled();
@@ -506,11 +727,7 @@ describe('SupplierOrderFormComponent', () => {
 
     // Serve un articolo sulla riga: è il richiamo a portarle il Codice IVA, e
     // senza aliquota non c'è nessuno scorporo da fare.
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    await scegliArticoloSullaRiga(user);
 
     await switchCostMode(user, 'Usa costi ivati');
 
@@ -534,18 +751,14 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Fornitore' }));
     await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
 
-    await user.click(screen.getAllByRole('button', { name: 'Articolo' })[0]!);
-    await user.type(screen.getByLabelText('Cerca articolo per prodotto o SKU'), 'mag');
-    await user.click(
-      await screen.findByRole('option', { name: 'Maglietta / M / Rosso, SKU MAG-M-ROSSO' }),
-    );
+    await scegliArticoloSullaRiga(user);
 
     await switchCostMode(user, 'Usa costi ivati');
     const cost = screen.getByPlaceholderText('0,00');
     await user.clear(cost);
     await user.type(cost, '5,02');
 
-    await user.click(screen.getByRole('button', { name: 'Salva ordine' }));
+    await user.click(salvaDocumento());
 
     // Il valore parte esatto: è il server a rifare lo scorporo e a ottenere lo
     // stesso netto. Mandare «502» arrotondato funzionerebbe qui e si romperebbe
@@ -557,4 +770,237 @@ describe('SupplierOrderFormComponent', () => {
       }),
     );
   });
+
+  /**
+   * Il giro del fuoco, innestato sul punto unico. Chiude tre difetti che questa
+   * maschera aveva e le gemelle no.
+   */
+  describe('il giro del fuoco', () => {
+    interface FocusForm {
+      readonly lineFocus: {
+        fieldsOf: (i: number) => readonly string[];
+        rowDown: (i: number, field: string) => void;
+      };
+      readonly lines: {
+        length: number;
+        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+      };
+      readonly form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+    }
+
+    async function apriForm() {
+      const { fixture } = await setup({ vatCodes: [VAT_22] });
+      return fixture.componentInstance as unknown as FocusForm;
+    }
+
+    // «Nome prodotto» era uscito dal giro perché la cella era una tendina e
+    // `po-product-{i}` non esisteva in nessun template: da «Cod. fornitore» il
+    // fuoco si perdeva a metà strada. Ora la cella è quella condivisa, con un
+    // input vero, e il campo è rientrato — la condizione di rientro era questa.
+    it('«Nome prodotto» è nel giro, fra i codici e la quantità', async () => {
+      const form = await apriForm();
+
+      const giro = form.lineFocus.fieldsOf(0);
+      expect(giro).toContain('product');
+      expect(giro.indexOf('product')).toBeGreaterThan(giro.indexOf('supplierCode'));
+      expect(giro.indexOf('product')).toBeLessThan(giro.indexOf('quantity'));
+    });
+
+    // Difetto: U.M. e sconto erano nel giro ma senza gestore di tastiera —
+    // due gestori per nove campi. Ora ci sono, e il giro li attraversa.
+    it('U.M. e sconto sono attraversabili', async () => {
+      const form = await apriForm();
+
+      expect(form.lineFocus.fieldsOf(0)).toEqual(
+        expect.arrayContaining(['unitOfMeasure', 'discount']),
+      );
+    });
+
+    // Difetto: `advanceToNextLine` non guardava la sola-lettura, e questa
+    // maschera non ha nemmeno il `<fieldset [disabled]>` delle altre due: su
+    // documento bloccato il Tab AGGIUNGEVA righe.
+    it('su documento bloccato non si creano righe', async () => {
+      const form = await apriForm();
+      const righePrima = form.lines.length;
+      (form as unknown as { formReadOnly: () => boolean }).formReadOnly = () => true;
+
+      form.lineFocus.rowDown(righePrima - 1, 'quantity');
+
+      expect(form.lines.length).toBe(righePrima);
+    });
+
+    // Voce 9 del contratto, che qui NON esisteva: «riga vuota» in Ordine
+    // fornitore significa nessun articolo selezionato. Senza, tenere premuto ↓
+    // impilerebbe righe vuote in fondo.
+    it('↓ in fondo non crea righe se l’articolo non c’è', async () => {
+      const form = await apriForm();
+      const righePrima = form.lines.length;
+
+      form.lineFocus.rowDown(righePrima - 1, 'quantity');
+
+      expect(form.lines.length).toBe(righePrima);
+    });
+  });
+
+  /**
+   * Conferma di un codice: gli esiti sono TRE, non due.
+   *
+   * Qui il caso ambiguo è quello che capita davvero. Il codice fornitore non è
+   * unico — fornitori diversi possono usare lo stesso codice per articoli
+   * diversi — e fino a 08/2026 questa maschera lo risolveva con
+   * `resolveVariantIdByCode`, che restituisce `string | null`: due candidati
+   * tornavano `null`, cioè il codice giusto si comportava come inesistente.
+   */
+  describe('conferma dei codici', () => {
+    function variante(overrides: Record<string, unknown>) {
+      return {
+        articleCode: 'ART-1',
+        productName: 'Maglietta',
+        title: 'Maglietta',
+        sku: 'MAG-M',
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+        ...overrides,
+      };
+    }
+
+    interface CodeForm {
+      readonly commitCodeLookup: (index: number, field: string) => void;
+      readonly codeLookup: {
+        readonly isOpenOn: (index: number, field: string) => boolean;
+        readonly matches: () => readonly { readonly variantId: string }[];
+      };
+      readonly lines: {
+        at: (i: number) => {
+          controls: Record<string, { setValue: (v: unknown) => void; value: unknown }>;
+        };
+      };
+    }
+
+    /**
+     * `catalogo` è cosa risponde la RICERCA (query con `search`): lì il codice
+     * fornitore restituito è quello che ha fatto scattare la ricerca.
+     * `perVariante` è cosa risponde il caricamento per id, che il form fa dopo
+     * per riempire la riga: lì nessuna ricerca ha scelto un collegamento, e il
+     * codice restituito è il primo in ordine deterministico — quello di un
+     * fornitore qualsiasi. Sono due risposte diverse per lo stesso articolo, ed
+     * è da questa differenza che nasce il difetto: mockarle uguali lo nasconde.
+     */
+    async function apri(
+      catalogo: readonly Record<string, unknown>[],
+      perVariante?: readonly Record<string, unknown>[],
+    ) {
+      const { fixture } = await render(SupplierOrderFormComponent, {
+        providers: [
+          { provide: AuthService, useValue: { currentUser: () => null } },
+          provideRouter([{ path: '**', children: [] }]),
+          // Serve da quando l'ordine fornitore ha gli allegati: in modifica il
+          // pannello costruisce AttachmentsApiService, che legge la config.
+          {
+            provide: APP_CONFIG,
+            useValue: {
+              production: false,
+              appName: 'VestiFlow',
+              apiBaseUrl: '',
+              features: { barcodeScanner: false, shopify: false },
+            },
+          },
+          {
+            provide: SupplierService,
+            useValue: { getSuppliers: () => of(SUPPLIERS), createSupplier: vi.fn() },
+          },
+          {
+            provide: ProductService,
+            useValue: {
+              searchVariantSummaries: (query?: { search?: string }) =>
+                of(query?.search ? catalogo : (perVariante ?? catalogo)),
+              // L'endpoint per codice tace sui casi ambigui: non deve essere
+              // la strada che salva il test.
+              findVariantByCode: () => throwError(() => new Error('404')),
+            },
+          },
+          {
+            provide: SupplierOrderService,
+            useValue: {
+              createOrder: vi.fn(),
+              getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
+            },
+          },
+          { provide: DocumentService, useValue: { getPriceModePreference: () => of(false) } },
+          { provide: TableColumnPreferenceService, useValue: tableColumnPreferenceMock() },
+          { provide: VatCodeService, useValue: { list: () => of([]) } },
+          { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
+        ],
+      });
+      return fixture.componentInstance as unknown as CodeForm;
+    }
+
+    it('un codice fornitore condiviso da due articoli apre la scelta', async () => {
+      const form = await apri([
+        variante({ variantId: 'var-1', productId: 'prod-1', supplierSku: 'F-100' }),
+        variante({ variantId: 'var-2', productId: 'prod-2', supplierSku: 'F-100' }),
+      ]);
+      form.lines.at(0).controls['supplierCode']!.setValue('F-100');
+
+      form.commitCodeLookup(0, 'supplierCode');
+
+      expect(form.codeLookup.isOpenOn(0, 'supplierCode')).toBe(true);
+      expect(form.codeLookup.matches().map((row) => row.variantId)).toEqual(['var-1', 'var-2']);
+    });
+
+    // Il controllo inverso: senza, la prova qui sopra passerebbe anche se la
+    // scelta si aprisse sempre, pure con un solo articolo.
+    it('un codice fornitore di un solo articolo aggancia la riga', async () => {
+      const form = await apri([
+        variante({ variantId: 'var-1', productId: 'prod-1', supplierSku: 'F-100' }),
+      ]);
+      form.lines.at(0).controls['supplierCode']!.setValue('F-100');
+
+      form.commitCodeLookup(0, 'supplierCode');
+
+      expect(form.codeLookup.isOpenOn(0, 'supplierCode')).toBe(false);
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+    });
+
+    // Il riepilogo porta il codice del PRIMO collegamento in ordine
+    // deterministico, che può essere di un altro fornitore: l'operatore
+    // digitava F-100 e nel campo si ritrovava F-999, mai scritto da lui.
+    it('agganciando da Cod. fornitore resta il codice digitato, non quello del riepilogo', async () => {
+      const form = await apri(
+        // La ricerca per «F-100» trova l'articolo e riporta il codice che ha
+        // corrisposto…
+        [variante({ variantId: 'var-1', productId: 'prod-1', supplierSku: 'F-100' })],
+        // …ma il caricamento per id, che riempie la riga, riporta il primo
+        // collegamento: quello di un altro fornitore.
+        [variante({ variantId: 'var-1', productId: 'prod-1', supplierSku: 'F-999' })],
+      );
+      form.lines.at(0).controls['supplierCode']!.setValue('F-100');
+
+      form.commitCodeLookup(0, 'supplierCode');
+
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+      expect(form.lines.at(0).controls['supplierCode']!.value).toBe('F-100');
+    });
+
+    // Il controllo inverso del precedente: agganciando per SKU non esiste un
+    // «codice con cui hai agganciato», e il campo NON va riempito col codice di
+    // un fornitore qualsiasi. Vuoto è la risposta giusta.
+    it('agganciando per SKU il Cod. fornitore resta vuoto invece che arbitrario', async () => {
+      const form = await apri([
+        variante({ variantId: 'var-1', productId: 'prod-1', sku: 'MAG-M', supplierSku: 'F-999' }),
+      ]);
+      form.lines.at(0).controls['sku']!.setValue('MAG-M');
+
+      form.commitCodeLookup(0, 'sku');
+
+      expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
+      expect(form.lines.at(0).controls['supplierCode']!.value).toBe('');
+    });
+  });
 });
+
+/**
+ * Il riordino righe passa dall'avviso, e l'avviso è una volta per documento.
+ * Le regole vivono in `domain/` e hanno i loro test: qui si prova che questa
+ * maschera le abbia davvero agganciate — l'intestazione è un pulsante, il primo
+ * clic apre l'avviso invece di riordinare.
+ */

@@ -14,32 +14,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 @include bp.media-down('lg') {
-  // ── Banner del gate ───────────────────────────────────────────────────────
-  .co-form .doc-form__gate-banner {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-    margin: 0;
-    padding: var(--space-3);
-    color: var(--color-warning);
-    background-color: var(--color-warning-subtle);
-    border: var(--border-width) solid var(--color-warning);
-    border-radius: var(--doc-m-radius-md);
-    font-size: var(--text-sm);
-    line-height: 1.42;
-  }
-
   // ── Sezione righe ─────────────────────────────────────────────────────────
-  // Col gate attivo la sezione restava sbiadita in blocco. Nella reference si
-  // legge normalmente: a dire che non e' ancora utilizzabile bastano i bottoni
-  // spenti e il banner sopra, mentre titolo e stato vuoto vanno letti — sono
-  // proprio loro a spiegare cosa fare. L'attributo disabled resta, quindi
-  // niente cambia sul piano funzionale.
-  .co-form .doc-form__gate-fields:disabled,
-  .co-form .doc-form__gate-fields:disabled > * {
-    opacity: 1;
-  }
-
+  // Qui stava la contro-regola che riaccendeva la sezione sbiadita dal gate.
+  // Non serve più: adesso nessuno la sbiadisce, perché a testata incompleta le
+  // righe non si mostrano affatto. La conclusione era già scritta qui — «titolo
+  // e stato vuoto vanno letti, sono proprio loro a spiegare cosa fare» — ed è
+  // quella che ora vale anche su desktop.
   .co-form .doc-form__lines {
     padding: var(--space-3);
     background-color: var(--doc-m-lines-bg);
@@ -72,31 +52,10 @@
     --button-font-size: var(--text-sm);
   }
 
-  .co-lines__empty {
-    display: grid;
-    place-items: center;
-    min-block-size: var(--doc-m-empty-h);
-    margin-block-start: var(--space-3);
-    padding: var(--space-4);
-    color: var(--color-text-subtle);
-    text-align: center;
-    background-color: var(--doc-m-empty-bg);
-    border: var(--border-width) dashed var(--color-border-strong);
-    border-radius: var(--doc-m-radius-md);
-  }
-
-  .co-lines__empty strong {
-    display: block;
-    color: var(--color-text-muted);
-    font-size: var(--doc-m-text-body);
-  }
-
-  .co-lines__empty p {
-    max-inline-size: 17rem;
-    margin: var(--space-1) 0 0;
-    font-size: var(--doc-m-text-meta);
-    line-height: 1.45;
-  }
+  // Lo stato vuoto delle righe era vestito su misura qui: riquadro tratteggiato,
+  // titolo e paragrafo con le loro misure. Ora è `app-empty-state`, il
+  // componente condiviso, che porta il suo aspetto — lo stesso che l'operatore
+  // vede negli elenchi. Tre regole in meno e un posto solo dove cambiarlo.
 
   .co-lines__actions {
     display: grid;

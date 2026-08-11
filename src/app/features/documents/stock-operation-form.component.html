@@ -85,7 +85,7 @@
                     (valueChange)="onLocationSelect($event)"
                   />
                   @if (fieldInvalid('locationId')) {
-                    <p id="so-m-location-error" class="doc-form__error">Seleziona la location.</p>
+                    <p id="so-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                 </div>
 
@@ -103,9 +103,7 @@
                       (valueChange)="onDirectionSelect($event)"
                     />
                     @if (fieldInvalid('adjustmentDirection')) {
-                      <p id="so-m-direction-error" class="doc-form__error">
-                        Seleziona la direzione.
-                      </p>
+                      <p id="so-m-direction-error" class="doc-form__error">Campo obbligatorio.</p>
                     }
                   </div>
                 }
@@ -172,7 +170,7 @@
                   (valueChange)="onLocationSelect($event)"
                 />
                 @if (fieldInvalid('locationId')) {
-                  <p id="so-location-error" class="doc-form__error">Seleziona la location.</p>
+                  <p id="so-location-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
               </div>
 
@@ -191,7 +189,7 @@
                     (valueChange)="onDirectionSelect($event)"
                   />
                   @if (fieldInvalid('adjustmentDirection')) {
-                    <p id="so-direction-error" class="doc-form__error">Seleziona la direzione.</p>
+                    <p id="so-direction-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
                 </div>
               }
@@ -292,7 +290,7 @@
                         (valueChange)="onVariantSelect(i, $event)"
                       />
                       @if (lineFieldInvalid(i, 'variantId')) {
-                        <p class="doc-form__error">Seleziona una variante.</p>
+                        <p class="doc-form__error">Campo obbligatorio.</p>
                       }
                     </td>
                     <td class="doc-form__cell doc-form__cell--editable">
@@ -364,7 +362,7 @@
                       (valueChange)="onVariantSelect(i, $event)"
                     />
                     @if (lineFieldInvalid(i, 'variantId')) {
-                      <p class="doc-form__error">Seleziona una variante.</p>
+                      <p class="doc-form__error">Campo obbligatorio.</p>
                     }
                   </div>
 
@@ -464,7 +462,7 @@
         <app-button type="button" variant="ghost" (click)="cancel()">Annulla</app-button>
         @if (isConfirmedEdit()) {
           <app-button type="submit" [disabled]="formReadOnly() || saving()"
-            >Salva modifiche</app-button
+            >Salva documento</app-button
           >
         } @else {
           <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
@@ -482,7 +480,7 @@
             Chiudi
           </app-button>
           @if (isConfirmedEdit()) {
-            <app-button type="submit" [disabled]="saving()">Salva modifiche</app-button>
+            <app-button type="submit" [disabled]="saving()">Salva documento</app-button>
           } @else {
             <app-button type="submit" [disabled]="saving()">{{ submitConfirmLabel() }}</app-button>
           }

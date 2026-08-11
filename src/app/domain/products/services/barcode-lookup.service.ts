@@ -9,8 +9,20 @@ import { ProductService } from '@domain/products/services/product.service';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 
 /**
- * L'unico elemento che soddisfa il criterio, oppure `null`. Zero risultati e
- * due risultati portano allo stesso esito: non c'è un articolo da richiamare.
+ * L'unico elemento che soddisfa il criterio, oppure `null`.
+ *
+ * ⚠️ Zero risultati e due risultati portano allo stesso esito — ed è una scelta
+ * **di questo percorso**, non una regola generale. Vale per la scansione: il
+ * lettore spara e va, e fermarlo per far scegliere interromperebbe un gesto che
+ * deve essere immediato; meglio non richiamare nulla e lasciare che l'operatore
+ * guardi la riga.
+ *
+ * Dove l'operatore è già lì che guarda — la conferma di un codice digitato in
+ * una riga documento — vale l'opposto, e gli esiti sono **tre**: nessuna, una,
+ * più d'una. Quel percorso non passa di qui: sta in
+ * `DocumentCodeLookupService`, che ha un tipo capace di dire «eccone tre».
+ * Appiattire i due casi lì farebbe comportare un codice giusto come un codice
+ * inesistente.
  */
 function onlyMatch(
   rows: readonly VariantSummary[],
