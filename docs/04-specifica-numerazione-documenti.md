@@ -2,65 +2,142 @@
 
 **Documento di prodotto.** Owner: Luigi. Le decisioni qui dentro sono definitive salvo revisione esplicita e datata.
 
-Questo documento **supera** `numerazione-documenti-verifica.md` (luglio 2026), che era un testo pre-decisione scritto per farsi analizzare il codice. Non va più usato come riferimento: diversi punti che contiene sono stati ribaltati.
+Questo documento **supera**:
 
-Ultimo aggiornamento: 11 agosto 2026.
+- `numerazione-documenti-verifica.md` (luglio 2026) — testo pre-decisione, diversi punti ribaltati
+- le due stesure precedenti di questo file (11 agosto, mattina e pomeriggio) — §2 riformulato, §3 e §4 riscritti
+
+Ultimo aggiornamento: 11 agosto 2026, sera.
 
 ---
 
 ## §0 — Migrazioni implicate
 
-| Intervento                                                   | Tipo            | Note                                                       |
-| ------------------------------------------------------------ | --------------- | ---------------------------------------------------------- |
-| Proposta del numero per data                                 | **Nessuna**     | Solo `document-numbering.util.ts`                          |
-| Preferenza "non mostrare più" per operatore e tipo documento | **Additiva**    | Nuova tabella o campo su preferenze operatore              |
-| Sottotipi fattura (nota di credito, fattura d'acconto)       | **Additiva**    | Aggiunta di valori a enum Postgres `DocumentType` — sicura |
-| Rimozione numerazione dal Corrispettivo                      | **Distruttiva** | Vedi §7. Da coordinare con `feature/cassa`                 |
-| Rimozione `DocumentSequence`                                 | **Distruttiva** | Il backup va sistemato **prima**. Vedi §8                  |
+| Intervento                                               | Tipo            | Note                                         |
+| -------------------------------------------------------- | --------------- | -------------------------------------------- |
+| Proposta del numero per data                             | **Additiva**    | Serve un indice composito, vedi sotto        |
+| Campo data sul DTO di anteprima                          | **Nessuna**     | Solo DTO                                     |
+| Preferenza "non mostrare più"                            | **Additiva**    | Copiare `UserDocumentPriceModePreference`    |
+| Sottotipo Nota di credito e Fattura d'acconto            | **Additiva**    | Nuovi valori su enum Postgres `DocumentType` |
+| Rimozione numerazione dal Corrispettivo                  | **Distruttiva** | Vedi §8. Coordinare con `feature/cassa`      |
+| Rimozione `DocumentSequence`                             | **Distruttiva** | Backup da sistemare **prima**. Vedi §9       |
+| Ora sulla vendita al banco + marcatore RT fuori servizio | **Additiva**    | Vedi §8                                      |
+
+**Già applicate** l'11 agosto sul ramo, additive: colonne del riferimento controparte, indici unici parziali, indice del numero sul numeratore.
 
 Regola invariata: mai `prisma migrate dev` o `db push` sul database condiviso. Solo `prisma migrate deploy`.
+
+### Perimetro reale della proposta per data
+
+**Dodici chiamate in sette file**, non nove in cinque come diceva la prima stesura (il conto vecchio veniva da un ramo precedente al commit `6fc27982`).
+
+**Costo.** `NextNumberInput` oggi non riceve la data, e non esiste un indice che includa `documentDate` accanto a `(tenant, type, series)`. Senza, il calcolo del massimo fra i documenti con data anteriore scansionerebbe l'intera partizione — dentro il lock, che serializza tutti gli operatori sullo stesso contatore.
+
+Due interventi necessari:
+
+- **indice composito** `(tenant_id, type, series, document_date, number)`, così il primo passo diventa un accesso a indice
+- **una sola query SQL** che restituisce un intero, con `NOT EXISTS` o funzione finestra. Mai materializzare l'elenco dei numeri in JavaScript: la regola sotto lock deve essere logaritmica, non lineare
+
+**Scartata** l'ipotesi di tenere `max+1` sotto lock mettendo la logica per data solo nella proposta mostrata: produrrebbe una divergenza sistematica fra numero visto e numero assegnato, non dovuta a concorrenza. Inaccettabile su un documento fiscale.
 
 ---
 
 ## §1 — Il contatore
 
-_Deciso 3 agosto 2026. Verificato in codice 11 agosto 2026: già implementato._
+_Deciso 3 agosto 2026. Verificato in codice 11 agosto: già implementato._
 
-Il contatore è definito da **tenant + tipo documento + serie**. Ogni contatore ha il proprio progressivo, indipendente da tutti gli altri: "serie 2026 per Ordini cliente" e "serie 2026 per Fatture" sono due contatori distinti e possono arrivare entrambi al 42 senza conflitto.
+Il contatore è definito da **tenant + tipo documento + serie**. Ogni contatore ha il proprio progressivo, indipendente dagli altri: "serie 2026 per Ordini cliente" e "serie 2026 per Fatture" sono due contatori distinti e possono arrivare entrambi al 42 senza conflitto.
 
-`DocumentCounter` **non memorizza il progressivo**. Il numero si ricava dai documenti reali (vedi §2).
+`DocumentCounter` **non memorizza il progressivo**: il numero si ricava dai documenti reali.
 
-`locationId` sul contatore determina **solo la disponibilità** della serie nella tendina: non partiziona il progressivo. Un contatore senza location è disponibile ovunque; uno con location è disponibile solo per i documenti di quella sede.
+`locationId` determina **solo la disponibilità** della serie nella tendina, non partiziona il progressivo. Senza location la serie è disponibile ovunque; con location, solo per i documenti di quella sede.
 
-**L'anno non esiste come concetto di sistema.** Non sta nel riferimento e non partiziona il progressivo. Chi vuole il reset annuale crea una serie chiamata "2026".
+**L'anno non esiste come concetto di sistema.** Non sta nel riferimento e non partiziona. Chi vuole il reset annuale crea una serie chiamata "2026".
 
 Riferimento: `PREFISSO[-SERIE]-NNNN`. Il prefisso è proprietà del tipo documento e si configura nelle card per tipo. La serie si configura **solo** nei Numeratori.
 
-Ogni tipo nasce con un contatore «Senza serie», seminato dal sistema e non eliminabile → `OC-0001`.
+Ogni tipo nasce con un contatore «Senza serie», seminato e non eliminabile → `OC-0001`.
 
-**Superato:** la location come partizione del progressivo; il progressivo modificabile a mano nelle Impostazioni; l'anno come serie implicita. Tutti e tre erano in `numerazione-documenti-verifica.md`.
+**Superato:** la location come partizione; il progressivo modificabile nelle Impostazioni; l'anno come serie implicita.
 
 ---
 
 ## §2 — La proposta del numero
 
-_Deciso 11 agosto 2026. Divergente dal codice attuale._
+_Deciso 11 agosto 2026. Non ancora in codice: oggi la proposta è `lastAssignedNumber + 1`._
 
-Il numero proposto è **il primo numero libero a partire dall'ultimo documento che precede in data** quello che si sta creando, dentro lo stesso contatore.
+### La regola
 
-Esempio: ultimo preventivo 10. Se ne crea uno datato la settimana prossima col numero 15. Oggi se ne crea un altro: la proposta è **11**, non 16.
+> Sia **m** il numero più alto fra i documenti dello stesso contatore con **data strettamente anteriore** a quella del documento che sto creando.
+> Si propone il **primo numero libero maggiore di m**.
 
-Se quel numero risulta già occupato, si prende il successivo libero. Nell'esempio: se l'11 esiste già, propone 12.
+Una sola formulazione, nessun ramo separato. Il riempimento dei buchi non è un caso speciale: è questa stessa regola vista da un'altra angolazione.
 
-**Il codice oggi fa `max+1` sull'intera serie** e nello scenario sopra proporrebbe 16. È la principale divergenza aperta.
+**Attenzione a "anteriore".** Data _strettamente_ anteriore, non "uguale o anteriore". La differenza non è formale: sull'esempio qui sotto la lettura sbagliata propone 5 dove la regola propone 3. Nella prima stesura era scritto "precede in data" ed è stato letto male da chi ha analizzato il documento — quindi si scrive **anteriore**.
 
-Conseguenza operativa: la proposta dipende dalla data, quindi **cambiando la data in testata il numero si ricalcola**. Oggi il campo numero non si muove.
+### Perché non basta "l'ultimo più uno"
 
-**Superato:** `max+1` come regola di proposta (era in `numerazione-documenti-verifica.md` e nelle decisioni del 3 agosto).
+Ultimo preventivo: **10**. Ne prepari uno datato la settimana prossima e gli dai il **15**. Oggi ne apri un altro.
 
-### Cancellazioni e buchi
+Con `max+1` la proposta è **16**: il documento futuro ti ha bruciato cinque numeri, e da lì tutta la numerazione corrente parte da dopo di lui.
 
-Il buco lasciato da un documento cancellato resta libero e viene riproposto quando la data lo colloca lì. Chi vuole riempirlo esplicitamente lo scrive a mano, e in quel caso non scatta nessun avviso di conflitto perché nessun documento occupa quel numero — può però scattare il controllo cronologico (§4).
+Con la regola nuova la proposta è **11**: i documenti datati avanti non spostano la proposta di oggi.
+
+### I casi, per esteso
+
+Stato di partenza: documento **2** del 05/06/2026, documento **4** del 05/06/2026. Il **3** è il buco.
+
+| Creo il…   | Documenti con data anteriore                        | m   | Proposta                 |
+| ---------- | --------------------------------------------------- | --- | ------------------------ |
+| 05/06/2026 | né il 2 né il 4 (stessa data) → solo il documento 1 | 1   | **3** — il buco si tappa |
+| 06/06/2026 | 2 e 4                                               | 4   | **5** — il buco resta    |
+
+Il 05/06 il buco si tappa perché il 4 è dello stesso giorno: nessuna progressione si rompe. Il 06/06 no, perché il 3 risulterebbe più recente del 4, che è del giorno prima.
+
+Aggiungendo un documento **15 datato 12/06/2026**:
+
+| Creo il…   | m   | Proposta                                                 |
+| ---------- | --- | -------------------------------------------------------- |
+| 06/06/2026 | 4   | **5**, poi 6, 7… — i buchi si riempiono in progressione  |
+| 12/06/2026 | 4   | **5** e a seguire, fino a esaurire lo spazio sotto il 15 |
+
+Il 15 fa da tetto finché non ci si arriva con la data.
+
+**Proprietà importante:** i buchi si riempiono solo con documenti la cui data è compatibile con i numeri che li circondano. Il riempimento **non può quindi generare un'anomalia cronologica**. La regola è costruita apposta per essere compatibile col §4.
+
+### Serie già fuori ordine
+
+_Deciso 11 agosto 2026._
+
+Il §4 è avviso e non blocco, quindi una serie può contenere un documento fuori posto. In quel caso **m è il numero più alto fra i documenti con data anteriore**, non l'ultimo per data.
+
+Esempio: documento **9** del 1 agosto, documento **5** del 10 agosto (numero forzato a mano). Creo oggi, 11 agosto.
+
+Partendo dall'ultimo per data (il 5) si proporrebbe il 6 — che nasce già in violazione contro il 9. Partendo dal numero più alto (il 9) si propone **10**, che è coerente.
+
+Vale la seconda: **si parte sempre dal numero più alto fra i precedenti**, mai dall'ultimo per data.
+
+### Caso terminale: numeri esauriti sotto un documento datato avanti
+
+_Deciso 11 agosto 2026._
+
+Esiste il 10 del 1 agosto e il 15 del 18 agosto. Oggi, 11 agosto, si creano documenti: 11, 12, 13, 14. Al quinto il primo libero maggiore di 14 è il **16**, perché il 15 è occupato. Si ottiene il 16 datato oggi contro il 15 datato fra una settimana: l'anomalia del §4.
+
+**La proposta scavalca e prosegue.** Non si ferma, non chiede.
+
+Il motivo: l'anomalia non l'ha creata il sistema, l'ha creata l'operatore nel momento in cui ha assegnato il 15 con data futura. Da quel momento la serie contiene un documento fuori posto, e tutti i numeri creati oggi si collocheranno necessariamente attorno a esso. Il sistema ha solo continuato a numerare per data, che è quello che gli è stato chiesto.
+
+Il §4 non ha quindi bisogno di eccezioni: l'avviso segnala uno stato che esiste davvero, e la responsabilità è di chi l'ha creato. Che compaia al quinto documento anziché al primo è solo il momento in cui la conseguenza diventa visibile.
+
+**Superata** l'ipotesi di fermare la proposta con un messaggio tipo «nessun numero libero prima del 15 del 18/08»: bloccherebbe l'operatore per una scelta legittima presa da lui.
+
+### La proposta dipende dalla data
+
+Conseguenza diretta: **cambiando la data in testata il numero si ricalcola.** Oggi il campo numero non si muove.
+
+### L'elenco dei buchi
+
+Il ramo ha aggiunto alla scheda del numeratore il conteggio dei buchi e l'elenco dei primi dieci. La funzione si tiene, con una condizione: **deve distinguere i buchi ancora riempibili da quelli chiusi.** Un elenco che li mette insieme fa perdere tempo su numeri che la regola non permette più di usare a quella data.
 
 ### Numero editabile
 
@@ -70,31 +147,71 @@ Il numero è sempre modificabile a mano. Serve a chi migra da un altro gestional
 
 _Deciso 11 agosto 2026._
 
-Il vincolo unique sul database resta e i duplicati non sono ammessi.
+Il vincolo unique resta, i duplicati non sono ammessi.
 
-Danea permette il numero "bis" (15, poi 15 bis) per correggere una doppia fattura senza rinumerare le successive. **Non lo adottiamo.** È un rimedio nato dal cartaceo: con la fattura elettronica la correzione di una fattura sbagliata passa dalla **nota di credito**, che è lo strumento previsto dalla legge e lascia traccia di cos'è successo.
+Danea permette il "bis" (15, poi 15 bis) per correggere una doppia fattura senza rinumerare le successive. **Non lo adottiamo.** È un rimedio nato dal cartaceo: con la fattura elettronica la correzione passa dalla **nota di credito**, che è lo strumento previsto dalla legge e lascia traccia di cos'è successo.
 
-Il numero resta quindi un **intero**, la proposta resta aritmetica, l'ordinamento resta numerico.
+Il numero resta un **intero**: proposta aritmetica, ordinamento numerico.
 
-Conseguenza accettata: un eventuale import da Danea di fatture col bis non potrà mantenere quei numeri come sono. È un problema di migrazione dati, da affrontare se e quando l'import esisterà.
+Conseguenza accettata: un eventuale import da Danea di fatture col bis non potrà mantenere quei numeri. Problema di migrazione dati, da affrontare se e quando l'import esisterà.
+
+### La colonna «prossimo numero» dei Numeratori
+
+_Deciso 11 agosto 2026._
+
+`document-counters.service.ts:433` calcola quella colonna in una schermata di configurazione, dove una data del documento non esiste e non può esistere.
+
+**Mostra il primo libero a partire da oggi**, così coincide con quello che l'operatore vedrà aprendo un documento in quel momento. Con `max+1` direbbe un numero diverso da quello che compare in testata due secondi dopo.
 
 ---
 
 ## §3 — Conflitto al salvataggio
 
-_Deciso 8 agosto 2026. Verificato in codice 11 agosto 2026: già implementato._
+_Deciso 8 agosto 2026, riconfermato l'11 agosto dopo una modifica del ramo che va annullata._
 
-Il numero mostrato all'apertura è una **proposta, non una prenotazione**. Due operatori che aprono un documento nello stesso momento vedono lo stesso numero. Il conflitto si risolve al salvataggio.
+### Quando compare
 
-Se al salvataggio il numero risulta occupato, compare un **avviso informativo a bottone singolo**: comunica che il numero non è più disponibile e che è stato aggiornato al prossimo libero. OK chiude, il campo Numero si aggiorna, il controllo torna all'operatore.
+**Solo se l'operatore ha digitato il numero a mano** e quel numero risulta occupato al salvataggio.
 
-**Il documento non si salva da solo.** Se l'operatore ripreme Salva e nel frattempo anche quel numero è stato preso, riappare lo stesso avviso col numero ulteriormente aggiornato.
+Accettando la proposta non compare mai. Il ramo ha aggiunto `lockDocumentCounter` — advisory lock transazionale su `(tenant, tipo-numeratore, serie)`, applicato in tutti e otto i punti di assegnazione — e il frontend manda il numero al server solo se digitato (`numberIsProposal()` → `requestedNumber` assente). Due operatori che salvano insieme prendono due numeri diversi senza vedere niente.
+
+**Questo restringe molto l'avviso** rispetto a come era stato pensato: non è più il meccanismo che risolve la concorrenza, è solo il caso del numero scelto a mano.
+
+### Il caso concreto
+
+Lavorate in tre. Vedi nella scheda che il **7** è un buco riempibile, apri il documento e scrivi 7. Nel frattempo un collega fa lo stesso e salva prima di te. Premi Salva: il 7 non c'è più.
+
+### Comportamento
+
+Avviso a **bottone singolo**. Comunica che il numero digitato è occupato e che è stato aggiornato. **Il campo Numero si aggiorna.** OK chiude e il controllo torna all'operatore.
+
+**Il documento non si salva da solo.** L'operatore vede il numero nuovo e preme Salva.
+
+Se anche quello nel frattempo è stato preso, riappare lo stesso avviso col numero ulteriormente aggiornato.
 
 Esc e OK fanno la stessa cosa.
 
-**Superato:** il modale a due bottoni "Usa Y / Annulla" (24 luglio); il modale a tre opzioni con "Salva con numero duplicato" e l'evidenziazione arancione dei duplicati in lista (`numerazione-documenti-verifica.md`).
+### Perché il campo si aggiorna
 
-Implementazione: `document-number-conflict.store.ts`, dialog con `confirmLabel="OK"` e `[acknowledge]="true"`.
+Il numero digitato è comunque perso: quel treno è passato. Lasciare il campo com'era costringe l'operatore a ridigitare una cosa che il sistema già sa — e lavorando in tre **non può nemmeno sapere quale sia il primo libero**. Riscrivere a mano introduce l'errore di digitazione e un secondo conflitto.
+
+L'11 agosto alle 03:07 il ramo ha rovesciato questo comportamento — «Il numero in testata non è stato modificato: correggilo e premi di nuovo Salva» — con la motivazione che sostituire il numero d'ufficio butta via l'intento di chi voleva quel buco preciso. La motivazione è comprensibile, ma **il costo è più alto del beneficio**: l'intento è comunque irrealizzabile, e l'operatore resta senza l'informazione che gli serve.
+
+**Il codice va riportato al comportamento dell'8 agosto.**
+
+### Due cose del ramo che si tengono
+
+Il messaggio deve **nominare il numero effettivamente digitato**, non `nextAvailable - 1`. Prima, su una serie arrivata a 43, chi digitava 7 si sentiva parlare del 43 — un numero mai visto. Correzione giusta.
+
+Il numero assegnato dev'essere il primo libero **secondo la regola del §2**, cioè compatibile con la data del documento.
+
+### Da propagare insieme alla regola
+
+`buildDocumentNumberConflict` (`document-numbering.util.ts:204`) chiama `nextDocumentNumber`, la stessa funzione della proposta: cambiando la regola in un punto, il conflitto la segue. **Ma eredita anche la mancanza della data**, che va propagata nei suoi tre punti di chiamata — `documents.service.ts:1032`, `goods-receipt-workflow.ts:199`, `transfer-adjustment-workflow.ts:188`. Se lì la data non arriva, l'avviso nominerebbe un numero calcolato con una regola diversa da quella che ha appena rifiutato il salvataggio.
+
+Il testo del messaggio va riscritto insieme alla regola: oggi dice «Il prossimo numero della serie è il 44», dove `nextAvailable` è massimo+1. Sotto la regola nuova quel campo contiene il primo libero secondo la data, e la frase direbbe una cosa che il campo non contiene più.
+
+**Superato:** il modale a due bottoni «Usa Y / Annulla» (24 luglio); il modale a tre opzioni con «Salva con numero duplicato» e l'evidenziazione arancione dei duplicati (`numerazione-documenti-verifica.md`); il campo non aggiornato (ramo, 11 agosto 03:07).
 
 ---
 
@@ -104,87 +221,199 @@ _Deciso 11 agosto 2026. Da implementare._
 
 **Il fatto controllato:** dentro lo stesso contatore, a numero più alto deve corrispondere data uguale o successiva.
 
-**Stessa data, nessuna anomalia mai.** Nella giornata l'ordine dei numeri non significa niente: creare, saltare, tornare indietro a tappare un buco è tutto libero.
+**Stessa data, nessuna anomalia mai.** Nella giornata l'ordine dei numeri non significa niente: creare, saltare, tornare indietro è tutto libero.
 
-L'anomalia può nascere solo in due modi, perché la proposta automatica è corretta per costruzione:
+### Quando nasce l'anomalia
 
-- l'operatore scrive il numero a mano
-- l'operatore cambia la data di un documento già salvato
+La proposta automatica non genera anomalie riempiendo i buchi (§2). L'anomalia nasce quando l'operatore **forza il numero a mano**, o **cambia la data** di un documento già salvato — e resta poi visibile nei documenti creati dopo, come nel caso terminale del §2.
 
-**Comportamento:** avviso, non blocco. L'avviso **elenca i documenti in anomalia**, non solo quello corrente. Sì salva comunque, No torna al documento.
+_Nota: la prima stesura diceva «l'anomalia può nascere solo in due modi, perché la proposta automatica è corretta per costruzione». La seconda parte era imprecisa e va letta così: la proposta non crea anomalie, ma può renderne visibile una già introdotta dall'operatore._
 
-L'avviso è **persistente**: continua a comparire finché l'anomalia resta nei dati, anche sui documenti successivi corretti. È voluto — un buco non giustificato su un registro va risolto, e un avviso che sparisce da solo lascia dimenticare.
+### Comportamento
 
-**Casella "non mostrare più questo messaggio":** spegne l'avviso **solo per il tipo documento in cui è comparsa**. Chi sistema le fatture non resta cieco sui DDT.
+Avviso, non blocco. **Elenca i documenti in anomalia**, non solo quello corrente. Sì salva comunque, No torna al documento.
 
-Una volta spenta resta spenta. Nessuna riaccensione, nessun pannello nelle Impostazioni.
+L'avviso è **persistente**: continua a comparire finché l'anomalia resta nei dati, anche sui documenti successivi corretti. È voluto — un buco non giustificato va risolto, e un avviso che sparisce da solo lascia dimenticare.
 
-La preferenza è **per operatore e per tipo documento**.
+**Casella «non mostrare più questo messaggio»:** spegne l'avviso **solo per il tipo documento in cui è comparsa**. Chi sistema le fatture non resta cieco sui DDT.
+
+Una volta spenta resta spenta. Nessuna riaccensione, nessun pannello nelle Impostazioni. Rischio accettato: una spunta presa per sbaglio è definitiva per quell'operatore e quel tipo, e l'unico rimedio è il database.
 
 **Si applica a tutti i tipi documento**, non solo ai fiscali. Non decidiamo noi a monte dove serve: lo decide l'operatore spegnendolo dove non gli interessa.
 
----
+### Forma della preferenza
 
-## §5 — Serie e testata
-
-_Deciso 3 agosto 2026, verificato 11 agosto 2026._
-
-Testata: **Data, Serie, Numero**.
-
-La serie si sceglie da una tendina, non si scrive. La tendina contiene i contatori del tipo documento corrente, filtrati sulla sede selezionata: quelli con quella sede più quelli senza.
-
-Default: il contatore marcato `isDefault`.
-
-**Superato:** "ultima serie usata dall'operatore" come default (`numerazione-documenti-verifica.md` e prompt del 24 luglio). Vince `isDefault`, che è configurato e non segue l'operatore.
-
-Al cambio di serie il numero si ricalcola sul contatore della nuova serie.
-
-Icona ⚙ accanto al campo Serie: apre il popup dei numeratori filtrato, riusando il componente delle Impostazioni. Il popup aggiorna la tendina **senza auto-selezionare**.
-
-Su un documento già salvato tutta la testata resta modificabile: data, serie e numero. Anche verso una serie che non è più quella corrente.
-
-**Da verificare:** `DocumentTypeSetting` porta ancora `autoNumbering` e `defaultSeries` (default `'A'`). La logica di numerazione non li consulta, ma restano trasportati da impostazioni e DTO. Il 3 agosto era stato deciso di rimuoverli proprio perché creavano una seconda configurazione della serie che non si parlava con i contatori. Da tracciare fino al frontend prima di toglierli.
+Copiare `UserDocumentPriceModePreference`, chiavata su `(tenantId, userId, documentType)` — è esattamente l'identità che serve. Non progettare una tabella nuova.
 
 ---
 
-## §6 — Categorie di documento
+## §5 — Quale numerazione ha ciascun documento
 
-_Impianto 24 luglio 2026, etichetta rivista 11 agosto 2026._
+_Lista definita da Luigi l'11 agosto 2026._
 
-### Categoria A — un solo blocco identità
+### Categoria A — Data interna, Numero interno, Serie interna
 
-Data, Numero, Serie in testata.
-
-Preventivo, Ordine cliente, Fattura proforma, DDT di vendita, Fattura (con la sua famiglia di sottotipi), Ordine fornitore, Scarico manuale, Trasferimenti.
+| Documento                | Note                                                                                                                                                                                                                                    |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preventivi               |                                                                                                                                                                                                                                         |
+| Ordine cliente (interno) | Solo `source = manual`. Gli ordini dai canali portano il numero del canale, vedi §8                                                                                                                                                     |
+| Fattura proforma         | Oggi si chiama «Proforma», da rinominare                                                                                                                                                                                                |
+| DDT di vendita           | Da valutare il nome, vedi §10                                                                                                                                                                                                           |
+| Fattura                  | Con tutta la famiglia di sottotipi: accompagnatoria, d'acconto, nota di credito. **Un solo progressivo condiviso**                                                                                                                      |
+| Ordini fornitore         | ⚠️ **Oggi non ha né numero né serie**: i controlli non esistono proprio. È l'unico di Categoria A messo così — vedi §5-bis                                                                                                              |
+| Scarico manuale giacenze |                                                                                                                                                                                                                                         |
+| Trasferimenti interni    | Numerazione propria. Il DDT eventualmente generato ha la sua                                                                                                                                                                            |
+| Rettifica inventario     | _Aggiunta il 12 agosto 2026._ Mancava dalla lista — non per scelta, per dimenticanza. **Già implementata**: data, numero e serie in testata, e `adjustment` è fra i tipi con numeratore proprio (`COUNTER_CONFIGURABLE_DOCUMENT_TYPES`) |
 
 ### Categoria B — due blocchi distinti
 
-Documenti che arrivano dal fornitore: il numero contabile è quello del fornitore, il nostro serve solo a catalogare.
+Documenti che arrivano dal fornitore: il numero contabile è quello del fornitore, il nostro serve a catalogare.
 
-Arrivo merce, Registrazione fattura fornitore.
+**Arrivi merce**
 
-- Blocco _Documento fornitore_: Fornitore, Tipo doc., Data doc., N. doc.
-- Blocco _Registrazione VestiFlow_: Data registrazione, **Numero**, Serie
+- Blocco _Documento fornitore_: Fornitore, **Tipo documento**, N. doc. fornitore, Data documento
+- Blocco _Registrazione VestiFlow_: Data registrazione, Numero, Serie
 
-Sull'Arrivo merce il **Tipo doc.** è un elenco configurabile (DDT, fattura accompagnatoria, altro), perché la merce può arrivare accompagnata da documenti diversi. Sulla Registrazione fattura fornitore non serve: il tipo è già nel nome.
+Il **Tipo documento** è un elenco configurabile (DDT, fattura accompagnatoria, altro), perché la merce può arrivare accompagnata da documenti diversi. **Già implementato:** lo schema ha `ExternalDocumentType`, e il commento sull'enum dice esplicitamente che è un dato a parte, che compone la causale e non genera un tipo documento diverso.
+
+**Registrazione fattura fornitore**
+
+- Blocco _Documento fornitore_: Data documento, Numero documento fornitore
+- Blocco _Registrazione VestiFlow_: Data interna, Numero, Serie
+
+Qui il Tipo documento non serve: è già nel nome.
+
+### Fuori da entrambe
+
+**Corrispettivi.** Erano nella lista originale come Categoria A. **Escono con la decisione del §8**: diventano un registro, senza data-numero-serie propri.
+
+**Ordini dai canali** (Shopify e altri): nessuna numerazione VestiFlow, portano quella del canale.
 
 ### Il numero interno si chiama "Numero", non "Protocollo"
 
-_Deciso 11 agosto 2026, sulla base di verifica normativa._
+_Deciso 11 agosto 2026, su verifica normativa._
 
-L'obbligo di numerazione progressiva delle fatture d'acquisto **non esiste più**: l'art. 13 del D.L. 119/2018 lo ha eliminato dall'art. 25 del DPR 633/1972, per adeguare la norma alla fatturazione elettronica. Le fatture elettroniche si registrano liberamente, senza progressione numerica né ordine di ricezione, con l'unico vincolo di essere annotate prima della liquidazione periodica in cui si detrae l'IVA.
+L'obbligo di numerazione progressiva delle fatture d'acquisto **non esiste più**: l'art. 13 del D.L. 119/2018 lo ha eliminato dall'art. 25 del DPR 633/1972, per adeguare la norma alla fatturazione elettronica. Le fatture elettroniche si registrano liberamente, senza progressione né ordine di ricezione, con l'unico vincolo di essere annotate prima della liquidazione periodica in cui si detrae l'IVA.
 
-Il numero interno resta utile come collegamento tra registrazione contabile e documento archiviato, ma è una comodità gestionale, non un vincolo di legge. Non c'è quindi ragione di introdurre una seconda parola per la stessa cosa.
+Il numero interno resta utile come collegamento fra registrazione contabile e documento archiviato, ma è comodità gestionale, non vincolo di legge. Non c'è ragione di introdurre una seconda parola per la stessa cosa.
 
-La confusione col numero del fornitore si risolve con la separazione visiva dei due blocchi, non con l'etichetta.
+La confusione col numero del fornitore si risolve con la separazione visiva dei due blocchi.
 
-**Superato:** "Protocollo" come etichetta del numero interno (24 luglio). La distinzione era motivata da un obbligo normativo che non esiste.
+**Superato:** «Protocollo» come etichetta (24 luglio) — motivato da un obbligo che non esiste.
 
-**Superata** anche la Categoria C (Scarico manuale, Trasferimenti, Rettifiche con numero automatico non editabile e senza serie), proposta il 24 luglio e sciolta subito dopo: quei documenti hanno serie e numero editabile come tutti.
+⚠️ **La parola è ancora a schermo** _(misurato 12/08/2026)_: `goods-receipt-form.component.html` la usa come etichetta del campo (righe 264 e 455), nell'intestazione della pagina (riga 30, «Protocollo: …») e nel titolo del dialogo di conflitto (riga 2177); la Fattura acquisto la usa in un messaggio (`purchase-invoice-form.component.ts:460`). Il nome del controllo (`protocolNumber`) e i commenti dei mapper la portano ancora. Decidere se la rinomina è solo di etichette o anche di codice.
+
+**Superata** anche la Categoria C (Scarico manuale, Trasferimenti, Rettifiche con numero non editabile e senza serie), proposta il 24 luglio e sciolta subito dopo.
+
+## §5-bis — Cosa c'è davvero in testata, confrontato con la lista
+
+_Misurato il 12 agosto 2026 su schema Prisma, DTO e maschere Angular. **Nessun campo è stato rimosso**: questa sezione è il confronto che precede la decisione._
+
+### Il blocco «documento della controparte» sta in sei maschere, e la lista lo prevede in due
+
+| Maschera         | Tipi che serve                                   | §5                                              | Trio presente          | Esito                                 |
+| ---------------- | ------------------------------------------------ | ----------------------------------------------- | ---------------------- | ------------------------------------- |
+| Arrivo merce     | `goods_receipt`                                  | Cat. B — lo prevede                             | sì                     | ✅ è il caso per cui è nato           |
+| Fattura acquisto | `supplier_invoice`                               | Cat. B — prevede numero e data, **non** il tipo | sì, tutti e tre        | ⚠️ `externalDocumentTypeId` di troppo |
+| Ordine cliente   | ordine, preventivo, DDT vendita, scarico manuale | Cat. A                                          | sì                     | ❌ tre campi di troppo                |
+| Fatture          | proforma, fattura, accompagnatoria               | Cat. A                                          | sì                     | ❌ tre campi di troppo                |
+| Ordine fornitore | ordine fornitore                                 | Cat. A                                          | sì                     | ❌ tre campi di troppo                |
+| Rettifica        | `adjustment`                                     | Cat. A (aggiunta oggi)                          | sì                     | ❌ tre campi di troppo                |
+| Trasferimento    | `transfer`                                       | Cat. A                                          | **no, tolto il 12/08** | ✅                                    |
+
+**Perché sono di troppo, e sono due motivi diversi.** Trasferimento e Rettifica sono documenti **interni**: non esiste una controparte che abbia emesso qualcosa. L'Ordine fornitore una controparte ce l'ha, ma **in quel momento non ha ancora emesso niente**: il suo documento arriva dopo, con la merce, ed è esattamente quello che l'Arrivo merce chiede. Chiedere il numero di un documento che non esiste ancora è ciò che lascia quelle celle vuote per sempre.
+
+### Da dove vengono le colonne, e cosa contengono
+
+**Aggiunte dal commit `6fc27982` (11 agosto)**, migration `20260810120000_documento_controparte_ovunque`:
+
+| Tabella           | Colonne                                                                                                    | Dati al 12/08/2026              |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `sales_orders`    | `external_doc_number`, `external_doc_date`, `external_document_type_id`, `external_document_type_snapshot` | 28 record, **zero valorizzati** |
+| `supplier_orders` | le stesse quattro                                                                                          | 10 record, **zero valorizzati** |
+
+**Preesistenti**, migration `20260701120000_documents_foundation` (1° luglio), nate per l'Arrivo merce: le stesse colonne su `documents`. Qui i dati **ci sono, ma solo dove servono**: 99 documenti, 47 valorizzati, **tutti `goods_receipt`**. Sales DDT, preventivi, scarico manuale e vendite al banco: zero. Di trasferimenti e rettifiche non esiste ancora nessun record.
+
+**Conseguenza operativa:** togliere le quattro colonne da `sales_orders` e `supplier_orders` **non perde alcun dato**. Su `documents` invece le colonne restano — le usa l'Arrivo merce — e il di troppo è solo nell'interfaccia degli altri tipi. Resta comunque una migration distruttiva su database condiviso: va decisa a parte, non fatta di sfuggita.
+
+### I campi viaggiano anche dove non si vedono
+
+Li accettano `save-transfer.dto`, `save-adjustment.dto`, `create-document.dto`, `update-document.dto`, `create-supplier-order.dto`, `update-supplier-order.dto`, `save-manual-sales-order.dto`. Togliere il blocco dalle maschere non basta a chiudere la porta: finché il DTO li accetta, un client può scriverli.
+
+### ⚠️ All'Ordine fornitore non manca solo la serie: manca il numero
+
+È in Categoria A, quindi vuole _Data · Numero · Serie_. Ha `orderDate` e basta: **nessun `documentNumber`, nessun `series`** — i controlli non esistono nel form, e lato server non c'è numerazione per `supplier_order` sulla tabella `supplier_orders`. È l'unico documento di Categoria A messo così; tutti gli altri hanno i tre campi.
+
+**Da decidere** (§10): serie e numero con lo stesso meccanismo degli altri — proposta automatica dal contatore e modale di risoluzione sul duplicato — oppure campi liberi.
+
+### Quale data usa la numerazione
+
+_Verificato sul ramo l'11 agosto._
+
+`Document.documentDate` è documentata nello schema come «Data interna di registrazione (solo giorno)», ed è colonna diversa da `externalDocDate`, «Data del documento della controparte». **La numerazione interna segue sempre la data di registrazione**; la data del documento del fornitore non entra mai nella proposta.
+
+| #   | Punto                                               | Data                                                                                                |
+| --- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 1   | `documents.service.ts:2946`                         | `documentDate` — da propagare, il metodo privato non la riceve                                      |
+| 2   | `goods-receipt-workflow.ts:439` (Arrivo merce)      | `documentDate` = data registrazione                                                                 |
+| 3   | `goods-receipt-workflow.ts:965` (Fattura fornitore) | idem                                                                                                |
+| 4   | `transfer-adjustment-workflow.ts:156`               | `documentDate` — da verificare in scope                                                             |
+| 5   | `store-sales.service.ts:119` (vendita banco)        | `dto.documentDate ?? new Date()`                                                                    |
+| 6   | `store-sales.service.ts:291` (reso)                 | `new Date()`                                                                                        |
+| 7   | `manual-sales-orders.ts:274` (ordine cliente)       | **Aperto** — non c'è una data del documento in scope, va deciso quale campo di `SalesOrder` fa fede |
+| 8   | `supplier-orders.service.ts:175`                    | `dto.orderDate ?? new Date()`                                                                       |
+
+**Anteprima — tre punti, e manca il campo.** `documents.service.ts:788`, `manual-sales-orders.ts:90`, `supplier-orders.ts:122`. `PreviewDocumentNumberQueryDto` porta `type`, `series`, `year` e **nessuna data**: va aggiunta, e il frontend deve richiedere l'anteprima a ogni cambio data. Il meccanismo esiste già per il cambio serie (§6), quindi è un innesto.
+
+Nota: quel `year` nel DTO è un residuo dell'anno che il §1 dichiara uscito dal modello.
 
 ---
 
-## §7 — Documenti senza operatore, e i Corrispettivi
+## §6 — Serie e testata
+
+_Deciso 3 agosto 2026, verificato 11 agosto._
+
+Testata: **Data, Serie, Numero**.
+
+La serie si sceglie da una tendina, non si scrive. Contiene i contatori del tipo documento corrente, filtrati sulla sede: quelli con quella sede più quelli senza.
+
+Default: il contatore marcato `isDefault`.
+
+**Superato:** «ultima serie usata dall'operatore» come default (24 luglio e `numerazione-documenti-verifica.md`). Vince `isDefault`, che è configurato e non segue l'operatore.
+
+Al cambio serie il numero si ricalcola sul contatore nuovo. Il riferimento si ricompone anche quando cambia la sola serie — già implementato sul ramo.
+
+Icona ⚙ accanto al campo Serie: apre il popup dei numeratori filtrato, riusando il componente delle Impostazioni. Aggiorna la tendina **senza auto-selezionare**.
+
+Su un documento già salvato tutta la testata resta modificabile: data, serie e numero. Anche verso una serie che non è più quella corrente.
+
+### Due cose da chiudere
+
+**`DocumentTypeSetting`** porta ancora `autoNumbering` e `defaultSeries` (default `'A'`). La logica di numerazione non li consulta — la serie viene da `defaultCounterSeries` — ma restano trasportati da impostazioni e DTO. Il 3 agosto era stato deciso di rimuoverli, perché creavano una seconda configurazione della serie che non parlava coi contatori. **Da tracciare fino al frontend prima di toglierli.**
+
+**Arrivo merce in modifica** ignora il numero digitato e il cambio serie. Preesistente, ma contraddice la regola sopra. **Decisione di prodotto aperta**, non un bug da sistemare senza chiedere.
+
+---
+
+## §7 — La famiglia fattura
+
+_Deciso 11 agosto 2026 sul modello Danea. Comportamenti per sottotipo in §10._
+
+Un solo tipo documento, un solo contatore per serie. Il sottotipo si sceglie da un selettore all'apertura ed è un campo del documento.
+
+Sottotipi: Fattura, Fattura accompagnatoria, Fattura d'acconto, Nota di credito.
+
+**Numerazione continua per tutti**, differenziati nell'elenco da una colonna che dice cosa sono. Il sottotipo non entra nella partizione: resta `(tenant, tipo, serie)`.
+
+**Fattura proforma resta fuori.** Non è nell'elenco di Danea e non deve esserci: se consumasse la numerazione delle fatture bucherebbe il registro fiscale.
+
+**Autofattura esclusa** in attesa di chiarimento: è l'unica dei cinque che non è un documento attivo, e in diversi casi vuole un registro separato.
+
+**Stato:** `invoice_accompanying` è già nell'enum e `document-type.util.ts:35` la mappa già sul numeratore della fattura. Nota di credito e Fattura d'acconto vanno aggiunte all'enum — additivo. Vedi anche §9 sull'indice unico.
+
+---
+
+## §8 — Documenti senza operatore, e i Corrispettivi
 
 _Deciso 11 agosto 2026._
 
@@ -194,83 +423,117 @@ Gli ordini importati da Shopify e dagli altri canali **portano il numero del can
 
 ### Corrispettivi: registro, non documento
 
-**Decisione:** Corrispettivi diventa un **registro**, non un tipo documento.
+VestiFlow conosce già tutte le vendite, riga per riga, con aliquota e totale. Il totale giornaliero per sede, canale e aliquota è quindi **una query su dati che già esistono**. Creare un documento per contenerlo significa duplicare informazione e doverla tenere allineata.
 
-Il ragionamento: VestiFlow conosce già tutte le vendite, riga per riga, con aliquota e totale. Il totale giornaliero per sede, canale e aliquota è quindi una **query su dati che già esistono**. Creare un documento per contenerlo significa duplicare informazione e doverla tenere allineata.
+Il corrispettivo come documento nasce in sistemi che i dati di vendita non li hanno — Danea infatti lo fa registrare a mano a fine giornata, dichiarando come motivo il fatto che potrebbero esistere scontrini battuti fuori dal gestionale.
 
-Il corrispettivo come documento nasce in sistemi che i dati di vendita non li hanno — Danea infatti lo fa registrare a mano a fine giornata, e dichiara come motivo il fatto che potrebbero esistere scontrini battuti senza passare dal gestionale.
+**Il registro** aggrega le vendite per giorno, sede, canale e aliquota. Nessuna numerazione, nessuna serie, nessun contatore. Filtri per periodo, canale e aliquota, esportazione per il commercialista.
 
-**Il registro** aggrega le vendite per giorno, sede, canale e aliquota. Nessuna numerazione, nessuna serie, nessun contatore. Filtri per periodo, canale, aliquota, ed esportazione per il commercialista.
+Le vendite in negozio ci finiscono automaticamente. Il «registra corrispettivi di fine giornata» di Danea non esiste.
 
-Le vendite in negozio ci finiscono dentro automaticamente, senza nessuna azione dell'operatore. Il "registra corrispettivi di fine giornata" di Danea non esiste.
+**Correzioni:** il corrispettivo non si corregge, si corregge il documento da cui deriva. Il registro si riallinea da sé.
 
-**Superate:** la separazione per serie tra cassa e canali online; l'ipotesi di "precompila e conferma" a fine giornata; l'ipotesi della chiusura di periodo.
+**Superate:** la separazione per serie fra cassa e canali; «precompila e conferma» a fine giornata; la chiusura di periodo.
 
-### Correzioni
+### Niente registrazione manuale
 
-Il corrispettivo non si corregge: si corregge il documento da cui deriva. Il registro si riallinea da sé.
+Valutata e scartata l'11 agosto. Il motivo non è il codice — sarebbe poca cosa — ma il fatto che offrirebbe **due strade per lo stesso risultato**: battere le vendite (che scaricano il magazzino e alimentano il registro) oppure digitare il totale a fine giornata (che il magazzino non lo tocca). La seconda è più veloce, quindi verrebbe scelta, e dopo tre giorni di guasto la giacenza è sbagliata senza che nessuno capisca perché.
+
+I casi che sembravano richiederla sono già coperti: il **registro di emergenza** dalla vendita al banco (sotto), il **fatturato pregresso** dall'import iniziale.
+
+Se dopo mesi di uso reale emerge un caso scoperto, si aggiunge — ma una scorciatoia che sbaglia il magazzino, una volta presa dagli operatori, non si toglie più.
+
+### Il registro di emergenza
+
+Quando l'RT si guasta o manca la rete, l'esercente deve segnalare il «fuori servizio» dal portale dell'Agenzia e annotare **ogni singola operazione** con data e ora, corrispettivo e aliquota, prima che il cliente esca dal negozio. Il registro può essere cartaceo **o tenuto con modalità informatiche**.
+
+Ogni vendita al banco è già un'operazione con data, importo e aliquota. Registrando anche **l'ora** e sapendo stampare quell'elenco, **VestiFlow è il registro di emergenza**, senza che nessuno digiti nulla.
+
+Servono due cose piccole e additive: **l'ora sulla vendita al banco** e un marcatore **«RT fuori servizio»** su giornata e sede, con una stampa filtrata su quei giorni.
 
 ### Base normativa
 
-Il corrispettivo in VestiFlow **non è un documento fiscale**. Dal 1° gennaio 2020 il registro dei corrispettivi ha smesso di essere un obbligo: l'art. 2 comma 1 del D.Lgs. 127/2015 stabilisce che l'invio telematico dal registratore telematico entro 12 giorni sostituisce gli obblighi di registrazione dell'art. 24 del decreto IVA. Solo le categorie esonerate dall'invio telematico usano ancora il registro in alternativa.
+Il corrispettivo in VestiFlow **non è un documento fiscale**. Dal 1° gennaio 2020 il registro dei corrispettivi non è più obbligatorio: l'art. 2 comma 1 del D.Lgs. 127/2015 stabilisce che l'invio telematico dall'RT entro 12 giorni sostituisce gli obblighi di registrazione dell'art. 24 del decreto IVA. Solo le categorie esonerate dall'invio telematico usano ancora il registro in alternativa.
 
-L'adempimento fiscale sta nel registratore telematico. Il registro serve a VestiFlow e al commercialista per controlli e quadrature.
+L'adempimento sta nel registratore telematico. Il registro serve a VestiFlow e al commercialista per controlli e quadrature. **La numerazione del corrispettivo non ha quindi vincoli di legge**, ed è ciò che rende possibile la decisione sopra.
 
-Conseguenza: **la numerazione del corrispettivo non ha vincoli di legge**, e questo è ciò che rende possibile la decisione sopra.
+### Cosa cade, e cosa va deciso prima
+
+Il corrispettivo non è solo righe: esiste già `corrispettivo-register.service.ts` con elenco paginato, filtri, stato, `invoiceIssued`, `excludedFromSummary`, `exclusionReason`, righe analitiche con snapshot IVA, e lato frontend `corrispettivi-register.component.ts`. Fra schema, servizi, DTO, mapper e componenti sono **21 file** che nominano l'entità, più tre migration.
+
+Cadono `corrispettivo_entries` e `corrispettivo_entry_lines`, e con loro **tre informazioni che le vendite non hanno**:
+
+- lo **stato di verifica**
+- la **motivazione** dell'esclusione dal riepilogo
+- la **data fiscale** modificabile, separata dalla data operativa
+
+L'esclusione in sé si ricostruisce (è la vendita fatturata, vedi §10). Le altre due no: sono decisioni prese da un operatore, non deducibili da nessun dato.
+
+**Vanno decise prima di scrivere il prompt**, non durante.
 
 ### Il vecchio motore
 
-Vendita online e Corrispettivo usano oggi `DocumentSequence`: contatore autonomo, serie `'A'` scritta nel codice, anno dentro la partizione, riferimento `COR-2026-0001`. Vivono in tabelle proprie (`online_sales`, `corrispettivo_entries`) col vincolo `(tenant, serie, anno, numero)`.
+Vendita online e Corrispettivo usano `DocumentSequence`: contatore autonomo, serie `'A'` scritta nel codice, anno nella partizione, riferimento `COR-2026-0001`. Tabelle proprie (`online_sales`, `corrispettivo_entries`) col vincolo `(tenant, serie, anno, numero)`.
 
-È un **secondo motore di numerazione** da eliminare. Con la decisione sopra il lavoro non è più "unificarlo sullo schema nuovo" ma **togliere al corrispettivo la numerazione che ha**.
+Il lavoro non è «unificarlo sullo schema nuovo» ma **togliere al corrispettivo la numerazione che ha**.
 
-`feature/cassa` ha già scritto codice sul corrispettivo con una sequenza condivisa fra cassa e online. Quella scelta è **superata da questa decisione** e va comunicata al collega prima che si lavori nella direzione vecchia.
-
----
-
-## §8 — Residui tecnici
-
-_Verificati da Claude Code l'11 agosto 2026._
-
-**`nextDocumentNumber`** in `document-totals.util.ts:17` non ha chiamanti. Residuo della vecchia implementazione, rimovibile.
-
-**`DocumentSequence`** è agganciata al backup in cinque punti: due elenchi in `tenant-backup.constants.ts` (entità esportate e ordine di import), il ramo di export, e nell'import un `deleteMany` seguito da `createMany`.
-
-Il vincolo vero non è il codice: **i pacchetti di backup già prodotti contengono un `documentSequences.json`**, e il formato è dichiarato alla versione 1. Se si rimuove la tabella, l'import deve continuare a tollerare quel file negli archivi vecchi — altrimenti un ripristino si rompe in silenzio, che è il modo peggiore in cui un backup smette di essere un backup.
-
-**Il backup va sistemato prima della rimozione.**
-
-**Fattura accompagnatoria:** `document-type.util.ts:35` mappa già `invoice_accompanying → invoice_draft` per la numerazione. Fattura e Fattura accompagnatoria **condividono già un solo progressivo**: non ci sono due contatori da fondere. Il lavoro sui sottotipi è quindi di sola presentazione, e additivo.
+`feature/cassa` ha già scritto codice sul corrispettivo con una sequenza condivisa fra cassa e online. **Quella scelta è superata da questa decisione** e va comunicata al collega prima che si lavori nella direzione vecchia.
 
 ---
 
-## §9 — Fuori perimetro
+## §9 — Residui e correzioni tecniche
 
-Restano da decidere in una sessione dedicata, perché non sono materia di numerazione:
+_Verificati 11 agosto 2026._
 
-- **Famiglia fattura**: selettore all'apertura, colonna sottotipo nell'elenco, comportamenti per sottotipo. L'autofattura resta esclusa in attesa di chiarimento.
-- **Nota di credito**: segno sulla riga, direzione del movimento di magazzino, collegamento alla fattura d'origine. Creazione da zero e generazione da fattura esistente devono produrre lo stesso risultato.
-- **Corrispettivo manuale**: forma del documento (righe contabili senza articolo — importo, aliquota, descrizione), e casi d'uso.
+### Fattura e Fattura accompagnatoria — bug corretto, non «già a posto»
+
+Una stesura precedente diceva che condividevano già un solo progressivo e non c'era nulla da fare. Vero nella logica di proposta, **falso nel database**: l'indice unico stava sul tipo grezzo, quindi una Fattura 42 e una Accompagnatoria 42 potevano coesistere — il contrario della decisione. Il ramo l'ha trovato e corretto: l'indice è passato al numeratore, e le letture della partizione usano ora `documentNumberingTypes` al plurale, o il massimo vedrebbe metà dei documenti. Migration già applicata.
+
+La correzione **rende vera** la decisione di condividere il progressivo, non la cambia.
+
+### Residui
+
+**`nextDocumentNumber`** in `document-totals.util.ts:17` non ha chiamanti. Rimovibile.
+
+**`DocumentSequence`** è agganciata al backup in cinque punti: due elenchi in `tenant-backup.constants.ts`, il ramo di export, e nell'import un `deleteMany` seguito da `createMany`.
+
+Il vincolo vero non è il codice: **i pacchetti di backup già prodotti contengono un `documentSequences.json`**, formato dichiarato alla versione 1. Se si rimuove la tabella, l'import deve continuare a tollerare quel file negli archivi vecchi — altrimenti un ripristino si rompe in silenzio, che è il modo peggiore in cui un backup smette di essere un backup. **Il backup va sistemato prima della rimozione.**
+
+**Aperti dal commit dell'11 agosto:** la scheda numeratori fa tre query per contatore; il PDF dell'ordine fornitore non porta il documento della controparte.
+
+---
+
+## §10 — Fuori perimetro
+
+Da decidere in sessione dedicata:
+
+- **Comportamenti per sottotipo fattura**: la fattura d'acconto accende la generazione della fattura di saldo; l'accompagnatoria aggiunge i dati di destinazione merce; la nota di credito inverte il segno. Autofattura da chiarire.
+- **Nota di credito**: segno sulla riga, direzione del movimento di magazzino (una nota su merce resa è un **carico**), collegamento alla fattura d'origine. Creazione da zero e generazione da fattura esistente devono produrre lo stesso risultato.
+- **Le due informazioni che cadono col corrispettivo**: motivazione dell'esclusione e data fiscale separata (vedi §8).
 - **Resi**: riga negativa nel giorno del reso o rettifica sull'originale.
 - **Esclusione automatica** delle vendite fatturate dall'aggregazione, per non contare due volte lo stesso incasso.
-- **Trasferimenti interni**: comando "Genera DDT" disponibile sempre, nessun automatismo. Il trasferimento tiene la sua numerazione, il DDT la sua.
-- **Tipi mancanti** dalla lista: Rettifiche di giacenza, inventario, reso di negozio.
-- **Rinomini**: Proforma → Fattura proforma; Vendita in negozio → Vendita al banco; come qualificare il DDT di vendita senza confonderlo con quello del fornitore.
-- **Registratore telematico**: un browser non può parlare con un dispositivo sulla rete locale. Due strade, entrambe da valutare — chiamata diretta al servizio di rete del registratore, o programma ponte installato sul computer del negozio. Va anche scelta la lista dei modelli supportati.
+- **Trasferimenti interni**: comando «Genera DDT» disponibile sempre, nessun automatismo, nessuna proposta legata al confronto fra indirizzi. Il trasferimento tiene la sua numerazione, il DDT la sua.
+- **Tipi mancanti** dalla lista del §5: Rettifiche di giacenza, inventario, reso di negozio.
+- **Rinomini**: Proforma → Fattura proforma; Vendita in negozio → Vendita al banco; come qualificare il DDT di vendita senza confonderlo con quello del fornitore, visto che negli Arrivi merce «DDT» indica il documento in arrivo.
+- **Arrivo merce in modifica**: oggi ignora numero digitato e cambio serie (vedi §6).
+- **Ordine cliente**: quale campo di `SalesOrder` fa da data per la numerazione (§5, punto 7).
+- **Registratore telematico**: un browser non parla con un dispositivo sulla rete locale. Due strade — chiamata diretta al servizio di rete dell'RT, o programma ponte sul computer del negozio. Va scelta anche la lista dei modelli supportati.
 
-### Domande aperte per il commercialista
+### Domande per il commercialista
 
-1. Procedura corretta per registrare un incasso reale quando il registratore telematico non funziona.
-2. Se le sedi secondarie vadano dichiarate all'Agenzia come luoghi di deposito — la merce in un deposito non dichiarato rientra nella presunzione di cessione.
+1. Con RT guasto e registro di emergenza tenuto correttamente: la trasmissione tramite «dispositivo fuori servizio» resta dovuta o è esonerata? Le fonti divergono, e la sanzione è il 90% dell'imposta non trasmessa.
+2. VestiFlow deve produrre un file caricabile sul portale, o basta la stampa del registro?
+3. Le sedi secondarie vanno dichiarate all'Agenzia come luoghi di deposito? La merce in un deposito non dichiarato rientra nella presunzione di cessione.
 
 ---
 
 ## Ordine di esecuzione
 
-1. Proposta del numero per data invece che `max+1` — un solo file
-2. Controllo cronologico con avviso persistente
-3. Famiglia fattura (sottotipi) — additivo, nessun rischio
-4. Rimozione della numerazione dal Corrispettivo — **da coordinare con `feature/cassa`**
-5. Rimozione di `DocumentSequence` — **backup sistemato prima**
+1. **§3 — riportare l'avviso di conflitto al comportamento dell'8 agosto** (campo che si aggiorna), tenendo le due migliorie del ramo. Piccolo e indipendente.
+2. **§2 — proposta per data.** Dodici chiamate in sette file, più i tre punti del conflitto, il campo data sul DTO di anteprima, l'indice composito e la query in SQL puro.
+3. **§4 — controllo cronologico** con avviso persistente. Dipende dal 2.
+4. **§7 — famiglia fattura**, sottotipi. Additivo.
+5. **Rimozione della numerazione dal Corrispettivo** — coordinare con `feature/cassa`, e decidere prima le due informazioni che cadono.
+6. **Rimozione di `DocumentSequence`** — backup sistemato prima.
 
-I punti 1 e 2 non collidono con `bugfix/righe-documento` né con i rami del collega.
+I punti 1, 2 e 3 non collidono con `bugfix/righe-documento` né con i rami del collega.
