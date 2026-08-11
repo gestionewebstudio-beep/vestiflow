@@ -371,13 +371,19 @@ app-customer-order-form {
 // l'altezza occupata dalla testata rispetto alla tabella righe. Dichiarata
 // dopo la regola base di .doc-form__grid perché stessa specificità e stesso
 // breakpoint devono vincere qui (altrimenti resta bloccata a 3 colonne).
+// ⚠️ `minmax(0, …)` lasciava le celle stringersi SOTTO il loro contenuto, e su
+// uno schermo stretto il danno era doppio: la data (dieci caratteri, sempre) si
+// troncava in «GG/MM/AA…», mentre il protocollo — un numero — restava largo
+// quanto il fornitore, che di caratteri ne ha trenta. Sei parti uguali danno a
+// ogni campo la stessa larghezza, che è il contrario di «un campo è largo quanto
+// il dato che ospita» (regole-stile-ui §4).
+//
+// Con un minimo dichiarato le colonne non scendono sotto la misura di una data e
+// la fila si spezza da sola quando lo spazio finisce: a 1280 restano sei campi in
+// riga, a 1024 diventano cinque, e nessuno viene schiacciato.
 .doc-form__grid--header-compact {
   @include bp.media-up('md') {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  @include bp.media-up('xl') {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--field-w-md), 1fr));
   }
 }
 
@@ -1767,11 +1773,28 @@ app-customer-order-form {
     gap: 0;
   }
 
+  // ⚠️ `flex: 1 1 0` + `min-inline-size: 0` dava a ogni campo la STESSA quota e
+  // gli permetteva di scendere sotto il proprio contenuto. Su schermi stretti il
+  // danno era doppio, e in due direzioni opposte: la data — dieci caratteri,
+  // sempre gli stessi — si troncava in «GG/MM/AA…», mentre il protocollo, che
+  // ospita un numero, restava largo quanto il fornitore, che di caratteri ne ha
+  // trenta. È il contrario di «un campo è largo quanto il dato che ospita»
+  // (regole-stile-ui §4).
+  //
+  // Ora il minimo di un campo è la misura del suo dato, dichiarata dal campo
+  // stesso con `--doc-field-min` (ripiego: la misura di una data). Sotto quella
+  // soglia la fascia **va a capo** invece di schiacciare: a schermo largo la
+  // fila resta una, stringendo si spezza in due, e nessun campo diventa
+  // illeggibile.
+  .doc-form .doc-form__header-row {
+    flex-wrap: wrap;
+  }
+
   .doc-form .doc-form__header-row > .doc-form__field,
   .doc-form .doc-form__header-row > .doc-form__gate-fields > .doc-form__field,
   .doc-form .doc-form__header-row app-document-number-field .doc-number__field {
-    flex: 1 1 0;
-    min-inline-size: 0;
+    flex: 1 1 var(--doc-field-min, var(--field-w-md));
+    min-inline-size: var(--doc-field-min, var(--field-w-md));
     border-block-end: 0;
     border-inline-end: var(--border-width) solid var(--color-border);
   }

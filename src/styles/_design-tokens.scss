@@ -706,6 +706,10 @@
   // Il pannello puo' essere piu' largo del trigger (es. IVA: trigger 72px,
   // opzioni «22 · 22% · Imponibile 22%») ma mai oltre questo tetto.
   --select-menu-panel-max-width: 22rem;
+  // Stesso principio per i suggerimenti di riga, con un tetto piu' alto: la
+  // voce porta titolo E dettaglio («Maglietta / M / Rosso» + SKU, EAN, prezzo),
+  // e la cella che li apre e' larga una manciata di caratteri.
+  --doc-suggestions-max-width: 28rem;
   --container-pad-inline: var(--space-4);
 
   --border-width: 1px;
