@@ -103,6 +103,11 @@ import { InlineBannerComponent } from '@shared/components/inline-banner/inline-b
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
+import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
+import {
+  sortByLineValue,
+  type DocumentLineSortKind,
+} from '@domain/documents/utils/document-line-sort.util';
 import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { ViewportService } from '@core/services/viewport.service';
@@ -206,6 +211,28 @@ const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
 
 /** Campi riga nel giro Tab/Invio deterministico (stesso pattern Arrivo merce). */
+/** Colonne dell'Ordine cliente su cui si può ordinare le righe (§7.1). */
+export type CustomerOrderLineSortColumn =
+  | 'articleCode'
+  | 'sku'
+  | 'barcode'
+  | 'product'
+  | 'unitOfMeasure'
+  | 'quantity'
+  | 'unitPrice'
+  | 'discount';
+
+const CUSTOMER_ORDER_SORTABLE_LINE_COLUMNS: readonly CustomerOrderLineSortColumn[] = [
+  'articleCode',
+  'sku',
+  'barcode',
+  'product',
+  'unitOfMeasure',
+  'quantity',
+  'unitPrice',
+  'discount',
+];
+
 type CustomerOrderLineFocusField =
   'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount' | 'serials';
 /**
@@ -1103,6 +1130,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             this.editLock.syncOnLoad(order.id);
             this.loadedOrder.set(order);
             this.patchFormFromOrder(order);
+            // Un altro documento è un'altra storia: l'avviso del riordino torna
+            // dovuto. Qui e non alla creazione del componente, che passando da
+            // un documento all'altro non riavviene — cambia solo il parametro.
+            this.lineSort.reset();
             if (order.source === SalesOrderSource.Manual) {
               this.reloadOwnReservations(order.id);
             }
@@ -1134,6 +1165,121 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   // ── Autocomplete prodotto per riga ──────────────────────────────────────
   /** Il pannello suggerimenti del nome prodotto: stato e regole in domain/. */
   protected readonly productSuggest = new DocumentProductSuggestStore();
+
+  /**
+   * Riordino righe e avviso: stato e regole in `domain/`. Qui resta cosa
+   * differisce — quali colonne, come si legge il loro valore, e il limite qui
+   * sotto, che è di questa maschera sola.
+   */
+  protected readonly lineSort = new DocumentLineSortStore<CustomerOrderLineSortColumn>();
+
+  private readonly lineSortKinds: Readonly<
+    Record<CustomerOrderLineSortColumn, DocumentLineSortKind>
+  > = {
+    articleCode: 'text',
+    sku: 'text',
+    barcode: 'text',
+    product: 'text',
+    unitOfMeasure: 'text',
+    quantity: 'number',
+    unitPrice: 'money',
+    discount: 'percent',
+  };
+
+  /**
+   * ⛔ **Con righe «documento collegato» non si riordina**, ed è un limite del
+   * dominio, non una mancanza.
+   *
+   * Quella riga non è una riga: è la TESTATA del gruppo di righe arrivate da un
+   * altro documento, e sta subito prima delle sue. Riordinando per nome
+   * prodotto le righe si spargono e la testata resta dov'è — a quel punto
+   * annuncia righe che non sono più le sue, e mente all'operatore.
+   *
+   * Ancorarla sarebbe peggio del male: sembrerebbe ancora la testata di quello
+   * che ha sotto. Quindi finché il documento contiene un'inclusione le
+   * intestazioni non ordinano, e lo dicono.
+   */
+  protected readonly lineSortAvailable = computed(() => {
+    this.formValue();
+    return !this.lines.controls.some((line) => line.controls.isReference.value === true);
+  });
+
+  protected isLineColumnSortable(columnId: string): boolean {
+    return (CUSTOMER_ORDER_SORTABLE_LINE_COLUMNS as readonly string[]).includes(columnId);
+  }
+
+  protected lineSortDisabledReason(): string | null {
+    return this.lineSortAvailable()
+      ? null
+      : 'Il documento contiene righe incluse da un altro documento: riordinarle staccherebbe le righe dal loro riferimento.';
+  }
+
+  protected toggleLineSort(columnId: CustomerOrderLineSortColumn): void {
+    if (this.formReadOnly() || !this.lineSortAvailable() || !this.isLineColumnVisible(columnId)) {
+      return;
+    }
+    if (this.lineSort.request(columnId)) {
+      this.applyLineSort();
+    }
+  }
+
+  protected confirmLineSort(): void {
+    if (this.lineSort.confirm() !== null) {
+      this.applyLineSort();
+    }
+  }
+
+  protected lineSortAriaLabel(columnId: CustomerOrderLineSortColumn, label: string): string {
+    if (this.lineSort.column() !== columnId) {
+      return `Ordina per ${label}`;
+    }
+    return this.lineSort.direction() === 'asc'
+      ? `${label}: ordinamento crescente`
+      : `${label}: ordinamento decrescente`;
+  }
+
+  private lineSortValue(
+    raw: ReturnType<ReturnType<CustomerOrderFormComponent['createLine']>['getRawValue']>,
+    column: CustomerOrderLineSortColumn,
+  ): string | number {
+    switch (column) {
+      case 'articleCode':
+        return raw.articleCode;
+      case 'sku':
+        return raw.sku;
+      case 'barcode':
+        return raw.barcode;
+      case 'product':
+        return raw.productName;
+      case 'unitOfMeasure':
+        return raw.unitOfMeasure;
+      case 'quantity':
+        return Number(raw.quantity) || 0;
+      case 'unitPrice':
+        return raw.unitPrice;
+      case 'discount':
+        return raw.discount;
+    }
+  }
+
+  private applyLineSort(): void {
+    const column = this.lineSort.column();
+    if (!column || this.lines.length <= 1) {
+      return;
+    }
+    const controls = sortByLineValue(
+      this.lines.controls,
+      (control) => this.lineSortValue(control.getRawValue(), column),
+      this.lineSortKinds[column],
+      this.lineSort.direction(),
+      this.currency,
+    );
+    this.lines.clear();
+    for (const control of controls) {
+      this.lines.push(control);
+    }
+    this.markFormDirty();
+  }
   /**
    * Scelta fra più corrispondenze esatte di un codice. Lo stato vive in
    * `domain/`, identico nelle tre maschere; qui resta solo cosa farne.

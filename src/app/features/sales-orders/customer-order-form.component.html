@@ -900,7 +900,24 @@
                       <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
                       @if (isLineColumnVisible('articleCode')) {
                         <th scope="col" [style.width]="lineColumnWidth('articleCode')">
-                          Cod. articolo
+                          <button
+                            type="button"
+                            class="doc-form__th-sort"
+                            [disabled]="!lineSortAvailable()"
+                            [attr.aria-label]="lineSortAriaLabel('articleCode', 'Cod. articolo')"
+                            [attr.title]="lineSortDisabledReason()"
+                            (click)="toggleLineSort('articleCode')"
+                          >
+                            Cod. articolo
+                            @if (lineSort.column() === 'articleCode') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
+                          </button>
                           <span
                             appTableColumnResize
                             [minWidthPx]="lineColumnMinWidth('articleCode')"
@@ -912,7 +929,24 @@
                       }
                       @if (isLineColumnVisible('sku')) {
                         <th scope="col" [style.width]="lineColumnWidth('sku')">
-                          SKU
+                          <button
+                            type="button"
+                            class="doc-form__th-sort"
+                            [disabled]="!lineSortAvailable()"
+                            [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
+                            [attr.title]="lineSortDisabledReason()"
+                            (click)="toggleLineSort('sku')"
+                          >
+                            SKU
+                            @if (lineSort.column() === 'sku') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
+                          </button>
                           <span
                             appTableColumnResize
                             [minWidthPx]="lineColumnMinWidth('sku')"
@@ -924,7 +958,24 @@
                       }
                       @if (isLineColumnVisible('barcode')) {
                         <th scope="col" [style.width]="lineColumnWidth('barcode')">
-                          EAN
+                          <button
+                            type="button"
+                            class="doc-form__th-sort"
+                            [disabled]="!lineSortAvailable()"
+                            [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
+                            [attr.title]="lineSortDisabledReason()"
+                            (click)="toggleLineSort('barcode')"
+                          >
+                            EAN
+                            @if (lineSort.column() === 'barcode') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
+                          </button>
                           <span
                             appTableColumnResize
                             [minWidthPx]="lineColumnMinWidth('barcode')"
@@ -940,7 +991,24 @@
                           class="doc-form__th--product doc-form__col--sep"
                           [style.width]="lineColumnWidth('product')"
                         >
-                          Nome prodotto
+                          <button
+                            type="button"
+                            class="doc-form__th-sort"
+                            [disabled]="!lineSortAvailable()"
+                            [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
+                            [attr.title]="lineSortDisabledReason()"
+                            (click)="toggleLineSort('product')"
+                          >
+                            Nome prodotto
+                            @if (lineSort.column() === 'product') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
+                          </button>
                           <span
                             appTableColumnResize
                             [minWidthPx]="lineColumnMinWidth('product')"
@@ -2583,6 +2651,16 @@
     />
   }
 </app-slide-panel>
+
+<!-- Avviso del primo riordino, una volta per documento (specifica §7.1). -->
+<app-confirm-dialog
+  [open]="lineSort.confirmOpen()"
+  title="Riordino righe"
+  message="L'ordine di inserimento non è registrato da nessuna parte: salvando, non sarà più ricostruibile. Fino al salvataggio puoi chiudere il documento senza salvare per ritrovarlo com'era."
+  confirmLabel="Riordina"
+  (confirmed)="confirmLineSort()"
+  (dismissed)="lineSort.dismiss()"
+/>
 
 <app-confirm-dialog
   [(open)]="attachWithoutAddDialogOpen"
