@@ -174,63 +174,65 @@ export class SupplierOrdersService {
       dto.series !== undefined ? (dto.series ?? '').trim() || null : undefined;
     const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const series =
-        requestedSeries !== undefined
-          ? requestedSeries
-          : await defaultCounterSeries(tx, tenantId, DocumentType.supplier_order);
-      // Serializza gli operatori sullo stesso contatore: senza lock due
-      // creazioni simultanee leggono lo stesso massimo e il secondo si becca il
-      // vincolo unico a lavoro finito. Il lock è transazionale (si rilascia al
-      // commit o al rollback) e va preso PRIMA della lettura.
-      await lockDocumentCounter(tx, { tenantId, type: DocumentType.supplier_order, series });
-      // Numero imposto dalla testata: si scrive com'è, e il vincolo unico fa
-      // da giudice. Senza, lo assegna il server prendendo il primo libero.
-      const number =
-        requestedNumber ??
-        (await nextDocumentNumber({
-          tx,
-          tenantId,
-          type: DocumentType.supplier_order,
-          series,
-          source: 'supplier_order',
-          prefix: setting.numberPrefix,
-        }));
-      const reference = formatDocumentReference(setting.numberPrefix, series, number);
+    const result = await this.prisma
+      .$transaction(async (tx) => {
+        const series =
+          requestedSeries !== undefined
+            ? requestedSeries
+            : await defaultCounterSeries(tx, tenantId, DocumentType.supplier_order);
+        // Serializza gli operatori sullo stesso contatore: senza lock due
+        // creazioni simultanee leggono lo stesso massimo e il secondo si becca il
+        // vincolo unico a lavoro finito. Il lock è transazionale (si rilascia al
+        // commit o al rollback) e va preso PRIMA della lettura.
+        await lockDocumentCounter(tx, { tenantId, type: DocumentType.supplier_order, series });
+        // Numero imposto dalla testata: si scrive com'è, e il vincolo unico fa
+        // da giudice. Senza, lo assegna il server prendendo il primo libero.
+        const number =
+          requestedNumber ??
+          (await nextDocumentNumber({
+            tx,
+            tenantId,
+            type: DocumentType.supplier_order,
+            series,
+            source: 'supplier_order',
+            prefix: setting.numberPrefix,
+          }));
+        const reference = formatDocumentReference(setting.numberPrefix, series, number);
 
-      const order = await tx.supplierOrder.create({
-        data: {
-          tenantId,
-          reference,
-          series,
-          number,
-          supplierId: supplier.id,
-          supplierName: partyDisplayName(supplier.party),
-          status: SupplierOrderStatus.confirmed,
-          currency: dto.currency ?? 'EUR',
-          costEntryMode,
-          orderDate,
-          supplierReference: dto.supplierReference?.trim() || null,
-          // Documento della controparte: la conferma d'ordine del fornitore.
-          externalDocNumber: dto.externalDocNumber?.trim() || null,
-          externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
-          ...externalType,
-          documentDiscountPercent: new Prisma.Decimal(documentDiscountPercent),
-          subtotalMinor: totals.subtotalMinor,
-          taxMinor: totals.taxMinor,
-          totalMinor: totals.totalMinor,
-          expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
-          lines: {
-            create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
+        const order = await tx.supplierOrder.create({
+          data: {
+            tenantId,
+            reference,
+            series,
+            number,
+            supplierId: supplier.id,
+            supplierName: partyDisplayName(supplier.party),
+            status: SupplierOrderStatus.confirmed,
+            currency: dto.currency ?? 'EUR',
+            costEntryMode,
+            orderDate,
+            supplierReference: dto.supplierReference?.trim() || null,
+            // Documento della controparte: la conferma d'ordine del fornitore.
+            externalDocNumber: dto.externalDocNumber?.trim() || null,
+            externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
+            ...externalType,
+            documentDiscountPercent: new Prisma.Decimal(documentDiscountPercent),
+            subtotalMinor: totals.subtotalMinor,
+            taxMinor: totals.taxMinor,
+            totalMinor: totals.totalMinor,
+            expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
+            lines: {
+              create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
+            },
           },
-        },
-        include: { lines: { orderBy: { lineNumber: 'asc' } } },
+          include: { lines: { orderBy: { lineNumber: 'asc' } } },
+        });
+        return { ...order, linkedDocuments: [] };
+      })
+      .catch(async (error: unknown) => {
+        await this.throwNumberConflict(error, tenantId, requestedSeries, requestedNumber);
+        throw error;
       });
-      return { ...order, linkedDocuments: [] };
-    }).catch(async (error: unknown) => {
-      await this.throwNumberConflict(error, tenantId, requestedSeries, requestedNumber);
-      throw error;
-    });
 
     // Ricorda la modalità costo (netto/ivato) scelta per l'ordine fornitore,
     // solo alla creazione: il successivo la ripropone.
@@ -282,51 +284,92 @@ export class SupplierOrdersService {
       dto.externalDocumentTypeId,
     );
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.supplierOrderLine.deleteMany({ where: { orderId: id } });
-      const updated = await tx.supplierOrder.update({
-        where: { id },
-        data: {
-          supplierId: supplier.id,
-          supplierName: partyDisplayName(supplier.party),
-          currency: dto.currency ?? order.currency,
-          costEntryMode,
-          orderDate: dto.orderDate ? new Date(dto.orderDate) : order.orderDate,
-          supplierReference:
-            dto.supplierReference === undefined
-              ? order.supplierReference
-              : dto.supplierReference?.trim() || null,
-          externalDocNumber:
-            dto.externalDocNumber === undefined
-              ? order.externalDocNumber
-              : dto.externalDocNumber?.trim() || null,
-          externalDocDate:
-            dto.externalDocDate === undefined
-              ? order.externalDocDate
-              : dto.externalDocDate
-                ? new Date(dto.externalDocDate)
-                : null,
-          // Assente = si lascia com'e', con il suo snapshot: un client che non
-          // conosce il campo non deve poter cancellare la dicitura dall'ordine.
-          ...(dto.externalDocumentTypeId === undefined ? {} : externalType),
-          documentDiscountPercent: new Prisma.Decimal(documentDiscountPercent),
-          subtotalMinor: totals.subtotalMinor,
-          taxMinor: totals.taxMinor,
-          totalMinor: totals.totalMinor,
-          expectedAt:
-            dto.expectedAt === null
-              ? null
-              : dto.expectedAt
-                ? new Date(dto.expectedAt)
-                : order.expectedAt,
-          lines: {
-            create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
+    // Serie e numero in modifica. **In modifica il numero è del documento**, non
+    // una proposta: se il client lo manda va scritto, e cambiando serie va
+    // riscritto anche il riferimento, o l'ordine resterebbe con il numero della
+    // serie vecchia sotto la serie nuova.
+    //
+    // Il DTO li accettava già mentre `update` non li leggeva: l'operatore
+    // cambiava serie su un ordine salvato e non succedeva niente, senza un
+    // messaggio. Trovato da una verifica adversariale, non da una prova —
+    // nessuna prova copriva un campo che il servizio ignorava.
+    const seriesChanged = dto.series !== undefined;
+    const numberChanged = dto.number !== undefined && dto.number !== order.number;
+    const nextSeries = seriesChanged ? (dto.series ?? '').trim() || null : order.series;
+    const nextNumber = numberChanged ? (dto.number ?? null) : order.number;
+    const numberingChanged = seriesChanged || numberChanged;
+    const numberingSetting = numberingChanged
+      ? await this.documentSettings.getResolved(tenantId, DocumentType.supplier_order)
+      : null;
+
+    return this.prisma
+      .$transaction(async (tx) => {
+        await tx.supplierOrderLine.deleteMany({ where: { orderId: id } });
+        const updated = await tx.supplierOrder.update({
+          where: { id },
+          data: {
+            supplierId: supplier.id,
+            supplierName: partyDisplayName(supplier.party),
+            currency: dto.currency ?? order.currency,
+            costEntryMode,
+            // Il riferimento leggibile si ricompone da prefisso, serie e numero:
+            // è derivato, non un dato a sé.
+            ...(numberingChanged && numberingSetting
+              ? {
+                  series: nextSeries,
+                  number: nextNumber,
+                  reference: formatDocumentReference(
+                    numberingSetting.numberPrefix,
+                    nextSeries,
+                    nextNumber ?? order.number ?? 0,
+                  ),
+                }
+              : {}),
+            orderDate: dto.orderDate ? new Date(dto.orderDate) : order.orderDate,
+            supplierReference:
+              dto.supplierReference === undefined
+                ? order.supplierReference
+                : dto.supplierReference?.trim() || null,
+            externalDocNumber:
+              dto.externalDocNumber === undefined
+                ? order.externalDocNumber
+                : dto.externalDocNumber?.trim() || null,
+            externalDocDate:
+              dto.externalDocDate === undefined
+                ? order.externalDocDate
+                : dto.externalDocDate
+                  ? new Date(dto.externalDocDate)
+                  : null,
+            // Assente = si lascia com'e', con il suo snapshot: un client che non
+            // conosce il campo non deve poter cancellare la dicitura dall'ordine.
+            ...(dto.externalDocumentTypeId === undefined ? {} : externalType),
+            documentDiscountPercent: new Prisma.Decimal(documentDiscountPercent),
+            subtotalMinor: totals.subtotalMinor,
+            taxMinor: totals.taxMinor,
+            totalMinor: totals.totalMinor,
+            expectedAt:
+              dto.expectedAt === null
+                ? null
+                : dto.expectedAt
+                  ? new Date(dto.expectedAt)
+                  : order.expectedAt,
+            lines: {
+              create: computedLines.map((line, i) => this.toLineCreateData(line, i + 1)),
+            },
           },
-        },
-        include: { lines: { orderBy: { lineNumber: 'asc' } } },
+          include: { lines: { orderBy: { lineNumber: 'asc' } } },
+        });
+        return { ...updated, linkedDocuments: order.linkedDocuments ?? [] };
+      })
+      .catch(async (error: unknown) => {
+        await this.throwNumberConflict(
+          error,
+          tenantId,
+          seriesChanged ? nextSeries : undefined,
+          numberChanged ? nextNumber : null,
+        );
+        throw error;
       });
-      return { ...updated, linkedDocuments: order.linkedDocuments ?? [] };
-    });
   }
 
   /** Annulla un ordine Confermato (nessun effetto magazzino da stornare). */
@@ -473,10 +516,7 @@ export class SupplierOrdersService {
     if (!isDocumentNumberConflict(error)) {
       return;
     }
-    const setting = await this.documentSettings.getResolved(
-      tenantId,
-      DocumentType.supplier_order,
-    );
+    const setting = await this.documentSettings.getResolved(tenantId, DocumentType.supplier_order);
     const resolvedSeries =
       series !== undefined
         ? series
