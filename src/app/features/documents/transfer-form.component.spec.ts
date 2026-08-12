@@ -229,7 +229,7 @@ describe('TransferFormComponent', () => {
       await fixture.whenStable();
       const component = fixture.componentInstance;
 
-      component['onDocumentNumberChange'](77);
+      component['numbering'].onNumberChange(77);
 
       const body = component['buildSaveTransferBody']('doc-1', component.form.getRawValue());
       expect(body.number).toBe(77);
@@ -295,7 +295,7 @@ describe('TransferFormComponent', () => {
       await fixture.whenStable();
       const component = fixture.componentInstance;
 
-      component['onDocumentNumberChange'](42);
+      component['numbering'].onNumberChange(42);
       fillMinimumValidDocument(component);
       component['persist']();
 
