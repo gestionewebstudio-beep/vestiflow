@@ -109,10 +109,25 @@ export class DocumentNumberingStore {
     });
   }
 
-  /** Numero digitato in testata: vuoto = «assegnalo tu». */
+  /**
+   * Numero digitato in testata: vuoto = «assegnalo tu».
+   *
+   * ⚠️ **Si marca PRIMA di scrivere, e l'ordine non è estetico.** È `setNumber`
+   * a emettere `valueChanges`, ed è quell'emissione a far ricalcolare
+   * `numberIsProposal()` nelle maschere. Scrivendo per primo, la ricalcolata
+   * avviene mentre il controllo è ancora pristine: il campo continua a
+   * dichiararsi «proposta» dopo che l'operatore ha già scelto, e `imposedNumber`
+   * restituisce `undefined` — cioè **il numero digitato non viaggia al
+   * salvataggio** finché qualcos'altro non tocca il form.
+   *
+   * Trovato migrando le maschere (12/08/2026): quattro su cinque scrivevano
+   * prima e marcavano dopo, la Rettifica no e portava il commento che lo
+   * spiegava. È la sfumatura tipica delle copie — nessuna sbaglia in modo
+   * vistoso, e chi legge una sola maschera non ha modo di accorgersene.
+   */
   onNumberChange(value: number | null): void {
-    this.contract.setNumber(value);
     this.contract.markNumberDirty();
+    this.contract.setNumber(value);
   }
 
   /** Serie scelta: il numero passa al progressivo di quel contatore. */
@@ -122,14 +137,18 @@ export class DocumentNumberingStore {
     if (!counter) {
       return;
     }
-    this.contract.setNumber(counter.nextNumber);
-    // Vedi la decisione 2 nel commento di classe: su documento nuovo resta una
-    // proposta, su documento salvato diventa un numero da scrivere.
+    // Stesso ordine e stessa ragione di `onNumberChange`: prima lo stato, poi
+    // il valore che lo fa rileggere.
+    //
+    // Vedi la decisione 2 nel commento di classe: su documento nuovo il numero
+    // della serie nuova resta una proposta, su documento salvato è un numero da
+    // scrivere.
     if (this.contract.isEdit()) {
       this.contract.markNumberDirty();
     } else {
       this.contract.markNumberPristine();
     }
+    this.contract.setNumber(counter.nextNumber);
   }
 
   /**

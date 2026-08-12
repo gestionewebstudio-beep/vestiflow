@@ -20,24 +20,39 @@ function counter(overrides: Partial<DocumentCounterView> = {}): DocumentCounterV
   };
 }
 
-/** Testata finta: tiene numero, serie e lo stato «toccato» del numero. */
+/**
+ * Testata finta: tiene numero, serie e lo stato «toccato» del numero.
+ *
+ * `ordine` registra la sequenza delle chiamate, perché fra scrivere il numero e
+ * marcarlo l'ordine conta (vedi la prova «marca prima di scrivere»).
+ */
 function testata(options: { readonly isEdit?: boolean } = {}) {
-  const stato = { number: null as number | null, series: '', dirty: false, programmatiche: 0 };
+  const stato = {
+    number: null as number | null,
+    series: '',
+    dirty: false,
+    programmatiche: 0,
+    ordine: [] as string[],
+  };
   const store = new DocumentNumberingStore({
     isEdit: () => options.isEdit ?? false,
     number: () => stato.number,
     setNumber: (value) => {
+      stato.ordine.push('setNumber');
       stato.number = value;
     },
     series: () => stato.series,
     setSeries: (value) => {
+      stato.ordine.push('setSeries');
       stato.series = value;
     },
     numberIsDirty: () => stato.dirty,
     markNumberDirty: () => {
+      stato.ordine.push('markDirty');
       stato.dirty = true;
     },
     markNumberPristine: () => {
+      stato.ordine.push('markPristine');
       stato.dirty = false;
     },
     asProgrammatic: (write) => {
@@ -78,6 +93,36 @@ describe('DocumentNumberingStore', () => {
 
     expect(store.isProposal()).toBe(false);
     expect(store.imposedNumber()).toBe(3);
+  });
+
+  /**
+   * ⚠️ L'ordine è la prova, non un dettaglio.
+   *
+   * È `setNumber` a emettere `valueChanges`, ed è quell'emissione a far
+   * ricalcolare `numberIsProposal()` nelle maschere. Scrivendo per primo, la
+   * ricalcolata avviene mentre il controllo è ancora pristine: il campo
+   * continua a dichiararsi «proposta» dopo che l'operatore ha scelto, e il
+   * numero digitato NON viaggia al salvataggio.
+   *
+   * Quattro maschere su cinque avevano l'ordine sbagliato prima della
+   * migrazione allo store.
+   */
+  it('marca il numero PRIMA di scriverlo', () => {
+    const { store, stato } = testata();
+
+    store.onNumberChange(3);
+
+    expect(stato.ordine).toEqual(['markDirty', 'setNumber']);
+  });
+
+  it('cambiando serie marca prima di scrivere, come sopra', () => {
+    const { store, stato } = testata();
+    store.setCounters([counter({ series: 'B', nextNumber: 100 })]);
+    stato.ordine.length = 0;
+
+    store.onSeriesChange('B');
+
+    expect(stato.ordine).toEqual(['setSeries', 'markPristine', 'setNumber']);
   });
 
   it('su documento già salvato il numero è assegnato, non proposto', () => {
