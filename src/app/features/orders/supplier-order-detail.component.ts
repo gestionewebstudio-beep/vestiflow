@@ -15,7 +15,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { AuthService } from '@core/auth';
 import {
-  canManageDocuments,
+  canManageDocFamily,
   canManageSupplierOrders,
   canReceiveSupplierOrders,
 } from '@core/permissions/tenant-permissions.util';
@@ -173,7 +173,9 @@ export class SupplierOrderDetailComponent {
     if (!canReceiveSupplierOrders(this.authService.currentUser())) {
       return false;
     }
-    if (!canManageDocuments(this.authService.currentUser())) {
+    // L'arrivo merce si crea con la SUA famiglia: chi gestisce solo l'ordine
+    // fornitore non deve compilare un carico intero per poi prendere 403.
+    if (!canManageDocFamily(this.authService.currentUser(), 'goods_receipt')) {
       return false;
     }
     return this.order()?.status === SupplierOrderStatus.Confirmed;

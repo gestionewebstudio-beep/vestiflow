@@ -22,6 +22,12 @@ export interface ShopifyCsvRow {
   readonly option3Value: string;
   readonly variantSku: string;
   readonly variantPrice: string;
+  /**
+   * Costo d'acquisto della variante («Cost per item» nell'export Shopify).
+   * Serve ai margini e alla valorizzazione di magazzino: senza, un catalogo
+   * importato nasce con i costi vuoti e i report non tornano.
+   */
+  readonly variantCost: string;
   readonly variantCompareAtPrice: string;
   readonly variantBarcode: string;
   readonly imageSrc: string;
@@ -49,6 +55,12 @@ const HEADER_ALIASES: Record<string, keyof Omit<ShopifyCsvRow, 'rowNumber'>> = {
   'option3 value': 'option3Value',
   'variant sku': 'variantSku',
   'variant price': 'variantPrice',
+  // Shopify intitola questa colonna «Cost per item»; alcuni export localizzati
+  // e i fogli rifatti a mano usano le altre forme.
+  'cost per item': 'variantCost',
+  'variant cost': 'variantCost',
+  costo: 'variantCost',
+  "costo d'acquisto": 'variantCost',
   'variant compare-at price': 'variantCompareAtPrice',
   'variant compare at price': 'variantCompareAtPrice',
   'variant barcode': 'variantBarcode',
@@ -141,6 +153,7 @@ function emptyRow(): Omit<ShopifyCsvRow, 'rowNumber'> {
     option3Value: '',
     variantSku: '',
     variantPrice: '',
+    variantCost: '',
     variantCompareAtPrice: '',
     variantBarcode: '',
     imageSrc: '',

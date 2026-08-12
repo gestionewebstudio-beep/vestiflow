@@ -31,8 +31,17 @@
           spellcheck="false"
           enterkeyhint="search"
           placeholder="Es. TSB-M-WHT"
-          [attr.aria-invalid]="searchForm.controls.code.invalid && searchForm.controls.code.touched"
+          [attr.aria-invalid]="showError('code')"
         />
+        @if (showError('code')) {
+          <span class="stock-lookup__field-error">
+            @if (searchForm.controls.code.hasError('required')) {
+              Inserisci uno SKU o un barcode da cercare.
+            } @else {
+              Il codice può avere al massimo 100 caratteri.
+            }
+          </span>
+        }
       </label>
 
       <div class="stock-lookup__actions">

@@ -108,13 +108,16 @@ export class ProductsController {
     private readonly priceModePreference: ProductPriceModePreferenceService,
   ) {}
 
+  // L'utente serve al service per il costo d'acquisto (dato sensibile
+  // §permessi): senza permesso il campo non entra nella risposta.
   @Get()
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   list(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListProductsQueryDto,
   ): Promise<Paginated<ProductWithVariants>> {
-    return this.products.list(tenantId, query);
+    return this.products.list(tenantId, query, user);
   }
 
   @Get('facets')
@@ -229,14 +232,18 @@ export class ProductsController {
   @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   importProducts(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @UploadedFile() file: Express.Multer.File,
     @Body() body: ImportProductsBodyDto,
   ) {
     this.assertCsvFile(file);
     const handles = body.handles?.filter((handle) => handle.trim().length > 0);
-    return this.productsImport.importCsv(tenantId, file.buffer.toString('utf-8'), {
-      handles,
-    });
+    return this.productsImport.importCsv(
+      tenantId,
+      file.buffer.toString('utf-8'),
+      { handles },
+      user,
+    );
   }
 
   @Get('export/csv')
@@ -258,9 +265,10 @@ export class ProductsController {
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   listSupplierLinks(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.suppliers.listVariantLinksByProduct(tenantId, id);
+    return this.suppliers.listVariantLinksByProduct(tenantId, id, user);
   }
 
   /**
@@ -285,9 +293,10 @@ export class ProductsController {
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   getById(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ProductWithVariants> {
-    return this.products.getById(tenantId, id);
+    return this.products.getById(tenantId, id, user);
   }
 
   @Post()
@@ -297,7 +306,7 @@ export class ProductsController {
     @CurrentUser() user: UserProfileDto,
     @Body() dto: CreateProductDto,
   ): Promise<ProductWithVariants> {
-    const product = await this.products.create(tenantId, dto);
+    const product = await this.products.create(tenantId, dto, user);
     // Ricorda la modalità Listini scelta (solo alla creazione, come i documenti).
     if (dto.listinoPricesIncludeVat !== undefined) {
       await this.priceModePreference.remember(tenantId, user.id, dto.listinoPricesIncludeVat);
@@ -309,10 +318,11 @@ export class ProductsController {
   @RequirePermissions(TenantPermission.CatalogManage)
   update(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
   ): Promise<ProductWithVariants> {
-    return this.products.update(tenantId, id, dto);
+    return this.products.update(tenantId, id, dto, user);
   }
 
   /** Duplica anagrafica prodotto (audit cliente): nuovo id, SKU/barcode univoci. */
@@ -320,9 +330,10 @@ export class ProductsController {
   @RequirePermissions(TenantPermission.CatalogManage)
   duplicate(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ProductWithVariants> {
-    return this.products.duplicateProduct(tenantId, id);
+    return this.products.duplicateProduct(tenantId, id, user);
   }
 
   @Post(':id/sync-shopify')

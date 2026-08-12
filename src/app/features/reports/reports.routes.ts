@@ -10,7 +10,7 @@ export const reportsRoutes: Routes = [
     title: 'Report',
     loadComponent: () => import('./reports.component').then((m) => m.ReportsComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView, reuse: true },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SectionReports, reuse: true },
   },
   {
     path: 'corrispettivi',
@@ -20,7 +20,7 @@ export const reportsRoutes: Routes = [
         (m) => m.CorrispettiviReportComponent,
       ),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView, reuse: true },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SectionReports, reuse: true },
   },
   {
     path: 'corrispettivi/print',
@@ -30,7 +30,7 @@ export const reportsRoutes: Routes = [
         (m) => m.CorrispettiviPrintComponent,
       ),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SectionReports },
   },
   {
     path: 'accountant-register',
@@ -40,6 +40,6 @@ export const reportsRoutes: Routes = [
         (m) => m.AccountantRegisterComponent,
       ),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView, reuse: true },
+    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SectionReports, reuse: true },
   },
 ];

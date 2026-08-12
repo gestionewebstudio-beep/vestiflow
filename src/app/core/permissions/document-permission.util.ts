@@ -1,0 +1,96 @@
+import { DocumentType } from '@core/models/document.model';
+import {
+  DOCUMENT_PERMISSION_FAMILIES,
+  docManagePermission,
+  docViewPermission,
+  type DocumentPermissionFamily,
+} from '@core/models/tenant-permission.model';
+import type { User } from '@core/models/user.model';
+
+import { hasFullTenantAccess, hasTenantPermission } from './user-permissions.util';
+
+/**
+ * Mappa tipo documento → famiglia della matrice permessi. SPECCHIO di
+ * `api/src/auth/document-permission.util.ts`: se le due divergono, la UI
+ * mostra un'azione che l'API poi rifiuta. `check:permissions` in `npm run lint`
+ * confronta le due mappe a ogni build.
+ */
+const FAMILY_TO_TYPES: Readonly<Record<DocumentPermissionFamily, readonly string[]>> = {
+  goods_receipt: [DocumentType.GoodsReceipt],
+  purchase_invoice: [DocumentType.SupplierInvoice],
+  supplier_order: [DocumentType.SupplierOrder],
+  sales_order: [DocumentType.CustomerOrder],
+  quote: [DocumentType.Quote],
+  proforma: [DocumentType.Proforma],
+  sales_ddt: [DocumentType.SalesDdt],
+  invoice: [DocumentType.InvoiceDraft, DocumentType.InvoiceAccompanying],
+  store_sale: [DocumentType.StoreSale, DocumentType.StoreReturn],
+  // Documenti interni generati dall'evasione online: esistono nell'enum API ma
+  // non nel modello frontend, che non li crea mai — qui servono solo a mappare
+  // la famiglia di un tipo che arriva dal server.
+  online_sale: ['online_sale', 'corrispettivo'],
+  transfer: [DocumentType.Transfer],
+  adjustment: [
+    DocumentType.Adjustment,
+    DocumentType.ManualLoad,
+    DocumentType.InitialLoad,
+    DocumentType.Inventory,
+  ],
+  manual_unload: [DocumentType.ManualUnload],
+};
+
+const TYPE_TO_FAMILY = new Map<string, DocumentPermissionFamily>(
+  DOCUMENT_PERMISSION_FAMILIES.flatMap((family) =>
+    FAMILY_TO_TYPES[family].map((type) => [type, family] as const),
+  ),
+);
+
+/** Famiglia del tipo, o `null` se il tipo non è mappato (mai, in teoria). */
+export function documentFamilyOf(type: string | null | undefined): DocumentPermissionFamily | null {
+  return type ? (TYPE_TO_FAMILY.get(type) ?? null) : null;
+}
+
+export function documentTypesOfFamily(family: DocumentPermissionFamily): readonly string[] {
+  return FAMILY_TO_TYPES[family];
+}
+
+/** «Gestisci» implica «Consulta»: la stessa regola dell'API. */
+export function canViewDocumentType(
+  user: User | null | undefined,
+  type: string | null | undefined,
+): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  const family = documentFamilyOf(type);
+  if (!family) {
+    return false;
+  }
+  return (
+    hasTenantPermission(user, docViewPermission(family)) ||
+    hasTenantPermission(user, docManagePermission(family))
+  );
+}
+
+export function canManageDocumentType(
+  user: User | null | undefined,
+  type: string | null | undefined,
+): boolean {
+  if (hasFullTenantAccess(user)) {
+    return true;
+  }
+  const family = documentFamilyOf(type);
+  return family ? hasTenantPermission(user, docManagePermission(family)) : false;
+}
+
+/** Famiglie che l'utente può gestire: guida i menu «Nuovo documento». */
+export function manageableDocumentFamilies(
+  user: User | null | undefined,
+): readonly DocumentPermissionFamily[] {
+  if (hasFullTenantAccess(user)) {
+    return DOCUMENT_PERMISSION_FAMILIES;
+  }
+  return DOCUMENT_PERMISSION_FAMILIES.filter((family) =>
+    hasTenantPermission(user, docManagePermission(family)),
+  );
+}

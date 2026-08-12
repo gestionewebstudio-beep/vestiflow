@@ -16,6 +16,7 @@ import type { Subscription } from 'rxjs';
 
 import { catchError, map, of, switchMap, take } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
@@ -23,6 +24,10 @@ import type { EntityId } from '@core/models/common.model';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import type { Money } from '@core/models/money.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import {
+  canAccessInventorySection,
+  canManageCatalog,
+} from '@core/permissions/tenant-permissions.util';
 import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
@@ -153,8 +158,23 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly locationContext = inject(LocationContextService);
   private readonly vatCodeService = inject(VatCodeService);
+  private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
+
+  // ── Cosa può fare chi sta al banco ───────────────────────────────────────
+
+  /**
+   * Chi batte alla cassa non sempre può creare articoli: senza questo permesso
+   * il comando che apre l'anagrafica non compare, e al suo posto resta scritto
+   * a chi chiedere l'articolo mancante.
+   */
+  protected readonly puoGestireCatalogo = computed(() => canManageCatalog(this.auth.currentUser()));
+
+  /** Senza la sezione Magazzino lo storico movimenti rimbalza sulla dashboard. */
+  protected readonly puoVedereMagazzino = computed(() =>
+    canAccessInventorySection(this.auth.currentUser()),
+  );
 
   // Codici IVA attivi vendita/entrambi: override compatto per riga carrello
   // (§Piano IVA fase 3 — cassa veloce: risoluzione silenziosa, override

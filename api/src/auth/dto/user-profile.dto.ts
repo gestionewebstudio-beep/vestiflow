@@ -27,6 +27,8 @@ export interface UserProfileDto {
   readonly defaultLocation: { readonly id: string; readonly name: string } | null;
   readonly permissions: readonly string[];
   readonly isActive: boolean;
+  /** Password impostata da chi ha creato l'account: l'app chiede di cambiarla. */
+  readonly mustChangePassword: boolean;
   readonly isPlatformAdmin: boolean;
   readonly supportSession?: SupportSessionProfileDto;
   readonly createdAt: string;
@@ -61,6 +63,7 @@ export function toUserProfileDto(
     defaultLocation: user.defaultLocation ?? null,
     permissions: user.permissions ?? [],
     isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword,
     isPlatformAdmin,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),

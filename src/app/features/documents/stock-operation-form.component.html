@@ -115,7 +115,14 @@
                     formControlName="documentDate"
                     ariaLabel="Data documento"
                     [fullWidth]="true"
+                    [invalid]="fieldInvalid('documentDate')"
+                    describedBy="so-m-date-error"
                   />
+                  @if (fieldInvalid('documentDate')) {
+                    <p id="so-m-date-error" class="doc-form__error">
+                      Inserisci la data del documento nel formato GG/MM/AAAA.
+                    </p>
+                  }
                 </div>
 
                 <app-document-number-field
@@ -123,7 +130,7 @@
                   [number]="form.controls.documentNumber.value"
                   [series]="form.controls.series.value"
                   [seriesOptions]="seriesOptions()"
-                  [canManageSeries]="true"
+                  [canManageSeries]="puoConfigurareDocumenti()"
                   (numberChange)="onDocumentNumberChange($event)"
                   (seriesChange)="onSeriesChange($event)"
                   (manageSeries)="seriesDialogOpen.set(true)"
@@ -182,7 +189,14 @@
                   ariaLabel="Data documento"
                   [compact]="true"
                   [fullWidth]="true"
+                  [invalid]="fieldInvalid('documentDate')"
+                  describedBy="so-date-error"
                 />
+                @if (fieldInvalid('documentDate')) {
+                  <p id="so-date-error" class="doc-form__error">
+                    Inserisci la data del documento nel formato GG/MM/AAAA.
+                  </p>
+                }
               </div>
 
               <!-- Identificativo del documento: Data + Numero + Serie. -->
@@ -191,7 +205,7 @@
                 [number]="form.controls.documentNumber.value"
                 [series]="form.controls.series.value"
                 [seriesOptions]="seriesOptions()"
-                [canManageSeries]="true"
+                [canManageSeries]="puoConfigurareDocumenti()"
                 (numberChange)="onDocumentNumberChange($event)"
                 (seriesChange)="onSeriesChange($event)"
                 (manageSeries)="seriesDialogOpen.set(true)"
@@ -256,20 +270,36 @@
                     <td class="doc-form__cell doc-form__cell--editable">
                       <input
                         class="doc-form__input doc-form__input--table"
+                        [class.doc-form__input--invalid]="lineFieldInvalid(i, 'description')"
                         type="text"
                         formControlName="description"
                         aria-label="Descrizione"
+                        [attr.aria-invalid]="lineFieldInvalid(i, 'description')"
+                        [attr.aria-describedby]="'so-t-desc-error-' + i"
                       />
+                      @if (lineFieldInvalid(i, 'description')) {
+                        <p [id]="'so-t-desc-error-' + i" class="doc-form__error">
+                          Inserisci una descrizione per la riga.
+                        </p>
+                      }
                     </td>
                     <td class="doc-form__cell doc-form__cell--editable doc-form__num">
                       <input
                         class="doc-form__input doc-form__input--table doc-form__input--num"
+                        [class.doc-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
                         type="number"
                         min="1"
                         step="1"
                         formControlName="quantity"
                         aria-label="Quantità"
+                        [attr.aria-invalid]="lineFieldInvalid(i, 'quantity')"
+                        [attr.aria-describedby]="'so-t-qty-error-' + i"
                       />
+                      @if (lineFieldInvalid(i, 'quantity')) {
+                        <p [id]="'so-t-qty-error-' + i" class="doc-form__error">
+                          La quantità deve essere un numero intero di almeno 1.
+                        </p>
+                      }
                     </td>
                     <td class="doc-form__cell doc-form__cell--editable">
                       <input
@@ -331,9 +361,17 @@
                     <input
                       [id]="'so-desc-' + i"
                       class="doc-form__input"
+                      [class.doc-form__input--invalid]="lineFieldInvalid(i, 'description')"
                       type="text"
                       formControlName="description"
+                      [attr.aria-invalid]="lineFieldInvalid(i, 'description')"
+                      [attr.aria-describedby]="'so-desc-error-' + i"
                     />
+                    @if (lineFieldInvalid(i, 'description')) {
+                      <p [id]="'so-desc-error-' + i" class="doc-form__error">
+                        Inserisci una descrizione per la riga.
+                      </p>
+                    }
                   </div>
 
                   <div class="doc-form__line-field doc-form__line-field--qty">
@@ -341,11 +379,19 @@
                     <input
                       [id]="'so-qty-' + i"
                       class="doc-form__input doc-form__input--qty"
+                      [class.doc-form__input--invalid]="lineFieldInvalid(i, 'quantity')"
                       type="number"
                       min="1"
                       step="1"
                       formControlName="quantity"
+                      [attr.aria-invalid]="lineFieldInvalid(i, 'quantity')"
+                      [attr.aria-describedby]="'so-qty-error-' + i"
                     />
+                    @if (lineFieldInvalid(i, 'quantity')) {
+                      <p [id]="'so-qty-error-' + i" class="doc-form__error">
+                        La quantità deve essere un numero intero di almeno 1.
+                      </p>
+                    }
                   </div>
 
                   <div class="doc-form__line-field doc-form__line-field--serials">
@@ -405,8 +451,12 @@
           </div>
         </div>
 
+        <!-- Motivo del rifiuto (validazione o salvataggio fallito), accanto al
+             pulsante che non ha fatto nulla. role="alert": chi non guarda in
+             fondo alla pagina lo sente comunque. Stessa forma delle maschere
+             gemelle (arrivo merce, ordine cliente). -->
         @if (submitError(); as err) {
-          <app-error-state [description]="err.message" />
+          <p class="doc-form__submit-error" role="alert">{{ err.message }}</p>
         }
       </fieldset>
 

@@ -13,6 +13,7 @@ import { map, tap } from 'rxjs';
 
 import { AUTH_GATEWAY, AuthService, authInterceptor } from '@core/auth';
 import { MockAuthGateway } from '@core/auth/mock-auth.gateway';
+import { ProfileRefreshService } from '@core/auth/profile-refresh.service';
 import { SupabaseAuthGateway } from '@core/auth/supabase-auth.gateway';
 import { APP_CONFIG } from '@core/config/app-config.token';
 import { GlobalErrorHandler } from '@core/handlers/global-error.handler';
@@ -59,6 +60,9 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       const supportSessions = inject(SupportSessionService);
       const auth = inject(AuthService);
+      // Istanziato qui perché nessuno lo inietta per usarlo: vive per l'effect
+      // che tiene aggiornati i permessi a sessione aperta.
+      inject(ProfileRefreshService);
       supportSessions.restoreFromStorage();
       return auth.initialize().pipe(
         tap(() => {

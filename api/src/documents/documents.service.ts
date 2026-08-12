@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -20,6 +21,12 @@ import {
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import {
+  canManageDocumentType,
+  canViewDocumentType,
+  intersectViewableDocumentTypes,
+  viewableDocumentTypesFor,
+} from '../auth/document-permission.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { partyDisplayName } from '../common/party/party.util';
@@ -304,6 +311,15 @@ export class DocumentsService {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
 
+    // Matrice permessi documenti (§sezioni+documenti): il registro restituisce
+    // solo i tipi delle famiglie che l'utente può consultare. Filtro nel where,
+    // in AND con l'eventuale filtro tipi richiesto dal client: non basta la UI.
+    // `user` assente = chiamata interna, nessuna restrizione.
+    const viewableTypes = user ? viewableDocumentTypesFor(user) : null;
+    if (viewableTypes !== null && viewableTypes.length === 0) {
+      return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
+    }
+
     // Il filtro location dell'utente e la ricerca libera usano entrambi una
     // clausola OR: vanno composti in AND separati per non sovrascriversi
     // (un solo `OR` per livello nel `where` di Prisma).
@@ -317,6 +333,9 @@ export class DocumentsService {
       andClauses.push({
         OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }],
       });
+    }
+    if (viewableTypes !== null) {
+      andClauses.push({ type: { in: [...viewableTypes] } });
     }
 
     const where: Prisma.DocumentWhereInput = {
@@ -431,12 +450,21 @@ export class DocumentsService {
     if (locationScope === null) {
       return [];
     }
+    // Il filtro tipi arriva dal client: si interseca con le famiglie
+    // consultabili, altrimenti il filtro «Operatore» rivelerebbe chi firma
+    // documenti che l'utente non può vedere.
+    const allowedTypes = user
+      ? intersectViewableDocumentTypes(user, query.types)
+      : (query.types ?? null);
+    if (allowedTypes !== null && allowedTypes.length === 0) {
+      return [];
+    }
 
     const rows = await this.prisma.document.findMany({
       where: {
         tenantId,
         createdById: { not: null },
-        ...(query.types?.length ? { type: { in: query.types } } : {}),
+        ...(allowedTypes ? { type: { in: [...allowedTypes] } } : {}),
         ...(locationScope !== 'unrestricted'
           ? { OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }] }
           : {}),
@@ -470,6 +498,57 @@ export class DocumentsService {
   }
 
   /**
+   * Matrice permessi documenti: le mutazioni richiedono «Gestisci» sulla
+   * famiglia del tipo. `user` assente (chiamate interne) passa: i flussi di
+   * sistema non sono azioni operatore.
+   */
+  private assertDocumentTypeManageable(
+    user: UserProfileDto | undefined,
+    type: DocumentType,
+  ): void {
+    if (!user) {
+      return;
+    }
+    if (!canManageDocumentType(user, type)) {
+      throw new ForbiddenException('Non hai il permesso di gestire questo tipo di documento.');
+    }
+  }
+
+  /**
+   * Aggancio e sgancio degli Ordini cliente inclusi (`includedSalesOrderIds`):
+   * il corpo della richiesta sposta l'operazione sulla famiglia «ordine
+   * cliente», che né il gate di rotta («gestisci almeno una famiglia») né
+   * `assertDocumentTypeManageable` (la sola famiglia del documento salvato)
+   * coprono. Senza questa guardia chi gestisce i soli DDT vendita poteva
+   * agganciare l'ordine di un altro: alla conferma ne vengono CONSUMATI gli
+   * impegni di magazzino e l'ordine passa a evaso. E poteva fare il contrario
+   * mandando un elenco VUOTO su un DDT che ne aveva — l'ordine viene RIAPERTO
+   * e gli impegni ricreati — senza nemmeno conoscere un id.
+   * `user` assente = chiamata interna: l'autorizzazione l'ha già data chi ha
+   * avviato l'operazione.
+   */
+  private assertIncludedSalesOrdersManageable(
+    user: UserProfileDto | undefined,
+    requestedOrderIds: readonly string[] | undefined,
+    linkedOrderCount: number,
+  ): void {
+    if (!user || requestedOrderIds === undefined) {
+      return;
+    }
+    // Elenco vuoto su un documento che non ha ordini agganciati: il
+    // salvataggio non tocca alcun ordine, non c'è nulla da autorizzare.
+    if (requestedOrderIds.length === 0 && linkedOrderCount === 0) {
+      return;
+    }
+    // La famiglia `sales_order` ha `customer_order` come tipo documento.
+    if (!canManageDocumentType(user, DocumentType.customer_order)) {
+      throw new ForbiddenException(
+        'Non hai il permesso di gestire gli ordini cliente: non puoi agganciarli o sganciarli da questo documento.',
+      );
+    }
+  }
+
+  /**
    * Gate di SCRITTURA per le mutazioni di un documento legato a una sede:
    * l'utente deve poter operare sulla sede del documento (e, per i
    * trasferimenti, la destinazione segue la regola 'transferDestination').
@@ -492,7 +571,10 @@ export class DocumentsService {
 
   /**
    * Gate riusabile dai controller (es. allegati): carica il documento con lo
-   * scope di lettura dell'utente e applica il gate di scrittura sulla sede.
+   * scope di lettura dell'utente e applica i due gate di scrittura — la
+   * famiglia del tipo e la sede. Senza il primo, chi gestisce una sola
+   * famiglia potrebbe caricare ed ELIMINARE gli allegati di ogni altra
+   * (il gate di rotta chiede solo «gestisce almeno una famiglia»).
    */
   async assertWritableById(
     tenantId: string,
@@ -500,6 +582,7 @@ export class DocumentsService {
     user: UserProfileDto | undefined,
   ): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
     return doc;
   }
@@ -710,6 +793,11 @@ export class DocumentsService {
       throw new NotFoundException('Documento non trovato');
     }
     this.assertDocumentLocationReadable(user, doc.locationId);
+    // Matrice permessi documenti: la famiglia del tipo decide chi lo apre
+    // (`user` assente = chiamata interna, passa).
+    if (user && !canViewDocumentType(user, doc.type)) {
+      throw new ForbiddenException('Accesso negato al documento.');
+    }
     const {
       salesOrders = [],
       supplierOrder,
@@ -815,6 +903,10 @@ export class DocumentsService {
     dto: CreateDocumentDto,
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
+    this.assertDocumentTypeManageable(user, dto.type);
+    // Un documento nuovo non ha ordini agganciati: conta solo ciò che il corpo
+    // chiede di agganciare (il «Concludi ordine» arriva proprio da qui).
+    this.assertIncludedSalesOrdersManageable(user, dto.includedSalesOrderIds, 0);
     if (isInternalOnlyDocumentType(dto.type)) {
       throw new UnprocessableEntityException(
         'Questo tipo documento è generato automaticamente dal sistema e non può essere creato manualmente.',
@@ -952,7 +1044,13 @@ export class DocumentsService {
         }
 
         if (dto.includedSalesOrderIds !== undefined) {
-          await this.syncIncludedSalesOrdersTx(tx, tenantId, created, dto.includedSalesOrderIds);
+          await this.syncIncludedSalesOrdersTx(
+            tx,
+            tenantId,
+            created,
+            dto.includedSalesOrderIds,
+            user,
+          );
         }
 
         // Conferma nella STESSA transazione: numero + effetti magazzino per tipo
@@ -1105,6 +1203,7 @@ export class DocumentsService {
     tenantId: string,
     doc: Pick<Document, 'id' | 'type'>,
     orderIds: readonly string[],
+    user?: UserProfileDto,
   ): Promise<Array<{ variantId: string; locationId: string }>> {
     const uniqueIds = [...new Set(orderIds)];
     // DDT vendita e Fattura accompagnatoria concludono un ordine cliente
@@ -1124,7 +1223,7 @@ export class DocumentsService {
 
     const current = await tx.salesOrder.findMany({
       where: { tenantId, documentId: doc.id },
-      select: { id: true, orderNumber: true },
+      select: { id: true, orderNumber: true, locationId: true },
     });
     const currentIds = new Set(current.map((order) => order.id));
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
@@ -1142,9 +1241,25 @@ export class DocumentsService {
         source: true,
         cancelledAt: true,
         documentId: true,
+        locationId: true,
       },
     });
     const orderById = new Map(ordersToLink.map((order) => [order.id, order]));
+    const toUnlink = current.filter((order) => !uniqueIds.includes(order.id));
+
+    // Gli impegni di magazzino stanno sulla sede dell'ORDINE, non su quella del
+    // documento: agganciarlo li consuma là, sganciarlo li ricrea là. Senza
+    // questo controllo un operatore assegnato alla sola sede A muoveva le
+    // giacenze della sede B passando dal documento — la stessa porta che
+    // «Concludi ordine» (ManualSalesOrdersService) sbarra già. Gli ordini che
+    // restano agganciati non si toccano, quindi non si controllano.
+    if (user) {
+      for (const order of [...ordersToLink, ...toUnlink]) {
+        if (order.locationId) {
+          assertLocationInUserScope(user, order.locationId, 'write');
+        }
+      }
+    }
 
     const linkedDocumentIds = [
       ...new Set(
@@ -1190,7 +1305,7 @@ export class DocumentsService {
       await tx.salesOrder.update({ where: { id: order.id }, data: { documentId: doc.id } });
     }
 
-    for (const removed of current.filter((order) => !uniqueIds.includes(order.id))) {
+    for (const removed of toUnlink) {
       const reopenTargets = await this.reopenManualOrderRecordTx(
         tx,
         tenantId,
@@ -1211,6 +1326,14 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentTypeManageable(user, doc.type);
+    // Anche l'elenco VUOTO va autorizzato quando il documento ha già ordini
+    // agganciati: è quello il salvataggio che li sgancia e li riapre.
+    this.assertIncludedSalesOrdersManageable(
+      user,
+      dto.includedSalesOrderIds,
+      doc.linkedSalesOrders.length,
+    );
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
@@ -1875,6 +1998,7 @@ export class DocumentsService {
           tenantId,
           saved,
           dto.includedSalesOrderIds,
+          user,
         );
         syncTargets.push(...includeTargets);
         // Documento già confermato: i nuovi ordini agganciati vengono evasi
@@ -2321,6 +2445,7 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
     const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
     if (
       doc.status !== DocumentStatus.confirmed &&
@@ -2346,7 +2471,13 @@ export class DocumentsService {
 
   async cancel(tenantId: string, id: string, user?: UserProfileDto): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
+    // Annullare un documento con ordini agganciati li RIAPRE e ne ricrea gli
+    // impegni di magazzino: è un'azione sulla famiglia «ordine cliente», non
+    // solo su questo documento. Senza, il permesso sui DDT bastava a rimettere
+    // in gioco ordini che l'operatore non può nemmeno consultare.
+    this.assertIncludedSalesOrdersManageable(user, [], doc.linkedSalesOrders.length);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
         'Le vendite negozio non si annullano: registra un Reso vendita negozio per il rientro della merce.',
@@ -2626,6 +2757,7 @@ export class DocumentsService {
 
   async delete(tenantId: string, id: string, user?: UserProfileDto): Promise<void> {
     const doc = await this.getById(tenantId, id, user);
+    this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { User } from '../models/user.model';
 import { UserRole } from '../models/user.model';
 import { TenantChannelProfile } from '../models/tenant-channel-profile.model';
-import { TenantPermission } from '../models/tenant-permission.model';
+import { TenantPermission, defaultPermissionsForRole } from '../models/tenant-permission.model';
 
 import {
   canDeleteProducts,
@@ -45,7 +45,9 @@ function userWithRole(role: User['role'], overrides: Partial<User> = {}): User {
     assignedLocations: [],
     defaultLocationId: null,
     defaultLocation: null,
-    permissions: [],
+    // I preset di ruolo sono materializzati al salvataggio (l'array salvato È
+    // la verità): la fixture rispecchia i dati reali, non l'array vuoto.
+    permissions: [...defaultPermissionsForRole(role)],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -82,7 +84,7 @@ describe('tenant-permissions.util', () => {
     expect(
       isTenantManager(
         userWithRole(UserRole.Clerk, {
-          permissions: [TenantPermission.CustomersView],
+          permissions: [TenantPermission.SectionCustomers],
         }),
       ),
     ).toBe(false);
@@ -176,13 +178,13 @@ describe('tenant-permissions.util', () => {
 
   it('canViewReports e canViewCustomers rispettano permessi espliciti', () => {
     const noReports = userWithRole(UserRole.Clerk, {
-      permissions: [TenantPermission.InventoryManage, TenantPermission.CustomersView],
+      permissions: [TenantPermission.InventoryManage, TenantPermission.SectionCustomers],
     });
     expect(canViewReports(noReports)).toBe(false);
     expect(canViewCustomers(noReports)).toBe(true);
 
     const reportsOnly = userWithRole(UserRole.Clerk, {
-      permissions: [TenantPermission.ReportsView],
+      permissions: [TenantPermission.SectionReports],
     });
     expect(canViewReports(reportsOnly)).toBe(true);
     expect(canViewCustomers(reportsOnly)).toBe(false);
@@ -191,12 +193,12 @@ describe('tenant-permissions.util', () => {
   it('canReceiveSupplierOrders include manage o receive', () => {
     expect(
       canReceiveSupplierOrders(
-        userWithRole(UserRole.Clerk, { permissions: [TenantPermission.SupplierOrdersReceive] }),
+        userWithRole(UserRole.Clerk, { permissions: ['doc.goods_receipt.manage'] }),
       ),
     ).toBe(true);
     expect(
       canReceiveSupplierOrders(
-        userWithRole(UserRole.Clerk, { permissions: [TenantPermission.SupplierOrdersManage] }),
+        userWithRole(UserRole.Clerk, { permissions: ['doc.supplier_order.manage'] }),
       ),
     ).toBe(true);
     expect(

@@ -7,6 +7,8 @@ import {
   type StockReservation,
 } from '@prisma/client';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { applyCommittedDelta } from './committed-delta.util';
 
@@ -232,12 +234,31 @@ export class StockReservationService {
     }
   }
 
-  /** Impegni attivi che compongono la Impegnata di una variante×location (UI §10). */
-  listActiveForLevel(
+  /**
+   * Impegni attivi che compongono la Impegnata di una variante×location (UI §10).
+   *
+   * Senza utente in contesto (chiamate interne, lavori di sistema) non si
+   * decide nulla qui: l'autorizzazione l'ha già data chi ha avviato
+   * l'operazione — è `assertLocationReadableInUserScope` a lasciar passare.
+   */
+  async listActiveForLevel(
     tenantId: string,
     variantId: string,
     locationId: string,
+    user?: UserProfileDto,
   ): Promise<ActiveReservationWithRefs[]> {
+    // Il gate della rotta chiede la sola sezione Magazzino, ma la sede arriva
+    // dalla query ed è validata solo come UUID: senza questo controllo chi ha
+    // una sola sede assegnata leggeva gli impegni di qualunque altra — numero
+    // d'ordine, canale, quantità e sku dei clienti di un altro negozio. Chi ha
+    // `inventory.view_all_locations`, il titolare e chi ha accesso a tutte le
+    // sedi continuano a vedere tutto.
+    assertLocationReadableInUserScope(
+      user,
+      locationId,
+      'Non sei autorizzato a consultare gli impegni di questo magazzino.',
+    );
+
     return this.prisma.stockReservation.findMany({
       where: { tenantId, variantId, locationId, status: ReservationStatus.active },
       include: {

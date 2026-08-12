@@ -35,10 +35,22 @@ describe('user-location-scope.util', () => {
     },
   ];
 
-  it('canSwitchOperationalLocation per titolare/admin/manager (preset), non commesso base', () => {
+  it('canSwitchOperationalLocation per titolare/admin/manager (preset materializzato), non commesso base', () => {
     expect(canSwitchOperationalLocation({ role: UserRole.Owner } as never)).toBe(true);
-    expect(canSwitchOperationalLocation({ role: UserRole.Admin } as never)).toBe(true);
-    expect(canSwitchOperationalLocation({ role: UserRole.Manager } as never)).toBe(true);
+    // I preset di ruolo sono materializzati al salvataggio: admin e manager
+    // reali portano view_all_locations nell'array (vuoto = nessun permesso).
+    expect(
+      canSwitchOperationalLocation({
+        role: UserRole.Admin,
+        permissions: [TenantPermission.InventoryViewAllLocations],
+      } as never),
+    ).toBe(true);
+    expect(
+      canSwitchOperationalLocation({
+        role: UserRole.Manager,
+        permissions: [TenantPermission.InventoryViewAllLocations],
+      } as never),
+    ).toBe(true);
     expect(canSwitchOperationalLocation({ role: UserRole.Clerk } as never)).toBe(false);
   });
 

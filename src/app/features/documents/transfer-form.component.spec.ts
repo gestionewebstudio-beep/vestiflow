@@ -5,6 +5,9 @@ import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TenantPermission } from '@core/models/tenant-permission.model';
+import type { TenantPermissionKey } from '@core/models/tenant-permission.model';
+import { UserRole } from '@core/models/user.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { ProductService } from '@domain/products/services/product.service';
@@ -32,9 +35,15 @@ function operationalLocationsMock(defaultLocation: { id: string; name: string } 
   };
 }
 
+/** Operatore non titolare: conta solo l'elenco permessi, mai il ruolo. */
+function clerkWith(permissions: readonly TenantPermissionKey[]) {
+  return { role: UserRole.Clerk, permissions: [...permissions] };
+}
+
 describe('TransferFormComponent', () => {
   async function setup(options?: {
     readonly defaultLocation?: { id: string; name: string } | null;
+    readonly permissions?: readonly TenantPermissionKey[];
   }) {
     await render(TransferFormComponent, {
       providers: [
@@ -43,7 +52,12 @@ describe('TransferFormComponent', () => {
           useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
         },
         // Nessun permesso costi: il selettore articolo non deve mostrare il costo.
-        { provide: AuthService, useValue: { currentUser: () => null } },
+        {
+          provide: AuthService,
+          useValue: {
+            currentUser: () => (options?.permissions ? clerkWith(options.permissions) : null),
+          },
+        },
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -110,6 +124,23 @@ describe('TransferFormComponent', () => {
     );
     expect(screen.getByRole('button', { name: 'Location di destinazione' })).toHaveTextContent(
       'Seleziona destinazione…',
+    );
+  });
+
+  // Senza «documents.configure» l'ingranaggio accanto alla serie non compare:
+  // l'API nega la scrittura delle numerazioni, il comando risponderebbe 403.
+  it('nasconde «Gestisci numerazioni» a chi non configura i documenti', async () => {
+    await setup({ permissions: [] });
+
+    expect(screen.queryByRole('button', { name: 'Gestisci numerazioni' })).toBeNull();
+  });
+
+  it('mostra «Gestisci numerazioni» a chi ha documents.configure', async () => {
+    await setup({ permissions: [TenantPermission.DocumentsConfigure] });
+
+    // Testata mobile e griglia desktop montano entrambe il campo.
+    expect(screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
+      0,
     );
   });
 });

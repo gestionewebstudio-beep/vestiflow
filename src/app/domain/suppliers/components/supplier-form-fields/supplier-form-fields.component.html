@@ -19,8 +19,13 @@
         class="supplier-fields__control"
         type="text"
         formControlName="name"
-        [attr.aria-invalid]="formGroup().controls.name.invalid && formGroup().controls.name.touched"
+        [attr.aria-invalid]="showError('name')"
       />
+      @if (showError('name')) {
+        <span class="supplier-fields__field-error"
+          >Inserisci la ragione sociale del fornitore.</span
+        >
+      }
     </div>
     <div class="supplier-fields__field">
       <label class="supplier-fields__label" [for]="idPrefix() + '-vat'">P. IVA</label>
@@ -50,7 +55,13 @@
         type="email"
         formControlName="email"
         autocomplete="email"
+        [attr.aria-invalid]="showError('email')"
       />
+      @if (showError('email')) {
+        <span class="supplier-fields__field-error"
+          >Inserisci un indirizzo email valido, es. ordini&#64;fornitore.it.</span
+        >
+      }
     </div>
     <div class="supplier-fields__field">
       <label class="supplier-fields__label" [for]="idPrefix() + '-pec'">PEC</label>
@@ -60,7 +71,13 @@
         type="email"
         formControlName="pec"
         autocomplete="off"
+        [attr.aria-invalid]="showError('pec')"
       />
+      @if (showError('pec')) {
+        <span class="supplier-fields__field-error"
+          >Inserisci un indirizzo PEC valido, es. fornitore&#64;pec.it.</span
+        >
+      }
     </div>
     <div class="supplier-fields__field">
       <label class="supplier-fields__label" [for]="idPrefix() + '-phone'">Telefono</label>

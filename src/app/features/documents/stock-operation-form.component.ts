@@ -27,6 +27,8 @@ import { NavigationHistoryService } from '@core/services/navigation-history.serv
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
+import { hasTenantPermission } from '@core/permissions/user-permissions.util';
+import { TenantPermission } from '@core/models/tenant-permission.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
@@ -350,6 +352,14 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
 
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
+
+  /**
+   * Senza il permesso, accanto alla serie resta solo il campo: niente
+   * ingranaggio e nessun pannello numerazioni da aprire.
+   */
+  protected readonly puoConfigurareDocumenti = computed(() =>
+    hasTenantPermission(this.authService.currentUser(), TenantPermission.DocumentsConfigure),
+  );
 
   /**
    * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
@@ -686,12 +696,47 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     }
   }
 
+  /**
+   * Blocco al salvataggio. Marcare i campi come toccati non basta: la riga
+   * mancante non ha un campo proprio, e senza messaggio il pulsante sembra
+   * non fare nulla. Il motivo del rifiuto si vede sempre.
+   */
   private validateForm(): boolean {
     if (this.form.invalid || !this.hasStockLine()) {
       this.form.markAllAsTouched();
+      this._submitState.set({
+        status: 'error',
+        error: { kind: AppErrorKind.Validation, message: this.validationMessage() },
+      });
       return false;
     }
+    // Il vecchio blocco è rientrato: l'avviso non deve restare a schermo.
+    if (this._submitState().status === 'error') {
+      this._submitState.set({ status: 'idle' });
+    }
     return true;
+  }
+
+  /** Il primo ostacolo in ordine di lettura, detto in modo che si sappia cosa fare. */
+  private validationMessage(): string {
+    if (!this.hasStockLine()) {
+      return this.isAdjustment()
+        ? 'Aggiungi almeno una riga da rettificare: variante e quantità maggiore di zero.'
+        : 'Aggiungi almeno una riga da scaricare: variante e quantità maggiore di zero.';
+    }
+    if (this.form.controls.locationId.invalid) {
+      return 'Seleziona la location del documento.';
+    }
+    if (this.isAdjustment() && this.form.controls.adjustmentDirection.invalid) {
+      return 'Indica la direzione della rettifica: aumento o diminuzione della giacenza.';
+    }
+    if (this.form.controls.documentDate.invalid) {
+      return 'Inserisci la data del documento nel formato GG/MM/AAAA.';
+    }
+    if (this.form.controls.internalComment.invalid) {
+      return 'Scrivi il motivo nel commento interno: è obbligatorio per la tracciabilità.';
+    }
+    return 'Controlla le righe evidenziate in rosso: descrizione e quantità sono obbligatorie.';
   }
 
   private hasStockLine(): boolean {

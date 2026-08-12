@@ -18,6 +18,7 @@ import {
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
+  RequireAllPermissionGroups,
   RequireAnyPermissions,
   RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
@@ -57,7 +58,7 @@ export class CustomersController {
   }
 
   @Get('export/csv')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([CUSTOMERS_VIEW_PERMISSIONS, [TenantPermission.ReportsExport]])
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportCsv(
     @CurrentTenant() tenantId: string,

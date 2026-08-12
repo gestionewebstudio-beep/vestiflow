@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -15,8 +16,12 @@ import {
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { canManageDocumentType, viewableDocumentTypesFor } from '../auth/document-permission.util';
+import { TenantPermission } from '../auth/tenant-permission.constants';
+import { canViewPurchaseCosts, hasTenantPermission } from '../auth/user-permissions.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { applyInventoryLotsFromDocumentLines } from '../inventory/inventory-lot.util';
+import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
 import { assertLocationInUserScope } from '../inventory/user-location-scope.util';
 import {
   applyInventorySerialsFromDocumentLines,
@@ -149,6 +154,20 @@ export class GoodsReceiptWorkflowService {
     dto: SaveGoodsReceiptDto,
     user?: UserProfileDto,
   ): Promise<GoodsReceiptSaveResult> {
+    // Il gate della rotta chiede «gestisci arrivo merce», ma questo salvataggio
+    // accetta anche `manual_load` e `initial_load`, che sono famiglia
+    // `adjustment`: senza questo controllo chi ha il solo arrivo merce creava
+    // carichi manuali, e i movimenti di magazzino che ne derivano, con un
+    // permesso che non gli era stato dato. Il tipo lo decide il corpo della
+    // richiesta, quindi va verificato qui — prima di ogni effetto.
+    this.assertTypeManageable(dto.type, user);
+    // Stessa ragione, altro oggetto: le righe possono portare `newProduct`, e
+    // quel campo crea un articolo a catalogo — nome, prezzo, costo, Codice IVA
+    // e accodamento della pubblicazione sui canali. Con quantità 0 non nasce
+    // nemmeno una riga documento: è creazione di anagrafica pura, che dalla sua
+    // rotta propria chiede `catalog.manage`. Senza questo controllo bastava un
+    // arrivo merce per popolare il catalogo senza quel permesso.
+    this.assertNewProductsManageable(dto, user);
     try {
       const result = await this.saveGoodsReceiptInner(tenantId, dto, user);
       // Ricorda la modalità costo (netto/ivato) scelta per questo tipo, solo
@@ -192,6 +211,67 @@ export class GoodsReceiptWorkflowService {
         prefix: setting.numberPrefix,
       }),
     );
+  }
+
+  /**
+   * Stessa forma di `DocumentsService.assertDocumentTypeManageable`: senza
+   * utente in contesto (chiamate interne, lavori di sistema) non si decide
+   * nulla qui — l'autorizzazione l'ha già data chi ha avviato l'operazione.
+   */
+  private assertTypeManageable(type: DocumentType, user?: UserProfileDto): void {
+    if (!user) {
+      return;
+    }
+    if (!canManageDocumentType(user, type)) {
+      throw new ForbiddenException('Non hai il permesso di gestire questo tipo di documento.');
+    }
+  }
+
+  /**
+   * Creazione articolo dalla riga (`newProduct`): il permesso è quello del
+   * catalogo, non quello del documento. Vale solo per le righe che creano
+   * davvero — una riga già collegata a una variante può riportare `newProduct`
+   * di ritorno dal client (riadozione di variantId/sku dopo il primo
+   * salvataggio) e non deve trasformare una modifica in un rifiuto.
+   * Senza utente in contesto non si decide: le chiamate interne e i lavori di
+   * sistema sono già stati autorizzati a monte.
+   */
+  private assertNewProductsManageable(dto: SaveGoodsReceiptDto, user?: UserProfileDto): void {
+    if (!user) {
+      return;
+    }
+    const createsProducts = (dto.lines ?? []).some((line) => !line.variantId && line.newProduct);
+    if (!createsProducts) {
+      return;
+    }
+    if (!hasTenantPermission(user, TenantPermission.CatalogManage)) {
+      throw new ForbiddenException(
+        'Non hai il permesso di creare articoli a catalogo: seleziona un articolo esistente.',
+      );
+    }
+  }
+
+  /**
+   * Arrivi merce inclusi in una registrazione fattura: il permesso è quello
+   * della famiglia `goods_receipt`, che la rotta della fattura non chiede.
+   * Basta la famiglia dell'arrivo merce perché gli unici tipi collegabili sono
+   * `INVOICE_LINKABLE_RECEIPT_TYPES` (oggi il solo `goods_receipt`) e il
+   * controllo più sotto rifiuta ogni altro tipo: se un giorno quella costante
+   * accogliesse altri tipi, questo controllo va esteso alle loro famiglie.
+   * Senza utente in contesto non si decide (chiamate interne, lavori di sistema).
+   */
+  private assertLinkedReceiptsManageable(
+    goodsReceiptIds: readonly string[] | undefined,
+    user?: UserProfileDto,
+  ): void {
+    if (!user || !goodsReceiptIds || goodsReceiptIds.length === 0) {
+      return;
+    }
+    if (!canManageDocumentType(user, DocumentType.goods_receipt)) {
+      throw new ForbiddenException(
+        'Non hai il permesso di gestire gli arrivi merce da collegare alla fattura.',
+      );
+    }
   }
 
   private async saveGoodsReceiptInner(
@@ -331,6 +411,14 @@ export class GoodsReceiptWorkflowService {
 
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
     const createdProducts: GoodsReceiptCreatedProduct[] = [];
+
+    // Costo d'acquisto del nuovo articolo: dato riservato a
+    // `catalog.view_purchase_costs`, stessa regola della maschera articolo e
+    // dell'importazione CSV (chi non lo vede non lo scrive). Senza di questo
+    // il campo mascherato altrove rientrava a catalogo dalla riga documento.
+    // Senza utente in contesto non si decide: le chiamate interne conservano
+    // il costo che hanno calcolato.
+    const canWriteCosts = !user || canViewPurchaseCosts(user);
 
     const saved = await this.prisma.$transaction(async (tx) => {
       let existing: (Document & { lines: DocumentLine[] }) | null = null;
@@ -481,7 +569,7 @@ export class GoodsReceiptWorkflowService {
           barcode: line.newProduct.barcode,
           sellingPriceMinor: line.newProduct.sellingPriceMinor,
           compareAtPriceMinor: line.newProduct.compareAtPriceMinor,
-          purchasePriceMinor: line.newProduct.purchasePriceMinor,
+          purchasePriceMinor: canWriteCosts ? line.newProduct.purchasePriceMinor : null,
           vatCodeId: line.newProduct.vatCodeId,
           managesStock: line.newProduct.managesStock,
           currency: dto.currency ?? existing?.currency ?? 'EUR',
@@ -704,12 +792,30 @@ export class GoodsReceiptWorkflowService {
     tenantId: string,
     supplierId: string,
     excludeInvoiceId?: string,
+    user?: UserProfileDto,
   ): Promise<LinkableGoodsReceiptRow[]> {
+    // Il lookup espone testate di arrivo merce complete di totali: vale la
+    // stessa regola del registro — famiglie consultabili e sedi leggibili.
+    const viewableTypes = user ? viewableDocumentTypesFor(user) : null;
+    const linkableTypes = viewableTypes
+      ? INVOICE_LINKABLE_RECEIPT_TYPES.filter((type) => viewableTypes.includes(type))
+      : [...INVOICE_LINKABLE_RECEIPT_TYPES];
+    if (linkableTypes.length === 0) {
+      return [];
+    }
+    const locationScope = await resolveReadableListLocationScope(this.prisma, tenantId, user);
+    if (locationScope === null) {
+      return [];
+    }
+
     const rows = await this.prisma.document.findMany({
       where: {
         tenantId,
         supplierId,
-        type: { in: [...INVOICE_LINKABLE_RECEIPT_TYPES] },
+        type: { in: linkableTypes },
+        ...(locationScope === 'unrestricted'
+          ? {}
+          : { OR: [{ locationId: null }, { locationId: { in: [...locationScope] } }] }),
         status: { notIn: [DocumentStatus.draft, DocumentStatus.cancelled] },
         totalMinor: { gt: 0 },
         billingCause: INVOICE_PENDING_BILLING_CAUSE,
@@ -757,6 +863,13 @@ export class GoodsReceiptWorkflowService {
     dto: SavePurchaseInvoiceDto,
     user?: UserProfileDto,
   ): Promise<PurchaseInvoiceSaveResult> {
+    // Il gate della rotta chiede «gestisci registrazione fattura», ma il corpo
+    // può portare `goodsReceiptIds`: collegarli agisce su documenti di un'ALTRA
+    // famiglia — li marca fatturati (togliendoli dalla lista dei collegabili),
+    // ne azzera il flag «Totali da verificare», e toglierli dall'elenco li
+    // riporta Sospesi. Senza questo controllo chi registra le fatture cambiava
+    // lo stato degli arrivi merce senza averne il permesso.
+    this.assertLinkedReceiptsManageable(dto.goodsReceiptIds, user);
     const setting = await this.settings.getResolved(tenantId, DocumentType.supplier_invoice);
     await this.assertSupplier(tenantId, dto.supplierId);
 

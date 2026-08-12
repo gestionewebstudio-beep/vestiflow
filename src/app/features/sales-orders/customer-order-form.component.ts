@@ -30,9 +30,16 @@ import { APP_CONFIG } from '@core/config/app-config.token';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
 import {
-  canManageDocuments,
+  TenantPermission,
+  type DocumentPermissionFamily,
+} from '@core/models/tenant-permission.model';
+import {
+  canManageCatalog,
+  canManageCustomers,
+  canManageDocFamily,
   canViewPurchaseCosts,
 } from '@core/permissions/tenant-permissions.util';
+import { hasTenantPermission } from '@core/permissions/user-permissions.util';
 import { AppErrorKind, isAppError, type AppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import type { Money } from '@core/models/common.model';
@@ -1005,8 +1012,42 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return notice;
   });
 
+  /** Famiglia della matrice permessi corrispondente alla modalità della maschera. */
+  private readonly permissionFamily: DocumentPermissionFamily =
+    this.formKind === 'quote'
+      ? 'quote'
+      : this.formKind === 'sales-ddt'
+        ? 'sales_ddt'
+        : this.formKind === 'manual-unload'
+          ? 'manual_unload'
+          : 'sales_order';
+
   protected readonly canManageOrders = computed(() =>
-    canManageDocuments(this.authService.currentUser()),
+    canManageDocFamily(this.authService.currentUser(), this.permissionFamily),
+  );
+
+  /**
+   * Anagrafica clienti in scrittura: senza, il documento si compila scegliendo
+   * un cliente già esistente e non se ne crea uno da qui.
+   */
+  protected readonly puoGestireClienti = computed(() =>
+    canManageCustomers(this.authService.currentUser()),
+  );
+
+  /**
+   * Anagrafica prodotti in scrittura: senza, le righe si riempiono cercando in
+   * catalogo e non si crea un articolo nuovo dalla maschera.
+   */
+  protected readonly puoGestireCatalogo = computed(() =>
+    canManageCatalog(this.authService.currentUser()),
+  );
+
+  /**
+   * Configurazione documentale del tenant (numeratori e serie): senza, la serie
+   * resta scegliibile fra quelle esistenti ma non si aggiunge né si modifica.
+   */
+  protected readonly puoConfigurareNumerazioni = computed(() =>
+    hasTenantPermission(this.authService.currentUser(), TenantPermission.DocumentsConfigure),
   );
 
   /**

@@ -5,7 +5,7 @@
 // .doc-form (src/styles/_document-form.scss + _document-form-footer.scss).
 //
 // Foglio nuovo (FASE 1): la maschera prima non ne aveva uno. Qui restano solo
-// i due punti che il linguaggio comune non copre per questa maschera.
+// i pochi punti che il linguaggio comune non copre per questa maschera.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Il foglio condiviso nasconde .doc-form__table-wrap sotto `lg` in favore
@@ -24,4 +24,15 @@
   .doc-form__header-row > .doc-form__field--span2 {
     flex: 2 1 0;
   }
+}
+
+// Errore di riga visibile anche dentro la tabella. Nel foglio condiviso
+// `.doc-form__input--invalid` (riga 420) precede `.doc-form__input--table`
+// (riga 901), che ridichiara `border` e `background` trasparenti: a parità di
+// specificità vince l'ultimo, quindi in cella il rosso non comparirebbe.
+// Qui i due modificatori insieme (più l'attributo di incapsulamento) bastano
+// a farlo tornare visibile — nessun valore nudo, solo token di stato.
+.doc-form__input--table.doc-form__input--invalid {
+  border-color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
 }

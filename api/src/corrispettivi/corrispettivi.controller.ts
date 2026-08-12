@@ -15,8 +15,8 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { TenantPermission } from '../auth/tenant-permission.constants';
-import { RequirePermissions } from '../common/auth/tenant-permissions.decorator';
+import { ONLINE_SALES_VIEW_GROUPS, TenantPermission } from '../auth/tenant-permission.constants';
+import { RequireAllPermissionGroups } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
@@ -40,7 +40,7 @@ export class CorrispettiviController {
   ) {}
 
   @Get('orders')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   listOrders(
     @CurrentTenant() tenantId: string,
     @Query() query: ListCorrispettiviQueryDto,
@@ -49,7 +49,7 @@ export class CorrispettiviController {
   }
 
   @Get('summary')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   getSummary(
     @CurrentTenant() tenantId: string,
     @Query() query: ListCorrispettiviQueryDto,
@@ -58,7 +58,7 @@ export class CorrispettiviController {
   }
 
   @Get('export/csv')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([...ONLINE_SALES_VIEW_GROUPS, [TenantPermission.ReportsExport]])
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportCsv(
     @CurrentTenant() tenantId: string,
@@ -73,7 +73,7 @@ export class CorrispettiviController {
   }
 
   @Get('export/spreadsheet')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([...ONLINE_SALES_VIEW_GROUPS, [TenantPermission.ReportsExport]])
   @Header('Content-Type', 'application/vnd.ms-excel')
   async exportSpreadsheet(
     @CurrentTenant() tenantId: string,
@@ -88,7 +88,7 @@ export class CorrispettiviController {
   }
 
   @Get('export/pdf')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([...ONLINE_SALES_VIEW_GROUPS, [TenantPermission.ReportsExport]])
   @Header('Content-Type', 'application/pdf')
   async exportPdf(
     @CurrentTenant() tenantId: string,
@@ -105,7 +105,10 @@ export class CorrispettiviController {
   }
 
   @Post('mark-delivered')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([
+    ...ONLINE_SALES_VIEW_GROUPS,
+    [TenantPermission.ReportsFiscalRegister],
+  ])
   markDelivered(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -115,7 +118,7 @@ export class CorrispettiviController {
   }
 
   @Get('deliveries')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   listDeliveries(
     @CurrentTenant() tenantId: string,
     @Query('page') page?: string,
@@ -127,7 +130,10 @@ export class CorrispettiviController {
   }
 
   @Patch('orders/:id/fiscal-status')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([
+    ...ONLINE_SALES_VIEW_GROUPS,
+    [TenantPermission.ReportsFiscalRegister],
+  ])
   updateFiscalStatus(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,

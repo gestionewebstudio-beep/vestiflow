@@ -38,15 +38,17 @@
            La specifica §8 la chiamava «nome cliccabile», ma la riga È già un
            pulsante e un pulsante dentro un pulsante non è markup valido: stessa
            idea, due bersagli affiancati. -->
-      <button
-        type="button"
-        class="psr__open"
-        [attr.aria-label]="'Apri anagrafica di ' + item.title"
-        title="Apri anagrafica"
-        (click)="openDetail(item.productId)"
-      >
-        <i class="pi pi-external-link" aria-hidden="true"></i>
-      </button>
+      @if (canOpenDetail()) {
+        <button
+          type="button"
+          class="psr__open"
+          [attr.aria-label]="'Apri anagrafica di ' + item.title"
+          title="Apri anagrafica"
+          (click)="openDetail(item.productId)"
+        >
+          <i class="pi pi-external-link" aria-hidden="true"></i>
+        </button>
+      }
     </li>
   }
 </ul>

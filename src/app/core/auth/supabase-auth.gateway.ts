@@ -105,11 +105,18 @@ export class SupabaseAuthGateway implements AuthGateway {
     );
   }
 
-  updatePassword(newPassword: string): Observable<void> {
+  updatePassword(newPassword: string, keepSession = false): Observable<void> {
     return from(this.supabase.auth.updateUser({ password: newPassword })).pipe(
       switchMap(({ error }) => {
         if (error) {
           return throwError(() => this.mapAuthError(error));
+        }
+        // Chiudere la sessione qui è giusto per il link ricevuto via email, ed
+        // era sbagliato al primo accesso: il passo successivo è una chiamata
+        // autenticata, e senza token rispondeva 401 lasciando `mustChangePassword`
+        // acceso — l'operatore rientrava e si ritrovava la stessa schermata.
+        if (keepSession) {
+          return of(undefined);
         }
         return from(this.supabase.auth.signOut()).pipe(map(() => undefined));
       }),

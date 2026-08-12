@@ -34,6 +34,10 @@ import { take } from 'rxjs';
 
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
+import { AuthService } from '@core/auth';
+import { canManageCatalog, canManageDocFamily } from '@core/permissions/tenant-permissions.util';
+import { hasTenantPermission } from '@core/permissions/user-permissions.util';
+import { TenantPermission } from '@core/models/tenant-permission.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
 import type { LinkedSupplierOrderLineContext } from '@core/models/document.model';
@@ -290,6 +294,37 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly editLock = inject(DocumentEditLockService);
+  private readonly authService = inject(AuthService);
+
+  // ── Cosa l'operatore può davvero fare (§permessi) ─────────────────────────
+  // Il server nega comunque: qui si evita di mostrare comandi che al primo
+  // clic rispondono 403.
+
+  /**
+   * Senza il permesso, accanto alla serie non c'è l'ingranaggio (nessun
+   * pannello numerazioni da aprire) e la tendina del tipo documento fornitore
+   * resta il solo elenco dei tipi già configurati.
+   */
+  protected readonly puoConfigurareDocumenti = computed(() =>
+    hasTenantPermission(this.authService.currentUser(), TenantPermission.DocumentsConfigure),
+  );
+
+  /**
+   * L'anagrafica fornitore si crea con la stessa chiave degli ordini
+   * fornitore. Senza, resta la sola tendina dei fornitori già registrati:
+   * la scorciatoia «Nuovo fornitore» non compare.
+   */
+  protected readonly puoGestireOrdiniFornitore = computed(() =>
+    canManageDocFamily(this.authService.currentUser(), 'supplier_order'),
+  );
+
+  /**
+   * Senza la gestione del catalogo la scheda articolo non si apre in
+   * creazione: le righe si compilano scegliendo articoli già a catalogo.
+   */
+  protected readonly puoGestireCatalogo = computed(() =>
+    canManageCatalog(this.authService.currentUser()),
+  );
 
   protected readonly listPath = '/app/documents/arrivi-merce';
   protected readonly currency = DEFAULT_CURRENCY;
@@ -890,8 +925,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         options.push({ value: type.id, label: type.shortLabel || type.name });
       }
     }
-    options.push({ value: this.NEW_TYPE_OPTION, label: 'Altro / Nuovo tipo…' });
-    options.push({ value: this.MANAGE_TYPES_OPTION, label: 'Gestisci tipi documento…' });
+    // Le due voci-azione creano e riordinano/disattivano/eliminano i tipi:
+    // chi non configura i documenti sceglie soltanto fra quelli esistenti.
+    if (this.puoConfigurareDocumenti()) {
+      options.push({ value: this.NEW_TYPE_OPTION, label: 'Altro / Nuovo tipo…' });
+      options.push({ value: this.MANAGE_TYPES_OPTION, label: 'Gestisci tipi documento…' });
+    }
     return options;
   });
 

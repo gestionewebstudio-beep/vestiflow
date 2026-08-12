@@ -40,12 +40,13 @@
       icon="pi-search"
       title="Nessun prodotto trovato"
       [description]="emptyDescription()"
-      [ctaLabel]="canCreate() ? 'Crea articolo' : ''"
+      [ctaLabel]="puoCreareArticolo() ? 'Crea articolo' : ''"
       (ctaClick)="requestCreate()"
     />
   } @else {
     <app-product-search-results
       [results]="results()"
+      [canOpenDetail]="puoGestireCatalogo()"
       (variantSelected)="selectVariant($event)"
       (detailRequested)="requestDetail($event)"
     />

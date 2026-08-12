@@ -2098,7 +2098,15 @@ describe('DocumentsService', () => {
     const clerkViewAll = () =>
       testClerkUser({
         assignedLocationIds: ['loc-A'],
-        permissions: [TenantPermission.InventoryManage, TenantPermission.InventoryViewAllLocations],
+        permissions: [
+          TenantPermission.InventoryManage,
+          TenantPermission.InventoryViewAllLocations,
+          // Matrice documenti: le mutazioni sotto toccano DDT e trasferimenti,
+          // il test isola il gate di SEDE, non quello di tipo.
+          'doc.sales_ddt.manage',
+          'doc.transfer.manage',
+          'doc.invoice.manage',
+        ],
       });
 
     const docInLocB = (overrides: Record<string, unknown> = {}) => ({

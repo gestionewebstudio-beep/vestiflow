@@ -15,7 +15,7 @@ import type {
   CreateTenantUserPayload,
   TenantUser,
   UpdateTenantUserPayload,
-} from '../models/admin-tenant-user.model';
+} from '@domain/users/models/tenant-user.model';
 
 const HTTP_TIMEOUT_MS = 15000;
 

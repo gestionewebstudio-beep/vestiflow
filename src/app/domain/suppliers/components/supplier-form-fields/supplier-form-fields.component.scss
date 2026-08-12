@@ -46,6 +46,19 @@
   outline-offset: var(--space-1);
 }
 
+.supplier-fields__field-error {
+  display: block;
+  margin-block-start: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-danger);
+}
+
+// Il bordo colorato accompagna il messaggio: chi scorre il form con lo sguardo
+// trova il campo, chi lo legge trova il motivo.
+.supplier-fields__control[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
 .supplier-fields__textarea {
   block-size: auto;
   min-block-size: calc(var(--field-height) * 2);

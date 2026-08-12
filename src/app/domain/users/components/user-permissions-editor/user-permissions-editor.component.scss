@@ -44,6 +44,18 @@
   color: var(--color-interactive);
   text-decoration: underline;
   cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    text-decoration: none;
+    color: var(--color-text-subtle);
+  }
+}
+
+// Salvataggio in volo: le caselle sono davvero `disabled`, l'opacità lo dice
+// anche a chi guarda invece di lasciar credere che un clic in più sia servito.
+.permissions-editor--busy {
+  opacity: var(--opacity-disabled);
 }
 
 .permissions-editor__grid {
@@ -112,4 +124,77 @@
 
 .permissions-editor__name:hover {
   text-decoration-color: var(--color-interactive);
+}
+
+.permissions-editor__group-hint {
+  margin: 0 0 var(--space-2);
+  padding-inline: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.permissions-editor__list--sections {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr);
+
+  @include bp.media-up('md') {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include bp.media-up('lg') {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.permissions-editor__matrix-wrap {
+  overflow-x: auto;
+}
+
+.permissions-editor__matrix {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+
+  th,
+  td {
+    padding: var(--space-1) var(--space-2);
+    border-bottom: var(--border-width) solid var(--color-border);
+    text-align: start;
+    vertical-align: middle;
+  }
+
+  thead th {
+    text-transform: uppercase;
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-subtle);
+    background: var(--color-table-header-bg);
+  }
+}
+
+.permissions-editor__matrix-row-title {
+  font-weight: var(--font-weight-medium);
+}
+
+.permissions-editor__matrix-check-col {
+  text-align: center;
+  white-space: nowrap;
+
+  .permissions-editor__checkbox {
+    margin-block-start: 0;
+  }
+}
+
+// Il trattino porta con sé il testo per lo screen reader: `position: relative`
+// tiene quel testo ancorato alla cella invece di appenderlo all'<html>.
+.permissions-editor__matrix-na {
+  position: relative;
+  color: var(--color-text-subtle);
+}
+
+// Le azioni delicate hanno una cornice propria: devono saltare all'occhio.
+.permissions-editor__group--sensitive {
+  border-color: var(--color-warning);
+  background: var(--color-warning-subtle);
 }

@@ -31,6 +31,7 @@ import {
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
+  RequireAllPermissionGroups,
   RequireAnyPermissions,
   RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
@@ -128,7 +129,7 @@ export class InventoryController {
   }
 
   @Get('movements/export/corrispettivi')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([INVENTORY_SECTION_PERMISSIONS, [TenantPermission.ReportsExport]])
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportCorrispettiviCsv(
     @CurrentTenant() tenantId: string,
@@ -169,7 +170,7 @@ export class InventoryController {
   }
 
   @Get('reports/location-summary')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequirePermissions(TenantPermission.SectionReports)
   locationInventoryReport(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,

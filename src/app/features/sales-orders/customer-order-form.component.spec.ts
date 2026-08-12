@@ -1107,3 +1107,65 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
     });
   });
 });
+
+/**
+ * Comandi che l'API nega: da qui devono sparire, non restare grigi.
+ *
+ * Come sopra, ogni «non compare» ha il suo controllo inverso col titolare: un
+ * test che verifica un'assenza va in verde anche quando quel comando non c'è
+ * mai stato, e allora non sta verificando la guardia.
+ */
+describe('CustomerOrderFormComponent — comandi fuori dai permessi', () => {
+  const OWNER = { id: 'u-1', role: 'owner' };
+
+  /** Commessa che gestisce ordini e preventivi e nient'altro. */
+  const COMMESSA = {
+    id: 'u-2',
+    role: 'clerk',
+    permissions: ['section.sales', 'doc.sales_order.manage', 'doc.quote.manage'],
+  };
+
+  async function apri(user: unknown, options: FormOptions = {}) {
+    return render(CustomerOrderFormComponent, { providers: formProviders({ user, ...options }) });
+  }
+
+  it('senza customers.manage la scorciatoia «Nuovo cliente» non compare', async () => {
+    const view = await apri(COMMESSA);
+
+    expect(view.queryAllByRole('button', { name: /nuovo cliente/i })).toHaveLength(0);
+  });
+
+  it('al titolare «Nuovo cliente» resta', async () => {
+    const view = await apri(OWNER);
+
+    expect(view.queryAllByRole('button', { name: /nuovo cliente/i }).length).toBeGreaterThan(0);
+  });
+
+  it('senza catalog.manage la creazione articolo dalla maschera non compare', async () => {
+    const view = await apri(COMMESSA);
+
+    expect(view.queryAllByRole('button', { name: /nuovo prodotto/i })).toHaveLength(0);
+  });
+
+  it('al titolare la creazione articolo resta', async () => {
+    const view = await apri(OWNER);
+
+    expect(view.queryAllByRole('button', { name: /nuovo prodotto/i }).length).toBeGreaterThan(0);
+  });
+
+  // Il numeratore esiste solo sui documenti a registro: l'Ordine cliente non ha
+  // il campo, quindi la verifica va fatta sul preventivo.
+  it('senza documents.configure l’ingranaggio delle numerazioni non compare', async () => {
+    const view = await apri(COMMESSA, { kind: 'quote' });
+
+    expect(view.queryAllByRole('button', { name: 'Gestisci numerazioni' })).toHaveLength(0);
+  });
+
+  it('al titolare l’ingranaggio delle numerazioni resta', async () => {
+    const view = await apri(OWNER, { kind: 'quote' });
+
+    expect(view.queryAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
+      0,
+    );
+  });
+});

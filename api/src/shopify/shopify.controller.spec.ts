@@ -1,157 +1,127 @@
-import { describe, expect, it, vi } from 'vitest';
+import { ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { describe, expect, it } from 'vitest';
 
-import type { ShopifyConfigService } from './shopify-config.service';
-import type { ShopifyConnectionService } from './shopify-connection.service';
-import type { ShopifyCustomersPullService } from './shopify-customers-pull.service';
-import type { ShopifyInventoryPullService } from './shopify-inventory-pull.service';
-import type { ShopifyOAuthService } from './shopify-oauth.service';
-import type { ShopifyOrdersPullService } from './shopify-orders-pull.service';
-import type { ShopifyProductPullService } from './shopify-product-pull.service';
-import type { ShopifyTaxonomyService } from './shopify-taxonomy.service';
-import type { ShopifyShopChangeService } from './shopify-shop-change.service';
-import type { ShopifyWebhookRepairService } from './shopify-webhook-repair.service';
-import type { ShopifyWebhookStatusService } from './shopify-webhook-status.service';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import {
+  TenantPermission,
+  docViewPermission,
+  type TenantPermissionKey,
+} from '../auth/tenant-permission.constants';
+import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
+import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { ShopifyController } from './shopify.controller';
 
-describe('ShopifyController', () => {
-  const tenantId = 'tenant-1';
-  const shopifyConnection = {
-    getForTenant: vi.fn(),
-    clearErrors: vi.fn(),
-  };
-  const shopifyOAuth = {
-    beginAuth: vi.fn(),
-    handleCallback: vi.fn(),
-    disconnect: vi.fn(),
-    resyncLocations: vi.fn(),
-    resyncWebhooks: vi.fn(),
-    disableWebhooks: vi.fn(),
-  };
-  const shopifyConfig = { frontendUrl: 'http://localhost:4200' };
-  const shopifyProductPull = { pullCatalog: vi.fn() };
-  const shopifyInventoryPull = { pullInventory: vi.fn() };
-  const shopifyCustomersPull = { pullCustomers: vi.fn() };
-  const shopifyOrdersPull = { pullOrders: vi.fn() };
-  const shopifyTaxonomy = {
-    listCategories: vi.fn(),
-    getCategoryAttributes: vi.fn(),
-  };
-  const shopifyShopChange = {
-    preview: vi.fn(),
-    purge: vi.fn(),
-  };
-  const shopifyWebhookStatus = { check: vi.fn() };
-  const shopifyWebhookRepair = { registerMissingAndRecheck: vi.fn() };
+/**
+ * Il gate di queste due rotte è metadato del decoratore: leggerlo con il
+ * Reflector vero, sull'handler vero, è l'unico modo perché il test cada se
+ * qualcuno rimette «Esportare dati» da solo. Un test che ricostruisse i gruppi
+ * a mano resterebbe verde proprio nel caso che deve impedire.
+ */
+const guard = new TenantPermissionsGuard(new Reflector());
 
-  const controller = new ShopifyController(
-    shopifyConnection as unknown as ShopifyConnectionService,
-    shopifyOAuth as unknown as ShopifyOAuthService,
-    shopifyConfig as unknown as ShopifyConfigService,
-    shopifyProductPull as unknown as ShopifyProductPullService,
-    shopifyInventoryPull as unknown as ShopifyInventoryPullService,
-    shopifyCustomersPull as unknown as ShopifyCustomersPullService,
-    shopifyOrdersPull as unknown as ShopifyOrdersPullService,
-    shopifyTaxonomy as unknown as ShopifyTaxonomyService,
-    shopifyShopChange as unknown as ShopifyShopChangeService,
-    shopifyWebhookStatus as unknown as ShopifyWebhookStatusService,
-    shopifyWebhookRepair as unknown as ShopifyWebhookRepairService,
-    {} as never,
-  );
+function contextFor(handlerName: keyof ShopifyController, appUser: UserProfileDto) {
+  return {
+    switchToHttp: () => ({ getRequest: () => ({ appUser }) }),
+    getHandler: () => ShopifyController.prototype[handlerName],
+    getClass: () => ShopifyController,
+  } as never;
+}
 
-  it('getConnection delega al service', async () => {
-    shopifyConnection.getForTenant.mockResolvedValue({ connected: true });
+function clerkWith(...permissions: readonly TenantPermissionKey[]): UserProfileDto {
+  return testClerkUser({ permissions: [...permissions] });
+}
 
-    await expect(controller.getConnection(tenantId)).resolves.toEqual({ connected: true });
-  });
+describe('ShopifyController — il permesso segue ciò che la sync tocca, non l’export', () => {
+  describe('POST /shopify/sync/customers', () => {
+    it('nega a chi ha solo «Esportare dati»: la sync scrive nell’anagrafica clienti', () => {
+      const user = clerkWith(TenantPermission.ReportsExport);
 
-  it('beginAuth delega a OAuth', async () => {
-    shopifyOAuth.beginAuth.mockResolvedValue({ authorizeUrl: 'https://shop.myshopify.com/admin/oauth' });
+      expect(() => guard.canActivate(contextFor('syncCustomers', user))).toThrow(
+        ForbiddenException,
+      );
+    });
 
-    await expect(controller.beginAuth(tenantId, { shop: 'shop.myshopify.com' })).resolves
-      .toMatchObject({ authorizeUrl: expect.stringContaining('shopify') });
-  });
+    it('nega anche a chi gestisce i clienti ma non può esportare: i due gruppi sono in AND', () => {
+      const user = clerkWith(TenantPermission.CustomersManage);
 
-  it('disconnect delega a OAuth', async () => {
-    shopifyOAuth.disconnect.mockResolvedValue(undefined);
+      expect(() => guard.canActivate(contextFor('syncCustomers', user))).toThrow(
+        ForbiddenException,
+      );
+    });
 
-    await expect(controller.disconnect(tenantId)).resolves.toEqual({ disconnected: true });
-  });
+    it('consente a chi ha «Esportare dati» E «Gestire clienti»', () => {
+      const user = clerkWith(TenantPermission.ReportsExport, TenantPermission.CustomersManage);
 
-  it('authCallback reindirizza in caso di successo', async () => {
-    shopifyOAuth.handleCallback.mockResolvedValue('http://localhost:4200/app/settings?shopify=ok');
-    const redirect = vi.fn();
-    const response = { redirect } as never;
+      expect(guard.canActivate(contextFor('syncCustomers', user))).toBe(true);
+    });
 
-    await controller.authCallback({}, response);
+    it('il titolare passa anche con l’array permessi vuoto', () => {
+      const owner = testOwnerUser({ permissions: [] });
 
-    expect(redirect).toHaveBeenCalledWith('http://localhost:4200/app/settings?shopify=ok');
-  });
-
-  it('authCallback reindirizza alla pagina errore se OAuth fallisce', async () => {
-    shopifyOAuth.handleCallback.mockRejectedValue(new Error('invalid hmac'));
-    const redirect = vi.fn();
-    const response = { redirect } as never;
-
-    await controller.authCallback({}, response);
-
-    expect(redirect).toHaveBeenCalledWith('http://localhost:4200/app/settings?shopify=error');
-  });
-
-  it('syncProducts restituisce synced true', async () => {
-    shopifyProductPull.pullCatalog.mockResolvedValue({ imported: 3 });
-
-    await expect(controller.syncProducts(tenantId)).resolves.toEqual({
-      synced: true,
-      imported: 3,
+      expect(guard.canActivate(contextFor('syncCustomers', owner))).toBe(true);
     });
   });
 
-  it('listTaxonomyCategories incapsula items', async () => {
-    shopifyTaxonomy.listCategories.mockResolvedValue([{ id: 'cat-1', name: 'Abbigliamento' }]);
+  describe('POST /shopify/sync/orders', () => {
+    it('nega a chi ha solo «Esportare dati»: la sync importa le vendite online', () => {
+      const user = clerkWith(TenantPermission.ReportsExport);
 
-    await expect(
-      controller.listTaxonomyCategories(tenantId, { search: 'shirt' }),
-    ).resolves.toEqual({ items: [{ id: 'cat-1', name: 'Abbigliamento' }] });
-  });
-
-  it('syncInventory e syncOrders propagano il risultato del pull', async () => {
-    shopifyInventoryPull.pullInventory.mockResolvedValue({ updated: 4 });
-    shopifyOrdersPull.pullOrders.mockResolvedValue({ imported: 2 });
-
-    await expect(controller.syncInventory(tenantId)).resolves.toEqual({
-      synced: true,
-      updated: 4,
+      expect(() => guard.canActivate(contextFor('syncOrders', user))).toThrow(ForbiddenException);
     });
-    await expect(controller.syncOrders(tenantId)).resolves.toEqual({
-      synced: true,
-      imported: 2,
+
+    it('nega a chi vede le vendite online ma non può esportare', () => {
+      const user = clerkWith(TenantPermission.SectionSales, docViewPermission('online_sale'));
+
+      expect(() => guard.canActivate(contextFor('syncOrders', user))).toThrow(ForbiddenException);
+    });
+
+    it('nega se manca la famiglia «Vendite online», pur avendo sezione ed export', () => {
+      const user = clerkWith(TenantPermission.SectionSales, TenantPermission.ReportsExport);
+
+      expect(() => guard.canActivate(contextFor('syncOrders', user))).toThrow(ForbiddenException);
+    });
+
+    it('consente con export, sezione e famiglia vendite online', () => {
+      const user = clerkWith(
+        TenantPermission.ReportsExport,
+        TenantPermission.SectionSales,
+        docViewPermission('online_sale'),
+      );
+
+      expect(guard.canActivate(contextFor('syncOrders', user))).toBe(true);
+    });
+
+    it('vale anche dalla sezione Report: è la stessa porta dei corrispettivi', () => {
+      const user = clerkWith(
+        TenantPermission.ReportsExport,
+        TenantPermission.SectionReports,
+        docViewPermission('online_sale'),
+      );
+
+      expect(guard.canActivate(contextFor('syncOrders', user))).toBe(true);
+    });
+
+    it('il titolare passa anche con l’array permessi vuoto', () => {
+      const owner = testOwnerUser({ permissions: [] });
+
+      expect(guard.canActivate(contextFor('syncOrders', owner))).toBe(true);
     });
   });
 
-  it('clearErrors delega al connection service', async () => {
-    shopifyConnection.clearErrors.mockResolvedValue({ cleared: 1 });
+  // Le altre sync del controller non cambiano: una guardia che si allarga
+  // oltre il suo incarico è un difetto quanto quella che manca.
+  describe('le altre sync restano come sono', () => {
+    it('sync/products chiede solo «Import/export e sync prodotti»', () => {
+      const user = clerkWith(TenantPermission.CatalogImportExport);
 
-    await expect(controller.clearErrors(tenantId)).resolves.toEqual({ cleared: 1 });
-  });
-
-  it('previewShopChange delega al shop change service', async () => {
-    shopifyShopChange.preview.mockResolvedValue({ currentShopDomain: 'a.myshopify.com' });
-
-    await expect(controller.previewShopChange(tenantId)).resolves.toEqual({
-      currentShopDomain: 'a.myshopify.com',
+      expect(guard.canActivate(contextFor('syncProducts', user))).toBe(true);
     });
-  });
 
-  it('purgeShopifyData delega al shop change service', async () => {
-    shopifyShopChange.purge.mockResolvedValue({ purged: { products: 1 } });
+    it('sync/inventory chiede solo «Import/export e sync giacenze»', () => {
+      const user = clerkWith(TenantPermission.InventoryImportExport);
 
-    await expect(
-      controller.purgeShopifyData(tenantId, {
-        confirmShopDomain: 'a.myshopify.com',
-        purgeCatalog: true,
-        purgeCustomers: true,
-        purgeOrders: true,
-      }),
-    ).resolves.toEqual({ purged: { products: 1 } });
+      expect(guard.canActivate(contextFor('syncInventory', user))).toBe(true);
+    });
   });
 });

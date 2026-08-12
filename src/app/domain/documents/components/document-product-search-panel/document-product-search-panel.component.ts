@@ -13,6 +13,8 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, debounceTime, of, switchMap } from 'rxjs';
 
+import { AuthService } from '@core/auth';
+import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductSearchResultsComponent } from '@domain/products/components/product-search-results/product-search-results.component';
 import { ProductService } from '@domain/products/services/product.service';
@@ -47,9 +49,30 @@ export class DocumentProductSearchPanelComponent {
    */
   readonly canCreate = input(true);
 
+  /**
+   * Aprire e creare un'anagrafica scrivono sul catalogo: senza il permesso
+   * l'API risponde 403 e l'operatore resta col pannello aperto e un errore.
+   *
+   * Il controllo sta QUI perché qui è passato il gesto: prima viveva sulla
+   * cella della riga, con i pulsanti «Apri anagrafica» e «Completa anagrafica»
+   * che il riordino delle righe (11/08/2026) ha tolto per portarli dentro
+   * questo pannello. Nei chiamanti sarebbe ripetuto quattro volte, e basterebbe
+   * dimenticarlo una.
+   */
+  private readonly auth = inject(AuthService);
+  protected readonly puoGestireCatalogo = computed(() => canManageCatalog(this.auth.currentUser()));
+
+  /**
+   * «Crea articolo» richiede il permesso **e** una riga senza articolo: sono
+   * due domande diverse — «posso?» e «ha senso qui?» — e servono entrambe.
+   */
+  protected readonly puoCreareArticolo = computed(
+    () => this.canCreate() && this.puoGestireCatalogo(),
+  );
+
   /** Non trovare nulla è un bivio se si può creare, un vicolo cieco se no. */
   protected readonly emptyDescription = computed(() =>
-    this.canCreate()
+    this.puoCreareArticolo()
       ? "Prova con un altro termine, oppure crea l'articolo con i dati che hai già scritto."
       : 'Prova con un altro termine.',
   );
@@ -63,7 +86,8 @@ export class DocumentProductSearchPanelComponent {
    */
   protected readonly showCreateInActions = computed(
     () =>
-      this.canCreate() && !(this.searchQuery().trim().length > 0 && this.results().length === 0),
+      this.puoCreareArticolo() &&
+      !(this.searchQuery().trim().length > 0 && this.results().length === 0),
   );
 
   readonly variantSelected = output<{ readonly variantId: string }>();

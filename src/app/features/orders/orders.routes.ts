@@ -2,10 +2,10 @@ import { Routes } from '@angular/router';
 
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
 import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
-import { TenantPermission } from '@core/models/tenant-permission.model';
 import {
-  REQUIRED_TENANT_PERMISSIONS_KEY,
-  SUPPLIER_ORDERS_VIEW_PERMISSIONS,
+  REQUIRED_TENANT_PERMISSION_GROUPS_KEY,
+  SUPPLIER_ORDERS_MANAGE_GROUPS,
+  SUPPLIER_ORDERS_VIEW_GROUPS,
 } from '@core/permissions/tenant-permissions.util';
 
 export const ordersRoutes: Routes = [
@@ -15,7 +15,7 @@ export const ordersRoutes: Routes = [
     loadComponent: () =>
       import('./supplier-order-list.component').then((m) => m.SupplierOrderListComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: SUPPLIER_ORDERS_VIEW_PERMISSIONS, reuse: true },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SUPPLIER_ORDERS_VIEW_GROUPS, reuse: true },
   },
   {
     path: 'new',
@@ -24,7 +24,7 @@ export const ordersRoutes: Routes = [
       import('./supplier-order-form.component').then((m) => m.SupplierOrderFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SupplierOrdersManage },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SUPPLIER_ORDERS_MANAGE_GROUPS },
   },
   {
     path: ':id/edit',
@@ -33,7 +33,7 @@ export const ordersRoutes: Routes = [
       import('./supplier-order-form.component').then((m) => m.SupplierOrderFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SupplierOrdersManage },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SUPPLIER_ORDERS_MANAGE_GROUPS },
   },
   {
     path: ':id',
@@ -41,6 +41,6 @@ export const ordersRoutes: Routes = [
     loadComponent: () =>
       import('./supplier-order-detail.component').then((m) => m.SupplierOrderDetailComponent),
     canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: SUPPLIER_ORDERS_VIEW_PERMISSIONS },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SUPPLIER_ORDERS_VIEW_GROUPS },
   },
 ];

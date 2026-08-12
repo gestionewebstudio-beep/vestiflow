@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { DocumentType, Prisma, StockMovementType } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { canViewPurchaseCosts } from '../auth/user-permissions.util';
+import { maskCostSensitiveSummary } from './business-analytics-cost-mask.util';
 import { onlineSalesChannelLabel } from '../common/tenant-channel-profile.util';
 import {
   locationScopeToInventoryLevelFilter,
@@ -64,6 +66,7 @@ export class BusinessAnalyticsService {
       return this.emptySummary(period, prevPeriod);
     }
 
+    const showPurchaseCosts = canViewPurchaseCosts(user);
     const currentRange = periodDateTimeRange(period);
     const previousRange = periodDateTimeRange(prevPeriod);
     const movementScope = locationScopeToMovementFilter(scope);
@@ -138,7 +141,7 @@ export class BusinessAnalyticsService {
       },
     ].filter((row) => row.revenueMinor !== 0 || row.unitsSold !== 0);
 
-    return {
+    const summary: BusinessAnalyticsSummaryDto = {
       currencyCode: 'EUR',
       period: { from: period.from, to: period.to, dayCount: period.dayCount },
       previousPeriod: {
@@ -182,6 +185,7 @@ export class BusinessAnalyticsService {
         revenueMinor: current.daily.get(date) ?? 0,
       })),
     };
+    return showPurchaseCosts ? summary : maskCostSensitiveSummary(summary);
   }
 
   /**

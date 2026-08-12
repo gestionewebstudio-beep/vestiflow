@@ -57,7 +57,7 @@ describe('tenantPermissionGuard', () => {
       assignedLocations: [],
       defaultLocationId: null,
       defaultLocation: null,
-      permissions: [TenantPermission.CustomersView],
+      permissions: [TenantPermission.SectionCustomers],
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
@@ -65,8 +65,8 @@ describe('tenantPermissionGuard', () => {
     const route = {
       data: {
         [REQUIRED_TENANT_PERMISSIONS_KEY]: [
-          TenantPermission.ReportsView,
-          TenantPermission.CustomersView,
+          TenantPermission.SectionReports,
+          TenantPermission.SectionCustomers,
         ],
       },
     } as unknown as ActivatedRouteSnapshot;
@@ -101,7 +101,7 @@ describe('tenantPermissionGuard', () => {
 
     const route = {
       data: {
-        [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView,
+        [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SectionReports,
       },
     } as unknown as ActivatedRouteSnapshot;
 

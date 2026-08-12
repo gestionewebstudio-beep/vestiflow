@@ -15,7 +15,10 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
+import {
+  canExportOperationalData,
+  canManageFiscalRegister,
+} from '@core/permissions/tenant-permissions.util';
 import {
   CORRISPETTIVI_ACCOUNTANT_CSV_EXPORT_ID,
   CORRISPETTIVI_ACCOUNTANT_PDF_EXPORT_ID,
@@ -139,6 +142,11 @@ export class CorrispettiviReportComponent {
 
   protected readonly canExport = computed(() =>
     canExportOperationalData(this.authService.currentUser()),
+  );
+
+  /** «Segna consegnato» scrive nel registro fiscale: chiave propria. */
+  protected readonly canManageFiscalRegister = computed(() =>
+    canManageFiscalRegister(this.authService.currentUser()),
   );
 
   private readonly tenantProfile = computed(

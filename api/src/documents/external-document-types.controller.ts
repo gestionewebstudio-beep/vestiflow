@@ -14,7 +14,7 @@ import {
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
-  DOCUMENTS_VIEW_PERMISSIONS,
+  DOCUMENTS_CONFIGURE_READ_PERMISSIONS,
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
@@ -36,25 +36,25 @@ export class ExternalDocumentTypesController {
   constructor(private readonly types: ExternalDocumentTypesService) {}
 
   @Get()
-  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  @RequireAnyPermissions(DOCUMENTS_CONFIGURE_READ_PERMISSIONS)
   list(@CurrentTenant() tenantId: string) {
     return this.types.list(tenantId);
   }
 
   @Post()
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   create(@CurrentTenant() tenantId: string, @Body() dto: CreateExternalDocumentTypeDto) {
     return this.types.create(tenantId, dto);
   }
 
   @Post('reorder')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   reorder(@CurrentTenant() tenantId: string, @Body() dto: ReorderExternalDocumentTypesDto) {
     return this.types.reorder(tenantId, dto.orderedIds);
   }
 
   @Patch(':id')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   update(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -64,7 +64,7 @@ export class ExternalDocumentTypesController {
   }
 
   @Delete(':id')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   @HttpCode(HttpStatus.NO_CONTENT)
   async delete(
     @CurrentTenant() tenantId: string,

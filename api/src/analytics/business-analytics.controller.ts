@@ -17,7 +17,7 @@ export class BusinessAnalyticsController {
   constructor(private readonly analytics: BusinessAnalyticsService) {}
 
   @Get('business-summary')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequirePermissions(TenantPermission.SectionReports)
   getBusinessSummary(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,

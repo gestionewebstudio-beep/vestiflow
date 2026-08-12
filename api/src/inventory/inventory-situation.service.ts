@@ -3,6 +3,7 @@ import { AdjustmentDirection, ProductStatus, StockMovementType } from '@prisma/c
 import type { Prisma } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { canViewPurchaseCosts } from '../auth/user-permissions.util';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -72,6 +73,9 @@ export class InventorySituationService {
     if (!scope) {
       return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
     }
+    // Costo d'acquisto (dato sensibile §permessi): mascherato nella risposta,
+    // non solo nella UI — la colonna resterebbe leggibile nel traffico di rete.
+    const showPurchaseCosts = canViewPurchaseCosts(user);
 
     // Fotografia operativa: fuori i prodotti archiviati.
     const filters: Prisma.ProductVariantWhereInput[] = [
@@ -157,7 +161,7 @@ export class InventorySituationService {
           supplierName: link ? partyDisplayName(link.supplier.party) : null,
           currency: variant.currency,
           sellingPriceMinor: Number(variant.sellingPriceMinor),
-          purchasePriceMinor: variant.purchasePriceMinor,
+          purchasePriceMinor: showPurchaseCosts ? variant.purchasePriceMinor : null,
           ...totals,
           totalIn: 0,
           totalOut: 0,

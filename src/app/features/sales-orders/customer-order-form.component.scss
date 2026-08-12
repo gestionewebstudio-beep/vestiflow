@@ -330,3 +330,10 @@
   gap: var(--space-2);
   cursor: default;
 }
+
+// Le due azioni sotto la lista righe stanno su una griglia a due colonne. A chi
+// non gestisce il catalogo ne resta una sola: senza questo, «Inserisci riga
+// vuota» resterebbe largo mezza schermata con un vuoto accanto.
+.co-lines__actions.co-lines__actions--single .co-lines__action {
+  grid-column: 1 / -1;
+}

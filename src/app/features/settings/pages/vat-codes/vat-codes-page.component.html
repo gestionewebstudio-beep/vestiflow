@@ -9,7 +9,10 @@
         Gestisci aliquote, Nature e trattamenti IVA utilizzati negli articoli e nei documenti.
       </p>
     </div>
-    <app-button (click)="openCreate()">Nuovo Codice IVA</app-button>
+    <!-- Senza «Impostazioni azienda» la pagina resta un elenco da consultare. -->
+    @if (puoGestireImpostazioniAzienda()) {
+      <app-button (click)="openCreate()">Nuovo Codice IVA</app-button>
+    }
   </header>
 
   @if (loading()) {
@@ -73,13 +76,9 @@
     @if (groups().length === 0) {
       <app-empty-state
         title="Nessun Codice IVA trovato"
-        [description]="
-          hasFilters()
-            ? 'Nessuna voce corrisponde ai filtri correnti.'
-            : 'Crea il primo Codice IVA per usarlo su articoli e documenti.'
-        "
+        [description]="emptyStateDescription()"
         icon="pi-percentage"
-        [ctaLabel]="hasFilters() ? 'Azzera filtri' : 'Nuovo Codice IVA'"
+        [ctaLabel]="emptyStateCtaLabel()"
         (ctaClick)="hasFilters() ? resetFilters() : openCreate()"
       />
     } @else {
@@ -154,12 +153,15 @@
                         </app-badge>
                       </td>
                       <td data-label="Azioni" class="vat-codes__col-actions">
-                        <app-button
-                          variant="ghost"
-                          (click)="$event.stopPropagation(); openDuplicate(entry)"
-                        >
-                          Duplica
-                        </app-button>
+                        <!-- Duplicare crea una voce: sparisce a chi non scrive. -->
+                        @if (puoGestireImpostazioniAzienda()) {
+                          <app-button
+                            variant="ghost"
+                            (click)="$event.stopPropagation(); openDuplicate(entry)"
+                          >
+                            Duplica
+                          </app-button>
+                        }
                       </td>
                     </tr>
                   }
@@ -292,24 +294,33 @@
     }
 
     <div class="vat-form__actions">
-      <app-button type="submit" [loading]="saving()" [disabled]="saving()">Salva</app-button>
-      @if (panelMode() === 'edit' && editingCode(); as editing) {
-        @if (!editing.isDefault) {
-          <app-button
-            type="button"
-            variant="danger"
-            [disabled]="saving() || deleting()"
-            (click)="requestDelete()"
-          >
-            Elimina
-          </app-button>
+      <!-- Salvare ed eliminare sono le due scritture della scheda: senza il
+           permesso resta la sola chiusura, e il modulo è già in sola lettura. -->
+      @if (puoGestireImpostazioniAzienda()) {
+        <app-button type="submit" [loading]="saving()" [disabled]="saving()">Salva</app-button>
+        @if (panelMode() === 'edit' && editingCode(); as editing) {
+          @if (!editing.isDefault) {
+            <app-button
+              type="button"
+              variant="danger"
+              [disabled]="saving() || deleting()"
+              (click)="requestDelete()"
+            >
+              Elimina
+            </app-button>
+          }
         }
       }
       <app-button type="button" variant="ghost" [disabled]="saving()" (click)="closePanel()">
-        Annulla
+        {{ puoGestireImpostazioniAzienda() ? 'Annulla' : 'Chiudi' }}
       </app-button>
     </div>
-    @if (panelMode() === 'edit') {
+    @if (!puoGestireImpostazioniAzienda()) {
+      <p class="vat-form__hint">
+        Scheda in sola lettura: la modifica dei Codici IVA richiede il permesso «Impostazioni
+        azienda».
+      </p>
+    } @else if (panelMode() === 'edit') {
       <p class="vat-form__hint">
         Una voce già utilizzata in articoli o documenti non può essere eliminata: disattivala per
         nasconderla dalle nuove selezioni. I documenti storici continuano a mostrare i dati salvati.

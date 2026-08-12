@@ -10,8 +10,8 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { TenantPermission } from '../auth/tenant-permission.constants';
-import { RequirePermissions } from '../common/auth/tenant-permissions.decorator';
+import { ONLINE_SALES_VIEW_GROUPS, TenantPermission } from '../auth/tenant-permission.constants';
+import { RequireAllPermissionGroups } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
@@ -45,7 +45,7 @@ export class OnlineSalesController {
   ) {}
 
   @Get()
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   list(
     @CurrentTenant() tenantId: string,
     @Query() query: ListOnlineSalesQueryDto,
@@ -54,7 +54,7 @@ export class OnlineSalesController {
   }
 
   @Get('register/entries')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   listRegisterEntries(
     @CurrentTenant() tenantId: string,
     @Query() query: ListCorrispettivoEntriesQueryDto,
@@ -63,7 +63,7 @@ export class OnlineSalesController {
   }
 
   @Get('register/summary')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   getRegisterSummary(
     @CurrentTenant() tenantId: string,
     @Query() query: ListCorrispettivoEntriesQueryDto,
@@ -72,7 +72,7 @@ export class OnlineSalesController {
   }
 
   @Get('register/entries/:id')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   getRegisterEntryDetail(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -81,7 +81,10 @@ export class OnlineSalesController {
   }
 
   @Patch('register/entries/:id')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([
+    ...ONLINE_SALES_VIEW_GROUPS,
+    [TenantPermission.ReportsFiscalRegister],
+  ])
   updateRegisterEntry(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -91,7 +94,7 @@ export class OnlineSalesController {
   }
 
   @Get('by-order/:salesOrderId')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   findByOrder(
     @CurrentTenant() tenantId: string,
     @Param('salesOrderId', ParseUUIDPipe) salesOrderId: string,
@@ -100,7 +103,7 @@ export class OnlineSalesController {
   }
 
   @Get(':id')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   getDetail(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,

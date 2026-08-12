@@ -117,6 +117,12 @@ export class StockLookupComponent {
     code: this.fb.control('', { validators: [Validators.required, Validators.maxLength(100)] }),
   });
 
+  /** Un campo mostra il proprio errore solo dopo che l'utente l'ha toccato. */
+  protected showError(controlName: keyof typeof this.searchForm.controls): boolean {
+    const control = this.searchForm.controls[controlName];
+    return control.invalid && control.touched;
+  }
+
   protected lookup(): void {
     if (this.searchForm.invalid) {
       this.searchForm.markAllAsTouched();

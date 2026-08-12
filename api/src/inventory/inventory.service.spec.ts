@@ -2,9 +2,10 @@ import { UnprocessableEntityException } from '@nestjs/common';
 import { AdjustmentDirection, StockMovementType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TenantPermission } from '../auth/tenant-permission.constants';
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
-import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
+import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { InventoryService } from './inventory.service';
 
 describe('InventoryService', () => {
@@ -821,5 +822,129 @@ describe('InventoryService', () => {
       }),
     );
     expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
+  });
+
+  // ── Costi d'acquisto nei movimenti (catalog.view_purchase_costs) ──────────
+
+  /**
+   * Perché questo blocco esiste: `catalog.view_purchase_costs` non è una tenda
+   * davanti al numero, è un filtro sulla RISPOSTA — il costo congelato sul
+   * movimento non deve proprio uscire dall'API, altrimenti resta leggibile nel
+   * traffico di rete a chiunque apra gli strumenti del browser, e il titolare
+   * crede di averlo nascosto.
+   *
+   * Il ramo negato è quello che nessuno guarda: basta uno `spread` spostato di
+   * posto, un campo di costo aggiunto alla riga o un `select` allargato perché
+   * i costi ricompaiano, e senza questi test niente diventerebbe rosso — il
+   * permesso smetterebbe di funzionare in silenzio.
+   */
+  describe('listMovements e i costi d’acquisto', () => {
+    const COSTO_UNITARIO = 1250;
+    const COSTO_TOTALE = 3750;
+
+    function prismaConMovimentoCostoso() {
+      const prisma = createPrismaMock();
+      prisma.stockMovement.findMany.mockResolvedValue([
+        {
+          id: 'mov-costoso',
+          type: StockMovementType.load,
+          quantity: 3,
+          locationId: 'loc-1',
+          unitCostMinor: COSTO_UNITARIO,
+          totalCostMinor: COSTO_TOTALE,
+          variant: { product: { name: 'Maglietta' } },
+        },
+      ]);
+      prisma.stockMovement.count.mockResolvedValue(1);
+      return prisma;
+    }
+
+    function serviceCon(prisma: ReturnType<typeof createPrismaMock>) {
+      return new InventoryService(prisma as unknown as PrismaService, {} as ChannelSyncFacade);
+    }
+
+    // Sede assegnata esplicita: senza, lo scope del commesso si svuota e la
+    // lista tornerebbe vuota per un motivo che col permesso non c'entra —
+    // il test passerebbe senza aver provato nulla.
+    const commessoSenzaCosti = testClerkUser({ assignedLocationIds: ['loc-1'] });
+    const commessoConCosti = testClerkUser({
+      assignedLocationIds: ['loc-1'],
+      permissions: [...testClerkUser().permissions, TenantPermission.CatalogViewPurchaseCosts],
+    });
+
+    it('con il permesso i costi del movimento arrivano col valore vero', async () => {
+      const prisma = prismaConMovimentoCostoso();
+
+      const result = await serviceCon(prisma).listMovements(
+        tenantId,
+        { page: 1, pageSize: 20 },
+        commessoConCosti,
+      );
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]).toEqual(
+        expect.objectContaining({
+          id: 'mov-costoso',
+          unitCostMinor: COSTO_UNITARIO,
+          totalCostMinor: COSTO_TOTALE,
+        }),
+      );
+    });
+
+    it('senza il permesso i costi non entrano nella risposta', async () => {
+      const prisma = prismaConMovimentoCostoso();
+
+      const result = await serviceCon(prisma).listMovements(
+        tenantId,
+        { page: 1, pageSize: 20 },
+        commessoSenzaCosti,
+      );
+
+      // Il commesso vede la riga: quello che sparisce è il costo, non il movimento.
+      expect(result.items).toHaveLength(1);
+      const riga = result.items[0]!;
+      // Le chiavi restano presenti e valgono ESATTAMENTE null (non 0, non
+      // assenti): il client si aspetta la forma della riga, non il valore.
+      expect(riga).toHaveProperty('unitCostMinor', null);
+      expect(riga).toHaveProperty('totalCostMinor', null);
+      // Il resto della riga sopravvive: la maschera è mirata, non una potatura.
+      expect(riga).toEqual(
+        expect.objectContaining({ id: 'mov-costoso', quantity: 3, productTitle: 'Maglietta' }),
+      );
+      // Rete di sicurezza contro un costo che riesce sotto un altro nome: i
+      // due importi non devono comparire da nessuna parte nella risposta.
+      const serializzata = JSON.stringify(result.items);
+      expect(serializzata).not.toContain(String(COSTO_UNITARIO));
+      expect(serializzata).not.toContain(String(COSTO_TOTALE));
+    });
+
+    it('il titolare vede i costi anche con l’elenco permessi vuoto', async () => {
+      const prisma = prismaConMovimentoCostoso();
+      // Il titolare non ha chiavi salvate: l'accesso pieno viene dal ruolo
+      // (hasFullTenantAccess), non dall'array — è la regola che regge tutto.
+      expect(ownerUser.permissions).toEqual([]);
+
+      const result = await serviceCon(prisma).listMovements(
+        tenantId,
+        { page: 1, pageSize: 20 },
+        ownerUser,
+      );
+
+      expect(result.items[0]).toEqual(
+        expect.objectContaining({
+          unitCostMinor: COSTO_UNITARIO,
+          totalCostMinor: COSTO_TOTALE,
+        }),
+      );
+    });
+
+    it('senza utente in contesto i costi restano fuori (default prudente)', async () => {
+      const prisma = prismaConMovimentoCostoso();
+
+      const result = await serviceCon(prisma).listMovements(tenantId, { page: 1, pageSize: 20 });
+
+      expect(result.items[0]).toHaveProperty('unitCostMinor', null);
+      expect(result.items[0]).toHaveProperty('totalCostMinor', null);
+    });
   });
 });

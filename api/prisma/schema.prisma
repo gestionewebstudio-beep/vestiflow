@@ -384,6 +384,7 @@ model Tenant {
   tiktokCredential        TikTokCredential?
   tiktokOAuthStates       TikTokOAuthState[]
   supportSessionsAsTarget SupportSession[]        @relation("SupportSessionTarget")
+  tenantUserAuditLogs     TenantUserAuditLog[]
 
   @@map("tenants")
 }
@@ -401,6 +402,10 @@ model User {
   avatarUrl          String?  @map("avatar_url")
   avatarStoragePath  String?  @map("avatar_storage_path")
   isActive           Boolean  @default(true) @map("is_active")
+  /// La password iniziale la imposta chi crea l'account (titolare o admin
+  /// piattaforma): al primo accesso l'app chiede di cambiarla; il flag si
+  /// azzera a cambio avvenuto (POST /auth/password-changed).
+  mustChangePassword Boolean  @default(false) @map("must_change_password")
   /// Accesso a tutte le sedi del tenant indipendentemente dalle righe UserLocation
   /// (titolare ha sempre accesso pieno via hasFullTenantAccess, invariante rispetto a questo flag).
   hasAllLocationsAccess Boolean @default(false) @map("has_all_locations_access")
@@ -441,6 +446,36 @@ model SupportSession {
   @@index([operatorUserId, endedAt])
   @@index([targetTenantId])
   @@map("support_sessions")
+}
+
+enum TenantUserAuditAction {
+  created
+  updated
+  deleted
+}
+
+/// Audit del ciclo di vita account utenti tenant (pannello admin piattaforma e
+/// Impostazioni → Utenti del titolare): chi ha agito, su chi, cosa è cambiato.
+/// Attore e bersaglio sono snapshot testuali (niente FK verso users): la riga
+/// resta leggibile anche dopo rinomina o eliminazione degli account coinvolti.
+model TenantUserAuditLog {
+  id                   String                @id @default(uuid()) @db.Uuid
+  tenantId             String                @map("tenant_id") @db.Uuid
+  actorUserId          String?               @map("actor_user_id") @db.Uuid
+  actorEmail           String                @map("actor_email")
+  actorName            String                @map("actor_name")
+  actorIsPlatformAdmin Boolean               @default(false) @map("actor_is_platform_admin")
+  targetUserId         String?               @map("target_user_id") @db.Uuid
+  targetEmail          String                @map("target_email")
+  action               TenantUserAuditAction
+  /// Diff dei campi cambiati: { campo: { prima, dopo } }; per created lo stato iniziale.
+  details              Json                  @default("{}")
+  createdAt            DateTime              @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt], map: "tenant_user_audit_logs_tenant_created_idx")
+  @@map("tenant_user_audit_logs")
 }
 
 model Store {

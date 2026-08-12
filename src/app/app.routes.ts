@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { authGuard, guestGuard } from '@core/auth';
+import { mustChangePasswordGuard } from '@core/guards/must-change-password.guard';
 import { tenantWorkspaceGuard } from '@core/guards/tenant-workspace.guard';
 import { platformAdminGuard } from '@features/admin/guards/platform-admin.guard';
 
@@ -34,8 +35,17 @@ export const routes: Routes = [
       import('@features/auth/reset-password.component').then((m) => m.ResetPasswordComponent),
   },
   {
-    path: 'app',
+    // Fuori dalla shell (come reset-password): l'utente con password iniziale
+    // da cambiare non deve vedere la navigazione finché non ha concluso.
+    path: 'cambia-password',
+    title: 'Cambia password',
     canActivate: [authGuard],
+    loadComponent: () =>
+      import('@features/auth/change-password.component').then((m) => m.ChangePasswordComponent),
+  },
+  {
+    path: 'app',
+    canActivate: [authGuard, mustChangePasswordGuard],
     loadComponent: () =>
       import('./layout/shell-layout.component').then((m) => m.ShellLayoutComponent),
     children: [

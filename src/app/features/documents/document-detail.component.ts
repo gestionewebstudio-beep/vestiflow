@@ -17,7 +17,8 @@ import type { AppError } from '@core/models/app-error.model';
 import { AdjustmentDirection, DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord, DocumentRevision } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
-import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
+import { canManageDocumentType } from '@core/permissions/document-permission.util';
+import { canManageDocFamily } from '@core/permissions/tenant-permissions.util';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
@@ -320,7 +321,14 @@ export class DocumentDetailComponent {
     return facts;
   });
 
-  protected readonly canManage = computed(() => canManageDocuments(this.authService.currentUser()));
+  /**
+   * Azioni del documento aperto (modifica, annulla, elimina, converti): la
+   * famiglia del SUO tipo, non «almeno una famiglia». Finché il documento non
+   * è caricato non si promette nulla.
+   */
+  protected readonly canManage = computed(() =>
+    canManageDocumentType(this.authService.currentUser(), this.document()?.type ?? null),
+  );
 
   /**
    * «Inviata al commercialista» (registrazione esterna): unica azione di ciclo
@@ -445,16 +453,41 @@ export class DocumentDetailComponent {
     return false;
   });
 
-  protected readonly canConvert = computed(() => {
+  /**
+   * Condizione di documento per la generazione: una proforma già emessa e non
+   * annullata. Il permesso non sta qui — dipende da COSA si genera.
+   */
+  private readonly convertSourceReady = computed(() => {
     const doc = this.document();
     return (
-      this.canManage() &&
       doc != null &&
       isProformaDocumentType(doc.type) &&
       doc.status !== DocumentStatus.Cancelled &&
       doc.status !== DocumentStatus.Draft
     );
   });
+
+  /**
+   * Gate storico della generazione (famiglia del documento aperto): resta per
+   * l'anteprima dedicata che eredita da questo componente. Qui i due comandi
+   * usano il permesso della famiglia che verrebbe CREATA — vedi sotto.
+   */
+  protected readonly canConvert = computed(() => this.canManage() && this.convertSourceReady());
+
+  /**
+   * «Converti in bozza fattura»: chi non gestisce le fatture non vede il
+   * comando, anche se la proforma da cui parte è sua.
+   */
+  protected readonly canConvertToInvoice = computed(
+    () =>
+      this.convertSourceReady() && canManageDocFamily(this.authService.currentUser(), 'invoice'),
+  );
+
+  /** «Converti in DDT vendita»: stesso criterio, sulla famiglia DDT di vendita. */
+  protected readonly canConvertToSalesDdt = computed(
+    () =>
+      this.convertSourceReady() && canManageDocFamily(this.authService.currentUser(), 'sales_ddt'),
+  );
 
   protected readonly canOpenPrintPreview = computed(() => {
     const doc = this.document();

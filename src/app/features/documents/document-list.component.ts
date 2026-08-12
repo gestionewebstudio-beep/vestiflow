@@ -31,7 +31,13 @@ import type { AppError } from '@core/models/app-error.model';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord } from '@core/models/document.model';
 import type { Money } from '@core/models/money.model';
-import { canManageDocuments } from '@core/permissions/tenant-permissions.util';
+import type { DocumentPermissionFamily } from '@core/models/tenant-permission.model';
+import {
+  canManageDocumentType,
+  documentTypesOfFamily,
+  manageableDocumentFamilies,
+} from '@core/permissions/document-permission.util';
+import { canManageDocFamily, canManageDocuments } from '@core/permissions/tenant-permissions.util';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
@@ -116,6 +122,31 @@ const EMPTY_META: PageMeta = {
   total: 0,
   totalPages: 1,
 };
+
+/**
+ * Voci del menu «Altro documento», ciascuna col tipo che crea. Il tipo non è
+ * decorativo: è quello che permette di chiedere il permesso della famiglia
+ * corrispondente senza riscrivere qui la mappa tipo → famiglia.
+ */
+const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & { readonly type: DocumentType })[] = [
+  {
+    value: 'purchase-invoice',
+    label: 'Registrazione fattura fornitore',
+    type: DocumentType.SupplierInvoice,
+  },
+  { value: 'transfer', label: 'Trasferimento', type: DocumentType.Transfer },
+  { value: 'manual-unload', label: 'Scarico manuale', type: DocumentType.ManualUnload },
+  { value: 'adjustment', label: 'Rettifica di magazzino', type: DocumentType.Adjustment },
+  { value: 'sales-ddt', label: 'DDT vendita', type: DocumentType.SalesDdt },
+  { value: 'quote', label: 'Preventivo', type: DocumentType.Quote },
+  { value: 'proforma', label: 'Proforma', type: DocumentType.Proforma },
+  { value: 'invoice', label: 'Fattura', type: DocumentType.InvoiceDraft },
+  {
+    value: 'invoice-accompanying',
+    label: 'Fattura accompagnatoria',
+    type: DocumentType.InvoiceAccompanying,
+  },
+];
 
 type DocumentListState =
   | { readonly status: 'loading' }
@@ -278,10 +309,16 @@ export class DocumentListComponent {
   );
 
   protected readonly emptyStateCtaLabel = computed(() => {
-    if (!this.canManageDocuments() || !this.showCreateAction()) {
+    if (!this.showCreateAction()) {
       return undefined;
     }
-    return this.salesCreateLabel() ?? 'Nuovo arrivo merce';
+    const salesLabel = this.salesCreateLabel();
+    if (salesLabel) {
+      return this.canManageDocuments() ? salesLabel : undefined;
+    }
+    // Registro generico e Arrivi merce: la CTA crea un arrivo merce, quindi
+    // senza quella famiglia lo stato vuoto resta senza pulsante.
+    return this.canManageGoodsReceipts() ? 'Nuovo arrivo merce' : undefined;
   });
 
   protected readonly locationOptions = computed((): readonly SelectMenuOption[] =>
@@ -435,9 +472,85 @@ export class DocumentListComponent {
     return this.isGoodsReceiptList() ? this.goodsReceiptTableColumns() : this.genericTableColumns();
   });
 
-  protected readonly canManageDocuments = computed(() =>
-    canManageDocuments(this.authService.currentUser()),
+  /**
+   * Famiglia della matrice permessi corrispondente all'elenco aperto. Il
+   * registro generico non ne ha una: lì vale «gestisce almeno una famiglia»
+   * (le righe sono di tipi diversi e ognuna si difende da sola).
+   */
+  private readonly listFamily = computed((): DocumentPermissionFamily | null => {
+    switch (this.listProfile()) {
+      case 'goods-receipt':
+        return 'goods_receipt';
+      case 'purchase-invoice':
+        return 'purchase_invoice';
+      case 'quote':
+        return 'quote';
+      case 'proforma':
+        return 'proforma';
+      case 'sales-ddt':
+        return 'sales_ddt';
+      case 'invoice':
+        return 'invoice';
+      case 'store-sale':
+        return 'store_sale';
+      case 'manual-unload':
+        return 'manual_unload';
+      default:
+        return null;
+    }
+  });
+
+  /**
+   * Gate del pulsante «Nuovo …» e delle azioni di riga: la famiglia
+   * dell'elenco, non «almeno una famiglia» — altrimenti il bottone comparirebbe
+   * a chi l'API poi rifiuta.
+   */
+  protected readonly canManageDocuments = computed(() => {
+    const family = this.listFamily();
+    const user = this.authService.currentUser();
+    return family ? canManageDocFamily(user, family) : canManageDocuments(user);
+  });
+
+  /**
+   * Gate di «Nuovo arrivo merce». Sul registro generico `canManageDocuments()`
+   * vale «gestisce almeno una famiglia»: chi gestisce solo i preventivi vedeva
+   * comunque il pulsante del carico, che l'API poi rifiuta.
+   */
+  protected readonly canManageGoodsReceipts = computed(() =>
+    canManageDocFamily(this.authService.currentUser(), 'goods_receipt'),
   );
+
+  /**
+   * Voci del menu «Altro documento» che l'utente può davvero creare: senza il
+   * permesso della famiglia il tipo non compare tra le scelte.
+   */
+  protected readonly secondaryCreateOptions = computed<readonly SelectMenuOption[]>(() => {
+    const user = this.authService.currentUser();
+    return SECONDARY_CREATE_ENTRIES.filter((entry) => canManageDocumentType(user, entry.type)).map(
+      ({ value, label }) => ({ value, label }),
+    );
+  });
+
+  /**
+   * Almeno un comando di creazione da mostrare in testata: sugli elenchi
+   * dedicati la famiglia dell'elenco, sul registro generico l'arrivo merce o
+   * una voce del menu. Senza nulla da offrire la barra azioni non compare.
+   */
+  protected readonly showCreateActions = computed(() => {
+    if (this.salesRegister()) {
+      return this.canManageDocuments() && this.showCreateAction();
+    }
+    if (this.isGoodsReceiptList()) {
+      return this.canManageDocuments();
+    }
+    return this.canManageGoodsReceipts() || this.secondaryCreateOptions().length > 0;
+  });
+
+  /** Tipi gestibili dall'utente: guida le azioni di riga della tabella. */
+  protected readonly manageableTypes = computed(() => {
+    const user = this.authService.currentUser();
+    return manageableDocumentFamilies(user).flatMap((family) => [...documentTypesOfFamily(family)]);
+  });
 
   protected readonly skeletonColumns = 7;
   protected readonly pageSizeOptions = DOCUMENT_PAGE_SIZE_OPTIONS;
@@ -449,18 +562,6 @@ export class DocumentListComponent {
   protected readonly statusOptions: readonly SelectMenuOption[] = Object.values(DocumentStatus).map(
     (status) => ({ value: status, label: documentStatusLabel(status) }),
   );
-
-  protected readonly secondaryCreateOptions: readonly SelectMenuOption[] = [
-    { value: 'purchase-invoice', label: 'Registrazione fattura fornitore' },
-    { value: 'transfer', label: 'Trasferimento' },
-    { value: 'manual-unload', label: 'Scarico manuale' },
-    { value: 'adjustment', label: 'Rettifica di magazzino' },
-    { value: 'sales-ddt', label: 'DDT vendita' },
-    { value: 'quote', label: 'Preventivo' },
-    { value: 'proforma', label: 'Proforma' },
-    { value: 'invoice', label: 'Fattura' },
-    { value: 'invoice-accompanying', label: 'Fattura accompagnatoria' },
-  ];
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly query = computed(() => parseDocumentListQuery(this.queryParams()));

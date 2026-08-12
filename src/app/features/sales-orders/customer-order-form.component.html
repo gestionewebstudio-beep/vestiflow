@@ -250,19 +250,23 @@
                     <span class="doc-panel__label" id="co-m-customer-label">
                       {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
                     </span>
-                    <button
-                      type="button"
-                      class="doc-panel__field-action"
-                      (click)="toggleCustomerForm()"
-                    >
-                      <i
-                        class="pi"
-                        [class.pi-plus]="!showCustomerForm()"
-                        [class.pi-minus]="showCustomerForm()"
-                        aria-hidden="true"
-                      ></i>
-                      {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
-                    </button>
+                    <!-- Senza il permesso il cliente si sceglie soltanto fra
+                         quelli già in anagrafica: la scorciatoia sparisce. -->
+                    @if (puoGestireClienti()) {
+                      <button
+                        type="button"
+                        class="doc-panel__field-action"
+                        (click)="toggleCustomerForm()"
+                      >
+                        <i
+                          class="pi"
+                          [class.pi-plus]="!showCustomerForm()"
+                          [class.pi-minus]="showCustomerForm()"
+                          aria-hidden="true"
+                        ></i>
+                        {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
+                      </button>
+                    }
                   </div>
 
                   <app-select-menu
@@ -393,12 +397,15 @@
                 </div>
 
                 @if (!isOrder) {
+                  <!-- L'ingranaggio «gestisci numerazioni» compare solo a chi
+                       configura i numeratori: gli altri scelgono fra le serie
+                       già esistenti. -->
                   <app-document-number-field
                     numberInputId="co-m-number"
                     [number]="form.controls.documentNumber.value"
                     [series]="form.controls.series.value"
                     [seriesOptions]="seriesOptions()"
-                    [canManageSeries]="true"
+                    [canManageSeries]="puoConfigurareNumerazioni()"
                     (numberChange)="onDocumentNumberChange($event)"
                     (seriesChange)="onSeriesChange($event)"
                     (manageSeries)="seriesDialogOpen.set(true)"
@@ -537,19 +544,23 @@
                 }
                 <!-- Scorciatoie sulla stessa riga, come nel mockup. -->
                 <div class="doc-form__inline-links">
-                  <button
-                    type="button"
-                    class="doc-form__inline-toggle"
-                    (click)="toggleCustomerForm()"
-                  >
-                    <i
-                      class="pi"
-                      [class.pi-plus]="!showCustomerForm()"
-                      [class.pi-minus]="showCustomerForm()"
-                      aria-hidden="true"
-                    ></i>
-                    {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
-                  </button>
+                  <!-- Senza il permesso resta solo «Scheda cliente»: il cliente
+                       si sceglie fra quelli già in anagrafica. -->
+                  @if (puoGestireClienti()) {
+                    <button
+                      type="button"
+                      class="doc-form__inline-toggle"
+                      (click)="toggleCustomerForm()"
+                    >
+                      <i
+                        class="pi"
+                        [class.pi-plus]="!showCustomerForm()"
+                        [class.pi-minus]="showCustomerForm()"
+                        aria-hidden="true"
+                      ></i>
+                      {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
+                    </button>
+                  }
                   @if (form.controls.customerId.value) {
                     <button
                       type="button"
@@ -615,7 +626,7 @@
                   [number]="form.controls.documentNumber.value"
                   [series]="form.controls.series.value"
                   [seriesOptions]="seriesOptions()"
-                  [canManageSeries]="true"
+                  [canManageSeries]="puoConfigurareNumerazioni()"
                   (numberChange)="onDocumentNumberChange($event)"
                   (seriesChange)="onSeriesChange($event)"
                   (manageSeries)="seriesDialogOpen.set(true)"
@@ -800,10 +811,14 @@
                     Includi documento
                   </app-button>
                 }
-                <app-button type="button" variant="secondary" (click)="openNewProduct()">
-                  <i class="pi pi-box" aria-hidden="true"></i>
-                  Nuovo prodotto
-                </app-button>
+                <!-- Senza il permesso sul catalogo le righe si riempiono solo
+                     cercando articoli già esistenti. -->
+                @if (puoGestireCatalogo()) {
+                  <app-button type="button" variant="secondary" (click)="openNewProduct()">
+                    <i class="pi pi-box" aria-hidden="true"></i>
+                    Nuovo prodotto
+                  </app-button>
+                }
                 <app-button type="button" [disabled]="formReadOnly()" (click)="addLine()">
                   <i class="pi pi-plus" aria-hidden="true"></i>
                   Aggiungi riga
@@ -1786,7 +1801,10 @@
                  scansiona) stanno nella barra in basso; queste due sono
                  l'articolo fuori catalogo e l'anagrafica nuova. -->
             @if (compactView() && !headerGateActive()) {
-              <div class="co-lines__actions">
+              <div
+                class="co-lines__actions"
+                [class.co-lines__actions--single]="!puoGestireCatalogo()"
+              >
                 <button
                   type="button"
                   class="co-lines__action co-lines__action--empty"
@@ -1795,14 +1813,18 @@
                   <i class="pi pi-plus" aria-hidden="true"></i>
                   Inserisci riga vuota
                 </button>
-                <button
-                  type="button"
-                  class="co-lines__action co-lines__action--product"
-                  (click)="openNewProduct()"
-                >
-                  <i class="pi pi-box" aria-hidden="true"></i>
-                  Crea nuovo prodotto
-                </button>
+                <!-- Senza il permesso sul catalogo resta la sola riga vuota: un
+                     articolo nuovo si crea dall'anagrafica prodotti. -->
+                @if (puoGestireCatalogo()) {
+                  <button
+                    type="button"
+                    class="co-lines__action co-lines__action--product"
+                    (click)="openNewProduct()"
+                  >
+                    <i class="pi pi-box" aria-hidden="true"></i>
+                    Crea nuovo prodotto
+                  </button>
+                }
               </div>
             }
           </section>

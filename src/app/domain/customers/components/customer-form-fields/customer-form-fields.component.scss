@@ -46,6 +46,10 @@
   outline-offset: var(--space-1);
 }
 
+.customer-fields__control[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
 .customer-fields__control:disabled {
   opacity: var(--opacity-disabled);
   cursor: not-allowed;
@@ -71,4 +75,10 @@
   margin: var(--space-2) 0 0;
   font-size: var(--text-xs);
   color: var(--color-text-muted);
+}
+
+.customer-fields__field-error {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-danger);
 }

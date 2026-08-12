@@ -2,7 +2,6 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 import { FormsModule } from '@angular/forms';
 
 import { caretAtEdge } from '@domain/documents/utils/caret-edge.util';
-
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { formatMoney } from '@core/utils/money.util';
 
@@ -18,6 +17,12 @@ import { FirstClickSelectsDirective } from '@shared/directives/first-click-selec
   styleUrl: './document-line-product-cell.component.scss',
 })
 export class DocumentLineProductCellComponent {
+  // Il permesso sul catalogo non si controlla più qui: i due pulsanti che
+  // aprivano l'anagrafica sono passati al pannello di ricerca (11/08/2026), e
+  // il controllo li ha seguiti — `document-product-search-panel`. Un gate su
+  // una superficie che non esiste più non protegge niente e fa credere il
+  // contrario a chi legge.
+
   readonly lineIndex = input.required<number>();
   readonly inputId = input('');
   readonly value = input.required<string>();

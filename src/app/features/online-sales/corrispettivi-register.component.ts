@@ -26,7 +26,7 @@ import type { AppError } from '@core/models/app-error.model';
 import type { EntityId } from '@core/models/common.model';
 import type { Money } from '@core/models/money.model';
 import { CorrispettivoEntryStatus } from '@core/models/sales-order.model';
-import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
+import { canManageFiscalRegister } from '@core/permissions/tenant-permissions.util';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
@@ -141,8 +141,9 @@ export class CorrispettiviRegisterComponent {
     { value: '22', label: '22%' },
   ];
 
+  /** Correggere una riga del registro è una scrittura fiscale, non un export. */
   protected readonly canEditEntries = computed(() =>
-    canExportOperationalData(this.authService.currentUser()),
+    canManageFiscalRegister(this.authService.currentUser()),
   );
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });

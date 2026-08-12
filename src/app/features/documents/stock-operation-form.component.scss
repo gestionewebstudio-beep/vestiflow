@@ -9,3 +9,14 @@
     display: none;
   }
 }
+
+// Riga non valida nella tabella desktop. `.doc-form__input--invalid` vive in
+// styles/_document-form.scss, ma `.doc-form__input--table` — che azzera bordo e
+// fondo della cella — arriva dopo con la stessa specificita' e la vince: il
+// campo rosso resterebbe identico a uno valido. Qui la coppia di classi
+// (piu' l'attributo di incapsulamento) riporta la tinta dove serve. Nessun
+// valore nudo: gli stessi token della regola condivisa.
+.doc-form__input--table.doc-form__input--invalid {
+  border-color: var(--status-error-fg);
+  background-color: var(--status-error-bg);
+}
