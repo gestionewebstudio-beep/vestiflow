@@ -253,17 +253,17 @@ _Lista definita da Luigi l'11 agosto 2026._
 
 ### Categoria A — Data interna, Numero interno, Serie interna
 
-| Documento                | Note                                                                                                                                                                                                                                                    |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Preventivi               |                                                                                                                                                                                                                                                         |
-| Ordine cliente (interno) | Solo `source = manual`. Gli ordini dai canali portano il numero del canale, vedi §8                                                                                                                                                                     |
-| Fattura proforma         | Oggi si chiama «Proforma», da rinominare                                                                                                                                                                                                                |
-| DDT di vendita           | Da valutare il nome, vedi §10                                                                                                                                                                                                                           |
-| Fattura                  | Con tutta la famiglia di sottotipi: accompagnatoria, d'acconto, nota di credito. **Un solo progressivo condiviso**                                                                                                                                      |
-| Ordini fornitore         | ✅ **Fatto il 12/08/2026.** Era l'unico di Categoria A senza numero né serie in testata: il server numerava d'ufficio e l'operatore non vedeva né sceglieva niente. Nessuna migration — le colonne `series` e `number` su `supplier_orders` c'erano già |
-| Scarico manuale giacenze |                                                                                                                                                                                                                                                         |
-| Trasferimenti interni    | Numerazione propria. Il DDT eventualmente generato ha la sua                                                                                                                                                                                            |
-| Rettifica inventario     | _Aggiunta il 12 agosto 2026._ Mancava dalla lista — non per scelta, per dimenticanza. **Già implementata**: data, numero e serie in testata, e `adjustment` è fra i tipi con numeratore proprio (`COUNTER_CONFIGURABLE_DOCUMENT_TYPES`)                 |
+| Documento                | Note                                                                                                                                                                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preventivi               |                                                                                                                                                                                                                                                   |
+| Ordine cliente (interno) | Solo `source = manual`. Gli ordini dai canali portano il numero del canale, vedi §8 **Numerazione in testata dal 12/08/2026**: il campo era nascosto da un `@if (!isOrder)`, e il numero lo assegnava il server senza che l'operatore lo vedesse. |
+| Fattura proforma         | Oggi si chiama «Proforma», da rinominare                                                                                                                                                                                                          |
+| DDT di vendita           | Da valutare il nome, vedi §10                                                                                                                                                                                                                     |
+| Fattura                  | Con tutta la famiglia di sottotipi: accompagnatoria, d'acconto, nota di credito. **Un solo progressivo condiviso**                                                                                                                                |
+| Ordini fornitore         | ✅ **Fatto il 12/08/2026.** In testata non c'erano né numero né serie: il server numerava d'ufficio e l'operatore non vedeva né sceglieva niente. Nessuna migration — le colonne `series` e `number` su `supplier_orders` c'erano già             |
+| Scarico manuale giacenze |                                                                                                                                                                                                                                                   |
+| Trasferimenti interni    | Numerazione propria. Il DDT eventualmente generato ha la sua                                                                                                                                                                                      |
+| Rettifica inventario     | _Aggiunta il 12 agosto 2026._ Mancava dalla lista — non per scelta, per dimenticanza. **Già implementata**: data, numero e serie in testata, e `adjustment` è fra i tipi con numeratore proprio (`COUNTER_CONFIGURABLE_DOCUMENT_TYPES`)           |
 
 ### Categoria B — due blocchi distinti
 
@@ -340,9 +340,11 @@ _Misurato il 12 agosto 2026 su schema Prisma, DTO e maschere Angular. **Nessun c
 
 Li accettano `save-transfer.dto`, `save-adjustment.dto`, `create-document.dto`, `update-document.dto`, `create-supplier-order.dto`, `update-supplier-order.dto`, `save-manual-sales-order.dto`. Togliere il blocco dalle maschere non basta a chiudere la porta: finché il DTO li accetta, un client può scriverli.
 
-### ✅ All'Ordine fornitore mancava il numero, non solo la serie — chiuso il 12/08/2026
+### ✅ Ordine fornitore e Ordine cliente: numerazione in testata — chiuso il 12/08/2026
 
-Era in Categoria A ma aveva `orderDate` e basta: nessun `documentNumber`, nessun `series` nel form. **Il server però lo numerava già** — serie predefinita, lock sul contatore, primo libero — quindi il numero c'era, semplicemente non si vedeva e non si poteva scegliere.
+⚠️ **La prima stesura di questa voce diceva che l'Ordine fornitore era «l'unico di Categoria A» senza numerazione in testata. Era falso: erano due.** L'Ordine cliente aveva i controlli nel form ma il campo nascosto da un `@if (!isOrder)`, in entrambe le viste — e verificare che un controllo esista non è verificare che si veda. L'errore è stato trovato da una verifica adversariale della specifica contro il codice, non da una prova.
+
+Su entrambi il server numerava già — serie predefinita, lock sul contatore, primo libero — quindi il numero c'era: non si vedeva, e non si poteva scegliere la serie né tappare un buco.
 
 Deciso da Luigi: **serie, numero e data come tutti**, col meccanismo degli altri (proposta dal contatore, gestione serie dall'ingranaggio, avviso sul numero già preso). Fatto senza migration: `series` e `number` su `supplier_orders` esistevano già.
 
