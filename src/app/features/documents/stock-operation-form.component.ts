@@ -92,8 +92,8 @@ import { formatItalianInputDate } from '@shared/utils/calendar.util';
 import { documentReferenceLabel } from '@domain/documents/models/document-labels.util';
 import { isAdjustmentDocumentType } from './models/document-stock-operation.util';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
-import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
@@ -413,118 +413,80 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       : 'La location è obbligatoria.';
   });
 
-  /**
-   * Il numero in testata è una PROPOSTA, non un'assegnazione: finché nessuno lo
-   * tocca lo prende chi salva per primo, e il campo deve dirlo. Vale solo sul
-   * documento NUOVO — su uno già salvato il numero è suo — e cade appena
-   * l'operatore lo digita: da lì è una scelta, difesa dal dialogo di conflitto.
-   *
-   * Dipende da `formValue()` perché `dirty` non è un signal: senza quella
-   * lettura il computed resterebbe fermo al primo valore (stesso schema dei
-   * testi del pannello mobile qui sopra).
-   */
-  protected readonly numberIsProposal = computed(() => {
-    this.formValue();
-    return !this.isEditMode() && !this.form.controls.documentNumber.dirty;
-  });
-
   protected readonly confirmDialogOpen = signal(false);
 
   /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
   // Avviso «numero già assegnato»: la macchina a stati vive in domain, qui
   // resta solo quale controllo della testata riceve il numero aggiornato.
+  // ── Numerazione ───────────────────────────────────────────────────────────
+  //
+  // Il meccanismo vive in `domain/` (`DocumentNumberingStore`): proposta,
+  // scelta della serie, numero imposto. Era copiato in sei maschere.
+
+  protected readonly numbering = new DocumentNumberingStore({
+    isEdit: () => this.isEditMode(),
+    number: () => this.form.controls.documentNumber.value,
+    setNumber: (value) => this.form.controls.documentNumber.setValue(value),
+    series: () => this.form.controls.series.value,
+    setSeries: (value) => this.form.controls.series.setValue(value),
+    numberIsDirty: () => this.form.controls.documentNumber.dirty,
+    markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
+    markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    asProgrammatic: (write) => {
+      // La proposta iniziale non è una modifica dell'operatore: scriverla non
+      // deve accendere il guard di uscita.
+      this.suppressDirtyMarking = true;
+      try {
+        write();
+      } finally {
+        this.suppressDirtyMarking = false;
+      }
+    },
+  });
+
+  /**
+   * `dirty` non è un signal: la dipendenza da `formValue()` fa ricalcolare il
+   * computed a ogni scrittura sul form, che è dove lo stato può cambiare.
+   */
+  protected readonly numberIsProposal = computed(() => {
+    this.formValue();
+    return this.numbering.isProposal();
+  });
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
+   * serie e numero — la selezione resta quella che era.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    this.countersService
+      .available(this.documentType(), this.form.controls.locationId.value || null)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this.numbering.setCounters(counters),
+        error: () => undefined,
+      });
+  }
+
+  private refreshNumberProposal(): void {
+    this.countersService
+      .available(this.documentType(), this.form.controls.locationId.value || null)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters, proposedCounterId }) =>
+          this.numbering.applyProposal(counters, proposedCounterId),
+        error: () => undefined,
+      });
+  }
+
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
   protected readonly prefillError = new DocumentPrefillErrorStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
 
-  /** Contatori disponibili per la testata (tipo + sede): alimentano la tendina. */
-  private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
-  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] =>
-    this._availableCounters().map((counter) => ({
-      value: counter.series ?? '',
-      label: counter.series ?? 'Senza serie',
-    })),
-  );
-
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
-
-  /**
-   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
-   * serie/numero — la selezione resta quella che era.
-   */
-  protected onSeriesManagerClosed(): void {
-    this.seriesDialogOpen.set(false);
-    const locationId = this.form.controls.locationId.value || null;
-    this.countersService
-      .available(this.documentType(), locationId)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters }) => this._availableCounters.set(counters),
-        error: () => undefined,
-      });
-  }
-
-  /** Numero digitato in testata: vuoto = «assegnalo tu». */
-  protected onDocumentNumberChange(value: number | null): void {
-    // `markAsDirty` PRIMA di `setValue`: è `setValue` a emettere `valueChanges`,
-    // ed è quell'emissione a far ricalcolare `numberIsProposal()`. Nell'ordine
-    // inverso il campo continuerebbe a dichiararsi «proposta» dopo che
-    // l'operatore ha già scelto, fino al successivo tocco su un altro campo.
-    this.form.controls.documentNumber.markAsDirty();
-    this.form.controls.documentNumber.setValue(value);
-  }
-
-  /** Serie scelta dall'operatore: il numero passa al progressivo di quel contatore. */
-  protected onSeriesChange(value: string): void {
-    this.form.controls.series.setValue(value);
-    this.form.controls.series.markAsDirty();
-    const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
-    if (counter) {
-      // Il numero della nuova serie torna a essere una proposta: `markAsPristine`
-      // prima di `setValue`, così l'emissione che aggiorna `numberIsProposal()`
-      // vede già lo stato giusto (speculare a onDocumentNumberChange).
-      this.form.controls.documentNumber.markAsPristine();
-      this.form.controls.documentNumber.setValue(counter.nextNumber);
-    }
-  }
-
-  /**
-   * Carica i contatori disponibili per (tipo, sede) e, su documento nuovo,
-   * propone il predefinito: serie + prossimo numero. Un numero digitato a mano
-   * non viene toccato.
-   */
-  private refreshNumberProposal(): void {
-    const locationId = this.form.controls.locationId.value || null;
-    this.countersService
-      .available(this.documentType(), locationId)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters, proposedCounterId }) => {
-          this._availableCounters.set(counters);
-          if (this.editDocumentId() || this.form.controls.documentNumber.dirty) {
-            return;
-          }
-          const proposed = counters.find((entry) => entry.id === proposedCounterId);
-          if (proposed) {
-            // Proposta programmatica di serie/numero: non è una modifica utente.
-            // `setValue` non sporca il controllo, e la cosa è voluta: è proprio
-            // `documentNumber.dirty` a distinguere poi il numero proposto (che
-            // non si rimanda al server) da quello scelto dall'operatore.
-            this.suppressDirtyMarking = true;
-            try {
-              this.form.controls.series.setValue(proposed.series ?? '');
-              this.form.controls.documentNumber.setValue(proposed.nextNumber);
-            } finally {
-              this.suppressDirtyMarking = false;
-            }
-          }
-        },
-        error: () => undefined,
-      });
-  }
 
   protected acknowledgeConflictNumber(): void {
     // Il numero nuovo si scrive in testata (specifica numerazione §3): il

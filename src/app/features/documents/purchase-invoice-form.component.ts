@@ -63,9 +63,9 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import type { LinkableGoodsReceipt } from '@domain/documents/models/goods-receipt-causal.model';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
-import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { DocumentSettingsService } from './services/document-settings.service';
 import type {
   PurchaseInvoiceInstallmentBody,
@@ -288,15 +288,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     this.documentSettings().find((setting) => setting.type === DocumentType.SupplierInvoice),
   );
 
-  /** Contatori disponibili per la testata: alimentano la tendina serie. */
-  private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
-  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] =>
-    this._availableCounters().map((counter) => ({
-      value: counter.series ?? '',
-      label: counter.series ?? 'Senza serie',
-    })),
-  );
-
   /**
    * «L'operatore ha toccato il numero?» in forma reattiva. Lo stato vero è
    * `documentNumber.dirty` — qui non se ne tiene una copia, si ascolta: gli
@@ -317,18 +308,52 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
    * Su un documento già salvato il numero è assegnato, e appena l'operatore lo
    * scrive diventa una sua scelta: in entrambi i casi non è più una proposta.
    */
-  protected readonly documentNumberIsProposal = computed(
-    () => !this.isEditMode() && this.documentNumberPristine(),
-  );
+  protected readonly documentNumberIsProposal = computed(() => {
+    // La dipendenza è il signal degli EVENTI del controllo, non `valueChanges`:
+    // così il ricalcolo avviene anche dopo un `markAsDirty`, che valueChanges
+    // non emette. È il motivo per cui qui l'ordine fra marcatura e scrittura
+    // non conta, mentre altrove contava (vedi `DocumentNumberingStore`).
+    this.documentNumberPristine();
+    return this.numbering.isProposal();
+  });
 
   /** Tipo documento fisso di questa maschera (per il pannello numerazioni). */
   protected readonly documentType = DocumentType.SupplierInvoice;
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
 
+  /** Conflitto sul numero restituito dal server: dialogo «Usa N» / «Annulla». */
+  // Avviso «numero già assegnato»: la macchina a stati vive in domain, qui
+  // resta solo quale controllo della testata riceve il numero aggiornato.
+  // ── Numerazione ───────────────────────────────────────────────────────────
+  //
+  // Il meccanismo vive in `domain/` (`DocumentNumberingStore`): proposta,
+  // scelta della serie, numero imposto. Era copiato in sei maschere.
+
+  protected readonly numbering = new DocumentNumberingStore({
+    isEdit: () => this.isEditMode(),
+    number: () => this.form.controls.documentNumber.value,
+    setNumber: (value) => this.form.controls.documentNumber.setValue(value),
+    series: () => this.form.controls.series.value,
+    setSeries: (value) => this.form.controls.series.setValue(value),
+    numberIsDirty: () => this.form.controls.documentNumber.dirty,
+    markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
+    markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    asProgrammatic: (write) => {
+      // La proposta iniziale non è una modifica dell'operatore: scriverla non
+      // deve accendere il guard di uscita.
+      this.suppressDirtyMarking = true;
+      try {
+        write();
+      } finally {
+        this.suppressDirtyMarking = false;
+      }
+    },
+  });
+
   /**
    * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
-   * serie/numero — la selezione resta quella che era.
+   * serie e numero — la selezione resta quella che era.
    */
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
@@ -336,14 +361,22 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       .available(DocumentType.SupplierInvoice, null)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ counters }) => this._availableCounters.set(counters),
+        next: ({ counters }) => this.numbering.setCounters(counters),
         error: () => undefined,
       });
   }
 
-  /** Conflitto sul numero restituito dal server: dialogo «Usa N» / «Annulla». */
-  // Avviso «numero già assegnato»: la macchina a stati vive in domain, qui
-  // resta solo quale controllo della testata riceve il numero aggiornato.
+  private refreshNumberProposal(): void {
+    this.countersService
+      .available(DocumentType.SupplierInvoice, null)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters, proposedCounterId }) =>
+          this.numbering.applyProposal(counters, proposedCounterId),
+        error: () => undefined,
+      });
+  }
+
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
   protected readonly prefillError = new DocumentPrefillErrorStore();
@@ -587,23 +620,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   protected readonly loadError = computed(() => this.loadState() === 'error');
   protected readonly notFound = computed(() => this.loadState() === 'not-found');
 
-  /** Numero digitato in testata: mai sotto 1, vuoto = «assegna tu». */
-  protected onDocumentNumberChange(value: number | null): void {
-    this.form.controls.documentNumber.setValue(value);
-    this.form.controls.documentNumber.markAsDirty();
-  }
-
-  /** Cambio serie: il numero si riallinea al progressivo di quella serie. */
-  protected onSeriesChange(value: string): void {
-    this.form.controls.series.setValue(value);
-    this.form.controls.series.markAsDirty();
-    const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
-    if (counter) {
-      this.form.controls.documentNumber.setValue(counter.nextNumber);
-      this.form.controls.documentNumber.markAsPristine();
-    }
-  }
-
   /**
    * Carica i contatori disponibili e, su documento nuovo, propone il
    * predefinito (serie + numero). Un valore digitato a mano non si tocca.
@@ -613,23 +629,8 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       .available(DocumentType.SupplierInvoice, null)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ counters, proposedCounterId }) => {
-          this._availableCounters.set(counters);
-          if (this.isEditMode() || this.form.controls.documentNumber.dirty) {
-            return;
-          }
-          const proposed = counters.find((entry) => entry.id === proposedCounterId);
-          if (proposed) {
-            // Proposta programmatica di serie/numero: non è una modifica utente.
-            this.suppressDirtyMarking = true;
-            try {
-              this.form.controls.series.setValue(proposed.series ?? '');
-              this.form.controls.documentNumber.setValue(proposed.nextNumber);
-            } finally {
-              this.suppressDirtyMarking = false;
-            }
-          }
-        },
+        next: ({ counters, proposedCounterId }) =>
+          this.numbering.applyProposal(counters, proposedCounterId),
         error: () => undefined,
       });
   }

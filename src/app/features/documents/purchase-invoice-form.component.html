@@ -135,10 +135,10 @@
                 [number]="form.controls.documentNumber.value"
                 [isProposal]="documentNumberIsProposal()"
                 [series]="form.controls.series.value"
-                [seriesOptions]="seriesOptions()"
+                [seriesOptions]="numbering.seriesOptions()"
                 [canManageSeries]="true"
-                (numberChange)="onDocumentNumberChange($event)"
-                (seriesChange)="onSeriesChange($event)"
+                (numberChange)="numbering.onNumberChange($event)"
+                (seriesChange)="numbering.onSeriesChange($event)"
                 (manageSeries)="seriesDialogOpen.set(true)"
               />
 
@@ -206,10 +206,10 @@
             [number]="form.controls.documentNumber.value"
             [isProposal]="documentNumberIsProposal()"
             [series]="form.controls.series.value"
-            [seriesOptions]="seriesOptions()"
+            [seriesOptions]="numbering.seriesOptions()"
             [canManageSeries]="true"
-            (numberChange)="onDocumentNumberChange($event)"
-            (seriesChange)="onSeriesChange($event)"
+            (numberChange)="numbering.onNumberChange($event)"
+            (seriesChange)="numbering.onSeriesChange($event)"
             (manageSeries)="seriesDialogOpen.set(true)"
           />
 

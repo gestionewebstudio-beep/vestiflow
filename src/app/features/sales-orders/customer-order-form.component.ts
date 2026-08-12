@@ -138,9 +138,9 @@ import {
 import { transportDataIncomplete } from '@domain/documents/models/document-transport.util';
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
-import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import type {
   CreateDocumentBody,
   DocumentLineInputBody,
@@ -623,20 +623,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     { initialValue: this.form.controls.documentNumber.pristine },
   );
 
-  /**
-   * Il numero in testata è una PROPOSTA, non un'assegnazione: su un documento
-   * nuovo il numeratore mostra il primo libero, ma a prenderlo è chi salva per
-   * primo. Finché resta una proposta NON viene inviata al server — rimandarla
-   * indietro la trasformerebbe in un'imposizione, e il secondo operatore si
-   * vedrebbe il dialogo di conflitto per un numero che non ha mai digitato.
-   *
-   * In modifica non è mai una proposta: lì il numero è l'identità del documento
-   * (o la rinumerazione che segue un cambio di serie), e va inviato.
-   */
-  protected readonly numberIsProposal = computed(
-    () => this.isRegistryDocument && !this.isEditMode() && this.numberPristine(),
-  );
-
   protected readonly dirtySinceLastSave = signal(false);
   private suppressDirtyMarking = false;
 
@@ -839,42 +825,75 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
   // Stato del dialog «numero già assegnato»: la macchina vive in domain, il
   // form decide solo quale controllo riceve il numero e cosa risalvare.
+  // ── Numerazione ───────────────────────────────────────────────────────────
+  //
+  // Il meccanismo vive in `domain/` (`DocumentNumberingStore`): proposta,
+  // scelta della serie, numero imposto. Era copiato in sei maschere.
+
+  protected readonly numbering = new DocumentNumberingStore({
+    isEdit: () => this.isEditMode(),
+    number: () => this.form.controls.documentNumber.value,
+    setNumber: (value) => this.form.controls.documentNumber.setValue(value),
+    series: () => this.form.controls.series.value,
+    setSeries: (value) => this.form.controls.series.setValue(value),
+    numberIsDirty: () => this.form.controls.documentNumber.dirty,
+    markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
+    markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    asProgrammatic: (write) => {
+      // La proposta iniziale non è una modifica dell'operatore: scriverla non
+      // deve accendere il guard di uscita.
+      this.suppressDirtyMarking = true;
+      try {
+        write();
+      } finally {
+        this.suppressDirtyMarking = false;
+      }
+    },
+  });
+
+  /**
+   * `dirty` non è un signal: la dipendenza da `formValue()` fa ricalcolare il
+   * computed a ogni scrittura sul form, che è dove lo stato può cambiare.
+   */
+  protected readonly numberIsProposal = computed(() => {
+    this.formValue();
+    return this.numbering.isProposal();
+  });
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
+   * serie e numero — la selezione resta quella che era.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    this.countersService
+      .available(this.registryDocumentType, this.form.controls.locationId.value || null)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this.numbering.setCounters(counters),
+        error: () => undefined,
+      });
+  }
+
+  private refreshNumberProposal(): void {
+    this.countersService
+      .available(this.registryDocumentType, this.form.controls.locationId.value || null)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters, proposedCounterId }) =>
+          this.numbering.applyProposal(counters, proposedCounterId),
+        error: () => undefined,
+      });
+  }
+
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
   protected readonly prefillError = new DocumentPrefillErrorStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
-  /** Serie configurate per il tipo: con una sola resta una label statica. */
-  /** Contatori disponibili per la testata del registro: alimentano la tendina. */
-  private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
-  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] =>
-    this._availableCounters().map((counter) => ({
-      value: counter.series ?? '',
-      label: counter.series ?? 'Senza serie',
-    })),
-  );
 
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
-
-  /**
-   * Chiusura del pannello numerazioni: ricarica l'elenco serie del registro
-   * SENZA riproporre serie/numero — la selezione resta quella che era.
-   */
-  protected onSeriesManagerClosed(): void {
-    this.seriesDialogOpen.set(false);
-    if (!this.isRegistryDocument) {
-      return;
-    }
-    const locationId = this.form.controls.locationId.value || null;
-    this.countersService
-      .available(this.registryDocumentType, locationId)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters }) => this._availableCounters.set(counters),
-        error: () => undefined,
-      });
-  }
 
   protected readonly internalReferenceLabel = computed(() => {
     const saved = this.isRegistryDocument
@@ -4534,58 +4553,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.toast.showInfo(
       `Salvato con il n. ${assignedNumber}: il ${shownNumber} è stato preso da un altro operatore.`,
     );
-  }
-
-  /** Numero digitato in testata: da qui in poi non si riallinea al progressivo. */
-  protected onDocumentNumberChange(value: number | null): void {
-    this.form.controls.documentNumber.setValue(value);
-    this.form.controls.documentNumber.markAsDirty();
-  }
-
-  /** Cambio serie: il progressivo è per serie, quindi si richiede la proposta. */
-  protected onSeriesChange(value: string): void {
-    this.form.controls.series.setValue(value);
-    this.form.controls.series.markAsDirty();
-    const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
-    if (counter) {
-      this.form.controls.documentNumber.setValue(counter.nextNumber);
-      this.form.controls.documentNumber.markAsPristine();
-    }
-  }
-
-  /**
-   * Propone il primo numero libero della serie. Solo in creazione e finché
-   * l'utente non ha digitato un numero suo.
-   */
-  private refreshNumberProposal(): void {
-    if (!this.isRegistryDocument || this.editOrderId()) {
-      return;
-    }
-    const locationId = this.form.controls.locationId.value || null;
-    this.countersService
-      .available(this.registryDocumentType, locationId)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters, proposedCounterId }) => {
-          this._availableCounters.set(counters);
-          if (this.form.controls.documentNumber.dirty) {
-            return;
-          }
-          const proposed = counters.find((entry) => entry.id === proposedCounterId);
-          if (!proposed) {
-            return;
-          }
-          // Proposta automatica: non deve accendere «Modifiche non salvate».
-          this.suppressDirtyMarking = true;
-          try {
-            this.form.controls.series.setValue(proposed.series ?? '');
-            this.form.controls.documentNumber.setValue(proposed.nextNumber);
-          } finally {
-            this.suppressDirtyMarking = false;
-          }
-        },
-        error: () => undefined,
-      });
   }
 
   protected acknowledgeConflictNumber(): void {
