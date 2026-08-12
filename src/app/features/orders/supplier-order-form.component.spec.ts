@@ -658,53 +658,6 @@ describe('SupplierOrderFormComponent', () => {
   // Tipo, numero e data del documento emesso dal FORNITORE (la sua conferma
   // d'ordine): stanno su ogni maschera documento, non solo sull'Arrivo merce.
 
-  it('riapre la dicitura del documento fornitore anche se il tipo è stato eliminato', async () => {
-    await setupEdit();
-
-    // Testata desktop e pannello mobile convivono nel DOM: si guarda la prima.
-    const number = (await screen.findAllByLabelText('Numero documento'))[0]!;
-    expect(number).toHaveValue('145');
-
-    // Il tipo non è più nell'elenco: l'etichetta arriva dallo snapshot scritto
-    // sull'ordine. Senza, la tendina sarebbe vuota e il salvataggio successivo
-    // cancellerebbe la dicitura davvero.
-    expect(screen.getAllByRole('button', { name: 'Tipo documento' })[0]!).toHaveTextContent(
-      'Nota consegna',
-    );
-  });
-
-  it('porta al salvataggio tipo e numero del documento fornitore', async () => {
-    const user = userEvent.setup();
-    const { createOrder } = await setup({ vatCodes: [VAT_22] });
-
-    await user.click(screen.getByRole('button', { name: 'Fornitore' }));
-    await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
-
-    // L'articolo si sceglie dalla cella nome condivisa (il vecchio pulsante
-    // «Articolo» non esiste più): stesso gesto delle altre prove di riga.
-    await scegliArticoloSullaRiga(user);
-
-    const cost = screen.getByPlaceholderText('0,00');
-    await user.clear(cost);
-    await user.type(cost, '12,50');
-
-    await user.click(screen.getAllByRole('button', { name: 'Tipo documento' })[0]!);
-    await user.click(await screen.findByRole('option', { name: 'DDT' }));
-    await user.type(screen.getAllByLabelText('Numero documento')[0]!, '145');
-
-    await user.click(salvaDocumento());
-
-    // La data non è stata compilata: va `null`, non `undefined` — in modifica
-    // l'assenza del campo significa «lascialo com'è».
-    expect(createOrder).toHaveBeenCalledWith(
-      expect.objectContaining({
-        externalDocumentTypeId: 'edt-ddt',
-        externalDocNumber: '145',
-        externalDocDate: null,
-      }),
-    );
-  });
-
   // ── Salvare non è uscire ───────────────────────────────────────────────────
   //
   // Dopo il primo salvataggio si RESTA nel documento: cambia solo l'URL, da

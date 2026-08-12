@@ -96,14 +96,13 @@
               idPrefix="pi-m"
               layout="stack"
               sectionTitle="Documento fornitore"
-              [typeId]="form.controls.externalDocumentTypeId.value"
               [docNumber]="form.controls.externalDocNumber.value"
               [docDate]="form.controls.documentDate.value"
-              [snapshotLabel]="counterpartyTypeSnapshot()"
+              [showType]="false"
+              [showType]="false"
               numberLabel="N. fattura"
               dateLabel="Data fattura"
               numberPlaceholder="Es. 58/2026"
-              (typeIdChange)="onCounterpartyTypeChange($event)"
               (docNumberChange)="onCounterpartyNumberChange($event)"
               (docDateChange)="onCounterpartyDateChange($event)"
             />
@@ -234,14 +233,12 @@
              del documento. -->
         <app-document-counterparty-ref
           idPrefix="pi"
-          [typeId]="form.controls.externalDocumentTypeId.value"
           [docNumber]="form.controls.externalDocNumber.value"
           [docDate]="form.controls.documentDate.value"
-          [snapshotLabel]="counterpartyTypeSnapshot()"
+          [showType]="false"
           numberLabel="N. fattura"
           dateLabel="Data fattura"
           numberPlaceholder="Es. 58/2026"
-          (typeIdChange)="onCounterpartyTypeChange($event)"
           (docNumberChange)="onCounterpartyNumberChange($event)"
           (docDateChange)="onCounterpartyDateChange($event)"
         />

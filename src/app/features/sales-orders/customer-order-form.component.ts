@@ -86,7 +86,6 @@ import {
   createCustomerFormGroup,
   mapCustomerFormToInput,
 } from '@domain/customers/utils/customer-form.util';
-import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
@@ -319,7 +318,6 @@ interface AvailabilityIssue {
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
-    DocumentCounterpartyRefComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentIncludePanelComponent,
@@ -494,17 +492,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     () => this.isConcluded() || this.isPartiallyConcluded(),
   );
 
-  /**
-   * Etichetta del tipo di documento del cliente fotografata sull'ordine. La
-   * passiamo al componente condiviso perché possa ricostruire l'opzione quando
-   * il tipo è stato eliminato dall'elenco: senza, riaprire un vecchio ordine
-   * mostrerebbe la tendina vuota e il salvataggio successivo ne cancellerebbe
-   * davvero la dicitura.
-   */
-  protected readonly counterpartyTypeSnapshot = computed(
-    () => this.loadedOrder()?.externalDocumentTypeSnapshot,
-  );
-
   protected readonly pageTitle = computed(() => {
     if (this.isQuote) {
       return this.isEditMode() ? 'Modifica preventivo' : 'Nuovo preventivo';
@@ -571,9 +558,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     // Documento della controparte: tipo, numero e data dell'ordine che il
     // cliente ha emesso. Trio, non tre campi sparsi: lo rende il componente
     // condiviso, qui restano solo i controlli che lo alimentano.
-    externalDocumentTypeId: this.fb.control(''),
-    externalDocNumber: this.fb.control(''),
-    externalDocDate: this.fb.control(''),
     expectedDeliveryDate: this.fb.control(''),
     status: this.fb.control<'confirmed' | 'cancelled'>('confirmed'),
     paymentTerms: this.fb.control(''),
@@ -3926,13 +3910,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         locationId: order.locationId ?? '',
         documentDate: order.placedAt ? toIsoDateLocal(new Date(order.placedAt)) : '',
         externalRef: order.externalRef ?? '',
-        externalDocumentTypeId: order.externalDocumentTypeId ?? '',
-        externalDocNumber: order.externalDocNumber ?? '',
         // Data di giornata memorizzata a mezzanotte UTC: si prendono le prime
         // dieci cifre, come fa la maschera coi documenti del registro. La
         // conversione a data locale la sposterebbe di un giorno a ovest di
         // Greenwich, e sarebbe la data di un altro documento.
-        externalDocDate: order.externalDocDate?.slice(0, 10) ?? '',
         expectedDeliveryDate: order.expectedDeliveryDate
           ? toIsoDateLocal(new Date(order.expectedDeliveryDate))
           : '',
@@ -4265,9 +4246,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       // Documento della controparte: il valore che c'è adesso in testata.
       // Vuoto vuol dire svuotato — la testata viene riscritta per intero, e il
       // campo assente azzera quello che il documento portava.
-      externalDocumentTypeId: value.externalDocumentTypeId || undefined,
-      externalDocNumber: value.externalDocNumber.trim() || undefined,
-      externalDocDate: value.externalDocDate || undefined,
       expectedDeliveryDate: value.expectedDeliveryDate || undefined,
       status: value.status,
       notes: value.notes.trim() || undefined,

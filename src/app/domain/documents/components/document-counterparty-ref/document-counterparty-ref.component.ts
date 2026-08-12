@@ -106,6 +106,17 @@ export class DocumentCounterpartyRefComponent {
   /** Titolo della sezione mobile: cambia con la controparte del documento. */
   readonly sectionTitle = input<string>('Documento della controparte');
 
+  /**
+   * Il documento citato ha un TIPO da scegliere, oppure il tipo è già nel nome
+   * del documento che lo registra.
+   *
+   * Vale per la Registrazione fattura fornitore: quella maschera registra una
+   * fattura, quindi «Tipo documento: fattura» sarebbe una cella che chiede di
+   * confermare ciò che il titolo della pagina dice già (specifica numerazione
+   * §5, Categoria B: «Qui il Tipo documento non serve»). L'Arrivo merce invece
+   * ne ha bisogno: la merce arriva accompagnata da documenti diversi.
+   */
+  readonly showType = input<boolean>(true);
   readonly typeLabel = input<string>('Tipo documento');
   readonly numberLabel = input<string>('Numero documento');
   readonly dateLabel = input<string>('Data documento');

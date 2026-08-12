@@ -102,7 +102,6 @@ import { findVariantSummaryById } from '@domain/products/utils/variant-summary-s
 
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
-import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
@@ -232,7 +231,6 @@ function todayIsoDate(): string {
     SupplierFormFieldsComponent,
     SlidePanelComponent,
     ProductFormComponent,
-    DocumentCounterpartyRefComponent,
     DocumentMobilePanelComponent,
     DocumentLineCodeCellComponent,
     DocumentLineSelectCellComponent,
@@ -644,10 +642,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     // ── Documento della controparte ───────────────────────────────────────
     // Tipo, numero e data della conferma d'ordine del fornitore. Il rendering
     // è del componente condiviso: qui vive solo il dato.
-    externalDocumentTypeId: this.fb.control(''),
-    externalDocNumber: this.fb.control(''),
     /** Data in formato ISO `AAAA-MM-GG` (solo giorno), come `orderDate`. */
-    externalDocDate: this.fb.control(''),
     /**
      * Sconto extra di chiusura sull'intero ordine. Campo SEMPRE visibile che
      * mostra 0% quando non c'è, non un pulsante che lo riveli: un pulsante
@@ -664,8 +659,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    * cosa che tiene in piedi l'opzione nella tendina — senza, la dicitura
    * apparirebbe vuota e il salvataggio successivo la cancellerebbe davvero.
    */
-  private readonly _counterpartyTypeSnapshot = signal<string | undefined>(undefined);
-  protected readonly counterpartyTypeSnapshot = this._counterpartyTypeSnapshot.asReadonly();
 
   protected get lines(): FormArray<ReturnType<SupplierOrderFormComponent['createLine']>> {
     return this.form.controls.lines;
@@ -1264,24 +1257,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
   // ── Documento della controparte ─────────────────────────────────────────
   //
-  // Il componente condiviso non conosce il form: emette il valore e basta. I
-  // tre campi rientrano così dalla porta di sempre — `valueChanges` marca le
-  // modifiche non salvate, il patch al caricamento li riempie, `getRawValue()`
-  // li porta al salvataggio. Testata desktop e pannello mobile chiamano questi
-  // stessi metodi: sono due viste dello stesso dato.
-
-  protected onCounterpartyTypeChange(value: string): void {
-    this.form.controls.externalDocumentTypeId.setValue(value);
-  }
-
-  protected onCounterpartyNumberChange(value: string): void {
-    this.form.controls.externalDocNumber.setValue(value);
-  }
-
-  protected onCounterpartyDateChange(value: string): void {
-    this.form.controls.externalDocDate.setValue(value);
-  }
-
   /** "Mostra avviso" (anagrafica fornitore): banner alla selezione. */
   protected readonly supplierDocumentAlert = computed(() => {
     const supplierId = this.formValue()?.supplierId;
@@ -1309,18 +1284,12 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     const orderDate = this.form.controls.orderDate.value;
     const expectedAt = this.form.controls.expectedAt.value;
     const reference = this.form.controls.supplierReference.value.trim();
-    const externalNumber = this.form.controls.externalDocNumber.value.trim();
     const parts: string[] = [orderDate ? formatItalianInputDate(orderDate) : 'Data non indicata'];
     if (expectedAt) {
       parts.push(`Consegna ${formatItalianInputDate(expectedAt)}`);
     }
     if (reference) {
       parts.push(`Rif. ${reference}`);
-    }
-    if (externalNumber) {
-      // A pannello chiuso il documento del fornitore si vede dal numero: il
-      // tipo lo sa la tendina, che qui non c'è.
-      parts.push(`Doc. ${externalNumber}`);
     }
     return parts;
   });
@@ -2105,9 +2074,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       // Documento della controparte: i tre campi vanno SEMPRE, e vuoti valgono
       // `null` — non `undefined`. In modifica l'assenza significa «lascialo
       // com'è», quindi svuotare un campo e salvare non lo cancellerebbe.
-      externalDocumentTypeId: raw.externalDocumentTypeId || null,
-      externalDocNumber: raw.externalDocNumber.trim() || null,
-      externalDocDate: raw.externalDocDate ? new Date(raw.externalDocDate).toISOString() : null,
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
       costEntryMode: this.costEntryMode(),
       currency: this.currency,
@@ -2191,18 +2157,14 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : todayIsoDate(),
       expectedAt: order.expectedAt ? order.expectedAt.slice(0, 10) : '',
       supplierReference: order.supplierReference ?? '',
-      externalDocumentTypeId: order.externalDocumentTypeId ?? '',
-      externalDocNumber: order.externalDocNumber ?? '',
       // Il campo lavora sul solo giorno: la colonna è una `date`, ma in JSON
       // arriva come istante (`…T00:00:00.000Z`).
-      externalDocDate: order.externalDocDate ? order.externalDocDate.slice(0, 10) : '',
       documentDiscountPercent: order.documentDiscountPercent
         ? String(order.documentDiscountPercent).replace('.', ',')
         : '',
     });
     // Prima che la tendina si ridisegni: se il tipo è stato eliminato, è
     // questa etichetta a ricostruirne l'opzione.
-    this._counterpartyTypeSnapshot.set(order.externalDocumentTypeSnapshot);
     this.costEntryMode.set(order.costEntryMode);
     this.lines.clear();
     for (const line of order.lines) {

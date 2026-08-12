@@ -232,17 +232,6 @@ describe('PurchaseInvoiceFormComponent', () => {
     expect(settledDate.value).not.toBe('');
   });
 
-  // Il documento della controparte (tipo + N. fattura + Data fattura) sta in
-  // testata anche qui, e il tipo si propone da solo sui documenti NUOVI: quello
-  // che si registra è una fattura, quindi «Fattura» risparmia il gesto più
-  // probabile senza togliere la scelta.
-  it('propone «Fattura» come tipo del documento della controparte', async () => {
-    await setup();
-
-    const typeTriggers = await screen.findAllByRole('button', { name: 'Tipo documento' });
-    expect(typeTriggers[0]!.textContent).toContain('Fatt.');
-  });
-
   // ── Il numero proposto non torna al server come imposizione ─────────────
   //
   // Il numero che la maschera mostra all'apertura è il primo libero: una

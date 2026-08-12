@@ -159,25 +159,6 @@
                   </div>
                 }
               </div>
-
-              <!-- Il documento che ha emesso il cliente (il suo ordine): stesso
-                   blocco condiviso della vista desktop, che qui disegna da sé
-                   titolo di sezione e campi in colonna. L'idPrefix è diverso
-                   perché le due viste convivono nel DOM e gli id degli input
-                   devono restare univoci nella pagina. -->
-              <app-document-counterparty-ref
-                idPrefix="sd-m"
-                layout="stack"
-                sectionTitle="Documento del cliente"
-                [typeId]="form.controls.externalDocumentTypeId.value"
-                [docNumber]="form.controls.externalDocNumber.value"
-                [docDate]="form.controls.externalDocDate.value"
-                [snapshotLabel]="counterpartyTypeSnapshot()"
-                [disabled]="formReadOnly()"
-                (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
-                (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
-                (docDateChange)="form.controls.externalDocDate.setValue($event)"
-              />
             </app-document-mobile-panel>
 
             <!-- Solo fatture: la fascia fiscale diventa il secondo pannello,
@@ -456,29 +437,6 @@
               </div>
             </div>
           }
-
-          <!--
-            Documento del cliente: tipo, numero e data del documento emesso
-            dalla controparte (il suo ordine). Blocco condiviso da tutte le
-            maschere documento — si porta dietro la tendina dei tipi, la voce
-            «Gestisci tipi documento…» e il pannello che apre.
-
-            Nessun contenitore attorno: la fascia — fondo tenue, filo sopra,
-            angoli in basso e sparizione sotto lg, dove la testata passa ai
-            pannelli — la disegna il componente stesso, uguale in ogni maschera.
-            Sta in fondo alla testata perché è lì che va una fascia secondaria.
-          -->
-          <app-document-counterparty-ref
-            idPrefix="sd"
-            [typeId]="form.controls.externalDocumentTypeId.value"
-            [docNumber]="form.controls.externalDocNumber.value"
-            [docDate]="form.controls.externalDocDate.value"
-            [snapshotLabel]="counterpartyTypeSnapshot()"
-            [disabled]="formReadOnly()"
-            (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
-            (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
-            (docDateChange)="form.controls.externalDocDate.setValue($event)"
-          />
         </div>
 
         <section class="doc-form__lines" aria-labelledby="sd-lines-title">

@@ -1,16 +1,18 @@
 <ng-template #celle>
-  <div [class]="cellClass()">
-    <span [class]="labelClass()">{{ typeLabel() }}</span>
-    <app-select-menu
-      [options]="options()"
-      [value]="typeId()"
-      [ariaLabel]="typeLabel()"
-      placeholder="DDT, Fattura…"
-      [compact]="!isStack()"
-      [fullWidth]="true"
-      (valueChange)="onTypeSelect($event)"
-    />
-  </div>
+  @if (showType()) {
+    <div [class]="cellClass()">
+      <span [class]="labelClass()">{{ typeLabel() }}</span>
+      <app-select-menu
+        [options]="options()"
+        [value]="typeId()"
+        [ariaLabel]="typeLabel()"
+        placeholder="DDT, Fattura…"
+        [compact]="!isStack()"
+        [fullWidth]="true"
+        (valueChange)="onTypeSelect($event)"
+      />
+    </div>
+  }
 
   <div [class]="cellClass()">
     <label [class]="labelClass()" [attr.for]="numberInputId()">{{ numberLabel() }}</label>

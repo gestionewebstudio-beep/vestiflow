@@ -130,25 +130,6 @@
                   (manageSeries)="seriesDialogOpen.set(true)"
                 />
               </div>
-
-              <!-- Stesso trio della testata desktop, in colonna: titolo di
-                   sezione e contenitore dei campi li disegna il componente, che
-                   porta con sé anche le classi del pannello mobile. L'idPrefix
-                   cambia perché le due viste convivono nel DOM e gli id degli
-                   input devono restare univoci. -->
-              <app-document-counterparty-ref
-                idPrefix="so-m"
-                layout="stack"
-                sectionTitle="Documento della controparte"
-                [typeId]="form.controls.externalDocumentTypeId.value"
-                [docNumber]="form.controls.externalDocNumber.value"
-                [docDate]="form.controls.externalDocDate.value"
-                [snapshotLabel]="counterpartyTypeSnapshot()"
-                [disabled]="formReadOnly()"
-                (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
-                (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
-                (docDateChange)="form.controls.externalDocDate.setValue($event)"
-              />
             </app-document-mobile-panel>
           </div>
 
@@ -221,23 +202,6 @@
               />
             </div>
           </div>
-
-          <!-- Documento della controparte: una rettifica nasce da un riscontro
-               interno, il trio resta quindi facoltativo e senza tipo proposto.
-               La fascia secondaria della testata la disegna il componente —
-               ultima figlia della card, sotto la fascia principale, e sotto lg
-               esce dal flusso come ogni altra fascia. -->
-          <app-document-counterparty-ref
-            idPrefix="so"
-            [typeId]="form.controls.externalDocumentTypeId.value"
-            [docNumber]="form.controls.externalDocNumber.value"
-            [docDate]="form.controls.externalDocDate.value"
-            [snapshotLabel]="counterpartyTypeSnapshot()"
-            [disabled]="formReadOnly()"
-            (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
-            (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
-            (docDateChange)="form.controls.externalDocDate.setValue($event)"
-          />
         </div>
 
         <section class="doc-form__lines" aria-labelledby="so-lines-title">

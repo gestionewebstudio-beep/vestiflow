@@ -189,7 +189,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     afterNextRender(() => {
       this.refreshDocumentNumberProposal();
       this.prefillFromDuplicateIfRequested();
-      this.proposeDefaultCounterpartyType();
     });
 
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
@@ -230,7 +229,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
      * `externalDocNumber` + `documentDate`: il tipo e' l'unico pezzo che
      * mancava, e li raggiunge senza spostarne la semantica.
      */
-    externalDocumentTypeId: this.fb.control(''),
     /** Data registrazione interna: default oggi, modificabile. */
     registrationDate: this.fb.control(todayIsoDate(), { validators: [Validators.required] }),
     /** Numero interno: proposto dal progressivo di serie, editabile. */
@@ -273,8 +271,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
    * campo apparirebbe vuoto e al salvataggio successivo la dicitura sparirebbe
    * davvero. La scrive `applyDocumentToForm`, quindi vale anche per il duplica.
    */
-  private readonly _counterpartyTypeSnapshot = signal<string | undefined>(undefined);
-  protected readonly counterpartyTypeSnapshot = this._counterpartyTypeSnapshot.asReadonly();
 
   // ── Numero interno (numerazione VestiFlow) ─────────────────────────────
 
@@ -639,52 +635,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   }
 
   // ── Documento della controparte (tipo + numero + data) ─────────────────────
-
-  /**
-   * Tipo proposto sui documenti NUOVI: qui la controparte emette una fattura,
-   * ed e' quella che si sta registrando — proporre «Fattura» risparmia il gesto
-   * piu' probabile. Su un documento gia' salvato non si tocca nulla: il tipo e'
-   * quello che il documento porta, anche se nel frattempo e' stato eliminato.
-   */
-  private proposeDefaultCounterpartyType(): void {
-    if (this.isEditMode()) {
-      return;
-    }
-    this.externalDocumentTypeService
-      .list()
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (types) => {
-          const control = this.form.controls.externalDocumentTypeId;
-          // Un duplicato porta il tipo dell'originale e una scelta
-          // dell'operatore vale piu' di una proposta: si riempie solo il vuoto.
-          if (control.value || control.dirty) {
-            return;
-          }
-          const invoiceType = types.find(
-            (type) => type.isSystem && type.isActive && type.name === 'Fattura',
-          );
-          if (!invoiceType) {
-            return;
-          }
-          // Proposta programmatica: non e' una modifica dell'utente.
-          this.suppressDirtyMarking = true;
-          try {
-            control.setValue(invoiceType.id);
-          } finally {
-            this.suppressDirtyMarking = false;
-          }
-        },
-        // Lista non arrivata: nessuna proposta, la tendina resta vuota e
-        // compilabile a mano. Non e' un errore che meriti di fermare la maschera.
-        error: () => undefined,
-      });
-  }
-
-  protected onCounterpartyTypeChange(value: string): void {
-    this.form.controls.externalDocumentTypeId.setValue(value);
-    this.form.controls.externalDocumentTypeId.markAsDirty();
-  }
 
   /** N. fattura del fornitore: stesso controllo di prima, nuovo contenitore. */
   protected onCounterpartyNumberChange(value: string): void {
@@ -1084,7 +1034,6 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
         // Il tipo si nomina sempre: `null` e' la cancellazione voluta (tendina
         // svuotata), `undefined` direbbe al server «non conosco il campo» e
         // lascerebbe in piedi quello vecchio.
-        externalDocumentTypeId: raw.externalDocumentTypeId || null,
         internalComment: raw.internalComment.trim() || undefined,
         paymentMethod: raw.paymentMethod.trim() || undefined,
         notes: raw.notes.trim() || undefined,
@@ -1217,12 +1166,10 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
 
   private applyDocumentToForm(doc: DocumentRecord): void {
     this.selectedSupplierId.set(doc.supplierId ?? '');
-    this._counterpartyTypeSnapshot.set(doc.externalDocumentTypeSnapshot);
     this.form.patchValue({
       supplierId: doc.supplierId ?? '',
       documentDate: doc.documentDate.slice(0, 10),
       externalDocNumber: doc.externalDocNumber ?? '',
-      externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
       registrationDate: doc.registrationDate ? doc.registrationDate.slice(0, 10) : todayIsoDate(),
       documentNumber: doc.number ?? null,
       series: doc.series ?? '',

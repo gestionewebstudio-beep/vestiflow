@@ -86,7 +86,6 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
-import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import {
@@ -144,7 +143,6 @@ type SubmitState =
     BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
-    DocumentCounterpartyRefComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
     DateInputComponent,
@@ -320,16 +318,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       : `Modifica ${label.toLowerCase()}`;
   });
 
-  /**
-   * Etichetta del tipo documento controparte fotografata sul documento. Serve
-   * al blocco condiviso per ricostruire l'opzione quando il tipo è stato
-   * eliminato dalla tabella: senza, riaprire il documento mostrerebbe il campo
-   * vuoto e il salvataggio successivo ne cancellerebbe davvero la dicitura.
-   */
-  protected readonly counterpartyTypeSnapshot = computed(
-    () => this.loadedDocument()?.externalDocumentTypeSnapshot,
-  );
-
   protected readonly form = this.fb.group({
     customerId: this.fb.control('', { validators: [Validators.required] }),
     locationId: this.fb.control(''),
@@ -343,9 +331,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     // Tipo, numero e data del documento che ha emesso il cliente (il suo
     // ordine): non identificano questo documento, lo agganciano al foglio
     // che sta dall'altra parte della transazione.
-    externalDocumentTypeId: this.fb.control(''),
-    externalDocNumber: this.fb.control(''),
-    externalDocDate: this.fb.control(''),
     billingCause: this.fb.control(''),
     relatedDdtRef: this.fb.control(''),
     notes: this.fb.control(this.routeType === DocumentType.Proforma ? PROFORMA_DISCLAIMER : ''),
@@ -1343,10 +1328,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       return;
     }
     const raw = this.form.getRawValue();
-    // Serve prima del body: il documento della controparte si serializza in
-    // modo diverso in creazione e in modifica (vedi sotto).
     const editId = this.editDocumentId();
-    const counterpartyNumber = raw.externalDocNumber.trim();
     // Il numero si manda SOLO se l'operatore l'ha scelto. La proposta viene
     // scritta senza sporcare il controllo (withoutDirtyMarking + patchValue),
     // quindi `dirty` distingue davvero i due casi.
@@ -1384,13 +1366,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       // Il tipo si nomina SEMPRE, anche vuoto: nel PATCH un campo assente
       // vuol dire «non toccare», quindi senza il null esplicito togliere il
       // tipo da un documento salvato non lo toglierebbe davvero (e con lui
-      // resterebbe appeso lo snapshot dell'etichetta).
-      externalDocumentTypeId: raw.externalDocumentTypeId || null,
-      // In CREAZIONE un campo vuoto non si manda affatto, per non scrivere ''
-      // al posto di NULL. In modifica servono i `null` espliciti — vedi sotto:
-      // il body del POST non li ammette, quindi si aggiungono solo al PATCH.
-      ...(counterpartyNumber ? { externalDocNumber: counterpartyNumber } : {}),
-      ...(raw.externalDocDate ? { externalDocDate: raw.externalDocDate } : {}),
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
       pricesIncludeVat: this.pricesIncludeVat(),
       ...(this.isSalesInvoice()
@@ -1458,11 +1433,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     const save$ = editId
       ? this.documentService.updateDocument(editId, {
           ...body,
-          // Nel PATCH un campo assente vuol dire «non toccare»: senza questi due
-          // null, svuotare numero o data del documento della controparte non li
-          // toglierebbe davvero — resterebbero scritti sul documento.
-          externalDocNumber: counterpartyNumber || null,
-          externalDocDate: raw.externalDocDate || null,
         })
       : this.documentService.createDocument(body);
 
@@ -1875,9 +1845,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       // Se il precompilato porta il documento della controparte (ordine del
       // cliente, documento d'origine) il riferimento passa al documento
       // generato: è la stessa transazione vista dall'altra parte.
-      externalDocumentTypeId: prefill.externalDocumentTypeId ?? '',
-      externalDocNumber: prefill.externalDocNumber ?? '',
-      externalDocDate: prefill.externalDocDate?.slice(0, 10) ?? '',
       relatedDdtRef: prefill.externalRef ?? '',
       notes: prefill.notes ?? '',
       internalComment: prefill.internalComment ?? '',
@@ -1937,10 +1904,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       documentDate: doc.documentDate.slice(0, 10),
       documentNumber: doc.number ?? null,
       series: doc.series ?? '',
-      externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
-      externalDocNumber: doc.externalDocNumber ?? '',
       // Il campo data lavora sul giorno: dell'ISO tiene solo «AAAA-MM-GG».
-      externalDocDate: doc.externalDocDate?.slice(0, 10) ?? '',
       billingCause: doc.billingCause ?? '',
       relatedDdtRef: doc.externalRef ?? '',
       notes: doc.notes ?? '',

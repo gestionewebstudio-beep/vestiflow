@@ -562,32 +562,6 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
 
       expect(view.component.buildSavePayload()['documentDiscountPercent']).toBe(15);
     });
-
-    // Il documento della controparte è l'ordine che il cliente ha emesso: tipo,
-    // numero e data viaggiano insieme, altrimenti sul documento resta un numero
-    // senza sapere di che documento fosse.
-    it('serializza il documento della controparte', () => {
-      const controls = view.component.form.controls;
-      controls['externalDocumentTypeId']!.setValue('type-1');
-      controls['externalDocNumber']!.setValue(' 145 ');
-      controls['externalDocDate']!.setValue('2026-07-25');
-
-      expect(view.component.buildSavePayload()).toMatchObject({
-        externalDocumentTypeId: 'type-1',
-        externalDocNumber: '145',
-        externalDocDate: '2026-07-25',
-      });
-    });
-
-    // Svuotare i campi non è «non toccarli»: la testata viene riscritta per
-    // intero, e il campo assente azzera quello che c'era.
-    it('omette i campi della controparte quando sono vuoti', () => {
-      const payload = view.component.buildSavePayload();
-
-      expect(payload['externalDocumentTypeId']).toBeUndefined();
-      expect(payload['externalDocNumber']).toBeUndefined();
-      expect(payload['externalDocDate']).toBeUndefined();
-    });
   });
 
   /**

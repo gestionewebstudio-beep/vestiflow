@@ -55,7 +55,6 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
-import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -148,7 +147,6 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     ButtonComponent,
     ConfirmDialogComponent,
     DateInputComponent,
-    DocumentCounterpartyRefComponent,
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
@@ -294,16 +292,6 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     return doc != null && isConfirmedEditableDocumentStatus(doc.status);
   });
 
-  /**
-   * Etichetta del tipo controparte fotografata sul documento. Serve alla
-   * tendina per ricostruire l'opzione di un tipo eliminato: senza, il campo
-   * si riaprirebbe vuoto e il salvataggio successivo cancellerebbe davvero
-   * la dicitura.
-   */
-  protected readonly counterpartyTypeSnapshot = computed(
-    () => this.loadedDocument()?.externalDocumentTypeSnapshot,
-  );
-
   /** Un confermato si apre bloccato: sola lettura finché l'operatore non sblocca. */
   protected readonly formReadOnly = computed(
     () => this.isConfirmedEdit() && !this.editLock.unlocked(),
@@ -360,9 +348,6 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
     // Una rettifica nasce da un riscontro interno: la controparte spesso non
     // c'è. Il trio resta quindi facoltativo (nessun validatore) e nessun tipo
     // viene proposto di default.
-    externalDocumentTypeId: this.fb.control(''),
-    externalDocNumber: this.fb.control(''),
-    externalDocDate: this.fb.control(''),
     notes: this.fb.control(''),
     internalComment: this.fb.control('', { validators: [Validators.required] }),
     lines: this.fb.array([this.createLine()]),
@@ -1433,9 +1418,6 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
             // Documento della controparte: l'endpoint dedicato riscrive sempre
             // i tre campi, quindi vanno inviati anche vuoti — `null` sul tipo
             // dice «nessuno», non «non toccare».
-            externalDocumentTypeId: raw.externalDocumentTypeId || null,
-            externalDocNumber: raw.externalDocNumber.trim() || undefined,
-            externalDocDate: raw.externalDocDate || undefined,
             notes: raw.notes.trim() || undefined,
             internalComment: raw.internalComment.trim(),
             lines: raw.lines
@@ -1545,9 +1527,6 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       currency: this.currency,
       // Documento della controparte: il tipo viaggia come `null` quando non
       // c'è, così il PATCH di una bozza lo toglie invece di lasciarlo com'era.
-      externalDocumentTypeId: raw.externalDocumentTypeId || null,
-      externalDocNumber: raw.externalDocNumber.trim() || undefined,
-      externalDocDate: raw.externalDocDate || undefined,
       notes: raw.notes.trim() || undefined,
       internalComment: raw.internalComment.trim(),
       lines: raw.lines
@@ -1581,9 +1560,6 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
         documentDate: doc.documentDate.slice(0, 10),
         documentNumber: doc.number ?? null,
         series: doc.series ?? '',
-        externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
-        externalDocNumber: doc.externalDocNumber ?? '',
-        externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
         notes: doc.notes ?? '',
         internalComment: doc.internalComment ?? '',
       });

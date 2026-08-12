@@ -503,32 +503,6 @@
                 }
               </div>
 
-              <!-- Il documento del cliente: stesso componente della testata
-                   desktop, in colonna. Titolo di sezione e contenitore dei campi
-                   li disegna lui, quindi qui attorno non resta nulla — ed è per
-                   questo che sta FUORI dal gruppo di campi qui sopra: una sezione
-                   dentro l'altra non sarebbe una sezione. L'idPrefix cambia
-                   perché le due viste convivono nel DOM e gli id degli input
-                   devono restare univoci. -->
-              @if (isOrder) {
-                <app-document-counterparty-ref
-                  idPrefix="co-m"
-                  layout="stack"
-                  sectionTitle="Documento del cliente"
-                  typeLabel="Tipo doc. cliente"
-                  numberLabel="N. documento cliente"
-                  dateLabel="Data doc. cliente"
-                  [typeId]="form.controls.externalDocumentTypeId.value"
-                  [docNumber]="form.controls.externalDocNumber.value"
-                  [docDate]="form.controls.externalDocDate.value"
-                  [snapshotLabel]="counterpartyTypeSnapshot()"
-                  [disabled]="formReadOnly()"
-                  (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
-                  (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
-                  (docDateChange)="form.controls.externalDocDate.setValue($event)"
-                />
-              }
-
               <p class="doc-panel__helper">I valori predefiniti restano modificabili.</p>
             </app-document-mobile-panel>
           </div>
@@ -753,22 +727,16 @@
                gestisce il pagamento in prima fascia e lo scarico manuale non ha
                né consegna né pagamento: nessuno dei due ha seconda fascia. -->
             @if (isOrder) {
-              <app-document-counterparty-ref
-                idPrefix="co"
-                typeLabel="Tipo doc. cliente"
-                numberLabel="N. documento cliente"
-                dateLabel="Data doc. cliente"
-                [typeId]="form.controls.externalDocumentTypeId.value"
-                [docNumber]="form.controls.externalDocNumber.value"
-                [docDate]="form.controls.externalDocDate.value"
-                [snapshotLabel]="counterpartyTypeSnapshot()"
-                [disabled]="formReadOnly()"
-                (typeIdChange)="form.controls.externalDocumentTypeId.setValue($event)"
-                (docNumberChange)="form.controls.externalDocNumber.setValue($event)"
-                (docDateChange)="form.controls.externalDocDate.setValue($event)"
+              <!-- Fascia secondaria dell'Ordine: solo il Pagamento.
+                   Fino al 12/08/2026 questa fascia la disegnava
+                   `app-document-counterparty-ref` — tipo, numero e data del
+                   documento del cliente — e il Pagamento ci stava proiettato
+                   dentro. Il trio è stato tolto (un ordine cliente è un
+                   documento NOSTRO: la nostra numerazione è in prima fascia),
+                   il Pagamento resta. -->
+              <div
+                class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row doc-form__header-row--secondary"
               >
-                <!-- Celle affini della maschera: stessa fascia, proiettate dopo
-                     le tre del componente. -->
                 <div class="doc-form__field">
                   <label class="doc-form__label" for="co-payment">Pagamento</label>
                   <input
@@ -782,7 +750,7 @@
                 </div>
 
                 <div class="doc-form__field doc-form__header-filler" aria-hidden="true"></div>
-              </app-document-counterparty-ref>
+              </div>
             } @else if (isQuote) {
               <div
                 class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row doc-form__header-row--secondary"
