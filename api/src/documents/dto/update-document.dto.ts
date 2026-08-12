@@ -88,23 +88,6 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(120)
-  externalDocNumber?: string | null;
-
-  @IsOptional()
-  @IsISO8601()
-  externalDocDate?: string | null;
-
-  /**
-   * Tipo del documento della controparte. `null` lo toglie dal documento;
-   * assente lo lascia com'e' (e con lui il suo snapshot).
-   */
-  @IsOptional()
-  @IsUUID()
-  externalDocumentTypeId?: string | null;
-
-  @IsOptional()
-  @IsString()
   @MaxLength(500)
   billingCause?: string | null;
 
@@ -193,4 +176,11 @@ export class UpdateDocumentDto extends DocumentTransportFieldsDto {
   @ValidateNested({ each: true })
   @Type(() => DocumentLineInputDto)
   lines?: DocumentLineInputDto[];
+  // ⚠️ Qui stavano i tre campi del «documento della controparte»
+  // (`externalDocNumber`, `externalDocDate`, `externalDocumentTypeId`).
+  // Tolti il 12/08/2026 insieme al blocco in testata: questo documento non ne
+  // ha uno da citare. Chiudere anche l'ingresso serve — finché il DTO li
+  // accetta, un client può scriverli e le colonne tornano a riempirsi di dati
+  // che nessuna maschera mostra. Le colonne restano: toglierle è distruttivo su
+  // database condiviso e aspetta la finestra concordata.
 }

@@ -133,20 +133,6 @@ export class SaveManualSalesOrderDto {
   @MaxLength(120)
   externalRef?: string;
 
-  // ── Documento della controparte: l'ordine emesso dal cliente ──
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  externalDocNumber?: string;
-
-  @IsOptional()
-  @IsISO8601()
-  externalDocDate?: string;
-
-  @IsOptional()
-  @IsUUID()
-  externalDocumentTypeId?: string;
-
   @IsOptional()
   @IsISO8601()
   expectedDeliveryDate?: string;
@@ -180,4 +166,11 @@ export class SaveManualSalesOrderDto {
   @ValidateNested({ each: true })
   @Type(() => SaveManualSalesOrderLineDto)
   lines!: SaveManualSalesOrderLineDto[];
+  // ⚠️ Qui stavano i tre campi del «documento della controparte»
+  // (`externalDocNumber`, `externalDocDate`, `externalDocumentTypeId`).
+  // Tolti il 12/08/2026 insieme al blocco in testata: questo documento non ne
+  // ha uno da citare. Chiudere anche l'ingresso serve — finché il DTO li
+  // accetta, un client può scriverli e le colonne tornano a riempirsi di dati
+  // che nessuna maschera mostra. Le colonne restano: toglierle è distruttivo su
+  // database condiviso e aspetta la finestra concordata.
 }

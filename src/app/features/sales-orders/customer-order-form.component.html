@@ -671,14 +671,12 @@
               <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento.
                  Scarico manuale: solo Rif. (niente consegna/pagamento). -->
               <!--
-                Il documento della controparte — tipo, numero e data dell'ordine
-                emesso dal cliente — è la seconda fascia qui sotto, e a disegnarla
-                è il componente condiviso: la forma di quel gruppo di campi non è
-                più una decisione di questa maschera (decisione del proprietario,
-                08/2026: prima ogni maschera decideva da sé).
-                Il «Rif.» qui sotto è altra cosa e resta dov'è: sullo Scarico
-                manuale è una causale libera (es. «campionario fiera»), non il
-                numero di un documento.
+                Il «Rif.» qui sotto è una causale libera dello Scarico manuale
+                (es. «campionario fiera»), non il numero di un documento — ed è
+                per questo che è rimasto quando il blocco del documento della
+                controparte è stato tolto dalla testata (12/08/2026): un ordine
+                cliente è un documento nostro, e la numerazione che conta è in
+                prima fascia.
               -->
               @if (isManualUnload) {
                 <div class="doc-form__field">

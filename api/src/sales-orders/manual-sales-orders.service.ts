@@ -224,11 +224,6 @@ export class ManualSalesOrdersService {
     const setting = await this.documentSettings.getResolved(tenantId, DocumentType.customer_order);
     // Vede anche i tipi eliminati: toglierne uno dalla tendina non deve
     // cancellarlo dagli ordini che lo portano.
-    const externalType = await this.externalTypes.resolveForWrite(
-      tenantId,
-      dto.externalDocumentTypeId,
-    );
-
     const syncTargets = new Set<string>();
 
     // Serie scelta in testata; assente = la predefinita. Il campo vuoto è una
@@ -324,10 +319,6 @@ export class ManualSalesOrdersService {
           customerName,
           locationId: dto.locationId ?? null,
           externalRef: dto.externalRef?.trim() || null,
-          // Documento della controparte: l'ordine che il cliente ha emesso.
-          externalDocNumber: dto.externalDocNumber?.trim() || null,
-          externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
-          ...externalType,
           expectedDeliveryDate: dto.expectedDeliveryDate
             ? new Date(dto.expectedDeliveryDate)
             : null,

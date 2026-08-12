@@ -555,7 +555,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
     externalRef: this.fb.control(''),
-    // Documento della controparte: tipo, numero e data dell'ordine che il
     // cliente ha emesso. Trio, non tre campi sparsi: lo rende il componente
     // condiviso, qui restano solo i controlli che lo alimentano.
     expectedDeliveryDate: this.fb.control(''),
@@ -4252,7 +4251,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       // sopra: cambia il servizio, non la decisione.
       number: this.numberIsProposal() ? undefined : (value.documentNumber ?? undefined),
       externalRef: value.externalRef.trim() || undefined,
-      // Documento della controparte: il valore che c'è adesso in testata.
       // Vuoto vuol dire svuotato — la testata viene riscritta per intero, e il
       // campo assente azzera quello che il documento portava.
       expectedDeliveryDate: value.expectedDeliveryDate || undefined,

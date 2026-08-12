@@ -648,7 +648,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     series: this.fb.control(''),
     expectedAt: this.fb.control(''),
     supplierReference: this.fb.control(''),
-    // ── Documento della controparte ───────────────────────────────────────
     // Tipo, numero e data della conferma d'ordine del fornitore. Il rendering
     // è del componente condiviso: qui vive solo il dato.
     /** Data in formato ISO `AAAA-MM-GG` (solo giorno), come `orderDate`. */
@@ -1264,7 +1263,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.form.controls.supplierId.markAsTouched();
   }
 
-  // ── Documento della controparte ─────────────────────────────────────────
   //
   /** "Mostra avviso" (anagrafica fornitore): banner alla selezione. */
   protected readonly supplierDocumentAlert = computed(() => {
@@ -2080,7 +2078,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       orderDate: raw.orderDate ? new Date(raw.orderDate).toISOString() : undefined,
       expectedAt: raw.expectedAt ? new Date(raw.expectedAt).toISOString() : undefined,
       supplierReference: raw.supplierReference.trim() || undefined,
-      // Documento della controparte: i tre campi vanno SEMPRE, e vuoti valgono
       // `null` — non `undefined`. In modifica l'assenza significa «lascialo
       // com'è», quindi svuotare un campo e salvare non lo cancellerebbe.
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),

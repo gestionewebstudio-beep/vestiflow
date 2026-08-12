@@ -162,11 +162,6 @@ export class SupplierOrdersService {
     const documentDiscountPercent = dto.documentDiscountPercent ?? 0;
     const totals = computeGoodsReceiptTotals(computedLines, documentDiscountPercent);
     const orderDate = dto.orderDate ? new Date(dto.orderDate) : new Date();
-    const externalType = await this.externalTypes.resolveForWrite(
-      tenantId,
-      dto.externalDocumentTypeId,
-    );
-
     // Serie scelta in testata; assente = la predefinita del tipo. Il campo
     // vuoto è una scelta legittima («Senza serie»), quindi si distingue
     // `undefined` (non passato) da stringa vuota (passato e vuoto).
@@ -212,10 +207,6 @@ export class SupplierOrdersService {
             costEntryMode,
             orderDate,
             supplierReference: dto.supplierReference?.trim() || null,
-            // Documento della controparte: la conferma d'ordine del fornitore.
-            externalDocNumber: dto.externalDocNumber?.trim() || null,
-            externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
-            ...externalType,
             documentDiscountPercent: new Prisma.Decimal(documentDiscountPercent),
             subtotalMinor: totals.subtotalMinor,
             taxMinor: totals.taxMinor,
@@ -279,11 +270,6 @@ export class SupplierOrdersService {
     const documentDiscountPercent =
       dto.documentDiscountPercent ?? Number(order.documentDiscountPercent);
     const totals = computeGoodsReceiptTotals(computedLines, documentDiscountPercent);
-    const externalType = await this.externalTypes.resolveForWrite(
-      tenantId,
-      dto.externalDocumentTypeId,
-    );
-
     // Serie e numero in modifica. **In modifica il numero è del documento**, non
     // una proposta: se il client lo manda va scritto, e cambiando serie va
     // riscritto anche il riferimento, o l'ordine resterebbe con il numero della
@@ -330,19 +316,6 @@ export class SupplierOrdersService {
               dto.supplierReference === undefined
                 ? order.supplierReference
                 : dto.supplierReference?.trim() || null,
-            externalDocNumber:
-              dto.externalDocNumber === undefined
-                ? order.externalDocNumber
-                : dto.externalDocNumber?.trim() || null,
-            externalDocDate:
-              dto.externalDocDate === undefined
-                ? order.externalDocDate
-                : dto.externalDocDate
-                  ? new Date(dto.externalDocDate)
-                  : null,
-            // Assente = si lascia com'e', con il suo snapshot: un client che non
-            // conosce il campo non deve poter cancellare la dicitura dall'ordine.
-            ...(dto.externalDocumentTypeId === undefined ? {} : externalType),
             documentDiscountPercent: new Prisma.Decimal(documentDiscountPercent),
             subtotalMinor: totals.subtotalMinor,
             taxMinor: totals.taxMinor,

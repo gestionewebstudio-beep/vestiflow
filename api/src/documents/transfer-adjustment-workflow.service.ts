@@ -252,11 +252,6 @@ export class TransferAdjustmentWorkflowService {
     // sola lettura dei tipi vivi, risalvare un trasferimento il cui tipo è
     // stato eliminato nel frattempo darebbe 404 — e la dicitura già scritta in
     // testata sparirebbe dall'elenco.
-    const externalType = await this.externalTypes.resolveForWrite(
-      tenantId,
-      dto.externalDocumentTypeId,
-    );
-
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
     // Numero che la scrittura ha tentato: serve FUORI dalla transazione, perché
     // è quello che il messaggio di conflitto deve nominare all'operatore.
@@ -388,9 +383,6 @@ export class TransferAdjustmentWorkflowService {
           ...numbering,
           locationId: dto.locationId,
           targetLocationId: dto.targetLocationId,
-          externalDocNumber: dto.externalDocNumber?.trim() || null,
-          externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
-          ...externalType,
           notes: dto.notes !== undefined ? dto.notes : existing.notes,
           internalComment:
             dto.internalComment !== undefined
@@ -469,11 +461,6 @@ export class TransferAdjustmentWorkflowService {
     // che comprende i tipi eliminati — un tipo tolto dalle tendine resta scritto
     // sui documenti che lo portano, e risalvarli non deve né dare 404 né
     // cancellare la dicitura.
-    const externalType = await this.externalTypes.resolveForWrite(
-      tenantId,
-      dto.externalDocumentTypeId,
-    );
-
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
     // Come nel trasferimento: il numero tentato serve fuori dalla transazione,
     // per poterlo nominare nel conflitto.
@@ -597,9 +584,6 @@ export class TransferAdjustmentWorkflowService {
           ...numbering,
           locationId: dto.locationId,
           adjustmentDirection: dto.adjustmentDirection,
-          externalDocNumber: dto.externalDocNumber?.trim() || null,
-          externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
-          ...externalType,
           notes: dto.notes !== undefined ? dto.notes : existing.notes,
           internalComment: dto.internalComment.trim(),
         },

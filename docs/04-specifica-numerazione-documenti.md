@@ -13,17 +13,21 @@ Ultimo aggiornamento: 11 agosto 2026, sera.
 
 ## §0 — Migrazioni implicate
 
-| Intervento                                               | Tipo            | Note                                         |
-| -------------------------------------------------------- | --------------- | -------------------------------------------- |
-| Proposta del numero per data                             | **Additiva**    | Serve un indice composito, vedi sotto        |
-| Campo data sul DTO di anteprima                          | **Nessuna**     | Solo DTO                                     |
-| Preferenza "non mostrare più"                            | **Additiva**    | Copiare `UserDocumentPriceModePreference`    |
-| Sottotipo Nota di credito e Fattura d'acconto            | **Additiva**    | Nuovi valori su enum Postgres `DocumentType` |
-| Rimozione numerazione dal Corrispettivo                  | **Distruttiva** | Vedi §8. Coordinare con `feature/cassa`      |
-| Rimozione `DocumentSequence`                             | **Distruttiva** | Backup da sistemare **prima**. Vedi §9       |
-| Ora sulla vendita al banco + marcatore RT fuori servizio | **Additiva**    | Vedi §8                                      |
+| Intervento                                                          | Tipo            | Note                                                                        |
+| ------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------- |
+| Proposta del numero per data                                        | **Additiva**    | Serve un indice composito, vedi sotto                                       |
+| Campo data sul DTO di anteprima                                     | **Nessuna**     | Solo DTO                                                                    |
+| Preferenza "non mostrare più"                                       | **Additiva**    | Copiare `UserDocumentPriceModePreference`                                   |
+| Sottotipo Nota di credito e Fattura d'acconto                       | **Additiva**    | Nuovi valori su enum Postgres `DocumentType`                                |
+| Rimozione numerazione dal Corrispettivo                             | **Distruttiva** | Vedi §8. Coordinare con `feature/cassa`                                     |
+| Rimozione `DocumentSequence`                                        | **Distruttiva** | Backup da sistemare **prima**. Vedi §9                                      |
+| Ora sulla vendita al banco + marcatore RT fuori servizio            | **Additiva**    | Vedi §8                                                                     |
+| Rimozione colonne controparte da `sales_orders` e `supplier_orders` | **Distruttiva** | Vuote su tutti i record. Vedi §5-ter                                        |
+| Rimozione `documents.year`                                          | **Distruttiva** | Colonna scritta e NOT NULL: schema, migration e codice insieme. Vedi §5-ter |
 
 **Già applicate** l'11 agosto sul ramo, additive: colonne del riferimento controparte, indici unici parziali, indice del numero sul numeratore.
+
+⚠️ **Le distruttive si fanno tutte nella stessa finestra**, concordata col collega, non a spizzichi: ognuna è un `DROP` su un database condiviso, e ogni volta che si apre quella porta il rischio è lo stesso — vale la pena pagarlo una volta sola.
 
 Regola invariata: mai `prisma migrate dev` o `db push` sul database condiviso. Solo `prisma migrate deploy`.
 
@@ -372,6 +376,60 @@ _Verificato sul ramo l'11 agosto._
 Nota: quel `year` nel DTO è un residuo dell'anno che il §1 dichiara uscito dal modello.
 
 ---
+
+## §5-ter — Cosa è stato tolto, cosa resta, cosa aspetta la finestra
+
+_Scritto il 12 agosto 2026, dopo il rilievo dei campi di testata di tutte e sette le maschere (schema Prisma, DTO, form). È la lista che serve fra due settimane per sapere **cosa era residuo e cosa era voluto**._
+
+### A — Tolto, e chiuso anche l'ingresso
+
+| Cosa                                                        | Dove                                                                           | Stato                                                                                                                                                |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blocco «documento della controparte» (Tipo · Numero · Data) | Ordine cliente, Ordine fornitore, Fatture di vendita, Rettifica, Trasferimento | ✅ tolto dalle maschere **e dai DTO**                                                                                                                |
+| Solo il **Tipo documento**                                  | Registrazione fattura fornitore                                                | ✅ tolto: la maschera registra una fattura, il tipo è già nel nome. Restano N. fattura e Data fattura, che sono i dati del documento che si registra |
+| Segnaposto «Es. conferma d'ordine del fornitore»            | Ordine fornitore, campo «Rif. ordine fornitore»                                | ✅ cambiato in «Es. RIF-2026-114»: invitava a scrivere a mano il documento appena tolto — non un residuo, **un'istruzione sbagliata**                |
+| Commenti che descrivevano il blocco come presente           | Ordine cliente, Ordine fornitore                                               | ✅ tolti                                                                                                                                             |
+
+**Perché anche i DTO.** Finché accettano quei campi, un client può scriverli e le colonne tornano a riempirsi di dati che nessuna maschera mostra. Chiudere l'ingresso è **additivo** e non aspetta nessuna finestra. Restano aperti in due soli posti, dove servono davvero: `save-goods-receipt.dto` (la merce arriva accompagnata da un documento, e il tipo va scelto) e `save-purchase-invoice.dto` (si sta registrando la fattura del fornitore, ed è da lì che gli arrivi merce si agganciano).
+
+### B — Resta com'è, e non è un residuo
+
+| Campo                                         | Dove                                 | Perché resta                                                                                      |
+| --------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Blocco controparte completo                   | **Arrivo merce**                     | È il caso per cui è nato: la merce arriva accompagnata da documenti diversi, e il tipo si sceglie |
+| N. fattura + Data fattura                     | **Registrazione fattura fornitore**  | Sono i dati del documento che si sta registrando                                                  |
+| `externalRef`                                 | Ordine cliente / Scarico manuale     | È una **causale libera** («campionario fiera»), non il numero di un documento                     |
+| `supplierReference`                           | Ordine fornitore                     | Riferimento libero comunicato dal fornitore: un codice, non un documento con tipo e data          |
+| `expectedDeliveryDate` / `expectedAt`         | Ordine cliente, Ordine fornitore     | Consegna prevista: fuori dal perimetro della numerazione                                          |
+| Campi trasporto (data e ora, colli, tracking) | DDT vendita, Fattura accompagnatoria | Dominio del trasporto                                                                             |
+
+### C — Aspetta la finestra distruttiva
+
+Da fare **insieme**, in una finestra concordata col collega, non a spizzichi: ogni pezzo è un `DROP` su un database condiviso.
+
+| Cosa                                          | Tabelle                           | Dati oggi                                                                                                                                                             |
+| --------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quattro colonne del documento controparte     | `sales_orders`, `supplier_orders` | **vuote su tutti i record** (28 e 10 al 12/08/2026): togliere non perde niente                                                                                        |
+| Le stesse colonne per i tipi che non le usano | `documents`                       | ⚠️ **NON si toccano**: 47 documenti le hanno valorizzate, e sono tutti Arrivi merce. Lì il di troppo era solo nell'interfaccia degli altri tipi, ed è già stato tolto |
+| `documents.year`                              | `documents`                       | Vedi sotto                                                                                                                                                            |
+| Numerazione del Corrispettivo                 | §8                                | Coordinare con `feature/cassa`                                                                                                                                        |
+| `DocumentSequence`                            | §9                                | Backup da sistemare prima                                                                                                                                             |
+
+#### `documents.year` — è una colonna scritta, non un calcolo al volo
+
+_Verificato il 12/08/2026._ È `Int` **NOT NULL**, riempita all'inserimento da `documentDate.getFullYear()` in due punti (`documents.service.ts:909` e `:1348`), mappata sul modello frontend (`document-api.mapper.ts:307`) — e **letta da nessuno**. Non entra in nessun indice di `Document`, e il commento nello schema lo dice già: «Metadato (filtri/adempimenti). NON fa più parte della numerazione».
+
+**Quindi la rimozione è una migration, non solo codice**, e l'ordine conta: essendo NOT NULL, il codice non può smettere di scriverla prima che la colonna sparisca. Schema, migration e `prisma:deploy` insieme, come dice `regole-qualita`.
+
+**Perché va tolta e non lasciata lì.** Il §1 dice che l'anno esce dal modello. Finché una colonna che si chiama `year` esiste e viene calcolata, prima o poi qualcuno ci si appoggia — un filtro, un export, un adempimento — e **riapre da solo il concetto che abbiamo tolto**. Non è un residuo innocuo: è un invito.
+
+⚠️ Sulle altre tre tabelle l'anno **non è un residuo, è ancora in funzione**: `OnlineSale` e `CorrispettivoEntry` lo hanno nella chiave unica e nel riferimento (`VO-2026-0001`), e `DocumentSequence` lo ha nella propria. Quelli cadono col §8 e col §9, non con questo.
+
+### D — Da decidere, non da eseguire
+
+- **Ordine fornitore**: il riferimento salvato (`OF-2026-0001`) non si vede mai in modifica — l'anteprima è spenta e `reference` non è reso da nessuna parte.
+- **Ordine fornitore in creazione**: la riga in cima («prossimo riferimento») è calcolata sulla **serie predefinita** e può quindi nominare una serie diversa da quella scelta nel campo. Due numeri diversi in testata.
+- **Arrivo merce in modifica**: numero digitato ignorato e nessuna rinumerazione al cambio serie (§6 lo registra come decisione aperta).
 
 ## §6 — Serie e testata
 

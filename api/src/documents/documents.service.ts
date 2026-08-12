@@ -873,11 +873,6 @@ export class DocumentsService {
     const customerName =
       (await this.snapshotCustomerName(tenantId, dto.customerId)) ??
       (dto.customerName?.trim() || null);
-    const externalType = await this.externalTypes.resolveForWrite(
-      tenantId,
-      dto.externalDocumentTypeId,
-    );
-
     // Nascita-confermato (Fase 3): il documento si crea e si conferma in
     // un'unica transazione. `syncTargets` raccoglie i push inventario a valle.
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
@@ -918,9 +913,6 @@ export class DocumentsService {
             locationId: dto.locationId ?? null,
             targetLocationId: dto.targetLocationId ?? null,
             adjustmentDirection: dto.adjustmentDirection ?? null,
-            externalDocNumber: dto.externalDocNumber ?? null,
-            externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
-            ...externalType,
             sourceDocumentId: dto.sourceDocumentId ?? null,
             supplierOrderId: dto.supplierOrderId ?? null,
             billingCause: dto.billingCause?.trim() || null,
@@ -1459,22 +1451,9 @@ export class DocumentsService {
       }
     }
 
-    if (dto.externalDocNumber !== undefined) {
-      data.externalDocNumber = dto.externalDocNumber;
-    }
-    if (dto.externalDocDate !== undefined) {
-      data.externalDocDate = dto.externalDocDate ? new Date(dto.externalDocDate) : null;
-    }
-    // Solo se il DTO lo nomina: un client che non conosce il campo non deve
-    // poter cancellare id e snapshot di un documento gia' compilato.
-    if (dto.externalDocumentTypeId !== undefined) {
-      const resolved = await this.externalTypes.resolveForWrite(
-        tenantId,
-        dto.externalDocumentTypeId,
-      );
-      data.externalDocumentTypeId = resolved.externalDocumentTypeId;
-      data.externalDocumentTypeSnapshot = resolved.externalDocumentTypeSnapshot;
-    }
+    // Il documento della controparte non passa più da qui (12/08/2026): questi
+    // endpoint servono i tipi che non ne hanno uno da citare. Arrivo merce e
+    // Registrazione fattura fornitore, che ce l'hanno, hanno endpoint propri.
 
     if (dto.supplierOrderId !== undefined) {
       if (!isDraft) {

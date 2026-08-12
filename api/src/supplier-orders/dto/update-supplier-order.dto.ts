@@ -54,21 +54,6 @@ export class UpdateSupplierOrderDto {
   @MaxLength(120)
   supplierReference?: string | null;
 
-  // ── Documento della controparte: la conferma d'ordine del fornitore ──
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  externalDocNumber?: string | null;
-
-  @IsOptional()
-  @IsISO8601()
-  externalDocDate?: string | null;
-
-  /** `null` lo toglie dall'ordine; assente lo lascia com'e' (snapshot incluso). */
-  @IsOptional()
-  @IsUUID()
-  externalDocumentTypeId?: string | null;
-
   /**
    * Sconto extra di chiusura sull'intero ordine (percentuale, fino a 4
    * decimali). Stessa forma di `documentDiscountPercent` su arrivo merce e
@@ -95,4 +80,11 @@ export class UpdateSupplierOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateSupplierOrderLineDto)
   lines!: CreateSupplierOrderLineDto[];
+  // ⚠️ Qui stavano i tre campi del «documento della controparte»
+  // (`externalDocNumber`, `externalDocDate`, `externalDocumentTypeId`).
+  // Tolti il 12/08/2026 insieme al blocco in testata: questo documento non ne
+  // ha uno da citare. Chiudere anche l'ingresso serve — finché il DTO li
+  // accetta, un client può scriverli e le colonne tornano a riempirsi di dati
+  // che nessuna maschera mostra. Le colonne restano: toglierle è distruttivo su
+  // database condiviso e aspetta la finestra concordata.
 }
