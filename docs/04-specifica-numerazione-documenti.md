@@ -37,10 +37,12 @@ Regola invariata: mai `prisma migrate dev` o `db push` sul database condiviso. S
 
 **Costo.** `NextNumberInput` oggi non riceve la data, e non esiste un indice che includa `documentDate` accanto a `(tenant, type, series)`. Senza, il calcolo del massimo fra i documenti con data anteriore scansionerebbe l'intera partizione — dentro il lock, che serializza tutti gli operatori sullo stesso contatore.
 
-Due interventi necessari:
+Due interventi necessari, **e in quest'ordine**:
 
-- **indice composito** `(tenant_id, type, series, document_date, number)`, così il primo passo diventa un accesso a indice
-- **una sola query SQL** che restituisce un intero, con `NOT EXISTS` o funzione finestra. Mai materializzare l'elenco dei numeri in JavaScript: la regola sotto lock deve essere logaritmica, non lineare
+1. **indice composito** `(tenant_id, type, series, document_date, number)`, così il primo passo diventa un accesso a indice
+2. **una sola query SQL** che restituisce un intero, con `NOT EXISTS` o funzione finestra. Mai materializzare l'elenco dei numeri in JavaScript: la regola sotto lock deve essere logaritmica, non lineare
+
+⚠️ **L'indice va per primo, e non è un dettaglio di comodo.** Scrivendo prima la query, la si misura senza indice — cioè con una scansione dell'intera partizione dentro il lock — e il risultato sembra un problema della _regola_: «la proposta per data è lenta, forse la logica è sbagliata». Non lo è: è la scansione. Con l'indice già in piedi, il primo numero che si legge è quello vero.
 
 **Scartata** l'ipotesi di tenere `max+1` sotto lock mettendo la logica per data solo nella proposta mostrata: produrrebbe una divergenza sistematica fra numero visto e numero assegnato, non dovuta a concorrenza. Inaccettabile su un documento fiscale.
 
@@ -419,11 +421,29 @@ Da fare **insieme**, in una finestra concordata col collega, non a spizzichi: og
 
 _Verificato il 12/08/2026._ È `Int` **NOT NULL**, riempita all'inserimento da `documentDate.getFullYear()` in due punti (`documents.service.ts:909` e `:1348`), mappata sul modello frontend (`document-api.mapper.ts:307`) — e **letta da nessuno**. Non entra in nessun indice di `Document`, e il commento nello schema lo dice già: «Metadato (filtri/adempimenti). NON fa più parte della numerazione».
 
-**Quindi la rimozione è una migration, non solo codice**, e l'ordine conta: essendo NOT NULL, il codice non può smettere di scriverla prima che la colonna sparisca. Schema, migration e `prisma:deploy` insieme, come dice `regole-qualita`.
+**Quindi la rimozione è una migration, non solo codice — e non c'è un ordine sicuro fra le due.** Essendo NOT NULL senza default, **entrambe le metà da sole rompono ogni inserimento**:
+
+| Se cade prima…                  | Cosa succede                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| **il codice** che scrive `year` | ogni `INSERT` viola il vincolo NOT NULL: nessun documento si salva più         |
+| **la colonna**                  | ogni `INSERT` nomina una colonna che non esiste: nessun documento si salva più |
+
+Non è quindi «prima l'uno o prima l'altro»: **schema, migration, codice e `prisma:deploy` in un colpo solo**, come dice `regole-qualita` («o tutti e tre insieme, oppure nessuno dei tre»).
 
 **Perché va tolta e non lasciata lì.** Il §1 dice che l'anno esce dal modello. Finché una colonna che si chiama `year` esiste e viene calcolata, prima o poi qualcuno ci si appoggia — un filtro, un export, un adempimento — e **riapre da solo il concetto che abbiamo tolto**. Non è un residuo innocuo: è un invito.
 
-⚠️ Sulle altre tre tabelle l'anno **non è un residuo, è ancora in funzione**: `OnlineSale` e `CorrispettivoEntry` lo hanno nella chiave unica e nel riferimento (`VO-2026-0001`), e `DocumentSequence` lo ha nella propria. Quelli cadono col §8 e col §9, non con questo.
+#### ⛔ L'anno si toglie SOLO da `documents`. Altrove è in funzione
+
+Questa è la riga da leggere se fra due settimane si legge «togliamo l'anno» e si va a cercare dove sta.
+
+| Tabella                 | L'anno è…                                                                                      | Si tocca qui?                                       |
+| ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `documents`             | metadato scritto e mai letto                                                                   | ✅ sì, è questo il perimetro                        |
+| `online_sales`          | **nella chiave unica** `(tenant, series, year, number)` e dentro il riferimento `VO-2026-0001` | ⛔ **no** — cade col §8, insieme al vecchio motore  |
+| `corrispettivo_entries` | idem, `COR-2026-0001`                                                                          | ⛔ **no** — §8, e va coordinato con `feature/cassa` |
+| `document_sequences`    | **nella chiave** `(tenant, type, series, year)`: è la partizione stessa                        | ⛔ **no** — cade col §9, con la tabella intera      |
+
+Toglierlo dalle ultime tre non è una pulizia: **rompe la numerazione delle vendite online e dei corrispettivi**, che su quelle colonne ci contano davvero.
 
 ### D — Da decidere, non da eseguire
 
