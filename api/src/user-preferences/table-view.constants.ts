@@ -27,6 +27,7 @@ export const TABLE_VIEW_IDS = [
   'manual_unload_lines',
   'transfer_lines',
   'stock_adjustment_lines',
+  'sales_document_lines',
   'products_list',
   'customers_list',
   'sales_orders_list',

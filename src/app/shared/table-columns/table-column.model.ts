@@ -24,6 +24,10 @@ export const TableViewId = {
   // allargata nella Rettifica, che è un'altra schermata.
   TransferLines: 'transfer_lines',
   StockAdjustmentLines: 'stock_adjustment_lines',
+  // Proforma, Fattura e Fattura accompagnatoria condividono una vista sola:
+  // sono la stessa maschera con le stesse colonne, e l'unica che cambia
+  // («Scarica mag.») è già condizionata al tipo nel template.
+  SalesDocumentLines: 'sales_document_lines',
   ProductsList: 'products_list',
   CustomersList: 'customers_list',
   SalesOrdersList: 'sales_orders_list',

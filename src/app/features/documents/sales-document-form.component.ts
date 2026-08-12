@@ -86,6 +86,20 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
+import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
+import { TableColumnResizeDirective } from '@shared/directives/table-column-resize.directive';
+import { DocumentLineSortStore } from '@domain/documents/state/document-line-sort.store';
+import {
+  sortByLineValue,
+  type DocumentLineSortKind,
+} from '@domain/documents/utils/document-line-sort.util';
+import {
+  SALES_DOCUMENT_LINES_VIEW,
+  SALES_DOCUMENT_LINE_COLUMNS,
+  SALES_DOCUMENT_LINE_PRESETS,
+} from './models/sales-document-line-columns.config';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
@@ -134,6 +148,10 @@ import { FirstClickSelectsDirective } from '@shared/directives/first-click-selec
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 
 const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
+/** Colonne su cui si può ordinare le righe (§7.1). */
+export type SalesDocumentLineSortColumn =
+  'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount';
+
 /** I campi di riga nell'ordine in cui il Tab li attraversa. */
 type SalesDocumentLineFocusField =
   'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount' | 'vat';
@@ -167,6 +185,11 @@ type SubmitState =
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
     DocumentProductSearchPanelComponent,
+    TableColumnPickerComponent,
+    TableColumnResizeDirective,
+    CdkDrag,
+    CdkDragHandle,
+    CdkDropList,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -806,6 +829,12 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private suppressDirtyMarking = false;
 
   constructor() {
+    this.columnPreferences.registerView(
+      SALES_DOCUMENT_LINES_VIEW,
+      SALES_DOCUMENT_LINE_COLUMNS,
+      SALES_DOCUMENT_LINE_PRESETS,
+    );
+
     // Carica i contatori disponibili (tendina serie); su documento nuovo
     // propone il predefinito, in modifica resta il numero già assegnato.
     afterNextRender(() => {
@@ -1032,6 +1061,151 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   }
 
   // ── Cella nome: si digita e i suggerimenti arrivano sotto ─────────────────
+
+  // ── Larghezza e visibilità delle colonne ──────────────────────────────────
+  //
+  // Stesso sistema condiviso degli altri documenti. La vista è UNA per i tre
+  // tipi che questa maschera ospita: sono la stessa tabella.
+
+  private readonly columnPreferences = inject(TableColumnPreferenceService);
+  protected readonly lineColumnsView = SALES_DOCUMENT_LINES_VIEW;
+
+  protected isLineColumnVisible(columnId: string): boolean {
+    // «Scarica mag.» ha una condizione sua che viene prima della preferenza:
+    // senza di essa la colonna non esiste per questo tipo documento.
+    if (columnId === 'loadsStock' && !this.showLoadsStockColumn()) {
+      return false;
+    }
+    return this.columnPreferences.isColumnVisible(this.lineColumnsView, columnId);
+  }
+
+  private lineColumnPx(columnId: string): number {
+    const def = SALES_DOCUMENT_LINE_COLUMNS.find((column) => column.id === columnId);
+    return this.columnPreferences.columnWidth(
+      this.lineColumnsView,
+      columnId,
+      def?.defaultWidthPx ?? 96,
+    );
+  }
+
+  /** Somma delle sole colonne visibili: è il 100% di cui ciascuna prende una quota. */
+  private lineColumnsTotalPx(): number {
+    return SALES_DOCUMENT_LINE_COLUMNS.reduce(
+      (total, def) =>
+        this.isLineColumnVisible(def.id) ? total + this.lineColumnPx(def.id) : total,
+      0,
+    );
+  }
+
+  /**
+   * Larghezza come QUOTA percentuale del totale: la tabella occupa sempre
+   * esattamente il contenitore. Coi pixel assoluti resterebbe larga quanto la
+   * somma e scorrerebbe invece di adattarsi.
+   */
+  protected lineColumnWidth(columnId: string): string {
+    const totale = this.lineColumnsTotalPx();
+    if (totale <= 0) {
+      return 'auto';
+    }
+    return `${((this.lineColumnPx(columnId) / totale) * 100).toFixed(4)}%`;
+  }
+
+  protected onLineColumnResize(columnId: string, widthPx: number): void {
+    this.columnPreferences.setColumnWidth(this.lineColumnsView, columnId, widthPx);
+  }
+
+  // ── Riordino delle righe (§7.1 e §7.2) ────────────────────────────────────
+
+  protected readonly lineSort = new DocumentLineSortStore<SalesDocumentLineSortColumn>();
+
+  private readonly lineSortKinds: Readonly<
+    Record<SalesDocumentLineSortColumn, DocumentLineSortKind>
+  > = {
+    articleCode: 'text',
+    sku: 'text',
+    barcode: 'text',
+    product: 'text',
+    quantity: 'number',
+    unitPrice: 'money',
+    discount: 'number',
+  };
+
+  protected toggleLineSort(columnId: SalesDocumentLineSortColumn): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    if (this.lineSort.request(columnId)) {
+      this.applyLineSort();
+    }
+  }
+
+  protected confirmLineSort(): void {
+    if (this.lineSort.confirm() !== null) {
+      this.applyLineSort();
+    }
+  }
+
+  protected lineSortAriaLabel(columnId: SalesDocumentLineSortColumn, label: string): string {
+    if (this.lineSort.column() !== columnId) {
+      return `Ordina per ${label}`;
+    }
+    return this.lineSort.direction() === 'asc'
+      ? `${label}: ordinamento crescente`
+      : `${label}: ordinamento decrescente`;
+  }
+
+  private applyLineSort(): void {
+    const column = this.lineSort.column();
+    if (!column || this.lines.length <= 1) {
+      return;
+    }
+    const controls = sortByLineValue(
+      this.lines.controls,
+      (control) => {
+        const raw = control.getRawValue();
+        if (column === 'quantity') {
+          return Number(raw.quantity) || 0;
+        }
+        // Due colonne portano in tabella un nome e nel form un altro: la
+        // colonna si chiama `product` e `discount` in ogni documento, i
+        // controlli sotto hanno i nomi che hanno sul database.
+        if (column === 'product') {
+          return raw.description;
+        }
+        if (column === 'discount') {
+          return raw.discountPercent;
+        }
+        return raw[column];
+      },
+      this.lineSortKinds[column],
+      this.lineSort.direction(),
+      this.currency,
+    );
+    this.lines.clear();
+    for (const control of controls) {
+      this.lines.push(control);
+    }
+    this.markFormDirty();
+  }
+
+  /**
+   * Trascinamento riga (§7.2). Non chiede conferma, a differenza del riordino
+   * per colonna: è un movimento singolo e visibile.
+   */
+  protected onLineDrop(event: CdkDragDrop<unknown>): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const { previousIndex, currentIndex } = event;
+    if (previousIndex === currentIndex) {
+      return;
+    }
+    const line = this.lines.at(previousIndex);
+    this.lines.removeAt(previousIndex, { emitEvent: false });
+    this.lines.insert(currentIndex, line, { emitEvent: false });
+    this.markFormDirty();
+    this.lines.updateValueAndValidity();
+  }
 
   protected readonly productSuggest = new DocumentProductSuggestStore();
 

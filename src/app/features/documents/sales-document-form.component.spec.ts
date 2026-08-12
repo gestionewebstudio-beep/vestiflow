@@ -20,6 +20,7 @@ import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-fea
 import { SalesDocumentFormComponent } from './sales-document-form.component';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import { APP_CONFIG } from '@core/config/app-config.token';
 
 function operationalLocationsMock() {
   const locations = [{ id: 'loc-1', name: 'Milano' }];
@@ -94,6 +95,18 @@ describe('SalesDocumentFormComponent', () => {
 
     await render(SalesDocumentFormComponent, {
       providers: [
+        // Serve da quando le righe usano il sistema condiviso delle colonne:
+        // TableColumnPreferenceService costruisce l'API delle preferenze, che
+        // legge la configurazione dell'app.
+        {
+          provide: APP_CONFIG,
+          useValue: {
+            production: false,
+            appName: 'VestiFlow',
+            apiBaseUrl: '',
+            features: { barcodeScanner: false, shopify: false },
+          },
+        },
         {
           provide: DocumentCountersService,
           useValue: {
