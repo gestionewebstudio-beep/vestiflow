@@ -4113,15 +4113,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       });
   }
 
-  /**
-   * Presa d'atto dell'avviso: chiude e basta. Il numero in testata resta
-   * quello che l'operatore aveva scelto — se lo aveva digitato, lo aveva fatto
-   * per tappare un buco preciso, e sostituirglielo col primo libero
-   * butterebbe via l'intento. Il messaggio gli dice qual è quel numero: sta a
-   * lui correggere e premere Salva.
-   */
   protected acknowledgeConflictNumber(): void {
-    this.numberConflictDialog.acknowledge();
+    // Il numero nuovo si scrive in testata (specifica numerazione §3): il
+    // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
+    // errore di battitura e un secondo conflitto. `markAsDirty` non è un
+    // dettaglio: da qui in poi quel numero è una SCELTA, e deve viaggiare al
+    // salvataggio invece di essere scambiato per una proposta e omesso.
+    const nuovo = this.numberConflictDialog.acknowledge();
+    if (nuovo != null) {
+      this.form.controls.documentNumber.setValue(nuovo);
+      this.form.controls.documentNumber.markAsDirty();
+    }
   }
 
   private reloadSupplierVariantLinks(supplierId: string): void {

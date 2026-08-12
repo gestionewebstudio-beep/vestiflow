@@ -379,6 +379,8 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
         isOpen: () => boolean;
       };
       acknowledgeConflictNumber: () => void;
+      /** True finché in testata c'è la proposta e nessuno l'ha toccata. */
+      numberIsProposal: () => boolean;
     };
 
     return { ...view, component };
@@ -566,10 +568,16 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
 
   /**
    * Avviso di conflitto sul numero: è una presa d'atto, non una scelta.
-   * Il documento NON viene salvato e la testata NON viene toccata — il numero
-   * l'ha scelto l'operatore (qui il 7, per tappare un buco), e sostituirglielo
-   * col primo libero butterebbe via l'intento. Il messaggio gli dice qual è il
-   * primo libero; correggere è compito suo.
+   *
+   * Il documento NON viene salvato, ma **la testata SÌ viene aggiornata**
+   * (specifica numerazione §3): il numero digitato è perso comunque — il buco
+   * l'ha appena preso un altro — e lavorando in più persone l'operatore non può
+   * sapere quale sia il prossimo libero se non glielo si scrive. Chi voleva un
+   * altro buco lo digita: il campo resta suo.
+   *
+   * ⚠️ Fino al 12/08/2026 queste prove fissavano il contrario, ed erano l'unico
+   * punto in cui il codice contraddiceva una decisione presa invece di non
+   * averla ancora eseguita.
    */
   describe('conflitto sul numero documento', () => {
     const conflitto = {
@@ -579,14 +587,28 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
       series: 'A',
     };
 
-    it('la presa d’atto lascia in testata il numero digitato', async () => {
+    it('la presa d’atto scrive in testata il numero nuovo', async () => {
       view = await setup();
       view.component.form.controls['documentNumber']!.setValue(7);
       view.component.numberConflictDialog.open(conflitto);
 
       view.component.acknowledgeConflictNumber();
 
-      expect(view.component.form.controls['documentNumber']!.value).toBe(7);
+      expect(view.component.form.controls['documentNumber']!.value).toBe(44);
+    });
+
+    // Il numero nuovo è una SCELTA, non una proposta: deve viaggiare al
+    // salvataggio successivo. Se restasse pristine, `numberIsProposal()` lo
+    // ometterebbe e il server ne assegnerebbe un terzo — diverso da quello
+    // appena mostrato all'operatore.
+    it('il numero nuovo viaggia al salvataggio, non passa per proposta', async () => {
+      view = await setup();
+      view.component.form.controls['documentNumber']!.setValue(7);
+      view.component.numberConflictDialog.open(conflitto);
+
+      view.component.acknowledgeConflictNumber();
+
+      expect(view.component.numberIsProposal()).toBe(false);
     });
 
     it('la presa d’atto NON salva il documento', async () => {

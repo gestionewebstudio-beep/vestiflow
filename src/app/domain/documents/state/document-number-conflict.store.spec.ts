@@ -41,7 +41,7 @@ describe('DocumentNumberConflictStore', () => {
       store.open(conflict({ number: 7, nextAvailable: 44, series: 'A' }));
 
       expect(store.message()).toContain('Il numero 7 della serie A');
-      expect(store.message()).toContain('è il 44');
+      expect(store.message()).toContain('In testata è stato messo il 44');
       expect(store.message()).toContain('non è stato salvato');
     });
 
@@ -71,7 +71,7 @@ describe('DocumentNumberConflictStore', () => {
       store.open(conflict({ number: 9, nextAvailable: 11 }));
 
       expect(store.message()).toContain('Il numero 9');
-      expect(store.message()).toContain('è il 11');
+      expect(store.message()).toContain('In testata è stato messo il 11');
     });
   });
 
@@ -96,14 +96,21 @@ describe('DocumentNumberConflictStore', () => {
       expect(store.conflict()).toBeNull();
     });
 
-    // La presa d'atto non restituisce un numero da scrivere in testata: il
-    // numero digitato dall'operatore resta suo. Se lo store tornasse a
-    // proporne uno, le maschere tornerebbero a sostituirlo d'ufficio.
-    it('non restituisce alcun numero da applicare alla testata', () => {
+    // La presa d'atto RESTITUISCE il numero da scrivere in testata (§3): il
+    // digitato è perso comunque, e ridigitare a mano una cosa che il sistema
+    // già sa è l'occasione per un errore di battitura e un secondo conflitto.
+    // Fino al 12/08/2026 questa prova fissava il contrario.
+    it('restituisce il numero da scrivere in testata', () => {
       const store = new DocumentNumberConflictStore();
       store.open(conflict({ nextAvailable: 12 }));
 
-      expect(store.acknowledge()).toBeUndefined();
+      expect(store.acknowledge()).toBe(12);
+    });
+
+    it('senza conflitto aperto non restituisce niente da scrivere', () => {
+      const store = new DocumentNumberConflictStore();
+
+      expect(store.acknowledge()).toBeNull();
     });
 
     // Non esiste un percorso «annulla»: l'avviso non ha modificato niente,

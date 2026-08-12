@@ -599,7 +599,16 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   protected readonly conflictMessage = this.numberConflictDialog.message;
 
   protected acknowledgeConflictNumber(): void {
-    this.numberConflictDialog.acknowledge();
+    // Il numero nuovo si scrive in testata (specifica numerazione §3): il
+    // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
+    // errore di battitura e un secondo conflitto. `markAsDirty` non è un
+    // dettaglio: da qui in poi quel numero è una SCELTA, e deve viaggiare al
+    // salvataggio invece di essere scambiato per una proposta e omesso.
+    const nuovo = this.numberConflictDialog.acknowledge();
+    if (nuovo != null) {
+      this.form.controls.documentNumber.setValue(nuovo);
+      this.form.controls.documentNumber.markAsDirty();
+    }
   }
 
   /**

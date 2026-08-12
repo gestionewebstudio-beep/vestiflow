@@ -38,24 +38,28 @@ describe('documentNumberConflictMessage', () => {
   it('nomina il prossimo numero della serie, non lo chiama «primo libero»', () => {
     const message = documentNumberConflictMessage(conflict({ number: 7, nextAvailable: 44 }));
 
-    expect(message).toContain('Il prossimo numero della serie è il 44');
+    expect(message).toContain('il 44, il prossimo numero della serie');
     expect(message).not.toContain('primo numero libero');
   });
 
-  // Il documento non è salvato e la testata non è stata toccata: entrambe le
-  // cose vanno dette, o l'operatore non sa in che stato si trova.
-  it('dichiara che il documento non è salvato e che la testata non è cambiata', () => {
+  // Il documento non è salvato ma la testata SÌ è cambiata (§3): entrambe le
+  // cose vanno dette, o l'operatore non sa in che stato si trova. Fino al
+  // 12/08/2026 questa prova fissava il contrario — «il numero in testata non è
+  // stato modificato» — che è il comportamento che la specifica dichiara
+  // superato.
+  it('dichiara che il documento non è salvato e che la testata è stata aggiornata', () => {
     const message = documentNumberConflictMessage(conflict());
 
     expect(message).toContain('il documento non è stato salvato');
-    expect(message).toContain('Il numero in testata non è stato modificato');
+    expect(message).toContain('In testata è stato messo il 44');
+    expect(message).toContain('premi Salva per confermarlo, o scrivine un altro');
   });
 
   it('senza serie non la nomina in nessuna delle due frasi', () => {
     const message = documentNumberConflictMessage(conflict({ series: null }));
 
     expect(message).toContain('Il numero 7 è già stato assegnato');
-    expect(message).toContain('Il prossimo numero è il 44');
+    expect(message).toContain('il 44, il prossimo numero');
     expect(message).not.toContain('serie');
   });
 });

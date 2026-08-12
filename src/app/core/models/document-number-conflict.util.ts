@@ -55,18 +55,20 @@ export function documentNumberConflictOf(error: unknown): DocumentNumberConflict
 }
 
 /**
- * Avviso di presa d'atto, non una domanda: il documento NON è stato salvato e
- * la testata è rimasta com'era. Nomina entrambi i numeri — quello rifiutato e
- * il primo libero — e lascia la scelta all'operatore.
- *
- * Il numero NON viene sostituito d'ufficio: chi digita un numero a mano lo fa
- * per tappare un buco preciso della serie, e rimpiazzarglielo col primo libero
- * butterebbe via quell'intento senza chiederglielo. Sapendo qual è il primo
- * libero può scriverlo in un secondo, o provare un altro buco.
+ * Avviso di presa d'atto, non una domanda: il documento NON è stato salvato, e
+ * **il numero in testata è stato aggiornato** (specifica numerazione §3).
+ * Nomina entrambi i numeri — quello rifiutato e quello nuovo — così l'operatore
+ * sa cos'è cambiato sotto i suoi occhi.
  *
  * "Il numero 7 della serie A è già stato assegnato a un altro documento: il
- *  documento non è stato salvato. Il prossimo numero della serie è il 44. Il
- *  numero in testata non è stato modificato: correggilo e premi di nuovo Salva."
+ *  documento non è stato salvato. In testata è stato messo il 44, il prossimo
+ *  numero della serie: premi Salva per confermarlo, o scrivine un altro."
+ *
+ * **Perché si aggiorna.** Il numero digitato è comunque perso: quel treno è
+ * passato. Lasciare il campo com'era costringe a ridigitare una cosa che il
+ * sistema già sa — e lavorando in più persone l'operatore non può nemmeno
+ * sapere quale sia il prossimo libero. Chi voleva un altro buco lo scrive: il
+ * campo resta suo, e la frase glielo dice.
  *
  * «PROSSIMO numero», non «primo libero»: `nextAvailable` è massimo + 1, e su una
  * serie con buchi il primo libero è il buco, non la coda. Chiamarlo «primo
@@ -78,8 +80,8 @@ export function documentNumberConflictMessage(conflict: DocumentNumberConflict):
   const seriePartNext = conflict.series ? ' della serie' : '';
   return (
     `Il numero ${conflict.number}${seriePart} è già stato assegnato a un altro documento: ` +
-    `il documento non è stato salvato. Il prossimo numero${seriePartNext} è il ` +
-    `${conflict.nextAvailable}. Il numero in testata non è stato modificato: correggilo e ` +
-    `premi di nuovo Salva.`
+    `il documento non è stato salvato. In testata è stato messo il ` +
+    `${conflict.nextAvailable}, il prossimo numero${seriePartNext}: premi Salva per ` +
+    `confermarlo, o scrivine un altro.`
   );
 }

@@ -666,13 +666,17 @@ export class TransferFormComponent implements CanComponentDeactivate {
       });
   }
 
-  /**
-   * Presa d'atto dell'avviso: chiude e basta. Il numero in testata non si
-   * tocca — il messaggio nomina il numero rifiutato e il primo libero, la
-   * correzione è dell'operatore.
-   */
   protected acknowledgeConflictNumber(): void {
-    this.numberConflictDialog.acknowledge();
+    // Il numero nuovo si scrive in testata (specifica numerazione §3): il
+    // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
+    // errore di battitura e un secondo conflitto. `markAsDirty` non è un
+    // dettaglio: da qui in poi quel numero è una SCELTA, e deve viaggiare al
+    // salvataggio invece di essere scambiato per una proposta e omesso.
+    const nuovo = this.numberConflictDialog.acknowledge();
+    if (nuovo != null) {
+      this.form.controls.documentNumber.setValue(nuovo);
+      this.form.controls.documentNumber.markAsDirty();
+    }
   }
 
   private readonly _submitState = signal<SubmitState>({ status: 'idle' });

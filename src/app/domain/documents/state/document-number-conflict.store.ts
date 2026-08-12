@@ -12,18 +12,25 @@ import {
  *
  * È un AVVISO, non una scelta: quando il vincolo unico del database rifiuta il
  * numero, l'operatore viene informato di quale numero è stato rifiutato e di
- * quale sia il primo libero. Il documento NON viene salvato: il salvataggio
- * resta una pressione esplicita di Salva, coerente con la regola VestiFlow che
- * nessun documento nasce senza una decisione dell'operatore.
+ * quale sia il prossimo. Il documento NON viene salvato: il salvataggio resta
+ * una pressione esplicita di Salva, coerente con la regola VestiFlow che nessun
+ * documento nasce senza una decisione dell'operatore.
  *
- * **La testata non si tocca.** Fino al 08/2026 la presa d'atto sostituiva il
- * numero col primo libero: era innocuo finché il conflitto nasceva da un numero
- * che nessuno aveva scelto (la maschera rimandava indietro la propria proposta).
- * Da quando la proposta non viaggia più, questo avviso si raggiunge solo con un
- * numero DIGITATO — cioè quando l'operatore sta tappando un buco preciso della
- * serie. Sostituirglielo con un numero in coda butterebbe via l'intento senza
- * chiederglielo, e per giunta trasformerebbe un numero che il server assegnava
- * da solo sotto lock in un'imposizione che può collidere di nuovo.
+ * **La testata SI aggiorna** (specifica numerazione §3, decisione dell'8 agosto
+ * 2026 ripristinata il 12): la presa d'atto restituisce il numero da scrivere e
+ * la maschera lo mette in testata.
+ *
+ * L'11 agosto il ramo aveva rovesciato questo comportamento — «il numero non è
+ * stato modificato, correggilo» — con la motivazione che sostituire il numero
+ * d'ufficio butta via l'intento di chi voleva quel buco preciso. La motivazione
+ * è comprensibile ma **il costo è più alto del beneficio**: quell'intento è
+ * comunque irrealizzabile — il buco l'ha appena preso un altro — e lavorando in
+ * più persone l'operatore **non può sapere quale sia il prossimo numero libero**
+ * se non glielo si scrive. Lasciargli il campo com'era lo costringe a ridigitare
+ * a mano una cosa che il sistema già sa, con l'errore di battitura e il secondo
+ * conflitto che ne seguono.
+ *
+ * Chi voleva davvero un altro buco può sempre scriverlo: il campo resta suo.
  *
  * Non è un service iniettabile: non ha dipendenze e ogni form ne vuole
  * un'istanza propria, quindi si costruisce come campo del componente
@@ -55,15 +62,21 @@ export class DocumentNumberConflictStore {
   }
 
   /**
-   * Presa d'atto: chiude e azzera. Non restituisce nulla, perché non c'è nulla
-   * da applicare — il messaggio dice che la testata è rimasta com'era, e la
-   * correzione del numero è dell'operatore.
+   * Presa d'atto: chiude, azzera e **restituisce il numero da scrivere in
+   * testata** — `null` se non c'era nessun conflitto aperto.
+   *
+   * Restituirlo invece di applicarlo è deliberato: lo store non conosce il
+   * form. Ogni maschera scrive nel proprio controllo, e nel farlo lo segna come
+   * scelto — il numero nuovo deve viaggiare al salvataggio successivo, non
+   * essere scambiato per una proposta e omesso.
    *
    * Vale anche per la chiusura con Esc: entrambe le uscite fanno la stessa
    * cosa, quindi il form può collegarle allo stesso gestore.
    */
-  acknowledge(): void {
+  acknowledge(): number | null {
+    const nextAvailable = this._conflict()?.nextAvailable ?? null;
     this._conflict.set(null);
     this.isOpen.set(false);
+    return nextAvailable;
   }
 }
