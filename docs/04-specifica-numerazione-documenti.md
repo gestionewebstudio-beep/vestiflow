@@ -167,7 +167,7 @@ _Deciso 11 agosto 2026._
 
 ## §3 — Conflitto al salvataggio
 
-_Deciso 8 agosto 2026, riconfermato l'11 agosto dopo una modifica del ramo che va annullata._
+_Deciso 8 agosto 2026, riconfermato l'11._ ✅ **In codice dal 12 agosto 2026**: la modifica del ramo che rovesciava il comportamento è stata annullata su tutte e sette le maschere, e le prove che la fissavano sono state riscritte.
 
 ### Quando compare
 
@@ -197,7 +197,7 @@ Il numero digitato è comunque perso: quel treno è passato. Lasciare il campo c
 
 L'11 agosto alle 03:07 il ramo ha rovesciato questo comportamento — «Il numero in testata non è stato modificato: correggilo e premi di nuovo Salva» — con la motivazione che sostituire il numero d'ufficio butta via l'intento di chi voleva quel buco preciso. La motivazione è comprensibile, ma **il costo è più alto del beneficio**: l'intento è comunque irrealizzabile, e l'operatore resta senza l'informazione che gli serve.
 
-**Il codice va riportato al comportamento dell'8 agosto.**
+**Il codice va riportato al comportamento dell'8 agosto.** ✅ Fatto il 12/08/2026: `acknowledge()` restituisce il numero, ogni maschera lo scrive nel proprio controllo e lo segna come scelto — se restasse una proposta verrebbe omesso al salvataggio e il server ne assegnerebbe un terzo, diverso da quello appena mostrato.
 
 ### Due cose del ramo che si tengono
 
@@ -209,7 +209,7 @@ Il numero assegnato dev'essere il primo libero **secondo la regola del §2**, ci
 
 `buildDocumentNumberConflict` (`document-numbering.util.ts:204`) chiama `nextDocumentNumber`, la stessa funzione della proposta: cambiando la regola in un punto, il conflitto la segue. **Ma eredita anche la mancanza della data**, che va propagata nei suoi tre punti di chiamata — `documents.service.ts:1032`, `goods-receipt-workflow.ts:199`, `transfer-adjustment-workflow.ts:188`. Se lì la data non arriva, l'avviso nominerebbe un numero calcolato con una regola diversa da quella che ha appena rifiutato il salvataggio.
 
-Il testo del messaggio va riscritto insieme alla regola: oggi dice «Il prossimo numero della serie è il 44», dove `nextAvailable` è massimo+1. Sotto la regola nuova quel campo contiene il primo libero secondo la data, e la frase direbbe una cosa che il campo non contiene più.
+Il testo del messaggio va riscritto insieme alla regola: oggi dice «In testata è stato messo il 44, il prossimo numero della serie», dove `nextAvailable` è massimo+1. Sotto la regola nuova quel campo contiene il primo libero secondo la data, e la frase direbbe una cosa che il campo non contiene più.
 
 **Superato:** il modale a due bottoni «Usa Y / Annulla» (24 luglio); il modale a tre opzioni con «Salva con numero duplicato» e l'evidenziazione arancione dei duplicati (`numerazione-documenti-verifica.md`); il campo non aggiornato (ramo, 11 agosto 03:07).
 

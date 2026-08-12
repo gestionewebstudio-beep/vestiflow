@@ -342,7 +342,9 @@ Regole per un blocco ben fatto:
 - riferimento al record in conflitto quando disponibile (es. _"SKU 00036 già in uso — prodotto: Maglietta test cotone"_)
 - suggerimento di risoluzione quando possibile (link al prodotto esistente, proposta di suffisso automatico)
 
-Il blocco su codice documento duplicato (es. due Ordini Cliente con numero OC-2026-0005) è gestito diversamente: modal di risoluzione con opzioni "Usa nuovo numero / Mantieni attuale / Annulla", non blocco puro. Vedi pattern esistente nel modulo Documenti.
+Il numero documento duplicato è gestito diversamente da un blocco: il vincolo unico del database rifiuta il salvataggio e la maschera mostra un **avviso a bottone singolo** che nomina il numero rifiutato, **scrive in testata il numero nuovo** e lascia all'operatore la pressione di Salva (specifica numerazione §3).
+
+_Aggiornata il 12/08/2026._ Qui c'era scritto «modal di risoluzione con opzioni Usa nuovo numero / Mantieni attuale / Annulla»: quel modale **non esiste più** — «Mantieni attuale» prometteva una cosa che il vincolo unico non può concedere. La regola descriveva un pattern rimosso, ed è il tipo di scarto che nessun test trova.
 
 ## Barcode
 
