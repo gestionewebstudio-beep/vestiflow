@@ -29,6 +29,8 @@ import { formatDate } from '@core/utils/date.util';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
 import { AuthService } from '@core/auth';
 import { canViewPurchaseCosts } from '@core/permissions/tenant-permissions.util';
+import { hasTenantPermission } from '@core/permissions/user-permissions.util';
+import { TenantPermission } from '@core/models/tenant-permission.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { DocumentStatus, DocumentType, TransportPort } from '@core/models/document.model';
@@ -390,6 +392,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
+
+  /**
+   * Senza il permesso, accanto alla serie resta solo il campo: niente
+   * ingranaggio e nessun pannello numerazioni da aprire.
+   */
+  protected readonly puoConfigurareDocumenti = computed(() =>
+    hasTenantPermission(this.authService.currentUser(), TenantPermission.DocumentsConfigure),
+  );
 
   /**
    * Perché il salvataggio non è partito, in parole. `validateForm()` usciva

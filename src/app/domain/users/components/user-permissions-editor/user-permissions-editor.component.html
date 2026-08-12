@@ -3,10 +3,19 @@
     Il titolare ha sempre accesso completo al gestionale. Puoi creare più profili titolare.
   </p>
 } @else {
-  <div class="permissions-editor" [class.permissions-editor--compact]="compact()">
+  <div
+    class="permissions-editor"
+    [class.permissions-editor--compact]="compact()"
+    [class.permissions-editor--busy]="disabled()"
+  >
     <div class="permissions-editor__toolbar">
       <span class="permissions-editor__toolbar-label">Permessi personalizzati</span>
-      <button type="button" class="permissions-editor__reset" (click)="resetToRoleDefaults()">
+      <button
+        type="button"
+        class="permissions-editor__reset"
+        [disabled]="disabled()"
+        (click)="requestReset()"
+      >
         Ripristina preset ruolo
       </button>
     </div>
@@ -25,6 +34,7 @@
                   type="checkbox"
                   class="permissions-editor__checkbox"
                   [checked]="isChecked(definition.key)"
+                  [disabled]="disabled()"
                   (change)="onToggle(definition.key, $any($event.target).checked)"
                 />
                 <span class="permissions-editor__name">{{ definition.label }}</span>
@@ -62,6 +72,7 @@
                     class="permissions-editor__checkbox"
                     [attr.aria-label]="'Consulta ' + familyLabels[family]"
                     [checked]="familyViewChecked(family)"
+                    [disabled]="disabled()"
                     (change)="onFamilyViewToggle(family, $any($event.target).checked)"
                   />
                 </td>
@@ -72,10 +83,14 @@
                       class="permissions-editor__checkbox"
                       [attr.aria-label]="'Gestisci ' + familyLabels[family]"
                       [checked]="familyManageChecked(family)"
+                      [disabled]="disabled()"
                       (change)="onFamilyManageToggle(family, $any($event.target).checked)"
                     />
                   } @else {
-                    <span class="permissions-editor__matrix-na" aria-hidden="true">—</span>
+                    <span class="permissions-editor__matrix-na">
+                      <span aria-hidden="true">—</span>
+                      <span class="sr-only">{{ manageNotAvailableLabel(family) }}</span>
+                    </span>
                   }
                 </td>
               </tr>
@@ -98,6 +113,7 @@
                       type="checkbox"
                       class="permissions-editor__checkbox"
                       [checked]="isChecked(definition.key)"
+                      [disabled]="disabled()"
                       (change)="onToggle(definition.key, $any($event.target).checked)"
                     />
                     <span class="permissions-editor__name">{{ definition.label }}</span>
@@ -128,6 +144,7 @@
                   type="checkbox"
                   class="permissions-editor__checkbox"
                   [checked]="isChecked(definition.key)"
+                  [disabled]="disabled()"
                   (change)="onToggle(definition.key, $any($event.target).checked)"
                 />
                 <span class="permissions-editor__name">{{ definition.label }}</span>
@@ -137,5 +154,16 @@
         }
       </ul>
     </fieldset>
+
+    <!-- Il ripristino butta via tutte le spunte messe a mano e — dalla riga
+         utente — salva subito: come l'eliminazione di un account, prima chiede. -->
+    <app-confirm-dialog
+      [(open)]="resetDialogOpen"
+      title="Ripristinare i permessi del ruolo?"
+      [message]="resetDialogMessage()"
+      confirmLabel="Ripristina preset"
+      cancelLabel="Annulla"
+      (confirmed)="resetToRoleDefaults()"
+    />
   </div>
 }

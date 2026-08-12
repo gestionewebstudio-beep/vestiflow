@@ -60,12 +60,18 @@ const NON_STOCK_SUMMARY = {
   managesStock: false,
 } as const;
 
+/** Operatore senza permessi: l'array salvato È la verità, anche vuoto. */
+function userWithPermissions(permissions: readonly string[]) {
+  return { id: 'u-1', role: 'clerk', permissions };
+}
+
 describe('GoodsReceiptFormComponent', () => {
   async function setup(options?: {
     readonly writeLocations?: readonly { id: string; name: string }[];
     readonly defaultLocation?: { id: string; name: string } | null;
     readonly variantSummaries?: readonly (typeof NON_STOCK_SUMMARY)[];
     readonly vatCodes?: readonly unknown[];
+    readonly currentUser?: unknown;
   }) {
     return render(GoodsReceiptFormComponent, {
       providers: [
@@ -82,7 +88,7 @@ describe('GoodsReceiptFormComponent', () => {
           },
         },
         { provide: OperationalLocationsService, useValue: operationalLocationsMock(options) },
-        { provide: AuthService, useValue: { currentUser: () => null } },
+        { provide: AuthService, useValue: { currentUser: () => options?.currentUser ?? null } },
         {
           provide: DocumentService,
           useValue: {
@@ -241,6 +247,52 @@ describe('GoodsReceiptFormComponent', () => {
     const line = component['lines'].at(0);
     expect(line.controls.loadsStock.value).toBe(false);
     expect(line.controls.loadsStock.disabled).toBe(true);
+  });
+
+  /**
+   * Comandi che l'API nega: non devono nemmeno comparire. Un pulsante che
+   * risponde 403 al primo clic è peggio di un pulsante assente.
+   */
+  describe('permessi dell’operatore', () => {
+    it('senza permessi: numerazioni, nuovo fornitore e nuovo prodotto spariscono', async () => {
+      await setup({ currentUser: userWithPermissions([]) });
+
+      expect(screen.queryAllByRole('button', { name: 'Gestisci numerazioni' })).toHaveLength(0);
+      expect(screen.queryAllByRole('button', { name: 'Nuovo fornitore' })).toHaveLength(0);
+      expect(screen.queryAllByRole('button', { name: 'Nuovo prodotto' })).toHaveLength(0);
+    });
+
+    it('con i permessi: gli stessi comandi restano al loro posto', async () => {
+      await setup({
+        currentUser: userWithPermissions([
+          'documents.configure',
+          'doc.supplier_order.manage',
+          'catalog.manage',
+        ]),
+      });
+
+      // Testata mobile e desktop convivono in jsdom: entrambe li mostrano.
+      expect(
+        screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length,
+      ).toBeGreaterThan(0);
+      expect(screen.getAllByRole('button', { name: 'Nuovo fornitore' }).length).toBeGreaterThan(0);
+      expect(screen.getByRole('button', { name: 'Nuovo prodotto' })).toBeVisible();
+    });
+
+    it('senza documents.configure la tendina tipo documento non propone la configurazione', async () => {
+      const user = userEvent.setup();
+      const { fixture } = await setup({ currentUser: userWithPermissions([]) });
+
+      // La seconda fascia della testata è dietro il gate fornitore + magazzino.
+      fixture.componentInstance.form.controls.supplierId.setValue('sup-1');
+      fixture.componentInstance.form.controls.locationId.setValue('loc-1');
+      fixture.detectChanges();
+
+      await user.click(screen.getByRole('button', { name: 'Tipo di documento' }));
+
+      expect(screen.queryByRole('option', { name: /Gestisci tipi documento/ })).toBeNull();
+      expect(screen.queryByRole('option', { name: /Nuovo tipo/ })).toBeNull();
+    });
   });
 
   /**

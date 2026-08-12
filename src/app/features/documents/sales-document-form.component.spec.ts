@@ -6,6 +6,9 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DocumentType } from '@core/models/document.model';
+import { TenantPermission } from '@core/models/tenant-permission.model';
+import type { TenantPermissionKey } from '@core/models/tenant-permission.model';
+import { UserRole } from '@core/models/user.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { VatCodeService } from '@core/services/vat-code.service';
@@ -32,8 +35,16 @@ function operationalLocationsMock() {
   };
 }
 
+/** Operatore non titolare: conta solo l'elenco permessi, mai il ruolo. */
+function clerkWith(permissions: readonly TenantPermissionKey[]) {
+  return { role: UserRole.Clerk, permissions: [...permissions] };
+}
+
 describe('SalesDocumentFormComponent', () => {
-  async function setup(pricesIncludeVat = false) {
+  async function setup(
+    pricesIncludeVat = false,
+    permissions: readonly TenantPermissionKey[] | null = null,
+  ) {
     await render(SalesDocumentFormComponent, {
       providers: [
         {
@@ -41,7 +52,10 @@ describe('SalesDocumentFormComponent', () => {
           useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
         },
         // Nessun permesso costi: il selettore articolo non deve mostrare il costo.
-        { provide: AuthService, useValue: { currentUser: () => null } },
+        {
+          provide: AuthService,
+          useValue: { currentUser: () => (permissions ? clerkWith(permissions) : null) },
+        },
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -133,5 +147,22 @@ describe('SalesDocumentFormComponent', () => {
     // 12,20 ivati al 22% → imponibile 10,00, IVA 2,20, totale 12,20.
     expect(await screen.findByText(/10,00/)).toBeVisible();
     expect(screen.getAllByText(/12,20/).length).toBeGreaterThan(0);
+  });
+
+  // Senza «documents.configure» l'ingranaggio accanto alla serie non compare:
+  // l'API nega la scrittura delle numerazioni, il comando risponderebbe 403.
+  it('nasconde «Gestisci numerazioni» a chi non configura i documenti', async () => {
+    await setup(false, []);
+
+    expect(screen.queryByRole('button', { name: 'Gestisci numerazioni' })).toBeNull();
+  });
+
+  it('mostra «Gestisci numerazioni» a chi ha documents.configure', async () => {
+    await setup(false, [TenantPermission.DocumentsConfigure]);
+
+    // Testata mobile e griglia desktop montano entrambe il campo.
+    expect(screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
+      0,
+    );
   });
 });

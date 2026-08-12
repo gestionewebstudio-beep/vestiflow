@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
+import { TenantPermission } from '@core/models/tenant-permission.model';
+import { UserRole } from '@core/models/user.model';
 import type { VatCode } from '@core/models/vat-code.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
@@ -63,6 +66,29 @@ const VAT_22: VatCode = {
   sortOrder: 1,
 };
 
+/** Chi sta al banco: permessi di cassa più quelli sotto esame. */
+const CASSA_COMPLETA = [
+  TenantPermission.RetailRegister,
+  TenantPermission.SectionSales,
+  TenantPermission.SectionInventory,
+  TenantPermission.CatalogManage,
+] as readonly string[];
+
+/** Commesso puro: batte gli scontrini e basta. */
+const SOLO_CASSA = [
+  TenantPermission.RetailRegister,
+  TenantPermission.SectionSales,
+] as readonly string[];
+
+function operatore(permissions: readonly string[]) {
+  return {
+    id: 'usr-1',
+    role: UserRole.Clerk,
+    permissions,
+    tenantChannelProfile: TenantChannelProfile.Gestionale,
+  };
+}
+
 /** Stub Web Audio API: verifica il beep di errore senza audio reale. */
 function stubAudioContext() {
   const oscillatorStart = vi.fn();
@@ -98,6 +124,7 @@ describe('StoreSaleRegisterComponent', () => {
     readonly variantIdByCode?: string | null;
     readonly lookupItems?: readonly StoreSaleLookupItem[];
     readonly createSale?: ReturnType<typeof vi.fn>;
+    readonly permissions?: readonly string[];
   }) {
     const variantId = options?.variantIdByCode;
     const findVariantByCode = vi.fn(() =>
@@ -174,7 +201,10 @@ describe('StoreSaleRegisterComponent', () => {
           useValue: { activeLocationId: () => LOCATION.id, setActiveLocation: vi.fn() },
         },
         { provide: VatCodeService, useValue: { list: () => of([VAT_22]) } },
-        { provide: AuthService, useValue: { currentUser: () => null } },
+        {
+          provide: AuthService,
+          useValue: { currentUser: () => operatore(options?.permissions ?? CASSA_COMPLETA) },
+        },
         { provide: ShopifyConnectionService, useValue: { getConnection: () => of(null) } },
       ],
     });
@@ -239,6 +269,29 @@ describe('StoreSaleRegisterComponent', () => {
     expect(screen.getByRole('button', { name: 'Crea articolo rapido' })).toBeVisible();
     // Focus ancora sul campo scansione, con il codice selezionato per riscansione.
     expect(document.activeElement).toBe(input);
+  });
+
+  it('senza gestione catalogo: niente «Crea articolo rapido», resta scritto a chi chiederlo', async () => {
+    stubAudioContext();
+    await setup({ variantIdByCode: null, lookupItems: [], permissions: SOLO_CASSA });
+
+    await scan(EAN);
+
+    expect(await screen.findByText('Articolo non trovato.')).toBeVisible();
+    // La ricerca resta: è l'unica delle due azioni che il server consente.
+    expect(screen.getByRole('button', { name: 'Cerca articolo' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Crea articolo rapido' })).toBeNull();
+    expect(
+      screen.getByText(
+        'Questo articolo non è ancora a catalogo: chiedi a un responsabile di inserirlo.',
+      ),
+    ).toBeVisible();
+  });
+
+  it('senza la sezione Magazzino il collegamento allo storico movimenti non compare', async () => {
+    await setup({ permissions: SOLO_CASSA });
+
+    expect(screen.queryByRole('link', { name: 'Storico movimenti' })).toBeNull();
   });
 
   it('crea articolo rapido: prefill EAN, variante creata in carrello con quantità 1, pannello chiuso', async () => {

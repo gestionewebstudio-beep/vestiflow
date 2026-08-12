@@ -60,6 +60,7 @@
                     <input
                       type="checkbox"
                       [checked]="user.isActive"
+                      [disabled]="rowSaving(user)"
                       [attr.aria-label]="'Account attivo per ' + user.displayName"
                       (change)="onRowActiveToggle(user, $any($event.target).checked)"
                     />
@@ -69,7 +70,13 @@
                 }
               </td>
               @if (canEditUser(user)) {
-                <td class="settings-users__cell-select">
+                <!-- Salvataggio in volo: le tendine non prendono comandi (`inert`),
+                     così nessuna scelta resta a schermo senza essere salvata. -->
+                <td
+                  class="settings-users__cell-select"
+                  [class.settings-users__cell--busy]="rowSaving(user)"
+                  [attr.inert]="rowSaving(user) ? '' : null"
+                >
                   <app-select-menu
                     [options]="roleOptions"
                     [value]="user.role"
@@ -80,7 +87,11 @@
                     (valueChange)="onRowRoleSelect(user, $event)"
                   />
                 </td>
-                <td class="settings-users__cell-select settings-users__cell-locations">
+                <td
+                  class="settings-users__cell-select settings-users__cell-locations"
+                  [class.settings-users__cell--busy]="rowSaving(user)"
+                  [attr.inert]="rowSaving(user) ? '' : null"
+                >
                   @if (rowShowsAllLocationsToggle(user.role)) {
                     <label class="settings-users__check">
                       <input
@@ -123,6 +134,14 @@
                   >
                     Personalizza
                   </button>
+                  <!-- Finché il server non ha risposto l'operatore vede che la
+                       riga è in salvataggio: nessuna spunta data ora andrebbe persa. -->
+                  @if (rowSaving(user)) {
+                    <span class="settings-users__row-saving" role="status">
+                      <app-inline-spinner />
+                      Salvataggio…
+                    </span>
+                  }
                 </td>
                 <td class="settings-users__cell-actions">
                   <button
@@ -161,6 +180,7 @@
                     [role]="user.role"
                     [permissions]="effectivePermissions(user)"
                     [compact]="true"
+                    [disabled]="rowSaving(user)"
                     (permissionsChange)="onRowPermissionsChange(user, $event)"
                   />
                 </td>
@@ -326,6 +346,19 @@
       [busy]="rowDeletingId() === pendingUser.id"
       (confirmed)="confirmDeleteUser()"
       (dismissed)="cancelDeleteUser()"
+    />
+  }
+
+  @if (rolePendingChange(); as pendingRole) {
+    <app-confirm-dialog
+      [(open)]="roleDialogOpen"
+      title="Cambiare ruolo?"
+      [message]="roleDialogMessage()"
+      confirmLabel="Cambia ruolo"
+      cancelLabel="Annulla"
+      [busy]="rowSaving(pendingRole.user)"
+      (confirmed)="confirmRoleChange()"
+      (dismissed)="cancelRoleChange()"
     />
   }
 </section>

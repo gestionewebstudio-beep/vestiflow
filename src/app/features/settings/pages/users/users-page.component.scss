@@ -94,6 +94,22 @@
   white-space: nowrap;
 }
 
+// Cella con un salvataggio in volo: il contenuto è già `inert` nel template,
+// qui si vede anche che in questo momento non accetta comandi.
+.settings-users__cell--busy {
+  opacity: var(--opacity-disabled);
+}
+
+.settings-users__row-saving {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
 .settings-users__permissions-toggle {
   padding: 0;
   border: 0;

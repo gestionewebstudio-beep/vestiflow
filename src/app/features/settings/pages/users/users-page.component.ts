@@ -39,6 +39,16 @@ import { TenantUsersService } from '@domain/users/services/tenant-users.service'
 /** Ruoli assegnabili dal titolare: il ruolo titolare resta all'assistenza Vestiflow. */
 const ASSIGNABLE_ROLES = [UserRole.Admin, UserRole.Manager, UserRole.Clerk] as const;
 
+/** Modifica di una riga utente: ogni campo porta il valore finale, mai un delta. */
+interface TenantUserPatch {
+  role?: UserRole;
+  hasAllLocationsAccess?: boolean;
+  assignedLocationIds?: readonly string[];
+  defaultLocationId?: string | null;
+  isActive?: boolean;
+  permissions?: readonly TenantPermissionKey[];
+}
+
 /**
  * Impostazioni → Utenti (solo titolare): crea gli account dei dipendenti,
  * assegna ruoli, sedi e permessi. Gli invarianti veri (no self-edit, titolari
@@ -87,11 +97,20 @@ export class UsersPageComponent {
   protected readonly rowError = signal<string | null>(null);
   protected readonly deleteDialogOpen = signal(false);
   protected readonly userPendingDelete = signal<TenantUser | null>(null);
+  protected readonly roleDialogOpen = signal(false);
+  protected readonly rolePendingChange = signal<{ user: TenantUser; role: UserRole } | null>(null);
   protected readonly expandedPermissionsUserId = signal<string | null>(null);
   protected readonly createFormOpen = signal(false);
   protected readonly createPermissions = signal<readonly TenantPermissionKey[]>(
     defaultPermissionsForRole(UserRole.Clerk),
   );
+
+  /**
+   * Modifiche arrivate mentre un salvataggio era in volo, una per utente.
+   * La riga in salvataggio è inerte, ma tastiera e doppi clic possono ancora
+   * passare: qui la modifica aspetta il suo turno invece di sparire.
+   */
+  private readonly queuedPatches = new Map<string, TenantUserPatch>();
 
   /** Sedi assegnabili: quelle licenziate e attive nel piano del negozio. */
   protected readonly locationOptions = computed(() =>
@@ -251,6 +270,37 @@ export class UsersPageComponent {
     this.userPendingDelete.set(null);
   }
 
+  /** Riga con un salvataggio in volo: i suoi comandi restano fermi finché non torna. */
+  protected rowSaving(user: TenantUser): boolean {
+    return this.rowSavingId() === user.id;
+  }
+
+  protected roleDialogMessage(): string {
+    const pending = this.rolePendingChange();
+    if (!pending) {
+      return '';
+    }
+    return `${pending.user.displayName} passa da ${this.roleLabels[pending.user.role]} a ${this.roleLabels[pending.role]}. I permessi tornano a quelli predefiniti del nuovo ruolo: le spunte messe a mano andranno perse.`;
+  }
+
+  protected confirmRoleChange(): void {
+    const pending = this.rolePendingChange();
+    if (!pending) {
+      return;
+    }
+    this.roleDialogOpen.set(false);
+    this.rolePendingChange.set(null);
+    this.saveUser(pending.user, {
+      role: pending.role,
+      permissions: [...defaultPermissionsForRole(pending.role)],
+    });
+  }
+
+  /** La tendina è pilotata dal modello: annullando resta il ruolo di prima, senza rimetterlo a mano. */
+  protected cancelRoleChange(): void {
+    this.rolePendingChange.set(null);
+  }
+
   protected togglePermissionsPanel(userId: string): void {
     this.expandedPermissionsUserId.update((current) => (current === userId ? null : userId));
   }
@@ -323,14 +373,16 @@ export class UsersPageComponent {
     this.createPermissions.set(permissions);
   }
 
+  /**
+   * Il cambio ruolo riscrive tutti i permessi dell'utente: prima di farlo si
+   * chiede, come per l'eliminazione dell'account.
+   */
   protected onRowRoleSelect(user: TenantUser, value: string | null): void {
-    if (!value || !this.isAssignableRole(value)) {
+    if (!value || !this.isAssignableRole(value) || value === user.role) {
       return;
     }
-    this.saveUser(user, {
-      role: value,
-      permissions: [...defaultPermissionsForRole(value)],
-    });
+    this.rolePendingChange.set({ user, role: value });
+    this.roleDialogOpen.set(true);
   }
 
   protected onRowAllLocationsAccessToggle(user: TenantUser, checked: boolean): void {
@@ -427,36 +479,57 @@ export class UsersPageComponent {
       });
   }
 
-  private saveUser(
-    user: TenantUser,
-    patch: {
-      role?: UserRole;
-      hasAllLocationsAccess?: boolean;
-      assignedLocationIds?: readonly string[];
-      defaultLocationId?: string | null;
-      isActive?: boolean;
-      permissions?: readonly TenantPermissionKey[];
-    },
-  ): void {
-    if (!this.canEditUser(user) || this.rowSavingId()) {
+  /**
+   * Ogni spunta salva da sola: se una richiesta è già in volo la modifica NON
+   * si perde più in silenzio — si accoda e parte appena il server risponde.
+   * Prima usciva senza dire niente e la casella restava accesa a schermo con il
+   * permesso mai salvato.
+   */
+  private saveUser(user: TenantUser, patch: TenantUserPatch): void {
+    if (!this.canEditUser(user)) {
       return;
     }
-    this.rowSavingId.set(user.id);
+    if (this.rowSavingId()) {
+      const queued = this.queuedPatches.get(user.id);
+      this.queuedPatches.set(user.id, { ...queued, ...patch });
+      return;
+    }
+    this.sendPatch(user.id, patch);
+  }
+
+  private sendPatch(userId: string, patch: TenantUserPatch): void {
+    this.rowSavingId.set(userId);
     this.rowError.set(null);
 
     this.tenantUsers
-      .updateUser(user.id, patch)
+      .updateUser(userId, patch)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (updated) => {
           this.rowSavingId.set(null);
           this.users.update((rows) => rows.map((row) => (row.id === updated.id ? updated : row)));
+          this.flushQueuedPatches();
         },
         error: (err: unknown) => {
           this.rowSavingId.set(null);
           this.rowError.set(isAppError(err) ? err.message : 'Salvataggio non riuscito.');
+          // Dopo un rifiuto le modifiche in attesa non si rigiocano alla cieca:
+          // si ricarica lo stato vero del server. Le caselle vengono ricostruite
+          // dal modello, quindi nessuna resta accesa per una modifica respinta.
+          this.queuedPatches.clear();
+          this.loadUsers();
         },
       });
+  }
+
+  private flushQueuedPatches(): void {
+    const next = this.queuedPatches.entries().next();
+    if (next.done) {
+      return;
+    }
+    const [userId, patch] = next.value;
+    this.queuedPatches.delete(userId);
+    this.sendPatch(userId, patch);
   }
 
   private loadUsers(): void {

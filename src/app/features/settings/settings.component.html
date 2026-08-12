@@ -72,27 +72,38 @@
         <app-button variant="secondary">Gestisci Utenti</app-button>
       </a>
     </section>
+  }
 
-    <section class="settings__panel" aria-labelledby="settings-vat-codes">
-      <h2 id="settings-vat-codes" class="settings__panel-title">Codici IVA</h2>
-      <p class="settings__panel-hint">
-        Gestisci aliquote, Nature e trattamenti IVA utilizzati negli articoli e nei documenti.
-      </p>
-      <a class="settings__panel-cta" routerLink="/app/settings/codici-iva">
-        <app-button variant="secondary">Gestisci Codici IVA</app-button>
-      </a>
-    </section>
+  <!-- Codici IVA e Pagamenti stanno fuori dal riquadro del titolare: la
+       «Sezione Impostazioni» promette queste due pagine a chiunque la riceva, e
+       le rotte le aprono con quel solo permesso. Chi non ha «Impostazioni
+       azienda» le legge e basta — dentro le pagine i comandi di scrittura non
+       compaiono. -->
+  <section class="settings__panel" aria-labelledby="settings-vat-codes">
+    <h2 id="settings-vat-codes" class="settings__panel-title">Codici IVA</h2>
+    <p class="settings__panel-hint">
+      Aliquote, Nature e trattamenti IVA utilizzati negli articoli e nei documenti.
+    </p>
+    <a class="settings__panel-cta" routerLink="/app/settings/codici-iva">
+      <app-button variant="secondary">
+        {{ puoGestireImpostazioniAzienda() ? 'Gestisci Codici IVA' : 'Consulta Codici IVA' }}
+      </app-button>
+    </a>
+  </section>
 
-    <section class="settings__panel" aria-labelledby="settings-payment-options">
-      <h2 id="settings-payment-options" class="settings__panel-title">Pagamenti</h2>
-      <p class="settings__panel-hint">
-        Modalità e condizioni di pagamento selezionabili nelle anagrafiche clienti e fornitori.
-      </p>
-      <a class="settings__panel-cta" routerLink="/app/settings/pagamenti">
-        <app-button variant="secondary">Gestisci Pagamenti</app-button>
-      </a>
-    </section>
+  <section class="settings__panel" aria-labelledby="settings-payment-options">
+    <h2 id="settings-payment-options" class="settings__panel-title">Pagamenti</h2>
+    <p class="settings__panel-hint">
+      Modalità e condizioni di pagamento selezionabili nelle anagrafiche clienti e fornitori.
+    </p>
+    <a class="settings__panel-cta" routerLink="/app/settings/pagamenti">
+      <app-button variant="secondary">
+        {{ puoGestireImpostazioniAzienda() ? 'Gestisci Pagamenti' : 'Consulta Pagamenti' }}
+      </app-button>
+    </a>
+  </section>
 
+  @if (showOperationalSettingsPanel()) {
     <section class="settings__panel" aria-labelledby="settings-tenant-backup">
       <h2 id="settings-tenant-backup" class="settings__panel-title">Backup negozio</h2>
       <p class="settings__panel-hint">

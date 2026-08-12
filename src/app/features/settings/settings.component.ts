@@ -18,6 +18,7 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { ShopifyConnectionStatus } from '@core/models/shopify-connection.model';
 import {
   canManageMfa as userCanManageMfa,
+  canManageSettingsCompany,
   canManageTikTokConnection,
 } from '@core/permissions/tenant-permissions.util';
 import { resolveUserAccessLabel } from '@core/models/user-role-labels.util';
@@ -207,6 +208,14 @@ export class SettingsComponent {
   );
 
   protected readonly canManageMfa = computed(() => userCanManageMfa(this.currentUser()));
+
+  /**
+   * Chi non lo ha apre Codici IVA e Pagamenti in sola consultazione: l'elenco
+   * si legge, ma non compaiono i comandi che creano, rinominano o eliminano.
+   */
+  protected readonly puoGestireImpostazioniAzienda = computed(() =>
+    canManageSettingsCompany(this.currentUser()),
+  );
 
   protected readonly showTenantCompanyPanel = computed(() => {
     const state = this.tenantCompanyState();

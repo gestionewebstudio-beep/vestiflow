@@ -44,6 +44,18 @@
   color: var(--color-interactive);
   text-decoration: underline;
   cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    text-decoration: none;
+    color: var(--color-text-subtle);
+  }
+}
+
+// Salvataggio in volo: le caselle sono davvero `disabled`, l'opacità lo dice
+// anche a chi guarda invece di lasciar credere che un clic in più sia servito.
+.permissions-editor--busy {
+  opacity: var(--opacity-disabled);
 }
 
 .permissions-editor__grid {
@@ -174,7 +186,10 @@
   }
 }
 
+// Il trattino porta con sé il testo per lo screen reader: `position: relative`
+// tiene quel testo ancorato alla cella invece di appenderlo all'<html>.
 .permissions-editor__matrix-na {
+  position: relative;
   color: var(--color-text-subtle);
 }
 

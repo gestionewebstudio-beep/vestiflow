@@ -2,6 +2,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  computed,
+  inject,
   input,
   output,
   signal,
@@ -9,6 +11,8 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import { AuthService } from '@core/auth';
+import { canManageCatalog } from '@core/permissions/tenant-permissions.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { formatMoney } from '@core/utils/money.util';
 
@@ -20,6 +24,17 @@ import { formatMoney } from '@core/utils/money.util';
   styleUrl: './document-line-product-cell.component.scss',
 })
 export class DocumentLineProductCellComponent {
+  private readonly auth = inject(AuthService);
+
+  /**
+   * «Apri anagrafica» e «Completa anagrafica» aprono la scheda articolo, che
+   * salva sul catalogo: senza il permesso l'API risponde 403 e l'operatore
+   * resta col pannello aperto e un errore. La cella è la stessa in tutte le
+   * maschere documento, quindi il controllo sta qui — nei chiamanti sarebbe
+   * ripetuto sei volte, e basterebbe dimenticarlo una.
+   */
+  protected readonly puoGestireCatalogo = computed(() => canManageCatalog(this.auth.currentUser()));
+
   readonly lineIndex = input.required<number>();
   readonly inputId = input('');
   readonly value = input.required<string>();

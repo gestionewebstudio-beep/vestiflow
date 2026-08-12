@@ -16,40 +16,45 @@
         {{ pageSubtitle() }}
       </p>
     </div>
-    @if (canManageDocuments()) {
+    @if (showCreateActions()) {
       <div class="doc-list__actions">
         @if (salesRegister()) {
           <!--
             Elenchi condivisi (Fatture): l'etichetta segue il filtro «Tipo».
             Vendita/Reso negozio: nessun bottone — si registrano dalla cassa.
           -->
-          @if (showCreateAction()) {
-            <app-button (click)="openNewSalesDocument()">
-              <i class="pi pi-plus" aria-hidden="true"></i>
-              {{ salesCreateLabel() }}
-            </app-button>
-          }
+          <app-button (click)="openNewSalesDocument()">
+            <i class="pi pi-plus" aria-hidden="true"></i>
+            {{ salesCreateLabel() }}
+          </app-button>
         } @else if (isGoodsReceiptList()) {
           <app-button (click)="openNewGoodsReceipt()">
             <i class="pi pi-plus" aria-hidden="true"></i>
             Nuovo arrivo merce
           </app-button>
         } @else {
-          <app-button (click)="openNewGoodsReceipt()">
-            <i class="pi pi-plus" aria-hidden="true"></i>
-            Nuovo arrivo merce
-          </app-button>
-          <app-select-menu
-            class="doc-list__create-menu"
-            [options]="secondaryCreateOptions"
-            value=""
-            ariaLabel="Crea altro tipo di documento"
-            placeholder="Altro documento"
-            triggerIcon="pi-file"
-            [compact]="true"
-            [includeEmptyOption]="false"
-            (valueChange)="onCreateDocumentType($event)"
-          />
+          <!-- Chi non gestisce i carichi non vede l'invito a registrarne uno:
+               resta il solo menu con i tipi che può creare. -->
+          @if (canManageGoodsReceipts()) {
+            <app-button (click)="openNewGoodsReceipt()">
+              <i class="pi pi-plus" aria-hidden="true"></i>
+              Nuovo arrivo merce
+            </app-button>
+          }
+          <!-- Se nessuno dei nove tipi è gestibile, sparisce anche la tendina. -->
+          @if (secondaryCreateOptions().length > 0) {
+            <app-select-menu
+              class="doc-list__create-menu"
+              [options]="secondaryCreateOptions()"
+              value=""
+              ariaLabel="Crea altro tipo di documento"
+              placeholder="Altro documento"
+              triggerIcon="pi-file"
+              [compact]="true"
+              [includeEmptyOption]="false"
+              (valueChange)="onCreateDocumentType($event)"
+            />
+          }
         }
       </div>
     }

@@ -14,7 +14,11 @@
         la giacenza e la disponibilità vengono scaricate; l'impegnata resta invariata.
       </p>
     </div>
-    <a class="pos__link" routerLink="/app/inventory/movements">Storico movimenti</a>
+    <!-- Senza la sezione Magazzino questo collegamento porterebbe solo a un
+         rimbalzo sulla dashboard, senza spiegare niente. -->
+    @if (puoVedereMagazzino()) {
+      <a class="pos__link" routerLink="/app/inventory/movements">Storico movimenti</a>
+    }
   </header>
 
   <div class="pos__context">
@@ -127,9 +131,20 @@
           <app-button variant="secondary" (click)="openProductSearchPanel()">
             Cerca articolo
           </app-button>
-          <app-button [loading]="quickAddPending()" (click)="openQuickProductCreate()">
-            Crea articolo rapido
-          </app-button>
+          <!-- Chi non gestisce il catalogo non vede il comando: davanti al
+               cliente un pulsante che risponde «non autorizzato» lascia la
+               cassa ferma senza dire cosa fare. Al suo posto la frase, perché
+               qui l'alternativa non è cercare meglio — l'articolo a catalogo
+               non c'è, e la via d'uscita è chiederlo a chi può crearlo. -->
+          @if (puoGestireCatalogo()) {
+            <app-button [loading]="quickAddPending()" (click)="openQuickProductCreate()">
+              Crea articolo rapido
+            </app-button>
+          } @else {
+            <p class="pos__notfound-hint">
+              Questo articolo non è ancora a catalogo: chiedi a un responsabile di inserirlo.
+            </p>
+          }
         </div>
       }
 

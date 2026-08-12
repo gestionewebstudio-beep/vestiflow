@@ -27,15 +27,17 @@
     >
       <i class="pi pi-times" aria-hidden="true"></i>
     </button>
-    <button
-      type="button"
-      class="doc-product-cell__link-action"
-      tabindex="-1"
-      [disabled]="disabled()"
-      (click)="openDetail($event)"
-    >
-      Apri anagrafica
-    </button>
+    @if (puoGestireCatalogo()) {
+      <button
+        type="button"
+        class="doc-product-cell__link-action"
+        tabindex="-1"
+        [disabled]="disabled()"
+        (click)="openDetail($event)"
+      >
+        Apri anagrafica
+      </button>
+    }
   </div>
 } @else {
   <div class="doc-product-cell">
@@ -98,14 +100,16 @@
         }
       </ul>
     }
-    <button
-      type="button"
-      class="doc-product-cell__link-action"
-      tabindex="-1"
-      [disabled]="disabled()"
-      (click)="openAnagraphic($event)"
-    >
-      Completa anagrafica
-    </button>
+    @if (puoGestireCatalogo()) {
+      <button
+        type="button"
+        class="doc-product-cell__link-action"
+        tabindex="-1"
+        [disabled]="disabled()"
+        (click)="openAnagraphic($event)"
+      >
+        Completa anagrafica
+      </button>
+    }
   </div>
 }

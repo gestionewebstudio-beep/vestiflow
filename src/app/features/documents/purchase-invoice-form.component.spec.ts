@@ -4,6 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AuthService } from '@core/auth';
+import { TenantPermission } from '@core/models/tenant-permission.model';
+import type { TenantPermissionKey } from '@core/models/tenant-permission.model';
+import { UserRole } from '@core/models/user.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 
@@ -51,8 +55,13 @@ const RECEIPT_2: LinkableGoodsReceipt = {
   ],
 };
 
+/** Operatore non titolare: conta solo l'elenco permessi, mai il ruolo. */
+function clerkWith(permissions: readonly TenantPermissionKey[]) {
+  return { role: UserRole.Clerk, permissions: [...permissions] };
+}
+
 describe('PurchaseInvoiceFormComponent', () => {
-  async function setup() {
+  async function setup(permissions: readonly TenantPermissionKey[] = []) {
     const documentService = {
       getDocumentById: vi.fn(),
       listLinkableGoodsReceipts: vi.fn(() => of([RECEIPT_1, RECEIPT_2])),
@@ -65,6 +74,7 @@ describe('PurchaseInvoiceFormComponent', () => {
           provide: DocumentCountersService,
           useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
         },
+        { provide: AuthService, useValue: { currentUser: () => clerkWith(permissions) } },
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -149,5 +159,22 @@ describe('PurchaseInvoiceFormComponent', () => {
     await user.click(screen.getByLabelText('Scadenza 1 saldata'));
     const settledDate = screen.getByLabelText<HTMLInputElement>('Data saldo scadenza 1');
     expect(settledDate.value).not.toBe('');
+  });
+
+  // Senza «documents.configure» l'ingranaggio accanto alla serie non compare:
+  // l'API nega la scrittura delle numerazioni, il comando risponderebbe 403.
+  it('nasconde «Gestisci numerazioni» a chi non configura i documenti', async () => {
+    await setup();
+
+    expect(screen.queryByRole('button', { name: 'Gestisci numerazioni' })).toBeNull();
+  });
+
+  it('mostra «Gestisci numerazioni» a chi ha documents.configure', async () => {
+    await setup([TenantPermission.DocumentsConfigure]);
+
+    // Testata mobile e griglia desktop montano entrambe il campo.
+    expect(screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
+      0,
+    );
   });
 });

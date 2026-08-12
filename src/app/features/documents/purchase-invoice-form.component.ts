@@ -21,6 +21,9 @@ import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
+import { AuthService } from '@core/auth';
+import { hasTenantPermission } from '@core/permissions/user-permissions.util';
+import { TenantPermission } from '@core/models/tenant-permission.model';
 import type { AppError } from '@core/models/app-error.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
@@ -167,6 +170,7 @@ function parseRatePercent(value: string): number | null {
 })
 export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   private readonly fb = inject(NonNullableFormBuilder);
+  private readonly authService = inject(AuthService);
   private readonly documentService = inject(DocumentService);
   private readonly countersService = inject(DocumentCountersService);
   private readonly documentSettingsService = inject(DocumentSettingsService);
@@ -282,6 +286,14 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   protected readonly documentType = DocumentType.SupplierInvoice;
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
+
+  /**
+   * Senza il permesso, accanto alla serie resta solo il campo: niente
+   * ingranaggio e nessun pannello numerazioni da aprire.
+   */
+  protected readonly puoConfigurareDocumenti = computed(() =>
+    hasTenantPermission(this.authService.currentUser(), TenantPermission.DocumentsConfigure),
+  );
 
   /**
    * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre

@@ -1,9 +1,10 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { render } from '@testing-library/angular';
+import { render, screen } from '@testing-library/angular';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
+import { UserRole } from '@core/models/user.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import type { DocumentListProfile } from '@domain/documents/models/document-list-query.model';
@@ -55,9 +56,15 @@ interface ProfileLabels {
   emptyStateIcon: () => string;
 }
 
-async function setup(profile: DocumentListProfile): Promise<ProfileLabels> {
+/** Utente della sessione: `null` = nessun permesso (default dei test di etichetta). */
+interface UtenteDiProva {
+  readonly role: string;
+  readonly permissions: readonly string[];
+}
+
+async function renderList(profile: DocumentListProfile, user: UtenteDiProva | null = null) {
   const data = { documentListProfile: profile };
-  const view = await render(DocumentListComponent, {
+  return render(DocumentListComponent, {
     providers: [
       provideRouter([]),
       {
@@ -68,7 +75,7 @@ async function setup(profile: DocumentListProfile): Promise<ProfileLabels> {
           queryParamMap: of(convertToParamMap({})),
         },
       },
-      { provide: AuthService, useValue: { currentUser: () => null } },
+      { provide: AuthService, useValue: { currentUser: () => user } },
       {
         provide: DocumentService,
         useValue: {
@@ -89,6 +96,10 @@ async function setup(profile: DocumentListProfile): Promise<ProfileLabels> {
       },
     ],
   });
+}
+
+async function setup(profile: DocumentListProfile): Promise<ProfileLabels> {
+  const view = await renderList(profile);
 
   return view.fixture.componentInstance as unknown as ProfileLabels;
 }
@@ -139,4 +150,53 @@ describe('DocumentListComponent — caratterizzazione dei profili', () => {
       expect(component.pageTitle()).not.toBe('Arrivi merce');
     });
   }
+});
+
+/**
+ * I comandi di creazione del registro generico valevano «gestisce almeno UNA
+ * famiglia»: chi poteva fare solo preventivi vedeva comunque il carico e tutti
+ * e nove i tipi del menu, che l'API adesso rifiuta con un 403.
+ */
+describe('DocumentListComponent — comandi di creazione e matrice permessi', () => {
+  const SOLO_PREVENTIVI: UtenteDiProva = {
+    role: UserRole.Clerk,
+    permissions: ['section.documents', 'doc.quote.manage'],
+  };
+
+  /** Voci offerte dal menu «Altro documento», per etichetta. */
+  function tipiOfferti(view: { fixture: { componentInstance: unknown } }): readonly string[] {
+    const component = view.fixture.componentInstance as {
+      secondaryCreateOptions: () => readonly { readonly label: string }[];
+    };
+    return component.secondaryCreateOptions().map((option) => option.label);
+  }
+
+  it('non offre «Nuovo arrivo merce» a chi non gestisce i carichi', async () => {
+    await renderList('generic', SOLO_PREVENTIVI);
+
+    expect(screen.queryByRole('button', { name: /Nuovo arrivo merce/i })).toBeNull();
+  });
+
+  it('nel menu «Altro documento» lascia solo i tipi gestibili', async () => {
+    const view = await renderList('generic', SOLO_PREVENTIVI);
+
+    expect(tipiOfferti(view)).toEqual(['Preventivo']);
+  });
+
+  it('senza famiglie gestibili la testata non offre alcuna creazione', async () => {
+    await renderList('generic', {
+      role: UserRole.Clerk,
+      permissions: ['section.documents', 'doc.goods_receipt.view'],
+    });
+
+    expect(screen.queryByRole('button', { name: /Nuovo arrivo merce/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Crea altro tipo di documento/i })).toBeNull();
+  });
+
+  it('al titolare resta tutto il menu', async () => {
+    const view = await renderList('generic', { role: UserRole.Owner, permissions: [] });
+
+    expect(tipiOfferti(view)).toHaveLength(9);
+    expect(screen.queryByRole('button', { name: /Crea altro tipo di documento/i })).not.toBeNull();
+  });
 });

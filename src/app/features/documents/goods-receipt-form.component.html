@@ -163,19 +163,24 @@
                 <div class="doc-panel__field">
                   <div class="doc-panel__field-head">
                     <span class="doc-panel__label">Fornitore</span>
-                    <button
-                      type="button"
-                      class="doc-panel__field-action"
-                      (click)="toggleSupplierForm()"
-                    >
-                      <i
-                        class="pi"
-                        [class.pi-plus]="!showSupplierForm()"
-                        [class.pi-minus]="showSupplierForm()"
-                        aria-hidden="true"
-                      ></i>
-                      {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
-                    </button>
+                    <!-- Senza la gestione degli ordini fornitore l'anagrafica non
+                         si crea da qui: resta la scelta fra i fornitori già
+                         registrati. -->
+                    @if (puoGestireOrdiniFornitore()) {
+                      <button
+                        type="button"
+                        class="doc-panel__field-action"
+                        (click)="toggleSupplierForm()"
+                      >
+                        <i
+                          class="pi"
+                          [class.pi-plus]="!showSupplierForm()"
+                          [class.pi-minus]="showSupplierForm()"
+                          aria-hidden="true"
+                        ></i>
+                        {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
+                      </button>
+                    }
                   </div>
 
                   <app-select-menu
@@ -265,7 +270,7 @@
                     [number]="form.controls.protocolNumber.value"
                     [series]="form.controls.series.value"
                     [seriesOptions]="seriesOptions()"
-                    [canManageSeries]="true"
+                    [canManageSeries]="puoConfigurareDocumenti()"
                     (numberChange)="onProtocolNumberChange($event)"
                     (seriesChange)="onSeriesChange($event)"
                     (manageSeries)="seriesDialogOpen.set(true)"
@@ -377,19 +382,23 @@
               }
               <!-- Scorciatoie sulla stessa riga, come nel riferimento. -->
               <div class="doc-form__inline-links">
-                <button
-                  type="button"
-                  class="doc-form__inline-toggle"
-                  (click)="toggleSupplierForm()"
-                >
-                  <i
-                    class="pi"
-                    [class.pi-plus]="!showSupplierForm()"
-                    [class.pi-minus]="showSupplierForm()"
-                    aria-hidden="true"
-                  ></i>
-                  {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
-                </button>
+                <!-- Senza la gestione degli ordini fornitore l'anagrafica non si
+                     crea da qui: resta la scelta fra i fornitori già registrati. -->
+                @if (puoGestireOrdiniFornitore()) {
+                  <button
+                    type="button"
+                    class="doc-form__inline-toggle"
+                    (click)="toggleSupplierForm()"
+                  >
+                    <i
+                      class="pi"
+                      [class.pi-plus]="!showSupplierForm()"
+                      [class.pi-minus]="showSupplierForm()"
+                      aria-hidden="true"
+                    ></i>
+                    {{ showSupplierForm() ? 'Annulla nuovo fornitore' : 'Nuovo fornitore' }}
+                  </button>
+                }
                 @if (form.controls.supplierId.value) {
                   <button
                     type="button"
@@ -463,7 +472,7 @@
                 [number]="form.controls.protocolNumber.value"
                 [series]="form.controls.series.value"
                 [seriesOptions]="seriesOptions()"
-                [canManageSeries]="true"
+                [canManageSeries]="puoConfigurareDocumenti()"
                 (numberChange)="onProtocolNumberChange($event)"
                 (seriesChange)="onSeriesChange($event)"
                 (manageSeries)="seriesDialogOpen.set(true)"
@@ -641,10 +650,14 @@
                   accept=".csv,text/csv"
                   (change)="onCsvFileSelected($event)"
                 />
-                <app-button type="button" variant="secondary" (click)="openNewProduct()">
-                  <i class="pi pi-box" aria-hidden="true"></i>
-                  Nuovo prodotto
-                </app-button>
+                <!-- Apre la scheda articolo in creazione: chi non gestisce il
+                     catalogo compila le righe con articoli già a catalogo. -->
+                @if (puoGestireCatalogo()) {
+                  <app-button type="button" variant="secondary" (click)="openNewProduct()">
+                    <i class="pi pi-box" aria-hidden="true"></i>
+                    Nuovo prodotto
+                  </app-button>
+                }
                 <app-button type="button" [disabled]="formReadOnly()" (click)="addLine()">
                   <i class="pi pi-plus" aria-hidden="true"></i>
                   Aggiungi riga
