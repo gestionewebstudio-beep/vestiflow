@@ -298,6 +298,19 @@ export class ManualSalesOrdersService {
               prefix: setting.numberPrefix,
             }));
           orderNumber = formatDocumentReference(setting.numberPrefix, series, number);
+        } else if (requestedSeries !== undefined || requestedNumber !== null) {
+          // **In modifica il numero è del documento, non una proposta.** Se il
+          // client lo manda va scritto, e cambiando serie va ricomposto anche
+          // il riferimento — o l'ordine resterebbe col numero della serie
+          // vecchia sotto la serie nuova.
+          //
+          // Prima questo ramo non c'era: il server rinumerava solo a numero
+          // vuoto, quindi su un ordine salvato riscriveva i valori che aveva
+          // già. Il salvataggio riusciva e il campo tornava com'era, senza un
+          // messaggio.
+          series = requestedSeries !== undefined ? requestedSeries : series;
+          number = requestedNumber ?? number;
+          orderNumber = formatDocumentReference(setting.numberPrefix, series, number ?? 0);
         }
 
         const cancelledAt = status === 'cancelled' ? (existing?.cancelledAt ?? new Date()) : null;

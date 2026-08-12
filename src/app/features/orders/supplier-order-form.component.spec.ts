@@ -268,7 +268,7 @@ describe('SupplierOrderFormComponent', () => {
   it('propone in testata serie e primo numero libero', async () => {
     await setup();
 
-    const numero = await screen.findByLabelText<HTMLInputElement>('Numero');
+    const numero = (await screen.findAllByLabelText<HTMLInputElement>('Numero'))[0]!;
     expect(numero.value).toBe('42');
   });
 
@@ -290,7 +290,7 @@ describe('SupplierOrderFormComponent', () => {
     const user = userEvent.setup();
     const { createOrder } = await setup();
 
-    const numero = await screen.findByLabelText<HTMLInputElement>('Numero');
+    const numero = (await screen.findAllByLabelText<HTMLInputElement>('Numero'))[0]!;
     await user.clear(numero);
     await user.type(numero, '7');
     await scegliArticoloSullaRiga(user);

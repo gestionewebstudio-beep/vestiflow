@@ -128,6 +128,21 @@
                 </div>
               </div>
 
+              <!-- Numero e serie anche qui: aggiunti in testata il 12/08/2026 e
+                   messi solo sulla griglia desktop, che sotto `lg` è spenta —
+                   da telefono la numerazione appena introdotta non esisteva. -->
+              <app-document-number-field
+                numberInputId="po-m-number"
+                [number]="form.controls.documentNumber.value"
+                [isProposal]="numberIsProposal()"
+                [series]="form.controls.series.value"
+                [seriesOptions]="numbering.seriesOptions()"
+                [canManageSeries]="true"
+                (numberChange)="numbering.onNumberChange($event)"
+                (seriesChange)="numbering.onSeriesChange($event)"
+                (manageSeries)="seriesDialogOpen.set(true)"
+              />
+
               <div class="doc-panel__field">
                 <span class="doc-panel__label">Rif. ordine fornitore</span>
                 <input

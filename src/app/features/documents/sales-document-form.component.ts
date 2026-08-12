@@ -100,9 +100,12 @@ import {
   SALES_DOCUMENT_LINE_COLUMNS,
   SALES_DOCUMENT_LINE_PRESETS,
 } from './models/sales-document-line-columns.config';
+import { SalesDocumentLineCardComponent } from '@domain/documents/components/sales-document-line-card/sales-document-line-card.component';
+import { ViewportService } from '@core/services/viewport.service';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
 import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
 import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
@@ -152,6 +155,12 @@ const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini
 export type SalesDocumentLineSortColumn =
   'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount';
 
+/**
+ * Quanto si aspetta, allo sfocamento di un campo codice della card, prima di
+ * decidere cosa fare: il tempo che serve al tocco su una voce per arrivare.
+ */
+const MOBILE_PICK_GRACE_MS = 200;
+
 /** I campi di riga nell'ordine in cui il Tab li attraversa. */
 type SalesDocumentLineFocusField =
   'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount' | 'vat';
@@ -184,7 +193,9 @@ type SubmitState =
     DocumentMobilePanelComponent,
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
+    DocumentLineSelectCellComponent,
     DocumentProductSearchPanelComponent,
+    SalesDocumentLineCardComponent,
     TableColumnPickerComponent,
     TableColumnResizeDirective,
     CdkDrag,
@@ -1207,6 +1218,62 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     this.lines.updateValueAndValidity();
   }
 
+  /**
+   * Sotto la soglia esiste SOLO la vista a card (§4.11): la stessa riga non
+   * esiste due volte. Finché la tabella restava viva sotto il breakpoint, gli
+   * identificativi dei campi puntavano a elementi nascosti — e `.focus()` su
+   * `display:none` è un no-op silenzioso.
+   */
+  private readonly viewport = inject(ViewportService);
+  protected readonly compactView = this.viewport.compact;
+
+  /**
+   * Totale della singola riga, già formattato: la card non fa conti in valuta.
+   * Stessa catena dei totali documento — netto scorporato se il prezzo si
+   * digita ivato, sconto di riga, e **un solo arrotondamento in fondo**.
+   * Lo sconto extra documento NON entra: è del documento, non della riga.
+   */
+  protected lineTotalLabel(index: number): string {
+    const line = this.lines.at(index);
+    if (!line) {
+      return '';
+    }
+    const qty = Number(line.controls.quantity.value) || 0;
+    const discount = parseEffectiveDiscountPercent(line.controls.discountPercent.value);
+    const netExactMinor = (qty * this.lineUnitNetMinor(line) * (100 - discount)) / 100;
+    const netMinor = Math.round(netExactMinor);
+    // Se la riga si digita ivata, il totale si legge ivato: mostrare il netto
+    // accanto a un prezzo lordo farebbe sembrare sbagliato il conto.
+    const amountMinor = this.pricesIncludeVat()
+      ? netMinor + lineVatFromNetExact(netExactMinor, this.lineRatePercent(line))
+      : netMinor;
+    return formatMoney({ amountMinor, currencyCode: this.currency });
+  }
+
+  /** Riga senza nome, dopo che l'operatore l'ha toccata. */
+  protected lineNameInvalid(index: number): boolean {
+    const control = this.lines.at(index)?.controls.description;
+    return !!control && control.invalid && (control.touched || control.dirty);
+  }
+
+  /**
+   * Duplica la riga. Non c'era su questa maschera mentre c'è sulle altre: è
+   * arrivata con la card condivisa, il cui piede porta Duplica ed Elimina.
+   */
+  protected duplicateLine(index: number): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    const source = this.lines.at(index);
+    if (!source) {
+      return;
+    }
+    const copy = this.createLine();
+    copy.patchValue(source.getRawValue());
+    this.lines.insert(index + 1, copy);
+    this.markFormDirty();
+  }
+
   protected readonly productSuggest = new DocumentProductSuggestStore();
 
   /** Il pannello di ricerca a tutta pagina, aperto dalla lente della riga. */
@@ -1378,6 +1445,40 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       })),
     };
   }
+
+  /**
+   * Uscita da un campo codice della card. **Lo sfocamento conferma**, come Tab
+   * sul desktop: perdere il fuoco su un telefono non è un caso.
+   *
+   * ⚠️ È un punto solo e RITARDATO, perché qui si incrociano due meccanismi che
+   * presi separatamente si pestano: la conferma allo sfocamento e la grazia che
+   * lascia arrivare il tocco su una voce della scelta. Toccando una voce, se lo
+   * sfocamento confermasse per primo partirebbe una seconda ricerca il cui
+   * esito «più d'una» riaprirebbe la scelta DOPO che il tocco l'aveva risolta.
+   * I tre casi sotto sono in ordine, e l'ordine conta.
+   */
+  protected onMobileCodeBlur(index: number, field: SalesDocumentCodeField): void {
+    if (this.mobileCodeBlurTimer !== null) {
+      clearTimeout(this.mobileCodeBlurTimer);
+    }
+    this.mobileCodeBlurTimer = setTimeout(() => {
+      this.mobileCodeBlurTimer = null;
+      // 1. Il tocco su una voce ha già agganciato la riga: niente da fare.
+      if (this.lines.at(index)?.controls.variantId.value) {
+        return;
+      }
+      // 2. Scelta aperta e non presa: si abbandona. Il valore digitato resta
+      //    scritto, e NON si cerca di nuovo — è ciò che la farebbe ricomparire.
+      if (this.codeLookup.isOpenOn(index, field)) {
+        this.codeLookup.clear();
+        return;
+      }
+      // 3. Codice digitato e mai confermato: qui lo sfocamento fa la conferma.
+      this.commitCodeLookup(index, field);
+    }, MOBILE_PICK_GRACE_MS);
+  }
+
+  private mobileCodeBlurTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected onCodeSuggestionPick(index: number, variantId: string): void {
     this.onVariantSelect(index, variantId);
