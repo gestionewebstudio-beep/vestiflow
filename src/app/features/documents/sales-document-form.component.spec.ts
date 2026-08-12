@@ -161,7 +161,9 @@ describe('SalesDocumentFormComponent', () => {
     // Testata desktop e pannello mobile convivono nel DOM: si usa la prima.
     await user.click(screen.getAllByRole('button', { name: 'Cliente' })[0]!);
     await user.click(screen.getByRole('option', { name: 'Mario Rossi' }));
-    await user.type(screen.getByLabelText('Descrizione'), 'Maglietta');
+    // Da 12/08/2026 la riga ha la cella nome CONDIVISA («Nome prodotto») al
+    // posto della vecchia coppia tendina + colonna Descrizione.
+    await user.type(screen.getAllByLabelText('Nome prodotto')[0]!, 'Maglietta');
   }
 
   /**

@@ -458,22 +458,14 @@
 
           <div class="doc-form__table-wrap">
             <table class="doc-form__table">
-              <colgroup>
-                <col style="width: 16%" />
-                <col />
-                <col style="width: 7%" />
-                <col style="width: 10%" />
-                <col style="width: 8%" />
-                <col style="width: 13%" />
-                @if (showLoadsStockColumn()) {
-                  <col style="width: 8%" />
-                }
-                <col style="width: 5%" />
-              </colgroup>
               <thead>
                 <tr>
-                  <th scope="col">Articolo / SKU</th>
-                  <th scope="col" class="doc-form__col--sep">Descrizione</th>
+                  <th scope="col" style="width: 8%">Cod. articolo</th>
+                  <th scope="col" style="width: 9%">SKU</th>
+                  <th scope="col" style="width: 10%">EAN</th>
+                  <th scope="col" class="doc-form__th--product doc-form__col--sep">
+                    Nome prodotto
+                  </th>
                   <th scope="col" class="doc-form__num doc-form__col--stock">Qtà</th>
                   <th scope="col" class="doc-form__num doc-form__col--sale">
                     {{ priceRowLabel() }}
@@ -491,29 +483,113 @@
               <tbody formArrayName="lines">
                 @for (line of lines.controls; track line; let i = $index) {
                   <tr [formGroupName]="i">
+                    <!--
+                      I tre codici e il nome, come negli altri documenti: il
+                      codice si conferma (Tab/Invio) e cerca a corrispondenza
+                      esatta, il nome suggerisce mentre si digita. Prima qui
+                      c'erano una tendina con la ricerca dentro e una colonna
+                      Descrizione a parte — il meccanismo di prima, rimasto qui
+                      mentre gli altri documenti andavano avanti.
+                    -->
                     <td class="doc-form__cell doc-form__cell--editable doc-form__cell--code">
-                      <app-select-menu
-                        [options]="variantOptions()"
-                        [value]="line.controls.variantId.value"
-                        ariaLabel="Variante"
-                        placeholder="Cerca prodotto…"
-                        [compact]="true"
-                        [fullWidth]="true"
-                        [searchable]="true"
-                        [filterOptionsLocally]="false"
-                        searchPlaceholder="SKU o nome…"
-                        searchAriaLabel="Cerca variante"
-                        (searchChange)="onVariantSearch($event)"
-                        (valueChange)="onVariantSelect(i, $event)"
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'sd-code-' + i"
+                        ariaLabel="Codice articolo"
+                        placeholder="Cerca codice"
+                        [value]="line.controls.articleCode.value"
+                        [linked]="!!line.controls.variantId.value"
+                        [linkedValue]="line.controls.articleCode.value"
+                        [disabled]="formReadOnly()"
+                        [suggestions]="codeLookup.matchesFor(i, 'articleCode')"
+                        [suggestionsOpen]="codeLookup.isOpenOn(i, 'articleCode')"
+                        [activeSuggestionIndex]="codeLookup.activeIndex()"
+                        (suggestionNavigate)="codeLookup.navigate($event)"
+                        (suggestionPick)="onCodeSuggestionPick($event.lineIndex, $event.variantId)"
+                        (valueChange)="onLineCodeChange(i, 'articleCode', $event)"
+                        (focused)="onLineCodeFocus(i, 'articleCode')"
+                        (blurred)="onLineCodeBlur(i)"
+                        (commit)="commitCodeLookup(i, 'articleCode', $event.advance)"
+                        (lineRetreat)="lineFocus.previous(i, 'articleCode')"
+                        (lineRowAdvance)="lineFocus.rowDown(i, 'articleCode')"
+                        (lineRowRetreat)="lineFocus.rowUp(i, 'articleCode')"
+                        (escapePressed)="onLineSearchEscape(i)"
+                      />
+                    </td>
+                    <td class="doc-form__cell doc-form__cell--editable doc-form__cell--code">
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'sd-sku-' + i"
+                        ariaLabel="SKU"
+                        placeholder="Cerca SKU"
+                        [value]="line.controls.sku.value"
+                        [linked]="!!line.controls.variantId.value"
+                        [linkedValue]="line.controls.sku.value"
+                        [disabled]="formReadOnly()"
+                        [suggestions]="codeLookup.matchesFor(i, 'sku')"
+                        [suggestionsOpen]="codeLookup.isOpenOn(i, 'sku')"
+                        [activeSuggestionIndex]="codeLookup.activeIndex()"
+                        (suggestionNavigate)="codeLookup.navigate($event)"
+                        (suggestionPick)="onCodeSuggestionPick($event.lineIndex, $event.variantId)"
+                        (valueChange)="onLineCodeChange(i, 'sku', $event)"
+                        (focused)="onLineCodeFocus(i, 'sku')"
+                        (blurred)="onLineCodeBlur(i)"
+                        (commit)="commitCodeLookup(i, 'sku', $event.advance)"
+                        (lineRetreat)="lineFocus.previous(i, 'sku')"
+                        (lineRowAdvance)="lineFocus.rowDown(i, 'sku')"
+                        (lineRowRetreat)="lineFocus.rowUp(i, 'sku')"
+                        (escapePressed)="onLineSearchEscape(i)"
+                      />
+                    </td>
+                    <td class="doc-form__cell doc-form__cell--editable doc-form__cell--code">
+                      <app-document-line-code-cell
+                        [lineIndex]="i"
+                        [inputId]="'sd-barcode-' + i"
+                        ariaLabel="EAN"
+                        placeholder="Scansiona EAN"
+                        [value]="line.controls.barcode.value"
+                        [linked]="!!line.controls.variantId.value"
+                        [linkedValue]="line.controls.barcode.value"
+                        [disabled]="formReadOnly()"
+                        [suggestions]="codeLookup.matchesFor(i, 'barcode')"
+                        [suggestionsOpen]="codeLookup.isOpenOn(i, 'barcode')"
+                        [activeSuggestionIndex]="codeLookup.activeIndex()"
+                        (suggestionNavigate)="codeLookup.navigate($event)"
+                        (suggestionPick)="onCodeSuggestionPick($event.lineIndex, $event.variantId)"
+                        (valueChange)="onLineCodeChange(i, 'barcode', $event)"
+                        (focused)="onLineCodeFocus(i, 'barcode')"
+                        (blurred)="onLineCodeBlur(i)"
+                        (commit)="commitCodeLookup(i, 'barcode', $event.advance)"
+                        (lineRetreat)="lineFocus.previous(i, 'barcode')"
+                        (lineRowAdvance)="lineFocus.rowDown(i, 'barcode')"
+                        (lineRowRetreat)="lineFocus.rowUp(i, 'barcode')"
+                        (escapePressed)="onLineSearchEscape(i)"
                       />
                     </td>
                     <td class="doc-form__cell doc-form__cell--editable doc-form__col--sep">
-                      <input
-                        [id]="'sd-desc-' + i"
-                        class="doc-form__input doc-form__input--table"
-                        type="text"
-                        formControlName="description"
-                        aria-label="Descrizione"
+                      <app-document-line-product-cell
+                        [lineIndex]="i"
+                        [inputId]="'sd-product-' + i"
+                        [value]="line.controls.description.value"
+                        [linked]="!!line.controls.variantId.value"
+                        [disabled]="formReadOnly()"
+                        [invalid]="lineDescriptionInvalid(i)"
+                        [suggestions]="lineSuggestions(i)"
+                        [suggestionsOpen]="lineSuggestionsOpen(i)"
+                        [activeSuggestionIndex]="productSuggest.activeIndex()"
+                        (valueChange)="onLineProductNameChange(i, $event)"
+                        (focused)="onLineProductFocus($event)"
+                        (blurred)="onLineProductBlur($event)"
+                        (searchOpen)="openLineProductSearch($event)"
+                        (suggestionPick)="
+                          onProductSuggestionPick($event.lineIndex, $event.variantId)
+                        "
+                        (suggestionNavigate)="onProductSuggestionNavigate($event)"
+                        (lineAdvance)="lineFocus.next(i, 'product')"
+                        (lineRetreat)="lineFocus.previous(i, 'product')"
+                        (lineRowAdvance)="lineFocus.rowDown(i, 'product')"
+                        (lineRowRetreat)="lineFocus.rowUp(i, 'product')"
+                        (escapePressed)="onLineSearchEscape(i)"
                       />
                     </td>
                     <td
@@ -890,6 +966,17 @@
           Salva documento
         </app-button>
       </div>
+      <!-- La ricerca articolo a tutta pagina, aperta dalla lente della riga. -->
+      @if (productPanelOpen()) {
+        <app-document-product-search-panel
+          [launchTerm]="productPanelTerm()"
+          [launchSeq]="productPanelSeq()"
+          [locationId]="form.controls.locationId.value"
+          [canCreate]="false"
+          (variantSelected)="onProductPanelSelected($event.variantId)"
+          (dismissed)="productPanelOpen.set(false)"
+        />
+      }
     </form>
   }
 

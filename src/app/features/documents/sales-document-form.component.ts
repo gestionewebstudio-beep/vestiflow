@@ -86,6 +86,15 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
 import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
+import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
+import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
+import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
+import { DocumentCodeLookupStore } from '@domain/documents/state/document-code-lookup.store';
+import { DocumentCodeLookupService } from '@domain/documents/services/document-code-lookup.service';
+import { DocumentProductSuggestStore } from '@domain/documents/state/document-product-suggest.store';
+import { DocumentLineFocusStore } from '@domain/documents/state/document-line-focus.store';
+import type { DocumentLineCodeField } from '@domain/documents/utils/document-code-match.util';
+import type { LineCodeChoice } from '@domain/documents/models/document-line-code-choice.model';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import {
@@ -125,6 +134,13 @@ import { FirstClickSelectsDirective } from '@shared/directives/first-click-selec
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
 
 const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
+/** I campi di riga nell'ordine in cui il Tab li attraversa. */
+type SalesDocumentLineFocusField =
+  'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount' | 'vat';
+
+/** I tre codici di questa maschera: niente codice fornitore, è una vendita. */
+type SalesDocumentCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 'barcode'>;
+
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
 
@@ -148,6 +164,9 @@ type SubmitState =
     DateInputComponent,
     DocumentIncludePanelComponent,
     DocumentMobilePanelComponent,
+    DocumentLineCodeCellComponent,
+    DocumentLineProductCellComponent,
+    DocumentProductSearchPanelComponent,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -574,7 +593,16 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         if (term.length < VARIANT_SEARCH_MIN_CHARS) {
           return of([] as readonly VariantSummary[]);
         }
-        return this.productService.searchVariantSummaries({ search: term, pageSize: 30 });
+        // `locationId` non filtra i risultati: restringe le giacenze mostrate
+        // alla sede del documento.
+        const locationId = this.form.controls.locationId.value || undefined;
+        return (
+          this.productService
+            .searchVariantSummaries({ search: term, pageSize: 30, locationId })
+            // Senza questo un errore di rete chiude il flusso di `toSignal` e
+            // SPEGNE la ricerca per il resto della sessione, senza dire niente.
+            .pipe(catchError(() => of([] as readonly VariantSummary[])))
+        );
       }),
     ),
     { initialValue: [] as readonly VariantSummary[] },
@@ -1003,12 +1031,257 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     this.variantSearchDraft.set(value);
   }
 
-  protected onVariantSelect(index: number, variantId: string | null): void {
+  // ── Cella nome: si digita e i suggerimenti arrivano sotto ─────────────────
+
+  protected readonly productSuggest = new DocumentProductSuggestStore();
+
+  /** Il pannello di ricerca a tutta pagina, aperto dalla lente della riga. */
+  protected readonly productPanelOpen = signal(false);
+  protected readonly productPanelTerm = signal('');
+  protected readonly productPanelSeq = signal(0);
+  private productPanelLineIndex = -1;
+
+  protected openLineProductSearch(index: number): void {
+    this.productPanelLineIndex = index;
+    this.productPanelTerm.set(this.lines.at(index)?.controls.description.value ?? '');
+    this.productPanelSeq.update((seq) => seq + 1);
+    this.productPanelOpen.set(true);
+  }
+
+  protected onProductPanelSelected(variantId: string): void {
+    if (this.productPanelLineIndex >= 0) {
+      this.onVariantSelect(this.productPanelLineIndex, variantId);
+    }
+    this.productPanelOpen.set(false);
+  }
+
+  private suggestInputs(index: number): {
+    hasLinked: boolean;
+    searched: readonly VariantSummary[];
+  } {
+    return {
+      hasLinked: !!this.lines.at(index)?.controls.variantId.value,
+      searched: this.searchedVariants() ?? [],
+    };
+  }
+
+  protected lineSuggestions(index: number): readonly VariantSummary[] {
+    return this.productSuggest.suggestionsFor(index, this.suggestInputs(index));
+  }
+
+  protected lineSuggestionsOpen(index: number): boolean {
+    return this.productSuggest.isOpenOn(index, this.suggestInputs(index));
+  }
+
+  protected onLineProductNameChange(index: number, value: string): void {
+    this.lines.at(index)?.controls.description.setValue(value);
+    this.productSuggest.focusLine(index);
+    this.variantSearchDraft.set(value);
+  }
+
+  protected onLineProductFocus(index: number): void {
+    this.productSuggest.focusLine(index);
+    this.variantSearchDraft.set(this.lines.at(index)?.controls.description.value ?? '');
+  }
+
+  /** Riga senza descrizione, dopo che l'operatore l'ha toccata. */
+  protected lineDescriptionInvalid(index: number): boolean {
+    const control = this.lines.at(index)?.controls.description;
+    return !!control && control.invalid && (control.touched || control.dirty);
+  }
+
+  protected onLineProductBlur(index: number): void {
+    this.productSuggest.blurLine(index);
+  }
+
+  protected onProductSuggestionPick(index: number, variantId: string): void {
+    this.onVariantSelect(index, variantId);
+    this.productSuggest.clear();
+  }
+
+  /** Frecce sui suggerimenti: il conteggio lo sa solo la maschera. */
+  protected onProductSuggestionNavigate(direction: 'next' | 'prev'): void {
+    const lineIndex = this.productSuggest.lineIndex();
+    if (lineIndex === null) {
+      return;
+    }
+    this.productSuggest.navigate(direction, this.lineSuggestions(lineIndex).length);
+  }
+
+  // ── Celle codice: confronto esatto alla conferma ──────────────────────────
+  //
+  // Il campo codice NON cerca mentre si digita: confronta col catalogo alla
+  // conferma (Tab/Invio), per corrispondenza esatta, e gli esiti sono tre —
+  // una aggancia, più d'una apre la scelta, nessuna lascia il valore scritto.
+
+  protected readonly codeLookup = new DocumentCodeLookupStore();
+  private readonly codeLookupService = inject(DocumentCodeLookupService);
+
+  protected onLineCodeChange(index: number, field: SalesDocumentCodeField, value: string): void {
+    this.lines.at(index)?.controls[field].setValue(value);
+    this.codeLookup.clear();
+    this.markFormDirty();
+  }
+
+  protected onLineCodeFocus(index: number, field: SalesDocumentCodeField): void {
+    this.productSuggest.clear();
+    if (this.codeLookup.isOpenOn(index, field)) {
+      return;
+    }
+    this.codeLookup.clear();
+  }
+
+  protected onLineCodeBlur(index: number): void {
+    if (this.codeLookup.isOpenOnLine(index)) {
+      this.codeLookup.clear();
+    }
+  }
+
+  protected onLineSearchEscape(index: number): void {
+    this.codeLookup.clear();
+    this.productSuggest.blurLine(index);
+  }
+
+  protected commitCodeLookup(index: number, field: SalesDocumentCodeField, advance = true): void {
+    const line = this.lines.at(index);
+    if (!line) {
+      return;
+    }
+    if (line.controls.variantId.value) {
+      if (advance) {
+        this.lineFocus.next(index, field);
+      }
+      return;
+    }
+    const code = line.controls[field].value.trim();
+    if (!code) {
+      this.codeLookup.clear();
+      if (advance) {
+        this.lineFocus.next(index, field);
+      }
+      return;
+    }
+    const locationId = this.form.controls.locationId.value || undefined;
+    this.codeLookupService
+      .resolve(code, field, { locationId })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((outcome) => {
+        if (outcome.kind === 'one') {
+          this.onVariantSelect(index, outcome.variantId, outcome.summary);
+          this.codeLookup.clear();
+          this.lineFocus.focusField(index, 'quantity');
+          return;
+        }
+        if (outcome.kind === 'many') {
+          this.codeLookup.open(index, field, outcome.matches);
+          return;
+        }
+        // Nessuna corrispondenza: il valore resta scritto e la riga prosegue.
+        this.codeLookup.clear();
+        if (advance) {
+          this.lineFocus.next(index, field);
+        }
+      });
+  }
+
+  /**
+   * La scelta fra più corrispondenze, per la vista compatta: quale campo la
+   * mostra e con quali voci. Il testo lo compone qui.
+   */
+  protected mobileCodeChoice(index: number): LineCodeChoice | null {
+    const field = this.codeLookup.field();
+    if (!field || field === 'supplierCode' || !this.codeLookup.isOpenOnLine(index)) {
+      return null;
+    }
+    return {
+      field,
+      items: this.codeLookup.matches().map((variant) => ({
+        variantId: variant.variantId,
+        title: variant.title,
+        detail: [variant.productName, variant.sku, variant.barcode ? `EAN ${variant.barcode}` : '']
+          .filter(Boolean)
+          .join(' · '),
+      })),
+    };
+  }
+
+  protected onCodeSuggestionPick(index: number, variantId: string): void {
+    this.onVariantSelect(index, variantId);
+    this.codeLookup.clear();
+    this.lineFocus.focusField(index, 'quantity');
+  }
+
+  // ── Il giro del fuoco fra i campi riga ────────────────────────────────────
+
+  protected readonly lineFocus = new DocumentLineFocusStore<SalesDocumentLineFocusField>({
+    fields: [
+      'articleCode',
+      'sku',
+      'barcode',
+      'product',
+      'quantity',
+      'unitPrice',
+      'discount',
+      'vat',
+    ],
+    elementId: (index, field) =>
+      ({
+        articleCode: `sd-code-` + index,
+        sku: `sd-sku-` + index,
+        barcode: `sd-barcode-` + index,
+        product: `sd-product-` + index,
+        quantity: `sd-qty-` + index,
+        unitPrice: `sd-price-` + index,
+        discount: `sd-discount-` + index,
+        vat: `sd-vat-` + index,
+      })[field],
+    // Su riga agganciata i tre codici diventano testo: il Tab li salta.
+    isFieldEnabled: (index, field) => {
+      const identita = field === 'articleCode' || field === 'sku' || field === 'barcode';
+      return !(identita && !!this.lines.at(index)?.controls.variantId.value);
+    },
+    isReadOnly: () => this.formReadOnly(),
+    lineCount: () => this.lines.length,
+    createLine: () => this.addLine(),
+    onRowChange: (_index, then) => {
+      setTimeout(then);
+    },
+    isLineEmpty: (index) => {
+      const line = this.lines.at(index);
+      if (!line) {
+        return true;
+      }
+      const raw = line.getRawValue();
+      return (
+        !raw.variantId &&
+        !raw.articleCode.trim() &&
+        !raw.sku.trim() &&
+        !raw.barcode.trim() &&
+        !raw.description.trim()
+      );
+    },
+    removeLine: (index) => this.removeLine(index),
+  });
+
+  /**
+   * Aggancia la riga a una variante. `known` è il riepilogo quando chi chiama
+   * ce l'ha già in mano — la conferma di un codice lo riceve dalla ricerca —:
+   * senza, si cerca fra i risultati, dove una variante trovata per codice non
+   * c'è ancora e i campi resterebbero vuoti.
+   */
+  protected onVariantSelect(
+    index: number,
+    variantId: string | null,
+    known: VariantSummary | null = null,
+  ): void {
     const line = this.lines.at(index);
     line.controls.variantId.setValue(variantId ?? '');
-    const match = this.searchedVariants().find((v) => v.variantId === variantId);
+    const match = known ?? this.searchedVariants().find((v) => v.variantId === variantId);
     if (match) {
       line.controls.description.setValue(match.productName);
+      line.controls.sku.setValue(match.sku);
+      line.controls.articleCode.setValue(match.articleCode);
+      line.controls.barcode.setValue(match.barcode ?? '');
       // «Scarica mag.» segue il tipo articolo già esistente in VestiFlow:
       // un Articolo scarica, un Servizio no. Resta modificabile a mano.
       line.controls.loadsStock.setValue(match.managesStock !== false, { emitEvent: false });
@@ -1413,6 +1686,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           const ratePercent = Number(line.vatRatePercent) || 0;
           return {
             variantId: line.variantId || undefined,
+            // Fotografia dello SKU sulla riga, come su ogni altro documento: il
+            // documento riaperto dice quello che diceva quando fu compilato.
+            sku: line.sku?.trim() || undefined,
             description: line.description.trim() || 'Riga documento',
             quantity: Number(line.quantity),
             // Al server va il netto: se il campo mostrava l'ivato, si scorpora qui.
@@ -1859,29 +2135,26 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     }
     this.lines.clear();
     for (const line of prefill.lines ?? []) {
-      this.lines.push(
-        this.fb.group({
-          variantId: this.fb.control(line.variantId ?? ''),
-          description: this.fb.control(line.description, { validators: [Validators.required] }),
-          quantity: this.fb.control(line.quantity, {
-            validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
-          }),
-          // Prezzo memorizzato netto: mostrato nella modalità di questo documento.
-          unitPrice: this.fb.control(
-            Number(line.unitPriceMinor) > 0
-              ? this.priceFieldValue(Number(line.unitPriceMinor), line.vatRatePercent ?? 0)
-              : '',
-          ),
-          vatRatePercent: this.fb.control(
-            line.vatRatePercent != null ? String(line.vatRatePercent) : '',
-          ),
-          vatCodeId: this.fb.control(''),
-          discountPercent: this.fb.control(
-            line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
-          ),
-          loadsStock: this.fb.control(line.loadsStock ?? false),
-        }),
-      );
+      // Una riga la costruisce `createLine`, e basta lei: qui c'era una seconda
+      // copia dei controlli, scritta a mano. Copie così non divergono con un
+      // errore, divergono con un campo aggiunto da una parte sola.
+      const group = this.createLine();
+      group.patchValue({
+        variantId: line.variantId ?? '',
+        description: line.description,
+        quantity: line.quantity,
+        // Prezzo memorizzato netto: mostrato nella modalità di questo documento.
+        unitPrice:
+          Number(line.unitPriceMinor) > 0
+            ? this.priceFieldValue(Number(line.unitPriceMinor), line.vatRatePercent ?? 0)
+            : '',
+        vatRatePercent: line.vatRatePercent != null ? String(line.vatRatePercent) : '',
+        vatCodeId: '',
+        discountPercent:
+          line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
+        loadsStock: line.loadsStock ?? false,
+      });
+      this.lines.push(group);
     }
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
@@ -1944,26 +2217,26 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     }
     this.lines.clear();
     for (const line of doc.lines ?? []) {
-      this.lines.push(
-        this.fb.group({
-          variantId: this.fb.control(line.variantId ?? ''),
-          description: this.fb.control(line.description, { validators: [Validators.required] }),
-          quantity: this.fb.control(line.quantity, {
-            validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
-          }),
-          // Il documento ha memorizzato il netto: si rimostra nella modalità con
-          // cui era stato compilato, che è l'unica cosa che quel flag racconta.
-          unitPrice: this.fb.control(
-            this.priceFieldValue(line.unitPrice.amountMinor, line.vatSnapshot?.ratePercent ?? 0),
-          ),
-          vatRatePercent: this.fb.control(line.vatSnapshot?.ratePercent?.toString() ?? ''),
-          vatCodeId: this.fb.control(line.vatCodeId ?? ''),
-          discountPercent: this.fb.control(
-            line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
-          ),
-          loadsStock: this.fb.control(line.loadsStock),
-        }),
-      );
+      // Come sopra: la riga si costruisce in un punto solo.
+      const group = this.createLine();
+      group.patchValue({
+        variantId: line.variantId ?? '',
+        sku: line.sku ?? '',
+        description: line.description,
+        quantity: line.quantity,
+        // Il documento ha memorizzato il netto: si rimostra nella modalità con
+        // cui era stato compilato, che è l'unica cosa che quel flag racconta.
+        unitPrice: this.priceFieldValue(
+          line.unitPrice.amountMinor,
+          line.vatSnapshot?.ratePercent ?? 0,
+        ),
+        vatRatePercent: line.vatSnapshot?.ratePercent?.toString() ?? '',
+        vatCodeId: line.vatCodeId ?? '',
+        discountPercent:
+          line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
+        loadsStock: line.loadsStock,
+      });
+      this.lines.push(group);
     }
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
@@ -1973,6 +2246,12 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private createLine() {
     return this.fb.group({
       variantId: this.fb.control(''),
+      // Le tre chiavi d'identità e lo SKU fotografato. I primi tre non si
+      // salvano — si digitano per TROVARE l'articolo e restano scritti se non
+      // corrisponde niente; lo SKU invece viaggia, come su ogni altro documento.
+      articleCode: this.fb.control(''),
+      sku: this.fb.control(''),
+      barcode: this.fb.control(''),
       description: this.fb.control('', { validators: [Validators.required] }),
       quantity: this.fb.control(1, {
         validators: [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
