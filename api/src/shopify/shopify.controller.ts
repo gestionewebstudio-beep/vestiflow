@@ -6,11 +6,13 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   CATALOG_SECTION_PERMISSIONS,
   SHOPIFY_CATALOG_SYNC_PERMISSIONS,
+  SHOPIFY_CUSTOMERS_SYNC_GROUPS,
   SHOPIFY_INVENTORY_SYNC_PERMISSIONS,
-  SHOPIFY_OPERATIONAL_SYNC_PERMISSIONS,
+  SHOPIFY_ORDERS_SYNC_GROUPS,
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
+  RequireAllPermissionGroups,
   RequireAnyPermissions,
   RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
@@ -199,8 +201,13 @@ export class ShopifyController {
     return { synced: true, ...result };
   }
 
+  /**
+   * Non è un export: scrive nell'anagrafica clienti. Con il solo «Esportare
+   * dati» chi poteva scaricare un CSV riscriveva i clienti dal canale — nomi,
+   * recapiti e indirizzi — senza avere «Gestire clienti».
+   */
   @Post('sync/customers')
-  @RequireAnyPermissions(SHOPIFY_OPERATIONAL_SYNC_PERMISSIONS)
+  @RequireAllPermissionGroups(SHOPIFY_CUSTOMERS_SYNC_GROUPS)
   async syncCustomers(
     @CurrentTenant() tenantId: string,
   ): Promise<{ synced: true } & ShopifyCustomersPullResult> {
@@ -208,8 +215,14 @@ export class ShopifyController {
     return { synced: true, ...result };
   }
 
+  /**
+   * Nemmeno questo è un export: importa gli ordini del canale e libera gli
+   * impegni di magazzino di quelli spariti da Shopify. Con il solo «Esportare
+   * dati» quelle vendite entravano nel gestionale per mano di chi non ha il
+   * permesso di consultarle.
+   */
   @Post('sync/orders')
-  @RequireAnyPermissions(SHOPIFY_OPERATIONAL_SYNC_PERMISSIONS)
+  @RequireAllPermissionGroups(SHOPIFY_ORDERS_SYNC_GROUPS)
   async syncOrders(
     @CurrentTenant() tenantId: string,
   ): Promise<{ synced: true } & ShopifyOrdersPullResult> {

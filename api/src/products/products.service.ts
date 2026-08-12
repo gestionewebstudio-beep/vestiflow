@@ -21,6 +21,7 @@ import { canViewPurchaseCosts } from '../auth/user-permissions.util';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { buildInventoryVariantSearchWhere } from '../inventory/inventory-variant-search.util';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { buildVariantTitle } from '../inventory/import/inventory-csv.util';
 import { toShopifyUserMessage } from '../shopify/shopify-user-error.util';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
@@ -260,6 +261,22 @@ export class ProductsService {
     query: ListVariantSummariesQueryDto,
     user?: UserProfileDto,
   ): Promise<Paginated<VariantSummaryDto>> {
+    // Il gate della rotta chiede la sola sezione «Prodotti», ma il `locationId`
+    // della query sposta la lettura sulle giacenze di UNA sede: senza questo
+    // controllo un commesso assegnato al solo negozio di Milano leggeva
+    // giacenza e disponibilità di Napoli aggiungendo l'id alla querystring,
+    // dalla stessa maschera documento che ha il diritto di usare. La sede
+    // arriva nel corpo della richiesta, quindi si verifica qui — prima della
+    // query, non dopo aver già letto i numeri.
+    // Titolare, `hasAllLocationsAccess` e `inventory.view_all_locations`
+    // continuano a vedere ogni sede; senza utente (chiamate interne) non si
+    // decide nulla, e senza `locationId` la risposta resta il totale
+    // multi-sede di sempre.
+    assertLocationReadableInUserScope(
+      user,
+      query.locationId,
+      'Non sei autorizzato a consultare le giacenze di questo magazzino.',
+    );
     const showPurchaseCosts = canViewPurchaseCosts(user);
     const search = query.search?.trim();
     const where: Prisma.ProductVariantWhereInput = {

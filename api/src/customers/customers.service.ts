@@ -1,10 +1,13 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { DocumentType, Prisma } from '@prisma/client';
 
+import { canManageDocumentType } from '../auth/document-permission.util';
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import type { Paginated } from '../common/dto/pagination.dto';
 import {
   CUSTOMER_PARTY_INCLUDE,
@@ -137,7 +140,15 @@ export class CustomersService {
     return toCustomerView(await this.getRowById(tenantId, id));
   }
 
-  async create(tenantId: string, dto: CreateCustomerDto): Promise<CustomerView> {
+  async create(
+    tenantId: string,
+    dto: CreateCustomerDto,
+    user?: UserProfileDto,
+  ): Promise<CustomerView> {
+    // Un soggetto appena creato non ha ancora il ruolo fornitore: lo stato di
+    // partenza è sempre «non è fornitore», quindi solo la spunta ATTIVA sposta
+    // l'operazione sull'anagrafica gemella. Prima di ogni effetto.
+    this.assertSupplierRoleChangeAllowed(dto.alsoSupplier, false, user);
     const partyData = this.normalizePartyWrite(dto);
     const roleData = this.normalizeRoleWrite(dto);
     this.assertIdentityPresent(partyData);
@@ -167,8 +178,21 @@ export class CustomersService {
     return this.getById(tenantId, created);
   }
 
-  async update(tenantId: string, id: string, dto: UpdateCustomerDto): Promise<CustomerView> {
+  async update(
+    tenantId: string,
+    id: string,
+    dto: UpdateCustomerDto,
+    user?: UserProfileDto,
+  ): Promise<CustomerView> {
     const existing = await this.getRowById(tenantId, id);
+    // Subito dopo la lettura dello stato attuale e prima di qualunque
+    // scrittura: la spunta va confrontata con il ruolo fornitore che il
+    // soggetto ha adesso, perché è la DIFFERENZA a toccare l'altra anagrafica.
+    this.assertSupplierRoleChangeAllowed(
+      dto.alsoSupplier,
+      existing.party.supplierRole?.isActive ?? false,
+      user,
+    );
     const partyData = this.normalizePartyWrite(dto, existing.shopifyCustomerId != null);
     const roleData = this.normalizeRoleWrite(dto);
     this.assertIdentityPresent({
@@ -196,6 +220,41 @@ export class CustomersService {
     });
 
     return this.getById(tenantId, id);
+  }
+
+  /**
+   * Speculare a `SuppliersService.assertCustomerRoleChangeAllowed`. Senza
+   * questa guardia, la spunta «È anche fornitore» del form cliente crea (o
+   * disattiva) un'anagrafica FORNITORE con il solo `customers.manage` chiesto
+   * dalla rotta: nascerebbe un fornitore — sceglibile in ordini fornitore,
+   * arrivi merce e registrazioni fattura — senza `doc.supplier_order.manage`,
+   * che è il permesso con cui l'anagrafica fornitori si scrive davvero.
+   *
+   * Il controllo scatta anche in RIMOZIONE (`false` su un ruolo attivo):
+   * disattivare il ruolo fornitore lo toglie da ogni nuovo documento
+   * d'acquisto, ed è una scrittura sull'altra anagrafica come aggiungerlo.
+   *
+   * NON scatta quando la spunta arriva uguale a com'è già: la maschera manda
+   * il campo a ogni salvataggio (`alsoSupplier: raw.alsoSupplier ?? false`), e
+   * chiedere il permesso sulla sola PRESENZA bloccherebbe ogni modifica di
+   * cliente a chi non gestisce gli ordini fornitore.
+   *
+   * Senza utente in contesto (chiamate interne, lavori di sistema) non si
+   * decide nulla: l'autorizzazione l'ha già data chi ha avviato l'operazione.
+   */
+  private assertSupplierRoleChangeAllowed(
+    requested: boolean | undefined,
+    current: boolean,
+    user?: UserProfileDto,
+  ): void {
+    if (!user || requested === undefined || requested === current) {
+      return;
+    }
+    if (!canManageDocumentType(user, DocumentType.supplier_order)) {
+      throw new ForbiddenException(
+        'Non hai il permesso di gestire i fornitori: la spunta «È anche fornitore» non è disponibile.',
+      );
+    }
   }
 
   /** Prossimo codice cliente progressivo (anteprima nel form). */

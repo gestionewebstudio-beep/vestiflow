@@ -448,7 +448,35 @@ export const SHOPIFY_INVENTORY_SYNC_PERMISSIONS = [
   TenantPermission.InventoryImportExport,
 ] as const satisfies readonly TenantPermissionKey[];
 
-/** Sync clienti/ordini Shopify (export dati). */
-export const SHOPIFY_OPERATIONAL_SYNC_PERMISSIONS = [
-  TenantPermission.ReportsExport,
-] as const satisfies readonly TenantPermissionKey[];
+// Le due sincronizzazioni «operative» del canale stavano dietro UNA costante
+// sola, che valeva `[reports.export]`. Sono separate perché toccano entità
+// diverse: una costante condivisa può chiedere solo il permesso più debole fra
+// i due usi, e infatti chiedeva quello di uno scarico CSV per due scritture.
+
+/**
+ * Sync clienti Shopify: «Esportare dati» E il permesso che governa la
+ * scrittura dell'anagrafica. Senza il secondo gruppo, chi poteva solo
+ * scaricare un CSV creava e aggiornava clienti dal canale — la stessa
+ * scrittura che `POST /customers` protegge con `customers.manage`.
+ */
+export const SHOPIFY_CUSTOMERS_SYNC_GROUPS = [
+  [TenantPermission.ReportsExport],
+  [TenantPermission.CustomersManage],
+] as const;
+
+/**
+ * Sync ordini Shopify: «Esportare dati» E il diritto di vedere le vendite
+ * online (sezione E famiglia, la stessa forma dei corrispettivi). L'import
+ * crea gli ordini del canale e libera gli impegni di magazzino di quelli
+ * spariti da Shopify: senza il secondo requisito quelle carte entravano nel
+ * gestionale per mano di chi non ha il permesso di consultarle.
+ *
+ * Si chiede la CONSULTAZIONE e non la gestione perché `online_sale` è una
+ * famiglia di sola consultazione (VIEW_ONLY_DOCUMENT_FAMILIES): nessun preset
+ * assegna `doc.online_sale.manage`, quindi pretenderlo chiuderebbe la rotta a
+ * chiunque non sia il titolare.
+ */
+export const SHOPIFY_ORDERS_SYNC_GROUPS = [
+  [TenantPermission.ReportsExport],
+  ...ONLINE_SALES_VIEW_GROUPS,
+] as const;

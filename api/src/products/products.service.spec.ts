@@ -1,13 +1,16 @@
 import {
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TenantPermission } from '../auth/tenant-permission.constants';
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { ShopifyTaxonomyLocalizationService } from '../shopify/shopify-taxonomy-localization.service';
+import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { ProductsService } from './products.service';
 
 describe('ProductsService', () => {
@@ -805,6 +808,132 @@ describe('ProductsService', () => {
       .where;
     expect(where.tenantId).toBe(tenantId);
     expect(where.productId).toBe('prod-7');
+  });
+
+  // Il riepilogo varianti serve la ricerca articolo delle maschere documento:
+  // il `locationId` della query decide DI QUALE sede si leggono giacenza e
+  // disponibilità, e la rotta chiede solo la sezione «Prodotti». Il confine di
+  // sede va quindi verificato qui, nel servizio dove il dato arriva.
+  describe('listVariantSummaries — la sede segue l’utente, non la query', () => {
+    const NAPOLI = '11111111-1111-4111-8111-111111111111';
+    const MILANO = '22222222-2222-4222-8222-222222222222';
+
+    it('nega la sede fuori ambito e non legge nulla', async () => {
+      const { service, prisma } = createService();
+      // La lettura è pronta a riuscire: senza la guardia questa chiamata
+      // tornerebbe la giacenza di Napoli invece di fallire.
+      prisma.productVariant.findMany.mockResolvedValue([
+        {
+          ...(variantRowWithCost as object),
+          inventoryLevels: [{ onHand: 9, available: 9, minThreshold: 0 }],
+        },
+      ] as never);
+      prisma.productVariant.count.mockResolvedValue(1);
+      // Commesso con una sola sede assegnata: Napoli non è sua.
+      const clerk = testClerkUser({ assignedLocationIds: [MILANO] });
+
+      await expect(
+        service.listVariantSummaries(
+          tenantId,
+          { page: 1, pageSize: 20, locationId: NAPOLI } as never,
+          clerk,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      // Nessun effetto: la giacenza della sede negata non viene nemmeno letta.
+      expect(prisma.productVariant.findMany).not.toHaveBeenCalled();
+      expect(prisma.productVariant.count).not.toHaveBeenCalled();
+    });
+
+    it('lascia passare la sede assegnata e filtra la giacenza su quella', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findMany.mockResolvedValue([]);
+      prisma.productVariant.count.mockResolvedValue(0);
+      const clerk = testClerkUser({ assignedLocationIds: [MILANO] });
+
+      await service.listVariantSummaries(
+        tenantId,
+        { page: 1, pageSize: 20, locationId: MILANO } as never,
+        clerk,
+      );
+
+      const select = (
+        prisma.productVariant.findMany.mock.calls[0]?.[0] as {
+          select: { inventoryLevels: { where?: { locationId?: string } } };
+        }
+      ).select;
+      expect(select.inventoryLevels.where?.locationId).toBe(MILANO);
+    });
+
+    it('il titolare con array permessi vuoto vede qualunque sede', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findMany.mockResolvedValue([]);
+      prisma.productVariant.count.mockResolvedValue(0);
+      // Titolare senza sedi assegnate e senza permessi elencati: passa comunque.
+      const owner = testOwnerUser({ assignedLocationIds: [], permissions: [] });
+
+      await expect(
+        service.listVariantSummaries(
+          tenantId,
+          { page: 1, pageSize: 20, locationId: NAPOLI } as never,
+          owner,
+        ),
+      ).resolves.toMatchObject({ total: 0 });
+      expect(prisma.productVariant.findMany).toHaveBeenCalled();
+    });
+
+    it('chi ha «vedi tutte le sedi» continua a vedere qualunque sede', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findMany.mockResolvedValue([]);
+      prisma.productVariant.count.mockResolvedValue(0);
+      const clerk = testClerkUser({
+        assignedLocationIds: [MILANO],
+        permissions: [
+          TenantPermission.SectionProducts,
+          TenantPermission.InventoryViewAllLocations,
+        ],
+      });
+
+      await expect(
+        service.listVariantSummaries(
+          tenantId,
+          { page: 1, pageSize: 20, locationId: NAPOLI } as never,
+          clerk,
+        ),
+      ).resolves.toMatchObject({ total: 0 });
+    });
+
+    // Senza `locationId` la ricerca articolo delle maschere documento non
+    // cambia: totale multi-sede, anche per chi non ha sedi assegnate. Stringere
+    // anche qui azzererebbe la giacenza mostrata in mezza applicazione.
+    it('senza locationId non filtra e non nega, anche senza sedi assegnate', async () => {
+      const { service, prisma } = createService();
+      prisma.productVariant.findMany.mockResolvedValue([
+        {
+          ...(variantRowWithCost as object),
+          inventoryLevels: [
+            { onHand: 3, available: 2, minThreshold: 1 },
+            { onHand: 4, available: 4, minThreshold: 0 },
+          ],
+        },
+      ] as never);
+      prisma.productVariant.count.mockResolvedValue(1);
+      const clerk = testClerkUser({ assignedLocationIds: [] });
+
+      const result = await service.listVariantSummaries(
+        tenantId,
+        { page: 1, pageSize: 20 } as never,
+        clerk,
+      );
+
+      const select = (
+        prisma.productVariant.findMany.mock.calls[0]?.[0] as {
+          select: { inventoryLevels: { where?: unknown } };
+        }
+      ).select;
+      expect(select.inventoryLevels.where).toBeUndefined();
+      expect(result.items[0]).toMatchObject({ stockOnHand: 7, stockAvailable: 6 });
+    });
   });
 
   describe('duplicateProduct', () => {

@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { DocumentStatus, DocumentType, UserRole } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -253,5 +253,332 @@ describe('DocumentsService — matrice permessi documenti', () => {
   it('il ruolo non basta: un clerk senza famiglie non vede nulla', () => {
     const bare = testClerkUser({ permissions: [] });
     expect(bare.role).toBe(UserRole.clerk);
+  });
+});
+
+/**
+ * `includedSalesOrderIds` è un campo del CORPO che sposta l'operazione su
+ * un'altra famiglia: gli Ordini cliente. Il gate della rotta («gestisci almeno
+ * una famiglia») e quello del tipo salvato guardano il DDT, non l'ordine — ma
+ * agganciarlo ne CONSUMA gli impegni di magazzino alla conferma, e sganciarlo
+ * (elenco vuoto) lo riapre ricreandoli. Questi test tengono la guardia dove il
+ * dato arriva: nel servizio, prima di ogni effetto.
+ */
+describe('DocumentsService — ordini cliente agganciati al documento', () => {
+  const tenantId = 'tenant-1';
+
+  /**
+   * Errore riconoscibile al posto della transazione: oltre le guardie c'è solo
+   * la scrittura, quindi il verso positivo si vede dal fatto che ci arriva.
+   */
+  const transazioneRaggiunta = new Error('transazione raggiunta');
+
+  const soloDdt = () =>
+    testClerkUser({ hasAllLocationsAccess: true, permissions: ['doc.sales_ddt.manage'] });
+  const ddtEOrdini = () =>
+    testClerkUser({
+      hasAllLocationsAccess: true,
+      permissions: ['doc.sales_ddt.manage', 'doc.sales_order.manage'],
+    });
+
+  function createService() {
+    const prisma = {
+      document: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+      salesOrder: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
+      stockMovement: { count: vi.fn().mockResolvedValue(0) },
+      tenantFeatureSettings: { findUnique: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn().mockRejectedValue(transazioneRaggiunta),
+    };
+    const settings = {
+      getResolved: vi.fn().mockResolvedValue({
+        pricesIncludeVat: false,
+        printTitle: 'DDT',
+        defaultNotes: null,
+        numberPrefix: 'DDT',
+      }),
+    };
+    const service = new DocumentsService(
+      prisma as unknown as PrismaService,
+      settings as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    return { service, prisma };
+  }
+
+  /** DDT vendita con un ordine cliente già agganciato. */
+  const ddtConOrdine = (status: DocumentStatus) => ({
+    id: 'ddt-1',
+    tenantId,
+    type: DocumentType.sales_ddt,
+    status,
+    locationId: null,
+    targetLocationId: null,
+    documentDate: new Date('2026-08-12T00:00:00.000Z'),
+    lines: [],
+    derivedDocuments: [],
+    salesOrders: [
+      {
+        id: 'order-1',
+        orderNumber: 'OC-1',
+        cancelledAt: null,
+        fulfilledAt: null,
+        fulfillmentStatus: 'unfulfilled',
+      },
+    ],
+    purchaseInvoiceLinks: [],
+    goodsReceiptLinks: [],
+    ddtLinks: [],
+    paymentInstallments: [],
+  });
+
+  const nuovoDdt = (includedSalesOrderIds?: string[]) =>
+    ({
+      type: DocumentType.sales_ddt,
+      documentDate: '2026-08-12',
+      lines: [],
+      ...(includedSalesOrderIds !== undefined ? { includedSalesOrderIds } : {}),
+    }) as never;
+
+  describe('creazione: agganciare un ordine chiede la famiglia dell’ordine', () => {
+    it('nega a chi gestisce il DDT ma non gli ordini cliente, senza alcun effetto', async () => {
+      const { service, prisma } = createService();
+
+      await expect(
+        service.create(tenantId, nuovoDdt(['order-1']), soloDdt()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.document.create).not.toHaveBeenCalled();
+      expect(prisma.salesOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('consente a chi gestisce anche gli ordini cliente', async () => {
+      const { service, prisma } = createService();
+
+      await expect(service.create(tenantId, nuovoDdt(['order-1']), ddtEOrdini())).rejects.toBe(
+        transazioneRaggiunta,
+      );
+      expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('un salvataggio che non tocca ordini non chiede il permesso in più', async () => {
+      const { service, prisma } = createService();
+
+      // Elenco vuoto su un documento nuovo: nessun ordine agganciato, nessuno
+      // sganciato. Bloccarlo sarebbe una guardia che ferma anche gli innocenti.
+      await expect(service.create(tenantId, nuovoDdt([]), soloDdt())).rejects.toBe(
+        transazioneRaggiunta,
+      );
+      expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('il titolare non è mai fermato: array permessi vuoto, accesso pieno', async () => {
+      const { service } = createService();
+
+      await expect(
+        service.create(tenantId, nuovoDdt(['order-1']), testOwnerUser({ permissions: [] })),
+      ).rejects.toBe(transazioneRaggiunta);
+    });
+
+    it('chiamata interna (senza utente) non è soggetta al gate', async () => {
+      const { service } = createService();
+
+      await expect(service.create(tenantId, nuovoDdt(['order-1']))).rejects.toBe(
+        transazioneRaggiunta,
+      );
+    });
+  });
+
+  describe('modifica: anche l’elenco VUOTO sgancia, quindi va autorizzato', () => {
+    it('nega lo sgancio a chi non gestisce gli ordini cliente, senza alcun effetto', async () => {
+      const { service, prisma } = createService();
+      prisma.document.findFirst.mockResolvedValue(ddtConOrdine(DocumentStatus.confirmed));
+
+      // Strada (b): un elenco vuoto su un DDT che ha ordini agganciati li
+      // riapre e ne ricrea gli impegni — senza conoscere alcun id.
+      await expect(
+        service.update(tenantId, 'ddt-1', { includedSalesOrderIds: [] } as never, soloDdt()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.document.update).not.toHaveBeenCalled();
+      expect(prisma.salesOrder.update).not.toHaveBeenCalled();
+    });
+
+    // Documento annullato: subito oltre le guardie c'è il rifiuto «non
+    // modificabile», quindi il verso positivo si riconosce da quel conflitto —
+    // il gate dei permessi ha lasciato passare.
+    it('consente lo sgancio a chi gestisce anche gli ordini cliente', async () => {
+      const { service, prisma } = createService();
+      prisma.document.findFirst.mockResolvedValue(ddtConOrdine(DocumentStatus.cancelled));
+
+      await expect(
+        service.update(tenantId, 'ddt-1', { includedSalesOrderIds: [] } as never, ddtEOrdini()),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('il titolare non è mai fermato: array permessi vuoto, accesso pieno', async () => {
+      const { service, prisma } = createService();
+      prisma.document.findFirst.mockResolvedValue(ddtConOrdine(DocumentStatus.cancelled));
+
+      await expect(
+        service.update(
+          tenantId,
+          'ddt-1',
+          { includedSalesOrderIds: [] } as never,
+          testOwnerUser({ permissions: [] }),
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('un salvataggio che non dichiara gli ordini non chiede il permesso in più', async () => {
+      const { service, prisma } = createService();
+      prisma.document.findFirst.mockResolvedValue(ddtConOrdine(DocumentStatus.cancelled));
+
+      // Campo assente = il salvataggio non riguarda gli ordini agganciati.
+      await expect(
+        service.update(tenantId, 'ddt-1', { notes: 'nota' } as never, soloDdt()),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  /**
+   * Terza strada verso gli stessi ordini, e non passa da alcun corpo di
+   * richiesta: annullare il documento li riapre e ne ricrea gli impegni. Con il
+   * solo permesso sui DDT si rimettevano in gioco ordini che l'operatore non
+   * può nemmeno consultare.
+   */
+  describe('annullamento: riapre gli ordini agganciati, quindi va autorizzato', () => {
+    it('nega l’annullamento a chi non gestisce gli ordini cliente', async () => {
+      const { service, prisma } = createService();
+      prisma.document.findFirst.mockResolvedValue(ddtConOrdine(DocumentStatus.confirmed));
+
+      await expect(service.cancel(tenantId, 'ddt-1', soloDdt())).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.salesOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('consente l’annullamento a chi gestisce anche gli ordini cliente', async () => {
+      const { service, prisma } = createService();
+      // Già annullato: oltre le guardie c'è il rifiuto «non annullabile», che
+      // dimostra che il gate dei permessi ha lasciato passare.
+      prisma.document.findFirst.mockResolvedValue(ddtConOrdine(DocumentStatus.cancelled));
+
+      await expect(service.cancel(tenantId, 'ddt-1', ddtEOrdini())).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+
+    it('il titolare non è mai fermato', async () => {
+      const { service, prisma } = createService();
+      prisma.document.findFirst.mockResolvedValue(ddtConOrdine(DocumentStatus.cancelled));
+
+      await expect(
+        service.cancel(tenantId, 'ddt-1', testOwnerUser({ permissions: [] })),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  /**
+   * Gli impegni di magazzino stanno sulla sede dell'ORDINE: chi opera su una
+   * sola sede non deve muovere le giacenze di un'altra passando dal documento.
+   */
+  describe('lo scope di sede segue l’ordine, non il documento', () => {
+    /** Servizio la cui transazione esegue davvero il callback, su un `tx` finto. */
+    function createServiceConTransazione(ordineDaAgganciare: { locationId: string }) {
+      const tx = {
+        document: {
+          create: vi
+            .fn()
+            .mockResolvedValue({ id: 'ddt-new', type: DocumentType.sales_ddt, lines: [] }),
+        },
+        salesOrder: {
+          findMany: vi
+            .fn()
+            // 1ª chiamata: ordini già agganciati al documento (nessuno).
+            .mockResolvedValueOnce([])
+            // 2ª chiamata: gli ordini che il corpo chiede di agganciare.
+            .mockResolvedValueOnce([
+              {
+                id: 'order-1',
+                orderNumber: 'OC-1',
+                source: 'manual',
+                cancelledAt: null,
+                documentId: null,
+                locationId: ordineDaAgganciare.locationId,
+              },
+            ]),
+          update: vi.fn().mockResolvedValue({ id: 'order-1' }),
+        },
+        documentLine: { findMany: vi.fn().mockResolvedValue([]) },
+        stockReservation: { findMany: vi.fn().mockResolvedValue([]) },
+      };
+      const prisma = {
+        tenantFeatureSettings: { findUnique: vi.fn().mockResolvedValue(null) },
+        $transaction: vi.fn(async (fn: (client: unknown) => Promise<unknown>) => fn(tx)),
+      };
+      const settings = {
+        getResolved: vi.fn().mockResolvedValue({
+          pricesIncludeVat: false,
+          printTitle: 'DDT',
+          defaultNotes: null,
+          numberPrefix: 'DDT',
+        }),
+      };
+      const service = new DocumentsService(
+        prisma as unknown as PrismaService,
+        settings as never,
+        {} as never,
+        {} as never,
+        {} as never,
+      );
+      return { service, tx };
+    }
+
+    /** Commesso di una sola sede, con entrambe le famiglie in mano. */
+    const commessoDiSedeA = () =>
+      testClerkUser({
+        hasAllLocationsAccess: false,
+        assignedLocationIds: ['loc-A'],
+        permissions: ['doc.sales_ddt.manage', 'doc.sales_order.manage'],
+      });
+
+    const ddtConOrdineIncluso = () =>
+      ({
+        type: DocumentType.sales_ddt,
+        documentDate: '2026-08-12',
+        series: 'A',
+        lines: [],
+        includedSalesOrderIds: ['order-1'],
+      }) as never;
+
+    it('nega l’aggancio di un ordine di un’altra sede, senza agganciare nulla', async () => {
+      const { service, tx } = createServiceConTransazione({ locationId: 'loc-B' });
+
+      await expect(
+        service.create(tenantId, ddtConOrdineIncluso(), commessoDiSedeA()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(tx.salesOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('consente l’aggancio di un ordine della propria sede', async () => {
+      const { service, tx } = createServiceConTransazione({ locationId: 'loc-A' });
+
+      // Oltre l'aggancio il flusso prosegue con la conferma, che qui non è
+      // simulata: quello che conta è che l'ordine sia stato agganciato.
+      await service
+        .create(tenantId, ddtConOrdineIncluso(), commessoDiSedeA())
+        .catch(() => undefined);
+
+      expect(tx.salesOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'order-1' } }),
+      );
+    });
   });
 });

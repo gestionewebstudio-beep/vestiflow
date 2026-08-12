@@ -1,8 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { TenantPermission } from '../auth/tenant-permission.constants';
+import { docManagePermission, TenantPermission } from '../auth/tenant-permission.constants';
 import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { SuppliersService } from './suppliers.service';
 
@@ -179,6 +179,126 @@ describe('SuppliersService', () => {
     await service.delete(tenantId, 'sup-1');
     expect(prisma.supplier.delete).toHaveBeenCalledWith({ where: { id: 'sup-1' } });
     expect(prisma.party.delete).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Perché questo blocco esiste — la rotta `POST/PATCH /suppliers` chiede
+   * `doc.supplier_order.manage`, ma il corpo porta `alsoCustomer`, e quella
+   * spunta non tocca il fornitore: crea o disattiva un'anagrafica CLIENTE.
+   * Il gate della rotta non copre ciò che l'endpoint fa davvero, e a valle
+   * nessuno ricontrolla — chi gestisce gli ordini fornitore si ritrovava a
+   * scrivere nell'anagrafica clienti senza `customers.manage`.
+   */
+  describe('il permesso segue il ruolo gemello, non la rotta', () => {
+    // Passa il gate della rotta fornitori, ma non gestisce i clienti: è
+    // esattamente il profilo che il difetto lasciava passare.
+    const soloFornitori = testClerkUser({
+      permissions: [...testClerkUser().permissions, docManagePermission('supplier_order')],
+    });
+    const ancheClienti = testClerkUser({
+      permissions: [
+        ...testClerkUser().permissions,
+        docManagePermission('supplier_order'),
+        TenantPermission.CustomersManage,
+      ],
+    });
+    // Titolare con l'elenco permessi VUOTO: passa per ruolo, non per array.
+    const titolare = testOwnerUser({ permissions: [] });
+
+    /** Creazione riuscita: codice progressivo, soggetto e ruolo fornitore. */
+    function arrangeCreazione(): void {
+      prisma.supplier.findMany.mockResolvedValue([]);
+      prisma.supplier.findFirst.mockResolvedValue(supplierRow());
+      prisma.party.create.mockResolvedValue({ id: 'party-1' });
+      prisma.supplier.create.mockResolvedValue({ id: 'sup-1' });
+    }
+
+    /** Modifica di un fornitore che è ANCHE cliente attivo (spunta accesa). */
+    function arrangeModificaConRuoloCliente(): void {
+      prisma.supplier.findFirst.mockResolvedValue(
+        supplierRow({
+          party: { ...supplierRow().party, customerRole: { id: 'cust-3', isActive: true } },
+        }),
+      );
+    }
+
+    function nessunaScrittura(): void {
+      expect(prisma.party.create).not.toHaveBeenCalled();
+      expect(prisma.supplier.create).not.toHaveBeenCalled();
+      expect(prisma.supplier.update).not.toHaveBeenCalled();
+      expect(prisma.party.update).not.toHaveBeenCalled();
+      expect(customers.setCustomerRoleForSupplier).not.toHaveBeenCalled();
+    }
+
+    it('crea: senza «Gestire clienti» la spunta «È anche cliente» è negata e nulla viene scritto', async () => {
+      arrangeCreazione();
+      await expect(
+        service.create(tenantId, { name: 'Fornitore', alsoCustomer: true }, soloFornitori),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      nessunaScrittura();
+    });
+
+    it('crea: con «Gestire clienti» il ruolo cliente viene agganciato come prima', async () => {
+      arrangeCreazione();
+      await service.create(tenantId, { name: 'Fornitore', alsoCustomer: true }, ancheClienti);
+      expect(customers.setCustomerRoleForSupplier).toHaveBeenCalledWith(tenantId, 'sup-1', true);
+    });
+
+    it('crea: il titolare passa anche con l\'elenco permessi vuoto', async () => {
+      arrangeCreazione();
+      await service.create(tenantId, { name: 'Fornitore', alsoCustomer: true }, titolare);
+      expect(titolare.permissions).toEqual([]);
+      expect(customers.setCustomerRoleForSupplier).toHaveBeenCalledWith(tenantId, 'sup-1', true);
+    });
+
+    it('crea: senza la spunta il fornitore si salva anche senza «Gestire clienti»', async () => {
+      arrangeCreazione();
+      await service.create(tenantId, { name: 'Fornitore', alsoCustomer: false }, soloFornitori);
+      expect(prisma.supplier.create).toHaveBeenCalled();
+      expect(customers.setCustomerRoleForSupplier).not.toHaveBeenCalled();
+    });
+
+    it('modifica: accendere la spunta senza «Gestire clienti» è negato e nulla viene scritto', async () => {
+      prisma.supplier.findFirst.mockResolvedValue(supplierRow());
+      await expect(
+        service.update(tenantId, 'sup-1', { alsoCustomer: true }, soloFornitori),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      nessunaScrittura();
+    });
+
+    it('modifica: SPEGNERE la spunta è negato quanto accenderla (disattivare un cliente è una scrittura)', async () => {
+      arrangeModificaConRuoloCliente();
+      await expect(
+        service.update(tenantId, 'sup-1', { alsoCustomer: false }, soloFornitori),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      nessunaScrittura();
+    });
+
+    it('modifica: la spunta invariata non chiede nulla — la maschera la manda a ogni salvataggio', async () => {
+      arrangeModificaConRuoloCliente();
+      await service.update(
+        tenantId,
+        'sup-1',
+        { paymentTerms: '60 gg', alsoCustomer: true },
+        soloFornitori,
+      );
+      expect(prisma.supplier.update).toHaveBeenCalled();
+      // Riallineamento idempotente dello stesso stato: nessun cambio di ruolo.
+      expect(customers.setCustomerRoleForSupplier).toHaveBeenCalledWith(tenantId, 'sup-1', true);
+    });
+
+    it('modifica: con «Gestire clienti» la disattivazione del ruolo passa', async () => {
+      arrangeModificaConRuoloCliente();
+      await service.update(tenantId, 'sup-1', { alsoCustomer: false }, ancheClienti);
+      expect(customers.setCustomerRoleForSupplier).toHaveBeenCalledWith(tenantId, 'sup-1', false);
+    });
+
+    it('senza utente in contesto non si decide: le chiamate interne restano intatte', async () => {
+      arrangeCreazione();
+      const chiamataInterna: UserProfileDto | undefined = undefined;
+      await service.create(tenantId, { name: 'Fornitore', alsoCustomer: true }, chiamataInterna);
+      expect(customers.setCustomerRoleForSupplier).toHaveBeenCalledWith(tenantId, 'sup-1', true);
+    });
   });
 
   /**

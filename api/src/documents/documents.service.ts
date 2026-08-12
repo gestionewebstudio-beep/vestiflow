@@ -515,6 +515,40 @@ export class DocumentsService {
   }
 
   /**
+   * Aggancio e sgancio degli Ordini cliente inclusi (`includedSalesOrderIds`):
+   * il corpo della richiesta sposta l'operazione sulla famiglia «ordine
+   * cliente», che né il gate di rotta («gestisci almeno una famiglia») né
+   * `assertDocumentTypeManageable` (la sola famiglia del documento salvato)
+   * coprono. Senza questa guardia chi gestisce i soli DDT vendita poteva
+   * agganciare l'ordine di un altro: alla conferma ne vengono CONSUMATI gli
+   * impegni di magazzino e l'ordine passa a evaso. E poteva fare il contrario
+   * mandando un elenco VUOTO su un DDT che ne aveva — l'ordine viene RIAPERTO
+   * e gli impegni ricreati — senza nemmeno conoscere un id.
+   * `user` assente = chiamata interna: l'autorizzazione l'ha già data chi ha
+   * avviato l'operazione.
+   */
+  private assertIncludedSalesOrdersManageable(
+    user: UserProfileDto | undefined,
+    requestedOrderIds: readonly string[] | undefined,
+    linkedOrderCount: number,
+  ): void {
+    if (!user || requestedOrderIds === undefined) {
+      return;
+    }
+    // Elenco vuoto su un documento che non ha ordini agganciati: il
+    // salvataggio non tocca alcun ordine, non c'è nulla da autorizzare.
+    if (requestedOrderIds.length === 0 && linkedOrderCount === 0) {
+      return;
+    }
+    // La famiglia `sales_order` ha `customer_order` come tipo documento.
+    if (!canManageDocumentType(user, DocumentType.customer_order)) {
+      throw new ForbiddenException(
+        'Non hai il permesso di gestire gli ordini cliente: non puoi agganciarli o sganciarli da questo documento.',
+      );
+    }
+  }
+
+  /**
    * Gate di SCRITTURA per le mutazioni di un documento legato a una sede:
    * l'utente deve poter operare sulla sede del documento (e, per i
    * trasferimenti, la destinazione segue la regola 'transferDestination').
@@ -870,6 +904,9 @@ export class DocumentsService {
     user?: UserProfileDto,
   ): Promise<DocumentWithLines> {
     this.assertDocumentTypeManageable(user, dto.type);
+    // Un documento nuovo non ha ordini agganciati: conta solo ciò che il corpo
+    // chiede di agganciare (il «Concludi ordine» arriva proprio da qui).
+    this.assertIncludedSalesOrdersManageable(user, dto.includedSalesOrderIds, 0);
     if (isInternalOnlyDocumentType(dto.type)) {
       throw new UnprocessableEntityException(
         'Questo tipo documento è generato automaticamente dal sistema e non può essere creato manualmente.',
@@ -1007,7 +1044,13 @@ export class DocumentsService {
         }
 
         if (dto.includedSalesOrderIds !== undefined) {
-          await this.syncIncludedSalesOrdersTx(tx, tenantId, created, dto.includedSalesOrderIds);
+          await this.syncIncludedSalesOrdersTx(
+            tx,
+            tenantId,
+            created,
+            dto.includedSalesOrderIds,
+            user,
+          );
         }
 
         // Conferma nella STESSA transazione: numero + effetti magazzino per tipo
@@ -1160,6 +1203,7 @@ export class DocumentsService {
     tenantId: string,
     doc: Pick<Document, 'id' | 'type'>,
     orderIds: readonly string[],
+    user?: UserProfileDto,
   ): Promise<Array<{ variantId: string; locationId: string }>> {
     const uniqueIds = [...new Set(orderIds)];
     // DDT vendita e Fattura accompagnatoria concludono un ordine cliente
@@ -1179,7 +1223,7 @@ export class DocumentsService {
 
     const current = await tx.salesOrder.findMany({
       where: { tenantId, documentId: doc.id },
-      select: { id: true, orderNumber: true },
+      select: { id: true, orderNumber: true, locationId: true },
     });
     const currentIds = new Set(current.map((order) => order.id));
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
@@ -1197,9 +1241,25 @@ export class DocumentsService {
         source: true,
         cancelledAt: true,
         documentId: true,
+        locationId: true,
       },
     });
     const orderById = new Map(ordersToLink.map((order) => [order.id, order]));
+    const toUnlink = current.filter((order) => !uniqueIds.includes(order.id));
+
+    // Gli impegni di magazzino stanno sulla sede dell'ORDINE, non su quella del
+    // documento: agganciarlo li consuma là, sganciarlo li ricrea là. Senza
+    // questo controllo un operatore assegnato alla sola sede A muoveva le
+    // giacenze della sede B passando dal documento — la stessa porta che
+    // «Concludi ordine» (ManualSalesOrdersService) sbarra già. Gli ordini che
+    // restano agganciati non si toccano, quindi non si controllano.
+    if (user) {
+      for (const order of [...ordersToLink, ...toUnlink]) {
+        if (order.locationId) {
+          assertLocationInUserScope(user, order.locationId, 'write');
+        }
+      }
+    }
 
     const linkedDocumentIds = [
       ...new Set(
@@ -1245,7 +1305,7 @@ export class DocumentsService {
       await tx.salesOrder.update({ where: { id: order.id }, data: { documentId: doc.id } });
     }
 
-    for (const removed of current.filter((order) => !uniqueIds.includes(order.id))) {
+    for (const removed of toUnlink) {
       const reopenTargets = await this.reopenManualOrderRecordTx(
         tx,
         tenantId,
@@ -1267,6 +1327,13 @@ export class DocumentsService {
   ): Promise<DocumentDetail> {
     const doc = await this.getById(tenantId, id, user);
     this.assertDocumentTypeManageable(user, doc.type);
+    // Anche l'elenco VUOTO va autorizzato quando il documento ha già ordini
+    // agganciati: è quello il salvataggio che li sgancia e li riapre.
+    this.assertIncludedSalesOrdersManageable(
+      user,
+      dto.includedSalesOrderIds,
+      doc.linkedSalesOrders.length,
+    );
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
@@ -1931,6 +1998,7 @@ export class DocumentsService {
           tenantId,
           saved,
           dto.includedSalesOrderIds,
+          user,
         );
         syncTargets.push(...includeTargets);
         // Documento già confermato: i nuovi ordini agganciati vengono evasi
@@ -2405,6 +2473,11 @@ export class DocumentsService {
     const doc = await this.getById(tenantId, id, user);
     this.assertDocumentTypeManageable(user, doc.type);
     this.assertDocumentLocationWritable(user, doc);
+    // Annullare un documento con ordini agganciati li RIAPRE e ne ricrea gli
+    // impegni di magazzino: è un'azione sulla famiglia «ordine cliente», non
+    // solo su questo documento. Senza, il permesso sui DDT bastava a rimettere
+    // in gioco ordini che l'operatore non può nemmeno consultare.
+    this.assertIncludedSalesOrdersManageable(user, [], doc.linkedSalesOrders.length);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
         'Le vendite negozio non si annullano: registra un Reso vendita negozio per il rientro della merce.',

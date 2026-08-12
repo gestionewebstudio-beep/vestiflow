@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -7,7 +8,8 @@ import {
 import { Prisma, type SupplierVariantLink } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { canViewPurchaseCosts } from '../auth/user-permissions.util';
+import { TenantPermission } from '../auth/tenant-permission.constants';
+import { canViewPurchaseCosts, hasTenantPermission } from '../auth/user-permissions.util';
 import type { Paginated } from '../common/dto/pagination.dto';
 import {
   SUPPLIER_PARTY_INCLUDE,
@@ -143,7 +145,15 @@ export class SuppliersService {
     return toSupplierView(await this.getRowById(tenantId, id));
   }
 
-  async create(tenantId: string, dto: CreateSupplierDto): Promise<SupplierView> {
+  async create(
+    tenantId: string,
+    dto: CreateSupplierDto,
+    user?: UserProfileDto,
+  ): Promise<SupplierView> {
+    // Un soggetto appena creato non ha ancora il ruolo cliente: lo stato di
+    // partenza è sempre «non è cliente», quindi solo la spunta ATTIVA sposta
+    // l'operazione sull'anagrafica gemella. Prima di ogni effetto.
+    this.assertCustomerRoleChangeAllowed(dto.alsoCustomer, false, user);
     const partyData = this.normalizePartyWrite(dto);
     const roleData = this.normalizeRoleWrite(dto);
     if (!partyData.companyName) {
@@ -179,8 +189,21 @@ export class SuppliersService {
     return { code };
   }
 
-  async update(tenantId: string, id: string, dto: UpdateSupplierDto): Promise<SupplierView> {
+  async update(
+    tenantId: string,
+    id: string,
+    dto: UpdateSupplierDto,
+    user?: UserProfileDto,
+  ): Promise<SupplierView> {
     const existing = await this.getRowById(tenantId, id);
+    // Subito dopo la lettura dello stato attuale e prima di qualunque
+    // scrittura: la spunta va confrontata con il ruolo cliente che il soggetto
+    // ha adesso, perché è la DIFFERENZA a toccare l'altra anagrafica.
+    this.assertCustomerRoleChangeAllowed(
+      dto.alsoCustomer,
+      existing.party.customerRole?.isActive ?? false,
+      user,
+    );
     const partyData = this.normalizePartyWrite(dto);
     const roleData = this.normalizeRoleWrite(dto);
     if (partyData.companyName === null) {
@@ -204,6 +227,42 @@ export class SuppliersService {
       await this.customers.setCustomerRoleForSupplier(tenantId, id, false);
     }
     return this.getById(tenantId, id);
+  }
+
+  /**
+   * Senza questa guardia, la spunta «È anche cliente» del form fornitore crea
+   * (o disattiva) un'anagrafica CLIENTE con il solo `doc.supplier_order.manage`
+   * chiesto dalla rotta: chi gestisce gli ordini fornitore si ritroverebbe a
+   * scrivere nell'anagrafica clienti — e a togliere un cliente dalle tendine
+   * dell'Ordine cliente — senza `customers.manage`.
+   *
+   * Il controllo scatta anche in RIMOZIONE (`false` su un ruolo attivo):
+   * disattivare il ruolo cliente è una scrittura sull'altra anagrafica
+   * esattamente come aggiungerlo, e il ruolo sparisce da ogni nuovo utilizzo.
+   *
+   * NON scatta invece quando la spunta arriva uguale a com'è già, e la
+   * distinzione è tutt'altro che teorica: la maschera manda il campo a ogni
+   * salvataggio (`alsoCustomer: raw.alsoCustomer ?? false`), quindi chiedere il
+   * permesso sulla sola PRESENZA bloccherebbe qualunque modifica di fornitore a
+   * chi non gestisce i clienti. Una guardia che ferma tutti sarebbe un difetto
+   * peggiore di quello che chiude.
+   *
+   * Senza utente in contesto (chiamate interne, lavori di sistema) non si
+   * decide nulla: l'autorizzazione l'ha già data chi ha avviato l'operazione.
+   */
+  private assertCustomerRoleChangeAllowed(
+    requested: boolean | undefined,
+    current: boolean,
+    user?: UserProfileDto,
+  ): void {
+    if (!user || requested === undefined || requested === current) {
+      return;
+    }
+    if (!hasTenantPermission(user, TenantPermission.CustomersManage)) {
+      throw new ForbiddenException(
+        'Non hai il permesso di gestire le anagrafiche clienti: la spunta «È anche cliente» non è disponibile.',
+      );
+    }
   }
 
   /**
