@@ -405,19 +405,23 @@
                   }
                 </div>
 
-                @if (!isOrder) {
-                  <app-document-number-field
-                    numberInputId="co-m-number"
-                    [number]="form.controls.documentNumber.value"
-                    [isProposal]="numberIsProposal()"
-                    [series]="form.controls.series.value"
-                    [seriesOptions]="seriesOptions()"
-                    [canManageSeries]="true"
-                    (numberChange)="onDocumentNumberChange($event)"
-                    (seriesChange)="onSeriesChange($event)"
-                    (manageSeries)="seriesDialogOpen.set(true)"
-                  />
+                <!-- Numero e serie: da 12/08/2026 anche sull'Ordine cliente.
+                     Il campo era dietro un `@if (!isOrder)` che teneva nascosta
+                     la numerazione proprio al documento che dà il nome alla
+                     maschera — l'unico di Categoria A a non mostrarla. -->
+                <app-document-number-field
+                  numberInputId="co-m-number"
+                  [number]="form.controls.documentNumber.value"
+                  [isProposal]="numberIsProposal()"
+                  [series]="form.controls.series.value"
+                  [seriesOptions]="seriesOptions()"
+                  [canManageSeries]="true"
+                  (numberChange)="onDocumentNumberChange($event)"
+                  (seriesChange)="onSeriesChange($event)"
+                  (manageSeries)="seriesDialogOpen.set(true)"
+                />
 
+                @if (!isOrder) {
                   <!-- Modalità prezzo: netto o ivato. Su desktop lo stesso
                          controllo vive nell'intestazione di colonna. L'Ordine
                          cliente ne è escluso finché non arriva il supporto
@@ -626,20 +630,22 @@
               </div>
 
               <!-- Identificativo VestiFlow: Numero + Serie accanto alla data.
-                   L'Ordine cliente non ha ancora una numerazione propria. -->
-              @if (!isOrder) {
-                <app-document-number-field
-                  numberInputId="co-number"
-                  [number]="form.controls.documentNumber.value"
-                  [isProposal]="numberIsProposal()"
-                  [series]="form.controls.series.value"
-                  [seriesOptions]="seriesOptions()"
-                  [canManageSeries]="true"
-                  (numberChange)="onDocumentNumberChange($event)"
-                  (seriesChange)="onSeriesChange($event)"
-                  (manageSeries)="seriesDialogOpen.set(true)"
-                />
-              }
+                   Da 12/08/2026 anche sull'Ordine cliente: il campo era dietro
+                   un `@if (!isOrder)` che teneva nascosta la numerazione
+                   proprio al documento che dà il nome alla maschera. Il numero
+                   il server glielo assegnava lo stesso, ma l'operatore non lo
+                   vedeva e non poteva scegliere la serie. -->
+              <app-document-number-field
+                numberInputId="co-number"
+                [number]="form.controls.documentNumber.value"
+                [isProposal]="numberIsProposal()"
+                [series]="form.controls.series.value"
+                [seriesOptions]="seriesOptions()"
+                [canManageSeries]="true"
+                (numberChange)="onDocumentNumberChange($event)"
+                (seriesChange)="onSeriesChange($event)"
+                (manageSeries)="seriesDialogOpen.set(true)"
+              />
 
               <!-- Preventivo e DDT vendita: nessuno stato documento in testata. -->
               @if (isOrder) {

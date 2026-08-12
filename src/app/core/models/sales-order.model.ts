@@ -80,6 +80,13 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly id: EntityId;
   /** Numero ordine leggibile (Shopify order name, es. '#1001'). */
   readonly orderNumber: string;
+  /**
+   * Numero interno dal numeratore `customer_order`, e la sua serie. Assenti
+   * sugli ordini che arrivano da un canale: quelli portano il numero del
+   * canale, non uno nostro (specifica numerazione §5).
+   */
+  readonly number?: number | null;
+  readonly series?: string | null;
   readonly financialStatus: SalesOrderFinancialStatus;
   readonly fulfillmentStatus: SalesOrderFulfillmentStatus;
   readonly source: SalesOrderSource;

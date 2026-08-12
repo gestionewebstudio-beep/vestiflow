@@ -25,7 +25,9 @@ import { ExternalDocumentTypesService } from '../documents/external-document-typ
 import type { CreateDocumentDto } from '../documents/dto/create-document.dto';
 import { formatDocumentReference } from '../documents/document-totals.util';
 import {
+  buildDocumentNumberConflict,
   defaultCounterSeries,
+  isDocumentNumberConflict,
   lockDocumentCounter,
   nextDocumentNumber,
 } from '../documents/document-numbering.util';
@@ -229,214 +231,241 @@ export class ManualSalesOrdersService {
 
     const syncTargets = new Set<string>();
 
-    const { saved, warnings } = await this.prisma.$transaction(async (tx) => {
-      let existing: (SalesOrder & { lines: SalesOrderLine[] }) | null = null;
-      if (dto.id) {
-        existing = await tx.salesOrder.findFirst({
-          where: { id: dto.id, tenantId },
-          include: { lines: true },
-        });
-        if (!existing) {
-          throw new NotFoundException('Ordine cliente non trovato');
-        }
-        if (existing.source !== SalesOrderSource.manual) {
-          throw new ConflictException(
-            'Solo gli ordini di origine Manuale sono modificabili da questa maschera.',
-          );
-        }
-        // Modifica su sede già assegnata: deve restare nello scope utente.
-        if (user && existing.locationId) {
-          assertLocationInUserScope(user, existing.locationId, 'write');
-        }
-      }
+    // Serie scelta in testata; assente = la predefinita. Il campo vuoto è una
+    // scelta legittima («Senza serie»), quindi `undefined` (non passato) e
+    // stringa vuota (passata e vuota) non sono la stessa cosa. Stanno qui e non
+    // dentro la transazione perché il ramo del conflitto, che le usa, è fuori.
+    const requestedSeries =
+      dto.series !== undefined ? (dto.series ?? '').trim() || null : undefined;
+    const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
 
-      // Ordine evaso (anche parzialmente) da un documento di scarico: la
-      // riapertura in modifica è consentita (prompt DDT — l'avviso «collegato
-      // a un DDT» vive nella maschera), ma gli impegni consumati NON vengono
-      // né ricreati né rilasciati: lo scarico reale è già del documento.
-      const isSettled =
-        Boolean(existing?.fulfilledAt) ||
-        existing?.fulfillmentStatus === SalesOrderFulfillmentStatus.partially_fulfilled;
-
-      // Numero assegnato al primo salvataggio (contatore customer_order). Colonne
-      // numeriche (serie + numero) sorgente della numerazione; orderNumber
-      // derivato come riferimento leggibile.
-      let orderNumber = existing?.orderNumber ?? null;
-      let series = existing?.series ?? null;
-      let number = existing?.number ?? null;
-      if (!orderNumber) {
-        series = await defaultCounterSeries(tx, tenantId, DocumentType.customer_order);
-        // Serializza gli operatori sullo stesso contatore: senza lock due
-        // salvataggi simultanei leggono lo stesso massimo e il secondo si
-        // becca il vincolo unico a lavoro finito. Il lock è transazionale (si
-        // rilascia al commit o al rollback) e va preso PRIMA della lettura.
-        await lockDocumentCounter(tx, { tenantId, type: DocumentType.customer_order, series });
-        number = await nextDocumentNumber({
-          tx,
-          tenantId,
-          type: DocumentType.customer_order,
-          series,
-          source: 'sales_order',
-          prefix: setting.numberPrefix,
-        });
-        orderNumber = formatDocumentReference(setting.numberPrefix, series, number);
-      }
-
-      const cancelledAt = status === 'cancelled' ? (existing?.cancelledAt ?? new Date()) : null;
-
-      const headerData = {
-        orderNumber,
-        series,
-        number,
-        source: SalesOrderSource.manual,
-        customerId: customer.id,
-        customerName,
-        locationId: dto.locationId ?? null,
-        externalRef: dto.externalRef?.trim() || null,
-        // Documento della controparte: l'ordine che il cliente ha emesso.
-        externalDocNumber: dto.externalDocNumber?.trim() || null,
-        externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
-        ...externalType,
-        expectedDeliveryDate: dto.expectedDeliveryDate ? new Date(dto.expectedDeliveryDate) : null,
-        notes: dto.notes?.trim() || null,
-        paymentTerms: dto.paymentTerms?.trim() || null,
-        documentDiscountPercent,
-        placedAt: documentDate,
-        subtotalMinor: totals.subtotalMinor,
-        taxMinor: totals.taxMinor,
-        totalMinor: totals.totalMinor,
-        discountMinor: totals.discountMinor,
-        cancelledAt,
-      };
-
-      const order = existing
-        ? await tx.salesOrder.update({ where: { id: existing.id }, data: headerData })
-        : await tx.salesOrder.create({ data: { tenantId, ...headerData } });
-
-      // Righe: update per id (idempotenza impegni), create per le nuove,
-      // delete per le rimosse — il sync impegni rilascia le loro prenotazioni.
-      const existingLineIds = new Set((existing?.lines ?? []).map((line) => line.id));
-      const seenLineIds = new Set<string>();
-      const savedLineIdByIndex = new Map<number, string>();
-
-      for (const line of computedLines) {
-        const lineData = {
-          variantId: line.variantId,
-          sku: line.sku,
-          barcode: line.barcode,
-          title: line.title,
-          quantity: line.quantity,
-          unitPriceMinor: line.unitPriceMinor,
-          discount: line.discount,
-          totalMinor: line.totalMinor,
-          lineNumber: line.lineNumber,
-          vatCodeId: line.vatCodeId,
-          vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-          lineVatTotalMinor: line.lineVatTotalMinor,
-          commitsStock: line.commitsStock,
-          unitOfMeasure: line.unitOfMeasure,
-          isReference: line.isReference,
-        };
-        if (line.id && existingLineIds.has(line.id)) {
-          await tx.salesOrderLine.update({ where: { id: line.id }, data: lineData });
-          seenLineIds.add(line.id);
-          savedLineIdByIndex.set(line.lineNumber, line.id);
-        } else {
-          const created = await tx.salesOrderLine.create({
-            data: { orderId: order.id, ...lineData },
+    const { saved, warnings } = await this.prisma
+      .$transaction(async (tx) => {
+        let existing: (SalesOrder & { lines: SalesOrderLine[] }) | null = null;
+        if (dto.id) {
+          existing = await tx.salesOrder.findFirst({
+            where: { id: dto.id, tenantId },
+            include: { lines: true },
           });
-          seenLineIds.add(created.id);
-          savedLineIdByIndex.set(line.lineNumber, created.id);
+          if (!existing) {
+            throw new NotFoundException('Ordine cliente non trovato');
+          }
+          if (existing.source !== SalesOrderSource.manual) {
+            throw new ConflictException(
+              'Solo gli ordini di origine Manuale sono modificabili da questa maschera.',
+            );
+          }
+          // Modifica su sede già assegnata: deve restare nello scope utente.
+          if (user && existing.locationId) {
+            assertLocationInUserScope(user, existing.locationId, 'write');
+          }
         }
-      }
-      const removedLineIds = [...existingLineIds].filter((id) => !seenLineIds.has(id));
-      if (removedLineIds.length > 0) {
-        await tx.salesOrderLine.deleteMany({ where: { id: { in: removedLineIds } } });
-      }
 
-      // Variazioni disponibilità da spingere ai canali (Shopify §DISPONIBILITÀ).
-      for (const reservation of existing
-        ? await tx.stockReservation.findMany({
-            where: { tenantId, salesOrderId: order.id, status: ReservationStatus.active },
-            select: { variantId: true, locationId: true },
-          })
-        : []) {
-        syncTargets.add(`${reservation.variantId}:${reservation.locationId}`);
-      }
+        // Ordine evaso (anche parzialmente) da un documento di scarico: la
+        // riapertura in modifica è consentita (prompt DDT — l'avviso «collegato
+        // a un DDT» vive nella maschera), ma gli impegni consumati NON vengono
+        // né ricreati né rilasciati: lo scarico reale è già del documento.
+        const isSettled =
+          Boolean(existing?.fulfilledAt) ||
+          existing?.fulfillmentStatus === SalesOrderFulfillmentStatus.partially_fulfilled;
 
-      // Impegni: Confermato → allineati alle righe con spunta ON; Annullato →
-      // tutti rilasciati. Ricalcolo atomico nella stessa transazione (§DISPONIBILITÀ).
-      // Ordini evasi (isSettled): impegni consumati intoccati.
-      if (isSettled) {
-        // Nessuna variazione impegni: lo scarico è già del documento collegato.
-      } else if (status === 'confirmed' && dto.locationId) {
-        const reservationLines = computedLines.filter(effectiveCommits).map((line) => ({
-          salesOrderLineId: savedLineIdByIndex.get(line.lineNumber)!,
-          variantId: line.variantId!,
-          sku: line.sku || variantById.get(line.variantId!)?.sku || '',
-          quantity: line.quantity,
-        }));
-        await this.reservations.syncOrderReservationsTx(tx, {
-          tenantId,
-          salesOrderId: order.id,
-          channel: SalesOrderSource.manual,
-          locationId: dto.locationId,
-          externalOrderRef: orderNumber,
-          lines: reservationLines,
-        });
-        for (const line of reservationLines) {
-          syncTargets.add(`${line.variantId}:${dto.locationId}`);
-        }
-      } else {
-        await this.reservations.releaseOrderReservationsTx(tx, {
-          tenantId,
-          salesOrderId: order.id,
-          note: status === 'cancelled' ? 'Ordine cliente annullato' : 'Righe senza impegno',
-        });
-      }
-
-      // Controllo disponibilità NON bloccante (§CONTROLLI): dopo il ricalcolo,
-      // una disponibilità negativa segnala righe oltre la giacenza reale.
-      const warningMessages: string[] = [];
-      if (!isSettled && status === 'confirmed' && dto.locationId) {
-        const requestedByVariant = new Map<string, number>();
-        for (const line of computedLines.filter(effectiveCommits)) {
-          requestedByVariant.set(
-            line.variantId!,
-            (requestedByVariant.get(line.variantId!) ?? 0) + line.quantity,
-          );
-        }
-        if (requestedByVariant.size > 0) {
-          const levels = await tx.inventoryLevel.findMany({
-            where: {
+        // Numero assegnato al primo salvataggio (contatore customer_order). Colonne
+        // numeriche (serie + numero) sorgente della numerazione; orderNumber
+        // derivato come riferimento leggibile.
+        let orderNumber = existing?.orderNumber ?? null;
+        let series = existing?.series ?? null;
+        let number = existing?.number ?? null;
+        if (!orderNumber) {
+          series =
+            requestedSeries !== undefined
+              ? requestedSeries
+              : await defaultCounterSeries(tx, tenantId, DocumentType.customer_order);
+          // Serializza gli operatori sullo stesso contatore: senza lock due
+          // salvataggi simultanei leggono lo stesso massimo e il secondo si
+          // becca il vincolo unico a lavoro finito. Il lock è transazionale (si
+          // rilascia al commit o al rollback) e va preso PRIMA della lettura.
+          await lockDocumentCounter(tx, { tenantId, type: DocumentType.customer_order, series });
+          // Numero imposto dalla testata: si scrive com'è, e il vincolo unico fa
+          // da giudice. Senza, lo assegna il server prendendo il primo libero.
+          number =
+            requestedNumber ??
+            (await nextDocumentNumber({
+              tx,
               tenantId,
-              locationId: dto.locationId,
-              variantId: { in: [...requestedByVariant.keys()] },
-            },
-            select: { variantId: true, available: true },
+              type: DocumentType.customer_order,
+              series,
+              source: 'sales_order',
+              prefix: setting.numberPrefix,
+            }));
+          orderNumber = formatDocumentReference(setting.numberPrefix, series, number);
+        }
+
+        const cancelledAt = status === 'cancelled' ? (existing?.cancelledAt ?? new Date()) : null;
+
+        const headerData = {
+          orderNumber,
+          series,
+          number,
+          source: SalesOrderSource.manual,
+          customerId: customer.id,
+          customerName,
+          locationId: dto.locationId ?? null,
+          externalRef: dto.externalRef?.trim() || null,
+          // Documento della controparte: l'ordine che il cliente ha emesso.
+          externalDocNumber: dto.externalDocNumber?.trim() || null,
+          externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : null,
+          ...externalType,
+          expectedDeliveryDate: dto.expectedDeliveryDate
+            ? new Date(dto.expectedDeliveryDate)
+            : null,
+          notes: dto.notes?.trim() || null,
+          paymentTerms: dto.paymentTerms?.trim() || null,
+          documentDiscountPercent,
+          placedAt: documentDate,
+          subtotalMinor: totals.subtotalMinor,
+          taxMinor: totals.taxMinor,
+          totalMinor: totals.totalMinor,
+          discountMinor: totals.discountMinor,
+          cancelledAt,
+        };
+
+        const order = existing
+          ? await tx.salesOrder.update({ where: { id: existing.id }, data: headerData })
+          : await tx.salesOrder.create({ data: { tenantId, ...headerData } });
+
+        // Righe: update per id (idempotenza impegni), create per le nuove,
+        // delete per le rimosse — il sync impegni rilascia le loro prenotazioni.
+        const existingLineIds = new Set((existing?.lines ?? []).map((line) => line.id));
+        const seenLineIds = new Set<string>();
+        const savedLineIdByIndex = new Map<number, string>();
+
+        for (const line of computedLines) {
+          const lineData = {
+            variantId: line.variantId,
+            sku: line.sku,
+            barcode: line.barcode,
+            title: line.title,
+            quantity: line.quantity,
+            unitPriceMinor: line.unitPriceMinor,
+            discount: line.discount,
+            totalMinor: line.totalMinor,
+            lineNumber: line.lineNumber,
+            vatCodeId: line.vatCodeId,
+            vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+            lineVatTotalMinor: line.lineVatTotalMinor,
+            commitsStock: line.commitsStock,
+            unitOfMeasure: line.unitOfMeasure,
+            isReference: line.isReference,
+          };
+          if (line.id && existingLineIds.has(line.id)) {
+            await tx.salesOrderLine.update({ where: { id: line.id }, data: lineData });
+            seenLineIds.add(line.id);
+            savedLineIdByIndex.set(line.lineNumber, line.id);
+          } else {
+            const created = await tx.salesOrderLine.create({
+              data: { orderId: order.id, ...lineData },
+            });
+            seenLineIds.add(created.id);
+            savedLineIdByIndex.set(line.lineNumber, created.id);
+          }
+        }
+        const removedLineIds = [...existingLineIds].filter((id) => !seenLineIds.has(id));
+        if (removedLineIds.length > 0) {
+          await tx.salesOrderLine.deleteMany({ where: { id: { in: removedLineIds } } });
+        }
+
+        // Variazioni disponibilità da spingere ai canali (Shopify §DISPONIBILITÀ).
+        for (const reservation of existing
+          ? await tx.stockReservation.findMany({
+              where: { tenantId, salesOrderId: order.id, status: ReservationStatus.active },
+              select: { variantId: true, locationId: true },
+            })
+          : []) {
+          syncTargets.add(`${reservation.variantId}:${reservation.locationId}`);
+        }
+
+        // Impegni: Confermato → allineati alle righe con spunta ON; Annullato →
+        // tutti rilasciati. Ricalcolo atomico nella stessa transazione (§DISPONIBILITÀ).
+        // Ordini evasi (isSettled): impegni consumati intoccati.
+        if (isSettled) {
+          // Nessuna variazione impegni: lo scarico è già del documento collegato.
+        } else if (status === 'confirmed' && dto.locationId) {
+          const reservationLines = computedLines.filter(effectiveCommits).map((line) => ({
+            salesOrderLineId: savedLineIdByIndex.get(line.lineNumber)!,
+            variantId: line.variantId!,
+            sku: line.sku || variantById.get(line.variantId!)?.sku || '',
+            quantity: line.quantity,
+          }));
+          await this.reservations.syncOrderReservationsTx(tx, {
+            tenantId,
+            salesOrderId: order.id,
+            channel: SalesOrderSource.manual,
+            locationId: dto.locationId,
+            externalOrderRef: orderNumber,
+            lines: reservationLines,
           });
-          const availableByVariant = new Map(
-            levels.map((level) => [level.variantId, level.available]),
-          );
+          for (const line of reservationLines) {
+            syncTargets.add(`${line.variantId}:${dto.locationId}`);
+          }
+        } else {
+          await this.reservations.releaseOrderReservationsTx(tx, {
+            tenantId,
+            salesOrderId: order.id,
+            note: status === 'cancelled' ? 'Ordine cliente annullato' : 'Righe senza impegno',
+          });
+        }
+
+        // Controllo disponibilità NON bloccante (§CONTROLLI): dopo il ricalcolo,
+        // una disponibilità negativa segnala righe oltre la giacenza reale.
+        const warningMessages: string[] = [];
+        if (!isSettled && status === 'confirmed' && dto.locationId) {
+          const requestedByVariant = new Map<string, number>();
           for (const line of computedLines.filter(effectiveCommits)) {
-            const available = availableByVariant.get(line.variantId!) ?? 0;
-            if (available < 0) {
-              const requested = requestedByVariant.get(line.variantId!) ?? line.quantity;
-              const residual = Math.max(0, requested + available);
-              warningMessages.push(
-                `Riga ${line.lineNumber} (${line.sku || line.title}): richiesti ${line.quantity}, disponibili solo ${residual}.`,
-              );
+            requestedByVariant.set(
+              line.variantId!,
+              (requestedByVariant.get(line.variantId!) ?? 0) + line.quantity,
+            );
+          }
+          if (requestedByVariant.size > 0) {
+            const levels = await tx.inventoryLevel.findMany({
+              where: {
+                tenantId,
+                locationId: dto.locationId,
+                variantId: { in: [...requestedByVariant.keys()] },
+              },
+              select: { variantId: true, available: true },
+            });
+            const availableByVariant = new Map(
+              levels.map((level) => [level.variantId, level.available]),
+            );
+            for (const line of computedLines.filter(effectiveCommits)) {
+              const available = availableByVariant.get(line.variantId!) ?? 0;
+              if (available < 0) {
+                const requested = requestedByVariant.get(line.variantId!) ?? line.quantity;
+                const residual = Math.max(0, requested + available);
+                warningMessages.push(
+                  `Riga ${line.lineNumber} (${line.sku || line.title}): richiesti ${line.quantity}, disponibili solo ${residual}.`,
+                );
+              }
             }
           }
         }
-      }
 
-      const savedOrder = await tx.salesOrder.findUniqueOrThrow({
-        where: { id: order.id },
-        include: { lines: { orderBy: { lineNumber: 'asc' } } },
+        const savedOrder = await tx.salesOrder.findUniqueOrThrow({
+          where: { id: order.id },
+          include: { lines: { orderBy: { lineNumber: 'asc' } } },
+        });
+        return { saved: savedOrder, warnings: warningMessages };
+      })
+      .catch(async (error: unknown) => {
+        // Numero già occupato: 409 col conflitto, nella stessa forma degli altri
+        // documenti — così la maschera riusa l'avviso che ha già. Prima una
+        // violazione dell'indice `sales_orders_number_unique` sarebbe uscita
+        // come errore generico: era teorico finché l'operatore non poteva
+        // digitare il numero, e da oggi può.
+        await this.throwNumberConflict(error, tenantId, requestedSeries, requestedNumber);
+        throw error;
       });
-      return { saved: savedOrder, warnings: warningMessages };
-    });
 
     await this.pushInventoryTargets(tenantId, syncTargets);
 
@@ -445,6 +474,37 @@ export class ManualSalesOrdersService {
       `Ordine cliente ${saved.orderNumber} salvato (${tenantId}): stato ${status}, ${saved.lines.length} righe`,
     );
     return { order: saved, reservations, warnings };
+  }
+
+  /**
+   * Numero già occupato: risponde 409 col conflitto, nella stessa forma degli
+   * altri documenti.
+   */
+  private async throwNumberConflict(
+    error: unknown,
+    tenantId: string,
+    series: string | null | undefined,
+    requestedNumber: number | null,
+  ): Promise<void> {
+    if (!isDocumentNumberConflict(error)) {
+      return;
+    }
+    const setting = await this.documentSettings.getResolved(tenantId, DocumentType.customer_order);
+    const resolvedSeries =
+      series !== undefined
+        ? series
+        : await defaultCounterSeries(this.prisma, tenantId, DocumentType.customer_order);
+    throw new ConflictException(
+      await buildDocumentNumberConflict({
+        tx: this.prisma,
+        tenantId,
+        type: DocumentType.customer_order,
+        series: resolvedSeries,
+        source: 'sales_order',
+        prefix: setting.numberPrefix,
+        requestedNumber,
+      }),
+    );
   }
 
   /**

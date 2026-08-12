@@ -90,6 +90,29 @@ export class SaveManualSalesOrderLineDto {
  * Non esiste stato Bozza: o Confermato, o non esiste (§STATI).
  */
 export class SaveManualSalesOrderDto {
+  /**
+   * Serie del numeratore. Assente = la serie predefinita del tipo.
+   *
+   * Fino al 12/08/2026 il client non poteva sceglierla: il campo Numero+Serie
+   * era nascosto proprio sull'Ordine cliente (`@if (!isOrder)`), il server
+   * prendeva sempre la predefinita, e l'unico documento di Categoria A a non
+   * mostrare la propria numerazione era quello.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /**
+   * Numero imposto dalla testata. Assente = lo assegna il server, primo libero
+   * della serie. Se è già occupato risponde 409 col conflitto, come gli altri
+   * documenti.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @IsOptional()
   @IsUUID()
   id?: string;

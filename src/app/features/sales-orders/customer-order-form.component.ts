@@ -3909,6 +3909,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         customerId: order.customerId ?? '',
         locationId: order.locationId ?? '',
         documentDate: order.placedAt ? toIsoDateLocal(new Date(order.placedAt)) : '',
+        // Numerazione propria: da 12/08/2026 si vede e si modifica anche qui.
+        documentNumber: order.number ?? null,
+        series: order.series ?? '',
         externalRef: order.externalRef ?? '',
         // Data di giornata memorizzata a mezzanotte UTC: si prendono le prime
         // dieci cifre, come fa la maschera coi documenti del registro. La
@@ -4242,6 +4245,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       customerId: value.customerId,
       locationId: value.locationId || undefined,
       documentDate: value.documentDate,
+      series: (value.series ?? '').trim() || undefined,
+      // La proposta NON torna indietro come imposizione: viaggia solo il numero
+      // che l'operatore ha digitato, o due che salvano insieme si
+      // contenderebbero lo stesso. È la stessa regola del ramo documenti, qui
+      // sopra: cambia il servizio, non la decisione.
+      number: this.numberIsProposal() ? undefined : (value.documentNumber ?? undefined),
       externalRef: value.externalRef.trim() || undefined,
       // Documento della controparte: il valore che c'è adesso in testata.
       // Vuoto vuol dire svuotato — la testata viene riscritta per intero, e il

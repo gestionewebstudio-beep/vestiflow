@@ -37,6 +37,8 @@ export interface SalesOrderApiRow {
   readonly id: EntityId;
   readonly tenantId: EntityId;
   readonly orderNumber: string;
+  readonly number?: number | null;
+  readonly series?: string | null;
   readonly source: string;
   readonly financialStatus: string;
   readonly fulfillmentStatus: string;
@@ -201,6 +203,8 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     tenantId: row.tenantId,
     id: row.id,
     orderNumber: row.orderNumber,
+    number: row.number ?? undefined,
+    series: row.series ?? undefined,
     financialStatus: mapFinancialStatus(row.financialStatus),
     fulfillmentStatus: mapFulfillmentStatus(row.fulfillmentStatus),
     source: mapSource(row.source),
