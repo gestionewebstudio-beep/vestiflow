@@ -4530,49 +4530,53 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.costEntryModeTouched = true;
     this.lines.clear();
     for (const line of doc.lines ?? []) {
-      this.lines.push(
-        this.fb.group({
-          id: this.fb.control(line.id),
-          variantId: this.fb.control(line.variantId ?? ''),
-          articleCode: this.fb.control(''),
-          sku: this.fb.control(line.sku ?? ''),
-          barcode: this.fb.control(''),
-          supplierSku: this.fb.control(''),
-          productName: this.fb.control(line.description),
-          description: this.fb.control(line.description),
-          quantity: this.fb.control(line.quantity, {
-            validators: [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)],
-          }),
-          // Con costi ivati la colonna mostra il valore digitato (lordo), non
-          // il netto canonico persistito in unitPrice (§11.4).
-          unitCost: this.fb.control(
-            moneyToDecimalString(
-              line.enteredUnitCostMinor != null
-                ? { amountMinor: line.enteredUnitCostMinor, currencyCode: this.currency }
-                : line.unitPrice,
-            ).replace('.', ','),
-          ),
-          sellingPrice: this.fb.control(''),
-          compareAtPrice: this.fb.control(''),
-          discountPercent: this.fb.control(
-            line.discountPercent > 0 ? String(line.discountPercent) : '',
-          ),
-          vatRatePercent: this.fb.control(line.vatSnapshot?.ratePercent?.toString() ?? ''),
-          vatCodeId: this.fb.control(line.vatCodeId ?? ''),
-          // Le righe senza articolo persistono loadsStock=false come artefatto
-          // tecnico (nessun movimento possibile): in UI il flag resta al
-          // default attivo, così al collegamento dell'articolo il carico parte (§11).
-          loadsStock: this.fb.control(line.variantId ? line.loadsStock : true),
-          // La fotografia salvata sulla riga, non quella dell'anagrafica di
-          // adesso: è il punto in cui il documento riaperto dice quello che
-          // diceva quando è stato compilato.
-          unitOfMeasure: this.fb.control(line.unitOfMeasure ?? ''),
-          supplierOrderLineId: this.fb.control(line.supplierOrderLineId ?? ''),
-          lotCode: this.fb.control(line.lotCode ?? ''),
-          lotExpiryDate: this.fb.control(line.lotExpiryDate ? line.lotExpiryDate.slice(0, 10) : ''),
-          serialNumbersText: this.fb.control((line.serialNumbers ?? []).join(', ')),
-        }),
-      );
+      // Una riga la sa costruire `createLine`, e basta lei: qui c'era una
+      // SECONDA copia dei ventuno controlli, scritta a mano. Copie così non
+      // divergono con un errore, divergono con un campo aggiunto da una parte
+      // sola — e nel silenzio, perché il caso comune (documento nuovo) passa
+      // per l'originale e funziona.
+      const group = this.createLine();
+      group.patchValue({
+        id: line.id,
+        variantId: line.variantId ?? '',
+        sku: line.sku ?? '',
+        productName: line.description,
+        description: line.description,
+        quantity: line.quantity,
+        // Con costi ivati la colonna mostra il valore digitato (lordo), non
+        // il netto canonico persistito in unitPrice (§11.4).
+        unitCost: moneyToDecimalString(
+          line.enteredUnitCostMinor != null
+            ? { amountMinor: line.enteredUnitCostMinor, currencyCode: this.currency }
+            : line.unitPrice,
+        ).replace('.', ','),
+        discountPercent: line.discountPercent > 0 ? String(line.discountPercent) : '',
+        vatRatePercent: line.vatSnapshot?.ratePercent?.toString() ?? '',
+        vatCodeId: line.vatCodeId ?? '',
+        // Le righe senza articolo persistono loadsStock=false come artefatto
+        // tecnico (nessun movimento possibile): in UI il flag resta al default
+        // attivo, così al collegamento dell'articolo il carico parte (§11).
+        loadsStock: line.variantId ? line.loadsStock : true,
+        // La fotografia salvata sulla riga, non quella dell'anagrafica di
+        // adesso: è il punto in cui il documento riaperto dice quello che
+        // diceva quando è stato compilato.
+        unitOfMeasure: line.unitOfMeasure ?? '',
+        supplierOrderLineId: line.supplierOrderLineId ?? '',
+        lotCode: line.lotCode ?? '',
+        lotExpiryDate: line.lotExpiryDate ? line.lotExpiryDate.slice(0, 10) : '',
+        serialNumbersText: (line.serialNumbers ?? []).join(', '),
+      });
+      // L'unica differenza vera fra riga nuova e riga già registrata, e adesso
+      // si legge in una riga invece che confrontando due elenchi: su un arrivo
+      // già salvato la quantità può essere ZERO — una riga ordinata e non
+      // ricevuta — mentre una riga nuova parte da uno.
+      group.controls.quantity.setValidators([
+        Validators.required,
+        Validators.min(0),
+        Validators.pattern(/^\d+$/),
+      ]);
+      group.controls.quantity.updateValueAndValidity({ emitEvent: false });
+      this.lines.push(group);
     }
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
