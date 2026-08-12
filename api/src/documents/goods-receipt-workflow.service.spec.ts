@@ -209,6 +209,85 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
     expect(result.createdProducts).toEqual([]);
   });
 
+  /**
+   * Il gate della rotta chiede «gestisci arrivo merce», ma questo salvataggio
+   * accetta anche `manual_load` e `initial_load`, che appartengono alla
+   * famiglia `adjustment`. Senza il controllo sul tipo, chi aveva il solo
+   * arrivo merce — cioè il preset commesso — creava carichi manuali e i
+   * movimenti di magazzino che ne derivano, con un permesso mai concesso.
+   * Il tipo lo decide il corpo della richiesta: va verificato qui.
+   */
+  describe('il permesso segue il tipo, non la rotta', () => {
+    // `hasAllLocationsAccess`: senza sedi scatterebbe prima il controllo sullo
+    // scope operativo, e i test del verso positivo non arriverebbero mai al
+    // punto che ci interessa.
+    const soloArrivoMerce = () =>
+      testClerkUser({
+        permissions: ['doc.goods_receipt.view', 'doc.goods_receipt.manage'],
+        hasAllLocationsAccess: true,
+      });
+
+    for (const tipo of [DocumentType.manual_load, DocumentType.initial_load] as const) {
+      it(`nega «${tipo}» a chi ha solo l'arrivo merce`, async () => {
+        const { service } = createService(prisma);
+
+        await expect(
+          service.saveGoodsReceipt(tenantId, baseDto({ type: tipo }), soloArrivoMerce()),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        // Nessun effetto: il rifiuto arriva prima di qualunque scrittura.
+        expect(prisma.document.create).not.toHaveBeenCalled();
+        expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+      });
+    }
+
+    it("consente «manual_load» a chi ha la famiglia rettifiche", async () => {
+      const { service } = createService(prisma);
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 6 } });
+      prisma.document.create.mockResolvedValue(savedDocument());
+      prisma.document.findFirstOrThrow.mockResolvedValue(savedDocument());
+
+      const conRettifiche = testClerkUser({
+        permissions: ['doc.adjustment.view', 'doc.adjustment.manage'],
+        hasAllLocationsAccess: true,
+      });
+
+      await expect(
+        service.saveGoodsReceipt(
+          tenantId,
+          baseDto({ type: DocumentType.manual_load }),
+          conRettifiche,
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it("l'arrivo merce resta possibile a chi ha la sua famiglia", async () => {
+      const { service } = createService(prisma);
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 6 } });
+      prisma.document.create.mockResolvedValue(savedDocument());
+      prisma.document.findFirstOrThrow.mockResolvedValue(savedDocument());
+
+      await expect(
+        service.saveGoodsReceipt(tenantId, baseDto(), soloArrivoMerce()),
+      ).resolves.toBeDefined();
+    });
+
+    it('il titolare non è mai fermato: array permessi vuoto, accesso pieno', async () => {
+      const { service } = createService(prisma);
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 6 } });
+      prisma.document.create.mockResolvedValue(savedDocument());
+      prisma.document.findFirstOrThrow.mockResolvedValue(savedDocument());
+
+      await expect(
+        service.saveGoodsReceipt(
+          tenantId,
+          baseDto({ type: DocumentType.initial_load }),
+          testOwnerUser({ permissions: [] }),
+        ),
+      ).resolves.toBeDefined();
+    });
+  });
+
   it('richiede il fornitore per i tipi arrivo merce', async () => {
     const { service } = createService(prisma);
 

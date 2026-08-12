@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -15,7 +16,7 @@ import {
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { viewableDocumentTypesFor } from '../auth/document-permission.util';
+import { canManageDocumentType, viewableDocumentTypesFor } from '../auth/document-permission.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { applyInventoryLotsFromDocumentLines } from '../inventory/inventory-lot.util';
 import { resolveReadableListLocationScope } from '../inventory/licensed-location-scope.util';
@@ -151,6 +152,13 @@ export class GoodsReceiptWorkflowService {
     dto: SaveGoodsReceiptDto,
     user?: UserProfileDto,
   ): Promise<GoodsReceiptSaveResult> {
+    // Il gate della rotta chiede «gestisci arrivo merce», ma questo salvataggio
+    // accetta anche `manual_load` e `initial_load`, che sono famiglia
+    // `adjustment`: senza questo controllo chi ha il solo arrivo merce creava
+    // carichi manuali, e i movimenti di magazzino che ne derivano, con un
+    // permesso che non gli era stato dato. Il tipo lo decide il corpo della
+    // richiesta, quindi va verificato qui — prima di ogni effetto.
+    this.assertTypeManageable(dto.type, user);
     try {
       const result = await this.saveGoodsReceiptInner(tenantId, dto, user);
       // Ricorda la modalità costo (netto/ivato) scelta per questo tipo, solo
@@ -194,6 +202,20 @@ export class GoodsReceiptWorkflowService {
         prefix: setting.numberPrefix,
       }),
     );
+  }
+
+  /**
+   * Stessa forma di `DocumentsService.assertDocumentTypeManageable`: senza
+   * utente in contesto (chiamate interne, lavori di sistema) non si decide
+   * nulla qui — l'autorizzazione l'ha già data chi ha avviato l'operazione.
+   */
+  private assertTypeManageable(type: DocumentType, user?: UserProfileDto): void {
+    if (!user) {
+      return;
+    }
+    if (!canManageDocumentType(user, type)) {
+      throw new ForbiddenException('Non hai il permesso di gestire questo tipo di documento.');
+    }
   }
 
   private async saveGoodsReceiptInner(
