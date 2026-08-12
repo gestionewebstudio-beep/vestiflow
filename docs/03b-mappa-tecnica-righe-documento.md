@@ -947,8 +947,10 @@ Il difetto non è la duplicazione in sé: è che **la copia serve un caso raro**
 | Ordine cliente                  |            0 | —                                                     |
 | Ordine fornitore                |            0 | —                                                     |
 | Trasferimento · Rettifica       |            0 | tolte il 12/08/2026                                   |
-| **Arrivo merce**                |            1 | da togliere; 21 controlli elencati due volte          |
+| Arrivo merce                    |            0 | tolta il 12/08/2026: 21 controlli elencati due volte  |
 | **Fatture** (Proforma/Fatt/Acc) |            2 | **non toccabile**: ramo `feature/fattura-elettronica` |
+
+Sull'Arrivo merce l'unica differenza vera fra riga nuova e riga già registrata — su un arrivo salvato la quantità può essere **zero**, una riga ordinata e non ricevuta — è ora dichiarata in tre righe dopo `createLine()`, invece di stare nascosta in un elenco da confrontare a occhio.
 
 ### 12.1 Il fronte `e2e/` — ✅ chiuso (08/2026), tranne una specifica
 

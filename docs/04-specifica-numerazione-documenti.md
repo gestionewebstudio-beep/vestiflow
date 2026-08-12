@@ -253,17 +253,17 @@ _Lista definita da Luigi l'11 agosto 2026._
 
 ### Categoria A — Data interna, Numero interno, Serie interna
 
-| Documento                | Note                                                                                                                                                                                                                                    |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Preventivi               |                                                                                                                                                                                                                                         |
-| Ordine cliente (interno) | Solo `source = manual`. Gli ordini dai canali portano il numero del canale, vedi §8                                                                                                                                                     |
-| Fattura proforma         | Oggi si chiama «Proforma», da rinominare                                                                                                                                                                                                |
-| DDT di vendita           | Da valutare il nome, vedi §10                                                                                                                                                                                                           |
-| Fattura                  | Con tutta la famiglia di sottotipi: accompagnatoria, d'acconto, nota di credito. **Un solo progressivo condiviso**                                                                                                                      |
-| Ordini fornitore         | ⚠️ **Oggi non ha né numero né serie**: i controlli non esistono proprio. È l'unico di Categoria A messo così — vedi §5-bis                                                                                                              |
-| Scarico manuale giacenze |                                                                                                                                                                                                                                         |
-| Trasferimenti interni    | Numerazione propria. Il DDT eventualmente generato ha la sua                                                                                                                                                                            |
-| Rettifica inventario     | _Aggiunta il 12 agosto 2026._ Mancava dalla lista — non per scelta, per dimenticanza. **Già implementata**: data, numero e serie in testata, e `adjustment` è fra i tipi con numeratore proprio (`COUNTER_CONFIGURABLE_DOCUMENT_TYPES`) |
+| Documento                | Note                                                                                                                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preventivi               |                                                                                                                                                                                                                                                         |
+| Ordine cliente (interno) | Solo `source = manual`. Gli ordini dai canali portano il numero del canale, vedi §8                                                                                                                                                                     |
+| Fattura proforma         | Oggi si chiama «Proforma», da rinominare                                                                                                                                                                                                                |
+| DDT di vendita           | Da valutare il nome, vedi §10                                                                                                                                                                                                                           |
+| Fattura                  | Con tutta la famiglia di sottotipi: accompagnatoria, d'acconto, nota di credito. **Un solo progressivo condiviso**                                                                                                                                      |
+| Ordini fornitore         | ✅ **Fatto il 12/08/2026.** Era l'unico di Categoria A senza numero né serie in testata: il server numerava d'ufficio e l'operatore non vedeva né sceglieva niente. Nessuna migration — le colonne `series` e `number` su `supplier_orders` c'erano già |
+| Scarico manuale giacenze |                                                                                                                                                                                                                                                         |
+| Trasferimenti interni    | Numerazione propria. Il DDT eventualmente generato ha la sua                                                                                                                                                                                            |
+| Rettifica inventario     | _Aggiunta il 12 agosto 2026._ Mancava dalla lista — non per scelta, per dimenticanza. **Già implementata**: data, numero e serie in testata, e `adjustment` è fra i tipi con numeratore proprio (`COUNTER_CONFIGURABLE_DOCUMENT_TYPES`)                 |
 
 ### Categoria B — due blocchi distinti
 
@@ -340,11 +340,13 @@ _Misurato il 12 agosto 2026 su schema Prisma, DTO e maschere Angular. **Nessun c
 
 Li accettano `save-transfer.dto`, `save-adjustment.dto`, `create-document.dto`, `update-document.dto`, `create-supplier-order.dto`, `update-supplier-order.dto`, `save-manual-sales-order.dto`. Togliere il blocco dalle maschere non basta a chiudere la porta: finché il DTO li accetta, un client può scriverli.
 
-### ⚠️ All'Ordine fornitore non manca solo la serie: manca il numero
+### ✅ All'Ordine fornitore mancava il numero, non solo la serie — chiuso il 12/08/2026
 
-È in Categoria A, quindi vuole _Data · Numero · Serie_. Ha `orderDate` e basta: **nessun `documentNumber`, nessun `series`** — i controlli non esistono nel form, e lato server non c'è numerazione per `supplier_order` sulla tabella `supplier_orders`. È l'unico documento di Categoria A messo così; tutti gli altri hanno i tre campi.
+Era in Categoria A ma aveva `orderDate` e basta: nessun `documentNumber`, nessun `series` nel form. **Il server però lo numerava già** — serie predefinita, lock sul contatore, primo libero — quindi il numero c'era, semplicemente non si vedeva e non si poteva scegliere.
 
-**Da decidere** (§10): serie e numero con lo stesso meccanismo degli altri — proposta automatica dal contatore e modale di risoluzione sul duplicato — oppure campi liberi.
+Deciso da Luigi: **serie, numero e data come tutti**, col meccanismo degli altri (proposta dal contatore, gestione serie dall'ingranaggio, avviso sul numero già preso). Fatto senza migration: `series` e `number` su `supplier_orders` esistevano già.
+
+**Il blocco non è stato copiato, è stato estratto.** Sarebbe stata la sesta copia dello stesso meccanismo (Ordine cliente, Arrivo merce, Fattura acquisto, Trasferimento, Rettifica ne portano una ciascuna). Ora vive in `domain/documents/state/document-numbering.store.ts`, con le sue undici prove, e l'Ordine fornitore è il primo consumatore. **Le altre cinque restano com'erano**: migrarle è un passo suo, una maschera per volta.
 
 ### Quale data usa la numerazione
 
