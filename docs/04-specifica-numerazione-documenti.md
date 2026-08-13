@@ -1012,6 +1012,7 @@ Da decidere in sessione dedicata:
 
 - **Sede e catena documenti**: quando una fattura scarica giacenza ereditando da un DDT, la sede da cui si scarica dev'essere quella del documento d'origine, non una scelta libera — altrimenti si scarica da Milano merce uscita da Napoli. Da chiudere insieme alla colonna «scarica giacenza» in fattura (disattivata se il DDT a monte ha già scaricato).
 - **Più partite IVA sotto un'unica gestione**: oggi un tenant = un soggetto fiscale (vedi §1-bis), quindi un cliente con due partite IVA ha due tenant e due abbonamenti. L'alternativa — un tenant con più soggetti — renderebbe la partita IVA un attributo della sede e obbligherebbe ogni documento fiscale a sapere a quale soggetto appartiene: numerazione, registri e cedente XML separati per soggetto. Non è una funzione, è una dimensione nuova del gestionale. Da valutare solo se emergono clienti reali che la richiedono.
+- **Il riferimento usato come numero fiscale** — deciso il 13/08: il numero è il numero, senza prefisso né zeri, e `<Numero>` deve contenere `19`. Resta aperto come si scrive con una serie (`5/MI`?). Analisi e perimetro nel **§11**, decisione da prendere col ramo della fattura elettronica.
 - **Registratore telematico**: un browser non parla con un dispositivo sulla rete locale. Due strade — chiamata diretta al servizio di rete dell'RT, o programma ponte sul computer del negozio. Va scelta anche la lista dei modelli supportati.
 
 ### Domande per il commercialista
@@ -1019,6 +1020,88 @@ Da decidere in sessione dedicata:
 1. Con RT guasto e registro di emergenza tenuto correttamente: la trasmissione tramite «dispositivo fuori servizio» resta dovuta o è esonerata? Le fonti divergono, e la sanzione è il 90% dell'imposta non trasmessa.
 2. VestiFlow deve produrre un file caricabile sul portale, o basta la stampa del registro?
 3. Le sedi secondarie vanno dichiarate all'Agenzia come luoghi di deposito? La merce in un deposito non dichiarato rientra nella presunzione di cessione.
+
+---
+
+## §11 — Il riferimento non è il numero
+
+_Deciso il 13/08/2026 guardando una fattura elettronica vera. **Voce aperta: niente è stato implementato**, e la parte che riguarda lo SdI non si decide qui (vedi in fondo)._
+
+### La decisione
+
+**Il numero del documento è il numero: senza prefisso e senza zeri di riempimento.**
+
+La prova non è un'opinione di stile, è il tracciato. In una fattura elettronica reale:
+
+- `<Numero>` contiene **`19`** — non `FT-19`, non `FT-0019`;
+- il tipo sta nel **suo** campo, `<TipoDocumento>TD01</TipoDocumento>`;
+- e i riferimenti in riga si scrivono allo stesso modo: **«Rif. Doc. di trasporto 17/2026 del 31/07/2026»** — numero, anno, data, e il tipo **come parola**.
+
+Il prefisso incollato al numero è quindi **ridondanza**: dice una cosa che il documento dichiara già altrove, in un campo fatto apposta.
+
+### Cosa questo rende sbagliato, oggi
+
+`document.reference` **intero** finisce dentro `<Numero>`:
+
+```ts
+// api/src/documents/document-xml.service.ts:101
+number: document.reference ?? String(document.number ?? '');
+// → api/src/documents/fatturapa-xml.util.ts:277  tag('Numero', input.number)
+```
+
+**Non è una preferenza di formato: è il numero fiscale sbagliato.** Il numero che il cliente legge sulla fattura e che l'Agenzia registra è `FT-0019` invece di `19`.
+
+Lo stesso valore esce anche in `<ProgressivoInvio>` (1.1.2), nel nome file SdI, e nel `<NumeroDDT>` dei DDT agganciati (2.1.8). Sul ramo `feature/fattura-elettronica` esiste un test che mette il comportamento per iscritto — atteso `<Numero>FT-2026-A-00042</Numero>` — quindi **non è una svista di questo ramo**: è una scelta consolidata da correggere insieme.
+
+### Cosa resta il riferimento
+
+**Un'etichetta interna, e in quel ruolo va benissimo.** Elenchi, collegamenti fra documenti, ricerca libera, riga «Rif. …»: dove serve capire al volo di che documento si parla, `AM-0009` fa il suo lavoro meglio di `9`.
+
+Quello che non deve succedere è che **venga usato come numero fiscale**. Sono due cose diverse — un'etichetta per gli occhi e un identificativo per il registro — e oggi sono la stessa stringa. Separarle è il lavoro.
+
+### Decisione aperta: come si scrive il numero quando c'è una serie
+
+La convenzione italiana visibile nella fattura è **`17/2026`**: numero e sezionale separati da barra. Danea scrive **`DDT 264/Web 2026`**. Con una serie `MI` sarebbe quindi **`5/MI`**, non `MI-0005`.
+
+Da decidere: la barra, l'ordine dei due pezzi, e se l'anno entra nella forma o resta il metadato che il §1 ha già fatto uscire dalla numerazione.
+
+### L'analisi, perché non vada ri-fatta
+
+_Censimento del 13/08/2026: sei letture con altrettanti verificatori indipendenti. **Nessuna delle sei è stata confermata** — i verificatori hanno trovato omissioni vere in tutte — quindi quanto segue è l'unione delle due passate, ed è una mappa buona ma non esaustiva._
+
+**Dove il riferimento esce dal sistema.** L'XML FatturaPA (i quattro punti sopra). Tre PDF: documento, ordine fornitore, ordine cliente — nome file **e** corpo. I CSV e le stampe elenco. L'export corrispettivi per il commercialista. Email non ne esistono nel progetto; verso Shopify e TikTok il riferimento **non viaggia**.
+
+**I formatter sono due, non uno.**
+
+| Dove                                     | Forma                   | Note                                                                                                                                                                                                  |
+| ---------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `document-totals.util.ts:38`             | `PREFISSO[-SERIE]-NNNN` | canonico, **dodici chiamanti tutti backend** — il frontend non compone mai questa forma                                                                                                               |
+| `online-sale-fulfillment.service.ts:674` | `PREFISSO-ANNO-NNNN`    | privato, per Vendite online e Corrispettivi. Mette l'anno che il canonico non ha, **omette la serie che la stessa riga memorizza**, ha i prefissi come costanti di modulo, e usa il vecchio contatore |
+
+Le due forme convivono nella stessa colonna «Documento» dei Movimenti.
+
+**Che il frontend non lo componga mai è la notizia buona**: cambiare la forma è lavoro di backend, non di dodici maschere.
+
+**Gli snapshot congelati** — dove il riferimento è saldato dentro un testo che nessuno riscriverà:
+
+- `stock_movements.reason` — «Trasferimento TR-0009», «Annullamento …», «Vendita negozio …». Per arrivo merce, trasferimento e rettifica la frase si riscrive a ogni salvataggio; **per le vendite il movimento nasce una volta e non si tocca più**;
+- `documents.external_ref` e `internal_comment` («Convertito da FT-0001»);
+- `stock_reservations.external_order_ref` e le note degli eventi impegno;
+- la riga **«Rif. Preventivo PRE-2026-0001 del …»**, persistita come descrizione di riga documento — e che **entra nell'XML**, perché nessuno filtra le righe di riferimento.
+
+**Un vincolo duro:** `supplier_orders` ha `@@unique([tenantId, reference])`. Lì il riferimento **non è un'etichetta: è un'identità del database**, e cambiarne la forma tocca un indice unico.
+
+**Non esiste archivio degli XML trasmessi, né una colonna col numero inviato.** L'XML si ricostruisce al volo a ogni download, dal `reference` corrente: nessun `sentAt`, nessun progressivo conservato, nessun canale di trasmissione nel codice — il file esce solo dal pulsante «Scarica XML». Conseguenza, che è deduzione e non fatto letto: se il formato cambia e i documenti vecchi tengono in colonna il valore vecchio, i loro XML restano coerenti; con un backfill cambierebbero anche a ritroso, e **non c'è codice che scelga fra le due**.
+
+**Gli zeri di riempimento non reggono nessun ordinamento.** Nessun elenco ordina sul testo del riferimento: tutti per data, il registro corrispettivi per `number` (colonna intera). La colonna «Numero» delle tabelle documento non è nemmeno cliccabile. Unica eccezione in tutta l'API: `orderBy: { reference: 'asc' }` in `shopify-shop-change.service.ts:514`, la lista dei motivi che bloccano il cambio negozio — non una schermata di navigazione.
+
+**E `CAR` è il prefisso configurato dell'Arrivo merce**, non il tipo di movimento: la somiglianza con «Carico» è casuale (Carico manuale ha `CM`, Carico iniziale `CI`, e generano movimenti `load` identici). Nella colonna «Documento» dei Movimenti c'è il riferimento memorizzato; nella causale, accanto, c'è una frase ricostruita da `number` + data che **il riferimento non lo guarda mai** — e in cui **la serie non compare mai**, quindi due arrivi n. 9 di serie diverse hanno causali identiche. Nota utile a chi decide: quella colonna «Documento» è **nascosta di default**; di norma l'operatore vede solo la causale, cioè già la forma «parola + numero».
+
+### Chi decide, e dove
+
+**Il `<Numero>` verso lo SdI è materia del ramo `feature/fattura-elettronica`**, che vive dentro `develop`. Va deciso **con il collega**, non qui: è lui che sta riscrivendo quel percorso, e il test che fissa il comportamento attuale è suo.
+
+Da questa parte non è stato implementato niente, di proposito.
 
 ---
 
