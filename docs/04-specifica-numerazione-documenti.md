@@ -702,6 +702,35 @@ Sottotipi: Fattura, Fattura accompagnatoria, Fattura d'acconto, Nota di credito.
 
 **Stato:** `invoice_accompanying` è già nell'enum e `document-type.util.ts:35` la mappa già sul numeratore della fattura. Nota di credito e Fattura d'acconto vanno aggiunte all'enum — additivo. Vedi anche §9 sull'indice unico.
 
+### ⛔ La Fattura accompagnatoria oggi non è utilizzabile
+
+_Misurato il 13/08/2026 contro l'API e il database veri, non dedotto dal codice._
+
+Questo paragrafo esiste perché tutto il resto del §7 fa credere che manchi solo il
+selettore di sottotipo. Non è così: **la maschera c'è, ma un documento lì dentro non si
+salva**, e non è una conseguenza del lavoro sulla numerazione — era già così.
+
+Tre misure, stesso tenant, stessa sede, stessa riga:
+
+| Prova                                   | Fattura                            | Fattura accompagnatoria                                              |
+| --------------------------------------- | ---------------------------------- | -------------------------------------------------------------------- |
+| `GET /document-counters/available`      | 200, **1** contatore, propone n. 1 | 200, **0** contatori, nessuna proposta                               |
+| `POST /documents` con una riga          | **201**, n. 1, `FT-0001`           | **422**                                                              |
+| `POST /document-counters` per quel tipo | —                                  | **422** «Questo tipo documento non ha una numerazione configurabile» |
+
+Quindi in testata il campo Numero resta vuoto e la Serie non è scegliibile — ma il fatto
+che conta è il secondo: **non salva**.
+
+**Il motivo del 422 sul documento non è stato letto**, ed è la prima cosa da guardare
+quando si aprirà il lavoro: può essere la numerazione (il tipo è escluso dai contatori
+configurabili e dal seed, mentre la scrittura risolve la serie rimappando il tipo) oppure
+un requisito suo dell'accompagnatoria — trasporto, destinazione merce. Le due ipotesi
+portano a correzioni diverse.
+
+**Non si corregge qui.** La famiglia fattura è lavoro dopo il merge, su un ramo suo, con i
+comportamenti per sottotipo ancora da decidere (§10). Questa nota serve a una cosa sola:
+chi porta il ramo in `develop` deve sapere che porta anche una maschera ferma.
+
 ---
 
 ## §8 — Documenti senza operatore, e i Corrispettivi
