@@ -21,15 +21,22 @@
   </table>
 </div>
 
-@if (hasExtendedDetails()) {
+<!-- I campi fiscali di questa scheda sono quelli dell'ATTIVAZIONE, e li vede
+     solo il titolare: a un operatore una partita IVA che non è quella con cui
+     escono i documenti direbbe la cosa sbagliata. -->
+@if (showFiscalDetails() && hasExtendedDetails()) {
   <details class="tenant-client-card__details">
     <summary class="tenant-client-card__details-summary">
-      <span class="tenant-client-card__details-label">Dati fiscali e contatti</span>
+      <span class="tenant-client-card__details-label">Dati fiscali del contratto</span>
       <span class="tenant-client-card__details-trailing">
         <span class="tenant-client-card__details-meta">{{ extendedDetailsMeta() }}</span>
         <i class="pi pi-chevron-right tenant-client-card__details-icon" aria-hidden="true"></i>
       </span>
     </summary>
+    <p class="tenant-client-card__details-note">
+      Sono i dati registrati all'attivazione dell'account. Documenti e stampe usano invece i
+      <a routerLink="/app/settings/azienda">Dati azienda</a>.
+    </p>
     <dl class="tenant-client-card__facts">
       @for (field of extendedFields(); track field.label) {
         <div class="tenant-client-card__fact">

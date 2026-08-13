@@ -117,12 +117,16 @@ export function reportPageSubtitle(profile: TenantChannelProfile | undefined): s
   return 'Analytics commerciali, corrispettivi manuali e giacenze per location.';
 }
 
-/** Hint pannello Sede fisica in Impostazioni. */
+/**
+ * Hint pannello Dati di attivazione in Impostazioni. Dice due volte da dove
+ * arriva il dato e a cosa NON serve: è l'unico posto dove un titolare può
+ * scambiarlo per l'anagrafica che intesta i documenti.
+ */
 export function tenantCompanyPanelHint(profile: TenantChannelProfile | undefined): string {
-  if (showShopifyIntegration(profile)) {
-    return 'Anagrafica registrata in VestiFlow dall’operatore. Identifica l’azienda del cliente ed è indipendente dalle sedi operative collegate a Shopify.';
-  }
-  return 'Anagrafica registrata in VestiFlow dall’operatore. Identifica l’azienda del cliente ed è indipendente dalle sedi operative del magazzino.';
+  const coda = showShopifyIntegration(profile)
+    ? 'ed è indipendente dalle sedi operative collegate a Shopify.'
+    : 'ed è indipendente dalle sedi operative del magazzino.';
+  return `Registrati all’attivazione dell’account e gestiti dall’assistenza VestiFlow. Documenti e stampe usano i Dati azienda, ${coda}`;
 }
 
 export function productImportIntro(profile: TenantChannelProfile | undefined): string {

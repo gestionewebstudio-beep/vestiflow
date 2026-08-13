@@ -1,93 +1,10 @@
-import { Transform } from 'class-transformer';
-import { IsEmail, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { CompanyFieldsDto } from '../../common/dto/company-fields.dto';
 
-function trimToUndefined({ value }: { value: unknown }): unknown {
-  if (typeof value !== 'string') {
-    return value;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-/** Campi anagrafici opzionali del tenant (cliente VestiFlow). */
-export class TenantProfileFieldsDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(160)
-  @Transform(trimToUndefined)
-  legalName?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(16)
-  @Matches(/^\d{11}$/, { message: 'Partita IVA non valida: servono 11 cifre' })
-  @Transform(trimToUndefined)
-  vatNumber?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(16)
-  @Transform(trimToUndefined)
-  fiscalCode?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(30)
-  @Transform(trimToUndefined)
-  phone?: string;
-
-  @IsOptional()
-  @IsEmail()
-  @MaxLength(255)
-  @Transform(trimToUndefined)
-  pec?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(7)
-  @Transform(trimToUndefined)
-  sdiCode?: string;
-
-  /** IBAN di incasso: 34 caratteri è il massimo previsto dallo standard. */
-  @IsOptional()
-  @IsString()
-  @MaxLength(34)
-  @Transform(trimToUndefined)
-  iban?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  @Transform(trimToUndefined)
-  addressLine1?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  @Transform(trimToUndefined)
-  addressLine2?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  @Transform(trimToUndefined)
-  city?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  @Transform(trimToUndefined)
-  province?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  @Transform(trimToUndefined)
-  postalCode?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(2)
-  @Transform(trimToUndefined)
-  countryCode?: string;
-}
+/**
+ * Campi anagrafici opzionali del tenant: identificano il **cliente VestiFlow**,
+ * quello a cui è intestato il contratto, e li compila l'admin di piattaforma.
+ *
+ * Non intestano i documenti: quella è l'anagrafica dell'azienda gestita
+ * (`CompanyProfile`), che compila il titolare. Stessa forma, dato diverso.
+ */
+export class TenantProfileFieldsDto extends CompanyFieldsDto {}

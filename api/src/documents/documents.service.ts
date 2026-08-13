@@ -28,6 +28,11 @@ import {
   viewableDocumentTypesFor,
 } from '../auth/document-permission.util';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
+import {
+  ISSUER_TENANT_SELECT,
+  resolveDocumentIssuer,
+  type DocumentIssuer,
+} from '../common/company/document-issuer.util';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { partyDisplayName } from '../common/party/party.util';
 import { applyStockSale } from '../inventory/inventory-movement.util';
@@ -507,10 +512,7 @@ export class DocumentsService {
    * famiglia del tipo. `user` assente (chiamate interne) passa: i flussi di
    * sistema non sono azioni operatore.
    */
-  private assertDocumentTypeManageable(
-    user: UserProfileDto | undefined,
-    type: DocumentType,
-  ): void {
+  private assertDocumentTypeManageable(user: UserProfileDto | undefined, type: DocumentType): void {
     if (!user) {
       return;
     }
@@ -972,6 +974,11 @@ export class DocumentsService {
     const customerName =
       (await this.snapshotCustomerName(tenantId, dto.customerId)) ??
       (dto.customerName?.trim() || null);
+    // Chi emette, congelato adesso: la ristampa di domani deve dire quello che
+    // il documento diceva oggi. Porta anche l'IBAN di incasso, che precompila
+    // i dati pagamento della fattura senza che l'operatore debba conoscerlo —
+    // l'anagrafica azienda la legge solo il titolare.
+    const issuer = await this.loadIssuer(tenantId);
     // Nascita-confermato (Fase 3): il documento si crea e si conferma in
     // un'unica transazione. `syncTargets` raccoglie i push inventario a valle.
     const syncTargets: Array<{ variantId: string; locationId: string }> = [];
@@ -1021,9 +1028,12 @@ export class DocumentsService {
             expectedDeliveryDate: dto.expectedDeliveryDate
               ? new Date(dto.expectedDeliveryDate)
               : null,
-            // Fattura: dati pagamento in testata.
+            issuerSnapshot: issuer as unknown as Prisma.InputJsonValue,
+            // Fattura: dati pagamento in testata. Senza IBAN digitato vale
+            // quello dei dati azienda: sulla fattura ci finisce comunque, e
+            // farlo scrivere a mano da chi non può leggerlo è un giro assurdo.
             paymentDueDate: dto.paymentDueDate ? new Date(dto.paymentDueDate) : null,
-            iban: dto.iban?.trim() || null,
+            iban: dto.iban?.trim() || issuer.iban,
             // DDT vendita: testata operativa (prompt DDT).
             followedBySalesDoc: dto.followedBySalesDoc ?? false,
             transportCausal: dto.transportCausal?.trim() || null,
@@ -1148,10 +1158,10 @@ export class DocumentsService {
         source: 'document',
         prefix: setting.numberPrefix,
         requestedNumber,
-    // La data governa il primo libero (§2): senza, l'avviso proporrebbe il
-    // numero giusto per OGGI e non per la data del documento — cioè scriverebbe
-    // in testata un numero calcolato con una regola diversa da quella che ha
-    // appena assegnato quello rifiutato.
+        // La data governa il primo libero (§2): senza, l'avviso proporrebbe il
+        // numero giusto per OGGI e non per la data del documento — cioè scriverebbe
+        // in testata un numero calcolato con una regola diversa da quella che ha
+        // appena assegnato quello rifiutato.
         documentDate,
       }),
     );
@@ -3586,6 +3596,18 @@ export class DocumentsService {
       });
       if (!found) throw new NotFoundException('Sede non trovata');
     }
+  }
+
+  /**
+   * L'azienda che emette il documento: l'anagrafica del titolare se l'ha
+   * compilata, altrimenti i dati di attivazione (vedi `document-issuer.util`).
+   */
+  private async loadIssuer(tenantId: string): Promise<DocumentIssuer> {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: ISSUER_TENANT_SELECT,
+    });
+    return resolveDocumentIssuer(tenant);
   }
 
   private async snapshotSupplierName(

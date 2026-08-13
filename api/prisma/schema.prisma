@@ -377,6 +377,7 @@ model Tenant {
   goodsReceiptCausals     GoodsReceiptCausal[]
   externalDocumentTypes   ExternalDocumentType[]
   vatCodes                VatCode[]
+  companyProfile          CompanyProfile?
   featureSettings         TenantFeatureSettings?
   shopifyConnection       ShopifyConnection?
   shopifyCredential       ShopifyCredential?
@@ -1852,6 +1853,57 @@ model DocumentTypeSetting {
   @@map("document_type_settings")
 }
 
+/// Anagrafica dell'AZIENDA GESTITA nel gestionale: è questa che intesta
+/// documenti, stampe e XML, e la compila il titolare.
+///
+/// Non va confusa con i campi anagrafici sul `Tenant`, che sono **un altro
+/// dato**: quelli li inserisce l'admin di piattaforma quando attiva il cliente
+/// e identificano il cliente VestiFlow (a chi è intestato il contratto). Il
+/// titolare può cambiare la propria azienda senza toccare quel record, e
+/// viceversa. Tenerli separati è una decisione di prodotto (08/2026), non una
+/// duplicazione da riunificare.
+///
+/// Tutti i campi sono opzionali: il primo giorno l'anagrafica è vuota, e la
+/// maschera offre di precompilarla dai dati di attivazione — con una pressione
+/// esplicita del titolare, mai in automatico.
+model CompanyProfile {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @unique @map("tenant_id") @db.Uuid
+  legalName    String?  @map("legal_name")
+  vatNumber    String?  @map("vat_number")
+  fiscalCode   String?  @map("fiscal_code")
+  phone        String?
+  email        String?
+  website      String?
+  pec          String?
+  sdiCode      String?  @map("sdi_code")
+  /// IBAN di incasso: precompila i dati pagamento in fattura.
+  iban         String?
+  addressLine1 String?  @map("address_line1")
+  addressLine2 String?  @map("address_line2")
+  city         String?
+  province     String?
+  postalCode   String?  @map("postal_code")
+  countryCode  String?  @map("country_code")
+  /// Regime fiscale FatturaPA (RF01 ordinario, RF19 forfettario…). NULL = RF01.
+  taxRegime    String?  @map("tax_regime")
+  // ── Iscrizione al Registro Imprese (art. 2250 c.c. per le società) ──
+  /// Sigla provincia della CCIAA: «NA», «MI».
+  reaOffice    String?  @map("rea_office")
+  reaNumber    String?  @map("rea_number")
+  /// Capitale sociale in centesimi (unità minori, come ogni importo).
+  shareCapitalMinor Int?     @map("share_capital_minor")
+  /// NULL = non dichiarato; true = socio unico; false = più soci.
+  soleShareholder   Boolean? @map("sole_shareholder")
+  inLiquidation     Boolean  @default(false) @map("in_liquidation")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("company_profiles")
+}
+
 /// Impostazioni operative tenant (§16): moduli magazzino, lotti, seriali, prezzi fornitore.
 model TenantFeatureSettings {
   id                          String                    @id @default(uuid()) @db.Uuid
@@ -1961,6 +2013,10 @@ model Document {
   printTitle        String?        @map("print_title")
   notes             String?
   internalComment   String?        @map("internal_comment")
+  /// Intestazione di chi emette, congelata alla creazione: un documento emesso
+  /// si ristampa identico anche se l'anagrafica azienda cambia dopo. NULL sui
+  /// documenti anteriori allo snapshot, che rileggono l'anagrafica corrente.
+  issuerSnapshot    Json?          @map("issuer_snapshot")
   // ── Controparti (snapshot nome per display stabile) ──
   supplierId        String?        @map("supplier_id") @db.Uuid
   supplierName      String?        @map("supplier_name")

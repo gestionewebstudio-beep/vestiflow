@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { PdfDocumentInstance } from '../common/pdf/pdf-document.types';
 
+import {
+  ISSUER_TENANT_SELECT,
+  resolveDocumentIssuer,
+} from '../common/company/document-issuer.util';
 import { serializeItalianExcelCsv } from '../common/csv.util';
 import { formatMinorAmount } from '../common/pdf/money-format.util';
 import { renderPdfToBuffer, sanitizePdfFilename } from '../common/pdf/pdf-buffer.util';
@@ -92,17 +96,20 @@ export class CorrispettiviExportService {
     const [tenant, summary, rows] = await Promise.all([
       this.prisma.tenant.findUniqueOrThrow({
         where: { id: tenantId },
-        select: { name: true, legalName: true, vatNumber: true },
+        select: ISSUER_TENANT_SELECT,
       }),
       this.corrispettivi.getSummary(tenantId, query),
       this.buildAccountantRows(tenantId, query),
     ]);
 
+    // Il registro va al commercialista: in testa ci va l'azienda gestita, la
+    // stessa che intesta i documenti, non il cliente VestiFlow.
+    const issuer = resolveDocumentIssuer(tenant);
     const periodLabel = formatCorrispettiviPeriodLabel(query);
     const buffer = await renderPdfToBuffer((doc) => {
       this.renderCorrispettiviPdf(doc, {
-        tenantName: tenant.legalName?.trim() || tenant.name,
-        vatNumber: tenant.vatNumber,
+        tenantName: issuer.legalName,
+        vatNumber: issuer.vatNumber,
         periodLabel,
         summary,
         rows,
@@ -177,7 +184,10 @@ export class CorrispettiviExportService {
       y += 14;
     }
 
-    doc.font('Helvetica-Bold').fontSize(16).text('Corrispettivi commercialista', left, y + 6);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(16)
+      .text('Corrispettivi commercialista', left, y + 6);
     y += 28;
     y = drawPdfMetaLine(doc, 'Periodo', periodLabel, y);
     y = drawPdfMetaLine(doc, 'Ordini', String(summary.orderCount), y);

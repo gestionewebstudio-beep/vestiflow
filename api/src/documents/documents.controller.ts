@@ -12,7 +12,6 @@ import {
   Post,
   Query,
   StreamableFile,
-  UnprocessableEntityException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -67,7 +66,6 @@ import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflo
 import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
 import { DocumentChronologyService } from './document-chronology.service';
 import { ChronologyCheckQueryDto } from './dto/chronology-check.query.dto';
-import { DocumentType } from '@prisma/client';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)

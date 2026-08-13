@@ -115,6 +115,10 @@ export class TenantBackupExportService {
         return this.prisma.documentTypeSetting.findMany({ where: { tenantId } });
       case 'vatCodes':
         return this.prisma.vatCode.findMany({ where: { tenantId } });
+      case 'companyProfile': {
+        const row = await this.prisma.companyProfile.findUnique({ where: { tenantId } });
+        return row ? [row] : [];
+      }
       case 'tenantFeatureSettings': {
         const row = await this.prisma.tenantFeatureSettings.findUnique({ where: { tenantId } });
         return row ? [row] : [];

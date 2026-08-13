@@ -7,10 +7,23 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Sola lettura per tutti i job: nessuno qui scrive sul repo. Senza questa riga
+# vale il default del repository, che spesso e' in scrittura.
+permissions:
+  contents: read
+
+# Una pipeline per volta per ogni ref. `cancel-in-progress` solo sulle PR: su
+# main la run non si annulla mai, perche' li' e' il controllo del rilascio e
+# perderla per un push successivo lascerebbe un commit senza verifica.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint-and-test:
     name: Lint & unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,6 +33,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          # Senza questo la cache indicizza il solo lockfile di root, e
+          # `npm ci --prefix api` riscarica le dipendenze del backend a ogni run.
+          cache-dependency-path: |
+            package-lock.json
+            api/package-lock.json
 
       - name: Install frontend dependencies
         run: npm ci
@@ -36,6 +54,18 @@ jobs:
       - name: Install API dependencies
         run: npm ci --prefix api
 
+      - name: Lint API
+        run: npm run lint --prefix api
+
+      # Il type-check del backend sta qui e in nessun altro posto: vitest esegue
+      # i .spec.ts con esbuild, che i tipi li strippa senza controllarli. Senza
+      # questo passo un errore TypeScript non coperto da test passa la CI verde
+      # e si scopre solo quando il deploy prova a compilare.
+      # Va PRIMA dei test: un errore di compilazione deve fallire dicendo che
+      # cos'e', non tramite un test che esplode per cause apparentemente ignote.
+      - name: Build API (type-check)
+        run: npm run build --prefix api
+
       - name: Test API with coverage
         run: npm run test:coverage --prefix api
 
@@ -46,6 +76,7 @@ jobs:
     name: Playwright E2E
     runs-on: ubuntu-latest
     needs: lint-and-test
+    timeout-minutes: 30
     env:
       E2E_AUTH_CONFIGURED: ${{ secrets.E2E_USER_EMAIL != '' && secrets.E2E_USER_PASSWORD != '' }}
     steps:
@@ -57,6 +88,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            api/package-lock.json
 
       - name: Install frontend dependencies
         run: npm ci
@@ -109,6 +143,7 @@ jobs:
     name: Lighthouse CI
     runs-on: ubuntu-latest
     needs: lint-and-test
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -124,3 +159,47 @@ jobs:
 
       - name: Run Lighthouse CI
         run: npm run audit:lhci
+
+  # Job a se' stante, senza `needs`: gira in parallelo e non trattiene e2e ne'
+  # lighthouse. Un advisory pubblicato stanotte su una dipendenza che nessuno ha
+  # toccato non deve spegnere l'intera pipeline.
+  audit:
+    name: Audit dipendenze
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Bloccante sulle sole dipendenze di PRODUZIONE (frontend e API): sono le
+      # uniche che finiscono nel bundle servito o sul server.
+      #
+      # Perche' non l'audit completo: le vulnerabilita' delle devDependencies
+      # oggi stanno tutte nella catena di Lighthouse CI (extract-zip →
+      # puppeteer → lighthouse), e l'unico rimedio che npm propone e' un
+      # DOWNGRADE di @lhci/cli. Un controllo rosso per sempre, e per una causa
+      # che non si puo' risolvere, insegna solo a ignorare il rosso.
+      # `npm audit` legge il lockfile: non serve installare nulla.
+      - name: Audit produzione (bloccante)
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --omit=dev --audit-level=high --prefix api
+
+      # Informativo: le devDependencies restano visibili nel log senza fermare
+      # la build. Se qui compare qualcosa fuori dalla catena Lighthouse, va
+      # guardato.
+      # `|| true` su OGNI comando, non `continue-on-error` da solo: la shell di
+      # default e' `bash -e`, quindi il primo audit rosso interromperebbe lo
+      # step e quello dell'API non verrebbe mai stampato — che e' proprio il
+      # caso di oggi, con il frontend rosso per la catena Lighthouse.
+      - name: Audit completo incluse devDependencies (informativo)
+        run: |
+          echo "── frontend ──"
+          npm audit --audit-level=high || true
+          echo "── api ──"
+          npm audit --audit-level=high --prefix api || true

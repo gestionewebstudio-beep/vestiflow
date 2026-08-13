@@ -22,7 +22,6 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   SUPPLIER_ORDERS_MANAGE_PERMISSIONS,
   SUPPLIERS_LOOKUP_PERMISSIONS,
-  TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
   RequireAllPermissionGroups,

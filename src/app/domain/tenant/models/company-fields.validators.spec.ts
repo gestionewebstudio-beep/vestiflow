@@ -1,9 +1,9 @@
 import { FormControl } from '@angular/forms';
 import { describe, expect, it } from 'vitest';
 
-import { italianVatValidator, optionalEmailValidator } from './admin-tenant.validators';
+import { italianVatValidator, optionalEmailValidator } from './company-fields.validators';
 
-describe('admin-tenant.validators', () => {
+describe('company-fields.validators', () => {
   describe('italianVatValidator', () => {
     const validator = italianVatValidator();
 

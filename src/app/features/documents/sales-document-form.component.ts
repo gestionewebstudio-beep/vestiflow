@@ -67,8 +67,6 @@ import { mergeVariantSummaries } from '@domain/products/utils/variant-summary-se
 import { toVariantSelectMenuOptions } from '@domain/products/utils/variant-select-menu.util';
 import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
-import type { TenantCompany } from '@domain/tenant/models/tenant-company.model';
-import { TenantCompanyService } from '@domain/tenant/services/tenant-company.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
@@ -233,7 +231,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private readonly productService = inject(ProductService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
-  private readonly tenantCompanyService = inject(TenantCompanyService);
   private readonly router = inject(Router);
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
@@ -647,11 +644,13 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     return (fromSettings ?? fallback)?.id ?? '';
   });
 
-  /** Dati cedente (Impostazioni negozio): precompilano l'IBAN in fattura. */
-  private readonly tenantCompany = toSignal(
-    this.tenantCompanyService.getCompany().pipe(catchError(() => of(null))),
-    { initialValue: null as TenantCompany | null },
-  );
+  /*
+   * L'IBAN non si precompila più da qui. L'anagrafica azienda la legge solo il
+   * titolare, e chiedere quella chiamata a ogni operatore che emette una
+   * fattura significherebbe o un 403 o un buco nella riserva. Lo mette l'API
+   * alla creazione, se il campo è vuoto: sul documento salvato c'è, e in
+   * modifica si vede e si cambia.
+   */
 
   /**
    * DDT vendita agganciabili: quelli confermati del cliente selezionato.
@@ -992,17 +991,6 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       for (const line of this.lines.controls) {
         this.ensureLineVatCode(line);
       }
-    });
-
-    // IBAN precompilato da Impostazioni negozio: solo in creazione e solo se
-    // l'operatore non ha già digitato il proprio. Su un documento caricato
-    // vince sempre l'IBAN salvato (snapshot storico).
-    effect(() => {
-      const iban = this.tenantCompany()?.profile.iban;
-      if (!iban || this.isEditMode() || this.form.controls.iban.value.trim()) {
-        return;
-      }
-      this.form.controls.iban.setValue(iban, { emitEvent: false });
     });
   }
 

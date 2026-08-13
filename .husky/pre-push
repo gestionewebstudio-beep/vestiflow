@@ -1,2 +1,8 @@
+# Per primo perche' e' il piu' rapido e il piu' strutturale: se il backend non
+# compila, far girare prima tutta la suite di test non serve a niente.
+# E' anche l'UNICO type-check del backend che esista, in locale come in CI:
+# vitest esegue i .spec.ts con esbuild, che i tipi li strippa senza guardarli.
+npm run build --prefix api
+
 npm run test:everything
 npm run build
