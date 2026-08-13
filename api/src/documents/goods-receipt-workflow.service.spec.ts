@@ -804,10 +804,12 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
       });
     });
 
-    // Numero assegnato d'ufficio: il server prende «massimo + 1» = 44, un
-    // collega lo brucia nello stesso istante. Lì l'ultimo occupato È il numero
-    // rifiutato, ed è per questo che il ripiego resta `nextAvailable - 1`.
-    it('senza protocollo digitato il 409 nomina il numero assegnato d’ufficio', async () => {
+    // Numero assegnato d'ufficio: il server lo calcola dentro la transazione,
+    // un collega lo brucia nello stesso istante, e col rollback quel numero è
+    // perso. Il payload NON lo inventa più: prima ripiegava su
+    // `nextAvailable - 1`, che sotto la regola del §2 può essere «il buco meno
+    // uno» — un numero che con la collisione non c'entra niente.
+    it('senza protocollo digitato il 409 non inventa il numero rifiutato', async () => {
       const { service } = createService(prisma);
       prisma.document.aggregate.mockResolvedValue({ _max: { number: 43 } });
       prisma.document.create.mockImplementation(() => {
@@ -821,7 +823,7 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
         .catch((err: unknown) => err);
 
       expect((error as ConflictException).getResponse()).toMatchObject({
-        number: 44,
+        number: null,
         nextAvailable: 45,
       });
     });

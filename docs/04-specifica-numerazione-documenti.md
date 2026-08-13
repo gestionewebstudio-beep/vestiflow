@@ -811,6 +811,38 @@ Una stesura precedente diceva che condividevano già un solo progressivo e non c
 
 La correzione **rende vera** la decisione di condividere il progressivo, non la cambia.
 
+### ⛔ Il difetto che il merge reintroduce, e che nessun test richiama
+
+_Verificato il 13/08/2026 leggendo entrambi i rami. **Questa è la voce da non perdere.**_
+
+Quella migration ha chiuso il difetto per due tipi. Ne sta arrivando un terzo, e all'unione il difetto **torna** — senza che niente lo segnali.
+
+**Da una parte**, il ramo `feature/fattura-elettronica` aggiunge `credit_note` all'enum (`20260807020000_credit_note_document_type`). Il commento della sua migration dice testualmente: «Condivide il numeratore con le fatture (`documentNumberingType`, come l'accompagnatoria)». E il suo `document-type.util.ts` lo fa davvero:
+
+```ts
+return type === DocumentType.invoice_accompanying || type === DocumentType.credit_note
+  ? DocumentType.invoice_draft
+  : type;
+```
+
+**Dall'altra**, l'indice unico di questo ramo è un indice di **espressione**, e il suo `CASE` conosce un solo tipo:
+
+```sql
+CASE WHEN "type" = 'invoice_accompanying'::"DocumentType"
+       THEN 'invoice_draft'::"DocumentType"
+     ELSE "type" END
+```
+
+**Dopo il merge**, la Nota di credito condivide il numeratore **nel codice** ma non **nel database**: una Fattura 7 e una Nota di credito 7 potranno coesistere. È esattamente il difetto che questa migration è stata scritta per chiudere, reintrodotto dall'unione dei due lavori — e su documenti fiscali, dove due numeri uguali nello stesso registro non sono un fastidio.
+
+**Serve una terza migration al momento di unire**, che ricostruisca l'indice col `credit_note` dentro il `CASE`, dopo aver verificato che nel database non esistano già collisioni. La migration originale lo aveva scritto in anticipo, e vale la pena rileggerlo:
+
+> «Se un domani un altro tipo dovesse condividere il numeratore, va aggiunto QUI oltre che in `documentNumberingType`: sono due facce dello stesso patto, e disallinearle è esattamente il difetto che questa migration chiude.»
+
+**Perché è muto.** Nessun test lo prende: le suite girano su doppioni, l'indice vive nel database e nessuno verifica che il `CASE` e `documentNumberingType` dicano la stessa cosa. Nessun lint lo prende: sono due file diversi, in due linguaggi diversi, su due rami diversi. E il merge testuale **riesce** — i due file non si toccano. Il difetto compare solo quando qualcuno emette la settima Nota di credito.
+
+La guardia che mancherebbe: un test che legga i tipi mappati da `documentNumberingType` e verifichi che siano gli stessi nominati nel `CASE` dell'indice. Richiede un Postgres vero (vedi `GUARDIE-MANCANTI.md`, voce 12) oppure un confronto sul testo della migration, che è meno solido ma costa poco.
+
 ### «È ancora una proposta?» — una classe di errore chiusa alla radice
 
 _Fatto 13 agosto 2026._

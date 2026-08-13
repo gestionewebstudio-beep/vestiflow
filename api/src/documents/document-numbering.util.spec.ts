@@ -213,21 +213,27 @@ describe('buildDocumentNumberConflict', () => {
   });
 
   /**
-   * Numero assegnato d'ufficio (nessuna richiesta): il server aveva preso
-   * «massimo + 1», qualcuno l'ha bruciato, quindi ora quel numero È il massimo.
-   * Qui `nextAvailable - 1` è la risposta giusta, e resta il fallback.
+   * Numero assegnato d'ufficio (nessuna richiesta): il chiamante non sa quale
+   * numero la transazione avesse calcolato — è andato perso col rollback.
+   *
+   * Qui il ripiego era `nextAvailable - 1`, e la motivazione era «il server
+   * aveva preso massimo + 1, qualcuno l'ha bruciato, quindi ora quel numero È
+   * il massimo». Vera fino alla regola del §2, **falsa da quando la proposta è
+   * il primo libero sopra i documenti di data anteriore**: su una serie con
+   * buchi `nextAvailable` è il buco, e «il buco meno uno» è un numero che con
+   * la collisione non c'entra niente. Non se ne nomina nessuno.
    */
-  it('senza numero richiesto ripiega sull’ultimo occupato', async () => {
+  it('senza numero richiesto non inventa il numero rifiutato', async () => {
     const conflict = await conflictFor({ maxNumber: 43, requestedNumber: null });
 
-    expect(conflict.number).toBe(43);
+    expect(conflict.number).toBeNull();
     expect(conflict.nextAvailable).toBe(44);
   });
 
-  it('numero richiesto assente o non valido: stesso ripiego', async () => {
-    await expect(conflictFor({ maxNumber: 43 })).resolves.toMatchObject({ number: 43 });
+  it('numero richiesto assente o non valido: stesso silenzio', async () => {
+    await expect(conflictFor({ maxNumber: 43 })).resolves.toMatchObject({ number: null });
     await expect(conflictFor({ maxNumber: 43, requestedNumber: 0 })).resolves.toMatchObject({
-      number: 43,
+      number: null,
     });
   });
 

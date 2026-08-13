@@ -32,14 +32,17 @@ describe('documentNumberConflictMessage', () => {
     expect(message).not.toContain('numero 43');
   });
 
-  // «Prossimo numero», non «primo libero»: `nextAvailable` è massimo + 1, e su
-  // una serie con buchi il primo libero è il buco. Chiamarlo «primo libero»
-  // contraddirebbe la scheda dei numeratori, che i buchi li elenca.
-  it('nomina il prossimo numero della serie, non lo chiama «primo libero»', () => {
+  // «Primo libero», non «prossimo numero» — e fino al 13/08/2026 questa prova
+  // fissava il contrario, con la motivazione «`nextAvailable` è massimo + 1».
+  // Era vera prima della regola del §2: oggi `nextAvailable` è il primo libero
+  // sopra i documenti di data anteriore, che su una serie con buchi È il buco.
+  // Chiamarlo «il prossimo numero della serie» mentre gli si propone il 12 con
+  // l'ultimo documento al 13 gli dice una cosa falsa.
+  it('lo chiama primo numero libero, perché è quello che è', () => {
     const message = documentNumberConflictMessage(conflict({ number: 7, nextAvailable: 44 }));
 
-    expect(message).toContain('il 44, il prossimo numero della serie');
-    expect(message).not.toContain('primo numero libero');
+    expect(message).toContain('il 44, il primo numero libero della serie');
+    expect(message).not.toContain('il prossimo numero');
   });
 
   // Il documento non è salvato ma la testata SÌ è cambiata (§3): entrambe le
@@ -55,11 +58,25 @@ describe('documentNumberConflictMessage', () => {
     expect(message).toContain('premi Salva per confermarlo, o scrivine un altro');
   });
 
+  /**
+   * Numero assegnato d'ufficio e perso col rollback: il server manda `null`
+   * invece di inventarne uno (prima ripiegava su `nextAvailable - 1`, che sotto
+   * la regola del §2 può essere «il buco meno uno»). La frase deve reggere
+   * senza cifra, e non deve dire «Il numero null».
+   */
+  it('senza numero rifiutato non ne nomina nessuno', () => {
+    const message = documentNumberConflictMessage(conflict({ number: null }));
+
+    expect(message).toContain('Il numero assegnato della serie A è stato preso');
+    expect(message).not.toContain('null');
+    expect(message).toContain('In testata è stato messo il 44');
+  });
+
   it('senza serie non la nomina in nessuna delle due frasi', () => {
     const message = documentNumberConflictMessage(conflict({ series: null }));
 
     expect(message).toContain('Il numero 7 è già stato assegnato');
-    expect(message).toContain('il 44, il prossimo numero');
+    expect(message).toContain('il 44, il primo numero libero');
     expect(message).not.toContain('serie');
   });
 });

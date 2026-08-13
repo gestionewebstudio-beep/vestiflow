@@ -14,9 +14,12 @@ export interface DocumentNumberConflict {
    * Numero RIFIUTATO: quello che l'operatore ha in testata, digitato da lui o
    * già scritto sul documento in modifica. È l'unico numero che ha senso
    * nominargli — non l'ultimo occupato della serie, che non ha mai visto.
+   *
+   * `null` quando il numero era stato assegnato d'ufficio e il server non sa
+   * dire quale fosse: in quel caso non se ne nomina nessuno.
    */
-  readonly number: number;
-  /** Primo numero libero della serie, da suggerire all'operatore. */
+  readonly number: number | null;
+  /** Primo numero libero della serie alla data del documento (regola §2). */
   readonly nextAvailable: number;
   /** null = senza serie. */
   readonly series: string | null;
@@ -70,18 +73,27 @@ export function documentNumberConflictOf(error: unknown): DocumentNumberConflict
  * sapere quale sia il prossimo libero. Chi voleva un altro buco lo scrive: il
  * campo resta suo, e la frase glielo dice.
  *
- * «PROSSIMO numero», non «primo libero»: `nextAvailable` è massimo + 1, e su una
- * serie con buchi il primo libero è il buco, non la coda. Chiamarlo «primo
- * libero» direbbe all'operatore l'esatto contrario di quello che gli dice la
- * scheda dei numeratori, che i buchi glieli elenca.
+ * **«primo libero», non «prossimo numero»** _(corretto il 13/08/2026)_. Qui c'era
+ * scritto il contrario, con la motivazione «`nextAvailable` è massimo + 1»: era
+ * vera fino alla regola del §2, che l'ha sostituita. Oggi `nextAvailable` è il
+ * primo libero sopra i documenti di data anteriore, e su una serie con buchi
+ * **è il buco**. Chiamarlo «il prossimo numero della serie» mentre gli si
+ * propone il 12 con l'ultimo documento al 13 è dirgli una cosa falsa proprio
+ * nel momento in cui sta guardando il campo.
+ *
+ * Se il numero rifiutato non è noto (assegnato d'ufficio, perso col rollback)
+ * non se ne nomina nessuno: la frase dice cos'è successo senza inventare cifre.
  */
 export function documentNumberConflictMessage(conflict: DocumentNumberConflict): string {
   const seriePart = conflict.series ? ` della serie ${conflict.series}` : '';
   const seriePartNext = conflict.series ? ' della serie' : '';
+  const rifiutato =
+    conflict.number != null
+      ? `Il numero ${conflict.number}${seriePart} è già stato assegnato a un altro documento`
+      : `Il numero assegnato${seriePart} è stato preso da un altro documento`;
   return (
-    `Il numero ${conflict.number}${seriePart} è già stato assegnato a un altro documento: ` +
-    `il documento non è stato salvato. In testata è stato messo il ` +
-    `${conflict.nextAvailable}, il prossimo numero${seriePartNext}: premi Salva per ` +
+    `${rifiutato}: il documento non è stato salvato. In testata è stato messo il ` +
+    `${conflict.nextAvailable}, il primo numero libero${seriePartNext}: premi Salva per ` +
     `confermarlo, o scrivine un altro.`
   );
 }

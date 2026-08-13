@@ -61,12 +61,16 @@ export interface NextNumberInput {
    * Data del documento che si sta creando: il perno della regola del §2 (la
    * proposta è il primo libero **dopo i documenti di data anteriore**).
    *
-   * ⚠️ **Oggi arriva fin qui e non viene ancora usata.** L'implementazione della
-   * regola è ferma al bivio descritto nel §2 della specifica: la query per data
-   * non è esprimibile in Prisma e come SQL grezzo la suite attuale non sa
-   * verificarla — i doppioni di prova osservano `document.aggregate`. Il campo
-   * resta perché i chiamanti lo passano già: quando il bivio è sciolto, la
-   * regola si accende in un punto solo.
+   * **È usata**, da `lastAssignedNumber` qui sotto, che la trasforma nel filtro
+   * `< mezzanotte del giorno`. Ometterla non è neutro: si ricade su **oggi**, e
+   * su un documento datato diversamente il numero cambia. Chi aggiunge un
+   * chiamante la passi, a meno che una data del documento non esista davvero —
+   * è il caso della colonna «prossimo numero» dei Numeratori.
+   *
+   * _Fino al 13/08/2026 qui c'era scritto che «arriva fin qui e non viene
+   * ancora usata». Era falso da subito: l'ha scritto lo stesso commit che ha
+   * acceso la regola. Un file che dichiara spento ciò che è acceso è peggio di
+   * un file senza commenti._
    */
   readonly documentDate?: Date;
 }
@@ -259,9 +263,7 @@ export async function defaultCounterSeries(
 }
 
 /**
- * **Il prossimo numero da proporre.**
- *
- * ⚠️ **Oggi è ancora «massimo + 1»**, non la regola del §2, che dice:
+ * **Il prossimo numero da proporre**, secondo la regola del §2:
  *
  * > Sia **m** il numero più alto fra i documenti dello stesso contatore con
  * > data **strettamente anteriore** a quella del documento che sto creando.
@@ -379,8 +381,13 @@ export interface DocumentNumberConflict {
   /**
    * Numero RIFIUTATO: quello che il salvataggio ha tentato di scrivere. È il
    * numero che l'operatore vede in testata, e l'unico che ha senso nominargli.
+   *
+   * `null` quando il chiamante non lo conosce — numero assegnato d'ufficio e
+   * perso col rollback della transazione. Non se ne inventa uno: vedi il
+   * commento di `buildDocumentNumberConflict`.
    */
-  readonly number: number;
+  readonly number: number | null;
+  /** Primo numero libero della serie alla data del documento (regola §2). */
   readonly nextAvailable: number;
   /** null = senza serie. */
   readonly series: string | null;
@@ -393,16 +400,22 @@ export interface DocumentNumberConflict {
  * stesso modo.
  *
  * `requestedNumber` è il numero che il salvataggio ha tentato di scrivere, e va
- * passato SEMPRE che lo si conosca. Prima non c'era e il payload dichiarava
- * `nextAvailable - 1`: per un numero assegnato d'ufficio i due coincidono — il
- * server aveva preso «massimo + 1», qualcuno lo ha bruciato, quindi ora quel
- * numero è il massimo — ma per un numero DIGITATO dall'operatore no. Chi digita
- * un numero lo fa per tappare un buco in mezzo alla serie: rispondergli con
- * l'ultimo numero occupato significa nominargli un numero che non ha mai
- * scritto (serie fino a 43, digita il 7, il messaggio parlava del 43).
+ * passato SEMPRE che lo si conosca. Chi digita un numero lo fa per tappare un
+ * buco in mezzo alla serie: rispondergli con l'ultimo numero occupato significa
+ * nominargli un numero che non ha mai scritto (serie fino a 43, digita il 7, il
+ * messaggio parlava del 43).
  *
- * Il fallback resta `nextAvailable - 1` proprio per il caso «numero assegnato
- * d'ufficio», dove è la risposta giusta e il chiamante non ha nulla da passare.
+ * **Quando non si conosce, non se ne inventa uno.** Qui c'era il ripiego
+ * `nextAvailable - 1`, giustificato così: «il server aveva preso massimo + 1,
+ * qualcuno lo ha bruciato, quindi ora quel numero è il massimo». Ragionamento
+ * corretto sotto la regola vecchia, **scaduto sotto il §2**: `nextAvailable` è
+ * il primo libero sopra i documenti di data anteriore, che su una serie con
+ * buchi è il buco — e «il buco meno uno» è un numero che con la collisione non
+ * c'entra niente. Meglio non nominarne nessuno: il payload porta `null` e la
+ * maschera dice all'operatore quello che è successo senza inventare una cifra.
+ *
+ * Il caso è comunque quasi irraggiungibile da quando l'assegnazione d'ufficio
+ * passa dall'advisory lock: due operatori non calcolano più lo stesso numero.
  */
 export async function buildDocumentNumberConflict(
   input: NextNumberInput & { readonly requestedNumber?: number | null },
@@ -411,7 +424,7 @@ export async function buildDocumentNumberConflict(
   const requested = input.requestedNumber;
   return {
     code: 'document_number_taken',
-    number: requested != null && requested > 0 ? requested : nextAvailable - 1,
+    number: requested != null && requested > 0 ? requested : null,
     nextAvailable,
     series: input.series,
   };

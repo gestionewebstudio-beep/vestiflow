@@ -32,9 +32,6 @@ function createPrismaMock() {
       // imposto, ed è lì che si vede se la data del documento viaggia (§2).
       aggregate: vi.fn().mockResolvedValue({ _max: { number: null } }),
     },
-    // «Primo numero libero sopra il massimo»: SQL grezzo, e il doppione può
-    // solo restituirne il risultato.
-    $queryRaw: vi.fn().mockResolvedValue([{ libero: 1 }]),
     documentLine: {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       create: vi.fn(),
