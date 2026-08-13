@@ -61,6 +61,8 @@ import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.s
 import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
 import { DocumentActionsService } from '@core/services/document-actions.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
+import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
   applyCascadeDiscountMinor,
@@ -89,6 +91,12 @@ import { DocumentIncludePanelComponent } from '@domain/documents/components/docu
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
+import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
+import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
+import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
+import { unitOfMeasureSelectOptions } from '@domain/products/utils/unit-of-measure-options.util';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
   CUSTOMER_ORDER_INCLUDE_SOURCES,
@@ -105,6 +113,8 @@ import {
   netFromGrossMinor,
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
+import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
@@ -131,9 +141,9 @@ import {
 import { transportDataIncomplete } from '@domain/documents/models/document-transport.util';
 import { parseSerialNumbersText } from '@domain/documents/utils/serial-numbers-input.util';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentEditLockService } from '@domain/documents/services/document-edit-lock.service';
-import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import type {
   CreateDocumentBody,
   DocumentLineInputBody,
@@ -243,7 +253,16 @@ const CUSTOMER_ORDER_SORTABLE_LINE_COLUMNS: readonly CustomerOrderLineSortColumn
 ];
 
 type CustomerOrderLineFocusField =
-  'articleCode' | 'sku' | 'barcode' | 'product' | 'quantity' | 'unitPrice' | 'discount' | 'serials';
+  | 'articleCode'
+  | 'sku'
+  | 'barcode'
+  | 'product'
+  | 'quantity'
+  | 'unitOfMeasure'
+  | 'unitPrice'
+  | 'discount'
+  | 'vat'
+  | 'serials';
 /**
  * I campi codice di QUESTA maschera: tre, non quattro. Il codice fornitore non
  * ha senso su un documento di vendita, e restringere l'unione qui lascia al
@@ -304,6 +323,7 @@ interface AvailabilityIssue {
     DateInputComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
+    DocumentChronologyWarningDialogComponent,
     DocumentIncludePanelComponent,
     DocumentMobilePanelComponent,
     ProductFormComponent,
@@ -318,6 +338,9 @@ interface AvailabilityIssue {
     CustomerFormFieldsComponent,
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
+    DocumentLineSelectCellComponent,
+    DocumentLineUnitCellComponent,
+    UnitOfMeasureManagerDialogComponent,
     DocumentProductSearchPanelComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
@@ -362,6 +385,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly navHistory = inject(NavigationHistoryService);
+  private readonly toast = inject(ToastService);
 
   /** Scanner fotocamera disponibile (feature flag tenant). */
   protected readonly barcodeScannerEnabled = this.appConfig.features.barcodeScanner;
@@ -403,6 +427,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     : this.isManualUnload
       ? DocumentType.ManualUnload
       : DocumentType.Quote;
+  /**
+   * Tipo che governa la NUMERAZIONE, che non è sempre quello del registro.
+   * L'Ordine cliente non vive in `documents` ma in `SalesOrder`, e ha un
+   * contatore proprio (`customer_order`, quello che il server usa davvero in
+   * `manual-sales-orders.service.ts`). Prendendo qui il ripiego `Quote` la
+   * testata mostrava le serie del Preventivo e l'avviso cronologico (§4)
+   * guardava la serie di un altro tipo documento.
+   */
+  protected readonly numberingDocumentType = this.isOrder
+    ? DocumentType.CustomerOrder
+    : this.registryDocumentType;
 
   protected readonly listPath = '/app/sales';
   /** Elenco dedicato del tipo (mai il registro generico filtrato). */
@@ -535,6 +570,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
     externalRef: this.fb.control(''),
+    // cliente ha emesso. Trio, non tre campi sparsi: lo rende il componente
+    // condiviso, qui restano solo i controlli che lo alimentano.
     expectedDeliveryDate: this.fb.control(''),
     status: this.fb.control<'confirmed' | 'cancelled'>('confirmed'),
     paymentTerms: this.fb.control(''),
@@ -585,6 +622,25 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly formValue = toSignal(
     this.form.valueChanges.pipe(startWith(this.form.getRawValue())),
     { initialValue: this.form.getRawValue() },
+  );
+
+  // ── Numero proposto vs numero scelto ────────────────────────────────────
+  /**
+   * «L'operatore ha toccato il numero?» in forma reattiva. Lo stato vero resta
+   * `documentNumber.dirty` — qui non se ne tiene una copia, si ascolta: gli
+   * eventi del controllo includono `PristineChangeEvent`, quindi il signal si
+   * aggiorna anche su `markAsDirty()`, che `valueChanges` non emette.
+   *
+   * Questo signal esisteva già qui, nella forma filtrata, e **non era collegato
+   * a niente**: la maschera decideva «è una proposta?» dal ricalcolo su
+   * `valueChanges`, come le altre. Il meccanismo giusto era costruito e
+   * inutilizzato — il modo più silenzioso in cui una copia diverge.
+   */
+  private readonly documentNumberPristine = toSignal(
+    this.form.controls.documentNumber.events.pipe(
+      map(() => this.form.controls.documentNumber.pristine),
+    ),
+    { initialValue: true },
   );
 
   protected readonly dirtySinceLastSave = signal(false);
@@ -773,10 +829,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Anteprima prossimo numero documento (numeratore quote/sales_ddt). */
   private readonly registryPreviewReference = toSignal(
     this.isRegistryDocument
-      ? this.documentService.previewDocumentNumber(this.registryDocumentType).pipe(
-          map((preview) => preview.reference),
-          catchError(() => of(null)),
-        )
+      ? this.documentService
+          .previewDocumentNumber(this.registryDocumentType, {
+            // La sede decide quale contatore predefinito si applica (§1-bis),
+            // la data quale numero è il primo libero (§2). Lette all'apertura:
+            // è l'anteprima della testata, non il numero che il salvataggio
+            // assegnerà — quello lo dice `numbering`.
+            locationId: this.form.controls.locationId.value || null,
+            documentDate: this.form.controls.documentDate.value || null,
+          })
+          .pipe(
+            map((preview) => preview.reference),
+            catchError(() => of(null)),
+          )
       : of(null),
     { initialValue: null as string | null },
   );
@@ -789,42 +854,93 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
   // Stato del dialog «numero già assegnato»: la macchina vive in domain, il
   // form decide solo quale controllo riceve il numero e cosa risalvare.
+  // ── Numerazione ───────────────────────────────────────────────────────────
+  //
+  // Il meccanismo vive in `domain/` (`DocumentNumberingStore`): proposta,
+  // scelta della serie, numero imposto. Era copiato in sei maschere.
+
+  protected readonly numbering = new DocumentNumberingStore({
+    isEdit: () => this.isEditMode(),
+    number: () => this.form.controls.documentNumber.value,
+    setNumber: (value) => this.form.controls.documentNumber.setValue(value),
+    series: () => this.form.controls.series.value,
+    setSeries: (value) => this.form.controls.series.setValue(value),
+    numberIsDirty: () => !this.documentNumberPristine(),
+    markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
+    markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    asProgrammatic: (write) => {
+      // La proposta iniziale non è una modifica dell'operatore: scriverla non
+      // deve accendere il guard di uscita.
+      this.suppressDirtyMarking = true;
+      try {
+        write();
+      } finally {
+        this.suppressDirtyMarking = false;
+      }
+    },
+  });
+
+  /**
+   * Reattivo per costruzione: `isProposal()` legge il signal degli eventi.
+   */
+  protected readonly numberIsProposal = computed(() => this.numbering.isProposal());
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
+   * serie e numero — la selezione resta quella che era.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    this.countersService
+      .available(
+        this.numberingDocumentType,
+        this.form.controls.locationId.value || null,
+        this.form.controls.documentDate.value,
+      )
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this.numbering.setCounters(counters),
+        error: () => undefined,
+      });
+  }
+
+  private refreshNumberProposal(): void {
+    this.countersService
+      .available(
+        this.numberingDocumentType,
+        this.form.controls.locationId.value || null,
+        this.form.controls.documentDate.value,
+      )
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters, proposedCounterId }) =>
+          this.numbering.applyProposal(counters, proposedCounterId),
+        error: () => undefined,
+      });
+  }
+
+  /**
+   * Avviso cronologico (§4): la serie contiene documenti fuori posto. Avviso
+   * e non blocco — da lì si salva comunque — e il meccanismo vive in
+   * `domain/`, come quello del conflitto sul numero.
+   */
+  protected readonly chronology = new DocumentChronologyGuard({
+    documentType: () => this.numberingDocumentType,
+    series: () => this.form.controls.series.value,
+    number: () => this.form.controls.documentNumber.value,
+    documentDate: () => this.form.controls.documentDate.value,
+    // In modifica il documento non deve risultare fuori ordine con la
+    // propria riga vecchia: cambiare numero E data basterebbe.
+    excludeId: () => this.editOrderId(),
+  });
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
   protected readonly prefillError = new DocumentPrefillErrorStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
-  /** Serie configurate per il tipo: con una sola resta una label statica. */
-  /** Contatori disponibili per la testata del registro: alimentano la tendina. */
-  private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
-  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] =>
-    this._availableCounters().map((counter) => ({
-      value: counter.series ?? '',
-      label: counter.series ?? 'Senza serie',
-    })),
-  );
 
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
-
-  /**
-   * Chiusura del pannello numerazioni: ricarica l'elenco serie del registro
-   * SENZA riproporre serie/numero — la selezione resta quella che era.
-   */
-  protected onSeriesManagerClosed(): void {
-    this.seriesDialogOpen.set(false);
-    if (!this.isRegistryDocument) {
-      return;
-    }
-    const locationId = this.form.controls.locationId.value || null;
-    this.countersService
-      .available(this.registryDocumentType, locationId)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters }) => this._availableCounters.set(counters),
-        error: () => undefined,
-      });
-  }
 
   protected readonly internalReferenceLabel = computed(() => {
     const saved = this.isRegistryDocument
@@ -1637,23 +1753,38 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       }
     });
 
-    // Cambio location: le disponibilità per sede vanno ricaricate.
+    // Cambio sede: due cose la seguono.
+    //
+    // 1. Le disponibilità per sede sulle righe.
+    // 2. La tendina Serie — un contatore legato a una sede è disponibile SOLO
+    //    lì, e quelli senza sede ovunque (§1-bis). Senza ricarica l'elenco
+    //    resterebbe quello chiesto all'apertura, e mostrerebbe serie che in
+    //    questa sede non si possono usare. `refreshNumberProposal` ripropone
+    //    serie e numero solo su documento nuovo col numero mai toccato.
     this.form.controls.locationId.valueChanges
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshAllLineSummaries());
+      .subscribe(() => {
+        this.refreshAllLineSummaries();
+        this.refreshNumberProposal();
+      });
 
-    // Default Location = location corrente dell'operatore (nuovi documenti): il
-    // gate testata non si blocca più per location mancante. In modifica la
-    // location arriva dal documento, quindi non tocchiamo nulla. Impostazione
-    // non "sporca" il form (è un default, non una modifica dell'utente).
-    effect(() => {
-      const defaultLocationId = this.operationalLocations.defaultLocation()?.id;
-      if (!defaultLocationId || this.isEditMode() || this.form.controls.locationId.value) {
-        return;
-      }
-      this.suppressDirtyMarking = true;
-      this.form.controls.locationId.setValue(defaultLocationId);
-      this.suppressDirtyMarking = false;
+    // Cambio data: il numero proposto dipende dalla data (§2), quindi la
+    // testata deve rifare l'anteprima — o mostrerebbe il primo libero di OGGI
+    // mentre il salvataggio assegna quello della data scelta.
+    this.form.controls.documentDate.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberProposal());
+
+    // Sede predefinita in testata (§1-bis): la regola vive in `domain/`, ed è
+    // la stessa per tutte le maschere. Qui restano i due ganci che cambiano.
+    prefillDefaultLocation({
+      control: this.form.controls.locationId,
+      isEdit: () => this.isEditMode(),
+      write: (apply) => {
+        this.suppressDirtyMarking = true;
+        apply();
+        this.suppressDirtyMarking = false;
+      },
     });
 
     // Cliente scelto: propone sconto anagrafica sulle righe già compilate
@@ -2763,13 +2894,65 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return Number.isFinite(rate) && rate > 0 ? rate : 0;
   }
 
+  /**
+   * L'unità di misura della riga — **prima quella della riga**, poi quella
+   * dell'articolo, poi `pz`.
+   *
+   * La precedenza era invertita, e la conseguenza non si vedeva: siccome
+   * `Product.unitOfMeasure` non è mai vuoto, l'anagrafica vinceva sempre e
+   * quello che il documento aveva salvato **non si vedeva mai**. Il valore
+   * c'era, veniva scritto e riletto, e restava invisibile.
+   *
+   * Rovesciarla è la riga in cui la regola del «documento fotografia» entra in
+   * vigore per l'unità di misura, esattamente come vale già per il prezzo: la
+   * riga cattura il valore all'inserimento e se lo tiene, indipendente da come
+   * l'anagrafica cambia dopo.
+   */
   protected lineUnitOfMeasure(index: number): string {
+    this.formValue();
     const summary = this.lineVariantSummary(index);
     return (
-      summary?.unitOfMeasure?.trim() ||
       this.lines.at(index)?.controls.unitOfMeasure.value.trim() ||
+      summary?.unitOfMeasure?.trim() ||
       'pz'
     );
+  }
+
+  // ── Unità di misura di riga ────────────────────────────────────────────────
+  //
+  // L'elenco si carica UNA volta per maschera, non per cella: la cella sta su
+  // ogni riga, e trenta righe non devono fare trenta chiamate uguali.
+  private readonly unitOfMeasureOptionsService = inject(UnitOfMeasureOptionService);
+  private readonly unitOfMeasureCatalog = this.unitOfMeasureOptionsService.options();
+  protected readonly unitOfMeasureOptions = computed(() =>
+    unitOfMeasureSelectOptions(this.unitOfMeasureCatalog()),
+  );
+  protected readonly unitManagerOpen = signal(false);
+  /** La riga da cui è stato chiesto il pannello: ci torna l'unità creata. */
+  private unitManagerLineIndex = -1;
+
+  protected openUnitManager(index: number): void {
+    this.unitManagerLineIndex = index;
+    this.unitManagerOpen.set(true);
+  }
+
+  protected onUnitOptionsChanged(): void {
+    this.unitOfMeasureOptionsService.reload();
+  }
+
+  /** Un'unità creata dal pannello si scrive da sé: è perché lo si è aperto. */
+  protected onUnitOptionCreated(option: UnitOfMeasureOption): void {
+    if (this.unitManagerLineIndex >= 0) {
+      this.onLineUnitOfMeasureChange(this.unitManagerLineIndex, option.name);
+    }
+  }
+
+  protected onLineUnitOfMeasureChange(index: number, value: string): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.lines.at(index).controls.unitOfMeasure.setValue(value.trim());
+    this.markFormDirty();
   }
 
   // ── Vista mobile (mockup responsive v3) ───────────────────────────────────
@@ -3253,8 +3436,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       'barcode',
       'product',
       'quantity',
+      // Rientrata nel giro: la cella era di sola lettura, quindi non c'era
+      // niente su cui atterrare. Ora l'unità si scrive sulla riga.
+      'unitOfMeasure',
       'unitPrice',
       'discount',
+      // Rientrata nel giro: era fuori perché la cella IVA era un
+      // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
+      // la cella a ricerca-e-selezione, con un input vero.
+      'vat',
       'serials',
     ],
     elementId: (index, field) =>
@@ -3264,8 +3454,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         barcode: `co-barcode-${index}`,
         product: `co-product-${index}`,
         quantity: `co-qty-${index}`,
+        unitOfMeasure: `co-uom-${index}`,
         unitPrice: `co-price-${index}`,
         discount: `co-discount-${index}`,
+        vat: `co-vat-${index}`,
         serials: `co-serials-${index}`,
       })[field],
     isFieldEnabled: (index, field) => {
@@ -3668,6 +3860,22 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   // ── Testata: select handlers ────────────────────────────────────────────
+  /**
+   * C'è un cliente scelto? Da qui dipende «Scheda cliente», che senza cliente
+   * non ha niente da aprire.
+   *
+   * ⚠️ Tocca `formValue()` come ogni altra lettura del form in questa maschera,
+   * e non è una formalità: il componente è OnPush, e un `FormControl` letto
+   * direttamente nel template non lo sveglia. La condizione rimaneva vera o
+   * falsa da quando la maschera si era disegnata, e il comando compariva —
+   * quando compariva — solo perché qualcos'altro aveva fatto girare il
+   * rilevamento.
+   */
+  protected hasCustomer(): boolean {
+    this.formValue();
+    return !!this.form.controls.customerId.value;
+  }
+
   protected onCustomerSelect(value: string | null): void {
     this.form.controls.customerId.setValue(value ?? '');
     this.form.controls.customerId.markAsTouched();
@@ -3815,7 +4023,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         customerId: order.customerId ?? '',
         locationId: order.locationId ?? '',
         documentDate: order.placedAt ? toIsoDateLocal(new Date(order.placedAt)) : '',
+        // Numerazione propria: da 12/08/2026 si vede e si modifica anche qui.
+        documentNumber: order.number ?? null,
+        series: order.series ?? '',
         externalRef: order.externalRef ?? '',
+        // Data di giornata memorizzata a mezzanotte UTC: si prendono le prime
+        // dieci cifre, come fa la maschera coi documenti del registro. La
+        // conversione a data locale la sposterebbe di un giorno a ovest di
+        // Greenwich, e sarebbe la data di un altro documento.
         expectedDeliveryDate: order.expectedDeliveryDate
           ? toIsoDateLocal(new Date(order.expectedDeliveryDate))
           : '',
@@ -4144,7 +4359,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       customerId: value.customerId,
       locationId: value.locationId || undefined,
       documentDate: value.documentDate,
+      series: this.numbering.chosenSeries(),
+      // La proposta NON torna indietro come imposizione: viaggia solo il numero
+      // che l'operatore ha digitato, o due che salvano insieme si
+      // contenderebbero lo stesso. È la stessa regola del ramo documenti, qui
+      // sopra: cambia il servizio, non la decisione.
+      number: this.numbering.imposedNumber(),
       externalRef: value.externalRef.trim() || undefined,
+      // Vuoto vuol dire svuotato — la testata viene riscritta per intero, e il
+      // campo assente azzera quello che il documento portava.
       expectedDeliveryDate: value.expectedDeliveryDate || undefined,
       status: value.status,
       notes: value.notes.trim() || undefined,
@@ -4159,7 +4382,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return trimmed || undefined;
   }
 
+  /**
+   * Ogni percorso di salvataggio passa di qui — sono sei punti, fra la testata,
+   * il dialogo disponibilità e la copertura ordini — ed è quindi il posto giusto
+   * per il controllo cronologico (§4): messo più a monte andrebbe replicato sei
+   * volte, e una delle sei prima o poi si dimenticherebbe.
+   */
   private saveDocument(onSaved?: () => void): void {
+    this.chronology.run(() => this.saveDocumentNow(onSaved));
+  }
+
+  private saveDocumentNow(onSaved?: () => void): void {
     if (this.isRegistryDocument) {
       this.saveRegistryDocument(onSaved);
       return;
@@ -4311,12 +4544,23 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     const freeTextCustomer =
       this.isManualUnload && !value.customerId ? value.customerFreeText.trim() : '';
 
+    // Al server va SOLO il numero scelto dall'operatore. Finché in testata c'è
+    // la proposta del numeratore il campo si omette: il numero lo assegna il
+    // server, dentro la transazione che scrive il documento, e due maschere
+    // aperte sullo stesso tipo non litigano più su un numero che nessuno dei
+    // due ha digitato. Il numero letto qui è quello MOSTRATO prima dell'invio:
+    // serve anche a dire, dopo, se il server ne ha assegnato un altro.
+    const numberWasProposal = this.numberIsProposal();
+    const shownNumber = value.documentNumber;
+    const requestedNumber = this.numbering.imposedNumber();
+
     const save$ = editId
       ? this.documentService.updateDocument(editId, {
           documentDate: value.documentDate,
-          // Numero imposto in testata: non sposta il progressivo della serie.
-          number: value.documentNumber ?? undefined,
-          series: (value.series ?? '').trim() || undefined,
+          // Presente solo se imposto in testata: un numero scelto a mano non
+          // sposta il progressivo della serie. Assente = lo assegna il server.
+          ...(requestedNumber !== undefined ? { number: requestedNumber } : {}),
+          series: this.numbering.chosenSeries(),
           customerId: this.isManualUnload ? value.customerId || null : value.customerId,
           ...(this.isManualUnload ? { customerName: freeTextCustomer || null } : {}),
           locationId: value.locationId || undefined,
@@ -4336,9 +4580,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           // Conversione proforma→DDT: collega l'origine (null sugli altri tipi).
           sourceDocumentId: this._sourceDocumentId() ?? undefined,
           documentDate: value.documentDate,
-          // Numero imposto in testata: non sposta il progressivo della serie.
-          number: value.documentNumber ?? undefined,
-          series: (value.series ?? '').trim() || undefined,
+          // Presente solo se imposto in testata: un numero scelto a mano non
+          // sposta il progressivo della serie. Assente = lo assegna il server.
+          ...(requestedNumber !== undefined ? { number: requestedNumber } : {}),
+          series: this.numbering.chosenSeries(),
           customerId: this.isManualUnload ? value.customerId || undefined : value.customerId,
           ...(freeTextCustomer ? { customerName: freeTextCustomer } : {}),
           locationId: value.locationId || undefined,
@@ -4358,6 +4603,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     save$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (doc) => {
         this._submitState.set({ status: 'idle' });
+        this.notifyAssignedNumberChanged(numberWasProposal, shownNumber, doc.number ?? null);
         this.loadedQuoteDoc.set(doc);
         this.dirtySinceLastSave.set(false);
         // Come per l'ordine: salvato il documento, i campi tornano protetti.
@@ -4389,70 +4635,43 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     });
   }
 
-  /** Numero digitato in testata: da qui in poi non si riallinea al progressivo. */
-  protected onDocumentNumberChange(value: number | null): void {
-    this.form.controls.documentNumber.setValue(value);
-    this.form.controls.documentNumber.markAsDirty();
-  }
-
-  /** Cambio serie: il progressivo è per serie, quindi si richiede la proposta. */
-  protected onSeriesChange(value: string): void {
-    this.form.controls.series.setValue(value);
-    this.form.controls.series.markAsDirty();
-    const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
-    if (counter) {
-      this.form.controls.documentNumber.setValue(counter.nextNumber);
-      this.form.controls.documentNumber.markAsPristine();
-    }
-  }
-
   /**
-   * Propone il primo numero libero della serie. Solo in creazione e finché
-   * l'utente non ha digitato un numero suo.
+   * Il numero assegnato non è quello che la maschera mostrava: lo si dice.
+   * Succede quando la proposta («primo libero») viene presa da un altro
+   * operatore mentre questo documento è in compilazione: il server ne assegna
+   * uno buono e il salvataggio riesce, ma chi aveva già trascritto il numero
+   * proposto altrove deve sapere che ora è un altro.
+   *
+   * Solo sulla proposta: un numero imposto dall'operatore e già occupato ha il
+   * suo dialogo di conflitto, e questo avviso lo doppierebbe.
    */
-  private refreshNumberProposal(): void {
-    if (!this.isRegistryDocument || this.editOrderId()) {
+  private notifyAssignedNumberChanged(
+    wasProposal: boolean,
+    shownNumber: number | null,
+    assignedNumber: number | null,
+  ): void {
+    if (!wasProposal || shownNumber === null || assignedNumber === null) {
       return;
     }
-    const locationId = this.form.controls.locationId.value || null;
-    this.countersService
-      .available(this.registryDocumentType, locationId)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters, proposedCounterId }) => {
-          this._availableCounters.set(counters);
-          if (this.form.controls.documentNumber.dirty) {
-            return;
-          }
-          const proposed = counters.find((entry) => entry.id === proposedCounterId);
-          if (!proposed) {
-            return;
-          }
-          // Proposta automatica: non deve accendere «Modifiche non salvate».
-          this.suppressDirtyMarking = true;
-          try {
-            this.form.controls.series.setValue(proposed.series ?? '');
-            this.form.controls.documentNumber.setValue(proposed.nextNumber);
-          } finally {
-            this.suppressDirtyMarking = false;
-          }
-        },
-        error: () => undefined,
-      });
+    if (assignedNumber === shownNumber) {
+      return;
+    }
+    this.toast.showInfo(
+      `Salvato con il n. ${assignedNumber}: il ${shownNumber} è stato preso da un altro operatore.`,
+    );
   }
 
-  /** «Usa N»: prende il primo numero libero e risalva. */
-  /**
-   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
-   * ferma. Il salvataggio resta una pressione esplicita di Salva.
-   */
   protected acknowledgeConflictNumber(): void {
-    const nextAvailable = this.numberConflictDialog.acknowledge();
-    if (nextAvailable === null) {
-      return;
+    // Il numero nuovo si scrive in testata (specifica numerazione §3): il
+    // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
+    // errore di battitura e un secondo conflitto. Passa dallo store perché da
+    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
+    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
+    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
+    const nuovo = this.numberConflictDialog.acknowledge();
+    if (nuovo != null) {
+      this.numbering.onNumberChange(nuovo);
     }
-    this.form.controls.documentNumber.setValue(nextAvailable);
-    this.form.controls.documentNumber.markAsDirty();
   }
 
   /** POST creazione: i campi vuoti si omettono invece di inviare null. */

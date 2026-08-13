@@ -36,9 +36,11 @@ import {
   syncTransferLineMovements,
 } from './document-stock-transfer-sync.util';
 import { DocumentSettingsService } from './document-settings.service';
+import { ExternalDocumentTypesService } from './external-document-types.service';
 import {
   buildDocumentNumberConflict,
   isDocumentNumberConflict,
+  lockDocumentCounter,
   resolveDocumentNumber,
 } from './document-numbering.util';
 import type { SaveAdjustmentDto, SaveAdjustmentLineDto } from './dto/save-adjustment.dto';
@@ -109,6 +111,7 @@ export class TransferAdjustmentWorkflowService {
     private readonly prisma: PrismaService,
     private readonly settings: DocumentSettingsService,
     private readonly channelSync: ChannelSyncFacade,
+    private readonly externalTypes: ExternalDocumentTypesService,
   ) {}
 
   /**
@@ -141,25 +144,45 @@ export class TransferAdjustmentWorkflowService {
     if (!numberChanged && series === current) {
       return { series, year, number: existing.number, reference: existing.reference };
     }
+    const candidate = dto.number ?? existing.number;
+    const requestedNumber = candidate && candidate > 0 ? candidate : null;
+    if (requestedNumber == null) {
+      // Nessun numero da tenere (né imposto né già assegnato): si prende il
+      // primo libero, quindi si legge il massimo — e prima si prende il lock,
+      // dentro questa transazione, per non leggerlo insieme a un altro
+      // operatore. Con un numero da tenere il massimo non si legge affatto.
+      await lockDocumentCounter(tx, { tenantId, type, series });
+    }
     const assigned = await resolveDocumentNumber({
       tx,
       tenantId,
       type,
       series,
+      // La data governa il primo libero (§2). Riceverla e non inoltrarla
+      // faceva numerare «a oggi» un documento datato indietro, cioè con una
+      // regola diversa da quella che la testata aveva appena mostrato.
+      documentDate,
       source: 'document',
       prefix: setting.numberPrefix,
-      requestedNumber: dto.number ?? existing.number,
+      requestedNumber,
     });
     return { series, year, number: assigned.number, reference: assigned.reference };
   }
 
-  /** Conflitto sul numero → 409 con il primo libero della serie. */
+  /**
+   * Conflitto sul numero → 409 con il numero rifiutato e il primo libero della
+   * serie. `attemptedNumber` è quello che `resolveImposedNumber` aveva deciso
+   * di scrivere: può venire dalla testata o essere il numero che il documento
+   * già portava (un cambio di sola serie lo rimette in gioco nella serie
+   * nuova). È l'unico numero che l'operatore vede, e l'unico da nominargli.
+   */
   private async throwNumberConflict(
     error: unknown,
     tenantId: string,
     type: DocumentType,
     series: string | null,
-    _documentDate: Date,
+    documentDate: Date,
+    attemptedNumber: number | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
       return;
@@ -173,6 +196,12 @@ export class TransferAdjustmentWorkflowService {
         series: (series ?? '').trim() || null,
         source: 'document',
         prefix: setting.numberPrefix,
+        requestedNumber: attemptedNumber,
+        // Il «primo libero» che l'avviso propone si calcola sulla stessa
+        // partizione con cui si è appena numerato: senza la data direbbe il
+        // primo libero a oggi, cioè un numero che il salvataggio successivo
+        // non assegnerebbe. Il parametro c'era e si chiamava `_documentDate`.
+        documentDate,
       }),
     );
   }
@@ -221,7 +250,21 @@ export class TransferAdjustmentWorkflowService {
       }
     }
 
+    // Documento della controparte: id del tipo + etichetta fotografata.
+    // La risoluzione sta FUORI dalla transazione perché è una lettura che non
+    // ha nulla a che vedere con le righe e i movimenti: dentro allungherebbe
+    // la finestra di lock senza aggiungere coerenza, e un tipo sconosciuto va
+    // respinto prima di aver toccato il magazzino.
+    //
+    // `resolveForWrite` legge anche i tipi eliminati, ed è voluto: eliminare un
+    // tipo lo toglie dalle tendine, non dai documenti che lo portano. Con la
+    // sola lettura dei tipi vivi, risalvare un trasferimento il cui tipo è
+    // stato eliminato nel frattempo darebbe 404 — e la dicitura già scritta in
+    // testata sparirebbe dall'elenco.
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
+    // Numero che la scrittura ha tentato: serve FUORI dalla transazione, perché
+    // è quello che il messaggio di conflitto deve nominare all'operatore.
+    let attemptedNumber: number | null = null;
 
     const saveTx = this.prisma.$transaction(async (tx) => {
       const existing = await tx.document.findFirst({
@@ -340,6 +383,7 @@ export class TransferAdjustmentWorkflowService {
         dto,
         existing,
       );
+      attemptedNumber = numbering.number;
 
       await tx.document.update({
         where: { id: existing.id },
@@ -367,13 +411,14 @@ export class TransferAdjustmentWorkflowService {
     });
 
     const saved = await saveTx.catch(async (error: unknown) => {
-      // Numero imposto già preso: 409 con il primo libero da proporre.
+      // Numero già preso: 409 con il numero rifiutato e il primo libero.
       await this.throwNumberConflict(
         error,
         tenantId,
         DocumentType.transfer,
         dto.series ?? '',
         documentDate,
+        attemptedNumber,
       );
       throw error;
     });
@@ -421,7 +466,14 @@ export class TransferAdjustmentWorkflowService {
       );
     }
 
+    // Come nel trasferimento: risoluzione fuori dalla transazione, e lettura
+    // che comprende i tipi eliminati — un tipo tolto dalle tendine resta scritto
+    // sui documenti che lo portano, e risalvarli non deve né dare 404 né
+    // cancellare la dicitura.
     let syncTargets: readonly { variantId: string; locationId: string }[] = [];
+    // Come nel trasferimento: il numero tentato serve fuori dalla transazione,
+    // per poterlo nominare nel conflitto.
+    let attemptedNumber: number | null = null;
 
     const saveTx = this.prisma.$transaction(async (tx) => {
       const existing = await tx.document.findFirst({
@@ -532,6 +584,7 @@ export class TransferAdjustmentWorkflowService {
         dto,
         existing,
       );
+      attemptedNumber = numbering.number;
 
       await tx.document.update({
         where: { id: existing.id },
@@ -556,13 +609,14 @@ export class TransferAdjustmentWorkflowService {
     });
 
     const saved = await saveTx.catch(async (error: unknown) => {
-      // Numero imposto già preso: 409 con il primo libero da proporre.
+      // Numero già preso: 409 con il numero rifiutato e il primo libero.
       await this.throwNumberConflict(
         error,
         tenantId,
         DocumentType.adjustment,
         dto.series ?? '',
         documentDate,
+        attemptedNumber,
       );
       throw error;
     });

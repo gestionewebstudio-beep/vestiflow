@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { DocumentSettingsService } from '../documents/document-settings.service';
+import type { ExternalDocumentTypesService } from '../documents/external-document-types.service';
 import type { StockReservationService } from '../order-reservations/stock-reservation.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
@@ -44,7 +45,10 @@ function createPrismaMock() {
       upsert: vi.fn().mockResolvedValue({ lastNumber: 12 }),
       findUnique: vi.fn().mockResolvedValue({ lastNumber: 11 }),
     },
-    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
+    documentCounter: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     salesOrder: {
       // Numerazione «massimo esistente + 1»: aggregato numerico (ultimo 11 → 12).
       aggregate: vi.fn().mockResolvedValue({ _max: { number: 11 } }),
@@ -63,6 +67,9 @@ function createPrismaMock() {
     stockReservation: { findMany: vi.fn().mockResolvedValue([]) },
     inventoryLevel: { findMany: vi.fn().mockResolvedValue([]) },
     document: { create: vi.fn(), findFirst: vi.fn() },
+    // Advisory lock sul contatore: qui non serializza niente (transazione
+    // finta), ma senza la mock la chiamata romperebbe il salvataggio.
+    $queryRaw: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(),
   };
   prisma.$transaction.mockImplementation((arg: unknown) => {
@@ -102,13 +109,19 @@ function createService(prisma: ReturnType<typeof createPrismaMock>) {
     }),
   };
   const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+  const externalTypes = {
+    resolveForWrite: vi
+      .fn()
+      .mockResolvedValue({ externalDocumentTypeId: null, externalDocumentTypeSnapshot: null }),
+  };
   const service = new ManualSalesOrdersService(
     prisma as unknown as PrismaService,
     reservations as unknown as StockReservationService,
     settings as unknown as DocumentSettingsService,
     channelSync as unknown as ChannelSyncFacade,
+    externalTypes as unknown as ExternalDocumentTypesService,
   );
-  return { service, reservations, settings, channelSync };
+  return { service, reservations, settings, channelSync, externalTypes };
 }
 
 const baseDto = {

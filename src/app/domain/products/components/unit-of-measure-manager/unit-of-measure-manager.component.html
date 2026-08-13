@@ -1,0 +1,107 @@
+<div class="uom-manager">
+  <p class="uom-manager__hint">
+    Le unità proposte quando compili una riga o una scheda articolo. Quelle già scritte sui
+    documenti non cambiano.
+  </p>
+
+  @if (loadError(); as message) {
+    <app-inline-banner tone="error" [message]="message" />
+  }
+  @if (actionError(); as message) {
+    <app-inline-banner
+      tone="error"
+      [message]="message"
+      dismissLabel="Chiudi"
+      (dismissed)="actionError.set(null)"
+    />
+  }
+
+  <div class="uom-manager__new">
+    <input
+      class="uom-manager__input"
+      type="text"
+      placeholder="Nuova unità (es. paio)"
+      aria-label="Nome nuova unità di misura"
+      maxlength="20"
+      [value]="newName()"
+      [disabled]="busy()"
+      (input)="newName.set($any($event.target).value)"
+      (keydown.enter)="create(); $event.preventDefault()"
+    />
+    <app-button type="button" [disabled]="busy() || !newName().trim()" (click)="create()">
+      Aggiungi
+    </app-button>
+  </div>
+
+  <ul class="uom-manager__list">
+    @for (option of options(); track trackById($index, option)) {
+      <li class="uom-manager__item">
+        @if (editingId() === option.id) {
+          <input
+            class="uom-manager__input"
+            type="text"
+            aria-label="Nome unità di misura"
+            maxlength="20"
+            [value]="editName()"
+            (input)="editName.set($any($event.target).value)"
+            (keydown.enter)="saveEdit(); $event.preventDefault()"
+            (keydown.escape)="cancelEdit()"
+          />
+          <div class="uom-manager__actions">
+            <app-button type="button" variant="secondary" [disabled]="busy()" (click)="saveEdit()">
+              Salva
+            </app-button>
+            <app-button type="button" variant="ghost" (click)="cancelEdit()">Annulla</app-button>
+          </div>
+        } @else {
+          <span class="uom-manager__label">{{ option.name }}</span>
+          <!--
+            Due azioni, non quattro. Disattivare esisteva per tenere una voce
+            fuori dalle tendine senza perderla, ma qui eliminare non perde
+            niente: i documenti portano il testo. Uno stato in meno da capire.
+          -->
+          <div class="uom-manager__actions">
+            <button
+              type="button"
+              class="uom-manager__icon-btn"
+              [attr.aria-label]="'Rinomina ' + option.name"
+              title="Rinomina"
+              [disabled]="busy()"
+              (click)="startEdit(option)"
+            >
+              <i class="pi pi-pencil" aria-hidden="true"></i>
+            </button>
+            <button
+              type="button"
+              class="uom-manager__icon-btn uom-manager__icon-btn--danger"
+              [attr.aria-label]="'Elimina ' + option.name"
+              title="Elimina"
+              [disabled]="busy()"
+              (click)="requestDelete(option)"
+            >
+              <i class="pi pi-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        }
+      </li>
+    } @empty {
+      <li class="uom-manager__empty">
+        @if (loading()) {
+          Caricamento…
+        } @else {
+          Nessuna unità di misura configurata.
+        }
+      </li>
+    }
+  </ul>
+</div>
+
+<app-confirm-dialog
+  [(open)]="confirmOpen"
+  [title]="confirmTitle()"
+  message="Non verrà più proposta. I documenti che la portano continuano a mostrarla."
+  confirmLabel="Elimina"
+  [danger]="true"
+  (confirmed)="onConfirmDelete()"
+  (dismissed)="onDismissDelete()"
+/>

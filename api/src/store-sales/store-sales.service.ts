@@ -11,7 +11,11 @@ import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { DocumentSettingsService } from '../documents/document-settings.service';
 import { formatDocumentReference } from '../documents/document-totals.util';
-import { defaultCounterSeries, nextDocumentNumber } from '../documents/document-numbering.util';
+import {
+  defaultCounterSeries,
+  lockDocumentCounter,
+  nextDocumentNumber,
+} from '../documents/document-numbering.util';
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
 import {
   frozenTotalCostMinor,
@@ -108,6 +112,10 @@ export class StoreSalesService {
     const created = await this.prisma.$transaction(async (tx) => {
       const year = documentDate.getFullYear();
       const series = await defaultCounterSeries(tx, tenantId, DocumentType.store_sale);
+      // Due casse che battono nello stesso istante leggono lo stesso massimo e
+      // una delle due si becca il vincolo unico a scontrino finito: il lock
+      // transazionale le serializza. Va preso PRIMA di leggere il massimo.
+      await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_sale, series });
       const number = await nextDocumentNumber({
         tx,
         tenantId,
@@ -277,6 +285,9 @@ export class StoreSalesService {
     const created = await this.prisma.$transaction(async (tx) => {
       const year = documentDate.getFullYear();
       const series = await defaultCounterSeries(tx, tenantId, DocumentType.store_return);
+      // Come la vendita: il contatore dei resi è condiviso fra le casse, e il
+      // lock transazionale serializza chi lo legge. Prima della lettura.
+      await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_return, series });
       const number = await nextDocumentNumber({
         tx,
         tenantId,

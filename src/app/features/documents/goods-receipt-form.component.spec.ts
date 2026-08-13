@@ -1,12 +1,18 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
+import { fireEvent, render, screen, waitFor } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
+import { APP_CONFIG } from '@core/config/app-config.token';
+import { DocumentType } from '@core/models/document.model';
+import type { DocumentRecord } from '@core/models/document.model';
+import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
+import type { SaveGoodsReceiptBody } from '@domain/documents/services/document-api.mapper';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
+import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { ProductService } from '@domain/products/services/product.service';
 import { ProductLabelPrintService } from '@domain/products/services/product-label-print.service';
@@ -19,7 +25,7 @@ import { GoodsReceiptFormComponent } from './goods-receipt-form.component';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentSettingsService } from './services/document-settings.service';
-import { ExternalDocumentTypeService } from './services/external-document-type.service';
+import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 
 const MILANO = { id: 'loc-1', name: 'Milano' };
 const ROMA = { id: 'loc-2', name: 'Roma' };
@@ -31,19 +37,29 @@ function operationalLocationsMock(options?: {
 }) {
   const writeLocations = options?.writeLocations ?? LOCATIONS;
   const defaultLocation = options?.defaultLocation ?? null;
-  const suggested = defaultLocation ?? (writeLocations.length === 1 ? writeLocations[0] : null);
   return {
     locations: () => writeLocations,
     writeLocations: () => writeLocations,
     actionLocations: () => writeLocations,
     transferTargetLocations: () => writeLocations,
     defaultLocation: () => defaultLocation,
-    suggestedWriteLocation: () => suggested,
     isFixedSingleStore: () => false,
     fixedSingleStoreLocationId: () => null,
     fixedSingleStoreLabel: () => null,
   };
 }
+
+/** Numerazione predefinita: all'apertura della maschera il primo libero è 42. */
+const COUNTER: DocumentCounterView = {
+  id: 'cnt-1',
+  type: DocumentType.GoodsReceipt,
+  series: null,
+  locationId: null,
+  locationName: null,
+  isDefault: true,
+  nextNumber: 42,
+  documentCount: 41,
+};
 
 const NON_STOCK_SUMMARY = {
   variantId: 'var-nostock',
@@ -67,6 +83,10 @@ interface GoodsReceiptSetupOptions {
   readonly vatCodes?: readonly unknown[];
   /** Operatore corrente: decide quali comandi la maschera può mostrare. */
   readonly currentUser?: unknown;
+  /** Contatori restituiti da GET /document-counters: alimentano la proposta. */
+  readonly counters?: readonly DocumentCounterView[];
+  /** Numero che il server assegna davvero al salvataggio. */
+  readonly assignedNumber?: number;
 }
 
 /** Operatore senza permessi: l'array salvato È la verità, anche vuoto. */
@@ -96,6 +116,15 @@ function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
     { provide: OperationalLocationsService, useValue: operationalLocationsMock(options) },
     { provide: AuthService, useValue: { currentUser: () => options?.currentUser ?? null } },
     {
+      provide: APP_CONFIG,
+      useValue: {
+        production: false,
+        appName: 'VestiFlow',
+        apiBaseUrl: '',
+        features: { barcodeScanner: false, shopify: false },
+      },
+    },
+    {
       provide: DocumentService,
       useValue: {
         getDocumentById: vi.fn(),
@@ -103,9 +132,13 @@ function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
           of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
         saveGoodsReceipt: vi.fn(),
         getPriceModePreference: () => of(false),
+        // Controllo cronologico (§4): serie in ordine, quindi nessun avviso e
+        // il salvataggio prosegue senza interruzioni.
+        checkChronology: () => of({ conflicts: [], dismissed: false }),
+        dismissChronologyWarning: () => of(void 0),
       },
     },
-    // Serie del protocollo: una sola configurata → label statica.
+    // Serie del numero: una sola configurata → label statica.
     { provide: DocumentSettingsService, useValue: { getSettings: () => of([]) } },
     { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
     {
@@ -133,33 +166,92 @@ function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
 
 describe('GoodsReceiptFormComponent', () => {
   async function setup(options?: GoodsReceiptSetupOptions) {
-    return render(GoodsReceiptFormComponent, { providers: goodsReceiptProviders(options) });
+    const counters = options?.counters ?? [];
+    const showInfo = vi.fn();
+    // Del documento salvato la maschera legge il numero assegnato: è il
+    // confronto con quello mostrato che decide se avvisare l'operatore.
+    const saveGoodsReceipt = vi.fn((_body: SaveGoodsReceiptBody) =>
+      of({
+        document: {
+          id: 'gr-1',
+          number: options?.assignedNumber ?? 1,
+        } as unknown as DocumentRecord,
+        warnings: [] as readonly string[],
+        createdProducts: [],
+      }),
+    );
+
+    // Base condivisa più sovrascritture (stesso token: vince l'ultimo provider):
+    // contatori pilotabili, salvataggio che restituisce il numero assegnato,
+    // toast catturato. La rotta jolly serve perché creato il documento la
+    // maschera passa a /:id/edit, e senza rotte la navigazione fallirebbe.
+    const result = await render(GoodsReceiptFormComponent, {
+      providers: [
+        ...goodsReceiptProviders(options),
+        {
+          provide: DocumentCountersService,
+          useValue: {
+            available: () => of({ counters, proposedCounterId: counters[0]?.id ?? null }),
+          },
+        },
+        provideRouter([{ path: '**', children: [] }]),
+        {
+          provide: DocumentService,
+          useValue: {
+            getDocumentById: vi.fn(),
+            previewDocumentNumber: () =>
+              of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
+            saveGoodsReceipt,
+            getPriceModePreference: () => of(false),
+            // Controllo cronologico (§4): serie in ordine, quindi nessun avviso e
+            // il salvataggio prosegue senza interruzioni.
+            checkChronology: () => of({ conflicts: [], dismissed: false }),
+            dismissChronologyWarning: () => of(void 0),
+          },
+        },
+        { provide: ToastService, useValue: { showInfo, showError: vi.fn() } },
+      ],
+    });
+
+    return Object.assign(result, { saveGoodsReceipt, showInfo });
   }
 
-  // Specifica «sede predefinita»: nessuna autoselezione della location in
-  // creazione — il campo parte vuoto anche se esiste una predefinita.
-  it('non autoseleziona la location e mostra il suggerimento cliccabile', async () => {
-    const user = userEvent.setup();
+  /** Il campo Numero vive in due viste (mobile + desktop): stesso controllo. */
+  async function numberInput(): Promise<HTMLInputElement> {
+    const inputs = await screen.findAllByLabelText<HTMLInputElement>('Numero');
+    return inputs[0]!;
+  }
+
+  // ── Sede predefinita (§1-bis, 13/08/2026) ─────────────────────────────────
+  //
+  // Regola nuova, e ribalta quella che questi due test fissavano prima («mai
+  // autoselezione, suggerimento cliccabile»). Il motivo del ribaltamento:
+  // una sede predefinita non è una sede che il sistema si inventa, è un dato
+  // che qualcuno ha assegnato a quell'utente. Il commesso del negozio di Napoli
+  // non deve confermare a ogni documento di stare a Napoli.
+  //
+  // Gli scenari sono due, e sono complementari: chi lavora su più sedi una
+  // predefinita NON ce l'ha, quindi per lui il campo resta vuoto — che è il
+  // comportamento giusto proprio nel caso in cui la sede è ambigua.
+  it('con una sede predefinita la testata esce già compilata', async () => {
     await setup({ defaultLocation: MILANO });
 
-    const locationTrigger = screen.getByRole('button', { name: 'Location di destinazione' });
-    expect(locationTrigger).toHaveTextContent('Seleziona location…');
-
-    // Hint "Suggerita: Milano": cliccandolo la sede viene impostata.
-    const hint = screen.getByRole('button', { name: 'Usa la sede suggerita Milano' });
-    await user.click(hint);
-    expect(locationTrigger).toHaveTextContent('Milano (predefinita)');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Location di destinazione' })).toHaveTextContent(
+        'Milano (predefinita)',
+      ),
+    );
   });
 
-  // Eccezione mono-location: anche con UNA sola sede autorizzata il campo
-  // resta da confermare esplicitamente (suggerimento visibile, nessun valore).
-  it('mono-location: non preseleziona e propone comunque il suggerimento', async () => {
+  it('senza sede predefinita il campo resta vuoto, anche con una sola sede', async () => {
     await setup({ writeLocations: [MILANO], defaultLocation: null });
 
     expect(screen.getByRole('button', { name: 'Location di destinazione' })).toHaveTextContent(
       'Seleziona location…',
     );
-    expect(screen.getByRole('button', { name: 'Usa la sede suggerita Milano' })).toBeVisible();
+    // Il suggerimento cliccabile non esiste più: col predefinito il campo è già
+    // pieno, senza predefinito non c'è nulla da suggerire.
+    expect(screen.queryByRole('button', { name: /suggerita/i })).toBeNull();
   });
 
   // La predefinita compare PRIMA nelle opzioni, etichettata "(predefinita)".
@@ -263,6 +355,123 @@ describe('GoodsReceiptFormComponent', () => {
     const line = component['lines'].at(0);
     expect(line.controls.loadsStock.value).toBe(false);
     expect(line.controls.loadsStock.disabled).toBe(true);
+  });
+
+  // ── Il numero proposto non torna al server come imposizione ─────────────
+  //
+  // Il numero che la maschera mostra all'apertura è il primo libero: una
+  // proposta, non una scelta. Rimandarlo al salvataggio lo trasformava in
+  // un'imposizione, e il secondo operatore si prendeva un dialogo di conflitto
+  // per un numero che non aveva mai digitato — glielo aveva scritto la maschera.
+  it('non manda il numero proposto: lo assegna il server', async () => {
+    const { fixture } = await setup({ counters: [COUNTER] });
+    const component = fixture.componentInstance;
+
+    await waitFor(() => expect(component.form.controls.documentNumber.value).toBe(42));
+    const input = await numberInput();
+    await waitFor(() => expect(input.value).toBe('42'));
+
+    expect(component['buildSaveGoodsReceiptBody']().number).toBeUndefined();
+  });
+
+  // Il numero digitato a mano resta una scelta dell'operatore, e va difesa: si
+  // manda, e se è occupato il dialogo di conflitto ha qualcosa da dire.
+  //
+  // `fireEvent` e non `userEvent`: il campo Numero esiste in due viste e su
+  // quella non attiva il CSS lo nasconde — la digitazione simulata rifiuterebbe
+  // di interagirci. L'evento `input` è comunque quello che il campo ascolta.
+  it('manda il numero digitato dall’operatore', async () => {
+    const { fixture } = await setup({ counters: [COUNTER] });
+    const component = fixture.componentInstance;
+
+    // Gate compilazione: senza fornitore e magazzino la testata è disabilitata.
+    component.form.controls.supplierId.setValue('sup-1');
+    component.form.controls.locationId.setValue('loc-1');
+    fixture.detectChanges();
+
+    const input = await numberInput();
+    fireEvent.input(input, { target: { value: '77' } });
+
+    expect(component.form.controls.documentNumber.value).toBe(77);
+    expect(component['buildSaveGoodsReceiptBody']().number).toBe(77);
+  });
+
+  // Numero proposto e numero assegnato possono divergere: fra l'apertura e il
+  // salvataggio un altro operatore può aver preso il 42. Non è un errore, ma chi
+  // l'aveva già trascritto su carta deve sapere di avere il numero sbagliato.
+  it('avvisa quando il server assegna un numero diverso da quello proposto', async () => {
+    const { fixture, saveGoodsReceipt, showInfo } = await setup({
+      counters: [COUNTER],
+      assignedNumber: 46,
+    });
+    const component = fixture.componentInstance;
+
+    await waitFor(() => expect(component.form.controls.documentNumber.value).toBe(42));
+    component.form.controls.supplierId.setValue('sup-1');
+    component.form.controls.locationId.setValue('loc-1');
+
+    component['requestSaveDocument']();
+    await fixture.whenStable();
+
+    expect(saveGoodsReceipt.mock.calls[0]![0].number).toBeUndefined();
+    expect(showInfo).toHaveBeenCalledWith(
+      'Salvato con il n. 46: il 42 è stato preso da un altro operatore.',
+    );
+    // La testata si allinea al numero vero: continuare a mostrare il 42 quando
+    // il documento è il 46 è peggio che non mostrare niente.
+    expect(component.form.controls.documentNumber.value).toBe(46);
+  });
+
+  it('nessun avviso quando il server conferma il numero proposto', async () => {
+    const { fixture, showInfo } = await setup({ counters: [COUNTER], assignedNumber: 42 });
+    const component = fixture.componentInstance;
+
+    await waitFor(() => expect(component.form.controls.documentNumber.value).toBe(42));
+    component.form.controls.supplierId.setValue('sup-1');
+    component.form.controls.locationId.setValue('loc-1');
+
+    component['requestSaveDocument']();
+    await fixture.whenStable();
+
+    expect(showInfo).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **La guardia dell'allineamento del 13/08/2026.**
+   *
+   * L'Arrivo merce numerava con una regola propria: «già numerato» lo deduceva
+   * dal RIFERIMENTO del documento. Ora guarda la sua esistenza — la stessa cosa
+   * che le altre maschere dicono con `isEditMode()`, detta per una maschera che
+   * dopo il salvataggio non se ne va (§10.7).
+   *
+   * **Questa prova è nata rossa, ed è il suo motivo di esistere.** Con la sola
+   * rotta (`isEditMode()`) il campo torna da 46 a 42: il documento è salvato ma
+   * l'URL è ancora quello di creazione, la prima riproposta dei contatori lo
+   * trova «nuovo e mai toccato» e ci riscrive sopra il numero proposto prima.
+   * L'operatore trascriverebbe un numero che non è del suo documento.
+   */
+  it('dopo il salvataggio il numero assegnato non torna a essere una proposta', async () => {
+    const { fixture } = await setup({ counters: [COUNTER], assignedNumber: 46 });
+    const component = fixture.componentInstance;
+
+    await waitFor(() => expect(component.form.controls.documentNumber.value).toBe(42));
+    component.form.controls.supplierId.setValue('sup-1');
+    component.form.controls.locationId.setValue('loc-1');
+
+    component['requestSaveDocument']();
+    await fixture.whenStable();
+    await fixture.whenStable();
+
+    // Il documento esiste e porta il 46: la testata lo mostra.
+    expect(component.form.controls.documentNumber.value).toBe(46);
+
+    // Una riproposta dei contatori — la scatenano il cambio data e ogni
+    // ricarica — non deve più toccarlo: il numero è assegnato, non proposto.
+    component['refreshNumberProposal']();
+    await fixture.whenStable();
+
+    expect(component.form.controls.documentNumber.value).toBe(46);
+    expect(component['numberIsProposal']()).toBe(false);
   });
 
   /**
@@ -486,12 +695,16 @@ describe('GoodsReceiptFormComponent', () => {
       return view.fixture.componentInstance as unknown as FocusForm;
     }
 
-    // La cella IVA è un `app-select-menu`: `gr-vat-{i}` è nella mappa degli id
-    // ma NON esiste nel DOM. Elencarla farebbe morire il fuoco.
-    it('l’IVA non è nel giro: quella cella non ha un campo su cui atterrare', async () => {
+    // L'IVA è rientrata nel giro con la cella a ricerca-e-selezione (B3). La
+    // guardia era «non c'è» e ora è «c'è»: `gr-vat-{i}` stava nella mappa degli
+    // id anche quando quella cella era un `app-select-menu` e nel DOM non
+    // esisteva — è quel disallineamento che faceva morire il fuoco, e ora i due
+    // lati dicono la stessa cosa. Che l'id finisca davvero sull'input lo prova
+    // lo spec della cella.
+    it('l’IVA è nel giro del fuoco', async () => {
       const form = await apriForm();
 
-      expect(form.lineFocus.fieldsOf(0)).not.toContain('vat');
+      expect(form.lineFocus.fieldsOf(0)).toContain('vat');
     });
 
     // ⛔ Ctrl+↑/↓ NON sposta più la riga (11/08/2026, §7.3): esisteva solo qui,

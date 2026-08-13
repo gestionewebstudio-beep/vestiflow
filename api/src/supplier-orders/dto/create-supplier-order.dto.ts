@@ -57,6 +57,15 @@ export class CreateSupplierOrderLineDto {
   @IsOptional()
   @IsUUID()
   vatCodeId?: string;
+
+  /**
+   * Unità di misura della riga, fotografata all'inserimento. Testo libero: la
+   * tabella delle unità suggerisce, non obbliga (specifica §4.3-ter).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  unitOfMeasure?: string;
 }
 
 export class CreateSupplierOrderDto {
@@ -68,6 +77,37 @@ export class CreateSupplierOrderDto {
   @IsISO8601()
   orderDate?: string;
 
+  /**
+   * Serie del numeratore. Assente = la serie predefinita del tipo.
+   *
+   * Fino al 12/08/2026 il client non poteva sceglierla: il server prendeva
+   * sempre la predefinita, e l'Ordine fornitore era l'unico documento di
+   * Categoria A senza serie in testata (specifica numerazione §5).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /**
+   * Sede di destinazione della merce ordinata (§1-bis). Finisce in
+   * `supplier_orders.destination_location_id`, colonna che esisteva già e non
+   * aveva alcun percorso di scrittura.
+   */
+  @IsOptional()
+  @IsUUID()
+  destinationLocationId?: string;
+
+  /**
+   * Numero imposto dalla testata. Assente = lo assegna il server, primo libero
+   * della serie. Se è già occupato risponde 409 col conflitto, come gli altri
+   * documenti: chi salva sceglie fra numero nuovo e numero attuale.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @IsOptional()
   @IsISO8601()
   expectedAt?: string;
@@ -78,7 +118,7 @@ export class CreateSupplierOrderDto {
   @MaxLength(120)
   supplierReference?: string;
 
-/**
+  /**
    * Sconto extra di chiusura sull'intero ordine (percentuale, fino a 4
    * decimali). Stessa forma di `documentDiscountPercent` su arrivo merce e
    * ordine cliente: il calcolo è già condiviso, qui arriva solo il numero.
@@ -105,4 +145,11 @@ export class CreateSupplierOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateSupplierOrderLineDto)
   lines!: CreateSupplierOrderLineDto[];
+  // ⚠️ Qui stavano i tre campi del «documento della controparte»
+  // (`externalDocNumber`, `externalDocDate`, `externalDocumentTypeId`).
+  // Tolti il 12/08/2026 insieme al blocco in testata: questo documento non ne
+  // ha uno da citare. Chiudere anche l'ingresso serve — finché il DTO li
+  // accetta, un client può scriverli e le colonne tornano a riempirsi di dati
+  // che nessuna maschera mostra. Le colonne restano: toglierle è distruttivo su
+  // database condiviso e aspetta la finestra concordata.
 }

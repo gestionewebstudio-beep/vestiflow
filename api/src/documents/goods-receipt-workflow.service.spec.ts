@@ -22,7 +22,10 @@ const tenantId = 'tenant-1';
 
 function createPrismaMock() {
   const prisma = {
-    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
+    documentCounter: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     document: {
       // Numerazione «massimo esistente + 1»: la serie parte vuota.
       aggregate: vi.fn().mockResolvedValue({ _max: { number: null } }),
@@ -294,6 +297,38 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
         ),
       ).resolves.toBeDefined();
     });
+  });
+
+  it('numero automatico: il lock del contatore precede la lettura del massimo', async () => {
+    const { service } = createService(prisma);
+    prisma.document.aggregate.mockResolvedValue({ _max: { number: 6 } });
+    prisma.document.create.mockResolvedValue(savedDocument());
+    prisma.document.findFirstOrThrow.mockResolvedValue(savedDocument());
+
+    await service.saveGoodsReceipt(tenantId, baseDto());
+
+    // Senza lock due salvataggi simultanei leggono lo stesso massimo e scelgono
+    // lo stesso numero: l'ordine è la sostanza della correzione, non un
+    // dettaglio: prenderlo dopo l'aggregato non serializzerebbe niente.
+    expect(prisma.document.aggregate).toHaveBeenCalled();
+    const lockOrder = prisma.$queryRaw.mock.invocationCallOrder[0] ?? 0;
+    const maxOrder = prisma.document.aggregate.mock.invocationCallOrder[0] ?? 0;
+    expect(lockOrder).toBeGreaterThan(0);
+    expect(lockOrder).toBeLessThan(maxOrder);
+  });
+
+  it('numero imposto dalla testata: nessun lock e nessun massimo letto', async () => {
+    const { service } = createService(prisma);
+    prisma.document.create.mockResolvedValue(savedDocument({ number: 42 }));
+    prisma.document.findFirstOrThrow.mockResolvedValue(savedDocument({ number: 42 }));
+
+    await service.saveGoodsReceipt(tenantId, baseDto({ number: 42 }));
+
+    // Il numero scelto a mano non legge il progressivo, quindi non ha nulla da
+    // serializzare: un eventuale conflitto resta l'informazione utile.
+    expect(prisma.document.aggregate).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.document.create.mock.calls[0]?.[0].data.number).toBe(42);
   });
 
   it('richiede il fornitore per i tipi arrivo merce', async () => {
@@ -956,6 +991,74 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
         service.saveGoodsReceipt(tenantId, baseDto({ id: 'doc-1', locationId: 'loc-1' }), clerk),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.document.update).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * Protocollo digitato e già preso.
+   *
+   * Da quando la maschera non rimanda più indietro il protocollo PROPOSTO, il
+   * 409 si raggiunge solo con un numero scelto a mano — e quel numero si digita
+   * per tappare un buco in mezzo alla serie. Il payload deve quindi nominare
+   * QUEL numero: prima portava sempre l'ultimo occupato, e all'operatore che
+   * aveva scritto 7 il dialogo parlava del 43.
+   */
+  describe('protocollo già assegnato', () => {
+    /**
+     * Violazione del vincolo unico sul numero, come la manda Prisma DAVVERO.
+     *
+     * Il doppione portava `target: ['tenantId','type','series','number']`, che
+     * è la forma di un indice su colonne. L'indice vero è di ESPRESSIONE (dal
+     * 11/08 la serie assente partecipa come stringa vuota), e su quelli Prisma
+     * non sa dire le colonne: manda `['tenant_id,']`, un troncone. Il nome del
+     * modello invece c'è sempre, ed è ciò su cui si riconosce il conflitto.
+     */
+    const numberTaken = {
+      code: 'P2002',
+      meta: { modelName: 'Document', target: ['tenant_id,'] },
+    };
+
+    it('il 409 nomina il protocollo digitato e il primo libero', async () => {
+      const { service } = createService(prisma);
+      // Serie arrivata al 43; l'operatore digita 7 per tappare un buco.
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 43 } });
+      prisma.document.create.mockRejectedValue(numberTaken);
+
+      const error = await service
+        .saveGoodsReceipt(tenantId, baseDto({ number: 7, series: 'A' }))
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: 'document_number_taken',
+        number: 7,
+        nextAvailable: 44,
+        series: 'A',
+      });
+    });
+
+    // Numero assegnato d'ufficio: il server lo calcola dentro la transazione,
+    // un collega lo brucia nello stesso istante, e col rollback quel numero è
+    // perso. Il payload NON lo inventa più: prima ripiegava su
+    // `nextAvailable - 1`, che sotto la regola del §2 può essere «il buco meno
+    // uno» — un numero che con la collisione non c'entra niente.
+    it('senza protocollo digitato il 409 non inventa il numero rifiutato', async () => {
+      const { service } = createService(prisma);
+      prisma.document.aggregate.mockResolvedValue({ _max: { number: 43 } });
+      prisma.document.create.mockImplementation(() => {
+        // Da qui in poi il massimo della serie è il 44 preso dal collega.
+        prisma.document.aggregate.mockResolvedValue({ _max: { number: 44 } });
+        return Promise.reject(numberTaken);
+      });
+
+      const error = await service
+        .saveGoodsReceipt(tenantId, baseDto({ series: 'A' }))
+        .catch((err: unknown) => err);
+
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        number: null,
+        nextAvailable: 45,
+      });
     });
   });
 });

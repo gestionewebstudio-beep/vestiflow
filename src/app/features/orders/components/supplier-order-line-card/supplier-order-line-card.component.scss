@@ -1,0 +1,83 @@
+// I controlli della riga Ordine fornitore dentro la card condivisa. La forma —
+// contenitore, testata, meta, corpo, piede — è di `document-line-card`; qui c'è
+// solo quello che questo documento proietta dentro.
+
+:host {
+  display: block;
+}
+
+// Quantità e costo della striscia sempre visibile: allineati a destra come
+// ogni numero dell'app, col bordo che dice che si scrivono.
+.po-card__num-input {
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-2);
+  text-align: end;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+// Totale: calcolato, quindi senza bordo.
+.po-card__total {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-block-size: 2.5rem;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+// Nome prodotto: campo più scorciatoia alla ricerca a schermo intero, e ancora
+// del pannello suggerimenti condiviso.
+.po-card__search {
+  position: relative;
+  display: flex;
+  gap: var(--space-2);
+
+  .doc-form__input {
+    flex: 1;
+    min-inline-size: 0;
+  }
+}
+
+.po-card__search-btn {
+  flex-shrink: 0;
+  inline-size: var(--control-h-touch);
+  block-size: var(--control-h-touch);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 120ms var(--ease-standard);
+
+  &:active {
+    background-color: var(--color-surface-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .po-card__search-btn {
+    transition-duration: 0.01ms;
+  }
+}

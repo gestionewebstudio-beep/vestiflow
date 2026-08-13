@@ -1,0 +1,94 @@
+<article
+  class="doc-line-card"
+  [class.doc-line-card--open]="open()"
+  [class.doc-line-card--incomplete]="!complete()"
+  [attr.aria-label]="'Riga ' + (lineIndex() + 1)"
+>
+  <!-- Avviso di riga: informa, non blocca (regole-gestionale). -->
+  @if (alert(); as message) {
+    <p class="doc-line-card__alert" role="status">
+      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+      {{ message }}
+    </p>
+  }
+
+  <div class="doc-line-card__head">
+    <!-- Riga 1 — elimina (sx) · nome · chevron (dx). -->
+    <div class="doc-line-card__topline">
+      <button
+        type="button"
+        class="doc-line-card__remove"
+        [disabled]="readOnly() || !canRemove()"
+        aria-label="Elimina riga"
+        (click)="removeRequested.emit()"
+      >
+        <i class="pi pi-trash" aria-hidden="true"></i>
+      </button>
+      <button
+        type="button"
+        class="doc-line-card__expand"
+        [attr.aria-expanded]="open()"
+        (click)="toggled.emit()"
+      >
+        <span class="doc-line-card__name">{{ displayTitle() }}</span>
+        <i class="pi pi-chevron-down doc-line-card__chevron" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    @if (variantLabel()) {
+      <p class="doc-line-card__variant">{{ variantLabel() }}</p>
+    }
+
+    @if (meta().length > 0) {
+      <p class="doc-line-card__meta">
+        @for (item of meta(); track $index) {
+          <span
+            class="doc-line-card__meta-item"
+            [class.doc-line-card__meta-item--trailing]="item.trailing"
+            [class.doc-line-card__meta-item--warning]="item.tone === 'warning'"
+          >
+            {{ item.text }}
+          </span>
+        }
+      </p>
+    }
+
+    <!--
+      I valori che restano modificabili a card chiusa. Quali siano lo decide il
+      documento: prezzo di vendita in un ordine cliente, costo con la scelta
+      netto/ivato in un arrivo merce. La striscia è forma, il suo contenuto no.
+    -->
+    <div class="doc-line-card__controls">
+      <ng-content select="[cardControls]" />
+    </div>
+  </div>
+
+  @if (open()) {
+    <div class="doc-line-card__body">
+      <div class="doc-line-card__grid">
+        <ng-content select="[cardBody]" />
+      </div>
+
+      <div class="doc-line-card__actions">
+        <app-button
+          type="button"
+          variant="secondary"
+          [disabled]="readOnly()"
+          (click)="duplicated.emit()"
+        >
+          <i class="pi pi-clone" aria-hidden="true"></i>
+          Duplica
+        </app-button>
+        <app-button
+          type="button"
+          variant="danger"
+          [disabled]="readOnly() || !canRemove()"
+          (click)="removed.emit()"
+        >
+          <i class="pi pi-trash" aria-hidden="true"></i>
+          Elimina
+        </app-button>
+      </div>
+    </div>
+  }
+</article>

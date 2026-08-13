@@ -17,7 +17,10 @@ import { ProductService } from '@domain/products/services/product.service';
 
 import { SupplierOrderFormComponent } from './supplier-order-form.component';
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import { DocumentType } from '@core/models/document.model';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { signal } from '@angular/core';
@@ -40,6 +43,18 @@ const VARIANTS: readonly VariantSummary[] = [
     // Obbligatorio nel modello: senza, il dettaglio del suggerimento esplode e
     // il pannello resta vuoto senza dire perché. Il dato di prova mentiva al tipo.
     sellingPrice: { amountMinor: 2990, currencyCode: 'EUR' },
+  },
+];
+
+/** Tipi del documento della controparte (tendina condivisa di testata). */
+const EXTERNAL_DOC_TYPES = [
+  {
+    id: 'edt-ddt',
+    name: 'Documento di trasporto',
+    shortLabel: 'DDT',
+    isSystem: true,
+    isActive: true,
+    sortOrder: 1,
   },
 ];
 
@@ -192,7 +207,37 @@ describe('SupplierOrderFormComponent', () => {
         // Modalità costi iniziale del nuovo ordine: preferenza operatore per tipo.
         {
           provide: DocumentService,
-          useValue: { getPriceModePreference: () => of(false) },
+          useValue: {
+            getPriceModePreference: () => of(false),
+            checkChronology: () => of({ conflicts: [], dismissed: false }),
+            dismissChronologyWarning: () => of(void 0),
+          },
+        },
+        // Tendina del documento della controparte (componente condiviso in
+        // testata): senza lo stub cercherebbe l'HTTP vero.
+        { provide: ExternalDocumentTypeService, useValue: { list: () => of(EXTERNAL_DOC_TYPES) } },
+        // Numerazione propria (§5 Categoria A): il contatore predefinito
+        // propone serie e primo numero libero.
+        {
+          provide: DocumentCountersService,
+          useValue: {
+            available: () =>
+              of({
+                counters: [
+                  {
+                    id: 'cnt-1',
+                    type: DocumentType.SupplierOrder,
+                    series: 'A',
+                    locationId: null,
+                    locationName: null,
+                    isDefault: true,
+                    nextNumber: 42,
+                    documentCount: 41,
+                  },
+                ],
+                proposedCounterId: 'cnt-1',
+              }),
+          },
         },
         {
           provide: TableColumnPreferenceService,
@@ -218,6 +263,55 @@ describe('SupplierOrderFormComponent', () => {
     expect(await screen.findByText('OF-2026-0042')).toBeVisible();
   });
 
+  // ── Numerazione propria (specifica numerazione §5, Categoria A) ────────────
+  //
+  // Fino al 12/08/2026 l'Ordine fornitore era l'unico documento della categoria
+  // senza numero né serie in testata: il server lo numerava d'ufficio e
+  // l'operatore non vedeva niente.
+
+  it('propone in testata serie e primo numero libero', async () => {
+    await setup();
+
+    const numero = (await screen.findAllByLabelText<HTMLInputElement>('Numero'))[0]!;
+    expect(numero.value).toBe('42');
+  });
+
+  // La regola centrale: la proposta NON torna indietro come imposizione, o due
+  // operatori che salvano insieme si contenderebbero lo stesso numero.
+  /**
+   * Né numero né serie viaggiano finché l'operatore non li tocca: quello che la
+   * testata mostra è una PROPOSTA, e a decidere è il server nella transazione
+   * che scrive.
+   *
+   * Sulla serie è cambiato il 13/08/2026 (§1-bis): prima viaggiava anche non
+   * toccata, perché la proposta la scriveva nel campo e il campo partiva. Ora
+   * parte solo se scelta — e allora parte davvero, «Senza serie» compresa, che
+   * è il difetto che quella regola chiude.
+   */
+  it('numero e serie non toccati: il salvataggio non li porta', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup();
+
+    await scegliArticoloSullaRiga(user);
+    await user.click(salvaDocumento());
+
+    expect(createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ series: undefined, number: undefined }),
+    );
+  });
+
+  it('numero digitato: viaggia al server, dove il conflitto ha senso', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup();
+
+    const numero = (await screen.findAllByLabelText<HTMLInputElement>('Numero'))[0]!;
+    await user.clear(numero);
+    await user.type(numero, '7');
+    await scegliArticoloSullaRiga(user);
+    await user.click(salvaDocumento());
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({ number: 7 }));
+  });
   it('mostra errori di validazione al submit senza dati obbligatori', async () => {
     const user = userEvent.setup();
     await setup();
@@ -412,7 +506,7 @@ describe('SupplierOrderFormComponent', () => {
 
     await scegliFornitore(user);
 
-    const qtyInput = screen.getByRole('spinbutton');
+    const qtyInput = screen.getByLabelText('Quantità ordinata');
     await user.clear(qtyInput);
     await user.type(qtyInput, '3');
 
@@ -442,7 +536,7 @@ describe('SupplierOrderFormComponent', () => {
 
     await scegliArticoloSullaRiga(user);
 
-    const qtyInput = screen.getByRole('spinbutton');
+    const qtyInput = screen.getByLabelText('Quantità ordinata');
     await user.clear(qtyInput);
     await user.type(qtyInput, '2');
     const costInput = screen.getByPlaceholderText('0,00');
@@ -484,6 +578,13 @@ describe('SupplierOrderFormComponent', () => {
       currency: 'EUR',
       costEntryMode: 'vat_excluded' as const,
       orderDate: '2026-08-01T00:00:00.000Z',
+      // Documento della controparte con un tipo che NON è più nell'elenco:
+      // eliminato dopo che l'ordine era già stato registrato. La dicitura deve
+      // restare leggibile, e a tenerla in piedi c'è solo lo snapshot.
+      externalDocumentTypeId: 'edt-eliminato',
+      externalDocumentTypeSnapshot: 'Nota consegna',
+      externalDocNumber: '145',
+      externalDocDate: '2026-07-25T00:00:00.000Z',
       lines: [
         {
           id: 'l-1',
@@ -539,7 +640,15 @@ describe('SupplierOrderFormComponent', () => {
             getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
           },
         },
-        { provide: DocumentService, useValue: { getPriceModePreference: () => of(false) } },
+        {
+          provide: DocumentService,
+          useValue: {
+            getPriceModePreference: () => of(false),
+            checkChronology: () => of({ conflicts: [], dismissed: false }),
+            dismissChronologyWarning: () => of(void 0),
+          },
+        },
+        { provide: ExternalDocumentTypeService, useValue: { list: () => of(EXTERNAL_DOC_TYPES) } },
         { provide: TableColumnPreferenceService, useValue: tableColumnPreferenceMock() },
         { provide: VatCodeService, useValue: { list: () => of([]) } },
         { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
@@ -554,7 +663,7 @@ describe('SupplierOrderFormComponent', () => {
 
     expect(await screen.findByRole('button', { name: /Sblocca/ })).toBeVisible();
     // Protetto = form disabilitato: non si digita a vuoto.
-    expect(screen.getByRole('spinbutton')).toBeDisabled();
+    expect(screen.getByLabelText('Quantità ordinata')).toBeDisabled();
   });
 
   // TODO(blocco documenti): manca il resto del giro — sblocca, modifica, salva,
@@ -564,6 +673,11 @@ describe('SupplierOrderFormComponent', () => {
   // pilotare il dialogo o esercitare direttamente confirmUnlockEdit(): è la
   // verifica che manca, e va fatta prima di migrare Arrivo merce e Ordine
   // cliente, che hanno lo stesso giro.
+
+  // ── Documento della controparte ────────────────────────────────────────────
+  //
+  // Tipo, numero e data del documento emesso dal FORNITORE (la sua conferma
+  // d'ordine): stanno su ogni maschera documento, non solo sull'Arrivo merce.
 
   // ── Salvare non è uscire ───────────────────────────────────────────────────
   //
@@ -601,7 +715,11 @@ describe('SupplierOrderFormComponent', () => {
   // all'operatore non succedeva letteralmente NULLA. E con le colonne che
   // scorrono in orizzontale il campo incriminato può stare fuori schermo,
   // quindi non c'era nemmeno modo di capire da soli cosa mancasse.
-  it('dice cosa manca invece di non fare nulla, e nomina la riga', async () => {
+  // ⛔ Il costo MANCANTE non blocca più (11/08/2026): un ordine si fa al volo,
+  // senza il listino del fornitore sotto mano. Il documento si salva e l'avviso
+  // dice quali righe sono partite senza costo. Questo test è la guardia del
+  // NUOVO comportamento: prima asseriva il blocco.
+  it('senza costo l’ordine si salva, e l’avviso dice quale riga', async () => {
     const user = userEvent.setup();
     const { createOrder } = await setup();
 
@@ -613,8 +731,26 @@ describe('SupplierOrderFormComponent', () => {
     // L'articolo di prova non ha costo d'anagrafica: la riga resta senza costo.
     await user.click(salvaDocumento());
 
+    expect(createOrder).toHaveBeenCalled();
+    expect(await screen.findByText(/Riga 1: salvata senza costo/)).toBeVisible();
+  });
+
+  // Un costo NEGATIVO invece è un valore sbagliato, non un valore assente: resta
+  // un blocco, e continua a nominare la riga.
+  it('il costo negativo resta un blocco, e dice quale riga', async () => {
+    const user = userEvent.setup();
+    const { createOrder } = await setup();
+
+    await user.click(screen.getByRole('button', { name: 'Fornitore' }));
+    await user.click(screen.getByRole('option', { name: 'Tessuti Italia' }));
+    await scegliArticoloSullaRiga(user);
+
+    const costo = screen.getByPlaceholderText('0,00');
+    await user.clear(costo);
+    await user.type(costo, '-5,00');
+    await user.click(salvaDocumento());
+
     expect(await screen.findByRole('alert')).toHaveTextContent('Riga 1');
-    expect(screen.getByRole('alert')).toHaveTextContent('costo');
     expect(createOrder).not.toHaveBeenCalled();
   });
 
@@ -847,7 +983,14 @@ describe('SupplierOrderFormComponent', () => {
               getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
             },
           },
-          { provide: DocumentService, useValue: { getPriceModePreference: () => of(false) } },
+          {
+            provide: DocumentService,
+            useValue: {
+              getPriceModePreference: () => of(false),
+              checkChronology: () => of({ conflicts: [], dismissed: false }),
+              dismissChronologyWarning: () => of(void 0),
+            },
+          },
           { provide: TableColumnPreferenceService, useValue: tableColumnPreferenceMock() },
           { provide: VatCodeService, useValue: { list: () => of([]) } },
           { provide: PaymentOptionsService, useValue: { list: () => of([]) } },

@@ -36,8 +36,8 @@
   // La card di riga si configura, non si perfora: il contenitore le dice che
   // forma avere e lei la applica dentro il proprio foglio.
   .co-form .co-form__cards {
-    --co-card-shadow: none;
-    --co-card-section-pad: var(--card-pad-mobile);
+    --doc-line-card-shadow: none;
+    --doc-line-card-section-pad: var(--card-pad-mobile);
   }
 
   // ── Niente card dentro card: sezioni orizzontali nel contenitore ─────────
@@ -58,9 +58,9 @@
   // Niente card dentro card: le righe diventano un elenco continuo, separate
   // da un filo invece che da quattro bordi.
   .co-form .co-form__cards {
-    --co-card-border: 0;
-    --co-card-radius: 0;
-    --co-card-section-pad: var(--card-pad-mobile) var(--space-2);
+    --doc-line-card-border: 0;
+    --doc-line-card-radius: 0;
+    --doc-line-card-section-pad: var(--card-pad-mobile) var(--space-2);
 
     gap: 0;
   }

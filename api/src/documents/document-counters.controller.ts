@@ -46,7 +46,12 @@ export class DocumentCountersController {
     @CurrentTenant() tenantId: string,
     @Query() query: AvailableCountersQueryDto,
   ): Promise<{ counters: DocumentCounterView[]; proposedCounterId: string | null }> {
-    return this.counters.available(tenantId, query.type, query.locationId ?? null);
+    return this.counters.available(
+      tenantId,
+      query.type,
+      query.locationId ?? null,
+      query.documentDate ? new Date(query.documentDate) : undefined,
+    );
   }
 
   @Post()

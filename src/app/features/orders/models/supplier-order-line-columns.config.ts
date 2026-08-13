@@ -36,7 +36,9 @@ export const SUPPLIER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   { id: 'supplierCode', label: 'Cod. fornitore', defaultWidthPx: 104, minWidthPx: 72 },
   { id: 'product', label: 'Nome prodotto', defaultWidthPx: 280, minWidthPx: 160 },
   { id: 'quantity', label: 'Q.tà', numeric: true, defaultWidthPx: 64, minWidthPx: 48 },
-  { id: 'unitOfMeasure', label: 'U.m.', defaultWidthPx: 52, minWidthPx: 40 },
+  // Larghezza cresciuta con la cella: era una colonna di sola lettura larga
+  // quanto «pz», ora ospita un campo con il suo indizio di apertura.
+  { id: 'unitOfMeasure', label: 'U.m.', defaultWidthPx: 60, minWidthPx: 48 },
   // Giacenza: utile ma non sempre, e allarga la tabella — resta a richiesta.
   {
     id: 'stockOnHand',

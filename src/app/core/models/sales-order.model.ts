@@ -80,6 +80,13 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly id: EntityId;
   /** Numero ordine leggibile (Shopify order name, es. '#1001'). */
   readonly orderNumber: string;
+  /**
+   * Numero interno dal numeratore `customer_order`, e la sua serie. Assenti
+   * sugli ordini che arrivano da un canale: quelli portano il numero del
+   * canale, non uno nostro (specifica numerazione §5).
+   */
+  readonly number?: number | null;
+  readonly series?: string | null;
   readonly financialStatus: SalesOrderFinancialStatus;
   readonly fulfillmentStatus: SalesOrderFulfillmentStatus;
   readonly source: SalesOrderSource;
@@ -131,6 +138,21 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly locationId?: EntityId;
   /** Rif. ordine cliente esterno (testo libero). */
   readonly externalRef?: string;
+  // ── Documento della controparte: l'ordine emesso dal cliente ──
+  // Trio tipo + numero + data, lo stesso di ogni altra maschera documento.
+  // È altra cosa da `externalRef`, che resta un riferimento libero.
+  /** Tipo del documento emesso dal cliente (tabella tipi del tenant). */
+  readonly externalDocumentTypeId?: EntityId;
+  /**
+   * Etichetta del tipo fotografata sul documento. Sola lettura: la scrive il
+   * backend insieme all'id, e sopravvive all'eliminazione del tipo — è quella
+   * che tiene leggibile un ordine vecchio quando la voce non esiste più.
+   */
+  readonly externalDocumentTypeSnapshot?: string;
+  /** Numero del documento emesso dal cliente. */
+  readonly externalDocNumber?: string;
+  /** Data del documento emesso dal cliente (solo giorno). */
+  readonly externalDocDate?: IsoDateString;
   /** Data prevista consegna (solo giorno). */
   readonly expectedDeliveryDate?: IsoDateString;
   /** Note documento. */

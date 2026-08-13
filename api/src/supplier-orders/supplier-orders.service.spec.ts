@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { grossFromNetMinor } from '../vat/vat-line-calculation.util';
 
 import type { DocumentSettingsService } from '../documents/document-settings.service';
+import type { ExternalDocumentTypesService } from '../documents/external-document-types.service';
 import type { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { VatCodesService } from '../vat/vat-codes.service';
@@ -71,6 +72,11 @@ describe('SupplierOrdersService', () => {
         resolvePricesIncludeVat: vi.fn().mockResolvedValue(false),
         remember: vi.fn().mockResolvedValue(undefined),
       } as unknown as DocumentPriceModePreferenceService,
+      {
+        resolveForWrite: vi
+          .fn()
+          .mockResolvedValue({ externalDocumentTypeId: null, externalDocumentTypeSnapshot: null }),
+      } as unknown as ExternalDocumentTypesService,
     );
   }
 
@@ -87,7 +93,11 @@ describe('SupplierOrdersService', () => {
       },
       productVariant: { findMany: vi.fn() },
       vatCode: { findMany: vi.fn().mockResolvedValue([]) },
-      documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
+      documentCounter: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        // Nessun contatore disponibile per la sede: la serie resta «senza serie».
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       documentSequence: {
         upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }),
         findUnique: vi.fn().mockResolvedValue(null),
@@ -109,6 +119,9 @@ describe('SupplierOrdersService', () => {
         findMany: vi.fn(),
         deleteMany: vi.fn(),
       },
+      // Advisory lock sul contatore: qui non serializza niente (transazione
+      // finta), ma senza la mock la chiamata romperebbe la creazione.
+      $queryRaw: vi.fn().mockResolvedValue([]),
       $transaction: vi.fn(),
     };
     prisma.$transaction.mockImplementation((arg: unknown) => {

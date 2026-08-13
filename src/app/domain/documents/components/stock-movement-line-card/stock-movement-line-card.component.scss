@@ -1,0 +1,33 @@
+// I controlli della riga di movimento dentro la card condivisa. La forma è di
+// `document-line-card`; qui c'è solo la quantità, che è l'unico valore che un
+// movimento mostra senza aprire.
+
+:host {
+  display: block;
+}
+
+.mov-card__qty-input {
+  inline-size: 100%;
+  min-inline-size: 5rem;
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-2);
+  text-align: end;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}

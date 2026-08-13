@@ -1,0 +1,32 @@
+// Il campo si dispone da sé nella griglia della card: `grid-column` sta
+// sull'host, non su una regola del contenitore, perché il contenitore non
+// raggiunge il contenuto proiettato.
+:host {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+:host(.doc-line-card-field--full) {
+  grid-column: 1 / -1;
+}
+
+// Ancora del pannello che si stende sotto il campo (scelta codici, suggerimenti).
+:host(.doc-line-card-field--anchor) {
+  position: relative;
+}
+
+.doc-line-card-field__label {
+  margin-block-end: var(--space-1);
+  font-size: var(--text-nano);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+// ⚠️ Il controllo dentro NON si veste qui. Arriva proiettato dalla maschera,
+// quindi porta il suo incapsulamento e una regola scritta in questo foglio non
+// lo raggiungerebbe — e `::ng-deep` per arrivarci è vietato (regole-stile-ui).
+// La misura dei controlli dentro la card sta nel foglio globale, accanto alle
+// altre regole di `doc-form__input`: è l'unico posto che le vede entrambe.

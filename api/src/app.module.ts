@@ -24,6 +24,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { PaymentOptionsModule } from './payment-options/payment-options.module';
+import { UnitOfMeasureOptionsModule } from './unit-of-measure-options/unit-of-measure-options.module';
 import { SupplierOrdersModule } from './supplier-orders/supplier-orders.module';
 import { VatModule } from './vat/vat.module';
 import { SupportSessionModule } from './support/support-session.module';
@@ -49,6 +50,7 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     SupplierOrdersModule,
     VatModule,
     PaymentOptionsModule,
+    UnitOfMeasureOptionsModule,
     DocumentsModule,
     CustomersModule,
     SalesOrdersModule,

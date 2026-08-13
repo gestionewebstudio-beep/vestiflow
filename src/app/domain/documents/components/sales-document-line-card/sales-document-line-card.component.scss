@@ -1,0 +1,54 @@
+// I controlli della riga di vendita dentro la card condivisa. La forma è di
+// `document-line-card`; qui ci sono i tre valori della striscia e la spunta
+// dello scarico, che è l'unico campo di questa riga a non essere un testo.
+
+:host {
+  display: block;
+}
+
+.sd-card__num {
+  inline-size: 100%;
+  min-inline-size: 4.5rem;
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-2);
+  text-align: end;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+// Il totale è l'unico valore che si legge e non si scrive: niente cornice di
+// campo, e più marcato degli altri due (regole-stile-ui §6).
+.sd-card__total {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.sd-card__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--btn-min-height);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}

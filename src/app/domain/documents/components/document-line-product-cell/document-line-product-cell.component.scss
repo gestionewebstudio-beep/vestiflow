@@ -68,29 +68,23 @@
 // cella resta `position: relative` perché è l'ancora su cui il pannello si
 // stende — il componente lo dichiara nel proprio commento e conta su di noi.
 
-// Riga collegata: etichetta + lente SEMPRE visibile (ricerca/sostituzione
-// articolo) + "Apri anagrafica" all'hover.
-.doc-product-cell--linked {
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-1);
-  justify-content: flex-start;
-  padding-inline-start: var(--space-2);
-}
-
-.doc-product-cell__linked-label {
-  flex: 1 1 auto;
-  min-inline-size: 0;
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: var(--doc-product-cell-weight, inherit);
-  line-height: var(--leading-normal);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  word-break: break-word;
-}
+// ⚠️ Qui stavano due blocchi dell'era delle DUE celle (`--linked` e
+// `__linked-label`), rimasti dopo che l'11/08/2026 la cella è diventata una
+// sola. Il secondo vestiva un elemento che il template non ha più; il primo
+// faceva danno vero.
+//
+// `--linked` metteva il contenitore in `flex-direction: row`, e il campo — suo
+// unico figlio — smetteva di essere stirato: si dimensionava sul contenuto,
+// cioè sulla larghezza *intrinseca* di un `<input>`, una ventina di caratteri,
+// **qualunque fosse la larghezza della colonna**. Da lì i due sintomi che si
+// vedevano su ogni riga già agganciata: la lente appiccicata al testo invece
+// che al bordo destro della cella, e un nome lungo che scorreva via a sinistra
+// mentre metà cella restava vuota.
+//
+// Non serve una regola al posto loro: senza, il contenitore resta in colonna,
+// il campo si stira per tutta la cella, l'input prende `flex: 1` e la lente sta
+// in fondo a destra. La classe `--linked` resta nel template perché dice uno
+// stato — se un giorno servirà vestirlo, il gancio c'è.
 
 // Il messaggio «nessun risultato» non esiste più (08/2026): senza risultati il
 // pannello non si apre. Non trovare nulla non è un errore — si compila la riga

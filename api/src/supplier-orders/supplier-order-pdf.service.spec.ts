@@ -25,6 +25,11 @@ describe('SupplierOrderPdfService', () => {
     costEntryMode: 'vat_excluded',
     orderDate: new Date('2026-07-10T09:00:00.000Z'),
     supplierReference: 'ORD-77/2026',
+    // Documento della controparte: non compilato in questa fixture.
+    externalDocNumber: null,
+    externalDocDate: null,
+    externalDocumentTypeId: null,
+    externalDocumentTypeSnapshot: null,
     // Nessuno sconto di chiusura in questo dato: il campo esiste dal
     // 11/08/2026 ed è obbligatorio nel tipo — il compilatore l'ha chiesto.
     documentDiscountPercent: new Prisma.Decimal(0),
@@ -39,6 +44,7 @@ describe('SupplierOrderPdfService', () => {
         id: 'line-1',
         orderId: 'po-1',
         lineNumber: 1,
+        unitOfMeasure: null,
         variantId: 'var-1',
         sku: 'SKU-001',
         description: 'T-shirt Basic — M / Bianco',

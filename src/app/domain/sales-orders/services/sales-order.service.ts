@@ -50,6 +50,14 @@ export interface SaveManualOrderInput {
   readonly locationId?: EntityId;
   readonly documentDate: string;
   readonly externalRef?: string;
+  /** Serie del numeratore; assente = la predefinita del tipo. */
+  readonly series?: string;
+  /**
+   * Numero imposto dalla testata. **Assente = «assegnalo tu»**, ed è il caso
+   * normale: la proposta mostrata non torna indietro come imposizione, così due
+   * operatori che salvano insieme non si contendono lo stesso numero.
+   */
+  readonly number?: number;
   readonly expectedDeliveryDate?: string;
   readonly status?: 'confirmed' | 'cancelled';
   readonly notes?: string;

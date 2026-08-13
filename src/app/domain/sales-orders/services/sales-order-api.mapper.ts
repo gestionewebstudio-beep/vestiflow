@@ -37,6 +37,8 @@ export interface SalesOrderApiRow {
   readonly id: EntityId;
   readonly tenantId: EntityId;
   readonly orderNumber: string;
+  readonly number?: number | null;
+  readonly series?: string | null;
   readonly source: string;
   readonly financialStatus: string;
   readonly fulfillmentStatus: string;
@@ -58,6 +60,11 @@ export interface SalesOrderApiRow {
   // Testata Ordine cliente manuale.
   readonly locationId?: EntityId | null;
   readonly externalRef?: string | null;
+  // Documento della controparte: l'ordine emesso dal cliente.
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocumentTypeSnapshot?: string | null;
+  readonly externalDocNumber?: string | null;
+  readonly externalDocDate?: IsoDateString | null;
   readonly expectedDeliveryDate?: IsoDateString | null;
   readonly notes?: string | null;
   readonly paymentTerms?: string | null;
@@ -196,6 +203,8 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     tenantId: row.tenantId,
     id: row.id,
     orderNumber: row.orderNumber,
+    number: row.number ?? undefined,
+    series: row.series ?? undefined,
     financialStatus: mapFinancialStatus(row.financialStatus),
     fulfillmentStatus: mapFulfillmentStatus(row.fulfillmentStatus),
     source: mapSource(row.source),
@@ -220,6 +229,10 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     locationName: row.locationName ?? undefined,
     locationId: row.locationId ?? undefined,
     externalRef: row.externalRef ?? undefined,
+    externalDocumentTypeId: row.externalDocumentTypeId ?? undefined,
+    externalDocumentTypeSnapshot: row.externalDocumentTypeSnapshot ?? undefined,
+    externalDocNumber: row.externalDocNumber ?? undefined,
+    externalDocDate: row.externalDocDate ?? undefined,
     expectedDeliveryDate: row.expectedDeliveryDate ?? undefined,
     notes: row.notes ?? undefined,
     paymentTerms: row.paymentTerms ?? undefined,

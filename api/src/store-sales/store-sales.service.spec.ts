@@ -295,7 +295,10 @@ function createFakePrisma(db: FakeDb): PrismaService {
         return Promise.resolve({ lastNumber: next });
       },
     },
-    documentCounter: { findFirst: () => Promise.resolve(null) },
+    documentCounter: {
+      findFirst: () => Promise.resolve(null),
+      findMany: () => Promise.resolve([]),
+    },
     document: {
       // Numerazione «massimo esistente + 1» (nessun documento nel fake db).
       aggregate: () => Promise.resolve({ _max: { number: null } }),
@@ -385,6 +388,9 @@ function createFakePrisma(db: FakeDb): PrismaService {
       findMany: ({ where }: { where: { id: { in: string[] } } }) =>
         Promise.resolve(db.vatCodes.filter((vatCode) => where.id.in.includes(vatCode.id))),
     },
+    // Advisory lock sul contatore del documento: nel fake non serializza
+    // niente, ma senza la mock la chiamata romperebbe vendita e reso.
+    $queryRaw: () => Promise.resolve([]),
     $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
       const snapshot = structuredClone({
         levels: db.levels,

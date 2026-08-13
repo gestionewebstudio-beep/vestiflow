@@ -17,7 +17,9 @@
 
 ## 0. Impatto database (da leggere per primo)
 
-> Le migration si applicano sul **branch dedicato**, coi dati di test, dove sbagliare non costa. La migration non banale (U.M.) va **concordata col collega** prima di toccare il database condiviso: il codice su un ramo è inerte, ma una migration agisce subito su tutti gli ambienti.
+> **[CORRETTO 11/08/2026]** «Concordare col collega» significa **avvisarlo** che una migration sta per toccare il database condiviso — perché il codice su un ramo è inerte, mentre una migration agisce subito su tutti gli ambienti. **Non** significa che la scriva lui: il lavoro è nostro e si fa qui, sul ramo in corso. Nei riepiloghi la frase era scivolata in «c'è una dipendenza dal collega», e da lì in «si apre un altro ramo»: non era la stessa cosa.
+>
+> Restano le cautele che proteggono le sue tabelle, e non frenano niente: mai `prisma migrate dev` né `db push` né `migrate diff --from-schema-datasource`, SQL scritto a mano, timestamp verificato libero, `npm run prisma:deploy` per applicare.
 
 La maggior parte del lavoro è **frontend puro**. Gli interventi sul database sono pochi e tutti **additivi** (aggiungono, non tolgono né rinominano). In ordine di peso:
 
@@ -251,7 +253,28 @@ La previsione dell'estrazione si è avverata, e in un modo che vale la pena regi
 
 Con la cella arriva anche il resto: il campo «Nome prodotto» **rientra nel giro del Tab** dell'Ordine fornitore (ne era uscito perché una tendina non è un campo su cui il cursore possa atterrare), la lente apre la ricerca articolo a tutta pagina, e «Apri anagrafica» porta alla scheda dell'articolo collegato.
 
-**Restano da sostituire** le celle a tendina di IVA e U.M., in tutte le maschere.
+**✅ Fatto anche per IVA e U.M.** _(11/08/2026)_. La cella condivisa è
+`app-document-line-select-cell`, e le celle sostituite sono cinque per l'IVA
+(tabella e card di Ordine cliente, tabella e card di Arrivo merce, tabella di
+Ordine fornitore) e cinque per l'U.M. Con l'input vero **entrambe rientrano nel
+giro del Tab** in tutte e tre le maschere.
+
+Tre cose emerse applicandola, che la previsione non conteneva:
+
+- **L'Ordine fornitore componeva le voci IVA in un altro modo** — etichetta =
+  riga intera («22 · 22% · Imponibile 22%») invece del solo codice. Sulla cella
+  nuova quella forma toglie senso al filtro a precedenza-codice: ora usa
+  `vatCodeSelectOption` come le sorelle, e non ricostruiva nemmeno l'opzione del
+  codice disattivato (`vatOptionsIncludingSelected`), quindi un ordine vecchio si
+  riapriva con la cella vuota.
+- **La cella deve sapere se sta in una tabella o in una card.** Su card il giro
+  delle colonne non esiste, e trattenere il Tab senza avere dove mandarlo
+  chiuderebbe dentro chi naviga da tastiera: `inColumnCycle` a `false` lo lascia
+  al browser. Invio invece si tiene sempre, o dentro un `<form>` manderebbe il
+  documento in salvataggio.
+- **Il pannello «» Altro…» sta nella maschera, non nella cella.** Montarlo nella
+  cella metterebbe trenta pannelli in un documento da trenta righe, e
+  trascinerebbe un service HTTP dentro le card, che sono dumb per contratto.
 
 ### 4.3-ter Unità di misura — modello dati
 
@@ -279,6 +302,33 @@ Con la cella arriva anche il resto: il campo «Nome prodotto» **rientra nel gir
 **Seed:** dato il testo libero, ci sono probabilmente valori fuori dai sei della costante `COMMON_UNIT_OF_MEASURE`. Il seed include i valori distinti realmente presenti per tenant → **misurare sul database prima di scrivere la migration**. (Con dati di test è banale, ma il passo resta.)
 
 **Verifiche per Claude Code:** (a) conferma struttura `PaymentOption` come modello; (b) `DocumentLine`/`SupplierOrderLine` — aggiungere la colonna U.M.; (c) valori distinti presenti per il seed.
+
+**✅ Fatto** _(11/08/2026)_. Le tre verifiche hanno risposto sì: `PaymentOption`
+è il modello (sette colonne, nessuna FK), le due colonne sono additive, e il
+seed non aveva niente da recuperare — **misurato sul database prima di
+scriverlo**, le uniche unità realmente presenti erano `pz` e `kg`, entrambe già
+fra le sei della costante.
+
+Applicato con due migration (`20260811200000_unita_di_misura_sulla_riga`,
+`20260811200100_elenco_unita_di_misura`), un modulo API
+`unit-of-measure-options` sulla forma di `payment-options`, e la cella U.M. in
+tutti e cinque i punti.
+
+Due scelte prese eseguendo, che non erano scritte:
+
+- **I permessi di scrittura non sono quelli delle voci pagamento.** Quelle
+  stanno dietro `settings.company` perché si configurano una volta; un'unità
+  nasce mentre si scrive una riga, dal comando in coda alla tendina. Chiuderla
+  dietro un permesso di amministrazione renderebbe quel comando visibile e
+  inutile proprio a chi lo incontra: scrive chi gestisce documenti, ordini
+  fornitore o catalogo.
+- **Il gestore delle voci non ha il riordino.** Il seed mette per prime le unità
+  più usate e le nuove nascono in coda; spostare una voce costerebbe due
+  chiamate su un elenco di sei. Da riprendere se l'elenco crescerà.
+
+**In Arrivo merce i controlli erano due** — uno per la riga e uno per l'articolo
+da creare — e sono diventati uno: quando l'articolo nasce, il valore va anche in
+anagrafica, ma è lo stesso dato.
 
 ### 4.4 Frecce ↑ / ↓
 
@@ -402,6 +452,147 @@ Il documento ha **una sola vista delle righe per volta**: la tabella sugli scher
 **Cosa cambia rispetto a prima:** entrambe esistevano sempre, e quella non visibile poteva **aprire pannelli che nessuno vedeva** — è esattamente come la scelta fra più codici spariva da telefono. Ogni funzione nuova che tocca una riga avrebbe rischiato di rifare la stessa cosa, e in silenzio.
 
 **Il limite del dominio, accettato:** attraversando la soglia — si ruota un tablet, si ridimensiona una finestra — **il cursore si perde**, perché il campo su cui stava appartiene alla vista che non c'è più. Quello che si è scritto **non si perde**: valori, modifiche non salvate e campi bloccati restano. Si attraversa la soglia ruotando un dispositivo, non lavorando, ed è la ragione per cui il costo è accettabile.
+
+#### Dov'è applicata davvero _(verificato 11/08/2026)_
+
+⚠️ **La regola valeva su tutti i documenti, l'applicazione no.** Prima dell'11/08
+il gate esisteva **in una maschera su cinque**, mentre questo paragrafo la dava
+per chiusa ovunque — ed è il difetto peggiore dei due, perché chi legge la
+specifica non va a verificare. La tabella qui sotto dice cosa c'è, non cosa
+dovrebbe esserci, e va aggiornata insieme al codice.
+
+| Maschera             | Due viste? | Esclusive?                   |
+| -------------------- | ---------- | ---------------------------- |
+| Ordine cliente       | sì         | ✅ da sempre                 |
+| Arrivo merce         | sì         | ✅ dall'11/08/2026           |
+| Ordine fornitore     | sì         | ✅ dall'11/08/2026           |
+| Trasferimento        | sì         | ✅ dall'11/08/2026           |
+| Rettifica inventario | sì         | ✅ dall'11/08/2026           |
+| Fatture              | no         | — solo tabella, nessuna card |
+
+**Chiusa su tutte le maschere che hanno due viste.** Le Fatture non ne hanno una
+seconda: adottare la card è parte del loro rientro (voce aperta qui sotto), e il
+gate arriverà con lei — non è un'eccezione lasciata aperta, è una maschera che il
+problema non ce l'ha ancora.
+
+Il meccanismo è uno solo e sta in `core/services/viewport.service.ts`: il
+segnale `compact`, letto nel template come `compactView()`. Chi aggiunge una
+vista a card a una maschera lo innesta, altrimenti la sua riga esiste due volte.
+
+#### ✅ Chiusa — Trasferimento e Rettifica hanno la riga degli altri documenti
+
+**[CHIUSA il 12/08/2026 — perimetro: Trasferimento e Rettifica inventario]**
+
+Le due maschere sceglievano l'articolo da una **tendina con ricerca al server**:
+non una variante, il meccanismo di prima rimasto lì. Ora hanno i tre campi
+codice con la conferma per corrispondenza esatta (§4.8), la scelta fra più
+corrispondenze, il pannello suggerimenti sul nome (§4.12) e il giro del fuoco.
+
+Le due sono state fatte **insieme**, come previsto: hanno la stessa riga, e
+allinearne una sola avrebbe creato la divergenza che questo lavoro toglie.
+
+Tre cose emerse mentre si faceva, e registrate qui perché non erano previste:
+
+- **I tre codici non si salvano**, e non è una dimenticanza: sono chiavi di
+  ricerca. Il documento memorizza la variante e lo SKU. Su un documento riaperto
+  i codici li mostra il riepilogo della variante, non il controllo.
+- **Le colonne** prendono ora larghezza, gruppi e selettore dal sistema
+  condiviso (`shared/table-columns`), con una vista per maschera —
+  `transfer_lines` e `stock_adjustment_lines`, dichiarate anche lato API.
+- **La Rettifica non aveva la colonna # né l'ordinamento**, che il Trasferimento
+  aveva: era storia, non dominio, ed è stata allineata.
+
+#### ⚠️ Voce aperta — le Fatture, primo lavoro al rientro di `feature/fattura-elettronica`
+
+**[RIMANDATA il 12/08/2026 — perimetro: Proforma · Fattura · Fattura
+accompagnatoria, cioè `sales-document-form.component`, più la rotta di modifica
+di tutti i documenti di vendita]**
+
+**⚠️ Questo paragrafo è stato superato dai fatti il 12/08/2026, e la riga qui
+sotto lo dichiara invece di lasciarlo credere.** Diceva «non si tocca adesso» —
+e la maschera è stata riscritta lo stesso, tre commit nella stessa giornata
+(`8ccf91c4`, `4ce414bf`, `e32573b3`), **dopo** l'ultimo aggiornamento di questo
+documento. Chi legge questa sezione oggi trova scritto il contrario di quello che
+il codice fa.
+
+**Cosa è stato fatto**, e quindi cosa NON va rifatto al rientro del ramo: riga
+articolo come nelle altre maschere (Cod. articolo · SKU · EAN · Nome prodotto),
+pulsante Colonne con le larghezze ricordate, colonna # con ordinamento e
+trascinamento, vista a **card** sotto la soglia — esclusiva della tabella — e
+Codice IVA sulla cella condivisa invece della tendina.
+
+**Resta vero il motivo del rimando**: `feature/fattura-elettronica` sta
+riscrivendo lo stesso template. Il conflitto non è stato evitato, è stato
+**scelto** — e va detto al collega prima del merge, non scoperto durante
+(vedi `MERGE-QUESTO-RAMO.md`, punto 2.4: +846 righe da questa parte, +180
+dall'altra).
+
+Stato misurato il 12/08/2026 **prima** di quei tre commit, tenuto perché dice da
+dove si partiva:
+
+| Cosa                         | Stato                                                  |
+| ---------------------------- | ------------------------------------------------------ |
+| Celle codice (Cod./SKU/EAN)  | assenti — una sola colonna «Articolo / SKU»            |
+| Cella nome con suggerimenti  | assente                                                |
+| Conferma per codice (§4.8)   | assente                                                |
+| Giro del fuoco fra i campi   | assente                                                |
+| Vista a card                 | **assente** — a 375px resta una tabella a otto colonne |
+| Gate delle due viste (§4.11) | non applicabile finché non c'è la seconda vista        |
+| Colonna # e ordinamento      | assenti                                                |
+| Larghezza colonne            | assente (i gruppi ci sono)                             |
+| Ricerca articolo             | `app-select-menu` con `filterOptionsLocally=false`     |
+
+La riga che ha oggi — `variantId · description · quantity · unitPrice ·
+vatCodeId · discountPercent · loadsStock` — è la più vicina all'Ordine cliente,
+quindi il modello da cui copiare è quello.
+
+**È l'ultimo posto dove vive il meccanismo vecchio, e quando cade lì cade dal
+progetto**: con lui se ne vanno `onVariantSearch`, `variantOptions` e il
+debounce di ricerca. Dal 12/08/2026 `filterOptionsLocally=false` compare in
+**un solo file** in tutta l'app, ed è questo.
+
+#### ⚠️ Voce aperta — la rotta di modifica non porta il tipo
+
+**[MISURATA il 13/08/2026, NON corretta: sta nello stesso perimetro congelato.]**
+
+Proforma, Fattura e Fattura accompagnatoria condividono **una sola rotta di
+modifica** (`documents.routes.ts:294-302`), e nei suoi `data` non c'è
+`salesDocumentType`. Finché il documento non arriva dalla rete,
+`documentType()` cade sul predefinito `Proforma` per tutti e tre
+(`sales-document-form.component.ts:292-298`).
+
+Cosa se ne vede, verificato:
+
+- il titolo dice **«Modifica proforma»** su una fattura, e sotto compare
+  **«Documento non fiscale / Proforma non valida ai fini IVA»** — stampato sopra
+  un documento fiscale. Transitorio durante il caricamento, **permanente** sulla
+  schermata d'errore e su «Documento non modificabile», che non caricano mai il
+  documento;
+- la tendina Serie parte con le serie della **Proforma**. Una seconda richiesta
+  la corregge quando il documento arriva — ma le due richieste non si cancellano
+  a vicenda, quindi se la prima risponde per seconda riscrive l'elenco giusto
+  con quello sbagliato.
+
+Due strade, entrambe misurate:
+
+| Strada                                                                | Costo                     | Cosa lascia aperto                                                                        |
+| --------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| **A** — tre (presto quattro) rotte con `salesDocumentType` nei `data` | ~46 righe, 2 file         | i link già emessi verso `/sales/:id/edit` smettono di risolvere                           |
+| **B** — non far parlare la maschera prima di sapere chi è             | ~10 righe, 1 file + .html | la rotta continua a non portare il tipo: il prossimo che leggerà `documentType()` ricasca |
+
+La A è la forma coerente col resto del file — DDT vendita, Preventivo e Scarico
+manuale hanno già il tipo nei `data`. **E il ramo della fattura elettronica sta
+allargando lo stesso difetto**, aggiungendo la Nota di credito come quarto tipo
+senza una rotta di modifica propria: è una cosa da dirsi quando si unisce.
+
+Manca anche il test: la **modalità modifica di questa maschera non è coperta**
+(lo spec monta sempre un `ActivatedRoute` con `salesDocumentType` e senza `id`).
+
+**Fuori perimetro, e non per pigrizia.** La Fattura d'acquisto ha righe
+_contabili_ (descrizione, netto, aliquota, IVA): niente articolo, niente
+quantità — la merce arriva dall'arrivo merce collegato. La Vendita al banco è un
+carrello di signal, scanner-first: è una cassa, non una maschera documento.
+Nessuna delle due ha una «riga articolo» da unificare.
 
 ### 4.12 Il pannello dei suggerimenti sul nome prodotto
 
@@ -752,11 +943,14 @@ Il lavoro ha **tre filoni**: tastiera, celle-a-selezione+U.M., blocco righe. Non
 
 > La cella U.M. **non esiste**: la crea §4.3-bis, che dice "estrarre prima". Se l'U.M. parte prima della cella, la sua cella si scrive da zero e diventa **la terza copia** — esattamente ciò che §4.3-bis vuole evitare. Ordine non negoziabile:
 
-- **B1.** Estrazione del nucleo comune delle celle gemelle + del pannello suggerimenti (`document-line-suggestions`, oggi usato da 2 dei 5 posti).
-- **B2.** Nuova cella **ricerca-e-selezione** su base `date-input` (vero `<input>`, `inputId`, `triggerKeydown`).
-- **B3.** Applicarla alle celle **IVA** e **U.M.** (testo libero: U.M. sì, IVA no).
-- **B4.** Tabella U.M. (modello `PaymentOption` + RLS) e pannello **"» Altro…"** (voce-azione in coda fissa). Registrare la cella nuova in `regole-stile-ui.md` (§10).
-- **DB:** tabella U.M. + RLS; colonna U.M. su `DocumentLine` e `SupplierOrderLine`. **Concordare col collega** (database condiviso).
+- **B1.** ✅ _(11/08/2026)_ Estrazione del nucleo comune delle celle gemelle + del pannello suggerimenti (`document-line-suggestions`, oggi usato da 2 dei 5 posti).
+- **B2.** ✅ _(11/08/2026)_ Nuova cella **ricerca-e-selezione** su base `date-input` (vero `<input>`, `inputId`, `triggerKeydown`).
+- **B3.** ✅ _(11/08/2026)_ Applicarla alle celle **IVA** e **U.M.** (testo libero: U.M. sì, IVA no).
+- **B4.** ✅ _(11/08/2026)_ Tabella U.M. (modello `PaymentOption` + RLS) e pannello **"» Altro…"** (voce-azione in coda fissa). Registrare la cella nuova in `regole-stile-ui.md`.
+- **DB:** ✅ tabella U.M. + RLS; colonna U.M. su `DocumentLine` e `SupplierOrderLine`. Scritte a mano e applicate con `npm run prisma:deploy` il 11/08/2026.
+
+> **Il filone B è chiuso.** Resta fuori solo la maschera Fatture, che non usa
+> ancora le celle condivise ed è contesa col ramo fattura elettronica (§2).
 
 **Filone C — Blocco righe:**
 
@@ -769,7 +963,7 @@ Il lavoro ha **tre filoni**: tastiera, celle-a-selezione+U.M., blocco righe. Non
 - B e A si incrociano su `app-select-menu`: la cella IVA/U.M. (B2-B3) tocca le stesse maschere della tastiera. Conviene che B1-B2 (estrazione + cella) precedano o accompagnino A3-A5, così ogni maschera riceve la cella nuova quando la tastiera la tocca — non due passaggi sulla stessa maschera.
 - C è il più indipendente: l'ordinamento/drag non dipende dalla cella né dal punto unico. Può procedere in parallelo, con la sola accortezza della migration `lineNumber` concordata.
 
-**Branch dedicato.** Tutte le migration lì, coi dati di test; le non-banali (tabella U.M.) concordate col collega.
+**Dove si fanno.** Sul ramo in corso, coi dati di prova: non ci sono clienti, e rimandare una modifica di schema costa più che farla (decisione del proprietario, 11/08/2026). Il collega va avvisato prima di applicare, non prima di scrivere.
 
 **Documentazione:** aggiornare `CORE-FORM-DOCUMENTO.md`; correggere la contraddizione in `ORDINE-FORNITORE-RIGA.md`; registrare la cella nuova in `regole-stile-ui.md` (§10). Il separatore in `regole-stile-ui.md:455` **non** si tocca.
 

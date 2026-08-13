@@ -9,6 +9,12 @@
 // linguaggio comune delle maschere documento.
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Il documento della controparte non ha più delta locale: la sua fascia — in
+// testata desktop e nel pannello mobile — la disegna il componente condiviso
+// domain/documents/components/document-counterparty-ref, e le sue celle
+// indossano `.doc-form__field` / `.doc-panel__field`, quindi misure e riquadro
+// arrivano dai fogli in styles/ come per ogni altra cella di testata.
+
 // Tabelle riepilogative. NON adottano .doc-form__table-wrap: sotto `lg` quel
 // wrapper si nasconde in favore della vista a card (.doc-form__cards), che
 // questa maschera non ha — qui le tabelle restano visibili a ogni larghezza

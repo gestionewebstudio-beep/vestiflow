@@ -26,17 +26,23 @@
   max-inline-size: var(--doc-suggestions-max-width);
   inset-block-start: calc(100% + var(--doc-suggestions-offset, var(--space-1)));
   z-index: var(--doc-suggestions-z, var(--z-dropdown));
-  margin: 0;
   padding: var(--space-1);
-  list-style: none;
-  max-block-size: var(--doc-suggestions-max-h, calc(var(--space-8) * 8));
-  overflow-y: auto;
-  overscroll-behavior: contain;
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   // --shadow-lg è l'ombra dei menu/dropdown (--shadow-menu, regole-stile-ui §4).
   box-shadow: var(--shadow-lg);
+}
+
+// Il tetto e lo scorrimento stanno sull'ELENCO, non sulla scatola: così la
+// voce-comando in coda resta ferma in fondo mentre le voci scorrono sopra.
+.doc-suggestions__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-block-size: var(--doc-suggestions-max-h, calc(var(--space-8) * 8));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 // Apre verso l'alto quando sotto il campo non c'è spazio.
@@ -54,7 +60,7 @@
   // pannello restano attive fino a lg, dove il token responsive tornerebbe
   // alla densità desktop e il target scenderebbe sotto il minimo tappabile.
   min-block-size: var(--doc-suggestions-item-min-h, var(--control-h-touch));
-  padding: var(--space-1) var(--space-2);
+  padding: var(--doc-suggestions-item-pad, var(--space-1) var(--space-2));
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--transition-fast) var(--ease-standard);
@@ -73,7 +79,7 @@
 }
 
 .doc-suggestions__title {
-  font-size: var(--text-sm);
+  font-size: var(--doc-suggestions-title-size, var(--text-sm));
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
@@ -82,4 +88,38 @@
   font-size: var(--text-xs);
   font-variant-numeric: var(--numeric-tabular);
   color: var(--color-text-muted);
+}
+
+// La coda si stacca dalle voci con un filo: è un comando, non un valore, e a
+// occhio la differenza deve vedersi prima di leggerla.
+.doc-suggestions__tail {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: var(--doc-suggestions-item-min-h, var(--control-h-touch));
+  margin-block-start: var(--space-1);
+  padding: var(--doc-suggestions-item-pad, var(--space-1) var(--space-2));
+  font-family: inherit;
+  font-size: var(--doc-suggestions-title-size, var(--text-sm));
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-link);
+  text-align: start;
+  background: none;
+  border: none;
+  border-top: var(--border-width) solid var(--color-border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast) var(--ease-standard);
+
+  &:hover,
+  &:active {
+    background-color: var(--color-surface-soft);
+  }
+
+  // Stessa tinta della voce attiva dell'elenco: la coda è una fermata della
+  // navigazione come le altre, e da tastiera deve vedersi dove si è.
+  &--active,
+  &:focus-visible {
+    background-color: var(--color-interactive-subtle);
+  }
 }

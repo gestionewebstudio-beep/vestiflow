@@ -1,5 +1,6 @@
 // Etichette e toni display per tipi e stati documento (it-IT).
 
+import type { IsoDateString } from '@core/models/common.model';
 import { DocumentStatus, DocumentType, type DocumentRecord } from '@core/models/document.model';
 import { formatDate } from '@core/utils/date.util';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
@@ -168,6 +169,47 @@ export function goodsReceiptLinkStatusTone(
     default:
       return null;
   }
+}
+
+/**
+ * I tre campi del documento emesso dalla controparte (il DDT del fornitore, la
+ * fattura, l'ordine del cliente). Forma strutturale e non `DocumentRecord`: la
+ * stessa terna vive anche sugli ordini cliente e sugli ordini fornitore, che
+ * non sono `Document`.
+ */
+export interface CounterpartyDocRef {
+  /** Etichetta del tipo fotografata al salvataggio (es. 'DDT', 'Fatt.'). */
+  readonly externalDocumentTypeSnapshot?: string;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
+}
+
+/**
+ * «DDT 145 del 8 mag 2026»: il documento della controparte in una voce sola.
+ *
+ * L'etichetta del tipo viene dallo SNAPSHOT scritto sul documento, mai
+ * dall'elenco dei tipi: un tipo eliminato sparisce dalle tendine ma resta sui
+ * documenti che lo portano, e chi li legge deve continuare a dirlo.
+ *
+ * Restituisce '' quando non c'è nessuno dei tre campi, così chi chiama sa che la
+ * riga non va stampata affatto: l'interfaccia è densa per scelta, e un «—» in
+ * più su ogni documento è rumore.
+ *
+ * Sta in `domain/` e non nelle utility di una feature perché la leggono elenco
+ * documenti, dettagli, anteprima di stampa E il dettaglio dell'ordine fornitore,
+ * che vive in un'altra feature: da lì non potrebbe importarla, e se ne
+ * riscriverebbe una copia — come infatti era successo.
+ */
+export function counterpartyDocLabel(doc: CounterpartyDocRef): string {
+  const head = [doc.externalDocumentTypeSnapshot, doc.externalDocNumber]
+    .map((part) => part?.trim() ?? '')
+    .filter((part) => part.length > 0)
+    .join(' ');
+  if (!doc.externalDocDate) {
+    return head;
+  }
+  const date = formatDate(doc.externalDocDate);
+  return head ? `${head} del ${date}` : date;
 }
 
 /** Etichetta breve del documento in lista. */

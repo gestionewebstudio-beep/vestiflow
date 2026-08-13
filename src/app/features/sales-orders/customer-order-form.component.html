@@ -250,23 +250,46 @@
                     <span class="doc-panel__label" id="co-m-customer-label">
                       {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
                     </span>
-                    <!-- Senza il permesso il cliente si sceglie soltanto fra
-                         quelli già in anagrafica: la scorciatoia sparisce. -->
-                    @if (puoGestireClienti()) {
-                      <button
-                        type="button"
-                        class="doc-panel__field-action"
-                        (click)="toggleCustomerForm()"
-                      >
-                        <i
-                          class="pi"
-                          [class.pi-plus]="!showCustomerForm()"
-                          [class.pi-minus]="showCustomerForm()"
-                          aria-hidden="true"
-                        ></i>
-                        {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
-                      </button>
-                    }
+                    <!--
+                      I due comandi stanno insieme sulla riga dell'etichetta.
+                      «Scheda cliente» stava sotto il campo, e da lì spingeva in
+                      basso tutto il resto del pannello per un collegamento che
+                      si usa di rado: in alto costa zero altezza, ed è accanto
+                      al nome a cui si riferisce.
+
+                      Il contenitore non è di troppo: la riga è `space-between`,
+                      e con tre figli i due comandi si spargerebbero invece di
+                      stare insieme a destra.
+                    -->
+                    <span class="doc-panel__field-actions">
+                      <!-- Senza il permesso il cliente si sceglie soltanto fra
+                           quelli gia' in anagrafica: la scorciatoia sparisce. -->
+                      @if (puoGestireClienti()) {
+                        <button
+                          type="button"
+                          class="doc-panel__field-action"
+                          (click)="toggleCustomerForm()"
+                        >
+                          <i
+                            class="pi"
+                            [class.pi-plus]="!showCustomerForm()"
+                            [class.pi-minus]="showCustomerForm()"
+                            aria-hidden="true"
+                          ></i>
+                          {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Crea nuovo cliente' }}
+                        </button>
+                      }
+                      @if (hasCustomer()) {
+                        <button
+                          type="button"
+                          class="doc-panel__field-action"
+                          (click)="openCustomerDetail()"
+                        >
+                          <i class="pi pi-external-link" aria-hidden="true"></i>
+                          Scheda cliente
+                        </button>
+                      }
+                    </span>
                   </div>
 
                   <app-select-menu
@@ -299,16 +322,6 @@
                       aria-label="Cliente a testo libero (solo stampa)"
                       autocomplete="off"
                     />
-                  }
-                  @if (form.controls.customerId.value) {
-                    <button
-                      type="button"
-                      class="doc-panel__field-action"
-                      (click)="openCustomerDetail()"
-                    >
-                      <i class="pi pi-external-link" aria-hidden="true"></i>
-                      Scheda cliente
-                    </button>
                   }
                 </div>
 
@@ -396,21 +409,23 @@
                   }
                 </div>
 
-                @if (!isOrder) {
-                  <!-- L'ingranaggio «gestisci numerazioni» compare solo a chi
-                       configura i numeratori: gli altri scelgono fra le serie
-                       già esistenti. -->
-                  <app-document-number-field
-                    numberInputId="co-m-number"
-                    [number]="form.controls.documentNumber.value"
-                    [series]="form.controls.series.value"
-                    [seriesOptions]="seriesOptions()"
-                    [canManageSeries]="puoConfigurareNumerazioni()"
-                    (numberChange)="onDocumentNumberChange($event)"
-                    (seriesChange)="onSeriesChange($event)"
-                    (manageSeries)="seriesDialogOpen.set(true)"
-                  />
+                <!-- Numero e serie: da 12/08/2026 anche sull'Ordine cliente.
+                     Il campo era dietro un `@if (!isOrder)` che teneva nascosta
+                     la numerazione proprio al documento che dà il nome alla
+                     maschera — l'unico di Categoria A a non mostrarla. -->
+                <app-document-number-field
+                  numberInputId="co-m-number"
+                  [number]="form.controls.documentNumber.value"
+                  [isProposal]="numberIsProposal()"
+                  [series]="form.controls.series.value"
+                  [seriesOptions]="numbering.seriesOptions()"
+                  [canManageSeries]="puoConfigurareNumerazioni()"
+                  (numberChange)="numbering.onNumberChange($event)"
+                  (seriesChange)="numbering.onSeriesChange($event)"
+                  (manageSeries)="seriesDialogOpen.set(true)"
+                />
 
+                @if (!isOrder) {
                   <!-- Modalità prezzo: netto o ivato. Su desktop lo stesso
                          controllo vive nell'intestazione di colonna. L'Ordine
                          cliente ne è escluso finché non arriva il supporto
@@ -508,9 +523,43 @@
                 class="doc-form__field doc-form__field--span2"
                 [class.doc-form__field--waiting]="fieldWaiting('customerId')"
               >
-                <span class="doc-form__label" id="co-customer-label">
-                  {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
-                </span>
+                <div class="doc-form__field-head">
+                  <span class="doc-form__label" id="co-customer-label">
+                    {{ isManualUnload ? 'Cliente (facoltativo)' : 'Cliente' }}
+                  </span>
+                  <!-- I comandi stanno sulla riga dell'etichetta, come nel
+                       pannello mobile: lì c'è solo una parola e il resto è
+                       vuoto, mentre sotto il campo aggiungevano una riga. -->
+                  <span class="doc-form__field-actions">
+                    <!-- Senza il permesso resta solo «Scheda cliente»: il cliente
+                         si sceglie fra quelli già in anagrafica. -->
+                    @if (puoGestireClienti()) {
+                      <button
+                        type="button"
+                        class="doc-form__inline-toggle"
+                        (click)="toggleCustomerForm()"
+                      >
+                        <i
+                          class="pi"
+                          [class.pi-plus]="!showCustomerForm()"
+                          [class.pi-minus]="showCustomerForm()"
+                          aria-hidden="true"
+                        ></i>
+                        {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
+                      </button>
+                    }
+                    @if (hasCustomer()) {
+                      <button
+                        type="button"
+                        class="doc-form__inline-toggle"
+                        (click)="openCustomerDetail()"
+                      >
+                        <i class="pi pi-external-link" aria-hidden="true"></i>
+                        Scheda cliente
+                      </button>
+                    }
+                  </span>
+                </div>
                 <app-select-menu
                   [options]="customerOptions()"
                   [value]="form.controls.customerId.value"
@@ -542,36 +591,6 @@
                     autocomplete="off"
                   />
                 }
-                <!-- Scorciatoie sulla stessa riga, come nel mockup. -->
-                <div class="doc-form__inline-links">
-                  <!-- Senza il permesso resta solo «Scheda cliente»: il cliente
-                       si sceglie fra quelli già in anagrafica. -->
-                  @if (puoGestireClienti()) {
-                    <button
-                      type="button"
-                      class="doc-form__inline-toggle"
-                      (click)="toggleCustomerForm()"
-                    >
-                      <i
-                        class="pi"
-                        [class.pi-plus]="!showCustomerForm()"
-                        [class.pi-minus]="showCustomerForm()"
-                        aria-hidden="true"
-                      ></i>
-                      {{ showCustomerForm() ? 'Annulla nuovo cliente' : 'Nuovo cliente' }}
-                    </button>
-                  }
-                  @if (form.controls.customerId.value) {
-                    <button
-                      type="button"
-                      class="doc-form__inline-toggle"
-                      (click)="openCustomerDetail()"
-                    >
-                      <i class="pi pi-external-link" aria-hidden="true"></i>
-                      Scheda cliente
-                    </button>
-                  }
-                </div>
               </div>
 
               <div
@@ -619,19 +638,22 @@
               </div>
 
               <!-- Identificativo VestiFlow: Numero + Serie accanto alla data.
-                   L'Ordine cliente non ha ancora una numerazione propria. -->
-              @if (!isOrder) {
-                <app-document-number-field
-                  numberInputId="co-number"
-                  [number]="form.controls.documentNumber.value"
-                  [series]="form.controls.series.value"
-                  [seriesOptions]="seriesOptions()"
-                  [canManageSeries]="puoConfigurareNumerazioni()"
-                  (numberChange)="onDocumentNumberChange($event)"
-                  (seriesChange)="onSeriesChange($event)"
-                  (manageSeries)="seriesDialogOpen.set(true)"
-                />
-              }
+                   Da 12/08/2026 anche sull'Ordine cliente: il campo era dietro
+                   un `@if (!isOrder)` che teneva nascosta la numerazione
+                   proprio al documento che dà il nome alla maschera. Il numero
+                   il server glielo assegnava lo stesso, ma l'operatore non lo
+                   vedeva e non poteva scegliere la serie. -->
+              <app-document-number-field
+                numberInputId="co-number"
+                [number]="form.controls.documentNumber.value"
+                [isProposal]="numberIsProposal()"
+                [series]="form.controls.series.value"
+                [seriesOptions]="numbering.seriesOptions()"
+                [canManageSeries]="puoConfigurareNumerazioni()"
+                (numberChange)="numbering.onNumberChange($event)"
+                (seriesChange)="numbering.onSeriesChange($event)"
+                (manageSeries)="seriesDialogOpen.set(true)"
+              />
 
               <!-- Preventivo e DDT vendita: nessuno stato documento in testata. -->
               @if (isOrder) {
@@ -657,11 +679,12 @@
               <!-- Testata DDT (prompt DDT): Cliente, Location, Data, Pagamento.
                  Scarico manuale: solo Rif. (niente consegna/pagamento). -->
               <!--
-                Niente riferimento della controparte sui documenti di vendita:
-                gli ordini cliente nascono qui dentro o arrivano dai canali
-                online, il cliente non emette un proprio numero. Il campo resta
-                solo sullo Scarico manuale, dove è una causale libera
-                (es. «campionario fiera»), non il numero di un documento.
+                Il «Rif.» qui sotto è una causale libera dello Scarico manuale
+                (es. «campionario fiera»), non il numero di un documento — ed è
+                per questo che è rimasto quando il blocco del documento della
+                controparte è stato tolto dalla testata (12/08/2026): un ordine
+                cliente è un documento nostro, e la numerazione che conta è in
+                prima fascia.
               -->
               @if (isManualUnload) {
                 <div class="doc-form__field">
@@ -705,27 +728,56 @@
               }
             </div>
 
-            <!-- Seconda fascia della testata (mockup v3): consegna e pagamento su
-               fondo attenuato. Il DDT gestisce il pagamento in prima fascia, lo
-               scarico manuale non ha né consegna né pagamento. «Consegna
-               prevista» resta al solo Preventivo: sull'Ordine cliente non serve. -->
-            @if (!isSalesDdt && !isManualUnload) {
+            <!-- Seconda fascia della testata (mockup v3): fondo attenuato, in
+               fondo alla card. Sull'Ordine cliente NON la disegna più questa
+               maschera: se la porta dietro il componente del documento del
+               cliente, che è la stessa forma in tutte le maschere documento. Il
+               Pagamento ci sta dentro, proiettato dopo le tre celle, invece di
+               aprire una terza fascia.
+               Il Preventivo il documento del cliente non ce l'ha: tiene la
+               propria fascia con «Consegna prevista», che è sua e basta. Il DDT
+               gestisce il pagamento in prima fascia e lo scarico manuale non ha
+               né consegna né pagamento: nessuno dei due ha seconda fascia. -->
+            @if (isOrder) {
+              <!-- Fascia secondaria dell'Ordine: solo il Pagamento.
+                   Fino al 12/08/2026 questa fascia la disegnava
+                   `app-document-counterparty-ref` — tipo, numero e data del
+                   documento del cliente — e il Pagamento ci stava proiettato
+                   dentro. Il trio è stato tolto (un ordine cliente è un
+                   documento NOSTRO: la nostra numerazione è in prima fascia),
+                   il Pagamento resta. -->
               <div
                 class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row doc-form__header-row--secondary"
               >
-                @if (isQuote) {
-                  <div class="doc-form__field">
-                    <label class="doc-form__label" for="co-delivery">Consegna prevista</label>
-                    <app-date-input
-                      inputId="co-delivery"
-                      formControlName="expectedDeliveryDate"
-                      ariaLabel="Data prevista consegna"
-                      placeholder="Opzionale"
-                      [compact]="true"
-                      [fullWidth]="true"
-                    />
-                  </div>
-                }
+                <div class="doc-form__field">
+                  <label class="doc-form__label" for="co-payment">Pagamento</label>
+                  <input
+                    id="co-payment"
+                    class="doc-form__input"
+                    type="text"
+                    formControlName="paymentTerms"
+                    placeholder="Es. 30 gg d.f."
+                    autocomplete="off"
+                  />
+                </div>
+
+                <div class="doc-form__field doc-form__header-filler" aria-hidden="true"></div>
+              </div>
+            } @else if (isQuote) {
+              <div
+                class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row co-form__header-row doc-form__header-row--secondary"
+              >
+                <div class="doc-form__field">
+                  <label class="doc-form__label" for="co-delivery">Consegna prevista</label>
+                  <app-date-input
+                    inputId="co-delivery"
+                    formControlName="expectedDeliveryDate"
+                    ariaLabel="Data prevista consegna"
+                    placeholder="Opzionale"
+                    [compact]="true"
+                    [fullWidth]="true"
+                  />
+                </div>
 
                 <div class="doc-form__field">
                   <label class="doc-form__label" for="co-payment">Pagamento</label>
@@ -912,7 +964,9 @@
                   </colgroup>
                   <thead>
                     <tr>
-                      <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">#</th>
+                      <th scope="col" class="doc-form__cell--index" aria-label="Numero riga">
+                        <span class="doc-form__th-label" title="#">#</span>
+                      </th>
                       @if (isLineColumnVisible('articleCode')) {
                         <th scope="col" [style.width]="lineColumnWidth('articleCode')">
                           <button
@@ -920,6 +974,7 @@
                             class="doc-form__th-sort"
                             [disabled]="!lineSortAvailable()"
                             [attr.aria-label]="lineSortAriaLabel('articleCode', 'Cod. articolo')"
+                            title="Cod. articolo"
                             [attr.title]="lineSortDisabledReason()"
                             (click)="toggleLineSort('articleCode')"
                           >
@@ -949,6 +1004,7 @@
                             class="doc-form__th-sort"
                             [disabled]="!lineSortAvailable()"
                             [attr.aria-label]="lineSortAriaLabel('sku', 'SKU')"
+                            title="SKU"
                             [attr.title]="lineSortDisabledReason()"
                             (click)="toggleLineSort('sku')"
                           >
@@ -978,6 +1034,7 @@
                             class="doc-form__th-sort"
                             [disabled]="!lineSortAvailable()"
                             [attr.aria-label]="lineSortAriaLabel('barcode', 'EAN')"
+                            title="EAN"
                             [attr.title]="lineSortDisabledReason()"
                             (click)="toggleLineSort('barcode')"
                           >
@@ -1011,6 +1068,7 @@
                             class="doc-form__th-sort"
                             [disabled]="!lineSortAvailable()"
                             [attr.aria-label]="lineSortAriaLabel('product', 'Nome prodotto')"
+                            title="Nome prodotto"
                             [attr.title]="lineSortDisabledReason()"
                             (click)="toggleLineSort('product')"
                           >
@@ -1512,10 +1570,22 @@
                         }
                         @if (isLineColumnVisible('unitOfMeasure')) {
                           <td
-                            class="doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__col--stock doc-form__col--sep"
+                            class="doc-form__cell doc-form__cell--editable doc-form__col--stock doc-form__col--sep"
                           >
                             @if (!lineIsReference(i)) {
-                              {{ lineUnitOfMeasure(i) }}
+                              <app-document-line-unit-cell
+                                [lineIndex]="i"
+                                [inputId]="'co-uom-' + i"
+                                [options]="unitOfMeasureOptions()"
+                                [value]="lineUnitOfMeasure(i)"
+                                [disabled]="formReadOnly()"
+                                (valueChange)="onLineUnitOfMeasureChange(i, $event)"
+                                (lineAdvance)="lineFocus.next(i, 'unitOfMeasure')"
+                                (lineRetreat)="lineFocus.previous(i, 'unitOfMeasure')"
+                                (lineRowAdvance)="lineFocus.rowDown(i, 'unitOfMeasure')"
+                                (lineRowRetreat)="lineFocus.rowUp(i, 'unitOfMeasure')"
+                                (manageRequested)="openUnitManager(i)"
+                              />
                             }
                           </td>
                         }
@@ -1577,19 +1647,18 @@
                             [title]="lineVatTooltip(i)"
                           >
                             @if (!lineIsReference(i)) {
-                              <app-select-menu
+                              <app-document-line-select-cell
+                                [lineIndex]="i"
+                                [inputId]="'co-vat-' + i"
+                                ariaLabel="Codice IVA riga"
                                 [options]="lineVatOptions(i)"
                                 [value]="lineVatValue(i)"
-                                ariaLabel="Codice IVA riga"
-                                placeholder="—"
-                                [compact]="true"
-                                [matchInputHeight]="true"
-                                [includeEmptyOption]="false"
-                                [searchable]="true"
-                                [inlineDetail]="true"
-                                searchPlaceholder="Codice, aliquota, descrizione…"
-                                searchAriaLabel="Cerca Codice IVA"
+                                [disabled]="formReadOnly()"
                                 (valueChange)="onLineVatSelect(i, $event)"
+                                (lineAdvance)="lineFocus.next(i, 'vat')"
+                                (lineRetreat)="lineFocus.previous(i, 'vat')"
+                                (lineRowAdvance)="lineFocus.rowDown(i, 'vat')"
+                                (lineRowRetreat)="lineFocus.rowUp(i, 'vat')"
                               />
                             }
                           </td>
@@ -1757,9 +1826,10 @@
                     } @else {
                       <app-customer-order-line-card
                         [line]="line"
+                        [lineIndex]="i"
                         [vm]="lineCardVm(i)"
+                        [unitOfMeasureOptions]="unitOfMeasureOptions()"
                         [open]="isLineCardOpen(i)"
-                        [layout]="isOrder ? 'order' : 'registry'"
                         (toggled)="toggleLineCard(i)"
                         (removeRequested)="requestRemoveLine(i)"
                         (removed)="removeLine(i)"
@@ -1776,6 +1846,8 @@
                         (suggestionPicked)="onProductSuggestionPick(i, $event)"
                         (commitsChanged)="onLineCommitsSelect(i, $event)"
                         (vatSelected)="onLineVatSelect(i, $event)"
+                        (unitOfMeasureChanged)="onLineUnitOfMeasureChange(i, $event)"
+                        (unitManagerRequested)="openUnitManager(i)"
                       />
                     }
                   }
@@ -2447,6 +2519,13 @@
           </app-button>
         </div>
       }
+      <!-- Uno per maschera, non per riga: la cella chiede, il documento ospita. -->
+      <app-unit-of-measure-manager-dialog
+        [open]="unitManagerOpen()"
+        (closed)="unitManagerOpen.set(false)"
+        (changed)="onUnitOptionsChanged()"
+        (created)="onUnitOptionCreated($event)"
+      />
     </form>
   }
 </section>
@@ -2714,9 +2793,9 @@
   (dismissed)="cancelRemoveLine()"
 />
 
-<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il numero
-     è già stato aggiornato al primo libero; il salvataggio resta una
-     pressione esplicita di Salva. -->
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La testata
+     resta com'era e il documento non è salvato; il messaggio nomina il numero
+     rifiutato e il primo libero, la correzione è dell'operatore. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
   title="Numero già usato"
@@ -2736,3 +2815,17 @@
     (closed)="onSeriesManagerClosed()"
   />
 }
+
+<!-- Avviso cronologico (§4): la serie contiene documenti fuori posto. Non
+     blocca — «Sì, salva comunque» prosegue col salvataggio. -->
+<app-document-chronology-warning-dialog
+  [open]="chronology.warning.isOpen()"
+  [conflicts]="chronology.warning.conflicts()"
+  [assigningNumber]="form.controls.documentNumber.value"
+  [assigningDate]="form.controls.documentDate.value"
+  [dontShowAgain]="chronology.warning.dontShowAgain()"
+  [busy]="saving()"
+  (dontShowAgainChange)="chronology.warning.toggleDontShowAgain($event)"
+  (confirmed)="chronology.confirm()"
+  (cancelled)="chronology.cancel()"
+/>

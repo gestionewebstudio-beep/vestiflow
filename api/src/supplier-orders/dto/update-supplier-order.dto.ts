@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsEnum,
+  IsInt,
   IsISO8601,
   IsNumber,
   IsOptional,
@@ -24,6 +25,30 @@ export class UpdateSupplierOrderDto {
   @IsUUID()
   supplierId?: string;
 
+  /** Serie del numeratore. Assente = quella che l'ordine ha gia'. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /**
+   * Sede di destinazione della merce (§1-bis). `null` la toglie; assente non la
+   * tocca — la testata si riscrive per intero, quindi la distinzione conta.
+   */
+  @IsOptional()
+  @IsUUID()
+  destinationLocationId?: string | null;
+
+  /**
+   * Numero in testata. Assente = quello che l'ordine ha gia'. Cambiarlo
+   * ricalcola il riferimento e passa dal vincolo unico: se il numero e' preso,
+   * risponde 409 col conflitto, come gli altri documenti.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @IsOptional()
   @IsISO8601()
   orderDate?: string;
@@ -37,7 +62,7 @@ export class UpdateSupplierOrderDto {
   @MaxLength(120)
   supplierReference?: string | null;
 
-/**
+  /**
    * Sconto extra di chiusura sull'intero ordine (percentuale, fino a 4
    * decimali). Stessa forma di `documentDiscountPercent` su arrivo merce e
    * ordine cliente: il calcolo è già condiviso, qui arriva solo il numero.
@@ -63,4 +88,11 @@ export class UpdateSupplierOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateSupplierOrderLineDto)
   lines!: CreateSupplierOrderLineDto[];
+  // ⚠️ Qui stavano i tre campi del «documento della controparte»
+  // (`externalDocNumber`, `externalDocDate`, `externalDocumentTypeId`).
+  // Tolti il 12/08/2026 insieme al blocco in testata: questo documento non ne
+  // ha uno da citare. Chiudere anche l'ingresso serve — finché il DTO li
+  // accetta, un client può scriverli e le colonne tornano a riempirsi di dati
+  // che nessuna maschera mostra. Le colonne restano: toglierle è distruttivo su
+  // database condiviso e aspetta la finestra concordata.
 }

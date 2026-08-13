@@ -10,6 +10,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ViewportService } from '@core/services/viewport.service';
 import {
   catchError,
   debounceTime,
@@ -30,6 +31,8 @@ import {
   canManageDocuments,
   canViewPurchaseCosts,
 } from '@core/permissions/tenant-permissions.util';
+import { hasTenantPermission } from '@core/permissions/user-permissions.util';
+import { TenantPermission } from '@core/models/tenant-permission.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import type { Money } from '@core/models/common.model';
@@ -60,6 +63,9 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -84,6 +90,17 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
+import { SupplierOrderLineCardComponent } from './components/supplier-order-line-card/supplier-order-line-card.component';
+import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
+import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
+import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
+import { unitOfMeasureSelectOptions } from '@domain/products/utils/unit-of-measure-options.util';
+import {
+  vatCodeSelectOption,
+  vatOptionsIncludingSelected,
+} from '@domain/documents/utils/document-vat-options.util';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import { findVariantSummaryById } from '@domain/products/utils/variant-summary-search.util';
@@ -112,6 +129,14 @@ import {
 } from '@domain/documents/utils/document-vat.util';
 
 import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-order.service';
+import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
+import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
+import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
+import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
+import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
+import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
+import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { SupplierFormFieldsComponent } from '@domain/suppliers/components/supplier-form-fields/supplier-form-fields.component';
 import {
@@ -173,7 +198,7 @@ const SUPPLIER_ORDER_SORTABLE_LINE_COLUMNS: readonly SupplierOrderLineSortColumn
 ];
 
 type LineFocusField =
-  LineCodeField | 'product' | 'quantity' | 'unitOfMeasure' | 'unitCost' | 'discount';
+  LineCodeField | 'product' | 'quantity' | 'unitOfMeasure' | 'unitCost' | 'discount' | 'vat';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -206,6 +231,9 @@ function todayIsoDate(): string {
     EmptyStateComponent,
     ErrorStateComponent,
     TableSkeletonComponent,
+    DocumentNumberFieldComponent,
+    DocumentSeriesManagerDialogComponent,
+    DocumentChronologyWarningDialogComponent,
     TableColumnPickerComponent,
     TableColumnResizeDirective,
     SupplierFormFieldsComponent,
@@ -213,6 +241,10 @@ function todayIsoDate(): string {
     ProductFormComponent,
     DocumentMobilePanelComponent,
     DocumentLineCodeCellComponent,
+    DocumentLineSelectCellComponent,
+    DocumentLineUnitCellComponent,
+    SupplierOrderLineCardComponent,
+    UnitOfMeasureManagerDialogComponent,
     DocumentLineProductCellComponent,
     DocumentProductSearchPanelComponent,
     ConfirmDialogComponent,
@@ -228,13 +260,23 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly authService = inject(AuthService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly orderService = inject(SupplierOrderService);
+  private readonly countersService = inject(DocumentCountersService);
   private readonly supplierService = inject(SupplierService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly productService = inject(ProductService);
   private readonly codeLookupService = inject(DocumentCodeLookupService);
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly documentService = inject(DocumentService);
   private readonly router = inject(Router);
+  private readonly viewport = inject(ViewportService);
+
+  /**
+   * Quale delle due viste di riga è viva. Le due sono **esclusive**: sotto la
+   * soglia esiste la card, sopra la tabella, mai entrambe (specifica §4.11 —
+   * «la stessa riga non esiste due volte»).
+   */
+  protected readonly compactView = this.viewport.compact;
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -260,6 +302,19 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
    */
   protected readonly canManageAttachments = computed(() =>
     canManageDocuments(this.authService.currentUser()),
+  );
+
+  /**
+   * Senza il permesso, accanto alla serie resta solo il campo: niente
+   * ingranaggio e nessun pannello numerazioni da aprire.
+   *
+   * L'ordine fornitore ha ricevuto la numerazione in testata (12/08/2026) dopo
+   * che il gate era già stato scritto sulle altre sei maschere, e ci era
+   * arrivato con `canManageSeries` fisso a `true`: il comando compariva a
+   * chiunque, e l'API rispondeva 403 al primo clic.
+   */
+  protected readonly puoConfigurareDocumenti = computed(() =>
+    hasTenantPermission(this.authService.currentUser(), TenantPermission.DocumentsConfigure),
   );
   protected readonly isEditMode = computed(() => Boolean(this.editOrderId()));
 
@@ -355,12 +410,17 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly purchaseVatCodes = computed(() =>
     this.vatCodes().filter((vatCode) => vatCode.isActive && isPurchaseVatCode(vatCode)),
   );
-  protected readonly vatCodeOptions = computed<readonly SelectMenuOption[]>(() => [
+  /**
+   * Le voci della cella IVA, composte come nelle altre due maschere: **il codice
+   * è l'etichetta**, aliquota e descrizione stanno nel dettaglio.
+   *
+   * Qui l'etichetta era la riga intera («22 · 22% · Imponibile 22%»), che sulla
+   * cella a ricerca-e-selezione toglie senso al filtro: la precedenza è sul
+   * codice, e un codice che comincia con «22 · 22%…» non comincia con niente.
+   */
+  private readonly vatCodeOptionsBase = computed<readonly SelectMenuOption[]>(() => [
     { value: '', label: '—' },
-    ...this.purchaseVatCodes().map((vatCode) => ({
-      value: vatCode.id,
-      label: vatCodeOptionLabel(vatCode),
-    })),
+    ...this.purchaseVatCodes().map(vatCodeSelectOption),
   ]);
   private readonly vatCodesById = computed(
     () => new Map(this.vatCodes().map((vatCode) => [vatCode.id, vatCode])),
@@ -514,11 +574,140 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     { initialValue: [] as readonly VariantSummary[] },
   );
 
+  // ── Numerazione ───────────────────────────────────────────────────────────
+  //
+  // Il meccanismo vive in `domain/` (`DocumentNumberingStore`): proposta,
+  // scelta della serie, numero imposto. Qui restano solo le voci che
+  // differiscono — dove sta il numero, dove sta la serie, e quando il documento
+  // è in modifica.
+
+  protected readonly documentType = DocumentType.SupplierOrder;
+  protected readonly seriesDialogOpen = signal(false);
+
+  protected readonly numbering = new DocumentNumberingStore({
+    isEdit: () => this.isEditMode(),
+    number: () => this.form.controls.documentNumber.value,
+    setNumber: (value) => this.form.controls.documentNumber.setValue(value),
+    series: () => this.form.controls.series.value,
+    setSeries: (value) => this.form.controls.series.setValue(value),
+    numberIsDirty: () => !this.documentNumberPristine(),
+    markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
+    markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    asProgrammatic: (write) => {
+      // La proposta iniziale non è una modifica dell'operatore: scriverla non
+      // deve accendere il guard di uscita.
+      this.suppressDirtyMarking = true;
+      try {
+        write();
+      } finally {
+        this.suppressDirtyMarking = false;
+      }
+    },
+  });
+
+  /** Reattivo per costruzione: `isProposal()` legge il signal degli eventi. */
+  protected readonly numberIsProposal = computed(() => this.numbering.isProposal());
+
+  /** Conflitto numero restituito dal server: avviso di presa d'atto. */
+  /**
+   * Avviso cronologico (§4): la serie contiene documenti fuori posto. Avviso
+   * e non blocco — da lì si salva comunque — e il meccanismo vive in
+   * `domain/`, come quello del conflitto sul numero.
+   */
+  protected readonly chronology = new DocumentChronologyGuard({
+    documentType: () => DocumentType.SupplierOrder,
+    series: () => this.form.controls.series.value,
+    number: () => this.form.controls.documentNumber.value,
+    documentDate: () => this.form.controls.orderDate.value,
+    // In modifica il documento non deve risultare fuori ordine con la
+    // propria riga vecchia: cambiare numero E data basterebbe.
+    excludeId: () => this.editOrderId(),
+  });
+  private readonly numberConflictDialog = new DocumentNumberConflictStore();
+  protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
+  protected readonly conflictMessage = this.numberConflictDialog.message;
+
+  protected acknowledgeConflictNumber(): void {
+    // Il numero nuovo si scrive in testata (specifica numerazione §3): il
+    // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
+    // errore di battitura e un secondo conflitto. Passa dallo store perché da
+    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
+    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
+    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
+    const nuovo = this.numberConflictDialog.acknowledge();
+    if (nuovo != null) {
+      this.numbering.onNumberChange(nuovo);
+    }
+  }
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
+   * serie e numero — la selezione resta quella che era.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    this.countersService
+      .available(
+        DocumentType.SupplierOrder,
+        this.form.controls.locationId.value || null,
+        this.form.controls.orderDate.value,
+      )
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this.numbering.setCounters(counters),
+        error: () => undefined,
+      });
+  }
+
+  private refreshNumberProposal(): void {
+    this.countersService
+      .available(
+        DocumentType.SupplierOrder,
+        this.form.controls.locationId.value || null,
+        this.form.controls.orderDate.value,
+      )
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters, proposedCounterId }) =>
+          this.numbering.applyProposal(counters, proposedCounterId),
+        error: () => undefined,
+      });
+  }
+
+  /** Sedi su cui l'operatore può scrivere, con la sua predefinita in cima. */
+  protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
+    toLocationSelectOptions(
+      this.operationalLocations.writeLocations(),
+      this.operationalLocations.defaultLocation()?.id ?? null,
+    ),
+  );
+
+  protected onLocationSelect(value: string | null): void {
+    this.form.controls.locationId.setValue(value ?? '');
+    this.form.controls.locationId.markAsTouched();
+  }
+
   readonly form = this.fb.group({
     supplierId: this.fb.control('', { validators: [Validators.required] }),
     orderDate: this.fb.control(todayIsoDate(), { validators: [Validators.required] }),
+    // Numerazione propria (specifica numerazione §5, Categoria A). Fino al
+    // 12/08/2026 l'Ordine fornitore era l'unico documento della categoria
+    // senza: il server lo numerava d'ufficio e l'operatore non vedeva né
+    // sceglieva niente.
+    documentNumber: this.fb.control<number | null>(null),
+    series: this.fb.control(''),
+    /**
+     * Sede di destinazione della merce ordinata (§1-bis). Viaggia nella colonna
+     * `supplier_orders.destination_location_id`, che esisteva già — nullable,
+     * con la sua chiave esterna — e non aveva alcun percorso di scrittura:
+     * nessuna migration, solo un dato che finalmente arriva.
+     */
+    locationId: this.fb.control(''),
     expectedAt: this.fb.control(''),
     supplierReference: this.fb.control(''),
+    // Tipo, numero e data della conferma d'ordine del fornitore. Il rendering
+    // è del componente condiviso: qui vive solo il dato.
+    /** Data in formato ISO `AAAA-MM-GG` (solo giorno), come `orderDate`. */
     /**
      * Sconto extra di chiusura sull'intero ordine. Campo SEMPRE visibile che
      * mostra 0% quando non c'è, non un pulsante che lo riveli: un pulsante
@@ -528,6 +717,13 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     documentDiscountPercent: this.fb.control(''),
     lines: this.fb.array([this.createLine()]),
   });
+
+  /**
+   * Etichetta del tipo fotografata sull'ordine. Va passata SEMPRE al
+   * componente condiviso: se il tipo è stato eliminato dall'elenco, è l'unica
+   * cosa che tiene in piedi l'opzione nella tendina — senza, la dicitura
+   * apparirebbe vuota e il salvataggio successivo la cancellerebbe davvero.
+   */
 
   protected get lines(): FormArray<ReturnType<SupplierOrderFormComponent['createLine']>> {
     return this.form.controls.lines;
@@ -572,6 +768,19 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly formValue = toSignal(this.form.valueChanges, {
     initialValue: this.form.getRawValue(),
   });
+
+  /**
+   * «L'operatore ha toccato il numero?» in forma reattiva. Lo stato vero resta
+   * `documentNumber.dirty` — qui non se ne tiene una copia, si ascolta: gli
+   * eventi del controllo includono `PristineChangeEvent`, quindi il signal si
+   * aggiorna anche su `markAsDirty()`, che `valueChanges` non emette.
+   */
+  private readonly documentNumberPristine = toSignal(
+    this.form.controls.documentNumber.events.pipe(
+      map(() => this.form.controls.documentNumber.pristine),
+    ),
+    { initialValue: true },
+  );
 
   // ── Netto memorizzato, netto o ivato a schermo ─────────────────────────────
   //
@@ -776,6 +985,31 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private suppressDirtyMarking = false;
 
   constructor() {
+    // Sede predefinita in testata (§1-bis): la regola vive in `domain/`, ed è
+    // la stessa per tutte le maschere. Qui restano i due ganci che cambiano.
+    prefillDefaultLocation({
+      control: this.form.controls.locationId,
+      isEdit: () => this.isEditMode(),
+      write: (apply) => {
+        this.suppressDirtyMarking = true;
+        apply();
+        this.suppressDirtyMarking = false;
+      },
+    });
+
+    // Cambio sede: la tendina Serie cambia con lei — un contatore legato a una
+    // sede è disponibile SOLO lì, e quelli senza sede ovunque (§1-bis).
+    this.form.controls.locationId.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberProposal());
+
+    // Cambio data: il numero proposto dipende dalla data (§2), quindi la
+    // testata deve rifare l'anteprima — o mostrerebbe il primo libero di OGGI
+    // mentre il salvataggio assegna quello della data scelta.
+    this.form.controls.orderDate.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberProposal());
+
     this.columnPreferences.registerView(
       SUPPLIER_ORDER_LINES_VIEW,
       SUPPLIER_ORDER_LINE_COLUMNS,
@@ -785,6 +1019,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.markFormDirty();
     });
+
+    // Numero e serie proposti all'apertura. Su un documento in modifica non
+    // fa nulla: lì il numero è assegnato, non proposto.
+    this.refreshNumberProposal();
 
     // Sola lettura = form disabilitato. Un solo punto invece di una guardia in
     // ogni gestore: lasciare i campi scrivibili e bloccare solo il salvataggio
@@ -1096,11 +1334,31 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return { amountMinor: this.lineAmounts(index).net, currencyCode: this.currency };
   }
 
+  /**
+   * Apre la scheda del fornitore intestatario. Mancava del tutto in questa
+   * maschera mentre c'era in Arrivo merce e, per il cliente, in Ordine cliente:
+   * divergenza rimasta lì, non differenza di documento — un ordine fornitore ha
+   * un fornitore come gli altri hanno la loro controparte.
+   */
+  /** C'è un fornitore scelto? Tocca `formValue()`: vedi `hasCustomer` in Ordine cliente. */
+  protected hasSupplier(): boolean {
+    this.formValue();
+    return !!this.form.controls.supplierId.value;
+  }
+
+  protected openSupplierDetail(): void {
+    const supplierId = this.form.controls.supplierId.value;
+    if (supplierId) {
+      void this.router.navigate(['/app/suppliers', supplierId]);
+    }
+  }
+
   protected onSupplierSelect(value: string | null): void {
     this.form.controls.supplierId.setValue(value ?? '');
     this.form.controls.supplierId.markAsTouched();
   }
 
+  //
   /** "Mostra avviso" (anagrafica fornitore): banner alla selezione. */
   protected readonly supplierDocumentAlert = computed(() => {
     const supplierId = this.formValue()?.supplierId;
@@ -1339,8 +1597,66 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     }
   }
 
+  /**
+   * Le voci per una riga: quelle attive più, se serve, il codice già scelto su
+   * questa riga anche se nel frattempo è stato disattivato. Senza, riaprendo un
+   * ordine di mesi fa la cella IVA risulterebbe vuota — e al salvataggio
+   * successivo il codice sparirebbe davvero. È la stessa protezione che le altre
+   * due maschere avevano già.
+   */
+  protected lineVatOptions(index: number): readonly SelectMenuOption[] {
+    return vatOptionsIncludingSelected(
+      this.vatCodeOptionsBase(),
+      this.lines.at(index)?.controls.vatCodeId.value,
+      this.vatCodesById(),
+    );
+  }
+
+  /** Sulla cella si legge il codice; il resto sta qui, come nelle altre due. */
+  protected lineVatTooltip(index: number): string {
+    const vatCode = this.vatCodesById().get(this.lines.at(index)?.controls.vatCodeId.value ?? '');
+    return vatCode ? vatCodeOptionLabel(vatCode) : 'Nessun Codice IVA';
+  }
+
   protected onLineVatSelect(index: number, value: string | null): void {
     this.lines.at(index).controls.vatCodeId.setValue(value ?? '');
+  }
+
+  // ── Unità di misura di riga ────────────────────────────────────────────────
+  //
+  // L'elenco si carica UNA volta per maschera, non per cella: la cella sta su
+  // ogni riga, e trenta righe non devono fare trenta chiamate uguali.
+  private readonly unitOfMeasureOptionsService = inject(UnitOfMeasureOptionService);
+  private readonly unitOfMeasureCatalog = this.unitOfMeasureOptionsService.options();
+  protected readonly unitOfMeasureOptions = computed(() =>
+    unitOfMeasureSelectOptions(this.unitOfMeasureCatalog()),
+  );
+  protected readonly unitManagerOpen = signal(false);
+  /** La riga da cui è stato chiesto il pannello: ci torna l'unità creata. */
+  private unitManagerLineIndex = -1;
+
+  protected openUnitManager(index: number): void {
+    this.unitManagerLineIndex = index;
+    this.unitManagerOpen.set(true);
+  }
+
+  protected onUnitOptionsChanged(): void {
+    this.unitOfMeasureOptionsService.reload();
+  }
+
+  /** Un'unità creata dal pannello si scrive da sé: è perché lo si è aperto. */
+  protected onUnitOptionCreated(option: UnitOfMeasureOption): void {
+    if (this.unitManagerLineIndex >= 0) {
+      this.onLineUnitOfMeasureChange(this.unitManagerLineIndex, option.name);
+    }
+  }
+
+  protected onLineUnitOfMeasureChange(index: number, value: string): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.lines.at(index).controls.unitOfMeasure.setValue(value.trim());
+    this.markFormDirty();
   }
 
   protected addLine(): void {
@@ -1379,6 +1695,10 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       'unitOfMeasure',
       'unitCost',
       'discount',
+      // Rientrata nel giro: era fuori perché la cella IVA era un
+      // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
+      // la cella a ricerca-e-selezione, con un input vero.
+      'vat',
     ],
     elementId: (index, field) =>
       ({
@@ -1391,6 +1711,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         unitOfMeasure: `po-uom-${index}`,
         unitCost: `po-cost-${index}`,
         discount: `po-discount-${index}`,
+        vat: `po-vat-${index}`,
       })[field],
     isFieldEnabled: (index, field) => {
       // Su riga agganciata i codici sono bloccati: restano i dati.
@@ -1655,14 +1976,40 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     return control.invalid && (control.touched || control.dirty);
   }
 
+  /**
+   * Costo ERRATO: illeggibile o negativo. Rosso e messaggio, perché blocca.
+   *
+   * Il campo **vuoto** non è più un errore da quando il costo non è
+   * obbligatorio (11/08/2026): `parseMoneyInput('')` torna `null`, e questa
+   * regola lo leggeva come «importo non valido» — un rosso da errore su un
+   * documento che si salva benissimo. Il vuoto ha la sua tinta, sotto.
+   */
   protected unitCostInvalid(index: number): boolean {
     const control = this.lines.at(index).controls.unitCost;
-    const touched = control.touched || control.dirty;
-    if (!touched) {
+    if (!control.touched && !control.dirty) {
+      return false;
+    }
+    if (!control.value.trim()) {
       return false;
     }
     const parsed = parseMoneyInput(control.value, this.currency);
     return control.invalid || parsed === null || parsed.amountMinor < 0;
+  }
+
+  /**
+   * Costo che MANCA su una riga con un articolo: si segna in ambra, la tinta
+   * del campo in attesa (`--color-field-waiting`, regole-stile-ui §5) — non in
+   * rosso. Il rosso vuol dire «hai sbagliato»; qui non è sbagliato niente, il
+   * documento si salva e al salvataggio l'avviso lo dice.
+   *
+   * Solo su righe con articolo: su una riga vuota non manca niente.
+   */
+  protected unitCostMissing(index: number): boolean {
+    const line = this.lines.at(index);
+    if (!line?.controls.variantId.value) {
+      return false;
+    }
+    return !line.controls.unitCost.value.trim();
   }
 
   /**
@@ -1719,13 +2066,59 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
           this.form.controls.supplierId.setValue(supplier.id);
         },
         error: (err: unknown) => {
+          // Numero già preso: avviso di presa d'atto, non una scelta. Il
+          // messaggio nomina il numero rifiutato e il primo libero.
+          const conflict = documentNumberConflictOf(err);
+          if (conflict) {
+            this._submitState.set({ status: 'idle' });
+            this.numberConflictDialog.open(conflict);
+            return;
+          }
           this._savingSupplier.set(false);
           this._submitState.set({ status: 'error', error: this.toAppError(err) });
         },
       });
   }
 
+  /** Avvisi non bloccanti mostrati dopo il salvataggio. */
+  protected readonly saveWarnings = signal<readonly string[]>([]);
+
+  /**
+   * Righe salvate senza costo: si AVVISA, non si blocca. Stesse parole
+   * dell'Arrivo merce — è lo stesso avviso sullo stesso dato, e due formulazioni
+   * diverse per la stessa cosa sono la divergenza di domani.
+   */
+  private missingCostWarnings(): readonly string[] {
+    const righe: string[] = [];
+    for (let index = 0; index < this.lines.length; index += 1) {
+      const line = this.lines.at(index);
+      if (!line?.controls.variantId.value) {
+        continue;
+      }
+      if (line.controls.unitCost.value.trim()) {
+        continue;
+      }
+      righe.push(String(index + 1));
+    }
+    if (righe.length === 0) {
+      return [];
+    }
+    return [
+      righe.length === 1
+        ? `Riga ${righe[0]}: salvata senza costo.`
+        : `Righe ${righe.join(', ')}: salvate senza costo.`,
+    ];
+  }
+
+  /**
+   * Controllo cronologico (§4) davanti a ogni salvataggio: il pulsante, il
+   * dialogo di uscita e la conclusione ordine passano tutti da `submit`.
+   */
   protected submit(onSaved?: () => void): void {
+    this.chronology.run(() => this.submitNow(onSaved));
+  }
+
+  private submitNow(onSaved?: () => void): void {
     if (this.saving()) {
       return;
     }
@@ -1773,14 +2166,27 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
           ? parseEffectiveDiscountPercent(line.discountPercent)
           : undefined,
         vatCodeId: line.vatCodeId || undefined,
+        // La colonna esisteva in maschera e non nel database: si modificava, si
+        // salvava, si riapriva e la modifica era sparita. Ora il valore parte.
+        unitOfMeasure: line.unitOfMeasure.trim() || undefined,
       };
     });
 
     const body = {
       supplierId: raw.supplierId,
+      series: this.numbering.chosenSeries(),
+      // Vedi `DocumentNumberingStore`: la proposta NON torna indietro come
+      // imposizione. Viaggia solo il numero che l'operatore ha digitato.
+      number: this.numbering.imposedNumber(),
       orderDate: raw.orderDate ? new Date(raw.orderDate).toISOString() : undefined,
       expectedAt: raw.expectedAt ? new Date(raw.expectedAt).toISOString() : undefined,
+      // Sede di destinazione della merce (§1-bis). `null` — non `undefined` —
+      // per la stessa ragione dei campi qui sotto: in modifica l'assenza vuol
+      // dire «lascialo com'è», e togliere la sede non la toglierebbe davvero.
+      destinationLocationId: raw.locationId || null,
       supplierReference: raw.supplierReference.trim() || undefined,
+      // `null` — non `undefined`. In modifica l'assenza significa «lascialo
+      // com'è», quindi svuotare un campo e salvare non lo cancellerebbe.
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
       costEntryMode: this.costEntryMode(),
       currency: this.currency,
@@ -1790,6 +2196,9 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     const editId = this.editOrderId();
     this._submitState.set({ status: 'saving' });
 
+    // Raccolti PRIMA dell'invio: dopo, le righe possono essere state riadottate
+    // dal server e il confronto non direbbe più cosa aveva scritto l'operatore.
+    const avvisi = this.missingCostWarnings();
     const request$ = editId
       ? this.orderService.updateOrder(editId, body)
       : this.orderService.createOrder(body);
@@ -1799,6 +2208,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
         // Ordine salvato: il guard di uscita non deve più fermare la navigazione.
         this.dirtySinceLastSave.set(false);
         this._submitState.set({ status: 'idle' });
+        this.saveWarnings.set(avvisi);
         if (onSaved) {
           // «Salva e chiudi» dal dialogo di uscita: l'operatore sta uscendo di
           // proposito, non lo si porta da un'altra parte.
@@ -1855,13 +2265,20 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private applyOrderToForm(order: SupplierOrder): void {
     this.form.patchValue({
       supplierId: order.supplierId,
+      documentNumber: order.number ?? null,
+      series: order.series ?? '',
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : todayIsoDate(),
       expectedAt: order.expectedAt ? order.expectedAt.slice(0, 10) : '',
+      locationId: order.destinationLocationId ?? '',
       supplierReference: order.supplierReference ?? '',
+      // Il campo lavora sul solo giorno: la colonna è una `date`, ma in JSON
+      // arriva come istante (`…T00:00:00.000Z`).
       documentDiscountPercent: order.documentDiscountPercent
         ? String(order.documentDiscountPercent).replace('.', ',')
         : '',
     });
+    // Prima che la tendina si ridisegni: se il tipo è stato eliminato, è
+    // questa etichetta a ricostruirne l'opzione.
     this.costEntryMode.set(order.costEntryMode);
     this.lines.clear();
     for (const line of order.lines) {
@@ -1880,6 +2297,9 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
           discountPercent:
             line.discountPercent > 0 ? formatDiscountPercentValue(line.discountPercent) : '',
           vatCodeId: line.vatCodeId ?? '',
+          // La fotografia salvata sulla riga, non l'unità dell'anagrafica di
+          // adesso: è il punto in cui l'ordine riaperto dice quello che diceva.
+          unitOfMeasure: line.unitOfMeasure ?? '',
         },
         { emitEvent: false },
       );
@@ -1937,11 +2357,17 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       if (!Number.isInteger(quantity) || quantity < 1) {
         return `${riga}: la quantità deve essere un numero intero maggiore di zero.`;
       }
+      // ⛔ Il costo MANCANTE non blocca più (11/08/2026, decisione del
+      // proprietario). Un ordine si fa spesso al volo, senza il listino del
+      // fornitore sotto mano, e un costo assente non rompe niente: la riga vale
+      // zero finché non lo si scrive. Al salvataggio si avvisa, e basta.
+      //
+      // Era anche un blocco che qualcuno non poteva superare: chi non ha il
+      // permesso «Visualizza costi d'acquisto» riceve dal server le varianti
+      // senza costo, quindi il campo gli resta vuoto — e gli si chiedeva di
+      // scrivere un numero che non gli è dato vedere.
       const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
-      if (cost === null) {
-        return `${riga}: manca il costo. Se l'articolo non ne ha uno in anagrafica va scritto qui.`;
-      }
-      if (cost.amountMinor < 0) {
+      if (cost !== null && cost.amountMinor < 0) {
         return `${riga}: il costo non può essere negativo.`;
       }
       if (this.discountValueInvalid(line.controls.discountPercent.value)) {
@@ -1970,7 +2396,8 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
        * Il campo del costo è una VISTA: contiene il netto o l'ivato secondo il
        * selettore di testata, ed è quello che l'operatore legge e digita.
        */
-      unitCost: this.fb.control('', { validators: [Validators.required] }),
+      // Senza `required`: il costo mancante è un avviso, non un blocco (§sopra).
+      unitCost: this.fb.control(''),
       /**
        * Il costo NETTO canonico in unità minori, con la coda dello scorporo.
        * È il valore vero della riga: `unitCost` si ridisegna da qui, mai il

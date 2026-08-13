@@ -27,6 +27,13 @@ Prima di tutto il resto, perché il database Supabase è unico e condiviso.
 | Elenco U.M. gestibile dall'operatore                              | **sì** — tabella nuova per-tenant, con RLS        | additiva            |
 | Tutto il resto in questo documento                                | nessuna                                           | —                   |
 
+**✅ Applicate le tre dell'U.M.** _(11/08/2026)_, in due file:
+`20260811200000_unita_di_misura_sulla_riga` (le due colonne) e
+`20260811200100_elenco_unita_di_misura` (la tabella con la RLS). Timestamp
+verificati liberi **prima**, come vuole §13-bis: il database portava già
+`20260811190000` del ramo del collega, quindi queste partono da `202608112000`.
+`npm run check:rls` verde, 62 tabelle.
+
 ---
 
 ## 1. Perimetro reale: nove tipi, cinque componenti
@@ -154,6 +161,38 @@ Altri chiamanti: `commitLineIfSignificant` (bersaglio di tutti i blur di riga), 
 **Non sono legate ai reactive form**: ricevono un valore ed emettono un cambiamento. Funzionano identiche sopra una `FormArray` o sopra un carrello a segnali — è ciò che le rende adottabili anche dove il modello della riga è diverso (§1).
 
 **Uso:** la cella codice in tutte e tre le maschere, la cella prodotto solo in Ordine cliente e Arrivo merce. **Ordine fornitore non usa la cella prodotto**: al suo posto ha un `app-select-menu`.
+
+> **La card di riga è una sola** _(11/08/2026)_. Era due — Ordine cliente e
+> Arrivo merce — e **non erano copie**: 47 elementi strutturali contro 24, con
+> **7 nomi in comune**, quasi tutti generici. Due disegni diversi della stessa
+> idea, non una divergenza da fondere; ed è la ragione per cui il commento
+> dentro la card diceva che fonderle avrebbe richiesto una dozzina di flag.
+>
+> La strada presa è stata **adottare la migliore**: la card dell'Ordine cliente
+> è salita a `domain/documents/components/document-line-card/` come **forma**, e
+> ogni documento ci proietta dentro i propri campi attraverso due imbocchi
+> (`cardControls`, `cardBody`) e tre pezzi piccoli (`-control`, `-group`,
+> `-field`). Nessun interruttore è servito, che era la condizione posta.
+>
+> I fogli di stile: Ordine cliente **654 → ~130 righe**, Arrivo merce
+> **184 → ~100**. L'Ordine fornitore, che una card non l'aveva affatto, ne ha
+> una senza scriverne la forma.
+>
+> ⚠️ **Perché i pezzi sono componenti e non classi CSS:** il contenuto proiettato
+> porta l'incapsulamento di **chi lo scrive**, non di chi lo ospita. Una regola
+> nel foglio della card non raggiunge un campo che arriva dalla maschera, e
+> `::ng-deep` per arrivarci è vietato. Sale al livello globale solo la misura dei
+> controlli dentro il campo, accanto alle altre regole di `doc-form__input`.
+
+> **Le celle condivise sono quattro** _(agg. 11/08/2026)_: codice, nome prodotto,
+> ricerca-e-selezione (§4-bis) e unità di misura, che è la terza configurata —
+> testo libero acceso e comando in coda. Il pannello `document-line-suggestions`
+> le serve tutte, ed è anche il posto dove vive la voce-comando in coda fissa.
+>
+> **Solo la cella U.M. ha un livello in più**, e vale la pena sapere perché: la
+> configurazione (testo libero + etichetta del comando) è la stessa in cinque
+> punti, e ripeterla è il modo in cui cinque chiamanti finiscono per divergerne
+> quattro. Ma resta **muta**: le voci le riceve, non se le carica.
 
 **Il pannello suggerimenti — ✅ terza copia chiusa (08/2026).** `document-line-suggestions` era estratto, aveva il suo spec, ma i suoi consumatori erano solo le due card mobile: le due celle desktop portavano la propria `<ul role="listbox">` inline, e lo stesso pannello era duplicato **tre volte**. Ora lo usano anche le due celle; i consumatori sono quattro e la copia inline non esiste più, insieme a ~90 righe di SCSS che differivano solo per il prefisso.
 
@@ -340,7 +379,11 @@ _Nota su (1): `commitCodeLookup` rifiuterebbe da sé su riga agganciata, quindi 
 
 ---
 
-## 4. `app-select-menu` — perché è fuori dal giro
+## 4. `app-select-menu` — perché era fuori dal giro
+
+> **Sezione storica: eseguita.** Il tempo presente qui sotto descrive il codice
+> **prima** della sostituzione, che è ciò che serve a chi rilegge un commit o si
+> chiede perché sia nata una cella nuova. Per lo stato attuale, §4-bis.
 
 **183 istanze in 36 template** _(mis. 08/2026 — è la misura che si muove più in fretta di tutte)_. Di queste, nelle tre maschere da allineare le istanze in gioco sono **quattro**: IVA in Ordine cliente e Arrivo merce, IVA e **prodotto** in Ordine fornitore.
 
@@ -365,6 +408,36 @@ _Nota su (1): `commitCodeLookup` rifiuterebbe da sé su riga agganciata, quindi 
 **Il pattern esistente, da non replicare.** La catena «voce-azione → pannello di gestione» esiste già e funziona, in Arrivo merce per i tipi documento fornitore — ma con un **valore-sentinella** (`'__manage-types__'`) che ogni chiamante deve intercettare. Se un chiamante se ne dimentica, il valore finto finisce nel form control. E la voce riceve `role="option"` dentro `role="listbox"`, quindi viene annunciata come valore selezionabile: difetto di accessibilità già presente in più punti.
 
 **Il filtro non fa quello che serve.** `select-menu-filter.util.ts` cerca la stringa **ovunque** dentro etichetta _e_ descrizione. Digitando `1` si pesca anche un codice IVA la cui descrizione contiene «art. 17» — rumore proprio nel caso a un carattere. Serve un filtro a **precedenza sul codice**: prima le voci il cui codice inizia con quanto digitato, poi il resto. Chi riusa la funzione esistente ottiene il comportamento sbagliato senza accorgersene.
+
+### 4-bis. La cella nuova, com'è oggi _(fatto 11/08/2026)_
+
+`domain/documents/components/document-line-select-cell/` — un `<input>` vero che
+porta l'`id` ricevuto, classifica i tasti con lo **stesso** `classifyLineCellKey`
+delle celle gemelle ed emette esiti. Le quattro istanze di `app-select-menu` in
+gioco sono sparite; le altre **179 non sono state toccate**, che era il punto
+della decisione «sostituzione locale».
+
+I due punti che la specifica diceva di non riusare, e come stanno ora:
+
+- **il filtro** è `document-line-select-filter.util.ts`, a precedenza sul
+  prefisso del codice, col suo spec sul caso «1» che ha fatto nascere la regola.
+  `filterSelectMenuOptions` resta dov'era: serve le liste dove si cerca per nome
+  (varianti, clienti), dove un codice non c'è e la precedenza non significa
+  niente. **I due filtri convivono di proposito.**
+- **la voce-comando** è un `output` (`manageRequested`), non un valore-sentinella,
+  e vive fuori dalla `<ul role="listbox">` come `<button>`: il difetto di
+  accessibilità del pattern vecchio non è stato replicato. Il pannello che apre
+  sta **una volta per maschera**.
+
+Tre cose scoperte applicandola, tutte registrate nella specifica §4.3-bis:
+l'Ordine fornitore componeva le voci IVA in un'altra forma e non ricostruiva
+l'opzione del codice disattivato; la cella ha bisogno di sapere se sta in una
+tabella o in una card (`inColumnCycle`); il pannello di gestione non può stare
+nella cella.
+
+**Il contesto in più su `classifyLineCellKey`:** `arrowsLeaveAtOnce`. Su una
+cella a selezione ←/→ escono al primo colpo (specifica §4.3) — non è una deroga
+ai due tempi, è il confine del loro dominio, come già lo sono i campi numerici.
 
 ---
 
@@ -397,6 +470,31 @@ L'elenco delle unità è una costante compilata (`COMMON_UNIT_OF_MEASURE`, sei v
 **Nessuna maschera scrive l'U.M. di riga sull'anagrafica di un articolo esistente** — non esiste in tutto il repo un `product.update` che tocchi `unitOfMeasure` partendo da una riga. L'anagrafica non viene corrotta.
 
 Ma su tre maschere: una salva e non rimostra, una perde, una è corretta.
+
+### 5.4 ✅ Chiuso su tutte e tre _(11/08/2026)_
+
+Le colonne ci sono (`DocumentLine`, `SupplierOrderLine`), il valore parte e
+torna, e la precedenza è la stessa ovunque: **prima la riga, poi l'anagrafica,
+poi `pz`**.
+
+- **Ordine cliente** — la precedenza era invertita. Siccome
+  `Product.unitOfMeasure` è NOT NULL con default, l'anagrafica vinceva sempre e
+  lo snapshot salvato **non si vedeva mai**: c'era, veniva scritto e riletto, e
+  restava invisibile. È una riga, ed è il punto in cui la regola entra in vigore.
+- **Ordine fornitore** — il fallimento silenzioso è chiuso: la colonna esiste,
+  il DTO la porta, il servizio la scrive.
+- **Arrivo merce** — i controlli erano due (`unitOfMeasure` per la riga non
+  esisteva, `newProductUnitOfMeasure` serviva solo alla creazione articolo) e
+  ora è **uno**: l'unità della riga è anche quella che va in anagrafica quando
+  l'articolo nasce.
+- **Preventivi / DDT / Scarico manuale** — ereditano dalla colonna su
+  `DocumentLine`, come previsto.
+
+L'elenco delle unità vive in `unit_of_measure_options` (per-tenant, forma
+`PaymentOption`) ed è **suggerimento, non autorità**: nessuna FK dalle righe,
+quindi eliminare una voce non ha guardie da superare e non tocca un dato
+salvato. Chi copierà il servizio da quello dei codici IVA non deve aggiungerne
+una per simmetria — c'è uno spec che lo ferma.
 
 ---
 
@@ -557,6 +655,47 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 10. **Arrivo merce: su riga collegata prezzo di vendita e prezzo di confronto sono esclusi dal Tab ma le celle restano editabili col mouse**, senza commento che spieghi l'incoerenza.
 11. ~~**e2e già rotto**: gli helper e lo spec dell'Arrivo merce cercano una classe CSS rinominata in `src/`.~~ ✅ **Chiuso (08/2026)**, insieme al fronte più largo che ha aperto — vedi §12.
 12. **U.M. di Ordine fornitore fallisce in silenzio** (§5.2).
+
+13. **Le righe si ricostruiscono a ogni caricamento, e il fuoco muore** — _trovato il 13/08/2026 lavorando alla numerazione, verificato in browser vero._
+
+    Angular lo segnala da sé: `NG0956 — The configured tracking expression (track by identity) caused re-creation of the entire collection`, puntando a `customer-order-form.component.html`. Il template traccia le righe **sull'identità del `FormGroup`**:
+
+    ```html
+    @for (line of lines.controls; track line; let i = $index)
+    ```
+
+    (`customer-order-form.component.html:1370` e `:1788`)
+
+    Ma il caricamento di un documento non aggiorna le righe: **le rifà**. `this.lines.clear()` seguito da un `createLine()` nuovo per riga (`customer-order-form.component.ts:3975-3999`). Per Angular sono altre righe, quindi distrugge e ricrea il DOM di tutte le celle condivise.
+
+    **Misurato in browser** (Chromium, API e database veri): aperto l'ordine A in modifica, sbloccato, fuoco su «Nome prodotto» (`INPUT`, valore «Articolo verifica numerazione»); navigato all'ordine B sulla stessa rotta `:id/edit` — il componente si riusa e il form si ricarica — e il fuoco è tornato a **`BODY`**. Perso, non spostato.
+
+    ⚠️ **Sono DUE cause, non una — ed è la parte che conta per chi ci lavorerà.**
+
+    Nello scenario misurato se ne sovrappongono due, e non sono state isolate:
+
+    1. **le righe si ricostruiscono** (`track` sull'identità di oggetti nuovi);
+    2. **il documento appena aperto nasce protetto**, quindi il `<fieldset>` diventa `disabled` — e un fieldset disabilitato **da solo** toglie il fuoco a ciò che contiene, a righe ferme.
+
+    **Se basta la seconda, correggere il `track` non serve a niente**: il fuoco continuerebbe a morire e la correzione sembrerebbe fatta. Quindi il primo passo non è cambiare l'espressione di `track` — è **isolare le due cause**, con un caricamento che non ririblocchi il documento. Solo dopo si sa quale delle due si sta correggendo, o se sono da correggere entrambe.
+
+    **Tre cose da sapere prima di metterci mano:**
+
+    - **La correzione richiede una decisione, non una parola.** `track line.id` non è sostituibile a `track line`: le righe nuove **non hanno ancora un id**. Va deciso cosa identifica una riga prima che esista — un identificativo di client generato in `createLine()`, o un altro criterio stabile.
+    - **Tocca il riordino righe e il trascinamento appena fatti** (§8): l'espressione di `track` è ciò su cui si regge lo spostamento, e cambiarla senza rileggere quel meccanismo lo rompe.
+    - **Va su `bugfix/righe-documento`, non sul ramo della numerazione.** È materia di righe documento: qui è stato solo trovato.
+
+    **Dove diverge** _(misurato 13/08/2026)_:
+
+    | Maschera                                                            | `track`                                                        |
+    | ------------------------------------------------------------------- | -------------------------------------------------------------- |
+    | Arrivo merce · Ordine cliente · Trasferimento · Rettifica · Fatture | `track line` — identità del `FormGroup`                        |
+    | **Ordine fornitore**                                                | **`track $index`**                                             |
+    | Registrazione fattura                                               | nessun `@for` su `lines.controls` (righe di struttura diversa) |
+
+    Le due scelte hanno difetti **opposti**, e nessuna è neutra: `track line` ricrea il DOM quando le righe si ricostruiscono; `track $index` non lo ricrea mai, ma **sbaglia riga quando l'elenco si riordina**.
+
+    🔴 **Da verificare per primo, all'apertura di questo ramo: l'Ordine fornitore.** Ha `track $index` **mentre esiste il riordino col trascinamento** (§8). Se sbaglia riga al riordino, **mostra dati sbagliati** — cioè è più grave del DOM ricreato, che costa prestazioni e fuoco ma non mente su cosa c'è nella riga. Non verificato: trovato lavorando alla numerazione, e lasciato lì apposta.
 
 ---
 
@@ -818,6 +957,41 @@ La strada giusta era già pronta: `--field-border-color`, dichiarata dal compone
 Più **due casi per maschera** negli spec di Ordine cliente e Ordine fornitore — «più corrispondenze aprono la scelta» col suo **controllo inverso** («una sola aggancia»), senza il quale il primo passerebbe anche se la scelta si aprisse sempre. Non entrano nel gate, ma sono la rete del comportamento: la regressione da cui vengono era muta, ed è così che era passata inosservata.
 
 Le due celle condivise non hanno spec. `app-select-menu` non ha spec: le sue uniche verifiche automatiche sono le chiamate e2e legate ai ruoli ARIA. `document-line-suggestions` ha il suo.
+
+### 12.0-sexies ⚠️ Una costruzione scritta a mano accanto a quella vera resta indietro, e in silenzio
+
+_(12/08/2026)_ Trasferimento e Rettifica costruivano la riga in **due posti**: `createLine()`, e una seconda `this.fb.group({...})` scritta a mano dentro `patchFormFromDocument`, per il caricamento di un documento esistente. Gli stessi sei controlli, elencati due volte.
+
+Aggiungendo `articleCode` e `barcode` a `createLine()`, la copia è rimasta a sei campi. **Qui è andata bene**: i due gruppi finiscono nello stesso `FormArray`, quindi i tipi non tornavano e il compilatore ha protestato. Ma è un caso fortunato, non una rete — bastava che il campo nuovo fosse opzionale, o che le due costruzioni non condividessero un contenitore tipizzato, e la riga caricata da documento avrebbe avuto un campo in meno **senza che nulla lo dicesse**: la maschera si apre, il campo è vuoto, e sembra un dato mancante nel documento.
+
+Il difetto non è la duplicazione in sé: è che **la copia serve un caso raro** (aprire un documento esistente) mentre l'originale serve quello comune (documento nuovo). Chi lavora al campo nuovo prova il caso comune, lo vede funzionare, e chiude.
+
+> **Una riga si costruisce in un punto solo.** Il caricamento chiama `createLine()` e poi mette dentro i valori con `patchValue`. Se una riga caricata deve differire — qui: variante non obbligatoria quando la riga non muove giacenza — si costruisce quella vera e si cambia **la differenza**, dichiarandola:
+>
+> ```ts
+> const group = this.createLine();
+> group.patchValue({ ...dal documento });
+> if (!line.loadsStock) {
+>   group.controls.variantId.clearValidators();
+>   group.controls.variantId.updateValueAndValidity({ emitEvent: false });
+> }
+> ```
+>
+> Così la differenza è **una riga leggibile** invece di un elenco da confrontare a occhio con l'originale.
+
+**Il segnale da cercare:** un `this.lines.push(` seguito da `this.fb.group({` invece che da `this.createLine()`.
+
+**Dove sta ancora** _(misurato 12/08/2026)_:
+
+| Maschera                        | Copie a mano | Nota                                                  |
+| ------------------------------- | -----------: | ----------------------------------------------------- |
+| Ordine cliente                  |            0 | —                                                     |
+| Ordine fornitore                |            0 | —                                                     |
+| Trasferimento · Rettifica       |            0 | tolte il 12/08/2026                                   |
+| Arrivo merce                    |            0 | tolta il 12/08/2026: 21 controlli elencati due volte  |
+| **Fatture** (Proforma/Fatt/Acc) |            2 | **non toccabile**: ramo `feature/fattura-elettronica` |
+
+Sull'Arrivo merce l'unica differenza vera fra riga nuova e riga già registrata — su un arrivo salvato la quantità può essere **zero**, una riga ordinata e non ricevuta — è ora dichiarata in tre righe dopo `createLine()`, invece di stare nascosta in un elenco da confrontare a occhio.
 
 ### 12.1 Il fronte `e2e/` — ✅ chiuso (08/2026), tranne una specifica
 

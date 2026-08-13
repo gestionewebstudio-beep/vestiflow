@@ -13,6 +13,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ViewportService } from '@core/services/viewport.service';
 import {
   catchError,
   concatMap,
@@ -44,7 +45,6 @@ import type { LinkedSupplierOrderLineContext } from '@core/models/document.model
 import { CausalGenerationMode, DocumentStatus, DocumentType } from '@core/models/document.model';
 import type { DocumentRecord, DocumentTypeSetting } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
-import { COMMON_UNIT_OF_MEASURE } from '@core/models/product-catalog.model';
 import {
   formatVatRate,
   isPurchaseVatCode,
@@ -55,8 +55,10 @@ import {
 import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
+import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import {
@@ -102,7 +104,6 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
-import { LocationSuggestionHintComponent } from '@shared/components/location-suggestion-hint/location-suggestion-hint.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -118,8 +119,15 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
 import type { VariantByCodeDto } from '@domain/products/models/product.dto';
 import { GoodsReceiptLineCardComponent } from './components/goods-receipt-line-card/goods-receipt-line-card.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
+import { DocumentCounterpartyRefComponent } from '@domain/documents/components/document-counterparty-ref/document-counterparty-ref.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
+import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
+import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
+import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
+import { unitOfMeasureSelectOptions } from '@domain/products/utils/unit-of-measure-options.util';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
   GOODS_RECEIPT_LINE_COLUMNS,
@@ -135,12 +143,12 @@ import {
 } from '@domain/documents/models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
 import { renderCausalTemplate } from './models/causal-template.util';
-import type { ExternalDocumentType } from './models/external-document-type.model';
+import type { ExternalDocumentType } from '@domain/documents/models/external-document-type.model';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
-import type { DocumentCounterView } from '@domain/documents/models/document-counter.model';
 import { DocumentSettingsService } from './services/document-settings.service';
-import { ExternalDocumentTypeService } from './services/external-document-type.service';
+import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 import type {
   GoodsReceiptCreatedProductApiRow,
   SaveGoodsReceiptBody,
@@ -168,6 +176,8 @@ import {
   type VatLineAmounts,
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
+import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
@@ -217,6 +227,7 @@ type GoodsReceiptLineFocusField =
   | 'supplierCode'
   | 'product'
   | 'quantity'
+  | 'unitOfMeasure'
   | 'unitCost'
   | 'discount'
   | 'sellingPrice'
@@ -248,6 +259,7 @@ type GoodsReceiptLineFocusField =
     DateInputComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
+    DocumentChronologyWarningDialogComponent,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -257,14 +269,17 @@ type GoodsReceiptLineFocusField =
     TableColumnResizeDirective,
     DocumentAttachmentsPanelComponent,
     GoodsReceiptLineCardComponent,
+    DocumentCounterpartyRefComponent,
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
+    DocumentLineSelectCellComponent,
+    DocumentLineUnitCellComponent,
+    UnitOfMeasureManagerDialogComponent,
     DocumentMobilePanelComponent,
     DocumentProductSearchPanelComponent,
     SlidePanelComponent,
     ProductFormComponent,
     SupplierFormFieldsComponent,
-    LocationSuggestionHintComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
   // sbloccato e a rilasciarli all'uscita.
@@ -290,6 +305,19 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly vatCodeService = inject(VatCodeService);
   private readonly paymentOptionsService = inject(PaymentOptionsService);
   private readonly router = inject(Router);
+  private readonly viewport = inject(ViewportService);
+
+  /**
+   * Quale delle due viste di riga è viva. Le due sono **esclusive**: sotto la
+   * soglia esiste la card, sopra la tabella, mai entrambe (specifica §4.11).
+   *
+   * Qui mancava, ed è l'ultima delle tre maschere a riceverlo: le due viste
+   * erano entrambe rese e una nascosta dal CSS — su un documento da trenta
+   * righe circa 1.700 nodi e 420 controlli invisibili sul telefono, più il
+   * rischio vero, che uno stato condiviso si apra nella vista che non si vede.
+   */
+  protected readonly compactView = this.viewport.compact;
+  private readonly toasts = inject(ToastService);
   private readonly navHistory = inject(NavigationHistoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -386,9 +414,85 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected readonly previewReference = signal<string | null>(null);
 
-  /** Conflitto protocollo restituito dal server: dialogo «Usa N» / «Annulla». */
-  // Stato del dialog «protocollo già assegnato»: la macchina vive in domain,
+  /** Conflitto sul numero restituito dal server: dialogo «Usa N» / «Annulla». */
+  // Stato del dialog «numero già assegnato»: la macchina vive in domain,
   // il form decide solo quale controllo riceve il numero e cosa risalvare.
+  // ── Numerazione ───────────────────────────────────────────────────────────
+  //
+  // Il meccanismo vive in `domain/` (`DocumentNumberingStore`): proposta,
+  // scelta della serie, numero imposto. Era copiato in sei maschere.
+
+  protected readonly numbering = new DocumentNumberingStore({
+    // «Il documento esiste» — una condizione sola, ed è la stessa cosa che le
+    // altre maschere dicono con `isEditMode()`: loro dopo il salvataggio se ne
+    // vanno al dettaglio, quindi un documento salvato lo si incontra solo sulla
+    // rotta `:id`. Questa invece salva e RESTA (§10.7), e sulla rotta di
+    // creazione continua a esserci un documento che ormai ha il suo numero.
+    //
+    // Decisione di prodotto 13/08/2026: numerare come tutti, senza la regola
+    // propria che deduceva «già numerato» dal RIFERIMENTO. Quella è caduta —
+    // qui si guarda l'esistenza, non il riferimento — mentre la sola rotta non
+    // basta, e non è un'opinione: la prova «dopo il salvataggio il numero
+    // assegnato non torna a essere una proposta» fallisce con `isEditMode()`
+    // da solo, perché la riproposta dei contatori riporta il campo dal numero
+    // assegnato a quello proposto prima.
+    isEdit: () => this.persistedDocumentId() !== null,
+    number: () => this.form.controls.documentNumber.value,
+    setNumber: (value) => this.form.controls.documentNumber.setValue(value),
+    series: () => this.form.controls.series.value,
+    setSeries: (value) => this.form.controls.series.setValue(value),
+    numberIsDirty: () => !this.documentNumberPristine(),
+    markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
+    markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
+    asProgrammatic: (write) => {
+      // La proposta iniziale non è una modifica dell'operatore: scriverla non
+      // deve accendere il guard di uscita.
+      this.suppressDirtyMarking = true;
+      try {
+        write();
+      } finally {
+        this.suppressDirtyMarking = false;
+      }
+    },
+  });
+
+  /** Reattivo per costruzione: `isProposal()` legge il signal degli eventi. */
+  protected readonly numberIsProposal = computed(() => this.numbering.isProposal());
+
+  /**
+   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
+   * serie e numero — la selezione resta quella che era.
+   */
+  protected onSeriesManagerClosed(): void {
+    this.seriesDialogOpen.set(false);
+    this.countersService
+      .available(
+        this.form.controls.type.value,
+        this.form.controls.locationId.value || null,
+        this.form.controls.documentDate.value,
+      )
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ counters }) => this.numbering.setCounters(counters),
+        error: () => undefined,
+      });
+  }
+
+  /**
+   * Avviso cronologico (§4): la serie contiene documenti fuori posto. Avviso e
+   * non blocco — da lì si salva comunque — e tutto il meccanismo vive in
+   * `domain/`, come quello del conflitto sul numero.
+   */
+  protected readonly chronology = new DocumentChronologyGuard({
+    documentType: () => this.form.controls.type.value,
+    series: () => this.form.controls.series.value,
+    number: () => this.form.controls.documentNumber.value,
+    documentDate: () => this.form.controls.documentDate.value,
+    // In modifica il documento non deve risultare fuori ordine con la
+    // propria riga vecchia: cambiare numero E data basterebbe.
+    excludeId: () => this.editDocumentId(),
+  });
+
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
   protected readonly prefillError = new DocumentPrefillErrorStore();
@@ -737,15 +841,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     { initialValue: [] as readonly DocumentTypeSetting[] },
   );
 
-  /** Contatori disponibili per la testata (tipo + sede): alimentano la tendina. */
-  private readonly _availableCounters = signal<readonly DocumentCounterView[]>([]);
-  protected readonly seriesOptions = computed((): readonly SelectMenuOption[] =>
-    this._availableCounters().map((counter) => ({
-      value: counter.series ?? '',
-      label: counter.series ?? 'Senza serie',
-    })),
-  );
-
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
 
@@ -824,7 +919,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             // ricordo di aver già avvisato sopravviverebbe al documento che
             // l'aveva ricevuto.
             this.lineSort.reset();
-            this.refreshNumberPreview();
+            this.refreshNumberProposal();
             if (confirmedEditable) {
               this.form.controls.type.disable({ emitEvent: false });
             } else {
@@ -882,80 +977,26 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     ),
   );
 
+  // ── Documento della controparte: i tipi documento del tenant ────────────────
   /**
-   * Sede suggerita (predefinita utente, o unica autorizzata): mostrata come
-   * hint cliccabile sotto il campo — MAI autoselezionata (specifica cliente:
-   * anche mono-location la conferma resta esplicita).
+   * La tendina dei tipi, la voce «Gestisci tipi documento…» e il pannello che
+   * apre vivono ora nel componente condiviso `app-document-counterparty-ref`.
+   * Qui resta la sola LISTA, perché da lei dipendono due cose che il
+   * componente non conosce: il modello della causale di carico
+   * (`templateForType`) e il riepilogo del pannello di testata mobile.
    */
-  protected readonly suggestedLocation = this.operationalLocations.suggestedWriteLocation;
+  private readonly _externalDocTypes = signal<readonly ExternalDocumentType[]>([]);
+  protected readonly externalDocTypes = this._externalDocTypes.asReadonly();
 
-  protected applySuggestedLocation(): void {
-    const suggested = this.suggestedLocation();
-    if (!suggested || this.formReadOnly()) {
-      return;
-    }
-    this.onLocationSelect(suggested.id);
-  }
-
-  // ── Documento fornitore: tipi per tenant (prompt §3-6) ─────────────────────
-  /** Valore-azione nella tendina: apre la finestra "Nuovo tipo documento". */
-  protected readonly NEW_TYPE_OPTION = '__new-type__';
-  /** Valore-azione nella tendina: apre il pannello "Gestisci tipi documento". */
-  protected readonly MANAGE_TYPES_OPTION = '__manage-types__';
-
-  private readonly externalTypesReload = signal(0);
-  protected readonly externalDocTypes = toSignal(
-    toObservable(this.externalTypesReload).pipe(
-      switchMap(() =>
-        this.externalTypeService
-          .list()
-          .pipe(catchError(() => of([] as readonly ExternalDocumentType[]))),
-      ),
-    ),
-    { initialValue: [] as readonly ExternalDocumentType[] },
+  /**
+   * Etichetta del tipo fotografata sul documento al salvataggio. Un tipo
+   * eliminato non arriva più dalla lista: senza lo snapshot il campo si
+   * riaprirebbe vuoto e al salvataggio successivo la dicitura sparirebbe
+   * davvero.
+   */
+  protected readonly externalDocTypeSnapshot = computed(
+    () => this.loadedDocument()?.externalDocumentTypeSnapshot,
   );
-
-  protected readonly externalDocTypeOptions = computed<readonly SelectMenuOption[]>(() => {
-    const selectedId = this.selectedExternalTypeId();
-    const options: SelectMenuOption[] = [{ value: '', label: '—' }];
-    for (const type of this.externalDocTypes()) {
-      // I tipi disattivati non si propongono, ma restano visibili se già
-      // selezionati sul documento storico (§6).
-      if (type.isActive || type.id === selectedId) {
-        options.push({ value: type.id, label: type.shortLabel || type.name });
-      }
-    }
-    // Le due voci-azione creano e riordinano/disattivano/eliminano i tipi:
-    // chi non configura i documenti sceglie soltanto fra quelli esistenti.
-    if (this.puoConfigurareDocumenti()) {
-      options.push({ value: this.NEW_TYPE_OPTION, label: 'Altro / Nuovo tipo…' });
-      options.push({ value: this.MANAGE_TYPES_OPTION, label: 'Gestisci tipi documento…' });
-    }
-    return options;
-  });
-
-  /** Id tipo selezionato (specchio del form control, per computed reattivi). */
-  private readonly selectedExternalTypeId = signal('');
-
-  // Finestra "Nuovo tipo documento fornitore" (§5).
-  protected readonly newTypeDialogOpen = signal(false);
-  protected readonly newTypeName = signal('');
-  protected readonly newTypeShortLabel = signal('');
-  protected readonly newTypeTemplate = signal('');
-  protected readonly newTypeBusy = signal(false);
-  protected readonly newTypeError = signal<string | null>(null);
-
-  // Pannello "Gestisci tipi documento…" (§6).
-  protected readonly typePanelOpen = signal(false);
-  protected readonly typePanelBusy = signal(false);
-  protected readonly typePanelError = signal<string | null>(null);
-  protected readonly addTypeName = signal('');
-  protected readonly addTypeShortLabel = signal('');
-  protected readonly addTypeTemplate = signal('');
-  protected readonly editingTypeId = signal<string | null>(null);
-  protected readonly editingTypeName = signal('');
-  protected readonly editingTypeShortLabel = signal('');
-  protected readonly editingTypeTemplate = signal('');
 
   // ── Causale di carico (punto E: invisibile, sempre generata in silenzio) ───
   /**
@@ -983,8 +1024,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     externalDocumentTypeId: this.fb.control(''),
     externalDocNumber: this.fb.control(''),
     externalDocDate: this.fb.control(''),
-    /** Protocollo interno: proposto dal progressivo di serie, editabile. */
-    protocolNumber: this.fb.control<number | null>(null),
+    /** Numero interno: proposto dal progressivo di serie, editabile. */
+    documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
     causalText: this.fb.control(''),
     notes: this.fb.control(''),
@@ -1003,6 +1044,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       GOODS_RECEIPT_LINE_PRESETS,
     );
 
+    // Sede predefinita in testata (§1-bis): la regola vive in `domain/`, ed è
+    // la stessa per tutte le maschere. Qui restano i due ganci che cambiano.
+    prefillDefaultLocation({
+      control: this.form.controls.locationId,
+      isEdit: () => this.isEditMode(),
+      write: (apply) => this.withDirtySuppressed(apply),
+    });
+
     // Il rilascio degli sblocchi all'uscita non vive più qui: lo fa
     // DocumentEditLockService, uguale per ogni maschera.
     this.syncSupplierRequirement(this.form.controls.type.value);
@@ -1010,24 +1059,36 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((type) => {
         this.syncSupplierRequirement(type);
-        this.refreshNumberPreview();
+        this.refreshNumberProposal();
       });
     this.form.controls.documentDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshNumberPreview());
+      .subscribe(() => this.refreshNumberProposal());
+    // Cambio sede: la tendina Serie cambia con lei — un contatore legato a una
+    // sede è disponibile SOLO lì, e quelli senza sede ovunque (§1-bis). Senza
+    // questa ricarica l'elenco resterebbe quello chiesto all'apertura, e
+    // mostrerebbe serie che in questa sede non si possono usare.
+    //
+    // `refreshNumberProposal` ricarica l'elenco e ripropone serie e numero solo
+    // se il documento è nuovo e nessuno ha toccato il numero: su un documento
+    // salvato, o con un numero digitato, cambia solo la tendina.
+    this.form.controls.locationId.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberProposal());
     this.form.controls.externalDocumentTypeId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((typeId) => {
-        this.selectedExternalTypeId.set(typeId);
-        this.applyTemplateFromType(typeId);
-      });
+      .subscribe((typeId) => this.applyTemplateFromType(typeId));
     this.form.controls.externalDocNumber.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.regenerateCausalFromTemplate());
     this.form.controls.externalDocDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.regenerateCausalFromTemplate());
-    this.refreshNumberPreview();
+    // La lista dei tipi serve alla causale di carico e al riepilogo mobile:
+    // si carica all'avvio e si ricarica a ogni scelta fatta nel componente
+    // condiviso.
+    this.loadExternalDocTypes();
+    this.refreshNumberProposal();
     this.setupDirtyTracking();
     this.form.controls.supplierId.valueChanges
       .pipe(startWith(this.form.controls.supplierId.value), takeUntilDestroyed(this.destroyRef))
@@ -1635,10 +1696,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       'supplierCode',
       'product',
       'quantity',
+      // Rientrata nel giro: la cella era una tendina di sola creazione
+      // articolo e testo calcolato altrove. Ora l'unità si scrive sulla riga.
+      'unitOfMeasure',
       'unitCost',
       'discount',
       'sellingPrice',
       'compareAtPrice',
+      // Rientrata nel giro: era fuori perché la cella IVA era un
+      // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
+      // la cella a ricerca-e-selezione, con un input vero.
+      'vat',
       'lot',
       'expiry',
       'serials',
@@ -1679,17 +1747,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     removeLine: (index) => this.removeLine(index),
   });
 
-  /**
-   * ⚠️ `vat` NON è nel giro: quella cella è un `app-select-menu`, che non ha
-   * `inputId` né fuoco pubblico — l'identificativo `gr-vat-{i}` esiste nella
-   * mappa ma **non nel DOM**. Prima era escluso a mano dentro il filtro; ora non
-   * è proprio elencato, che è la stessa cosa detta una volta invece che due.
-   *
-   * **Condizione di rientro**, uguale a quella del nome prodotto in Ordine
-   * fornitore: torna nel giro quando `app-select-menu` sarà sostituito dalla
-   * cella a ricerca-e-selezione (specifica §4.3-bis). Senza questa riga
-   * l'esclusione diventa permanente per inerzia.
-   */
   private lineFieldElementId(index: number, field: GoodsReceiptLineFocusField): string {
     return {
       articleCode: `gr-code-${index}`,
@@ -1698,6 +1755,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       supplierCode: `gr-supplier-code-${index}`,
       product: `gr-product-${index}`,
       quantity: `gr-qty-${index}`,
+      unitOfMeasure: `gr-uom-${index}`,
       unitCost: `gr-cost-${index}`,
       discount: `gr-discount-${index}`,
       sellingPrice: `gr-selling-${index}`,
@@ -1954,7 +2012,40 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
         `Riga ${index + 1}: nessun articolo collegato, la riga è stata salvata senza carico magazzino.`,
       );
     }
+    warnings.push(...this.missingCostWarnings());
     return warnings;
+  }
+
+  /**
+   * Righe salvate senza costo: si AVVISA, non si blocca (11/08/2026).
+   *
+   * Vale su questo documento e sull'Ordine fornitore, con le stesse parole.
+   * Un ordine si fa spesso al volo, senza avere ancora il listino del
+   * fornitore sotto mano, e un costo mancante non rompe niente: il documento
+   * vale zero su quella riga finché non lo si scrive. Chi invece il costo lo
+   * conosce va avvisato che se n'è dimenticato — che è un'altra cosa dal non
+   * poter salvare.
+   */
+  private missingCostWarnings(): readonly string[] {
+    const righe: string[] = [];
+    for (let index = 0; index < this.lines.length; index += 1) {
+      const line = this.lines.at(index);
+      if (!lineDraftPersistableForExplicitSave(this.lineDraft(line))) {
+        continue;
+      }
+      if (line.controls.unitCost.value.trim()) {
+        continue;
+      }
+      righe.push(String(index + 1));
+    }
+    if (righe.length === 0) {
+      return [];
+    }
+    return [
+      righe.length === 1
+        ? `Riga ${righe[0]}: salvata senza costo.`
+        : `Righe ${righe.join(', ')}: salvate senza costo.`,
+    ];
   }
 
   protected get lines(): FormArray<ReturnType<GoodsReceiptFormComponent['createLine']>> {
@@ -1991,6 +2082,19 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly formValue = toSignal(this.form.valueChanges, {
     initialValue: this.form.getRawValue(),
   });
+
+  /**
+   * «L'operatore ha toccato il numero?» in forma reattiva. Lo stato vero resta
+   * `documentNumber.dirty` — qui non se ne tiene una copia, si ascolta: gli
+   * eventi del controllo includono `PristineChangeEvent`, quindi il signal si
+   * aggiorna anche su `markAsDirty()`, che `valueChanges` non emette.
+   */
+  private readonly documentNumberPristine = toSignal(
+    this.form.controls.documentNumber.events.pipe(
+      map(() => this.form.controls.documentNumber.pristine),
+    ),
+    { initialValue: true },
+  );
 
   /** Ultima nota anagrafica inserita in automatico (per sostituirla al cambio fornitore). */
   private lastAutoInsertedNote = '';
@@ -2192,13 +2296,59 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return Number.isFinite(qty) && qty > 0 ? qty : 0;
   }
 
+  /**
+   * L'unità di misura della riga — **prima quella della riga**, poi quella
+   * dell'articolo, poi `pz`. È la stessa precedenza dell'Ordine cliente, e per
+   * la stessa ragione: il documento è una fotografia, e la riga tiene per sé
+   * l'unità con cui è stata compilata.
+   *
+   * Il controllo è **uno solo**. Prima ce n'era uno per la creazione articolo e
+   * niente per la riga: l'unità si poteva scegliere solo mentre si creava
+   * l'articolo, e su una riga normale era testo calcolato. Ora è lo stesso
+   * dato — quando l'articolo nasce, il valore va anche in anagrafica.
+   */
   protected lineUnitOfMeasure(index: number): string {
+    const line = this.lines.at(index);
     const summary = this.lineVariantSummary(index);
-    return summary?.unitOfMeasure?.trim() || 'pz';
+    return line?.controls.unitOfMeasure.value.trim() || summary?.unitOfMeasure?.trim() || 'pz';
   }
 
-  /** Unità di misura selezionabili per il nuovo articolo in creazione. */
-  protected readonly unitOfMeasureOptions = COMMON_UNIT_OF_MEASURE;
+  // ── Unità di misura di riga ────────────────────────────────────────────────
+  //
+  // L'elenco si carica UNA volta per maschera, non per cella: la cella sta su
+  // ogni riga, e trenta righe non devono fare trenta chiamate uguali.
+  private readonly unitOfMeasureOptionsService = inject(UnitOfMeasureOptionService);
+  private readonly unitOfMeasureCatalog = this.unitOfMeasureOptionsService.options();
+  protected readonly unitOfMeasureOptions = computed(() =>
+    unitOfMeasureSelectOptions(this.unitOfMeasureCatalog()),
+  );
+  protected readonly unitManagerOpen = signal(false);
+  /** La riga da cui è stato chiesto il pannello: ci torna l'unità creata. */
+  private unitManagerLineIndex = -1;
+
+  protected openUnitManager(index: number): void {
+    this.unitManagerLineIndex = index;
+    this.unitManagerOpen.set(true);
+  }
+
+  protected onUnitOptionsChanged(): void {
+    this.unitOfMeasureOptionsService.reload();
+  }
+
+  /** Un'unità creata dal pannello si scrive da sé: è perché lo si è aperto. */
+  protected onUnitOptionCreated(option: UnitOfMeasureOption): void {
+    if (this.unitManagerLineIndex >= 0) {
+      this.onLineUnitOfMeasureChange(this.unitManagerLineIndex, option.name);
+    }
+  }
+
+  protected onLineUnitOfMeasureChange(index: number, value: string): void {
+    if (this.formReadOnly()) {
+      return;
+    }
+    this.lines.at(index)?.controls.unitOfMeasure.setValue(value.trim());
+    this.markFormDirty();
+  }
 
   protected lineRowComplete(index: number): boolean {
     const line = this.lines.at(index);
@@ -2616,16 +2766,48 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   // ── Documento fornitore (tipo) e Causale di carico ─────────────────────────
 
-  protected onExternalDocTypeSelect(value: string | null): void {
-    if (value === this.NEW_TYPE_OPTION) {
-      this.openNewTypeDialog();
-      return;
-    }
-    if (value === this.MANAGE_TYPES_OPTION) {
-      this.openTypePanel();
-      return;
-    }
-    this.form.controls.externalDocumentTypeId.setValue(value ?? '');
+  /**
+   * Tipo scelto nel componente condiviso. Il valore vive nel form — da lì va
+   * al salvataggio — e la lista locale si ricarica: il tipo può essere nato
+   * un attimo prima nel pannello «Gestisci tipi documento…», e finché non
+   * arriva qui il suo modello di causale non esiste.
+   */
+  protected onExternalDocTypeChange(typeId: string): void {
+    const known = !typeId || this.externalDocTypes().some((type) => type.id === typeId);
+    this.form.controls.externalDocumentTypeId.setValue(typeId);
+    this.loadExternalDocTypes(() => {
+      // Il giro di rete può finire quando l'operatore ha già cambiato idea:
+      // il modello si applica solo se il tipo scelto è ancora quello.
+      if (!known && this.form.controls.externalDocumentTypeId.value === typeId) {
+        this.applyTemplateFromType(typeId);
+      }
+    });
+  }
+
+  /**
+   * L'operatore ha toccato i tipi nel pannello di gestione. Anche senza cambiare
+   * la selezione la lista locale va riallineata: un tipo rinominato lascerebbe
+   * altrimenti l'etichetta vecchia nel riepilogo di testata mobile e il modello
+   * vecchio nella causale di carico.
+   */
+  protected onExternalDocTypesChanged(): void {
+    this.loadExternalDocTypes();
+  }
+
+  /** Ricarica la lista locale dei tipi (la tendina la serve il componente condiviso). */
+  private loadExternalDocTypes(onLoaded?: () => void): void {
+    this.externalTypeService
+      .list()
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (types) => {
+          this._externalDocTypes.set(types);
+          onLoaded?.();
+        },
+        // Una lista che non arriva non svuota quella in mano: al massimo la
+        // causale generata resta indietro di un giro.
+        error: () => undefined,
+      });
   }
 
   /** Cambio tipo documento in modalità AUTO: applica il modello del tipo (§10). */
@@ -2669,175 +2851,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       dateIso: this.form.controls.externalDocDate.value || undefined,
     });
     this.form.controls.causalText.setValue(generated, { emitEvent: options.emitEvent });
-  }
-
-  // ── Nuovo tipo documento fornitore (§5) ────────────────────────────────────
-
-  protected openNewTypeDialog(): void {
-    this.newTypeName.set('');
-    this.newTypeShortLabel.set('');
-    this.newTypeTemplate.set('');
-    this.newTypeError.set(null);
-    this.newTypeDialogOpen.set(true);
-  }
-
-  protected closeNewTypeDialog(): void {
-    this.newTypeDialogOpen.set(false);
-  }
-
-  /** "Salva e usa": crea il tipo, lo seleziona e genera la causale (§5). */
-  protected saveAndUseNewType(): void {
-    const name = this.newTypeName().trim();
-    if (!name || this.newTypeBusy()) {
-      return;
-    }
-    const shortLabel = this.newTypeShortLabel().trim() || name;
-    const causalTemplate = this.newTypeTemplate().trim() || `${shortLabel} {numero} del {data}`;
-    this.newTypeBusy.set(true);
-    this.newTypeError.set(null);
-    this.externalTypeService
-      .create({ name, shortLabel, causalTemplate })
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (created) => {
-          this.newTypeBusy.set(false);
-          this.newTypeDialogOpen.set(false);
-          this.externalTypesReload.update((tick) => tick + 1);
-          this.causalMode.set(CausalGenerationMode.Auto);
-          this.form.controls.externalDocumentTypeId.setValue(created.id, { emitEvent: false });
-          this.selectedExternalTypeId.set(created.id);
-          this.causalTemplate.set(created.causalTemplate ?? causalTemplate);
-          this.applyGeneratedCausal({ emitEvent: true });
-        },
-        error: (err: unknown) => {
-          this.newTypeBusy.set(false);
-          this.newTypeError.set(this.toAppError(err).message);
-        },
-      });
-  }
-
-  // ── Gestione tipi documento fornitore (§6) ─────────────────────────────────
-
-  protected openTypePanel(): void {
-    this.typePanelError.set(null);
-    this.typePanelOpen.set(true);
-  }
-
-  protected closeTypePanel(): void {
-    this.typePanelOpen.set(false);
-    this.editingTypeId.set(null);
-    this.addTypeName.set('');
-    this.addTypeShortLabel.set('');
-    this.addTypeTemplate.set('');
-  }
-
-  protected createTypeFromPanel(): void {
-    const name = this.addTypeName().trim();
-    if (!name || this.typePanelBusy()) {
-      return;
-    }
-    const shortLabel = this.addTypeShortLabel().trim() || name;
-    this.runTypeAction(
-      this.externalTypeService.create({
-        name,
-        shortLabel,
-        causalTemplate: this.addTypeTemplate().trim() || `${shortLabel} {numero} del {data}`,
-      }),
-      () => {
-        this.addTypeName.set('');
-        this.addTypeShortLabel.set('');
-        this.addTypeTemplate.set('');
-      },
-    );
-  }
-
-  protected startEditType(type: ExternalDocumentType): void {
-    this.editingTypeId.set(type.id);
-    this.editingTypeName.set(type.name);
-    this.editingTypeShortLabel.set(type.shortLabel);
-    this.editingTypeTemplate.set(type.causalTemplate ?? '');
-  }
-
-  protected cancelEditType(): void {
-    this.editingTypeId.set(null);
-  }
-
-  protected saveEditType(): void {
-    const id = this.editingTypeId();
-    const name = this.editingTypeName().trim();
-    if (!id || !name || this.typePanelBusy()) {
-      return;
-    }
-    this.runTypeAction(
-      this.externalTypeService.update(id, {
-        name,
-        shortLabel: this.editingTypeShortLabel().trim() || name,
-        causalTemplate: this.editingTypeTemplate().trim(),
-      }),
-      () => this.editingTypeId.set(null),
-    );
-  }
-
-  protected duplicateType(type: ExternalDocumentType): void {
-    if (this.typePanelBusy()) {
-      return;
-    }
-    this.runTypeAction(
-      this.externalTypeService.create({
-        name: `${type.name} (copia)`,
-        shortLabel: type.shortLabel,
-        causalTemplate: type.causalTemplate,
-      }),
-    );
-  }
-
-  protected toggleTypeActive(type: ExternalDocumentType): void {
-    if (this.typePanelBusy()) {
-      return;
-    }
-    this.runTypeAction(this.externalTypeService.update(type.id, { isActive: !type.isActive }));
-  }
-
-  protected deleteType(type: ExternalDocumentType): void {
-    if (this.typePanelBusy()) {
-      return;
-    }
-    this.runTypeAction(this.externalTypeService.delete(type.id));
-  }
-
-  protected moveType(type: ExternalDocumentType, direction: -1 | 1): void {
-    if (this.typePanelBusy()) {
-      return;
-    }
-    const ordered = [...this.externalDocTypes()].map((item) => item.id);
-    const index = ordered.indexOf(type.id);
-    const target = index + direction;
-    if (index < 0 || target < 0 || target >= ordered.length) {
-      return;
-    }
-    const swapped = ordered[target];
-    if (swapped === undefined) {
-      return;
-    }
-    ordered[target] = type.id;
-    ordered[index] = swapped;
-    this.runTypeAction(this.externalTypeService.reorder(ordered));
-  }
-
-  private runTypeAction(action$: Observable<unknown>, onSuccess?: () => void): void {
-    this.typePanelBusy.set(true);
-    this.typePanelError.set(null);
-    action$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => {
-        this.typePanelBusy.set(false);
-        onSuccess?.();
-        this.externalTypesReload.update((tick) => tick + 1);
-      },
-      error: (err: unknown) => {
-        this.typePanelBusy.set(false);
-        this.typePanelError.set(this.toAppError(err).message);
-      },
-    });
   }
 
   /**
@@ -3094,8 +3107,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this._submitState.set({ status: 'error', error: validationError });
       return;
     }
-    // Nessun dialog: la scelta è la spunta per-documento (default acceso).
-    this.executeExplicitSave(this.updateArticleReferenceCost());
+    // Controllo cronologico (§4): se la serie contiene documenti fuori posto
+    // l'operatore lo deve sapere PRIMA di aggiungerne un altro. Avviso, non
+    // blocco — da lì si salva comunque. La regola vive nella guardia condivisa.
+    this.chronology.run(() =>
+      // Nessun dialog: la scelta è la spunta per-documento (default acceso).
+      this.executeExplicitSave(this.updateArticleReferenceCost()),
+    );
   }
 
   /** Spunta «Aggiorna anche il costo di riferimento in anagrafica». */
@@ -3124,6 +3142,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.unlockDialogOpen.set(false);
     this.editLock.unlock(this.persistedDocumentId());
     this.syncLineFieldAccess();
+  }
+
+  /** C'è un fornitore scelto? Tocca `formValue()`: vedi `hasCustomer` in Ordine cliente. */
+  protected hasSupplier(): boolean {
+    this.formValue();
+    return !!this.form.controls.supplierId.value;
   }
 
   protected openSupplierDetail(): void {
@@ -3539,6 +3563,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       return;
     }
     this.exitDialogOpen.set(false);
+    // Come nel salvataggio esplicito: il numero mostrato si legge prima dell'invio.
+    const shownDocumentNumber = this.form.controls.documentNumber.value;
+    const documentNumberWasImposed = this.form.controls.documentNumber.dirty;
     this._submitState.set({ status: 'saving' });
     this.linkAllLineCodes$()
       .pipe(
@@ -3551,6 +3578,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this._submitState.set({ status: 'idle' });
           this.dirtySinceLastSave.set(false);
           this.loadedDocument.set(doc);
+          this.reconcileAssignedDocumentNumber(doc, shownDocumentNumber, documentNumberWasImposed);
           this.resolveExit(true);
         },
         error: (err: unknown) => {
@@ -3874,7 +3902,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.patchFormFromDocument(doc);
     // Documento indipendente: numero fresco e data odierna.
     this.form.patchValue({
-      protocolNumber: null,
+      documentNumber: null,
       documentDate: new Date().toISOString().slice(0, 10),
     });
     // Nessun aggancio all'ordine fornitore dell'originale e righe come nuove
@@ -3886,7 +3914,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       line.get('id')?.setValue('');
       line.get('supplierOrderLineId')?.setValue('');
     }
-    this.refreshNumberPreview();
+    this.refreshNumberProposal();
   }
 
   private resolveSupplierOrderId(): string | null {
@@ -3996,7 +4024,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatRatePercent: this.fb.control(''),
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
-      newProductUnitOfMeasure: this.fb.control('pz'),
+      unitOfMeasure: this.fb.control(''),
       supplierOrderLineId: this.fb.control(orderLine.id),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),
@@ -4103,7 +4131,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatRatePercent: this.fb.control(line.vatRatePercentText),
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
-      newProductUnitOfMeasure: this.fb.control('pz'),
+      unitOfMeasure: this.fb.control(''),
       supplierOrderLineId: this.fb.control(''),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),
@@ -4143,6 +4171,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
 
     this.syncActiveFieldBeforeSave();
+    // Il numero mostrato va letto PRIMA di partire: se il server ne assegna
+    // un altro serve il confronto con quello che l'operatore aveva sotto gli occhi.
+    const shownDocumentNumber = this.form.controls.documentNumber.value;
+    const documentNumberWasImposed = this.form.controls.documentNumber.dirty;
     this._submitState.set({ status: 'saving' });
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = this.linkAllLineCodes$()
@@ -4156,6 +4188,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this._submitState.set({ status: 'idle' });
           this.dirtySinceLastSave.set(false);
           this.loadedDocument.set(doc);
+          this.reconcileAssignedDocumentNumber(doc, shownDocumentNumber, documentNumberWasImposed);
           this.pendingSupplierOrderId.set(null);
           this.pendingLinkedSupplierOrderRef.set(null);
           // "Salva documento" salva e resta nella maschera (§10.7): si esce solo
@@ -4173,7 +4206,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           this.trimDuplicateTrailingEmptyRows();
         },
         error: (err: unknown) => {
-          // Protocollo già preso: il vincolo del database non ammette
+          // Numero già preso: il vincolo del database non ammette
           // duplicati, si può solo prendere il primo libero o correggere.
           const conflict = documentNumberConflictOf(err);
           if (conflict) {
@@ -4186,18 +4219,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       });
   }
 
-  /** «Usa N»: prende il primo protocollo libero e risalva. */
-  /**
-   * Presa d'atto dell'avviso: scrive il numero aggiornato nella testata e si
-   * ferma. Il salvataggio resta una pressione esplicita di Salva.
-   */
   protected acknowledgeConflictNumber(): void {
-    const nextAvailable = this.numberConflictDialog.acknowledge();
-    if (nextAvailable === null) {
-      return;
+    // Il numero nuovo si scrive in testata (specifica numerazione §3): il
+    // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
+    // errore di battitura e un secondo conflitto. Passa dallo store perché da
+    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
+    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
+    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
+    const nuovo = this.numberConflictDialog.acknowledge();
+    if (nuovo != null) {
+      this.numbering.onNumberChange(nuovo);
     }
-    this.form.controls.protocolNumber.setValue(nextAvailable);
-    this.form.controls.protocolNumber.markAsDirty();
   }
 
   private reloadSupplierVariantLinks(supplierId: string): void {
@@ -4267,6 +4299,23 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     readonly registryOnly: boolean;
   }[] = [];
 
+  /**
+   * Numero da inviare: SOLO quello digitato dall'operatore.
+   *
+   * Quello proposto all'apertura è il primo libero *di quel momento*: rimandarlo
+   * indietro lo trasformerebbe in una pretesa, e due maschere aperte insieme si
+   * contenderebbero un numero che nessuna delle due ha scelto — con un dialogo
+   * di conflitto a lavoro finito per il secondo che salva. Omesso, il numero lo
+   * assegna il server dentro la transazione che scrive il documento, e la
+   * contesa si risolve da sola, in silenzio.
+   *
+   * `dirty` è la distinzione, e la tiene lo store: la proposta si scrive senza
+   * sporcare il controllo, la scelta sì.
+   */
+  private requestedDocumentNumber(): number | undefined {
+    return this.numbering.imposedNumber();
+  }
+
   private buildSaveGoodsReceiptBody(): SaveGoodsReceiptBody {
     const raw = this.form.getRawValue();
     const supplierOrderId = this.resolveSupplierOrderId();
@@ -4305,9 +4354,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       billingCause: raw.invoicePending ? 'In attesa fattura' : raw.billingCause.trim() || undefined,
       externalDocNumber: raw.externalDocNumber.trim() || undefined,
       externalDocDate: raw.externalDocDate || undefined,
-      // Protocollo imposto a mano: non sposta il progressivo della serie.
-      number: raw.protocolNumber ?? undefined,
-      series: (raw.series ?? '').trim() || undefined,
+      // Numero imposto a mano: non sposta il progressivo della serie.
+      number: this.requestedDocumentNumber(),
+      series: this.numbering.chosenSeries(),
       ...(supplierOrderId ? { supplierOrderId } : {}),
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
       purchaseCostEntryMode: this.costEntryMode(),
@@ -4333,6 +4382,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           // con `newProduct` la variante nasce in transazione e il movimento
           // parte nello stesso salvataggio (punto A).
           loadsStock: line.loadsStock && (Boolean(line.variantId) || newProduct != null),
+          unitOfMeasure: line.unitOfMeasure?.trim() || undefined,
           supplierOrderLineId: line.supplierOrderLineId || undefined,
           lotCode: line.lotCode.trim() || undefined,
           lotExpiryDate: line.lotExpiryDate
@@ -4361,7 +4411,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       compareAtPriceMinor: compareAt?.amountMinor || undefined,
       purchasePriceMinor: purchase?.amountMinor || undefined,
       vatCodeId: line.vatCodeId || undefined,
-      unitOfMeasure: line.newProductUnitOfMeasure?.trim() || undefined,
+      unitOfMeasure: line.unitOfMeasure?.trim() || undefined,
     };
   }
 
@@ -4554,7 +4604,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       externalDocumentTypeId: doc.externalDocumentTypeId ?? '',
       externalDocNumber: doc.externalDocNumber ?? '',
       externalDocDate: doc.externalDocDate ? doc.externalDocDate.slice(0, 10) : '',
-      protocolNumber: doc.number ?? null,
+      documentNumber: doc.number ?? null,
       series: doc.series ?? '',
       causalText: doc.causalText ?? '',
       notes: doc.notes ?? '',
@@ -4569,7 +4619,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     });
     // Ripristina modalità e modello causale DOPO il patch (il patch dei campi
     // numero/data non deve rigenerare sopra il testo storico, §10/§13).
-    this.selectedExternalTypeId.set(doc.externalDocumentTypeId ?? '');
     this.causalMode.set(
       doc.causalGenerationMode ??
         (doc.causalText?.trim() ? CausalGenerationMode.Manual : CausalGenerationMode.Auto),
@@ -4583,46 +4632,53 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.costEntryModeTouched = true;
     this.lines.clear();
     for (const line of doc.lines ?? []) {
-      this.lines.push(
-        this.fb.group({
-          id: this.fb.control(line.id),
-          variantId: this.fb.control(line.variantId ?? ''),
-          articleCode: this.fb.control(''),
-          sku: this.fb.control(line.sku ?? ''),
-          barcode: this.fb.control(''),
-          supplierSku: this.fb.control(''),
-          productName: this.fb.control(line.description),
-          description: this.fb.control(line.description),
-          quantity: this.fb.control(line.quantity, {
-            validators: [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)],
-          }),
-          // Con costi ivati la colonna mostra il valore digitato (lordo), non
-          // il netto canonico persistito in unitPrice (§11.4).
-          unitCost: this.fb.control(
-            moneyToDecimalString(
-              line.enteredUnitCostMinor != null
-                ? { amountMinor: line.enteredUnitCostMinor, currencyCode: this.currency }
-                : line.unitPrice,
-            ).replace('.', ','),
-          ),
-          sellingPrice: this.fb.control(''),
-          compareAtPrice: this.fb.control(''),
-          discountPercent: this.fb.control(
-            line.discountPercent > 0 ? String(line.discountPercent) : '',
-          ),
-          vatRatePercent: this.fb.control(line.vatSnapshot?.ratePercent?.toString() ?? ''),
-          vatCodeId: this.fb.control(line.vatCodeId ?? ''),
-          // Le righe senza articolo persistono loadsStock=false come artefatto
-          // tecnico (nessun movimento possibile): in UI il flag resta al
-          // default attivo, così al collegamento dell'articolo il carico parte (§11).
-          loadsStock: this.fb.control(line.variantId ? line.loadsStock : true),
-          newProductUnitOfMeasure: this.fb.control('pz'),
-          supplierOrderLineId: this.fb.control(line.supplierOrderLineId ?? ''),
-          lotCode: this.fb.control(line.lotCode ?? ''),
-          lotExpiryDate: this.fb.control(line.lotExpiryDate ? line.lotExpiryDate.slice(0, 10) : ''),
-          serialNumbersText: this.fb.control((line.serialNumbers ?? []).join(', ')),
-        }),
-      );
+      // Una riga la sa costruire `createLine`, e basta lei: qui c'era una
+      // SECONDA copia dei ventuno controlli, scritta a mano. Copie così non
+      // divergono con un errore, divergono con un campo aggiunto da una parte
+      // sola — e nel silenzio, perché il caso comune (documento nuovo) passa
+      // per l'originale e funziona.
+      const group = this.createLine();
+      group.patchValue({
+        id: line.id,
+        variantId: line.variantId ?? '',
+        sku: line.sku ?? '',
+        productName: line.description,
+        description: line.description,
+        quantity: line.quantity,
+        // Con costi ivati la colonna mostra il valore digitato (lordo), non
+        // il netto canonico persistito in unitPrice (§11.4).
+        unitCost: moneyToDecimalString(
+          line.enteredUnitCostMinor != null
+            ? { amountMinor: line.enteredUnitCostMinor, currencyCode: this.currency }
+            : line.unitPrice,
+        ).replace('.', ','),
+        discountPercent: line.discountPercent > 0 ? String(line.discountPercent) : '',
+        vatRatePercent: line.vatSnapshot?.ratePercent?.toString() ?? '',
+        vatCodeId: line.vatCodeId ?? '',
+        // Le righe senza articolo persistono loadsStock=false come artefatto
+        // tecnico (nessun movimento possibile): in UI il flag resta al default
+        // attivo, così al collegamento dell'articolo il carico parte (§11).
+        loadsStock: line.variantId ? line.loadsStock : true,
+        // La fotografia salvata sulla riga, non quella dell'anagrafica di
+        // adesso: è il punto in cui il documento riaperto dice quello che
+        // diceva quando è stato compilato.
+        unitOfMeasure: line.unitOfMeasure ?? '',
+        supplierOrderLineId: line.supplierOrderLineId ?? '',
+        lotCode: line.lotCode ?? '',
+        lotExpiryDate: line.lotExpiryDate ? line.lotExpiryDate.slice(0, 10) : '',
+        serialNumbersText: (line.serialNumbers ?? []).join(', '),
+      });
+      // L'unica differenza vera fra riga nuova e riga già registrata, e adesso
+      // si legge in una riga invece che confrontando due elenchi: su un arrivo
+      // già salvato la quantità può essere ZERO — una riga ordinata e non
+      // ricevuta — mentre una riga nuova parte da uno.
+      group.controls.quantity.setValidators([
+        Validators.required,
+        Validators.min(0),
+        Validators.pattern(/^\d+$/),
+      ]);
+      group.controls.quantity.updateValueAndValidity({ emitEvent: false });
+      this.lines.push(group);
     }
     if (this.lines.length === 0) {
       this.lines.push(this.createLine());
@@ -4654,7 +4710,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       vatCodeId: this.fb.control(''),
       loadsStock: this.fb.control(true),
       // Toggle "Gestito a magazzino" del nuovo articolo (punto B, default sì).
-      newProductUnitOfMeasure: this.fb.control('pz'),
+      unitOfMeasure: this.fb.control(''),
       supplierOrderLineId: this.fb.control(''),
       lotCode: this.fb.control(''),
       lotExpiryDate: this.fb.control(''),
@@ -4686,65 +4742,57 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
-   * serie/protocollo — la selezione resta quella che era. Una serie appena
-   * creata diventa scegliibile; cambiando serie il numero si ricalcola come oggi.
+   * Propone il primo numero libero della serie. Non tocca un valore
+   * digitato a mano (control «dirty»): quello è una scelta dell'operatore, e
+   * un numero imposto non sposta il progressivo della serie.
    */
-  protected onSeriesManagerClosed(): void {
-    this.seriesDialogOpen.set(false);
-    const locationId = this.form.controls.locationId.value || null;
+  private refreshNumberProposal(): void {
     this.countersService
-      .available(this.form.controls.type.value, locationId)
+      .available(
+        this.form.controls.type.value,
+        this.form.controls.locationId.value || null,
+        this.form.controls.documentDate.value,
+      )
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ counters }) => this._availableCounters.set(counters),
+        next: ({ counters, proposedCounterId }) =>
+          this.numbering.applyProposal(counters, proposedCounterId),
         error: () => undefined,
       });
   }
 
   /**
-   * Propone il primo protocollo libero della serie. Non tocca un valore
-   * digitato a mano (control «dirty»): quello è una scelta dell'operatore, e
-   * un protocollo imposto non sposta il progressivo della serie.
+   * Numero assegnato dal server diverso da quello che la testata mostrava: la
+   * proposta era «il primo libero adesso», e nel frattempo l'ha preso un altro.
+   * La testata si allinea al numero vero — un campo che continua a mostrare il
+   * 42 quando il documento è il 46 è peggio di nessun numero — e l'operatore lo
+   * viene a sapere: senza avviso trascriverebbe altrove un numero che non è
+   * il suo.
+   *
+   * Niente avviso se il numero l'aveva imposto lui: quel caso ha già il suo
+   * dialogo di conflitto, e due messaggi per lo stesso fatto sono uno di troppo.
+   * Niente avviso nemmeno se la testata non mostrava alcun numero: non c'è
+   * nulla che cambia sotto gli occhi di chi guarda.
    */
-  private refreshNumberPreview(): void {
-    const type = this.form.controls.type.value;
-    const locationId = this.form.controls.locationId.value || null;
-    this.countersService
-      .available(type, locationId)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters, proposedCounterId }) => {
-          this._availableCounters.set(counters);
-          // Documento già numerato o protocollo digitato: non si tocca.
-          if (this.loadedDocument()?.reference || this.form.controls.protocolNumber.dirty) {
-            return;
-          }
-          const proposed = counters.find((entry) => entry.id === proposedCounterId);
-          if (proposed) {
-            this.form.controls.series.setValue(proposed.series ?? '');
-            this.form.controls.protocolNumber.setValue(proposed.nextNumber);
-          }
-        },
-        error: () => undefined,
-      });
-  }
-
-  /** Protocollo digitato in testata: vuoto = «assegnalo tu». */
-  protected onProtocolNumberChange(value: number | null): void {
-    this.form.controls.protocolNumber.setValue(value);
-    this.form.controls.protocolNumber.markAsDirty();
-  }
-
-  /** Serie scelta: il protocollo passa al progressivo di quel contatore. */
-  protected onSeriesChange(value: string): void {
-    this.form.controls.series.setValue(value);
-    this.form.controls.series.markAsDirty();
-    const counter = this._availableCounters().find((entry) => (entry.series ?? '') === value);
-    if (counter) {
-      this.form.controls.protocolNumber.setValue(counter.nextNumber);
-      this.form.controls.protocolNumber.markAsPristine();
+  private reconcileAssignedDocumentNumber(
+    doc: DocumentRecord,
+    shownNumber: number | null,
+    imposed: boolean,
+  ): void {
+    const assigned = doc.number ?? null;
+    if (assigned == null || assigned === shownNumber) {
+      return;
     }
+    // Allineare il campo non è una modifica dell'operatore: il documento resta
+    // salvato, e `setValue` non tocca `dirty` — la proposta resta proposta e la
+    // scelta resta scelta.
+    this.withDirtySuppressed(() => this.form.controls.documentNumber.setValue(assigned));
+    if (imposed || shownNumber == null) {
+      return;
+    }
+    this.toasts.showInfo(
+      `Salvato con il n. ${assigned}: il ${shownNumber} è stato preso da un altro operatore.`,
+    );
   }
 
   private toAppError(err: unknown): AppError {

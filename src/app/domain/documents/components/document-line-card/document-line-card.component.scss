@@ -1,0 +1,244 @@
+// La riga documento come card, sotto lg. Viene dalla card dell'Ordine cliente,
+// promossa a card di tutti i documenti: lo stile è quello, i nomi cambiano
+// perché non appartiene più a una schermata sola (regole-architettura, «i nomi
+// dichiarano l'appartenenza»).
+//
+// Qui c'è solo la FORMA. I campi che le maschere proiettano dentro si vestono
+// da soli — `document-line-card-field`, `-group`, `-metric` — perché il
+// contenuto proiettato porta l'incapsulamento di chi lo scrive, non di chi lo
+// ospita: una regola scritta qui non lo raggiungerebbe.
+
+:host {
+  display: block;
+}
+
+// Punti di regolazione della forma esterna. Il contenitore decide se le card
+// sono riquadri staccati o righe di un elenco continuo: è una scelta
+// dell'impaginato, non della card (regole-stile-ui §5).
+.doc-line-card {
+  background-color: var(--color-surface);
+  border: var(--doc-line-card-border, var(--border-width) solid var(--color-border));
+  border-radius: var(--doc-line-card-radius, var(--radius-lg));
+  overflow: hidden;
+  box-shadow: var(--doc-line-card-shadow, var(--shadow-card));
+  transition:
+    border-color var(--transition-base) var(--ease-standard),
+    box-shadow var(--transition-base) var(--ease-standard),
+    transform 120ms var(--ease-standard);
+
+  // Contatto visivo al tocco (<150ms): leggero affondo della card riga.
+  &:active {
+    transform: scale(0.995);
+  }
+}
+
+.doc-line-card--open {
+  border-color: var(--color-card-open-border);
+  box-shadow: var(--shadow-md);
+}
+
+.doc-line-card--incomplete {
+  box-shadow: inset var(--space-1) 0 0 0 var(--status-warning-border);
+}
+
+// Alert di riga sopra tutto: informativo, non bloccante.
+.doc-line-card__alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-2xs);
+  color: var(--status-warning-fg);
+  background-color: var(--status-warning-bg);
+  border-block-end: var(--border-width) solid var(--status-warning-border);
+}
+
+.doc-line-card__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  inline-size: 100%;
+  padding: var(--doc-line-card-section-pad, var(--space-2) var(--space-3));
+  background-color: var(--color-surface);
+  border: 0;
+  transition: background-color 120ms var(--ease-standard);
+
+  &:active {
+    background-color: var(--color-surface-soft);
+  }
+}
+
+.doc-line-card--open .doc-line-card__head {
+  background-color: var(--color-card-open-bg);
+}
+
+// Riga 1 — elimina (sx) · nome · chevron (dx).
+.doc-line-card__topline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--control-h-touch);
+}
+
+.doc-line-card__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-inline-size: var(--control-h-touch);
+  min-block-size: var(--control-h-touch);
+  color: var(--color-danger);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:active:not(:disabled) {
+    background-color: var(--color-danger-subtle);
+  }
+
+  &:disabled {
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+  }
+}
+
+.doc-line-card__expand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: var(--control-h-touch);
+  padding: 0;
+  text-align: start;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.doc-line-card__name {
+  flex: 1;
+  min-inline-size: 0;
+  font-size: var(--text-card-title);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-line-card__chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-base) var(--ease-standard);
+
+  .doc-line-card--open & {
+    transform: rotate(180deg);
+  }
+}
+
+// Riga 2 — la variante su riga propria, leggibile sotto il nome.
+.doc-line-card__variant {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Riga 3 — meta: codice, SKU, disponibilità restano leggibili a card chiusa.
+.doc-line-card__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.doc-line-card__meta-item {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:not(:first-child) {
+    position: relative;
+    flex-shrink: 0;
+    padding-inline-start: calc(var(--space-2) + var(--space-2));
+
+    &::before {
+      content: '·';
+      position: absolute;
+      inset-inline-start: var(--space-2);
+    }
+  }
+}
+
+// La voce in coda si stacca sul lato opposto e perde il punto di separazione:
+// non è una della fila, è il dato che si cerca per primo.
+.doc-line-card__meta-item--trailing {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+
+  &:not(:first-child) {
+    padding-inline-start: 0;
+
+    &::before {
+      content: none;
+    }
+  }
+}
+
+.doc-line-card__meta-item--warning {
+  color: var(--status-warning-fg);
+  font-weight: var(--font-weight-semibold);
+}
+
+// Riga 4 — i valori sempre visibili. Tre colonne: la prima e l'ultima si
+// dimensionano sul contenuto, quella di mezzo prende lo spazio che resta.
+.doc-line-card__controls {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: end;
+  gap: var(--space-3);
+  margin-block-start: var(--space-1);
+}
+
+.doc-line-card__body {
+  padding: var(--doc-line-card-section-pad, var(--space-2) var(--space-3));
+  background-color: var(--color-card-body-bg);
+  border-block-start: var(--border-width) solid var(--color-border);
+}
+
+.doc-line-card__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.doc-line-card__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+  --field-height: var(--control-h-touch);
+  --button-flex: 1 1 0;
+  --button-inline-size: 100%;
+}
+
+// Rispetto di «riduci animazioni»: la card smette di affondare al tocco.
+@media (prefers-reduced-motion: reduce) {
+  .doc-line-card,
+  .doc-line-card__head {
+    transition-duration: 0.01ms;
+  }
+
+  .doc-line-card:active {
+    transform: none;
+  }
+}

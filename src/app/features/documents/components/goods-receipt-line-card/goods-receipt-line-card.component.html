@@ -1,184 +1,182 @@
-<article
-  class="gr-card"
-  [class.gr-card--incomplete]="incomplete()"
-  [attr.aria-label]="'Riga ' + (lineIndex() + 1)"
+<!--
+  La forma è della card condivisa; qui c'è quello che un ARRIVO MERCE ha da
+  dire: costo nella modalità netto/ivato del documento, prezzo al pubblico e
+  barrato, e il flag «carica magazzino» che dice se questa riga muove giacenza.
+
+  Due cose cambiano rispetto a prima, e discendono dall'adottare la forma:
+  il nome prodotto si modifica nel corpo — nella testata è il titolo, come in
+  ogni altro documento — e l'interruttore «Dettagli economici» sparisce, perché
+  ad aprire la card ci pensa il chevron della testata.
+-->
+<app-document-line-card
+  [lineIndex]="lineIndex()"
+  [open]="detailsOpen()"
+  [complete]="!incomplete()"
+  [readOnly]="disabled()"
+  [canRemove]="canRemove()"
+  [title]="linked() ? productLabel() : line().controls.productName.value"
+  [meta]="metaItems()"
+  [alert]="incomplete() ? 'Riga incompleta: collega un articolo e verifica quantità e costo.' : ''"
+  (toggled)="toggleDetails()"
+  (removeRequested)="removed.emit(lineIndex())"
+  (removed)="removed.emit(lineIndex())"
+  (duplicated)="duplicated.emit(lineIndex())"
 >
-  <header class="gr-card__header">
-    <div class="gr-card__product">
-      @if (linked()) {
-        <p class="gr-card__name">{{ productLabel() }}</p>
-        @if (codeLabel()) {
-          <p class="gr-card__code tabular-nums">{{ codeLabel() }}</p>
-        }
-      } @else {
-        <div class="gr-card__search">
-          <input
-            class="gr-card__input gr-card__input--name"
-            type="text"
-            [formControl]="line().controls.productName"
-            placeholder="Nome prodotto…"
-            [attr.aria-label]="'Nome prodotto riga ' + (lineIndex() + 1)"
-            autocomplete="off"
-            role="combobox"
-            [attr.aria-expanded]="suggestionsOpen()"
-            [attr.aria-controls]="'gr-card-suggestions-' + lineIndex()"
-            (input)="onNameInput($any($event.target).value)"
-            (focus)="nameFocus.emit(lineIndex())"
-            (blur)="nameBlur.emit(lineIndex())"
-          />
-          @if (suggestionsOpen()) {
-            <app-document-line-suggestions
-              [items]="suggestionItems()"
-              [listboxId]="'gr-card-suggestions-' + lineIndex()"
-              ariaLabel="Articoli suggeriti"
-              (picked)="pickSuggestion($event)"
-            />
-          }
-        </div>
-      }
-    </div>
-    <button
-      type="button"
-      class="gr-card__icon-btn"
-      [disabled]="disabled()"
-      aria-label="Cerca articolo"
-      (click)="searchProduct.emit(lineIndex())"
-    >
-      <i class="pi pi-search" aria-hidden="true"></i>
-    </button>
-  </header>
-
-  @if (incomplete()) {
-    <p class="gr-card__warning" role="status">
-      Riga incompleta: collega un articolo e verifica quantità e costo.
-    </p>
-  }
-
-  <div class="gr-card__main">
-    <label class="gr-card__field">
-      <span class="gr-card__label">Quantità</span>
+  <ng-container cardControls>
+    <app-document-line-card-control label="Quantità">
       <input
-        class="gr-card__input gr-card__input--num"
+        class="gr-card__qty-input tabular-nums"
         type="number"
         min="0"
         step="1"
         [formControl]="line().controls.quantity"
+        aria-label="Quantità"
         (blur)="fieldBlur.emit(lineIndex())"
       />
-    </label>
-    <label class="gr-card__field">
-      <span class="gr-card__label">{{ costLabel() }}</span>
+    </app-document-line-card-control>
+
+    <app-document-line-card-control [label]="costLabel()">
       <input
-        class="gr-card__input gr-card__input--num"
+        class="gr-card__cost-input tabular-nums"
         type="text"
         inputmode="decimal"
         [formControl]="line().controls.unitCost"
         placeholder="0,00"
+        aria-label="Costo unitario"
         (blur)="fieldBlur.emit(lineIndex())"
       />
-    </label>
-    <div class="gr-card__field gr-card__field--total">
-      <span class="gr-card__label">Totale riga</span>
+    </app-document-line-card-control>
+
+    <app-document-line-card-control label="Totale riga">
       <span class="gr-card__total tabular-nums">
         @if (grossLabel(); as gross) {
           <s class="gr-card__gross">{{ gross }}</s>
         }
         {{ totalLabel() }}
       </span>
-    </div>
-  </div>
+    </app-document-line-card-control>
+  </ng-container>
 
-  <button
-    type="button"
-    class="gr-card__toggle"
-    [attr.aria-expanded]="detailsOpen()"
-    (click)="toggleDetails()"
-  >
-    <i
-      class="pi"
-      [class.pi-chevron-down]="!detailsOpen()"
-      [class.pi-chevron-up]="detailsOpen()"
-      aria-hidden="true"
-    ></i>
-    Dettagli economici
-  </button>
+  <ng-container cardBody>
+    <app-document-line-card-group label="Articolo" [first]="true" />
 
-  @if (detailsOpen()) {
-    <div class="gr-card__details">
-      <label class="gr-card__field">
-        <span class="gr-card__label">Sconto %</span>
+    <app-document-line-card-field label="Nome prodotto" [full]="true">
+      <div class="gr-card__search">
         <input
-          class="gr-card__input gr-card__input--num"
+          class="doc-form__input"
           type="text"
-          [formControl]="line().controls.discountPercent"
-          placeholder="0%"
-          (blur)="fieldBlur.emit(lineIndex())"
+          [formControl]="line().controls.productName"
+          placeholder="Nome prodotto…"
+          [attr.aria-label]="'Nome prodotto riga ' + (lineIndex() + 1)"
+          autocomplete="off"
+          role="combobox"
+          [attr.aria-expanded]="suggestionsOpen()"
+          [attr.aria-controls]="'gr-card-suggestions-' + lineIndex()"
+          (input)="onNameInput($any($event.target).value)"
+          (focus)="nameFocus.emit(lineIndex())"
+          (blur)="nameBlur.emit(lineIndex())"
         />
-      </label>
-      <div class="gr-card__field">
-        <span class="gr-card__label" [id]="'gr-card-vat-' + lineIndex()">IVA</span>
-        <app-select-menu
-          [options]="vatOptions()"
-          [value]="vatValue()"
-          ariaLabel="Codice IVA riga"
-          placeholder="—"
-          [compact]="true"
-          [fullWidth]="true"
-          [includeEmptyOption]="false"
-          (valueChange)="vatChange.emit($event)"
-        />
+        <button
+          type="button"
+          class="gr-card__search-btn"
+          [disabled]="disabled()"
+          aria-label="Cerca articolo"
+          (mousedown)="$event.preventDefault()"
+          (click)="searchProduct.emit(lineIndex())"
+        >
+          <i class="pi pi-search" aria-hidden="true"></i>
+        </button>
+        @if (suggestionsOpen()) {
+          <app-document-line-suggestions
+            [items]="suggestionItems()"
+            [listboxId]="'gr-card-suggestions-' + lineIndex()"
+            ariaLabel="Articoli suggeriti"
+            (picked)="pickSuggestion($event)"
+          />
+        }
       </div>
-      <label class="gr-card__field">
-        <span class="gr-card__label">Prezzo al pubblico</span>
-        <input
-          class="gr-card__input gr-card__input--num"
-          type="text"
-          inputmode="decimal"
-          [formControl]="line().controls.sellingPrice"
-          placeholder="0,00"
-          (blur)="fieldBlur.emit(lineIndex())"
-        />
-      </label>
-      <label class="gr-card__field">
-        <span class="gr-card__label">Prezzo barrato</span>
-        <input
-          class="gr-card__input gr-card__input--num"
-          type="text"
-          inputmode="decimal"
-          [formControl]="line().controls.compareAtPrice"
-          placeholder="0,00"
-          (blur)="fieldBlur.emit(lineIndex())"
-        />
-      </label>
+    </app-document-line-card-field>
+
+    <app-document-line-card-group label="Magazzino" />
+
+    <app-document-line-card-field label="U.m.">
+      <app-document-line-unit-cell
+        [lineIndex]="lineIndex()"
+        [value]="unitOfMeasure()"
+        [options]="unitOfMeasureOptions()"
+        [disabled]="disabled()"
+        [inColumnCycle]="false"
+        (valueChange)="unitOfMeasureChanged.emit($event)"
+        (manageRequested)="unitManagerRequested.emit()"
+      />
+    </app-document-line-card-field>
+
+    <app-document-line-card-field label="Carica magazzino">
+      <!--
+        Il flag decide se questa riga muove giacenza: righe di spesa o servizio
+        non la muovono. È del documento d'acquisto, non della forma.
+      -->
       <label class="gr-card__check">
         <input
           type="checkbox"
           [formControl]="line().controls.loadsStock"
           (change)="fieldBlur.emit(lineIndex())"
         />
-        Carica magazzino
+        Carica
       </label>
-    </div>
-  }
+    </app-document-line-card-field>
 
-  <footer class="gr-card__actions">
-    <button
-      type="button"
-      class="gr-card__action"
-      [disabled]="disabled()"
-      (click)="duplicated.emit(lineIndex())"
-    >
-      <i class="pi pi-clone" aria-hidden="true"></i>
-      Duplica
-    </button>
-    <button
-      type="button"
-      class="gr-card__action gr-card__action--danger"
-      [disabled]="!canRemove()"
-      (click)="removed.emit(lineIndex())"
-    >
-      <i class="pi pi-trash" aria-hidden="true"></i>
-      Elimina
-    </button>
-  </footer>
-</article>
+    <app-document-line-card-group label="Costi e prezzi" />
+
+    <app-document-line-card-field label="Sconto">
+      <input
+        class="doc-form__input"
+        type="text"
+        [formControl]="line().controls.discountPercent"
+        placeholder="0%"
+        aria-label="Sconto"
+        (blur)="fieldBlur.emit(lineIndex())"
+      />
+    </app-document-line-card-field>
+
+    <app-document-line-card-field label="IVA">
+      <!--
+        Stessa cella della tabella, fuori dal giro delle colonne: su card le
+        colonne non ci sono, quindi il Tab resta al browser.
+      -->
+      <app-document-line-select-cell
+        [lineIndex]="lineIndex()"
+        ariaLabel="Codice IVA riga"
+        [options]="vatOptions()"
+        [value]="vatValue()"
+        [disabled]="disabled()"
+        [inColumnCycle]="false"
+        (valueChange)="vatChange.emit($event)"
+      />
+    </app-document-line-card-field>
+
+    <app-document-line-card-field label="Prezzo al pubblico">
+      <input
+        class="doc-form__input"
+        type="text"
+        inputmode="decimal"
+        [formControl]="line().controls.sellingPrice"
+        placeholder="0,00"
+        aria-label="Prezzo al pubblico"
+        (blur)="fieldBlur.emit(lineIndex())"
+      />
+    </app-document-line-card-field>
+
+    <app-document-line-card-field label="Prezzo barrato">
+      <input
+        class="doc-form__input"
+        type="text"
+        inputmode="decimal"
+        [formControl]="line().controls.compareAtPrice"
+        placeholder="0,00"
+        aria-label="Prezzo barrato"
+        (blur)="fieldBlur.emit(lineIndex())"
+      />
+    </app-document-line-card-field>
+  </ng-container>
+</app-document-line-card>

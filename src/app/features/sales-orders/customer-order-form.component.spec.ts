@@ -1,18 +1,22 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
-import { render } from '@testing-library/angular';
+import { render, screen, waitFor } from '@testing-library/angular';
+import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { DocumentType } from '@core/models/document.model';
 import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
 import { DocumentActionsService } from '@core/services/document-actions.service';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
+import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentService } from '@domain/documents/services/document.service';
+import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { ProductService } from '@domain/products/services/product.service';
@@ -47,7 +51,6 @@ function operationalLocationsMock() {
     actionLocations: () => LOCATIONS,
     transferTargetLocations: () => LOCATIONS,
     defaultLocation: () => null,
-    suggestedWriteLocation: () => null,
     isFixedSingleStore: () => false,
     fixedSingleStoreLocationId: () => null,
     fixedSingleStoreLabel: () => null,
@@ -65,14 +68,37 @@ interface FormOptions {
   readonly document?: unknown;
   readonly order?: unknown;
   readonly updateDocument?: ReturnType<typeof vi.fn>;
+  readonly createDocument?: ReturnType<typeof vi.fn>;
   readonly saveManualOrder?: ReturnType<typeof vi.fn>;
   /** Tipi di scarico disponibili: senza, «Concludi ordine» non compare mai. */
   readonly unloadDocumentTypes?: readonly string[];
+  /** Primo numero libero proposto dal numeratore predefinito del tipo. */
+  readonly proposedNumber?: number;
+  /** Tipo del numeratore proposto (deve combaciare con `kind`). */
+  readonly counterType?: DocumentType;
+  readonly toast?: { readonly showInfo: ReturnType<typeof vi.fn> };
 }
 
 function formProviders(options: FormOptions = {}) {
+  const counters =
+    options.proposedNumber === undefined
+      ? []
+      : [
+          {
+            id: 'cnt-1',
+            type: options.counterType ?? DocumentType.Quote,
+            series: null,
+            locationId: null,
+            locationName: null,
+            isDefault: true,
+            nextNumber: options.proposedNumber,
+            documentCount: 0,
+          },
+        ];
   return [
-    provideRouter([]),
+    // Catch-all: creato il documento, la maschera naviga davvero al dettaglio.
+    // Senza una rotta che agganci, quella navigazione fallisce.
+    provideRouter([{ path: '**', children: [] }]),
     {
       provide: ActivatedRoute,
       useValue: {
@@ -108,19 +134,31 @@ function formProviders(options: FormOptions = {}) {
     { provide: DocumentActionsService, useValue: { set: vi.fn(), clear: vi.fn() } },
     {
       provide: DocumentCountersService,
-      useValue: { available: () => of({ counters: [], proposedCounterId: null }) },
+      useValue: {
+        available: () => of({ counters, proposedCounterId: counters.length > 0 ? 'cnt-1' : null }),
+      },
     },
+    {
+      provide: ToastService,
+      useValue: options.toast ?? { showInfo: vi.fn(), showError: vi.fn() },
+    },
+    // Tendina del documento della controparte in testata: il componente
+    // condiviso la carica appena viene montato.
+    { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
     {
       provide: DocumentService,
       useValue: {
         getDocumentById: options.document ? () => of(options.document) : vi.fn(),
-        createDocument: vi.fn(),
+        createDocument: options.createDocument ?? vi.fn(),
         updateDocument: options.updateDocument ?? vi.fn(),
         previewDocumentNumber: () =>
           of({ reference: 'OC-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
         // Solo i documenti a registro leggono la preferenza: l'Ordine
         // cliente resta a netto (modalita' prezzo ri-gated).
         getPriceModePreference: () => of(false),
+        // Controllo cronologico (§4): serie in ordine, nessun avviso.
+        checkChronology: () => of({ conflicts: [], dismissed: false }),
+        dismissChronologyWarning: () => of(void 0),
       },
     },
     {
@@ -343,6 +381,8 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
         isOpen: () => boolean;
       };
       acknowledgeConflictNumber: () => void;
+      /** True finché in testata c'è la proposta e nessuno l'ha toccata. */
+      numberIsProposal: () => boolean;
     };
 
     return { ...view, component };
@@ -530,24 +570,47 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
 
   /**
    * Avviso di conflitto sul numero: è una presa d'atto, non una scelta.
-   * Il numero viene aggiornato nella testata e il documento NON viene salvato —
-   * il salvataggio resta una pressione esplicita di Salva.
+   *
+   * Il documento NON viene salvato, ma **la testata SÌ viene aggiornata**
+   * (specifica numerazione §3): il numero digitato è perso comunque — il buco
+   * l'ha appena preso un altro — e lavorando in più persone l'operatore non può
+   * sapere quale sia il prossimo libero se non glielo si scrive. Chi voleva un
+   * altro buco lo digita: il campo resta suo.
+   *
+   * ⚠️ Fino al 12/08/2026 queste prove fissavano il contrario, ed erano l'unico
+   * punto in cui il codice contraddiceva una decisione presa invece di non
+   * averla ancora eseguita.
    */
   describe('conflitto sul numero documento', () => {
     const conflitto = {
       code: 'document_number_taken',
-      number: 5,
-      nextAvailable: 7,
+      number: 7,
+      nextAvailable: 44,
       series: 'A',
     };
 
-    it('la presa d’atto scrive il numero aggiornato nella testata', async () => {
+    it('la presa d’atto scrive in testata il numero nuovo', async () => {
       view = await setup();
+      view.component.form.controls['documentNumber']!.setValue(7);
       view.component.numberConflictDialog.open(conflitto);
 
       view.component.acknowledgeConflictNumber();
 
-      expect(view.component.form.controls['documentNumber']!.value).toBe(7);
+      expect(view.component.form.controls['documentNumber']!.value).toBe(44);
+    });
+
+    // Il numero nuovo è una SCELTA, non una proposta: deve viaggiare al
+    // salvataggio successivo. Se restasse pristine, `numberIsProposal()` lo
+    // ometterebbe e il server ne assegnerebbe un terzo — diverso da quello
+    // appena mostrato all'operatore.
+    it('il numero nuovo viaggia al salvataggio, non passa per proposta', async () => {
+      view = await setup();
+      view.component.form.controls['documentNumber']!.setValue(7);
+      view.component.numberConflictDialog.open(conflitto);
+
+      view.component.acknowledgeConflictNumber();
+
+      expect(view.component.numberIsProposal()).toBe(false);
     });
 
     it('la presa d’atto NON salva il documento', async () => {
@@ -883,6 +946,145 @@ describe('CustomerOrderFormComponent — ordini da canale esterno', () => {
 });
 
 /**
+ * Numero proposto e numero imposto.
+ *
+ * Il numero in testata è il primo libero: mostrarlo aiuta chi compila, ma
+ * rimandarlo al server lo trasforma in una scelta — e il secondo operatore si
+ * becca un dialogo di conflitto per un numero che gli aveva proposto la
+ * maschera. Quando invece è l'operatore a scriverlo (per riempire un buco nella
+ * numerazione) resta un'imposizione e viaggia col documento.
+ */
+describe('CustomerOrderFormComponent — numero proposto e numero imposto', () => {
+  interface NumberForm {
+    readonly numberIsProposal: () => boolean;
+    readonly form: { controls: Record<string, { value: unknown }> };
+    saveDocument: () => void;
+  }
+
+  /** Preventivo appena salvato, come lo restituisce il server. */
+  function preventivoSalvato(number: number) {
+    return {
+      id: 'doc-1',
+      type: 'quote',
+      status: 'confirmed',
+      reference: `PRE-2026-${String(number).padStart(4, '0')}`,
+      number,
+      series: 'A',
+      documentDate: '2026-08-01T00:00:00.000Z',
+      customerId: null,
+      customerName: 'Cliente prova',
+      locationId: 'loc-1',
+      currency: 'EUR',
+      pricesIncludeVat: false,
+      documentDiscountPercent: 0,
+      lines: [],
+    };
+  }
+
+  interface NumberOptions {
+    /** Primo numero libero che il numeratore propone in testata. */
+    readonly proposedNumber?: number;
+    /** Numero che il server assegna davvero (diverso = l'ha preso un altro). */
+    readonly assignedNumber?: number;
+  }
+
+  async function apriPreventivo(options: NumberOptions = {}) {
+    const proposedNumber = options.proposedNumber ?? 42;
+    const createDocument = vi.fn((_body: Record<string, unknown>) =>
+      of(preventivoSalvato(options.assignedNumber ?? proposedNumber)),
+    );
+    const toast = { showInfo: vi.fn(), showError: vi.fn() };
+
+    const view = await render(CustomerOrderFormComponent, {
+      providers: formProviders({
+        kind: 'quote',
+        user: { id: 'u-1', role: 'owner' },
+        proposedNumber,
+        createDocument,
+        toast,
+      }),
+    });
+    const form = view.fixture.componentInstance as unknown as NumberForm;
+
+    // La proposta arriva dopo il primo render: aspettarla è ciò che rende
+    // attendibile tutto il resto del test.
+    await waitFor(() => expect(form.form.controls['documentNumber']!.value).toBe(proposedNumber));
+    const numberInput = (await screen.findAllByLabelText<HTMLInputElement>('Numero'))[0]!;
+
+    return { form, numberInput, createDocument, toast };
+  }
+
+  it('il numero proposto non viene inviato: lo assegna il server', async () => {
+    const { form, createDocument, toast } = await apriPreventivo({ proposedNumber: 42 });
+
+    expect(form.numberIsProposal()).toBe(true);
+
+    form.saveDocument();
+
+    expect(createDocument).toHaveBeenCalledTimes(1);
+    const body = createDocument.mock.calls[0]![0];
+    expect(body['number']).toBeUndefined();
+    // Numero assegnato uguale a quello mostrato: niente da segnalare.
+    expect(toast.showInfo).not.toHaveBeenCalled();
+  });
+
+  it('il campo dichiara che il numero è una proposta', async () => {
+    await apriPreventivo({ proposedNumber: 42 });
+
+    const hints = await screen.findAllByText('Primo libero: lo prende chi salva per primo.');
+    expect(hints.length).toBeGreaterThan(0);
+  });
+
+  // L'altra metà della regola: il numero scritto a mano è una scelta, e va
+  // difesa fino al dialogo di conflitto se quel numero è già occupato.
+  it('il numero digitato dall’operatore viene inviato', async () => {
+    const user = userEvent.setup();
+    const { form, numberInput, createDocument } = await apriPreventivo({
+      proposedNumber: 42,
+      assignedNumber: 7,
+    });
+
+    await user.clear(numberInput);
+    await user.type(numberInput, '7');
+    expect(form.numberIsProposal()).toBe(false);
+
+    form.saveDocument();
+
+    const body = createDocument.mock.calls[0]![0];
+    expect(body['number']).toBe(7);
+  });
+
+  // Concorrenza: il server ha assegnato il primo libero e non è più quello che
+  // l'operatore aveva davanti. Dirglielo, o trascriverà il numero sbagliato.
+  it('avvisa quando il numero assegnato è diverso da quello proposto', async () => {
+    const { form, toast } = await apriPreventivo({ proposedNumber: 42, assignedNumber: 46 });
+
+    form.saveDocument();
+
+    expect(toast.showInfo).toHaveBeenCalledWith(
+      'Salvato con il n. 46: il 42 è stato preso da un altro operatore.',
+    );
+  });
+
+  // Il controllo inverso: sul numero imposto l'avviso tace, perché quel caso ha
+  // già il suo dialogo di conflitto e due messaggi per la stessa cosa confondono.
+  it('sul numero imposto non aggiunge un avviso al dialogo di conflitto', async () => {
+    const user = userEvent.setup();
+    const { form, numberInput, toast } = await apriPreventivo({
+      proposedNumber: 42,
+      assignedNumber: 46,
+    });
+
+    await user.clear(numberInput);
+    await user.type(numberInput, '42');
+
+    form.saveDocument();
+
+    expect(toast.showInfo).not.toHaveBeenCalled();
+  });
+});
+
+/**
  * Conferma di un codice: gli esiti sono TRE, non due.
  *
  * Prima di 08/2026 questa maschera passava da `resolveVariantIdByCode`, che
@@ -1109,6 +1311,98 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
 });
 
 /**
+ * La maschera serve quattro modalità, e tre di loro vivono nel registro
+ * `documents`. La quarta — l'Ordine cliente — vive in `SalesOrder` e ha un
+ * numeratore proprio: chiedere per lei le serie del Preventivo mostrava in
+ * testata numeri di un altro tipo documento, e faceva controllare la
+ * cronologia (§4) su una serie che non è la sua.
+ */
+describe('CustomerOrderFormComponent — quale numeratore chiede ogni modalità', () => {
+  async function apri(kind?: 'quote' | 'sales-ddt' | 'manual-unload') {
+    const available = vi.fn((_type: DocumentType, _locationId?: string | null, _data?: string) =>
+      of({ counters: [], proposedCounterId: null }),
+    );
+    const checkChronology = vi.fn(
+      (_type: DocumentType, _series: string, _numero: number, _data: string) =>
+        of({ conflicts: [], dismissed: false }),
+    );
+
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders({ kind, user: { id: 'u-1', role: 'owner' } }),
+        // Ultimo provider vince: le spie sostituiscono i doppioni di comodo.
+        { provide: DocumentCountersService, useValue: { available } },
+        {
+          provide: DocumentService,
+          useValue: {
+            getDocumentById: vi.fn(),
+            createDocument: vi.fn(),
+            updateDocument: vi.fn(),
+            previewDocumentNumber: () =>
+              of({ reference: 'X-1', previewNumber: 1, series: 'A', year: 2026 }),
+            getPriceModePreference: () => of(false),
+            checkChronology,
+            dismissChronologyWarning: () => of(void 0),
+          },
+        },
+      ],
+    });
+
+    await waitFor(() => expect(available).toHaveBeenCalled());
+    const istanza = view.fixture.componentInstance as unknown as {
+      chronology: { run: (salva: () => void) => void };
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+    };
+
+    return { available, checkChronology, chronology: istanza.chronology, form: istanza.form };
+  }
+
+  it('l’Ordine cliente chiede le serie del proprio numeratore, non quelle del Preventivo', async () => {
+    const { available } = await apri();
+
+    expect(available.mock.calls[0]![0]).toBe(DocumentType.CustomerOrder);
+  });
+
+  it('l’Ordine cliente controlla la cronologia sul proprio tipo', async () => {
+    const { checkChronology, chronology, form } = await apri();
+    // Senza un numero in testata non c'è una coppia da controllare e la
+    // chiamata non parte: è la regola del §4, non un dettaglio del test.
+    form.controls['documentNumber']!.setValue(7);
+    form.controls['documentDate']!.setValue('2026-08-13');
+
+    chronology.run(() => undefined);
+
+    const [tipo, , numero, data] = checkChronology.mock.calls[0]!;
+    expect(tipo).toBe(DocumentType.CustomerOrder);
+    expect(numero).toBe(7);
+    expect(data).toBe('2026-08-13');
+  });
+
+  it('senza numero in testata non chiede niente e lascia salvare', async () => {
+    const { checkChronology, chronology, form } = await apri();
+    form.controls['documentNumber']!.setValue(null);
+    const salvato = vi.fn();
+
+    chronology.run(salvato);
+
+    expect(checkChronology).not.toHaveBeenCalled();
+    expect(salvato).toHaveBeenCalledTimes(1);
+  });
+
+  it('il Preventivo resta sul proprio, che è un tipo del registro', async () => {
+    const { available } = await apri('quote');
+
+    expect(available.mock.calls[0]![0]).toBe(DocumentType.Quote);
+  });
+
+  it('il DDT di vendita resta sul proprio', async () => {
+    const { available } = await apri('sales-ddt');
+
+    expect(available.mock.calls[0]![0]).toBe(DocumentType.SalesDdt);
+  });
+});
+
+/**
  * Comandi che l'API nega: da qui devono sparire, non restare grigi.
  *
  * Come sopra, ogni «non compare» ha il suo controllo inverso col titolare: un
@@ -1153,8 +1447,10 @@ describe('CustomerOrderFormComponent — comandi fuori dai permessi', () => {
     expect(view.queryAllByRole('button', { name: /nuovo prodotto/i }).length).toBeGreaterThan(0);
   });
 
-  // Il numeratore esiste solo sui documenti a registro: l'Ordine cliente non ha
-  // il campo, quindi la verifica va fatta sul preventivo.
+  // Il campo numero da 12/08/2026 sta anche sull'Ordine cliente, ma la prova
+  // resta sul Preventivo: lì il numeratore è quello del registro — lo stesso che
+  // l'ingranaggio apre — e l'esito non dipende da come si è scelto di mostrare
+  // la numerazione sull'ordine.
   it('senza documents.configure l’ingranaggio delle numerazioni non compare', async () => {
     const view = await apri(COMMESSA, { kind: 'quote' });
 

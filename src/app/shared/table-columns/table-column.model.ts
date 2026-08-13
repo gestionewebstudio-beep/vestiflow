@@ -19,6 +19,15 @@ export const TableViewId = {
   QuoteLines: 'quote_lines',
   SalesDdtLines: 'sales_ddt_lines',
   ManualUnloadLines: 'manual_unload_lines',
+  // I due movimenti di magazzino hanno la stessa riga, ma vista propria per
+  // ciascuno: chi allarga una colonna nel Trasferimento non se la ritrova
+  // allargata nella Rettifica, che è un'altra schermata.
+  TransferLines: 'transfer_lines',
+  StockAdjustmentLines: 'stock_adjustment_lines',
+  // Proforma, Fattura e Fattura accompagnatoria condividono una vista sola:
+  // sono la stessa maschera con le stesse colonne, e l'unica che cambia
+  // («Scarica mag.») è già condizionata al tipo nel template.
+  SalesDocumentLines: 'sales_document_lines',
   ProductsList: 'products_list',
   CustomersList: 'customers_list',
   SalesOrdersList: 'sales_orders_list',

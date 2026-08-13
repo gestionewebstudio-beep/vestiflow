@@ -35,6 +35,7 @@ export interface DocumentLineApiRow {
   /** Costo digitato (Decimal serializzato come stringa dal backend). */
   readonly enteredUnitCost?: string | number | null;
   readonly lineTotalMinor: number;
+  readonly unitOfMeasure?: string | null;
   readonly loadsStock: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId | null;
@@ -215,6 +216,7 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     enteredUnitCostMinor:
       row.enteredUnitCost != null ? Math.round(Number(row.enteredUnitCost) * 100) : undefined,
     lineTotal: { amountMinor: row.lineTotalMinor, currencyCode: currency },
+    unitOfMeasure: row.unitOfMeasure ?? undefined,
     loadsStock: row.loadsStock,
     isReference: row.isReference === true,
     supplierOrderLineId: row.supplierOrderLineId ?? undefined,
@@ -402,6 +404,7 @@ export interface DocumentLineInputBody {
   readonly vatCodeId?: EntityId;
   /** Costo unitario digitato (unità minori) nella modalità costo del documento. */
   readonly enteredUnitCostMinor?: number;
+  readonly unitOfMeasure?: string;
   readonly loadsStock?: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId;
@@ -432,6 +435,12 @@ export interface CreateDocumentBody {
   readonly internalComment?: string;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
+  /**
+   * Tipo del documento della controparte. Omesso lascia il valore invariato,
+   * `null` lo toglie: l'API distingue i due casi apposta, cosi' un salvataggio
+   * che non nomina il campo non puo' cancellare lo snapshot del documento.
+   */
+  readonly externalDocumentTypeId?: EntityId | null;
   readonly sourceDocumentId?: EntityId;
   readonly supplierOrderId?: EntityId;
   readonly billingCause?: string;
@@ -468,6 +477,11 @@ type NullableUpdateHeaderField =
   | 'customerId'
   | 'customerName'
   | 'externalRef'
+  // Documento della controparte: una volta compilato dev'essere anche
+  // cancellabile. Senza `null` il PATCH non ha modo di dire «svuota», e la data
+  // resterebbe appiccicata al documento per sempre.
+  | 'externalDocNumber'
+  | 'externalDocDate'
   | 'paymentTerms'
   | 'paymentMethod'
   | 'expectedDeliveryDate'
@@ -538,7 +552,7 @@ export interface SaveGoodsReceiptBody {
   readonly id?: EntityId;
   readonly type: DocumentType;
   readonly series?: string;
-  /** Protocollo interno imposto: assente = primo libero della serie. */
+  /** Numero interno imposto: assente = primo libero della serie. */
   readonly number?: number;
   readonly documentDate: IsoDateString;
   readonly supplierId?: EntityId;
@@ -595,6 +609,10 @@ export interface SaveTransferBody {
   readonly documentDate: IsoDateString;
   readonly locationId: EntityId;
   readonly targetLocationId: EntityId;
+  // ── Documento della controparte ──
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
   readonly notes?: string;
   readonly internalComment?: string;
   readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
@@ -612,6 +630,10 @@ export interface SaveAdjustmentBody {
   readonly documentDate: IsoDateString;
   readonly locationId: EntityId;
   readonly adjustmentDirection: AdjustmentDirection;
+  // ── Documento della controparte ──
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
   readonly notes?: string;
   readonly internalComment: string;
   readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
@@ -641,11 +663,13 @@ export interface SavePurchaseInvoiceBody {
   readonly documentDate: IsoDateString;
   /** Data registrazione interna (default oggi, modificabile). */
   readonly registrationDate?: IsoDateString;
-  /** Protocollo interno imposto: assente = primo libero della serie. */
+  /** Numero interno imposto: assente = primo libero della serie. */
   readonly number?: number;
   readonly series?: string;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
+  /** Tipo del documento della controparte (proposto: «Fattura»). */
+  readonly externalDocumentTypeId?: EntityId | null;
   readonly notes?: string;
   readonly internalComment?: string;
   /** Tipo pagamento (auto-compilato dall'anagrafica fornitore, modificabile). */

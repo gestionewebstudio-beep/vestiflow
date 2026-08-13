@@ -1,0 +1,9 @@
+<app-slide-panel [open]="open()" title="Gestisci tipi documento" (closed)="closed.emit()">
+  @if (open()) {
+    <app-external-document-type-manager
+      [active]="open()"
+      (changed)="changed.emit()"
+      (created)="created.emit($event)"
+    />
+  }
+</app-slide-panel>

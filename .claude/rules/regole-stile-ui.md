@@ -250,7 +250,8 @@ dal più corretto al più invasivo:
    | `attachments-panel` | `--attachments-gap`, `--attachments-title-size`, `--attachments-item-pad`                                                                                             |
    | `barcode-scanner`   | `--barcode-scanner-w`                                                                                                                                                 |
    | `hover-tooltip`     | `--hover-tooltip-inset`                                                                                                                                               |
-   | celle di riga       | `--doc-code-cell-fg`, `--doc-product-cell-weight`                                                                                                                     |
+   | celle di riga       | `--doc-code-cell-fg`, `--doc-product-cell-weight`, `--doc-select-cell-toggle-w`                                                                                       |
+   | pannello riga       | `--doc-suggestions-z`, `--doc-suggestions-offset`, `--doc-suggestions-inset`, `--doc-suggestions-max-h`, `--doc-suggestions-item-min-h`                               |
 
    **`app-button` ha l'host `display: contents`**: e' il `<button>` interno a
    stare nel flusso del contenitore. `flex` e `grid-column` vanno quindi
@@ -398,6 +399,31 @@ Distinta dalle azioni documento: quella barra riguarda **salvare e uscire**, que
   - **Scansiona** (secondary) a sinistra — icona fotocamera, apre lo scanner
   - **Aggiungi prodotto** (primary) a destra — apre la modale selezione prodotti
 - Le azioni rare (es. «Nuovo prodotto», che crea un articolo da zero) non stanno qui: vivono come ghost compatto sopra la lista righe
+
+### Cella a ricerca-e-selezione (`app-document-line-select-cell`) _(08/2026)_
+
+La cella di riga documento dove il valore si **sceglie da un elenco breve di
+voci con un codice**: Codice IVA, unità di misura. Sostituisce `app-select-menu`
+dentro le righe, e solo lì — le altre 179 istanze del menu restano dove sono.
+
+È un `<input>` vero, non un `<button>` con l'etichetta dentro, e da qui discende
+tutto il resto: porta l'`id` che riceve, quindi il giro del fuoco la raggiunge
+come ogni altro campo, e all'ingresso il valore si può evidenziare.
+
+- **Entri** → valore selezionato, pronto da sovrascrivere.
+- **Digiti** → l'elenco si apre e filtra, **prima per prefisso del codice**, poi
+  per il resto. La voce in cima è quella che Invio sceglie senza guardare: un
+  ordinamento sbagliato lì scrive un valore sbagliato sulla riga.
+- **Invio** prende la voce evidenziata e resta; **Tab** risolve e va al campo
+  dopo; **←/→ escono al primo colpo**, senza il secondo tempo del cursore.
+- **Testo libero** acceso o spento (`freeText`): U.M. sì, IVA no. Sull'insieme
+  chiuso un valore inventato non entra e la cella torna a quello di prima.
+- **«» Altro…»** in coda fissa, **fuori** dall'elenco filtrato e fuori dalla
+  `listbox`: è un comando, non un valore, e arriva da un `output`. Il pannello
+  che apre sta **una volta per maschera**, mai dentro la cella.
+- Su **card** si passa `inColumnCycle="false"`: lì le colonne non esistono e il
+  Tab resta al browser. L'elenco si comporta uguale, e la scelta si prende
+  toccando.
 
 ### Modale selezione prodotti
 
@@ -660,3 +686,49 @@ Su mobile: la barra diventa un'icona lente; il tap apre la palette full-screen.
 | Desktop largo   | ≥ 1800px    | `max-width` contenuto a 1720px, no stiramento                                                   |
 
 Token breakpoint: solo variabili CSS, mai valori px in `@media`.
+
+### La vista a card di un documento non è la vista stretta: è la vista del dito _(deciso 11/08/2026, da eseguire)_
+
+Il confine unico a `lg` misura la cosa sbagliata. La tabella non vive nella
+finestra: vive nell'area contenuto, **232px più stretta** finché la sidebar è
+aperta — e a 1024px di finestra le restano ~790px per nove-quattordici colonne.
+Ma il problema vero non è lo spazio: è che la tabella si regge su tre cose che
+un tablet non ha — il **passaggio del mouse** (con cui si rileggono le
+intestazioni tagliate, §6), il **puntatore fine** (la maniglia di
+ridimensionamento è larga pochi pixel) e il **Tab**. Un tablet dalla parte della
+tabella non è scomodo: è privato degli attrezzi.
+
+E nessuna linea fissa sulla larghezza chiude la questione, perché separa i pixel
+e non i dispositivi: alzandola a 1280 resta fuori l'iPad Pro in orizzontale
+(1366), alzandola ancora se ne trova un altro sopra.
+
+**Due soglie, non una:**
+
+| Puntatore primario | Card sotto | Perché                                                           |
+| ------------------ | ---------- | ---------------------------------------------------------------- |
+| **fine** (mouse)   | **820px**  | col mouse la tabella resta usabile e scorre; sotto, non basta    |
+| **grosso** (dito)  | **1400px** | appena sopra l'iPad Pro 12.9 in orizzontale, il tablet più largo |
+
+I 2-in-1 si sistemano da soli: tastiera agganciata → puntatore fine → tabella;
+staccata → dito → card.
+
+**Più la scelta manuale**, che è la valvola e non il default: l'operatore può
+imporre la vista e quel dispositivo se la ricorda. Serve ai casi che nessuna
+soglia prende — il monitor touch grande, chi sul portatile preferisce le card.
+Il predefinito deve restare giusto per il dispositivo: un comando manuale rimedia
+alle eccezioni, non a un default che sbaglia di sistema.
+
+**Vincoli per chi esegue:**
+
+- le due condizioni si scrivono **una volta sola**, in un mixin di
+  `styles/_breakpoints.scss`. Se ognuno le riderivasse, la vista doppia
+  tornerebbe alla prima soglia scritta a mano;
+- si muovono **entrambe le direzioni insieme** — i blocchi che accendono il
+  mobile e quelli che accendono il desktop, ~14 fogli. Muoverne una sola accende
+  **tutte e due le viste** nella fascia di mezzo, che è ciò che la specifica
+  righe documento §4.11 vieta: «la stessa riga non esiste due volte»;
+- si muove **tutta la vista documento**, non le sole righe: a `lg` commutano
+  anche la testata comprimibile e gli attrezzi mobili, e spostare solo la tabella
+  darebbe tabella desktop dentro una testata mobile;
+- la **sidebar resta sulla larghezza**: è della shell, e un cassetto a 900px è
+  giusto con qualunque puntatore.

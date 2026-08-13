@@ -26,6 +26,7 @@ export interface SupplierOrderLineApiRow {
   readonly vatCodeId?: string | null;
   readonly vatSnapshot?: Partial<VatSnapshot> | null;
   readonly lineTotalMinor?: number;
+  readonly unitOfMeasure?: string | null;
 }
 
 export interface SupplierOrderLinkedDocumentApiRow {
@@ -41,6 +42,8 @@ export interface SupplierOrderApiRow {
   readonly id: EntityId;
   readonly tenantId: EntityId;
   readonly reference: string;
+  readonly number?: number | null;
+  readonly series?: string | null;
   readonly supplierId: EntityId;
   readonly supplierName: string;
   readonly destinationLocationId?: EntityId | null;
@@ -49,6 +52,11 @@ export interface SupplierOrderApiRow {
   readonly costEntryMode?: PurchaseCostEntryMode;
   readonly orderDate?: IsoDateString;
   readonly supplierReference?: string | null;
+  // Documento della controparte (conferma d'ordine del fornitore).
+  readonly externalDocNumber?: string | null;
+  readonly externalDocDate?: IsoDateString | null;
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocumentTypeSnapshot?: string | null;
   /** Colonna NUMERIC: arriva come stringa decimale, non come numero. */
   readonly documentDiscountPercent?: string | number | null;
   readonly subtotalMinor?: number;
@@ -87,6 +95,7 @@ function mapLine(row: SupplierOrderLineApiRow, currency: CurrencyCode): Supplier
       amountMinor: row.lineTotalMinor ?? row.orderedQuantity * Number(row.unitCostMinor),
       currencyCode: currency,
     },
+    unitOfMeasure: row.unitOfMeasure ?? undefined,
   };
 }
 
@@ -115,6 +124,7 @@ export interface CreateSupplierOrderLineBody {
   readonly enteredUnitCostMinor: number;
   readonly discountPercent?: number;
   readonly vatCodeId?: EntityId;
+  readonly unitOfMeasure?: string;
 }
 
 /** Body POST /supplier-orders. */
@@ -123,6 +133,24 @@ export interface CreateSupplierOrderBody {
   readonly orderDate?: string;
   readonly expectedAt?: string;
   readonly supplierReference?: string;
+  /** Serie del numeratore; assente = la predefinita del tipo. */
+  readonly series?: string;
+  /**
+   * Numero imposto dalla testata. **Assente = «assegnalo tu»**, ed è il caso
+   * normale: la proposta mostrata non torna indietro come imposizione, così due
+   * operatori che salvano insieme non si contendono lo stesso numero. Viaggia
+   * solo quando l'operatore l'ha digitato — il buco da tappare.
+   */
+  readonly number?: number;
+  // ── Documento della controparte ─────────────────────────────────────────
+  //
+  // I tre campi viaggiano come `T | null`: `null` toglie il valore dall'ordine,
+  // l'assenza lo lascia com'è. L'API distingue i due casi apposta — un
+  // salvataggio che non nomina il campo non deve poter cancellare la dicitura
+  // e il suo snapshot da un ordine già registrato.
+  readonly externalDocNumber?: string | null;
+  readonly externalDocDate?: IsoDateString | null;
+  readonly externalDocumentTypeId?: EntityId | null;
   /** Sconto extra di chiusura (percentuale). Assente = nessuno sconto. */
   readonly documentDiscountPercent?: number;
   readonly costEntryMode?: PurchaseCostEntryMode;
@@ -138,6 +166,8 @@ export function mapSupplierOrderApiRow(row: SupplierOrderApiRow): SupplierOrder 
     tenantId: row.tenantId,
     id: row.id,
     reference: row.reference,
+    number: row.number ?? undefined,
+    series: row.series ?? undefined,
     supplierId: row.supplierId,
     supplierName: row.supplierName,
     destinationLocationId: row.destinationLocationId ?? undefined,
@@ -146,6 +176,10 @@ export function mapSupplierOrderApiRow(row: SupplierOrderApiRow): SupplierOrder 
     costEntryMode: row.costEntryMode ?? 'vat_excluded',
     orderDate: row.orderDate ?? row.createdAt,
     supplierReference: row.supplierReference ?? undefined,
+    externalDocNumber: row.externalDocNumber ?? undefined,
+    externalDocDate: row.externalDocDate ?? undefined,
+    externalDocumentTypeId: row.externalDocumentTypeId ?? undefined,
+    externalDocumentTypeSnapshot: row.externalDocumentTypeSnapshot ?? undefined,
     documentDiscountPercent: row.documentDiscountPercent ?? undefined,
     lines: row.lines.map((line) => mapLine(line, row.currency)),
     lineCount: row.lineCount,

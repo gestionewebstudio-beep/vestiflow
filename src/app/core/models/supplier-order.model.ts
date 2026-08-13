@@ -43,6 +43,11 @@ export interface SupplierOrderLine {
   readonly vatRatePercent?: number;
   /** Totale riga netto (qty × costo netto − sconto). */
   readonly lineTotal: Money;
+  /**
+   * Unità di misura fotografata sulla riga. Assente sulle righe salvate prima
+   * che la colonna esistesse: lì vale quella dell'anagrafica.
+   */
+  readonly unitOfMeasure?: string;
 }
 
 /** Documento collegato (arrivo merce): collegamento visibile nell'ordine. */
@@ -63,6 +68,10 @@ export interface SupplierOrder extends TenantScoped, Timestamped {
   readonly id: EntityId;
   /** Riferimento leggibile dal numeratore (es. 'OF-2026-0042'). */
   readonly reference: string;
+  /** Numero interno, dal numeratore del tipo. Assente sugli ordini più vecchi. */
+  readonly number?: number | null;
+  /** Serie del numeratore; assente o vuota = «Senza serie». */
+  readonly series?: string | null;
   readonly supplierId: EntityId;
   /** Snapshot del nome fornitore per la visualizzazione. */
   readonly supplierName: string;
@@ -76,6 +85,23 @@ export interface SupplierOrder extends TenantScoped, Timestamped {
   readonly orderDate: IsoDateString;
   /** "Rif. ordine fornitore": riferimento libero comunicato dal fornitore. */
   readonly supplierReference?: string;
+  // ── Documento della controparte ─────────────────────────────────────────
+  //
+  // Tipo, numero e data del documento che l'ALTRA parte ha emesso — qui la
+  // conferma d'ordine del fornitore. È un'altra cosa da `supplierReference`,
+  // che resta il riferimento libero: questo è un documento, con un tipo scelto
+  // dall'elenco del tenant e una data propria.
+  /** Numero del documento emesso dal fornitore (es. «145»). */
+  readonly externalDocNumber?: string;
+  /** Data del documento del fornitore (solo giorno). */
+  readonly externalDocDate?: IsoDateString;
+  readonly externalDocumentTypeId?: EntityId;
+  /**
+   * Etichetta del tipo fotografata al salvataggio. Un tipo può essere
+   * eliminato: lo snapshot è ciò che tiene leggibile la dicitura sull'ordine
+   * quando l'elenco non la porta più.
+   */
+  readonly externalDocumentTypeSnapshot?: string;
   /**
    * Sconto extra di chiusura sull'intero ordine, in percentuale. Arriva come
    * stringa decimale (colonna NUMERIC): non si parsa per confrontarlo, si

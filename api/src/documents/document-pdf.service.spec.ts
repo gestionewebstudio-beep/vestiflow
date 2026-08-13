@@ -97,6 +97,7 @@ describe('DocumentPdfService', () => {
         tenantId: 'tenant-1',
         documentId: 'doc-1',
         lineNumber: 1,
+        unitOfMeasure: null,
         variantId: 'var-1',
         sku: 'SKU-1',
         description: 'Maglietta',

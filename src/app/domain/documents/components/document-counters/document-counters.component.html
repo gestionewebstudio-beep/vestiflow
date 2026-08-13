@@ -29,9 +29,23 @@
             <app-button variant="danger" (click)="requestDelete(counter)">Elimina</app-button>
           }
         </span>
+        <!-- Numeri lasciati liberi dai documenti cancellati in mezzo alla serie:
+             nota discreta, non un avviso — non è un errore da correggere. -->
+        @if (counter.freeNumbersLabel; as freeNumbers) {
+          <p class="counters__free tabular-nums">{{ freeNumbers }}</p>
+        }
       </li>
     }
   </ul>
+
+  <!-- Una frase sola: il buco si riempie da sé solo se qualcuno scrive quel
+       numero: il progressivo proposto resta «il più alto + 1». -->
+  @if (hasFreeNumbers()) {
+    <p class="counters__hint">
+      Per riprendere un numero libero, scrivilo a mano nella testata del nuovo documento al posto di
+      quello proposto.
+    </p>
+  }
 
   @if (editorOpen()) {
     <form class="counters__editor" [formGroup]="form" (ngSubmit)="save()">

@@ -1,0 +1,18 @@
+<app-document-line-select-cell
+  [lineIndex]="lineIndex()"
+  [inputId]="inputId()"
+  [ariaLabel]="ariaLabel()"
+  [options]="options()"
+  [value]="value()"
+  [freeText]="true"
+  [disabled]="disabled()"
+  [inColumnCycle]="inColumnCycle()"
+  [manageLabel]="manageLabel"
+  placeholder="pz"
+  (valueChange)="valueChange.emit($event)"
+  (lineAdvance)="lineAdvance.emit($event)"
+  (lineRetreat)="lineRetreat.emit($event)"
+  (lineRowAdvance)="lineRowAdvance.emit($event)"
+  (lineRowRetreat)="lineRowRetreat.emit($event)"
+  (manageRequested)="manageRequested.emit()"
+/>

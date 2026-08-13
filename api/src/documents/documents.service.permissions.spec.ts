@@ -50,6 +50,7 @@ describe('DocumentsService — matrice permessi documenti', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
   });
 
@@ -303,6 +304,7 @@ describe('DocumentsService — ordini cliente agganciati al documento', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
     return { service, prisma };
   }
@@ -533,6 +535,7 @@ describe('DocumentsService — ordini cliente agganciati al documento', () => {
       const service = new DocumentsService(
         prisma as unknown as PrismaService,
         settings as never,
+        {} as never,
         {} as never,
         {} as never,
         {} as never,

@@ -310,7 +310,18 @@ app-customer-order-form {
 // espongono apposta (regole-stile-ui §5): il contenitore lo imposta su di sé e
 // il campo dentro lo legge. Niente `::ng-deep`, niente stile che scavalca il
 // confine di un componente.
-.doc-form__header .doc-form__field--waiting {
+.doc-form__header // Campo di riga in ATTESA: c'è un articolo ma il costo non è ancora scritto.
+// Ambra, non rosso — il rosso in una maschera vuol dire «hai sbagliato», e qui
+// non è sbagliato niente: il documento si salva, e al salvataggio un avviso
+// dice quali righe sono partite senza costo. Fino all'11/08/2026 il campo
+// vuoto si tingeva di rosso con «Importo non valido», che era il residuo di
+// quando il costo era obbligatorio.
+.doc-form__input--waiting {
+  border-color: var(--color-field-waiting);
+  box-shadow: inset 0 0 0 1px var(--color-field-waiting);
+}
+
+.doc-form__field--waiting {
   --field-border-color: var(--color-field-waiting);
 }
 
@@ -1329,41 +1340,11 @@ app-customer-order-form {
   gap: var(--space-2);
 }
 
-// Punto E: il combobox "Causale di carico" non esiste più (causale generata
-// in silenzio). Le classi doc-form__causal-* residue servono al pannello
-// "Gestisci tipi documento fornitore", che ne riusa la struttura.
-
-.doc-form__causal-empty {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-// ── Pannello "Gestisci tipi documento" (struttura condivisa) ────────────────
-
-.doc-form__causal-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.doc-form__causal-panel-hint {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  line-height: var(--leading-normal);
-}
-
-.doc-form__type-new {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-
-  .doc-form__input {
-    flex: 1;
-    min-inline-size: 0;
-  }
-}
+// Le classi doc-form__causal-* sono il residuo del combobox "Causale di carico",
+// che non esiste più (la causale si genera in silenzio). Quelle rimaste vestono
+// la gestione delle causali dentro il Documento di vendita: il pannello
+// "Gestisci tipi documento" ha traslocato in un componente di dominio e si porta
+// dietro il proprio foglio, quindi le sue regole sono state tolte da qui.
 
 .doc-form__causal-manage-list {
   margin: 0;
@@ -1429,31 +1410,6 @@ app-customer-order-form {
   &--danger:hover:not(:disabled) {
     color: var(--color-danger);
   }
-}
-
-// Gestione tipi documento fornitore (§6) — riusa il layout del pannello causali.
-.doc-form__type-inactive .doc-form__causal-manage-label {
-  color: var(--color-text-muted);
-}
-
-.doc-form__type-short {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-}
-
-.doc-form__type-edit-fields {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-// Finestra "Nuovo tipo documento fornitore" (§5).
-.doc-form__type-dialog-fields {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-block-end: var(--space-4);
 }
 
 .doc-form__actions-note-sep {
@@ -1656,6 +1612,29 @@ app-customer-order-form {
   gap: var(--space-2);
 }
 
+// ── Riga dell'etichetta: nome del campo a sinistra, comandi a destra ───────
+//
+// I comandi della controparte — «Nuovo cliente», «Scheda cliente» — stavano
+// sotto il campo, e da lì aggiungevano una terza riga a ogni cella di testata.
+// Sulla riga dell'etichetta costano zero altezza, perché lì c'è solo una parola
+// e il resto è vuoto. Stessa disposizione del pannello mobile: un documento non
+// deve mettere i suoi comandi in due posti diversi a seconda dello schermo.
+.doc-form .doc-form__field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+// I comandi restano uniti a destra: senza contenitore proprio, `space-between`
+// con tre figli spargerebbe il primo in mezzo alla riga.
+.doc-form .doc-form__field-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
 // ── Testata: una card, due fasce di celle unite ─────────────────────────────
 .doc-form .doc-form__header {
   gap: 0;
@@ -1674,6 +1653,14 @@ app-customer-order-form {
 .doc-form .doc-form__header .doc-form__header-row--secondary {
   background-color: var(--color-surface-soft);
   border-block-start: var(--border-width) solid var(--color-border);
+}
+
+// Gli angoli bassi li arrotonda SOLO l'ultima fascia: e' lei a chiudere la card.
+// Da quando il documento della controparte porta la propria fascia, una testata
+// puo' averne due (Fattura di vendita: fascia fiscale + controparte), e dando i
+// raggi a entrambe si vedrebbe il bianco della card affiorare ai due angoli a
+// meta' testata.
+.doc-form .doc-form__header .doc-form__header-row--secondary:last-child {
   border-end-start-radius: var(--radius-lg);
   border-end-end-radius: var(--radius-lg);
 }
@@ -1912,6 +1899,28 @@ app-customer-order-form {
 .doc-form .doc-form__th-label {
   max-inline-size: 100%;
   flex-wrap: wrap;
+}
+
+// ── Intestazioni: due righe, poi si taglia ─────────────────────────────────
+//
+// Prima andavano a capo quante volte serviva, e restringendo una colonna
+// l'intera riga di intestazione si alzava — spazio verticale tolto alle righe
+// del documento, che sono la ragione per cui la tabella esiste. Ora il tetto è
+// **due righe**: quasi tutte le etichette ci stanno per intero («Prezzo al
+// pubblico» diventa due parole su due righe), e solo le più lunghe si tagliano.
+//
+// ⚠️ Il taglio sta sull'ETICHETTA, non sulla cella, e non è una raffinatezza:
+// dentro l'intestazione dell'IVA vive un menu a tendina, e `overflow: hidden`
+// sulla cella lo taglierebbe insieme all'etichetta. La maniglia per
+// ridimensionare, che sporge di 4px oltre il bordo, sparirebbe con lui.
+//
+// L'etichetta tagliata resta leggibile per intero al passaggio del mouse: le
+// intestazioni portano il proprio nome nel `title`.
+.doc-form .doc-form__th-label,
+.doc-form .doc-form__th-sort,
+.doc-form .doc-form__th-menu-wrap {
+  max-block-size: calc(2 * var(--leading-tight) * var(--text-label));
+  overflow: hidden;
 }
 
 // I tooltip delle intestazioni (Sconto, Impegna) si aprono verso SINISTRA:
@@ -2230,4 +2239,40 @@ app-customer-order-form {
 
 .doc-form .doc-form__table tbody tr.cdk-drag-dragging {
   opacity: 0.5;
+}
+
+// ── Card di riga: la misura dei controlli proiettati ───────────────────────
+//
+// `app-document-line-card-field` dà al campo la forma (etichetta sopra,
+// controllo sotto, mezza colonna della griglia) ma NON può vestire il controllo:
+// quello arriva proiettato dalla maschera, quindi porta l'incapsulamento di chi
+// lo scrive e nessuna regola del componente lo raggiunge — e `::ng-deep` per
+// arrivarci è vietato.
+//
+// Queste regole stanno qui perché è l'unico livello che vede sia la card sia
+// `doc-form__input`, che è già una classe globale. Sono la stessa misura che la
+// card dell'Ordine cliente applicava dentro di sé quando il markup era suo.
+.doc-line-card-field .doc-form__input,
+.doc-line-card-field select.doc-form__input {
+  block-size: var(--control-h-touch);
+  min-block-size: var(--control-h-touch);
+  padding-inline: var(--space-2);
+  font-size: var(--text-lg);
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+// Valori calcolati: stessa altezza dei campi, ma si vede che non si scrivono.
+.doc-line-card-field--readonly p {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  block-size: var(--control-h-touch);
+  padding-inline: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-readonly-fg);
+  background-color: var(--color-readonly-bg);
+  border: var(--border-width) solid var(--color-readonly-border);
+  border-radius: var(--radius-sm);
 }

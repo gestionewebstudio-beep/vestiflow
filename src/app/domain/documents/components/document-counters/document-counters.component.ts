@@ -36,12 +36,41 @@ type PendingConfirm =
 /** Valore "tutte le sedi" nella tendina sede. */
 const ALL_LOCATIONS = '';
 
+/** Serie in elenco: il contatore più la frase sui numeri liberi, se ce ne sono. */
+type SeriesRow = DocumentCounterView & { readonly freeNumbersLabel: string | null };
+
+/**
+ * «3 numeri liberi: 7, 12, 40» — informativa, non un allarme: un buco è la
+ * conseguenza normale di una cancellazione in mezzo alla serie, non un errore.
+ * Restituisce null quando la serie è integra, e in quel caso la riga non dice
+ * niente: il silenzio è l'unica forma in cui «va tutto bene» non fa rumore.
+ */
+function freeNumbersLabel(counter: DocumentCounterView): string | null {
+  const count = counter.missingCount ?? 0;
+  if (count <= 0) {
+    return null;
+  }
+  const head = count === 1 ? '1 numero libero' : `${count} numeri liberi`;
+  const shown = counter.missingNumbers ?? [];
+  if (shown.length === 0) {
+    return head;
+  }
+  // L'API elenca solo i primi: gli altri si contano, non si scrivono.
+  const rest = count - shown.length;
+  const list = shown.join(', ');
+  return rest > 0 ? `${head}: ${list} e altri ${rest}` : `${head}: ${list}`;
+}
+
 /**
  * Elenco serie di UN tipo documento, dentro la sua card in Impostazioni. Prima
  * voce sempre «Senza serie» (serie null, non eliminabile, base del tipo), poi
  * le serie aggiunte dall'operatore (nome libero, sede opzionale). Il prossimo
  * numero è in sola lettura (max+1). Una voce è predefinita. Le mutazioni
  * passano dal servizio; il refresh dei dati lo fa il padre via `changed`.
+ *
+ * È anche il posto in cui si dicono i buchi della serie: è la schermata che
+ * parla di numerazione, e il commercialista che chiede «perché manca il 42?»
+ * non deve costringere l'operatore a scorrere l'elenco documenti a occhio.
  */
 @Component({
   selector: 'app-document-counters',
@@ -65,16 +94,23 @@ export class DocumentCountersComponent {
   readonly changed = output<void>();
 
   /** «Senza serie» (serie null) prima, poi le serie in ordine alfabetico. */
-  protected readonly orderedSeries = computed(() =>
-    [...this.counters()].sort((a, b) => {
-      if (a.series === null) {
-        return -1;
-      }
-      if (b.series === null) {
-        return 1;
-      }
-      return a.series.localeCompare(b.series);
-    }),
+  protected readonly orderedSeries = computed<readonly SeriesRow[]>(() =>
+    [...this.counters()]
+      .sort((a, b) => {
+        if (a.series === null) {
+          return -1;
+        }
+        if (b.series === null) {
+          return 1;
+        }
+        return a.series.localeCompare(b.series);
+      })
+      .map((counter) => ({ ...counter, freeNumbersLabel: freeNumbersLabel(counter) })),
+  );
+
+  /** Almeno una serie ha buchi: solo allora si spiega come si riempiono. */
+  protected readonly hasFreeNumbers = computed(() =>
+    this.orderedSeries().some((row) => row.freeNumbersLabel !== null),
   );
 
   private readonly _editingId = signal<EntityId | null>(null);

@@ -31,6 +31,15 @@ export class DocumentLineInputDto {
   @MaxLength(120)
   sku?: string;
 
+  /**
+   * Unità di misura della riga, fotografata all'inserimento. Testo libero: la
+   * tabella delle unità suggerisce, non obbliga (specifica §4.3-ter).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  unitOfMeasure?: string;
+
   @IsString()
   @Length(1, 300)
   description!: string;
@@ -170,15 +179,6 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   internalComment?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  externalDocNumber?: string;
-
-  @IsOptional()
-  @IsISO8601()
-  externalDocDate?: string;
-
-  @IsOptional()
   @IsUUID()
   sourceDocumentId?: string;
 
@@ -285,4 +285,11 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @ValidateNested({ each: true })
   @Type(() => DocumentLineInputDto)
   lines?: DocumentLineInputDto[];
+  // ⚠️ Qui stavano i tre campi del «documento della controparte»
+  // (`externalDocNumber`, `externalDocDate`, `externalDocumentTypeId`).
+  // Tolti il 12/08/2026 insieme al blocco in testata: questo documento non ne
+  // ha uno da citare. Chiudere anche l'ingresso serve — finché il DTO li
+  // accetta, un client può scriverli e le colonne tornano a riempirsi di dati
+  // che nessuna maschera mostra. Le colonne restano: toglierle è distruttivo su
+  // database condiviso e aspetta la finestra concordata.
 }

@@ -1491,8 +1491,67 @@
 <h3 id="colonne-personalizzabili">Colonne personalizzabili</h3>
 <p>Usa <strong>Colonne</strong> sopra le tabelle principali per mostrare/nascondere campi, scegliere un <strong>preset</strong> (Completo, Magazzino, Fornitore, …) e <strong>Ripristina colonne</strong>. Le preferenze si <strong>sincronizzano</strong> con il tuo account.</p>
 <p>Viste con column picker: <strong>Documenti</strong>, <strong>Giacenze</strong>, <strong>Movimenti</strong>, <strong>Fornitori</strong>, <strong>Prodotti</strong>, <strong>Clienti</strong>, righe <strong>Ordine fornitore</strong> e righe <strong>Arrivo merce</strong>. Su mobile molte liste passano a <strong>card</strong> con etichette campo.</p>
+<h3 id="numerazione-dei-documenti">Numerazione dei documenti</h3>
+<p><strong>In testata di ogni documento</strong> trovi <strong>Data, Serie e Numero</strong>.</p>
+<ul>
+<li>Il <strong>numero</strong> che vedi aprendo un documento nuovo è una <strong>proposta</strong>: è il primo libero
+in quel momento, e se lo prende chi salva per primo. Puoi lasciarlo com&#39;è — al
+salvataggio il sistema assegna il primo libero di allora — oppure <strong>scriverne uno tuo</strong>,
+per esempio per tappare un buco nella numerazione.</li>
+<li>Se il numero che hai scritto risulta già preso, un avviso te lo dice, <strong>mette in testata
+il primo numero libero</strong> e aspetta che tu prema Salva: nessun numero viene cambiato alle
+tue spalle.</li>
+<li>La <strong>serie</strong> si sceglie da una tendina, non si scrive. Contiene le serie utilizzabili
+nella sede del documento (vedi sotto). Se non la tocchi, il documento prende la serie
+predefinita.</li>
+<li>L&#39;icona <strong>⚙</strong> accanto alla serie apre la gestione delle numerazioni senza uscire dal
+documento.</li>
+</ul>
+<p><strong>Duplicando un documento</strong> il numero <strong>non</strong> si eredita: il duplicato prende il primo
+libero e la data di oggi.</p>
+<p><strong>Il numero proposto tiene conto della data.</strong> Se hai preparato un documento datato la
+settimana prossima e gli hai dato un numero alto, quel numero non brucia la numerazione di
+oggi: aprendo un documento con la data di oggi ti viene proposto il primo libero fra i
+documenti che lo precedono. È anche il motivo per cui, a volte, il numero proposto <strong>tappa
+un buco</strong> invece di andare in coda — succede solo quando la data lo consente.</p>
+<h3 id="se-la-numerazione-va-fuori-ordine">Se la numerazione va fuori ordine</h3>
+<p>Dentro la stessa serie, a un numero più alto deve corrispondere una data uguale o
+successiva. Nella stessa giornata l&#39;ordine non conta: numerare 3, poi 1, poi 2 tutti dello
+stesso giorno va benissimo.</p>
+<p>Quando l&#39;ordine si rompe — di solito perché un numero è stato scritto a mano, o perché è
+stata cambiata la data di un documento già salvato — al salvataggio compare un avviso con
+<strong>l&#39;elenco dei documenti fuori posto</strong>, non solo quello che stai salvando.</p>
+<ul>
+<li><strong>Non è un blocco</strong>: «Sì, salva comunque» prosegue.</li>
+<li><strong>Continua a comparire</strong> finché la serie resta fuori ordine, anche sui documenti
+successivi che sono in ordine. È voluto: un buco non giustificato va sistemato, e un
+avviso che sparisce da solo si dimentica.</li>
+<li>La casella <strong>«Non mostrare più»</strong> lo spegne <strong>solo per quel tipo di documento</strong>: chi
+sistema le fatture continua a vederlo sui DDT. Una volta spento <strong>non si riaccende</strong>, e
+non c&#39;è un pannello per riattivarlo — quindi spuntala solo se sei sicuro.</li>
+</ul>
+<h3 id="la-sede-in-testata">La sede in testata</h3>
+<p>Ogni documento porta la <strong>Sede</strong> — il magazzino o il negozio a cui appartiene.</p>
+<ul>
+<li>Se l&#39;amministratore ti ha assegnato una <strong>sede predefinita</strong>, il campo esce già
+compilato con quella: non devi confermarla a ogni documento.</li>
+<li>Se non ce l&#39;hai — è il caso di chi lavora su più sedi — il campo parte <strong>vuoto</strong> e la
+sede va scelta. È voluto: è l&#39;unico caso in cui la scelta non è ovvia.</li>
+<li>Nei <strong>Trasferimenti</strong> si precompila solo la sede di <strong>partenza</strong>; la destinazione la
+scegli tu.</li>
+<li>Fanno eccezione la <strong>Registrazione fattura fornitore</strong>, che non ha il campo perché la
+fattura è intestata all&#39;azienda e non a una sede, e la <strong>Vendita al banco</strong>, che prende
+la sede dal selettore in alto.</li>
+</ul>
+<p><strong>La sede decide quali serie puoi usare</strong>: una serie assegnata a una sede è utilizzabile
+solo lì, una serie senza sede vale ovunque. Cambiando sede la tendina si aggiorna.</p>
 <h3 id="impostazioni-numerazione">Impostazioni numerazione</h3>
-<p><strong>Documenti → Impostazioni documenti</strong> (solo <strong>Gestire documenti</strong>): prefissi e serie per tipo (es. prefisso DDT vendita, arrivo merce). I numeri progressivi vengono assegnati alla <strong>conferma</strong>.</p>
+<p><strong>Documenti → Impostazioni documenti</strong> (solo <strong>Gestire documenti</strong>): prefissi per tipo
+documento e gestione delle serie (i <strong>Numeratori</strong>). Qui si crea una serie, le si assegna
+una sede e si sceglie quale è la predefinita del tipo.</p>
+<p>Il riferimento di un documento ha la forma <code>PREFISSO-SERIE-NUMERO</code> (es. <code>AM-A-0042</code>), o
+<code>PREFISSO-NUMERO</code> se la serie non c&#39;è. Chi vuole ricominciare da 1 ogni anno crea una
+serie chiamata come l&#39;anno.</p>
 <h3 id="permessi">Permessi</h3>
 <table>
 <thead>

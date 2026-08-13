@@ -64,6 +64,12 @@
             }
           }
         }
+
+        <!-- Documento emesso dall'altra parte (DDT fornitore, fattura, ordine
+             cliente): una riga sola, e solo se compilata. -->
+        @if (counterpartyDoc(); as counterpartyRef) {
+          <p class="doc-print__meta">Documento controparte: {{ counterpartyRef }}</p>
+        }
       </header>
 
       @if (doc.lines?.length) {
