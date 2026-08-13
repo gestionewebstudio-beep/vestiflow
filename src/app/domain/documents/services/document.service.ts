@@ -105,7 +105,11 @@ export class DocumentService {
 
   previewDocumentNumber(
     type: DocumentType,
-    options: { series?: string | null; locationId?: string | null } = {},
+    options: {
+      series?: string | null;
+      locationId?: string | null;
+      documentDate?: string | null;
+    } = {},
   ): Observable<{ reference: string; previewNumber: number; series: string | null }> {
     let params = new HttpParams().set('type', type);
     if (options.series) params = params.set('series', options.series);
@@ -113,6 +117,9 @@ export class DocumentService {
     // applica (§1-bis): un'anteprima che la ignora mostra una serie diversa da
     // quella che il salvataggio assegnerà.
     if (options.locationId) params = params.set('locationId', options.locationId);
+    // E il numero dipende dalla data (§2): senza, l'anteprima dice il primo
+    // libero a oggi anche su un documento datato altrove.
+    if (options.documentDate) params = params.set('documentDate', options.documentDate);
 
     return this.http
       .get<{
@@ -124,14 +131,33 @@ export class DocumentService {
   }
 
   /**
-   * Controllo cronologico del contatore (§4): i documenti fuori posto, più se
-   * l'operatore ha spento l'avviso per questo tipo.
+   * Controllo cronologico del documento **in salvataggio** (§4): chi, nello
+   * stesso contatore, sta in ordine inverso rispetto alla coppia (numero, data)
+   * che l'operatore ha in testata. Più lo stato della preferenza.
    *
    * `series` viaggia sempre, stringa vuota compresa: «Senza serie» è un
    * contatore vero, non l'assenza di un contatore.
+   *
+   * `number` e `documentDate` sono **obbligatori**: senza di loro il controllo
+   * guarderebbe di nuovo lo stato generale della serie, che è ciò che arrivava
+   * sempre in ritardo di un gesto. Una maschera che non ha un numero in testata
+   * non chiama.
    */
-  checkChronology(type: DocumentType, series: string | null): Observable<ChronologyCheck> {
-    const params = new HttpParams().set('type', type).set('series', series ?? '');
+  checkChronology(
+    type: DocumentType,
+    series: string | null,
+    number: number,
+    documentDate: string,
+    excludeId?: EntityId | null,
+  ): Observable<ChronologyCheck> {
+    let params = new HttpParams()
+      .set('type', type)
+      .set('series', series ?? '')
+      .set('number', String(number))
+      .set('documentDate', documentDate);
+    if (excludeId) {
+      params = params.set('excludeId', excludeId);
+    }
     return this.http
       .get<ChronologyCheck>(this.url('/documents/chronology'), { params })
       .pipe(timeout(HTTP_TIMEOUT_MS));

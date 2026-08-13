@@ -5,12 +5,22 @@ import { documentNumberingTypes } from './document-type.util';
 import { serieCanonica } from './document-numbering.util';
 import type { DocumentNumberSource } from './document-numbering.util';
 
-/** Un documento fuori posto: numero più alto, data anteriore a uno più basso. */
-export interface ChronologyAnomaly {
+/**
+ * Come il documento in salvataggio rompe l'ordine rispetto a quello trovato.
+ *
+ * - `precede` — il documento trovato ha un numero **più basso** e una data
+ *   **successiva**: sta prima nella numerazione e dopo nel tempo.
+ * - `segue` — numero **più alto** e data **anteriore**.
+ */
+export type ChronologyDirection = 'precede' | 'segue';
+
+/** Il documento già salvato che con quello in corso non sta in ordine. */
+export interface ChronologyConflict {
   readonly id: string;
   readonly number: number;
   readonly documentDate: Date;
   readonly reference: string | null;
+  readonly direction: ChronologyDirection;
 }
 
 export interface ChronologyInput {
@@ -25,40 +35,49 @@ export interface ChronologyInput {
    */
   readonly series: string | null;
   readonly source: DocumentNumberSource;
+  /** Numero che il documento in salvataggio sta per prendere. */
+  readonly number: number;
+  /** Data in testata del documento in salvataggio. */
+  readonly documentDate: Date;
+  /**
+   * Il documento stesso, quando è una modifica: la sua riga vecchia non deve
+   * fargli conflitto con sé stesso se il numero è cambiato.
+   */
+  readonly excludeId?: string | null;
 }
 
 /**
- * **I documenti in anomalia cronologica dentro un contatore** (specifica
- * numerazione §4).
+ * **Il documento in salvataggio sta in ordine?** (specifica numerazione §4).
  *
- * Il fatto controllato: a numero più alto deve corrispondere data **uguale o
- * successiva**. Un documento è quindi fuori posto quando la sua data è
- * ANTERIORE alla più recente fra quelle dei numeri più bassi.
+ * Il fatto controllato: dentro un contatore, a numero più alto deve
+ * corrispondere data **uguale o successiva**. Si guarda la coppia (numero,
+ * data) che l'operatore ha in testata e si cerca chi la smentisce.
  *
- * **Stessa data non è mai anomalia.** Dentro la giornata l'ordine dei numeri non
- * significa niente: creare, saltare, tornare indietro è tutto libero. È il
- * motivo del `<` stretto, e non è una sfumatura — col `<=` ogni serie che nella
- * stessa giornata non fosse numerata in ordine di creazione risulterebbe rotta.
+ * **Il controllo è sul documento in corso, non sulla serie** _(13/08/2026)_.
+ * Prima interrogava la partizione intera cercando chiunque fosse fuori posto —
+ * e siccome girava PRIMA di scrivere, nel momento che conta non vedeva nulla:
+ * l'anomalia la creava il salvataggio stesso, e l'avviso compariva **al
+ * salvataggio successivo**, nominando un documento che l'operatore aveva già
+ * chiuso. Misurato: crei il n.1 datato domani, ne apri un altro oggi che prende
+ * il n.2 — zero anomalie, nessun avviso, salvato; al giro dopo l'avviso
+ * denuncia il n.2. Arrivava sempre in ritardo di un gesto.
  *
- * **Si elencano tutti**, non solo il documento corrente: l'avviso deve dire
- * *cosa* c'è da sistemare, e un elenco di uno non lo dice.
+ * **Stessa data non è mai conflitto.** Dentro la giornata l'ordine dei numeri
+ * non significa niente: creare, saltare, tornare indietro è tutto libero. È il
+ * motivo dei confronti stretti (`>` e `<`), e non è una sfumatura — con `>=`
+ * ogni serie che nella stessa giornata non fosse numerata in ordine di
+ * creazione risulterebbe rotta.
  *
- * **Chi le crea.** Con la regola del §2 accesa la proposta automatica non genera
- * anomalie riempiendo i buchi. Ne restano tre sorgenti, tutte dell'operatore: il
- * numero forzato a mano, la data cambiata su un documento già salvato, e il caso
- * terminale — i numeri liberi sotto un documento datato avanti si esauriscono e
- * la proposta scavalca. In quest'ultimo l'avviso è **corretto che compaia**:
- * l'anomalia l'ha creata chi ha datato il documento al futuro, il sistema ha
- * solo proseguito a numerare per data.
- *
- * **Una query, funzione finestra.** Il massimo delle date precedenti si calcola
- * scorrendo la partizione una volta sola, in ordine di numero — non con un
- * confronto a coppie, che sarebbe quadratico su una serie lunga.
+ * **Al massimo due**, uno per verso, ed è quello che serve dirgli: chi lo
+ * precede col numero e lo segue con la data (il caso comune) e il simmetrico.
+ * Fra i candidati si sceglie il **più lontano dall'ordine** — la data più
+ * recente fra i numeri minori, la più antica fra i maggiori — perché è quello
+ * che rende evidente il salto.
  */
-export async function findChronologyAnomalies(
+export async function findChronologyConflicts(
   input: ChronologyInput,
-): Promise<readonly ChronologyAnomaly[]> {
-  const { tx, tenantId, series, source } = input;
+): Promise<readonly ChronologyConflict[]> {
+  const { tx, tenantId, series, source, number, documentDate, excludeId } = input;
 
   const tabella =
     source === 'sales_order'
@@ -91,29 +110,36 @@ export async function findChronologyAnomalies(
       ? Prisma.sql`AND type = ANY(${[...documentNumberingTypes(input.type)]}::"DocumentType"[])`
       : Prisma.empty;
   const manuali = source === 'sales_order' ? Prisma.sql`AND source = 'manual'` : Prisma.empty;
+  const escluso = excludeId ? Prisma.sql`AND id <> ${excludeId}::uuid` : Prisma.empty;
+
+  const partizione = Prisma.sql`tenant_id = ${tenantId}::uuid ${tipi} ${manuali} ${escluso}
+    AND ${serie} AND number IS NOT NULL`;
 
   const righe = await tx.$queryRaw<
-    { id: string; number: number | bigint; data: Date; reference: string | null }[]
+    {
+      id: string;
+      number: number | bigint;
+      data: Date;
+      reference: string | null;
+      direzione: ChronologyDirection;
+    }[]
   >`
-    SELECT id, number, data, reference FROM (
-      SELECT
-        id,
-        number,
-        ${colonnaData} AS data,
-        ${colonnaRiferimento} AS reference,
-        -- La data più recente fra i numeri PRECEDENTI. La finestra esclude la
-        -- riga corrente (1 PRECEDING), o ogni documento risulterebbe in regola
-        -- con sé stesso.
-        MAX(${colonnaData}) OVER (
-          ORDER BY number
-          ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-        ) AS data_massima_precedente
-      FROM ${tabella}
-      WHERE tenant_id = ${tenantId}::uuid ${tipi} ${manuali} AND ${serie}
-        AND number IS NOT NULL
-    ) t
-    WHERE data < data_massima_precedente
-    ORDER BY number
+    -- Numero più BASSO del mio, data SUCCESSIVA alla mia: sta prima nella
+    -- numerazione e dopo nel tempo. Fra tutti, quello con la data più recente.
+    (SELECT id, number, ${colonnaData} AS data, ${colonnaRiferimento} AS reference,
+            'precede' AS direzione
+       FROM ${tabella}
+      WHERE ${partizione} AND number < ${number} AND ${colonnaData} > ${documentDate}
+      ORDER BY ${colonnaData} DESC
+      LIMIT 1)
+    UNION ALL
+    -- Il simmetrico: numero più alto, data anteriore. Fra tutti, il più antico.
+    (SELECT id, number, ${colonnaData} AS data, ${colonnaRiferimento} AS reference,
+            'segue' AS direzione
+       FROM ${tabella}
+      WHERE ${partizione} AND number > ${number} AND ${colonnaData} < ${documentDate}
+      ORDER BY ${colonnaData} ASC
+      LIMIT 1)
   `;
 
   return righe.map((riga) => ({
@@ -121,5 +147,6 @@ export async function findChronologyAnomalies(
     number: Number(riga.number),
     documentDate: riga.data,
     reference: riga.reference,
+    direction: riga.direzione,
   }));
 }

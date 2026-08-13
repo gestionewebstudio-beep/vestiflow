@@ -2,15 +2,29 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 
-import type { ChronologyAnomaly } from '../../models/document-chronology.model';
+import type { ChronologyConflict } from '../../models/document-chronology.model';
+import {
+  chronologyDay,
+  chronologyLabel,
+  chronologyWarningMessage,
+} from '../../models/document-chronology.util';
 
 /**
- * **Avviso cronologico** (specifica numerazione §4): dentro questo contatore un
- * numero più alto porta una data anteriore a uno più basso.
+ * **Avviso cronologico** (specifica numerazione §4): il numero e la data che
+ * stai per assegnare non stanno in ordine con un documento già registrato.
  *
- * Avviso, non blocco — «Sì, salva comunque» / «No» — e l'elenco mostra **tutti**
- * i documenti fuori posto, non solo quello che si sta salvando: l'avviso deve
- * dire *cosa* c'è da sistemare, e un elenco di uno non lo direbbe.
+ * Avviso, non blocco — «Sì, salva comunque» / «No, torna al documento» — ma il
+ * predefinito è il **No**: su un allarme, l'opzione che non scrive è quella che
+ * deve costare meno.
+ *
+ * **Il messaggio nomina tre cose**: il numero e la data che stai assegnando, il
+ * documento che le smentisce con la sua data, e la regola violata a parole.
+ * Prima diceva «un documento di questa serie porta un numero più alto di uno
+ * con data successiva» — vero, astratto, e su un documento che l'operatore non
+ * stava toccando. La forma è quella di Danea, che su questo ha ragione:
+ * «È incorretto assegnare il nr. 2 e la data 13/8/26 al documento perché esiste
+ * già "Prev. 1 del 15/8/26" e quindi numeri e date non sono in corretta
+ * progressione».
  *
  * Non è un dialogo nuovo: è `app-confirm-dialog` con dentro l'elenco e la
  * casella. Il comportamento modale — fuoco intrappolato, ESC, sfondo inerte — è
@@ -25,7 +39,11 @@ import type { ChronologyAnomaly } from '../../models/document-chronology.model';
 })
 export class DocumentChronologyWarningDialogComponent {
   readonly open = input.required<boolean>();
-  readonly anomalies = input.required<readonly ChronologyAnomaly[]>();
+  readonly conflicts = input.required<readonly ChronologyConflict[]>();
+  /** Numero che si sta assegnando: la prima metà della frase. */
+  readonly assigningNumber = input.required<number | null>();
+  /** Data in testata, `AAAA-MM-GG`: la seconda metà. */
+  readonly assigningDate = input.required<string>();
   readonly dontShowAgain = input<boolean>(false);
   /** Salvataggio in corso dopo la conferma: i bottoni si spengono. */
   readonly busy = input<boolean>(false);
@@ -34,24 +52,22 @@ export class DocumentChronologyWarningDialogComponent {
   readonly cancelled = output<void>();
   readonly dontShowAgainChange = output<boolean>();
 
-  /**
-   * Al singolare e al plurale non si dice la stessa cosa, e il numero è
-   * l'informazione che fa capire se è una svista o una serie da rivedere.
-   */
-  protected readonly message = computed(() => {
-    const quanti = this.anomalies().length;
-    return quanti === 1
-      ? 'Un documento di questa serie porta un numero più alto di uno con data successiva.'
-      : `${quanti} documenti di questa serie portano un numero più alto di uno con data successiva.`;
-  });
+  protected readonly message = computed(() =>
+    chronologyWarningMessage(this.conflicts(), this.assigningNumber(), this.assigningDate()),
+  );
 
-  /** `AAAA-MM-GG` o istante ISO: all'operatore si mostra il giorno. */
   protected giorno(value: string): string {
-    const data = new Date(value);
-    return Number.isNaN(data.getTime()) ? value : data.toLocaleDateString('it-IT');
+    return chronologyDay(value);
   }
 
-  protected etichetta(anomaly: ChronologyAnomaly): string {
-    return anomaly.reference ?? `n. ${anomaly.number}`;
+  protected etichetta(conflict: ChronologyConflict): string {
+    return chronologyLabel(conflict);
+  }
+
+  /** «precede» / «segue» detti all'operatore, per l'elenco quando sono due. */
+  protected verso(conflict: ChronologyConflict): string {
+    return conflict.direction === 'precede'
+      ? 'numero più basso, data successiva'
+      : 'numero più alto, data anteriore';
   }
 }

@@ -236,6 +236,7 @@ export class SupplierOrdersService {
           tenantId,
           requestedSeries,
           requestedNumber,
+          orderDate,
           dto.destinationLocationId ?? null,
         );
         throw error;
@@ -362,6 +363,7 @@ export class SupplierOrdersService {
           tenantId,
           seriesChanged ? nextSeries : undefined,
           numberChanged ? nextNumber : null,
+          dto.orderDate ? new Date(dto.orderDate) : order.orderDate,
           dto.destinationLocationId ?? order.destinationLocationId,
         );
         throw error;
@@ -508,6 +510,7 @@ export class SupplierOrdersService {
     tenantId: string,
     series: string | null | undefined,
     requestedNumber: number | null,
+    documentDate: Date,
     // La serie si risolve come nella scrittura, sede compresa (§1-bis): il
     // «prossimo libero» dell'avviso si calcola su una partizione, e sbagliarla
     // propone un numero che darà un secondo conflitto.
@@ -535,6 +538,11 @@ export class SupplierOrdersService {
         source: 'supplier_order',
         prefix: setting.numberPrefix,
         requestedNumber,
+        // La data governa il primo libero (§2): senza, l'avviso proporrebbe il
+        // numero giusto per OGGI e non per la data del documento — cioè
+        // scriverebbe in testata un numero calcolato con una regola diversa da
+        // quella che ha appena assegnato quello rifiutato.
+        documentDate,
       }),
     );
   }

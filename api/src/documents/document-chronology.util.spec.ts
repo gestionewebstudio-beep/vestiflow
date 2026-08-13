@@ -2,159 +2,166 @@ import { DocumentType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
-import { findChronologyAnomalies } from './document-chronology.util';
+import { findChronologyConflicts } from './document-chronology.util';
+
+/** Un documento già registrato nella partizione. */
+interface Registrato {
+  readonly id: string;
+  readonly number: number;
+  readonly data: string;
+  readonly reference?: string;
+}
 
 /**
  * Tx finto che **esegue davvero la regola** invece di restituire una risposta
  * preconfezionata: la query SQL non si può eseguire qui, ma la sua semantica sì,
- * ed è quella che deve restare vera. Il calcolo è lo stesso della funzione
- * finestra — il massimo delle date dei numeri precedenti — scritto una volta
- * sola, in modo che un test non possa passare per come è stato scritto il test.
+ * ed è quella che deve restare vera.
+ *
+ * Il limite, dichiarato: la regola è riscritta in JavaScript, quindi un `<=`
+ * messo per errore nell'SQL non lo prenderebbe. Per quello servono i test sulla
+ * FORMA della query (sotto) e, per la certezza, un Postgres vero — vedi
+ * `GUARDIE-MANCANTI.md` voce 12.
  */
-function txConDocumenti(
-  documenti: readonly { id: string; number: number; data: string; reference?: string }[],
-) {
+function txCon(documenti: readonly Registrato[]) {
   const queryRaw = vi.fn(async () => {
-    const ordinati = [...documenti].sort((a, b) => a.number - b.number);
-    const fuoriPosto: { id: string; number: number; data: Date; reference: string | null }[] = [];
-    let massimoPrecedente: string | null = null;
-    for (const doc of ordinati) {
-      if (massimoPrecedente !== null && doc.data < massimoPrecedente) {
-        fuoriPosto.push({
-          id: doc.id,
-          number: doc.number,
-          data: new Date(doc.data),
-          reference: doc.reference ?? null,
-        });
-      }
-      if (massimoPrecedente === null || doc.data > massimoPrecedente) {
-        massimoPrecedente = doc.data;
-      }
-    }
-    return fuoriPosto;
+    // I due estremi, uno per verso, come fanno le due sotto-query.
+    const precede = documenti
+      .filter((d) => d.number < numeroCorrente && d.data > dataCorrente)
+      .sort((a, b) => b.data.localeCompare(a.data))[0];
+    const segue = documenti
+      .filter((d) => d.number > numeroCorrente && d.data < dataCorrente)
+      .sort((a, b) => a.data.localeCompare(b.data))[0];
+    return [
+      ...(precede ? [{ ...precede, data: new Date(precede.data), direzione: 'precede' }] : []),
+      ...(segue ? [{ ...segue, data: new Date(segue.data), direzione: 'segue' }] : []),
+    ].map((r) => ({ id: r.id, number: r.number, data: r.data, reference: r.reference ?? null, direzione: r.direzione }));
   });
-  return { queryRaw, tx: { $queryRaw: queryRaw } as unknown as Prisma.TransactionClient };
+  return { $queryRaw: queryRaw } as unknown as Prisma.TransactionClient;
 }
 
-function anomalie(documenti: Parameters<typeof txConDocumenti>[0]) {
-  const { tx } = txConDocumenti(documenti);
-  return findChronologyAnomalies({
-    tx,
+let numeroCorrente = 0;
+let dataCorrente = '';
+
+function conflitti(documenti: readonly Registrato[], number: number, data: string) {
+  numeroCorrente = number;
+  dataCorrente = data;
+  return findChronologyConflicts({
+    tx: txCon(documenti),
     tenantId: 'tenant-1',
     type: DocumentType.goods_receipt,
     series: 'A',
     source: 'document',
+    number,
+    documentDate: new Date(data),
   });
 }
 
-describe('findChronologyAnomalies', () => {
-  it('serie in ordine: nessuna anomalia', async () => {
-    await expect(
-      anomalie([
-        { id: 'a', number: 1, data: '2026-06-01' },
-        { id: 'b', number: 2, data: '2026-06-03' },
-        { id: 'c', number: 3, data: '2026-06-10' },
-      ]),
-    ).resolves.toEqual([]);
+describe('findChronologyConflicts — la regola', () => {
+  /**
+   * Il caso che ha fatto riscrivere il controllo (misurato il 13/08/2026 su
+   * Danea e sul nostro sistema): oggi creo il n.1 datato domani, poi ne apro un
+   * altro che prende il n.2 con la data di oggi. Il n.2 nasce fuori ordine, e
+   * l'avviso deve comparire ORA — non al salvataggio dopo.
+   */
+  it('numero più basso datato dopo di me: è il caso di tutti i giorni', async () => {
+    const trovati = await conflitti(
+      [{ id: 'a', number: 1, data: '2026-08-14', reference: 'PRE-0001' }],
+      2,
+      '2026-08-13',
+    );
+
+    expect(trovati).toHaveLength(1);
+    expect(trovati[0]).toMatchObject({ number: 1, reference: 'PRE-0001', direction: 'precede' });
+  });
+
+  it('numero più alto datato prima di me: il verso simmetrico', async () => {
+    const trovati = await conflitti(
+      [{ id: 'a', number: 9, data: '2026-08-01', reference: 'PRE-0009' }],
+      5,
+      '2026-08-10',
+    );
+
+    expect(trovati).toHaveLength(1);
+    expect(trovati[0]).toMatchObject({ number: 9, direction: 'segue' });
+  });
+
+  it('entrambi i versi insieme: due conflitti, uno per verso', async () => {
+    const trovati = await conflitti(
+      [
+        { id: 'a', number: 1, data: '2026-08-20' },
+        { id: 'b', number: 9, data: '2026-08-01' },
+      ],
+      5,
+      '2026-08-10',
+    );
+
+    expect(trovati.map((c) => c.direction)).toEqual(['precede', 'segue']);
   });
 
   /**
-   * **Stessa data non è mai anomalia**, ed è il punto su cui il `<` stretto fa
-   * la differenza: dentro la giornata l'ordine dei numeri non significa niente.
-   * Con un `<=` questa serie — perfettamente legittima — risulterebbe rotta.
+   * **Il test che oggi mancava, ed è il primo dei due chiesti.** La serie è
+   * disordinata (il n.1 di domani e il n.2 di oggi si contraddicono fra loro),
+   * ma il documento che sto salvando — n.3, datato dopo entrambi — sta in
+   * ordine con tutti. Non deve dire niente: il disordine vecchio non è affare
+   * suo, e prima questo era esattamente il caso che avvisava.
    */
-  it('numeri fuori ordine nello STESSO giorno: nessuna anomalia', async () => {
-    await expect(
-      anomalie([
-        { id: 'a', number: 1, data: '2026-06-05' },
-        { id: 'b', number: 2, data: '2026-06-05' },
-        { id: 'c', number: 3, data: '2026-06-05' },
-      ]),
-    ).resolves.toEqual([]);
+  it('documento in ordine dentro una serie disordinata: nessun avviso', async () => {
+    const serieDisordinata = [
+      { id: 'a', number: 1, data: '2026-08-14' },
+      { id: 'b', number: 2, data: '2026-08-13' },
+    ];
+
+    await expect(conflitti(serieDisordinata, 3, '2026-08-20')).resolves.toEqual([]);
   });
 
-  // Il numero 5 forzato a mano con data anteriore al 9: è lui a essere fuori
-  // posto, non il 9 — la data del 5 è più vecchia di quella di un numero minore.
-  it('numero forzato a mano indietro nel tempo: è quel documento a essere in anomalia', async () => {
-    const trovate = await anomalie([
-      { id: 'a', number: 1, data: '2026-08-01' },
-      { id: 'b', number: 5, data: '2026-07-20' },
-      { id: 'c', number: 9, data: '2026-08-10' },
-    ]);
+  it('stessa data non è mai un conflitto: dentro la giornata l’ordine è libero', async () => {
+    const stessoGiorno = [
+      { id: 'a', number: 1, data: '2026-08-13' },
+      { id: 'b', number: 9, data: '2026-08-13' },
+    ];
 
-    expect(trovate.map((riga) => riga.number)).toEqual([5]);
+    await expect(conflitti(stessoGiorno, 5, '2026-08-13')).resolves.toEqual([]);
   });
 
-  /**
-   * **Il caso terminale del §2**, che l'avviso deve segnalare: esiste il 15
-   * datato avanti, i numeri sotto si esauriscono, e la proposta scavalca. Il 16
-   * nasce datato oggi contro il 15 datato fra una settimana.
-   *
-   * L'anomalia è del 16, e va detta: non l'ha creata il sistema — l'ha creata
-   * chi ha assegnato il 15 con data futura — ma esiste davvero nei dati.
-   */
-  it('caso terminale: il numero che scavalca un documento datato avanti', async () => {
-    const trovate = await anomalie([
-      { id: 'a', number: 10, data: '2026-08-01' },
-      { id: 'b', number: 15, data: '2026-08-18' },
-      { id: 'c', number: 16, data: '2026-08-11' },
-    ]);
+  it('serie in ordine: niente da dire', async () => {
+    const inOrdine = [
+      { id: 'a', number: 1, data: '2026-06-01' },
+      { id: 'b', number: 2, data: '2026-06-03' },
+    ];
 
-    expect(trovate.map((riga) => riga.number)).toEqual([16]);
-  });
-
-  // L'avviso deve dire COSA c'è da sistemare: un elenco di uno non lo direbbe.
-  it('elenca tutti i documenti fuori posto, non solo l’ultimo', async () => {
-    const trovate = await anomalie([
-      { id: 'a', number: 1, data: '2026-08-20' },
-      { id: 'b', number: 2, data: '2026-08-02' },
-      { id: 'c', number: 3, data: '2026-08-03' },
-    ]);
-
-    expect(trovate.map((riga) => riga.number)).toEqual([2, 3]);
-  });
-
-  it('restituisce riferimento e data di ogni documento fuori posto', async () => {
-    const trovate = await anomalie([
-      { id: 'a', number: 1, data: '2026-08-10' },
-      { id: 'b', number: 2, data: '2026-08-01', reference: 'AM-A-0002' },
-    ]);
-
-    expect(trovate).toEqual([
-      { id: 'b', number: 2, documentDate: new Date('2026-08-01'), reference: 'AM-A-0002' },
-    ]);
+    await expect(conflitti(inOrdine, 3, '2026-06-10')).resolves.toEqual([]);
   });
 });
 
 /**
- * I due difetti che **nessuna prova poteva vedere**, perché il tx finto qui
- * sopra esegue la regola in JavaScript e non guarda l'SQL: il riferimento
- * leggibile sugli ordini cliente (colonna `order_number`, non `reference` —
- * l'endpoint rispondeva 500) e la serie vuota (che è «senza serie», quindi
- * `series IS NULL` e non `series = ''` — il controllo non guardava mai la
- * partizione più usata). Trovati provando l'applicazione vera, il 13/08.
+ * I difetti che **nessuna prova poteva vedere**, perché il tx finto qui sopra
+ * esegue la regola in JavaScript e non guarda l'SQL: il riferimento leggibile
+ * sugli ordini cliente (colonna `order_number`, non `reference` — l'endpoint
+ * rispondeva 500) e la serie vuota (che è «senza serie», quindi `series IS
+ * NULL` e non `series = ''` — il controllo non guardava mai la partizione più
+ * usata). Trovati provando l'applicazione vera, il 13/08.
  *
- * Questi test non eseguono la query: **leggono cosa chiede**. È meno di un
- * test d'integrazione su un Postgres vero (vedi GUARDIE-MANCANTI, voce 12) ed
- * è tutto ciò che si può fare senza database.
+ * Questi test non eseguono la query: **leggono cosa chiede**.
  */
-describe('findChronologyAnomalies — cosa chiede al database', () => {
-  function sqlDi(input: Partial<Parameters<typeof findChronologyAnomalies>[0]>): Promise<string> {
+describe('findChronologyConflicts — cosa chiede al database', () => {
+  function sqlDi(input: Partial<Parameters<typeof findChronologyConflicts>[0]>): Promise<string> {
     const queryRaw = vi.fn(async () => []);
-    return findChronologyAnomalies({
+    return findChronologyConflicts({
       tx: { $queryRaw: queryRaw } as unknown as Prisma.TransactionClient,
       tenantId: 'tenant-1',
       type: DocumentType.goods_receipt,
       series: 'A',
       source: 'document',
+      number: 5,
+      documentDate: new Date('2026-08-13'),
       ...input,
     }).then(() => {
       const [pezzi, ...valori] = queryRaw.mock.calls[0] as unknown as [
         readonly string[],
         ...unknown[],
       ];
-      // Ricompone il testo: i frammenti Prisma portano le proprie stringhe,
-      // i parametri veri diventano un segnaposto.
+      // Ricompone il testo: i frammenti Prisma portano le proprie stringhe, i
+      // parametri veri diventano un segnaposto.
       return pezzi.reduce((testo, pezzo, i) => {
         const valore = valori[i];
         const frammento =
@@ -168,6 +175,16 @@ describe('findChronologyAnomalies — cosa chiede al database', () => {
     });
   }
 
+  it('i confronti sono STRETTI, in tutti e quattro i punti', async () => {
+    const sql = await sqlDi({});
+
+    expect(sql).toContain('number < ?');
+    expect(sql).toContain('number > ?');
+    expect(sql).not.toContain('number <= ?');
+    expect(sql).not.toContain('number >= ?');
+    expect(sql).not.toContain('>= ?');
+  });
+
   it('serie vuota vuol dire «senza serie», non «serie uguale a vuoto»', async () => {
     await expect(sqlDi({ series: '' })).resolves.toContain('series IS NULL');
   });
@@ -180,6 +197,16 @@ describe('findChronologyAnomalies — cosa chiede al database', () => {
     const sql = await sqlDi({ series: 'A' });
     expect(sql).toContain('series = ');
     expect(sql).not.toContain('series IS NULL');
+  });
+
+  it('in modifica il documento non fa conflitto con la propria riga vecchia', async () => {
+    const sql = await sqlDi({ excludeId: 'doc-1' });
+    expect(sql).toContain('id <> ');
+  });
+
+  it('senza documento da escludere la clausola non compare', async () => {
+    const sql = await sqlDi({});
+    expect(sql).not.toContain('id <> ');
   });
 
   it('l’ordine cliente legge il proprio riferimento, che si chiama order_number', async () => {

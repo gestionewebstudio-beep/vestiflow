@@ -824,10 +824,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.isRegistryDocument
       ? this.documentService
           .previewDocumentNumber(this.registryDocumentType, {
-            // La sede decide quale contatore predefinito si applica (§1-bis).
-            // Letta all'apertura: è l'anteprima della testata, non il numero
-            // che il salvataggio assegnerà — quello lo dice `numbering`.
+            // La sede decide quale contatore predefinito si applica (§1-bis),
+            // la data quale numero è il primo libero (§2). Lette all'apertura:
+            // è l'anteprima della testata, non il numero che il salvataggio
+            // assegnerà — quello lo dice `numbering`.
             locationId: this.form.controls.locationId.value || null,
+            documentDate: this.form.controls.documentDate.value || null,
           })
           .pipe(
             map((preview) => preview.reference),
@@ -918,6 +920,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected readonly chronology = new DocumentChronologyGuard({
     documentType: () => this.numberingDocumentType,
     series: () => this.form.controls.series.value,
+    number: () => this.form.controls.documentNumber.value,
+    documentDate: () => this.form.controls.documentDate.value,
+    // In modifica il documento non deve risultare fuori ordine con la
+    // propria riga vecchia: cambiare numero E data basterebbe.
+    excludeId: () => this.editOrderId(),
   });
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */

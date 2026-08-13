@@ -157,7 +157,7 @@ function formProviders(options: FormOptions = {}) {
         // cliente resta a netto (modalita' prezzo ri-gated).
         getPriceModePreference: () => of(false),
         // Controllo cronologico (§4): serie in ordine, nessun avviso.
-        checkChronology: () => of({ anomalies: [], dismissed: false }),
+        checkChronology: () => of({ conflicts: [], dismissed: false }),
         dismissChronologyWarning: () => of(void 0),
       },
     },
@@ -1322,8 +1322,9 @@ describe('CustomerOrderFormComponent — quale numeratore chiede ogni modalità'
     const available = vi.fn((_type: DocumentType, _locationId?: string | null, _data?: string) =>
       of({ counters: [], proposedCounterId: null }),
     );
-    const checkChronology = vi.fn((_type: DocumentType, _series: string) =>
-      of({ anomalies: [], dismissed: false }),
+    const checkChronology = vi.fn(
+      (_type: DocumentType, _series: string, _numero: number, _data: string) =>
+        of({ conflicts: [], dismissed: false }),
     );
 
     const view = await render(CustomerOrderFormComponent, {
@@ -1348,13 +1349,12 @@ describe('CustomerOrderFormComponent — quale numeratore chiede ogni modalità'
     });
 
     await waitFor(() => expect(available).toHaveBeenCalled());
-    const chronology = (
-      view.fixture.componentInstance as unknown as {
-        chronology: { run: (salva: () => void) => void };
-      }
-    ).chronology;
+    const istanza = view.fixture.componentInstance as unknown as {
+      chronology: { run: (salva: () => void) => void };
+      form: { controls: Record<string, { setValue: (v: unknown) => void }> };
+    };
 
-    return { available, checkChronology, chronology };
+    return { available, checkChronology, chronology: istanza.chronology, form: istanza.form };
   }
 
   it('l’Ordine cliente chiede le serie del proprio numeratore, non quelle del Preventivo', async () => {
@@ -1364,11 +1364,29 @@ describe('CustomerOrderFormComponent — quale numeratore chiede ogni modalità'
   });
 
   it('l’Ordine cliente controlla la cronologia sul proprio tipo', async () => {
-    const { checkChronology, chronology } = await apri();
+    const { checkChronology, chronology, form } = await apri();
+    // Senza un numero in testata non c'è una coppia da controllare e la
+    // chiamata non parte: è la regola del §4, non un dettaglio del test.
+    form.controls['documentNumber']!.setValue(7);
+    form.controls['documentDate']!.setValue('2026-08-13');
 
     chronology.run(() => undefined);
 
-    expect(checkChronology.mock.calls[0]![0]).toBe(DocumentType.CustomerOrder);
+    const [tipo, , numero, data] = checkChronology.mock.calls[0]!;
+    expect(tipo).toBe(DocumentType.CustomerOrder);
+    expect(numero).toBe(7);
+    expect(data).toBe('2026-08-13');
+  });
+
+  it('senza numero in testata non chiede niente e lascia salvare', async () => {
+    const { checkChronology, chronology, form } = await apri();
+    form.controls['documentNumber']!.setValue(null);
+    const salvato = vi.fn();
+
+    chronology.run(salvato);
+
+    expect(checkChronology).not.toHaveBeenCalled();
+    expect(salvato).toHaveBeenCalledTimes(1);
   });
 
   it('il Preventivo resta sul proprio, che è un tipo del registro', async () => {

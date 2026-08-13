@@ -2,12 +2,12 @@ import { Injectable } from '@nestjs/common';
 import type { DocumentType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { findChronologyAnomalies, type ChronologyAnomaly } from './document-chronology.util';
+import { findChronologyConflicts, type ChronologyConflict } from './document-chronology.util';
 import { numberSourceForType } from './document-numbering.util';
 
-/** Esito del controllo: l'elenco, più se l'operatore ha spento l'avviso. */
+/** Esito del controllo: i conflitti, più se l'operatore ha spento l'avviso. */
 export interface ChronologyCheck {
-  readonly anomalies: readonly ChronologyAnomaly[];
+  readonly conflicts: readonly ChronologyConflict[];
   readonly dismissed: boolean;
 }
 
@@ -15,10 +15,14 @@ export interface ChronologyCheck {
  * **Controllo cronologico** (specifica numerazione §4): dentro lo stesso
  * contatore, a numero più alto deve corrispondere data uguale o successiva.
  *
- * È un **avviso, non un blocco**: si salva comunque. E l'avviso è
- * **persistente** — continua a comparire finché l'anomalia resta nei dati, anche
- * sui documenti successivi corretti. È voluto: un buco non giustificato va
- * risolto, e un avviso che sparisce da solo lascia dimenticare.
+ * È un **avviso, non un blocco**: si salva comunque. E riguarda **il documento
+ * che si sta salvando**, non lo stato generale della serie: si confronta la
+ * coppia (numero, data) in testata con quelle già registrate, e si nomina chi la
+ * smentisce.
+ *
+ * _Fino al 13/08/2026 guardava la serie intera, e per questo arrivava sempre in
+ * ritardo di un gesto: girando prima della scrittura non poteva vedere
+ * l'anomalia che la scrittura stava creando. Il §4 racconta la misura._
  *
  * L'operatore può spegnerlo, ma **solo per il tipo documento in cui è comparso**:
  * chi sistema le fatture non resta cieco sui DDT.
@@ -28,29 +32,36 @@ export class DocumentChronologyService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Anomalie del contatore, più lo stato della preferenza.
+   * I conflitti del documento in salvataggio, più lo stato della preferenza.
    *
    * Le due letture stanno insieme perché la maschera ne fa una domanda sola —
    * «devo mostrare l'avviso?» — e separarle vorrebbe dire due giri di rete per
    * decidere una cosa che si decide in un punto.
    */
-  async check(
-    tenantId: string,
-    userId: string | undefined,
-    type: DocumentType,
-    series: string | null,
-  ): Promise<ChronologyCheck> {
-    const [anomalies, dismissed] = await Promise.all([
-      findChronologyAnomalies({
+  async check(input: {
+    readonly tenantId: string;
+    readonly userId: string | undefined;
+    readonly type: DocumentType;
+    readonly series: string | null;
+    readonly number: number;
+    readonly documentDate: Date;
+    readonly excludeId?: string | null;
+  }): Promise<ChronologyCheck> {
+    const { tenantId, userId, type } = input;
+    const [conflicts, dismissed] = await Promise.all([
+      findChronologyConflicts({
         tx: this.prisma,
         tenantId,
         type,
-        series,
+        series: input.series,
         source: numberSourceForType(type),
+        number: input.number,
+        documentDate: input.documentDate,
+        excludeId: input.excludeId ?? null,
       }),
       userId ? this.isDismissed(tenantId, userId, type) : Promise.resolve(false),
     ]);
-    return { anomalies, dismissed };
+    return { conflicts, dismissed };
   }
 
   /** L'avviso è spento per questo operatore su questo tipo documento? */

@@ -4,18 +4,25 @@
   [message]="message()"
   confirmLabel="Sì, salva comunque"
   cancelLabel="No, torna al documento"
+  emphasis="cancel"
   [busy]="busy()"
   (confirmed)="confirmed.emit()"
   (dismissed)="cancelled.emit()"
 >
-  <ul class="chrono-warning__list">
-    @for (anomaly of anomalies(); track anomaly.id) {
-      <li class="chrono-warning__item">
-        <span class="chrono-warning__ref">{{ etichetta(anomaly) }}</span>
-        <span class="chrono-warning__date">{{ giorno(anomaly.documentDate) }}</span>
-      </li>
-    }
-  </ul>
+  <!-- L'elenco compare solo quando i documenti in conflitto sono più d'uno: con
+       uno solo la frase lo nomina già, e ripeterlo sotto sarebbe una riga in
+       più che non aggiunge niente. -->
+  @if (conflicts().length > 1) {
+    <ul class="chrono-warning__list">
+      @for (conflict of conflicts(); track conflict.id) {
+        <li class="chrono-warning__item">
+          <span class="chrono-warning__ref">{{ etichetta(conflict) }}</span>
+          <span class="chrono-warning__date">{{ giorno(conflict.documentDate) }}</span>
+          <span class="chrono-warning__why">{{ verso(conflict) }}</span>
+        </li>
+      }
+    </ul>
+  }
 
   <label class="chrono-warning__mute">
     <input

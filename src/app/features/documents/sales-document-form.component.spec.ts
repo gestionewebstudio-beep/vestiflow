@@ -159,7 +159,7 @@ describe('SalesDocumentFormComponent', () => {
           useValue: {
             getDocumentById: vi.fn(),
             // Controllo cronologico (§4): serie in ordine, nessun avviso.
-            checkChronology: () => of({ anomalies: [], dismissed: false }),
+            checkChronology: () => of({ conflicts: [], dismissed: false }),
             dismissChronologyWarning: () => of(void 0),
             // DDT agganciabili in fattura (mai richiesti senza cliente).
             getDocuments: () => of({ data: [], page: 1, pageSize: 50, total: 0 }),

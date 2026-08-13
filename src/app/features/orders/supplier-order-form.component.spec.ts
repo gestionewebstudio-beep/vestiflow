@@ -209,7 +209,7 @@ describe('SupplierOrderFormComponent', () => {
           provide: DocumentService,
           useValue: {
             getPriceModePreference: () => of(false),
-            checkChronology: () => of({ anomalies: [], dismissed: false }),
+            checkChronology: () => of({ conflicts: [], dismissed: false }),
             dismissChronologyWarning: () => of(void 0),
           },
         },
@@ -644,7 +644,7 @@ describe('SupplierOrderFormComponent', () => {
           provide: DocumentService,
           useValue: {
             getPriceModePreference: () => of(false),
-            checkChronology: () => of({ anomalies: [], dismissed: false }),
+            checkChronology: () => of({ conflicts: [], dismissed: false }),
             dismissChronologyWarning: () => of(void 0),
           },
         },
@@ -987,7 +987,7 @@ describe('SupplierOrderFormComponent', () => {
             provide: DocumentService,
             useValue: {
               getPriceModePreference: () => of(false),
-              checkChronology: () => of({ anomalies: [], dismissed: false }),
+              checkChronology: () => of({ conflicts: [], dismissed: false }),
               dismissChronologyWarning: () => of(void 0),
             },
           },

@@ -175,7 +175,7 @@ describe('StockOperationFormComponent', () => {
           useValue: {
             getDocumentById: vi.fn(() => of(CONFIRMED_ADJUSTMENT)),
             // Controllo cronologico (§4): serie in ordine, nessun avviso.
-            checkChronology: () => of({ anomalies: [], dismissed: false }),
+            checkChronology: () => of({ conflicts: [], dismissed: false }),
             dismissChronologyWarning: () => of(void 0),
             saveAdjustment,
             createDocument,

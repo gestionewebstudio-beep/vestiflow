@@ -61,7 +61,7 @@ describe('TransferFormComponent', () => {
     const counters = options?.counters ?? [];
     const documentService = {
       // Controllo cronologico (§4): serie in ordine, nessun avviso.
-      checkChronology: () => of({ anomalies: [], dismissed: false }),
+      checkChronology: () => of({ conflicts: [], dismissed: false }),
       dismissChronologyWarning: () => of(void 0),
       getDocumentById: vi.fn(),
       createDocument: vi.fn(() =>

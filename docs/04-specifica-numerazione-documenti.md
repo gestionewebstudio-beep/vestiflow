@@ -240,7 +240,9 @@ Il criterio di partenza era «dove il documento agisce su giacenze o disponibili
 
 **Attenzione a non confondere le due cose:** quel tipo ha **numerazione e serie come tutti gli altri**, si creano e si scelgono normalmente. Quello che non ha è il campo Sede in testata. Il `null` che passa oggi alla tendina è quindi corretto e non è un difetto: le serie senza sede sono disponibili ovunque, quindi quel tipo vede sempre le proprie serie.
 
-**Da implementare:** le tre maschere servite da `sales-document-form` (Proforma, Fattura, Fattura accompagnatoria) hanno il `FormControl locationId` ma **nessun campo nel template**. Il valore può arrivare solo dal precompilato di conversione o dal documento riletto. Per la Fattura accompagnatoria è la stessa sede che il codice dichiara obbligatoria per lo scarico.
+✅ **Fatto il 13/08/2026.** Le tre maschere servite da `sales-document-form` (Proforma, Fattura, Fattura accompagnatoria) avevano il `FormControl locationId` ma **nessun campo nel template**: il valore poteva arrivare solo dal precompilato di conversione o dal documento riletto. Ora il campo c'è in testata (`sales-document-form.component.html:307`), incondizionato per tutti e tre i tipi, e si precompila con la sede predefinita dell'operatore come nelle altre maschere.
+
+_Questa riga ha detto «Da implementare» per un giorno intero **dopo** che il campo esisteva, mentre più sotto lo stesso documento raccontava un difetto trovato e corretto proprio su quel campo. Un documento che si contraddice al suo interno è peggio di uno incompleto: chi legge non sa quale metà credere._
 
 `Ordine fornitore` passa `null` fisso alla tendina perché non ha un campo sede: rientra nell'estensione. `Fattura acquisto` no, per il motivo sopra.
 
@@ -496,13 +498,74 @@ Il testo del messaggio va riscritto insieme alla regola: oggi dice «Il prossimo
 
 ## §4 — Controllo cronologico
 
-_Deciso 11 agosto 2026. Da implementare._
+_Deciso l'11 agosto 2026. **Riscritto il 13 agosto**, dopo aver misurato che la prima versione arrivava sempre in ritardo di un gesto._
 
 **Il fatto controllato:** dentro lo stesso contatore, a numero più alto deve corrispondere data uguale o successiva.
 
 **Stessa data, nessuna anomalia mai.** Nella giornata l'ordine dei numeri non significa niente: creare, saltare, tornare indietro è tutto libero.
 
-### Quando nasce l'anomalia
+### La decisione che cambia tutto: si guarda il documento in salvataggio
+
+Il controllo prende in ingresso **il numero e la data che l'operatore ha in testata**, e cerca chi li smentisce:
+
+- un documento con **numero più basso e data successiva** — il caso di tutti i giorni;
+- un documento con **numero più alto e data anteriore** — il simmetrico.
+
+Al massimo due, uno per verso. Fra i candidati si sceglie il più lontano dall'ordine — la data più recente fra i numeri minori, la più antica fra i maggiori — perché è quello che rende evidente il salto.
+
+#### Perché la prima versione era sbagliata, e non di poco
+
+Interrogava **la serie intera** cercando chiunque fosse fuori posto. Siccome girava _prima_ di scrivere, nel momento che conta non vedeva niente: **l'anomalia la creava il salvataggio stesso**, e l'avviso compariva **al salvataggio successivo**, nominando un documento che l'operatore aveva già chiuso.
+
+Misurato il 13/08 sul database vero, ed è la prova che ha deciso la riscrittura:
+
+```
+oggi 13/08, creo un documento datato 14/08     → n. 1, salvato
+sempre oggi, ne creo un altro (data 13/08)     → la testata propone n. 2
+   ⟵ QUI Danea avvisa.  Il nostro controllo dice: 0 anomalie
+                                                salvato n. 2 del 13/08
+DOPO il salvataggio il controllo dice: 1 anomalia → n. 2, quello appena creato
+```
+
+Da qui discende anche la «persistenza» che la prima stesura dichiarava voluta: **non era una scelta**. L'avviso continuava a comparire perché denunciava un disordine che nessuno gli aveva segnalato al momento giusto, e che l'operatore non poteva sistemare dal dialogo. Un allarme che si ripete a ogni salvataggio e non è azionabile viene spento — è il modo in cui un avviso smette di essere letto.
+
+#### La forma del messaggio
+
+Nomina **tre cose**, e le tre insieme sono il punto:
+
+> Stai assegnando il **numero 2** con data **13/08/2026**, ma esiste già **PRE-0001 del 14/08/2026**: un numero più basso con una data successiva, quindi numeri e date non sarebbero in ordine.
+
+Prima diceva «un documento di questa serie porta un numero più alto di uno con data successiva»: vero, astratto, e riferito a un documento che l'operatore non stava toccando. La forma viene da Danea, che su questo ha ragione — «È incorretto assegnare il nr. 2 e la data 13/8/26 al documento perché esiste già "Prev. 1 del 15/8/26" e quindi numeri e date non sono in corretta progressione».
+
+I bottoni restano **«Sì, salva comunque»** e **«No, torna al documento»**, ma il **predefinito è il No**: su un allarme, l'opzione che non scrive deve costare meno di quella che scrive. (Il fuoco iniziale era già sul No — il `<dialog>` nativo prende il primo elemento raggiungibile — ma il colore diceva il contrario.)
+
+### Quando scatta: solo al Salva
+
+**L'avviso compare esclusivamente alla pressione di Salva. Mai durante la compilazione**: nessuna segnalazione accanto ai campi, nessun indicatore che si accende digitando, nessun controllo al cambio data o al cambio numero.
+
+La ragione è la natura della cosa: **se quell'avviso compare, qualcosa è andato storto e va sistemato a mano**. Non è un suggerimento mentre si lavora — è un allarme a cose fatte. Un allarme che si accende mentre l'operatore sta ancora scegliendo i valori diventa rumore, e il rumore si impara a ignorare.
+
+### Il disordine già presente non si segnala
+
+Il controllo guarda il documento in mano, quindi il disordine lasciato ieri **non compare più al salvataggio**. È voluto: chi apre un documento oggi non deve essere fermato da un errore che non ha commesso e che da lì non può correggere.
+
+Dove si vede, allora? **Nel riepilogo dei documenti**, che c'è già: numero e data stanno uno accanto all'altro, ordinabili. Non si costruisce una seconda superficie di segnalazione per dire una cosa che l'elenco dice da sé.
+
+### Casella «non mostrare più»
+
+Spegne l'avviso **solo per il tipo documento in cui è comparsa**: chi sistema le fatture non resta cieco sui DDT. Una volta spenta resta spenta — nessuna riaccensione, nessun pannello nelle Impostazioni — e l'unico rimedio a una spunta presa per sbaglio è il database.
+
+**Il senso però è cambiato, e va detto a chi la incontra.** Prima zittiva un rumore continuo: un avviso che tornava a ogni salvataggio parlando di documenti vecchi. Ora zittisce **un allarme sul documento che hai in mano**, che compare solo quando quel documento nasce fuori ordine. Spegnerla oggi costa di più di quanto costasse ieri, e chi lo fa dovrebbe saperlo.
+
+**Si applica a tutti i tipi documento**, non solo ai fiscali. Non decidiamo noi a monte dove serve: lo decide l'operatore spegnendolo dove non gli interessa.
+
+### Forma della preferenza
+
+`UserDocumentChronologyWarningPreference`, chiavata su `(tenantId, userId, documentType)` — copiata da `UserDocumentPriceModePreference`, che è esattamente l'identità che serve. Migration `20260813160000_avviso_cronologico_preferenza`, applicata, con RLS e `REVOKE` nella stessa migration come vuole la regola di sicurezza.
+
+Una scelta di forma: **l'esistenza della riga È la preferenza**, non c'è un booleano. Non esiste il caso «riacceso», quindi un booleano avrebbe un solo valore utile e un secondo stato da spiegare. `dismissed_at` resta per sapere _quando_.
+
+### Quando nasce il disordine
 
 Con la regola del §2 accesa **la proposta non genera anomalie riempiendo i buchi**. Ne restano **tre** sorgenti, e tutte e tre partono da un gesto dell'operatore:
 
@@ -510,47 +573,30 @@ Con la regola del §2 accesa **la proposta non genera anomalie riempiendo i buch
 2. **data cambiata** su un documento già salvato;
 3. **il caso terminale del §2** — i numeri liberi sotto un documento datato avanti si esauriscono e la proposta deve scavalcare.
 
-Nel terzo caso **l'avviso deve comparire, ed è corretto**: l'anomalia l'ha creata chi ha datato il documento al futuro, il sistema ha solo proseguito a numerare per data. Che compaia al quinto documento anziché al primo è solo il momento in cui la conseguenza diventa visibile.
+Nel terzo caso **l'avviso deve comparire, ed è corretto**: l'anomalia l'ha creata chi ha datato il documento al futuro, il sistema ha solo proseguito a numerare per data.
 
 _Nota: la prima stesura diceva «l'anomalia può nascere solo in due modi, perché la proposta automatica è corretta per costruzione». Era impreciso in due punti — i modi sono tre, e la proposta non crea anomalie ma può renderne visibile una già introdotta._
 
-### Comportamento
-
-Avviso, non blocco. **Elenca i documenti in anomalia**, non solo quello corrente. Sì salva comunque, No torna al documento.
-
-L'avviso è **persistente**: continua a comparire finché l'anomalia resta nei dati, anche sui documenti successivi corretti. È voluto — un buco non giustificato va risolto, e un avviso che sparisce da solo lascia dimenticare.
-
-**Casella «non mostrare più questo messaggio»:** spegne l'avviso **solo per il tipo documento in cui è comparsa**. Chi sistema le fatture non resta cieco sui DDT.
-
-Una volta spenta resta spenta. Nessuna riaccensione, nessun pannello nelle Impostazioni. Rischio accettato: una spunta presa per sbaglio è definitiva per quell'operatore e quel tipo, e l'unico rimedio è il database.
-
-**Si applica a tutti i tipi documento**, non solo ai fiscali. Non decidiamo noi a monte dove serve: lo decide l'operatore spegnendolo dove non gli interessa.
-
-### Forma della preferenza
-
-Copiare `UserDocumentPriceModePreference`, chiavata su `(tenantId, userId, documentType)` — è esattamente l'identità che serve. Non progettare una tabella nuova.
-
 ### Stato al 13/08/2026
 
-**Fatto: la preferenza.** `UserDocumentChronologyWarningPreference`, migration `20260813160000_avviso_cronologico_preferenza`, **applicata** — stessa forma e stessa identità del modello indicato, con RLS e `REVOKE` nella stessa migration come vuole la regola di sicurezza.
+**Fatto: il rilevamento**, in `document-chronology.util.ts`. Due sotto-query in `UNION ALL`, una per verso, ciascuna con `ORDER BY` e `LIMIT 1`: si cercano gli estremi, non si scorre la partizione.
 
-Una scelta di forma: **l'esistenza della riga È la preferenza**, non c'è un booleano. Non esiste il caso «riacceso» — nessuna riaccensione, nessun pannello — quindi un booleano avrebbe un solo valore utile e un secondo stato da spiegare. `dismissed_at` resta per sapere _quando_, visto che l'unico rimedio a una spunta presa per sbaglio è il database.
+Le prove sono di due nature, e la distinzione conta:
 
-**Fatto: il rilevamento.** `document-chronology.util.ts` — una query con **funzione finestra**: il massimo delle date dei numeri precedenti si calcola scorrendo la partizione una volta sola, non con un confronto a coppie che su una serie lunga sarebbe quadratico. Elenca **tutti** i documenti fuori posto, ordinati per numero.
+- **sei sulla regola**, con un tx finto che la esegue in JavaScript. Fissano la semantica, compresi i due casi che la riscrittura ha aggiunto: **«documento in ordine dentro una serie disordinata: nessun avviso»** — che è esattamente ciò che prima sbagliava — e **stessa data mai un conflitto**;
+- **nove sulla forma della query**, che non la eseguono ma **leggono cosa chiede**: tabella, colonna data, colonna riferimento, normalizzazione della serie, esclusione del documento stesso in modifica, e i **quattro confronti stretti** (`number <`, `number >`, `>`, `<`). Sono nate da due difetti che nessuna prova poteva vedere — `reference` su `sales_orders`, che si chiama `order_number` e faceva rispondere 500; e `series = ''` invece di `series IS NULL`, per cui il controllo **non guardava mai la partizione senza serie**, la più usata di tutte.
 
-Sei prove lo fissano, e la più importante è **«numeri fuori ordine nello stesso giorno: nessuna anomalia»**: è il `<` stretto contro il `<=`, cioè la parola su cui la regola si gioca. Con `<=` ogni serie non numerata in ordine di creazione dentro la giornata risulterebbe rotta. Ci sono anche il numero forzato indietro nel tempo e **il caso terminale** — il 16 datato oggi che scavalca il 15 datato fra una settimana — che l'avviso deve segnalare.
+⚠️ **Limite dichiarato:** nessuna delle due nature esegue l'SQL. Un `<=` messo per errore non lo prende né l'una né l'altra. Serve un Postgres di prova — è la «strada C» del §0 e la voce 12 di `GUARDIE-MANCANTI.md`.
 
-⚠️ **Limite dichiarato delle prove:** il tx finto _esegue_ la regola in JavaScript, non la query. Fissano quindi la **semantica** — e con essa il `<` stretto — non l'SQL. È lo stesso limite della «strada C» del §0: senza un Postgres in prova, l'SQL non è verificabile.
+**Fatto: il percorso completo.** `DocumentChronologyService`, due rotte su `documents` (`GET /documents/chronology`, `POST /documents/chronology/dismiss`), lo store `DocumentChronologyWarningStore` in `domain/`, il dialogo `app-document-chronology-warning-dialog` — che **non è un dialogo nuovo**: è `app-confirm-dialog` con dentro la casella, perché il comportamento modale non si riscrive una seconda volta. Il testo dell'avviso è una **funzione pura** (`chronologyWarningMessage`), come già per il conflitto sul numero: una frase che l'operatore legge in un momento difficile si prova senza montare un componente.
 
-**Fatto: il percorso completo.** `DocumentChronologyService` (controllo + spegnimento), due rotte su `documents` — `GET /documents/chronology` e `POST /documents/chronology/dismiss` — lo store `DocumentChronologyWarningStore` in `domain/`, e il dialogo `app-document-chronology-warning-dialog`, che **non è un dialogo nuovo**: è `app-confirm-dialog` con dentro l'elenco e la casella, perché il comportamento modale — fuoco intrappolato, ESC, sfondo inerte — non si riscrive una seconda volta.
+Due scelte di robustezza, entrambe nel verso giusto in cui sbagliare: se il **controllo** non risponde si salva lo stesso — un avviso mancato è meno grave di un documento perduto — e se lo **spegnimento** fallisce l'avviso ricompare, perché uno spegnimento che non si riaccende non va concesso per un errore di rete.
 
-Sette prove sullo store fissano il comportamento, compresa quella che dice che **l'avviso ricompare** dopo essere stato confermato: è la persistenza, ed è la parte che un domani qualcuno potrebbe scambiare per un difetto.
+**Se la maschera non ha un numero in testata, non chiama.** Senza una coppia (numero, data) non c'è niente da verificare: si salva, e il numero lo assegna il server.
 
-Due scelte di robustezza, entrambe nel verso giusto in cui sbagliare: se il **controllo** non risponde si salva lo stesso — un avviso mancato è meno grave di un documento perduto — e se lo **spegnimento** fallisce l'avviso ricompare, perché uno spegnimento che non si riaccende non va concesso per errore di rete.
+**Collegate tutte e sette**: Arrivo merce, Ordine cliente, Ordine fornitore, Trasferimento, Rettifica, Fatture, Registrazione fattura.
 
-**Collegate tutte e sette** _(13/08/2026)_: Arrivo merce, Ordine cliente, Ordine fornitore, Trasferimento, Rettifica, Fatture, Registrazione fattura. «Si applica a tutti i tipi documento» è ora vero.
-
-**Una guardia, non venti righe per sette.** Le prime venti righe scritte sull'Arrivo merce sono state estratte in `DocumentChronologyGuard` (`domain/documents/state/`) prima di replicarle: è la stessa forma che ha già prodotto tre divergenze silenziose in quest'area, e ripeterla sarebbe stato scriverne la quarta. Alla maschera restano **tre innesti**: `chronology.run(…)` al posto della chiamata di salvataggio, `chronology.confirm()` sul «Sì, salva comunque», e il dialogo in coda al template.
+**Una guardia, non venti righe per sette.** Le prime venti righe scritte sull'Arrivo merce sono state estratte in `DocumentChronologyGuard` (`domain/documents/state/`) prima di replicarle: è la stessa forma che ha già prodotto tre divergenze silenziose in quest'area. Alla maschera restano **tre innesti**: `chronology.run(…)` al posto della chiamata di salvataggio, `chronology.confirm()` sul «Sì, salva comunque», e il dialogo in coda al template.
 
 **Dove si innesta, maschera per maschera** — è l'unica cosa che cambia, e non si indovina:
 

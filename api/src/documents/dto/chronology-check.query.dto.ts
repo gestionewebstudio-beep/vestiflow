@@ -1,10 +1,11 @@
 import { DocumentType } from '@prisma/client';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsISO8601, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 /**
- * Controllo cronologico di un contatore (specifica numerazione §4). La coppia
- * (tipo, serie) È il contatore: l'anomalia è un fatto della serie, non del
- * singolo documento.
+ * Controllo cronologico del documento **che si sta salvando** (specifica
+ * numerazione §4). La coppia (tipo, serie) è il contatore; la coppia (numero,
+ * data) è ciò che l'operatore ha in testata, ed è quella che si verifica.
  */
 export class ChronologyCheckQueryDto {
   @IsEnum(DocumentType)
@@ -19,4 +20,26 @@ export class ChronologyCheckQueryDto {
   @IsOptional()
   @IsString()
   series?: string;
+
+  /**
+   * Numero che il documento sta per prendere: quello mostrato in testata,
+   * proposto o digitato. Obbligatorio — senza, non c'è niente da controllare, e
+   * la maschera che non ne ha uno semplicemente non chiama.
+   */
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  number!: number;
+
+  /** Data in testata: l'altra metà della coppia da verificare. */
+  @IsISO8601()
+  documentDate!: string;
+
+  /**
+   * Il documento stesso, quando è una modifica: senza escluderlo, cambiargli il
+   * numero lo farebbe risultare in conflitto con la propria riga vecchia.
+   */
+  @IsOptional()
+  @IsUUID()
+  excludeId?: string;
 }

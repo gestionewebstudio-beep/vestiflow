@@ -602,6 +602,11 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   protected readonly chronology = new DocumentChronologyGuard({
     documentType: () => DocumentType.SupplierOrder,
     series: () => this.form.controls.series.value,
+    number: () => this.form.controls.documentNumber.value,
+    documentDate: () => this.form.controls.orderDate.value,
+    // In modifica il documento non deve risultare fuori ordine con la
+    // propria riga vecchia: cambiare numero E data basterebbe.
+    excludeId: () => this.editOrderId(),
   });
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;

@@ -232,6 +232,7 @@ export class DocumentsController {
       query.type,
       query.series,
       query.locationId,
+      query.documentDate ? new Date(query.documentDate) : undefined,
     );
   }
 
@@ -249,7 +250,15 @@ export class DocumentsController {
     @CurrentUser() user: UserProfileDto,
     @Query() query: ChronologyCheckQueryDto,
   ) {
-    return this.chronology.check(tenantId, user.id, query.type, query.series ?? null);
+    return this.chronology.check({
+      tenantId,
+      userId: user.id,
+      type: query.type,
+      series: query.series ?? null,
+      number: query.number,
+      documentDate: new Date(query.documentDate),
+      excludeId: query.excludeId ?? null,
+    });
   }
 
   /** Spegne l'avviso cronologico per (tenant, utente, tipo). Non si riaccende. */

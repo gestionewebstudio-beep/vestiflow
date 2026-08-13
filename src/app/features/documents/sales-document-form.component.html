@@ -1431,7 +1431,9 @@
      blocca — «Sì, salva comunque» prosegue col salvataggio. -->
 <app-document-chronology-warning-dialog
   [open]="chronology.warning.isOpen()"
-  [anomalies]="chronology.warning.anomalies()"
+  [conflicts]="chronology.warning.conflicts()"
+  [assigningNumber]="form.controls.documentNumber.value"
+  [assigningDate]="form.controls.documentDate.value"
   [dontShowAgain]="chronology.warning.dontShowAgain()"
   [busy]="saving()"
   (dontShowAgainChange)="chronology.warning.toggleDontShowAgain($event)"

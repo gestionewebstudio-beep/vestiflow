@@ -772,6 +772,7 @@ export class DocumentsService {
     type: DocumentType,
     series?: string | null,
     locationId?: string | null,
+    documentDate?: Date,
   ): Promise<{ reference: string; previewNumber: number; series: string | null }> {
     const setting = await this.settings.getResolved(tenantId, type);
     // Serie scelta in testata (se passata) o quella del contatore predefinito
@@ -786,14 +787,17 @@ export class DocumentsService {
     const numberingType = documentNumberingType(type);
     const numberingSetting =
       numberingType === type ? setting : await this.settings.getResolved(tenantId, numberingType);
-    // Stesso criterio dell'assegnazione (massimo esistente + 1): l'anteprima
-    // mostra davvero il numero che il documento riceverà.
+    // Stesso criterio dell'assegnazione — primo libero sopra i documenti di
+    // data anteriore (§2) — e con la STESSA data: senza, l'anteprima direbbe il
+    // numero di oggi su un documento datato altrove, che è la divergenza
+    // testata/salvataggio già chiusa altrove il 13/08.
     const previewNumber = await nextDocumentNumber({
       tx: this.prisma,
       tenantId,
       type: numberingType,
       series: resolvedSeries,
       source: 'document',
+      documentDate,
     });
     const prefix = (numberingSetting.numberPrefix ?? 'DOC').trim() || 'DOC';
     return {
@@ -975,6 +979,7 @@ export class DocumentsService {
           dto.type,
           dto.series,
           dto.number ?? null,
+          documentDate,
           dto.locationId ?? null,
         );
         throw error;
@@ -1021,6 +1026,7 @@ export class DocumentsService {
     type: DocumentType,
     series: string | null | undefined,
     requestedNumber: number | null,
+    documentDate: Date,
     locationId?: string | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
@@ -1044,6 +1050,11 @@ export class DocumentsService {
         source: 'document',
         prefix: setting.numberPrefix,
         requestedNumber,
+    // La data governa il primo libero (§2): senza, l'avviso proporrebbe il
+    // numero giusto per OGGI e non per la data del documento — cioè scriverebbe
+    // in testata un numero calcolato con una regola diversa da quella che ha
+    // appena assegnato quello rifiutato.
+        documentDate,
       }),
     );
   }
@@ -2010,6 +2021,7 @@ export class DocumentsService {
         doc.type,
         dto.series ?? doc.series,
         dto.number ?? doc.number,
+        documentDate,
         dto.locationId ?? doc.locationId,
       );
       throw error;

@@ -478,6 +478,7 @@ export class ManualSalesOrdersService {
           tenantId,
           requestedSeries,
           requestedNumber,
+          documentDate,
           dto.locationId ?? null,
         );
         throw error;
@@ -501,6 +502,7 @@ export class ManualSalesOrdersService {
     tenantId: string,
     series: string | null | undefined,
     requestedNumber: number | null,
+    documentDate: Date,
     // La serie si risolve come nella scrittura, sede compresa (§1-bis): il
     // «prossimo libero» dell'avviso si calcola su una partizione, e sbagliarla
     // propone un numero che darà un secondo conflitto.
@@ -528,6 +530,11 @@ export class ManualSalesOrdersService {
         source: 'sales_order',
         prefix: setting.numberPrefix,
         requestedNumber,
+        // La data governa il primo libero (§2): senza, l'avviso proporrebbe il
+        // numero giusto per OGGI e non per la data del documento — cioè
+        // scriverebbe in testata un numero calcolato con una regola diversa da
+        // quella che ha appena assegnato quello rifiutato.
+        documentDate,
       }),
     );
   }

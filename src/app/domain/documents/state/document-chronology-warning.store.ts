@@ -1,14 +1,15 @@
 import { computed, signal } from '@angular/core';
 
-import type { ChronologyAnomaly } from '../models/document-chronology.model';
+import type { ChronologyConflict } from '../models/document-chronology.model';
 
 /**
  * Stato dell'**avviso cronologico** (specifica numerazione §4), condiviso da
  * tutte le maschere documento.
  *
- * Il fatto segnalato: dentro lo stesso contatore, un numero più alto porta una
- * data **anteriore** a uno più basso. Non è un errore di salvataggio — è uno
- * stato della serie — quindi l'avviso non blocca: si salva comunque.
+ * Il fatto segnalato: il documento che si sta salvando, dentro il suo
+ * contatore, sta in ordine inverso rispetto a un altro — numero più alto e data
+ * anteriore, o viceversa. Non è un errore di salvataggio, è una scelta che può
+ * essere voluta: l'avviso non blocca, si salva comunque.
  *
  * **Perché è un avviso e non un blocco.** L'anomalia nasce da un gesto
  * dell'operatore — numero forzato, data cambiata su un documento salvato, o il
@@ -16,20 +17,24 @@ import type { ChronologyAnomaly } from '../models/document-chronology.model';
  * tutti e tre i casi può essere una scelta consapevole. Bloccare vorrebbe dire
  * decidere al posto suo su un dato che la legge non vieta.
  *
- * **È persistente**, e anche questo è voluto: continua a comparire finché
- * l'anomalia resta nei dati, anche sui documenti successivi che sono in ordine.
- * Un avviso che sparisce da solo lascia dimenticare un buco non giustificato.
+ * **Riguarda il documento che hai in mano, e solo quello** _(13/08/2026)_.
+ * Prima l'avviso era «persistente»: compariva a ogni salvataggio finché
+ * l'anomalia restava nei dati, anche su documenti in ordine. Non era una scelta
+ * — era il sintomo di un controllo che guardava la serie invece del documento,
+ * e che quindi arrivava sempre in ritardo di un gesto.
  *
  * Chi non lo vuole più lo spegne — ma **solo per il tipo documento in cui è
  * comparso**: chi sistema le fatture non resta cieco sui DDT. Una volta spento
- * resta spento: nessuna riaccensione, nessun pannello nelle Impostazioni.
+ * resta spento: nessuna riaccensione, nessun pannello nelle Impostazioni. Da
+ * oggi quella casella zittisce un allarme sul documento in corso, non un rumore
+ * di fondo: va spenta sapendolo.
  *
  * Classe, non servizio iniettabile: ogni maschera ne vuole una propria, non una
  * condivisa con le altre schede aperte. Stesso stampo di
  * `DocumentNumberConflictStore`.
  */
 export class DocumentChronologyWarningStore {
-  private readonly _anomalies = signal<readonly ChronologyAnomaly[]>([]);
+  private readonly _conflicts = signal<readonly ChronologyConflict[]>([]);
   private readonly _open = signal(false);
   /** L'operatore ha spuntato «non mostrare più» in questa sessione o prima. */
   private readonly _dismissed = signal(false);
@@ -37,14 +42,11 @@ export class DocumentChronologyWarningStore {
   private readonly _dontShowAgain = signal(false);
 
   readonly isOpen = this._open.asReadonly();
-  readonly anomalies = this._anomalies.asReadonly();
+  readonly conflicts = this._conflicts.asReadonly();
   readonly dontShowAgain = this._dontShowAgain.asReadonly();
 
-  /**
-   * Quanti documenti sono fuori posto. Serve al testo dell'avviso, che al
-   * singolare e al plurale non dice la stessa cosa.
-   */
-  readonly count = computed(() => this._anomalies().length);
+  /** Quanti documenti smentiscono l'ordine: al massimo due, uno per verso. */
+  readonly count = computed(() => this._conflicts().length);
 
   /**
    * Esito del controllo. L'avviso si apre solo se c'è qualcosa da dire **e**
@@ -54,10 +56,10 @@ export class DocumentChronologyWarningStore {
    * Restituisce `true` se l'avviso si è aperto — chi chiama deve sospendere il
    * salvataggio e aspettare la risposta.
    */
-  present(anomalies: readonly ChronologyAnomaly[], dismissed: boolean): boolean {
+  present(conflicts: readonly ChronologyConflict[], dismissed: boolean): boolean {
     this._dismissed.set(dismissed);
-    this._anomalies.set(anomalies);
-    if (dismissed || anomalies.length === 0) {
+    this._conflicts.set(conflicts);
+    if (dismissed || conflicts.length === 0) {
       return false;
     }
     this._dontShowAgain.set(false);

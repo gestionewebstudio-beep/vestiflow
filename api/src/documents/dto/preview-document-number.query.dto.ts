@@ -1,6 +1,6 @@
 import { DocumentType } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsEnum, IsISO8601, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class PreviewDocumentNumberQueryDto {
   @IsEnum(DocumentType)
@@ -18,6 +18,16 @@ export class PreviewDocumentNumberQueryDto {
   @IsOptional()
   @IsUUID()
   locationId?: string;
+
+  /**
+   * Data del documento (§2): il numero proposto è il primo libero sopra i
+   * documenti di data anteriore, quindi cambia con lei. Facoltativa perché
+   * l'anteprima serve anche dove una data non c'è — la scheda Numeratori — e lì
+   * «primo libero a oggi» è la risposta giusta.
+   */
+  @IsOptional()
+  @IsISO8601()
+  documentDate?: string;
 
   @IsOptional()
   @Type(() => Number)

@@ -127,7 +127,7 @@ function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
         getPriceModePreference: () => of(false),
         // Controllo cronologico (§4): serie in ordine, quindi nessun avviso e
         // il salvataggio prosegue senza interruzioni.
-        checkChronology: () => of({ anomalies: [], dismissed: false }),
+        checkChronology: () => of({ conflicts: [], dismissed: false }),
         dismissChronologyWarning: () => of(void 0),
       },
     },
@@ -198,7 +198,7 @@ describe('GoodsReceiptFormComponent', () => {
             getPriceModePreference: () => of(false),
             // Controllo cronologico (§4): serie in ordine, quindi nessun avviso e
             // il salvataggio prosegue senza interruzioni.
-            checkChronology: () => of({ anomalies: [], dismissed: false }),
+            checkChronology: () => of({ conflicts: [], dismissed: false }),
             dismissChronologyWarning: () => of(void 0),
           },
         },

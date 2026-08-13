@@ -96,7 +96,7 @@ describe('PurchaseInvoiceFormComponent', () => {
     const showInfo = vi.fn();
     const documentService = {
       // Controllo cronologico (§4): serie in ordine, nessun avviso.
-      checkChronology: () => of({ anomalies: [], dismissed: false }),
+      checkChronology: () => of({ conflicts: [], dismissed: false }),
       dismissChronologyWarning: () => of(void 0),
       getDocumentById: vi.fn(),
       listLinkableGoodsReceipts: vi.fn(() => of([RECEIPT_1, RECEIPT_2])),
