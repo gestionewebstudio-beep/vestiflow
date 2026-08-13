@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { TenantPermission } from '../auth/tenant-permission.constants';
 import { TENANT_PERMISSIONS_KEY } from '../common/auth/tenant-permissions.decorator';
 import type { AttachmentsService } from '../attachments/attachments.service';
 import type { ManualSalesOrdersService } from './manual-sales-orders.service';

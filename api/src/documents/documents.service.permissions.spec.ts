@@ -288,6 +288,12 @@ describe('DocumentsService — ordini cliente agganciati al documento', () => {
       salesOrder: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
       stockMovement: { count: vi.fn().mockResolvedValue(0) },
       tenantFeatureSettings: { findUnique: vi.fn().mockResolvedValue(null) },
+      // Intestazione congelata alla creazione (document-issuer.util).
+      tenant: {
+        findUniqueOrThrow: vi
+          .fn()
+          .mockResolvedValue({ name: 'Negozio test', companyProfile: null }),
+      },
       $transaction: vi.fn().mockRejectedValue(transazioneRaggiunta),
     };
     const settings = {
@@ -522,6 +528,12 @@ describe('DocumentsService — ordini cliente agganciati al documento', () => {
       };
       const prisma = {
         tenantFeatureSettings: { findUnique: vi.fn().mockResolvedValue(null) },
+      // Intestazione congelata alla creazione (document-issuer.util).
+      tenant: {
+        findUniqueOrThrow: vi
+          .fn()
+          .mockResolvedValue({ name: 'Negozio test', companyProfile: null }),
+      },
         $transaction: vi.fn(async (fn: (client: unknown) => Promise<unknown>) => fn(tx)),
       };
       const settings = {

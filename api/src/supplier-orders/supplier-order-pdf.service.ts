@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { PdfDocumentInstance } from '../common/pdf/pdf-document.types';
 
+import {
+  ISSUER_TENANT_SELECT,
+  resolveDocumentIssuer,
+  type DocumentIssuer,
+} from '../common/company/document-issuer.util';
+import { drawIssuerFooter, drawIssuerHeader } from '../common/pdf/issuer-header.util';
 import { formatMinorAmount } from '../common/pdf/money-format.util';
 import { renderPdfToBuffer, sanitizePdfFilename } from '../common/pdf/pdf-buffer.util';
 import {
@@ -13,12 +19,6 @@ import {
 } from '../common/pdf/pdf-layout.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { SupplierOrderWithLines } from './supplier-orders.service';
-
-interface TenantPdfHeader {
-  readonly legalName: string;
-  readonly addressLine: string | null;
-  readonly vatNumber: string | null;
-}
 
 /**
  * Export PDF dell'ordine fornitore: stesso stack (pdfkit) e stesso layout dei
@@ -34,69 +34,37 @@ export class SupplierOrderPdfService {
     tenantId: string,
     order: SupplierOrderWithLines,
   ): Promise<{ buffer: Buffer; filename: string }> {
-    const tenant = await this.loadTenantHeader(tenantId);
+    const issuer = await this.loadIssuer(tenantId);
 
     const buffer = await renderPdfToBuffer((doc) => {
-      this.renderOrder(doc, { tenant, order });
+      this.renderOrder(doc, { issuer, order });
     });
 
     const filename = sanitizePdfFilename(`ordine-fornitore-${order.reference}`);
     return { buffer, filename: `${filename}.pdf` };
   }
 
-  private async loadTenantHeader(tenantId: string): Promise<TenantPdfHeader> {
+  /** L'azienda gestita, non il cliente VestiFlow (vedi `document-issuer.util`). */
+  private async loadIssuer(tenantId: string): Promise<DocumentIssuer> {
     const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: {
-        name: true,
-        legalName: true,
-        vatNumber: true,
-        addressLine1: true,
-        addressLine2: true,
-        postalCode: true,
-        city: true,
-        province: true,
-      },
+      select: ISSUER_TENANT_SELECT,
     });
-
-    const addressParts = [
-      tenant.addressLine1,
-      tenant.addressLine2,
-      [tenant.postalCode, tenant.city, tenant.province].filter(Boolean).join(' '),
-    ].filter((part) => part && part.trim().length > 0);
-
-    return {
-      legalName: tenant.legalName?.trim() || tenant.name,
-      addressLine: addressParts.length > 0 ? addressParts.join(', ') : null,
-      vatNumber: tenant.vatNumber,
-    };
+    return resolveDocumentIssuer(tenant);
   }
 
   private renderOrder(
     doc: PdfDocumentInstance,
     params: {
-      readonly tenant: TenantPdfHeader;
+      readonly issuer: DocumentIssuer;
       readonly order: SupplierOrderWithLines;
     },
   ): void {
-    const { tenant, order } = params;
+    const { issuer, order } = params;
     const left = doc.page.margins.left;
     const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const currency = order.currency || 'EUR';
-    let y = doc.page.margins.top;
-
-    doc.font('Helvetica-Bold').fontSize(11).text(tenant.legalName, left, y);
-    y += 14;
-    if (tenant.addressLine) {
-      doc.font('Helvetica').fontSize(9).fillColor('#444444').text(tenant.addressLine, left, y);
-      y += 12;
-    }
-    if (tenant.vatNumber) {
-      doc.font('Helvetica').fontSize(9).fillColor('#444444').text(`P. IVA: ${tenant.vatNumber}`, left, y);
-      y += 12;
-    }
-    doc.fillColor('#000000');
-    y += 8;
+    let y = drawIssuerHeader(doc, issuer, doc.page.margins.top);
 
     doc
       .font('Helvetica-Bold')
@@ -127,7 +95,7 @@ export class SupplierOrderPdfService {
       y = this.renderLinesTable(doc, order, currency, y, contentWidth);
     }
 
-    drawPdfTotals(
+    y = drawPdfTotals(
       doc,
       [
         { label: 'Imponibile', value: formatMinorAmount(order.subtotalMinor, currency) },
@@ -140,6 +108,8 @@ export class SupplierOrderPdfService {
       ],
       y,
     );
+
+    drawIssuerFooter(doc, issuer, y + 18);
   }
 
   private renderLinesTable(

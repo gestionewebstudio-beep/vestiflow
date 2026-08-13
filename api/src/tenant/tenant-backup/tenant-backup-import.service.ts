@@ -170,6 +170,9 @@ export class TenantBackupImportService {
       case 'documentLines':
         await tx.documentLine.deleteMany({ where: { document: { tenantId } } });
         return;
+      case 'companyProfile':
+        await tx.companyProfile.deleteMany({ where: { tenantId } });
+        return;
       case 'tenantFeatureSettings':
         await tx.tenantFeatureSettings.deleteMany({ where: { tenantId } });
         return;
@@ -454,6 +457,9 @@ export class TenantBackupImportService {
         return;
       case 'vatCodes':
         await tx.vatCode.createMany({ data });
+        return;
+      case 'companyProfile':
+        await tx.companyProfile.createMany({ data });
         return;
       case 'tenantFeatureSettings':
         await tx.tenantFeatureSettings.createMany({ data });

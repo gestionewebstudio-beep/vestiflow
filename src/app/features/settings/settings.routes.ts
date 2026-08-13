@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 
 import { tenantOwnerGuard } from '@core/guards/tenant-owner.guard';
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
+import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import { REQUIRED_TENANT_PERMISSIONS_KEY } from '@core/permissions/tenant-permissions.util';
 
@@ -36,8 +37,19 @@ export const settingsRoutes: Routes = [
       ),
   },
   {
-    // Unica rotta settings con un gate: riservata al titolare per scelta di
-    // prodotto (2026-08-11). Il confine vero è il TenantOwnerGuard dell'API.
+    // Riservata al titolare, come «Utenti»: è l'identità fiscale dell'azienda,
+    // non una preferenza operativa (2026-08-14). Il confine vero è il
+    // TenantOwnerGuard dell'API.
+    path: 'azienda',
+    title: 'Dati azienda',
+    canActivate: [tenantOwnerGuard],
+    canDeactivate: [unsavedChangesGuard],
+    loadComponent: () =>
+      import('./pages/company/company-page.component').then((m) => m.CompanyPageComponent),
+  },
+  {
+    // Riservata al titolare per scelta di prodotto (2026-08-11). Il confine
+    // vero è il TenantOwnerGuard dell'API.
     path: 'utenti',
     title: 'Utenti',
     canActivate: [tenantOwnerGuard],

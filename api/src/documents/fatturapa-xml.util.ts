@@ -45,6 +45,25 @@ export interface FatturaPaParty {
   readonly countryCode?: string | null;
 }
 
+/**
+ * Dati che riguardano solo chi emette: regime fiscale, iscrizione al Registro
+ * Imprese, contatti. Il cessionario non li ha.
+ */
+export interface FatturaPaIssuerDetails {
+  /** Codice `RegimeFiscale`; assente = RF01 ordinario. */
+  readonly taxRegime?: string | null;
+  /** Sigla provincia della CCIAA. */
+  readonly reaOffice?: string | null;
+  readonly reaNumber?: string | null;
+  /** Capitale sociale in centesimi. */
+  readonly shareCapitalMinor?: number | null;
+  /** null = non dichiarato (il campo non si scrive). */
+  readonly soleShareholder?: boolean | null;
+  readonly inLiquidation?: boolean;
+  readonly phone?: string | null;
+  readonly email?: string | null;
+}
+
 export interface FatturaPaInput {
   /** TD01 fattura, TD04 nota di credito. */
   readonly documentTypeCode: 'TD01' | 'TD04';
@@ -54,6 +73,8 @@ export interface FatturaPaInput {
   readonly currency: string;
   readonly totalMinor: number;
   readonly cedente: FatturaPaParty;
+  /** Regime fiscale, REA e contatti di chi emette. */
+  readonly issuerDetails?: FatturaPaIssuerDetails;
   readonly cessionario: FatturaPaParty;
   /** Codice destinatario SDI del cessionario; default standard se assente. */
   readonly sdiCode?: string | null;
@@ -75,8 +96,13 @@ export interface FatturaPaInput {
  */
 const DEFAULT_SDI_CODE = '0000000';
 
-/** Regime fiscale: VestiFlow non lo gestisce, RF01 è il default ordinario. */
-const DEFAULT_TAX_REGIME = 'RF01';
+/*
+ * Il regime fiscale ora lo dichiara il titolare in Dati azienda. Restava
+ * cablato a RF01 con tanto di commento «VestiFlow non lo gestisce»: per un
+ * negozio in forfettario (RF19) era un dato fiscale falso su ogni fattura
+ * trasmessa. Chi non dichiara nulla resta RF01, che è il caso ordinario e il
+ * comportamento di prima.
+ */
 
 /** Nazione di default quando l'anagrafica non la specifica. */
 const DEFAULT_COUNTRY = 'IT';
@@ -138,6 +164,46 @@ function idFiscaleIvaBlock(party: FatturaPaParty): string {
   }
   const country = party.countryCode?.trim() || DEFAULT_COUNTRY;
   return `<IdFiscaleIVA>${tag('IdPaese', country)}${tag('IdCodice', vat)}</IdFiscaleIVA>`;
+}
+
+/**
+ * IscrizioneREA: si scrive solo se ufficio e numero ci sono entrambi — un
+ * blocco a metà lo SdI lo scarta. `StatoLiquidazione` è obbligatorio dentro il
+ * blocco, e senza dichiarazione vale «non in liquidazione».
+ */
+function reaBlock(details: FatturaPaIssuerDetails): string {
+  const office = details.reaOffice?.trim();
+  const number = details.reaNumber?.trim();
+  if (!office || !number) {
+    return '';
+  }
+
+  const capital =
+    typeof details.shareCapitalMinor === 'number'
+      ? `<CapitaleSociale>${money(details.shareCapitalMinor)}</CapitaleSociale>`
+      : '';
+  // Non dichiarato ≠ più soci: nel dubbio il campo non si scrive, invece di
+  // affermare qualcosa che nessuno ha detto.
+  const soleShareholder =
+    details.soleShareholder === null || details.soleShareholder === undefined
+      ? ''
+      : `<SocioUnico>${details.soleShareholder ? 'SU' : 'SM'}</SocioUnico>`;
+
+  return [
+    '<IscrizioneREA>',
+    tag('Ufficio', office.toUpperCase()),
+    tag('NumeroREA', number),
+    capital,
+    soleShareholder,
+    `<StatoLiquidazione>${details.inLiquidation ? 'LS' : 'LN'}</StatoLiquidazione>`,
+    '</IscrizioneREA>',
+  ].join('');
+}
+
+/** Contatti del cedente: telefono ed email, solo se valorizzati. */
+function contattiBlock(details: FatturaPaIssuerDetails): string {
+  const inner = [tag('Telefono', details.phone), tag('Email', details.email)].join('');
+  return inner ? `<Contatti>${inner}</Contatti>` : '';
 }
 
 function sedeBlock(party: FatturaPaParty): string {
@@ -230,6 +296,7 @@ function ddtBlock(input: FatturaPaInput): string {
 export function buildFatturaPaXml(input: FatturaPaInput): string {
   const transmitterVat = input.cedente.vatNumber?.trim();
   const transmitterCountry = input.cedente.countryCode?.trim() || DEFAULT_COUNTRY;
+  const issuerDetails = input.issuerDetails ?? {};
 
   const header = [
     '<FatturaElettronicaHeader>',
@@ -252,9 +319,11 @@ export function buildFatturaPaXml(input: FatturaPaInput): string {
     idFiscaleIvaBlock(input.cedente),
     tag('CodiceFiscale', input.cedente.fiscalCode),
     anagraficaBlock(input.cedente),
-    `<RegimeFiscale>${DEFAULT_TAX_REGIME}</RegimeFiscale>`,
+    `<RegimeFiscale>${issuerDetails.taxRegime?.trim() || 'RF01'}</RegimeFiscale>`,
     '</DatiAnagrafici>',
     sedeBlock(input.cedente),
+    reaBlock(issuerDetails),
+    contattiBlock(issuerDetails),
     '</CedentePrestatore>',
     '<CessionarioCommittente>',
     '<DatiAnagrafici>',

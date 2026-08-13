@@ -9,7 +9,8 @@ import { hasFullTenantAccess } from '../../auth/user-permissions.util';
 import type { AuthenticatedRequest } from './authenticated-request';
 
 /**
- * Riserva l'endpoint al titolare del tenant. Va usato DOPO JwtAuthGuard.
+ * Riserva l'endpoint al titolare del tenant — gli utenti del negozio e
+ * l'anagrafica dell'azienda gestita. Va usato DOPO JwtAuthGuard.
  * Le sessioni di assistenza Vestiflow passano (l'operatore agisce come il
  * titolare, e ogni azione resta tracciata nell'audit con il suo nome).
  */
@@ -21,7 +22,7 @@ export class TenantOwnerGuard implements CanActivate {
       return true;
     }
     if (!hasFullTenantAccess(request.appUser)) {
-      throw new ForbiddenException('Solo il titolare può gestire gli utenti del negozio.');
+      throw new ForbiddenException('Riservato al titolare del negozio.');
     }
     return true;
   }

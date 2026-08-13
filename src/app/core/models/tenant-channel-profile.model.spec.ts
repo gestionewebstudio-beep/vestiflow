@@ -63,6 +63,13 @@ describe('tenant-channel-profile.model', () => {
     expect(onlineSalesCorrispettiviHint(TenantChannelProfile.Shopify)).toContain('Shopify');
   });
 
+  it('il pannello attivazione rimanda ai Dati azienda per i documenti', () => {
+    // Le due anagrafiche convivono in Impostazioni: se questo hint smette di
+    // nominare i Dati azienda, restano due partite IVA senza spiegazione.
+    expect(tenantCompanyPanelHint(TenantChannelProfile.Shopify)).toContain('Dati azienda');
+    expect(tenantCompanyPanelHint(TenantChannelProfile.Gestionale)).toContain('Dati azienda');
+  });
+
   it('copy profilo gestionale omette Shopify dove previsto', () => {
     expect(tenantCompanyPanelHint(TenantChannelProfile.Gestionale)).not.toContain('Shopify');
     expect(productImportIntro(TenantChannelProfile.Gestionale)).not.toContain('Shopify');

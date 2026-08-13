@@ -123,6 +123,26 @@ function createPrismaMock() {
     tenantFeatureSettings: {
       findUnique: vi.fn().mockResolvedValue({ defaultVatCodeId: null }),
     },
+    // Intestazione congelata sul documento alla creazione: senza anagrafica
+    // azienda si ripiega sui dati di attivazione (document-issuer.util).
+    tenant: {
+      findUniqueOrThrow: vi.fn().mockResolvedValue({
+        name: 'Negozio test',
+        legalName: null,
+        vatNumber: null,
+        fiscalCode: null,
+        phone: null,
+        pec: null,
+        iban: null,
+        addressLine1: null,
+        addressLine2: null,
+        city: null,
+        province: null,
+        postalCode: null,
+        countryCode: null,
+        companyProfile: null,
+      }),
+    },
     supplierVariantLink: { findUnique: vi.fn(), upsert: vi.fn() },
     // Advisory lock sul contatore, preso prima di leggere il massimo quando il
     // numero è automatico: la tx dei test è il mock stesso, quindi la chiamata

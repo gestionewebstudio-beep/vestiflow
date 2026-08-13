@@ -28,6 +28,7 @@ describe('DocumentPdfService', () => {
     printTitle: 'Documento di trasporto',
     notes: 'Consegna urgente',
     internalComment: null,
+    issuerSnapshot: null,
     supplierId: null,
     supplierName: null,
     customerId: 'cust-1',

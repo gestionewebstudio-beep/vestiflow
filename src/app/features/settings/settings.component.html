@@ -29,9 +29,12 @@
   </section>
 
   @if (showTenantCompanyPanel()) {
-    <!-- ── Sede fisica ─────────────────────────────────────────────────────── -->
+    <!-- ── Dati di attivazione ─────────────────────────────────────────────
+         Il cliente VestiFlow: chi ha attivato l'account. NON è l'azienda che
+         intesta i documenti — quella sta in «Dati azienda», e la compila il
+         titolare. -->
     <section class="settings__panel" aria-labelledby="settings-tenant-company">
-      <h2 id="settings-tenant-company" class="settings__panel-title">Sede fisica</h2>
+      <h2 id="settings-tenant-company" class="settings__panel-title">Dati di attivazione</h2>
       <p class="settings__panel-hint">{{ tenantCompanyHint() }}</p>
       @if (tenantCompanyLoading()) {
         <div
@@ -49,7 +52,10 @@
           (retry)="reloadTenantCompany()"
         />
       } @else if (tenantCompany(); as company) {
-        <app-tenant-client-card [company]="company" />
+        <app-tenant-client-card
+          [company]="company"
+          [showFiscalDetails]="showOperationalSettingsPanel()"
+        />
       }
     </section>
   }
@@ -61,6 +67,21 @@
         Lotti, seriali, IVA predefinita e aggiornamento prezzo fornitore in arrivo merce.
       </p>
       <app-tenant-operational-settings-panel />
+    </section>
+
+    <!-- Riservato al titolare come «Utenti»: l'anagrafica che intesta i
+         documenti è l'identità fiscale dell'azienda, non una preferenza
+         operativa. È altra cosa dal pannello «Sede fisica» qui sopra, che
+         mostra i dati di attivazione del cliente. -->
+    <section class="settings__panel" aria-labelledby="settings-company">
+      <h2 id="settings-company" class="settings__panel-title">Dati azienda</h2>
+      <p class="settings__panel-hint">
+        Ragione sociale, partita IVA, sede e dati di fatturazione della tua azienda: intestano
+        documenti, stampe e fatture elettroniche (solo titolare).
+      </p>
+      <a class="settings__panel-cta" routerLink="/app/settings/azienda">
+        <app-button variant="secondary">Gestisci Dati azienda</app-button>
+      </a>
     </section>
 
     <section class="settings__panel" aria-labelledby="settings-users">

@@ -2,7 +2,14 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { DocumentType } from '@prisma/client';
 import type { PdfDocumentInstance } from '../common/pdf/pdf-document.types';
 
+import {
+  ISSUER_TENANT_SELECT,
+  readIssuerSnapshot,
+  resolveDocumentIssuer,
+  type DocumentIssuer,
+} from '../common/company/document-issuer.util';
 import { formatMinorAmount, formatPercent } from '../common/pdf/money-format.util';
+import { drawIssuerFooter, drawIssuerHeader } from '../common/pdf/issuer-header.util';
 import { renderPdfToBuffer, sanitizePdfFilename } from '../common/pdf/pdf-buffer.util';
 import {
   drawPdfMetaLine,
@@ -22,12 +29,6 @@ import {
   isPrintableDocumentType,
 } from './document-print.util';
 import type { DocumentDetail } from './documents.service';
-
-interface TenantPdfHeader {
-  readonly legalName: string;
-  readonly addressLine: string | null;
-  readonly vatNumber: string | null;
-}
 
 /** Ora inizio trasporto in fuso Europa/Roma (stampa DDT). */
 const ROME_TIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
@@ -50,8 +51,8 @@ export class DocumentPdfService {
       );
     }
 
-    const [tenant, locations] = await Promise.all([
-      this.loadTenantHeader(tenantId),
+    const [issuer, locations] = await Promise.all([
+      this.loadIssuer(tenantId, document),
       this.loadLocationNames(tenantId, document),
     ]);
 
@@ -61,7 +62,7 @@ export class DocumentPdfService {
 
     const buffer = await renderPdfToBuffer((doc) => {
       this.renderDocument(doc, {
-        tenant,
+        issuer,
         document,
         locations,
         title,
@@ -76,32 +77,23 @@ export class DocumentPdfService {
     return { buffer, filename: `${filename}.pdf` };
   }
 
-  private async loadTenantHeader(tenantId: string): Promise<TenantPdfHeader> {
+  /**
+   * L'intestazione congelata all'emissione vince sempre: una fattura già
+   * emessa si ristampa identica anche se l'anagrafica nel frattempo è
+   * cambiata. Solo i documenti anteriori allo snapshot rileggono l'azienda
+   * com'è adesso.
+   */
+  private async loadIssuer(tenantId: string, document: DocumentDetail): Promise<DocumentIssuer> {
+    const snapshot = readIssuerSnapshot(document.issuerSnapshot);
+    if (snapshot) {
+      return snapshot;
+    }
+
     const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: {
-        name: true,
-        legalName: true,
-        vatNumber: true,
-        addressLine1: true,
-        addressLine2: true,
-        postalCode: true,
-        city: true,
-        province: true,
-      },
+      select: ISSUER_TENANT_SELECT,
     });
-
-    const addressParts = [
-      tenant.addressLine1,
-      tenant.addressLine2,
-      [tenant.postalCode, tenant.city, tenant.province].filter(Boolean).join(' '),
-    ].filter((part) => part && part.trim().length > 0);
-
-    return {
-      legalName: tenant.legalName?.trim() || tenant.name,
-      addressLine: addressParts.length > 0 ? addressParts.join(', ') : null,
-      vatNumber: tenant.vatNumber,
-    };
+    return resolveDocumentIssuer(tenant);
   }
 
   private async loadLocationNames(
@@ -126,7 +118,7 @@ export class DocumentPdfService {
   private renderDocument(
     doc: PdfDocumentInstance,
     params: {
-      readonly tenant: TenantPdfHeader;
+      readonly issuer: DocumentIssuer;
       readonly document: DocumentDetail;
       readonly locations: Map<string, string>;
       readonly title: string;
@@ -134,23 +126,10 @@ export class DocumentPdfService {
       readonly currency: string;
     },
   ): void {
-    const { tenant, document, locations, title, reference, currency } = params;
+    const { issuer, document, locations, title, reference, currency } = params;
     const left = doc.page.margins.left;
     const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    let y = doc.page.margins.top;
-
-    doc.font('Helvetica-Bold').fontSize(11).text(tenant.legalName, left, y);
-    y += 14;
-    if (tenant.addressLine) {
-      doc.font('Helvetica').fontSize(9).fillColor('#444444').text(tenant.addressLine, left, y);
-      y += 12;
-    }
-    if (tenant.vatNumber) {
-      doc.text(`P. IVA: ${tenant.vatNumber}`, left, y);
-      y += 12;
-    }
-    doc.fillColor('#000000');
-    y += 8;
+    let y = drawIssuerHeader(doc, issuer, doc.page.margins.top);
 
     if (document.type === DocumentType.proforma) {
       doc
@@ -222,7 +201,12 @@ export class DocumentPdfService {
       doc.font('Helvetica').fontSize(10).text(document.notes.trim(), left, y, {
         width: contentWidth,
       });
+      y += doc.heightOfString(document.notes.trim(), { width: contentWidth });
     }
+
+    // Registro Imprese in coda: obbligatorio per le società, assente per tutti
+    // gli altri (drawIssuerFooter non stampa una riga vuota).
+    drawIssuerFooter(doc, issuer, y + 18);
   }
 
   /**
