@@ -127,7 +127,11 @@ describe('OperationalLocationsService — sede predefinita', () => {
     expect(service.defaultLocation()).toBeNull();
   });
 
-  it('suggestedWriteLocation() propone la predefinita, o la sede unica in mono-location', () => {
+  // §1-bis (13/08/2026): `suggestedWriteLocation` non esiste più, e con lei il
+  // ripiego mono-sede che proponeva l'unica sede scrivibile quando l'utente non
+  // aveva una predefinita. Le maschere precompilano dalla sola `defaultLocation`
+  // — un dato assegnato, non dedotto dal numero di sedi.
+  it('mono-sede senza predefinita: nessuna sede dedotta dal fatto che ce n’è una sola', () => {
     const monoLocation = setup(
       testUser({
         assignedLocationIds: ['loc-milano'],
@@ -136,23 +140,8 @@ describe('OperationalLocationsService — sede predefinita', () => {
       [milano, roma],
     );
 
-    // Nessuna predefinita ma una sola sede scrivibile: suggerita quella.
-    expect(monoLocation.suggestedWriteLocation()?.id).toBe('loc-milano');
-  });
-
-  it('suggestedWriteLocation() è null con più sedi e nessuna predefinita', () => {
-    const service = setup(
-      testUser({
-        assignedLocationIds: ['loc-milano', 'loc-roma'],
-        assignedLocations: [
-          { id: 'loc-milano', name: 'Milano' },
-          { id: 'loc-roma', name: 'Roma' },
-        ],
-      }),
-      [milano, roma],
-    );
-
-    expect(service.suggestedWriteLocation()).toBeNull();
+    expect(monoLocation.writeLocations()).toHaveLength(1);
+    expect(monoLocation.defaultLocation()).toBeNull();
   });
 
   it('mono-sede vincolato: scrittura limitata alla sede assegnata, destinazioni trasferimento complete', () => {

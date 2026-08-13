@@ -59,6 +59,8 @@ function createPrismaMock() {
     // Contatore predefinito: assente nel mock → serie di default null (senza serie).
     documentCounter: {
       findFirst: vi.fn().mockResolvedValue(null),
+      // Nessun contatore disponibile: la serie resta «senza serie».
+      findMany: vi.fn().mockResolvedValue([]),
     },
     document: {
       findFirst: documentFindFirst,

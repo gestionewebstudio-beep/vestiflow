@@ -14,6 +14,26 @@ const locationId = '11111111-1111-4111-8111-111111111111';
 
 function createPrismaMock() {
   const prisma = {
+    /**
+     * Secondo passo della regola del §2 («primo libero > m»): l'unico pezzo in
+     * SQL grezzo, e qui risponde **`m + 1`** — il caso senza buchi. La ricerca
+     * del buco ha i suoi test in `document-numbering.util.spec.ts`.
+     *
+     * `m` non si configura: si legge dall'ultimo aggregato risolto, che è quello
+     * che il primo passo ha appena chiamato. Così i test restano scritti su una
+     * cosa sola — il massimo — invece di doverne configurare due per ogni caso,
+     * e il filtro per data resta osservabile sul `where` dell'aggregato.
+     */
+    $queryRaw: vi.fn(async (): Promise<{ libero: number }[]> => {
+      const aggregati = [prisma.document, prisma.salesOrder, prisma.supplierOrder];
+      const risultati = aggregati.flatMap((tabella) => tabella.aggregate.mock.results);
+      const ultimo = risultati.at(-1);
+      const massimo =
+        ultimo && ultimo.type === 'return'
+          ? (((await ultimo.value) as { _max?: { number: number | null } })._max?.number ?? 0)
+          : 0;
+      return [{ libero: massimo + 1 }];
+    }),
     documentCounter: {
       findMany: vi.fn().mockResolvedValue([]),
       findFirst: vi.fn().mockResolvedValue(null),

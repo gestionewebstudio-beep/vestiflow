@@ -274,7 +274,12 @@ export class ManualSalesOrdersService {
           series =
             requestedSeries !== undefined
               ? requestedSeries
-              : await defaultCounterSeries(tx, tenantId, DocumentType.customer_order);
+              : await defaultCounterSeries(
+                  tx,
+                  tenantId,
+                  DocumentType.customer_order,
+                  dto.locationId ?? null,
+                );
           // Serializza gli operatori sullo stesso contatore: senza lock due
           // salvataggi simultanei leggono lo stesso massimo e il secondo si
           // becca il vincolo unico a lavoro finito. Il lock è transazionale (si
@@ -290,6 +295,7 @@ export class ManualSalesOrdersService {
               type: DocumentType.customer_order,
               series,
               source: 'sales_order',
+              documentDate,
               prefix: setting.numberPrefix,
             }));
           orderNumber = formatDocumentReference(setting.numberPrefix, series, number);
@@ -467,7 +473,13 @@ export class ManualSalesOrdersService {
         // violazione dell'indice `sales_orders_number_unique` sarebbe uscita
         // come errore generico: era teorico finché l'operatore non poteva
         // digitare il numero, e da oggi può.
-        await this.throwNumberConflict(error, tenantId, requestedSeries, requestedNumber);
+        await this.throwNumberConflict(
+          error,
+          tenantId,
+          requestedSeries,
+          requestedNumber,
+          dto.locationId ?? null,
+        );
         throw error;
       });
 
@@ -489,6 +501,10 @@ export class ManualSalesOrdersService {
     tenantId: string,
     series: string | null | undefined,
     requestedNumber: number | null,
+    // La serie si risolve come nella scrittura, sede compresa (§1-bis): il
+    // «prossimo libero» dell'avviso si calcola su una partizione, e sbagliarla
+    // propone un numero che darà un secondo conflitto.
+    locationId?: string | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
       return;
@@ -497,7 +513,12 @@ export class ManualSalesOrdersService {
     const resolvedSeries =
       series !== undefined
         ? series
-        : await defaultCounterSeries(this.prisma, tenantId, DocumentType.customer_order);
+        : await defaultCounterSeries(
+            this.prisma,
+            tenantId,
+            DocumentType.customer_order,
+            locationId,
+          );
     throw new ConflictException(
       await buildDocumentNumberConflict({
         tx: this.prisma,

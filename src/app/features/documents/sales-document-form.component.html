@@ -107,6 +107,26 @@
                   }
                 </div>
 
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label" id="sd-m-location-label">Sede</span>
+                  <app-select-menu
+                    [options]="locationOptions()"
+                    [value]="form.controls.locationId.value"
+                    ariaLabel="Sede"
+                    placeholder="Seleziona sede…"
+                    [fullWidth]="true"
+                    [searchable]="true"
+                    searchPlaceholder="Cerca sede…"
+                    searchAriaLabel="Cerca sede"
+                    [invalid]="fieldInvalid('locationId')"
+                    describedBy="sd-m-location-error"
+                    (valueChange)="onLocationSelect($event)"
+                  />
+                  @if (fieldInvalid('locationId')) {
+                    <p id="sd-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
+                  }
+                </div>
+
                 <div class="doc-panel__fields doc-panel__fields--two">
                   <div class="doc-panel__field">
                     <label class="doc-panel__label" for="sd-m-date">Data</label>
@@ -281,6 +301,31 @@
               }
               @if (customerCommercialHint(); as hint) {
                 <p class="doc-form__hint" role="note">{{ hint }}</p>
+              }
+            </div>
+
+            <!-- Sede (§1-bis): c'è su ogni documento, proforma compresa — è il
+                 primo anello di una catena che scarica, e la sede decisa qui si
+                 propaga a valle. Esce già compilata se l'operatore ha una sede
+                 predefinita assegnata. -->
+            <div class="doc-form__field">
+              <span class="doc-form__label" id="sd-location-label">Sede</span>
+              <app-select-menu
+                [options]="locationOptions()"
+                [value]="form.controls.locationId.value"
+                ariaLabel="Sede"
+                placeholder="Seleziona sede…"
+                [compact]="true"
+                [fullWidth]="true"
+                [searchable]="true"
+                searchPlaceholder="Cerca sede…"
+                searchAriaLabel="Cerca sede"
+                [invalid]="fieldInvalid('locationId')"
+                describedBy="sd-location-error"
+                (valueChange)="onLocationSelect($event)"
+              />
+              @if (fieldInvalid('locationId')) {
+                <p id="sd-location-error" class="doc-form__error">Campo obbligatorio.</p>
               }
             </div>
 
@@ -1381,3 +1426,15 @@
     </div>
   </div>
 }
+
+<!-- Avviso cronologico (§4): la serie contiene documenti fuori posto. Non
+     blocca — «Sì, salva comunque» prosegue col salvataggio. -->
+<app-document-chronology-warning-dialog
+  [open]="chronology.warning.isOpen()"
+  [anomalies]="chronology.warning.anomalies()"
+  [dontShowAgain]="chronology.warning.dontShowAgain()"
+  [busy]="saving()"
+  (dontShowAgainChange)="chronology.warning.toggleDontShowAgain($event)"
+  (confirmed)="chronology.confirm()"
+  (cancelled)="chronology.cancel()"
+/>

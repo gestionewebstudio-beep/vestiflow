@@ -37,14 +37,12 @@ function operationalLocationsMock(options?: {
 }) {
   const writeLocations = options?.writeLocations ?? LOCATIONS;
   const defaultLocation = options?.defaultLocation ?? null;
-  const suggested = defaultLocation ?? (writeLocations.length === 1 ? writeLocations[0] : null);
   return {
     locations: () => writeLocations,
     writeLocations: () => writeLocations,
     actionLocations: () => writeLocations,
     transferTargetLocations: () => writeLocations,
     defaultLocation: () => defaultLocation,
-    suggestedWriteLocation: () => suggested,
     isFixedSingleStore: () => false,
     fixedSingleStoreLocationId: () => null,
     fixedSingleStoreLabel: () => null,
@@ -127,6 +125,10 @@ function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
           of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
         saveGoodsReceipt: vi.fn(),
         getPriceModePreference: () => of(false),
+        // Controllo cronologico (§4): serie in ordine, quindi nessun avviso e
+        // il salvataggio prosegue senza interruzioni.
+        checkChronology: () => of({ anomalies: [], dismissed: false }),
+        dismissChronologyWarning: () => of(void 0),
       },
     },
     // Serie del numero: una sola configurata → label statica.
@@ -194,6 +196,10 @@ describe('GoodsReceiptFormComponent', () => {
               of({ reference: 'AM-2026-0001', previewNumber: 1, series: 'A', year: 2026 }),
             saveGoodsReceipt,
             getPriceModePreference: () => of(false),
+            // Controllo cronologico (§4): serie in ordine, quindi nessun avviso e
+            // il salvataggio prosegue senza interruzioni.
+            checkChronology: () => of({ anomalies: [], dismissed: false }),
+            dismissChronologyWarning: () => of(void 0),
           },
         },
         { provide: ToastService, useValue: { showInfo, showError: vi.fn() } },
@@ -209,30 +215,36 @@ describe('GoodsReceiptFormComponent', () => {
     return inputs[0]!;
   }
 
-  // Specifica «sede predefinita»: nessuna autoselezione della location in
-  // creazione — il campo parte vuoto anche se esiste una predefinita.
-  it('non autoseleziona la location e mostra il suggerimento cliccabile', async () => {
-    const user = userEvent.setup();
+  // ── Sede predefinita (§1-bis, 13/08/2026) ─────────────────────────────────
+  //
+  // Regola nuova, e ribalta quella che questi due test fissavano prima («mai
+  // autoselezione, suggerimento cliccabile»). Il motivo del ribaltamento:
+  // una sede predefinita non è una sede che il sistema si inventa, è un dato
+  // che qualcuno ha assegnato a quell'utente. Il commesso del negozio di Napoli
+  // non deve confermare a ogni documento di stare a Napoli.
+  //
+  // Gli scenari sono due, e sono complementari: chi lavora su più sedi una
+  // predefinita NON ce l'ha, quindi per lui il campo resta vuoto — che è il
+  // comportamento giusto proprio nel caso in cui la sede è ambigua.
+  it('con una sede predefinita la testata esce già compilata', async () => {
     await setup({ defaultLocation: MILANO });
 
-    const locationTrigger = screen.getByRole('button', { name: 'Location di destinazione' });
-    expect(locationTrigger).toHaveTextContent('Seleziona location…');
-
-    // Hint "Suggerita: Milano": cliccandolo la sede viene impostata.
-    const hint = screen.getByRole('button', { name: 'Usa la sede suggerita Milano' });
-    await user.click(hint);
-    expect(locationTrigger).toHaveTextContent('Milano (predefinita)');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Location di destinazione' })).toHaveTextContent(
+        'Milano (predefinita)',
+      ),
+    );
   });
 
-  // Eccezione mono-location: anche con UNA sola sede autorizzata il campo
-  // resta da confermare esplicitamente (suggerimento visibile, nessun valore).
-  it('mono-location: non preseleziona e propone comunque il suggerimento', async () => {
+  it('senza sede predefinita il campo resta vuoto, anche con una sola sede', async () => {
     await setup({ writeLocations: [MILANO], defaultLocation: null });
 
     expect(screen.getByRole('button', { name: 'Location di destinazione' })).toHaveTextContent(
       'Seleziona location…',
     );
-    expect(screen.getByRole('button', { name: 'Usa la sede suggerita Milano' })).toBeVisible();
+    // Il suggerimento cliccabile non esiste più: col predefinito il campo è già
+    // pieno, senza predefinito non c'è nulla da suggerire.
+    expect(screen.queryByRole('button', { name: /suggerita/i })).toBeNull();
   });
 
   // La predefinita compare PRIMA nelle opzioni, etichettata "(predefinita)".
@@ -415,6 +427,44 @@ describe('GoodsReceiptFormComponent', () => {
     await fixture.whenStable();
 
     expect(showInfo).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **La guardia dell'allineamento del 13/08/2026.**
+   *
+   * L'Arrivo merce numerava con una regola propria: «già numerato» lo deduceva
+   * dal RIFERIMENTO del documento. Ora guarda la sua esistenza — la stessa cosa
+   * che le altre maschere dicono con `isEditMode()`, detta per una maschera che
+   * dopo il salvataggio non se ne va (§10.7).
+   *
+   * **Questa prova è nata rossa, ed è il suo motivo di esistere.** Con la sola
+   * rotta (`isEditMode()`) il campo torna da 46 a 42: il documento è salvato ma
+   * l'URL è ancora quello di creazione, la prima riproposta dei contatori lo
+   * trova «nuovo e mai toccato» e ci riscrive sopra il numero proposto prima.
+   * L'operatore trascriverebbe un numero che non è del suo documento.
+   */
+  it('dopo il salvataggio il numero assegnato non torna a essere una proposta', async () => {
+    const { fixture } = await setup({ counters: [COUNTER], assignedNumber: 46 });
+    const component = fixture.componentInstance;
+
+    await waitFor(() => expect(component.form.controls.documentNumber.value).toBe(42));
+    component.form.controls.supplierId.setValue('sup-1');
+    component.form.controls.locationId.setValue('loc-1');
+
+    component['requestSaveDocument']();
+    await fixture.whenStable();
+    await fixture.whenStable();
+
+    // Il documento esiste e porta il 46: la testata lo mostra.
+    expect(component.form.controls.documentNumber.value).toBe(46);
+
+    // Una riproposta dei contatori — la scatenano il cambio data e ogni
+    // ricarica — non deve più toccarlo: il numero è assegnato, non proposto.
+    component['refreshNumberProposal']();
+    await fixture.whenStable();
+
+    expect(component.form.controls.documentNumber.value).toBe(46);
+    expect(component['numberIsProposal']()).toBe(false);
   });
 
   /**

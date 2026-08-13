@@ -105,6 +105,21 @@
                 />
               </div>
 
+              <div class="doc-panel__field">
+                <span class="doc-panel__label">Sede</span>
+                <app-select-menu
+                  [options]="locationOptions()"
+                  [value]="form.controls.locationId.value"
+                  ariaLabel="Sede"
+                  placeholder="Seleziona sede…"
+                  [fullWidth]="true"
+                  [searchable]="true"
+                  searchPlaceholder="Cerca sede…"
+                  searchAriaLabel="Cerca sede"
+                  (valueChange)="onLocationSelect($event)"
+                />
+              </div>
+
               <div class="doc-panel__fields doc-panel__fields--two">
                 <div class="doc-panel__field">
                   <span class="doc-panel__label">Data</span>
@@ -209,6 +224,24 @@
             @if (fieldInvalid('supplierId')) {
               <p id="po-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
             }
+          </div>
+
+          <!-- Sede (§1-bis): dove la merce ordinata deve arrivare. Esce già
+               compilata se l'operatore ha una sede predefinita assegnata. -->
+          <div class="doc-form__field">
+            <span class="doc-form__label">Sede</span>
+            <app-select-menu
+              [options]="locationOptions()"
+              [value]="form.controls.locationId.value"
+              ariaLabel="Sede"
+              placeholder="Seleziona sede…"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca sede…"
+              searchAriaLabel="Cerca sede"
+              (valueChange)="onLocationSelect($event)"
+            />
           </div>
 
           <div class="doc-form__field">
@@ -1329,4 +1362,16 @@
   [type]="documentType"
   [open]="seriesDialogOpen()"
   (closed)="onSeriesManagerClosed()"
+/>
+
+<!-- Avviso cronologico (§4): la serie contiene documenti fuori posto. Non
+     blocca — «Sì, salva comunque» prosegue col salvataggio. -->
+<app-document-chronology-warning-dialog
+  [open]="chronology.warning.isOpen()"
+  [anomalies]="chronology.warning.anomalies()"
+  [dontShowAgain]="chronology.warning.dontShowAgain()"
+  [busy]="saving()"
+  (dontShowAgainChange)="chronology.warning.toggleDontShowAgain($event)"
+  (confirmed)="chronology.confirm()"
+  (cancelled)="chronology.cancel()"
 />

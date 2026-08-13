@@ -51,7 +51,6 @@ function operationalLocationsMock() {
     actionLocations: () => LOCATIONS,
     transferTargetLocations: () => LOCATIONS,
     defaultLocation: () => null,
-    suggestedWriteLocation: () => null,
     isFixedSingleStore: () => false,
     fixedSingleStoreLocationId: () => null,
     fixedSingleStoreLabel: () => null,
@@ -157,6 +156,9 @@ function formProviders(options: FormOptions = {}) {
         // Solo i documenti a registro leggono la preferenza: l'Ordine
         // cliente resta a netto (modalita' prezzo ri-gated).
         getPriceModePreference: () => of(false),
+        // Controllo cronologico (§4): serie in ordine, nessun avviso.
+        checkChronology: () => of({ anomalies: [], dismissed: false }),
+        dismissChronologyWarning: () => of(void 0),
       },
     },
     {
@@ -1305,5 +1307,79 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
         vi.useRealTimers();
       }
     });
+  });
+});
+
+/**
+ * La maschera serve quattro modalità, e tre di loro vivono nel registro
+ * `documents`. La quarta — l'Ordine cliente — vive in `SalesOrder` e ha un
+ * numeratore proprio: chiedere per lei le serie del Preventivo mostrava in
+ * testata numeri di un altro tipo documento, e faceva controllare la
+ * cronologia (§4) su una serie che non è la sua.
+ */
+describe('CustomerOrderFormComponent — quale numeratore chiede ogni modalità', () => {
+  async function apri(kind?: 'quote' | 'sales-ddt' | 'manual-unload') {
+    const available = vi.fn((_type: DocumentType, _locationId?: string | null, _data?: string) =>
+      of({ counters: [], proposedCounterId: null }),
+    );
+    const checkChronology = vi.fn((_type: DocumentType, _series: string) =>
+      of({ anomalies: [], dismissed: false }),
+    );
+
+    const view = await render(CustomerOrderFormComponent, {
+      providers: [
+        ...formProviders({ kind, user: { id: 'u-1', role: 'owner' } }),
+        // Ultimo provider vince: le spie sostituiscono i doppioni di comodo.
+        { provide: DocumentCountersService, useValue: { available } },
+        {
+          provide: DocumentService,
+          useValue: {
+            getDocumentById: vi.fn(),
+            createDocument: vi.fn(),
+            updateDocument: vi.fn(),
+            previewDocumentNumber: () =>
+              of({ reference: 'X-1', previewNumber: 1, series: 'A', year: 2026 }),
+            getPriceModePreference: () => of(false),
+            checkChronology,
+            dismissChronologyWarning: () => of(void 0),
+          },
+        },
+      ],
+    });
+
+    await waitFor(() => expect(available).toHaveBeenCalled());
+    const chronology = (
+      view.fixture.componentInstance as unknown as {
+        chronology: { run: (salva: () => void) => void };
+      }
+    ).chronology;
+
+    return { available, checkChronology, chronology };
+  }
+
+  it('l’Ordine cliente chiede le serie del proprio numeratore, non quelle del Preventivo', async () => {
+    const { available } = await apri();
+
+    expect(available.mock.calls[0]![0]).toBe(DocumentType.CustomerOrder);
+  });
+
+  it('l’Ordine cliente controlla la cronologia sul proprio tipo', async () => {
+    const { checkChronology, chronology } = await apri();
+
+    chronology.run(() => undefined);
+
+    expect(checkChronology.mock.calls[0]![0]).toBe(DocumentType.CustomerOrder);
+  });
+
+  it('il Preventivo resta sul proprio, che è un tipo del registro', async () => {
+    const { available } = await apri('quote');
+
+    expect(available.mock.calls[0]![0]).toBe(DocumentType.Quote);
+  });
+
+  it('il DDT di vendita resta sul proprio', async () => {
+    const { available } = await apri('sales-ddt');
+
+    expect(available.mock.calls[0]![0]).toBe(DocumentType.SalesDdt);
   });
 });

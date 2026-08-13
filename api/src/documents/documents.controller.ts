@@ -63,6 +63,8 @@ import {
 } from './goods-receipt-workflow.service';
 import { TransferAdjustmentWorkflowService } from './transfer-adjustment-workflow.service';
 import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
+import { DocumentChronologyService } from './document-chronology.service';
+import { ChronologyCheckQueryDto } from './dto/chronology-check.query.dto';
 import { DocumentType } from '@prisma/client';
 
 @Controller('documents')
@@ -76,6 +78,7 @@ export class DocumentsController {
     private readonly goodsReceiptWorkflow: GoodsReceiptWorkflowService,
     private readonly transferAdjustmentWorkflow: TransferAdjustmentWorkflowService,
     private readonly priceModePreference: DocumentPriceModePreferenceService,
+    private readonly chronology: DocumentChronologyService,
   ) {}
 
   @Get()
@@ -224,7 +227,41 @@ export class DocumentsController {
     @CurrentTenant() tenantId: string,
     @Query() query: PreviewDocumentNumberQueryDto,
   ) {
-    return this.documents.previewNextReference(tenantId, query.type, query.series);
+    return this.documents.previewNextReference(
+      tenantId,
+      query.type,
+      query.series,
+      query.locationId,
+    );
+  }
+
+  /**
+   * Controllo cronologico del contatore (§4): l'elenco dei documenti fuori
+   * posto, più se l'operatore ha spento l'avviso per questo tipo.
+   *
+   * Prima di `:id/...`: una rotta con segmento fisso va dichiarata prima di
+   * quella con parametro, o «chronology» finirebbe interpretato come un id.
+   */
+  @Get('chronology')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  chronologyCheck(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Query() query: ChronologyCheckQueryDto,
+  ) {
+    return this.chronology.check(tenantId, user.id, query.type, query.series ?? null);
+  }
+
+  /** Spegne l'avviso cronologico per (tenant, utente, tipo). Non si riaccende. */
+  @Post('chronology/dismiss')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  @HttpCode(204)
+  async dismissChronologyWarning(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Query() query: ChronologyCheckQueryDto,
+  ): Promise<void> {
+    await this.chronology.dismiss(tenantId, user.id, query.type);
   }
 
   @Get(':id/revisions')

@@ -27,7 +27,6 @@ function operationalLocationsMock() {
     actionLocations: () => LOCATIONS,
     transferTargetLocations: () => LOCATIONS,
     defaultLocation: () => LOCATIONS[0],
-    suggestedWriteLocation: () => LOCATIONS[0],
     isFixedSingleStore: () => false,
     fixedSingleStoreLocationId: () => null,
     fixedSingleStoreLabel: () => null,
@@ -175,6 +174,9 @@ describe('StockOperationFormComponent', () => {
           provide: DocumentService,
           useValue: {
             getDocumentById: vi.fn(() => of(CONFIRMED_ADJUSTMENT)),
+            // Controllo cronologico (§4): serie in ordine, nessun avviso.
+            checkChronology: () => of({ anomalies: [], dismissed: false }),
+            dismissChronologyWarning: () => of(void 0),
             saveAdjustment,
             createDocument,
             updateDocument: vi.fn(),

@@ -771,13 +771,16 @@ export class DocumentsService {
     tenantId: string,
     type: DocumentType,
     series?: string | null,
+    locationId?: string | null,
   ): Promise<{ reference: string; previewNumber: number; series: string | null }> {
     const setting = await this.settings.getResolved(tenantId, type);
-    // Serie scelta in testata (se passata) o quella del contatore predefinito.
+    // Serie scelta in testata (se passata) o quella del contatore predefinito
+    // COMPATIBILE con la sede (§1-bis): l'anteprima deve dire la stessa cosa
+    // che dirà il salvataggio, o smette di essere un'anteprima.
     const resolvedSeries =
       series !== undefined
         ? (series ?? '').trim() || null
-        : await defaultCounterSeries(this.prisma, tenantId, type);
+        : await defaultCounterSeries(this.prisma, tenantId, type, locationId);
     // Stessa chiave (e stesso prefisso) usati dalla conferma: l'anteprima di
     // una Fattura accompagnatoria legge il progressivo condiviso della Fattura.
     const numberingType = documentNumberingType(type);
@@ -884,7 +887,7 @@ export class DocumentsService {
         const series =
           dto.series !== undefined
             ? (dto.series ?? '').trim() || null
-            : await defaultCounterSeries(tx, tenantId, dto.type);
+            : await defaultCounterSeries(tx, tenantId, dto.type, dto.locationId ?? null);
         const requestedNumber = dto.number && dto.number > 0 ? dto.number : null;
         const numberingSetting =
           documentNumberingType(dto.type) === dto.type
@@ -966,7 +969,14 @@ export class DocumentsService {
         // Numero imposto già preso: 409 con il numero rifiutato e il primo
         // libero. Senza numero in testata lo assegna la conferma d'ufficio, e
         // il conflitto (se mai capita) riguarda quello.
-        await this.throwNumberConflict(error, tenantId, dto.type, dto.series, dto.number ?? null);
+        await this.throwNumberConflict(
+          error,
+          tenantId,
+          dto.type,
+          dto.series,
+          dto.number ?? null,
+          dto.locationId ?? null,
+        );
         throw error;
       });
 
@@ -1011,15 +1021,20 @@ export class DocumentsService {
     type: DocumentType,
     series: string | null | undefined,
     requestedNumber: number | null,
+    locationId?: string | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
       return;
     }
     const setting = await this.settings.getResolved(tenantId, type);
+    // La serie va risolta ESATTAMENTE come nella scrittura, sede compresa: il
+    // «prossimo libero» che l'avviso propone si calcola su una partizione, e
+    // sbagliare partizione vuol dire proporre un numero che darà un secondo
+    // conflitto.
     const resolvedSeries =
       series !== undefined
         ? (series ?? '').trim() || null
-        : await defaultCounterSeries(this.prisma, tenantId, type);
+        : await defaultCounterSeries(this.prisma, tenantId, type, locationId);
     throw new ConflictException(
       await buildDocumentNumberConflict({
         tx: this.prisma,
@@ -1995,6 +2010,7 @@ export class DocumentsService {
         doc.type,
         dto.series ?? doc.series,
         dto.number ?? doc.number,
+        dto.locationId ?? doc.locationId,
       );
       throw error;
     });
@@ -2109,7 +2125,7 @@ export class DocumentsService {
         tenantId,
         documentNumberingType(doc.type),
       );
-      number = await this.nextNumber(tx, tenantId, doc.type, doc.series);
+      number = await this.nextNumber(tx, tenantId, doc.type, doc.series, doc.documentDate);
       reference = this.formatReference(numberingSetting.numberPrefix, doc.series, number);
     }
 
@@ -2920,9 +2936,13 @@ export class DocumentsService {
     tenantId: string,
     type: DocumentType,
     series: string | null,
+    // La data del documento è il perno della regola del §2: la proposta è il
+    // primo libero dopo i documenti di data ANTERIORE. Senza, si tornerebbe a
+    // «massimo + 1» e un documento datato avanti brucerebbe i numeri di oggi.
+    documentDate?: Date,
   ): Promise<number> {
     await lockDocumentCounter(tx, { tenantId, type, series });
-    return nextDocumentNumber({ tx, tenantId, type, series, source: 'document' });
+    return nextDocumentNumber({ tx, tenantId, type, series, source: 'document', documentDate });
   }
 
   private formatReference(prefix: string, series: string | null, number: number): string {

@@ -44,7 +44,6 @@ function operationalLocationsMock(defaultLocation: { id: string; name: string } 
     actionLocations: () => LOCATIONS,
     transferTargetLocations: () => LOCATIONS,
     defaultLocation: () => defaultLocation,
-    suggestedWriteLocation: () => defaultLocation,
     isFixedSingleStore: () => false,
     fixedSingleStoreLocationId: () => null,
     fixedSingleStoreLabel: () => null,
@@ -61,6 +60,9 @@ describe('TransferFormComponent', () => {
   }) {
     const counters = options?.counters ?? [];
     const documentService = {
+      // Controllo cronologico (§4): serie in ordine, nessun avviso.
+      checkChronology: () => of({ anomalies: [], dismissed: false }),
+      dismissChronologyWarning: () => of(void 0),
       getDocumentById: vi.fn(),
       createDocument: vi.fn(() =>
         of({ id: 'doc-9', ...options?.createdDocument } as DocumentRecord),

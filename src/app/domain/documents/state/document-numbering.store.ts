@@ -20,7 +20,20 @@ export interface DocumentNumberingContract {
   /** La serie in testata; stringa vuota = «Senza serie». */
   readonly series: () => string;
   readonly setSeries: (value: string) => void;
-  /** L'operatore ha toccato il numero: da quel momento è una scelta da difendere. */
+  /**
+   * L'operatore ha toccato il numero: da quel momento è una scelta da difendere.
+   *
+   * ⚠️ **Dev'essere REATTIVO** — leggere un signal, non `control.dirty` nudo.
+   * `isProposal()` lo interroga dentro i `computed` delle maschere: un getter
+   * che legge una proprietà non tracciata non crea dipendenza, e il computed
+   * resta fermo sul valore vecchio finché non lo sveglia qualcos'altro.
+   *
+   * La forma è `() => !documentNumberPristine()`, dove il signal nasce da
+   * `toSignal(control.events)`: gli eventi del controllo includono
+   * `PristineChangeEvent`, quindi emettono anche su `markAsDirty()` — cosa che
+   * `valueChanges` non fa. È da qui che discende l'indipendenza dall'ordine
+   * documentata su `onNumberChange`.
+   */
   readonly numberIsDirty: () => boolean;
   readonly markNumberDirty: () => void;
   readonly markNumberPristine: () => void;
@@ -63,6 +76,11 @@ export interface DocumentNumberingContract {
  */
 export class DocumentNumberingStore {
   private readonly _counters = signal<readonly DocumentCounterView[]>([]);
+  /**
+   * L'operatore ha scelto la serie dalla tendina. Distinto dal valore in
+   * testata, che la proposta scrive da sé: vedi `chosenSeries()`.
+   */
+  private readonly _seriesChosen = signal(false);
 
   constructor(private readonly contract: DocumentNumberingContract) {}
 
@@ -93,13 +111,37 @@ export class DocumentNumberingStore {
   /**
    * Elenco più proposta iniziale. Su documento in modifica, o con un numero già
    * digitato, la proposta non si applica: quel valore non si tocca.
+   *
+   * **Una serie che non è più disponibile non è una scelta: è un residuo.**
+   * L'elenco cambia quando cambia la sede del documento — un contatore legato a
+   * una sede vale solo lì (§1-bis) — e la serie selezionata può sparire da
+   * sotto. Il numero digitato resta, perché è dell'operatore; la serie no:
+   * lasciarla ferma salverebbe il documento sotto una serie che in quella sede
+   * non esiste, e nessuno se ne accorgerebbe perché la tendina intanto si è
+   * aggiornata e sembra coerente.
    */
   applyProposal(counters: readonly DocumentCounterView[], proposedCounterId: string | null): void {
     this._counters.set(counters);
-    if (this.contract.isEdit() || this.contract.numberIsDirty()) {
+    // Documento salvato: numero e serie sono suoi, anche se quella serie non è
+    // più fra le correnti (§6). Non si tocca niente.
+    if (this.contract.isEdit()) {
       return;
     }
     const proposed = counters.find((counter) => counter.id === proposedCounterId);
+
+    if (this.contract.numberIsDirty()) {
+      // Elenco vuoto = richiesta fallita o ancora in volo: non è la prova che
+      // la serie sia sparita, e cancellarla su un errore di rete sarebbe il
+      // modo peggiore di scoprirlo.
+      const seriesStillAvailable =
+        counters.length === 0 ||
+        counters.some((counter) => (counter.series ?? '') === this.contract.series());
+      if (!seriesStillAvailable) {
+        this.write(() => this.contract.setSeries(proposed?.series ?? ''));
+      }
+      return;
+    }
+
     if (!proposed) {
       return;
     }
@@ -112,26 +154,60 @@ export class DocumentNumberingStore {
   /**
    * Numero digitato in testata: vuoto = «assegnalo tu».
    *
-   * ⚠️ **Si marca PRIMA di scrivere, e l'ordine non è estetico.** È `setNumber`
-   * a emettere `valueChanges`, ed è quell'emissione a far ricalcolare
-   * `numberIsProposal()` nelle maschere. Scrivendo per primo, la ricalcolata
-   * avviene mentre il controllo è ancora pristine: il campo continua a
-   * dichiararsi «proposta» dopo che l'operatore ha già scelto, e `imposedNumber`
-   * restituisce `undefined` — cioè **il numero digitato non viaggia al
-   * salvataggio** finché qualcos'altro non tocca il form.
+   * **L'ordine fra marcatura e scrittura non conta più, ed è una conquista, non
+   * un dettaglio venuto meno.** Contava finché `numberIsProposal()` si
+   * ricalcolava sull'emissione di `valueChanges`: scrivendo per primo, la
+   * ricalcolata avveniva mentre il controllo era ancora pristine, il campo
+   * continuava a dichiararsi «proposta» dopo che l'operatore aveva già scelto,
+   * e **il numero digitato non viaggiava al salvataggio** finché qualcos'altro
+   * non toccava il form.
+   *
+   * Ora `numberIsDirty` è reattivo (vedi il contratto) e `markAsDirty()` emette
+   * a sua volta, *dopo* aver marcato: qualunque ordine si riallinea da solo. La
+   * marcatura resta comunque per prima, perché è lo stato che dà senso al
+   * valore che segue.
    *
    * Trovato migrando le maschere (12/08/2026): quattro su cinque scrivevano
    * prima e marcavano dopo, la Rettifica no e portava il commento che lo
    * spiegava. È la sfumatura tipica delle copie — nessuna sbaglia in modo
-   * vistoso, e chi legge una sola maschera non ha modo di accorgersene.
+   * vistoso, e chi legge una sola maschera non ha modo di accorgersene. Il
+   * 13/08 la classe di errore è stata chiusa alla radice invece che corretta
+   * un'altra volta: era già ricomparsa nei sette gestori del conflitto.
    */
   onNumberChange(value: number | null): void {
     this.contract.markNumberDirty();
     this.contract.setNumber(value);
   }
 
+  /**
+   * La serie da mandare al server.
+   *
+   * - `undefined` = **«decidi tu»**: l'operatore non ha toccato la tendina, e
+   *   la serie la sceglie il server col contatore predefinito della sede.
+   * - `''` = **«Senza serie»**, che è una scelta come le altre.
+   *
+   * La distinzione non è formale, ed è il difetto che chiude (§1-bis). Le
+   * maschere mandavano `series: … || undefined`, cioè **omettevano la chiave**
+   * anche quando l'operatore aveva scelto «Senza serie» — e il server legge
+   * l'assenza come «usa il predefinito». Chi sceglieva «Senza serie» otteneva
+   * quindi il contrario: il documento usciva sotto la serie predefinita, che
+   * poteva perfino essere di un'altra sede.
+   *
+   * In modifica la serie viaggia **sempre**: è del documento, e ometterla dopo
+   * un cambio lo lascerebbe con quella vecchia (decisione 2 del commento di
+   * classe).
+   */
+  chosenSeries(): string | undefined {
+    if (this.contract.isEdit()) {
+      return this.contract.series();
+    }
+    return this._seriesChosen() ? this.contract.series() : undefined;
+  }
+
   /** Serie scelta: il numero passa al progressivo di quel contatore. */
   onSeriesChange(value: string): void {
+    // Da qui in poi la serie è una SCELTA, e viaggia — «Senza serie» compresa.
+    this._seriesChosen.set(true);
     this.contract.setSeries(value);
     const counter = this._counters().find((entry) => (entry.series ?? '') === value);
     if (!counter) {

@@ -32,6 +32,14 @@ export class UpdateSupplierOrderDto {
   series?: string;
 
   /**
+   * Sede di destinazione della merce (§1-bis). `null` la toglie; assente non la
+   * tocca — la testata si riscrive per intero, quindi la distinzione conta.
+   */
+  @IsOptional()
+  @IsUUID()
+  destinationLocationId?: string | null;
+
+  /**
    * Numero in testata. Assente = quello che l'ordine ha gia'. Cambiarlo
    * ricalcola il riferimento e passa dal vincolo unico: se il numero e' preso,
    * risponde 409 col conflitto, come gli altri documenti.

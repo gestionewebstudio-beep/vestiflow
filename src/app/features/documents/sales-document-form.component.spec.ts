@@ -22,13 +22,16 @@ import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { APP_CONFIG } from '@core/config/app-config.token';
 
-function operationalLocationsMock() {
+function operationalLocationsMock(defaultLocation: { id: string; name: string } | null = null) {
   const locations = [{ id: 'loc-1', name: 'Milano' }];
   return {
     locations: () => locations,
     writeLocations: () => locations,
     actionLocations: () => locations,
     transferTargetLocations: () => locations,
+    // Il campo Sede in testata (§1-bis) la legge da qui: senza predefinita
+    // resta vuoto, che è lo scenario della maggior parte di questi test.
+    defaultLocation: () => defaultLocation,
     isFixedSingleStore: () => false,
     fixedSingleStoreLocationId: () => null,
     fixedSingleStoreLabel: () => null,
@@ -155,6 +158,9 @@ describe('SalesDocumentFormComponent', () => {
           provide: DocumentService,
           useValue: {
             getDocumentById: vi.fn(),
+            // Controllo cronologico (§4): serie in ordine, nessun avviso.
+            checkChronology: () => of({ anomalies: [], dismissed: false }),
+            dismissChronologyWarning: () => of(void 0),
             // DDT agganciabili in fattura (mai richiesti senza cliente).
             getDocuments: () => of({ data: [], page: 1, pageSize: 50, total: 0 }),
             createDocument,

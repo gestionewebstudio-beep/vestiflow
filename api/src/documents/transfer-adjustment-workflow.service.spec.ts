@@ -20,12 +20,21 @@ const tenantId = 'tenant-1';
 
 function createPrismaMock() {
   const prisma = {
-    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
+    documentCounter: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     document: {
       findFirst: vi.fn().mockResolvedValue(null),
       findFirstOrThrow: vi.fn(),
       update: vi.fn(),
+      // Il massimo della partizione: serve solo quando il numero non è
+      // imposto, ed è lì che si vede se la data del documento viaggia (§2).
+      aggregate: vi.fn().mockResolvedValue({ _max: { number: null } }),
     },
+    // «Primo numero libero sopra il massimo»: SQL grezzo, e il doppione può
+    // solo restituirne il risultato.
+    $queryRaw: vi.fn().mockResolvedValue([{ libero: 1 }]),
     documentLine: {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       create: vi.fn(),
@@ -577,5 +586,46 @@ describe('TransferAdjustmentWorkflowService.saveAdjustment', () => {
         ForbiddenException,
       );
     });
+  });
+});
+
+/**
+ * Il numero del §2 è il primo libero sopra il massimo dei documenti di data
+ * ANTERIORE: la data del documento è quindi un ingrediente del calcolo, non
+ * un dato di contorno. Questo servizio la riceveva come parametro e non la
+ * inoltrava — trovato il 13/08 leggendo tutte le maschere sullo stesso asse.
+ *
+ * Senza la data il massimo si legge «a oggi», cioè su una partizione più
+ * grande: un trasferimento datato indietro prendeva un numero più alto di
+ * quello che la testata gli aveva appena mostrato.
+ */
+describe('TransferAdjustmentWorkflowService — la data del documento numera', () => {
+  let prisma: ReturnType<typeof createPrismaMock>;
+
+  beforeEach(() => {
+    prisma = createPrismaMock();
+  });
+
+  it('il massimo si legge fra i documenti di data anteriore, non a oggi', async () => {
+    const { service } = createService(prisma, { numberPrefix: 'TR', defaultSeries: 'A' });
+    // Documento senza numero e serie che cambia: è il caso in cui il numero
+    // va assegnato davvero, quindi il massimo si legge.
+    const existing = existingTransferDocument({ series: 'A', number: null, reference: null });
+    prisma.document.findFirst.mockResolvedValue(existing);
+    prisma.document.findFirstOrThrow.mockResolvedValue(existing);
+    prisma.documentLine.findMany.mockResolvedValue([
+      { id: lineId, lineNumber: 1, variantId, sku: 'SKU-1', quantity: 8, loadsStock: true },
+    ]);
+    prisma.document.aggregate.mockResolvedValue({ _max: { number: 4 } });
+
+    await service.saveTransfer(
+      tenantId,
+      transferDto({ documentDate: '2026-07-13', series: 'B' }),
+    );
+
+    const where = prisma.document.aggregate.mock.calls[0]?.[0]?.where as {
+      documentDate?: { lt?: Date };
+    };
+    expect(where.documentDate?.lt).toEqual(new Date('2026-07-13T00:00:00.000Z'));
   });
 });

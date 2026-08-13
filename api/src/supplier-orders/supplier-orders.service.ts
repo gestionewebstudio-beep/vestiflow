@@ -174,7 +174,12 @@ export class SupplierOrdersService {
         const series =
           requestedSeries !== undefined
             ? requestedSeries
-            : await defaultCounterSeries(tx, tenantId, DocumentType.supplier_order);
+            : await defaultCounterSeries(
+                tx,
+                tenantId,
+                DocumentType.supplier_order,
+                dto.destinationLocationId ?? null,
+              );
         // Serializza gli operatori sullo stesso contatore: senza lock due
         // creazioni simultanee leggono lo stesso massimo e il secondo si becca il
         // vincolo unico a lavoro finito. Il lock è transazionale (si rilascia al
@@ -190,6 +195,7 @@ export class SupplierOrdersService {
             type: DocumentType.supplier_order,
             series,
             source: 'supplier_order',
+            documentDate: orderDate,
             prefix: setting.numberPrefix,
           }));
         const reference = formatDocumentReference(setting.numberPrefix, series, number);
@@ -206,6 +212,10 @@ export class SupplierOrdersService {
             currency: dto.currency ?? 'EUR',
             costEntryMode,
             orderDate,
+            // Sede di destinazione della merce (§1-bis). La colonna esisteva
+            // già, nullable e con la sua chiave esterna: fino al 13/08/2026
+            // nessuno ci scriveva.
+            destinationLocationId: dto.destinationLocationId ?? null,
             supplierReference: dto.supplierReference?.trim() || null,
             documentDiscountPercent: new Prisma.Decimal(documentDiscountPercent),
             subtotalMinor: totals.subtotalMinor,
@@ -221,7 +231,13 @@ export class SupplierOrdersService {
         return { ...order, linkedDocuments: [] };
       })
       .catch(async (error: unknown) => {
-        await this.throwNumberConflict(error, tenantId, requestedSeries, requestedNumber);
+        await this.throwNumberConflict(
+          error,
+          tenantId,
+          requestedSeries,
+          requestedNumber,
+          dto.destinationLocationId ?? null,
+        );
         throw error;
       });
 
@@ -312,6 +328,12 @@ export class SupplierOrdersService {
                 }
               : {}),
             orderDate: dto.orderDate ? new Date(dto.orderDate) : order.orderDate,
+            // Sede di destinazione (§1-bis): assente non la tocca, `null` la
+            // toglie. Stessa forma di `supplierReference` qui sotto.
+            destinationLocationId:
+              dto.destinationLocationId === undefined
+                ? order.destinationLocationId
+                : (dto.destinationLocationId ?? null),
             supplierReference:
               dto.supplierReference === undefined
                 ? order.supplierReference
@@ -340,6 +362,7 @@ export class SupplierOrdersService {
           tenantId,
           seriesChanged ? nextSeries : undefined,
           numberChanged ? nextNumber : null,
+          dto.destinationLocationId ?? order.destinationLocationId,
         );
         throw error;
       });
@@ -485,6 +508,10 @@ export class SupplierOrdersService {
     tenantId: string,
     series: string | null | undefined,
     requestedNumber: number | null,
+    // La serie si risolve come nella scrittura, sede compresa (§1-bis): il
+    // «prossimo libero» dell'avviso si calcola su una partizione, e sbagliarla
+    // propone un numero che darà un secondo conflitto.
+    locationId?: string | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
       return;
@@ -493,7 +520,12 @@ export class SupplierOrdersService {
     const resolvedSeries =
       series !== undefined
         ? series
-        : await defaultCounterSeries(this.prisma, tenantId, DocumentType.supplier_order);
+        : await defaultCounterSeries(
+            this.prisma,
+            tenantId,
+            DocumentType.supplier_order,
+            locationId,
+          );
     throw new ConflictException(
       await buildDocumentNumberConflict({
         tx: this.prisma,

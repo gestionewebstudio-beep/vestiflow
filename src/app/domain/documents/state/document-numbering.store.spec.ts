@@ -96,6 +96,106 @@ describe('DocumentNumberingStore', () => {
   });
 
   /**
+   * **Cambio sede col numero già digitato.** L'elenco delle serie cambia con la
+   * sede — un contatore legato a una sede vale solo lì (§1-bis) — e la serie
+   * selezionata può sparirci da sotto.
+   *
+   * Il numero resta: è dell'operatore. La serie no: tenerla ferma salverebbe il
+   * documento sotto una serie che in quella sede non esiste, mentre la tendina
+   * intanto si è aggiornata e sembra coerente.
+   */
+  it('numero digitato: la serie sparita dall’elenco cede a quella proposta', () => {
+    const { store, stato } = testata();
+    store.applyProposal([counter({ id: 'nap', series: 'NAP', nextNumber: 7 })], 'nap');
+    expect(stato.series).toBe('NAP');
+
+    store.onNumberChange(3);
+    // Cambio sede: NAP non è più disponibile, arriva MI.
+    store.applyProposal([counter({ id: 'mi', series: 'MI', nextNumber: 12 })], 'mi');
+
+    expect(stato.series).toBe('MI');
+    // Il numero digitato non si tocca, e continua a viaggiare.
+    expect(store.imposedNumber()).toBe(3);
+  });
+
+  it('numero digitato: la serie che è ancora disponibile non si tocca', () => {
+    const { store, stato } = testata();
+    store.applyProposal(
+      [counter({ id: 'a', series: 'A', nextNumber: 7 }), counter({ id: 'b', series: 'B' })],
+      'a',
+    );
+    store.onNumberChange(3);
+
+    store.applyProposal(
+      [counter({ id: 'a', series: 'A', nextNumber: 9 }), counter({ id: 'b', series: 'B' })],
+      'b',
+    );
+
+    expect(stato.series).toBe('A');
+    expect(store.imposedNumber()).toBe(3);
+  });
+
+  /**
+   * **«Senza serie» è una scelta, non un'assenza** (§1-bis).
+   *
+   * Le maschere mandavano `series: … || undefined`, cioè omettevano la chiave —
+   * e il server legge l'assenza come «usa il predefinito». Chi sceglieva «Senza
+   * serie» otteneva quindi l'esatto contrario di quello che aveva chiesto.
+   */
+  it('serie non toccata: non viaggia, la sceglie il server', () => {
+    const { store } = testata();
+    store.applyProposal([counter({ series: 'A', nextNumber: 7 })], 'cnt-1');
+
+    expect(store.chosenSeries()).toBeUndefined();
+  });
+
+  it('«Senza serie» scelta dall’operatore viaggia come stringa vuota', () => {
+    const { store } = testata();
+    store.applyProposal(
+      [counter({ id: 'a', series: 'A' }), counter({ id: 'nessuna', series: null })],
+      'a',
+    );
+
+    store.onSeriesChange('');
+
+    expect(store.chosenSeries()).toBe('');
+  });
+
+  it('serie scelta dall’operatore viaggia col suo nome', () => {
+    const { store } = testata();
+    store.applyProposal(
+      [counter({ id: 'a', series: 'A' }), counter({ id: 'b', series: 'B' })],
+      'a',
+    );
+
+    store.onSeriesChange('B');
+
+    expect(store.chosenSeries()).toBe('B');
+  });
+
+  // In modifica la serie è del documento: ometterla dopo un cambio lo
+  // lascerebbe con quella vecchia.
+  it('in modifica la serie viaggia sempre, anche non toccata', () => {
+    const { store, stato } = testata({ isEdit: true });
+    stato.series = 'A';
+
+    expect(store.chosenSeries()).toBe('A');
+  });
+
+  // Elenco vuoto = richiesta fallita o in volo. Non è la prova che la serie sia
+  // sparita, e cancellarla su un errore di rete sarebbe il modo peggiore di
+  // scoprire che la rete è caduta.
+  it('numero digitato: un elenco vuoto non cancella la serie scelta', () => {
+    const { store, stato } = testata();
+    store.applyProposal([counter({ id: 'a', series: 'A', nextNumber: 7 })], 'a');
+    store.onNumberChange(3);
+
+    store.applyProposal([], null);
+
+    expect(stato.series).toBe('A');
+  });
+
+  /**
    * ⚠️ L'ordine è la prova, non un dettaglio.
    *
    * È `setNumber` a emettere `valueChanges`, ed è quell'emissione a far

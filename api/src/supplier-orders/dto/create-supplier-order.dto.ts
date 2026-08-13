@@ -90,6 +90,15 @@ export class CreateSupplierOrderDto {
   series?: string;
 
   /**
+   * Sede di destinazione della merce ordinata (§1-bis). Finisce in
+   * `supplier_orders.destination_location_id`, colonna che esisteva già e non
+   * aveva alcun percorso di scrittura.
+   */
+  @IsOptional()
+  @IsUUID()
+  destinationLocationId?: string;
+
+  /**
    * Numero imposto dalla testata. Assente = lo assegna il server, primo libero
    * della serie. Se è già occupato risponde 409 col conflitto, come gli altri
    * documenti: chi salva sceglie fra numero nuovo e numero attuale.

@@ -11,19 +11,12 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import {
-  FormArray,
-  NonNullableFormBuilder,
-  PristineChangeEvent,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
   debounceTime,
   distinctUntilChanged,
-  filter,
   map,
   of,
   startWith,
@@ -61,6 +54,7 @@ import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.s
 import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
 import { DocumentActionsService } from '@core/services/document-actions.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
 import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
 import {
@@ -112,6 +106,8 @@ import {
   netFromGrossMinor,
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
+import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
@@ -320,6 +316,7 @@ interface AvailabilityIssue {
     DateInputComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
+    DocumentChronologyWarningDialogComponent,
     DocumentIncludePanelComponent,
     DocumentMobilePanelComponent,
     ProductFormComponent,
@@ -423,6 +420,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     : this.isManualUnload
       ? DocumentType.ManualUnload
       : DocumentType.Quote;
+  /**
+   * Tipo che governa la NUMERAZIONE, che non è sempre quello del registro.
+   * L'Ordine cliente non vive in `documents` ma in `SalesOrder`, e ha un
+   * contatore proprio (`customer_order`, quello che il server usa davvero in
+   * `manual-sales-orders.service.ts`). Prendendo qui il ripiego `Quote` la
+   * testata mostrava le serie del Preventivo e l'avviso cronologico (§4)
+   * guardava la serie di un altro tipo documento.
+   */
+  protected readonly numberingDocumentType = this.isOrder
+    ? DocumentType.CustomerOrder
+    : this.registryDocumentType;
 
   protected readonly listPath = '/app/sales';
   /** Elenco dedicato del tipo (mai il registro generico filtrato). */
@@ -611,16 +619,21 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   // ── Numero proposto vs numero scelto ────────────────────────────────────
   /**
-   * `pristine` del numero come signal: `AbstractControl` non lo espone
-   * reattivo, e senza signal la maschera non ridisegnerebbe l'avviso «primo
-   * libero» nel momento in cui l'operatore digita il primo carattere.
+   * «L'operatore ha toccato il numero?» in forma reattiva. Lo stato vero resta
+   * `documentNumber.dirty` — qui non se ne tiene una copia, si ascolta: gli
+   * eventi del controllo includono `PristineChangeEvent`, quindi il signal si
+   * aggiorna anche su `markAsDirty()`, che `valueChanges` non emette.
+   *
+   * Questo signal esisteva già qui, nella forma filtrata, e **non era collegato
+   * a niente**: la maschera decideva «è una proposta?» dal ricalcolo su
+   * `valueChanges`, come le altre. Il meccanismo giusto era costruito e
+   * inutilizzato — il modo più silenzioso in cui una copia diverge.
    */
-  private readonly numberPristine = toSignal(
+  private readonly documentNumberPristine = toSignal(
     this.form.controls.documentNumber.events.pipe(
-      filter((event): event is PristineChangeEvent => event instanceof PristineChangeEvent),
-      map((event) => event.pristine),
+      map(() => this.form.controls.documentNumber.pristine),
     ),
-    { initialValue: this.form.controls.documentNumber.pristine },
+    { initialValue: true },
   );
 
   protected readonly dirtySinceLastSave = signal(false);
@@ -809,10 +822,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Anteprima prossimo numero documento (numeratore quote/sales_ddt). */
   private readonly registryPreviewReference = toSignal(
     this.isRegistryDocument
-      ? this.documentService.previewDocumentNumber(this.registryDocumentType).pipe(
-          map((preview) => preview.reference),
-          catchError(() => of(null)),
-        )
+      ? this.documentService
+          .previewDocumentNumber(this.registryDocumentType, {
+            // La sede decide quale contatore predefinito si applica (§1-bis).
+            // Letta all'apertura: è l'anteprima della testata, non il numero
+            // che il salvataggio assegnerà — quello lo dice `numbering`.
+            locationId: this.form.controls.locationId.value || null,
+          })
+          .pipe(
+            map((preview) => preview.reference),
+            catchError(() => of(null)),
+          )
       : of(null),
     { initialValue: null as string | null },
   );
@@ -836,7 +856,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     setNumber: (value) => this.form.controls.documentNumber.setValue(value),
     series: () => this.form.controls.series.value,
     setSeries: (value) => this.form.controls.series.setValue(value),
-    numberIsDirty: () => this.form.controls.documentNumber.dirty,
+    numberIsDirty: () => !this.documentNumberPristine(),
     markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
     markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
     asProgrammatic: (write) => {
@@ -852,13 +872,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   });
 
   /**
-   * `dirty` non è un signal: la dipendenza da `formValue()` fa ricalcolare il
-   * computed a ogni scrittura sul form, che è dove lo stato può cambiare.
+   * Reattivo per costruzione: `isProposal()` legge il signal degli eventi.
    */
-  protected readonly numberIsProposal = computed(() => {
-    this.formValue();
-    return this.numbering.isProposal();
-  });
+  protected readonly numberIsProposal = computed(() => this.numbering.isProposal());
 
   /**
    * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
@@ -867,7 +883,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
     this.countersService
-      .available(this.registryDocumentType, this.form.controls.locationId.value || null)
+      .available(
+        this.numberingDocumentType,
+        this.form.controls.locationId.value || null,
+        this.form.controls.documentDate.value,
+      )
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters }) => this.numbering.setCounters(counters),
@@ -877,7 +897,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   private refreshNumberProposal(): void {
     this.countersService
-      .available(this.registryDocumentType, this.form.controls.locationId.value || null)
+      .available(
+        this.numberingDocumentType,
+        this.form.controls.locationId.value || null,
+        this.form.controls.documentDate.value,
+      )
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters, proposedCounterId }) =>
@@ -886,6 +910,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       });
   }
 
+  /**
+   * Avviso cronologico (§4): la serie contiene documenti fuori posto. Avviso
+   * e non blocco — da lì si salva comunque — e il meccanismo vive in
+   * `domain/`, come quello del conflitto sul numero.
+   */
+  protected readonly chronology = new DocumentChronologyGuard({
+    documentType: () => this.numberingDocumentType,
+    series: () => this.form.controls.series.value,
+  });
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
   protected readonly prefillError = new DocumentPrefillErrorStore();
@@ -1672,23 +1705,38 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       }
     });
 
-    // Cambio location: le disponibilità per sede vanno ricaricate.
+    // Cambio sede: due cose la seguono.
+    //
+    // 1. Le disponibilità per sede sulle righe.
+    // 2. La tendina Serie — un contatore legato a una sede è disponibile SOLO
+    //    lì, e quelli senza sede ovunque (§1-bis). Senza ricarica l'elenco
+    //    resterebbe quello chiesto all'apertura, e mostrerebbe serie che in
+    //    questa sede non si possono usare. `refreshNumberProposal` ripropone
+    //    serie e numero solo su documento nuovo col numero mai toccato.
     this.form.controls.locationId.valueChanges
       .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshAllLineSummaries());
+      .subscribe(() => {
+        this.refreshAllLineSummaries();
+        this.refreshNumberProposal();
+      });
 
-    // Default Location = location corrente dell'operatore (nuovi documenti): il
-    // gate testata non si blocca più per location mancante. In modifica la
-    // location arriva dal documento, quindi non tocchiamo nulla. Impostazione
-    // non "sporca" il form (è un default, non una modifica dell'utente).
-    effect(() => {
-      const defaultLocationId = this.operationalLocations.defaultLocation()?.id;
-      if (!defaultLocationId || this.isEditMode() || this.form.controls.locationId.value) {
-        return;
-      }
-      this.suppressDirtyMarking = true;
-      this.form.controls.locationId.setValue(defaultLocationId);
-      this.suppressDirtyMarking = false;
+    // Cambio data: il numero proposto dipende dalla data (§2), quindi la
+    // testata deve rifare l'anteprima — o mostrerebbe il primo libero di OGGI
+    // mentre il salvataggio assegna quello della data scelta.
+    this.form.controls.documentDate.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberProposal());
+
+    // Sede predefinita in testata (§1-bis): la regola vive in `domain/`, ed è
+    // la stessa per tutte le maschere. Qui restano i due ganci che cambiano.
+    prefillDefaultLocation({
+      control: this.form.controls.locationId,
+      isEdit: () => this.isEditMode(),
+      write: (apply) => {
+        this.suppressDirtyMarking = true;
+        apply();
+        this.suppressDirtyMarking = false;
+      },
     });
 
     // Cliente scelto: propone sconto anagrafica sulle righe già compilate
@@ -4263,12 +4311,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       customerId: value.customerId,
       locationId: value.locationId || undefined,
       documentDate: value.documentDate,
-      series: (value.series ?? '').trim() || undefined,
+      series: this.numbering.chosenSeries(),
       // La proposta NON torna indietro come imposizione: viaggia solo il numero
       // che l'operatore ha digitato, o due che salvano insieme si
       // contenderebbero lo stesso. È la stessa regola del ramo documenti, qui
       // sopra: cambia il servizio, non la decisione.
-      number: this.numberIsProposal() ? undefined : (value.documentNumber ?? undefined),
+      number: this.numbering.imposedNumber(),
       externalRef: value.externalRef.trim() || undefined,
       // Vuoto vuol dire svuotato — la testata viene riscritta per intero, e il
       // campo assente azzera quello che il documento portava.
@@ -4286,7 +4334,17 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     return trimmed || undefined;
   }
 
+  /**
+   * Ogni percorso di salvataggio passa di qui — sono sei punti, fra la testata,
+   * il dialogo disponibilità e la copertura ordini — ed è quindi il posto giusto
+   * per il controllo cronologico (§4): messo più a monte andrebbe replicato sei
+   * volte, e una delle sei prima o poi si dimenticherebbe.
+   */
   private saveDocument(onSaved?: () => void): void {
+    this.chronology.run(() => this.saveDocumentNow(onSaved));
+  }
+
+  private saveDocumentNow(onSaved?: () => void): void {
     if (this.isRegistryDocument) {
       this.saveRegistryDocument(onSaved);
       return;
@@ -4446,7 +4504,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     // serve anche a dire, dopo, se il server ne ha assegnato un altro.
     const numberWasProposal = this.numberIsProposal();
     const shownNumber = value.documentNumber;
-    const requestedNumber = numberWasProposal ? undefined : (shownNumber ?? undefined);
+    const requestedNumber = this.numbering.imposedNumber();
 
     const save$ = editId
       ? this.documentService.updateDocument(editId, {
@@ -4454,7 +4512,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           // Presente solo se imposto in testata: un numero scelto a mano non
           // sposta il progressivo della serie. Assente = lo assegna il server.
           ...(requestedNumber !== undefined ? { number: requestedNumber } : {}),
-          series: (value.series ?? '').trim() || undefined,
+          series: this.numbering.chosenSeries(),
           customerId: this.isManualUnload ? value.customerId || null : value.customerId,
           ...(this.isManualUnload ? { customerName: freeTextCustomer || null } : {}),
           locationId: value.locationId || undefined,
@@ -4477,7 +4535,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
           // Presente solo se imposto in testata: un numero scelto a mano non
           // sposta il progressivo della serie. Assente = lo assegna il server.
           ...(requestedNumber !== undefined ? { number: requestedNumber } : {}),
-          series: (value.series ?? '').trim() || undefined,
+          series: this.numbering.chosenSeries(),
           customerId: this.isManualUnload ? value.customerId || undefined : value.customerId,
           ...(freeTextCustomer ? { customerName: freeTextCustomer } : {}),
           locationId: value.locationId || undefined,
@@ -4558,13 +4616,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   protected acknowledgeConflictNumber(): void {
     // Il numero nuovo si scrive in testata (specifica numerazione §3): il
     // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
-    // errore di battitura e un secondo conflitto. `markAsDirty` non è un
-    // dettaglio: da qui in poi quel numero è una SCELTA, e deve viaggiare al
-    // salvataggio invece di essere scambiato per una proposta e omesso.
+    // errore di battitura e un secondo conflitto. Passa dallo store perché da
+    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
+    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
+    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
     const nuovo = this.numberConflictDialog.acknowledge();
     if (nuovo != null) {
-      this.form.controls.documentNumber.setValue(nuovo);
-      this.form.controls.documentNumber.markAsDirty();
+      this.numbering.onNumberChange(nuovo);
     }
   }
 

@@ -158,6 +158,10 @@ export class TransferAdjustmentWorkflowService {
       tenantId,
       type,
       series,
+      // La data governa il primo libero (§2). Riceverla e non inoltrarla
+      // faceva numerare «a oggi» un documento datato indietro, cioè con una
+      // regola diversa da quella che la testata aveva appena mostrato.
+      documentDate,
       source: 'document',
       prefix: setting.numberPrefix,
       requestedNumber,
@@ -177,7 +181,7 @@ export class TransferAdjustmentWorkflowService {
     tenantId: string,
     type: DocumentType,
     series: string | null,
-    _documentDate: Date,
+    documentDate: Date,
     attemptedNumber: number | null,
   ): Promise<void> {
     if (!isDocumentNumberConflict(error)) {
@@ -193,6 +197,11 @@ export class TransferAdjustmentWorkflowService {
         source: 'document',
         prefix: setting.numberPrefix,
         requestedNumber: attemptedNumber,
+        // Il «primo libero» che l'avviso propone si calcola sulla stessa
+        // partizione con cui si è appena numerato: senza la data direbbe il
+        // primo libero a oggi, cioè un numero che il salvataggio successivo
+        // non assegnerebbe. Il parametro c'era e si chiamava `_documentDate`.
+        documentDate,
       }),
     );
   }

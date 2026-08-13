@@ -40,6 +40,8 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
+import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
@@ -47,6 +49,7 @@ import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
 import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { ProductService } from '@domain/products/services/product.service';
@@ -169,6 +172,7 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
+    DocumentChronologyWarningDialogComponent,
     EditLockBannerComponent,
     SelectMenuComponent,
     StockMovementLineCardComponent,
@@ -222,6 +226,42 @@ export class TransferFormComponent implements CanComponentDeactivate {
       STOCK_MOVEMENT_LINE_COLUMNS,
       STOCK_MOVEMENT_LINE_PRESETS,
     );
+
+    // Sede predefinita in testata (§1-bis): la regola vive in `domain/`, ed è
+    // la stessa per tutte le maschere.
+    //
+    // **Solo l'origine.** La destinazione la sceglie l'operatore: precompilarla
+    // con la stessa sede farebbe un trasferimento verso sé stesso, che il
+    // validatore `distinctLocations` rifiuta — il documento nascerebbe già in
+    // errore.
+    prefillDefaultLocation({
+      control: this.form.controls.locationId,
+      isEdit: () => this.isEditMode(),
+      write: (apply) => {
+        this.suppressDirtyMarking = true;
+        apply();
+        this.suppressDirtyMarking = false;
+      },
+    });
+
+    // Cambio sede: la tendina Serie cambia con lei — un contatore legato a una
+    // sede è disponibile SOLO lì, e quelli senza sede ovunque (§1-bis). Senza
+    // questa ricarica l'elenco resterebbe quello chiesto all'apertura, e
+    // mostrerebbe serie che in questa sede non si possono usare.
+    //
+    // `refreshNumberProposal` ricarica l'elenco e ripropone serie e numero solo
+    // se il documento è nuovo e nessuno ha toccato il numero: su un documento
+    // salvato, o con un numero digitato, cambia solo la tendina.
+    this.form.controls.locationId.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberProposal());
+
+    // Cambio data: il numero proposto dipende dalla data (§2), quindi la
+    // testata deve rifare l'anteprima — o mostrerebbe il primo libero di OGGI
+    // mentre il salvataggio assegna quello della data scelta.
+    this.form.controls.documentDate.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberProposal());
 
     // Breadcrumb: numero del documento al posto del generico «Dettaglio».
     bindBreadcrumbEntityLabel(() => ({
@@ -529,6 +569,19 @@ export class TransferFormComponent implements CanComponentDeactivate {
     initialValue: this.form.getRawValue(),
   });
 
+  /**
+   * «L'operatore ha toccato il numero?» in forma reattiva. Lo stato vero resta
+   * `documentNumber.dirty` — qui non se ne tiene una copia, si ascolta: gli
+   * eventi del controllo includono `PristineChangeEvent`, quindi il signal si
+   * aggiorna anche su `markAsDirty()`, che `valueChanges` non emette.
+   */
+  private readonly documentNumberPristine = toSignal(
+    this.form.controls.documentNumber.events.pipe(
+      map(() => this.form.controls.documentNumber.pristine),
+    ),
+    { initialValue: true },
+  );
+
   protected readonly confirmDialogOpen = signal(false);
 
   /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
@@ -547,7 +600,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
     setNumber: (value) => this.form.controls.documentNumber.setValue(value),
     series: () => this.form.controls.series.value,
     setSeries: (value) => this.form.controls.series.setValue(value),
-    numberIsDirty: () => this.form.controls.documentNumber.dirty,
+    numberIsDirty: () => !this.documentNumberPristine(),
     markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
     markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
     asProgrammatic: (write) => {
@@ -562,15 +615,8 @@ export class TransferFormComponent implements CanComponentDeactivate {
     },
   });
 
-  /**
-   * `dirty` non è un signal: la dipendenza da `formValue()` fa ricalcolare il
-   * computed a ogni scrittura sul form, che è dove lo stato del controllo può
-   * cambiare.
-   */
-  protected readonly numberIsProposal = computed(() => {
-    this.formValue();
-    return this.numbering.isProposal();
-  });
+  /** Reattivo per costruzione: `isProposal()` legge il signal degli eventi. */
+  protected readonly numberIsProposal = computed(() => this.numbering.isProposal());
 
   /**
    * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
@@ -579,7 +625,11 @@ export class TransferFormComponent implements CanComponentDeactivate {
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
     this.countersService
-      .available(DocumentType.Transfer, this.form.controls.locationId.value || null)
+      .available(
+        DocumentType.Transfer,
+        this.form.controls.locationId.value || null,
+        this.form.controls.documentDate.value,
+      )
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters }) => this.numbering.setCounters(counters),
@@ -589,7 +639,11 @@ export class TransferFormComponent implements CanComponentDeactivate {
 
   private refreshNumberProposal(): void {
     this.countersService
-      .available(DocumentType.Transfer, this.form.controls.locationId.value || null)
+      .available(
+        DocumentType.Transfer,
+        this.form.controls.locationId.value || null,
+        this.form.controls.documentDate.value,
+      )
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters, proposedCounterId }) =>
@@ -598,6 +652,15 @@ export class TransferFormComponent implements CanComponentDeactivate {
       });
   }
 
+  /**
+   * Avviso cronologico (§4): la serie contiene documenti fuori posto. Avviso
+   * e non blocco — da lì si salva comunque — e il meccanismo vive in
+   * `domain/`, come quello del conflitto sul numero.
+   */
+  protected readonly chronology = new DocumentChronologyGuard({
+    documentType: () => this.documentType,
+    series: () => this.form.controls.series.value,
+  });
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
   protected readonly prefillError = new DocumentPrefillErrorStore();
@@ -612,13 +675,13 @@ export class TransferFormComponent implements CanComponentDeactivate {
   protected acknowledgeConflictNumber(): void {
     // Il numero nuovo si scrive in testata (specifica numerazione §3): il
     // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
-    // errore di battitura e un secondo conflitto. `markAsDirty` non è un
-    // dettaglio: da qui in poi quel numero è una SCELTA, e deve viaggiare al
-    // salvataggio invece di essere scambiato per una proposta e omesso.
+    // errore di battitura e un secondo conflitto. Passa dallo store perché da
+    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
+    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
+    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
     const nuovo = this.numberConflictDialog.acknowledge();
     if (nuovo != null) {
-      this.form.controls.documentNumber.setValue(nuovo);
-      this.form.controls.documentNumber.markAsDirty();
+      this.numbering.onNumberChange(nuovo);
     }
   }
 
@@ -643,7 +706,8 @@ export class TransferFormComponent implements CanComponentDeactivate {
     toObservable(computed(() => ({ id: this.editDocumentId(), tick: this.loadTick() }))).pipe(
       switchMap(({ id }) => {
         if (!id) {
-          this.initDefaultsForCreate();
+          // La sede di origine la precompila `prefillDefaultLocation` nel
+          // costruttore: una regola sola, in `domain/`, per tutte le maschere.
           return of<'ready' | 'loading' | 'not-found' | 'error'>('ready');
         }
         return this.documentService.getDocumentById(id).pipe(
@@ -1278,7 +1342,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
   }
 
   protected saveDraft(): void {
-    void this.persist();
+    this.chronology.run(() => void this.persist());
   }
 
   protected requestConfirm(): void {
@@ -1288,9 +1352,15 @@ export class TransferFormComponent implements CanComponentDeactivate {
     this.confirmDialogOpen.set(true);
   }
 
+  /**
+   * Il controllo cronologico (§4) sta DOPO la conferma dell'operazione, non
+   * prima: sono due domande diverse — quella chiede se muovere la merce, questo
+   * segnala com'è messa la numerazione — e metterlo davanti farebbe rispondere
+   * «sì» due volte prima di aver deciso la cosa principale.
+   */
   protected confirmAndSave(): void {
     this.confirmDialogOpen.set(false);
-    void this.persist();
+    this.chronology.run(() => void this.persist());
   }
 
   protected cancel(): void {
@@ -1332,26 +1402,6 @@ export class TransferFormComponent implements CanComponentDeactivate {
 
   protected reload(): void {
     this.loadTick.update((t) => t + 1);
-  }
-
-  private initDefaultsForCreate(): void {
-    // La sede predefinita dell'utente può precompilare SOLO l'origine (se
-    // autorizzata); mono-location: preselezionabile l'unica sede scrivibile.
-    // Mai fallback "prima location disponibile". La destinazione non viene
-    // MAI autocompilata (specifica cliente «sede predefinita»).
-    const writable = this.operationalLocations.writeLocations();
-    const preferredOrigin =
-      this.operationalLocations.defaultLocation()?.id ??
-      (writable.length === 1 ? (writable[0]?.id ?? '') : '');
-    if (preferredOrigin && !this.form.controls.locationId.value) {
-      // Precompilazione programmatica: non è una modifica dell'utente.
-      this.suppressDirtyMarking = true;
-      try {
-        this.form.controls.locationId.setValue(preferredOrigin);
-      } finally {
-        this.suppressDirtyMarking = false;
-      }
-    }
   }
 
   private validateForm(): boolean {
@@ -1430,7 +1480,7 @@ export class TransferFormComponent implements CanComponentDeactivate {
       // Numero imposto in testata: non sposta il progressivo della serie.
       // Assente = il documento tiene il numero che ha già.
       number: this.numbering.imposedNumber(),
-      series: (raw.series ?? '').trim() || undefined,
+      series: this.numbering.chosenSeries(),
       locationId: raw.locationId,
       targetLocationId: raw.targetLocationId,
       // Documento della controparte: l'endpoint dedicato riscrive sempre

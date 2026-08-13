@@ -21,7 +21,10 @@ const tenantId = 'tenant-1';
 
 function createPrismaMock() {
   const prisma = {
-    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
+    documentCounter: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     document: {
       // Numerazione «massimo esistente + 1»: la serie parte vuota.
       aggregate: vi.fn().mockResolvedValue({ _max: { number: null } }),
@@ -768,10 +771,18 @@ describe('GoodsReceiptWorkflowService.saveGoodsReceipt', () => {
    * aveva scritto 7 il dialogo parlava del 43.
    */
   describe('protocollo già assegnato', () => {
-    /** Violazione del vincolo unico sul numero, come la manda Prisma. */
+    /**
+     * Violazione del vincolo unico sul numero, come la manda Prisma DAVVERO.
+     *
+     * Il doppione portava `target: ['tenantId','type','series','number']`, che
+     * è la forma di un indice su colonne. L'indice vero è di ESPRESSIONE (dal
+     * 11/08 la serie assente partecipa come stringa vuota), e su quelli Prisma
+     * non sa dire le colonne: manda `['tenant_id,']`, un troncone. Il nome del
+     * modello invece c'è sempre, ed è ciò su cui si riconosce il conflitto.
+     */
     const numberTaken = {
       code: 'P2002',
-      meta: { target: ['tenantId', 'type', 'series', 'number'] },
+      meta: { modelName: 'Document', target: ['tenant_id,'] },
     };
 
     it('il 409 nomina il protocollo digitato e il primo libero', async () => {

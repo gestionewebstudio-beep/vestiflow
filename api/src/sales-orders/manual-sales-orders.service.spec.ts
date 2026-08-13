@@ -45,7 +45,10 @@ function createPrismaMock() {
       upsert: vi.fn().mockResolvedValue({ lastNumber: 12 }),
       findUnique: vi.fn().mockResolvedValue({ lastNumber: 11 }),
     },
-    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
+    documentCounter: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     salesOrder: {
       // Numerazione «massimo esistente + 1»: aggregato numerico (ultimo 11 → 12).
       aggregate: vi.fn().mockResolvedValue({ _max: { number: 11 } }),

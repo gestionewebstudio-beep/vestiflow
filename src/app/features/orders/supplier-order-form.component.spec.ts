@@ -207,7 +207,11 @@ describe('SupplierOrderFormComponent', () => {
         // Modalità costi iniziale del nuovo ordine: preferenza operatore per tipo.
         {
           provide: DocumentService,
-          useValue: { getPriceModePreference: () => of(false) },
+          useValue: {
+            getPriceModePreference: () => of(false),
+            checkChronology: () => of({ anomalies: [], dismissed: false }),
+            dismissChronologyWarning: () => of(void 0),
+          },
         },
         // Tendina del documento della controparte (componente condiviso in
         // testata): senza lo stub cercherebbe l'HTTP vero.
@@ -274,7 +278,17 @@ describe('SupplierOrderFormComponent', () => {
 
   // La regola centrale: la proposta NON torna indietro come imposizione, o due
   // operatori che salvano insieme si contenderebbero lo stesso numero.
-  it('numero non toccato: il salvataggio non porta il numero', async () => {
+  /**
+   * Né numero né serie viaggiano finché l'operatore non li tocca: quello che la
+   * testata mostra è una PROPOSTA, e a decidere è il server nella transazione
+   * che scrive.
+   *
+   * Sulla serie è cambiato il 13/08/2026 (§1-bis): prima viaggiava anche non
+   * toccata, perché la proposta la scriveva nel campo e il campo partiva. Ora
+   * parte solo se scelta — e allora parte davvero, «Senza serie» compresa, che
+   * è il difetto che quella regola chiude.
+   */
+  it('numero e serie non toccati: il salvataggio non li porta', async () => {
     const user = userEvent.setup();
     const { createOrder } = await setup();
 
@@ -282,7 +296,7 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(salvaDocumento());
 
     expect(createOrder).toHaveBeenCalledWith(
-      expect.objectContaining({ series: 'A', number: undefined }),
+      expect.objectContaining({ series: undefined, number: undefined }),
     );
   });
 
@@ -626,7 +640,14 @@ describe('SupplierOrderFormComponent', () => {
             getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
           },
         },
-        { provide: DocumentService, useValue: { getPriceModePreference: () => of(false) } },
+        {
+          provide: DocumentService,
+          useValue: {
+            getPriceModePreference: () => of(false),
+            checkChronology: () => of({ anomalies: [], dismissed: false }),
+            dismissChronologyWarning: () => of(void 0),
+          },
+        },
         { provide: ExternalDocumentTypeService, useValue: { list: () => of(EXTERNAL_DOC_TYPES) } },
         { provide: TableColumnPreferenceService, useValue: tableColumnPreferenceMock() },
         { provide: VatCodeService, useValue: { list: () => of([]) } },
@@ -962,7 +983,14 @@ describe('SupplierOrderFormComponent', () => {
               getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
             },
           },
-          { provide: DocumentService, useValue: { getPriceModePreference: () => of(false) } },
+          {
+            provide: DocumentService,
+            useValue: {
+              getPriceModePreference: () => of(false),
+              checkChronology: () => of({ anomalies: [], dismissed: false }),
+              dismissChronologyWarning: () => of(void 0),
+            },
+          },
           { provide: TableColumnPreferenceService, useValue: tableColumnPreferenceMock() },
           { provide: VatCodeService, useValue: { list: () => of([]) } },
           { provide: PaymentOptionsService, useValue: { list: () => of([]) } },

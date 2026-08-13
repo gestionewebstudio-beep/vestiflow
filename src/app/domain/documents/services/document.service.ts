@@ -9,6 +9,7 @@ import { ApiHttpClient } from '@core/http/api-http.client';
 import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 import type { DocumentRecord, DocumentRevision } from '@core/models/document.model';
+import type { ChronologyCheck } from '../models/document-chronology.model';
 import type { DocumentAttachment } from '@core/models/document.model';
 import { DocumentType } from '@core/models/document.model';
 
@@ -104,10 +105,14 @@ export class DocumentService {
 
   previewDocumentNumber(
     type: DocumentType,
-    options: { series?: string | null } = {},
+    options: { series?: string | null; locationId?: string | null } = {},
   ): Observable<{ reference: string; previewNumber: number; series: string | null }> {
     let params = new HttpParams().set('type', type);
     if (options.series) params = params.set('series', options.series);
+    // Senza serie esplicita è la sede a decidere quale contatore predefinito si
+    // applica (§1-bis): un'anteprima che la ignora mostra una serie diversa da
+    // quella che il salvataggio assegnerà.
+    if (options.locationId) params = params.set('locationId', options.locationId);
 
     return this.http
       .get<{
@@ -115,6 +120,28 @@ export class DocumentService {
         previewNumber: number;
         series: string | null;
       }>(this.url('/documents/preview-number'), { params })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /**
+   * Controllo cronologico del contatore (§4): i documenti fuori posto, più se
+   * l'operatore ha spento l'avviso per questo tipo.
+   *
+   * `series` viaggia sempre, stringa vuota compresa: «Senza serie» è un
+   * contatore vero, non l'assenza di un contatore.
+   */
+  checkChronology(type: DocumentType, series: string | null): Observable<ChronologyCheck> {
+    const params = new HttpParams().set('type', type).set('series', series ?? '');
+    return this.http
+      .get<ChronologyCheck>(this.url('/documents/chronology'), { params })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /** Spegne l'avviso cronologico per questo tipo documento. Non si riaccende. */
+  dismissChronologyWarning(type: DocumentType): Observable<void> {
+    const params = new HttpParams().set('type', type);
+    return this.http
+      .post<void>(this.url('/documents/chronology/dismiss'), {}, { params })
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
@@ -210,9 +237,9 @@ export class DocumentService {
     if (excludeInvoiceId) params = params.set('excludeInvoiceId', excludeInvoiceId);
 
     return this.http
-      .get<
-        readonly LinkableGoodsReceiptApiRow[]
-      >(this.url('/documents/linkable-goods-receipts'), { params })
+      .get<readonly LinkableGoodsReceiptApiRow[]>(this.url('/documents/linkable-goods-receipts'), {
+        params,
+      })
       .pipe(
         timeout(HTTP_TIMEOUT_MS),
         map((rows) =>

@@ -295,7 +295,10 @@ function createFakePrisma(db: FakeDb): PrismaService {
         return Promise.resolve({ lastNumber: next });
       },
     },
-    documentCounter: { findFirst: () => Promise.resolve(null) },
+    documentCounter: {
+      findFirst: () => Promise.resolve(null),
+      findMany: () => Promise.resolve([]),
+    },
     document: {
       // Numerazione «massimo esistente + 1» (nessun documento nel fake db).
       aggregate: () => Promise.resolve({ _max: { number: null } }),

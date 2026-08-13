@@ -95,6 +95,9 @@ describe('PurchaseInvoiceFormComponent', () => {
     const counters = options.counters ?? [];
     const showInfo = vi.fn();
     const documentService = {
+      // Controllo cronologico (§4): serie in ordine, nessun avviso.
+      checkChronology: () => of({ anomalies: [], dismissed: false }),
+      dismissChronologyWarning: () => of(void 0),
       getDocumentById: vi.fn(),
       listLinkableGoodsReceipts: vi.fn(() => of([RECEIPT_1, RECEIPT_2])),
       // Della registrazione salvata la maschera legge solo il numero assegnato:

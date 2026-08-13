@@ -17,7 +17,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
+import { catchError, distinctUntilChanged, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { NavigationHistoryService } from '@core/services/navigation-history.service';
 import type { CanComponentDeactivate } from '@core/guards/unsaved-changes.guard';
@@ -25,6 +25,8 @@ import type { AppError } from '@core/models/app-error.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
+import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { mapHttpErrorToAppError } from '@core/interceptors/http-error.mapper';
@@ -160,6 +162,7 @@ function parseRatePercent(value: string): number | null {
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
+    DocumentChronologyWarningDialogComponent,
     EmptyStateComponent,
     ErrorStateComponent,
     SelectMenuComponent,
@@ -196,6 +199,15 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       id: this.editDocumentId() || null,
       label: this.loadedReference(),
     }));
+
+    // Cambio data: il numero proposto dipende dalla data (§2), quindi la
+    // testata deve rifare l'anteprima — o mostrerebbe il primo libero di OGGI
+    // mentre il salvataggio assegna quello della data scelta.
+    // Qui la data che numera è `documentDate` (la data della fattura), non
+    // `registrationDate`: è quella che il server passa a `resolveDocumentNumber`.
+    this.form.controls.documentDate.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshDocumentNumberProposal());
 
     // Ogni modifica utente al form marca la registrazione come «da salvare».
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -307,15 +319,12 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
    * chi salva per primo — finché il documento è nuovo e nessuno l'ha digitato.
    * Su un documento già salvato il numero è assegnato, e appena l'operatore lo
    * scrive diventa una sua scelta: in entrambi i casi non è più una proposta.
+   *
+   * Reattivo per costruzione: `isProposal()` interroga `numberIsDirty`, che qui
+   * legge il signal degli eventi. Era questa maschera ad avere il meccanismo
+   * giusto; dal 13/08/2026 ce l'hanno tutte.
    */
-  protected readonly documentNumberIsProposal = computed(() => {
-    // La dipendenza è il signal degli EVENTI del controllo, non `valueChanges`:
-    // così il ricalcolo avviene anche dopo un `markAsDirty`, che valueChanges
-    // non emette. È il motivo per cui qui l'ordine fra marcatura e scrittura
-    // non conta, mentre altrove contava (vedi `DocumentNumberingStore`).
-    this.documentNumberPristine();
-    return this.numbering.isProposal();
-  });
+  protected readonly documentNumberIsProposal = computed(() => this.numbering.isProposal());
 
   /** Tipo documento fisso di questa maschera (per il pannello numerazioni). */
   protected readonly documentType = DocumentType.SupplierInvoice;
@@ -336,7 +345,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     setNumber: (value) => this.form.controls.documentNumber.setValue(value),
     series: () => this.form.controls.series.value,
     setSeries: (value) => this.form.controls.series.setValue(value),
-    numberIsDirty: () => this.form.controls.documentNumber.dirty,
+    numberIsDirty: () => !this.documentNumberPristine(),
     markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
     markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
     asProgrammatic: (write) => {
@@ -358,7 +367,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
     this.countersService
-      .available(DocumentType.SupplierInvoice, null)
+      .available(DocumentType.SupplierInvoice, null, this.form.controls.documentDate.value)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters }) => this.numbering.setCounters(counters),
@@ -366,17 +375,15 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
       });
   }
 
-  private refreshNumberProposal(): void {
-    this.countersService
-      .available(DocumentType.SupplierInvoice, null)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters, proposedCounterId }) =>
-          this.numbering.applyProposal(counters, proposedCounterId),
-        error: () => undefined,
-      });
-  }
-
+  /**
+   * Avviso cronologico (§4): la serie contiene documenti fuori posto. Avviso
+   * e non blocco — da lì si salva comunque — e il meccanismo vive in
+   * `domain/`, come quello del conflitto sul numero.
+   */
+  protected readonly chronology = new DocumentChronologyGuard({
+    documentType: () => DocumentType.SupplierInvoice,
+    series: () => this.form.controls.series.value,
+  });
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
   protected readonly prefillError = new DocumentPrefillErrorStore();
@@ -626,7 +633,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
    */
   private refreshDocumentNumberProposal(): void {
     this.countersService
-      .available(DocumentType.SupplierInvoice, null)
+      .available(DocumentType.SupplierInvoice, null, this.form.controls.documentDate.value)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters, proposedCounterId }) =>
@@ -657,13 +664,13 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
   protected acknowledgeConflictNumber(): void {
     // Il numero nuovo si scrive in testata (specifica numerazione §3): il
     // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
-    // errore di battitura e un secondo conflitto. `markAsDirty` non è un
-    // dettaglio: da qui in poi quel numero è una SCELTA, e deve viaggiare al
-    // salvataggio invece di essere scambiato per una proposta e omesso.
+    // errore di battitura e un secondo conflitto. Passa dallo store perché da
+    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
+    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
+    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
     const nuovo = this.numberConflictDialog.acknowledge();
     if (nuovo != null) {
-      this.form.controls.documentNumber.setValue(nuovo);
-      this.form.controls.documentNumber.markAsDirty();
+      this.numbering.onNumberChange(nuovo);
     }
   }
 
@@ -938,7 +945,15 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
 
   // ── Salvataggio ─────────────────────────────────────────────────────────────
 
+  /**
+   * Controllo cronologico (§4) davanti a ogni salvataggio: il pulsante e il
+   * dialogo di uscita passano entrambi da `save`.
+   */
   protected save(onSaved?: () => void): void {
+    this.chronology.run(() => this.saveNow(onSaved));
+  }
+
+  private saveNow(onSaved?: () => void): void {
     if (this.saving()) {
       return;
     }
@@ -1023,7 +1038,7 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
     // e la concorrenza si risolve da sé, in silenzio.
     // Si omette SOLO la proposta di un documento nuovo: in modifica il
     // numero è del documento, non una proposta, e va sempre mandato.
-    const documentNumberImposed = this.isEditMode() || this.form.controls.documentNumber.dirty;
+    const documentNumberImposed = !this.documentNumberIsProposal();
     // Numero mostrato al momento dell'invio: va letto PRIMA della richiesta,
     // perché è con questo che si confronta quello assegnato dal server.
     const shownDocumentNumber = raw.documentNumber;
@@ -1055,8 +1070,8 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
         currency: this.currency,
         // Numero imposto a mano: non sposta il progressivo della serie.
         // Non imposto: campo assente, così il server lo assegna lui.
-        number: documentNumberImposed ? (raw.documentNumber ?? undefined) : undefined,
-        series: (raw.series ?? '').trim() || undefined,
+        number: this.numbering.imposedNumber(),
+        series: this.numbering.chosenSeries(),
         goodsReceiptIds: this.includedReceipts().map((row) => row.id),
         manualLines,
         installments,

@@ -151,6 +151,11 @@ export class DocumentCountersService {
     tenantId: string,
     type: DocumentType,
     locationId: string | null,
+    /**
+     * Data del documento in testata: **il numero proposto dipende da lei** (§2).
+     * Assente = oggi, che è il caso della schermata Numeratori.
+     */
+    documentDate?: Date,
   ): Promise<{ counters: DocumentCounterView[]; proposedCounterId: string | null }> {
     await this.seedDefaults(tenantId);
     const counters = await this.prisma.documentCounter.findMany({
@@ -163,7 +168,9 @@ export class DocumentCountersService {
       orderBy: [{ isDefault: 'desc' }, { series: { sort: 'asc', nulls: 'first' } }],
     });
     // Senza buchi: qui si propone un numero, non si fa il punto sulla serie.
-    const views = await Promise.all(counters.map((c) => this.toView(tenantId, c, false)));
+    const views = await Promise.all(
+      counters.map((c) => this.toView(tenantId, c, false, documentDate)),
+    );
     const proposed = views.find((view) => view.isDefault) ?? (views.length === 1 ? views[0] : null);
     return { counters: views, proposedCounterId: proposed?.id ?? null };
   }
@@ -339,9 +346,10 @@ export class DocumentCountersService {
     tenantId: string,
     counter: DocumentCounter & { location?: { name: string } | null },
     withGaps = true,
+    documentDate?: Date,
   ): Promise<DocumentCounterView> {
     const [nextNumber, documentCount] = await Promise.all([
-      this.nextNumber(tenantId, counter.type, counter.series),
+      this.nextNumber(tenantId, counter.type, counter.series, documentDate),
       this.documentCount(tenantId, counter.type, counter.series),
     ]);
     return {
@@ -429,6 +437,9 @@ export class DocumentCountersService {
     tenantId: string,
     type: DocumentType,
     series: string | null,
+    // La data della testata, quando c'è: il primo libero si calcola su di lei
+    // (§2). Assente = oggi, che è il caso della schermata Numeratori.
+    documentDate?: Date,
   ): Promise<number> {
     return nextDocumentNumber({
       tx: this.prisma,
@@ -436,6 +447,7 @@ export class DocumentCountersService {
       type,
       series,
       source: numberSourceForType(type),
+      documentDate,
     });
   }
 

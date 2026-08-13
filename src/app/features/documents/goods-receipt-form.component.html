@@ -233,20 +233,6 @@
                   @if (fieldInvalid('locationId')) {
                     <p id="gr-m-location-error" class="doc-form__error">Campo obbligatorio.</p>
                   }
-                  @if (suggestedLocation(); as suggested) {
-                    @if (!form.controls.locationId.value && !formReadOnly()) {
-                      <!-- Stesso handler dell'hint desktop, nome accessibile
-                           diverso: getByRole sull'hint deve restare unico. -->
-                      <button
-                        type="button"
-                        class="doc-panel__field-action"
-                        (click)="applySuggestedLocation()"
-                      >
-                        <i class="pi pi-map-marker" aria-hidden="true"></i>
-                        Suggerita: {{ suggested.name }}
-                      </button>
-                    }
-                  }
                 </div>
 
                 <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
@@ -264,7 +250,7 @@
                     numberInputId="gr-m-number"
                     hint="Numero interno di catalogazione."
                     [number]="form.controls.documentNumber.value"
-                    [isProposal]="documentNumberIsProposal()"
+                    [isProposal]="numberIsProposal()"
                     [series]="form.controls.series.value"
                     [seriesOptions]="numbering.seriesOptions()"
                     [canManageSeries]="true"
@@ -423,14 +409,6 @@
               @if (fieldInvalid('locationId')) {
                 <p id="gr-location-error" class="doc-form__error">Campo obbligatorio.</p>
               }
-              @if (suggestedLocation(); as suggested) {
-                @if (!form.controls.locationId.value && !formReadOnly()) {
-                  <app-location-suggestion-hint
-                    [locationName]="suggested.name"
-                    (applied)="applySuggestedLocation()"
-                  />
-                }
-              }
             </div>
 
             <!-- Gate compilazione: data e numero si sbloccano solo dopo
@@ -454,7 +432,7 @@
                 numberInputId="gr-number"
                 hint="Numero interno di catalogazione."
                 [number]="form.controls.documentNumber.value"
-                [isProposal]="documentNumberIsProposal()"
+                [isProposal]="numberIsProposal()"
                 [series]="form.controls.series.value"
                 [seriesOptions]="numbering.seriesOptions()"
                 [canManageSeries]="true"
@@ -2186,4 +2164,16 @@
   [type]="form.controls.type.value"
   [open]="seriesDialogOpen()"
   (closed)="onSeriesManagerClosed()"
+/>
+
+<!-- Avviso cronologico (§4): la serie contiene documenti fuori posto. Non
+     blocca — «Sì, salva comunque» prosegue col salvataggio. -->
+<app-document-chronology-warning-dialog
+  [open]="chronology.warning.isOpen()"
+  [anomalies]="chronology.warning.anomalies()"
+  [dontShowAgain]="chronology.warning.dontShowAgain()"
+  [busy]="saving()"
+  (dontShowAgainChange)="chronology.warning.toggleDontShowAgain($event)"
+  (confirmed)="chronology.confirm()"
+  (cancelled)="chronology.cancel()"
 />

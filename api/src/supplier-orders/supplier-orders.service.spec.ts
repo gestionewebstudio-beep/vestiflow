@@ -93,7 +93,11 @@ describe('SupplierOrdersService', () => {
       },
       productVariant: { findMany: vi.fn() },
       vatCode: { findMany: vi.fn().mockResolvedValue([]) },
-      documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
+      documentCounter: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        // Nessun contatore disponibile per la sede: la serie resta «senza serie».
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       documentSequence: {
         upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }),
         findUnique: vi.fn().mockResolvedValue(null),

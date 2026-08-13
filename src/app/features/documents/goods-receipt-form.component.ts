@@ -51,6 +51,7 @@ import {
 import { BarcodeLookupService } from '@domain/products/services/barcode-lookup.service';
 import { BreadcrumbLabelService } from '@core/services/breadcrumb-label.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
@@ -99,7 +100,6 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
-import { LocationSuggestionHintComponent } from '@shared/components/location-suggestion-hint/location-suggestion-hint.component';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
@@ -172,6 +172,8 @@ import {
   type VatLineAmounts,
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
+import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentPrefillErrorStore } from '@domain/documents/state/document-prefill-error.store';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { DocumentProductPanelStore } from '@domain/documents/state/document-product-panel.store';
@@ -253,6 +255,7 @@ type GoodsReceiptLineFocusField =
     DateInputComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
+    DocumentChronologyWarningDialogComponent,
     SelectMenuComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -273,7 +276,6 @@ type GoodsReceiptLineFocusField =
     SlidePanelComponent,
     ProductFormComponent,
     SupplierFormFieldsComponent,
-    LocationSuggestionHintComponent,
   ],
   // Una maschera = un'istanza del blocco: è lei a tracciare gli id che ha
   // sbloccato e a rilasciarli all'uscita.
@@ -377,26 +379,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected readonly previewReference = signal<string | null>(null);
 
-  /**
-   * Il numero l'ha scelto l'operatore (digitato in testata o accettato dal
-   * dialogo di conflitto), non è più la proposta della serie. È la stessa cosa
-   * che dice `documentNumber.dirty`, in forma di signal: il template ha bisogno
-   * di una fonte reattiva, e i flag dei form control non lo sono. Le due forme
-   * restano allineate perché il numero si scrive solo da
-   * `imposeDocumentNumber` / `proposeDocumentNumber`.
-   */
-  private readonly documentNumberImposed = signal(false);
-
-  /**
-   * Il numero mostrato è una PROPOSTA — il primo libero al momento in cui
-   * la maschera si è aperta — finché il documento non esiste e l'operatore non
-   * ne ha scelto uno: lo prende chi salva per primo. Il campo lo dice, invece
-   * di far sembrare acquisito un numero che può ancora cambiare.
-   */
-  protected readonly documentNumberIsProposal = computed(
-    () => this.persistedDocumentId() === null && !this.documentNumberImposed(),
-  );
-
   /** Conflitto sul numero restituito dal server: dialogo «Usa N» / «Annulla». */
   // Stato del dialog «numero già assegnato»: la macchina vive in domain,
   // il form decide solo quale controllo riceve il numero e cosa risalvare.
@@ -406,15 +388,25 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   // scelta della serie, numero imposto. Era copiato in sei maschere.
 
   protected readonly numbering = new DocumentNumberingStore({
-    // Qui «già numerato» non è «sono in modifica»: un arrivo merce salvato
-    // parzialmente ha già il suo riferimento pur restando sulla rotta di
-    // creazione. È la regola di questa maschera, e lo store la riceve.
-    isEdit: () => this.isEditMode() || Boolean(this.loadedDocument()?.reference),
+    // «Il documento esiste» — una condizione sola, ed è la stessa cosa che le
+    // altre maschere dicono con `isEditMode()`: loro dopo il salvataggio se ne
+    // vanno al dettaglio, quindi un documento salvato lo si incontra solo sulla
+    // rotta `:id`. Questa invece salva e RESTA (§10.7), e sulla rotta di
+    // creazione continua a esserci un documento che ormai ha il suo numero.
+    //
+    // Decisione di prodotto 13/08/2026: numerare come tutti, senza la regola
+    // propria che deduceva «già numerato» dal RIFERIMENTO. Quella è caduta —
+    // qui si guarda l'esistenza, non il riferimento — mentre la sola rotta non
+    // basta, e non è un'opinione: la prova «dopo il salvataggio il numero
+    // assegnato non torna a essere una proposta» fallisce con `isEditMode()`
+    // da solo, perché la riproposta dei contatori riporta il campo dal numero
+    // assegnato a quello proposto prima.
+    isEdit: () => this.persistedDocumentId() !== null,
     number: () => this.form.controls.documentNumber.value,
     setNumber: (value) => this.form.controls.documentNumber.setValue(value),
     series: () => this.form.controls.series.value,
     setSeries: (value) => this.form.controls.series.setValue(value),
-    numberIsDirty: () => this.form.controls.documentNumber.dirty,
+    numberIsDirty: () => !this.documentNumberPristine(),
     markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
     markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
     asProgrammatic: (write) => {
@@ -429,14 +421,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     },
   });
 
-  /**
-   * `dirty` non è un signal: la dipendenza da `formValue()` fa ricalcolare il
-   * computed a ogni scrittura sul form, che è dove lo stato può cambiare.
-   */
-  protected readonly numberIsProposal = computed(() => {
-    this.formValue();
-    return this.numbering.isProposal();
-  });
+  /** Reattivo per costruzione: `isProposal()` legge il signal degli eventi. */
+  protected readonly numberIsProposal = computed(() => this.numbering.isProposal());
 
   /**
    * Chiusura del pannello numerazioni: ricarica l'elenco serie SENZA riproporre
@@ -445,7 +431,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
     this.countersService
-      .available(this.form.controls.type.value, this.form.controls.locationId.value || null)
+      .available(
+        this.form.controls.type.value,
+        this.form.controls.locationId.value || null,
+        this.form.controls.documentDate.value,
+      )
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters }) => this.numbering.setCounters(counters),
@@ -453,16 +443,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       });
   }
 
-  private refreshNumberProposal(): void {
-    this.countersService
-      .available(this.form.controls.type.value, this.form.controls.locationId.value || null)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ counters, proposedCounterId }) =>
-          this.numbering.applyProposal(counters, proposedCounterId),
-        error: () => undefined,
-      });
-  }
+  /**
+   * Avviso cronologico (§4): la serie contiene documenti fuori posto. Avviso e
+   * non blocco — da lì si salva comunque — e tutto il meccanismo vive in
+   * `domain/`, come quello del conflitto sul numero.
+   */
+  protected readonly chronology = new DocumentChronologyGuard({
+    documentType: () => this.form.controls.type.value,
+    series: () => this.form.controls.series.value,
+  });
 
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   /** Precompilato non arrivato: la maschera e' vuota e va detto perche'. */
@@ -890,7 +879,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
             // ricordo di aver già avvisato sopravviverebbe al documento che
             // l'aveva ricevuto.
             this.lineSort.reset();
-            this.refreshNumberPreview();
+            this.refreshNumberProposal();
             if (confirmedEditable) {
               this.form.controls.type.disable({ emitEvent: false });
             } else {
@@ -947,21 +936,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this.operationalLocations.defaultLocation()?.id ?? null,
     ),
   );
-
-  /**
-   * Sede suggerita (predefinita utente, o unica autorizzata): mostrata come
-   * hint cliccabile sotto il campo — MAI autoselezionata (specifica cliente:
-   * anche mono-location la conferma resta esplicita).
-   */
-  protected readonly suggestedLocation = this.operationalLocations.suggestedWriteLocation;
-
-  protected applySuggestedLocation(): void {
-    const suggested = this.suggestedLocation();
-    if (!suggested || this.formReadOnly()) {
-      return;
-    }
-    this.onLocationSelect(suggested.id);
-  }
 
   // ── Documento della controparte: i tipi documento del tenant ────────────────
   /**
@@ -1030,6 +1004,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       GOODS_RECEIPT_LINE_PRESETS,
     );
 
+    // Sede predefinita in testata (§1-bis): la regola vive in `domain/`, ed è
+    // la stessa per tutte le maschere. Qui restano i due ganci che cambiano.
+    prefillDefaultLocation({
+      control: this.form.controls.locationId,
+      isEdit: () => this.isEditMode(),
+      write: (apply) => this.withDirtySuppressed(apply),
+    });
+
     // Il rilascio degli sblocchi all'uscita non vive più qui: lo fa
     // DocumentEditLockService, uguale per ogni maschera.
     this.syncSupplierRequirement(this.form.controls.type.value);
@@ -1037,11 +1019,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((type) => {
         this.syncSupplierRequirement(type);
-        this.refreshNumberPreview();
+        this.refreshNumberProposal();
       });
     this.form.controls.documentDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshNumberPreview());
+      .subscribe(() => this.refreshNumberProposal());
+    // Cambio sede: la tendina Serie cambia con lei — un contatore legato a una
+    // sede è disponibile SOLO lì, e quelli senza sede ovunque (§1-bis). Senza
+    // questa ricarica l'elenco resterebbe quello chiesto all'apertura, e
+    // mostrerebbe serie che in questa sede non si possono usare.
+    //
+    // `refreshNumberProposal` ricarica l'elenco e ripropone serie e numero solo
+    // se il documento è nuovo e nessuno ha toccato il numero: su un documento
+    // salvato, o con un numero digitato, cambia solo la tendina.
+    this.form.controls.locationId.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberProposal());
     this.form.controls.externalDocumentTypeId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((typeId) => this.applyTemplateFromType(typeId));
@@ -1055,7 +1048,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // si carica all'avvio e si ricarica a ogni scelta fatta nel componente
     // condiviso.
     this.loadExternalDocTypes();
-    this.refreshNumberPreview();
+    this.refreshNumberProposal();
     this.setupDirtyTracking();
     this.form.controls.supplierId.valueChanges
       .pipe(startWith(this.form.controls.supplierId.value), takeUntilDestroyed(this.destroyRef))
@@ -2049,6 +2042,19 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly formValue = toSignal(this.form.valueChanges, {
     initialValue: this.form.getRawValue(),
   });
+
+  /**
+   * «L'operatore ha toccato il numero?» in forma reattiva. Lo stato vero resta
+   * `documentNumber.dirty` — qui non se ne tiene una copia, si ascolta: gli
+   * eventi del controllo includono `PristineChangeEvent`, quindi il signal si
+   * aggiorna anche su `markAsDirty()`, che `valueChanges` non emette.
+   */
+  private readonly documentNumberPristine = toSignal(
+    this.form.controls.documentNumber.events.pipe(
+      map(() => this.form.controls.documentNumber.pristine),
+    ),
+    { initialValue: true },
+  );
 
   /** Ultima nota anagrafica inserita in automatico (per sostituirla al cambio fornitore). */
   private lastAutoInsertedNote = '';
@@ -3061,8 +3067,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       this._submitState.set({ status: 'error', error: validationError });
       return;
     }
-    // Nessun dialog: la scelta è la spunta per-documento (default acceso).
-    this.executeExplicitSave(this.updateArticleReferenceCost());
+    // Controllo cronologico (§4): se la serie contiene documenti fuori posto
+    // l'operatore lo deve sapere PRIMA di aggiungerne un altro. Avviso, non
+    // blocco — da lì si salva comunque. La regola vive nella guardia condivisa.
+    this.chronology.run(() =>
+      // Nessun dialog: la scelta è la spunta per-documento (default acceso).
+      this.executeExplicitSave(this.updateArticleReferenceCost()),
+    );
   }
 
   /** Spunta «Aggiorna anche il costo di riferimento in anagrafica». */
@@ -3863,7 +3874,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       line.get('id')?.setValue('');
       line.get('supplierOrderLineId')?.setValue('');
     }
-    this.refreshNumberPreview();
+    this.refreshNumberProposal();
   }
 
   private resolveSupplierOrderId(): string | null {
@@ -4171,13 +4182,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected acknowledgeConflictNumber(): void {
     // Il numero nuovo si scrive in testata (specifica numerazione §3): il
     // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
-    // errore di battitura e un secondo conflitto. `markAsDirty` non è un
-    // dettaglio: da qui in poi quel numero è una SCELTA, e deve viaggiare al
-    // salvataggio invece di essere scambiato per una proposta e omesso.
+    // errore di battitura e un secondo conflitto. Passa dallo store perché da
+    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
+    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
+    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
     const nuovo = this.numberConflictDialog.acknowledge();
     if (nuovo != null) {
-      this.form.controls.documentNumber.setValue(nuovo);
-      this.form.controls.documentNumber.markAsDirty();
+      this.numbering.onNumberChange(nuovo);
     }
   }
 
@@ -4258,8 +4269,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * assegna il server dentro la transazione che scrive il documento, e la
    * contesa si risolve da sola, in silenzio.
    *
-   * `dirty` è la distinzione: la proposta si scrive senza sporcare il controllo
-   * (`proposeDocumentNumber`), la scelta sì (`imposeDocumentNumber`).
+   * `dirty` è la distinzione, e la tiene lo store: la proposta si scrive senza
+   * sporcare il controllo, la scelta sì.
    */
   private requestedDocumentNumber(): number | undefined {
     return this.numbering.imposedNumber();
@@ -4305,7 +4316,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       externalDocDate: raw.externalDocDate || undefined,
       // Numero imposto a mano: non sposta il progressivo della serie.
       number: this.requestedDocumentNumber(),
-      series: (raw.series ?? '').trim() || undefined,
+      series: this.numbering.chosenSeries(),
       ...(supplierOrderId ? { supplierOrderId } : {}),
       documentDiscountPercent: parseEffectiveDiscountPercent(raw.documentDiscountPercent),
       purchaseCostEntryMode: this.costEntryMode(),
@@ -4695,37 +4706,19 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * digitato a mano (control «dirty»): quello è una scelta dell'operatore, e
    * un numero imposto non sposta il progressivo della serie.
    */
-  private refreshNumberPreview(): void {
+  private refreshNumberProposal(): void {
     this.countersService
-      .available(this.form.controls.type.value, this.form.controls.locationId.value || null)
+      .available(
+        this.form.controls.type.value,
+        this.form.controls.locationId.value || null,
+        this.form.controls.documentDate.value,
+      )
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters, proposedCounterId }) =>
           this.numbering.applyProposal(counters, proposedCounterId),
         error: () => undefined,
       });
-  }
-
-  /**
-   * Numero SCELTO dall'operatore: viaggia al server, e se è già occupato il
-   * dialogo di conflitto è un'informazione utile. Un numero imposto non
-   * sposta il progressivo della serie.
-   */
-  private imposeDocumentNumber(value: number | null): void {
-    this.form.controls.documentNumber.setValue(value);
-    this.form.controls.documentNumber.markAsDirty();
-    this.documentNumberImposed.set(true);
-  }
-
-  /**
-   * Numero PROPOSTO dalla serie: si mostra ma non si manda al salvataggio
-   * (vedi `requestedDocumentNumber`). Resta «pristine» apposta — è quel flag a
-   * distinguere la proposta dalla scelta.
-   */
-  private proposeDocumentNumber(value: number | null): void {
-    this.form.controls.documentNumber.setValue(value);
-    this.form.controls.documentNumber.markAsPristine();
-    this.documentNumberImposed.set(false);
   }
 
   /**

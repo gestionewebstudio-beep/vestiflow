@@ -173,6 +173,7 @@ export class GoodsReceiptWorkflowService {
         dto.series,
         dto.documentDate,
         dto.number ?? null,
+        dto.locationId ?? null,
       );
       throw error;
     }
@@ -188,22 +189,38 @@ export class GoodsReceiptWorkflowService {
     tenantId: string,
     type: DocumentType,
     series: string | null | undefined,
-    _documentDate: string,
+    documentDate: string,
     requestedNumber: number | null,
+    locationId?: string | null,
   ): Promise<never | void> {
     if (!isDocumentNumberConflict(error)) {
       return;
     }
     const setting = await this.settings.getResolved(tenantId, type);
+    // ⚠️ La serie si risolve ESATTAMENTE come nella scrittura, sede compresa.
+    // Qui passava la serie grezza del DTO: con la testata che non ne sceglie
+    // una, il documento veniva scritto sotto il predefinito e il «prossimo
+    // libero» dell'avviso si calcolava sulla partizione «senza serie» — cioè
+    // proponeva all'operatore un numero che gli avrebbe dato un SECONDO
+    // conflitto. Trovato il 13/08/2026 simulando due operatori che salvano
+    // insieme; gli altri tre servizi gemelli risolvevano già.
+    const resolvedSeries =
+      series !== undefined
+        ? (series ?? '').trim() || null
+        : await defaultCounterSeries(this.prisma, tenantId, type, locationId);
     throw new ConflictException(
       await buildDocumentNumberConflict({
         tx: this.prisma,
         tenantId,
         type,
-        series: series ?? null,
+        series: resolvedSeries,
         source: 'document',
         prefix: setting.numberPrefix,
         requestedNumber,
+        // Il primo libero da proporre si calcola sulla data del documento
+        // (§2), non su oggi: altrimenti l'avviso suggerirebbe il numero giusto
+        // per un'altra giornata.
+        documentDate: new Date(documentDate),
       }),
     );
   }
@@ -415,7 +432,7 @@ export class GoodsReceiptWorkflowService {
           ? (dto.series ?? '').trim() || null
           : existing
             ? existing.series
-            : await defaultCounterSeries(tx, tenantId, dto.type);
+            : await defaultCounterSeries(tx, tenantId, dto.type, dto.locationId ?? null);
       const year = documentDate.getFullYear();
 
       // Numero interno progressivo assegnato al primo salvataggio (§9.1-9.2).
@@ -444,6 +461,7 @@ export class GoodsReceiptWorkflowService {
           source: 'document',
           prefix: setting.numberPrefix,
           requestedNumber,
+          documentDate,
         });
         number = assigned.number;
         reference = assigned.reference;
@@ -939,12 +957,18 @@ export class GoodsReceiptWorkflowService {
       const supplierName = await this.snapshotSupplierName(tx, tenantId, dto.supplierId);
       // Serie scelta in testata; in mancanza resta quella del documento o quella
       // del contatore predefinito.
+      //
+      // **Senza sede, e non è una dimenticanza** (§1-bis): la Registrazione
+      // fattura fornitore non ha il campo Sede, perché la fattura è intestata
+      // all'azienda — una sola partita IVA, un solo registro acquisti — e una
+      // sola fattura può coprire arrivi merce di sedi diverse. Restano quindi
+      // disponibili i contatori senza sede, che per la regola valgono ovunque.
       const series =
         dto.series !== undefined
           ? (dto.series ?? '').trim() || null
           : existing
             ? existing.series
-            : await defaultCounterSeries(tx, tenantId, DocumentType.supplier_invoice);
+            : await defaultCounterSeries(tx, tenantId, DocumentType.supplier_invoice, null);
       const year = documentDate.getFullYear();
 
       let number = existing?.number ?? null;
@@ -970,6 +994,11 @@ export class GoodsReceiptWorkflowService {
           source: 'document',
           prefix: setting.numberPrefix,
           requestedNumber,
+          // Qui la data serve più che altrove: registrare oggi una fattura di
+          // due settimane fa è il caso normale, non l'eccezione. Senza, il
+          // numero usciva dal massimo «a oggi» mentre la testata proponeva
+          // quello della data della fattura (§2).
+          documentDate,
         });
         number = assigned.number;
         reference = assigned.reference;

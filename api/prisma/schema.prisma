@@ -369,6 +369,7 @@ model Tenant {
   inventorySerials        InventorySerial[]
   userTableViewPreferences UserTableViewPreference[]
   userDocumentPriceModePreferences UserDocumentPriceModePreference[]
+  userDocumentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
   userProductPriceModePreferences  UserProductPriceModePreference[]
   documentSequences       DocumentSequence[]
   documentTypeSettings    DocumentTypeSetting[]
@@ -420,6 +421,7 @@ model User {
   supportSessionsAsOperator SupportSession[] @relation("SupportSessionOperator")
   tableViewPreferences      UserTableViewPreference[]
   documentPriceModePreferences UserDocumentPriceModePreference[]
+  documentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
   productPriceModePreferences  UserProductPriceModePreference[]
 
   @@unique([tenantId, email])
@@ -2495,6 +2497,30 @@ model UserTableViewPreference {
 /// Ricordata alla creazione di un documento nuovo e riproposta al successivo
 /// dello stesso tipo, per (tenant, utente, tipo). Primo utilizzo: vendita ivato,
 /// acquisto netto. Vendita usa pricesIncludeVat, acquisto mappa costEntryMode.
+/// Avviso cronologico spento dall'operatore per un tipo documento (§4).
+///
+/// L'esistenza della riga È la preferenza: non c'è un booleano da leggere,
+/// perché non esiste il caso «riacceso» — una volta spenta resta spenta, senza
+/// pannello nelle Impostazioni. `dismissedAt` serve a sapere QUANDO, visto che
+/// l'unico rimedio a una spunta presa per sbaglio è il database.
+///
+/// Stessa identità di `UserDocumentPriceModePreference`: (tenant, utente, tipo).
+/// Spegnerlo sulle Fatture non rende ciechi sui DDT.
+model UserDocumentChronologyWarningPreference {
+  id           String       @id @default(uuid()) @db.Uuid
+  tenantId     String       @map("tenant_id") @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  documentType DocumentType @map("document_type")
+  dismissedAt  DateTime     @default(now()) @map("dismissed_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, documentType], map: "user_doc_chrono_warn_pref_tenant_user_type_key")
+  @@index([tenantId, userId], map: "user_doc_chrono_warn_pref_tenant_user_idx")
+  @@map("user_document_chronology_warning_preferences")
+}
+
 model UserDocumentPriceModePreference {
   id               String       @id @default(uuid()) @db.Uuid
   tenantId         String       @map("tenant_id") @db.Uuid

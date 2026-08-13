@@ -61,6 +61,9 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { DateInputComponent } from '@shared/components/date-input/date-input.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
+import { toLocationSelectOptions } from '@core/utils/location-select-options.util';
+import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
+import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EditLockBannerComponent } from '@shared/components/edit-lock-banner/edit-lock-banner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -127,6 +130,8 @@ import { SupplierOrderService } from '@domain/supplier-orders/services/supplier-
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
+import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
+import { DocumentChronologyWarningDialogComponent } from '@domain/documents/components/document-chronology-warning-dialog/document-chronology-warning-dialog.component';
 import { DocumentSeriesManagerDialogComponent } from '@domain/documents/components/document-series-manager-dialog/document-series-manager-dialog.component';
 import { DocumentNumberFieldComponent } from '@shared/components/document-number-field/document-number-field.component';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
@@ -226,6 +231,7 @@ function todayIsoDate(): string {
     TableSkeletonComponent,
     DocumentNumberFieldComponent,
     DocumentSeriesManagerDialogComponent,
+    DocumentChronologyWarningDialogComponent,
     TableColumnPickerComponent,
     TableColumnResizeDirective,
     SupplierFormFieldsComponent,
@@ -254,6 +260,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly orderService = inject(SupplierOrderService);
   private readonly countersService = inject(DocumentCountersService);
   private readonly supplierService = inject(SupplierService);
+  private readonly operationalLocations = inject(OperationalLocationsService);
   private readonly productService = inject(ProductService);
   private readonly codeLookupService = inject(DocumentCodeLookupService);
   private readonly vatCodeService = inject(VatCodeService);
@@ -568,7 +575,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     setNumber: (value) => this.form.controls.documentNumber.setValue(value),
     series: () => this.form.controls.series.value,
     setSeries: (value) => this.form.controls.series.setValue(value),
-    numberIsDirty: () => this.form.controls.documentNumber.dirty,
+    numberIsDirty: () => !this.documentNumberPristine(),
     markNumberDirty: () => this.form.controls.documentNumber.markAsDirty(),
     markNumberPristine: () => this.form.controls.documentNumber.markAsPristine(),
     asProgrammatic: (write) => {
@@ -583,17 +590,19 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     },
   });
 
-  /**
-   * `dirty` non è un signal: la dipendenza da `formValue()` fa ricalcolare il
-   * computed a ogni scrittura sul form, che è dove lo stato del controllo può
-   * cambiare.
-   */
-  protected readonly numberIsProposal = computed(() => {
-    this.formValue();
-    return this.numbering.isProposal();
-  });
+  /** Reattivo per costruzione: `isProposal()` legge il signal degli eventi. */
+  protected readonly numberIsProposal = computed(() => this.numbering.isProposal());
 
   /** Conflitto numero restituito dal server: avviso di presa d'atto. */
+  /**
+   * Avviso cronologico (§4): la serie contiene documenti fuori posto. Avviso
+   * e non blocco — da lì si salva comunque — e il meccanismo vive in
+   * `domain/`, come quello del conflitto sul numero.
+   */
+  protected readonly chronology = new DocumentChronologyGuard({
+    documentType: () => DocumentType.SupplierOrder,
+    series: () => this.form.controls.series.value,
+  });
   private readonly numberConflictDialog = new DocumentNumberConflictStore();
   protected readonly conflictDialogOpen = this.numberConflictDialog.isOpen;
   protected readonly conflictMessage = this.numberConflictDialog.message;
@@ -601,13 +610,13 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   protected acknowledgeConflictNumber(): void {
     // Il numero nuovo si scrive in testata (specifica numerazione §3): il
     // digitato è perso comunque, e ridigitarlo a mano è l'occasione per un
-    // errore di battitura e un secondo conflitto. `markAsDirty` non è un
-    // dettaglio: da qui in poi quel numero è una SCELTA, e deve viaggiare al
-    // salvataggio invece di essere scambiato per una proposta e omesso.
+    // errore di battitura e un secondo conflitto. Passa dallo store perché da
+    // qui in poi quel numero è una SCELTA e deve viaggiare al salvataggio
+    // invece di essere scambiato per una proposta e omesso: marcarlo è parte
+    // dello scriverlo, e non è una cosa che ogni maschera debba ricordarsi.
     const nuovo = this.numberConflictDialog.acknowledge();
     if (nuovo != null) {
-      this.form.controls.documentNumber.setValue(nuovo);
-      this.form.controls.documentNumber.markAsDirty();
+      this.numbering.onNumberChange(nuovo);
     }
   }
 
@@ -618,7 +627,11 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   protected onSeriesManagerClosed(): void {
     this.seriesDialogOpen.set(false);
     this.countersService
-      .available(DocumentType.SupplierOrder, null)
+      .available(
+        DocumentType.SupplierOrder,
+        this.form.controls.locationId.value || null,
+        this.form.controls.orderDate.value,
+      )
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters }) => this.numbering.setCounters(counters),
@@ -628,13 +641,30 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
   private refreshNumberProposal(): void {
     this.countersService
-      .available(DocumentType.SupplierOrder, null)
+      .available(
+        DocumentType.SupplierOrder,
+        this.form.controls.locationId.value || null,
+        this.form.controls.orderDate.value,
+      )
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ counters, proposedCounterId }) =>
           this.numbering.applyProposal(counters, proposedCounterId),
         error: () => undefined,
       });
+  }
+
+  /** Sedi su cui l'operatore può scrivere, con la sua predefinita in cima. */
+  protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
+    toLocationSelectOptions(
+      this.operationalLocations.writeLocations(),
+      this.operationalLocations.defaultLocation()?.id ?? null,
+    ),
+  );
+
+  protected onLocationSelect(value: string | null): void {
+    this.form.controls.locationId.setValue(value ?? '');
+    this.form.controls.locationId.markAsTouched();
   }
 
   readonly form = this.fb.group({
@@ -646,6 +676,13 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     // sceglieva niente.
     documentNumber: this.fb.control<number | null>(null),
     series: this.fb.control(''),
+    /**
+     * Sede di destinazione della merce ordinata (§1-bis). Viaggia nella colonna
+     * `supplier_orders.destination_location_id`, che esisteva già — nullable,
+     * con la sua chiave esterna — e non aveva alcun percorso di scrittura:
+     * nessuna migration, solo un dato che finalmente arriva.
+     */
+    locationId: this.fb.control(''),
     expectedAt: this.fb.control(''),
     supplierReference: this.fb.control(''),
     // Tipo, numero e data della conferma d'ordine del fornitore. Il rendering
@@ -711,6 +748,19 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private readonly formValue = toSignal(this.form.valueChanges, {
     initialValue: this.form.getRawValue(),
   });
+
+  /**
+   * «L'operatore ha toccato il numero?» in forma reattiva. Lo stato vero resta
+   * `documentNumber.dirty` — qui non se ne tiene una copia, si ascolta: gli
+   * eventi del controllo includono `PristineChangeEvent`, quindi il signal si
+   * aggiorna anche su `markAsDirty()`, che `valueChanges` non emette.
+   */
+  private readonly documentNumberPristine = toSignal(
+    this.form.controls.documentNumber.events.pipe(
+      map(() => this.form.controls.documentNumber.pristine),
+    ),
+    { initialValue: true },
+  );
 
   // ── Netto memorizzato, netto o ivato a schermo ─────────────────────────────
   //
@@ -915,6 +965,31 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   private suppressDirtyMarking = false;
 
   constructor() {
+    // Sede predefinita in testata (§1-bis): la regola vive in `domain/`, ed è
+    // la stessa per tutte le maschere. Qui restano i due ganci che cambiano.
+    prefillDefaultLocation({
+      control: this.form.controls.locationId,
+      isEdit: () => this.isEditMode(),
+      write: (apply) => {
+        this.suppressDirtyMarking = true;
+        apply();
+        this.suppressDirtyMarking = false;
+      },
+    });
+
+    // Cambio sede: la tendina Serie cambia con lei — un contatore legato a una
+    // sede è disponibile SOLO lì, e quelli senza sede ovunque (§1-bis).
+    this.form.controls.locationId.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberProposal());
+
+    // Cambio data: il numero proposto dipende dalla data (§2), quindi la
+    // testata deve rifare l'anteprima — o mostrerebbe il primo libero di OGGI
+    // mentre il salvataggio assegna quello della data scelta.
+    this.form.controls.orderDate.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNumberProposal());
+
     this.columnPreferences.registerView(
       SUPPLIER_ORDER_LINES_VIEW,
       SUPPLIER_ORDER_LINE_COLUMNS,
@@ -2015,7 +2090,15 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     ];
   }
 
+  /**
+   * Controllo cronologico (§4) davanti a ogni salvataggio: il pulsante, il
+   * dialogo di uscita e la conclusione ordine passano tutti da `submit`.
+   */
   protected submit(onSaved?: () => void): void {
+    this.chronology.run(() => this.submitNow(onSaved));
+  }
+
+  private submitNow(onSaved?: () => void): void {
     if (this.saving()) {
       return;
     }
@@ -2071,12 +2154,16 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
 
     const body = {
       supplierId: raw.supplierId,
-      series: raw.series || undefined,
+      series: this.numbering.chosenSeries(),
       // Vedi `DocumentNumberingStore`: la proposta NON torna indietro come
       // imposizione. Viaggia solo il numero che l'operatore ha digitato.
       number: this.numbering.imposedNumber(),
       orderDate: raw.orderDate ? new Date(raw.orderDate).toISOString() : undefined,
       expectedAt: raw.expectedAt ? new Date(raw.expectedAt).toISOString() : undefined,
+      // Sede di destinazione della merce (§1-bis). `null` — non `undefined` —
+      // per la stessa ragione dei campi qui sotto: in modifica l'assenza vuol
+      // dire «lascialo com'è», e togliere la sede non la toglierebbe davvero.
+      destinationLocationId: raw.locationId || null,
       supplierReference: raw.supplierReference.trim() || undefined,
       // `null` — non `undefined`. In modifica l'assenza significa «lascialo
       // com'è», quindi svuotare un campo e salvare non lo cancellerebbe.
@@ -2162,6 +2249,7 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
       series: order.series ?? '',
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : todayIsoDate(),
       expectedAt: order.expectedAt ? order.expectedAt.slice(0, 10) : '',
+      locationId: order.destinationLocationId ?? '',
       supplierReference: order.supplierReference ?? '',
       // Il campo lavora sul solo giorno: la colonna è una `date`, ma in JSON
       // arriva come istante (`…T00:00:00.000Z`).
