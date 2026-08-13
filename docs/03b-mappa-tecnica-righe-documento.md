@@ -656,6 +656,47 @@ _Nota:_ Ordine fornitore traccia il ciclo delle righe per **posizione** (`track 
 11. ~~**e2e già rotto**: gli helper e lo spec dell'Arrivo merce cercano una classe CSS rinominata in `src/`.~~ ✅ **Chiuso (08/2026)**, insieme al fronte più largo che ha aperto — vedi §12.
 12. **U.M. di Ordine fornitore fallisce in silenzio** (§5.2).
 
+13. **Le righe si ricostruiscono a ogni caricamento, e il fuoco muore** — _trovato il 13/08/2026 lavorando alla numerazione, verificato in browser vero._
+
+    Angular lo segnala da sé: `NG0956 — The configured tracking expression (track by identity) caused re-creation of the entire collection`, puntando a `customer-order-form.component.html`. Il template traccia le righe **sull'identità del `FormGroup`**:
+
+    ```html
+    @for (line of lines.controls; track line; let i = $index)
+    ```
+
+    (`customer-order-form.component.html:1370` e `:1788`)
+
+    Ma il caricamento di un documento non aggiorna le righe: **le rifà**. `this.lines.clear()` seguito da un `createLine()` nuovo per riga (`customer-order-form.component.ts:3975-3999`). Per Angular sono altre righe, quindi distrugge e ricrea il DOM di tutte le celle condivise.
+
+    **Misurato in browser** (Chromium, API e database veri): aperto l'ordine A in modifica, sbloccato, fuoco su «Nome prodotto» (`INPUT`, valore «Articolo verifica numerazione»); navigato all'ordine B sulla stessa rotta `:id/edit` — il componente si riusa e il form si ricarica — e il fuoco è tornato a **`BODY`**. Perso, non spostato.
+
+    ⚠️ **Sono DUE cause, non una — ed è la parte che conta per chi ci lavorerà.**
+
+    Nello scenario misurato se ne sovrappongono due, e non sono state isolate:
+
+    1. **le righe si ricostruiscono** (`track` sull'identità di oggetti nuovi);
+    2. **il documento appena aperto nasce protetto**, quindi il `<fieldset>` diventa `disabled` — e un fieldset disabilitato **da solo** toglie il fuoco a ciò che contiene, a righe ferme.
+
+    **Se basta la seconda, correggere il `track` non serve a niente**: il fuoco continuerebbe a morire e la correzione sembrerebbe fatta. Quindi il primo passo non è cambiare l'espressione di `track` — è **isolare le due cause**, con un caricamento che non ririblocchi il documento. Solo dopo si sa quale delle due si sta correggendo, o se sono da correggere entrambe.
+
+    **Tre cose da sapere prima di metterci mano:**
+
+    - **La correzione richiede una decisione, non una parola.** `track line.id` non è sostituibile a `track line`: le righe nuove **non hanno ancora un id**. Va deciso cosa identifica una riga prima che esista — un identificativo di client generato in `createLine()`, o un altro criterio stabile.
+    - **Tocca il riordino righe e il trascinamento appena fatti** (§8): l'espressione di `track` è ciò su cui si regge lo spostamento, e cambiarla senza rileggere quel meccanismo lo rompe.
+    - **Va su `bugfix/righe-documento`, non sul ramo della numerazione.** È materia di righe documento: qui è stato solo trovato.
+
+    **Dove diverge** _(misurato 13/08/2026)_:
+
+    | Maschera                                                            | `track`                                                        |
+    | ------------------------------------------------------------------- | -------------------------------------------------------------- |
+    | Arrivo merce · Ordine cliente · Trasferimento · Rettifica · Fatture | `track line` — identità del `FormGroup`                        |
+    | **Ordine fornitore**                                                | **`track $index`**                                             |
+    | Registrazione fattura                                               | nessun `@for` su `lines.controls` (righe di struttura diversa) |
+
+    Le due scelte hanno difetti **opposti**, e nessuna è neutra: `track line` ricrea il DOM quando le righe si ricostruiscono; `track $index` non lo ricrea mai, ma **sbaglia riga quando l'elenco si riordina**.
+
+    🔴 **Da verificare per primo, all'apertura di questo ramo: l'Ordine fornitore.** Ha `track $index` **mentre esiste il riordino col trascinamento** (§8). Se sbaglia riga al riordino, **mostra dati sbagliati** — cioè è più grave del DOM ricreato, che costa prestazioni e fuoco ma non mente su cosa c'è nella riga. Non verificato: trovato lavorando alla numerazione, e lasciato lì apposta.
+
 ---
 
 ## 10. Il contratto del punto unico

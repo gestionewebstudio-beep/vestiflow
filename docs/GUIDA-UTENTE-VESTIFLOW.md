@@ -800,9 +800,76 @@ Usa **Colonne** sopra le tabelle principali per mostrare/nascondere campi, scegl
 
 Viste con column picker: **Documenti**, **Giacenze**, **Movimenti**, **Fornitori**, **Prodotti**, **Clienti**, righe **Ordine fornitore** e righe **Arrivo merce**. Su mobile molte liste passano a **card** con etichette campo.
 
+### Numerazione dei documenti
+
+**In testata di ogni documento** trovi **Data, Serie e Numero**.
+
+- Il **numero** che vedi aprendo un documento nuovo è una **proposta**: è il primo libero
+  in quel momento, e se lo prende chi salva per primo. Puoi lasciarlo com'è — al
+  salvataggio il sistema assegna il primo libero di allora — oppure **scriverne uno tuo**,
+  per esempio per tappare un buco nella numerazione.
+- Se il numero che hai scritto risulta già preso, un avviso te lo dice, **mette in testata
+  il primo numero libero** e aspetta che tu prema Salva: nessun numero viene cambiato alle
+  tue spalle.
+- La **serie** si sceglie da una tendina, non si scrive. Contiene le serie utilizzabili
+  nella sede del documento (vedi sotto). Se non la tocchi, il documento prende la serie
+  predefinita.
+- L'icona **⚙** accanto alla serie apre la gestione delle numerazioni senza uscire dal
+  documento.
+
+**Duplicando un documento** il numero **non** si eredita: il duplicato prende il primo
+libero e la data di oggi.
+
+**Il numero proposto tiene conto della data.** Se hai preparato un documento datato la
+settimana prossima e gli hai dato un numero alto, quel numero non brucia la numerazione di
+oggi: aprendo un documento con la data di oggi ti viene proposto il primo libero fra i
+documenti che lo precedono. È anche il motivo per cui, a volte, il numero proposto **tappa
+un buco** invece di andare in coda — succede solo quando la data lo consente.
+
+### Se la numerazione va fuori ordine
+
+Dentro la stessa serie, a un numero più alto deve corrispondere una data uguale o
+successiva. Nella stessa giornata l'ordine non conta: numerare 3, poi 1, poi 2 tutti dello
+stesso giorno va benissimo.
+
+Quando l'ordine si rompe — di solito perché un numero è stato scritto a mano, o perché è
+stata cambiata la data di un documento già salvato — al salvataggio compare un avviso con
+**l'elenco dei documenti fuori posto**, non solo quello che stai salvando.
+
+- **Non è un blocco**: «Sì, salva comunque» prosegue.
+- **Continua a comparire** finché la serie resta fuori ordine, anche sui documenti
+  successivi che sono in ordine. È voluto: un buco non giustificato va sistemato, e un
+  avviso che sparisce da solo si dimentica.
+- La casella **«Non mostrare più»** lo spegne **solo per quel tipo di documento**: chi
+  sistema le fatture continua a vederlo sui DDT. Una volta spento **non si riaccende**, e
+  non c'è un pannello per riattivarlo — quindi spuntala solo se sei sicuro.
+
+### La sede in testata
+
+Ogni documento porta la **Sede** — il magazzino o il negozio a cui appartiene.
+
+- Se l'amministratore ti ha assegnato una **sede predefinita**, il campo esce già
+  compilato con quella: non devi confermarla a ogni documento.
+- Se non ce l'hai — è il caso di chi lavora su più sedi — il campo parte **vuoto** e la
+  sede va scelta. È voluto: è l'unico caso in cui la scelta non è ovvia.
+- Nei **Trasferimenti** si precompila solo la sede di **partenza**; la destinazione la
+  scegli tu.
+- Fanno eccezione la **Registrazione fattura fornitore**, che non ha il campo perché la
+  fattura è intestata all'azienda e non a una sede, e la **Vendita al banco**, che prende
+  la sede dal selettore in alto.
+
+**La sede decide quali serie puoi usare**: una serie assegnata a una sede è utilizzabile
+solo lì, una serie senza sede vale ovunque. Cambiando sede la tendina si aggiorna.
+
 ### Impostazioni numerazione
 
-**Documenti → Impostazioni documenti** (solo **Gestire documenti**): prefissi e serie per tipo (es. prefisso DDT vendita, arrivo merce). I numeri progressivi vengono assegnati alla **conferma**.
+**Documenti → Impostazioni documenti** (solo **Gestire documenti**): prefissi per tipo
+documento e gestione delle serie (i **Numeratori**). Qui si crea una serie, le si assegna
+una sede e si sceglie quale è la predefinita del tipo.
+
+Il riferimento di un documento ha la forma `PREFISSO-SERIE-NUMERO` (es. `AM-A-0042`), o
+`PREFISSO-NUMERO` se la serie non c'è. Chi vuole ricominciare da 1 ogni anno crea una
+serie chiamata come l'anno.
 
 ### Permessi
 

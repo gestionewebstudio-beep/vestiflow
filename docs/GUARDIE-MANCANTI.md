@@ -13,9 +13,20 @@ Ogni voce porta uno **stato di verifica**, e va preso sul serio:
 | ✅ **VERIFICATO**    | riaperto e ricontrollato a mano sul codice, con le prove qui sotto          |
 | ◻️ **DA VERIFICARE** | risultato dell'analisi, non ricontrollato: **da confermare prima di agire** |
 
-Nove voci, di cui **due verificate a mano** — le due che hanno conseguenze più serie. Le
+Dodici voci, di cui **quattro verificate a mano** — quelle che hanno conseguenze più serie. Le
 altre sette sono attendibili ma non confermate: valgono come punti di partenza, non come
 fatti.
+
+**Questo è il registro dichiarato dei difetti generali.** Ci finisce ciò che si trova
+lavorando ad altro e che non riguarda il lavoro in corso — altrimenti resta in una chat e
+si perde. Non ci va: i difetti dell'integrazione Shopify, che hanno il loro registro
+(`01-registro-difetti-shopify.md`), e le cose da fare fuori dal repository — account,
+domini, adempimenti — che stanno in `SICUREZZA-PENDENTE.md`, il quale dichiara di
+contenere «solo ciò che devi fare tu». Un difetto di codice, anche se è di sicurezza,
+sta qui.
+
+_Aggiunte il 13/08/2026, trovate lavorando alla numerazione: la sezione «un secondo
+bersaglio» dentro la voce 2, le voci 10, 11 e 12._
 
 > **Il criterio di accettazione che ne esce**, e vale come regola di revisione:
 >
@@ -138,6 +149,41 @@ nuovo test non può vedere niente.
 percorso scritto **dentro lo ZIP** (:520-527), e il prefisso di cartella è l'unica
 separazione fra i file di tenant diversi. Ricostruire il percorso lato server
 (`${tenantId}/` + coda del nome) e caricare senza sovrascrittura.
+
+### La stessa radice, un secondo bersaglio: l'identità fiscale
+
+**VERIFICATO il 13/08/2026.** Non è la riga utente, è la riga **tenant** — e la funzione
+è un'altra: `importTenantProfile`
+(`api/src/tenant/tenant-backup/tenant-backup-import.service.ts:289-303`).
+
+```ts
+const { id: _id, createdAt: _c, ...rest } = row;
+await tx.tenant.update({ where: { id: tenantId }, data: rest as never });
+```
+
+Esclude `id` e `createdAt`. Tutto il resto entra: **`vatNumber`, `legalName`,
+`fiscalCode`, `pec`, `sdiCode`, `iban`**, indirizzo — e anche
+`licensedLocationCount`, cioè quante sedi il contratto prevede.
+
+**Perché conta.** Quei campi sono **in sola lettura per l'utente del tenant**: il
+controller `tenant-company.controller.ts` espone un `@Get('company')` e **nessun `@Patch`**
+del profilo; in Impostazioni la scheda cliente li mostra e basta. Si modificano solo
+dall'area operatore di piattaforma. L'import è quindi **l'unica scrittura raggiungibile
+dal cliente**, ed è una scrittura totale.
+
+**L'esito:** un owner esporta il backup, cambia la partita IVA — o la ragione sociale, o
+l'IBAN che alimenta `DatiPagamento` nell'XML della fattura elettronica — reimporta, e il
+gestionale emette documenti fiscali a nome di un soggetto diverso. Nessun controllo, e
+nessuna traccia che distingua quel cambio da una configurazione legittima.
+
+**La correzione è la stessa della voce sopra, e questo è il punto:** una lista bianca dei
+campi che l'import può scrivere, per ogni entità. Non «escludi `id`», che è la forma
+sbagliata — nasconde ciò che passa invece di dichiararlo, e ogni colonna nuova entra da
+sola senza che nessuno decida.
+
+Il test deve enunciare la regola: **nessun campo fuori dalla lista bianca arriva alla
+scrittura**, per ogni entità del backup. Non «la partita IVA non si sovrascrive», che è
+l'istanza.
 
 ---
 
@@ -298,6 +344,141 @@ mai stata enunciata; gli altri quattro campi sono rimasti scoperti.
 esistente valorizzato e l'importazione ridotta che il pulsante produce davvero, il pacchetto
 scritto non deve contenere valori vuoti per nessun campo che l'importazione non ha letto.
 **Il test fallisce oggi**: è quindi anche la specifica della correzione.
+
+---
+
+## 10. ✅ Il regime fiscale nell'XML è una costante: ogni fattura dichiara RF01
+
+**VERIFICATO il 13/08/2026.** Non è una guardia mancante: è un dato che non esiste, e che
+viene comunque dichiarato all'Agenzia.
+
+`api/src/documents/fatturapa-xml.util.ts:78-79`:
+
+```ts
+/** Regime fiscale: VestiFlow non lo gestisce, RF01 è il default ordinario. */
+const DEFAULT_TAX_REGIME = 'RF01';
+```
+
+Scritto senza condizioni dentro `CedentePrestatore` (`:255`). Il commento è onesto — dice
+che non è gestito — ma **il file XML non porta il commento**: porta `RF01`, cioè
+«regime ordinario», come affermazione dell'emittente.
+
+**Chi ne paga il prezzo.** Un negozio in **regime forfettario** è `RF19`, e la sua fattura
+non espone IVA. Emettendola da VestiFlow dichiara un regime che non è il suo. Lo stesso per
+minimi (`RF02`), editoria, agenzie di viaggio, agricoltura. È l'unico dei quattro valori
+costanti del file che afferma qualcosa di **falso** invece di limitarsi a mancare: la
+nazione predefinita `IT` e il codice destinatario `0000000` sono ripieghi corretti quando
+il dato non c'è, questo no.
+
+**Non è nel perimetro della numerazione**, e non si corregge con una guardia: manca il
+campo. Serve `Tenant.taxRegime` (migration additiva, valore iniziale `RF01` per tutti —
+che è il regime della quasi totalità), il campo nella scheda cliente dell'area di
+piattaforma accanto a partita IVA e codice fiscale, e la lettura al posto della costante.
+
+**Da decidere quando si aprirà il modulo fattura elettronica**, non prima: è lì che questa
+riga smette di essere teorica.
+
+---
+
+## 11. ◻️ Sette difetti minori trovati simulando l'operatore (13/08/2026)
+
+**DA VERIFICARE** salvo dove indicato. Sono emersi percorrendo la giornata di quattro
+operatori diversi sulla numerazione e la sede — non leggendo il codice. Nessuno riguarda
+il lavoro con cui sono stati trovati: **stanno qui per non perdersi in una chat.**
+
+| #   | Difetto                                                                                                                                               | Dove                                                                                                                                                                                                                                                 |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a   | **Il lock del contatore salta quando il numero è imposto**, quindi chi non ha toccato niente può prendersi il conflitto al posto suo                  | `goods-receipt-workflow.service.ts:430-438` e `:958-964`, `transfer-adjustment-workflow.service.ts:149-155`, `documents.service.ts:888-903` — contro `supplier-orders.service.ts:182` e `manual-sales-orders.service.ts:282`, che lo prendono sempre |
+| b   | **Sei maschere su sette non hanno un test sul percorso dell'avviso di conflitto**: l'unico è in `customer-order-form.component.spec.ts:581-634`       | le altre sei non nominano mai `acknowledgeConflictNumber`                                                                                                                                                                                            |
+| c   | **L'avviso sbaglia l'elisione**: «è stato messo il 11», «il 8». La forma sbagliata è congelata anche dal test                                         | `document-number-conflict.util.ts:83-84`, `document-number-conflict.store.spec.ts:74`                                                                                                                                                                |
+| d   | **L'avviso dice «premi Salva», il pulsante dice «Salva documento»**                                                                                   | `document-number-conflict.util.ts:84-85` contro `goods-receipt-form.component.html:1861`                                                                                                                                                             |
+| e   | **Due richieste contatori in corsa all'apertura** dell'Arrivo merce, senza `switchMap` né cancellazione: può vincere la risposta della sede sbagliata | `goods-receipt-form.component.ts:1034` e `:1018-1020`                                                                                                                                                                                                |
+| f   | **La tendina Serie e l'ingranaggio sembrano attivi** mentre il cancello di testata li tiene fermi: `select-menu` non ha regole `:disabled`            | `goods-receipt-form.component.html:417-443` + `select-menu.component.scss`                                                                                                                                                                           |
+| g   | **Tre nomi diversi per lo stesso campo**: «Location destinazione», «Location di origine», «Sede»                                                      | `goods-receipt-form.component.html:387`, `customer-order-form.component.html:592-594`, e il §1-bis che lo chiama Sede                                                                                                                                |
+
+**Il più serio è (a)**, ed è l'unico con una conseguenza per l'operatore: chi digita un
+numero salta il lock, quindi due salvataggi simultanei — uno con numero imposto e uno
+automatico — possono incrociarsi, e il conflitto tocca a chi non ha scelto niente. È lo
+stesso difetto in quattro punti, ed è già risolto correttamente in due.
+
+**(g) è il più facile e il meno urgente**, ma vale la pena farlo quando si tocca quella
+testata: la §1-bis ha scelto «Sede», le maschere non lo sanno ancora.
+
+---
+
+## 12. ✅ La logica scritta in SQL grezzo non è coperta da nessun test
+
+**VERIFICATO il 13/08/2026**, perché è la conseguenza diretta di una scelta presa quel
+giorno e va scritta prima che si dimentichi da dove viene.
+
+La suite API gira **tutta su doppioni**: `PrismaService` è sostituito da oggetti che
+rispondono a `findMany`, `aggregate`, `$queryRaw`. Per le query costruite con l'API di
+Prisma questo basta — il doppione riceve l'oggetto `where`, e un test può verificarlo:
+è così che si controlla, per esempio, che il massimo del progressivo guardi la partizione
+giusta e i soli documenti di data anteriore.
+
+**Per l'SQL grezzo no.** Il doppione riceve una stringa, e l'unica cosa verificabile è la
+stringa stessa — cioè come è scritta la query, non cosa fa. In pratica quella logica è
+**scoperta**: se qualcuno mette `<=` dove serve `<`, i test restano verdi perché guardano
+il finto database, non quello vero.
+
+### Dove si applica oggi
+
+| Punto                                                     | Cosa fa in SQL grezzo                              |
+| --------------------------------------------------------- | -------------------------------------------------- |
+| `document-numbering.util.ts` → `primoNumeroLibero`        | il «primo numero libero maggiore di m» del §2      |
+| `document-chronology.util.ts` → `findChronologyAnomalies` | i documenti fuori posto del §4 (funzione finestra) |
+
+Entrambi hanno test che fissano la **semantica** — nel secondo il tx finto esegue la regola
+in JavaScript — ma nessuno dei due prova l'SQL.
+
+### La previsione si è avverata lo stesso giorno
+
+_Aggiunto il 13/08/2026, poche ore dopo aver scritto la voce._
+
+Questa voce diceva «diventa urgente quando qualcuno tocca una di quelle due, perché non
+ha nulla che gli dica se l'ha rotta». Non è servito che qualcuno le toccasse: erano
+**già rotte quando sono state scritte**, in due punti, e i test erano verdi.
+
+- **`reference` non esiste su `sales_orders`.** La colonna lì si chiama `order_number`.
+  Il commento sopra la query lo diceva — «il riferimento leggibile è `reference` ovunque
+  tranne gli ordini cliente» — e la riga sotto selezionava `reference` comunque.
+  L'endpoint rispondeva **500** su `customer_order`.
+- **La serie vuota non è la serie senza nome.** La maschera manda `series=''`, i
+  documenti senza serie hanno `series IS NULL`, e il confronto era `series = ''`. Il
+  controllo cronologico **non ha mai guardato la partizione più usata di tutte** — e non
+  trovare niente non somiglia a un errore, somiglia a «va tutto bene».
+
+Nessuno dei due si vedeva dai test, e **nessuno dei due si vedeva rileggendo il codice**:
+il primo l'ho riletto scrivendoci sopra il commento giusto. Si sono visti chiamando
+l'applicazione vera contro il database vero.
+
+**Mitigazione applicata subito**, che non sostituisce la guardia mancante: sei test che
+non eseguono la query ma **leggono cosa chiede** — ricompongono il testo SQL dai
+frammenti Prisma e verificano tabella, colonna data, colonna riferimento e la forma del
+confronto sulla serie. Prendono la classe di errore «hai chiesto la colonna sbagliata»,
+che è quella che è capitata due volte. **Non** prendono `<=` al posto di `<`: per quello
+serve Postgres.
+
+### Quando diventa urgente
+
+Le tre condizioni di prima restano, ma la prima è già più vicina di quanto sembrasse:
+
+- le query grezze diventano **tre o quattro**: la probabilità che una sbagli in silenzio
+  smette di essere trascurabile;
+- si aggiunge un caso alla regola (§2 o §4) e va provato sul serio;
+- **si tocca una colonna** di `documents`, `sales_orders` o `supplier_orders`: le tre
+  tabelle sono nominate in SQL grezzo, e una rinomina non fa arrossare niente.
+
+### Cosa servirebbe
+
+Un test di **integrazione su un Postgres vero** — container effimero o database di prova —
+con i casi del §2 (buco tappato lo stesso giorno, buco che resta il giorno dopo, caso
+terminale che scavalca) e del §4 (stessa data mai anomalia, numero forzato indietro).
+
+È l'unica strada che prova _davvero_ la regola, ed è la «strada C» già valutata e
+rimandata nel §0 di `04-specifica-numerazione-documenti.md`. **Non è lavoro da fare ora:
+serve che sia scritto.**
 
 ---
 

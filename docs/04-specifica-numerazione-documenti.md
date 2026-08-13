@@ -13,23 +13,35 @@ Ultimo aggiornamento: 11 agosto 2026, sera.
 
 ## §0 — Migrazioni implicate
 
-| Intervento                                                          | Tipo            | Note                                                                        |
-| ------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------- |
-| Proposta del numero per data                                        | **Additiva**    | Serve un indice composito, vedi sotto                                       |
-| Campo data sul DTO di anteprima                                     | **Nessuna**     | Solo DTO                                                                    |
-| Preferenza "non mostrare più"                                       | **Additiva**    | Copiare `UserDocumentPriceModePreference`                                   |
-| Sottotipo Nota di credito e Fattura d'acconto                       | **Additiva**    | Nuovi valori su enum Postgres `DocumentType`                                |
-| Rimozione numerazione dal Corrispettivo                             | **Distruttiva** | Vedi §8. Coordinare con `feature/cassa`                                     |
-| Rimozione `DocumentSequence`                                        | **Distruttiva** | Backup da sistemare **prima**. Vedi §9                                      |
-| Ora sulla vendita al banco + marcatore RT fuori servizio            | **Additiva**    | Vedi §8                                                                     |
-| Rimozione colonne controparte da `sales_orders` e `supplier_orders` | **Distruttiva** | Vuote su tutti i record. Vedi §5-ter                                        |
-| Rimozione `documents.year`                                          | **Distruttiva** | Colonna scritta e NOT NULL: schema, migration e codice insieme. Vedi §5-ter |
+| Intervento                                               | Tipo            | Note                                         |
+| -------------------------------------------------------- | --------------- | -------------------------------------------- |
+| Proposta del numero per data                             | **Additiva**    | Serve un indice composito, vedi sotto        |
+| Campo data sul DTO di anteprima                          | **Nessuna**     | Solo DTO                                     |
+| Preferenza "non mostrare più"                            | **Additiva**    | Copiare `UserDocumentPriceModePreference`    |
+| Sottotipo Nota di credito e Fattura d'acconto            | **Additiva**    | Nuovi valori su enum Postgres `DocumentType` |
+| Rimozione numerazione dal Corrispettivo                  | **Distruttiva** | Vedi §8. Coordinare con `feature/cassa`      |
+| Rimozione `DocumentSequence`                             | **Distruttiva** | Backup da sistemare **prima**. Vedi §9       |
+| Ora sulla vendita al banco + marcatore RT fuori servizio | **Additiva**    | Vedi §8                                      |
 
 **Già applicate** l'11 agosto sul ramo, additive: colonne del riferimento controparte, indici unici parziali, indice del numero sul numeratore.
 
-⚠️ **Le distruttive si fanno tutte nella stessa finestra**, concordata col collega, non a spizzichi: ognuna è un `DROP` su un database condiviso, e ogni volta che si apre quella porta il rischio è lo stesso — vale la pena pagarlo una volta sola.
-
 Regola invariata: mai `prisma migrate dev` o `db push` sul database condiviso. Solo `prisma migrate deploy`.
+
+---
+
+## §0-bis — Regola di lavoro: la guida si aggiorna dentro il blocco
+
+_Adottata 13 agosto 2026._
+
+**Quando un blocco cambia ciò che l'operatore vede, la guida si aggiorna prima di dire «chiuso».** Non dopo, non a fine ciclo.
+
+- La **fonte** è `docs/GUIDA-UTENTE-VESTIFLOW.md`. HTML e PDF sono artefatti: non si modificano a mano.
+- Si rigenera con **`npm run docs:guide:all`**.
+- Non è documentazione a margine: lo stesso comando scrive `public/guide/` e `src/assets/guide-admin/`, cioè **la guida che l'operatore legge dentro l'app**.
+
+Il motivo è misurato, non teorico: al 13 agosto la guida diceva ancora _«I numeri progressivi vengono assegnati alla conferma»_ e non nominava né la testata Data/Serie/Numero, né il numero modificabile, né l'avviso di conflitto, né la sede. Era ferma all'8 agosto — cinque giorni e tre blocchi indietro. Riprendere una guida disallineata costa più che tenerla allineata, perché chi la riscrive dopo deve prima ricostruire cosa è cambiato.
+
+**Voce aperta:** la **guida tecnica** esiste solo come HTML e PDF, senza sorgente nel repository. Un documento che non ha sorgente è un documento che nessuno potrà più aggiornare quando servirà. Va trovata la sua origine — non urgente, ma da non perdere di vista.
 
 ### Perimetro reale della proposta per data
 
@@ -37,14 +49,50 @@ Regola invariata: mai `prisma migrate dev` o `db push` sul database condiviso. S
 
 **Costo.** `NextNumberInput` oggi non riceve la data, e non esiste un indice che includa `documentDate` accanto a `(tenant, type, series)`. Senza, il calcolo del massimo fra i documenti con data anteriore scansionerebbe l'intera partizione — dentro il lock, che serializza tutti gli operatori sullo stesso contatore.
 
-Due interventi necessari, **e in quest'ordine**:
+Due interventi necessari:
 
-1. **indice composito** `(tenant_id, type, series, document_date, number)`, così il primo passo diventa un accesso a indice
-2. **una sola query SQL** che restituisce un intero, con `NOT EXISTS` o funzione finestra. Mai materializzare l'elenco dei numeri in JavaScript: la regola sotto lock deve essere logaritmica, non lineare
+- **indice composito** `(tenant_id, type, series, document_date, number)`, così il primo passo diventa un accesso a indice
+- **mai materializzare l'elenco dei numeri**, né in SQL né in JavaScript: la regola gira sotto lock e dev'essere logaritmica, non lineare
 
-⚠️ **L'indice va per primo, e non è un dettaglio di comodo.** Scrivendo prima la query, la si misura senza indice — cioè con una scansione dell'intera partizione dentro il lock — e il risultato sembra un problema della _regola_: «la proposta per data è lenta, forse la logica è sbagliata». Non lo è: è la scansione. Con l'indice già in piedi, il primo numero che si legge è quello vero.
+_Riformulato il 13/08/2026._ Qui c'era scritto «**una sola query** SQL che restituisce un intero». Il vincolo vero non era il numero di query: era il non tirare su l'elenco dei numeri. **Due query sotto indice lo rispettano**, e la differenza non è accademica — è ciò che permette di tenere il massimo sull'aggregato Prisma, quindi verificabile dai doppioni di prova, invece di spostare tutta la regola in SQL grezzo dove la suite può solo confrontare stringhe. Vedi «Stato al 13/08» qui sotto.
 
 **Scartata** l'ipotesi di tenere `max+1` sotto lock mettendo la logica per data solo nella proposta mostrata: produrrebbe una divergenza sistematica fra numero visto e numero assegnato, non dovuta a concorrenza. Inaccettabile su un documento fiscale.
+
+### Stato al 13/08/2026: indice fatto, regola ferma su un bivio
+
+**Fatto e applicato:** l'indice composito, migration `20260813120000_indice_numerazione_per_data`, **additivo** — tre indici parziali, uno per fonte del numero, perché le tabelle sono tre con colonne data diverse:
+
+| Fonte             | Partizione                        | Colonna data    |
+| ----------------- | --------------------------------- | --------------- |
+| `documents`       | (tenant, type, series)            | `document_date` |
+| `supplier_orders` | (tenant, series)                  | `order_date`    |
+| `sales_orders`    | (tenant, source='manual', series) | `placed_at`     |
+
+Su `sales_orders` la data della testata finisce in **`placed_at`** — la maschera scrive `placedAt: documentDate` (`manual-sales-orders.service.ts:333`), e per gli ordini manuali è sempre la mezzanotte del giorno scelto, quindi il confronto sul timestamp coincide con quello per giorno. **Questo chiude il punto lasciato aperto nel §10** («quale campo di `SalesOrder` fa da data per la numerazione»): la risposta era già nel codice.
+
+**Fatto:** la data arriva fino a `NextNumberInput.documentDate` da tutti i percorsi di assegnazione (Arrivo merce, Ordine cliente, Ordine fornitore) e dall'avviso di conflitto. Oggi il campo c'è e **non viene ancora letto**.
+
+**Fermo:** la query. La regola non è esprimibile in Prisma — vuole `ORDER BY … LIMIT 1` con un `NOT EXISTS` correlato — e la versione in SQL grezzo, scritta e funzionante a compilazione, **fa fallire 29 test API**. Non per un doppione incompleto: perché quei test _descrivono la regola vecchia_, osservando `document.aggregate` e asserendo `max+1`. Con i doppioni attuali un `$queryRaw` è verificabile solo confrontando il **testo** della query, che è una prova fragile proprio sulla funzione più delicata di quest'area.
+
+**Le tre strade, con il loro prezzo:**
+
+| Strada                                                                                                                                           | Cosa costa                                                                                                  | Cosa si ottiene                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A · Riscrivere i 29 test sul testo SQL**                                                                                                       | prove fragili: una riscrittura innocua della query le fa arrossare, e nessuna dice se il risultato è giusto | una query sola, come chiede il §0                                                                                                                        |
+| **B · Due query index-backed**: il massimo resta l'aggregato Prisma (con il filtro data aggiunto), e solo il «primo libero > m» va in SQL grezzo | due accessi invece di uno, entrambi logaritmici                                                             | i test esistenti **conservano il significato** — continuano a osservare la partizione — e il filtro per data diventa verificabile con i doppioni di oggi |
+| **C · Test di integrazione su Postgres vero**                                                                                                    | l'infrastruttura non c'è: la suite API gira tutta su doppioni                                               | l'unico modo di provare _davvero_ la regola, casi del §2 compresi                                                                                        |
+
+**Scelta: B, con C in prospettiva** _(13/08/2026)_. La ragione del §0 è «mai materializzare l'elenco dei numeri», non «una query sola»: due query sotto indice la rispettano, e i test conservano il significato invece di diventare guardie di stringhe. C resta la sola strada che prova _davvero_ la regola sui casi qui sopra, ma vuole un Postgres in prova che oggi non c'è.
+
+### Fatto — la regola è accesa (13/08/2026)
+
+**Il primo passo, `lastAssignedNumber`, resta un aggregato Prisma** col filtro `documentDate < inizio del giorno`: è la parte che dice _quali_ documenti entrano nel conto, cioè dove la regola può sbagliare in silenzio, e i doppioni di prova la osservano. Due prove nuove la inchiodano: `lt` e non `lte` — i documenti dello stesso giorno restano fuori, ed è ciò che permette di tappare un buco fra due documenti di pari data — e il confine è sempre una **mezzanotte**, mai un istante.
+
+**Il secondo passo, «primo libero > m», è l'unico in SQL grezzo**, perché Prisma non sa esprimerlo: `ORDER BY … LIMIT 1` con un `NOT EXISTS` correlato, sotto l'indice appena creato, senza mai materializzare l'elenco dei numeri.
+
+**Uno scarto trovato dalla prova, non dalla lettura:** senza data l'implementazione non filtrava affatto — cioè restava «massimo + 1» — mentre il §2 dice **«il primo libero a partire da oggi»**. Il caso non è teorico: è la colonna «prossimo numero» dei Numeratori, che senza quel confine mostrerebbe un numero diverso da quello che la testata mostra due secondi dopo.
+
+I 29 test che descrivevano `max+1` non sono stati riscritti: **conservano tutti il significato**, perché il massimo è rimasto dove sanno guardare. Ai doppioni è bastato imparare il secondo passo — e in `document-counters.service.spec.ts` lo ricavano dal massimo appena letto, così ogni test continua a configurare **una cosa sola**.
 
 ---
 
@@ -65,6 +113,211 @@ Riferimento: `PREFISSO[-SERIE]-NNNN`. Il prefisso è proprietà del tipo documen
 Ogni tipo nasce con un contatore «Senza serie», seminato e non eliminabile → `OC-0001`.
 
 **Superato:** la location come partizione; il progressivo modificabile nelle Impostazioni; l'anno come serie implicita.
+
+---
+
+## §1-bis — La sede
+
+_Impianto deciso 3 agosto 2026. Completato l'11 agosto dopo la verifica del codice, che ha trovato la regola applicata a metà._
+
+### Premessa: un tenant, un soggetto fiscale
+
+**Un tenant corrisponde a una sola partita IVA.** Le sedi sono punti operativi dello stesso soggetto — magazzini, negozi, depositi — non aziende distinte.
+
+Non era mai stato scritto. **Verificato l'11 agosto: il codice lo rispetta già ovunque**, e non per caso.
+
+- I dati fiscali stanno tutti su `Tenant` in campi scalari singoli (`schema.prisma:309-330`): `legalName`, `vatNumber`, `fiscalCode`, `pec`, `sdiCode`, `iban`, indirizzo completo. Nessuna duplicazione, nessun modello «Azienda» separato dal Tenant
+- `Location` non ha **nemmeno un campo fiscale**, neppure inutilizzato: solo nome, codice, attivo, legame allo `Store` e indirizzo denormalizzato — con un commento nello schema che lo dichiara già «display/etichette, non entità a sé». Anche `Store` è nudo. L'unico altro modello con partita IVA è `Party`, cioè le controparti
+- Il **cedente/prestatore** nell'XML della fattura elettronica si costruisce interamente dal Tenant, cercato per il solo `tenantId` (`document-xml.service.ts:40-51`). Il `locationId` del documento non viene mai letto, e non esiste alcun blocco `StabileOrganizzazione`
+- Tutti e tre i generatori PDF e l'export commercialista dei corrispettivi compongono l'intestazione dal Tenant. **Nessun generatore legge la sede**
+- Registri IVA e liquidazioni non esistono in nessuna forma. L'aggregazione dei corrispettivi è per tenant: `CorrispettivoEntry` non ha nemmeno una colonna `locationId`
+
+**Conseguenza da dichiarare:** un cliente con due partite IVA avrà due tenant, cioè due abbonamenti separati. Non è una limitazione tecnica ma la realtà fiscale — due partite IVA sono due aziende, e un trasferimento fra loro è una vendita con fattura, non un trasferimento interno.
+
+**La sede non compare nell'XML in nessun punto.** È una scelta, non una dimenticanza: se un domani servisse la stabile organizzazione o un punto vendita dichiarato, il posto sarebbe `sedeBlock` e il dato oggi non esiste da nessuna parte.
+
+**L'unico punto in cui la sede tocca qualcosa di fiscale-adiacente è la numerazione, e lo conferma invece di smentirlo:** `locationId` sul contatore decide quale serie è disponibile, non chi emette. Due negozi con numerazioni separate restano un solo soggetto con due serie.
+
+La questione dei più soggetti fiscali sotto un'unica gestione resta aperta in §10, come ipotesi futura da non scoprire per caso.
+
+### La regola
+
+**Una serie assegnata a una sede è usabile solo in quella sede. Una serie senza sede è usabile ovunque.**
+
+È la regola del 3 agosto, ricavata dallo scenario dei due negozi: con serie NAP legata a Napoli e MI legata a Milano, chi emette da Milano vede MI e le serie senza sede; NAP non è nemmeno selezionabile.
+
+`locationId` sul contatore è quindi **disponibilità, non partizione**: due sedi con numerazioni separate si ottengono con due serie, non con la sede dentro la chiave del progressivo.
+
+### Il filtro, per esteso
+
+I contatori disponibili per un documento sono quelli **con la sede del documento** più quelli **senza sede**. Uguaglianza esatta, nessuna gerarchia, nessun fallback.
+
+Se il documento non ha una sede selezionata, restano disponibili solo i contatori senza sede.
+
+### La regola vale anche in assegnazione — non solo in tendina
+
+_Difetto verificato l'11 agosto, da correggere._
+
+Oggi il filtro esiste in un punto solo: `document-counters.service.ts:156-164`, che serve la tendina. La funzione che assegna la serie al salvataggio (`document-numbering.util.ts:90-100`) cerca il contatore `isDefault` **senza guardare la sede**, e non accetta nemmeno `locationId` come parametro.
+
+Conseguenza: contatore NAP legato a Napoli e marcato predefinito, un operatore di Milano apre una fattura, la tendina correttamente non gli mostra NAP, lui non tocca la serie e salva — **il documento esce con serie NAP**. La tendina dice il vero, il salvataggio no.
+
+**Il predefinito si applica solo se compatibile con la sede del documento.** Se non lo è, non si applica, e vale la regola già stabilita: un solo contatore disponibile → quello; più d'uno → nessuna proposta, sceglie l'operatore.
+
+### «Senza serie» scelta deve valere come scelta
+
+_Difetto verificato l'11 agosto, da correggere._
+
+Oggi il frontend manda `series: … || undefined`, cioè **omette la chiave**, e il backend interpreta l'assenza come «usa il predefinito». Selezionare «Senza serie» in tendina non dice quindi _nessuna serie_: dice _decidi tu_ — e chi decide può essere un predefinito di un'altra sede.
+
+La selezione esplicita dell'operatore deve viaggiare **come valore**. Il «decidi tu» resta solo quando l'operatore non tocca la tendina.
+
+### Il cambio sede ricarica la tendina
+
+_Difetto verificato l'11 agosto, da correggere._
+
+Esiste una sola sottoscrizione a `locationId.valueChanges` in tutto il progetto (`customer-order-form.ts:1676`), e ricarica le disponibilità delle righe, non i contatori. Nessuna maschera ricarica quindi la tendina serie quando l'operatore cambia sede: l'elenco resta quello chiesto all'apertura.
+
+Con la regola sopra diventerebbe anche incoerente col salvataggio. Il meccanismo di ricarica esiste già per il cambio tipo e il cambio data nell'Arrivo merce: è un innesto, non una costruzione.
+
+### La sede predefinita dell'operatore
+
+_Deciso 11 agosto 2026, riformulato dopo la verifica sulle sedi assegnate._
+
+**Le sedi si assegnano all'operatore.** Con quattro sedi configurate, un operatore può averne assegnate una, alcune o tutte. **Non esiste un operatore senza sedi assegnate**, quindi quel caso non va gestito.
+
+La regola nel campo Sede in testata:
+
+- **Una sola sede assegnata** → esce quella. Non è una precompilazione, è l'unica opzione disponibile
+- **Più sedi assegnate, con una marcata come predefinita** → esce la predefinita
+- **Più sedi assegnate, senza predefinita** → il campo resta vuoto e l'operatore sceglie ogni volta
+
+Il campo resta sempre modificabile fra le sedi selezionabili.
+
+**Perché non contraddice il dominio.** Il servizio dichiara «mai usarla come fallback automatico» per i form, e resta vero: la sede non è un'ipotesi che il sistema costruisce, è un dato assegnato esplicitamente a quell'utente. Il commesso del negozio di Napoli non deve confermare a ogni documento di stare a Napoli. Chi lavora su più sedi senza predefinita sceglie ogni volta — che è corretto proprio per lui, perché è l'unico caso in cui la scelta è ambigua.
+
+**Il suggerimento cliccabile sparisce.** Arrivo merce, Trasferimento e Rettifica mostravano un suggerimento («Usa la sede suggerita Milano») invece di preselezionare, con tre test a fissarlo. Non serve più: o il campo è già pieno, o l'operatore ha più sedi e deve scegliere consapevolmente. I tre test vanno riscritti sui casi nuovi.
+
+**La Vendita in negozio resta com'è.** Lì la sede nasce dal selettore di sede della shell, quindi è già determinata dal contesto: non ha senso farla riconfermare a ogni scontrino.
+
+### Sedi visibili e sedi selezionabili
+
+_Deciso 11 agosto 2026._
+
+**La tendina mostra sempre tutte le sedi del tenant. Sono selezionabili solo quelle assegnate all'operatore; le altre sono visibili ma disabilitate.**
+
+Una regola sola per tutti i campi sede, nessuna distinzione per tipo documento.
+
+Il motivo per mostrarle invece di nasconderle: l'operatore capisce _perché_ non può selezionarle. Vede che Milano esiste, è lì disabilitata, e sa di doverla chiedere. Nascondendola crederebbe che il sistema sia rotto o che Milano non esista.
+
+**L'unica eccezione è la sede di destinazione del Trasferimento**, che è selezionabile fra **tutte** le sedi, assegnate o no. La sede di partenza segue invece la regola generale.
+
+Il motivo è che i due campi dicono cose diverse: la partenza dice **da dove esce la merce** — l'operatore la governa, deve essere una delle sue; la destinazione dice **dove arriva** — lui non ci opera, la sceglie come si sceglie un indirizzo di consegna. Senza questa eccezione, il magazziniere di Napoli non potrebbe spedire a Milano, che è il caso d'uso principale dei trasferimenti.
+
+**Precompilazione nei Trasferimenti:** solo la sede di partenza. La destinazione resta vuota — precompilarla produrrebbe un trasferimento verso sé stessa.
+
+### Da verificare dopo il merge con `develop`
+
+Il collega ha mergiato `feature/permessi-sezioni-documenti` su `develop` il 12 agosto, con un commit che dichiara «il permesso segue l'effetto, non il nome della rotta». Nello stesso periodo, su questo ramo, `destination_location_id` sull'Ordine fornitore è passata da vuota a popolata — ed **è già usata dal controllo d'accesso**. Finché era vuota ogni ordine era visibile a tutti; ora un ordine per Napoli sparisce a chi non ha Napoli.
+
+I due lavori si incontrano al merge. Da verificare allora, non prima:
+
+1. **Come si compongono i due meccanismi.** Un operatore col permesso giusto ma senza quella sede: vede o non vede? Il filtro per sede si somma al permesso o lo sostituisce?
+2. **Il filtro per sede vale su tutti i documenti o solo sugli Ordini fornitore?**
+3. **Documenti senza sede** (tutti quelli creati prima che il campo esistesse): restano visibili a tutti. Da confermare che sia il comportamento reale e non solo l'intenzione.
+4. **La sede predefinita esiste come dato distinto** dall'elenco delle sedi assegnate, o va costruita?
+5. **L'Ordine fornitore ha una tensione da sciogliere.** Lì `destination_location_id` dice dove il fornitore consegnerà — è una destinazione, non la sede in cui l'operatore lavora. Ma è anche il campo che la guardia usa per decidere chi vede l'ordine. Conseguenza: un operatore di Napoli che ordina merce per Milano **vede sparire il proprio ordine appena lo salva**. Probabilmente sbagliato, ma dipende da come è costruita la guardia: da chiarire col collega.
+
+### Dove compare il campo Sede
+
+**In tutti i documenti che muovono merce o che stanno in una catena che la muove.**
+
+Il criterio di partenza era «dove il documento agisce su giacenze o disponibilità». Due precisazioni lo completano.
+
+**La Fattura proforma ce l'ha**, pur non scaricando né impegnando: è il primo anello di una catena che scarica (proforma → DDT → fattura), e la sede decisa lì si propaga a valle, evitando che qualcuno la scelga diversa tre documenti dopo.
+
+**La Registrazione fattura fornitore NON ce l'ha.** Non è un'eccezione arbitraria: la fattura del fornitore è intestata all'azienda, non alla sede — un'unica partita IVA, un unico registro acquisti — e una singola fattura può coprire arrivi merce di sedi diverse, perché il fornitore consegna a Napoli e a Milano e fattura tutto insieme. Un campo sede lì produrrebbe o un filtro sbagliato sugli arrivi merce collegabili, o un dato che non filtra niente.
+
+**Attenzione a non confondere le due cose:** quel tipo ha **numerazione e serie come tutti gli altri**, si creano e si scelgono normalmente. Quello che non ha è il campo Sede in testata. Il `null` che passa oggi alla tendina è quindi corretto e non è un difetto: le serie senza sede sono disponibili ovunque, quindi quel tipo vede sempre le proprie serie.
+
+**Da implementare:** le tre maschere servite da `sales-document-form` (Proforma, Fattura, Fattura accompagnatoria) hanno il `FormControl locationId` ma **nessun campo nel template**. Il valore può arrivare solo dal precompilato di conversione o dal documento riletto. Per la Fattura accompagnatoria è la stessa sede che il codice dichiara obbligatoria per lo scarico.
+
+`Ordine fornitore` passa `null` fisso alla tendina perché non ha un campo sede: rientra nell'estensione. `Fattura acquisto` no, per il motivo sopra.
+
+### Il campo Sede sul contatore non si blocca
+
+_Deciso 11 agosto 2026._
+
+Anche con una sola sede configurata, la tendina «Tutte le sedi» + sedi operative resta visibile nei Numeratori.
+
+Con una sede sola assegnarla è inutile ma non dannoso: tutti i documenti hanno quella sede, quindi il filtro non esclude mai nulla. Nasconderla costerebbe di più — il giorno che apre il secondo punto vendita, il negoziante si troverebbe una funzione comparsa dal nulla e serie senza sede valide ovunque, senza capire perché.
+
+### Il contatore «Senza serie» non può ricevere una sede
+
+_Comportamento verificato, dichiarato voluto l'11 agosto._
+
+La riga «Senza serie» — quella seminata d'ufficio per ogni tipo — non ha il pulsante Modifica (`document-counters.component.html:26-30`, reso solo `@if (counter.series !== null)`). Il backend non lo vieta: è il template a non offrire l'accesso.
+
+**È corretto e va mantenuto.** Il contatore base di un tipo deve restare valido ovunque: assegnandogli una sede, quel tipo perderebbe il contatore universale e in qualche sede la tendina potrebbe restare vuota.
+
+### Stato del codice
+
+| Pezzo                                                                               | Stato                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DocumentCounter.locationId` nullable, FK verso `locations` con `ON DELETE CASCADE` | ✅                                                                                                                                                                                                                                                                                 |
+| Unicità `(tenantId, type, series)` — la sede **non** è nell'identità                | ✅ (migration 28/07 l'ha declassata da chiave ad attributo)                                                                                                                                                                                                                        |
+| Campo Sede nei Numeratori, montato in Impostazioni e nel pannello dell'ingranaggio  | ✅                                                                                                                                                                                                                                                                                 |
+| `documents.location_id` + `target_location_id`, popolati dall'operatore             | ✅                                                                                                                                                                                                                                                                                 |
+| `sales_orders.location_id` precompilato dalla sede predefinita utente               | ✅ — unica maschera che lo fa                                                                                                                                                                                                                                                      |
+| Filtro «quella sede + senza sede» nella tendina                                     | ✅                                                                                                                                                                                                                                                                                 |
+| Stesso filtro in assegnazione                                                       | ✅ 13/08 — `defaultCounterSeries` riceve la sede; il predefinito si applica solo se compatibile, altrimenti «uno solo → quello, più d'uno → sceglie l'operatore». Aggiornata anche l'**anteprima** del numero, che altrimenti avrebbe mostrato una serie diversa da quella salvata |
+| «Senza serie» che viaggia come valore                                               | ✅ 13/08 — `DocumentNumberingStore.chosenSeries()`, nove punti di invio. `undefined` solo se la tendina non è stata toccata                                                                                                                                                        |
+| Ricarica tendina al cambio sede                                                     | ✅ 13/08 — `locationId.valueChanges` → `refreshNumberProposal`, sette maschere                                                                                                                                                                                                     |
+| Sede predefinita nelle altre maschere                                               | ✅ 13/08 — regola unica in `domain/inventory/utils/default-location-prefill.util.ts`. **Erano quattro comportamenti diversi, non uno**: vedi sotto                                                                                                                                 |
+| Sedi non assegnate visibili ma disabilitate in tendina                              | ❌ da fare — eccezione: destinazione del Trasferimento selezionabile fra tutte                                                                                                                                                                                                     |
+| Campo Sede in testata su Proforma, Fattura, Fattura accompagnatoria                 | ✅ 13/08 — desktop e pannello mobile                                                                                                                                                                                                                                               |
+| Campo Sede in testata su Ordine fornitore                                           | ✅ 13/08 — scrive in `supplier_orders.destination_location_id`, colonna che c'era già: **nessuna migration**. Riempirla ne cambia la visibilità, vedi sotto                                                                                                                        |
+| Campo Sede sulla Registrazione fattura fornitore                                    | ⛔ non lo riceve, per decisione — il `null` che passa alla tendina è corretto                                                                                                                                                                                                      |
+
+#### Le maschere non erano una, erano quattro comportamenti diversi
+
+_Verificato 13/08/2026, in fase di implementazione._
+
+La riga «oggi lo fa una maschera sola — l'Ordine cliente» non era esatta, ed è il tipo di scarto che cambia la decisione invece di limitarsi a eseguirla:
+
+| Maschera       | Cosa faceva                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ordine cliente | precompilava con la predefinita                                                                                                                               |
+| Trasferimento  | precompilava l'origine con la predefinita, **oppure** con l'unica sede scrivibile se l'utente era mono-sede                                                   |
+| Rettifica      | **non** usava la predefinita: precompilava **solo** in mono-sede                                                                                              |
+| Arrivo merce   | non precompilava mai; mostrava un **suggerimento cliccabile**, e lo faceva di proposito — la regola era scritta nel servizio di dominio e fissata da tre test |
+
+**Cosa è caduto, oltre al suggerimento: il ripiego mono-sede.** Con una sola sede scrivibile e nessuna predefinita, due maschere compilavano il campo da sole. Ora no: senza predefinita il campo resta vuoto ovunque. La sede predefinita è un dato che qualcuno **assegna**, non una deduzione dal numero di sedi — ed è la distinzione che fa convivere questa regola col divieto di dominio («mai un fallback automatico») invece di scavalcarlo.
+
+**Il prezzo, dichiarato:** il negozio con una sede sola e nessuna predefinita assegnata paga un gesto in più per documento. Si azzera assegnando la predefinita ai suoi utenti.
+
+#### Dove si assegna la predefinita, e chi può farlo
+
+_Verificato 13/08/2026._ Colonna `users.default_location_id` (nullable, FK `ON DELETE SetNull`); scrittura in `admin-tenant-users.service.ts`, che **azzera il campo da sé** se l'utente perde l'accesso a quella sede (`:206-208`); lettura filtrata sulle sedi scrivibili in `OperationalLocationsService.defaultLocation`.
+
+**L'UI esiste ma è solo dell'operatore di piattaforma**: la tendina «Sede predefinita utente» sta in `admin-tenant-users-panel`, dentro «Modifica cliente», protetta da `platformAdminGuard` in rotta e `PlatformAdminGuard` lato API. Gestione utenti lato tenant non esiste.
+
+Conseguenza: la regola è utilizzabile, ma **il titolare non può assegnare la sede ai propri commessi**. Finché i clienti si configurano dall'area di piattaforma basta; il giorno che devono farlo da soli serve una pagina utenti lato tenant. **Non è in questo perimetro.**
+
+#### La Vendita in negozio resta fuori
+
+Prende la sede dal **selettore della topbar** (`LocationContextService`, persistito in `localStorage`), non dal profilo: `store-sale-register.component.ts:203-204`, più un effect che la fissa quando il tenant ha un solo negozio. Precisazione: quel contesto può valere `null` («tutte le sedi») e nasce da `localStorage` — su un browser nuovo la vendita parte senza sede finché l'operatore non la sceglie, salvo mono-negozio.
+
+#### Scrivere la sede sull'Ordine fornitore ne cambia la visibilità
+
+_Da sapere, 13/08/2026._
+
+`supplier_orders.destination_location_id` non era una colonna inerte: è **già** usata dal controllo d'accesso per sede. `assertLocationReadableInUserScope` (`user-location-scope.util.ts:50-64`) esce subito quando la sede è `null`, e l'elenco filtra con `OR: [{ destinationLocationId: null }, { destinationLocationId: { in: scope } }]` (`supplier-orders.service.ts:404-405`).
+
+Finché la colonna restava vuota, **ogni ordine era visibile a chiunque**. Ora che si riempie, un ordine destinato a Napoli non compare più — e in dettaglio dà 403 — a chi non ha Napoli fra le sedi assegnate. Chi ha accesso pieno o «vedi tutte le sedi» non è toccato.
+
+È il comportamento che quella guardia già voleva, e non un effetto collaterale da correggere; ma **non era mai stato osservabile**. Gli ordini creati prima del 13/08 restano senza sede, quindi visibili a tutti.
+| `supplier_orders.destination_location_id` | legacy verificato, nessun percorso di scrittura — vedi §9 |
 
 ---
 
@@ -149,6 +402,26 @@ Il ramo ha aggiunto alla scheda del numeratore il conteggio dei buchi e l'elenco
 
 Il numero è sempre modificabile a mano. Serve a chi migra da un altro gestionale a metà anno e deve allineare la numerazione.
 
+### Duplicazione di un documento
+
+_Deciso 11 agosto 2026._
+
+Un documento duplicato **riceve un numero nuovo**, non quello del documento d'origine. Il numero proposto segue la regola sopra, calcolata sulla data del duplicato.
+
+Non è una scelta di comodo: il vincolo unique rende il numero d'origine impossibile da riusare, e un duplicato che nasce con lo stesso numero fallirebbe al salvataggio o produrrebbe il conflitto del §3 su un'azione che non lo merita.
+
+Vale per tutte le serie e tutti i tipi documento.
+
+### Duplicare un documento dà il numero successivo, mai lo stesso
+
+_Deciso 13 agosto 2026. Verificato in codice: già così in tutte e sei le maschere che duplicano._
+
+«Duplica documento» apre una maschera **nuova** precompilata col contenuto dell'originale — nessuna copia nasce a monte, il documento si crea al salvataggio. Il numero **non** si eredita: il campo si azzera, la data diventa oggi e riparte la proposta. Il duplicato prende quindi il primo libero **calcolato sulla data del duplicato**, non su quella dell'originale (§2).
+
+È l'unico comportamento possibile col vincolo unico del §3, ma va scritto lo stesso perché è anche l'unico che si vuole: si duplica per non ridigitare venti righe, non per riemettere lo stesso documento.
+
+**Implementazione** (`applyDuplicatePrefill` / `applyDuplicateFromDocument`): `documentNumber: null`, data odierna, riproposta dei contatori. Sono sei copie dello stesso gesto, e su un punto **divergono**: cinque azzerano anche la serie, la Registrazione fattura fornitore tiene quella dell'originale. Quando non esiste un contatore predefinito la riproposta non sovrascrive nulla, e la differenza si vede. **Da decidere quale sia quella giusta** — cioè se duplicare un documento di serie A debba dare un altro documento di serie A.
+
 ### Niente duplicati, niente "bis"
 
 _Deciso 11 agosto 2026._
@@ -173,7 +446,7 @@ _Deciso 11 agosto 2026._
 
 ## §3 — Conflitto al salvataggio
 
-_Deciso 8 agosto 2026, riconfermato l'11._ ✅ **In codice dal 12 agosto 2026**: la modifica del ramo che rovesciava il comportamento è stata annullata su tutte e sette le maschere, e le prove che la fissavano sono state riscritte.
+_Deciso 8 agosto 2026, riconfermato l'11 agosto dopo una modifica del ramo che va annullata._
 
 ### Quando compare
 
@@ -203,7 +476,7 @@ Il numero digitato è comunque perso: quel treno è passato. Lasciare il campo c
 
 L'11 agosto alle 03:07 il ramo ha rovesciato questo comportamento — «Il numero in testata non è stato modificato: correggilo e premi di nuovo Salva» — con la motivazione che sostituire il numero d'ufficio butta via l'intento di chi voleva quel buco preciso. La motivazione è comprensibile, ma **il costo è più alto del beneficio**: l'intento è comunque irrealizzabile, e l'operatore resta senza l'informazione che gli serve.
 
-**Il codice va riportato al comportamento dell'8 agosto.** ✅ Fatto il 12/08/2026: `acknowledge()` restituisce il numero, ogni maschera lo scrive nel proprio controllo e lo segna come scelto — se restasse una proposta verrebbe omesso al salvataggio e il server ne assegnerebbe un terzo, diverso da quello appena mostrato.
+**Il codice va riportato al comportamento dell'8 agosto.**
 
 ### Due cose del ramo che si tengono
 
@@ -215,7 +488,7 @@ Il numero assegnato dev'essere il primo libero **secondo la regola del §2**, ci
 
 `buildDocumentNumberConflict` (`document-numbering.util.ts:204`) chiama `nextDocumentNumber`, la stessa funzione della proposta: cambiando la regola in un punto, il conflitto la segue. **Ma eredita anche la mancanza della data**, che va propagata nei suoi tre punti di chiamata — `documents.service.ts:1032`, `goods-receipt-workflow.ts:199`, `transfer-adjustment-workflow.ts:188`. Se lì la data non arriva, l'avviso nominerebbe un numero calcolato con una regola diversa da quella che ha appena rifiutato il salvataggio.
 
-Il testo del messaggio va riscritto insieme alla regola: oggi dice «In testata è stato messo il 44, il prossimo numero della serie», dove `nextAvailable` è massimo+1. Sotto la regola nuova quel campo contiene il primo libero secondo la data, e la frase direbbe una cosa che il campo non contiene più.
+Il testo del messaggio va riscritto insieme alla regola: oggi dice «Il prossimo numero della serie è il 44», dove `nextAvailable` è massimo+1. Sotto la regola nuova quel campo contiene il primo libero secondo la data, e la frase direbbe una cosa che il campo non contiene più.
 
 **Superato:** il modale a due bottoni «Usa Y / Annulla» (24 luglio); il modale a tre opzioni con «Salva con numero duplicato» e l'evidenziazione arancione dei duplicati (`numerazione-documenti-verifica.md`); il campo non aggiornato (ramo, 11 agosto 03:07).
 
@@ -231,9 +504,15 @@ _Deciso 11 agosto 2026. Da implementare._
 
 ### Quando nasce l'anomalia
 
-La proposta automatica non genera anomalie riempiendo i buchi (§2). L'anomalia nasce quando l'operatore **forza il numero a mano**, o **cambia la data** di un documento già salvato — e resta poi visibile nei documenti creati dopo, come nel caso terminale del §2.
+Con la regola del §2 accesa **la proposta non genera anomalie riempiendo i buchi**. Ne restano **tre** sorgenti, e tutte e tre partono da un gesto dell'operatore:
 
-_Nota: la prima stesura diceva «l'anomalia può nascere solo in due modi, perché la proposta automatica è corretta per costruzione». La seconda parte era imprecisa e va letta così: la proposta non crea anomalie, ma può renderne visibile una già introdotta dall'operatore._
+1. **numero forzato a mano** in testata;
+2. **data cambiata** su un documento già salvato;
+3. **il caso terminale del §2** — i numeri liberi sotto un documento datato avanti si esauriscono e la proposta deve scavalcare.
+
+Nel terzo caso **l'avviso deve comparire, ed è corretto**: l'anomalia l'ha creata chi ha datato il documento al futuro, il sistema ha solo proseguito a numerare per data. Che compaia al quinto documento anziché al primo è solo il momento in cui la conseguenza diventa visibile.
+
+_Nota: la prima stesura diceva «l'anomalia può nascere solo in due modi, perché la proposta automatica è corretta per costruzione». Era impreciso in due punti — i modi sono tre, e la proposta non crea anomalie ma può renderne visibile una già introdotta._
 
 ### Comportamento
 
@@ -251,6 +530,40 @@ Una volta spenta resta spenta. Nessuna riaccensione, nessun pannello nelle Impos
 
 Copiare `UserDocumentPriceModePreference`, chiavata su `(tenantId, userId, documentType)` — è esattamente l'identità che serve. Non progettare una tabella nuova.
 
+### Stato al 13/08/2026
+
+**Fatto: la preferenza.** `UserDocumentChronologyWarningPreference`, migration `20260813160000_avviso_cronologico_preferenza`, **applicata** — stessa forma e stessa identità del modello indicato, con RLS e `REVOKE` nella stessa migration come vuole la regola di sicurezza.
+
+Una scelta di forma: **l'esistenza della riga È la preferenza**, non c'è un booleano. Non esiste il caso «riacceso» — nessuna riaccensione, nessun pannello — quindi un booleano avrebbe un solo valore utile e un secondo stato da spiegare. `dismissed_at` resta per sapere _quando_, visto che l'unico rimedio a una spunta presa per sbaglio è il database.
+
+**Fatto: il rilevamento.** `document-chronology.util.ts` — una query con **funzione finestra**: il massimo delle date dei numeri precedenti si calcola scorrendo la partizione una volta sola, non con un confronto a coppie che su una serie lunga sarebbe quadratico. Elenca **tutti** i documenti fuori posto, ordinati per numero.
+
+Sei prove lo fissano, e la più importante è **«numeri fuori ordine nello stesso giorno: nessuna anomalia»**: è il `<` stretto contro il `<=`, cioè la parola su cui la regola si gioca. Con `<=` ogni serie non numerata in ordine di creazione dentro la giornata risulterebbe rotta. Ci sono anche il numero forzato indietro nel tempo e **il caso terminale** — il 16 datato oggi che scavalca il 15 datato fra una settimana — che l'avviso deve segnalare.
+
+⚠️ **Limite dichiarato delle prove:** il tx finto _esegue_ la regola in JavaScript, non la query. Fissano quindi la **semantica** — e con essa il `<` stretto — non l'SQL. È lo stesso limite della «strada C» del §0: senza un Postgres in prova, l'SQL non è verificabile.
+
+**Fatto: il percorso completo.** `DocumentChronologyService` (controllo + spegnimento), due rotte su `documents` — `GET /documents/chronology` e `POST /documents/chronology/dismiss` — lo store `DocumentChronologyWarningStore` in `domain/`, e il dialogo `app-document-chronology-warning-dialog`, che **non è un dialogo nuovo**: è `app-confirm-dialog` con dentro l'elenco e la casella, perché il comportamento modale — fuoco intrappolato, ESC, sfondo inerte — non si riscrive una seconda volta.
+
+Sette prove sullo store fissano il comportamento, compresa quella che dice che **l'avviso ricompare** dopo essere stato confermato: è la persistenza, ed è la parte che un domani qualcuno potrebbe scambiare per un difetto.
+
+Due scelte di robustezza, entrambe nel verso giusto in cui sbagliare: se il **controllo** non risponde si salva lo stesso — un avviso mancato è meno grave di un documento perduto — e se lo **spegnimento** fallisce l'avviso ricompare, perché uno spegnimento che non si riaccende non va concesso per errore di rete.
+
+**Collegate tutte e sette** _(13/08/2026)_: Arrivo merce, Ordine cliente, Ordine fornitore, Trasferimento, Rettifica, Fatture, Registrazione fattura. «Si applica a tutti i tipi documento» è ora vero.
+
+**Una guardia, non venti righe per sette.** Le prime venti righe scritte sull'Arrivo merce sono state estratte in `DocumentChronologyGuard` (`domain/documents/state/`) prima di replicarle: è la stessa forma che ha già prodotto tre divergenze silenziose in quest'area, e ripeterla sarebbe stato scriverne la quarta. Alla maschera restano **tre innesti**: `chronology.run(…)` al posto della chiamata di salvataggio, `chronology.confirm()` sul «Sì, salva comunque», e il dialogo in coda al template.
+
+**Dove si innesta, maschera per maschera** — è l'unica cosa che cambia, e non si indovina:
+
+| Maschera                            | Punto                              | Perché lì                                                                                                                                               |
+| ----------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arrivo merce                        | `requestSaveDocument`              | punto unico                                                                                                                                             |
+| Ordine cliente                      | `saveDocument`                     | **sei** percorsi ci confluiscono (testata, dialogo disponibilità, copertura ordini): più a monte andrebbe replicato sei volte, e una si dimenticherebbe |
+| Ordine fornitore                    | `submit`                           | pulsante, dialogo di uscita e conclusione ordine passano tutti di qui                                                                                   |
+| Registrazione fattura               | `save`                             | pulsante e dialogo di uscita                                                                                                                            |
+| Trasferimento · Rettifica · Fatture | `saveDraft` **e** `confirmAndSave` | due percorsi distinti: modifica di un documento confermato, e creazione con conferma                                                                    |
+
+**Sull'ordine dei due dialoghi**, dove tre maschere differiscono e la differenza è voluta: Trasferimento, Rettifica e Fatture hanno già una conferma dell'operazione (regola delle azioni sensibili). Il controllo cronologico sta **dopo** quella conferma, non prima: sono due domande diverse — una chiede se muovere la merce, l'altro segnala com'è messa la numerazione — e invertirle farebbe rispondere «sì» due volte prima di aver deciso la cosa principale.
+
 ---
 
 ## §5 — Quale numerazione ha ciascun documento
@@ -259,17 +572,16 @@ _Lista definita da Luigi l'11 agosto 2026._
 
 ### Categoria A — Data interna, Numero interno, Serie interna
 
-| Documento                | Note                                                                                                                                                                                                                                              |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Preventivi               |                                                                                                                                                                                                                                                   |
-| Ordine cliente (interno) | Solo `source = manual`. Gli ordini dai canali portano il numero del canale, vedi §8 **Numerazione in testata dal 12/08/2026**: il campo era nascosto da un `@if (!isOrder)`, e il numero lo assegnava il server senza che l'operatore lo vedesse. |
-| Fattura proforma         | Oggi si chiama «Proforma», da rinominare                                                                                                                                                                                                          |
-| DDT di vendita           | Da valutare il nome, vedi §10                                                                                                                                                                                                                     |
-| Fattura                  | Con tutta la famiglia di sottotipi: accompagnatoria, d'acconto, nota di credito. **Un solo progressivo condiviso**                                                                                                                                |
-| Ordini fornitore         | ✅ **Fatto il 12/08/2026.** In testata non c'erano né numero né serie: il server numerava d'ufficio e l'operatore non vedeva né sceglieva niente. Nessuna migration — le colonne `series` e `number` su `supplier_orders` c'erano già             |
-| Scarico manuale giacenze |                                                                                                                                                                                                                                                   |
-| Trasferimenti interni    | Numerazione propria. Il DDT eventualmente generato ha la sua                                                                                                                                                                                      |
-| Rettifica inventario     | _Aggiunta il 12 agosto 2026._ Mancava dalla lista — non per scelta, per dimenticanza. **Già implementata**: data, numero e serie in testata, e `adjustment` è fra i tipi con numeratore proprio (`COUNTER_CONFIGURABLE_DOCUMENT_TYPES`)           |
+| Documento                | Note                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Preventivi               |                                                                                                                    |
+| Ordine cliente (interno) | Solo `source = manual`. Gli ordini dai canali portano il numero del canale, vedi §8                                |
+| Fattura proforma         | Oggi si chiama «Proforma», da rinominare                                                                           |
+| DDT di vendita           | Da valutare il nome, vedi §10                                                                                      |
+| Fattura                  | Con tutta la famiglia di sottotipi: accompagnatoria, d'acconto, nota di credito. **Un solo progressivo condiviso** |
+| Ordini fornitore         |                                                                                                                    |
+| Scarico manuale giacenze |                                                                                                                    |
+| Trasferimenti interni    | Numerazione propria. Il DDT eventualmente generato ha la sua                                                       |
 
 ### Categoria B — due blocchi distinti
 
@@ -307,54 +619,7 @@ La confusione col numero del fornitore si risolve con la separazione visiva dei 
 
 **Superato:** «Protocollo» come etichetta (24 luglio) — motivato da un obbligo che non esiste.
 
-⚠️ **La parola è ancora a schermo** _(misurato 12/08/2026)_: `goods-receipt-form.component.html` la usa come etichetta del campo (righe 264 e 455), nell'intestazione della pagina (riga 30, «Protocollo: …») e nel titolo del dialogo di conflitto (riga 2177); la Fattura acquisto la usa in un messaggio (`purchase-invoice-form.component.ts:460`). Il nome del controllo (`protocolNumber`) e i commenti dei mapper la portano ancora. Decidere se la rinomina è solo di etichette o anche di codice.
-
 **Superata** anche la Categoria C (Scarico manuale, Trasferimenti, Rettifiche con numero non editabile e senza serie), proposta il 24 luglio e sciolta subito dopo.
-
-## §5-bis — Cosa c'è davvero in testata, confrontato con la lista
-
-_Misurato il 12 agosto 2026 su schema Prisma, DTO e maschere Angular. **Nessun campo è stato rimosso**: questa sezione è il confronto che precede la decisione._
-
-### Il blocco «documento della controparte» sta in sei maschere, e la lista lo prevede in due
-
-| Maschera         | Tipi che serve                                   | §5                                              | Trio presente          | Esito                                 |
-| ---------------- | ------------------------------------------------ | ----------------------------------------------- | ---------------------- | ------------------------------------- |
-| Arrivo merce     | `goods_receipt`                                  | Cat. B — lo prevede                             | sì                     | ✅ è il caso per cui è nato           |
-| Fattura acquisto | `supplier_invoice`                               | Cat. B — prevede numero e data, **non** il tipo | sì, tutti e tre        | ⚠️ `externalDocumentTypeId` di troppo |
-| Ordine cliente   | ordine, preventivo, DDT vendita, scarico manuale | Cat. A                                          | sì                     | ❌ tre campi di troppo                |
-| Fatture          | proforma, fattura, accompagnatoria               | Cat. A                                          | sì                     | ❌ tre campi di troppo                |
-| Ordine fornitore | ordine fornitore                                 | Cat. A                                          | sì                     | ❌ tre campi di troppo                |
-| Rettifica        | `adjustment`                                     | Cat. A (aggiunta oggi)                          | sì                     | ❌ tre campi di troppo                |
-| Trasferimento    | `transfer`                                       | Cat. A                                          | **no, tolto il 12/08** | ✅                                    |
-
-**Perché sono di troppo, e sono due motivi diversi.** Trasferimento e Rettifica sono documenti **interni**: non esiste una controparte che abbia emesso qualcosa. L'Ordine fornitore una controparte ce l'ha, ma **in quel momento non ha ancora emesso niente**: il suo documento arriva dopo, con la merce, ed è esattamente quello che l'Arrivo merce chiede. Chiedere il numero di un documento che non esiste ancora è ciò che lascia quelle celle vuote per sempre.
-
-### Da dove vengono le colonne, e cosa contengono
-
-**Aggiunte dal commit `6fc27982` (11 agosto)**, migration `20260810120000_documento_controparte_ovunque`:
-
-| Tabella           | Colonne                                                                                                    | Dati al 12/08/2026              |
-| ----------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `sales_orders`    | `external_doc_number`, `external_doc_date`, `external_document_type_id`, `external_document_type_snapshot` | 28 record, **zero valorizzati** |
-| `supplier_orders` | le stesse quattro                                                                                          | 10 record, **zero valorizzati** |
-
-**Preesistenti**, migration `20260701120000_documents_foundation` (1° luglio), nate per l'Arrivo merce: le stesse colonne su `documents`. Qui i dati **ci sono, ma solo dove servono**: 99 documenti, 47 valorizzati, **tutti `goods_receipt`**. Sales DDT, preventivi, scarico manuale e vendite al banco: zero. Di trasferimenti e rettifiche non esiste ancora nessun record.
-
-**Conseguenza operativa:** togliere le quattro colonne da `sales_orders` e `supplier_orders` **non perde alcun dato**. Su `documents` invece le colonne restano — le usa l'Arrivo merce — e il di troppo è solo nell'interfaccia degli altri tipi. Resta comunque una migration distruttiva su database condiviso: va decisa a parte, non fatta di sfuggita.
-
-### I campi viaggiano anche dove non si vedono
-
-Li accettano `save-transfer.dto`, `save-adjustment.dto`, `create-document.dto`, `update-document.dto`, `create-supplier-order.dto`, `update-supplier-order.dto`, `save-manual-sales-order.dto`. Togliere il blocco dalle maschere non basta a chiudere la porta: finché il DTO li accetta, un client può scriverli.
-
-### ✅ Ordine fornitore e Ordine cliente: numerazione in testata — chiuso il 12/08/2026
-
-⚠️ **La prima stesura di questa voce diceva che l'Ordine fornitore era «l'unico di Categoria A» senza numerazione in testata. Era falso: erano due.** L'Ordine cliente aveva i controlli nel form ma il campo nascosto da un `@if (!isOrder)`, in entrambe le viste — e verificare che un controllo esista non è verificare che si veda. L'errore è stato trovato da una verifica adversariale della specifica contro il codice, non da una prova.
-
-Su entrambi il server numerava già — serie predefinita, lock sul contatore, primo libero — quindi il numero c'era: non si vedeva, e non si poteva scegliere la serie né tappare un buco.
-
-Deciso da Luigi: **serie, numero e data come tutti**, col meccanismo degli altri (proposta dal contatore, gestione serie dall'ingranaggio, avviso sul numero già preso). Fatto senza migration: `series` e `number` su `supplier_orders` esistevano già.
-
-**Il blocco non è stato copiato, è stato estratto.** Sarebbe stata la sesta copia dello stesso meccanismo (Ordine cliente, Arrivo merce, Fattura acquisto, Trasferimento, Rettifica ne portano una ciascuna). Ora vive in `domain/documents/state/document-numbering.store.ts`, con le sue undici prove, e l'Ordine fornitore è il primo consumatore. **Le altre cinque restano com'erano**: migrarle è un passo suo, una maschera per volta.
 
 ### Quale data usa la numerazione
 
@@ -373,83 +638,17 @@ _Verificato sul ramo l'11 agosto._
 | 7   | `manual-sales-orders.ts:274` (ordine cliente)       | **Aperto** — non c'è una data del documento in scope, va deciso quale campo di `SalesOrder` fa fede |
 | 8   | `supplier-orders.service.ts:175`                    | `dto.orderDate ?? new Date()`                                                                       |
 
-**Anteprima — tre punti, e manca il campo.** `documents.service.ts:788`, `manual-sales-orders.ts:90`, `supplier-orders.ts:122`. `PreviewDocumentNumberQueryDto` porta `type`, `series`, `year` e **nessuna data**: va aggiunta, e il frontend deve richiedere l'anteprima a ogni cambio data. Il meccanismo esiste già per il cambio serie (§6), quindi è un innesto.
+**Anteprima — tre punti, e mancava il campo.** `documents.service.ts:788`, `manual-sales-orders.ts:90`, `supplier-orders.ts:122`. `PreviewDocumentNumberQueryDto` portava `type`, `series`, `year` e **nessuna data**.
+
+✅ **Fatto il 13/08, e non era teoria.** La divergenza si è vista dal vivo: su un documento datato indietro la testata mostrava `5` e il salvataggio assegnava `2`. Peggio del numero sbagliato era il seguito — la maschera si accorge dello scarto e mostra il messaggio «il numero è stato preso da un altro operatore», che accusa un collega inesistente.
+
+La data ora viaggia su `AvailableCountersQueryDto` (`@IsISO8601`), attraversa controller → `available()` → `toView()` → `nextNumber()`, e **tutte e sette le maschere richiedono l'anteprima a ogni cambio data**. Prima ce l'aveva solo l'Arrivo merce, e serviva a ricaricare le serie, non a rinumerare.
+
+Un'avvertenza per chi tocca la Registrazione fattura: lì le date sono due, e quella che numera è `documentDate` (la data della fattura del fornitore), non `registrationDate`. È il campo che il server passa a `resolveDocumentNumber`, quindi la sottoscrizione sta su quello. Che sia la scelta giusta è un'altra questione — vedi la voce in §10.
 
 Nota: quel `year` nel DTO è un residuo dell'anno che il §1 dichiara uscito dal modello.
 
 ---
-
-## §5-ter — Cosa è stato tolto, cosa resta, cosa aspetta la finestra
-
-_Scritto il 12 agosto 2026, dopo il rilievo dei campi di testata di tutte e sette le maschere (schema Prisma, DTO, form). È la lista che serve fra due settimane per sapere **cosa era residuo e cosa era voluto**._
-
-### A — Tolto, e chiuso anche l'ingresso
-
-| Cosa                                                        | Dove                                                                           | Stato                                                                                                                                                |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Blocco «documento della controparte» (Tipo · Numero · Data) | Ordine cliente, Ordine fornitore, Fatture di vendita, Rettifica, Trasferimento | ✅ tolto dalle maschere **e dai DTO**                                                                                                                |
-| Solo il **Tipo documento**                                  | Registrazione fattura fornitore                                                | ✅ tolto: la maschera registra una fattura, il tipo è già nel nome. Restano N. fattura e Data fattura, che sono i dati del documento che si registra |
-| Segnaposto «Es. conferma d'ordine del fornitore»            | Ordine fornitore, campo «Rif. ordine fornitore»                                | ✅ cambiato in «Es. RIF-2026-114»: invitava a scrivere a mano il documento appena tolto — non un residuo, **un'istruzione sbagliata**                |
-| Commenti che descrivevano il blocco come presente           | Ordine cliente, Ordine fornitore                                               | ✅ tolti                                                                                                                                             |
-
-**Perché anche i DTO.** Finché accettano quei campi, un client può scriverli e le colonne tornano a riempirsi di dati che nessuna maschera mostra. Chiudere l'ingresso è **additivo** e non aspetta nessuna finestra. Restano aperti in due soli posti, dove servono davvero: `save-goods-receipt.dto` (la merce arriva accompagnata da un documento, e il tipo va scelto) e `save-purchase-invoice.dto` (si sta registrando la fattura del fornitore, ed è da lì che gli arrivi merce si agganciano).
-
-### B — Resta com'è, e non è un residuo
-
-| Campo                                         | Dove                                 | Perché resta                                                                                      |
-| --------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Blocco controparte completo                   | **Arrivo merce**                     | È il caso per cui è nato: la merce arriva accompagnata da documenti diversi, e il tipo si sceglie |
-| N. fattura + Data fattura                     | **Registrazione fattura fornitore**  | Sono i dati del documento che si sta registrando                                                  |
-| `externalRef`                                 | Ordine cliente / Scarico manuale     | È una **causale libera** («campionario fiera»), non il numero di un documento                     |
-| `supplierReference`                           | Ordine fornitore                     | Riferimento libero comunicato dal fornitore: un codice, non un documento con tipo e data          |
-| `expectedDeliveryDate` / `expectedAt`         | Ordine cliente, Ordine fornitore     | Consegna prevista: fuori dal perimetro della numerazione                                          |
-| Campi trasporto (data e ora, colli, tracking) | DDT vendita, Fattura accompagnatoria | Dominio del trasporto                                                                             |
-
-### C — Aspetta la finestra distruttiva
-
-Da fare **insieme**, in una finestra concordata col collega, non a spizzichi: ogni pezzo è un `DROP` su un database condiviso.
-
-| Cosa                                          | Tabelle                           | Dati oggi                                                                                                                                                             |
-| --------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Quattro colonne del documento controparte     | `sales_orders`, `supplier_orders` | **vuote su tutti i record** (28 e 10 al 12/08/2026): togliere non perde niente                                                                                        |
-| Le stesse colonne per i tipi che non le usano | `documents`                       | ⚠️ **NON si toccano**: 47 documenti le hanno valorizzate, e sono tutti Arrivi merce. Lì il di troppo era solo nell'interfaccia degli altri tipi, ed è già stato tolto |
-| `documents.year`                              | `documents`                       | Vedi sotto                                                                                                                                                            |
-| Numerazione del Corrispettivo                 | §8                                | Coordinare con `feature/cassa`                                                                                                                                        |
-| `DocumentSequence`                            | §9                                | Backup da sistemare prima                                                                                                                                             |
-
-#### `documents.year` — è una colonna scritta, non un calcolo al volo
-
-_Verificato il 12/08/2026._ È `Int` **NOT NULL**, riempita all'inserimento da `documentDate.getFullYear()` in due punti (`documents.service.ts:909` e `:1348`), mappata sul modello frontend (`document-api.mapper.ts:307`) — e **letta da nessuno**. Non entra in nessun indice di `Document`, e il commento nello schema lo dice già: «Metadato (filtri/adempimenti). NON fa più parte della numerazione».
-
-**Quindi la rimozione è una migration, non solo codice — e non c'è un ordine sicuro fra le due.** Essendo NOT NULL senza default, **entrambe le metà da sole rompono ogni inserimento**:
-
-| Se cade prima…                  | Cosa succede                                                                   |
-| ------------------------------- | ------------------------------------------------------------------------------ |
-| **il codice** che scrive `year` | ogni `INSERT` viola il vincolo NOT NULL: nessun documento si salva più         |
-| **la colonna**                  | ogni `INSERT` nomina una colonna che non esiste: nessun documento si salva più |
-
-Non è quindi «prima l'uno o prima l'altro»: **schema, migration, codice e `prisma:deploy` in un colpo solo**, come dice `regole-qualita` («o tutti e tre insieme, oppure nessuno dei tre»).
-
-**Perché va tolta e non lasciata lì.** Il §1 dice che l'anno esce dal modello. Finché una colonna che si chiama `year` esiste e viene calcolata, prima o poi qualcuno ci si appoggia — un filtro, un export, un adempimento — e **riapre da solo il concetto che abbiamo tolto**. Non è un residuo innocuo: è un invito.
-
-#### ⛔ L'anno si toglie SOLO da `documents`. Altrove è in funzione
-
-Questa è la riga da leggere se fra due settimane si legge «togliamo l'anno» e si va a cercare dove sta.
-
-| Tabella                 | L'anno è…                                                                                      | Si tocca qui?                                       |
-| ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `documents`             | metadato scritto e mai letto                                                                   | ✅ sì, è questo il perimetro                        |
-| `online_sales`          | **nella chiave unica** `(tenant, series, year, number)` e dentro il riferimento `VO-2026-0001` | ⛔ **no** — cade col §8, insieme al vecchio motore  |
-| `corrispettivo_entries` | idem, `COR-2026-0001`                                                                          | ⛔ **no** — §8, e va coordinato con `feature/cassa` |
-| `document_sequences`    | **nella chiave** `(tenant, type, series, year)`: è la partizione stessa                        | ⛔ **no** — cade col §9, con la tabella intera      |
-
-Toglierlo dalle ultime tre non è una pulizia: **rompe la numerazione delle vendite online e dei corrispettivi**, che su quelle colonne ci contano davvero.
-
-### D — Da decidere, non da eseguire
-
-- **Ordine fornitore**: il riferimento salvato (`OF-2026-0001`) non si vede mai in modifica — l'anteprima è spenta e `reference` non è reso da nessuna parte.
-- **Ordine fornitore in creazione**: la riga in cima («prossimo riferimento») è calcolata sulla **serie predefinita** e può quindi nominare una serie diversa da quella scelta nel campo. Due numeri diversi in testata.
-- **Arrivo merce in modifica**: numero digitato ignorato e nessuna rinumerazione al cambio serie (§6 lo registra come decisione aperta).
 
 ## §6 — Serie e testata
 
@@ -474,6 +673,16 @@ Su un documento già salvato tutta la testata resta modificabile: data, serie e 
 **`DocumentTypeSetting`** porta ancora `autoNumbering` e `defaultSeries` (default `'A'`). La logica di numerazione non li consulta — la serie viene da `defaultCounterSeries` — ma restano trasportati da impostazioni e DTO. Il 3 agosto era stato deciso di rimuoverli, perché creavano una seconda configurazione della serie che non parlava coi contatori. **Da tracciare fino al frontend prima di toglierli.**
 
 **Arrivo merce in modifica** ignora il numero digitato e il cambio serie. Preesistente, ma contraddice la regola sopra. **Decisione di prodotto aperta**, non un bug da sistemare senza chiedere.
+
+Le righe, perché la prossima verifica non debba ricercarle — e perché l'asimmetria sta nello **stesso file**, a cinquecento righe di distanza:
+
+| Documento                       | Dove                                              | Cosa fa in aggiornamento                                                                                                                                                                                                           |
+| ------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arrivo merce                    | `goods-receipt-workflow.service.ts:426`           | `let number = existing?.number ?? null` — se il numero c'è, l'intero blocco di assegnazione è saltato: `dto.number` non viene letto e la serie nuova si scrive **senza ricomporre il riferimento**, che resta con la serie vecchia |
+| Registrazione fattura fornitore | `goods-receipt-workflow.service.ts:954-956`       | riassegna se `dto.number` cambia **o** se cambia la serie                                                                                                                                                                          |
+| Trasferimento e Rettifica       | `transfer-adjustment-workflow.service.ts:143-146` | come la Registrazione fattura                                                                                                                                                                                                      |
+
+Non è quindi «l'Arrivo merce contro la regola»: è **l'Arrivo merce contro le altre tre**, e la maggioranza sta con la regola del §6.
 
 ---
 
@@ -573,9 +782,95 @@ Una stesura precedente diceva che condividevano già un solo progressivo e non c
 
 La correzione **rende vera** la decisione di condividere il progressivo, non la cambia.
 
+### «È ancora una proposta?» — una classe di errore chiusa alla radice
+
+_Fatto 13 agosto 2026._
+
+Il campo Numero dice «proposta» finché il documento è nuovo e nessuno l'ha digitato: da quel «proposta» dipende se il numero **viaggia al salvataggio**. La domanda si risolveva ricalcolando su `valueChanges` — che però **non emette su `markAsDirty()`**. Chi scriveva il valore prima di marcarlo otteneva una ricalcolata a controllo ancora pristine, e il numero digitato restava a terra: si salvava con quello automatico, in silenzio.
+
+La correzione non è stata «rimettere le due righe nell'ordine giusto», che era già stata fatta e **non aveva tenuto**: la trappola era ricomparsa da sola nei sette gestori dell'avviso di conflitto, scritti dopo. Ora `numberIsDirty` legge un signal costruito su `control.events`, che includono `PristineChangeEvent`, e `markAsDirty()` emette **dopo** aver marcato: qualunque ordine si riallinea da solo. La dipendenza non è corretta, non c'è più.
+
+Stato prima: una maschera col meccanismo giusto (Registrazione fattura), una che se l'era costruito e **non l'aveva collegato a niente** (Ordine cliente), cinque col ricalcolo debole. Ora tutte e sette leggono lo stesso signal, e il contratto dello store lo pretende per iscritto.
+
+### Arrivo merce: «già numerato» guarda l'esistenza, non il riferimento
+
+_Deciso 13 agosto 2026._
+
+Questa maschera dopo «Salva documento» **resta aperta** (§10.7), quindi un documento salvato continua a vivere sulla rotta di creazione — dove le altre non arrivano mai, perché se ne vanno al dettaglio. Serviva una condizione in più, e prima era `Boolean(loadedDocument()?.reference)`. Ora è `persistedDocumentId() !== null`: la stessa cosa che le altre dicono con `isEditMode()`, detta per una maschera che non se ne va.
+
+**La sola rotta non basta, ed è misurato.** Con `isEditMode()` da solo la prova `dopo il salvataggio il numero assegnato non torna a essere una proposta` fallisce: salvato col 46, la prima riproposta dei contatori riporta il campo al 42 di prima, e l'operatore trascrive un numero che non è del suo documento. La prova resta come guardia.
+
+### Due difetti trovati simulando l'operatore, non leggendo il codice
+
+_13/08/2026. Entrambi introdotti o resi visibili dal lavoro dello stesso giorno, entrambi corretti subito._
+
+**Il campo Sede della Fattura non veniva salvato.** Era stato aggiunto in testata a Proforma, Fattura e Accompagnatoria, ma nel corpo del salvataggio `locationId` viaggiava **solo dentro il ramo della Fattura accompagnatoria**, dove serviva allo scarico. Sulle altre due l'operatore sceglieva la sede, la vedeva scritta, salvava — e non arrivava da nessuna parte.
+
+**Al cambio sede la serie selezionata restava indietro.** Con un numero già digitato, `applyProposal` usciva subito per non sovrascrivere la scelta dell'operatore, e non toccava nemmeno la serie: la tendina si aggiornava, il valore selezionato no, e il documento si salvava sotto una serie che in quella sede non esiste. La regola ora è **il numero digitato resta, la serie sparita cede** — un numero è una scelta, una serie non più disponibile è un residuo. Con l'elenco vuoto (richiesta fallita o in volo) non si tocca niente.
+
+### Cinque difetti che solo l'applicazione vera ha mostrato
+
+_13/08/2026. Nessuno dei cinque era visibile dai test: le suite erano verdi prima e dopo._
+
+Le prime tre si sono viste conducendo l'applicazione come un operatore; le ultime due
+riprovando **dopo** le correzioni, che è il motivo per cui si riprova.
+
+**1. Numero già preso → 500 invece di 409.** Il riconoscimento del conflitto leggeva i
+nomi delle colonne dal `meta.target` di Prisma. Ma l'indice unico è di **espressione**
+(dall'11/08 la serie assente partecipa come stringa vuota), e su quelli Prisma non sa
+dire le colonne: manda `['tenant_id,']`, un troncone. L'operatore vedeva «errore
+imprevisto» invece dell'avviso che nomina il numero. Ora si riconosce dal **modello**
+(`Document`, `SalesOrder`, `SupplierOrder`), che c'è sempre — e l'inventario di
+`pg_indexes` dice che su quelle tre tabelle nessun altro vincolo unico può scattare
+salvando un documento. Verificato dal vivo: 409 con `{code, number, nextAvailable, series}`.
+
+**2. La testata mostrava un numero che il salvataggio non avrebbe usato.** Misurato:
+tendina 5, salvataggio 2. Vedi il §5 sopra: mancava la data sul DTO dei contatori, e sei
+maschere su sette non richiedevano l'anteprima al cambio data.
+
+**3. L'Ordine cliente chiedeva i contatori del Preventivo.** La maschera serve quattro
+modalità; tre vivono nel registro `documents` e la quarta — l'Ordine cliente — in
+`SalesOrder`, con un numeratore suo (`customer_order`). Il tipo si risolveva con una
+ternaria il cui ramo finale era `Quote`, quindi l'Ordine cliente **cadeva nel ripiego**:
+mostrava le serie del Preventivo in testata e controllava la cronologia sulla serie di un
+altro tipo. Ora `numberingDocumentType` è separato da `registryDocumentType`.
+
+**4. Il controllo cronologico rispondeva 500 sull'Ordine cliente.** La query in SQL
+grezzo selezionava `reference`, colonna che su `sales_orders` non esiste — lì si chiama
+`order_number`. Il commento sopra la query lo diceva già; la riga sotto non lo faceva.
+Emerso solo perché la correzione 3 ha portato l'Ordine cliente a chiamare davvero quel
+controllo.
+
+**5. Il controllo cronologico non guardava mai i documenti senza serie.** La maschera
+manda `series=''`, i documenti senza serie hanno `series IS NULL`, e il confronto era
+`series = ''`: zero righe, sempre. Ed è la partizione **più usata di tutte**, perché è il
+contatore predefinito. Ora la normalizzazione è in `serieCanonica`, accanto alla
+numerazione. La stessa regola vive ancora **scritta a mano in dodici punti** dei servizi
+di salvataggio (`(series ?? '').trim() || null`): lì non è sbagliata, e non l'ho toccata —
+va deciso se accorparla.
+
+**Cosa è stato riprovato dal vivo, a correzioni fatte** (database vero, API vera,
+browser vero): il 409 col suo payload; testata e salvataggio che dicono lo stesso numero
+su una data passata (2 e 2, mentre a oggi la testata dice 8 — la data cambia davvero la
+proposta); i contatori dell'Ordine cliente distinti da quelli del Preventivo; il
+controllo cronologico che risponde 200 su **tutti e sette** i tipi e trova il documento
+fuori posto; il numero che si rifà al cambio data **nel browser**, su una maschera coi
+campi non bloccati (21 → 5 passando dal 13/08 al 11/01); e l'avviso che **compare
+davvero** al salvataggio, con dentro il documento fuori posto.
+
+### Il §1-bis chiuso: cosa è cambiato
+
+_13/08/2026._
+
+Il predefinito si applica solo se compatibile con la sede; sedici punti di chiamata aggiornati, **anteprima compresa**. «Senza serie» viaggia, con la regola in un punto solo. E **l'avviso di conflitto calcola sulla partizione giusta**: risolveva la serie dal DTO grezzo, quindi con la testata che non ne sceglie una il documento veniva scritto sotto il predefinito mentre il «prossimo libero» si calcolava su «senza serie» — proponendo un numero destinato a un **secondo** conflitto. La guardia esisteva già in tre servizi gemelli.
+
+**Un cambio di comportamento dichiarato:** prima la serie proposta viaggiava anche non toccata, perché la proposta la scriveva nel campo e il campo partiva. Ora no, e un test dell'Ordine fornitore che fissava il vecchio comportamento è stato riscritto sulla regola.
+
 ### Residui
 
 **`nextDocumentNumber`** in `document-totals.util.ts:17` non ha chiamanti. Rimovibile.
+
+**Rimossi il 13 agosto**, residui della migrazione allo store del giorno prima: `imposeDocumentNumber` / `proposeDocumentNumber` e il signal `documentNumberImposed` nell'Arrivo merce (nessun chiamante: il badge «proposta» dipendeva quindi dal solo «non ancora salvato», e non si spegneva quando l'operatore digitava il numero), più due copie morte di `refreshNumberProposal` — una nell'Arrivo merce, una nella Registrazione fattura.
 
 **`DocumentSequence`** è agganciata al backup in cinque punti: due elenchi in `tenant-backup.constants.ts`, il ramo di export, e nell'import un `deleteMany` seguito da `createMany`.
 
@@ -599,6 +894,17 @@ Da decidere in sessione dedicata:
 - **Rinomini**: Proforma → Fattura proforma; Vendita in negozio → Vendita al banco; come qualificare il DDT di vendita senza confonderlo con quello del fornitore, visto che negli Arrivi merce «DDT» indica il documento in arrivo.
 - **Arrivo merce in modifica**: oggi ignora numero digitato e cambio serie (vedi §6).
 - **Ordine cliente**: quale campo di `SalesOrder` fa da data per la numerazione (§5, punto 7).
+- **Registrazione fattura: quale delle due date numera.** La maschera ne ha due — «Data fattura» (`documentDate`, la data che il fornitore ha messo sulla sua fattura) e «Data registrazione» (`registrationDate`, il giorno in cui la si registra). Oggi il numero lo decide la **prima**, e il §5 qui sopra dichiara invece che «la numerazione interna segue sempre la data di registrazione»: le due frasi non stanno insieme. Non è un difetto da correggere di slancio, perché la scelta ha conseguenze sul registro acquisti: numerare sulla data del fornitore significa che una fattura di marzo arrivata a maggio si infila in mezzo ai numeri di marzo, tappando un buco che a quel punto non c'è più. Da chiedere al commercialista prima di toccare.
+- ~~**Generazione massiva («Genera da…»)**~~ — **esce dal perimetro, 13/08/2026.** Non «da fare più avanti»: non si fa. La copertura è **il filtro «non ancora fatturati» sull'elenco DDT** (che esiste già ed è da sistemare) più **l'inclusione documenti** che c'è già: da lì l'operatore vede cosa resta in sospeso e apre la fattura del cliente che sceglie.
+
+  Il ragionamento, perché la decisione si regga da sola: il valore della generazione massiva non era creare venti fatture in un colpo, era **sapere cosa non è ancora stato fatturato**. Con la sola inclusione devi ricordarti tu chi ha DDT in sospeso, e un DDT dimenticato è merce consegnata mai fatturata. Ma quel valore lo dà il filtro, che non crea niente — e il «genera tutte» era esattamente la parte complicata.
+
+  Non era un requisito nostro: veniva da Danea, ed è il tipo di funzione che si eredita senza chiedersi se serve.
+
+  **Nota tecnica, non decisione** — se un giorno con un cliente che fattura a centinaia servisse davvero, il problema è già mappato: venti documenti creati nella stessa transazione **non si vedono l'un l'altro**, perché la regola del §2 calcola **m** leggendo il database e le righe non ancora scritte non ci sono. Chiamarla venti volte darebbe venti volte lo stesso numero. La via indicata sarebbe la sequenza in memoria — si tiene l'ultimo assegnato del giro e si riapplica la regola dei buchi sui numeri appena presi — perché il risultato **deve essere identico a creare venti documenti a mano**. Esclusa invece l'assegnazione a blocco contiguo: salterebbe i buchi che la regola vuole tappare, e farebbe valere **due regole diverse a seconda di come crei**.
+
+- **Sede e catena documenti**: quando una fattura scarica giacenza ereditando da un DDT, la sede da cui si scarica dev'essere quella del documento d'origine, non una scelta libera — altrimenti si scarica da Milano merce uscita da Napoli. Da chiudere insieme alla colonna «scarica giacenza» in fattura (disattivata se il DDT a monte ha già scaricato).
+- **Più partite IVA sotto un'unica gestione**: oggi un tenant = un soggetto fiscale (vedi §1-bis), quindi un cliente con due partite IVA ha due tenant e due abbonamenti. L'alternativa — un tenant con più soggetti — renderebbe la partita IVA un attributo della sede e obbligherebbe ogni documento fiscale a sapere a quale soggetto appartiene: numerazione, registri e cedente XML separati per soggetto. Non è una funzione, è una dimensione nuova del gestionale. Da valutare solo se emergono clienti reali che la richiedono.
 - **Registratore telematico**: un browser non parla con un dispositivo sulla rete locale. Due strade — chiamata diretta al servizio di rete dell'RT, o programma ponte sul computer del negozio. Va scelta anche la lista dei modelli supportati.
 
 ### Domande per il commercialista
