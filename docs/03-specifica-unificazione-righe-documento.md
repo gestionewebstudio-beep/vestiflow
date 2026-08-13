@@ -508,13 +508,27 @@ Tre cose emerse mentre si faceva, e registrate qui perché non erano previste:
 accompagnatoria, cioè `sales-document-form.component`, più la rotta di modifica
 di tutti i documenti di vendita]**
 
-**Non si tocca adesso, e il motivo non è la taglia.** Il ramo
-`feature/fattura-elettronica` sta riscrivendo quel template — 1040 righe —, ed è
-per questo che la maschera è rimasta fuori da tutto il lavoro sulle righe.
-Entrarci ora significherebbe creare conflitto su un file che un altro ramo sta
-rifacendo. **Quando quel ramo rientra, questo è il primo lavoro.**
+**⚠️ Questo paragrafo è stato superato dai fatti il 12/08/2026, e la riga qui
+sotto lo dichiara invece di lasciarlo credere.** Diceva «non si tocca adesso» —
+e la maschera è stata riscritta lo stesso, tre commit nella stessa giornata
+(`8ccf91c4`, `4ce414bf`, `e32573b3`), **dopo** l'ultimo aggiornamento di questo
+documento. Chi legge questa sezione oggi trova scritto il contrario di quello che
+il codice fa.
 
-Stato misurato il 12/08/2026, da non ri-misurare al rientro:
+**Cosa è stato fatto**, e quindi cosa NON va rifatto al rientro del ramo: riga
+articolo come nelle altre maschere (Cod. articolo · SKU · EAN · Nome prodotto),
+pulsante Colonne con le larghezze ricordate, colonna # con ordinamento e
+trascinamento, vista a **card** sotto la soglia — esclusiva della tabella — e
+Codice IVA sulla cella condivisa invece della tendina.
+
+**Resta vero il motivo del rimando**: `feature/fattura-elettronica` sta
+riscrivendo lo stesso template. Il conflitto non è stato evitato, è stato
+**scelto** — e va detto al collega prima del merge, non scoperto durante
+(vedi `MERGE-QUESTO-RAMO.md`, punto 2.4: +846 righe da questa parte, +180
+dall'altra).
+
+Stato misurato il 12/08/2026 **prima** di quei tre commit, tenuto perché dice da
+dove si partiva:
 
 | Cosa                         | Stato                                                  |
 | ---------------------------- | ------------------------------------------------------ |
@@ -536,6 +550,43 @@ quindi il modello da cui copiare è quello.
 progetto**: con lui se ne vanno `onVariantSearch`, `variantOptions` e il
 debounce di ricerca. Dal 12/08/2026 `filterOptionsLocally=false` compare in
 **un solo file** in tutta l'app, ed è questo.
+
+#### ⚠️ Voce aperta — la rotta di modifica non porta il tipo
+
+**[MISURATA il 13/08/2026, NON corretta: sta nello stesso perimetro congelato.]**
+
+Proforma, Fattura e Fattura accompagnatoria condividono **una sola rotta di
+modifica** (`documents.routes.ts:294-302`), e nei suoi `data` non c'è
+`salesDocumentType`. Finché il documento non arriva dalla rete,
+`documentType()` cade sul predefinito `Proforma` per tutti e tre
+(`sales-document-form.component.ts:292-298`).
+
+Cosa se ne vede, verificato:
+
+- il titolo dice **«Modifica proforma»** su una fattura, e sotto compare
+  **«Documento non fiscale / Proforma non valida ai fini IVA»** — stampato sopra
+  un documento fiscale. Transitorio durante il caricamento, **permanente** sulla
+  schermata d'errore e su «Documento non modificabile», che non caricano mai il
+  documento;
+- la tendina Serie parte con le serie della **Proforma**. Una seconda richiesta
+  la corregge quando il documento arriva — ma le due richieste non si cancellano
+  a vicenda, quindi se la prima risponde per seconda riscrive l'elenco giusto
+  con quello sbagliato.
+
+Due strade, entrambe misurate:
+
+| Strada                                                                | Costo                     | Cosa lascia aperto                                                                        |
+| --------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| **A** — tre (presto quattro) rotte con `salesDocumentType` nei `data` | ~46 righe, 2 file         | i link già emessi verso `/sales/:id/edit` smettono di risolvere                           |
+| **B** — non far parlare la maschera prima di sapere chi è             | ~10 righe, 1 file + .html | la rotta continua a non portare il tipo: il prossimo che leggerà `documentType()` ricasca |
+
+La A è la forma coerente col resto del file — DDT vendita, Preventivo e Scarico
+manuale hanno già il tipo nei `data`. **E il ramo della fattura elettronica sta
+allargando lo stesso difetto**, aggiungendo la Nota di credito come quarto tipo
+senza una rotta di modifica propria: è una cosa da dirsi quando si unisce.
+
+Manca anche il test: la **modalità modifica di questa maschera non è coperta**
+(lo spec monta sempre un `ActivatedRoute` con `salesDocumentType` e senza `id`).
 
 **Fuori perimetro, e non per pigrizia.** La Fattura d'acquisto ha righe
 _contabili_ (descrizione, netto, aliquota, IVA): niente articolo, niente
