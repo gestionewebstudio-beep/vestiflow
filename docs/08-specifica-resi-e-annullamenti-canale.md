@@ -166,7 +166,7 @@ Quindi un operatore che spunta «fattura emessa» su un corrispettivo di un peri
 
 ## §9 · Ordine di esecuzione
 
-1. **`01` §3.8 — la sede di scarico.** Nessuna decisione da prendere, tocca **ogni** ordine online e non solo i resi. La correzione è leggere `fulfillments[].location_id` invece della sede dell'impegno. È la prima perché è la più larga e la meno discussa.
+1. **`01` §3.8 — la sede di scarico.** ✅ **Fatto il 14/08** per lo **scarico**: usa `fulfillments[].location_id`. **L'impegno resta sul ripiego alfabetico**, e si chiude leggendo le _fulfillment orders_ — dopo la procedura di prima sincronizzazione, non prima. Il criterio della scelta: sullo scarico una sede sbagliata produce una giacenza sbagliata **per sempre**, sull'impegno una disponibilità imprecisa **per qualche ora**. Chiuso il danno permanente, lasciato aperto quello transitorio.
 2. **§4 — la rettifica per reso.** Voce negativa alla data del rientro, originale a `adjusted`, aggancio su `online_order_restocked` invece che su `financial_status`. Niente migration.
 3. **§8 — il filtro per canale** nella lista del registro. Piccolo, e rende vera la decisione «registro unico filtrabile».
 4. **§8 — la nozione di periodo chiuso**, senza la quale `excluded_invoiced` resta pericoloso. È progettazione, non una riga.

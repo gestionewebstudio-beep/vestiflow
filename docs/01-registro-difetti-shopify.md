@@ -572,7 +572,7 @@ Sull'ordine annullato il vuoto resta. Mostrare dove _era_ impegnata la merce sar
 
 ---
 
-### 3.8 — La sede da cui VestiFlow scarica è la prima in ordine alfabetico, non quella che ha spedito
+### 3.8 — La sede da cui VestiFlow scarica è la prima in ordine alfabetico, non quella che ha spedito — **SCARICO CHIUSO il 14/08, IMPEGNO APERTO**
 
 _Misurato il 14/08/2026 su tre ordini, e confermato dal payload._
 
@@ -600,9 +600,31 @@ Peggio: **dopo l'evasione il dato corretto arriva e viene scavalcato.** `createF
 
 **Con una sede sola non si vede.** È il motivo per cui è sopravvissuto: il ripiego dà sempre la risposta giusta finché la lista ha una voce sola.
 
-**Cosa deve fare invece.** Allo scarico la sede deve essere quella dell'**evasione**, che nel payload c'è: `fulfillments[].location_id`, mappata sulla sede VestiFlow. All'impegno, quando ancora non esiste, la sede corretta vive nelle _fulfillment orders_ di Shopify — una risorsa che oggi non leggiamo. Finché non la si legge, il ripiego alfabetico va almeno **dichiarato** invece di essere silenzioso: un ordine impegnato su una sede scelta per ordine alfabetico è un'informazione che l'operatore deve poter vedere.
+### ✅ Chiuso il 14/08 — lo scarico segue l'evasione
 
-**Nota per chi ha più sedi.** Al reso Shopify propone una sede di rientro che **non è quella da cui la merce è partita** — segue la priorità delle sedi, non l'evasione. Sommata al ripiego qui sopra fa tre logiche diverse che decidono una sede e non si parlano. Riferito dall'assistente Shopify e coerente con l'osservato; **da verificare** in Impostazioni → Sedi e nelle regole di reso.
+Lo scarico fisico, il movimento e la sede della riga di Vendita online usano ora `event.locationId`, cioè `fulfillments[].location_id` mappato — il dato che al momento dell'evasione **è già nel payload** e che prima veniva scavalcato. Il ripiego sulla sede dell'impegno resta solo se quel dato manca.
+
+**Perché la correzione non crea la divergenza che sembrerebbe.** Il dubbio è legittimo: se l'impegno sta su una sede e lo scarico su un'altra, il consumo dell'impegno e lo scarico non si compensano più. **Verificato che si compensano lo stesso**, e la ragione è che il consumo non è la contropartita dello scarico — è la contropartita della **creazione** dell'impegno:
+
+```
+creazione ordine   applyCommittedDelta(+q)  su A     →  impegnata +1, disponibile −1
+evasione           applyCommittedDelta(−q)  su A     →  impegnata −1, disponibile +1   ⇒ saldo A = ZERO
+evasione           applyInventoryDelta(−q)  su B     →  giacenza −1, disponibile −1    ⇒ unica scrittura che resta
+```
+
+Su A non resta niente; su B esce la merce. È coperto dal test `scarica dalla sede dell'evasione, non da quella dell'impegno`, che **fallisce senza la correzione** — verificato togliendola.
+
+### ⚠️ Resta aperto — l'impegno usa ancora il ripiego alfabetico
+
+Alla **creazione** dell'ordine la sede dell'evasione non esiste ancora nel payload (`order.location_id` assente, `fulfillments[]` vuoto), quindi `resolveShopifyOrderLocationId` ricade sulla prima sede licenziata in ordine alfabetico. L'impegno nasce lì.
+
+**Il danno residuo è transitorio e circoscritto**: fra creazione ed evasione, la sede del ripiego mostra una disponibilità più bassa del vero e quella dell'evasione più alta. Non lascia traccia permanente — all'evasione il saldo torna a zero.
+
+**Perché non lo chiudiamo adesso.** La sede assegnata Shopify la conosce già — la mostra sull'ordine inevaso — ma vive nelle **fulfillment orders**, una risorsa che VestiFlow non legge. Leggerla significa aprire una chiamata nuova verso Shopify proprio mentre la **procedura di prima sincronizzazione**, che governa l'aggancio delle location, non è ancora scritta. Meglio farla dopo, sapendo cosa la mappatura garantisce.
+
+**Strada futura, in ordine:** prima la procedura di prima sincronizzazione, poi la lettura delle fulfillment orders all'impegno.
+
+**Nota per chi ha più sedi.** Al reso Shopify propone una sede di rientro che **non è quella da cui la merce è partita** — segue la priorità delle sedi, non l'evasione. Riferito dall'assistente Shopify e coerente con l'osservato; **da verificare** in Impostazioni → Sedi e nelle regole di reso. Con la correzione dello scarico le logiche in campo scendono da tre a due, ma restano due.
 
 ---
 

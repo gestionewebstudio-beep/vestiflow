@@ -794,6 +794,50 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 1 §11)', () => {
 });
 
 describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
+  /**
+   * La sede dello scarico è quella dell'EVASIONE, non quella dell'impegno.
+   *
+   * L'impegno si prende alla creazione dell'ordine, quando il canale non ha
+   * ancora dichiarato da dove spedirà: `resolveShopifyOrderLocationId` non
+   * trova alcuna sede nel payload e ricade sulla prima licenziata in ordine
+   * alfabetico. All'evasione il dato corretto arriva — `fulfillments[].location_id`
+   * — e prima veniva scavalcato da quello inventato.
+   *
+   * Misurato il 14/08/2026 su tre ordini veri: Shopify spediva da «Shop
+   * location», VestiFlow scaricava da «Magazzino test 3». Con una sede sola non
+   * si vede; con quattro, ogni vendita online scala lo scaffale sbagliato.
+   */
+  it('scarica dalla sede dell’evasione, non da quella dell’impegno', async () => {
+    const db = createFakeDb();
+    seedOrder(db);
+    seedLevel(db, 10);
+    const service = createService(db);
+
+    // Impegno preso su location-1 (il ripiego), evasione dichiarata su location-2.
+    await service.handle(createdEvent());
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 2, available: 8 });
+
+    await service.handle(fulfilledEvent({ locationId: 'location-2' }));
+
+    // Sulla sede dell'IMPEGNO il saldo netto è ZERO: il consumo annulla la
+    // creazione. Nessun residuo, nessuna compensazione mancata.
+    expect(level(db)).toMatchObject({ onHand: 10, committed: 0, available: 10 });
+
+    // Sulla sede dell'EVASIONE esce la merce, ed è l'unica scrittura che resta.
+    expect(db.levels.get('variant-1:location-2')).toMatchObject({
+      onHand: -2,
+      committed: 0,
+      available: -2,
+    });
+
+    expect(db.movements).toHaveLength(1);
+    expect(db.movements[0]).toMatchObject({
+      type: StockMovementType.online_sale,
+      locationId: 'location-2',
+    });
+    expect(db.onlineSales[0]).toMatchObject({ locationId: 'location-2' });
+  });
+
   it('evasione completa: Vendita online + un movimento per riga + impegno consumato + Corrispettivo, Disponibile invariata', async () => {
     const db = createFakeDb();
     seedOrder(db);

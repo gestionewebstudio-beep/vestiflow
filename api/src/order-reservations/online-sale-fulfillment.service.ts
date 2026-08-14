@@ -117,9 +117,32 @@ export class OnlineSaleFulfillmentService {
     const fulfilledAt = event.occurredAt ?? new Date();
     const salesVatCodes = await this.loadSalesVatCodes(tx, event.tenantId);
     const computedLines = await this.computeSaleLines(tx, order, salesVatCodes);
+    // ── La sede da cui la merce è USCITA ──────────────────────────────────
+    //
+    // È quella dell'EVASIONE, che il canale dichiara nel payload
+    // (`fulfillments[].location_id`) e che arriva qui come `event.locationId`.
+    // NON quella dell'impegno: l'impegno si prende alla CREAZIONE dell'ordine,
+    // quando l'evasione non esiste ancora e il payload non porta alcuna sede,
+    // quindi ricade su un ripiego — la prima sede licenziata in ORDINE
+    // ALFABETICO (`resolveShopifyOrderLocationId`).
+    //
+    // Misurato il 14/08/2026 su tre ordini di prova: Shopify spediva da «Shop
+    // location», VestiFlow scaricava da «Magazzino test 3» — prima per la M. Il
+    // dato corretto era già nel payload al momento dello scarico, e veniva
+    // scavalcato da quello inventato prima. Con una sede sola non si vede; con
+    // quattro, ogni vendita online scala lo scaffale sbagliato per sempre.
+    //
+    // ⚠️ L'impegno resta consumato sulla SUA sede, e non è un'incoerenza: il
+    // consumo (`applyCommittedDelta −q` su quella sede) è l'esatto inverso
+    // della sua creazione, quindi il saldo netto lì è ZERO. L'unica scrittura
+    // che sopravvive è lo scarico fisico, che va dove la merce era davvero.
+    // Resta un errore TRANSITORIO sulla disponibilità della sede del ripiego,
+    // fra creazione dell'ordine ed evasione: accettato, e chiuso quando
+    // l'impegno saprà leggere le fulfillment orders di Shopify.
+    const fulfilmentLocationId = event.locationId ?? null;
     const headerLocationId =
+      fulfilmentLocationId ??
       computedLines.find((line) => line.reservation)?.reservation?.locationId ??
-      event.locationId ??
       null;
 
     const year = fulfilledAt.getFullYear();
@@ -191,7 +214,8 @@ export class OnlineSaleFulfillmentService {
           vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
           salesOrderLineId: line.salesOrderLineId,
           reservationId: line.reservation?.id ?? null,
-          locationId: line.reservation?.locationId ?? null,
+          // La sede della riga è quella dello scarico, non quella dell'impegno.
+          locationId: fulfilmentLocationId ?? line.reservation?.locationId ?? null,
         },
         select: { id: true },
       });
@@ -209,20 +233,23 @@ export class OnlineSaleFulfillmentService {
       }
 
       // 1. Consumo dell'impegno: Impegnata −, Disponibile + (traccia evento).
+      //    Sulla sede DELL'IMPEGNO, sempre: è lì che era stato preso, e il
+      //    consumo lo annulla. Vedi la nota su `fulfilmentLocationId`.
       await this.reservations.consumeReservationTx(
         tx,
         reservation,
         `Consumato da Vendita online ${sale.reference}`,
       );
 
-      // 2. Scarico fisico: Giacenza −, Disponibile −. Nessuna guardia di
-      //    disponibilità: il canale ha già spedito la merce, bloccare qui
-      //    creerebbe divergenza dal mondo fisico (oversell accettato §3).
+      // 2. Scarico fisico: Giacenza −, Disponibile −, sulla sede dell'EVASIONE.
+      //    Nessuna guardia di disponibilità: il canale ha già spedito la merce,
+      //    bloccare qui creerebbe divergenza dal mondo fisico (oversell §3).
+      const unloadLocationId = fulfilmentLocationId ?? reservation.locationId;
       await applyInventoryDelta(
         tx,
         event.tenantId,
         line.variantId,
-        reservation.locationId,
+        unloadLocationId,
         -line.quantity,
       );
 
@@ -236,7 +263,7 @@ export class OnlineSaleFulfillmentService {
           origin: this.movementOrigin(event.channel),
           variantId: line.variantId,
           sku: line.sku,
-          locationId: reservation.locationId,
+          locationId: unloadLocationId,
           quantity: line.quantity,
           reason: `Vendita online ${sale.reference} — ordine ${order.orderNumber}`,
           externalRef: event.externalOrderId,
