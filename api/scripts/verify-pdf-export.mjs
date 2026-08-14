@@ -30,6 +30,18 @@ function assertPdfBuffer(buffer, label) {
   }
 }
 
+/**
+ * I tipi stampabili si leggono dal profilo compilato, non da un elenco scritto
+ * qui: quello a mano era rimasto indietro e conteneva `supplier_ddt` e
+ * `supplier_invoice_accompanying`, due valori che nell'enum non esistono — la
+ * query di riserva sarebbe morta con un errore di validazione Prisma proprio
+ * quando serviva, cioè quando il DDT preferito non c'è.
+ */
+function printableTypes() {
+  const { PRINTABLE_DOCUMENT_TYPES } = require('../dist/documents/document-print.util');
+  return [...PRINTABLE_DOCUMENT_TYPES];
+}
+
 async function findPrintableDocument() {
   const preferred = await prisma.document.findFirst({
     where: {
@@ -45,19 +57,7 @@ async function findPrintableDocument() {
   }
 
   return prisma.document.findFirst({
-    where: {
-      type: {
-        in: [
-          'sales_ddt',
-          'proforma',
-          'invoice_draft',
-          'transfer',
-          'goods_receipt',
-          'supplier_ddt',
-          'supplier_invoice_accompanying',
-        ],
-      },
-    },
+    where: { type: { in: printableTypes() } },
     orderBy: { documentDate: 'desc' },
     select: { id: true, tenantId: true, reference: true, type: true, status: true },
   });

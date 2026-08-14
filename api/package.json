@@ -21,6 +21,7 @@
     "backfill:shopify-order-documents:apply": "npm run build && node scripts/backfill-shopify-order-documents.mjs --apply",
     "provision:e2e-users": "node scripts/provision-e2e-permission-users.mjs",
     "verify:pdf-export": "npm run build && node scripts/verify-pdf-export.mjs",
+    "verify:pdf-all": "npm run build && node scripts/verify-pdf-all-types.mjs",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "test": "vitest run",

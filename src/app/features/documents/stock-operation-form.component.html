@@ -53,6 +53,21 @@
       @if (formReadOnly()) {
         <app-edit-lock-banner (unlock)="requestUnlock()" />
       }
+
+      <!-- Stampa: chi modifica una rettifica o uno scarico sta qui, non nel
+           dettaglio. Il foglio esce senza colonne prezzo — le righe di questi
+           documenti nascono con il valore a zero. -->
+      @if (canExportPdf()) {
+        <div class="doc-form__post-actions" aria-label="Azioni documento salvato">
+          <app-document-print-actions
+            [documentId]="editDocumentId()!"
+            [reference]="loadedReference()"
+            [documentDate]="loadedDocumentDate()"
+            (failed)="onPrintFailed($event)"
+          />
+        </div>
+      }
+
       <fieldset class="doc-form__fieldset" [disabled]="formReadOnly()">
         <!-- Testata a celle unite (FASE 1: la forma dell'Ordine cliente). -->
         <div class="doc-form__header">

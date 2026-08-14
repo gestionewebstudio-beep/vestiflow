@@ -364,6 +364,26 @@ export class DocumentsController {
     });
   }
 
+  /**
+   * L'intestazione emittente che questo documento stamperà, già composta.
+   * La usa l'anteprima a schermo per mostrare la stessa testata del PDF: non
+   * legge l'anagrafica corrente, perché su un documento già emesso vince lo
+   * snapshot congelato all'emissione.
+   *
+   * Stesso gate dell'export PDF: chi può vedere il documento può vederne la
+   * testata, e `getById` applica comunque il filtro di famiglia.
+   */
+  @Get(':id/print-header')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  async printHeader(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ legalName: string; lines: readonly string[]; footer: string | null }> {
+    const document = await this.documents.getById(tenantId, id, user);
+    return this.documentPdf.issuerHeader(tenantId, document);
+  }
+
   @Get(':id/export/xml')
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   @Header('Content-Type', 'application/xml')

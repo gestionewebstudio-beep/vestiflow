@@ -14,6 +14,14 @@ import { formatMoney } from '@core/utils/money.util';
 export class DocumentLinesTableComponent {
   readonly lines = input.required<readonly DocumentLine[]>();
 
+  /**
+   * Colonne di valore (Prezzo, Sconto, IVA, Totale). Si spengono sui documenti
+   * di solo magazzino — trasferimento, rettifica, inventario — dove il prezzo
+   * di riga è zero scritto fisso lato API: mostrarle stamperebbe una colonna
+   * di zeri. Default acceso: i chiamanti che portano valori non cambiano.
+   */
+  readonly showPrices = input(true);
+
   protected readonly formatMoney = formatMoney;
 
   protected vatLabel(line: DocumentLine): string {

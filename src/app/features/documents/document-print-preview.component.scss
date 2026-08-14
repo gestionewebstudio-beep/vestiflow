@@ -42,6 +42,34 @@
   border-radius: var(--radius-md);
 }
 
+// Chi emette, in cima al foglio: stessa gerarchia del PDF — ragione sociale in
+// evidenza, il resto in tono minore.
+.doc-print__issuer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+  font-style: normal; // <address> lo mette in corsivo per default
+}
+
+.doc-print__issuer-name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.doc-print__issuer-line {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+// Piede Registro Imprese: l'ultima riga del foglio, discreta come nel PDF.
+.doc-print__issuer-footer {
+  margin-top: var(--space-5);
+  padding-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
 .doc-print__header {
   margin-bottom: var(--space-5);
 }

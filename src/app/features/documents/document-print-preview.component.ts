@@ -10,14 +10,16 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { ActivatedRoute } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
-import { DocumentType } from '@core/models/document.model';
+import { AdjustmentDirection, DocumentType } from '@core/models/document.model';
 import type { DocumentAddress } from '@core/models/document.model';
+import { storeSalePaymentMethodLabelWithNote } from '@domain/store-sales/models/store-sale-payment.util';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { DocumentLinesTableComponent } from './components/document-lines-table/document-lines-table.component';
@@ -26,11 +28,10 @@ import {
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
 import {
-  isGoodsReceiptPrintType,
-  isSalesPrintType,
-  isTransferPrintType,
+  documentPrintDisclaimer,
+  documentPrintKind,
+  documentPrintShowsValues,
 } from './models/document-print.util';
-import { isProformaDocumentType } from '@domain/documents/models/document-sales.util';
 import {
   TRANSPORT_INCOMPLETE_MESSAGE,
   TRANSPORT_INCOMPLETE_TITLE,
@@ -40,8 +41,6 @@ import {
 import { DocumentService } from '@domain/documents/services/document.service';
 import { counterpartyDocLabel } from '@domain/documents/models/document-labels.util';
 
-const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini IVA.';
-
 @Component({
   selector: 'app-document-print-preview',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,6 +49,7 @@ const PROFORMA_DISCLAIMER = 'Documento non fiscale / Proforma non valida ai fini
     ConfirmDialogComponent,
     DocumentLinesTableComponent,
     ErrorStateComponent,
+    InlineBannerComponent,
     TableSkeletonComponent,
   ],
   templateUrl: './document-print-preview.component.html',
@@ -65,7 +65,12 @@ export class DocumentPrintPreviewComponent {
 
   protected readonly formatMoney = formatMoney;
   protected readonly formatDate = formatDate;
-  protected readonly proformaDisclaimer = PROFORMA_DISCLAIMER;
+
+  /**
+   * Errore dello scarico PDF. Era ingoiato: delle tre viste che scaricano, era
+   * l'unica a non dire niente — il dettaglio e la lista mostrano il messaggio.
+   */
+  protected readonly downloadError = signal<string | null>(null);
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });
   private readonly request = computed(() => this.params().get('id') ?? '');
@@ -88,6 +93,26 @@ export class DocumentPrintPreviewComponent {
     ),
     { initialValue: { status: 'loading' as const } },
   );
+
+  /**
+   * Intestazione emittente: la stessa che finirà sul PDF, composta dal server.
+   * L'anteprima non la mostrava affatto — chi la guardava non vedeva ragione
+   * sociale, indirizzo e partita IVA, cioè proprio la parte che distingue un
+   * documento dell'azienda da un foglio qualsiasi.
+   *
+   * Se la chiamata fallisce l'anteprima resta senza testata invece di rompersi:
+   * il resto del foglio è comunque utile, e il PDF ce l'avrà lo stesso.
+   */
+  private readonly printHeaderState = toSignal(
+    toObservable(this.request).pipe(
+      switchMap((id) =>
+        id ? this.service.getPrintHeader(id).pipe(catchError(() => of(null))) : of(null),
+      ),
+    ),
+    { initialValue: null },
+  );
+
+  protected readonly printHeader = computed(() => this.printHeaderState());
 
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly error = computed(() => this.state().status === 'error');
@@ -122,26 +147,91 @@ export class DocumentPrintPreviewComponent {
     return doc ? counterpartyDocLabel(doc) : '';
   });
 
-  protected readonly showProformaDisclaimer = computed(() => {
+  /** Avviso «non fiscale»: proforma e cassa negozio. Assente per gli altri. */
+  protected readonly disclaimer = computed(() => {
     const doc = this.document();
-    return doc != null && isProformaDocumentType(doc.type);
+    return doc ? documentPrintDisclaimer(doc.type) : null;
   });
 
   protected readonly printKind = computed(() => {
     const doc = this.document();
-    if (!doc) {
-      return 'generic' as const;
+    return doc ? documentPrintKind(doc.type) : ('generic' as const);
+  });
+
+  /**
+   * Colonne di valore e blocco totali. L'anteprima e il PDF leggono lo stesso
+   * predicato apposta: è questa simmetria a impedire che i due fogli dicano
+   * cose diverse sullo stesso documento.
+   */
+  protected readonly showsValues = computed(() => {
+    const doc = this.document();
+    return doc != null && documentPrintShowsValues(doc.type);
+  });
+
+  /**
+   * Direzione della rettifica. Stesso testo del dettaglio a schermo: il foglio
+   * e la maschera non devono chiamare le cose in due modi.
+   */
+  protected readonly adjustmentDirectionLabel = computed(() => {
+    const direction = this.document()?.adjustmentDirection;
+    if (!direction) {
+      return null;
     }
-    if (isTransferPrintType(doc.type)) {
-      return 'transfer' as const;
+    return direction === AdjustmentDirection.Increase ? 'Aumento giacenza' : 'Diminuzione giacenza';
+  });
+
+  /**
+   * Sede sui documenti di vendita: scarico manuale e cassa negozio. Sulla
+   * vendita al banco è spesso l'unico contesto, perché il cliente può mancare.
+   */
+  protected readonly showsLocation = computed(() => {
+    const type = this.document()?.type;
+    return (
+      type === DocumentType.ManualUnload ||
+      type === DocumentType.StoreSale ||
+      type === DocumentType.StoreReturn
+    );
+  });
+
+  /** Metodo di pagamento della cassa: il documento salva il codice grezzo. */
+  protected readonly storePaymentLabel = computed(() => {
+    const doc = this.document();
+    if (!doc || doc.type !== DocumentType.StoreSale || !doc.paymentMethod) {
+      return null;
     }
-    if (isGoodsReceiptPrintType(doc.type)) {
-      return 'goods_receipt' as const;
+    return storeSalePaymentMethodLabelWithNote(doc.paymentMethod, doc.paymentMethodNote);
+  });
+
+  /** Chi ha eseguito: solo sui movimenti interni di magazzino. */
+  protected readonly showsOperator = computed(() => {
+    const kind = this.printKind();
+    return kind === 'transfer' || kind === 'stock';
+  });
+
+  // ── Registrazione fattura fornitore ───────────────────────────────────
+  // Le stesse sezioni che il PDF stampa in coda. L'anteprima deve dire ciò
+  // che il foglio dirà: è questa simmetria a impedire che i due si scostino.
+
+  protected readonly isPurchaseInvoice = computed(() => this.printKind() === 'purchase_invoice');
+
+  protected readonly installments = computed(() =>
+    this.isPurchaseInvoice() ? (this.document()?.paymentInstallments ?? []) : [],
+  );
+
+  /** Residuo: si mostra solo se c'è davvero qualcosa da saldare. */
+  protected readonly outstanding = computed(() => {
+    const amount = this.isPurchaseInvoice() ? this.document()?.outstanding : undefined;
+    return amount && amount.amountMinor > 0 ? amount : null;
+  });
+
+  /** Solo gli arrivi con un riferimento: uno senza numero non fa ritrovare niente. */
+  protected readonly linkedReceiptRefs = computed(() => {
+    if (!this.isPurchaseInvoice()) {
+      return [];
     }
-    if (isSalesPrintType(doc.type)) {
-      return 'sales' as const;
-    }
-    return 'generic' as const;
+    return (this.document()?.linkedGoodsReceipts ?? [])
+      .map((receipt) => receipt.reference)
+      .filter((reference): reference is string => Boolean(reference?.trim()));
   });
 
   protected locationLabel(locationId: string | undefined): string | null {
@@ -295,6 +385,7 @@ export class DocumentPrintPreviewComponent {
       return;
     }
     this.downloadingPdf.set(true);
+    this.downloadError.set(null);
     this.service
       .exportPdf(doc.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -307,6 +398,7 @@ export class DocumentPrintPreviewComponent {
         },
         error: () => {
           this.downloadingPdf.set(false);
+          this.downloadError.set('Non è stato possibile generare il PDF. Riprova.');
         },
       });
   }
