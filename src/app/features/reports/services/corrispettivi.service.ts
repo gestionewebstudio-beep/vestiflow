@@ -201,6 +201,9 @@ export class CorrispettiviService {
     if (query.refundsOnly) {
       params = params.set('refundsOnly', 'true');
     }
+    if (query.rowType) {
+      params = params.set('rowType', query.rowType);
+    }
 
     return params;
   }

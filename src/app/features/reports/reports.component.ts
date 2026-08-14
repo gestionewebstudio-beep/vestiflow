@@ -150,12 +150,10 @@ export class ReportsComponent {
     toObservable(this.request).pipe(
       switchMap(() =>
         this.inventoryService.getLocationInventoryReport().pipe(
-          map(
-            (locationReport): ReportState => ({
-              status: 'success',
-              data: { locationReport },
-            }),
-          ),
+          map((locationReport): ReportState => ({
+            status: 'success',
+            data: { locationReport },
+          })),
           startWith<ReportState>({ status: 'loading' }),
           catchError((err: unknown) =>
             of<ReportState>({ status: 'error', error: this.toAppError(err) }),
@@ -183,19 +181,17 @@ export class ReportsComponent {
     if (!data) {
       return [];
     }
-    return data.locationReport.map(
-      (row): LocationReportRow => ({
-        locationId: row.locationId,
-        locationName: row.locationName,
-        trackedVariants: row.trackedVariants,
-        availableUnits: row.availableUnits,
-        lowStockCount: row.lowStockCount,
-        stockValue: {
-          amountMinor: row.stockValueMinor,
-          currencyCode: row.currencyCode || DEFAULT_CURRENCY,
-        },
-      }),
-    );
+    return data.locationReport.map((row): LocationReportRow => ({
+      locationId: row.locationId,
+      locationName: row.locationName,
+      trackedVariants: row.trackedVariants,
+      availableUnits: row.availableUnits,
+      lowStockCount: row.lowStockCount,
+      stockValue: {
+        amountMinor: row.stockValueMinor,
+        currencyCode: row.currencyCode || DEFAULT_CURRENCY,
+      },
+    }));
   });
 
   protected onPeriodChange(period: ReportPeriodPreset): void {

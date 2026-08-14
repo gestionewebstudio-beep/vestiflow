@@ -19,6 +19,8 @@ export interface CorrispettiviListFilters extends SalesOrderListFilters {
   readonly posOnly?: boolean;
   readonly pendingDeliveryOnly?: boolean;
   readonly refundsOnly?: boolean;
+  /** `all` · `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
+  readonly rowType?: string;
 }
 
 /**
@@ -139,9 +141,19 @@ export function buildCorrispettiviRefundWhere(
     sourceFilter = PrismaSource.shopify_pos;
   }
 
+  // «Resi» e «Rimborsi» sono due voci diverse perché sono due gesti diversi:
+  // nel primo la merce è tornata, nel secondo solo il denaro. Gli annullamenti
+  // restano fuori in ogni caso — non rettificano niente.
+  const kind =
+    query.rowType === 'returns'
+      ? { equals: PrismaRefundKind.return_with_restock }
+      : query.rowType === 'refunds'
+        ? { equals: PrismaRefundKind.refund_only }
+        : { not: PrismaRefundKind.cancellation };
+
   return {
     tenantId,
-    kind: { not: PrismaRefundKind.cancellation },
+    kind,
     ...(occurredAt ? { occurredAt } : {}),
     ...(sourceFilter ? { order: { source: sourceFilter } } : {}),
   };

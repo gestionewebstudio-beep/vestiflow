@@ -98,6 +98,8 @@ export interface CorrispettiviListQuery {
   readonly placedTo?: string;
   readonly onlineOnly?: boolean;
   readonly posOnly?: boolean;
+  /** `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
+  readonly rowType?: string;
   readonly pendingDeliveryOnly?: boolean;
   readonly refundsOnly?: boolean;
 }

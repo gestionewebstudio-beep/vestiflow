@@ -59,6 +59,9 @@ import {
 } from '@domain/reports/models/report-list-query.model';
 import { CorrispettiviService } from '../../services/corrispettivi.service';
 
+/** Valori ammessi per il filtro tipo di riga (specchio del DTO API). */
+const ROW_TYPE_FILTERS: readonly string[] = ['all', 'sales', 'returns', 'refunds'];
+
 interface CorrispettiviPageData {
   readonly orders: readonly CorrispettiviRegisterRow[];
   readonly summary: CorrispettiviSummary;
@@ -137,9 +140,31 @@ export class CorrispettiviReportComponent {
 
   protected readonly pendingOnly = computed(() => this.queryParams().get('pendingOnly') === '1');
 
-  protected readonly refundsOnly = computed(() => this.queryParams().get('refundsOnly') === '1');
+  /**
+   * Canale: vuoto = tutti.
+   *
+   * Il **predefinito resta l'online**, non «tutti»: aprendo il registro senza
+   * scegliere niente si vedono le vendite del canale, come prima. Includere
+   * anche gli ordini manuali per difetto porterebbe dentro vendite che una
+   * fattura copre già, e la loro esclusione è una decisione ancora aperta.
+   */
+  protected readonly channelFilter = computed(() => {
+    const value = this.queryParams().get('channel');
+    if (value === 'all') {
+      return 'all';
+    }
+    return value === 'pos' ? 'pos' : 'online';
+  });
 
-  protected readonly onlineOnly = computed(() => this.queryParams().get('onlineOnly') !== '0');
+  protected readonly onlineOnly = computed(() => this.channelFilter() === 'online');
+
+  protected readonly posOnly = computed(() => this.channelFilter() === 'pos');
+
+  /** Tipo di riga: filtra l'elenco, mai il riepilogo. */
+  protected readonly rowTypeFilter = computed(() => {
+    const value = this.queryParams().get('rowType') ?? 'all';
+    return ROW_TYPE_FILTERS.includes(value) ? value : 'all';
+  });
 
   protected readonly canExport = computed(() =>
     canExportOperationalData(this.authService.currentUser()),
@@ -179,6 +204,19 @@ export class CorrispettiviReportComponent {
     return this.query().dateTo ?? todayIsoDate();
   });
 
+  protected readonly channelOptions: readonly SelectMenuOption[] = [
+    { value: 'online', label: 'Shopify' },
+    { value: 'pos', label: 'Negozio' },
+    { value: 'all', label: 'Tutti i canali' },
+  ];
+
+  protected readonly rowTypeOptions: readonly SelectMenuOption[] = [
+    { value: 'all', label: 'Vendite e rettifiche' },
+    { value: 'sales', label: 'Solo vendite' },
+    { value: 'returns', label: 'Solo resi' },
+    { value: 'refunds', label: 'Solo rimborsi' },
+  ];
+
   protected readonly fiscalStatusOptions: readonly SelectMenuOption[] = [
     { value: '', label: 'Tutti gli stati fiscali' },
     { value: SalesOrderFiscalStatus.PendingRegistration, label: 'Da registrare' },
@@ -197,8 +235,9 @@ export class CorrispettiviReportComponent {
     placedTo: this.dateRange().placedTo,
     fiscalStatus: this.fiscalStatusFilter(),
     pendingDeliveryOnly: this.pendingOnly() || undefined,
-    refundsOnly: this.refundsOnly() || undefined,
+    rowType: this.rowTypeFilter() === 'all' ? undefined : this.rowTypeFilter(),
     onlineOnly: this.onlineOnly() || undefined,
+    posOnly: this.posOnly() || undefined,
     page: 1,
     pageSize: 100,
   }));
@@ -314,12 +353,13 @@ export class CorrispettiviReportComponent {
     this.updateParams({ pendingOnly: this.pendingOnly() ? null : '1' });
   }
 
-  protected toggleRefundsOnly(): void {
-    this.updateParams({ refundsOnly: this.refundsOnly() ? null : '1' });
+  protected onChannelChange(value: string | null): void {
+    // «online» è il predefinito: non lo si scrive nell'indirizzo.
+    this.updateParams({ channel: !value || value === 'online' ? null : value });
   }
 
-  protected toggleOnlineOnly(): void {
-    this.updateParams({ onlineOnly: this.onlineOnly() ? '0' : null });
+  protected onRowTypeChange(value: string | null): void {
+    this.updateParams({ rowType: !value || value === 'all' ? null : value });
   }
 
   protected reload(): void {
@@ -414,14 +454,22 @@ export class CorrispettiviReportComponent {
       });
   }
 
+  /**
+   * Gli stessi filtri della lista, senza eccezioni.
+   *
+   * È la ragione per cui questo metodo esiste invece di ricostruire l'oggetto
+   * dove serve: il file esportato e la schermata devono rispondere alla stessa
+   * domanda, e l'unico modo di garantirlo è che leggano gli stessi campi.
+   */
   private exportQuery() {
     return {
       placedFrom: this.dateRange().placedFrom,
       placedTo: this.dateRange().placedTo,
       fiscalStatus: this.fiscalStatusFilter(),
       pendingDeliveryOnly: this.pendingOnly() || undefined,
-      refundsOnly: this.refundsOnly() || undefined,
+      rowType: this.rowTypeFilter() === 'all' ? undefined : this.rowTypeFilter(),
       onlineOnly: this.onlineOnly() || undefined,
+      posOnly: this.posOnly() || undefined,
     };
   }
 

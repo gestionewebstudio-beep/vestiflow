@@ -1000,6 +1000,17 @@ Se qualche vendita risulta **evasa senza data**, il riepilogo te lo dice: non è
 
 **Il file che esporti contiene le stesse righe che vedi.** CSV, Excel e PDF portano vendite e rettifiche con una colonna **Tipo**, in ordine di data, e la somma delle righe fa esattamente il totale stampato in testa. È il modo per cui il commercialista può rifare il conto senza chiederti niente.
 
+#### Canale e tipo
+
+Accanto al periodo trovi altri due filtri, indipendenti fra loro e dal periodo:
+
+- **Canale** — Shopify, Negozio, oppure tutti. Di partenza il registro mostra **Shopify**;
+- **Tipo** — vendite e rettifiche insieme, oppure solo vendite, solo resi, solo rimborsi.
+
+Puoi combinarli: «2° trimestre 2026 · Shopify · Solo resi» per vedere cosa è tornato indietro in quel trimestre.
+
+**Attenzione a una cosa, ed è voluta**: il filtro **Tipo** cambia solo l'elenco, non il totale. Se guardi «Solo resi», in fondo continui a leggere il corrispettivo del periodo — non la somma dei soli resi. Serve a non avere mai sotto gli occhi un numero negativo che sembra un totale e non lo è.
+
 ---
 
 ## 16. Usare VestiFlow da smartphone

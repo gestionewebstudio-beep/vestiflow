@@ -159,14 +159,19 @@ export class CorrispettiviService {
     const where = buildCorrispettiviWhere(tenantId, query);
     const refundWhere = buildCorrispettiviRefundWhere(tenantId, query);
 
-    // «Solo resi» ora significa le RETTIFICHE, non gli ordini che ne hanno una:
-    // in un elenco che le contiene, mostrare la vendita al posto del reso
-    // sarebbe la risposta alla domanda sbagliata.
-    const wantsSales = !query.refundsOnly;
+    // «Solo resi» significa le RETTIFICHE, non gli ordini che ne hanno una: in
+    // un elenco che le contiene, mostrare la vendita al posto del reso sarebbe
+    // la risposta alla domanda sbagliata. Il vecchio interruttore booleano
+    // resta valido e coincide con `rowType: returns` + `refunds`.
+    const rowType = query.rowType ?? (query.refundsOnly ? 'refunds_and_returns' : 'all');
+    const wantsSales = rowType === 'all' || rowType === 'sales';
+    const wantsRefunds = rowType !== 'sales';
 
     const [saleCount, refundCount] = await Promise.all([
       wantsSales ? this.prisma.salesOrder.count({ where }) : Promise.resolve(0),
-      this.prisma.salesOrderRefund.count({ where: refundWhere }),
+      wantsRefunds
+        ? this.prisma.salesOrderRefund.count({ where: refundWhere })
+        : Promise.resolve(0),
     ]);
 
     if (saleCount + refundCount > REGISTER_MERGE_CEILING) {
@@ -182,19 +187,21 @@ export class CorrispettiviService {
             include: { customer: { select: { party: { select: { email: true } } } } },
           })
         : Promise.resolve([]),
-      this.prisma.salesOrderRefund.findMany({
-        where: refundWhere,
-        include: {
-          order: {
-            select: {
-              orderNumber: true,
-              source: true,
-              customerName: true,
-              customer: { select: { party: { select: { email: true } } } },
+      wantsRefunds
+        ? this.prisma.salesOrderRefund.findMany({
+            where: refundWhere,
+            include: {
+              order: {
+                select: {
+                  orderNumber: true,
+                  source: true,
+                  customerName: true,
+                  customer: { select: { party: { select: { email: true } } } },
+                },
+              },
             },
-          },
-        },
-      }),
+          })
+        : Promise.resolve([]),
     ]);
 
     const rows: CorrispettiviRegisterRow[] = [
@@ -295,8 +302,13 @@ export class CorrispettiviService {
     const taxableMinor = Math.max(0, totalMinor - taxMinor);
 
     // Le rettifiche del periodo, alla LORO data e senza gli annullamenti.
+    //
+    // ⚠️ Il filtro per TIPO di riga si toglie di proposito: serve a guardare
+    // l'elenco, non a ridefinire il corrispettivo del periodo. Filtrando
+    // «Resi», il totale deve continuare a dire quanto si è incassato — non
+    // −205,00, che è un numero senza significato e che qualcuno trascriverebbe.
     const refunds = await this.prisma.salesOrderRefund.findMany({
-      where: buildCorrispettiviRefundWhere(tenantId, query),
+      where: buildCorrispettiviRefundWhere(tenantId, { ...query, rowType: undefined }),
       select: { totalMinor: true, taxMinor: true },
     });
     const refundTotalMinor = refunds.reduce((sum, refund) => sum + refund.totalMinor, 0);
@@ -306,7 +318,7 @@ export class CorrispettiviService {
     // annullano non è mai entrata nel registro (specifica 08 §4).
     const cancellations = await this.prisma.salesOrderRefund.findMany({
       where: {
-        ...buildCorrispettiviRefundWhere(tenantId, query),
+        ...buildCorrispettiviRefundWhere(tenantId, { ...query, rowType: undefined }),
         kind: PrismaRefundKind.cancellation,
       },
       select: { totalMinor: true },

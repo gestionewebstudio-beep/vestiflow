@@ -12,6 +12,10 @@ import { API_FISCAL_STATUS_VALUES } from '../corrispettivi-fiscal.enum-mapper';
 const SOURCE_VALUES = [API_SOURCE_ONLINE, API_SOURCE_POS] as const;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Tipi di riga selezionabili nel registro. `all` è il default implicito. */
+export const ROW_TYPE_VALUES = ['all', 'sales', 'returns', 'refunds'] as const;
+export type CorrispettiviRowTypeFilter = (typeof ROW_TYPE_VALUES)[number];
+
 function toOptionalBoolean(value: unknown): boolean | undefined {
   if (value === true || value === 'true' || value === '1') {
     return true;
@@ -72,4 +76,17 @@ export class ListCorrispettiviQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => toOptionalBoolean(value))
   @IsBoolean()
   refundsOnly?: boolean;
+
+  /**
+   * Che righe mostrare nell'elenco: tutte, le sole vendite, i soli resi, i soli
+   * rimborsi senza rientro.
+   *
+   * ⚠️ **Filtra l'ELENCO, non il riepilogo.** Scegliendo «Resi» il totale del
+   * periodo continua a dire quanto è il corrispettivo: mostrare −205,00 perché
+   * si stanno guardando i resi darebbe un numero che non significa niente e che
+   * qualcuno prima o poi trascriverebbe.
+   */
+  @IsOptional()
+  @IsIn([...ROW_TYPE_VALUES])
+  rowType?: string;
 }

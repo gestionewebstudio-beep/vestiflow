@@ -221,10 +221,27 @@ somma delle righe          84,07    10,93     95,00
 intestazione del file      84,07    10,93     95,00
 ```
 
+#### ✅ Canale e tipo sono selettori, e sono indipendenti — fatto il 14/08
+
+Al posto degli interruttori «Solo online» e «Solo rimborsi»:
+
+| Filtro     | Voci                                                            |
+| ---------- | --------------------------------------------------------------- |
+| **Canale** | Shopify _(predefinito)_ · Negozio · Tutti i canali              |
+| **Tipo**   | Vendite e rettifiche · Solo vendite · Solo resi · Solo rimborsi |
+
+I tre filtri sono indipendenti: «2° trimestre 2026 · Shopify · Solo resi» è una domanda legittima.
+
+**Il predefinito del canale resta Shopify, non «Tutti».** _Misurato:_ su tutti i canali il 3° trimestre passa da 95,00 € a 324,36 €, perché entrano due ordini manuali evasi a luglio (229,36 €). Sono Ordini cliente che una fattura potrebbe già coprire, e la loro esclusione è la decisione ancora aperta di `04` §8 sull'`excluded_invoiced`. Finché non è presa, il registro non li mostra per difetto — ma l'operatore può chiederli.
+
+⚠️ **Il filtro per tipo agisce sull'ELENCO, non sul riepilogo**, ed è una scelta. Guardando «Solo resi» il totale del periodo continua a dire **95,00 €**, non −205,00: il secondo è un numero che non significa niente, e che prima o poi qualcuno trascriverebbe su un registro. Il tipo serve a ispezionare, non a ridefinire il periodo.
+
+**Prova incrociata**, 3 periodi × 3 canali × 4 tipi = 36 combinazioni: in ognuna la lista completa somma esattamente al totale del riepilogo. Le viste per tipo mostrano meno righe di proposito.
+
 #### Cosa resta
 
-- **Il filtro per canale** come controllo esplicito (oggi è l'interruttore «Solo online») e il **filtro per tipo** (tutti / vendite / resi / rimborsi), che oggi esiste come «Solo rimborsi». Sono consultazione, non calcolo — e vanno provati incrociati: periodo × canale × tipo, con lista, riepilogo ed export che devono dare gli stessi componenti.
 - **Un parametro di periodo non valido nell'indirizzo** (`?month=99`) ricade in silenzio sul periodo corrente. Non è un difetto attivo — non esistono ancora collegamenti condivisibili col periodo dentro — ma il giorno in cui esisteranno, chi apre un collegamento malformato deve vedere un avviso, non un altro mese senza spiegazioni. Nota, non lavoro in coda.
+- **La decisione sugli ordini manuali nel registro**: quali entrano e quali no, che è l'`excluded_invoiced` del `04` §8 e che oggi il predefinito aggira senza risolvere.
 
 ## §5 · Il Corrispettivo nasce all'evasione — ed è corretto
 
