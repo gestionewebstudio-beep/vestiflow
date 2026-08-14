@@ -813,7 +813,18 @@ Le aliquote vere sono **4%** su un articolo e **22%** sugli altri due più la sp
 
 **Ma il canale il dettaglio lo fornisce.** _Misurato lo stesso giorno:_ ogni riga del payload porta `tax_lines` con `rate` e importo, e li porta anche la spedizione. La ripartizione proporzionale era un ripiego ragionevole per un dato che si credeva mancante, e non è più stata verificata.
 
-**Perché non si era mai visto.** I quattro corrispettivi precedenti nascevano da ordini a **una sola aliquota**, dove la media coincide col vero. Il difetto compare solo quando le aliquote sono due, ed è emerso perché l'ordine di prova è stato costruito apposta con 4% e 22% insieme.
+⚠️ **E non è solo l'etichetta: sono sbagliati gli IMPORTI d'imposta di ogni riga.** _Riprodotto il 14/08 su un secondo ordine costruito apposta (`#1009`: prodotto al 4%, maglietta al 22%, spedizione al 22%):_
+
+| riga                   | IVA vera  | IVA scritta da VestiFlow |
+| ---------------------- | --------- | ------------------------ |
+| prodotto 60,00 (4%)    | 2,31      | **6,22**                 |
+| maglietta 25,00 (22%)  | 4,51      | **2,59**                 |
+| spedizione 26,01 (22%) | 4,69      | **2,70**                 |
+| **totale**             | **11,51** | **11,51** ✅             |
+
+L'imposta dell'ordine viene **ridistribuita in proporzione al valore della riga**: il totale torna sempre — ed è per questo che il difetto passa inosservato — ma ogni singola riga è sbagliata. Sul prodotto al 4% viene scritto quasi il **triplo** dell'imposta reale; sulla maglietta al 22%, poco più della metà. L'aliquota del 12% è la conseguenza, non la causa: è `6,22 / 53,78`.
+
+**Perché non si era mai visto.** I corrispettivi precedenti nascevano da ordini a **una sola aliquota**, dove la ripartizione proporzionale coincide col vero. Il difetto compare solo con due aliquote, ed è emerso perché gli ordini di prova sono stati costruiti apposta con 4% e 22% insieme.
 
 ⚠️ **E non riguarda solo il corrispettivo: la stessa aliquota inventata sta sulle righe della Vendita online.** _Misurato su `VO-2026-0004`, la vendita dello stesso ordine:_
 
