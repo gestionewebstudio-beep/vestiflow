@@ -242,6 +242,10 @@ Il database salva un **numero** (`webhooksActiveCount = 7`), non l'elenco. Nessu
 
 **Provvedimento immediato.** Rieseguire la registrazione sui due negozi per attivare `orders/cancelled`.
 
+**Aggiornamento del 14/08/2026 — la spia ora funziona, e il topic manca ancora.** Premendo «Verifica ora» il log riporta `Webhook mancanti su test-vestiflow.myshopify.com: orders/cancelled` (`shopify-webhook-status.service.ts:91`). È il confronto che questo punto chiedeva: non più «7», ma il nome. Il provvedimento resta da eseguire, e **va eseguito dall'ambiente pubblicato**: in locale `SHOPIFY_APP_URL=http://localhost:3000`, e registrare da lì creerebbe sottoscrizioni verso `localhost` che si sommano alle buone (punto 2.2-bis). Il codice lo impedisce già con un rifiuto esplicito (`shopify-oauth.service.ts:415`).
+
+**E il buco è meno largo di quanto il nome suggerisca** — _misurato lo stesso giorno._ I tre topic degli ordini finiscono nella stessa funzione (`shopify-sync.service.ts:44-47`), e l'annullamento non si riconosce dal topic ma da `cancelled_at` dentro il payload (`:367`). `orders/updated` è registrato e Shopify lo emette anche all'annullamento: è da lì che è arrivato l'annullamento di `#1007`, misurato corretto nella specifica `08` §3 **pur senza la sottoscrizione mancante**. Spia accesa, funzione coperta — il che spiega perché il topic è potuto mancare un mese senza conseguenze visibili, e perché ripararlo non è urgente.
+
 ---
 
 ### 2.2 — L'indirizzo dei webhook non è memorizzato
