@@ -197,10 +197,34 @@ corrispettivo   95,00 =  50 + 0 + 0 + 45
 
 ⚠️ **Limite noto sulla data fiscale, misurato e non aggirato.** Il registro usa la data di evasione, che è la regola **ordinaria** per le cessioni di beni mobili. Non è la regola completa: l'art. 6 anticipa il momento di effettuazione se il corrispettivo è pagato prima della consegna, il che su un ordine incassato con carta accade quasi sempre. **VestiFlow non può derivarlo oggi**: nessuna data di incasso è persistita, le transazioni del canale non si importano. Manca il dato, non la logica — e finché manca, la formulazione da usare è «per il flusso supportato oggi il registro usa la data di evasione», non «la data di evasione è la data fiscale».
 
+#### ✅ Anche il file per il commercialista si riconcilia — fatto il 14/08
+
+Il CSV, l'Excel e il PDF elencavano le **sole vendite** mentre la loro intestazione portava il netto: su un trimestre, 4 righe per 300,01 € sotto un totale di 95,00 €. Chi apriva il file non poteva ricostruire quel numero dalle righe — lo stesso difetto chiuso a schermo, rimasto nel documento che esce dall'azienda.
+
+**La correzione non è stata «aggiungere le rettifiche all'export»**, ma togliere la possibilità che i due divergano: lista ed export chiamano ora la **stessa** funzione (`buildRegisterRows`). Una selezione, un dataset — strutturale, non promesso in un commento. Era già successo una volta che il riepilogo conoscesse le rettifiche e il file no.
+
+Il file ha ora una colonna **Tipo** (Vendita · Reso · Rimborso) e la colonna data si chiama **«Data»**, non più «Data vendita»: su una riga di reso quell'etichetta era falsa.
+
+Verificato sul 3° trimestre 2026:
+
+```
+2026-08-08  Vendita   #1004     48,08     1,92     50,00
+2026-08-14  Vendita   #1005     57,69     2,31     60,00
+2026-08-14  Reso      #1005    −57,69    −2,31    −60,00
+2026-08-14  Vendita   #1006     57,69     2,31     60,00
+2026-08-14  Reso      #1006    −57,69    −2,31    −60,00
+2026-08-14  Vendita   #1008    114,23    15,78    130,01
+2026-08-14  Reso      #1008    −73,24    −6,77    −80,01
+2026-08-14  Rimborso  #1008     −5,00     0,00     −5,00
+──────────────────────────────────────────────────────
+somma delle righe          84,07    10,93     95,00
+intestazione del file      84,07    10,93     95,00
+```
+
 #### Cosa resta
 
-- ⚠️ **L'export elenca ancora le sole vendite.** _Misurato il 14/08:_ su un trimestre il CSV riporta 4 righe per 300,01 € mentre la sua intestazione porta il netto di 95,00 €. Chi apre il file non può ricostruire quel totale dalle righe — è lo stesso difetto appena chiuso a schermo, rimasto nel file che va al commercialista. **È la prima cosa da fare.**
-- **Il filtro per canale** come controllo esplicito (oggi è l'interruttore «Solo online») e il **filtro per tipo** (tutti / vendite / resi / rimborsi), che oggi esiste come «Solo rimborsi». Sono consultazione, non calcolo.
+- **Il filtro per canale** come controllo esplicito (oggi è l'interruttore «Solo online») e il **filtro per tipo** (tutti / vendite / resi / rimborsi), che oggi esiste come «Solo rimborsi». Sono consultazione, non calcolo — e vanno provati incrociati: periodo × canale × tipo, con lista, riepilogo ed export che devono dare gli stessi componenti.
+- **Un parametro di periodo non valido nell'indirizzo** (`?month=99`) ricade in silenzio sul periodo corrente. Non è un difetto attivo — non esistono ancora collegamenti condivisibili col periodo dentro — ma il giorno in cui esisteranno, chi apre un collegamento malformato deve vedere un avviso, non un altro mese senza spiegazioni. Nota, non lavoro in coda.
 
 ## §5 · Il Corrispettivo nasce all'evasione — ed è corretto
 

@@ -133,6 +133,29 @@ export class CorrispettiviService {
     tenantId: string,
     query: ListCorrispettiviQueryDto,
   ): Promise<Paginated<CorrispettiviRegisterRow>> {
+    const rows = await this.buildRegisterRows(tenantId, query);
+    const skip = (query.page - 1) * query.pageSize;
+
+    return {
+      items: rows.slice(skip, skip + query.pageSize),
+      total: rows.length,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
+  }
+
+  /**
+   * Il dataset del registro, una volta sola.
+   *
+   * Lista ed export chiamano **questa**, e non due query che si assomigliano:
+   * è ciò che impedisce il caso già visto una volta, in cui il riepilogo
+   * conosceva le rettifiche e il file per il commercialista no. Una selezione,
+   * un dataset — strutturale, non promesso in un commento.
+   */
+  async buildRegisterRows(
+    tenantId: string,
+    query: ListCorrispettiviQueryDto,
+  ): Promise<CorrispettiviRegisterRow[]> {
     const where = buildCorrispettiviWhere(tenantId, query);
     const refundWhere = buildCorrispettiviRefundWhere(tenantId, query);
 
@@ -219,14 +242,7 @@ export class CorrispettiviService {
       })),
     ].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
 
-    const skip = (query.page - 1) * query.pageSize;
-
-    return {
-      items: rows.slice(skip, skip + query.pageSize),
-      total: rows.length,
-      page: query.page,
-      pageSize: query.pageSize,
-    };
+    return rows;
   }
 
   async getSummary(

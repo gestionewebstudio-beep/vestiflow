@@ -998,6 +998,8 @@ I selettori compaiono **solo** dove hanno senso: «mese corrente» non chiede l'
 
 Se qualche vendita risulta **evasa senza data**, il riepilogo te lo dice: non è conteggiata in nessun periodo, e va sistemata. Non sparisce in silenzio.
 
+**Il file che esporti contiene le stesse righe che vedi.** CSV, Excel e PDF portano vendite e rettifiche con una colonna **Tipo**, in ordine di data, e la somma delle righe fa esattamente il totale stampato in testa. È il modo per cui il commercialista può rifare il conto senza chiederti niente.
+
 ---
 
 ## 16. Usare VestiFlow da smartphone

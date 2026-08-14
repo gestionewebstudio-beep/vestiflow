@@ -143,10 +143,10 @@ export function resolveReportDateRange(
         placedFrom: toIsoDate(new Date(Date.UTC(referenceDate.getUTCFullYear(), 0, 1))),
         placedTo,
       };
-    // I periodi di calendario coprono l'intervallo INTERO, anche quando non è
-    // ancora finito: «anno 2026» significa gennaio-dicembre, non «finora».
-    // Un registro fiscale ragiona per periodi chiusi, e nel futuro non ci sono
-    // vendite da contare.
+    // Un preset di calendario rappresenta l'INTERO intervallo del periodo
+    // scelto: «anno 2026» è gennaio-dicembre, anche a giugno. Non perché il
+    // periodo sia chiuso — il 2026 non lo è — ma perché è quello il periodo
+    // che si è chiesto; la query troverà poi le sole operazioni esistenti.
     case ReportPeriodPreset.CalendarMonth: {
       const year = query.year ?? referenceDate.getUTCFullYear();
       const month = query.month ?? referenceDate.getUTCMonth() + 1;

@@ -527,7 +527,7 @@ annullamenti        0
 corrispettivo   95,00
 ```
 
-**Resta un pezzo**: l'export per il commercialista elenca ancora le sole vendite, mentre la sua intestazione porta il netto. Vedi `08` § «Cosa resta».
+**Anche il file per il commercialista si riconcilia** (chiuso lo stesso giorno). Elencava le sole vendite sotto un'intestazione col netto; ora lista ed export chiamano la stessa funzione, quindi non possono più divergere. Dettaglio in `08` §4.
 
 ---
 

@@ -87,8 +87,8 @@ describe('report-list-query.model', () => {
     });
 
     it('un anno preciso va da gennaio a dicembre, non «finora»', () => {
-      // Il riferimento è giugno 2026: un registro fiscale ragiona per periodi
-      // chiusi, e nel futuro non ci sono vendite da contare.
+      // Il riferimento è giugno 2026: un preset di calendario rappresenta
+      // l'intero intervallo del periodo scelto, non la parte già trascorsa.
       expect(
         resolveReportDateRange({ period: ReportPeriodPreset.CalendarYear, year: 2026 }, reference),
       ).toEqual({ placedFrom: '2026-01-01', placedTo: '2026-12-31' });

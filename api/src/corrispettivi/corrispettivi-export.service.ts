@@ -25,8 +25,20 @@ import { fiscalStatusDisplayLabel } from './corrispettivi-fiscal.enum-mapper';
 import { buildCorrispettiviWhere } from './corrispettivi-query.util';
 import type { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
 
+/**
+ * Le colonne del file per il commercialista.
+ *
+ * ⚠️ **«Data» e non «Data vendita»**, e c'è una colonna **Tipo**: dal 14/08/2026
+ * il file contiene anche le rettifiche, e su una riga di reso «data vendita»
+ * sarebbe un'etichetta falsa — quella è la data in cui la merce è tornata.
+ *
+ * Prima elencava le sole vendite mentre l'intestazione portava il netto: chi
+ * apriva il file non poteva ricostruire quel totale dalle righe. Un registro
+ * che non si riconcilia col proprio riepilogo non è consegnabile.
+ */
 export const CORRISPETTIVI_ACCOUNTANT_HEADERS = [
-  'Data vendita',
+  'Data',
+  'Tipo',
   'Numero ordine',
   'Canale',
   'Cliente',
@@ -34,16 +46,20 @@ export const CORRISPETTIVI_ACCOUNTANT_HEADERS = [
   'Imponibile',
   'IVA',
   'Totale',
-  'Spedizione',
-  'Sconto',
   'Stato pagamento',
-  'Stato evasione',
   'Stato fiscale',
   'Data consegna commercialista',
-  'Nota fiscale',
+  'Nota',
   'Valuta',
-  'ID Shopify',
 ] as const;
+
+/** Come si chiama una riga nel file: le stesse parole della schermata. */
+const ROW_TYPE_LABELS: Record<string, string> = {
+  sale: 'Vendita',
+  return_with_restock: 'Reso',
+  refund_only: 'Rimborso',
+  cancellation: 'Annullamento',
+};
 
 const ROME_DATETIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
   timeZone: 'Europe/Rome',
@@ -122,44 +138,46 @@ export class CorrispettiviExportService {
     return { buffer, filename: `${filename}.pdf` };
   }
 
+  /**
+   * Le righe del file, dallo **stesso dataset della schermata**.
+   *
+   * Non è una query somigliante: è `buildRegisterRows`, la medesima che
+   * alimenta la lista. È l'unico modo di garantire che il file e lo schermo
+   * non possano divergere — ed erano divergenti fino al 14/08/2026.
+   *
+   * Ordine cronologico crescente: un registro si legge dal primo giorno.
+   */
   private async buildAccountantRows(
     tenantId: string,
     query: ListCorrispettiviQueryDto,
   ): Promise<AccountantRow[]> {
-    const orders = await this.prisma.salesOrder.findMany({
-      where: buildCorrispettiviWhere(tenantId, query),
-      include: { customer: { select: { party: { select: { email: true } } } } },
-      orderBy: { fulfilledAt: 'asc' },
-    });
+    const rows = await this.corrispettivi.buildRegisterRows(tenantId, query);
 
-    return orders.map((order) => {
-      // `subtotalMinor` arriva dal canale già al netto degli sconti di riga:
-      // toglierli di nuovo dava un imponibile inesistente (01 §2.16).
-      const taxableMinor = Math.max(0, order.totalMinor - order.taxMinor);
-      return {
-        // La data della vendita è quella dell'EVASIONE: è la consegna a
-        // determinare il momento dell'operazione, non la data dell'ordine.
-        'Data vendita': ROME_DATETIME_FORMAT.format(order.fulfilledAt ?? order.placedAt),
-        'Numero ordine': order.orderNumber,
-        Canale: sourceDisplayLabel(order.source),
-        Cliente: order.customerName,
-        'Email cliente': order.customer?.party.email ?? '',
-        Imponibile: this.formatMinor(taxableMinor),
-        IVA: this.formatMinor(order.taxMinor),
-        Totale: this.formatMinor(order.totalMinor),
-        Spedizione: this.formatMinor(order.shippingMinor),
-        Sconto: this.formatMinor(order.discountMinor),
-        'Stato pagamento': financialStatusDisplayLabel(order.financialStatus),
-        'Stato evasione': fulfillmentStatusDisplayLabel(order.fulfillmentStatus),
-        'Stato fiscale': fiscalStatusDisplayLabel(order.fiscalStatus),
-        'Data consegna commercialista': order.fiscalDeliveredAt
-          ? ROME_DATE_FORMAT.format(order.fiscalDeliveredAt)
+    return [...rows]
+      .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime())
+      .map((row) => ({
+        // «Data» e non «data vendita»: su una rettifica è la data del reso.
+        Data: ROME_DATETIME_FORMAT.format(row.occurredAt),
+        Tipo: ROW_TYPE_LABELS[row.refundKind ?? row.kind] ?? 'Rettifica',
+        'Numero ordine': row.orderNumber,
+        Canale: sourceDisplayLabel(row.source),
+        Cliente: row.customerName,
+        'Email cliente': row.customerEmail ?? '',
+        // Gli importi arrivano già col segno: le righe sommano al totale
+        // dell'intestazione, ed è la proprietà che rende il file verificabile.
+        Imponibile: this.formatMinor(row.taxableMinor),
+        IVA: this.formatMinor(row.taxMinor),
+        Totale: this.formatMinor(row.totalMinor),
+        'Stato pagamento': row.financialStatus
+          ? financialStatusDisplayLabel(row.financialStatus)
           : '',
-        'Nota fiscale': order.fiscalNote ?? '',
-        Valuta: order.currency,
-        'ID Shopify': order.shopifyOrderId ?? '',
-      };
-    });
+        'Stato fiscale': row.fiscalStatus ? fiscalStatusDisplayLabel(row.fiscalStatus) : '',
+        'Data consegna commercialista': row.fiscalDeliveredAt
+          ? ROME_DATE_FORMAT.format(row.fiscalDeliveredAt)
+          : '',
+        Nota: row.note ?? row.fiscalNote ?? '',
+        Valuta: row.currency,
+      }));
   }
 
   private formatMinor(minor: number): string {
@@ -231,17 +249,19 @@ export class CorrispettiviExportService {
     y = drawPdfSectionTitle(doc, 'Elenco vendite', y);
 
     const columns: PdfTableColumn[] = [
-      { header: 'Data', width: contentWidth * 0.14 },
-      { header: 'Ordine', width: contentWidth * 0.14 },
-      { header: 'Cliente', width: contentWidth * 0.22 },
-      { header: 'Canale', width: contentWidth * 0.12 },
-      { header: 'Imponibile', width: contentWidth * 0.12, align: 'right' },
-      { header: 'IVA', width: contentWidth * 0.12, align: 'right' },
-      { header: 'Totale', width: contentWidth * 0.14, align: 'right' },
+      { header: 'Data', width: contentWidth * 0.13 },
+      { header: 'Tipo', width: contentWidth * 0.11 },
+      { header: 'Ordine', width: contentWidth * 0.13 },
+      { header: 'Cliente', width: contentWidth * 0.19 },
+      { header: 'Canale', width: contentWidth * 0.1 },
+      { header: 'Imponibile', width: contentWidth * 0.11, align: 'right' },
+      { header: 'IVA', width: contentWidth * 0.1, align: 'right' },
+      { header: 'Totale', width: contentWidth * 0.13, align: 'right' },
     ];
 
     const tableRows = rows.map((row) => [
-      row['Data vendita'],
+      row.Data,
+      row.Tipo,
       row['Numero ordine'],
       row.Cliente,
       row.Canale,
