@@ -201,7 +201,6 @@ describe('SupplierOrderFormComponent', () => {
           provide: SupplierOrderService,
           useValue: {
             createOrder,
-            getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
           },
         },
         // Modalità costi iniziale del nuovo ordine: preferenza operatore per tipo.
@@ -257,10 +256,17 @@ describe('SupplierOrderFormComponent', () => {
     return { fixture, createOrder };
   }
 
-  it('mostra l’anteprima della numerazione dai Numeratori', async () => {
+  /**
+   * Qui si asseriva la presenza del sottotitolo «Numerazione (dai Numeratori):
+   * prossimo riferimento OF-…». Quel numero era calcolato senza la sede e senza
+   * la data del documento — una regola diversa da quella che lo assegna (§2) —
+   * quindi contraddiceva il campo Numero della testata, che le usa entrambe.
+   * Il numero vero è uno solo, e sta in testata.
+   */
+  it('non affianca al titolo un secondo numero', async () => {
     await setup();
 
-    expect(await screen.findByText('OF-2026-0042')).toBeVisible();
+    expect(screen.queryByText(/prossimo riferimento/i)).toBeNull();
   });
 
   // ── Numerazione propria (specifica numerazione §5, Categoria A) ────────────
@@ -637,7 +643,6 @@ describe('SupplierOrderFormComponent', () => {
             getSupplierOrderById: () => of(ordine),
             updateOrder,
             createOrder: vi.fn(),
-            getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
           },
         },
         {
@@ -980,7 +985,6 @@ describe('SupplierOrderFormComponent', () => {
             provide: SupplierOrderService,
             useValue: {
               createOrder: vi.fn(),
-              getMeta: () => of({ nextReferencePreview: 'OF-2026-0042' }),
             },
           },
           {

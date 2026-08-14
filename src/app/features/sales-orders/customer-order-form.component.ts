@@ -826,30 +826,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       : of(null),
     { initialValue: null },
   );
-  /** Anteprima prossimo numero documento (numeratore quote/sales_ddt). */
-  private readonly registryPreviewReference = toSignal(
-    this.isRegistryDocument
-      ? this.documentService
-          .previewDocumentNumber(this.registryDocumentType, {
-            // La sede decide quale contatore predefinito si applica (§1-bis),
-            // la data quale numero è il primo libero (§2). Lette all'apertura:
-            // è l'anteprima della testata, non il numero che il salvataggio
-            // assegnerà — quello lo dice `numbering`.
-            locationId: this.form.controls.locationId.value || null,
-            documentDate: this.form.controls.documentDate.value || null,
-          })
-          .pipe(
-            map((preview) => preview.reference),
-            catchError(() => of(null)),
-          )
-      : of(null),
-    { initialValue: null as string | null },
-  );
-  protected readonly previewReference = computed(() =>
-    this.isRegistryDocument
-      ? this.registryPreviewReference()
-      : (this.meta()?.nextReferencePreview ?? null),
-  );
+  // Qui vivevano due anteprime del prossimo numero, e alimentavano entrambe
+  // l'etichetta «N. documento» — che compare SOLO in modifica, dove il numero
+  // assegnato c'è già. O non si vedevano, o si vedevano al posto del numero
+  // vero mentre il documento si stava caricando. Il numero che il documento
+  // riceverà lo dice il campo Numero in testata, che lo chiede con sede e data.
   // ── Numero documento (registro: Preventivo / DDT vendita / Scarico manuale) ──
   /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
   // Stato del dialog «numero già assegnato»: la macchina vive in domain, il
@@ -942,12 +923,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
 
-  protected readonly internalReferenceLabel = computed(() => {
-    const saved = this.isRegistryDocument
-      ? this.loadedQuoteDoc()?.reference
-      : this.loadedOrder()?.orderNumber;
-    return saved ?? this.previewReference();
-  });
+  /** Il riferimento del documento APERTO, e solo quello (etichetta di sola modifica). */
+  protected readonly internalReferenceLabel = computed(
+    () =>
+      (this.isRegistryDocument
+        ? this.loadedQuoteDoc()?.reference
+        : this.loadedOrder()?.orderNumber) ?? null,
+  );
 
   /**
    * Etichetta della tappa id nel breadcrumb: il numero del documento aperto

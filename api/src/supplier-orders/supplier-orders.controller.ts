@@ -32,11 +32,7 @@ import { CreateSupplierOrderDto } from './dto/create-supplier-order.dto';
 import { ListSupplierOrdersQueryDto } from './dto/list-supplier-orders.query.dto';
 import { UpdateSupplierOrderDto } from './dto/update-supplier-order.dto';
 import { SupplierOrderPdfService } from './supplier-order-pdf.service';
-import {
-  SupplierOrdersService,
-  type SupplierOrderMeta,
-  type SupplierOrderWithLines,
-} from './supplier-orders.service';
+import { SupplierOrdersService, type SupplierOrderWithLines } from './supplier-orders.service';
 
 @Controller('supplier-orders')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -55,13 +51,6 @@ export class SupplierOrdersController {
     @Query() query: ListSupplierOrdersQueryDto,
   ): Promise<Paginated<SupplierOrderWithLines>> {
     return this.supplierOrders.list(tenantId, query, user);
-  }
-
-  /** Anteprima numerazione dal numeratore supplier_order (Numeratori). */
-  @Get('meta')
-  @RequireAnyPermissions(SUPPLIER_ORDERS_VIEW_PERMISSIONS)
-  getMeta(@CurrentTenant() tenantId: string): Promise<SupplierOrderMeta> {
-    return this.supplierOrders.getMeta(tenantId);
   }
 
   /**

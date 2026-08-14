@@ -175,10 +175,7 @@ function formProviders(options: FormOptions = {}) {
         getManualOrderMeta: () =>
           of(
             options.unloadDocumentTypes
-              ? {
-                  nextReferencePreview: 'OC-2026-0002',
-                  unloadDocumentTypes: options.unloadDocumentTypes,
-                }
+              ? { unloadDocumentTypes: options.unloadDocumentTypes }
               : null,
           ),
         getSalesOrderById: options.order ? () => of(options.order) : vi.fn(),

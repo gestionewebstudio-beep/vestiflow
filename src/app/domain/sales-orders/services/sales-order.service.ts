@@ -82,7 +82,6 @@ export interface SaveManualOrderResult {
 }
 
 export interface ManualOrderMeta {
-  readonly nextReferencePreview: string;
   /** Tipi di documento di scarico disponibili oggi (enum API, es. sales_ddt). */
   readonly unloadDocumentTypes: readonly string[];
 }

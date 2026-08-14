@@ -159,17 +159,6 @@ describe('SupplierOrdersService', () => {
     expect(suppliers.create).toHaveBeenCalledWith(tenantId, { name: '  Fornitore  ' });
   });
 
-  it('getMeta espone anteprima del numeratore supplier_order', async () => {
-    const prisma = createPrismaMock();
-    // Max esistente 41 (aggregato numerico) → prossimo 42, senza serie.
-    prisma.supplierOrder.aggregate.mockResolvedValue({ _max: { number: 41 } });
-    const service = createService(prisma);
-
-    await expect(service.getMeta(tenantId)).resolves.toEqual({
-      nextReferencePreview: 'OF-0042',
-    });
-  });
-
   it('list pagina ordini fornitore', async () => {
     const prisma = createPrismaMock();
     prisma.supplierOrder.findMany.mockResolvedValue([{ id: 'po-1', _count: { lines: 2 } }]);

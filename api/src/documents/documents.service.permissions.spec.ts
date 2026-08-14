@@ -596,4 +596,50 @@ describe('DocumentsService — ordini cliente agganciati al documento', () => {
       );
     });
   });
+
+});
+
+/**
+ * L'anteprima numero riceve il tipo dalla query string, non da un documento
+ * salvato: è l'unica rotta di lettura che espone un numeratore senza passare
+ * dal filtro dell'elenco. Senza guardia, chi consulta i soli Preventivi legge
+ * il prossimo numero delle Fatture.
+ */
+describe('DocumentsService — anteprima numero: il tipo arriva dal client', () => {
+  const tenantId = 'tenant-1';
+
+  const soloPreventivi = (): UserProfileDto =>
+    testClerkUser({ hasAllLocationsAccess: true, permissions: ['doc.quote.view'] });
+
+  /** Nessuna dipendenza serve: la guardia scatta prima di ogni lettura. */
+  const createService = (): DocumentsService =>
+    new DocumentsService(
+      {} as unknown as PrismaService,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+  it('nega la famiglia non consultabile prima di leggere le impostazioni', async () => {
+    await expect(
+      createService().previewNextReference(
+        tenantId,
+        DocumentType.invoice_draft,
+        undefined,
+        undefined,
+        undefined,
+        soloPreventivi(),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('chiamata interna senza utente: nessuna restrizione (il gate è a monte)', async () => {
+    // `settings` non è iniettato: se la guardia lasciasse passare, il
+    // fallimento sarebbe un TypeError e non un ForbiddenException.
+    await expect(
+      createService().previewNextReference(tenantId, DocumentType.invoice_draft),
+    ).rejects.not.toBeInstanceOf(ForbiddenException);
+  });
 });

@@ -412,8 +412,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     () => this.supplierOrderLineMap().size > 0 || this.linkedSupplierOrder() != null,
   );
 
-  protected readonly previewReference = signal<string | null>(null);
-
   /** Conflitto sul numero restituito dal server: dialogo «Usa N» / «Annulla». */
   // Stato del dialog «numero già assegnato»: la macchina vive in domain,
   // il form decide solo quale controllo riceve il numero e cosa risalvare.
@@ -822,13 +820,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly documentStatus = computed(
     () => this.loadedDocument()?.status ?? DocumentStatus.Draft,
   );
-  protected readonly internalReferenceLabel = computed(() => {
-    const doc = this.loadedDocument();
-    if (doc?.reference) {
-      return doc.reference;
-    }
-    return this.previewReference();
-  });
+  /**
+   * Il riferimento del documento APERTO, e solo quello: l'etichetta compare in
+   * sola modifica, dove il numero è assegnato. Qui c'era un ripiego su
+   * un'anteprima che nessuno scriveva mai — un `signal` senza produttori — e
+   * che, se avesse funzionato, avrebbe scritto «N. documento» sopra il prossimo
+   * numero libero invece che sopra quello del documento.
+   */
+  protected readonly internalReferenceLabel = computed(
+    () => this.loadedDocument()?.reference ?? null,
+  );
 
   /**
    * Serie configurate per il tipo in testata. Oggi il tipo documento espone

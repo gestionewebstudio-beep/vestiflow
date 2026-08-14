@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { DocumentType } from '@prisma/client';
 
+import { assertCanViewDocumentType } from '../auth/document-permission.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { findChronologyConflicts, type ChronologyConflict } from './document-chronology.util';
 import { numberSourceForType } from './document-numbering.util';
+
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 
 /** Esito del controllo: i conflitti, più se l'operatore ha spento l'avviso. */
 export interface ChronologyCheck {
@@ -40,14 +43,19 @@ export class DocumentChronologyService {
    */
   async check(input: {
     readonly tenantId: string;
-    readonly userId: string | undefined;
+    readonly user: UserProfileDto | undefined;
     readonly type: DocumentType;
     readonly series: string | null;
     readonly number: number;
     readonly documentDate: Date;
     readonly excludeId?: string | null;
   }): Promise<ChronologyCheck> {
-    const { tenantId, userId, type } = input;
+    const { tenantId, user, type } = input;
+    // Il tipo arriva dal client, non da un documento salvato: senza questa
+    // guardia la risposta nomina numeri, date e riferimenti di una famiglia
+    // che l'utente non può consultare.
+    assertCanViewDocumentType(user, type);
+    const userId = user?.id;
     const [conflicts, dismissed] = await Promise.all([
       findChronologyConflicts({
         tx: this.prisma,
@@ -82,7 +90,11 @@ export class DocumentChronologyService {
    * Rende anche l'operazione idempotente, che serve perché la casella può
    * arrivare due volte da due schede aperte.
    */
-  async dismiss(tenantId: string, userId: string, type: DocumentType): Promise<void> {
+  async dismiss(tenantId: string, user: UserProfileDto, type: DocumentType): Promise<void> {
+    // Anche spegnere è un'operazione sul tipo: chi non può consultare quella
+    // famiglia non deve poterle scrivere una preferenza.
+    assertCanViewDocumentType(user, type);
+    const userId = user.id;
     await this.prisma.userDocumentChronologyWarningPreference.upsert({
       where: { tenantId_userId_documentType: { tenantId, userId, documentType: type } },
       create: { tenantId, userId, documentType: type },

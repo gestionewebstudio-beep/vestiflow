@@ -207,6 +207,7 @@ export class DocumentsController {
   @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
   previewNumber(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: PreviewDocumentNumberQueryDto,
   ) {
     return this.documents.previewNextReference(
@@ -215,6 +216,7 @@ export class DocumentsController {
       query.series,
       query.locationId,
       query.documentDate ? new Date(query.documentDate) : undefined,
+      user,
     );
   }
 
@@ -234,7 +236,7 @@ export class DocumentsController {
   ) {
     return this.chronology.check({
       tenantId,
-      userId: user.id,
+      user,
       type: query.type,
       series: query.series ?? null,
       number: query.number,
@@ -252,7 +254,7 @@ export class DocumentsController {
     @CurrentUser() user: UserProfileDto,
     @Query() query: ChronologyCheckQueryDto,
   ): Promise<void> {
-    await this.chronology.dismiss(tenantId, user.id, query.type);
+    await this.chronology.dismiss(tenantId, user, query.type);
   }
 
   @Get(':id/revisions')

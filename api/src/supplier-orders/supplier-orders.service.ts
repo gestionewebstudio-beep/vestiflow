@@ -67,11 +67,6 @@ export type SupplierOrderWithLines = SupplierOrder & {
   linkedDocuments?: SupplierOrderLinkedDocument[];
 };
 
-export interface SupplierOrderMeta {
-  /** Anteprima prossimo riferimento dal numeratore supplier_order. */
-  readonly nextReferencePreview: string;
-}
-
 interface ComputedOrderLine {
   readonly variantId: string;
   readonly sku: string;
@@ -115,24 +110,12 @@ export class SupplierOrdersService {
     return this.suppliers.create(tenantId, dto);
   }
 
-  /** Anteprima numerazione (numeratore dedicato supplier_order, come Ordine cliente). */
-  async getMeta(tenantId: string): Promise<SupplierOrderMeta> {
-    const setting = await this.documentSettings.getResolved(tenantId, DocumentType.supplier_order);
-    const series = await defaultCounterSeries(this.prisma, tenantId, DocumentType.supplier_order);
-    // Stesso criterio dell'assegnazione (massimo esistente + 1): l'anteprima
-    // coincide col numero che l'ordine riceverà davvero.
-    const previewNumber = await nextDocumentNumber({
-      tx: this.prisma,
-      tenantId,
-      type: DocumentType.supplier_order,
-      series,
-      source: 'supplier_order',
-      prefix: setting.numberPrefix,
-    });
-    return {
-      nextReferencePreview: formatDocumentReference(setting.numberPrefix, series, previewNumber),
-    };
-  }
+  // Qui viveva `getMeta`, l'anteprima del prossimo riferimento mostrata in coda
+  // al titolo della maschera. Calcolava il numero SENZA la sede e SENZA la data
+  // del documento, cioè con una regola diversa da quella che lo assegna (§2):
+  // in testata il campo Numero ne diceva uno, il sottotitolo un altro, e il
+  // secondo era quello che l'operatore leggeva per primo. Il numero vero è uno
+  // solo, e sta in testata — non serviva un'anteprima accanto.
 
   /**
    * Crea un ordine fornitore Confermato: snapshot nome fornitore, SKU e

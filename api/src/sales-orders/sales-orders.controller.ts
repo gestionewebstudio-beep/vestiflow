@@ -102,8 +102,8 @@ export class SalesOrdersController {
 
   @Get('manual/meta')
   @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
-  getManualMeta(@CurrentTenant() tenantId: string): Promise<ManualSalesOrderMeta> {
-    return this.manualOrders.getMeta(tenantId);
+  getManualMeta(): ManualSalesOrderMeta {
+    return this.manualOrders.getMeta();
   }
 
   /**

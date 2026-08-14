@@ -57,8 +57,6 @@ export interface ManualSalesOrderSaveResult {
 }
 
 export interface ManualSalesOrderMeta {
-  /** Anteprima prossimo numero ordine (numeratore dedicato customer_order). */
-  readonly nextReferencePreview: string;
   /**
    * Tipi di documento di scarico disponibili per "Concludi ordine": derivati
    * da DOCUMENT_STOCK_UNLOAD_TYPES — nuovi tipi futuri appaiono da soli.
@@ -85,22 +83,15 @@ export class ManualSalesOrdersService {
     private readonly externalTypes: ExternalDocumentTypesService,
   ) {}
 
-  async getMeta(tenantId: string): Promise<ManualSalesOrderMeta> {
-    const setting = await this.documentSettings.getResolved(tenantId, DocumentType.customer_order);
-    const series = await defaultCounterSeries(this.prisma, tenantId, DocumentType.customer_order);
-    // Stesso criterio dell'assegnazione (massimo esistente + 1).
-    const previewNumber = await nextDocumentNumber({
-      tx: this.prisma,
-      tenantId,
-      type: DocumentType.customer_order,
-      series,
-      source: 'sales_order',
-      prefix: setting.numberPrefix,
-    });
-    return {
-      nextReferencePreview: formatDocumentReference(setting.numberPrefix, series, previewNumber),
-      unloadDocumentTypes: DOCUMENT_STOCK_UNLOAD_TYPES,
-    };
+  /**
+   * Portava anche `nextReferencePreview`, il prossimo numero dell'ordine
+   * calcolato SENZA sede e SENZA data: una regola diversa da quella che poi lo
+   * assegna (§2). Alimentava l'etichetta «N. documento», che compare solo in
+   * modifica — dove il numero vero c'è già — quindi il valore o non si vedeva
+   * o si vedeva al posto di quello del documento, mentre lo caricava.
+   */
+  getMeta(): ManualSalesOrderMeta {
+    return { unloadDocumentTypes: DOCUMENT_STOCK_UNLOAD_TYPES };
   }
 
   /** Impegni attivi dell'ordine (per la Q.tà disponibile in modifica). */

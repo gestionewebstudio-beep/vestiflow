@@ -11,7 +11,6 @@ describe('SupplierOrdersController', () => {
   const user = testOwnerUser();
   const supplierOrders = {
     list: vi.fn(),
-    getMeta: vi.fn(),
     getById: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -78,15 +77,6 @@ describe('SupplierOrdersController', () => {
     await controller.update(tenantId, user, 'po-1', dto as never);
 
     expect(supplierOrders.update).toHaveBeenCalledWith(tenantId, 'po-1', dto, user);
-  });
-
-  it('getMeta espone anteprima numerazione', async () => {
-    supplierOrders.getMeta.mockResolvedValue({ nextReferencePreview: 'OF-2026-0042' });
-
-    await expect(controller.getMeta(tenantId)).resolves.toEqual({
-      nextReferencePreview: 'OF-2026-0042',
-    });
-    expect(supplierOrders.getMeta).toHaveBeenCalledWith(tenantId);
   });
 
   it('cancel delega al service passando l\'utente (scope location)', async () => {

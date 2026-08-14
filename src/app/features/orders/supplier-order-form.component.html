@@ -7,15 +7,11 @@
     <h1 class="doc-form__title">
       {{ isEditMode() ? 'Modifica ordine fornitore' : 'Nuovo ordine fornitore' }}
     </h1>
-    <!-- Anteprima numerazione in coda alla riga del titolo (era un hint sopra la testata). -->
-    @if (!isEditMode() && nextReferencePreview()) {
-      <div class="doc-form__meta">
-        <span class="doc-form__internal-ref tabular-nums">
-          Numerazione (dai Numeratori): prossimo riferimento
-          <strong>{{ nextReferencePreview() }}</strong>
-        </span>
-      </div>
-    }
+    <!-- Qui c'era «Numerazione (dai Numeratori): prossimo riferimento OF-…»,
+         calcolato senza sede e senza data del documento: mostrava un numero
+         diverso da quello che il campo Numero della testata propone (e che il
+         salvataggio assegna). Due numeri sulla stessa schermata, e quello
+         sbagliato era il più grande. Il numero vero è uno solo, in testata. -->
   </div>
 
   @if (loading()) {
