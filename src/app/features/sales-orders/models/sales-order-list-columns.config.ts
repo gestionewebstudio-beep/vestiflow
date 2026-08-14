@@ -66,9 +66,12 @@ export const SALES_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
  * Ordini Shopify: stesso elenco con in più le colonne del canale. Vive qui per
  * restare allineato al set principale quando questo cambia.
  */
+// La colonna «Corrispettivo» è caduta il 14/08/2026 insieme a
+// `corrispettivo_entries`: mostrava il numero COR-… e uno stato che nel
+// registro derivato non esistono più — lì il corrispettivo è un periodo, non
+// un documento con un identificativo. Vedi specifica 08 §10.
 export const SHOPIFY_ORDER_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   ...SALES_ORDER_LIST_COLUMN_DEFS.filter((column) => column.id !== 'source'),
-  { id: 'corrispettivo', label: 'Corrispettivo', defaultVisible: true },
   { id: 'ddt', label: 'DDT', defaultVisible: true },
   { id: 'updatedAt', label: 'Aggiornato', defaultVisible: true },
   { id: 'syncState', label: 'Sync', defaultVisible: true },
@@ -87,7 +90,6 @@ export const SHOPIFY_ORDER_LIST_COLUMN_PRESETS: TableViewPresetMap = {
     'customerName',
     'total',
     'financialStatus',
-    'corrispettivo',
   ],
   [TableViewPresetId.Supplier]: SHOPIFY_DEFAULT_IDS,
   [TableViewPresetId.Analysis]: ['placedAt', 'customerName', 'netTotal', 'total', 'state'],

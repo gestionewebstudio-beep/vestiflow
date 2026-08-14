@@ -1,5 +1,4 @@
 import {
-  CorrispettivoStatus,
   DocumentType,
   OnlineOrderEventType,
   OnlineSaleInventoryStatus,
@@ -898,20 +897,12 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
       expect.objectContaining({ type: ReservationEventType.consumed, quantityDelta: -2 }),
     );
 
-    // Un Corrispettivo collegato, con data fiscale distinta proposta dall'evasione.
-    expect(db.corrispettivi).toHaveLength(1);
-    expect(db.corrispettivi[0]).toMatchObject({
-      reference: 'COR-2026-0001',
-      onlineSaleId: sale?.id,
-      salesOrderId: 'order-1',
-      status: CorrispettivoStatus.to_verify,
-      subtotalMinor: 3000,
-      taxMinor: 541,
-      totalMinor: 3000,
-      operationalDate: new Date('2026-07-12T11:00:00Z'),
-      fiscalDate: new Date('2026-07-12T00:00:00Z'),
-    });
-    expect(db.corrispettivoLines).toHaveLength(1);
+    // NESSUNA voce di corrispettivo: il registro è derivato dalle vendite e
+    // dalle rettifiche (specifica 08 §10). Qui prima nasceva un COR-2026-0001
+    // con la sua data fiscale, e una tabella parallela che nessuno legge può
+    // solo divergere dalle vendite che dovrebbe rispecchiare.
+    expect(db.corrispettivi).toHaveLength(0);
+    expect(db.corrispettivoLines).toHaveLength(0);
   });
 
   it('evento duplicato: nessuna seconda Vendita, nessun secondo movimento, consumo o Corrispettivo', async () => {
@@ -928,7 +919,7 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(second).toBe('duplicate');
     expect(db.onlineSales).toHaveLength(1);
     expect(db.movements).toHaveLength(1);
-    expect(db.corrispettivi).toHaveLength(1);
+    expect(db.corrispettivi).toHaveLength(0);
     expect(level(db)).toMatchObject({ onHand: 8, committed: 0, available: 8 });
     expect(
       db.reservationEvents.filter((event) => event.type === ReservationEventType.consumed),
@@ -957,8 +948,11 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(db.movements).toHaveLength(1);
     expect(db.onlineSales).toHaveLength(1);
     expect(db.onlineSales[0]?.refundedAt).toEqual(new Date('2026-07-13T10:00:00Z'));
-    expect(db.corrispettivi[0]).toMatchObject({ status: CorrispettivoStatus.refunded });
-    expect(String(db.corrispettivi[0]?.adjustmentNote)).toContain('rettifica');
+    // Nessuna voce di corrispettivo da marcare `refunded`: la rettifica
+    // economica vive in `sales_order_refunds` e il registro la sottrae alla
+    // sua data. Qui resta ciò che è vero e utile — la vendita sa di aver
+    // avuto un rimborso, e l'ordine chiede di verificare la rettifica.
+    expect(db.corrispettivi).toHaveLength(0);
     expect(db.orders.get('order-1')).toMatchObject({ requiresReview: true });
   });
 
@@ -1028,10 +1022,14 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
 
     await service.handle(createdEvent());
 
-    // Il Corrispettivo (ultimo passo della transazione) fallisce.
-    const originalCreate = db.tx.corrispettivoEntry.create;
-    db.tx.corrispettivoEntry.create = () =>
-      Promise.reject(new Error('DB error simulato sul Corrispettivo'));
+    // Un passo interno alla transazione fallisce. Era il Corrispettivo, che
+    // non viene più scritto: si inietta l'errore sul movimento di magazzino,
+    // che sta nello stesso punto del flusso — dopo la Vendita, prima della
+    // chiusura. Ciò che il test dimostra non cambia: se un passo cade, cade
+    // tutto, e non resta nessun oggetto orfano.
+    const originalCreate = db.tx.stockMovement.create;
+    db.tx.stockMovement.create = () =>
+      Promise.reject(new Error('DB error simulato sul movimento'));
 
     await expect(service.handle(fulfilledEvent())).rejects.toThrow('DB error simulato');
 
@@ -1051,15 +1049,15 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     ).toHaveLength(0);
 
     // Il retry dopo il ripristino va a buon fine.
-    db.tx.corrispettivoEntry.create = originalCreate;
+    db.tx.stockMovement.create = originalCreate;
     const retry = await service.handle(fulfilledEvent());
     expect(retry).toBe('applied');
     expect(level(db)).toMatchObject({ onHand: 8, committed: 0, available: 8 });
     expect(db.onlineSales).toHaveLength(1);
-    expect(db.corrispettivi).toHaveLength(1);
+    expect(db.corrispettivi).toHaveLength(0);
   });
 
-  it('ordine storico senza impegni attivi: Vendita e Corrispettivo registrati ma nessun effetto magazzino', async () => {
+  it('ordine storico senza impegni attivi: Vendita registrata, nessun effetto magazzino e nessun Corrispettivo', async () => {
     const db = createFakeDb();
     seedOrder(db);
     const order = db.orders.get('order-1');
@@ -1077,6 +1075,6 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(db.onlineSales[0]?.inventoryStatus).toBe(OnlineSaleInventoryStatus.not_applied);
     expect(db.movements).toHaveLength(0);
     expect(level(db)).toMatchObject({ onHand: 10, committed: 0, available: 10 });
-    expect(db.corrispettivi).toHaveLength(1);
+    expect(db.corrispettivi).toHaveLength(0);
   });
 });

@@ -815,7 +815,19 @@ Le aliquote vere sono **4%** su un articolo e **22%** sugli altri due più la sp
 
 **Perché non si era mai visto.** I quattro corrispettivi precedenti nascevano da ordini a **una sola aliquota**, dove la media coincide col vero. Il difetto compare solo quando le aliquote sono due, ed è emerso perché l'ordine di prova è stato costruito apposta con 4% e 22% insieme.
 
-**È attivo in produzione**: `createCorrispettivoTx` gira a ogni evasione.
+⚠️ **E non riguarda solo il corrispettivo: la stessa aliquota inventata sta sulle righe della Vendita online.** _Misurato su `VO-2026-0004`, la vendita dello stesso ordine:_
+
+```
+prodotto  60,00 · iva 6,48 · {"matched":false,"ratePercent":12}
+prodotto  50,00 · iva 5,41 · {"matched":false,"ratePercent":12}
+maglietta 10,00 · iva 1,08 · {"matched":false,"ratePercent":12}
+```
+
+La ripartizione avviene in `computeSaleLines`, **prima** che le righe vengano copiate nella voce di corrispettivo: la Vendita online è il primo scrittore, la voce il secondo.
+
+**Conseguenza sulla dismissione**: smettere di scrivere `corrispettivo_entries` — fatto il 14/08 — **spegne uno scrittore su due**. Le righe della Vendita online continuano a nascere con l'aliquota media, e il difetto resta aperto finché non si legge `tax_lines`.
+
+**Era attivo in produzione** a ogni evasione da due punti; da oggi da uno solo.
 
 **Cosa deve fare invece.** Leggere `tax_lines` per riga e conservare aliquota e imposta **come snapshot del canale**, anche prima di avere una corrispondenza certa col Codice IVA di VestiFlow. Sono due problemi distinti, e tenerli insieme rimanda anche la parte che si può fare subito: il dato storico di Shopify si salva oggi, la corrispondenza coi codici interni è una decisione della procedura di prima sincronizzazione.
 

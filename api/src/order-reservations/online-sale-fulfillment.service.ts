@@ -7,7 +7,6 @@ import {
   ReservationStatus,
   SalesOrderSource,
   StockMovementType,
-  CorrispettivoStatus,
   type Customer,
   type Party,
   type SalesOrder,
@@ -29,9 +28,8 @@ import { allocateProportional, deriveVatRatePercent } from './online-sale-money.
 import { StockReservationService } from './stock-reservation.service';
 import type { OnlineOrderEventInput } from './online-order-lifecycle.service';
 
-/** Prefissi numerazione interna (coerenti con document-defaults). */
+/** Prefisso numerazione interna (coerente con document-defaults). */
 const ONLINE_SALE_PREFIX = 'VO';
-const CORRISPETTIVO_PREFIX = 'COR';
 
 export type OnlineSaleCreationOutcome = 'created' | 'already_exists' | 'order_not_found';
 
@@ -302,17 +300,19 @@ export class OnlineSaleFulfillmentService {
       });
     }
 
-    // ── Corrispettivo collegato (§4): stessa transazione, oggetto distinto ──
-    await this.createCorrispettivoTx(tx, {
-      tenantId: event.tenantId,
-      channel: event.channel,
-      onlineSaleId: sale.id,
-      salesOrderId: order.id,
-      fulfilledAt,
-      order,
-      lines: computedLines,
-      salesVatCodes,
-    });
+    // ── Nessuna voce di corrispettivo ─────────────────────────────────────
+    //
+    // Qui nasceva una `CorrispettivoEntry` con il suo numero COR-… Non nasce
+    // più: il registro corrispettivi è **derivato** dalle vendite e dalle
+    // rettifiche (decisione dell'11/08, specifica `08` §10), e una tabella
+    // parallela che nessuno legge può solo divergere da esse.
+    //
+    // Smettere di scriverla chiude anche il difetto `01` §3.12: ogni voce
+    // nuova poteva contenere un'aliquota media inventata sugli ordini
+    // multi-aliquota. Da adesso nessuna nuova ne nasce.
+    //
+    // La tabella **resta**, e le righe già scritte con lei: il database è
+    // condiviso e l'eliminazione è distruttiva, quindi va in un rilascio a sé.
 
     this.logger.log(
       `Vendita online ${sale.reference} creata per ordine ${order.orderNumber} (${movedLines}/${stockLines} righe scaricate).`,
@@ -348,27 +348,10 @@ export class OnlineSaleFulfillmentService {
       });
     }
 
-    await tx.corrispettivoEntry.updateMany({
-      where: {
-        tenantId: event.tenantId,
-        onlineSaleId: sale.id,
-        status: { in: [CorrispettivoStatus.to_verify, CorrispettivoStatus.included] },
-      },
-      data: {
-        status: CorrispettivoStatus.refunded,
-        refundedAt,
-        // ⚠️ Questa nota NON può dire cosa è successo alla giacenza, e prima lo
-        // diceva: «La giacenza NON è stata modificata». Era falso ogni volta che
-        // il rimborso portava una ricarica — misurato il 14/08/2026, giacenza
-        // modificata 0,4 secondi dopo, dall'evento di restock che arriva DOPO
-        // questo. Rimborso e rientro sono due eventi distinti, in due
-        // transazioni distinte, e quando questa riga viene scritta il secondo
-        // non è ancora stato trattato: qualunque affermazione sul magazzino è
-        // una previsione, non un fatto.
-        adjustmentNote:
-          'Rimborso comunicato dal canale dopo la Vendita online: predisporre la rettifica del corrispettivo. Il rientro fisico della merce è un evento separato: verificare i movimenti collegati alla vendita.',
-      },
-    });
+    // La voce di corrispettivo non si aggiorna più, perché non nasce più: la
+    // rettifica economica vive in `sales_order_refunds` (§4) e il registro la
+    // sottrae alla sua data. `refundedAt` sulla Vendita online resta, ed è
+    // l'informazione utile — dice che quella vendita ha avuto un rimborso.
 
     await tx.salesOrder.updateMany({
       where: { id: event.salesOrderId, tenantId: event.tenantId },
@@ -558,95 +541,6 @@ export class OnlineSaleFulfillmentService {
         vatSnapshot,
       };
     });
-  }
-
-  private async createCorrispettivoTx(
-    tx: Prisma.TransactionClient,
-    params: {
-      readonly tenantId: string;
-      readonly channel: SalesOrderSource;
-      readonly onlineSaleId: string;
-      readonly salesOrderId: string;
-      readonly fulfilledAt: Date;
-      readonly order: OrderWithContext;
-      readonly lines: readonly ComputedSaleLine[];
-      readonly salesVatCodes: readonly VatCodeWithNature[];
-    },
-  ): Promise<void> {
-    const year = params.fulfilledAt.getFullYear();
-    const number = await this.nextNumber(
-      tx,
-      params.tenantId,
-      DocumentType.corrispettivo,
-      year,
-    );
-
-    // §5: la data fiscale è PROPOSTA dalla data evasione ma resta un campo
-    // distinto, modificabile dagli utenti autorizzati via registro.
-    const fiscalDate = this.dateOnly(params.fulfilledAt);
-
-    const entry = await tx.corrispettivoEntry.create({
-      data: {
-        tenantId: params.tenantId,
-        series: 'A',
-        number,
-        year,
-        reference: this.formatReference(CORRISPETTIVO_PREFIX, year, number),
-        onlineSaleId: params.onlineSaleId,
-        salesOrderId: params.salesOrderId,
-        channel: params.channel,
-        operationalDate: params.fulfilledAt,
-        fiscalDate,
-        subtotalMinor: params.order.subtotalMinor,
-        taxMinor: params.order.taxMinor,
-        totalMinor: params.order.totalMinor,
-        discountMinor: params.order.discountMinor,
-        shippingMinor: params.order.shippingMinor,
-        status: CorrispettivoStatus.to_verify,
-      },
-      select: { id: true },
-    });
-
-    const shippingTax =
-      params.order.taxMinor -
-      params.lines.reduce((acc, line) => acc + line.taxMinor, 0);
-
-    const lineRows: Prisma.CorrispettivoEntryLineCreateManyInput[] = params.lines.map((line) => ({
-      tenantId: params.tenantId,
-      entryId: entry.id,
-      lineNumber: line.lineNumber,
-      isShipping: false,
-      description: line.description,
-      quantity: line.quantity,
-      subtotalMinor: line.subtotalMinor,
-      taxMinor: line.taxMinor,
-      totalMinor: line.totalMinor,
-      vatCodeId: line.vatCodeId,
-      vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-    }));
-
-    if (params.order.shippingMinor > 0) {
-      const shippingSubtotal = params.order.shippingMinor - shippingTax;
-      const shippingVatRate = deriveVatRatePercent(shippingSubtotal, shippingTax);
-      const shippingVat = this.resolveDerivedVat(shippingVatRate, params.salesVatCodes);
-      lineRows.push({
-        tenantId: params.tenantId,
-        entryId: entry.id,
-        lineNumber: lineRows.length + 1,
-        isShipping: true,
-        description: 'Spedizione',
-        quantity: 1,
-        subtotalMinor: shippingSubtotal,
-        taxMinor: shippingTax,
-        totalMinor: params.order.shippingMinor,
-        vatCodeId: shippingVat.vatCodeId,
-        vatSnapshot: shippingVat.vatSnapshot ?? Prisma.DbNull,
-      });
-    }
-
-    if (lineRows.length > 0) {
-      await tx.corrispettivoEntryLine.createMany({ data: lineRows });
-    }
   }
 
   /** Chiave idempotenza vendita (§6): tenant scoping è nell'indice univoco. */

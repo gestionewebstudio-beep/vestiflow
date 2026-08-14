@@ -391,7 +391,14 @@ Nessuno storico dell'operatore da migrare prima che la tabella cada. L'unica not
 1. **Decidere le due informazioni** che le vendite non hanno (sotto). Sono l'unica cosa che si perde davvero, e vanno decise **prima**.
 2. **Il registro derivato deve saper fare quello che fa quello a entries**: elenco, filtri, riepiloghi — più la rettifica per reso del §4. ✅ **Fatto il 14/08**, salvo il filtro per aliquota, che il censimento ha declassato da «da portare» a «da ricostruire».
 3. **Ripuntare la schermata.** ✅ **Fatto il 14/08**: `/app/sales/corrispettivi` carica il registro derivato, `/app/reports/corrispettivi` fa redirect. L'indirizzo e la voce di menu non cambiano — cambia cosa caricano. I permessi passano a quelli delle vendite online, gli stessi che l'API richiede: la vecchia rotta sotto Report chiedeva `SectionReports`, e chi aveva solo quello apriva una pagina che poi prendeva 403 dalle proprie chiamate.
-4. **Smettere di scrivere**: togliere `createCorrispettivoTx` dall'evasione e l'aggiornamento sul rimborso. Da qui in poi nessuna voce nuova. **Prossimo passo.**
+4. **Smettere di scrivere.** ✅ **Fatto il 14/08**: `createCorrispettivoTx` è stato rimosso dall'evasione insieme all'aggiornamento sul rimborso. Da qui in poi nessuna voce nuova, e i test lo sorvegliano — le asserzioni che pretendevano una voce ora pretendono che non ci sia.
+
+   Il mini-censimento prima di togliere ha trovato **tre viste** che leggevano la voce e non erano il registro: il badge nel dettaglio Vendita online, la colonna nell'elenco Vendite online e quella negli Ordini cliente. Mostravano numero `COR-…` e stato, cioè un oggetto persistente che nel modello derivato non esiste — lì il corrispettivo è un periodo, non un documento. **Tolti insieme alla scrittura**, senza sostituirli: «rientra nel registro di agosto» sarebbe quasi tautologico, visto che ogni vendita evasa ci rientra per definizione. Un eventuale «Apri nel Registro Corrispettivi» è una funzione di navigazione nuova, da valutare a parte.
+
+   Cosa **non** è caduto, e va saputo: `DocumentType.corrispettivo` resta nella configurazione — prefisso `COR`, etichetta, famiglia permessi. Solo la **numerazione** non è più consumata. Toglierlo è un lavoro a sé.
+
+   ⚠️ E non chiude il difetto dell'aliquota media (`01` §3.12): la stessa ripartizione alimenta anche le righe della **Vendita online**, che restano. Spegne uno scrittore su due.
+
 5. **La numerazione cade da sé**: `DocumentType.corrispettivo` è consumato in **un solo punto** (`online-sale-fulfillment.service.ts:580`). È il «togliere al corrispettivo la numerazione che ha» del `04` §8.
 6. **La migration che elimina le tabelle è DISTRUTTIVA**, ed è la prima di questo ramo. Il database è condiviso e c'è un ambiente pubblicato: va fatta **in due tempi** — prima si smette di scrivere e leggere, poi, in un rilascio successivo, si eliminano le tabelle.
 

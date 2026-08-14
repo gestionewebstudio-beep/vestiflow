@@ -17,12 +17,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import {
   financialStatusDisplayLabel,
-  fulfillmentStatusDisplayLabel,
   sourceDisplayLabel,
 } from '../sales-orders/sales-order.enum-mapper';
 import { CorrispettiviService } from './corrispettivi.service';
 import { fiscalStatusDisplayLabel } from './corrispettivi-fiscal.enum-mapper';
-import { buildCorrispettiviWhere } from './corrispettivi-query.util';
 import type { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
 
 /**

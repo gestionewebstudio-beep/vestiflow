@@ -156,19 +156,6 @@
                   }
                 </td>
               }
-              @case ('corrispettivo') {
-                <td [attr.data-label]="col.label">
-                  @if (order.onlineSale?.corrispettivo; as entry) {
-                    <span class="sales-table__cell-value">
-                      <app-badge [tone]="corrispettivoTone(entry.status)">
-                        {{ entry.reference }}
-                      </app-badge>
-                    </span>
-                  } @else {
-                    <span aria-hidden="true">—</span>
-                  }
-                </td>
-              }
               @case ('ddt') {
                 <td [attr.data-label]="col.label">
                   @if (order.linkedDocument; as doc) {
