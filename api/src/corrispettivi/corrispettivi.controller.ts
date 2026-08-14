@@ -25,6 +25,7 @@ import {
   CorrispettiviService,
   type CorrispettiviDeliveryRow,
   type CorrispettiviOrderRow,
+  type CorrispettiviRegisterRow,
   type CorrispettiviSummaryDto,
 } from './corrispettivi.service';
 import { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
@@ -44,7 +45,7 @@ export class CorrispettiviController {
   listOrders(
     @CurrentTenant() tenantId: string,
     @Query() query: ListCorrispettiviQueryDto,
-  ): Promise<Paginated<CorrispettiviOrderRow>> {
+  ): Promise<Paginated<CorrispettiviRegisterRow>> {
     return this.corrispettivi.listOrders(tenantId, query);
   }
 

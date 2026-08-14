@@ -4,6 +4,10 @@ import {
   SalesOrderFulfillmentStatus as PrismaFulfillment,
   SalesOrderRefundKind as PrismaRefundKind,
   type SalesOrder,
+  type SalesOrderFinancialStatus,
+  type SalesOrderFiscalStatus,
+  type SalesOrderRefundKind,
+  type SalesOrderSource,
 } from '@prisma/client';
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
@@ -63,36 +67,163 @@ export type CorrispettiviOrderRow = SalesOrder & {
   customer: { email: string | null } | null;
 };
 
+/**
+ * Una riga del registro: o una vendita, o una rettifica.
+ *
+ * **Non è un'entità nuova**: è derivata da `sales_orders` e
+ * `sales_order_refunds`, che restano le fonti. Serve perché il registro deve
+ * poter essere **sommato a occhio** — il totale in fondo alla schermata si
+ * ricostruisce dalla colonna, riga per riga, senza fidarsi di un riepilogo.
+ *
+ * Le rettifiche portano importi **negativi** apposta: è ciò che rende la
+ * colonna sommabile e la riconciliazione verificabile da chi guarda.
+ */
+export type CorrispettiviRowKind = 'sale' | 'refund';
+
+export interface CorrispettiviRegisterRow {
+  /** Identità della riga nella lista (`sale:<id>` / `refund:<id>`). */
+  readonly rowId: string;
+  readonly kind: CorrispettiviRowKind;
+  /** Sempre valorizzato: da qui si apre l'ordine, anche da una rettifica. */
+  readonly salesOrderId: string;
+  readonly orderNumber: string;
+  /** Data con cui la riga entra nel registro: evasione, o data della rettifica. */
+  readonly occurredAt: Date;
+  readonly source: SalesOrderSource;
+  readonly customerName: string;
+  readonly customerEmail: string | null;
+  readonly currency: string;
+  readonly taxableMinor: number;
+  readonly taxMinor: number;
+  readonly totalMinor: number;
+  /** Solo sulle vendite: una rettifica non ha stato di pagamento né fiscale. */
+  readonly financialStatus: SalesOrderFinancialStatus | null;
+  readonly fiscalStatus: SalesOrderFiscalStatus | null;
+  readonly fiscalDeliveredAt: Date | null;
+  readonly fiscalNote: string | null;
+  /** Solo sulle rettifiche: che gesto è stato. */
+  readonly refundKind: SalesOrderRefundKind | null;
+  readonly note: string | null;
+}
+
+/**
+ * Tetto alla fusione delle due sorgenti, dichiarato invece che scoperto.
+ *
+ * La lista unisce vendite e rettifiche e le ordina per data: farlo in SQL
+ * richiederebbe una UNION scritta a mano, e per un registro che si consulta a
+ * periodo — un mese, un trimestre — non ripaga. Oltre questa soglia però non si
+ * tronca in silenzio: si chiede di restringere il periodo.
+ */
+const REGISTER_MERGE_CEILING = 5_000;
+
 @Injectable()
 export class CorrispettiviService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * L'elenco del registro: vendite e rettifiche nello stesso flusso, ordinate
+   * per la data con cui entrano.
+   *
+   * Prima mostrava solo le vendite, e da quando il riepilogo sottrae le
+   * rettifiche la schermata si contraddiceva: il totale diceva 95,00 e
+   * l'elenco sotto ne mostrava 300,01. Un registro in cui la somma della
+   * colonna non fa il totale in fondo non è consultabile.
+   */
   async listOrders(
     tenantId: string,
     query: ListCorrispettiviQueryDto,
-  ): Promise<Paginated<CorrispettiviOrderRow>> {
+  ): Promise<Paginated<CorrispettiviRegisterRow>> {
     const where = buildCorrispettiviWhere(tenantId, query);
+    const refundWhere = buildCorrispettiviRefundWhere(tenantId, query);
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.salesOrder.findMany({
-        where,
-        include: { customer: { select: { party: { select: { email: true } } } } },
-        // Ordinato per data di EVASIONE, che è la data con cui la vendita entra
-        // nel registro: ordinare per data ordine mostrerebbe una sequenza che
-        // non corrisponde a quella dei periodi.
-        orderBy: { fulfilledAt: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-      }),
-      this.prisma.salesOrder.count({ where }),
+    // «Solo resi» ora significa le RETTIFICHE, non gli ordini che ne hanno una:
+    // in un elenco che le contiene, mostrare la vendita al posto del reso
+    // sarebbe la risposta alla domanda sbagliata.
+    const wantsSales = !query.refundsOnly;
+
+    const [saleCount, refundCount] = await Promise.all([
+      wantsSales ? this.prisma.salesOrder.count({ where }) : Promise.resolve(0),
+      this.prisma.salesOrderRefund.count({ where: refundWhere }),
     ]);
 
-    return {
-      items: items.map(({ customer, ...order }) => ({
-        ...order,
-        customer: customer ? { email: customer.party.email } : null,
+    if (saleCount + refundCount > REGISTER_MERGE_CEILING) {
+      throw new BadRequestException(
+        `Il periodo selezionato contiene ${saleCount + refundCount} righe: restringi le date per consultarlo.`,
+      );
+    }
+
+    const [orders, refunds] = await Promise.all([
+      wantsSales
+        ? this.prisma.salesOrder.findMany({
+            where,
+            include: { customer: { select: { party: { select: { email: true } } } } },
+          })
+        : Promise.resolve([]),
+      this.prisma.salesOrderRefund.findMany({
+        where: refundWhere,
+        include: {
+          order: {
+            select: {
+              orderNumber: true,
+              source: true,
+              customerName: true,
+              customer: { select: { party: { select: { email: true } } } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const rows: CorrispettiviRegisterRow[] = [
+      ...orders.map((order) => ({
+        rowId: `sale:${order.id}`,
+        kind: 'sale' as const,
+        salesOrderId: order.id,
+        orderNumber: order.orderNumber,
+        // Non nullo per costruzione: il filtro esclude i mai evasi.
+        occurredAt: order.fulfilledAt ?? order.placedAt,
+        source: order.source,
+        customerName: order.customerName,
+        customerEmail: order.customer?.party.email ?? null,
+        currency: order.currency,
+        taxableMinor: Math.max(0, order.totalMinor - order.taxMinor),
+        taxMinor: order.taxMinor,
+        totalMinor: order.totalMinor,
+        financialStatus: order.financialStatus,
+        fiscalStatus: order.fiscalStatus,
+        fiscalDeliveredAt: order.fiscalDeliveredAt,
+        fiscalNote: order.fiscalNote,
+        refundKind: null,
+        note: null,
       })),
-      total,
+      ...refunds.map((refund) => ({
+        rowId: `refund:${refund.id}`,
+        kind: 'refund' as const,
+        salesOrderId: refund.salesOrderId,
+        orderNumber: refund.order.orderNumber,
+        occurredAt: refund.occurredAt,
+        source: refund.order.source,
+        customerName: refund.order.customerName,
+        customerEmail: refund.order.customer?.party.email ?? null,
+        currency: refund.currency,
+        // Negativi: è ciò che rende sommabile la colonna.
+        taxableMinor: -Math.max(0, refund.totalMinor - refund.taxMinor),
+        taxMinor: -refund.taxMinor,
+        totalMinor: -refund.totalMinor,
+        financialStatus: null,
+        fiscalStatus: null,
+        fiscalDeliveredAt: null,
+        fiscalNote: null,
+        refundKind: refund.kind,
+        note: refund.note,
+      })),
+    ].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+
+    const skip = (query.page - 1) * query.pageSize;
+
+    return {
+      items: rows.slice(skip, skip + query.pageSize),
+      total: rows.length,
       page: query.page,
       pageSize: query.pageSize,
     };

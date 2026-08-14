@@ -34,6 +34,27 @@
   vertical-align: middle;
 }
 
+/*
+  Una rettifica si riconosce prima di leggerla: fondo tenue e importi in
+  negativo. Non è decorazione — in un elenco dove le righe si sommano, il
+  segno deve saltare all'occhio quanto il numero.
+*/
+.corrispettivi-table__row--refund td {
+  background: var(--color-surface-soft);
+}
+
+.corrispettivi-table__row--refund .corrispettivi-table__cell--num {
+  color: var(--color-danger);
+}
+
+.corrispettivi-table__kind {
+  color: var(--color-text-muted);
+}
+
+.corrispettivi-table__empty {
+  color: var(--color-text-subtle);
+}
+
 .corrispettivi-table__cell--num,
 .corrispettivi-table__head .corrispettivi-table__cell--num {
   text-align: right;

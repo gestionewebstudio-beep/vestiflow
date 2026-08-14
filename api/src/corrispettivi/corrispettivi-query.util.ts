@@ -30,10 +30,26 @@ export interface CorrispettiviListFilters extends SalesOrderListFilters {
  * corrispettivo vero era 50,00 €, perché contava anche ciò che non era mai
  * partito.
  *
- * Il momento di effettuazione di una cessione di beni mobili è la consegna o
+ * Per le cessioni di beni mobili la regola **ordinaria** è la consegna o
  * spedizione (_base normativa riferita_: art. 6 DPR 633/1972), ed è quanto la
- * specifica `08` §5 aveva già fissato per il corrispettivo. Il registro
- * derivato non lo rispettava: aggregava per `placedAt` e prendeva tutto.
+ * specifica `08` §5 aveva già fissato. Il registro derivato non la rispettava:
+ * aggregava per `placedAt` e prendeva tutto.
+ *
+ * ⚠️ **Non è però la regola completa, e questo commento prima lo lasciava
+ * intendere.** Lo stesso articolo anticipa il momento di effettuazione se
+ * prima della consegna viene emessa fattura o pagato il corrispettivo — il che
+ * su un ordine incassato con carta accade quasi sempre, giorni prima della
+ * spedizione.
+ *
+ * **VestiFlow non può derivarla oggi**: _misurato il 14/08/2026_, su
+ * `SalesOrder` esistono `placedAt`, `fulfilledAt`, `cancelledAt` e
+ * `fiscalDeliveredAt`, e **nessuna data di incasso** — le transazioni del
+ * canale non vengono importate. Manca il dato, non la logica.
+ *
+ * Quindi la formulazione corretta, e da non irrigidire: **per il flusso
+ * supportato oggi il registro usa la data di evasione**; gestire gli eventi di
+ * pagamento fiscalmente antecedenti richiede di persistire le transazioni del
+ * canale, cosa che oggi non avviene. È un limite noto e datato, non una svista.
  *
  * **Gli ordini annullati NON si filtrano**, ed è deliberato. Filtrarli farebbe
  * sparire retroattivamente una vendita già avvenuta se l'ordine venisse

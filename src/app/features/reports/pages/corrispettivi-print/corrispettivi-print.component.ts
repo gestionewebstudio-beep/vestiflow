@@ -11,7 +11,10 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import { CorrispettiviOrdersTableComponent } from '../../components/corrispettivi-orders-table/corrispettivi-orders-table.component';
 import { CorrispettiviSummaryComponent } from '../../components/corrispettivi-summary/corrispettivi-summary.component';
-import type { CorrispettiviOrder, CorrispettiviSummary } from '../../models/corrispettivi.model';
+import type {
+  CorrispettiviRegisterRow,
+  CorrispettiviSummary,
+} from '../../models/corrispettivi.model';
 import {
   formatReportPeriodLabel,
   parseReportListQuery,
@@ -20,7 +23,7 @@ import {
 import { CorrispettiviService } from '../../services/corrispettivi.service';
 
 interface PrintPageData {
-  readonly orders: readonly CorrispettiviOrder[];
+  readonly orders: readonly CorrispettiviRegisterRow[];
   readonly summary: CorrispettiviSummary;
 }
 

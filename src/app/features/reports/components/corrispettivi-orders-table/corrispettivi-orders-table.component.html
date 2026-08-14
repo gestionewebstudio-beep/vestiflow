@@ -3,6 +3,7 @@
     <thead class="corrispettivi-table__head">
       <tr>
         <th scope="col">Data</th>
+        <th scope="col">Tipo</th>
         <th scope="col">Ordine</th>
         <th scope="col">Cliente</th>
         <th scope="col">Canale</th>
@@ -14,30 +15,56 @@
       </tr>
     </thead>
     <tbody>
-      @for (order of orders(); track order.id) {
-        <tr class="corrispettivi-table__row">
-          <td class="tabular-nums" data-label="Data">{{ formatDate(order.placedAt) }}</td>
-          <td class="tabular-nums" data-label="Ordine">{{ order.orderNumber }}</td>
-          <td data-label="Cliente">{{ order.customerName }}</td>
-          <td data-label="Canale">{{ sourceLabel(order.source) }}</td>
+      <!--
+        Vendite e rettifiche nella stessa colonna, con gli importi già col
+        segno: il totale in fondo alla schermata si ricostruisce sommando a
+        occhio. È la ragione per cui le rettifiche stanno qui e non in una
+        vista a parte.
+      -->
+      @for (row of rows(); track row.rowId) {
+        <tr
+          class="corrispettivi-table__row"
+          [class.corrispettivi-table__row--refund]="row.kind === 'refund'"
+        >
+          <td class="tabular-nums" data-label="Data">{{ formatDate(row.occurredAt) }}</td>
+          <td data-label="Tipo">
+            @if (row.kind === 'refund') {
+              <app-badge tone="warning">{{ refundLabel(row.refundKind) }}</app-badge>
+            } @else {
+              <span class="corrispettivi-table__kind">Vendita</span>
+            }
+          </td>
+          <td class="tabular-nums" data-label="Ordine">{{ row.orderNumber }}</td>
+          <td data-label="Cliente">{{ row.customerName }}</td>
+          <td data-label="Canale">{{ sourceLabel(row.source) }}</td>
           <td data-label="Pagamento">
-            <app-badge [tone]="financialTone(order.financialStatus)">
-              {{ financialLabel(order.financialStatus) }}
-            </app-badge>
+            @if (row.financialStatus) {
+              <app-badge [tone]="financialTone(row.financialStatus)">
+                {{ financialLabel(row.financialStatus) }}
+              </app-badge>
+            } @else {
+              <!-- Una rettifica non ha stato di pagamento: la cella resta muta
+                   invece di ereditare quello della vendita, che sarebbe falso. -->
+              <span class="corrispettivi-table__empty" aria-hidden="true">—</span>
+            }
           </td>
           <td data-label="Stato fiscale">
-            <app-badge [tone]="fiscalTone[order.fiscalStatus]">
-              {{ fiscalLabel[order.fiscalStatus] }}
-            </app-badge>
+            @if (row.fiscalStatus) {
+              <app-badge [tone]="fiscalTone[row.fiscalStatus]">
+                {{ fiscalLabel[row.fiscalStatus] }}
+              </app-badge>
+            } @else {
+              <span class="corrispettivi-table__empty" aria-hidden="true">—</span>
+            }
           </td>
           <td class="corrispettivi-table__cell--num tabular-nums" data-label="Imponibile">
-            {{ formatMoney(order.taxable) }}
+            {{ formatMoney(row.taxable) }}
           </td>
           <td class="corrispettivi-table__cell--num tabular-nums" data-label="IVA">
-            {{ formatMoney(order.tax) }}
+            {{ formatMoney(row.tax) }}
           </td>
           <td class="corrispettivi-table__cell--num tabular-nums" data-label="Totale">
-            {{ formatMoney(order.total) }}
+            {{ formatMoney(row.total) }}
           </td>
         </tr>
       }

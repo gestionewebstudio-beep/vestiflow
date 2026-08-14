@@ -47,7 +47,7 @@ import { ReportCorrispettiviExportComponent } from '@domain/reports/components/r
 import {
   SalesOrderFiscalStatus,
   type CorrispettiviDelivery,
-  type CorrispettiviOrder,
+  type CorrispettiviRegisterRow,
   type CorrispettiviSummary,
 } from '../../models/corrispettivi.model';
 import {
@@ -59,7 +59,7 @@ import {
 import { CorrispettiviService } from '../../services/corrispettivi.service';
 
 interface CorrispettiviPageData {
-  readonly orders: readonly CorrispettiviOrder[];
+  readonly orders: readonly CorrispettiviRegisterRow[];
   readonly summary: CorrispettiviSummary;
   readonly deliveries: readonly CorrispettiviDelivery[];
   readonly totalOrders: number;
