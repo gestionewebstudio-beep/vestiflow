@@ -680,7 +680,11 @@ Questi non rompono niente, ma sono il motivo per cui un operatore non può saper
 
 **Al registro corrispettivi manca il filtro per canale.** _Misurato il 14/08/2026:_ `CorrispettivoEntry.channel` esiste e il registro **aggrega già per canale** con etichetta, ma **nella lista il filtro non c'è** — il dato è presente e l'operatore non può usarlo. Deciso il 14/08: registro unico, filtrabile per canale, con export separato negozio/online producibile. Serve perché i due flussi hanno adempimenti diversi (vedi `08` §8). La parte di trasmissione telematica arriva col ramo cassa del collega, dove vivono già `fiscal_devices` e `fiscal_receipts`.
 
-**`excluded_invoiced` si applica a mano e non distingue la fattura contestuale da quella tardiva.** _Misurato il 14/08/2026:_ lo stato si imposta con la spunta «fattura emessa» (`invoiceIssued`) sul registro, senza collegamento a una fattura reale e senza sapere quando è stata emessa. Spuntandola su un corrispettivo di un periodo **già chiuso** si toglie dal registro un importo già dichiarato. Serve la nozione di «periodo chiuso», che oggi non esiste. Dettaglio e base normativa in `08` §8.
+**`excluded_invoiced` esclude un importo senza che l'esclusione sia verificabile.** _Misurato il 14/08/2026:_ lo stato si imposta con la spunta «fattura emessa» (`invoiceIssued`) sul registro, **senza collegamento a una fattura reale**: nessuno può risalire a quale fattura giustifichi l'esclusione, né accorgersi di una spunta messa per errore.
+
+**Non toglie però nulla all'estrazione per il commercialista**, e questa voce prima diceva il contrario: _misurato_, l'export (`api/src/corrispettivi/`) legge `salesOrder` e **non tocca `corrispettivoEntry`**. Il danno è quindi circoscritto alla vista del registro, non ai dati che escono.
+
+Nessuna nozione di «periodo chiuso» serve: i dati per il commercialista si estraggono su richiesta con export filtrati, e **i controlli in VestiFlow sono avvisi, mai blocchi**. Da affrontare quando si costruiranno i filtri e gli export del registro derivato — e ricordando che le entries cadono (`04` §8).
 
 **VestiFlow non può sapere che un ordine è in contrassegno.** _Misurato il 14/08/2026:_ nessuna lettura di `gateway`, `payment_gateway_names`, `payment_terms` o `processing_method` in tutto `api/src` — zero occorrenze. Arriva solo `financial_status: pending`, che non distingue «pagherà alla consegna» da «pagherà a 30 giorni». Rilevante per il modulo Pagamenti: **oggi non ci sarebbe niente su cui agganciare il credito verso il corriere.**
 

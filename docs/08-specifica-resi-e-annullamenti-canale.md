@@ -3,7 +3,7 @@
 **Data:** 14/08/2026
 **Stato del documento:** piano, non consuntivo. Ogni voce porta il proprio stato. Nessuna voce va letta come già fatta se non lo dice.
 **Owner:** Luigi
-**Migration richiesta:** **nessuna.** Il modello adottato al §4 usa solo cose che esistono: una voce di registro con importi negativi e lo stato `adjusted`, già nell'enum.
+**Migration richiesta:** **nessuna per §4**, che si risolve nel modello derivato senza scrivere niente. Ne serve **una distruttiva** per eliminare `corrispettivo_entries` (§10): è l'ultima cosa, e va in due tempi.
 
 **Perimetro.** Cosa succede a un ordine di canale **dopo** la vendita: annullamento, rimborso, reso, rientro della merce, e cosa ne è del Corrispettivo. Non tratta la sincronizzazione in sé (`02`), non tratta i difetti uno per uno (`01`, punti 2.13-2.15 e 3.8).
 
@@ -66,6 +66,26 @@ _Misurato 14/08 su `#1006`._ Dettaglio completo in `01-registro-difetti-shopify.
 
 In sintesi: la merce rientra, il corrispettivo resta a dichiarare un incasso mai avvenuto, e **nulla lo segnala**. La causa è che la rettifica del corrispettivo è agganciata a `financial_status === refunded`, mentre l'elaborazione di un reso su ordine non incassato porta l'ordine a **`paid`** (totale zero, quindi pagato).
 
+### ⚠️ Dove va scritta: **non nelle entries, che cadono**
+
+_Deciso l'11/08 (`04` §8) e riconfermato il 14/08: il registro corrispettivi è **derivato dalle vendite**, e `corrispettivo_entries` / `corrispettivo_entry_lines` cadono._
+
+Questo cambia il posto, non la forma. La regola qui sotto resta corretta; **non va implementata scrivendo una voce in `CorrispettivoEntry`**, che è la tabella destinata a sparire e che nessun export legge.
+
+_Misurato 14/08, e smentisce l'ipotesi che il modello derivato la produca già:_
+
+```ts
+// api/src/corrispettivi/corrispettivi.service.ts
+for (const order of orders) {
+  totalMinor += order.totalMinor; // valore PIENO
+  if (isRefundFinancialStatus(order.financialStatus)) refundsCount += 1; // CONTA, non sottrae
+}
+```
+
+Il registro derivato legge `salesOrder`, **non i movimenti**: un ordine reso contribuisce per intero, e un contatore dice quanti resi ci sono stati. **La rettifica oggi non è prodotta da nessuno.**
+
+**Quindi il lavoro esiste, ed è: far leggere al registro derivato i movimenti `return`.** È anche l'unico modo per datare la rettifica al rientro — l'ordine porta una data sola, il movimento porta la sua.
+
 ### La regola da adottare: **il passato non si riscrive, si rettifica**
 
 **Il corrispettivo originale resta immutato. Il reso genera una voce di registro NEGATIVA, alla data del reso, collegata alla vendita originaria.**
@@ -75,13 +95,15 @@ Non è solo una scelta di modello: _base normativa riferita_ — la rettifica de
 E risolve un caso che la riscrittura non copriva: **il reso parziale**. Se tornano due capi su cinque, il negativo vale per due.
 
 ```
-Corrispettivo originale   COR-…-0004   14/08   +60,00   → stato `adjusted`
-Rettifica da reso         COR-…-000N   18/08   −60,00   → collegata all'originale
+14/08   vendita     +60,00     ← dalla vendita, come oggi
+18/08   rettifica   −60,00     ← dal movimento `return`, alla SUA data
 ```
 
-**Nessuna migration.** _Misurato:_ gli importi sono colonne `Int`, quindi i negativi sono rappresentabili; il registro **somma**, quindi una voce negativa sottrae da sé senza codice speciale; e lo stato per l'originale esiste già — **`adjusted`**, che significa esattamente «rettificato». L'enum resta `to_verify · included · excluded_invoiced · adjusted · refunded`.
+**Nessuna migration, e nessuna voce da scrivere.** Le due righe sono **derivate**: la prima dall'ordine, la seconda dal movimento di rientro. Nessuna tabella da alimentare, nessuno stato da mantenere, niente che possa divergere dai fatti — che è il vantaggio del registro derivato e la ragione della decisione dell'11/08.
 
-**L'aggancio.** Quando arriva un `online_order_restocked` che riguarda una Vendita online: si crea la voce negativa, si porta l'originale a `adjusted`, e si marca l'ordine `requiresReview` con un motivo che dica cosa resta da fare. Non si guarda `financial_status`: è quello l'errore che ha prodotto il buco.
+**L'aggancio è il movimento, non l'evento.** Il registro somma i movimenti `return` con segno negativo alla loro data; non guarda `financial_status`, ed è quello l'errore che ha prodotto il buco misurato. Un reso parziale produce un negativo parziale senza nessun caso speciale: due capi su cinque sono due movimenti, non una regola in più.
+
+**Cosa cade di quanto era stato scritto qui prima:** lo stato `adjusted` sull'originale non serve più — non c'è un originale da marcare, c'è una somma. E `requiresReview` sull'ordine resta utile solo se si vuole che qualcuno guardi; non è più il modo di far tornare i conti.
 
 **Tre date che non coincidono, e vanno tenute distinte** — nessuna delle tre è la data della vendita:
 
@@ -152,13 +174,15 @@ Così la forma dei dati regge qualunque risposta: sia che si preferisca un regis
 
 _Misurato 14/08:_ `CorrispettivoEntry.channel` **esiste** e il registro **aggrega già per canale**, con etichetta. **Manca il filtro esplicito nella lista**: oggi il dato c'è e l'operatore non può usarlo. È quello che rende vero «filtrabile», e va aggiunto.
 
-### ⛔ Conseguenza misurata: `excluded_invoiced` oggi non distingue i due casi
+### Conseguenza misurata: l'esclusione non è verificabile — ma non tocca l'estrazione
 
-_Misurato 14/08._ Lo stato si applica **a mano**, con la spunta «fattura emessa» sul registro (`corrispettivo-register.service.ts`, `invoiceIssued`). Nessun collegamento automatico a una fattura, e **nessuna nozione di contestuale o tardiva**.
+_Misurato 14/08._ Lo stato si applica **a mano**, con la spunta «fattura emessa» (`invoiceIssued`), **senza collegamento a una fattura reale**. Nessuno può risalire a quale fattura giustifichi l'esclusione, né accorgersi di una spunta sbagliata.
 
-Quindi un operatore che spunta «fattura emessa» su un corrispettivo di un periodo **già chiuso** toglie dal registro un importo già dichiarato — il buco che la regola sopra vuole evitare, raggiungibile oggi con un clic e senza avvisi.
+**Nessuna nozione di «periodo chiuso» serve**, ed era un'invenzione di questo documento prima di essere corretto: i dati per il commercialista si estraggono **su richiesta**, con export filtrati prodotti dall'operatore. Non c'è niente da chiudere e niente da bloccare — coerente con il principio di VestiFlow: **i controlli sono avvisi, mai blocchi**.
 
-**`excluded_invoiced` va applicato solo alla fattura contestuale.** Per distinguere i due casi serve sapere **quando un periodo è chiuso**, e quella nozione in VestiFlow **non esiste**. È una scelta gestionale da progettare, non una domanda fiscale.
+E il danno è più piccolo di come era stato scritto: _misurato_, l'export per il commercialista (`api/src/corrispettivi/`) legge `salesOrder` e **non tocca `corrispettivoEntry`**. La spunta sporca la vista del registro, non i dati che escono.
+
+Da affrontare quando si costruiranno i filtri e gli export del **registro derivato** — e le entries, nel frattempo, cadono.
 
 ### Quello che resta fuori, e non per pigrizia
 
@@ -167,9 +191,61 @@ Quindi un operatore che spunta «fattura emessa» su un corrispettivo di un peri
 ## §9 · Ordine di esecuzione
 
 1. **`01` §3.8 — la sede di scarico.** ✅ **Fatto il 14/08** per lo **scarico**: usa `fulfillments[].location_id`. **L'impegno resta sul ripiego alfabetico**, e si chiude leggendo le _fulfillment orders_ — dopo la procedura di prima sincronizzazione, non prima. Il criterio della scelta: sullo scarico una sede sbagliata produce una giacenza sbagliata **per sempre**, sull'impegno una disponibilità imprecisa **per qualche ora**. Chiuso il danno permanente, lasciato aperto quello transitorio.
-2. **§4 — la rettifica per reso.** Voce negativa alla data del rientro, originale a `adjusted`, aggancio su `online_order_restocked` invece che su `financial_status`. Niente migration.
-3. **§8 — il filtro per canale** nella lista del registro. Piccolo, e rende vera la decisione «registro unico filtrabile».
-4. **§8 — la nozione di periodo chiuso**, senza la quale `excluded_invoiced` resta pericoloso. È progettazione, non una riga.
+2. **§4 — la rettifica per reso**, che **non si scrive: si deriva.** Il registro derivato deve leggere i movimenti `return` e sommarli col segno negativo alla loro data. Oggi legge `salesOrder` e conta i resi senza sottrarli. Niente migration, nessuna voce da alimentare.
+3. **§8 — il filtro per canale**, sul **registro derivato dalle vendite**, che è dove l'export già guarda (`onlineOnly` / `posOnly` esistono lì). È il primo pezzo degli export filtrati.
+4. **`corrispettivo_entries` smette di essere scritta** — vedi §10. La decisione è dell'11/08 ma il codice non l'ha seguita, e ogni evasione ne scrive ancora una.
 5. **`01` §2.15 — i due messaggi falsi.** ✅ **Fatto il 14/08.**
 6. **§5 e §6 — i commenti.** Il perché della data del corrispettivo accanto a `createFromFulfilledOrderTx`, e la correzione di `emitRestockEvents`. Il secondo è ✅ **fatto il 14/08**.
 7. **Le fonti normative in allegato** — una volta sola, e i «riferito» del §4, del §5 e del §8 diventano verificati.
+
+## §10 · Cosa serve perché `corrispettivo_entries` smetta di essere scritta
+
+_Censimento del 14/08/2026. La decisione è dell'11/08 (`04` §8) ma il codice non l'ha seguita: **ogni evasione ne scrive ancora una**._
+
+**La superficie è piccola: 13 file** fra API e frontend nominano l'entità. E due vincoli che si temevano non ci sono:
+
+- **non è nel backup** — `api/src/tenant/` non la nomina mai (a differenza di `DocumentSequence`, agganciata in cinque punti);
+- **non è nell'export** per il commercialista, che legge `salesOrder`.
+
+### Chi la tocca, misurato
+
+|        | Dove                                              | Cosa fa                                         |
+| ------ | ------------------------------------------------- | ----------------------------------------------- |
+| scrive | `online-sale-fulfillment.service.ts:588` e `:648` | crea voce e righe **a ogni evasione**           |
+| scrive | `online-sale-fulfillment.service.ts:351`          | porta la voce a `refunded` sul rimborso         |
+| scrive | `corrispettivo-register.service.ts:338`           | la modifica manuale dell'operatore              |
+| legge  | `corrispettivo-register.service.ts` (6 punti)     | **l'unico lettore**: elenco, filtri, riepiloghi |
+
+Nient'altro. Il frontend ha `corrispettivi-register.component.ts`, la sua rotta e il servizio.
+
+### L'ordine, e cosa blocca cosa
+
+1. **Decidere le due informazioni** che le vendite non hanno (sotto). Sono l'unica cosa che si perde davvero, e vanno decise **prima**.
+2. **Il registro derivato deve saper fare quello che fa quello a entries**: elenco, filtri, riepiloghi — più la rettifica per reso del §4, che oggi non ha nessuno dei due.
+3. **Smettere di scrivere**: togliere `createCorrispettivoTx` dall'evasione e l'aggiornamento sul rimborso. Da qui in poi nessuna voce nuova.
+4. **Ripuntare la schermata** sul registro derivato, o toglierla.
+5. **La numerazione cade da sé**: `DocumentType.corrispettivo` è consumato in **un solo punto** (`online-sale-fulfillment.service.ts:580`). È il «togliere al corrispettivo la numerazione che ha» del `04` §8.
+6. **La migration che elimina le tabelle è DISTRUTTIVA**, ed è la prima di questo ramo. Il database è condiviso e c'è un ambiente pubblicato: va fatta **in due tempi** — prima si smette di scrivere e leggere, poi, in un rilascio successivo, si eliminano le tabelle.
+
+**I passi 1-4 non richiedono nessuna migration.** Solo il 6 la richiede, e può aspettare quanto serve.
+
+### Le due informazioni da decidere prima
+
+_Isolate dal `04` §8 l'11/08: sono decisioni di un operatore, non deducibili da nessun dato delle vendite._
+
+**A · La motivazione dell'esclusione dal riepilogo.** Oggi `exclusionReason`, testo libero accanto a `excluded_invoiced`.
+
+| Opzione                        | Conseguenza                                                                                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **cade**                       | l'esclusione resta senza perché; oggi comunque non è verificabile (§8)                                                                                                  |
+| **si sposta sulla vendita**    | una colonna su `sales_orders`, sempre disponibile, ma un campo fiscale su un'entità commerciale                                                                         |
+| **si ricostruisce dal legame** | se l'esclusione nasce dalla fattura che copre la vendita, il perché **è** quella fattura: nessun campo, e diventa verificabile — ma richiede il legame che oggi non c'è |
+
+**B · La data fiscale modificabile, separata da quella operativa.** Oggi `fiscalDate`, proposta dall'evasione e correggibile.
+
+| Opzione                     | Conseguenza                                                                                                                                    |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **cade**                    | la data è quella dell'operazione, punto. Coerente con il §5 (art. 6: consegna **o** spedizione), e non serve correggerla se la regola è chiara |
+| **si sposta sulla vendita** | una colonna su `sales_orders`, e resta la possibilità di correggere un caso limite                                                             |
+
+**La terza opzione della A è la sola che migliora qualcosa invece di spostarlo**, ma dipende da un legame vendita↔fattura che non esiste. Se non lo si vuole costruire ora, la scelta vera è fra «cade» e «si sposta».
