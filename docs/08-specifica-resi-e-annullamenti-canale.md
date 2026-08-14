@@ -139,11 +139,42 @@ Due pressioni di «Sincronizza vendite» sul negozio di prova, con lettura del d
 
 **E la misura ha trovato un difetto più grande di quello che cercava.** Il registro derivato conta come incassati anche gli ordini **annullati** e quelli **mai spediti**: su agosto dichiara 386,49 € dove il corrispettivo vero è 50,00 € (`01` §2.16). La sottrazione dei resi, da sola, arriverebbe a 156,49 € — sbagliato in un altro modo. **I tre pezzi vanno fatti insieme, o il registro resta falso in tre modi invece che in uno.**
 
-**Stato: rimborso persistito e provato (14/08). Restano tre cose, ed è un lavoro solo:**
+#### Il mapper corretto — provato il 14/08 su un ordine costruito apposta
 
-1. escludere dalla scrittura i rimborsi con `restock_type: cancel`;
-2. far contare al registro le sole vendite **evase e non annullate**;
-3. sottrarre le rettifiche alla loro data — insieme al filtro per canale del §8, che tocca gli stessi due file (`corrispettivi.service.ts` e l'export).
+Un ordine con **due aliquote** (4% e 22%), **sconti di riga** e **spedizione a pagamento**: gli ordini di prova precedenti erano tutti a una aliquota, senza sconti e senza spedizione, e nascondevano tre difetti.
+
+**1. La spedizione arriva con una convenzione diversa dalle righe.**
+
+```
+righe rimborsate:   subtotal 54.00 · total_tax 2.08   ← LORDO, imposta dentro
+order_adjustments:  amount −21.32  · tax_amount −4.69 ← NETTO, imposta a parte
+```
+
+21,32 + 4,69 = 26,01. La prima versione applicava a entrambe la regola delle righe e scriveva **75,32 invece di 80,01**: mancava l'IVA della spedizione, sommata all'imposta ma mai al totale. Il 5,9% in meno su quel rimborso.
+
+**2. Ogni rettifica fuori riga finiva fra le spedizioni.** Un rimborso di cortesia a importo libero da 5,00 € — che Shopify scrive come `kind: refund_discrepancy` senza alcuna riga — veniva registrato come «spedizione resa». Il totale tornava, il significato no. Ora `shipping_refund` e il resto stanno in due colonne.
+
+**3. Gli annullamenti non erano distinguibili.** Vedi la tabella corretta sopra: si classificano, non si scartano.
+
+**E mancava la scomposizione per aliquota.** Un rimborso può contenere una riga al 4% e la spedizione al 22%: un totale unico non sa quanto togliere a ciascuna. L'aliquota è **nullable di proposito** — le rettifiche fuori riga non la dichiarano, e Shopify stesso avverte che senza righe l'imposta non è attribuibile. Una riga muta è più onesta di un'attribuzione indovinata.
+
+Verifica finale, letta dal database dopo la risincronizzazione:
+
+| ordine | natura       | totale    | imposta  | scomposizione                       |
+| ------ | ------------ | --------- | -------- | ----------------------------------- |
+| #1003  | annullamento | 50,00     | 9,02     | 22%                                 |
+| #1005  | reso         | 60,00     | 2,31     | 4%                                  |
+| #1006  | reso         | 60,00     | 2,31     | 4%                                  |
+| #1007  | annullamento | 60,00     | 2,31     | 4%                                  |
+| #1008  | reso         | **80,01** | **6,77** | 4% (51,92) + non dichiarata (21,32) |
+| #1008  | rimborso     | 5,00      | 0,00     | non dichiarata                      |
+
+Su tutte e sei la somma della scomposizione fa esattamente il totale. Gli importi di `#1008` coincidono al centesimo con quelli mostrati da Shopify.
+
+**Stato: rimborso persistito, corretto e provato (14/08). Restano due cose, ed è un lavoro solo:**
+
+1. far contare al registro le sole vendite **realmente avvenute**, alla data in cui lo sono state;
+2. sottrarre le rettifiche alla loro data, **saltando gli annullamenti** — insieme al filtro per canale del §8, che tocca gli stessi due file (`corrispettivi.service.ts` e l'export).
 
 ## §5 · Il Corrispettivo nasce all'evasione — ed è corretto
 

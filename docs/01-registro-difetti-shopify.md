@@ -505,6 +505,7 @@ Il corrispettivo vero del periodo è **50,00 €**: un solo ordine venduto e non
 1. **Gli annullati contano** — 110,00 €. `buildCorrispettiviWhere` non ha nessun filtro su `cancelledAt` (`api/src/corrispettivi/corrispettivi-query.util.ts:43-70`). Merce mai partita, incasso mai avvenuto, corrispettivo dichiarato.
 2. **I mai evasi contano** — 106,49 €. Il registro aggrega per `placedAt`, cioè la data dell'ordine. Contraddice quanto è già stabilito nella specifica `08` §5: il corrispettivo nasce **all'evasione**, perché è la consegna o spedizione a determinare il momento dell'operazione. Il registro a entries lo rispetta (nasce in `createFromFulfilledOrderTx`); quello derivato no.
 3. **I resi non si sottraggono** — è il punto 2.13, già registrato.
+4. **Lo sconto viene tolto due volte dall'imponibile.** _Provato il 14/08 su `#1008`._ Shopify manda `subtotal_price` **già al netto** degli sconti di riga (120,00 − 16,00 = 104,00), ma il riepilogo e l'export calcolano `taxableMinor = subtotalMinor − discountMinor` (`corrispettivi.service.ts:126`, `corrispettivi-export.service.ts:136`): 104,00 − 16,00 = **88,00**, un imponibile che non esiste. Invisibile finché nessun ordine ha sconti — e nessuno di quelli di prova ne aveva.
 
 **Perché è grave adesso e non prima.** Finché i due registri convivono, quello a entries è coerente e questo no. Ma la decisione dell'11/08 è che **le entries cadono** e resta il derivato: quel giorno, se non si corregge, il registro corrispettivi di VestiFlow diventa quello sbagliato. Non è un difetto da mettere in coda: è un prerequisito della decisione già presa.
 
@@ -665,7 +666,32 @@ Peggio: **dopo l'evasione il dato corretto arriva e viene scavalcato.** `createF
 
 **Con una sede sola non si vede.** È il motivo per cui è sopravvissuto: il ripiego dà sempre la risposta giusta finché la lista ha una voce sola.
 
-### ✅ Chiuso il 14/08 — lo scarico segue l'evasione
+### ⚠️ Il difetto produce un TRASFERIMENTO FANTASMA fra due magazzini — misurato il 14/08, sera
+
+_Questa parte è più grave di quanto il resto della voce descriva, ed è stata misurata **dopo** aver scritto la correzione, su codice di produzione._
+
+Su `#1008`, ordine con due articoli e spedizione:
+
+```
+Shopify ha evaso da        Shop location   (fulfillments[].location_id = 113512284455)
+VestiFlow ha scaricato da  Magazzino test 3   ← ripiego alfabetico
+Il reso è rientrato in     Shop location      ← sede scelta nel rimborso, corretta
+```
+
+Risultato nelle giacenze:
+
+```
+Magazzino test 3   −1   merce uscita da dove non è mai stata
+Shop location      +1   merce rientrata dove non era mai uscita
+```
+
+**Un capo si è spostato fra due magazzini senza che nessuno lo toccasse.** La voce descriveva «una sede sbagliata»; il reso trasforma quell'errore in un trasferimento che nessun documento giustifica, e che un inventario fisico troverebbe come ammanco da una parte ed eccedenza dall'altra.
+
+⚠️ **E la correzione qui sotto NON stava girando.** I webhook di Shopify sono consegnati all'ambiente pubblicato (vedi «Chi esegue cosa» in `02` §4.11), che gira `main`: tutto ciò che accade da sé lo esegue la produzione, sul database condiviso. Il ramo entra in gioco solo quando qualcuno preme un pulsante nell'app locale.
+
+Quindi questa misura **non smentisce la correzione**: la conferma dal lato opposto — il difetto si riproduce, tale e quale, sul codice che i clienti userebbero. Ma la correzione resta **scritta e mai eseguita**, e va marcata così finché non la si prova con i webhook puntati a un tunnel.
+
+### ✅ Chiuso il 14/08 nel codice — lo scarico segue l'evasione (non ancora provato in esecuzione)
 
 Lo scarico fisico, il movimento e la sede della riga di Vendita online usano ora `event.locationId`, cioè `fulfillments[].location_id` mappato — il dato che al momento dell'evasione **è già nel payload** e che prima veniva scavalcato. Il ripiego sulla sede dell'impegno resta solo se quel dato manca.
 
@@ -690,6 +716,63 @@ Alla **creazione** dell'ordine la sede dell'evasione non esiste ancora nel paylo
 **Strada futura, in ordine:** prima la procedura di prima sincronizzazione, poi la lettura delle fulfillment orders all'impegno.
 
 **Nota per chi ha più sedi.** Al reso Shopify propone una sede di rientro che **non è quella da cui la merce è partita** — segue la priorità delle sedi, non l'evasione. Riferito dall'assistente Shopify e coerente con l'osservato; **da verificare** in Impostazioni → Sedi e nelle regole di reso. Con la correzione dello scarico le logiche in campo scendono da tre a due, ma restano due.
+
+---
+
+### 3.9 — Le righe importate ignorano lo sconto, e non fanno il totale dell'ordine
+
+_Provato il 14/08/2026 su `#1008`, il primo ordine di prova con sconti di riga._
+
+**Cosa succede.** Il sync scrive sulla riga `line.price`, cioè il prezzo **pieno**, e butta `line.total_discount`. Il totale dell'ordine invece arriva da `subtotal_price`, che Shopify manda già scontato. Le due cose non si parlano:
+
+```
+righe in VestiFlow   60,00 + 50,00 + 10,00 = 120,00
+subtotale ordine                              104,00
+scarto                                         16,00   ← esattamente total_discounts
+```
+
+Chi apre l'ordine vede tre righe che non fanno il totale. Lo stesso scarto si propaga nelle righe della **Vendita online**, che le copia.
+
+**Perché non si era mai visto.** Nessun ordine di prova precedente aveva sconti di riga: con sconto zero, prezzo pieno e prezzo scontato coincidono.
+
+**Cosa deve fare invece.** Scrivere il prezzo effettivo della riga (`price` meno `total_discount`, o l'importo di `discount_allocations`), così le righe sommano al subtotale. Il prezzo pieno, se serve mostrarlo barrato, è un campo in più — non il valore della riga.
+
+---
+
+### 3.10 — Gli ordini importati non portano nessuna IVA di riga, e il dato c'è
+
+_Provato il 14/08/2026._
+
+**Cosa succede.** Delle righe importate da Shopify, `vatCodeId`, `vatSnapshot` e `lineVatTotalMinor` restano **vuoti su tutte**. L'unica informazione d'imposta è il totale sull'ordine. Eppure il payload la porta scomposta, sia per riga sia per ordine:
+
+```
+tax_lines ordine:   IT IVA · 4%  → 2,08
+                    IT IVA · 22% → 13,70
+riga (Copia):       tax_lines: rate 0.22 → 7,21
+```
+
+**Conseguenza.** Il registro corrispettivi non può sottrarre una rettifica «nella componente d'imposta giusta», perché **il lato vendita non è scomposto**: i resi ora lo sono (specifica `08` §4), le vendite no.
+
+**Due lavori distinti, da non confondere.** Per il **registro** serve solo aliquota e importo, che sono nel payload e oggi si buttano: costa poco. Per **fattura e DDT** serve invece un Codice IVA del tenant, cioè una corrispondenza fra l'aliquota Shopify e la tabella locale, che oggi non esiste da nessuna parte e va decisa — non indovinata. Vedi la procedura di prima sincronizzazione.
+
+---
+
+### 3.11 — Una vendita con una riga non scaricata dichiara «scarico completo»
+
+_Provato il 14/08/2026 su `#1008`, che conteneva un articolo non presente a catalogo._
+
+**Cosa succede.** Tre righe vendute, **due** movimenti di magazzino. La terza riferisce un prodotto che Shopify conosce (`variant_id` valorizzato) e VestiFlow no, quindi resta senza variante, senza impegno e senza scarico. Ma la Vendita online scrive:
+
+```
+inventoryStatus: unloaded    ← scarico COMPLETO
+requiresReview:  false       ← nessuna verifica richiesta
+```
+
+La causa è l'ordine di due istruzioni in `online-sale-fulfillment.service.ts`: la riga senza variante viene saltata **prima** di entrare nel denominatore (`if (!line.variantId …) continue;` precede `stockLines += 1`). Due righe su due «scaricabili» fanno un centinaio per cento. La merce venduta e mai dedotta non compare da nessuna parte.
+
+**Perché non è banale da correggere.** Il codice **non può distinguere** una riga di servizio — niente da muovere, e allora `unloaded` è giusto — da un prodotto fuori catalogo, che è merce uscita e non scalata. Shopify la distinzione ce l'ha, manda un `variant_id`; VestiFlow la butta all'import quando la ricerca fallisce, e all'evasione non c'è più.
+
+**Cosa deve fare invece.** Registrare all'import che la variante esterna esisteva e non è stata trovata — non un `null` muto. Da lì l'evasione può dire «scarico parziale» solo quando la merce c'era davvero, senza marcare ogni servizio come anomalia.
 
 ---
 

@@ -400,6 +400,35 @@ Eseguita: fotografia del database, primo click, seconda fotografia, secondo clic
 
 **Nota di metodo**: la prima fotografia «dopo il secondo click» è stata scattata **mentre la passata era ancora in corso** (6 ordini toccati su 7, un rimborso non ancora riscritto). Ripetuta un minuto dopo, i numeri erano quelli definitivi. Chi rifà la prova aspetti che il pulsante torni premibile.
 
+#### ⚠️ Chi esegue cosa: i webhook vanno in produzione, non sulla macchina di chi sviluppa
+
+_Misurato il 14/08/2026, e cambia la lettura di **ogni** prova fatta su questo progetto._
+
+Le sottoscrizioni webhook del negozio di prova puntano tutte e sette qui:
+
+```
+https://vestiflow-production.up.railway.app/api/v1/shopify/webhooks
+```
+
+Railway gira **`main`**. Il database è **lo stesso** di sviluppo. Da cui:
+
+| Chi provoca il fatto                         | Chi lo esegue         | Con quale codice |
+| -------------------------------------------- | --------------------- | ---------------- |
+| un gesto su Shopify (ordine, evasione, reso) | l'ambiente pubblicato | `main`           |
+| un pulsante nell'app locale                  | l'API sulla macchina  | il ramo corrente |
+
+**Tutto ciò che accade «da solo» è eseguito da `main`.** Una correzione scritta su un ramo non entra in gioco finché qualcuno non preme un pulsante — e nel frattempo scrive sullo stesso database, dove chi guarda i dati vede il risultato della produzione e lo attribuisce al proprio lavoro.
+
+**È già costato un errore**: la correzione sulla sede di scarico (`01` §3.8) è stata dichiarata «tiene» guardando un movimento prodotto in realtà dal ripiego alfabetico di `main`. La misura diceva il contrario di come è stata letta.
+
+**Come leggere una prova, da adesso:**
+
+- se il fatto è arrivato **da sé**, misura la **produzione**. Vale come prova di difetto — anzi vale di più, perché descrive il sistema che i clienti userebbero — ma **non valida il ramo**.
+- se il fatto è arrivato **premendo un pulsante**, misura il ramo.
+- una correzione che vive nel percorso dei webhook resta **«scritta e mai eseguita»** finché non la si prova puntando le consegne a un tunnel (ngrok, cloudflared) verso la macchina locale.
+
+Spiega anche perché `lastWebhookEventAt` resta a `null` pur arrivando decine di eventi: quel campo non esiste in `main` (`01` § «Cosa resta aperto»).
+
 #### Come si rifà
 
 Sul negozio di prova, a negozio fermo:
