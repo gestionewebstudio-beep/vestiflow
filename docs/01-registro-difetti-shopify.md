@@ -848,9 +848,24 @@ La ripartizione avviene in `computeSaleLines`, **prima** che le righe vengano co
 
 **La ripartizione proporzionale resta come ripiego**, e solo per le righe che il canale non ha dichiarato — ordini importati prima di questa correzione, righe manuali. Peggio di prima non fa, e non riscrive il passato.
 
-⚠️ **I dati già registrati restano sbagliati.** La correzione vale da qui in avanti: le Vendite online e le voci di corrispettivo scritte finora portano imposte di riga ridistribuite, e nessuna migrazione le sistema. Sul negozio di prova sono poche — `VO-2026-0004`, `VO-2026-0005` e le voci `COR-2026-0005/0006` — ma vanno sapute prima di leggere quei numeri come veri. **I totali di testata, invece, sono sempre stati corretti**: è solo il dettaglio di riga a essere inattendibile.
+⚠️ **Restano sbagliati gli SNAPSHOT già scritti**, e non si toccano. Le righe d'ordine si sono corrette da sé alla risincronizzazione, ma le **Vendite online** (`VO-2026-0004`, `VO-2026-0005`) e le **voci di corrispettivo** (`COR-2026-0005/0006`) portano ancora imposte ridistribuite: sono istantanee di quel che si credeva al momento dell'evasione, e un'istantanea non si ritocca a posteriori. Sono anche l'unica testimonianza rimasta del difetto — riscriverle renderebbe questa pagina non più verificabile da nessuno.
+
+**I totali di testata, invece, sono sempre stati corretti**: è solo il dettaglio di riga a essere inattendibile, su quelle righe lì.
 
 **Guardia**: il test «due aliquote: ogni riga porta la SUA imposta, non la media dell'ordine» fallisce se la ripartizione torna. Un caso a una sola aliquota non basterebbe — è esattamente il motivo per cui il difetto è vissuto tanto a lungo.
+
+✅ **Provato anche sui dati veri**, non solo dai test. Risincronizzando gli ordini dal pulsante — che passa dal codice locale, a differenza dei webhook — le righe si sono riscritte con l'imposta dichiarata dal canale:
+
+```
+#1009   prodotto  60,00   IVA riga  2,31   aliquota 4%    (prima: 6,22)
+        maglietta 25,00   IVA riga  4,51   aliquota 22%
+        ───────────────────────────────────────────────
+        somma righe        6,82
+        differenza         4,69  ← IVA della spedizione, al 22%
+        imposta ordine    11,51  = 6,82 + 4,69
+```
+
+La differenza fra l'imposta dell'ordine e la somma delle righe è **esattamente** l'IVA della spedizione: ogni centesimo è finito dove doveva. Stesso esito su `#1008` (2,08 al 4%, 7,21 e 1,80 al 22%, differenza 4,69).
 
 **Resta aperto**: il filtro per aliquota nel registro derivato, che ora ha il dato per esistere ma richiede la corrispondenza coi Codici IVA per essere più di un'etichetta.
 
