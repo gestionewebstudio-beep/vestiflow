@@ -330,8 +330,16 @@ export class OnlineSaleFulfillmentService {
       data: {
         status: CorrispettivoStatus.refunded,
         refundedAt,
+        // ⚠️ Questa nota NON può dire cosa è successo alla giacenza, e prima lo
+        // diceva: «La giacenza NON è stata modificata». Era falso ogni volta che
+        // il rimborso portava una ricarica — misurato il 14/08/2026, giacenza
+        // modificata 0,4 secondi dopo, dall'evento di restock che arriva DOPO
+        // questo. Rimborso e rientro sono due eventi distinti, in due
+        // transazioni distinte, e quando questa riga viene scritta il secondo
+        // non è ancora stato trattato: qualunque affermazione sul magazzino è
+        // una previsione, non un fatto.
         adjustmentNote:
-          'Rimborso comunicato dal canale dopo la Vendita online: predisporre la rettifica del corrispettivo. La giacenza NON è stata modificata (il rientro fisico richiede un evento di reso reale).',
+          'Rimborso comunicato dal canale dopo la Vendita online: predisporre la rettifica del corrispettivo. Il rientro fisico della merce è un evento separato: verificare i movimenti collegati alla vendita.',
       },
     });
 
@@ -339,7 +347,10 @@ export class OnlineSaleFulfillmentService {
       where: { id: event.salesOrderId, tenantId: event.tenantId },
       data: {
         requiresReview: true,
-        reviewReason: `Rimborso ricevuto dopo la Vendita online ${sale.reference}: verificare la rettifica del corrispettivo e l'eventuale rientro fisico della merce.`,
+        // Chiede di verificare ciò che resta da fare — la rettifica fiscale —
+        // non il rientro della merce, che il canale può aver già applicato da
+        // sé come movimento (vedi la nota sopra).
+        reviewReason: `Rimborso ricevuto dopo la Vendita online ${sale.reference}: verificare la rettifica del corrispettivo. Il rientro della merce, se dichiarato dal canale, arriva come movimento collegato.`,
       },
     });
   }

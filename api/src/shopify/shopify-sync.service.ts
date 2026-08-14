@@ -373,7 +373,19 @@ export class ShopifySyncService {
    * Eventi canonici `online_order_restocked` dai rimborsi Shopify con
    * `restock_type` fisico (`return`/`legacy_restock`). Un evento per
    * rimborso × location, idempotente via dedupe suffix (id refund + location).
-   * `cancel` è escluso: pre-evasione la giacenza non era mai stata scaricata.
+   *
+   * **«Rimborso» qui è il contenitore, non il significato.** Elaborando un
+   * RESO, Shopify crea comunque un `refunds[]` — anche da ZERO euro, quando
+   * l'ordine non era stato incassato — e ci mette dentro `restock_type: return`.
+   * È così che il rientro della merce arriva a VestiFlow: non dai topic
+   * `returns/*`, che non sono registrati, ma incartato in un rimborso.
+   * Misurato il 14/08/2026 su un ordine in sospeso reso per intero.
+   *
+   * `cancel` è escluso, ed è corretto — **verificato il 14/08/2026**, non più
+   * solo assunto: annullando un ordine non evaso con la ricarica attiva,
+   * Shopify libera l'impegno e NON ricarica la giacenza (`available` da −2 a
+   * −1, non a 0). La merce non era mai uscita, quindi non c'è nulla da far
+   * rientrare. E un ordine già evaso su Shopify non si annulla affatto.
    */
   private async emitRestockEvents(
     base: {
