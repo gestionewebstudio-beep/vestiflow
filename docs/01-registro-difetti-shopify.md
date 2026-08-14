@@ -840,9 +840,23 @@ La ripartizione avviene in `computeSaleLines`, **prima** che le righe vengano co
 
 **Era attivo in produzione** a ogni evasione da due punti; da oggi da uno solo.
 
-**Cosa deve fare invece.** Leggere `tax_lines` per riga e conservare aliquota e imposta **come snapshot del canale**, anche prima di avere una corrispondenza certa col Codice IVA di VestiFlow. Sono due problemi distinti, e tenerli insieme rimanda anche la parte che si può fare subito: il dato storico di Shopify si salva oggi, la corrispondenza coi codici interni è una decisione della procedura di prima sincronizzazione.
+### ✅ Corretto il 14/08/2026 — per le vendite da qui in avanti
 
-**Conseguenza sulla dismissione.** Era l'unico argomento per tenere in vita la vecchia maschera — «ha il filtro per aliquota». Quel filtro restituisce numeri fiscalmente falsi: **meglio non offrirlo che offrirlo così**. Un 12% mai esistito è un numero che qualcuno trascrive.
+`tax_lines` viene letta all'import e conservata sulla riga d'ordine: `lineVatTotalMinor` porta l'imposta dichiarata dal canale, `vatSnapshot` l'aliquota osservata. All'evasione la Vendita online usa quei valori invece di ripartire il totale.
+
+**Lo snapshot NON contiene un Codice IVA, ed è deliberato.** La corrispondenza fra l'aliquota del canale e i Codici IVA del tenant è una decisione che appartiene alla procedura di prima sincronizzazione e non esiste ancora. Sono due problemi distinti: il dato osservato da Shopify si conserva **oggi**, la corrispondenza aspetta. Tenerli insieme avrebbe rimandato anche la parte che si poteva fare subito.
+
+**La ripartizione proporzionale resta come ripiego**, e solo per le righe che il canale non ha dichiarato — ordini importati prima di questa correzione, righe manuali. Peggio di prima non fa, e non riscrive il passato.
+
+⚠️ **I dati già registrati restano sbagliati.** La correzione vale da qui in avanti: le Vendite online e le voci di corrispettivo scritte finora portano imposte di riga ridistribuite, e nessuna migrazione le sistema. Sul negozio di prova sono poche — `VO-2026-0004`, `VO-2026-0005` e le voci `COR-2026-0005/0006` — ma vanno sapute prima di leggere quei numeri come veri. **I totali di testata, invece, sono sempre stati corretti**: è solo il dettaglio di riga a essere inattendibile.
+
+**Guardia**: il test «due aliquote: ogni riga porta la SUA imposta, non la media dell'ordine» fallisce se la ripartizione torna. Un caso a una sola aliquota non basterebbe — è esattamente il motivo per cui il difetto è vissuto tanto a lungo.
+
+**Resta aperto**: il filtro per aliquota nel registro derivato, che ora ha il dato per esistere ma richiede la corrispondenza coi Codici IVA per essere più di un'etichetta.
+
+**Conseguenza sulla dismissione.** Era l'unico argomento per tenere in vita la vecchia maschera — «ha il filtro per aliquota». Quel filtro restituiva numeri fiscalmente falsi: **meglio non offrirlo che offrirlo così**. Un 12% mai esistito è un numero che qualcuno trascrive.
+
+**Nota di metodo, perché vale oltre questo difetto.** Il totale tornava sempre. È per questo che nessun controllo lo ha mai preso: chi verifica somma, e la somma era giusta. A trovarlo è stato un ordine costruito apposta con due aliquote — un caso che nessuno aveva mai provato perché non serviva a nient'altro.
 
 ---
 

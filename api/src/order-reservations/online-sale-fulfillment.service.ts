@@ -22,7 +22,11 @@ import {
 } from '../inventory/movement-cost.util';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { findVatCodeForDerivedRate } from '../vat/vat-reverse-match.util';
-import { buildUnmatchedRateSnapshot, buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
+import {
+  buildUnmatchedRateSnapshot,
+  buildVatCodeSnapshot,
+  vatSnapshotRatePercent,
+} from '../vat/vat-snapshot.util';
 
 import { allocateProportional, deriveVatRatePercent } from './online-sale-money.util';
 import { StockReservationService } from './stock-reservation.service';
@@ -144,12 +148,7 @@ export class OnlineSaleFulfillmentService {
       null;
 
     const year = fulfilledAt.getFullYear();
-    const saleNumber = await this.nextNumber(
-      tx,
-      event.tenantId,
-      DocumentType.online_sale,
-      year,
-    );
+    const saleNumber = await this.nextNumber(tx, event.tenantId, DocumentType.online_sale, year);
 
     const sale = await tx.onlineSale.create({
       data: {
@@ -472,7 +471,9 @@ export class OnlineSaleFulfillmentService {
     const matched = findVatCodeForDerivedRate(ratePercent, salesVatCodes);
     return {
       vatCodeId: matched?.id ?? null,
-      vatSnapshot: matched ? buildVatCodeSnapshot(matched) : buildUnmatchedRateSnapshot(ratePercent),
+      vatSnapshot: matched
+        ? buildVatCodeSnapshot(matched)
+        : buildUnmatchedRateSnapshot(ratePercent),
     };
   }
 
@@ -494,9 +495,7 @@ export class OnlineSaleFulfillmentService {
             select: { id: true, barcode: true },
           })
         : [];
-    const barcodeByVariantId = new Map(
-      variants.map((variant) => [variant.id, variant.barcode]),
-    );
+    const barcodeByVariantId = new Map(variants.map((variant) => [variant.id, variant.barcode]));
 
     const reservationByLineId = new Map(
       order.reservations
@@ -508,26 +507,38 @@ export class OnlineSaleFulfillmentService {
         .map((reservation) => [reservation.salesOrderLineId as string, reservation]),
     );
 
-    // IVA ordine allocata su righe prodotto + spedizione (peso = totale riga);
-    // il canale non fornisce il dettaglio per riga nel read-model attuale.
+    // ⚠️ L'IVA di riga si prende da quella che il CANALE ha dichiarato, quando
+    // c'è: `lineVatTotalMinor` e lo snapshot dell'aliquota, scritti all'import
+    // leggendo `tax_lines`.
+    //
+    // Prima si ripartiva sempre l'imposta dell'ordine in proporzione al valore
+    // della riga. Su un ordine a una sola aliquota coincide col vero; con due
+    // aliquote ogni riga risulta sbagliata mentre il totale continua a tornare
+    // — e il totale che torna è ciò che ha reso il difetto invisibile per mesi
+    // (registro difetti 3.12, misurato: 6,22 € su una riga la cui imposta vera
+    // è 2,31 €).
+    //
+    // La ripartizione resta **solo come ripiego** per le righe che il canale
+    // non ha dichiarato: ordini importati prima di questa correzione, o righe
+    // manuali. Peggio di così non fa, e non riscrive il passato.
+    const declaredVat = lines.some((line) => line.vatSnapshot != null);
     const weights = lines.map((line) => line.totalMinor);
     if (order.shippingMinor > 0) {
       weights.push(order.shippingMinor);
     }
-    const taxShares = allocateProportional(order.taxMinor, weights);
+    const taxShares = declaredVat ? [] : allocateProportional(order.taxMinor, weights);
 
     return lines.map((line, index) => {
-      const taxMinor = taxShares[index] ?? 0;
+      const taxMinor = declaredVat ? line.lineVatTotalMinor : (taxShares[index] ?? 0);
       const subtotalMinor = line.totalMinor - taxMinor;
-      const vatRatePercent = deriveVatRatePercent(subtotalMinor, taxMinor);
+      const declaredRate = vatSnapshotRatePercent(line.vatSnapshot);
+      const vatRatePercent = declaredRate ?? deriveVatRatePercent(subtotalMinor, taxMinor);
       const { vatCodeId, vatSnapshot } = this.resolveDerivedVat(vatRatePercent, salesVatCodes);
       return {
         lineNumber: index + 1,
         variantId: line.variantId,
         sku: line.sku,
-        barcode: line.variantId
-          ? (barcodeByVariantId.get(line.variantId) ?? null)
-          : null,
+        barcode: line.variantId ? (barcodeByVariantId.get(line.variantId) ?? null) : null,
         description: line.title,
         quantity: line.quantity,
         unitPriceMinor: line.unitPriceMinor,
@@ -608,8 +619,6 @@ export class OnlineSaleFulfillmentService {
   }
 
   private dateOnly(value: Date): Date {
-    return new Date(
-      Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()),
-    );
+    return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
   }
 }

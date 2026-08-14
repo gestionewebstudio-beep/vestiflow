@@ -12,7 +12,10 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import type { PrismaService } from '../prisma/prisma.service';
-import { OnlineOrderLifecycleService, type OnlineOrderEventInput } from './online-order-lifecycle.service';
+import {
+  OnlineOrderLifecycleService,
+  type OnlineOrderEventInput,
+} from './online-order-lifecycle.service';
 import { OnlineSaleFulfillmentService } from './online-sale-fulfillment.service';
 import { StockReservationService } from './stock-reservation.service';
 
@@ -46,6 +49,9 @@ interface FakeOrderLine {
   quantity: number;
   unitPriceMinor: number;
   totalMinor: number;
+  /** IVA dichiarata dal canale all'import (0 sulle righe importate prima). */
+  lineVatTotalMinor?: number;
+  vatSnapshot?: unknown;
 }
 
 interface FakeOrder {
@@ -282,7 +288,8 @@ function createFakeDb() {
         data: Partial<FakeReservation>;
       }) => {
         const reservation = reservations.find(
-          (row) => row.id === where.id && (where.status === undefined || row.status === where.status),
+          (row) =>
+            row.id === where.id && (where.status === undefined || row.status === where.status),
         );
         if (!reservation) {
           return Promise.resolve({ count: 0 });
@@ -568,6 +575,66 @@ function seedOrder(db: ReturnType<typeof createFakeDb>, id = 'order-1'): void {
   db.variants.set('variant-1', { id: 'variant-1', barcode: '8000000000001' });
 }
 
+/**
+ * Ordine con DUE aliquote, come `#1009` sul negozio di prova: un articolo al
+ * 4% e uno al 22%, con l'IVA dichiarata dal canale su ogni riga.
+ *
+ * È il caso che rendeva invisibile il difetto 3.12: con una sola aliquota la
+ * ripartizione proporzionale coincide col vero, e qualunque correzione passa.
+ */
+function seedMultiRateOrder(db: ReturnType<typeof createFakeDb>, id = 'order-1'): void {
+  db.orders.set(id, {
+    id,
+    tenantId: 'tenant-1',
+    orderNumber: '#1009',
+    customerId: null,
+    customerName: 'Luigi test',
+    currency: 'EUR',
+    financialStatus: SalesOrderFinancialStatus.paid,
+    subtotalMinor: 8500,
+    discountMinor: 0,
+    shippingMinor: 0,
+    // 2,31 al 4% + 4,51 al 22%.
+    taxMinor: 682,
+    totalMinor: 8500,
+    placedAt: new Date('2026-08-14T20:00:00Z'),
+    cancelledAt: null,
+    fulfilledAt: null,
+    externalFulfillmentId: null,
+    fulfillmentStatus: SalesOrderFulfillmentStatus.unfulfilled,
+    requiresReview: false,
+    reviewReason: null,
+    lines: [
+      {
+        id: 'line-1',
+        orderId: id,
+        variantId: 'variant-1',
+        sku: 'SKU-1',
+        title: 'Prodotto al 4%',
+        quantity: 1,
+        unitPriceMinor: 6000,
+        totalMinor: 6000,
+        lineVatTotalMinor: 231,
+        vatSnapshot: { ratePercent: 4, matched: false },
+      },
+      {
+        id: 'line-2',
+        orderId: id,
+        variantId: 'variant-2',
+        sku: 'SKU-2',
+        title: 'Maglietta al 22%',
+        quantity: 1,
+        unitPriceMinor: 2500,
+        totalMinor: 2500,
+        lineVatTotalMinor: 451,
+        vatSnapshot: { ratePercent: 22, matched: false },
+      },
+    ],
+  });
+  db.variants.set('variant-1', { id: 'variant-1', barcode: null });
+  db.variants.set('variant-2', { id: 'variant-2', barcode: null });
+}
+
 function seedLevel(db: ReturnType<typeof createFakeDb>, onHand = 10): void {
   db.levels.set('variant-1:location-1', {
     tenantId: 'tenant-1',
@@ -722,7 +789,9 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 1 §11)', () => {
     const service = createService(db);
 
     await service.handle(createdEvent());
-    await service.handle(createdEvent({ type: OnlineOrderEventType.online_order_cancelled, lines: undefined }));
+    await service.handle(
+      createdEvent({ type: OnlineOrderEventType.online_order_cancelled, lines: undefined }),
+    );
     const second = await service.handle(
       createdEvent({ type: OnlineOrderEventType.online_order_cancelled, lines: undefined }),
     );
@@ -1028,8 +1097,7 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     // chiusura. Ciò che il test dimostra non cambia: se un passo cade, cade
     // tutto, e non resta nessun oggetto orfano.
     const originalCreate = db.tx.stockMovement.create;
-    db.tx.stockMovement.create = () =>
-      Promise.reject(new Error('DB error simulato sul movimento'));
+    db.tx.stockMovement.create = () => Promise.reject(new Error('DB error simulato sul movimento'));
 
     await expect(service.handle(fulfilledEvent())).rejects.toThrow('DB error simulato');
 
@@ -1043,9 +1111,7 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(db.reservations[0]?.remainingQuantity).toBe(2);
     // Anche l'evento canonico è annullato: il retry può riprocessare.
     expect(
-      db.orderEvents.filter(
-        (event) => event.type === OnlineOrderEventType.online_order_fulfilled,
-      ),
+      db.orderEvents.filter((event) => event.type === OnlineOrderEventType.online_order_fulfilled),
     ).toHaveLength(0);
 
     // Il retry dopo il ripristino va a buon fine.
@@ -1076,5 +1142,55 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(db.movements).toHaveLength(0);
     expect(level(db)).toMatchObject({ onHand: 10, committed: 0, available: 10 });
     expect(db.corrispettivi).toHaveLength(0);
+  });
+
+  describe('IVA di riga (registro difetti 3.12)', () => {
+    it('due aliquote: ogni riga porta la SUA imposta, non la media dell ordine', async () => {
+      const db = createFakeDb();
+      seedMultiRateOrder(db);
+      seedLevel(db, 10);
+      const service = createService(db);
+
+      await service.handle(createdEvent());
+      await service.handle(fulfilledEvent());
+
+      const righe = db.onlineSaleLines;
+      expect(righe).toHaveLength(2);
+
+      // ⚠️ È il numero per cui esiste questo test: la ripartizione
+      // proporzionale scriveva 4,81 su una riga la cui imposta vera è 2,31.
+      expect(righe[0]).toMatchObject({
+        description: 'Prodotto al 4%',
+        taxMinor: 231,
+        subtotalMinor: 5769,
+        // L'aliquota non è una colonna: vive nello snapshot, e resta senza
+        // Codice IVA finché la corrispondenza col tenant non è decisa.
+        vatSnapshot: { ratePercent: 4, matched: false },
+      });
+      expect(righe[1]).toMatchObject({
+        description: 'Maglietta al 22%',
+        taxMinor: 451,
+        subtotalMinor: 2049,
+        vatSnapshot: { ratePercent: 22, matched: false },
+      });
+
+      // E la somma resta quella dell'ordine: la correzione non sposta il totale.
+      expect(righe.reduce((sum, riga) => sum + Number(riga.taxMinor ?? 0), 0)).toBe(682);
+    });
+
+    it('righe senza IVA dichiarata: resta il ripiego proporzionale, non un buco', async () => {
+      // Ordini importati prima della correzione: il canale non aveva lasciato
+      // nulla sulla riga. Meglio la vecchia stima che nessuna imposta — e il
+      // passato non si riscrive.
+      const db = createFakeDb();
+      seedOrder(db);
+      seedLevel(db, 10);
+      const service = createService(db);
+
+      await service.handle(createdEvent());
+      await service.handle(fulfilledEvent());
+
+      expect(db.onlineSaleLines[0]).toMatchObject({ taxMinor: 541 });
+    });
   });
 });

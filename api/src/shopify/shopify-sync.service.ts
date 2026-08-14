@@ -7,13 +7,14 @@ import {
   SalesOrderRefundKind,
   SalesOrderSource,
 } from '@prisma/client';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { OnlineOrderLifecycleService } from '../order-reservations/online-order-lifecycle.service';
 import type { ReservationLineInput } from '../order-reservations/stock-reservation.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
+import { mapShopifyLineVat } from './shopify-line-vat.util';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
 import { mapShopifyRefunds, type ShopifyRefundKind } from './shopify-refund.util';
 
@@ -222,6 +223,7 @@ export class ShopifySyncService {
           );
           const unitMinor = shopifyDecimalToMinor(String(line.price ?? '0'));
           const qty = Number(line.quantity ?? 0);
+          const vat = mapShopifyLineVat(line);
           return {
             externalLineId: line.id != null ? String(line.id) : `pos-${index}`,
             variantId,
@@ -230,6 +232,13 @@ export class ShopifySyncService {
             quantity: qty,
             unitPriceMinor: unitMinor,
             totalMinor: unitMinor * qty,
+            // L'IVA della riga come la dichiara il canale. Prima si buttava, e
+            // a valle veniva ricostruita ripartendo l'imposta dell'ordine in
+            // proporzione al valore: il totale tornava, ogni riga era sbagliata
+            // (registro difetti 3.12 — 6,22 € su una riga la cui imposta vera
+            // è 2,31). Il dato c'era, e ora si conserva.
+            lineVatTotalMinor: vat.taxMinor,
+            vatSnapshot: vat.snapshot ?? Prisma.DbNull,
           };
         }),
       );
@@ -260,6 +269,8 @@ export class ShopifySyncService {
             quantity: row.quantity,
             unitPriceMinor: row.unitPriceMinor,
             totalMinor: row.totalMinor,
+            lineVatTotalMinor: row.lineVatTotalMinor,
+            vatSnapshot: row.vatSnapshot,
           },
         });
       }
