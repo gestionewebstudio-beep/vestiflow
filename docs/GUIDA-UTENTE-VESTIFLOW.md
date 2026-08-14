@@ -923,6 +923,18 @@ Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con ori
 | **Sincronizza vendite da Shopify** | Vendite (lista) | **Esportare dati** |
 | **Esporta CSV**                    | Vendite (lista) | **Esportare dati** |
 
+#### ⚠️ Resi e rimborsi con più sedi — cosa controllare su Shopify
+
+Se hai **più di una sede**, quando elabori un reso o un rimborso con ricarica di magazzino **controlla la sede proposta da Shopify prima di confermare**: non è quella da cui la merce è partita.
+
+Verificato il 14/08/2026 su ordini reali: un ordine spedito da «Shop location» proponeva il rientro su un'altra sede. Shopify segue la **priorità delle sedi** configurata, non l'evasione — quindi il default è quasi sempre da correggere a mano, e nessuno te lo segnala.
+
+Il posto dove guardare è la tendina **«Restituisci articolo a inventario presso: …»**, nella schermata del rimborso o dell'elaborazione del reso. Cambiala sulla sede da cui la merce era realmente uscita.
+
+Con **una sola sede** questo non ti riguarda: non c'è niente da scegliere.
+
+> Esiste anche un difetto di VestiFlow sullo stesso tema, già registrato e da correggere: la sede da cui il gestionale scarica non è sempre quella che ha spedito. Finché non è chiuso, con più sedi le giacenze per sede vanno lette con prudenza — il totale resta corretto, la ripartizione no.
+
 ### Clienti (profilo Shopify)
 
 - Anagrafica da Shopify, **sola lettura** in VestiFlow.

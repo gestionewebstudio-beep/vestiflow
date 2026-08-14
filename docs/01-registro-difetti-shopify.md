@@ -1,7 +1,9 @@
 # VestiFlow — Registro dei difetti dell'integrazione Shopify
 
-**Data:** 8 agosto 2026
+**Data:** 8 agosto 2026 · **aggiornato il 14 agosto 2026**
 **Stato:** censimento chiuso, difetti verificati salvo dove indicato
+
+**Aggiunta del 14/08/2026 — quattro voci di origine diversa dalle altre.** I punti **2.13, 2.14, 2.15 e 3.8** non vengono da una lettura del codice ma da **operazioni vere condotte sul negozio di prova**: quattro ordini creati, evasi, rimborsati, resi e annullati, con lettura del database e del payload Shopify a ogni passo. Dove un numero è riportato, è stato letto — non calcolato a mente.
 **Uso:** elenco di lavorazione. Ogni voce è correggibile da sola, senza aspettare la riorganizzazione descritta nel documento di specifica.
 
 ---
@@ -420,6 +422,54 @@ Il difetto non è nel comportamento, è nella **dipendenza**. Quella soppression
 
 ---
 
+### 2.13 — Il reso di un ordine non pagato lascia il corrispettivo come se l'incasso ci fosse stato
+
+_Misurato il 14/08/2026 conducendo l'operazione vera su negozio, API e database._
+
+**Cosa succede.** Ordine in sospeso (contrassegno, o comunque `financial_status: pending`), evaso, poi reso — il pacco rifiutato alla consegna. **La merce rientra correttamente**, ma il Corrispettivo generato all'evasione **resta `to_verify` col suo importo pieno**, la Vendita online non risulta rimborsata, e `requiresReview` non viene scritto. Nessuna traccia, da nessuna parte, che quella vendita non è avvenuta.
+
+Il registro corrispettivi continua quindi a dichiarare un incasso che non è mai entrato — e in contrassegno **non entrerà mai**, perché il denaro non era stato preso.
+
+**Come lo sappiamo.** Prova completa su `#1006`: creato in sospeso, evaso (nasce `VO-2026-0003` e `COR-2026-0004 · to_verify · 60,00 €`), poi reso elaborato con ricarica. Dopo: movimento `return/shopify` presente e giacenza tornata da −2 a −1 — **ma corrispettivo, vendita e `requiresReview` identici a prima.**
+
+La causa è una riga sola: il ramo che rettifica il corrispettivo è `if (financial === refunded)` (`shopify-sync.service.ts`). Elaborando il reso di un ordine mai incassato, Shopify porta l'ordine a **`paid`** — totale zero, quindi pagato — e quella condizione non è mai vera. Verificato sul payload: `financial_status: paid`, `refunds[1]` con importo zero e `restock_type: return`.
+
+**È il caso peggiore dei tre, ed è il più comune.** Sul rimborso di un ordine già pagato (`#1005`) lo stato diventa `refunded`, il ramo si accende e almeno una segnalazione resta. Qui no: **più il flusso è ordinario, meno traccia lascia.**
+
+**Cosa deve fare invece.** La rettifica del corrispettivo non può dipendere dallo stato del pagamento: deve seguire il **rientro della merce**. Se arriva un `online_order_restocked` che riguarda una Vendita online, quella vendita e il suo corrispettivo vanno marcati e segnalati, quale che sia il `financial_status`. Quale stato assegnare al corrispettivo (`refunded` non descrive un contrassegno mai incassato) è una decisione di prodotto: oggi l'enum ha `to_verify · included · excluded_invoiced · adjusted · refunded` e **non ha un valore per «vendita non avvenuta»**.
+
+---
+
+### 2.14 — Il reso dichiarato ma non ancora elaborato non esiste per VestiFlow
+
+_Misurato il 14/08/2026._
+
+**Cosa succede.** Fra il momento in cui l'operatore dichiara un reso su Shopify e quello in cui lo elabora, **VestiFlow non sa niente**: nessun evento, nessuno stato, nessuna segnalazione. Continua a credere che la merce sia venduta e l'incasso acquisito. Su Shopify l'ordine porta il badge «Reso in corso» e il reso ha un identificativo suo (`#1006-R1`); in VestiFlow non esiste.
+
+**Come lo sappiamo.** Creato il reso su `#1006` e riletto il database: eventi fermi all'evasione, corrispettivo, giacenza e `requiresReview` invariati. Coerente con i topic registrati — `orders/*`, `customers/*`, `products/*`, `inventory_levels/update`: **`returns/*` non c'è**, e un reso aperto non tocca né l'ordine né l'inventario, quindi non arriva nemmeno un `orders/updated`.
+
+**Cosa deve fare invece.** Non è detto che serva iscriversi ai topic dei resi: il rientro della merce arriva comunque all'elaborazione, incartato in un rimborso (vedi 2.13). Ma la finestra va **dichiarata**, perché in quel periodo il gestionale mostra dati che chi guarda Shopify sa già essere superati. Se si decide di coprirla, i topic sono `returns/*` e vanno aggiunti a `SHOPIFY_WEBHOOK_TOPICS` — con la trappola del punto 2.1: aggiungerli al codice non li attiva.
+
+---
+
+### 2.15 — Il rimborso con ricarica scrive due messaggi che dicono il falso
+
+_Misurato il 14/08/2026: i due messaggi sono stati letti nel database subito dopo l'operazione._
+
+**Cosa succede.** Rimborsando un ordine con la ricarica attiva, VestiFlow scrive sul corrispettivo:
+
+> «Rimborso comunicato dal canale dopo la Vendita online: predisporre la rettifica del corrispettivo. **La giacenza NON è stata modificata** (il rientro fisico richiede un evento di reso reale).»
+
+La giacenza **è stata modificata**, 0,4 secondi dopo, proprio da quell'evento. `applyRefundAfterSaleTx` gira prima di `applyRestockAfterSaleTx` e afferma come fatto una cosa che smette di essere vera subito dopo, nella stessa sequenza.
+
+Lo stesso vale per `reviewReason`, che chiede di «verificare … l'eventuale rientro fisico della merce» — rientro che il sistema ha già eseguito da solo.
+
+**Come lo sappiamo.** Prova su `#1005`: rimborso con ricarica alle 11:42:22, movimento `return/shopify` alle 11:42:22, evento `online_order_restocked` alle 11:42:26, e nota del corrispettivo che dichiara il contrario. Letti nello stesso database, a operazione conclusa.
+
+**Cosa deve fare invece.** Il messaggio non può essere scritto prima di sapere: o la nota si compone **dopo** aver applicato l'eventuale restock, o dice cosa è successo davvero («la giacenza è rientrata» / «nessun rientro dichiarato dal canale»). E `requiresReview` deve chiedere di verificare **la rettifica fiscale**, che resta da fare, non il rientro fisico, che è già avvenuto.
+
+---
+
 ## Livello 3 — Comportamenti sbagliati sui dati
 
 ### 3.1 — L'import non scorpora, nemmeno quando potrebbe
@@ -522,6 +572,40 @@ Sull'ordine annullato il vuoto resta. Mostrare dove _era_ impegnata la merce sar
 
 ---
 
+### 3.8 — La sede da cui VestiFlow scarica è la prima in ordine alfabetico, non quella che ha spedito
+
+_Misurato il 14/08/2026 su tre ordini, e confermato dal payload._
+
+**Cosa succede.** Per ogni ordine online VestiFlow impegna e scarica da una sede che **non ha nulla a che vedere con quella che ha evaso**. Shopify impegna, spedisce e ricarica su una sede; VestiFlow su un'altra. I due sistemi tengono i numeri su scaffali diversi, e il totale per sede diverge senza che nessuno lo chieda.
+
+La causa è un ripiego che scatta sempre. `extractShopifyOrderLocationId` cerca la sede in due posti:
+
+- `order.location_id` — sugli ordini online **è assente**;
+- `order.fulfillments[].location_id` — esiste **solo dopo** l'evasione.
+
+Alla creazione dell'ordine nessuno dei due c'è, quindi `resolveShopifyOrderLocationId` ricade su
+`findFirst({ licensedInVf: true, isActive: true }, orderBy: { name: 'asc' })` — **la prima sede licenziata in ordine alfabetico**.
+
+Peggio: **dopo l'evasione il dato corretto arriva e viene scavalcato.** `createFromFulfilledOrderTx` preferisce la sede dell'impegno (`computedLines.find(l => l.reservation)?.reservation?.locationId ?? event.locationId`), cioè quella scelta a caso prima, invece di `fulfillments[].location_id` che a quel punto è nel payload.
+
+**Come lo sappiamo.** Tre ordini di prova, stesso esito ogni volta: Shopify evade da «Shop location» (`fulfillments[].location_id = 113512284455`), VestiFlow impegna e scarica su «Magazzino test 3» — che è la prima sede in ordine alfabetico fra quelle licenziate. Confronto diretto delle due giacenze a fine prove:
+
+```
+  sede                     │ VestiFlow onHand │ Shopify available
+  Magazzino test 3         │               -1 │                 1
+  Shop location            │   (non tracciata)│                -1
+```
+
+**La divergenza nasce alla creazione dell'ordine, non all'evasione**: già all'impegno Shopify scala una sede e VestiFlow un'altra.
+
+**Con una sede sola non si vede.** È il motivo per cui è sopravvissuto: il ripiego dà sempre la risposta giusta finché la lista ha una voce sola.
+
+**Cosa deve fare invece.** Allo scarico la sede deve essere quella dell'**evasione**, che nel payload c'è: `fulfillments[].location_id`, mappata sulla sede VestiFlow. All'impegno, quando ancora non esiste, la sede corretta vive nelle _fulfillment orders_ di Shopify — una risorsa che oggi non leggiamo. Finché non la si legge, il ripiego alfabetico va almeno **dichiarato** invece di essere silenzioso: un ordine impegnato su una sede scelta per ordine alfabetico è un'informazione che l'operatore deve poter vedere.
+
+**Nota per chi ha più sedi.** Al reso Shopify propone una sede di rientro che **non è quella da cui la merce è partita** — segue la priorità delle sedi, non l'evasione. Sommata al ripiego qui sopra fa tre logiche diverse che decidono una sede e non si parlano. Riferito dall'assistente Shopify e coerente con l'osservato; **da verificare** in Impostazioni → Sedi e nelle regole di reso.
+
+---
+
 ## Livello 4 — Consumo e comportamenti non richiesti
 
 ### 4.1 — «Sincronizza location» parte da sola
@@ -569,6 +653,20 @@ Questi non rompono niente, ma sono il motivo per cui un operatore non può saper
 **Se «Importa catalogo» azzeri ancora costo e barrato** — punto 3.4.
 
 **Cosa fare dei webhook GDPR obbligatori** — punto 2.5.
+
+**Il Corrispettivo nasce all'evasione, a prescindere dall'incasso — e non è un difetto.** _Misurato il 14/08/2026._ `#1006` era in sospeso — `Pagato 0,00 €`, `Saldo 60,00 €` — e all'evasione VestiFlow ha creato `COR-2026-0004` da 60,00 € datato quel giorno. Sembrava una decisione di prodotto mai presa; è invece il comportamento corretto: _base normativa riferita_, per le cessioni di beni mobili il momento di effettuazione è la consegna o spedizione (art. 6 DPR 633/1972), e il contrassegno incassato dopo è un evento finanziario che non sposta quella data. **Resta da fare una cosa sola: scrivere quel perché accanto al codice**, che oggi non lo dichiara — ed è per questo che leggendolo sembrava un buco. Vedi `08` §5.
+
+**Al registro corrispettivi manca il filtro per canale.** _Misurato il 14/08/2026:_ `CorrispettivoEntry.channel` esiste e il registro **aggrega già per canale** con etichetta, ma **nella lista il filtro non c'è** — il dato è presente e l'operatore non può usarlo. Deciso il 14/08: registro unico, filtrabile per canale, con export separato negozio/online producibile. Serve perché i due flussi hanno adempimenti diversi (vedi `08` §8). La parte di trasmissione telematica arriva col ramo cassa del collega, dove vivono già `fiscal_devices` e `fiscal_receipts`.
+
+**`excluded_invoiced` si applica a mano e non distingue la fattura contestuale da quella tardiva.** _Misurato il 14/08/2026:_ lo stato si imposta con la spunta «fattura emessa» (`invoiceIssued`) sul registro, senza collegamento a una fattura reale e senza sapere quando è stata emessa. Spuntandola su un corrispettivo di un periodo **già chiuso** si toglie dal registro un importo già dichiarato. Serve la nozione di «periodo chiuso», che oggi non esiste. Dettaglio e base normativa in `08` §8.
+
+**VestiFlow non può sapere che un ordine è in contrassegno.** _Misurato il 14/08/2026:_ nessuna lettura di `gateway`, `payment_gateway_names`, `payment_terms` o `processing_method` in tutto `api/src` — zero occorrenze. Arriva solo `financial_status: pending`, che non distingue «pagherà alla consegna» da «pagherà a 30 giorni». Rilevante per il modulo Pagamenti: **oggi non ci sarebbe niente su cui agganciare il credito verso il corriere.**
+
+**`cancel_reason` esiste, è valorizzato e nessuno lo legge.** _Misurato il 14/08/2026 sul payload di `#1007`: `cancel_reason: customer`._ Non serve a distinguere i casi che ci interessavano — l'annullamento su Shopify esiste solo prima dell'evasione — ma è un campo disponibile e mai raccolto.
+
+**`lastWebhookEventAt` non si aggiorna in produzione.** Entrambe le connessioni hanno il campo a `null` pur avendo ricevuto decine di eventi il 14/08. Coerente con Railway che gira `main`, dove `recordWebhookEventReceived` non esiste (verificato: zero occorrenze su `origin/main`). Si chiude col rilascio del ramo, ma finché non accade la spia del punto 2.3 mente per difetto.
+
+**Due connessioni Shopify risultano entrambe `connected`.** `test-vestiflow.myshopify.com` e `vestiflow-test-hifqgyz0.myshopify.com`, la seconda senza indirizzo webhook. Da lì vengono le sedi duplicate («Shop location» ×2, «My Custom Location» ×2, «Negozio principale» ×3) che rendono il ripiego alfabetico del punto 3.8 ancora più arbitrario. Rumore di ambiente di prova, ma va ripulito prima di misurare qualsiasi cosa sulle sedi.
 
 ---
 
