@@ -129,13 +129,17 @@ export class CorrispettiviExportService {
     const orders = await this.prisma.salesOrder.findMany({
       where: buildCorrispettiviWhere(tenantId, query),
       include: { customer: { select: { party: { select: { email: true } } } } },
-      orderBy: { placedAt: 'asc' },
+      orderBy: { fulfilledAt: 'asc' },
     });
 
     return orders.map((order) => {
-      const taxableMinor = Math.max(0, order.subtotalMinor - order.discountMinor);
+      // `subtotalMinor` arriva dal canale già al netto degli sconti di riga:
+      // toglierli di nuovo dava un imponibile inesistente (01 §2.16).
+      const taxableMinor = Math.max(0, order.totalMinor - order.taxMinor);
       return {
-        'Data vendita': ROME_DATETIME_FORMAT.format(order.placedAt),
+        // La data della vendita è quella dell'EVASIONE: è la consegna a
+        // determinare il momento dell'operazione, non la data dell'ordine.
+        'Data vendita': ROME_DATETIME_FORMAT.format(order.fulfilledAt ?? order.placedAt),
         'Numero ordine': order.orderNumber,
         Canale: sourceDisplayLabel(order.source),
         Cliente: order.customerName,
@@ -190,11 +194,38 @@ export class CorrispettiviExportService {
       .text('Corrispettivi commercialista', left, y + 6);
     y += 28;
     y = drawPdfMetaLine(doc, 'Periodo', periodLabel, y);
-    y = drawPdfMetaLine(doc, 'Ordini', String(summary.orderCount), y);
-    y = drawPdfMetaLine(doc, 'Resi', String(summary.refundsCount), y);
-    y = drawPdfMetaLine(doc, 'Imponibile', formatMinorAmount(summary.taxableMinor), y);
-    y = drawPdfMetaLine(doc, 'IVA', formatMinorAmount(summary.taxMinor), y);
-    y = drawPdfMetaLine(doc, 'Totale', formatMinorAmount(summary.totalMinor), y);
+    // Il riepilogo si legge come una riconciliazione: quanto venduto, quanto
+    // reso, quanto resta. Il commercialista deve poter rifare il conto.
+    y = drawPdfMetaLine(doc, 'Vendite', String(summary.orderCount), y);
+    y = drawPdfMetaLine(doc, 'Totale vendite', formatMinorAmount(summary.totalMinor), y);
+    if (summary.refundCount > 0) {
+      y = drawPdfMetaLine(doc, 'Rettifiche', String(summary.refundCount), y);
+      y = drawPdfMetaLine(
+        doc,
+        'Totale rettifiche',
+        `− ${formatMinorAmount(summary.refundTotalMinor)}`,
+        y,
+      );
+    }
+    if (summary.cancellationCount > 0) {
+      y = drawPdfMetaLine(
+        doc,
+        'Annullamenti',
+        `${summary.cancellationCount} — nessun effetto: vendite mai avvenute`,
+        y,
+      );
+    }
+    y = drawPdfMetaLine(doc, 'Imponibile', formatMinorAmount(summary.netTaxableMinor), y);
+    y = drawPdfMetaLine(doc, 'IVA', formatMinorAmount(summary.netTaxMinor), y);
+    y = drawPdfMetaLine(doc, 'Totale corrispettivo', formatMinorAmount(summary.netTotalMinor), y);
+    if (summary.undatedFulfilmentCount > 0) {
+      y = drawPdfMetaLine(
+        doc,
+        'Non conteggiate',
+        `${summary.undatedFulfilmentCount} vendite evase senza data`,
+        y,
+      );
+    }
     y += 8;
 
     y = drawPdfSectionTitle(doc, 'Elenco vendite', y);

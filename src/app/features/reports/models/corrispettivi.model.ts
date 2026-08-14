@@ -34,6 +34,8 @@ export interface CorrispettiviOrder {
 
 export interface CorrispettiviSummary {
   readonly orderCount: number;
+  /** Ordini «evasi» ma senza data: non conteggiabili, e non nascosti. */
+  readonly undatedFulfilmentCount: number;
   readonly refundsCount: number;
   readonly subtotal: Money;
   readonly tax: Money;
@@ -42,6 +44,17 @@ export interface CorrispettiviSummary {
   readonly total: Money;
   readonly taxable: Money;
   readonly pendingDeliveryCount: number;
+  /** Rettifiche del periodo, alla loro data. Gli annullamenti restano fuori. */
+  readonly refundCount: number;
+  readonly refundTotal: Money;
+  readonly refundTax: Money;
+  /** Annullamenti: si contano per trasparenza, non si sottraggono mai. */
+  readonly cancellationCount: number;
+  readonly cancellationTotal: Money;
+  /** Il numero che conta: venduto meno reso. */
+  readonly netTotal: Money;
+  readonly netTax: Money;
+  readonly netTaxable: Money;
 }
 
 export interface CorrispettiviDelivery {

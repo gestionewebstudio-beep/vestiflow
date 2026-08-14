@@ -20,6 +20,7 @@ interface AccountantRegisterSummaryApi {
   readonly documents: AccountantRegisterSummary['documents'];
   readonly corrispettivi: {
     readonly orderCount: number;
+    readonly undatedFulfilmentCount: number;
     readonly refundsCount: number;
     readonly subtotalMinor: number;
     readonly taxMinor: number;
@@ -28,6 +29,14 @@ interface AccountantRegisterSummaryApi {
     readonly totalMinor: number;
     readonly taxableMinor: number;
     readonly pendingDeliveryCount: number;
+    readonly refundCount: number;
+    readonly refundTotalMinor: number;
+    readonly refundTaxMinor: number;
+    readonly cancellationCount: number;
+    readonly cancellationTotalMinor: number;
+    readonly netTotalMinor: number;
+    readonly netTaxMinor: number;
+    readonly netTaxableMinor: number;
   };
 }
 
@@ -80,6 +89,15 @@ function mapCorrispettiviSummary(
     total: money(row.totalMinor),
     taxable: money(row.taxableMinor),
     pendingDeliveryCount: row.pendingDeliveryCount,
+    undatedFulfilmentCount: row.undatedFulfilmentCount,
+    refundCount: row.refundCount,
+    refundTotal: money(row.refundTotalMinor),
+    refundTax: money(row.refundTaxMinor),
+    cancellationCount: row.cancellationCount,
+    cancellationTotal: money(row.cancellationTotalMinor),
+    netTotal: money(row.netTotalMinor),
+    netTax: money(row.netTaxMinor),
+    netTaxable: money(row.netTaxableMinor),
   };
 }
 

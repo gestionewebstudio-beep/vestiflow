@@ -4,9 +4,14 @@
     <p class="corrispettivi-summary__period">{{ periodLabel() }}</p>
   </div>
 
+  <!--
+    Si legge come una riconciliazione: venduto, rettifiche, quanto resta. Il
+    numero in fondo deve poter essere rifatto a mano da chi lo guarda — è la
+    ragione per cui le rettifiche compaiono come voce e non solo nel totale.
+  -->
   <dl class="corrispettivi-summary__grid">
     <div class="corrispettivi-summary__item">
-      <dt>Ordini</dt>
+      <dt>Vendite</dt>
       <dd class="tabular-nums">{{ summary().orderCount }}</dd>
     </div>
     <div class="corrispettivi-summary__item">
@@ -14,24 +19,50 @@
       <dd class="tabular-nums">{{ summary().pendingDeliveryCount }}</dd>
     </div>
     <div class="corrispettivi-summary__item">
-      <dt>Rimborsi</dt>
-      <dd class="tabular-nums">{{ summary().refundsCount }}</dd>
+      <dt>Totale vendite</dt>
+      <dd class="tabular-nums">{{ formatMoney(summary().total) }}</dd>
     </div>
+
+    @if (summary().refundCount > 0) {
+      <div class="corrispettivi-summary__item corrispettivi-summary__item--negative">
+        <dt>Rettifiche ({{ summary().refundCount }})</dt>
+        <dd class="tabular-nums">− {{ formatMoney(summary().refundTotal) }}</dd>
+      </div>
+    }
+
+    @if (summary().cancellationCount > 0) {
+      <div class="corrispettivi-summary__item">
+        <dt>
+          Annullamenti
+          <span class="corrispettivi-summary__hint">vendite mai avvenute, nessun effetto</span>
+        </dt>
+        <dd class="tabular-nums">{{ summary().cancellationCount }}</dd>
+      </div>
+    }
+
     <div class="corrispettivi-summary__item">
       <dt>Imponibile</dt>
-      <dd class="tabular-nums">{{ formatMoney(summary().taxable) }}</dd>
+      <dd class="tabular-nums">{{ formatMoney(summary().netTaxable) }}</dd>
     </div>
     <div class="corrispettivi-summary__item">
       <dt>IVA</dt>
-      <dd class="tabular-nums">{{ formatMoney(summary().tax) }}</dd>
-    </div>
-    <div class="corrispettivi-summary__item">
-      <dt>Spedizioni</dt>
-      <dd class="tabular-nums">{{ formatMoney(summary().shipping) }}</dd>
+      <dd class="tabular-nums">{{ formatMoney(summary().netTax) }}</dd>
     </div>
     <div class="corrispettivi-summary__item corrispettivi-summary__item--highlight">
-      <dt>Totale lordo</dt>
-      <dd class="tabular-nums">{{ formatMoney(summary().total) }}</dd>
+      <dt>Corrispettivo</dt>
+      <dd class="tabular-nums">{{ formatMoney(summary().netTotal) }}</dd>
     </div>
   </dl>
+
+  @if (summary().undatedFulfilmentCount > 0) {
+    <!--
+      Un registro fiscale non fa sparire niente in silenzio: queste vendite
+      risultano evase ma senza data, quindi non sono databili e restano fuori
+      dal conteggio. Dirlo è il minimo.
+    -->
+    <p class="corrispettivi-summary__note">
+      {{ summary().undatedFulfilmentCount }} vendite risultano evase senza data e non sono
+      conteggiate in nessun periodo.
+    </p>
+  }
 </section>

@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   SalesOrderFiscalStatus as PrismaFiscal,
+  SalesOrderFulfillmentStatus as PrismaFulfillment,
+  SalesOrderRefundKind as PrismaRefundKind,
   type SalesOrder,
 } from '@prisma/client';
 
@@ -10,13 +12,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { buildPlacedAtFilter } from '../sales-orders/sales-order-query.util';
 import { API_SOURCE_ONLINE, API_SOURCE_POS } from '../sales-orders/sales-order.enum-mapper';
 import { isRefundFinancialStatus } from './corrispettivi-fiscal.enum-mapper';
-import { buildCorrispettiviWhere } from './corrispettivi-query.util';
+import { buildCorrispettiviRefundWhere, buildCorrispettiviWhere } from './corrispettivi-query.util';
 import type { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
 import type { MarkCorrispettiviDeliveredDto } from './dto/mark-corrispettivi-delivered.dto';
 import type { UpdateFiscalStatusDto } from './dto/update-fiscal-status.dto';
 
 export interface CorrispettiviSummaryDto {
   readonly orderCount: number;
+  /** Ordini con stato «evaso» ma **senza data**: non conteggiabili, non nascosti. */
+  readonly undatedFulfilmentCount: number;
   readonly refundsCount: number;
   readonly subtotalMinor: number;
   readonly taxMinor: number;
@@ -25,6 +29,18 @@ export interface CorrispettiviSummaryDto {
   readonly totalMinor: number;
   readonly taxableMinor: number;
   readonly pendingDeliveryCount: number;
+  // ── Rettifiche del periodo (specifica 08 §4) ────────────────────────────
+  /** Quante rettifiche, annullamenti esclusi. */
+  readonly refundCount: number;
+  readonly refundTotalMinor: number;
+  readonly refundTaxMinor: number;
+  /** Annullamenti del periodo: contati per trasparenza, mai sottratti. */
+  readonly cancellationCount: number;
+  readonly cancellationTotalMinor: number;
+  // ── Il numero che conta ─────────────────────────────────────────────────
+  readonly netTotalMinor: number;
+  readonly netTaxMinor: number;
+  readonly netTaxableMinor: number;
 }
 
 export interface CorrispettiviDeliveryRow {
@@ -61,7 +77,10 @@ export class CorrispettiviService {
       this.prisma.salesOrder.findMany({
         where,
         include: { customer: { select: { party: { select: { email: true } } } } },
-        orderBy: { placedAt: 'desc' },
+        // Ordinato per data di EVASIONE, che è la data con cui la vendita entra
+        // nel registro: ordinare per data ordine mostrerebbe una sequenza che
+        // non corrisponde a quella dei periodi.
+        orderBy: { fulfilledAt: 'desc' },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
       }),
@@ -123,10 +142,42 @@ export class CorrispettiviService {
       }
     }
 
-    const taxableMinor = Math.max(0, subtotalMinor - discountMinor);
+    // `subtotalMinor` arriva dal canale GIÀ al netto degli sconti di riga
+    // (misurato: righe 120,00 − sconti 16,00 = subtotale 104,00). Sottrarli di
+    // nuovo produceva un imponibile che non esiste — 88,00 su quell'ordine.
+    const taxableMinor = Math.max(0, totalMinor - taxMinor);
+
+    // Le rettifiche del periodo, alla LORO data e senza gli annullamenti.
+    const refunds = await this.prisma.salesOrderRefund.findMany({
+      where: buildCorrispettiviRefundWhere(tenantId, query),
+      select: { totalMinor: true, taxMinor: true },
+    });
+    const refundTotalMinor = refunds.reduce((sum, refund) => sum + refund.totalMinor, 0);
+    const refundTaxMinor = refunds.reduce((sum, refund) => sum + refund.taxMinor, 0);
+
+    // Gli annullamenti si contano e non si sottraggono: la vendita che
+    // annullano non è mai entrata nel registro (specifica 08 §4).
+    const cancellations = await this.prisma.salesOrderRefund.findMany({
+      where: {
+        ...buildCorrispettiviRefundWhere(tenantId, query),
+        kind: PrismaRefundKind.cancellation,
+      },
+      select: { totalMinor: true },
+    });
+
+    // Evasi senza data: fuori dal conteggio perché non databili, ma dichiarati.
+    // Un registro fiscale non fa sparire niente in silenzio.
+    const undatedFulfilmentCount = await this.prisma.salesOrder.count({
+      where: {
+        tenantId,
+        fulfilledAt: null,
+        fulfillmentStatus: PrismaFulfillment.fulfilled,
+      },
+    });
 
     return {
       orderCount: orders.length,
+      undatedFulfilmentCount,
       refundsCount,
       subtotalMinor,
       taxMinor,
@@ -135,6 +186,14 @@ export class CorrispettiviService {
       totalMinor,
       taxableMinor,
       pendingDeliveryCount,
+      refundCount: refunds.length,
+      refundTotalMinor,
+      refundTaxMinor,
+      cancellationCount: cancellations.length,
+      cancellationTotalMinor: cancellations.reduce((sum, row) => sum + row.totalMinor, 0),
+      netTotalMinor: totalMinor - refundTotalMinor,
+      netTaxMinor: taxMinor - refundTaxMinor,
+      netTaxableMinor: Math.max(0, totalMinor - refundTotalMinor - (taxMinor - refundTaxMinor)),
     };
   }
 

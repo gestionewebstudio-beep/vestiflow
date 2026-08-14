@@ -43,6 +43,7 @@ interface CorrispettiviOrderApiRow {
 
 interface CorrispettiviSummaryApi {
   readonly orderCount: number;
+  readonly undatedFulfilmentCount: number;
   readonly refundsCount: number;
   readonly subtotalMinor: number;
   readonly taxMinor: number;
@@ -51,6 +52,14 @@ interface CorrispettiviSummaryApi {
   readonly totalMinor: number;
   readonly taxableMinor: number;
   readonly pendingDeliveryCount: number;
+  readonly refundCount: number;
+  readonly refundTotalMinor: number;
+  readonly refundTaxMinor: number;
+  readonly cancellationCount: number;
+  readonly cancellationTotalMinor: number;
+  readonly netTotalMinor: number;
+  readonly netTaxMinor: number;
+  readonly netTaxableMinor: number;
 }
 
 interface CorrispettiviDeliveryApi {
@@ -232,6 +241,15 @@ function mapSummary(row: CorrispettiviSummaryApi): CorrispettiviSummary {
     total: money(row.totalMinor),
     taxable: money(row.taxableMinor),
     pendingDeliveryCount: row.pendingDeliveryCount,
+    undatedFulfilmentCount: row.undatedFulfilmentCount,
+    refundCount: row.refundCount,
+    refundTotal: money(row.refundTotalMinor),
+    refundTax: money(row.refundTaxMinor),
+    cancellationCount: row.cancellationCount,
+    cancellationTotal: money(row.cancellationTotalMinor),
+    netTotal: money(row.netTotalMinor),
+    netTax: money(row.netTaxMinor),
+    netTaxable: money(row.netTaxableMinor),
   };
 }
 

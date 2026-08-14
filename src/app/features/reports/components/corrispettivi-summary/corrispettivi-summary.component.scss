@@ -65,6 +65,26 @@
   color: var(--color-primary);
 }
 
+/* Una rettifica è ciò che esce: si legge col colore di chi toglie. */
+.corrispettivi-summary__item--negative dd {
+  color: var(--color-danger);
+}
+
+.corrispettivi-summary__hint {
+  display: block;
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-regular);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-subtle);
+}
+
+.corrispettivi-summary__note {
+  margin: var(--space-10) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
 @include bp.media-up('md') {
   .corrispettivi-summary__grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
