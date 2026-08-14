@@ -49,6 +49,17 @@ due cose diverse**.
 | **Riepilogo per il commercialista** (`api/src/corrispettivi/`) | Aggrega i totali degli **ordini** per periodo e canale | **In diretta**: si ricalcola dall'ordine ogni volta               |
 | **Registro COR-…** (`CorrispettivoEntry`)                      | Una voce per vendita online, creata all'evasione       | **Congelato**: copia i numeri alla nascita e non li ricalcola mai |
 
+⚠️ **Aggiornamento del 14/08/2026: la seconda riga non descrive più il presente.** Il registro
+`COR-…` **non nasce più**: dall'evasione è stata rimossa la scrittura, la sua maschera non è
+più raggiungibile e la tabella è destinata a cadere in un rilascio distruttivo a sé
+(specifica `08` §10). Ne resta **uno solo**, quello derivato, che dal 14/08 sottrae anche
+resi e rimborsi alla loro data.
+
+L'argomento di questa sezione **non cambia, si semplifica**: modificare un ordine evaso
+sposta all'indietro un riepilogo che potrebbe essere già stato consegnato, e la copia in
+`CorrispettiviDelivery` resta com'era. Cade solo la metà del ragionamento che riguardava il
+registro congelato.
+
 Modificare un ordine evaso li romperebbe in due modi opposti: il registro COR- resterebbe
 fermo mentre l'ordine cambia, e il riepilogo si sposterebbe all'indietro. Se quel periodo
 era già stato consegnato, la copia congelata in `CorrispettiviDelivery` resta com'era, il
@@ -172,7 +183,7 @@ data e non un flag: serve sapere da quando) e:
 - sugli ordini **già evasi** non tocca niente: gli impegni sono stati consumati
   all'evasione e la merce è uscita davvero — cancellare l'ordine sul canale non la riporta
   in magazzino. Resta la sola segnalazione, che serve perché è una situazione da guardare:
-  c'è un corrispettivo registrato per una vendita che sul canale non risulta più;
+  quella vendita è entrata nei corrispettivi del periodo, e sul canale non risulta più;
 - **toglie la segnalazione** se l'ordine ricompare. Una segnalazione rimasta accesa su un
   ordine tornato è falsa, e le false insegnano a ignorare anche le vere.
 

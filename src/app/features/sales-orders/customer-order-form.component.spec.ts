@@ -908,7 +908,7 @@ describe('CustomerOrderFormComponent — ordini da canale esterno', () => {
   it('un ordine evaso avvisa che i totali del commercialista si sposterebbero', async () => {
     const form = await apri(ordine({ source: 'online', fulfilledAt: '2026-08-02T10:00:00.000Z' }));
 
-    expect(dice(form.externalOrderNotice(), 'corrispettivo', 'commercialista')).toBe(true);
+    expect(dice(form.externalOrderNotice(), 'corrispettivi', 'commercialista')).toBe(true);
   });
 
   // Il controllo che vale più degli altri. L'evasione PARZIALE non crea né

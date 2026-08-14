@@ -1057,10 +1057,16 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly isPosOrder = computed(() => this.loadedOrder()?.source === SalesOrderSource.Pos);
 
   /**
-   * Evaso DEL TUTTO, e quindi con un corrispettivo registrato. L'evasione
-   * PARZIALE non crea né vendita online né corrispettivo — marca solo l'ordine
-   * come da verificare — quindi qui non basta `isSettledOrder()`: con quello il
-   * banner direbbe che esiste un corrispettivo che non c'è.
+   * Evaso DEL TUTTO, e quindi **dentro i corrispettivi del periodo**.
+   *
+   * L'evasione PARZIALE non crea la vendita online e non fa entrare l'ordine
+   * nel registro — marca solo l'ordine come da verificare — quindi qui non
+   * basta `isSettledOrder()`: con quello il banner parlerebbe di un effetto
+   * fiscale che non c'è.
+   *
+   * _(14/08/2026: qui si diceva «con un corrispettivo registrato». Non esiste
+   * più una voce registrata — il registro è derivato dalle vendite, e ciò che
+   * conta è che l'ordine vi rientri.)_
    */
   private readonly externalOrderFulfilled = computed(() =>
     Boolean(this.loadedOrder()?.fulfilledAt),
@@ -1096,7 +1102,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     ];
     if (this.externalOrderFulfilled()) {
       notice.push(
-        'È già stato evaso e il corrispettivo è stato registrato: cambiarlo qui sposterebbe anche i totali riepilogati per il commercialista, lasciandoli diversi da quelli già consegnati.',
+        'È già stato evaso, quindi rientra nei corrispettivi del periodo: cambiarlo qui sposterebbe i totali riepilogati per il commercialista, lasciandoli diversi da quelli già consegnati.',
       );
     }
     notice.push(
