@@ -1004,7 +1004,7 @@ Se qualche vendita risulta **evasa senza data**, il riepilogo te lo dice: non è
 
 Accanto al periodo trovi altri due filtri, indipendenti fra loro e dal periodo:
 
-- **Canale** — Shopify, Negozio, oppure tutti. Di partenza il registro mostra **Shopify**;
+- **Canale** — tutti, Shopify, oppure Negozio. Di partenza il registro mostra **tutti i canali**: se una parte delle vendite restasse fuori per difetto, nessuno se ne accorgerebbe;
 - **Tipo** — vendite e rettifiche insieme, oppure solo vendite, solo resi, solo rimborsi.
 
 Puoi combinarli: «2° trimestre 2026 · Shopify · Solo resi» per vedere cosa è tornato indietro in quel trimestre.

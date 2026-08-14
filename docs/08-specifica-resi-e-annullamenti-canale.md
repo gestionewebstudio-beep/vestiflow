@@ -232,7 +232,11 @@ Al posto degli interruttori «Solo online» e «Solo rimborsi»:
 
 I tre filtri sono indipendenti: «2° trimestre 2026 · Shopify · Solo resi» è una domanda legittima.
 
-**Il predefinito del canale resta Shopify, non «Tutti».** _Misurato:_ su tutti i canali il 3° trimestre passa da 95,00 € a 324,36 €, perché entrano due ordini manuali evasi a luglio (229,36 €). Sono Ordini cliente che una fattura potrebbe già coprire, e la loro esclusione è la decisione ancora aperta di `04` §8 sull'`excluded_invoiced`. Finché non è presa, il registro non li mostra per difetto — ma l'operatore può chiederli.
+⚠️ **Il predefinito del canale è «Tutti», e per un po' non lo è stato.** Nato «Shopify», ha prodotto in mezz'ora il difetto peggiore: **due schermate con lo stesso nome che dicevano numeri diversi per lo stesso trimestre** — 95,00 € in `/reports/corrispettivi` e 324,36 € nel Registro commercialista, che il canale non lo filtra affatto.
+
+_Misurato:_ la differenza stava in **un solo campo**, non nel calcolo. Entrambe le pagine passano da `CorrispettiviService.getSummary`, e `accountant-register.service.ts` passa `onlineOnly` solo se il canale è esplicitamente «online». Nessuna seconda aggregazione: una sola, due predefiniti.
+
+**Fra i due vince quello che mostra tutto.** Un totale gonfiato si nota — qualcuno chiede perché ci sono dentro gli ordini manuali; un totale a cui manca una parte no, e nessuno cerca ciò che non vede. Su un registro fiscale è il verso giusto in cui sbagliare. I 229,36 € di differenza sono due Ordini cliente evasi a luglio: che possano essere coperti da una fattura resta la decisione aperta di `04` §8, e non si risolve nascondendoli.
 
 ⚠️ **Il filtro per tipo agisce sull'ELENCO, non sul riepilogo**, ed è una scelta. Guardando «Solo resi» il totale del periodo continua a dire **95,00 €**, non −205,00: il secondo è un numero che non significa niente, e che prima o poi qualcuno trascriverebbe su un registro. Il tipo serve a ispezionare, non a ridefinire il periodo.
 

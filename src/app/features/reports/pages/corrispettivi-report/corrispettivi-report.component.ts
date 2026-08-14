@@ -141,19 +141,26 @@ export class CorrispettiviReportComponent {
   protected readonly pendingOnly = computed(() => this.queryParams().get('pendingOnly') === '1');
 
   /**
-   * Canale: vuoto = tutti.
+   * Canale, con **«Tutti» come predefinito**.
    *
-   * Il **predefinito resta l'online**, non «tutti»: aprendo il registro senza
-   * scegliere niente si vedono le vendite del canale, come prima. Includere
-   * anche gli ordini manuali per difetto porterebbe dentro vendite che una
-   * fattura copre già, e la loro esclusione è una decisione ancora aperta.
+   * Era «Shopify», e produceva il difetto peggiore: due schermate con lo stesso
+   * nome che dicevano numeri diversi per lo stesso trimestre — 95,00 € qui e
+   * 324,36 € nel Registro commercialista, che non filtra il canale. La
+   * differenza stava in un solo campo, non nel calcolo: entrambe passano dallo
+   * stesso `CorrispettiviService.getSummary`.
+   *
+   * **Fra i due predefiniti vince quello che mostra tutto.** Un totale gonfiato
+   * si nota — qualcuno chiede perché ci sono dentro gli ordini manuali; un
+   * totale a cui manca una parte no, e nessuno cerca ciò che non vede. Su un
+   * registro fiscale è il verso giusto in cui sbagliare.
+   *
+   * Che alcuni ordini manuali possano essere già coperti da una fattura resta
+   * la decisione aperta sull'`excluded_invoiced` (`04` §8), e non si risolve
+   * nascondendoli.
    */
   protected readonly channelFilter = computed(() => {
     const value = this.queryParams().get('channel');
-    if (value === 'all') {
-      return 'all';
-    }
-    return value === 'pos' ? 'pos' : 'online';
+    return value === 'online' || value === 'pos' ? value : 'all';
   });
 
   protected readonly onlineOnly = computed(() => this.channelFilter() === 'online');
@@ -205,9 +212,9 @@ export class CorrispettiviReportComponent {
   });
 
   protected readonly channelOptions: readonly SelectMenuOption[] = [
+    { value: 'all', label: 'Tutti i canali' },
     { value: 'online', label: 'Shopify' },
     { value: 'pos', label: 'Negozio' },
-    { value: 'all', label: 'Tutti i canali' },
   ];
 
   protected readonly rowTypeOptions: readonly SelectMenuOption[] = [
@@ -354,8 +361,8 @@ export class CorrispettiviReportComponent {
   }
 
   protected onChannelChange(value: string | null): void {
-    // «online» è il predefinito: non lo si scrive nell'indirizzo.
-    this.updateParams({ channel: !value || value === 'online' ? null : value });
+    // «all» è il predefinito: non lo si scrive nell'indirizzo.
+    this.updateParams({ channel: !value || value === 'all' ? null : value });
   }
 
   protected onRowTypeChange(value: string | null): void {
@@ -414,10 +421,16 @@ export class CorrispettiviReportComponent {
   protected printReport(): void {
     void this.router.navigate(['/app/reports/corrispettivi/print'], {
       queryParams: {
+        // La stampa deve mostrare quello che si sta guardando: periodo,
+        // calendario e canale viaggiano tutti, o si stampa un altro registro.
         period: this.displayPeriod(),
         from: this.query().dateFrom ?? null,
         to: this.query().dateTo ?? null,
-        onlineOnly: this.onlineOnly() ? null : '0',
+        year: this.query().year ?? null,
+        month: this.query().month ?? null,
+        quarter: this.query().quarter ?? null,
+        channel: this.channelFilter() === 'all' ? null : this.channelFilter(),
+        rowType: this.rowTypeFilter() === 'all' ? null : this.rowTypeFilter(),
       },
     });
   }
