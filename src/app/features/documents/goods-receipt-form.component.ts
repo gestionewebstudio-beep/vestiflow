@@ -124,6 +124,7 @@ import { DocumentMobilePanelComponent } from '@domain/documents/components/docum
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
 import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { DocumentLineUnitCellComponent } from '@domain/documents/components/document-line-unit-cell/document-line-unit-cell.component';
+import { DocumentPrintActionsComponent } from '@domain/documents/components/document-print-actions/document-print-actions.component';
 import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
 import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
@@ -142,6 +143,7 @@ import {
   documentStatusDisplayTone,
 } from '@domain/documents/models/document-labels.util';
 import { isGoodsReceiptDocumentType } from './models/document-goods-receipt.util';
+import { isPrintableDocumentType } from './models/document-print.util';
 import { renderCausalTemplate } from './models/causal-template.util';
 import type { ExternalDocumentType } from '@domain/documents/models/external-document-type.model';
 import { DocumentService } from '@domain/documents/services/document.service';
@@ -274,6 +276,7 @@ type GoodsReceiptLineFocusField =
     DocumentLineProductCellComponent,
     DocumentLineSelectCellComponent,
     DocumentLineUnitCellComponent,
+    DocumentPrintActionsComponent,
     UnitOfMeasureManagerDialogComponent,
     DocumentMobilePanelComponent,
     DocumentProductSearchPanelComponent,
@@ -376,7 +379,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
   protected readonly isEditMode = computed(() => Boolean(this.editDocumentId()));
 
-  private readonly loadedDocument = signal<DocumentRecord | null>(null);
+  // Letto anche dal template, per nominare il file scaricato.
+  protected readonly loadedDocument = signal<DocumentRecord | null>(null);
   protected readonly isConfirmedEdit = computed(() => {
     const doc = this.loadedDocument();
     return doc != null && isConfirmedEditableDocumentStatus(doc.status);
@@ -884,7 +888,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   protected readonly canSaveDocument = computed(() => !this.formReadOnly());
 
-  protected readonly canExportPdf = computed(() => Boolean(this.persistedDocumentId()));
+  /**
+   * Il documento è salvato E il suo tipo ha davvero un foglio.
+   *
+   * Il solo `persistedDocumentId()` non bastava, ed è il difetto che ha aperto
+   * questo lavoro: la maschera serve anche Carico manuale e Carico iniziale,
+   * che non erano fra i tipi stampabili — i due bottoni comparivano lo stesso e
+   * il click prendeva un 422 che su questa schermata non si vedeva. Oggi quei
+   * tipi stampano, ma il gate resta legato al predicato: se un tipo un domani
+   * esce dalla lista, il bottone sparisce invece di tornare a mentire.
+   */
+  protected readonly canExportPdf = computed(
+    () =>
+      Boolean(this.persistedDocumentId()) && isPrintableDocumentType(this.form.controls.type.value),
+  );
 
   private readonly loadTick = signal(0);
   private readonly loadRequest = computed(() => ({
@@ -3781,45 +3798,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.productPanel.dismissAttach();
   }
 
-  protected openPrintPreview(): void {
-    const id = this.persistedDocumentId();
-    if (!id) {
-      return;
-    }
-    void this.router.navigate(['/app/documents', id, 'print']);
-  }
-
-  protected downloadDocumentPdf(): void {
-    const id = this.persistedDocumentId();
-    if (!id || this.downloadingPdf()) {
-      return;
-    }
-    const doc = this.loadedDocument();
-    this.downloadingPdf.set(true);
-    this.documentService
-      .exportPdf(id)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (blob) => {
-          this.downloadingPdf.set(false);
-          const reference = doc?.reference ?? 'bozza';
-          const stamp = (doc?.documentDate ?? new Date().toISOString()).slice(0, 10);
-          this.downloadBlob(blob, `arrivo-merce-${reference}-${stamp}.pdf`);
-        },
-        error: (err: unknown) => {
-          this.downloadingPdf.set(false);
-          this._submitState.set({ status: 'error', error: this.toAppError(err) });
-        },
-      });
-  }
-
-  private downloadBlob(blob: Blob, filename: string): void {
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = filename.replace(/[^\w\s.-]/g, '-');
-    anchor.click();
-    URL.revokeObjectURL(url);
+  /** Lo scarico PDF è fallito: l'errore entra nella fascia della maschera. */
+  protected onPrintFailed(err: unknown): void {
+    this._submitState.set({ status: 'error', error: this.toAppError(err) });
   }
 
   protected cancel(): void {
@@ -4284,7 +4265,8 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.lines.insert(to, control);
   }
 
-  private persistedDocumentId(): string | null {
+  // Letto anche dal template, per passarlo alle azioni di stampa.
+  protected persistedDocumentId(): string | null {
     return this.editDocumentId() ?? this.loadedDocument()?.id ?? null;
   }
 

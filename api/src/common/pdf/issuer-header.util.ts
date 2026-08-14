@@ -20,14 +20,30 @@ export function drawIssuerHeader(
   doc.font('Helvetica-Bold').fontSize(11).fillColor('#000000').text(issuer.legalName, left, y);
   y += 14;
 
-  const line = (text: string): void => {
+  for (const text of issuerHeaderLines(issuer)) {
     doc.font('Helvetica').fontSize(9).fillColor('#444444').text(text, left, y);
     y += 12;
-  };
+  }
+
+  doc.fillColor('#000000');
+  return y + 8;
+}
+
+/**
+ * Le righe sotto la ragione sociale, già composte: indirizzo, identificativi
+ * fiscali, contatti. Solo quelle piene.
+ *
+ * Sta qui, separata dal disegno, perché la stessa intestazione serve anche
+ * all'anteprima a schermo — e ricomporla nel frontend vorrebbe dire ricopiare
+ * regole sottili («il codice fiscale solo se diverso dalla partita IVA») che
+ * divergerebbero alla prima modifica di una delle due parti, in silenzio.
+ */
+export function issuerHeaderLines(issuer: DocumentIssuer): readonly string[] {
+  const lines: string[] = [];
 
   const address = issuerAddressLine(issuer);
   if (address) {
-    line(address);
+    lines.push(address);
   }
 
   const fiscalIds = [
@@ -39,7 +55,7 @@ export function drawIssuerHeader(
       : null,
   ].filter((part): part is string => part !== null);
   if (fiscalIds.length > 0) {
-    line(fiscalIds.join(' · '));
+    lines.push(fiscalIds.join(' · '));
   }
 
   const contacts = [
@@ -49,11 +65,10 @@ export function drawIssuerHeader(
     issuer.website,
   ].filter((part): part is string => Boolean(part));
   if (contacts.length > 0) {
-    line(contacts.join(' · '));
+    lines.push(contacts.join(' · '));
   }
 
-  doc.fillColor('#000000');
-  return y + 8;
+  return lines;
 }
 
 /**
@@ -69,6 +84,24 @@ export function drawIssuerFooter(
   issuer: DocumentIssuer,
   startY: number,
 ): number {
+  const footer = issuerFooterLine(issuer);
+  if (!footer) {
+    return startY;
+  }
+
+  const left = doc.page.margins.left;
+  const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc.font('Helvetica').fontSize(8).fillColor('#666666').text(footer, left, startY, { width });
+  doc.fillColor('#000000');
+  return startY + 12;
+}
+
+/**
+ * Il piede del Registro Imprese su una riga sola, o `null` se non c'è nulla da
+ * dire. Come per l'intestazione, la composizione vive qui perché la usa anche
+ * l'anteprima a schermo.
+ */
+export function issuerFooterLine(issuer: DocumentIssuer): string | null {
   const parts = [
     issuer.reaOffice && issuer.reaNumber
       ? `R.E.A. ${issuer.reaOffice.toUpperCase()} ${issuer.reaNumber}`
@@ -80,17 +113,5 @@ export function drawIssuerFooter(
     issuer.inLiquidation ? 'Società in liquidazione' : null,
   ].filter((part): part is string => part !== null);
 
-  if (parts.length === 0) {
-    return startY;
-  }
-
-  const left = doc.page.margins.left;
-  const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  doc
-    .font('Helvetica')
-    .fontSize(8)
-    .fillColor('#666666')
-    .text(parts.join(' · '), left, startY, { width });
-  doc.fillColor('#000000');
-  return startY + 12;
+  return parts.length > 0 ? parts.join(' · ') : null;
 }

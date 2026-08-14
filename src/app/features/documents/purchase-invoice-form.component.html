@@ -48,6 +48,20 @@
         </p>
       }
 
+      <!-- Stampa: la riga di elenco di una registrazione attiva apre SEMPRE
+           questa maschera, mai il dettaglio. Senza i comandi qui, l'unica
+           stampa comoda restava il menu «···» della lista. -->
+      @if (canExportPdf()) {
+        <div class="doc-form__post-actions" aria-label="Azioni documento salvato">
+          <app-document-print-actions
+            [documentId]="editDocumentId()!"
+            [reference]="loadedReference()"
+            [documentDate]="loadedDocumentDate()"
+            (failed)="onPrintFailed($event)"
+          />
+        </div>
+      }
+
       <!-- Testata a celle unite, due blocchi (categoria B): il numero contabile
            è quello del fornitore, il numero è nostro — separarli evita di
            confonderli. -->

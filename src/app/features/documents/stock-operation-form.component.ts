@@ -96,6 +96,8 @@ import { formatItalianInputDate } from '@shared/utils/calendar.util';
 
 import { documentReferenceLabel } from '@domain/documents/models/document-labels.util';
 import { isAdjustmentDocumentType } from './models/document-stock-operation.util';
+import { isPrintableDocumentType } from './models/document-print.util';
+import { DocumentPrintActionsComponent } from '@domain/documents/components/document-print-actions/document-print-actions.component';
 import { DocumentService } from '@domain/documents/services/document.service';
 import { DocumentNumberingStore } from '@domain/documents/state/document-numbering.store';
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
@@ -154,6 +156,7 @@ type MovementCodeField = Extract<DocumentLineCodeField, 'articleCode' | 'sku' | 
     DateInputComponent,
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
+    DocumentPrintActionsComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentChronologyWarningDialogComponent,
     EditLockBannerComponent,
@@ -322,6 +325,21 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
 
   protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
   protected readonly isEditMode = computed(() => Boolean(this.editDocumentId()));
+
+  protected readonly loadedReference = computed(() => this.loadedDocument()?.reference ?? null);
+  protected readonly loadedDocumentDate = computed(
+    () => this.loadedDocument()?.documentDate ?? null,
+  );
+
+  /** Comandi di stampa: solo su un documento già salvato di tipo stampabile. */
+  protected readonly canExportPdf = computed(
+    () => Boolean(this.editDocumentId()) && isPrintableDocumentType(this.documentType()),
+  );
+
+  /** Lo scarico PDF è fallito: l'errore entra nella fascia della maschera. */
+  protected onPrintFailed(err: unknown): void {
+    this._submitState.set({ status: 'error', error: this.toAppError(err) });
+  }
 
   private readonly loadedDocument = signal<DocumentRecord | null>(null);
   protected readonly isConfirmedEdit = computed(() => {

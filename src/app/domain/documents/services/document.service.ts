@@ -33,6 +33,17 @@ const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
 /** Operatore che ha creato almeno un documento (filtro elenco). */
+/**
+ * Intestazione emittente di un documento, già composta dal server: ragione
+ * sociale, righe sotto di essa (indirizzo, identificativi fiscali, contatti) e
+ * la riga di piede del Registro Imprese, quando c'è.
+ */
+export interface DocumentPrintHeader {
+  readonly legalName: string;
+  readonly lines: readonly string[];
+  readonly footer: string | null;
+}
+
 export interface DocumentOperator {
   readonly id: EntityId;
   readonly name: string;
@@ -305,6 +316,20 @@ export class DocumentService {
         items: readonly { variantId: string; previousMinor: number | null; nextMinor: number }[];
         policy: 'always' | 'ask' | 'never';
       }>(this.url(`/documents/${id}/supplier-price-diffs`))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /**
+   * L'intestazione emittente che il documento stamperà, già composta dal
+   * server. Non si ricava dall'anagrafica azienda letta viva: su un documento
+   * già emesso vince lo snapshot congelato all'emissione, ed è il server a
+   * saperlo. Le regole di composizione (il codice fiscale solo se diverso
+   * dalla partita IVA, il REA solo con entrambi i campi) restano di là, dove
+   * le usa anche il PDF.
+   */
+  getPrintHeader(id: EntityId): Observable<DocumentPrintHeader> {
+    return this.http
+      .get<DocumentPrintHeader>(this.url(`/documents/${id}/print-header`))
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 

@@ -124,18 +124,12 @@
            collegamento fattura (lista). -->
       @if (isConfirmedEdit() && canExportPdf()) {
         <div class="doc-form__post-actions" aria-label="Azioni documento confermato">
-          <app-button type="button" variant="secondary" (click)="openPrintPreview()">
-            Anteprima stampa
-          </app-button>
-          <app-button
-            type="button"
-            variant="secondary"
-            [loading]="downloadingPdf()"
-            [disabled]="downloadingPdf()"
-            (click)="downloadDocumentPdf()"
-          >
-            Scarica PDF
-          </app-button>
+          <app-document-print-actions
+            [documentId]="persistedDocumentId()!"
+            [reference]="loadedDocument()?.reference ?? null"
+            [documentDate]="loadedDocument()?.documentDate ?? null"
+            (failed)="onPrintFailed($event)"
+          />
         </div>
       }
 
@@ -1851,18 +1845,12 @@
           Stampa etichette
         </app-button>
         @if (canExportPdf()) {
-          <app-button type="button" variant="secondary" (click)="openPrintPreview()">
-            Anteprima stampa
-          </app-button>
-          <app-button
-            type="button"
-            variant="secondary"
-            [loading]="downloadingPdf()"
-            [disabled]="downloadingPdf()"
-            (click)="downloadDocumentPdf()"
-          >
-            Scarica PDF
-          </app-button>
+          <app-document-print-actions
+            [documentId]="persistedDocumentId()!"
+            [reference]="loadedDocument()?.reference ?? null"
+            [documentDate]="loadedDocument()?.documentDate ?? null"
+            (failed)="onPrintFailed($event)"
+          />
         }
         @if (canSaveDocument()) {
           <app-button

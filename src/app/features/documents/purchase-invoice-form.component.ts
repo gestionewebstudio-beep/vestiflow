@@ -72,6 +72,8 @@ import { DocumentNumberingStore } from '@domain/documents/state/document-numberi
 import { DocumentCountersService } from '@domain/documents/services/document-counters.service';
 import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 import { DocumentSettingsService } from './services/document-settings.service';
+import { isPrintableDocumentType } from './models/document-print.util';
+import { DocumentPrintActionsComponent } from '@domain/documents/components/document-print-actions/document-print-actions.component';
 import type {
   PurchaseInvoiceInstallmentBody,
   PurchaseInvoiceManualLineBody,
@@ -164,6 +166,7 @@ function parseRatePercent(value: string): number | null {
     DocumentCounterpartyRefComponent,
     DocumentMobilePanelComponent,
     DocumentNumberFieldComponent,
+    DocumentPrintActionsComponent,
     DocumentSeriesManagerDialogComponent,
     DocumentChronologyWarningDialogComponent,
     EmptyStateComponent,
@@ -280,6 +283,23 @@ export class PurchaseInvoiceFormComponent implements CanComponentDeactivate {
 
   private readonly loadedDocument = signal<DocumentRecord | null>(null);
   protected readonly loadedReference = computed(() => this.loadedDocument()?.reference ?? null);
+  protected readonly loadedDocumentDate = computed(
+    () => this.loadedDocument()?.documentDate ?? null,
+  );
+
+  /**
+   * Comandi di stampa: solo su un documento già salvato. Il tipo è fisso —
+   * questa maschera gestisce solo la registrazione fattura fornitore — e sta
+   * fra i tipi stampabili.
+   */
+  protected readonly canExportPdf = computed(
+    () => Boolean(this.editDocumentId()) && isPrintableDocumentType(this.documentType),
+  );
+
+  /** Lo scarico PDF è fallito: l'errore entra nella fascia della maschera. */
+  protected onPrintFailed(err: unknown): void {
+    this._submitState.set({ status: 'error', error: this.toAppError(err) });
+  }
 
   /**
    * Etichetta del tipo fotografata sul documento. Serve alla tendina quando il
