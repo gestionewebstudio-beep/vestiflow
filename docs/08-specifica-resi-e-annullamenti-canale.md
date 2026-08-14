@@ -174,6 +174,14 @@ Così la forma dei dati regge qualunque risposta: sia che si preferisca un regis
 
 _Misurato 14/08:_ `CorrispettivoEntry.channel` **esiste** e il registro **aggrega già per canale**, con etichetta. **Manca il filtro esplicito nella lista**: oggi il dato c'è e l'operatore non può usarlo. È quello che rende vero «filtrabile», e va aggiunto.
 
+### ✅ L'esclusione dei fatturati si deriva, e non serve niente di nuovo
+
+_Deciso il 14/08, con il §5-bis della `07`._ L'esclusione di una vendita dal registro corrispettivi **si deriva dal fatto che quell'ordine è stato convertito in un documento fiscale** — non da una spunta.
+
+Il legame è `SalesOrder.documentId`, che **esiste già**, e la cardinalità è quella giusta senza toccare niente: _misurato_, è una chiave singola sull'ordine, quindi **una fattura copre più vendite** e **un ordine non si spezza fra due documenti**. Nessuna relazione nuova, nessuna migration.
+
+Quello che manca è la **conversione applicata all'Ordine cliente** — la generazione documentale, distinta dalla conclusione che scarica il magazzino. Oggi un ordine di canale è escluso da tre filtri indipendenti, ma quei filtri proteggevano **dallo scarico**, non dal canale: convertire non tocca il magazzino. Il perché e i tre cancelli stanno nel §5-bis della `07`.
+
 ### Conseguenza misurata: l'esclusione non è verificabile — ma non tocca l'estrazione
 
 _Misurato 14/08._ Lo stato si applica **a mano**, con la spunta «fattura emessa» (`invoiceIssued`), **senza collegamento a una fattura reale**. Nessuno può risalire a quale fattura giustifichi l'esclusione, né accorgersi di una spunta sbagliata.

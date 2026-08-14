@@ -71,6 +71,82 @@ Scelta la tendina e non tre pulsanti affiancati perché la barra non si allunga 
 
 **Stato: deciso 14/08, non iniziato.**
 
+## §5-bis · Da dove nasce una fattura, e chi scarica il magazzino
+
+**Fattura e Fattura accompagnatoria sono lo stesso documento.** L'unica differenza è che l'accompagnatoria porta **destinatario e destinazione**. Non differiscono per il magazzino, e non devono.
+
+### La regola
+
+> **Entrambe hanno la casella «Scarica mag.» per riga, sempre. Il documento scarica le righe spuntate.**
+>
+> **Il valore iniziale della casella lo decide l'ORIGINE**, non il tipo di documento.
+
+| Origine della fattura            | La casella nasce | Perché                                    |
+| -------------------------------- | ---------------- | ----------------------------------------- |
+| articoli inseriti a mano         | **spuntata**     | la merce non è ancora uscita              |
+| Ordine cliente interno           | **spuntata**     | scarica, e libera gli impegni dell'ordine |
+| DDT vendita che ha già scaricato | **non spuntata** | è uscita col DDT                          |
+| Ordine di canale già evaso       | **non spuntata** | è uscita col giro dell'ordine             |
+
+**«La merce esce una volta sola» non è una regola da far rispettare: è l'origine a saperlo**, e lo dice spuntando o no. Non serve una condizione a livello di documento, non serve enumerare i casi, e il caso che arriverà domani non rompe niente — porta con sé la propria origine.
+
+**La Nota di credito è fuori da questo meccanismo**: non movimenta il magazzino (§6), quindi non ha la casella. La merce che rientra passa da un documento di carico separato.
+
+### Cosa va cambiato — misurato 14/08
+
+Il meccanismo per riga **esiste già e funziona**: è quello che l'accompagnatoria usa oggi. A bloccarlo sono tre cancelli, tutti chiusi **sul tipo** invece che sull'origine:
+
+```ts
+// 1. La colonna non compare sulla Fattura, e se è nascosta il salvataggio
+//    forza loadsStock: false  (sales-document-form.component.ts)
+showLoadsStockColumn = isInvoiceAccompanying() && !hasLinkedDdt();
+
+// 2. Il default della riga viene dal TIPO, e `invoice_draft` è fra i tipi
+//    che non movimentano  (document-type.util.ts)
+documentTypeDefaultLoadsStock(type) = !NON_STOCK_DOCUMENT_TYPES.includes(type);
+
+// 3. La conferma scarica solo per certi TIPI: la Fattura non scarica mai,
+//    qualunque cosa dicano le caselle  (document-stock.constants.ts)
+documentTypeUnloadsStockOnConfirm(type) = DOCUMENT_STOCK_UNLOAD_TYPES.includes(type);
+```
+
+- il **primo** va esteso alla Fattura;
+- il **secondo** va spostato dal tipo all'**origine**;
+- il **terzo** deve includere la famiglia fattura.
+
+**La conversione ha già l'idea giusta, letta dal capo sbagliato.** Oggi imposta `loadsStock: dto.targetType === DocumentType.sales_ddt` — decide dal **tipo di destinazione**. Va girata sull'**origine**: «la merce è già uscita?». È la stessa riga, letta dall'altro verso.
+
+### Conversione ≠ conclusione
+
+Sono due cose che oggi VestiFlow tiene in una lista sola, ed è la causa di tre sintomi che sembravano separati.
+
+|                 | Cosa fa                                                       | Cosa offre oggi                                                                                                             |
+| --------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **Conclusione** | fa uscire la merce                                            | `DOCUMENT_STOCK_UNLOAD_TYPES` = DDT vendita · Scarico manuale · Fattura accompagnatoria                                     |
+| **Conversione** | genera un documento da un altro, **nessun effetto magazzino** | esiste per Proforma e DDT (`PROFORMA_CONVERT_TARGET_TYPES`, `SALES_DDT_CONVERT_TARGET_TYPES`), **non per l'Ordine cliente** |
+
+_Misurato 14/08:_ il menù «Concludi ordine» offre esattamente `DOCUMENT_STOCK_UNLOAD_TYPES`. **Non è un elenco di documenti: è l'elenco di ciò che scarica.** Per questo la Fattura non c'è — non perché sia stata dimenticata, ma perché non scaricava.
+
+Danea, dallo stesso punto, offre Proforma · DDT · Vendita al banco · Ricevuta fiscale · Fattura d'acconto · Fattura accomp. · Fattura: **la derivazione documentale, non lo scarico.**
+
+**Da separare i due significati discendono tre cose che sembravano difetti distinti:**
+
+| Sintomo misurato                                                               | Vera causa                                                      |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| la Fattura non può includere ordini                                            | non scaricava, quindi non «concludeva»                          |
+| un ordine di canale non si aggancia (tre filtri: pannello, query, salvataggio) | agganciare consuma gli impegni, che l'evasione ha già consumato |
+| l'esclusione dal registro corrispettivi è una spunta a mano                    | il legame da cui derivarla non poteva nascere                   |
+
+Con la conversione applicata all'Ordine cliente **il canale smette di essere un problema**: convertire non tocca il magazzino, quindi non c'è ragione di escludere gli ordini online. Il divieto proteggeva dallo scarico, non dal canale.
+
+**La conclusione resta com'è** — legata ai tipi che scaricano, e giustamente chiusa agli ordini di canale, che l'evasione l'hanno già avuta.
+
+### Cosa ne consegue per il registro corrispettivi
+
+L'esclusione di una vendita online dal registro (`08` §8) si **deriva** dal fatto che quell'ordine è stato **convertito** in un documento fiscale — non «agganciato», che è l'altra cosa. Il legame è `SalesOrder.documentId`, che esiste già; la cardinalità è già quella giusta (una fattura copre più ordini, un ordine non si spezza). **Nessuna migration, nessuna relazione nuova.**
+
+**Stato: deciso 14/08, non iniziato.**
+
 ## §6 · Nota di credito
 
 ### Come nasce
@@ -100,7 +176,9 @@ _Dedotto, non misurato:_ verso lo SdI la TD04 dovrebbe portare importi positivi.
 
 Il meccanismo per riga esiste già e non va inventato: `DocumentLine.loadsStock`, la colonna «Scarica mag.».
 
-**Ma non è la casella che l'operatore vede sulla fattura**, e questa parte va corretta prima di implementare. _Misurato 14/08:_ la colonna compare **solo** sull'accompagnatoria e **solo** senza DDT agganciato — `showLoadsStockColumn = isInvoiceAccompanying() && !hasLinkedDdt()` (`sales-document-form.component.ts:324`) — e quando è nascosta il salvataggio **forza `loadsStock: false`** (`:2175`). Sulla Nota di credito, così com'è, la casella non esisterebbe e non sarebbe spuntabile mai. **Quel `computed` va esteso, non riusato.**
+⚠️ **Superato dal §5-bis, e la parte che segue va letta con quello davanti.** Deciso il 14/08: **la Nota di credito non movimenta il magazzino**, quindi non ha la casella — la merce che rientra passa da un documento di carico separato. Il ragionamento sul default resta scritto qui perché è quello che ha portato alla decisione, ma non descrive più il comportamento.
+
+_Misurato 14/08, e vale per il §5-bis:_ la colonna compare **solo** sull'accompagnatoria e **solo** senza DDT agganciato — `showLoadsStockColumn = isInvoiceAccompanying() && !hasLinkedDdt()` (`sales-document-form.component.ts:324`) — e quando è nascosta il salvataggio **forza `loadsStock: false`** (`:2175`). È il primo dei tre cancelli da spostare dal tipo all'origine.
 
 **La nota di credito nasce con la casella non spuntata.** L'operatore la spunta quando la merce è tornata davvero.
 
