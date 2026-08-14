@@ -101,11 +101,20 @@ export const routes: Routes = [
               import('@features/online-sales/online-sales.routes').then((m) => m.onlineSalesRoutes),
           },
           {
+            // «Corrispettivi» della sidebar porta al registro DERIVATO da
+            // vendite e rettifiche, non più a quello costruito su
+            // `corrispettivo_entries` — che è la tabella destinata a cadere
+            // (specifica 08 §10) e la cui maschera mostrava aliquote inventate
+            // sugli ordini multi-aliquota (registro difetti 3.12).
+            //
+            // L'indirizzo e la voce di menu non cambiano: cambia cosa caricano.
+            // Il componente vive ancora sotto `features/reports/` e la rotta si
+            // dichiara qui, alla radice, perché una feature non importa da
+            // un'altra feature. Quando la maschera legacy sarà eliminata, quel
+            // componente andrà spostato: è una rinomina, non un lavoro.
             path: 'corrispettivi',
             loadChildren: () =>
-              import('@features/online-sales/online-sales.routes').then(
-                (m) => m.corrispettiviRegisterRoutes,
-              ),
+              import('@features/reports/reports.routes').then((m) => m.corrispettiviRegisterRoutes),
           },
           {
             path: 'register',

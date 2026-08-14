@@ -419,7 +419,7 @@ export class CorrispettiviReportComponent {
   }
 
   protected printReport(): void {
-    void this.router.navigate(['/app/reports/corrispettivi/print'], {
+    void this.router.navigate(['/app/sales/corrispettivi/print'], {
       queryParams: {
         // La stampa deve mostrare quello che si sta guardando: periodo,
         // calendario e canale viaggiano tutti, o si stampa un altro registro.

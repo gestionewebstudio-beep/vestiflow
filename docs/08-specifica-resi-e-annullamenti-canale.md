@@ -358,12 +358,40 @@ _Censimento del 14/08/2026. La decisione è dell'11/08 (`04` §8) ma il codice n
 
 Nient'altro. Il frontend ha `corrispettivi-register.component.ts`, la sua rotta e il servizio.
 
+### Censimento della maschera legacy — 14/08/2026
+
+_Fatto prima di ripuntare la rotta, per non scoprire una funzione mancante dopo averla tolta._
+
+| Funzione legacy               | Comportamento reale                                                | Requisito valido? | Nel derivato?  | Verdetto                                                                    |
+| ----------------------------- | ------------------------------------------------------------------ | ----------------- | -------------- | --------------------------------------------------------------------------- |
+| **Filtro Aliquota IVA**       | aliquota **media inventata** su ordini multi-aliquota (`01` §3.12) | sì                | no             | **ricostruire** da `tax_lines`, non portare                                 |
+| **Filtro Fattura**            | spunta manuale che imposta anche l'esclusione                      | sì come concetto  | no             | **derivare dal legame**, mai copiare il flag                                |
+| **Riepilogo / Incluso**       | esclude dai riepiloghi **della sola maschera legacy**              | da decidere       | no             | non portare finché la decisione è aperta                                    |
+| **Stato**                     | `to_verify` all'evasione, `refunded` al rimborso                   | parziale          | c'è **Tipo**   | `refunded` ridondante; il resto è flusso, semmai al Registro commercialista |
+| **Data fiscale modificabile** | proposta dall'evasione                                             | no                | usa l'evasione | **cade** (già deciso, col limite noto scritto)                              |
+| **Numero COR-…**              | consuma `DocumentType.corrispettivo`                               | no                | no             | **cade**                                                                    |
+| **Modifica manuale voce**     | PATCH sulla entry                                                  | no                | —              | **cade** con la tabella                                                     |
+
+**E la domanda che decideva tutto: quelle funzioni non le ha mai usate nessuno.**
+
+```
+«fattura emessa» spuntata:           0 voci
+escluse dal riepilogo:               0
+motivo di esclusione scritto:        0
+data fiscale ≠ data operativa:       0
+righe con Codice IVA riconosciuto:   4 su 8   (le 4 mancanti sono l'ordine multi-aliquota)
+```
+
+Nessuno storico dell'operatore da migrare prima che la tabella cada. L'unica nota scritta è il messaggio falso del difetto `01` §2.15.
+
+⚠️ **L'unico argomento per tenere viva la maschera legacy era il filtro per aliquota, e cade guardandolo da vicino**: restituisce numeri fiscalmente falsi. Meglio non offrire quel filtro che offrirlo così — un 12% mai esistito è un numero che qualcuno trascrive. Il requisito resta e torna nel derivato quando l'IVA per riga sarà letta davvero.
+
 ### L'ordine, e cosa blocca cosa
 
 1. **Decidere le due informazioni** che le vendite non hanno (sotto). Sono l'unica cosa che si perde davvero, e vanno decise **prima**.
-2. **Il registro derivato deve saper fare quello che fa quello a entries**: elenco, filtri, riepiloghi — più la rettifica per reso del §4, che oggi non ha nessuno dei due.
-3. **Smettere di scrivere**: togliere `createCorrispettivoTx` dall'evasione e l'aggiornamento sul rimborso. Da qui in poi nessuna voce nuova.
-4. **Ripuntare la schermata** sul registro derivato, o toglierla.
+2. **Il registro derivato deve saper fare quello che fa quello a entries**: elenco, filtri, riepiloghi — più la rettifica per reso del §4. ✅ **Fatto il 14/08**, salvo il filtro per aliquota, che il censimento ha declassato da «da portare» a «da ricostruire».
+3. **Ripuntare la schermata.** ✅ **Fatto il 14/08**: `/app/sales/corrispettivi` carica il registro derivato, `/app/reports/corrispettivi` fa redirect. L'indirizzo e la voce di menu non cambiano — cambia cosa caricano. I permessi passano a quelli delle vendite online, gli stessi che l'API richiede: la vecchia rotta sotto Report chiedeva `SectionReports`, e chi aveva solo quello apriva una pagina che poi prendeva 403 dalle proprie chiamate.
+4. **Smettere di scrivere**: togliere `createCorrispettivoTx` dall'evasione e l'aggiornamento sul rimborso. Da qui in poi nessuna voce nuova. **Prossimo passo.**
 5. **La numerazione cade da sé**: `DocumentType.corrispettivo` è consumato in **un solo punto** (`online-sale-fulfillment.service.ts:580`). È il «togliere al corrispettivo la numerazione che ha» del `04` §8.
 6. **La migration che elimina le tabelle è DISTRUTTIVA**, ed è la prima di questo ramo. Il database è condiviso e c'è un ambiente pubblicato: va fatta **in due tempi** — prima si smette di scrivere e leggere, poi, in un rilascio successivo, si eliminano le tabelle.
 

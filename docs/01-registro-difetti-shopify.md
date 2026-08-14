@@ -794,6 +794,35 @@ La causa è l'ordine di due istruzioni in `online-sale-fulfillment.service.ts`: 
 
 ---
 
+### 3.12 — Il corrispettivo inventa un'aliquota IVA che non esiste nell'ordine
+
+_Provato il 14/08/2026 su `COR-2026-0005`, la voce nata dall'ordine con due aliquote._
+
+**Cosa succede.** Le righe della voce di corrispettivo portano tutte la **stessa** aliquota, e non è nessuna di quelle dell'ordine:
+
+```
+prodotto   60,00 · iva 6,48 · snapshot {"matched":false,"ratePercent":12}
+prodotto   50,00 · iva 5,41 · snapshot {"matched":false,"ratePercent":12}
+maglietta  10,00 · iva 1,08 · snapshot {"matched":false,"ratePercent":12}
+spedizione 26,01 · iva 2,81 · snapshot {"matched":false,"ratePercent":12}
+```
+
+Le aliquote vere sono **4%** su un articolo e **22%** sugli altri due più la spedizione. Il 12% è `15,78 / 130,01`: **l'aliquota media dell'ordine**, spalmata su ogni riga. Nessuna corrisponde a un Codice IVA del tenant — `matched: false` su tutte e quattro.
+
+**La causa è dichiarata nel codice, ed è una premessa falsa.** `allocateProportional` ripartisce l'IVA **dell'ordine** sulle righe in proporzione al valore, con questo commento: «usata per allocare l'IVA ordine sulle righe della Vendita online **quando il canale non fornisce il dettaglio**». Poi `deriveVatRatePercent` divide imposta per imponibile e ottiene l'aliquota.
+
+**Ma il canale il dettaglio lo fornisce.** _Misurato lo stesso giorno:_ ogni riga del payload porta `tax_lines` con `rate` e importo, e li porta anche la spedizione. La ripartizione proporzionale era un ripiego ragionevole per un dato che si credeva mancante, e non è più stata verificata.
+
+**Perché non si era mai visto.** I quattro corrispettivi precedenti nascevano da ordini a **una sola aliquota**, dove la media coincide col vero. Il difetto compare solo quando le aliquote sono due, ed è emerso perché l'ordine di prova è stato costruito apposta con 4% e 22% insieme.
+
+**È attivo in produzione**: `createCorrispettivoTx` gira a ogni evasione.
+
+**Cosa deve fare invece.** Leggere `tax_lines` per riga e conservare aliquota e imposta **come snapshot del canale**, anche prima di avere una corrispondenza certa col Codice IVA di VestiFlow. Sono due problemi distinti, e tenerli insieme rimanda anche la parte che si può fare subito: il dato storico di Shopify si salva oggi, la corrispondenza coi codici interni è una decisione della procedura di prima sincronizzazione.
+
+**Conseguenza sulla dismissione.** Era l'unico argomento per tenere in vita la vecchia maschera — «ha il filtro per aliquota». Quel filtro restituisce numeri fiscalmente falsi: **meglio non offrirlo che offrirlo così**. Un 12% mai esistito è un numero che qualcuno trascrive.
+
+---
+
 ## Livello 4 — Consumo e comportamenti non richiesti
 
 ### 4.1 — «Sincronizza location» parte da sola
