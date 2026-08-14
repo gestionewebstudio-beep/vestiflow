@@ -436,7 +436,11 @@ La causa è una riga sola: il ramo che rettifica il corrispettivo è `if (financ
 
 **È il caso peggiore dei tre, ed è il più comune.** Sul rimborso di un ordine già pagato (`#1005`) lo stato diventa `refunded`, il ramo si accende e almeno una segnalazione resta. Qui no: **più il flusso è ordinario, meno traccia lascia.**
 
-**Cosa deve fare invece.** La rettifica del corrispettivo non può dipendere dallo stato del pagamento: deve seguire il **rientro della merce**. Se arriva un `online_order_restocked` che riguarda una Vendita online, quella vendita e il suo corrispettivo vanno marcati e segnalati, quale che sia il `financial_status`. Quale stato assegnare al corrispettivo (`refunded` non descrive un contrassegno mai incassato) è una decisione di prodotto: oggi l'enum ha `to_verify · included · excluded_invoiced · adjusted · refunded` e **non ha un valore per «vendita non avvenuta»**.
+**Cosa deve fare invece.** La rettifica non può dipendere dallo stato del pagamento — e **nemmeno dal rientro della merce**, come era scritto qui prima: il rimborso senza ricarica (`no_restock`) non produce nessun movimento e va sottratto lo stesso, mentre l'annullamento con ricarica ne produce uno e non va sottratto. **Il fatto da seguire è il rimborso.** Ragionamento completo, con la tabella dei tre casi, in `08-specifica-resi-e-annullamenti-canale.md` §4.
+
+E non va marcato uno stato sull'originale: il corrispettivo del giorno della vendita resta quello che fu, e il reso è una **riga negativa alla propria data**. Cade così anche la domanda su «quale stato assegnare»: l'enum non ha un valore per «vendita non avvenuta» e non gliene serve uno.
+
+**Stato al 14/08: metà chiuso.** Il rimborso ora si **persiste** — importo, imposta e data, in `sales_order_refunds` (migration additiva `20260814120000_rimborsi_ordine_vendita`), letti da `refunds[].refund_line_items[]` che erano già nel payload e si buttavano. **Resta da fare la sottrazione nel registro derivato**, che tuttora somma i totali pieni e si limita a contare i resi.
 
 ---
 

@@ -3,7 +3,7 @@
 **Data:** 14/08/2026
 **Stato del documento:** piano, non consuntivo. Ogni voce porta il proprio stato. Nessuna voce va letta come già fatta se non lo dice.
 **Owner:** Luigi
-**Migration richiesta:** **nessuna per §4**, che si risolve nel modello derivato senza scrivere niente. Ne serve **una distruttiva** per eliminare `corrispettivo_entries` (§10): è l'ultima cosa, e va in due tempi.
+**Migration richiesta:** per il §4 **una additiva, già fatta** il 14/08 (`sales_order_refunds`) — qui era scritto «nessuna», e il §4 spiega perché è cambiato. Ne serve **una distruttiva** per eliminare `corrispettivo_entries` (§10): è l'ultima cosa, e va in due tempi.
 
 **Perimetro.** Cosa succede a un ordine di canale **dopo** la vendita: annullamento, rimborso, reso, rientro della merce, e cosa ne è del Corrispettivo. Non tratta la sincronizzazione in sé (`02`), non tratta i difetti uno per uno (`01`, punti 2.13-2.15 e 3.8).
 
@@ -84,7 +84,7 @@ for (const order of orders) {
 
 Il registro derivato legge `salesOrder`, **non i movimenti**: un ordine reso contribuisce per intero, e un contatore dice quanti resi ci sono stati. **La rettifica oggi non è prodotta da nessuno.**
 
-**Quindi il lavoro esiste, ed è: far leggere al registro derivato i movimenti `return`.** È anche l'unico modo per datare la rettifica al rientro — l'ordine porta una data sola, il movimento porta la sua.
+**Quindi il lavoro esiste, ed è: far sottrarre al registro derivato le rettifiche, alla loro data.** L'ordine porta una data sola, e non è quella del reso. _(Qui era scritto «i movimenti `return`»: da dove arriva davvero la rettifica è nella correzione qui sotto.)_
 
 ### La regola da adottare: **il passato non si riscrive, si rettifica**
 
@@ -96,24 +96,34 @@ E risolve un caso che la riscrittura non copriva: **il reso parziale**. Se torna
 
 ```
 14/08   vendita     +60,00     ← dalla vendita, come oggi
-18/08   rettifica   −60,00     ← dal movimento `return`, alla SUA data
+18/08   rettifica   −60,00     ← dal rimborso del canale, alla SUA data
 ```
-
-**Nessuna migration, e nessuna voce da scrivere.** Le due righe sono **derivate**: la prima dall'ordine, la seconda dal movimento di rientro. Nessuna tabella da alimentare, nessuno stato da mantenere, niente che possa divergere dai fatti — che è il vantaggio del registro derivato e la ragione della decisione dell'11/08.
-
-**L'aggancio è il movimento, non l'evento.** Il registro somma i movimenti `return` con segno negativo alla loro data; non guarda `financial_status`, ed è quello l'errore che ha prodotto il buco misurato. Un reso parziale produce un negativo parziale senza nessun caso speciale: due capi su cinque sono due movimenti, non una regola in più.
 
 **Cosa cade di quanto era stato scritto qui prima:** lo stato `adjusted` sull'originale non serve più — non c'è un originale da marcare, c'è una somma. E `requiresReview` sull'ordine resta utile solo se si vuole che qualcuno guardi; non è più il modo di far tornare i conti.
 
-**Tre date che non coincidono, e vanno tenute distinte** — nessuna delle tre è la data della vendita:
+### ⚠️ Correzione al piano: il negativo nasce dal RIMBORSO, non dal movimento di rientro
 
-- rientro fisico della merce;
-- rimborso al cliente (in contrassegno: non c'è);
-- rettifica fiscale.
+_Cambiato in esecuzione il 14/08. Qui era scritto «nessuna migration, e nessuna voce da scrivere: la seconda riga è derivata dal movimento di rientro». **Era sbagliato**, e va detto perché — la decisione dell'11/08 sul registro derivato non c'entra e resta intatta._
 
-Quale delle tre datare la voce negativa è l'unica cosa ancora da fissare qui, e la proposta è **la data del rientro**, perché è l'evento che VestiFlow conosce con certezza.
+Un movimento di magazzino porta **pezzi**; un corrispettivo porta **euro con dentro l'imposta**. Ricavare i secondi dai primi vuol dire ri-prezzare la merce resa, e il prezzo ricostruito non è quello che il canale ha davvero restituito: sconti di riga, rimborsi parziali, spedizione resa non stanno nel movimento. Ma soprattutto **fisico ed economico divergono in tre casi già visibili nel pannello Shopify**:
 
-**Stato: deciso 14/08, non iniziato.**
+| Caso                                                                    | Movimento | Rimborso | Il registro deve… |
+| ----------------------------------------------------------------------- | --------- | -------- | ----------------- |
+| Reso con rientro (la spunta «Riporta in magazzino» accesa)              | sì        | sì       | sottrarre         |
+| Rimborso senza rientro (`no_restock`: capo rovinato, gesto commerciale) | no        | sì       | **sottrarre**     |
+| Annullamento con rientro pre-evasione                                   | sì        | no       | **non toccare**   |
+
+Agganciare il negativo al movimento sbaglia le ultime due righe: la seconda la perde, la terza la inventa. **Il fatto economico è il rimborso, e va letto da lì.**
+
+**Questo NON reintroduce un registro materializzato.** `sales_order_refunds` registra un **fatto del canale**, come `sales_orders` registra la vendita: nessun totale precalcolato, nessuno stato da mantenere allineato. Il registro resta derivato — somma le vendite del periodo e sottrae i rimborsi del periodo, entrambi fatti.
+
+**Fatto (14/08) — migration additiva `20260814120000_rimborsi_ordine_vendita`:** tabella `sales_order_refunds` (RLS + `REVOKE` nella stessa migration), popolata da `ShopifySyncService.persistRefunds` dentro la stessa transazione dell'ordine. Idempotente sull'unicità `(tenant, id rimborso del canale)`: lo stesso ordine torna a ogni webhook coi rimborsi già visti dentro, e senza quella chiave la stessa rettifica si conterebbe a ogni sync.
+
+Gli importi arrivano da `refunds[].refund_line_items[].subtotal` e `.total_tax`, che **c'erano già nel payload e si buttavano**. Misurato sui due ordini di prova: rimborso `1049158746407` → subtotale 6000, imposta 231, totale 6000 (store a prezzi ivati: l'imposta è dentro il subtotale, non si somma). Mappatura in `shopify-refund.util.ts`, 8 test.
+
+**La data della rettifica è `processed_at` del rimborso.** Delle tre date non coincidenti — rientro fisico, rimborso al cliente, rettifica fiscale — questa è la seconda, ed è quella giusta per un registro **economico**: è il momento in cui l'incasso viene meno. Sui due casi misurati le tre coincidono; quando divergeranno, il rientro fisico resta sul movimento di magazzino, dov'è il suo posto.
+
+**Stato: rimborso persistito (14/08). Manca la sottrazione nel registro** — il §8 «filtro per canale» e questa sottrazione sono lo stesso intervento su `corrispettivi.service.ts` e sull'export.
 
 ## §5 · Il Corrispettivo nasce all'evasione — ed è corretto
 
@@ -199,8 +209,8 @@ Da affrontare quando si costruiranno i filtri e gli export del **registro deriva
 ## §9 · Ordine di esecuzione
 
 1. **`01` §3.8 — la sede di scarico.** ✅ **Fatto il 14/08** per lo **scarico**: usa `fulfillments[].location_id`. **L'impegno resta sul ripiego alfabetico**, e si chiude leggendo le _fulfillment orders_ — dopo la procedura di prima sincronizzazione, non prima. Il criterio della scelta: sullo scarico una sede sbagliata produce una giacenza sbagliata **per sempre**, sull'impegno una disponibilità imprecisa **per qualche ora**. Chiuso il danno permanente, lasciato aperto quello transitorio.
-2. **§4 — la rettifica per reso**, che **non si scrive: si deriva.** Il registro derivato deve leggere i movimenti `return` e sommarli col segno negativo alla loro data. Oggi legge `salesOrder` e conta i resi senza sottrarli. Niente migration, nessuna voce da alimentare.
-3. **§8 — il filtro per canale**, sul **registro derivato dalle vendite**, che è dove l'export già guarda (`onlineOnly` / `posOnly` esistono lì). È il primo pezzo degli export filtrati.
+2. **§4 — la rettifica per reso.** ✅ **Metà fatta il 14/08**: il rimborso del canale ora si persiste (`sales_order_refunds`, migration additiva), con importo, imposta e data. **Manca la sottrazione**: il registro derivato somma ancora i totali pieni e conta i resi senza toglierli. _Il piano è cambiato in esecuzione — il negativo nasce dal rimborso, non dal movimento di rientro: il perché è nel §4._
+3. **§8 — il filtro per canale**, sul **registro derivato dalle vendite**, che è dove l'export già guarda (`onlineOnly` / `posOnly` esistono lì). È il primo pezzo degli export filtrati. **Stesso intervento del punto 2**: entrambi toccano `corrispettivi.service.ts` e l'export, e vanno fatti insieme.
 4. **`corrispettivo_entries` smette di essere scritta** — vedi §10. La decisione è dell'11/08 ma il codice non l'ha seguita, e ogni evasione ne scrive ancora una.
 5. **`01` §2.15 — i due messaggi falsi.** ✅ **Fatto il 14/08.**
 6. **§5 e §6 — i commenti.** Il perché della data del corrispettivo accanto a `createFromFulfilledOrderTx`, e la correzione di `emitRestockEvents`. Il secondo è ✅ **fatto il 14/08**.

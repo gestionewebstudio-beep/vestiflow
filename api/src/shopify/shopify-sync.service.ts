@@ -6,6 +6,7 @@ import {
   SalesOrderFulfillmentStatus,
   SalesOrderSource,
 } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { OnlineOrderLifecycleService } from '../order-reservations/online-order-lifecycle.service';
@@ -13,6 +14,7 @@ import type { ReservationLineInput } from '../order-reservations/stock-reservati
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
+import { mapShopifyRefunds } from './shopify-refund.util';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { extractShopifyOrderGid } from './shopify-order-id.util';
 import { resolveShopifyOrderLocationId } from './shopify-order-location.util';
@@ -254,6 +256,8 @@ export class ShopifySyncService {
         });
       }
 
+      await this.persistRefunds(tx, tenantId, saved.id, currency, placedAt, order);
+
       savedOrderId = saved.id;
     });
 
@@ -267,6 +271,37 @@ export class ShopifySyncService {
     // mano dalla schermata ordine, quando l'operatore lo decide. La sync muove
     // solo impegni ed evasione (emitCanonicalOrderEvents sopra).
     return existingBefore ? 'updated' : 'created';
+  }
+
+  /**
+   * Rettifiche economiche del canale (specifica 08 §4).
+   *
+   * Il rimborso dice quanto torna al cliente, non se la merce rientra: la
+   * quantità la muovono gli eventi `restocked`, che nascono dal `restock_type`
+   * di riga ed è una decisione indipendente da questa. Qui si scrive solo il
+   * denaro, con la data in cui la rettifica è avvenuta — è quella che il
+   * registro corrispettivi deve usare, non la data dell'ordine.
+   *
+   * Idempotente per costruzione: lo stesso ordine torna a ogni webhook coi
+   * rimborsi già visti dentro, e l'unicità (tenant, id rimborso del canale)
+   * impedisce di contare due volte la stessa rettifica.
+   */
+  private async persistRefunds(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    salesOrderId: string,
+    currency: string,
+    placedAt: Date,
+    order: Record<string, unknown>,
+  ): Promise<void> {
+    for (const row of mapShopifyRefunds(order, placedAt)) {
+      const { externalRefundId, ...data } = row;
+      await tx.salesOrderRefund.upsert({
+        where: { tenantId_externalRefundId: { tenantId, externalRefundId } },
+        create: { tenantId, salesOrderId, externalRefundId, currency, ...data },
+        update: { currency, ...data },
+      });
+    }
   }
 
   /**
