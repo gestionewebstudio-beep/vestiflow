@@ -4,6 +4,8 @@
 **Sostituisce:** «Attivazione iniziale Shopify, importazione controllata e cutover» v1.0 del 13 luglio 2026, che descriveva un'integrazione in sola lettura su un sistema che non esisteva ancora. Di quel documento restano tre idee, riprese qui: il saldo iniziale preso da `available`, il confine temporale sugli ordini, e il saldo che nasce da un documento invece che da una scrittura diretta.
 **Rapporto con il registro dei difetti:** questo documento dice cosa deve diventare il sistema. Il registro dice cosa è rotto adesso. Diversi difetti si chiudono da soli applicando le regole qui descritte; quelli che non si chiudono restano nel registro.
 
+⚠️ **Questo documento è un disegno, non un consuntivo** — lo dice il titolo, e va ricordato leggendolo: salvo dove una sezione dichiara altro, qui c'è **cosa il sistema deve diventare**, non cosa fa oggi. L'eccezione è il **§4.11**, che descrive un comportamento attuale e per questo porta in testa il proprio grado di certezza, voce per voce: letto, dedotto, provato. Dove una sezione non lo dichiara, non è perché è certa — è perché è intenzione di disegno, e come tale non si verifica: si decide.
+
 ---
 
 ## 1. Il problema di fondo
@@ -311,13 +313,29 @@ Non è lo stesso del controllo delle differenze del §6.2, che confronta e segna
 
 ### 4.11 — «Sincronizza vendite»: cosa fa, e cosa succede a premerlo ripetutamente
 
-_Misurato il 14/08/2026 leggendo il codice, dalla rotta al pulsante. Domanda di partenza: se un operatore lo clicca dieci volte senza motivo, cosa si rompe?_
+> ⚠️ **STATO: LETTURA DI CODICE DEL 14/08/2026. NON È UNA PROVA SUL CAMPO, E NON È UNA DECISIONE.**
+>
+> Tutto quello che segue è stato ricavato **leggendo il codice**, non premendo il pulsante e guardando cosa succede al database. È il grado di certezza più basso dei tre che questo progetto usa, e va tenuto distinto:
+>
+> |             | Cosa vuol dire                                              | Quanto ci si può appoggiare                                         |
+> | ----------- | ----------------------------------------------------------- | ------------------------------------------------------------------- |
+> | **letto**   | ho letto quella riga e dice quello                          | il codice è quello, ma cosa faccia in esecuzione è un'altra domanda |
+> | **dedotto** | segue da come funziona lo strumento, non l'ho visto         | va verificato prima di costruirci sopra                             |
+> | **provato** | eseguito sul negozio, con lettura del database prima e dopo | ci si può decidere                                                  |
+>
+> **In questa sezione non c'è nulla di «provato».** La prova che manca è descritta in fondo, in «Come si verifica davvero»: sono due click sul negozio di prova e cinque letture del database.
+>
+> **Nessuna delle conclusioni qui sotto è una decisione presa**, nemmeno quelle che sembrano ovvie. Le opzioni che la lettura apre stanno in coda, marcate come tali.
 
-**Risposta breve: niente di inventariale e niente di fiscale.** Giacenze, movimenti, impegni, Vendite online e Corrispettivi sono protetti da un registro eventi idempotente e da vincoli unici di database. Quello che il ripetere produce è **rumore** e **spreco**. Il quadro completo, perché non vada rimisurato fra un mese.
+_Domanda di partenza: se un operatore lo clicca dieci volte senza motivo, cosa si rompe?_
+
+**Risposta breve, con la riserva qui sopra: niente di inventariale e niente di fiscale.** Giacenze, movimenti, impegni, Vendite online e Corrispettivi sono protetti da un registro eventi idempotente e da vincoli unici di database. Quello che il ripetere produce è **rumore** e **spreco**.
 
 #### Cosa NON succede, per quanti click si diano
 
-È la parte più grande, e va letta per prima: chi teme di aver fatto un danno premendo troppe volte, non l'ha fatto.
+È la parte più grande, e va letta per prima: chi teme di aver fatto un danno premendo troppe volte, probabilmente non l'ha fatto.
+
+⚠️ **Attenzione al salto logico di questo blocco.** Le righe di codice sono lette; il «quindi non succede» è **dedotto** da esse. Una protezione può esistere nel codice e non scattare in esecuzione — per un percorso che nessuno ha considerato, per una transazione che si comporta diversamente sotto carico, per un caso di dati che non c'era in mente. Sono le protezioni giuste, ed è ragionevole aspettarsi che reggano; ma finché non si guarda il database dopo due click, questo blocco dice **come il codice è scritto**, non cosa il sistema fa.
 
 - **Nessun secondo movimento di magazzino, nessuna seconda Vendita online, nessun secondo Corrispettivo, nessun secondo consumo d'impegno.** Registrazione dell'evento ed effetti stanno nella stessa transazione (`online-order-lifecycle.service.ts:68`); l'inserimento usa `skipDuplicates: true` e a conteggio zero si esce con `return 'duplicate'` **prima** dello switch degli effetti.
 - **La chiave di deduplica è una funzione pura del payload Shopify** — `${channel}:${externalOrderId}:${suffisso}` (`online-order-event.util.ts:30`), con `@@unique([tenantId, dedupeKey])`. Nessun pezzo viene dal database locale, quindi non può cambiare fra due click.
@@ -331,11 +349,11 @@ _Misurato il 14/08/2026 leggendo il codice, dalla rotta al pulsante. Domanda di 
 
 #### Cosa produce invece ogni pressione a vuoto
 
-1. **Cancella gli errori di connessione.** `touchSync` non data soltanto: azzera `lastErrorMessage`, `lastErrorCode`, `lastErrorAt`, e `healStaleErrorStatus` riporta lo `status` da `error` a `connected` (`shopify-connection.service.ts:97-126`). Ogni click riuscito è anche un «pulisci errori» non richiesto, che cancella la traccia di fallimenti nati da **altre** operazioni. È esattamente il difetto già scritto nel passo 5 — «gli errori si accumulano e si risolvono, non si cancellano» — e questa è la sua misura.
-2. **Brucia la data di ultima modifica su tutto lo storico.** `sales_orders` e `parties` hanno `@updatedAt`: dopo un click a vuoto, la data di ultima modifica di **tutti** gli ordini Shopify e di **tutti** i clienti Shopify è l'ora del click. Chi filtra per «cosa si è mosso» perde il segnale. `sales_order_lines` non ha il campo, lì non resta traccia.
-3. **Riscrive l'anagrafica cliente una volta per ordine.** `applyCustomerFromShopify` aggiorna gli 11 campi del `party` senza confrontarli con l'esistente (`shopify-sync.service.ts:103-108`): un cliente con 10 ordini prende 10 UPDATE identiche a ogni click.
-4. **Dichiara N ordini «aggiornati» quando non è cambiato niente.** L'esito è deciso dalla sola esistenza della riga — `return existingBefore ? 'updated' : 'created'` (`shopify-sync.service.ts:273`) — e il messaggio somma importati e aggiornati. Dalla seconda pressione l'operatore legge «0 nuove, N aggiornate», che è **un invito implicito a ripremere**. Il ramo «Vendite già allineate» esiste (`shopify-sync-feedback.util.ts:203`) ma non scatta **mai** su un negozio con ordini.
-5. **Non ripara ciò che il primo passaggio non è riuscito a fare.** Se una riga è rimasta senza variante perché il prodotto non era a catalogo, ricliccare dopo averlo importato non ricuce niente: la ricostruzione degli impegni gira solo se l'evento canonico è nuovo, e per un ordine invariato la chiave è la stessa.
+1. **Cancella gli errori di connessione.** _(letto, e il codice non lascia margine)_ `touchSync` non data soltanto: azzera `lastErrorMessage`, `lastErrorCode`, `lastErrorAt`, e `healStaleErrorStatus` riporta lo `status` da `error` a `connected` (`shopify-connection.service.ts:97-126`). Ogni click riuscito è anche un «pulisci errori» non richiesto, che cancella la traccia di fallimenti nati da **altre** operazioni. È esattamente il difetto già scritto nel passo 5 — «gli errori si accumulano e si risolvono, non si cancellano» — e questa ne è la lettura puntuale.
+2. **Brucia la data di ultima modifica su tutto lo storico.** ⚠️ _(letto lo schema, **dedotto** il comportamento)_ `sales_orders` e `parties` hanno `@updatedAt`. Che il campo si riscriva **anche quando nessun altro valore cambia** segue dalla semantica dell'attributo, ma non è stato osservato su questo database: è la deduzione più fragile della sezione, ed è anche quella su cui verrebbe voglia di decidere. Se regge, dopo un click a vuoto la data di ultima modifica di **tutti** gli ordini e **tutti** i clienti Shopify è l'ora del click, e chi filtra per «cosa si è mosso» perde il segnale. `sales_order_lines` non ha il campo: lì non resta traccia comunque.
+3. **Riscrive l'anagrafica cliente una volta per ordine.** _(letto)_ `applyCustomerFromShopify` aggiorna gli 11 campi del `party` senza confrontarli con l'esistente (`shopify-sync.service.ts:103-108`): un cliente con 10 ordini prende 10 UPDATE identiche a ogni click. ⚠️ **Quanto questo faccia danno dipende da una cosa non verificata**: se l'API clienti protegga i campi di proprietà Shopify. Da lì dipende se un telefono corretto a mano dall'operatore torni indietro a ogni click, che è un difetto vero, o resti, che è solo scrittura sprecata.
+4. **Dichiara N ordini «aggiornati» quando non è cambiato niente.** _(letto, tutte e tre le righe)_ L'esito è deciso dalla sola esistenza della riga — `return existingBefore ? 'updated' : 'created'` (`shopify-sync.service.ts:273`) — e il messaggio somma importati e aggiornati. Dalla seconda pressione l'operatore legge «0 nuove, N aggiornate», che è **un invito implicito a ripremere**. Il ramo «Vendite già allineate» esiste (`shopify-sync-feedback.util.ts:203`) ma non scatta **mai** su un negozio con ordini. È la voce più solida della sezione: si vede a schermo senza guardare il database.
+5. **Non ripara ciò che il primo passaggio non è riuscito a fare.** ⚠️ _(letto il meccanismo, **dedotta** la conseguenza)_ Se una riga è rimasta senza variante perché il prodotto non era a catalogo, ricliccare dopo averlo importato non dovrebbe ricucire niente: la ricostruzione degli impegni gira solo se l'evento canonico è nuovo, e per un ordine invariato la chiave è la stessa. Non provato — ed è il caso che un operatore incontra davvero, perché è esattamente ciò che farebbe per rimediare.
 
 #### Due pressioni sovrapposte
 
@@ -343,7 +361,7 @@ _Misurato il 14/08/2026 leggendo il codice, dalla rotta al pulsante. Domanda di 
 
 Ma gli ingressi alla stessa rotta sono **due**, con due signal distinti — «Sync vendite» in Impostazioni e «Sincronizza vendite da Shopify» nell'elenco Ordini — e ciascuno ignora l'altro. E c'è una strada più diretta: il timeout del client è di 180 secondi, allo scadere il pulsante torna premibile **mentre il lavoro sul server prosegue**.
 
-Cosa producono due passate parallele (_dedotto_, con le premesse misurate): sugli ordini già presenti si neutralizzano a vicenda; sul **primo import** di un ordine nuovo collidono sui vincoli unici, e una delle due riporta un fallimento su un ordine che l'altra ha importato benissimo. **Nessun dato corrotto, un esito che mente.**
+⚠️ **Cosa producano due passate parallele è interamente dedotto**, ed è la parte più debole di tutta la sezione: nessun test della suite riproduce la concorrenza su questa rotta, e non è stato provato a mano. La deduzione dice: sugli ordini già presenti si neutralizzano a vicenda; sul **primo import** di un ordine nuovo collidono sui vincoli unici, e una delle due riporta un fallimento su un ordine che l'altra ha importato benissimo — nessun dato corrotto, un esito che mente. **Non costruirci sopra una decisione senza provarlo**: è anche il caso in cui, se una protezione non regge, il danno sarebbe reale.
 
 **Se la richiesta muore a metà**, gli ordini già percorsi restano scritti (una transazione per ordine), ma `touchSync` e il controllo sugli ordini spariti stanno **in coda al ciclo** e non vengono eseguiti: la scheda mostra una data più vecchia di quanto è stato davvero importato.
 
@@ -359,21 +377,42 @@ La cancellazione delle righe con `externalLineId` NULL è **incondizionata**: no
 
 Non è stato misurato se righe simili esistano davvero in questo database. Le righe costruite dal payload ne hanno sempre uno.
 
-#### Cosa non è stato misurato
+#### Come si verifica davvero — la prova che manca
 
-- Se esistano davvero righe con `externalLineId` NULL su ordini Shopify di questo database — il codice che le cancella è misurato, le vittime no.
-- Che Prisma scriva `@updatedAt` anche su una UPDATE a valori identici: dedotto dalla semantica dell'attributo.
-- Se l'API clienti protegga i campi anagrafici di proprietà Shopify: da questo dipende se un operatore che corregge a mano un telefono lo veda tornare indietro a ogni click.
-- Il comportamento reale di due passate concorrenti: nessun test riproduce la concorrenza su questa rotta.
-- Il numero di ordini del negozio collegato: senza quello, `floor(N/250)+1` resta una formula.
+Trasformare questa sezione da «letta» a «provata» costa poco, e va fatto **prima** di decidere qualunque cosa. Sul negozio di prova, a negozio fermo:
 
-#### Cosa ne consegue, da decidere
+1. **Fotografare il database**: numero di righe in `stock_movements`, `online_sales`, `corrispettivo_entries`, `online_order_events` e `stock_reservations`; `updated_at` di tre ordini Shopify e di tre clienti; i quattro campi di errore su `shopify_connections`; e `on_hand` / `available` di una variante venduta.
+2. **Premere il pulsante due volte**, aspettando che la prima finisca.
+3. **Rifotografare le stesse cose.**
 
-Nessuna di queste è stata decisa; sono le opzioni che la misura mette sul tavolo.
+Cosa dice l'esito, voce per voce:
 
-- **Il messaggio che invita a ripremere** è la correzione più economica e la più utile: contare come «aggiornati» solo gli ordini in cui qualcosa è davvero cambiato, così «Vendite già allineate» smette di essere un ramo morto.
-- **Il `since_id` che riparte da zero** è il costo strutturale: un `updated_at_min` salvato accanto alla connessione trasformerebbe la decima pressione in una chiamata quasi vuota. Va però pesato contro il fatto che una passata completa è anche ciò che ripesca gli ordini modificati mentre i webhook erano fermi.
-- **Il lock server-side** chiuderebbe le due passate concorrenti. Nel progetto esiste già il modello: `pg_advisory_xact_lock`, usato dalla numerazione documenti e dai codici articolo.
+| Se dopo i due click…                                                        | Allora                                                                     |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| i conteggi di movimenti, vendite, corrispettivi e impegni sono **identici** | il blocco «Cosa NON succede» passa da dedotto a **provato**                |
+| `online_order_events` è cresciuto                                           | la deduplica non copre come si crede: è la cosa più importante da scoprire |
+| `updated_at` di ordini e clienti è cambiato senza che nulla lo fosse        | il punto 2 è confermato                                                    |
+| i campi di errore della connessione sono stati azzerati                     | il punto 1 è confermato                                                    |
+| `on_hand` o `available` si sono mossi                                       | **fermarsi**: c'è un difetto grave, e questa sezione è sbagliata           |
+
+La stessa prova, ripetuta con un telefono corretto a mano su un cliente importato, chiude anche il dubbio del punto 3.
+
+#### Cosa non è stato guardato affatto
+
+Oltre a quanto marcato sopra, queste cose non sono state né lette né provate:
+
+- Se esistano davvero righe con `externalLineId` NULL su ordini Shopify di questo database — il codice che le cancella è letto, le vittime no. **Senza quelle, l'unico danno ai dati non ha vittime.**
+- Se l'API clienti protegga i campi anagrafici di proprietà Shopify.
+- Il numero di ordini del negozio collegato: senza quello, `floor(N/250)+1` resta una formula e non un costo.
+- Se il tetto dei 60 giorni dell'API ordini senza `read_all_orders` — citato da un commento nel codice — valga davvero su questo negozio.
+
+#### Opzioni che la lettura apre — nessuna decisa
+
+⚠️ **Niente di quanto segue è stato deciso, e niente va implementato sulla base di questa sezione soltanto.** Sono le strade che la lettura rende visibili; ognuna richiede prima la prova del blocco precedente.
+
+- **Il messaggio che invita a ripremere** è la correzione più economica e la più utile, e l'unica che si appoggia su una lettura solida: contare come «aggiornati» solo gli ordini in cui qualcosa è davvero cambiato, così «Vendite già allineate» smette di essere un ramo morto.
+- **Il `since_id` che riparte da zero** è il costo strutturale: un `updated_at_min` salvato accanto alla connessione trasformerebbe la decima pressione in una chiamata quasi vuota. Va però pesato contro il fatto che una passata completa è anche ciò che ripesca gli ordini modificati mentre i webhook erano fermi — e quel ripescaggio oggi è l'unico rimedio a un webhook perso (registro 2.3).
+- **Il lock server-side** chiuderebbe le due passate concorrenti. Nel progetto esiste già il modello: `pg_advisory_xact_lock`, usato dalla numerazione documenti e dai codici articolo. Ma prima va provato che due passate parallele facciano davvero il danno che la deduzione descrive.
 - **`touchSync` che azzera gli errori** non si corregge qui: è il passo 5, dove «risolvere» deve diventare per-tipo e non globale.
 
 ---
