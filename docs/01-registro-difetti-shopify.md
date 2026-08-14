@@ -509,7 +509,25 @@ Il corrispettivo vero del periodo è **50,00 €**: un solo ordine venduto e non
 
 **Perché è grave adesso e non prima.** Finché i due registri convivono, quello a entries è coerente e questo no. Ma la decisione dell'11/08 è che **le entries cadono** e resta il derivato: quel giorno, se non si corregge, il registro corrispettivi di VestiFlow diventa quello sbagliato. Non è un difetto da mettere in coda: è un prerequisito della decisione già presa.
 
-**Cosa deve fare invece.** Contare le vendite **evase e non annullate**, aggregate alla data che determina l'effettuazione, e sottrarre i rimborsi **che non sono annullamenti** (vedi 2.17) alla data della rettifica.
+**Cosa deve fare invece.** Contare le vendite alla data che determina l'effettuazione — cioè quelle **con una data di evasione** — e sottrarre i rimborsi **che non sono annullamenti** (vedi 2.17) alla data della rettifica.
+
+_Correzione a quanto era scritto qui: «evase **e non annullate**» era sbagliato._ Filtrare gli annullati farebbe sparire retroattivamente una vendita già avvenuta se l'ordine venisse annullato dopo la spedizione — l'opposto della regola «il passato non si riscrive, si rettifica». Un annullamento pre-evasione **non ha data di evasione** e resta fuori da sé: nessun filtro serve, e il criterio regge anche se un canale un giorno permettesse di annullare dopo la spedizione.
+
+### ✅ Chiuso il 14/08/2026
+
+I tre difetti sono stati corretti **insieme**, perché separarli avrebbe lasciato il totale falso a metà strada: sottrarre i resi senza correggere il criterio avrebbe dato 156,49 € invece di 386,49 €, sbagliato in un altro modo.
+
+Agosto 2026 passa da **516,50 €** (tutti i canali) a **95,00 €**, e il numero è riconciliabile riga per riga — verificato per due strade indipendenti, dal riepilogo e dalla somma della lista:
+
+```
+venduto        300,01
+rettifiche    −205,01
+annullamenti        0
+──────────────────────
+corrispettivo   95,00
+```
+
+**Resta un pezzo**: l'export per il commercialista elenca ancora le sole vendite, mentre la sua intestazione porta il netto. Vedi `08` § «Cosa resta».
 
 ---
 

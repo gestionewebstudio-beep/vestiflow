@@ -974,6 +974,30 @@ Voce dedicata in sidebar (**Registro commercialista**, sotto **Report**): riepil
 
 Usa questi link per preparare il pacchetto mensile per il commercialista senza ricostruire i filtri a mano.
 
+#### Come leggere il registro corrispettivi _(agosto 2026)_
+
+**Il periodo si sceglie per calendario, non a mano.** Oltre ai preset rapidi (ultimi 7 o 30 giorni, mese corrente, mese scorso, anno corrente) trovi **Mese…**, **Trimestre…** e **Anno…**: scegliendoli compaiono i selettori che servono — il mese e l'anno, il trimestre e l'anno, l'anno soltanto. Per il 2° trimestre 2026 non devi scrivere `01/04` e `30/06`: lo scegli.
+
+I selettori compaiono **solo** dove hanno senso: «mese corrente» non chiede l'anno, perché è il mese di adesso. **Personalizzato** resta per i periodi che non sono di calendario, tipo dal 15 marzo al 18 maggio.
+
+**Una vendita entra nel registro quando la merce parte, non quando l'ordine arriva.** Un ordine ricevuto il 30 luglio e spedito il 2 agosto è un corrispettivo di **agosto**. Un ordine mai spedito non compare in nessun periodo, e un ordine annullato prima della spedizione non compare mai — la vendita non è avvenuta.
+
+**I resi e i rimborsi compaiono come righe a sé, con l'importo in negativo**, alla data in cui sono avvenuti — non a quella della vendita. Quindi in un elenco puoi trovare:
+
+| Data  | Tipo     | Ordine | Totale |
+| ----- | -------- | ------ | ------ |
+| 14/08 | Vendita  | #1008  | 130,01 |
+| 14/08 | Reso     | #1008  | −80,01 |
+| 14/08 | Rimborso | #1008  | −5,00  |
+
+**«Reso» e «Rimborso» sono cose diverse**: nel primo caso la merce è tornata in magazzino, nel secondo sono tornati solo i soldi (un capo rovinato, uno sconto concesso dopo la vendita).
+
+**Il totale in fondo si ricostruisce sommando la colonna.** È voluto: se il numero non torna, lo vedi riga per riga senza dover chiedere a nessuno. La vendita originale **non viene mai cancellata né corretta** — resta alla sua data, e il reso la rettifica alla propria. È anche ciò che permette al commercialista di collegare il reso alla vendita da cui viene.
+
+**Gli annullamenti non tolgono niente al totale.** Li vedi contati nel riepilogo, ma valgono zero: annullano una vendita che non era mai stata registrata.
+
+Se qualche vendita risulta **evasa senza data**, il riepilogo te lo dice: non è conteggiata in nessun periodo, e va sistemata. Non sparisce in silenzio.
+
 ---
 
 ## 16. Usare VestiFlow da smartphone

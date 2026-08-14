@@ -171,10 +171,36 @@ Verifica finale, letta dal database dopo la risincronizzazione:
 
 Su tutte e sei la somma della scomposizione fa esattamente il totale. Gli importi di `#1008` coincidono al centesimo con quelli mostrati da Shopify.
 
-**Stato: rimborso persistito, corretto e provato (14/08). Restano due cose, ed è un lavoro solo:**
+#### ✅ Il registro sottrae — fatto e riconciliato il 14/08
 
-1. far contare al registro le sole vendite **realmente avvenute**, alla data in cui lo sono state;
-2. sottrarre le rettifiche alla loro data, **saltando gli annullamenti** — insieme al filtro per canale del §8, che tocca gli stessi due file (`corrispettivi.service.ts` e l'export).
+Tre difetti chiusi insieme, perché separarli avrebbe lasciato il totale falso a metà strada (`01` §2.16):
+
+1. il periodo si misura sulla **data di evasione**, e un ordine mai spedito non entra;
+2. le rettifiche si sottraggono **alla loro data**, saltando gli annullamenti;
+3. l'imponibile non toglie più lo sconto due volte.
+
+**Gli ordini annullati non si filtrano**, ed è deliberato: filtrarli farebbe sparire retroattivamente una vendita già avvenuta se l'ordine venisse annullato dopo. Un annullamento pre-evasione resta fuori **da sé**, perché non ha data di evasione — il criterio è quindi corretto a prescindere da cosa il canale permetta oggi.
+
+**Riconciliazione di agosto 2026**, rifatta due volte per strade diverse — dal riepilogo e dalla lista — e coincidente al centesimo:
+
+```
+venduto        300,01    #1004 50,00 · #1005 60,00 · #1006 60,00 · #1008 130,01
+rettifiche    −205,01    #1005 60,00 · #1006 60,00 · #1008 80,01 + 5,00
+annullamenti        0    #1003 e #1007 — vendite mai avvenute
+──────────────────────
+corrispettivo   95,00 =  50 + 0 + 0 + 45
+```
+
+**L'elenco mostra le rettifiche come righe negative** (fatto il 14/08). Prima mostrava le sole vendite, e da quando il riepilogo sottraeva la schermata si contraddiceva: totale 95,00, elenco 300,01. Le righe sono **derivate**, non documenti nuovi, e portano sempre il riferimento all'ordine.
+
+**Il periodo si sceglie per calendario** (fatto il 14/08): mese, trimestre o anno precisi, con i selettori che compaiono solo per il periodo che li richiede. Ogni preset resta soltanto un modo di scrivere un intervallo — la traduzione avviene in un punto unico (`resolveReportDateRange`), così «2° trimestre 2026» e le date scritte a mano non possono divergere. È coperto da test, incluso il confronto fra le due strade.
+
+⚠️ **Limite noto sulla data fiscale, misurato e non aggirato.** Il registro usa la data di evasione, che è la regola **ordinaria** per le cessioni di beni mobili. Non è la regola completa: l'art. 6 anticipa il momento di effettuazione se il corrispettivo è pagato prima della consegna, il che su un ordine incassato con carta accade quasi sempre. **VestiFlow non può derivarlo oggi**: nessuna data di incasso è persistita, le transazioni del canale non si importano. Manca il dato, non la logica — e finché manca, la formulazione da usare è «per il flusso supportato oggi il registro usa la data di evasione», non «la data di evasione è la data fiscale».
+
+#### Cosa resta
+
+- ⚠️ **L'export elenca ancora le sole vendite.** _Misurato il 14/08:_ su un trimestre il CSV riporta 4 righe per 300,01 € mentre la sua intestazione porta il netto di 95,00 €. Chi apre il file non può ricostruire quel totale dalle righe — è lo stesso difetto appena chiuso a schermo, rimasto nel file che va al commercialista. **È la prima cosa da fare.**
+- **Il filtro per canale** come controllo esplicito (oggi è l'interruttore «Solo online») e il **filtro per tipo** (tutti / vendite / resi / rimborsi), che oggi esiste come «Solo rimborsi». Sono consultazione, non calcolo.
 
 ## §5 · Il Corrispettivo nasce all'evasione — ed è corretto
 

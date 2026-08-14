@@ -59,11 +59,17 @@
     [period]="displayPeriod()"
     [dateFrom]="dateFromDraft()"
     [dateTo]="dateToDraft()"
+    [year]="query().year"
+    [month]="query().month"
+    [quarter]="query().quarter"
     [periodLabel]="periodLabel()"
     [exporting]="exporting()"
     (periodChange)="onPeriodChange($event)"
     (dateFromChange)="onDateFromChange($event)"
     (dateToChange)="onDateToChange($event)"
+    (yearChange)="onYearChange($event)"
+    (monthChange)="onMonthChange($event)"
+    (quarterChange)="onQuarterChange($event)"
     (exportClick)="exportAccountantCsv()"
   />
 

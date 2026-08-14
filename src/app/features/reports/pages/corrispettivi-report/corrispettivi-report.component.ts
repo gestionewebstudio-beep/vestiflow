@@ -52,6 +52,7 @@ import {
 } from '../../models/corrispettivi.model';
 import {
   formatReportPeriodLabel,
+  periodNeedsYear,
   parseReportListQuery,
   ReportPeriodPreset,
   resolveReportDateRange,
@@ -261,7 +262,40 @@ export class CorrispettiviReportComponent {
       this.updateParams({ period, from: today, to: today });
       return;
     }
-    this.updateParams({ period, from: null, to: null });
+    // Scegliendo un periodo di calendario si parte da quello corrente: il
+    // selettore che compare mostra già un valore sensato invece di restare
+    // vuoto in attesa che qualcuno lo riempia.
+    if (periodNeedsYear(period)) {
+      const now = new Date();
+      this.updateParams({
+        period,
+        from: null,
+        to: null,
+        year: String(this.query().year ?? now.getUTCFullYear()),
+        month:
+          period === ReportPeriodPreset.CalendarMonth
+            ? String(this.query().month ?? now.getUTCMonth() + 1)
+            : null,
+        quarter:
+          period === ReportPeriodPreset.CalendarQuarter
+            ? String(this.query().quarter ?? Math.floor(now.getUTCMonth() / 3) + 1)
+            : null,
+      });
+      return;
+    }
+    this.updateParams({ period, from: null, to: null, year: null, month: null, quarter: null });
+  }
+
+  protected onYearChange(year: number): void {
+    this.updateParams({ year: String(year) });
+  }
+
+  protected onMonthChange(month: number): void {
+    this.updateParams({ month: String(month) });
+  }
+
+  protected onQuarterChange(quarter: number): void {
+    this.updateParams({ quarter: String(quarter) });
   }
 
   protected onDateFromChange(value: string): void {
