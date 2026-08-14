@@ -4,6 +4,7 @@ import {
   SalesOrderFinancialStatus,
   SalesOrderFiscalStatus,
   SalesOrderFulfillmentStatus,
+  SalesOrderRefundKind,
   SalesOrderSource,
 } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
@@ -14,7 +15,14 @@ import type { ReservationLineInput } from '../order-reservations/stock-reservati
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
-import { mapShopifyRefunds } from './shopify-refund.util';
+import { mapShopifyRefunds, type ShopifyRefundKind } from './shopify-refund.util';
+
+/** La util non conosce Prisma: la traduzione dei nomi vive qui. */
+const REFUND_KIND_TO_PRISMA: Record<ShopifyRefundKind, SalesOrderRefundKind> = {
+  return: SalesOrderRefundKind.return_with_restock,
+  refund: SalesOrderRefundKind.refund_only,
+  cancellation: SalesOrderRefundKind.cancellation,
+};
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { extractShopifyOrderGid } from './shopify-order-id.util';
 import { resolveShopifyOrderLocationId } from './shopify-order-location.util';
@@ -295,12 +303,34 @@ export class ShopifySyncService {
     order: Record<string, unknown>,
   ): Promise<void> {
     for (const row of mapShopifyRefunds(order, placedAt)) {
-      const { externalRefundId, ...data } = row;
-      await tx.salesOrderRefund.upsert({
+      const { externalRefundId, taxLines, kind, ...data } = row;
+      const saved = await tx.salesOrderRefund.upsert({
         where: { tenantId_externalRefundId: { tenantId, externalRefundId } },
-        create: { tenantId, salesOrderId, externalRefundId, currency, ...data },
-        update: { currency, ...data },
+        create: {
+          tenantId,
+          salesOrderId,
+          externalRefundId,
+          currency,
+          kind: REFUND_KIND_TO_PRISMA[kind],
+          ...data,
+        },
+        update: { currency, kind: REFUND_KIND_TO_PRISMA[kind], ...data },
+        select: { id: true },
       });
+
+      // La scomposizione si riscrive per intero: è derivata, e ricalcolarla
+      // costa meno che riconciliarla riga per riga.
+      await tx.salesOrderRefundTaxLine.deleteMany({ where: { refundId: saved.id } });
+      if (taxLines.length > 0) {
+        await tx.salesOrderRefundTaxLine.createMany({
+          data: taxLines.map((line) => ({
+            refundId: saved.id,
+            ratePercent: line.ratePercent,
+            taxableMinor: line.taxableMinor,
+            taxMinor: line.taxMinor,
+          })),
+        });
+      }
     }
   }
 

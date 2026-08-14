@@ -1405,6 +1405,19 @@ model SalesOrderLine {
 /// Importi in unità minori con la stessa convenzione di SalesOrder, così il
 /// registro sottrae come somma: su store a prezzi ivati `subtotalMinor` è
 /// lordo e `taxMinor` è l'imposta contenuta.
+/// Natura della rettifica, letta dal `restock_type` delle righe rimborsate.
+/// Si CLASSIFICA, non si scarta: un annullamento è un fatto arrivato dal canale
+/// e va conservato — è il registro a decidere se ha effetto economico, non la
+/// traduzione a decidere se esiste.
+enum SalesOrderRefundKind {
+  /// Reso con rientro fisico dichiarato dal canale (`return`/`legacy_restock`).
+  return_with_restock
+  /// Rimborso senza rientro: capo rovinato, gesto commerciale, importo libero.
+  refund_only
+  /// Annullamento pre-evasione (`cancel`): la vendita non è mai avvenuta.
+  cancellation
+}
+
 model SalesOrderRefund {
   id            String   @id @default(uuid()) @db.Uuid
   tenantId      String   @map("tenant_id") @db.Uuid
@@ -1415,11 +1428,17 @@ model SalesOrderRefund {
   /// Data della rettifica: `processed_at` del canale, `created_at` se assente.
   /// È la data con cui il rimborso entra nel registro, non quella dell'ordine.
   occurredAt    DateTime @map("occurred_at")
+  /// Che gesto è stato. Il registro sottrae le prime due e ignora la terza:
+  /// un annullamento pre-evasione non rettifica una vendita che non c'è stata.
+  kind          SalesOrderRefundKind @default(refund_only)
   currency      String   @default("EUR")
   subtotalMinor Int      @default(0) @map("subtotal_minor")
   taxMinor      Int      @default(0) @map("tax_minor")
-  /// Spese di spedizione rese (order_adjustments di tipo shipping_refund).
+  /// Spese di spedizione rese, **imposta inclusa** (`kind: shipping_refund`).
   shippingMinor Int      @default(0) @map("shipping_minor")
+  /// Rettifiche fuori riga che NON sono spedizione (`refund_discrepancy`): il
+  /// rimborso di cortesia a importo libero sta qui, non fra le spedizioni.
+  adjustmentMinor Int    @default(0) @map("adjustment_minor")
   totalMinor    Int      @default(0) @map("total_minor")
   /// Nota scritta da chi ha emesso il rimborso sul canale: il commercialista
   /// chiede il perché di una rettifica, ed è l'unico posto in cui esiste.
@@ -1427,13 +1446,36 @@ model SalesOrderRefund {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant     @relation(fields: [tenantId], references: [id])
-  order  SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  tenant   Tenant                    @relation(fields: [tenantId], references: [id])
+  order    SalesOrder                @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  taxLines SalesOrderRefundTaxLine[]
 
   @@unique([tenantId, externalRefundId])
   @@index([tenantId, occurredAt(sort: Desc)])
+  @@index([tenantId, kind, occurredAt(sort: Desc)])
   @@index([salesOrderId])
   @@map("sales_order_refunds")
+}
+
+/// Scomposizione per aliquota di una rettifica: il registro fiscale sottrae
+/// nella componente d'imposta giusta, non da un totale generico.
+///
+/// Si riscrive per intero a ogni sincronizzazione del rimborso (cancella e
+/// ricrea), quindi non serve una chiave di unicità: l'idempotenza sta a monte.
+model SalesOrderRefundTaxLine {
+  id           String  @id @default(uuid()) @db.Uuid
+  refundId     String  @map("refund_id") @db.Uuid
+  /// Aliquota in percentuale (22 = 22%). **NULL quando il canale non la
+  /// dichiara**: le rettifiche fuori riga portano l'importo e non l'aliquota,
+  /// e una riga muta è più onesta di un'attribuzione indovinata.
+  ratePercent  Decimal? @map("rate_percent") @db.Decimal(7, 4)
+  taxableMinor Int     @default(0) @map("taxable_minor")
+  taxMinor     Int     @default(0) @map("tax_minor")
+
+  refund SalesOrderRefund @relation(fields: [refundId], references: [id], onDelete: Cascade)
+
+  @@index([refundId])
+  @@map("sales_order_refund_tax_lines")
 }
 
 // ── Impegni merce (Impegnata) e eventi canonici ordini online ────────────────
