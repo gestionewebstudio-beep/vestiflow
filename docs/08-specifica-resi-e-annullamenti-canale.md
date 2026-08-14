@@ -107,13 +107,19 @@ _Cambiato in esecuzione il 14/08. Qui era scritto «nessuna migration, e nessuna
 
 Un movimento di magazzino porta **pezzi**; un corrispettivo porta **euro con dentro l'imposta**. Ricavare i secondi dai primi vuol dire ri-prezzare la merce resa, e il prezzo ricostruito non è quello che il canale ha davvero restituito: sconti di riga, rimborsi parziali, spedizione resa non stanno nel movimento. Ma soprattutto **fisico ed economico divergono in tre casi già visibili nel pannello Shopify**:
 
-| Caso                                                                    | Movimento | Rimborso | Il registro deve… |
-| ----------------------------------------------------------------------- | --------- | -------- | ----------------- |
-| Reso con rientro (la spunta «Riporta in magazzino» accesa)              | sì        | sì       | sottrarre         |
-| Rimborso senza rientro (`no_restock`: capo rovinato, gesto commerciale) | no        | sì       | **sottrarre**     |
-| Annullamento con rientro pre-evasione                                   | sì        | no       | **non toccare**   |
+| Caso                                                                    | Movimento | Rimborso | `restock_type` | Il registro deve…                      |
+| ----------------------------------------------------------------------- | --------- | -------- | -------------- | -------------------------------------- |
+| Reso con rientro (la spunta «Riporta in magazzino» accesa)              | sì        | sì       | `return`       | sottrarre                              |
+| Rimborso senza rientro (`no_restock`: capo rovinato, gesto commerciale) | no        | sì       | `no_restock`   | **sottrarre**                          |
+| Annullamento pre-evasione                                               | no        | **sì**   | `cancel`       | **non toccare** — la vendita non c'era |
 
-Agganciare il negativo al movimento sbaglia le ultime due righe: la seconda la perde, la terza la inventa. **Il fatto economico è il rimborso, e va letto da lì.**
+Agganciare il negativo al movimento sbaglia le prime due righe: la seconda la perde, la terza la inventerebbe.
+
+⚠️ **La terza riga è stata corretta il 14/08, dopo una misura che l'ha smentita.** Diceva «Movimento: sì · Rimborso: no», cioè che un annullamento non produce alcun rimborso. **È falso**: Shopify scrive anche l'annullamento in `refunds[]`, con nota «Ordine annullato». Sincronizzando il negozio di prova sono arrivate quattro rettifiche e solo due erano resi — le altre due erano gli annullamenti di `#1003` e `#1007`, per 110,00 €. Dettaglio in `01` §2.17.
+
+E non produce nemmeno un movimento: su un ordine mai evaso la merce non era uscita, quindi non rientra — è quanto il §3 aveva già misurato. La riga sbagliava entrambe le colonne, e nessuno se ne sarebbe accorto senza sincronizzare davvero.
+
+**Il fatto economico resta il rimborso, ma non ogni rimborso è una rettifica.** Il segno che li separa è `restock_type: cancel`, lo stesso che il §3 usa per non ricaricare la giacenza: significa «annulla l'impegno», non «la merce è tornata».
 
 **Questo NON reintroduce un registro materializzato.** `sales_order_refunds` registra un **fatto del canale**, come `sales_orders` registra la vendita: nessun totale precalcolato, nessuno stato da mantenere allineato. Il registro resta derivato — somma le vendite del periodo e sottrae i rimborsi del periodo, entrambi fatti.
 
@@ -123,7 +129,21 @@ Gli importi arrivano da `refunds[].refund_line_items[].subtotal` e `.total_tax`,
 
 **La data della rettifica è `processed_at` del rimborso.** Delle tre date non coincidenti — rientro fisico, rimborso al cliente, rettifica fiscale — questa è la seconda, ed è quella giusta per un registro **economico**: è il momento in cui l'incasso viene meno. Sui due casi misurati le tre coincidono; quando divergeranno, il rientro fisico resta sul movimento di magazzino, dov'è il suo posto.
 
-**Stato: rimborso persistito (14/08). Manca la sottrazione nel registro** — il §8 «filtro per canale» e questa sottrazione sono lo stesso intervento su `corrispettivi.service.ts` e sull'export.
+#### Provato sul negozio il 14/08 — cosa ha retto e cosa no
+
+Due pressioni di «Sincronizza vendite» sul negozio di prova, con lettura del database prima, in mezzo e dopo.
+
+**Ha retto:** la tabella si è riempita al primo passaggio, e il secondo **non ha duplicato niente** — quattro righe restano quattro, create una volta sola. L'unicità `(tenant, id rimborso)` fa il suo mestiere.
+
+⚠️ **Non ha retto la selezione: sono arrivate quattro rettifiche, e due sono annullamenti** (`#1003` e `#1007`, 110,00 € in tutto). Il mapper legge `refunds[]` senza guardare il `restock_type`, quindi prende dentro anche l'annullamento pre-evasione. Vedi la tabella corretta sopra e `01` §2.17.
+
+**E la misura ha trovato un difetto più grande di quello che cercava.** Il registro derivato conta come incassati anche gli ordini **annullati** e quelli **mai spediti**: su agosto dichiara 386,49 € dove il corrispettivo vero è 50,00 € (`01` §2.16). La sottrazione dei resi, da sola, arriverebbe a 156,49 € — sbagliato in un altro modo. **I tre pezzi vanno fatti insieme, o il registro resta falso in tre modi invece che in uno.**
+
+**Stato: rimborso persistito e provato (14/08). Restano tre cose, ed è un lavoro solo:**
+
+1. escludere dalla scrittura i rimborsi con `restock_type: cancel`;
+2. far contare al registro le sole vendite **evase e non annullate**;
+3. sottrarre le rettifiche alla loro data — insieme al filtro per canale del §8, che tocca gli stessi due file (`corrispettivi.service.ts` e l'export).
 
 ## §5 · Il Corrispettivo nasce all'evasione — ed è corretto
 

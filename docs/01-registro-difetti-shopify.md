@@ -482,6 +482,59 @@ Lo stesso vale per `reviewReason`, che chiede di «verificare … l'eventuale ri
 
 ---
 
+### 2.16 — Il registro corrispettivi conta come incassato l'annullato e il mai spedito
+
+_Provato il 14/08/2026: numeri letti dal database, non calcolati a mente._
+
+**Cosa succede.** Il registro derivato somma i totali di **ogni** ordine del periodo, filtrando per data ordine. Non guarda se l'ordine è stato annullato, e non guarda se è stato spedito. Su agosto 2026, con il filtro predefinito della schermata (soli ordini online), risulta:
+
+| ordine                 | importo      | stato reale              |
+| ---------------------- | ------------ | ------------------------ |
+| #1002                  | 106,49 €     | **mai evaso**            |
+| #1003                  | 50,00 €      | **annullato**, mai evaso |
+| #1004                  | 50,00 €      | evaso                    |
+| #1005                  | 60,00 €      | evaso, poi reso          |
+| #1006                  | 60,00 €      | evaso, poi reso          |
+| #1007                  | 60,00 €      | **annullato**, mai evaso |
+| **somma del registro** | **386,49 €** |                          |
+
+Il corrispettivo vero del periodo è **50,00 €**: un solo ordine venduto e non tornato indietro. Il registro ne dichiara sette volte tanto.
+
+**Sono tre difetti sovrapposti, e vanno separati.**
+
+1. **Gli annullati contano** — 110,00 €. `buildCorrispettiviWhere` non ha nessun filtro su `cancelledAt` (`api/src/corrispettivi/corrispettivi-query.util.ts:43-70`). Merce mai partita, incasso mai avvenuto, corrispettivo dichiarato.
+2. **I mai evasi contano** — 106,49 €. Il registro aggrega per `placedAt`, cioè la data dell'ordine. Contraddice quanto è già stabilito nella specifica `08` §5: il corrispettivo nasce **all'evasione**, perché è la consegna o spedizione a determinare il momento dell'operazione. Il registro a entries lo rispetta (nasce in `createFromFulfilledOrderTx`); quello derivato no.
+3. **I resi non si sottraggono** — è il punto 2.13, già registrato.
+
+**Perché è grave adesso e non prima.** Finché i due registri convivono, quello a entries è coerente e questo no. Ma la decisione dell'11/08 è che **le entries cadono** e resta il derivato: quel giorno, se non si corregge, il registro corrispettivi di VestiFlow diventa quello sbagliato. Non è un difetto da mettere in coda: è un prerequisito della decisione già presa.
+
+**Cosa deve fare invece.** Contare le vendite **evase e non annullate**, aggregate alla data che determina l'effettuazione, e sottrarre i rimborsi **che non sono annullamenti** (vedi 2.17) alla data della rettifica.
+
+---
+
+### 2.17 — Un annullamento su Shopify è un «rimborso», e chi lo prende per un reso sottrae due volte
+
+_Provato il 14/08/2026 sincronizzando gli ordini e leggendo cosa è stato scritto._
+
+**Cosa succede.** Shopify rappresenta anche l'annullamento pre-evasione come una voce in `refunds[]`, con nota «Ordine annullato» e `restock_type: cancel` sulle righe. Chi legge `refunds[]` per trovare i resi prende dentro anche gli annullamenti.
+
+Misurato: sincronizzando il negozio di prova sono state scritte **quattro** rettifiche economiche, ma solo due sono resi.
+
+| ordine | importo | cos'è davvero    |
+| ------ | ------- | ---------------- |
+| #1003  | 50,00 € | **annullamento** |
+| #1005  | 60,00 € | reso             |
+| #1006  | 60,00 € | reso             |
+| #1007  | 60,00 € | **annullamento** |
+
+**Perché il doppio conteggio.** Su un annullamento pre-evasione la vendita non è mai avvenuta: una volta corretto il punto 2.16 quell'importo non è più nel registro. Sottrarre anche il «rimborso» toglierebbe una seconda volta 110,00 € che non c'erano — e il totale di agosto andrebbe **sotto zero**.
+
+**Correzione di una cosa scritta nella specifica.** Il §4 della `08` riportava una tabella in cui l'annullamento aveva «rimborso: no». È falso, e questa misura lo dimostra. La tabella è stata corretta.
+
+**Il segno per distinguerli esiste già ed è lo stesso che il §3 usa** per non ricaricare la merce: `restock_type: cancel` significa «annulla l'impegno», non «la merce è rientrata». Un rimborso le cui righe sono tutte `cancel` è un annullamento, non una rettifica di corrispettivo.
+
+---
+
 ## Livello 3 — Comportamenti sbagliati sui dati
 
 ### 3.1 — L'import non scorpora, nemmeno quando potrebbe
