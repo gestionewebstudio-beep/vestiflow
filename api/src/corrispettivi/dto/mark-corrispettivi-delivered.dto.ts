@@ -1,9 +1,6 @@
 import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
-import {
-  API_SOURCE_ONLINE,
-  API_SOURCE_POS,
-} from '../../sales-orders/sales-order.enum-mapper';
+import { API_SOURCE_ONLINE, API_SOURCE_POS } from '../../sales-orders/sales-order.enum-mapper';
 
 const SOURCE_VALUES = [API_SOURCE_ONLINE, API_SOURCE_POS] as const;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

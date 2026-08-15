@@ -383,15 +383,6 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.unlockDialogOpen.set(false);
   }
 
-  /** Anteprima numerazione dal numeratore supplier_order (solo creazione). */
-  protected readonly nextReferencePreview = toSignal(
-    this.orderService.getMeta().pipe(
-      map((meta) => meta.nextReferencePreview),
-      catchError(() => of('')),
-    ),
-    { initialValue: '' },
-  );
-
   private readonly suppliersReload = signal(0);
   private readonly suppliers = toSignal(
     toObservable(this.suppliersReload).pipe(switchMap(() => this.supplierService.getSuppliers())),

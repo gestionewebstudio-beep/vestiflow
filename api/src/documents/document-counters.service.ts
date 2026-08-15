@@ -12,7 +12,7 @@ import {
   isCounterConfigurableDocumentType,
 } from './document-defaults';
 import { nextDocumentNumber, numberSourceForType } from './document-numbering.util';
-import { documentNumberingTypes } from './document-type.util';
+import { documentNumberingType, documentNumberingTypes } from './document-type.util';
 
 /**
  * Quanti numeri liberi si elencano per esteso. Oltre questa soglia si dice solo
@@ -161,7 +161,14 @@ export class DocumentCountersService {
     const counters = await this.prisma.documentCounter.findMany({
       where: {
         tenantId,
-        type,
+        // I contatori appartengono al NUMERATORE, non al tipo grezzo: la
+        // Fattura accompagnatoria non ha né può avere una riga propria — è
+        // esclusa dai configurabili perché condivide quella della Fattura
+        // (`documentNumberingType`). Interrogando il tipo grezzo la testata
+        // riceveva zero contatori, quindi nessuna proposta e nessuna serie
+        // scegliibile: l'unica delle maschere che apriva senza numero.
+        // La scrittura risolveva già bene, ed era l'origine dello scarto.
+        type: documentNumberingType(type),
         OR: [{ locationId: null }, ...(locationId ? [{ locationId }] : [])],
       },
       include: { location: { select: { name: true } } },

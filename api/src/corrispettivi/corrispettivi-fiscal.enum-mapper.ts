@@ -45,7 +45,5 @@ export function fiscalStatusDisplayLabel(status: PrismaFiscal): string {
 }
 
 export function isRefundFinancialStatus(status: PrismaFinancial): boolean {
-  return (
-    status === PrismaFinancial.refunded || status === PrismaFinancial.partially_refunded
-  );
+  return status === PrismaFinancial.refunded || status === PrismaFinancial.partially_refunded;
 }

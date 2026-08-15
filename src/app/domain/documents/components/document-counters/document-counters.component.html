@@ -16,8 +16,13 @@
           }
         </span>
         <span class="counters__sede">{{ counter.locationName ?? 'Tutte le sedi' }}</span>
+        <!-- «a oggi» non è una rifinitura: questo elenco vive anche DENTRO una
+             maschera documento, e lì il numero del contatore è calcolato su
+             oggi mentre la testata propone quello della data del documento. Il
+             valore è giusto — è lo stato del contatore — ma «Prossimo» da solo
+             prometteva il numero che il documento riceverà, che è un'altra cosa. -->
         <span class="counters__next tabular-nums">
-          <span class="counters__next-label">Prossimo</span>{{ counter.nextNumber }}
+          <span class="counters__next-label">Prossimo a oggi</span>{{ counter.nextNumber }}
         </span>
         <span class="counters__actions">
           @if (!counter.isDefault) {

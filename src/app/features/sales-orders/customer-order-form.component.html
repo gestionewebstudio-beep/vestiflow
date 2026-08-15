@@ -1781,9 +1781,14 @@
                   · <span class="tabular-nums">{{ totalPiecesCount() }}</span> pezzi
                 </span>
                 <span>
-                  Imponibile righe
+                  <!-- Su un ordine di canale i prezzi sono ivati: la somma
+                       delle righe non è un imponibile, e chiamarla così sarebbe
+                       la stessa bugia del riepilogo (registro difetti 3.15). -->
+                  {{ isExternalOrder() ? 'Totale prodotti' : 'Imponibile righe' }}
                   <strong class="tabular-nums">{{
-                    formatMoney(documentTotals().linesTotal)
+                    isExternalOrder()
+                      ? formatMoney(channelTotals().linesGross)
+                      : formatMoney(documentTotals().linesTotal)
                   }}</strong>
                 </span>
               </div>
@@ -1904,17 +1909,57 @@
           <!-- Totali sticky in fondo + note documento (stessa banda dell'Arrivo merce). -->
           <div class="doc-form__footer-grid">
             <aside class="doc-form__totals-bar" aria-label="Totali documento">
-              <dl class="doc-form__totals">
-                <div class="doc-form__totals-row">
-                  <dt>Imponibile righe</dt>
-                  <dd class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</dd>
-                </div>
-                <div class="doc-form__totals-row doc-form__totals-row--field">
-                  <dt>
-                    <label for="co-doc-discount">Sconto extra</label>
-                  </dt>
-                  <dd>
-                    <!-- Campo sempre visibile, come in ogni altro documento.
+              <!-- Ordine di canale: il riepilogo si LEGGE dalla testata, non si
+                   ricalcola dalle righe. La spedizione non è un articolo, lo
+                   sconto nasce sull'ordine intero ed è un importo già allocato
+                   da Shopify, e i prezzi sono ivati: il motore dell'ordine
+                   manuale non può farne il totale, e infatti mostrava 25,00 su
+                   un documento da 63,60 (registro difetti 3.9 e 3.15). -->
+              @if (isExternalOrder()) {
+                <dl class="doc-form__totals">
+                  <div class="doc-form__totals-row">
+                    <dt>Totale prodotti</dt>
+                    <dd class="tabular-nums">{{ formatMoney(channelTotals().linesGross) }}</dd>
+                  </div>
+                  @if (channelTotals().discount.amountMinor > 0) {
+                    <div class="doc-form__totals-row">
+                      <dt>Sconto ordine</dt>
+                      <dd class="tabular-nums">−{{ formatMoney(channelTotals().discount) }}</dd>
+                    </div>
+                  }
+                  @if (channelTotals().shipping.amountMinor > 0) {
+                    <div class="doc-form__totals-row">
+                      <dt>Spedizione</dt>
+                      <dd class="tabular-nums">{{ formatMoney(channelTotals().shipping) }}</dd>
+                    </div>
+                  }
+                  <div class="doc-form__totals-row">
+                    <dt>Imponibile</dt>
+                    <dd class="tabular-nums">{{ formatMoney(channelTotals().taxable) }}</dd>
+                  </div>
+                  <div class="doc-form__totals-row">
+                    <dt>IVA inclusa</dt>
+                    <dd class="tabular-nums">{{ formatMoney(channelTotals().tax) }}</dd>
+                  </div>
+                  <div class="doc-form__totals-row doc-form__totals-row--total">
+                    <dt>Totale ordine</dt>
+                    <dd class="tabular-nums">
+                      <strong>{{ formatMoney(channelTotals().total) }}</strong>
+                    </dd>
+                  </div>
+                </dl>
+              } @else {
+                <dl class="doc-form__totals">
+                  <div class="doc-form__totals-row">
+                    <dt>Imponibile righe</dt>
+                    <dd class="tabular-nums">{{ formatMoney(documentTotals().linesTotal) }}</dd>
+                  </div>
+                  <div class="doc-form__totals-row doc-form__totals-row--field">
+                    <dt>
+                      <label for="co-doc-discount">Sconto extra</label>
+                    </dt>
+                    <dd>
+                      <!-- Campo sempre visibile, come in ogni altro documento.
                          Stava dietro un «+ Aggiungi sconto», e il pulsante
                          nascondeva uno stato: guardando la riga non si sapeva se
                          lo sconto fosse zero o se il campo fosse chiuso. Un
@@ -1922,39 +1967,40 @@
                          niente, e costa un clic in meno. Il pulsante si
                          giustificherebbe se guadagnasse spazio, ma la casella
                          nel riepilogo c'è comunque. -->
-                    <input
-                      id="co-doc-discount"
-                      class="doc-form__input doc-form__input--num doc-form__totals-input"
-                      type="text"
-                      formControlName="documentDiscountPercent"
-                      placeholder="0%"
-                      aria-label="Sconto extra documento"
-                    />
-                  </dd>
-                </div>
-                @if (documentTotals().documentDiscount.amountMinor > 0) {
-                  <div class="doc-form__totals-row">
-                    <dt>Sconto documento</dt>
-                    <dd class="tabular-nums">
-                      −{{ formatMoney(documentTotals().documentDiscount) }}
+                      <input
+                        id="co-doc-discount"
+                        class="doc-form__input doc-form__input--num doc-form__totals-input"
+                        type="text"
+                        formControlName="documentDiscountPercent"
+                        placeholder="0%"
+                        aria-label="Sconto extra documento"
+                      />
                     </dd>
                   </div>
-                }
-                <div class="doc-form__totals-row">
-                  <dt>Imponibile</dt>
-                  <dd class="tabular-nums">{{ formatMoney(documentTotals().subtotal) }}</dd>
-                </div>
-                <div class="doc-form__totals-row">
-                  <dt>IVA</dt>
-                  <dd class="tabular-nums">{{ formatMoney(documentTotals().tax) }}</dd>
-                </div>
-                <div class="doc-form__totals-row doc-form__totals-row--total">
-                  <dt>Totale documento</dt>
-                  <dd class="tabular-nums">
-                    <strong>{{ formatMoney(documentTotals().total) }}</strong>
-                  </dd>
-                </div>
-              </dl>
+                  @if (documentTotals().documentDiscount.amountMinor > 0) {
+                    <div class="doc-form__totals-row">
+                      <dt>Sconto documento</dt>
+                      <dd class="tabular-nums">
+                        −{{ formatMoney(documentTotals().documentDiscount) }}
+                      </dd>
+                    </div>
+                  }
+                  <div class="doc-form__totals-row">
+                    <dt>Imponibile</dt>
+                    <dd class="tabular-nums">{{ formatMoney(documentTotals().subtotal) }}</dd>
+                  </div>
+                  <div class="doc-form__totals-row">
+                    <dt>IVA</dt>
+                    <dd class="tabular-nums">{{ formatMoney(documentTotals().tax) }}</dd>
+                  </div>
+                  <div class="doc-form__totals-row doc-form__totals-row--total">
+                    <dt>Totale documento</dt>
+                    <dd class="tabular-nums">
+                      <strong>{{ formatMoney(documentTotals().total) }}</strong>
+                    </dd>
+                  </div>
+                </dl>
+              }
             </aside>
 
             <div class="doc-form__footer-notes">

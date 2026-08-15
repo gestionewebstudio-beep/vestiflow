@@ -47,19 +47,23 @@ import { ReportCorrispettiviExportComponent } from '@domain/reports/components/r
 import {
   SalesOrderFiscalStatus,
   type CorrispettiviDelivery,
-  type CorrispettiviOrder,
+  type CorrispettiviRegisterRow,
   type CorrispettiviSummary,
 } from '../../models/corrispettivi.model';
 import {
   formatReportPeriodLabel,
+  periodNeedsYear,
   parseReportListQuery,
   ReportPeriodPreset,
   resolveReportDateRange,
 } from '@domain/reports/models/report-list-query.model';
 import { CorrispettiviService } from '../../services/corrispettivi.service';
 
+/** Valori ammessi per il filtro tipo di riga (specchio del DTO API). */
+const ROW_TYPE_FILTERS: readonly string[] = ['all', 'sales', 'returns', 'refunds'];
+
 interface CorrispettiviPageData {
-  readonly orders: readonly CorrispettiviOrder[];
+  readonly orders: readonly CorrispettiviRegisterRow[];
   readonly summary: CorrispettiviSummary;
   readonly deliveries: readonly CorrispettiviDelivery[];
   readonly totalOrders: number;
@@ -136,9 +140,38 @@ export class CorrispettiviReportComponent {
 
   protected readonly pendingOnly = computed(() => this.queryParams().get('pendingOnly') === '1');
 
-  protected readonly refundsOnly = computed(() => this.queryParams().get('refundsOnly') === '1');
+  /**
+   * Canale, con **«Tutti» come predefinito**.
+   *
+   * Era «Shopify», e produceva il difetto peggiore: due schermate con lo stesso
+   * nome che dicevano numeri diversi per lo stesso trimestre — 95,00 € qui e
+   * 324,36 € nel Registro commercialista, che non filtra il canale. La
+   * differenza stava in un solo campo, non nel calcolo: entrambe passano dallo
+   * stesso `CorrispettiviService.getSummary`.
+   *
+   * **Fra i due predefiniti vince quello che mostra tutto.** Un totale gonfiato
+   * si nota — qualcuno chiede perché ci sono dentro gli ordini manuali; un
+   * totale a cui manca una parte no, e nessuno cerca ciò che non vede. Su un
+   * registro fiscale è il verso giusto in cui sbagliare.
+   *
+   * Che alcuni ordini manuali possano essere già coperti da una fattura resta
+   * la decisione aperta sull'`excluded_invoiced` (`04` §8), e non si risolve
+   * nascondendoli.
+   */
+  protected readonly channelFilter = computed(() => {
+    const value = this.queryParams().get('channel');
+    return value === 'online' || value === 'pos' ? value : 'all';
+  });
 
-  protected readonly onlineOnly = computed(() => this.queryParams().get('onlineOnly') !== '0');
+  protected readonly onlineOnly = computed(() => this.channelFilter() === 'online');
+
+  protected readonly posOnly = computed(() => this.channelFilter() === 'pos');
+
+  /** Tipo di riga: filtra l'elenco, mai il riepilogo. */
+  protected readonly rowTypeFilter = computed(() => {
+    const value = this.queryParams().get('rowType') ?? 'all';
+    return ROW_TYPE_FILTERS.includes(value) ? value : 'all';
+  });
 
   protected readonly canExport = computed(() =>
     canExportOperationalData(this.authService.currentUser()),
@@ -178,6 +211,19 @@ export class CorrispettiviReportComponent {
     return this.query().dateTo ?? todayIsoDate();
   });
 
+  protected readonly channelOptions: readonly SelectMenuOption[] = [
+    { value: 'all', label: 'Tutti i canali' },
+    { value: 'online', label: 'Shopify' },
+    { value: 'pos', label: 'Negozio' },
+  ];
+
+  protected readonly rowTypeOptions: readonly SelectMenuOption[] = [
+    { value: 'all', label: 'Vendite e rettifiche' },
+    { value: 'sales', label: 'Solo vendite' },
+    { value: 'returns', label: 'Solo resi' },
+    { value: 'refunds', label: 'Solo rimborsi' },
+  ];
+
   protected readonly fiscalStatusOptions: readonly SelectMenuOption[] = [
     { value: '', label: 'Tutti gli stati fiscali' },
     { value: SalesOrderFiscalStatus.PendingRegistration, label: 'Da registrare' },
@@ -196,8 +242,9 @@ export class CorrispettiviReportComponent {
     placedTo: this.dateRange().placedTo,
     fiscalStatus: this.fiscalStatusFilter(),
     pendingDeliveryOnly: this.pendingOnly() || undefined,
-    refundsOnly: this.refundsOnly() || undefined,
+    rowType: this.rowTypeFilter() === 'all' ? undefined : this.rowTypeFilter(),
     onlineOnly: this.onlineOnly() || undefined,
+    posOnly: this.posOnly() || undefined,
     page: 1,
     pageSize: 100,
   }));
@@ -261,7 +308,40 @@ export class CorrispettiviReportComponent {
       this.updateParams({ period, from: today, to: today });
       return;
     }
-    this.updateParams({ period, from: null, to: null });
+    // Scegliendo un periodo di calendario si parte da quello corrente: il
+    // selettore che compare mostra già un valore sensato invece di restare
+    // vuoto in attesa che qualcuno lo riempia.
+    if (periodNeedsYear(period)) {
+      const now = new Date();
+      this.updateParams({
+        period,
+        from: null,
+        to: null,
+        year: String(this.query().year ?? now.getUTCFullYear()),
+        month:
+          period === ReportPeriodPreset.CalendarMonth
+            ? String(this.query().month ?? now.getUTCMonth() + 1)
+            : null,
+        quarter:
+          period === ReportPeriodPreset.CalendarQuarter
+            ? String(this.query().quarter ?? Math.floor(now.getUTCMonth() / 3) + 1)
+            : null,
+      });
+      return;
+    }
+    this.updateParams({ period, from: null, to: null, year: null, month: null, quarter: null });
+  }
+
+  protected onYearChange(year: number): void {
+    this.updateParams({ year: String(year) });
+  }
+
+  protected onMonthChange(month: number): void {
+    this.updateParams({ month: String(month) });
+  }
+
+  protected onQuarterChange(quarter: number): void {
+    this.updateParams({ quarter: String(quarter) });
   }
 
   protected onDateFromChange(value: string): void {
@@ -280,12 +360,13 @@ export class CorrispettiviReportComponent {
     this.updateParams({ pendingOnly: this.pendingOnly() ? null : '1' });
   }
 
-  protected toggleRefundsOnly(): void {
-    this.updateParams({ refundsOnly: this.refundsOnly() ? null : '1' });
+  protected onChannelChange(value: string | null): void {
+    // «all» è il predefinito: non lo si scrive nell'indirizzo.
+    this.updateParams({ channel: !value || value === 'all' ? null : value });
   }
 
-  protected toggleOnlineOnly(): void {
-    this.updateParams({ onlineOnly: this.onlineOnly() ? '0' : null });
+  protected onRowTypeChange(value: string | null): void {
+    this.updateParams({ rowType: !value || value === 'all' ? null : value });
   }
 
   protected reload(): void {
@@ -338,12 +419,18 @@ export class CorrispettiviReportComponent {
   }
 
   protected printReport(): void {
-    void this.router.navigate(['/app/reports/corrispettivi/print'], {
+    void this.router.navigate(['/app/sales/corrispettivi/print'], {
       queryParams: {
+        // La stampa deve mostrare quello che si sta guardando: periodo,
+        // calendario e canale viaggiano tutti, o si stampa un altro registro.
         period: this.displayPeriod(),
         from: this.query().dateFrom ?? null,
         to: this.query().dateTo ?? null,
-        onlineOnly: this.onlineOnly() ? null : '0',
+        year: this.query().year ?? null,
+        month: this.query().month ?? null,
+        quarter: this.query().quarter ?? null,
+        channel: this.channelFilter() === 'all' ? null : this.channelFilter(),
+        rowType: this.rowTypeFilter() === 'all' ? null : this.rowTypeFilter(),
       },
     });
   }
@@ -380,14 +467,22 @@ export class CorrispettiviReportComponent {
       });
   }
 
+  /**
+   * Gli stessi filtri della lista, senza eccezioni.
+   *
+   * È la ragione per cui questo metodo esiste invece di ricostruire l'oggetto
+   * dove serve: il file esportato e la schermata devono rispondere alla stessa
+   * domanda, e l'unico modo di garantirlo è che leggano gli stessi campi.
+   */
   private exportQuery() {
     return {
       placedFrom: this.dateRange().placedFrom,
       placedTo: this.dateRange().placedTo,
       fiscalStatus: this.fiscalStatusFilter(),
       pendingDeliveryOnly: this.pendingOnly() || undefined,
-      refundsOnly: this.refundsOnly() || undefined,
+      rowType: this.rowTypeFilter() === 'all' ? undefined : this.rowTypeFilter(),
       onlineOnly: this.onlineOnly() || undefined,
+      posOnly: this.posOnly() || undefined,
     };
   }
 

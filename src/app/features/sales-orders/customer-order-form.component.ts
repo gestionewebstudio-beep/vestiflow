@@ -826,30 +826,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       : of(null),
     { initialValue: null },
   );
-  /** Anteprima prossimo numero documento (numeratore quote/sales_ddt). */
-  private readonly registryPreviewReference = toSignal(
-    this.isRegistryDocument
-      ? this.documentService
-          .previewDocumentNumber(this.registryDocumentType, {
-            // La sede decide quale contatore predefinito si applica (§1-bis),
-            // la data quale numero è il primo libero (§2). Lette all'apertura:
-            // è l'anteprima della testata, non il numero che il salvataggio
-            // assegnerà — quello lo dice `numbering`.
-            locationId: this.form.controls.locationId.value || null,
-            documentDate: this.form.controls.documentDate.value || null,
-          })
-          .pipe(
-            map((preview) => preview.reference),
-            catchError(() => of(null)),
-          )
-      : of(null),
-    { initialValue: null as string | null },
-  );
-  protected readonly previewReference = computed(() =>
-    this.isRegistryDocument
-      ? this.registryPreviewReference()
-      : (this.meta()?.nextReferencePreview ?? null),
-  );
+  // Qui vivevano due anteprime del prossimo numero, e alimentavano entrambe
+  // l'etichetta «N. documento» — che compare SOLO in modifica, dove il numero
+  // assegnato c'è già. O non si vedevano, o si vedevano al posto del numero
+  // vero mentre il documento si stava caricando. Il numero che il documento
+  // riceverà lo dice il campo Numero in testata, che lo chiede con sede e data.
   // ── Numero documento (registro: Preventivo / DDT vendita / Scarico manuale) ──
   /** Conflitto numero restituito dal server: dialogo «Usa N» / «Annulla». */
   // Stato del dialog «numero già assegnato»: la macchina vive in domain, il
@@ -942,12 +923,13 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Pannello «gestisci numerazioni» aperto dall'ingranaggio del campo Serie. */
   protected readonly seriesDialogOpen = signal(false);
 
-  protected readonly internalReferenceLabel = computed(() => {
-    const saved = this.isRegistryDocument
-      ? this.loadedQuoteDoc()?.reference
-      : this.loadedOrder()?.orderNumber;
-    return saved ?? this.previewReference();
-  });
+  /** Il riferimento del documento APERTO, e solo quello (etichetta di sola modifica). */
+  protected readonly internalReferenceLabel = computed(
+    () =>
+      (this.isRegistryDocument
+        ? this.loadedQuoteDoc()?.reference
+        : this.loadedOrder()?.orderNumber) ?? null,
+  );
 
   /**
    * Etichetta della tappa id nel breadcrumb: il numero del documento aperto
@@ -1075,10 +1057,64 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly isPosOrder = computed(() => this.loadedOrder()?.source === SalesOrderSource.Pos);
 
   /**
-   * Evaso DEL TUTTO, e quindi con un corrispettivo registrato. L'evasione
-   * PARZIALE non crea né vendita online né corrispettivo — marca solo l'ordine
-   * come da verificare — quindi qui non basta `isSettledOrder()`: con quello il
-   * banner direbbe che esiste un corrispettivo che non c'è.
+   * Riepilogo di un ordine di canale: **si legge, non si ricalcola**.
+   *
+   * Il motore dei totali di questa maschera è quello dell'ordine manuale —
+   * quantità × prezzo scontato dalla percentuale di riga, più lo sconto extra
+   * documento. Su un ordine Shopify non torna, per tre motivi che non sono
+   * difetti del motore ma differenze di natura:
+   *
+   * · la **spedizione** non è una riga articolo e nel calcolo delle righe non
+   *   compare da nessuna parte;
+   * · lo **sconto** nasce sull'intero ordine ed è un importo, non una
+   *   percentuale: le righe lo portano già allocato da Shopify, e ricalcolarlo
+   *   darebbe numeri diversi da quelli della conferma d'ordine;
+   * · i prezzi del canale sono **comprensivi d'imposta**, quindi la somma
+   *   delle righe non è un imponibile.
+   *
+   * Da qui la regola di `02` §4.8 — l'ordine si registra com'è avvenuto — e la
+   * sua conseguenza in maschera: i valori vengono dalla testata memorizzata,
+   * e l'imponibile si **ricava per differenza** (`PREZZI-SHOPIFY-SPEC` §4.1),
+   * mai sostituendo un lordo sotto l'etichetta di un netto.
+   *
+   * _Le righe restano al prezzo pieno, come le mostra Shopify: lo sconto
+   * d'ordine compare una volta sola, qui. Mostrarlo anche sulle righe lo
+   * conterebbe due volte._
+   */
+  protected readonly channelTotals = computed(() => {
+    const order = this.loadedOrder();
+    const currency = order?.currency ?? this.currency;
+    const money = (amountMinor: number) => ({ amountMinor, currencyCode: currency });
+
+    const subtotal = order?.subtotal?.amountMinor ?? 0;
+    const discount = order?.discount?.amountMinor ?? 0;
+    const shipping = order?.shipping?.amountMinor ?? 0;
+    const tax = order?.tax?.amountMinor ?? 0;
+    const total = order?.total?.amountMinor ?? 0;
+
+    return {
+      // Il subtotale del canale è già al netto dello sconto: il pieno delle
+      // righe — quello che la tabella mostra — si riottiene sommandolo.
+      linesGross: money(subtotal + discount),
+      discount: money(discount),
+      shipping: money(shipping),
+      taxable: money(total - tax),
+      tax: money(tax),
+      total: money(total),
+    };
+  });
+
+  /**
+   * Evaso DEL TUTTO, e quindi **dentro i corrispettivi del periodo**.
+   *
+   * L'evasione PARZIALE non crea la vendita online e non fa entrare l'ordine
+   * nel registro — marca solo l'ordine come da verificare — quindi qui non
+   * basta `isSettledOrder()`: con quello il banner parlerebbe di un effetto
+   * fiscale che non c'è.
+   *
+   * _(14/08/2026: qui si diceva «con un corrispettivo registrato». Non esiste
+   * più una voce registrata — il registro è derivato dalle vendite, e ciò che
+   * conta è che l'ordine vi rientri.)_
    */
   private readonly externalOrderFulfilled = computed(() =>
     Boolean(this.loadedOrder()?.fulfilledAt),
@@ -1114,7 +1150,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     ];
     if (this.externalOrderFulfilled()) {
       notice.push(
-        'È già stato evaso e il corrispettivo è stato registrato: cambiarlo qui sposterebbe anche i totali riepilogati per il commercialista, lasciandoli diversi da quelli già consegnati.',
+        'È già stato evaso, quindi rientra nei corrispettivi del periodo: cambiarlo qui sposterebbe i totali riepilogati per il commercialista, lasciandoli diversi da quelli già consegnati.',
       );
     }
     notice.push(

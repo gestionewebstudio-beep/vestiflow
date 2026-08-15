@@ -7,7 +7,6 @@ import {
   ReservationStatus,
   SalesOrderSource,
   StockMovementType,
-  CorrispettivoStatus,
   type Customer,
   type Party,
   type SalesOrder,
@@ -23,15 +22,18 @@ import {
 } from '../inventory/movement-cost.util';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { findVatCodeForDerivedRate } from '../vat/vat-reverse-match.util';
-import { buildUnmatchedRateSnapshot, buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
+import {
+  buildUnmatchedRateSnapshot,
+  buildVatCodeSnapshot,
+  vatSnapshotRatePercent,
+} from '../vat/vat-snapshot.util';
 
 import { allocateProportional, deriveVatRatePercent } from './online-sale-money.util';
 import { StockReservationService } from './stock-reservation.service';
 import type { OnlineOrderEventInput } from './online-order-lifecycle.service';
 
-/** Prefissi numerazione interna (coerenti con document-defaults). */
+/** Prefisso numerazione interna (coerente con document-defaults). */
 const ONLINE_SALE_PREFIX = 'VO';
-const CORRISPETTIVO_PREFIX = 'COR';
 
 export type OnlineSaleCreationOutcome = 'created' | 'already_exists' | 'order_not_found';
 
@@ -117,18 +119,36 @@ export class OnlineSaleFulfillmentService {
     const fulfilledAt = event.occurredAt ?? new Date();
     const salesVatCodes = await this.loadSalesVatCodes(tx, event.tenantId);
     const computedLines = await this.computeSaleLines(tx, order, salesVatCodes);
+    // ── La sede da cui la merce è USCITA ──────────────────────────────────
+    //
+    // È quella dell'EVASIONE, che il canale dichiara nel payload
+    // (`fulfillments[].location_id`) e che arriva qui come `event.locationId`.
+    // NON quella dell'impegno: l'impegno si prende alla CREAZIONE dell'ordine,
+    // quando l'evasione non esiste ancora e il payload non porta alcuna sede,
+    // quindi ricade su un ripiego — la prima sede licenziata in ORDINE
+    // ALFABETICO (`resolveShopifyOrderLocationId`).
+    //
+    // Misurato il 14/08/2026 su tre ordini di prova: Shopify spediva da «Shop
+    // location», VestiFlow scaricava da «Magazzino test 3» — prima per la M. Il
+    // dato corretto era già nel payload al momento dello scarico, e veniva
+    // scavalcato da quello inventato prima. Con una sede sola non si vede; con
+    // quattro, ogni vendita online scala lo scaffale sbagliato per sempre.
+    //
+    // ⚠️ L'impegno resta consumato sulla SUA sede, e non è un'incoerenza: il
+    // consumo (`applyCommittedDelta −q` su quella sede) è l'esatto inverso
+    // della sua creazione, quindi il saldo netto lì è ZERO. L'unica scrittura
+    // che sopravvive è lo scarico fisico, che va dove la merce era davvero.
+    // Resta un errore TRANSITORIO sulla disponibilità della sede del ripiego,
+    // fra creazione dell'ordine ed evasione: accettato, e chiuso quando
+    // l'impegno saprà leggere le fulfillment orders di Shopify.
+    const fulfilmentLocationId = event.locationId ?? null;
     const headerLocationId =
+      fulfilmentLocationId ??
       computedLines.find((line) => line.reservation)?.reservation?.locationId ??
-      event.locationId ??
       null;
 
     const year = fulfilledAt.getFullYear();
-    const saleNumber = await this.nextNumber(
-      tx,
-      event.tenantId,
-      DocumentType.online_sale,
-      year,
-    );
+    const saleNumber = await this.nextNumber(tx, event.tenantId, DocumentType.online_sale, year);
 
     const sale = await tx.onlineSale.create({
       data: {
@@ -191,7 +211,8 @@ export class OnlineSaleFulfillmentService {
           vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
           salesOrderLineId: line.salesOrderLineId,
           reservationId: line.reservation?.id ?? null,
-          locationId: line.reservation?.locationId ?? null,
+          // La sede della riga è quella dello scarico, non quella dell'impegno.
+          locationId: fulfilmentLocationId ?? line.reservation?.locationId ?? null,
         },
         select: { id: true },
       });
@@ -209,20 +230,23 @@ export class OnlineSaleFulfillmentService {
       }
 
       // 1. Consumo dell'impegno: Impegnata −, Disponibile + (traccia evento).
+      //    Sulla sede DELL'IMPEGNO, sempre: è lì che era stato preso, e il
+      //    consumo lo annulla. Vedi la nota su `fulfilmentLocationId`.
       await this.reservations.consumeReservationTx(
         tx,
         reservation,
         `Consumato da Vendita online ${sale.reference}`,
       );
 
-      // 2. Scarico fisico: Giacenza −, Disponibile −. Nessuna guardia di
-      //    disponibilità: il canale ha già spedito la merce, bloccare qui
-      //    creerebbe divergenza dal mondo fisico (oversell accettato §3).
+      // 2. Scarico fisico: Giacenza −, Disponibile −, sulla sede dell'EVASIONE.
+      //    Nessuna guardia di disponibilità: il canale ha già spedito la merce,
+      //    bloccare qui creerebbe divergenza dal mondo fisico (oversell §3).
+      const unloadLocationId = fulfilmentLocationId ?? reservation.locationId;
       await applyInventoryDelta(
         tx,
         event.tenantId,
         line.variantId,
-        reservation.locationId,
+        unloadLocationId,
         -line.quantity,
       );
 
@@ -236,7 +260,7 @@ export class OnlineSaleFulfillmentService {
           origin: this.movementOrigin(event.channel),
           variantId: line.variantId,
           sku: line.sku,
-          locationId: reservation.locationId,
+          locationId: unloadLocationId,
           quantity: line.quantity,
           reason: `Vendita online ${sale.reference} — ordine ${order.orderNumber}`,
           externalRef: event.externalOrderId,
@@ -275,17 +299,19 @@ export class OnlineSaleFulfillmentService {
       });
     }
 
-    // ── Corrispettivo collegato (§4): stessa transazione, oggetto distinto ──
-    await this.createCorrispettivoTx(tx, {
-      tenantId: event.tenantId,
-      channel: event.channel,
-      onlineSaleId: sale.id,
-      salesOrderId: order.id,
-      fulfilledAt,
-      order,
-      lines: computedLines,
-      salesVatCodes,
-    });
+    // ── Nessuna voce di corrispettivo ─────────────────────────────────────
+    //
+    // Qui nasceva una `CorrispettivoEntry` con il suo numero COR-… Non nasce
+    // più: il registro corrispettivi è **derivato** dalle vendite e dalle
+    // rettifiche (decisione dell'11/08, specifica `08` §10), e una tabella
+    // parallela che nessuno legge può solo divergere da esse.
+    //
+    // Smettere di scriverla chiude anche il difetto `01` §3.12: ogni voce
+    // nuova poteva contenere un'aliquota media inventata sugli ordini
+    // multi-aliquota. Da adesso nessuna nuova ne nasce.
+    //
+    // La tabella **resta**, e le righe già scritte con lei: il database è
+    // condiviso e l'eliminazione è distruttiva, quindi va in un rilascio a sé.
 
     this.logger.log(
       `Vendita online ${sale.reference} creata per ordine ${order.orderNumber} (${movedLines}/${stockLines} righe scaricate).`,
@@ -321,25 +347,19 @@ export class OnlineSaleFulfillmentService {
       });
     }
 
-    await tx.corrispettivoEntry.updateMany({
-      where: {
-        tenantId: event.tenantId,
-        onlineSaleId: sale.id,
-        status: { in: [CorrispettivoStatus.to_verify, CorrispettivoStatus.included] },
-      },
-      data: {
-        status: CorrispettivoStatus.refunded,
-        refundedAt,
-        adjustmentNote:
-          'Rimborso comunicato dal canale dopo la Vendita online: predisporre la rettifica del corrispettivo. La giacenza NON è stata modificata (il rientro fisico richiede un evento di reso reale).',
-      },
-    });
+    // La voce di corrispettivo non si aggiorna più, perché non nasce più: la
+    // rettifica economica vive in `sales_order_refunds` (§4) e il registro la
+    // sottrae alla sua data. `refundedAt` sulla Vendita online resta, ed è
+    // l'informazione utile — dice che quella vendita ha avuto un rimborso.
 
     await tx.salesOrder.updateMany({
       where: { id: event.salesOrderId, tenantId: event.tenantId },
       data: {
         requiresReview: true,
-        reviewReason: `Rimborso ricevuto dopo la Vendita online ${sale.reference}: verificare la rettifica del corrispettivo e l'eventuale rientro fisico della merce.`,
+        // Chiede di verificare ciò che resta da fare — la rettifica fiscale —
+        // non il rientro della merce, che il canale può aver già applicato da
+        // sé come movimento (vedi la nota sopra).
+        reviewReason: `Rimborso ricevuto dopo la Vendita online ${sale.reference}: verificare la rettifica del corrispettivo. Il rientro della merce, se dichiarato dal canale, arriva come movimento collegato.`,
       },
     });
   }
@@ -451,7 +471,9 @@ export class OnlineSaleFulfillmentService {
     const matched = findVatCodeForDerivedRate(ratePercent, salesVatCodes);
     return {
       vatCodeId: matched?.id ?? null,
-      vatSnapshot: matched ? buildVatCodeSnapshot(matched) : buildUnmatchedRateSnapshot(ratePercent),
+      vatSnapshot: matched
+        ? buildVatCodeSnapshot(matched)
+        : buildUnmatchedRateSnapshot(ratePercent),
     };
   }
 
@@ -473,9 +495,7 @@ export class OnlineSaleFulfillmentService {
             select: { id: true, barcode: true },
           })
         : [];
-    const barcodeByVariantId = new Map(
-      variants.map((variant) => [variant.id, variant.barcode]),
-    );
+    const barcodeByVariantId = new Map(variants.map((variant) => [variant.id, variant.barcode]));
 
     const reservationByLineId = new Map(
       order.reservations
@@ -487,26 +507,38 @@ export class OnlineSaleFulfillmentService {
         .map((reservation) => [reservation.salesOrderLineId as string, reservation]),
     );
 
-    // IVA ordine allocata su righe prodotto + spedizione (peso = totale riga);
-    // il canale non fornisce il dettaglio per riga nel read-model attuale.
+    // ⚠️ L'IVA di riga si prende da quella che il CANALE ha dichiarato, quando
+    // c'è: `lineVatTotalMinor` e lo snapshot dell'aliquota, scritti all'import
+    // leggendo `tax_lines`.
+    //
+    // Prima si ripartiva sempre l'imposta dell'ordine in proporzione al valore
+    // della riga. Su un ordine a una sola aliquota coincide col vero; con due
+    // aliquote ogni riga risulta sbagliata mentre il totale continua a tornare
+    // — e il totale che torna è ciò che ha reso il difetto invisibile per mesi
+    // (registro difetti 3.12, misurato: 6,22 € su una riga la cui imposta vera
+    // è 2,31 €).
+    //
+    // La ripartizione resta **solo come ripiego** per le righe che il canale
+    // non ha dichiarato: ordini importati prima di questa correzione, o righe
+    // manuali. Peggio di così non fa, e non riscrive il passato.
+    const declaredVat = lines.some((line) => line.vatSnapshot != null);
     const weights = lines.map((line) => line.totalMinor);
     if (order.shippingMinor > 0) {
       weights.push(order.shippingMinor);
     }
-    const taxShares = allocateProportional(order.taxMinor, weights);
+    const taxShares = declaredVat ? [] : allocateProportional(order.taxMinor, weights);
 
     return lines.map((line, index) => {
-      const taxMinor = taxShares[index] ?? 0;
+      const taxMinor = declaredVat ? line.lineVatTotalMinor : (taxShares[index] ?? 0);
       const subtotalMinor = line.totalMinor - taxMinor;
-      const vatRatePercent = deriveVatRatePercent(subtotalMinor, taxMinor);
+      const declaredRate = vatSnapshotRatePercent(line.vatSnapshot);
+      const vatRatePercent = declaredRate ?? deriveVatRatePercent(subtotalMinor, taxMinor);
       const { vatCodeId, vatSnapshot } = this.resolveDerivedVat(vatRatePercent, salesVatCodes);
       return {
         lineNumber: index + 1,
         variantId: line.variantId,
         sku: line.sku,
-        barcode: line.variantId
-          ? (barcodeByVariantId.get(line.variantId) ?? null)
-          : null,
+        barcode: line.variantId ? (barcodeByVariantId.get(line.variantId) ?? null) : null,
         description: line.title,
         quantity: line.quantity,
         unitPriceMinor: line.unitPriceMinor,
@@ -520,95 +552,6 @@ export class OnlineSaleFulfillmentService {
         vatSnapshot,
       };
     });
-  }
-
-  private async createCorrispettivoTx(
-    tx: Prisma.TransactionClient,
-    params: {
-      readonly tenantId: string;
-      readonly channel: SalesOrderSource;
-      readonly onlineSaleId: string;
-      readonly salesOrderId: string;
-      readonly fulfilledAt: Date;
-      readonly order: OrderWithContext;
-      readonly lines: readonly ComputedSaleLine[];
-      readonly salesVatCodes: readonly VatCodeWithNature[];
-    },
-  ): Promise<void> {
-    const year = params.fulfilledAt.getFullYear();
-    const number = await this.nextNumber(
-      tx,
-      params.tenantId,
-      DocumentType.corrispettivo,
-      year,
-    );
-
-    // §5: la data fiscale è PROPOSTA dalla data evasione ma resta un campo
-    // distinto, modificabile dagli utenti autorizzati via registro.
-    const fiscalDate = this.dateOnly(params.fulfilledAt);
-
-    const entry = await tx.corrispettivoEntry.create({
-      data: {
-        tenantId: params.tenantId,
-        series: 'A',
-        number,
-        year,
-        reference: this.formatReference(CORRISPETTIVO_PREFIX, year, number),
-        onlineSaleId: params.onlineSaleId,
-        salesOrderId: params.salesOrderId,
-        channel: params.channel,
-        operationalDate: params.fulfilledAt,
-        fiscalDate,
-        subtotalMinor: params.order.subtotalMinor,
-        taxMinor: params.order.taxMinor,
-        totalMinor: params.order.totalMinor,
-        discountMinor: params.order.discountMinor,
-        shippingMinor: params.order.shippingMinor,
-        status: CorrispettivoStatus.to_verify,
-      },
-      select: { id: true },
-    });
-
-    const shippingTax =
-      params.order.taxMinor -
-      params.lines.reduce((acc, line) => acc + line.taxMinor, 0);
-
-    const lineRows: Prisma.CorrispettivoEntryLineCreateManyInput[] = params.lines.map((line) => ({
-      tenantId: params.tenantId,
-      entryId: entry.id,
-      lineNumber: line.lineNumber,
-      isShipping: false,
-      description: line.description,
-      quantity: line.quantity,
-      subtotalMinor: line.subtotalMinor,
-      taxMinor: line.taxMinor,
-      totalMinor: line.totalMinor,
-      vatCodeId: line.vatCodeId,
-      vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-    }));
-
-    if (params.order.shippingMinor > 0) {
-      const shippingSubtotal = params.order.shippingMinor - shippingTax;
-      const shippingVatRate = deriveVatRatePercent(shippingSubtotal, shippingTax);
-      const shippingVat = this.resolveDerivedVat(shippingVatRate, params.salesVatCodes);
-      lineRows.push({
-        tenantId: params.tenantId,
-        entryId: entry.id,
-        lineNumber: lineRows.length + 1,
-        isShipping: true,
-        description: 'Spedizione',
-        quantity: 1,
-        subtotalMinor: shippingSubtotal,
-        taxMinor: shippingTax,
-        totalMinor: params.order.shippingMinor,
-        vatCodeId: shippingVat.vatCodeId,
-        vatSnapshot: shippingVat.vatSnapshot ?? Prisma.DbNull,
-      });
-    }
-
-    if (lineRows.length > 0) {
-      await tx.corrispettivoEntryLine.createMany({ data: lineRows });
-    }
   }
 
   /** Chiave idempotenza vendita (§6): tenant scoping è nell'indice univoco. */
@@ -676,8 +619,6 @@ export class OnlineSaleFulfillmentService {
   }
 
   private dateOnly(value: Date): Date {
-    return new Date(
-      Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()),
-    );
+    return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
   }
 }

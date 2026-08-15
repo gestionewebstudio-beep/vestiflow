@@ -87,7 +87,6 @@ const LINKABLE_PATHS: ReadonlySet<string> = new Set([
   '/app/sales/shopify',
   '/app/customers',
   '/app/reports',
-  '/app/reports/corrispettivi',
   '/app/reports/accountant-register',
   '/app/settings',
   '/app/settings/codici-iva',

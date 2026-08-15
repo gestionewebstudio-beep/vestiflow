@@ -428,6 +428,38 @@ describe('DocumentCountersService', () => {
       expect(where.OR).toEqual([{ locationId: null }, { locationId }]);
     });
 
+    /**
+     * I contatori appartengono al numeratore, non al tipo grezzo. Con
+     * l'uguaglianza sul tipo grezzo la Fattura accompagnatoria riceveva ZERO
+     * contatori — non ne ha né può averne, è esclusa dai configurabili — e la
+     * testata apriva senza numero proposto e senza serie scegliibile.
+     */
+    it('la Fattura accompagnatoria riceve i contatori della Fattura', async () => {
+      prisma.documentCounter.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+        {
+          id: 'ft',
+          tenantId,
+          type: DocumentType.invoice_draft,
+          series: null,
+          locationId: null,
+          isDefault: true,
+          location: null,
+        },
+      ]);
+
+      const result = await service.available(
+        tenantId,
+        DocumentType.invoice_accompanying,
+        null,
+        new Date('2026-08-14'),
+      );
+
+      const where = prisma.documentCounter.findMany.mock.calls[1]![0]!.where;
+      expect(where.type).toBe(DocumentType.invoice_draft);
+      expect(result.counters).toHaveLength(1);
+      expect(result.proposedCounterId).toBe('ft');
+    });
+
     it('non calcola i buchi: qui si propone un numero, non si fa il punto sulla serie', async () => {
       prisma.documentCounter.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
         {

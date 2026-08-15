@@ -22,6 +22,7 @@ import {
 
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import {
+  assertCanViewDocumentType,
   canManageDocumentType,
   canViewDocumentType,
   intersectViewableDocumentTypes,
@@ -863,7 +864,12 @@ export class DocumentsService {
     series?: string | null,
     locationId?: string | null,
     documentDate?: Date,
+    user?: UserProfileDto,
   ): Promise<{ reference: string; previewNumber: number; series: string | null }> {
+    // Il tipo arriva dal client (query string), non da un documento salvato:
+    // senza guardia l'anteprima è una finestra sul numeratore di una famiglia
+    // che l'utente non può consultare.
+    assertCanViewDocumentType(user, type);
     const setting = await this.settings.getResolved(tenantId, type);
     // Serie scelta in testata (se passata) o quella del contatore predefinito
     // COMPATIBILE con la sede (§1-bis): l'anteprima deve dire la stessa cosa

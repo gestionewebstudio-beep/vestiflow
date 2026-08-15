@@ -59,11 +59,17 @@
     [period]="displayPeriod()"
     [dateFrom]="dateFromDraft()"
     [dateTo]="dateToDraft()"
+    [year]="query().year"
+    [month]="query().month"
+    [quarter]="query().quarter"
     [periodLabel]="periodLabel()"
     [exporting]="exporting()"
     (periodChange)="onPeriodChange($event)"
     (dateFromChange)="onDateFromChange($event)"
     (dateToChange)="onDateToChange($event)"
+    (yearChange)="onYearChange($event)"
+    (monthChange)="onMonthChange($event)"
+    (quarterChange)="onQuarterChange($event)"
     (exportClick)="exportAccountantCsv()"
   />
 
@@ -77,26 +83,35 @@
       (valueChange)="onFiscalStatusChange($event)"
       [filterChip]="true"
     />
-    <app-button
-      variant="ghost"
-      [class.corrispettivi__filter--active]="onlineOnly()"
-      (click)="toggleOnlineOnly()"
-    >
-      Solo online
-    </app-button>
+    <!--
+      Canale e tipo sono indipendenti dal periodo e fra loro: si può chiedere
+      «2° trimestre 2026 · Shopify · Resi». Il tipo filtra l'ELENCO, non il
+      riepilogo — vedi la nota accanto al totale.
+    -->
+    <app-select-menu
+      [options]="channelOptions"
+      [value]="channelFilter()"
+      ariaLabel="Filtra per canale di vendita"
+      placeholder="Canale"
+      [compact]="true"
+      (valueChange)="onChannelChange($event)"
+      [filterChip]="true"
+    />
+    <app-select-menu
+      [options]="rowTypeOptions"
+      [value]="rowTypeFilter()"
+      ariaLabel="Filtra per tipo di riga"
+      placeholder="Tipo"
+      [compact]="true"
+      (valueChange)="onRowTypeChange($event)"
+      [filterChip]="true"
+    />
     <app-button
       variant="ghost"
       [class.corrispettivi__filter--active]="pendingOnly()"
       (click)="togglePendingOnly()"
     >
       Solo da consegnare
-    </app-button>
-    <app-button
-      variant="ghost"
-      [class.corrispettivi__filter--active]="refundsOnly()"
-      (click)="toggleRefundsOnly()"
-    >
-      Solo rimborsi
     </app-button>
   </div>
 
@@ -120,7 +135,7 @@
           icon="pi-shopping-cart"
         />
       } @else {
-        <app-corrispettivi-orders-table [orders]="orders()" />
+        <app-corrispettivi-orders-table [rows]="orders()" />
       }
     </section>
 

@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { DocumentType } from '@prisma/client';
 
 import {
@@ -72,6 +73,31 @@ export function canViewDocumentType(
     hasTenantPermission(user, docViewPermission(family)) ||
     hasTenantPermission(user, docManagePermission(family))
   );
+}
+
+/**
+ * Gate di CONSULTAZIONE per le rotte che ricevono il tipo documento come
+ * PARAMETRO invece di leggerlo da un documento salvato: anteprima numero e
+ * controllo cronologico.
+ *
+ * Su quelle rotte il gate di rotta («consulta almeno una famiglia») non basta:
+ * il tipo lo sceglie il client, quindi chi può vedere i soli Preventivi
+ * chiederebbe `?type=invoice_draft` e leggerebbe numeri, date e riferimenti del
+ * registro fatture — che è la stessa cosa che il filtro dell'elenco impedisce.
+ *
+ * `user` assente = chiamata interna al dominio: passa, come in
+ * `assertDocumentTypeManageable`.
+ */
+export function assertCanViewDocumentType(
+  user: PermissionUser | null | undefined,
+  type: DocumentType,
+): void {
+  if (!user) {
+    return;
+  }
+  if (!canViewDocumentType(user, type)) {
+    throw new ForbiddenException('Non hai il permesso di consultare questo tipo di documento.');
+  }
 }
 
 export function canManageDocumentType(

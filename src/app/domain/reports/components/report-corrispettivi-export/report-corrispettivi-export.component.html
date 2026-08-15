@@ -20,6 +20,59 @@
         />
       </div>
 
+      <!--
+        Mese, trimestre e anno compaiono solo per il periodo che li richiede:
+        «mese corrente» non ha un anno da scegliere, e non lo mostra. Stesso
+        schema di Dal/Al, che appaiono solo con «Personalizzato».
+      -->
+      @if (showMonthPicker()) {
+        <div class="corrispettivi-export__field">
+          <span class="corrispettivi-export__label">Mese</span>
+          <app-select-menu
+            [options]="monthOptions"
+            [value]="monthValue()"
+            ariaLabel="Mese del periodo"
+            placeholder="Mese"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onMonthChange($event)"
+          />
+        </div>
+      }
+
+      @if (showQuarterPicker()) {
+        <div class="corrispettivi-export__field">
+          <span class="corrispettivi-export__label">Trimestre</span>
+          <app-select-menu
+            [options]="quarterOptions"
+            [value]="quarterValue()"
+            ariaLabel="Trimestre del periodo"
+            placeholder="Trimestre"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onQuarterChange($event)"
+          />
+        </div>
+      }
+
+      @if (showYearPicker()) {
+        <div class="corrispettivi-export__field">
+          <span class="corrispettivi-export__label">Anno</span>
+          <app-select-menu
+            [options]="yearOptions()"
+            [value]="yearValue()"
+            ariaLabel="Anno del periodo"
+            placeholder="Anno"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onYearChange($event)"
+          />
+        </div>
+      }
+
       @if (showCustomDates()) {
         <div class="corrispettivi-export__field corrispettivi-export__field--date">
           <label class="corrispettivi-export__label" for="corrispettivi-date-from">Dal</label>

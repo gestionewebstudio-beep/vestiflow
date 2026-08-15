@@ -21,11 +21,6 @@ import {
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
-/** Anteprima numerazione dal numeratore supplier_order (Numeratori). */
-export interface SupplierOrderMeta {
-  readonly nextReferencePreview: string;
-}
-
 /**
  * Accesso HTTP agli ordini fornitori (NestJS). L'ordine è solo commerciale:
  * la ricezione merce passa dall'Arrivo merce collegato.
@@ -64,13 +59,6 @@ export class SupplierOrderService {
     return this.http
       .get<SupplierOrderApiRow>(this.url(`/supplier-orders/${id}`))
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSupplierOrderApiRow));
-  }
-
-  /** Anteprima prossimo riferimento (numeratore supplier_order). */
-  getMeta(): Observable<SupplierOrderMeta> {
-    return this.http
-      .get<SupplierOrderMeta>(this.url('/supplier-orders/meta'))
-      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   createOrder(body: CreateSupplierOrderBody): Observable<SupplierOrder> {

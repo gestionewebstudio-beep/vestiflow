@@ -6,10 +6,9 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { catchError, combineLatest, filter, map, of, startWith, switchMap, take } from 'rxjs';
+import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { isPlatformOperator } from '@core/permissions/platform-operator.util';
@@ -365,20 +364,14 @@ export class SettingsComponent {
       }
     });
 
-    // Prima apertura con Shopify collegato: allinea le location una volta, cosi'
-    // la tabella qui sotto mostra le sedi vere e non l'ultimo import. Una sola
-    // volta per visita (`take(1)`): non e' un polling.
-    toObservable(this.connectionStore.connected)
-      .pipe(
-        filter((connected) => connected),
-        take(1),
-        switchMap(() => this.shopifyConnectionService.syncLocations()),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: () => this.reloadLocations(),
-        error: () => this.reloadLocations(),
-      });
+    // ⛔ Qui la prima apertura della pagina lanciava la sincronizzazione delle
+    // sedi. Sembrava una lettura — «così la tabella mostra le sedi vere» — ma
+    // quell'operazione crea, rinomina e cancella sedi, e lo faceva senza che
+    // nessuno la chiedesse (registro difetti 3.14, `02` §7.4).
+    //
+    // La tabella mostra ora quello che VestiFlow ha, che è il dato di cui
+    // VestiFlow risponde. Per allinearla al canale c'è il pulsante nel pannello
+    // Shopify, che dichiara cosa fa.
   }
 
   protected onThemeChange(mode: ThemeMode): void {

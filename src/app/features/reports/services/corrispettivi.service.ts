@@ -13,7 +13,9 @@ import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 import type {
   CorrispettiviDelivery,
   CorrispettiviListQuery,
-  CorrispettiviOrder,
+  CorrispettiviRefundKind,
+  CorrispettiviRegisterRow,
+  CorrispettiviRowKind,
   CorrispettiviSummary,
   MarkCorrispettiviDeliveredRequest,
   SalesOrderFiscalStatus,
@@ -22,27 +24,30 @@ import type {
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
-interface CorrispettiviOrderApiRow {
-  readonly id: EntityId;
+interface CorrispettiviRegisterApiRow {
+  readonly rowId: string;
+  readonly kind: CorrispettiviRowKind;
+  readonly salesOrderId: EntityId;
   readonly orderNumber: string;
+  readonly occurredAt: string;
   readonly source: string;
-  readonly financialStatus: string;
-  readonly fiscalStatus: SalesOrderFiscalStatus;
   readonly customerName: string;
+  readonly customerEmail?: string | null;
   readonly currency: string;
-  readonly subtotalMinor: number;
+  readonly taxableMinor: number;
   readonly taxMinor: number;
-  readonly shippingMinor: number;
-  readonly discountMinor: number;
   readonly totalMinor: number;
-  readonly placedAt: string;
+  readonly financialStatus?: string | null;
+  readonly fiscalStatus?: SalesOrderFiscalStatus | null;
   readonly fiscalDeliveredAt?: string | null;
   readonly fiscalNote?: string | null;
-  readonly customer?: { readonly email?: string | null } | null;
+  readonly refundKind?: CorrispettiviRefundKind | null;
+  readonly note?: string | null;
 }
 
 interface CorrispettiviSummaryApi {
   readonly orderCount: number;
+  readonly undatedFulfilmentCount: number;
   readonly refundsCount: number;
   readonly subtotalMinor: number;
   readonly taxMinor: number;
@@ -51,6 +56,14 @@ interface CorrispettiviSummaryApi {
   readonly totalMinor: number;
   readonly taxableMinor: number;
   readonly pendingDeliveryCount: number;
+  readonly refundCount: number;
+  readonly refundTotalMinor: number;
+  readonly refundTaxMinor: number;
+  readonly cancellationCount: number;
+  readonly cancellationTotalMinor: number;
+  readonly netTotalMinor: number;
+  readonly netTaxMinor: number;
+  readonly netTaxableMinor: number;
 }
 
 interface CorrispettiviDeliveryApi {
@@ -76,9 +89,9 @@ export class CorrispettiviService {
 
   listOrders(
     query: CorrispettiviListQuery = {},
-  ): Observable<PaginatedResponse<CorrispettiviOrder>> {
+  ): Observable<PaginatedResponse<CorrispettiviRegisterRow>> {
     return this.http
-      .get<ApiPaginated<CorrispettiviOrderApiRow>>(this.url('/corrispettivi/orders'), {
+      .get<ApiPaginated<CorrispettiviRegisterApiRow>>(this.url('/corrispettivi/orders'), {
         params: this.buildParams(query),
       })
       .pipe(
@@ -86,7 +99,7 @@ export class CorrispettiviService {
         map((response) => {
           const paginated = toPaginatedResponse(response);
           return {
-            data: paginated.data.map(mapOrder),
+            data: paginated.data.map(mapRegisterRow),
             meta: paginated.meta,
           };
         }),
@@ -188,6 +201,9 @@ export class CorrispettiviService {
     if (query.refundsOnly) {
       params = params.set('refundsOnly', 'true');
     }
+    if (query.rowType) {
+      params = params.set('rowType', query.rowType);
+    }
 
     return params;
   }
@@ -197,27 +213,29 @@ export class CorrispettiviService {
   }
 }
 
-function mapOrder(row: CorrispettiviOrderApiRow): CorrispettiviOrder {
+function mapRegisterRow(row: CorrispettiviRegisterApiRow): CorrispettiviRegisterRow {
   const currency = row.currency || DEFAULT_CURRENCY;
-  const taxableMinor = Math.max(0, row.subtotalMinor - row.discountMinor);
   return {
-    id: row.id,
+    rowId: row.rowId,
+    kind: row.kind,
+    salesOrderId: row.salesOrderId,
     orderNumber: row.orderNumber,
+    occurredAt: row.occurredAt,
     source: row.source,
-    financialStatus: row.financialStatus,
-    fiscalStatus: row.fiscalStatus,
     customerName: row.customerName,
-    customerEmail: row.customer?.email ?? undefined,
+    customerEmail: row.customerEmail ?? undefined,
     currency,
-    subtotal: money(row.subtotalMinor, currency),
+    // Gli importi arrivano già col segno: sulle rettifiche sono negativi, ed è
+    // quel segno che rende la colonna sommabile a occhio.
+    taxable: money(row.taxableMinor, currency),
     tax: money(row.taxMinor, currency),
-    shipping: money(row.shippingMinor, currency),
-    discount: money(row.discountMinor, currency),
     total: money(row.totalMinor, currency),
-    taxable: money(taxableMinor, currency),
-    placedAt: row.placedAt,
+    financialStatus: row.financialStatus ?? undefined,
+    fiscalStatus: row.fiscalStatus ?? undefined,
     fiscalDeliveredAt: row.fiscalDeliveredAt ?? undefined,
     fiscalNote: row.fiscalNote ?? undefined,
+    refundKind: row.refundKind ?? undefined,
+    note: row.note ?? undefined,
   };
 }
 
@@ -232,6 +250,15 @@ function mapSummary(row: CorrispettiviSummaryApi): CorrispettiviSummary {
     total: money(row.totalMinor),
     taxable: money(row.taxableMinor),
     pendingDeliveryCount: row.pendingDeliveryCount,
+    undatedFulfilmentCount: row.undatedFulfilmentCount,
+    refundCount: row.refundCount,
+    refundTotal: money(row.refundTotalMinor),
+    refundTax: money(row.refundTaxMinor),
+    cancellationCount: row.cancellationCount,
+    cancellationTotal: money(row.cancellationTotalMinor),
+    netTotal: money(row.netTotalMinor),
+    netTax: money(row.netTaxMinor),
+    netTaxable: money(row.netTaxableMinor),
   };
 }
 

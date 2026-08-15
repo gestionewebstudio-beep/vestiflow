@@ -4,15 +4,30 @@ import {
   SalesOrderFinancialStatus,
   SalesOrderFiscalStatus,
   SalesOrderFulfillmentStatus,
+  SalesOrderRefundKind,
   SalesOrderSource,
 } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { OnlineOrderLifecycleService } from '../order-reservations/online-order-lifecycle.service';
 import type { ReservationLineInput } from '../order-reservations/stock-reservation.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
+import {
+  mapShopifyLineDiscountMinor,
+  shopifyLineTotalMinor,
+} from './shopify-line-discount.util';
+import { mapShopifyLineVat } from './shopify-line-vat.util';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
+import { mapShopifyRefunds, type ShopifyRefundKind } from './shopify-refund.util';
+
+/** La util non conosce Prisma: la traduzione dei nomi vive qui. */
+const REFUND_KIND_TO_PRISMA: Record<ShopifyRefundKind, SalesOrderRefundKind> = {
+  return: SalesOrderRefundKind.return_with_restock,
+  refund: SalesOrderRefundKind.refund_only,
+  cancellation: SalesOrderRefundKind.cancellation,
+};
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { extractShopifyOrderGid } from './shopify-order-id.util';
 import { resolveShopifyOrderLocationId } from './shopify-order-location.util';
@@ -212,14 +227,28 @@ export class ShopifySyncService {
           );
           const unitMinor = shopifyDecimalToMinor(String(line.price ?? '0'));
           const qty = Number(line.quantity ?? 0);
+          const discountMinor = mapShopifyLineDiscountMinor(line);
+          const vat = mapShopifyLineVat(line);
           return {
             externalLineId: line.id != null ? String(line.id) : `pos-${index}`,
             variantId,
             sku: String(line.sku ?? '—'),
             title: String(line.title ?? line.name ?? 'Riga ordine'),
             quantity: qty,
+            // Prezzo PIENO e totale EFFETTIVO, entrambi veri: la loro differenza
+            // è lo sconto allocato dal canale, esatta al centesimo. Prima si
+            // scriveva il prezzo pieno anche come totale e lo sconto si buttava,
+            // così le righe non facevano il totale dell'ordine — 120,00 € di
+            // righe su un ordine da 104,00 (registro difetti 3.9).
             unitPriceMinor: unitMinor,
-            totalMinor: unitMinor * qty,
+            totalMinor: shopifyLineTotalMinor(unitMinor, qty, discountMinor),
+            // L'IVA della riga come la dichiara il canale. Prima si buttava, e
+            // a valle veniva ricostruita ripartendo l'imposta dell'ordine in
+            // proporzione al valore: il totale tornava, ogni riga era sbagliata
+            // (registro difetti 3.12 — 6,22 € su una riga la cui imposta vera
+            // è 2,31). Il dato c'era, e ora si conserva.
+            lineVatTotalMinor: vat.taxMinor,
+            vatSnapshot: vat.snapshot ?? Prisma.DbNull,
           };
         }),
       );
@@ -250,9 +279,13 @@ export class ShopifySyncService {
             quantity: row.quantity,
             unitPriceMinor: row.unitPriceMinor,
             totalMinor: row.totalMinor,
+            lineVatTotalMinor: row.lineVatTotalMinor,
+            vatSnapshot: row.vatSnapshot,
           },
         });
       }
+
+      await this.persistRefunds(tx, tenantId, saved.id, currency, placedAt, order);
 
       savedOrderId = saved.id;
     });
@@ -267,6 +300,59 @@ export class ShopifySyncService {
     // mano dalla schermata ordine, quando l'operatore lo decide. La sync muove
     // solo impegni ed evasione (emitCanonicalOrderEvents sopra).
     return existingBefore ? 'updated' : 'created';
+  }
+
+  /**
+   * Rettifiche economiche del canale (specifica 08 §4).
+   *
+   * Il rimborso dice quanto torna al cliente, non se la merce rientra: la
+   * quantità la muovono gli eventi `restocked`, che nascono dal `restock_type`
+   * di riga ed è una decisione indipendente da questa. Qui si scrive solo il
+   * denaro, con la data in cui la rettifica è avvenuta — è quella che il
+   * registro corrispettivi deve usare, non la data dell'ordine.
+   *
+   * Idempotente per costruzione: lo stesso ordine torna a ogni webhook coi
+   * rimborsi già visti dentro, e l'unicità (tenant, id rimborso del canale)
+   * impedisce di contare due volte la stessa rettifica.
+   */
+  private async persistRefunds(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    salesOrderId: string,
+    currency: string,
+    placedAt: Date,
+    order: Record<string, unknown>,
+  ): Promise<void> {
+    for (const row of mapShopifyRefunds(order, placedAt)) {
+      const { externalRefundId, taxLines, kind, ...data } = row;
+      const saved = await tx.salesOrderRefund.upsert({
+        where: { tenantId_externalRefundId: { tenantId, externalRefundId } },
+        create: {
+          tenantId,
+          salesOrderId,
+          externalRefundId,
+          currency,
+          kind: REFUND_KIND_TO_PRISMA[kind],
+          ...data,
+        },
+        update: { currency, kind: REFUND_KIND_TO_PRISMA[kind], ...data },
+        select: { id: true },
+      });
+
+      // La scomposizione si riscrive per intero: è derivata, e ricalcolarla
+      // costa meno che riconciliarla riga per riga.
+      await tx.salesOrderRefundTaxLine.deleteMany({ where: { refundId: saved.id } });
+      if (taxLines.length > 0) {
+        await tx.salesOrderRefundTaxLine.createMany({
+          data: taxLines.map((line) => ({
+            refundId: saved.id,
+            ratePercent: line.ratePercent,
+            taxableMinor: line.taxableMinor,
+            taxMinor: line.taxMinor,
+          })),
+        });
+      }
+    }
   }
 
   /**
@@ -373,7 +459,19 @@ export class ShopifySyncService {
    * Eventi canonici `online_order_restocked` dai rimborsi Shopify con
    * `restock_type` fisico (`return`/`legacy_restock`). Un evento per
    * rimborso × location, idempotente via dedupe suffix (id refund + location).
-   * `cancel` è escluso: pre-evasione la giacenza non era mai stata scaricata.
+   *
+   * **«Rimborso» qui è il contenitore, non il significato.** Elaborando un
+   * RESO, Shopify crea comunque un `refunds[]` — anche da ZERO euro, quando
+   * l'ordine non era stato incassato — e ci mette dentro `restock_type: return`.
+   * È così che il rientro della merce arriva a VestiFlow: non dai topic
+   * `returns/*`, che non sono registrati, ma incartato in un rimborso.
+   * Misurato il 14/08/2026 su un ordine in sospeso reso per intero.
+   *
+   * `cancel` è escluso, ed è corretto — **verificato il 14/08/2026**, non più
+   * solo assunto: annullando un ordine non evaso con la ricarica attiva,
+   * Shopify libera l'impegno e NON ricarica la giacenza (`available` da −2 a
+   * −1, non a 0). La merce non era mai uscita, quindi non c'è nulla da far
+   * rientrare. E un ordine già evaso su Shopify non si annulla affatto.
    */
   private async emitRestockEvents(
     base: {

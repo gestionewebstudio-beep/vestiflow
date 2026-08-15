@@ -29,7 +29,15 @@ const schemaPath = join(root, 'api/prisma/schema.prisma');
 const migrationsDir = join(root, 'api/prisma/migrations');
 
 const schema = readFileSync(schemaPath, 'utf8');
-const tables = [...schema.matchAll(/@@map\("([^"]+)"\)/g)].map((m) => m[1]);
+
+// `@@map` esiste anche dentro un `enum`, e li' nomina un TIPO, non una tabella:
+// un tipo non ha righe, non ha RLS, e chiederla farebbe fallire la build per
+// una cosa che non esiste. Si scartano quindi i blocchi `enum { ... }` prima di
+// cercare le mappature. (Nello schema nessun enum usa `@@map` — la convenzione
+// e' lasciarli col nome Prisma — ma la guardia costa una riga e la convenzione
+// si e' gia' rotta una volta, il 14/08/2026.)
+const soloModelli = schema.replace(/^enum\s+\w+\s*\{[^}]*\}/gm, '');
+const tables = [...soloModelli.matchAll(/@@map\("([^"]+)"\)/g)].map((m) => m[1]);
 
 if (tables.length === 0) {
   console.error('[check-rls] Nessuna tabella trovata nello schema Prisma.');
@@ -54,9 +62,9 @@ const migrationSql = readdirSync(migrationsDir, { withFileTypes: true })
   .join('\n');
 
 const rlsEnabled = new Set(
-  [...migrationSql.matchAll(/ALTER\s+TABLE\s+"?([\w.]+)"?\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/gi)].map(
-    (m) => m[1].replace(/^public\./, ''),
-  ),
+  [
+    ...migrationSql.matchAll(/ALTER\s+TABLE\s+"?([\w.]+)"?\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/gi),
+  ].map((m) => m[1].replace(/^public\./, '')),
 );
 
 const unprotected = tables.filter((table) => !rlsEnabled.has(table));

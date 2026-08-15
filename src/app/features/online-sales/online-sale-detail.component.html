@@ -31,11 +31,6 @@
           <app-badge [tone]="inventoryTone(s.inventoryStatus)">
             {{ inventoryLabel(s.inventoryStatus) }}
           </app-badge>
-          @if (s.corrispettivo) {
-            <app-badge [tone]="corrispettivoTone(s.corrispettivo.status)">
-              Corrispettivo: {{ corrispettivoLabel(s.corrispettivo.status) }}
-            </app-badge>
-          }
           @if (s.refundedAt) {
             <app-badge tone="error">Rimborsato dopo l'evasione</app-badge>
           }

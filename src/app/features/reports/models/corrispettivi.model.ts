@@ -12,28 +12,44 @@ export const SalesOrderFiscalStatus = {
 export type SalesOrderFiscalStatus =
   (typeof SalesOrderFiscalStatus)[keyof typeof SalesOrderFiscalStatus];
 
-export interface CorrispettiviOrder {
-  readonly id: EntityId;
+/**
+ * Una riga del registro: o una vendita, o una rettifica.
+ *
+ * Le rettifiche portano importi **negativi**, così la colonna si somma a occhio
+ * e il totale in fondo alla schermata si ricostruisce riga per riga. Non sono
+ * documenti nuovi: derivano dalle vendite e dai rimborsi del canale.
+ */
+export type CorrispettiviRowKind = 'sale' | 'refund';
+
+/** Che gesto è stata la rettifica (solo sulle righe `refund`). */
+export type CorrispettiviRefundKind = 'return_with_restock' | 'refund_only' | 'cancellation';
+
+export interface CorrispettiviRegisterRow {
+  readonly rowId: string;
+  readonly kind: CorrispettiviRowKind;
+  /** Sempre presente: da qui si apre l'ordine, anche partendo da una rettifica. */
+  readonly salesOrderId: EntityId;
   readonly orderNumber: string;
+  readonly occurredAt: IsoDateString;
   readonly source: string;
-  readonly financialStatus: string;
-  readonly fiscalStatus: SalesOrderFiscalStatus;
   readonly customerName: string;
   readonly customerEmail?: string;
   readonly currency: CurrencyCode;
-  readonly subtotal: Money;
-  readonly tax: Money;
-  readonly shipping: Money;
-  readonly discount: Money;
-  readonly total: Money;
   readonly taxable: Money;
-  readonly placedAt: IsoDateString;
+  readonly tax: Money;
+  readonly total: Money;
+  readonly financialStatus?: string;
+  readonly fiscalStatus?: SalesOrderFiscalStatus;
   readonly fiscalDeliveredAt?: IsoDateString;
   readonly fiscalNote?: string;
+  readonly refundKind?: CorrispettiviRefundKind;
+  readonly note?: string;
 }
 
 export interface CorrispettiviSummary {
   readonly orderCount: number;
+  /** Ordini «evasi» ma senza data: non conteggiabili, e non nascosti. */
+  readonly undatedFulfilmentCount: number;
   readonly refundsCount: number;
   readonly subtotal: Money;
   readonly tax: Money;
@@ -42,6 +58,17 @@ export interface CorrispettiviSummary {
   readonly total: Money;
   readonly taxable: Money;
   readonly pendingDeliveryCount: number;
+  /** Rettifiche del periodo, alla loro data. Gli annullamenti restano fuori. */
+  readonly refundCount: number;
+  readonly refundTotal: Money;
+  readonly refundTax: Money;
+  /** Annullamenti: si contano per trasparenza, non si sottraggono mai. */
+  readonly cancellationCount: number;
+  readonly cancellationTotal: Money;
+  /** Il numero che conta: venduto meno reso. */
+  readonly netTotal: Money;
+  readonly netTax: Money;
+  readonly netTaxable: Money;
 }
 
 export interface CorrispettiviDelivery {
@@ -71,6 +98,8 @@ export interface CorrispettiviListQuery {
   readonly placedTo?: string;
   readonly onlineOnly?: boolean;
   readonly posOnly?: boolean;
+  /** `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
+  readonly rowType?: string;
   readonly pendingDeliveryOnly?: boolean;
   readonly refundsOnly?: boolean;
 }

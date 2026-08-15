@@ -91,6 +91,24 @@ describe('ShopifyIntegrationPanelComponent', () => {
     expect(screen.getByText('2 location collegate a Shopify')).toBeVisible();
   });
 
+  /**
+   * ⛔ La sincronizzazione delle sedi non parte da sola.
+   *
+   * Non è una lettura: crea sedi quando il nome non coincide, rinomina quelle
+   * collegate e ne cancella o disattiva altre. Partiva da tre punti — questo
+   * pannello al ritorno da OAuth, la prima apertura delle Impostazioni e un
+   * effect della shell che scattava da qualunque pagina — e tre sedi VestiFlow
+   * più tre location Shopify diventavano sei (registro difetti 3.14).
+   *
+   * Se questo test fallisce, qualcuno ha rimesso un innesco automatico.
+   */
+  it('aprendo il pannello non parte nessuna sincronizzazione delle sedi', async () => {
+    await setup();
+
+    await screen.findByText('demo.myshopify.com');
+    expect(connectionService.syncLocations).not.toHaveBeenCalled();
+  });
+
   it('dopo «Sincronizza location» avvisa chi ospita il pannello, che rilegge le sedi', async () => {
     const user = userEvent.setup();
     const { locationsChanged } = await setup();
