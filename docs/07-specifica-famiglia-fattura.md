@@ -62,7 +62,7 @@ Con percorsi separati per tipo (§4), l'operatore vede tre voci distinte e concl
 
 Informazione passiva, non conferma attiva (cfr. sistema aiuti, punto 2). **Da dichiarare l'equivalente mobile**, dove il passaggio del mouse non esiste: tocco sull'icona o riga sotto il campo. Senza, l'informazione la vede metà degli operatori.
 
-**Stato: deciso 14/08, non iniziato.**
+**Stato: il numeratore condiviso è ✅ fatto e applicato (§19); l'avviso all'operatore è deciso 14/08 e NON iniziato.**
 
 ## §3 · Elenco
 
@@ -72,7 +72,7 @@ _Misurato 14/08:_ il profilo `invoice` in `document-sales-register.config.ts` po
 
 Il sottotitolo va riscritto: oggi dice «Fatture fiscali da inviare al commercialista, con o senza trasporto merce incluso», che non comprende le note di credito.
 
-**Stato: deciso 14/08, non iniziato.**
+**Stato: ✅ fatto il 15/08 — vedi §20.**
 
 ## §4 · Percorsi
 
@@ -84,7 +84,7 @@ _Nota:_ l'argomento «i permessi si controllano prima della lettura» **non regg
 
 Prezzo accettato: i collegamenti a documenti già emessi cambiano forma. Con zero clienti in produzione il prezzo è teorico, ed è l'unica finestra in cui questa scelta costa poco.
 
-**Stato: deciso 14/08, non iniziato.**
+**Stato: ✅ fatto il 15/08 — vedi §20.**
 
 ## §5 · Creazione
 
@@ -94,7 +94,7 @@ _Misurato 14/08:_ oggi il pulsante è unico e la sua etichetta segue il filtro T
 
 Scelta la tendina e non tre pulsanti affiancati perché la barra non si allunga quando arriveranno altri tipi.
 
-**Stato: deciso 14/08, non iniziato.**
+**Stato: ✅ fatto il 15/08 — vedi §20.**
 
 ## §5-bis · Da dove nasce una fattura, e chi scarica il magazzino
 
