@@ -1057,6 +1057,54 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   private readonly isPosOrder = computed(() => this.loadedOrder()?.source === SalesOrderSource.Pos);
 
   /**
+   * Riepilogo di un ordine di canale: **si legge, non si ricalcola**.
+   *
+   * Il motore dei totali di questa maschera è quello dell'ordine manuale —
+   * quantità × prezzo scontato dalla percentuale di riga, più lo sconto extra
+   * documento. Su un ordine Shopify non torna, per tre motivi che non sono
+   * difetti del motore ma differenze di natura:
+   *
+   * · la **spedizione** non è una riga articolo e nel calcolo delle righe non
+   *   compare da nessuna parte;
+   * · lo **sconto** nasce sull'intero ordine ed è un importo, non una
+   *   percentuale: le righe lo portano già allocato da Shopify, e ricalcolarlo
+   *   darebbe numeri diversi da quelli della conferma d'ordine;
+   * · i prezzi del canale sono **comprensivi d'imposta**, quindi la somma
+   *   delle righe non è un imponibile.
+   *
+   * Da qui la regola di `02` §4.8 — l'ordine si registra com'è avvenuto — e la
+   * sua conseguenza in maschera: i valori vengono dalla testata memorizzata,
+   * e l'imponibile si **ricava per differenza** (`PREZZI-SHOPIFY-SPEC` §4.1),
+   * mai sostituendo un lordo sotto l'etichetta di un netto.
+   *
+   * _Le righe restano al prezzo pieno, come le mostra Shopify: lo sconto
+   * d'ordine compare una volta sola, qui. Mostrarlo anche sulle righe lo
+   * conterebbe due volte._
+   */
+  protected readonly channelTotals = computed(() => {
+    const order = this.loadedOrder();
+    const currency = order?.currency ?? this.currency;
+    const money = (amountMinor: number) => ({ amountMinor, currencyCode: currency });
+
+    const subtotal = order?.subtotal?.amountMinor ?? 0;
+    const discount = order?.discount?.amountMinor ?? 0;
+    const shipping = order?.shipping?.amountMinor ?? 0;
+    const tax = order?.tax?.amountMinor ?? 0;
+    const total = order?.total?.amountMinor ?? 0;
+
+    return {
+      // Il subtotale del canale è già al netto dello sconto: il pieno delle
+      // righe — quello che la tabella mostra — si riottiene sommandolo.
+      linesGross: money(subtotal + discount),
+      discount: money(discount),
+      shipping: money(shipping),
+      taxable: money(total - tax),
+      tax: money(tax),
+      total: money(total),
+    };
+  });
+
+  /**
    * Evaso DEL TUTTO, e quindi **dentro i corrispettivi del periodo**.
    *
    * L'evasione PARZIALE non crea la vendita online e non fa entrare l'ordine

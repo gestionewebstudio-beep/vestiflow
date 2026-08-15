@@ -47,6 +47,12 @@ export interface SalesOrderApiRow {
   readonly currency: CurrencyCode;
   readonly subtotalMinor: number;
   readonly totalMinor: number;
+  // Componenti economiche della testata: le porta il canale, e sull'ordine
+  // online sono l'unico modo di far tornare il totale (spedizione e sconto
+  // d'ordine non stanno su nessuna riga).
+  readonly taxMinor?: number;
+  readonly shippingMinor?: number;
+  readonly discountMinor?: number;
   readonly placedAt: IsoDateString;
   readonly cancelledAt?: IsoDateString | null;
   readonly fulfilledAt?: IsoDateString | null;
@@ -216,6 +222,9 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     lines: (row.lines ?? []).map((line) => mapLine(line, currency)),
     subtotal: { amountMinor: row.subtotalMinor, currencyCode: currency },
     total: { amountMinor: row.totalMinor, currencyCode: currency },
+    tax: { amountMinor: row.taxMinor ?? 0, currencyCode: currency },
+    shipping: { amountMinor: row.shippingMinor ?? 0, currencyCode: currency },
+    discount: { amountMinor: row.discountMinor ?? 0, currencyCode: currency },
     placedAt: row.placedAt,
     cancelledAt: row.cancelledAt ?? undefined,
     fulfilledAt: row.fulfilledAt ?? undefined,

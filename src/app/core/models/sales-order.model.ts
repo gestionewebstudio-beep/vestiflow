@@ -103,6 +103,17 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly lines: readonly SalesOrderLine[];
   readonly subtotal: Money;
   readonly total: Money;
+  /**
+   * Componenti economiche della testata, come le manda il canale.
+   *
+   * Su un ordine online non stanno su nessuna riga — la spedizione non è un
+   * articolo e lo sconto nasce sull'intero ordine — quindi senza di esse il
+   * totale del documento non torna con quello che il cliente ha pagato.
+   * Sugli ordini manuali valgono zero: lì i totali si calcolano dalle righe.
+   */
+  readonly tax?: Money;
+  readonly shipping?: Money;
+  readonly discount?: Money;
   /** Data dell'ordine (Shopify processedAt). */
   readonly placedAt: IsoDateString;
   /** Annullamento comunicato dal canale (impegni rilasciati). */

@@ -940,6 +940,76 @@ describe('CustomerOrderFormComponent — ordini da canale esterno', () => {
 
     expect(form.canConclude()).toBe(true);
   });
+
+  /**
+   * Il riepilogo di un ordine di canale si LEGGE, non si ricalcola.
+   *
+   * Numeri veri di `#1010` (15/08/2026): maglietta 25,00 con 12,00 di sconto
+   * allocato da Shopify, un secondo articolo a 24,59 senza sconto, spedizione
+   * 26,01, imposta 11,46 inclusa, totale 63,60.
+   *
+   * Prima di questa correzione la maschera mostrava **25,00** come totale del
+   * documento: ricostruiva le righe col motore dell'ordine manuale — quantità
+   * per prezzo scontato dalla percentuale — dove la spedizione non esiste, lo
+   * sconto a importo non esiste e i prezzi si credono netti. Il difetto era
+   * invisibile finché anche il database conteneva 25,00.
+   */
+  it('un ordine di canale mostra i totali del canale, non quelli ricalcolati', async () => {
+    const eur = (amountMinor: number) => ({ amountMinor, currencyCode: 'EUR' });
+
+    await apri(
+      ordine({
+        subtotal: eur(3759),
+        total: eur(6360),
+        tax: eur(1146),
+        shipping: eur(2601),
+        discount: eur(1200),
+        lines: [
+          {
+            id: 'l-1',
+            sku: 'SKU-1',
+            title: 'maglietta',
+            quantity: 1,
+            unitPrice: eur(2500),
+            lineTotal: eur(1300),
+          },
+          {
+            id: 'l-2',
+            sku: 'SKU-2',
+            title: 'Prodotto test sincro',
+            quantity: 1,
+            unitPrice: eur(2459),
+            lineTotal: eur(2459),
+          },
+        ],
+      }),
+    );
+
+    const riepilogo = document.body.textContent ?? '';
+
+    // Il totale è quello che il cliente ha pagato, non la somma delle righe.
+    expect(riepilogo).toContain('Totale ordine');
+    expect(riepilogo).toContain('63,60');
+
+    // Lo sconto d'ordine compare UNA VOLTA SOLA, qui: le righe restano al
+    // prezzo pieno, come le mostra Shopify. Contarlo due volte darebbe 25,59.
+    expect(riepilogo).toContain('Sconto ordine');
+    expect(riepilogo).toContain('12,00');
+    expect(riepilogo).toContain('49,59');
+
+    // La spedizione non è una riga articolo: senza questa voce il totale non
+    // tornerebbe con Shopify per 26,01 €.
+    expect(riepilogo).toContain('Spedizione');
+    expect(riepilogo).toContain('26,01');
+
+    // I prezzi del canale sono ivati: l'imponibile si ricava per differenza
+    // (63,60 − 11,46), non chiamando imponibile la somma delle righe.
+    expect(riepilogo).toContain('52,14');
+    expect(riepilogo).toContain('IVA inclusa');
+
+    // E l'etichetta netta dell'ordine manuale non deve comparire su un lordo.
+    expect(riepilogo).not.toContain('Imponibile righe');
+  });
 });
 
 /**
