@@ -557,6 +557,16 @@ Prodotti e Clienti ricevono le colonne ma le usano solo per sapere **se** una co
 
 Il **pin** non compare sui documenti: nessuna delle tre configurazioni dichiara `pinnable`.
 
+### 7.0-quater Il corpo del PATCH della maschera Fattura _(corretto 15/08/2026)_
+
+**Modificare un documento dalla maschera Fattura non aveva mai funzionato** — Proforma, Fattura e Accompagnatoria. La maschera spediva in modifica **lo stesso corpo della creazione**, `type` e `sourceDocumentId` compresi; il DTO di aggiornamento non li prevede e l'API valida con `forbidNonWhitelisted`, quindi la risposta era **400**. Senza un messaggio da mostrare, a schermo il pulsante «Salva documento» sembrava inerte.
+
+Non era una regressione: verificato su `6ab98fb2` che quei due campi c'erano da prima. Non se n'era accorto nessuno perché nessuno aveva mai modificato uno di quei tre documenti.
+
+**La maschera del DDT costruisce da sempre un corpo apposta per la modifica**, ed è il modello: `type` e `sourceDocumentId` valgono alla nascita e non si rimandano. Ora anche la Fattura passa da `toUpdateBody`, un metodo e non uno spread — così il giorno in cui la creazione guadagnerà un altro campo di sola nascita, quello è il posto dove si nota.
+
+⚠️ **Perché era sfuggito ai test, e cosa è cambiato nell'impalcatura.** La spec della maschera sapeva montare **solo la creazione**: nessun test apriva un documento esistente, quindi il corpo del PATCH non lo guardava nessuno. Ora `setup({ editDocument })` monta la modifica — id nella rotta e documento restituito dalla GET — e due prove verificano che nel corpo non ci siano `type` né `sourceDocumentId`, e che la riga rimandi indietro il proprio `id` (§`09` §4-bis). **Verificate per mutazione**: rimettendo lo spread, falliscono.
+
 ### 7.0-ter Sostituire l'articolo su una riga già compilata _(corretto 15/08/2026)_
 
 **La regola.** I campi che vengono dall'ARTICOLO — prezzo, costo, prezzi di vendita, Codice IVA — appartengono all'articolo. Quando su una riga si richiama un articolo diverso, **si riscrivono**, anche svuotandosi se il nuovo non li ha. Tenere il prezzo del precedente non è conservare un dato: è un dato sbagliato, e non lo vede nessuno finché non arriva la fattura.

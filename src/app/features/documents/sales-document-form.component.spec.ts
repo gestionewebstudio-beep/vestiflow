@@ -71,6 +71,13 @@ interface SetupOptions {
   readonly variantSummaries?: readonly Record<string, unknown>[];
   /** Codici IVA disponibili: servono alla catena di precedenza della riga. */
   readonly vatCodes?: readonly Record<string, unknown>[];
+  /**
+   * Documento già salvato: la maschera si apre **in modifica** (id nella rotta,
+   * documento restituito dalla GET) e il salvataggio va in PATCH invece che in
+   * POST. Senza, questa spec sapeva provare solo la creazione — ed è il motivo
+   * per cui il difetto del corpo di PATCH è arrivato fino a schermo.
+   */
+  readonly editDocument?: Record<string, unknown>;
 }
 
 describe('SalesDocumentFormComponent', () => {
@@ -112,6 +119,10 @@ describe('SalesDocumentFormComponent', () => {
       of({ id: 'doc-1', number: options.assignedNumber ?? proposedNumber ?? 1 }),
     );
     const toast = { showInfo: vi.fn(), showError: vi.fn() };
+    const updateDocument = vi.fn((_id: string, _body: unknown) =>
+      of({ id: 'doc-1', number: options.assignedNumber ?? proposedNumber ?? 1 }),
+    );
+    const editParams = options.editDocument ? { id: 'doc-1' } : {};
 
     const view = await render(SalesDocumentFormComponent, {
       providers: [
@@ -152,7 +163,7 @@ describe('SalesDocumentFormComponent', () => {
               data: { salesDocumentType: DocumentType.Proforma },
               queryParamMap: convertToParamMap({}),
             },
-            paramMap: of(convertToParamMap({})),
+            paramMap: of(convertToParamMap(editParams)),
             data: of({ salesDocumentType: DocumentType.Proforma }),
           },
         },
@@ -196,14 +207,14 @@ describe('SalesDocumentFormComponent', () => {
         {
           provide: DocumentService,
           useValue: {
-            getDocumentById: vi.fn(),
+            getDocumentById: vi.fn(() => of(options.editDocument ?? null)),
+            updateDocument,
             // Controllo cronologico (§4): serie in ordine, nessun avviso.
             checkChronology: () => of({ conflicts: [], dismissed: false }),
             dismissChronologyWarning: () => of(void 0),
             // DDT agganciabili in fattura (mai richiesti senza cliente).
             getDocuments: () => of({ data: [], page: 1, pageSize: 50, total: 0 }),
             createDocument,
-            updateDocument: vi.fn(),
             confirmDocument: vi.fn(),
             getPriceModePreference: () => of(options.pricesIncludeVat ?? false),
           },
@@ -211,7 +222,7 @@ describe('SalesDocumentFormComponent', () => {
       ],
     });
 
-    return { createDocument, toast, component: view.fixture.componentInstance };
+    return { createDocument, updateDocument, toast, component: view.fixture.componentInstance };
   }
 
   /** Cliente + una riga valida: il minimo che il salvataggio pretende. */
@@ -362,6 +373,100 @@ describe('SalesDocumentFormComponent', () => {
     expect(screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
       0,
     );
+  });
+
+  // ── Il corpo del PATCH ────────────────────────────────────────────────────
+  //
+  // Difetto reale, arrivato fino a schermo il 15/08/2026: la maschera spediva
+  // in modifica lo stesso corpo della creazione, `type` e `sourceDocumentId`
+  // compresi. Il DTO di aggiornamento non li prevede e l'API valida con
+  // `forbidNonWhitelisted` → 400, senza messaggio: il pulsante sembrava inerte.
+  // Modificare un documento da questa maschera non aveva mai funzionato.
+  //
+  // La prova sta qui e non fra i test di creazione perché è la MODIFICA che era
+  // scoperta: questa spec sapeva montare solo la maschera nuova.
+  it('in modifica non manda type né sourceDocumentId', async () => {
+    const user = userEvent.setup();
+    const { updateDocument, createDocument } = await setup({
+      editDocument: {
+        id: 'doc-1',
+        type: DocumentType.Proforma,
+        status: 'draft',
+        series: 'A',
+        year: 2026,
+        number: 7,
+        reference: 'PRO-0007',
+        documentDate: '2026-08-15T00:00:00.000Z',
+        currency: 'EUR',
+        customerId: 'cus-1',
+        locationId: 'loc-1',
+        pricesIncludeVat: false,
+        documentDiscountPercent: 0,
+        lines: [
+          {
+            id: 'l-1',
+            lineNumber: 1,
+            description: 'Maglietta',
+            quantity: 2,
+            unitPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+            discountPercent: 0,
+            loadsStock: false,
+          },
+        ],
+      },
+    });
+
+    await save(user);
+
+    expect(createDocument).not.toHaveBeenCalled();
+    expect(updateDocument).toHaveBeenCalledTimes(1);
+    const [id, body] = updateDocument.mock.calls[0]! as [string, Record<string, unknown>];
+    expect(id).toBe('doc-1');
+    expect(body).not.toHaveProperty('type');
+    expect(body).not.toHaveProperty('sourceDocumentId');
+    // Il resto del corpo deve esserci: la correzione toglie due campi, non
+    // dimezza il salvataggio.
+    expect(body['customerId']).toBe('cus-1');
+    expect(body['lines']).toHaveLength(1);
+  });
+
+  // La riga già salvata rimanda indietro il proprio id: è ciò che consente al
+  // server di aggiornarla invece di ricrearla (docs/09 §4-bis).
+  it('in modifica la riga rimanda indietro il proprio id', async () => {
+    const user = userEvent.setup();
+    const { updateDocument } = await setup({
+      editDocument: {
+        id: 'doc-1',
+        type: DocumentType.Proforma,
+        status: 'draft',
+        series: 'A',
+        year: 2026,
+        number: 7,
+        reference: 'PRO-0007',
+        documentDate: '2026-08-15T00:00:00.000Z',
+        currency: 'EUR',
+        customerId: 'cus-1',
+        locationId: 'loc-1',
+        pricesIncludeVat: false,
+        documentDiscountPercent: 0,
+        lines: [
+          {
+            id: 'l-1',
+            lineNumber: 1,
+            description: 'Maglietta',
+            quantity: 2,
+            unitPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+            discountPercent: 0,
+            loadsStock: false,
+          },
+        ],
+      },
+    });
+
+    await save(user);
+
+    const [, body] = updateDocument.mock.calls[0]! as [string, { lines: { id?: string }[] }];
+    expect(body.lines[0]!.id).toBe('l-1');
   });
 
   // ── Sostituzione d'articolo sulla riga ────────────────────────────────────
