@@ -191,41 +191,21 @@ export class ShellLayoutComponent {
     }
   });
 
-  /** Allinea le sedi al catalogo Shopify una volta per sessione (rimuove sedi obsolete). */
-  private readonly sessionLocationSync = effect((onCleanup) => {
-    if (this.isPlatformOperator()) {
-      return;
-    }
-    if (this.shopifySyncStatus() !== ShopifyConnectionStatus.Connected) {
-      return;
-    }
-
-    const storageKey = 'vestiflow-session-location-sync-v3';
-    try {
-      if (this.document.defaultView?.sessionStorage.getItem(storageKey)) {
-        return;
-      }
-    } catch {
-      return;
-    }
-
-    const subscription = this.shopifyConnectionService
-      .syncLocations()
-      .pipe(catchError(() => of(null)))
-      .subscribe((result) => {
-        this.inventoryService.invalidateLocationsCache();
-        if (!result) {
-          return;
-        }
-        try {
-          this.document.defaultView?.sessionStorage.setItem(storageKey, '1');
-        } catch {
-          // sessionStorage non disponibile: nessuna persistenza del flag.
-        }
-      });
-
-    onCleanup(() => subscription.unsubscribe());
-  });
+  // ⛔ Qui stava un allineamento delle sedi che partiva DA SOLO, una volta per
+  // sessione del browser, per ogni utente e da qualunque pagina dell'app.
+  //
+  // Non era una lettura: quella sincronizzazione **crea** sedi quando il nome
+  // non coincide, **rinomina** quelle collegate col nome Shopify e ne
+  // **cancella o disattiva** altre. Tre sedi VestiFlow e tre location Shopify
+  // con nomi diversi diventavano sei, e le giacenze si spartivano fra doppioni.
+  //
+  // La regola è che l'abbinamento lo decide l'operatore, e nessuna replica lo
+  // precede (`02` §4.2 e §7.4: «non deve più partire da sola all'apertura della
+  // pagina, e deve dichiarare che cancella»). La funzione resta, col suo
+  // pulsante nel pannello Shopify; quello che se ne va è il «parte da solo».
+  //
+  // Registro difetti 3.14. Gli inneschi erano tre: questo, la prima apertura
+  // delle Impostazioni e il ritorno da OAuth.
 
   /** Connessione Shopify completa per topbar e banner globali. */
   readonly shopifyConnection = toSignal<ShopifyConnection | null>(

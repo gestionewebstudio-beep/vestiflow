@@ -440,17 +440,16 @@ export class ShopifyIntegrationPanelComponent {
   private handleShopifyOAuthReturn(param: Exclude<ShopifyBanner, 'connected-warn'>): void {
     this.reloadConnection();
 
-    if (param === 'connected' || param === 'error') {
-      this.shopifyConnectionService
-        .syncLocations()
-        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: () => this.locationsChanged.emit(),
-          error: () => this.locationsChanged.emit(),
-        });
-    } else {
-      this.locationsChanged.emit();
-    }
+    // ⛔ Al ritorno da OAuth partiva la sincronizzazione delle sedi. Era
+    // l'innesco peggiore dei tre: il primo collegamento è il momento in cui
+    // l'abbinamento automatico per nome fa il danno che la regola esiste per
+    // impedire — tre sedi più tre location diventano sei, e disfarlo dopo è
+    // molto più difficile che non farlo (registro difetti 3.14).
+    //
+    // L'aggancio è una scelta dell'operatore: si fa dal pulsante, quando lo
+    // decide lui. Finché la procedura di prima sincronizzazione non esiste,
+    // questo è il posto dove quella scelta si esercita.
+    this.locationsChanged.emit();
 
     if (param === 'connected') {
       this.shopifyConnectionService
