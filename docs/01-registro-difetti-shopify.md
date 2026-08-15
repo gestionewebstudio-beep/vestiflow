@@ -755,6 +755,66 @@ Chi apre l'ordine vede tre righe che non fanno il totale. Lo stesso scarto si pr
 
 **Cosa deve fare invece.** Scrivere il prezzo effettivo della riga (`price` meno `total_discount`, o l'importo di `discount_allocations`), così le righe sommano al subtotale. Il prezzo pieno, se serve mostrarlo barrato, è un campo in più — non il valore della riga.
 
+### ✅ Corretto il 15/08/2026 — e la prescrizione qui sopra era sbagliata a metà
+
+I due campi **non sono alternative equivalenti**, e prenderli per tali avrebbe lasciato il difetto in piedi sul caso più comune. _Provato su `#1010`, costruito apposta con uno sconto a **importo** — 12,00 € sull'ordine intero, `value_type: fixed_amount`, `allocation_method: across`:_
+
+```
+riga maglietta ×1 · price 25.00
+  total_discount        0.00        ← il campo che questa voce indicava per primo
+  discount_allocations  12.00       ← l'importo sta solo qui
+  tax_lines             2.34 al 22%
+testata: total_line_items_price 25.00 · total_discounts 12.00 · subtotal_price 13.00
+```
+
+La fonte è quindi **`discount_allocations`**, con `total_discount` come solo ripiego: [`shopify-line-discount.util.ts`](../api/src/shopify/shopify-line-discount.util.ts).
+
+**Non c'era niente da spalmare a mano**, ed era il dubbio che ha fatto costruire l'ordine di prova: uno sconto in euro messo sull'ordine arriva **già ripartito da Shopify sulle righe**, ed è la ripartizione che il cliente ha letto nella conferma.
+
+**Lo sconto non prende una colonna nuova.** Il campo `discount` che le righe hanno è una **percentuale a cascata** (`"4+10%"`), e il totale della riga manuale nasce da un prezzo unitario scontato e **arrotondato al centesimo prima** della moltiplicazione: 16,00 € su 3 pezzi da 20,00 tornerebbero come 44,01 invece di 44,00. Convertire un importo in percentuale reintrodurrebbe, di un centesimo, lo scarto che questa voce esiste per chiudere. La riga conserva **prezzo pieno e totale effettivo**, e lo sconto resta la loro differenza — esatta, e ricavabile quando serve mostrarla.
+
+**Misura prima e dopo** su `#1010`, stessa riga:
+
+```
+prima (scritto da main, in produzione)   totale 25,00 · sconto 0,00 · IVA 0,00 · snapshot null
+dopo  (pulsante «Sincronizza vendite»)   totale 13,00 · sconto 12,00 · IVA 2,34 · {ratePercent: 22}
+                                         somma righe 13,00 = subtotale ordine ✓
+```
+
+**L'IVA di riga è calcolata sul valore scontato**: 2,34 sono il 22% di 13,00, non di 25,00. Con il totale pieno non tornerebbe nemmeno l'aliquota — 3.9 e 3.12 non sono indipendenti come sembravano.
+
+⚠️ **Nota di metodo, di nuovo.** La prima lettura del database dopo la sincronizzazione mostrava la riga **invariata**, e sembrava che la correzione non funzionasse: era stata fatta **mentre la passata era ancora in corso**. È la terza volta che succede, ed è scritto in fondo a questo documento da ieri.
+
+### ⛔ L'allocazione dello sconto NON si ricalcola — misurato su due ordini costruiti apposta
+
+Sembra una scelta implementativa e non lo è: **ricalcolare la ripartizione dà numeri diversi da quelli che il cliente ha visto**, e con una sola aliquota il totale torna lo stesso — la firma del 3.12.
+
+**`#1010`, sconto applicato e POI una riga aggiunta.** L'applicazione dichiara `allocation_method: across`, `target_selection: all`, ma la ripartizione **non si rifà**:
+
+```
+maglietta      25,00   allocazione 12,00   →  13,00
+Prodotto test  24,59   allocazione  []     →  24,59   ← riga aggiunta dopo: zero sconto
+                                              somma 37,59 = subtotal_price ✓
+```
+
+Una ripartizione proporzionale avrebbe dato 6,05 e 5,95. Il totale sarebbe tornato lo stesso.
+
+**`#1011`, quattro righe e sconto di 32,00 € applicato con tutte presenti.** Qui Shopify ripartisce su tutte — e **non con un arrotondamento riga per riga**:
+
+| riga  | pieno | allocato da Shopify | proporzionale arrotondato |
+| ----- | ----- | ------------------- | ------------------------- |
+| A     | 50,00 | **13,17**           | 13,16                     |
+| B     | 22,00 | **5,80**            | 5,79                      |
+| C     | 24,59 | 6,47                | 6,47                      |
+| D     | 24,95 | **6,56**            | 6,57                      |
+| somma |       | **32,00** ✓         | 31,99 ✗                   |
+
+Tre righe su quattro divergono, e il calcolo ingenuo perde un centesimo che Shopify invece distribuisce. **Le somme di riga dopo la correzione tornano al centesimo su entrambi gli ordini** (37,59 e 89,54 = i rispettivi `subtotal_price`), e in entrambi la differenza fra imposta d'ordine e somma delle imposte di riga è **4,69** — l'IVA della spedizione, sempre la stessa.
+
+**Regola che ne discende**: per gli ordini di canale l'allocazione dello sconto si **conserva come arriva**. È un fatto avvenuto in un istante preciso, non una funzione delle righe — e le righe, dopo, cambiano.
+
+_Vale il contrario per lo sconto extra di VestiFlow, che è una **percentuale** e va invece ripartito sulle righe al momento del calcolo (`documents.service.ts:3559`): senza quella ripartizione l'imponibile per aliquota non esisterebbe. Verificato che è la strada giusta anche fiscalmente — nella fattura elettronica lo sconto in testata (`2.1.1.8 ScontoMaggiorazione`) **non modifica i `DatiRiepilogo`** e non è nemmeno soggetto ai controlli SDI: per ridurre l'imponibile deve agire sulle righe, e con più aliquote applicarlo solo alla fine produce una discrepanza fra IVA dovuta e IVA incassata._
+
 ---
 
 ### 3.10 — Gli ordini importati non portano nessuna IVA di riga, e il dato c'è
@@ -875,11 +935,141 @@ La differenza fra l'imposta dell'ordine e la somma delle righe è **esattamente*
 
 ---
 
+### 3.13 — Il Codice IVA della vendita online lo sceglie l'imposta incassata, non l'anagrafica
+
+⚠️ **LETTO NEL CODICE — NON PROVATO IN ESECUZIONE.** _15/08/2026._ Nessuna riga di database letta, nessun test eseguito: ogni conseguenza qui sotto segue dal codice, non è stata osservata accadere.
+
+**Cosa succede.** All'evasione, il Codice IVA della riga di Vendita online si ottiene **cercando un codice attivo che abbia la stessa aliquota** di quella incassata da Shopify (`resolveDerivedVat`, `online-sale-fulfillment.service.ts:464-478`). Il Codice IVA dell'anagrafica prodotto — `Product.defaultVatCodeId` — **non viene mai letto**. `SalesOrderLine.vatCodeId` esiste nello schema e **resta sempre null**: l'import non lo scrive (`shopify-sync.service.ts:226-241`).
+
+**Non è il 3.12.** Quello riguardava gli **importi** d'imposta di riga, ed è corretto. Questo riguarda la **classificazione fiscale**, e sopravvive alla correzione: ora l'aliquota di partenza è quella vera, ma resta un'aliquota — e da una percentuale si continua a dedurre un codice.
+
+**Come lo sappiamo.** `defaultVatCodeId` ha **zero occorrenze** in `api/src/shopify/`, `api/src/order-reservations/` e `api/src/online-sales/`.
+
+**Le tre cose che la ricerca per aliquota non decide, e che oggi risolve da sé:**
+
+- **nessuna corrispondenza** → `vatCodeId` null, snapshot `{ratePercent, matched:false}`, si prosegue senza che nulla lo segnali;
+- **più codici alla stessa aliquota** → `vatCode.findMany` è **senza `orderBy`** (`online-sale-fulfillment.service.ts:457`) e `vat-reverse-match.util.ts:27` prende il primo con `Array.find`: vince l'ordine fisico delle righe;
+- **lo zero** → `deriveVatRatePercent` restituisce `0`, non `null`, quando l'imposta è zero (`online-sale-money.util.ts:42`). I seed offrono **quattro** codici a `zero_rate` con Nature diverse — `X15` escluso art. 15, `FC` fuori campo, `N8A` non imponibile esportazioni, `E10` esente art. 10 (`vat-code-seed.data.ts:21-24`). **Una percentuale dello 0% non identifica una Natura**, e il codice ne sceglie una comunque.
+
+**Il difetto non è «lo zero è gestito male».** È che da una percentuale non si ricava una Natura, e la selezione del primo `zero_rate` disponibile può attribuire a una vendita una fattispecie fiscale che non è la sua.
+
+**Il confronto interno chiude la questione.** La regola sta già scritta in due percorsi su tre:
+
+| Percorso                               | Come risolve il Codice IVA                                                   |
+| -------------------------------------- | ---------------------------------------------------------------------------- |
+| Documenti (DDT, fattura, arrivo merce) | esplicito → **articolo** → fornitore → azienda (`documents.service.ts:3426`) |
+| Cassa / vendita al banco               | **articolo** → azienda (`store-sale-lookup.service.ts:104-128`)              |
+| **Vendita online**                     | **solo l'aliquota incassata**; l'anagrafica non entra                        |
+
+**Nessun test lo copre.** `online-order-lifecycle.service.spec.ts:465-468` simula `vatCode.findMany → []`: la corrispondenza non viene mai esercitata. La guardia del 3.12 verifica le aliquote, non i codici — cambiare questo meccanismo oggi non farebbe arrossare niente.
+
+**Conseguenza sull'aggregazione, che la correzione di riga da sola non copre.** Un prodotto ordinario italiano venduto in Francia porta legittimamente l'aliquota francese: **l'aliquota della transazione non è un errore, la Natura dedotta sì.** Ma per distinguere una vendita OSS da una nazionale serve il paese di destinazione, e _letto_: `SalesOrder` non ha indirizzo di spedizione né paese; l'unico dato di paese è `Party.countryCode`, che viene dal **default_address del cliente** (`shopify-sync.service.ts:109`), non dal ship-to dell'ordine, e viene riscritto dal webhook clienti. **Il registro corrispettivi non ha alcuna nozione di paese o regime**, e il dato grezzo per costruirla non viene importato. Correggere `vatCodeId` senza questo lascerebbe giusta la riga e sbagliata la somma.
+
+**Cosa deve fare invece.** Il principio **era già scritto**, in `02` §4.8, l'8 agosto: «Se Shopify ha applicato il 22% a un articolo che VestiFlow classifica al 10%, l'ordine resta registrato con il 22%… VestiFlow segnala la discrepanza, non riscrive». Quel paragrafo decide l'**aliquota**; il **Codice IVA** — agganciarlo o no — non era scritto da nessuna parte, ed è la parte decisa il 15/08. Il difetto resta che il codice applica il contrario di entrambe.
+
+**La vendita si registra come è avvenuta.** Il cliente ha ricevuto una conferma d'ordine con quei numeri: se VestiFlow ne registra altri esistono due versioni della stessa vendita, e quella contestabile è la sua. Quindi ordini, vendite derivate e corrispettivi conservano **l'aliquota e l'imposta applicate da Shopify**, sconti e spedizione compresi. L'anagrafica non ricalcola e non sostituisce.
+
+**E la Natura non si deduce, perché per l'online non è conoscibile.** Un canale espone una percentuale, non una fattispecie. Per registrare ordini, corrispettivi e la comunicazione al commercialista **l'aliquota basta**: è il dato che serve, ed è quello che il canale dà.
+
+**La corrispondenza però non si butta: si restringe a dove è determinata.** Se entra 22 vuol dire 22%, e se il tenant ha **un solo** codice a quell'aliquota agganciarlo non è un'invenzione — è una constatazione. Lo stesso vale per una vendita francese al 20%, appena qualcuno crea il codice al 20%. La correzione riguarda i due casi in cui la percentuale **non basta**, e in cui prima si sceglieva lo stesso:
+
+- **zero** → nessun codice. Quattro Nature diverse condividono lo 0%, e la percentuale non le distingue;
+- **più codici alla stessa aliquota** → nessun codice. Chi ne crea due al 22% sta facendo una distinzione che questa funzione non conosce.
+
+In entrambi la riga conserva l'aliquota osservata e resta senza codice — che è il modo di dire «non lo so» invece di indovinare.
+
+**Uno zero che arriva da Shopify di norma vuol dire negozio configurato male**, non una fattispecie esotica: l'avviso appartiene alla guida di prima sincronizzazione, fra le cose da controllare prima di fidarsi dei numeri.
+
+**Dove la Natura serve davvero — la fattura — il percorso è già quello giusto** e non va toccato: `documents.service.ts:3426` la prende dall'anagrafica, come deve, perché una riga a zero senza Natura viene rifiutata dallo SDI. I due percorsi non si contraddicono: rispondono a due domande diverse.
+
+**Lo storico non si ritocca**, per la regola già in vigore sulle istantanee: le righe che portano un codice dedotto restano come sono. La correzione impedisce che se ne scrivano altre, non riscrive quelle scritte.
+
+**Lo storico.** Ogni evasione già registrata porta una classificazione dedotta così — e quelle precedenti al 14/08 la dedussero dall'aliquota **media** dell'ordine. Non è misurato quante righe siano. Il registro corrispettivi legge quel campo.
+
+---
+
+### 3.14 — La sincronizzazione delle sedi parte da sola, da qualunque schermata, e crea, rinomina e cancella
+
+⚠️ **LETTO NEL CODICE — NON PROVATO IN ESECUZIONE.** _15/08/2026._
+
+**Cosa succede.** `ShopifyLocationSyncService.syncFromShopify` abbina le sedi per `shopifyLocationId` e, se non lo trova, per **nome identico** normalizzato (trim + minuscolo it-IT) fra quelle non ancora collegate (`shopify-location-sync.service.ts:261-285`). Quando il nome non coincide **crea una sede nuova** `LOC-nn` (`:80`). Sulle sedi collegate **riscrive nome e indirizzo con quelli Shopify** a ogni passata (`:288`). Tre pulizie **cancellano o disattivano** sedi (`:105-106`, `:180`), protette da `canDeleteLocation` — zero giacenze, zero movimenti, zero ordini fornitore, nessun inventario in corso — che quando non passa **disattiva** invece di cancellare.
+
+**Tre sedi VestiFlow e tre location Shopify con nomi diversi diventano sei.** È il caso che la regola funzionale della prima sincronizzazione vuole impedire, ed è il comportamento attuale.
+
+**Nessuno lo chiede: parte da solo, da tre punti.**
+
+- `shell-layout.component.ts:195` — un `effect` che parte **una volta per sessione di browser**, per ogni utente non-operatore di piattaforma, **da qualunque pagina**, appena la connessione risulta attiva;
+- `settings.component.ts:371-375` — alla prima apertura delle Impostazioni;
+- `shopify-integration-panel.component.ts:443` — al ritorno da OAuth.
+
+**Rapporto con il 4.1.** Quella voce conosceva **due inneschi su tre** e classificava il fatto come consumo. Il terzo lo rende raggiungibile da qualunque schermata dell'applicazione, e ciò che l'azione fa — creare, rinominare, cancellare sedi — non è consumo.
+
+**Cosa NON dice questa voce.** Le sedi duplicate osservate sul database di prova («Shop location» ×2, «My Custom Location» ×2, «Negozio principale» ×3) sono attribuite in «Cosa resta aperto» alle **due connessioni Shopify entrambe attive**, e quell'attribuzione resta. Qui si descrive un **secondo meccanismo capace di produrre lo stesso effetto**: non è misurato quale dei due le abbia generate.
+
+**Cosa deve fare invece** — anche questo **era già scritto**, in `02` §7.4: «**Sincronizza sedi** come funzione, ma non deve più partire da sola all'apertura della pagina, e deve dichiarare che cancella». La prescrizione esiste dall'8 agosto; quello che mancava era sapere che gli inneschi sono tre e che uno vive fuori dalle Impostazioni.
+
+L'abbinamento fra location Shopify e sede VestiFlow è **deciso dall'operatore**; il nome uguale può **proporre** una corrispondenza, non stabilirla; nessuna replica precede l'aggancio. Le quantità non sono coinvolte: questo flusso non scrive `InventoryLevel`.
+
+### ✅ Contenimento applicato il 15/08/2026 — i tre inneschi sono spenti
+
+Non è la correzione del difetto: è la rimozione del «parte da solo», che è la parte che fa danno senza che nessuno la chieda.
+
+- `shell-layout.component.ts` — l'effect che scattava da qualunque pagina, una volta per sessione del browser;
+- `settings.component.ts` — la prima apertura delle Impostazioni;
+- `shopify-integration-panel.component.ts` — il ritorno da OAuth, che era il peggiore dei tre: il primo collegamento è il momento in cui l'abbinamento per nome fa il danno che la regola esiste per impedire.
+
+**Il servizio non è stato toccato**, e la funzione resta col suo pulsante nel pannello Shopify. Cambia solo chi decide quando parte.
+
+**Guardia**: il test «aprendo il pannello non parte nessuna sincronizzazione delle sedi» fallisce se qualcuno rimette un innesco.
+
+**Cosa resta aperto, e non è poco.** Il criterio di abbinamento è ancora il nome identico, la creazione automatica c'è ancora, e non esiste niente che dica all'operatore che deve premere quel pulsante. Il seguito **non è un avviso**: è la **fase iniziale di collegamento a Shopify** _(deciso il 15/08)_, dentro la quale le sedi si agganciano **a mano** quando esistono già da entrambe le parti, si completano dei propri dati — indirizzo e impostazioni — e stanno insieme all'assegnazione del Codice IVA ai prodotti importati. Vedi `02` §4.1-4.3.
+
+---
+
+### 3.15 — Le righe importate scrivono importi IVATI in colonne che il resto del gestionale legge come NETTE
+
+_Provato il 15/08/2026 su `#1010`._
+
+**Cosa succede.** Shopify manda i prezzi **comprensivi d'imposta** (negozio italiano), e l'import li scrive tali e quali:
+
+```
+riga maglietta   price 25.00 · tax_line 2.34 al 22% · totale riga 13.00 (dopo sconto)
+spedizione       26.01  (di cui 4.69 d'imposta)
+testata          subtotal_price 13.00 + shipping 26.01 = total_price 39.01
+```
+
+I 13,00 **contengono** i 2,34: l'imponibile della riga è 10,66. Ma `SalesOrderLine.unitPriceMinor` e `totalMinor` sono le stesse colonne che l'Ordine cliente manuale riempie con valori **netti** — `DocumentLine.unitPriceMinor` è dichiarato «prezzo unitario NETTO canonico», e il calcolo della maschera lavora su `unitNet`.
+
+**La stessa colonna significa due cose diverse a seconda di chi ha scritto la riga.** Nessun tipo lo dichiara, nessun controllo lo verifica.
+
+**L'asimmetria è dentro la stessa integrazione, ed è la prova che il dato serviva.** `taxes_included` **viene letto** — ma solo nei rimborsi, dove lo scorporo è fatto bene (`shopify-refund.util.ts:185-210`, corretto il 14/08). L'import degli ordini non lo consulta mai: stessa cartella, stesso payload, due dottrine.
+
+**Conseguenze visibili.** La banda totali della maschera Ordine cliente etichetta «Imponibile righe» un valore che su un ordine di canale è ivato; e il confronto con l'anagrafica — «il prodotto costa 25,00» — mette a paragone un netto e un lordo senza dirlo.
+
+⚠️ **L'analisi esiste già, ed è precedente: `PREZZI-SHOPIFY-SPEC.md` §1-bis e §4.1** _(07/08/2026)_. Questa voce non la sostituisce — aggiunge solo ciò che è cambiato dopo. Da lì, e misurato allora su `#1003` e `#1004`:
+
+- con `taxes_included = true`, **`subtotal_price` contiene l'imposta**: non è un imponibile;
+- l'imponibile si ricava per differenza, `totale − imposta`, dai numeri già memorizzati;
+- il riepilogo corrispettivi usava `subtotal_price` come base imponibile e lo **sovrastimava dell'IVA** (+9,02 su un ordine al 22%);
+- la contraddizione interna era già nominata: `computeSaleLines` tratta le stesse righe **come lorde**, l'export dei corrispettivi **come nette**.
+
+Quel documento lascia la decisione aperta fra due strade: **(a)** ricavare sempre l'imponibile per differenza — tampone, corretto sui negozi a prezzi comprensivi; **(b)** leggere `taxes_included` dal negozio e sceglierne una — chiusura, con le colonne su `ShopifyConnection` e **l'istante della lettura** (§4.2).
+
+**E la dottrina generale è dichiarata**, in fondo a `02`, fra i principi da non reinterpretare: «**Il prezzo memorizzato è sempre netto**, a sei decimali. Il selettore netto/ivato è di visualizzazione e non tocca mai la memorizzazione». Vale per il **catalogo**, e infatti `02` §4.4 prescrive lo scorporo all'import con il controllo automatico. Per le **registrazioni di vendita** la stessa specifica dice l'opposto, e a ragione: `02` §4.8 le vuole «com'è avvenuto». Le due cose convivono solo se l'imponibile si **ricava**, mai si sostituisce — che è esattamente la strada (a) di `PREZZI-SHOPIFY-SPEC`.
+
+**Quindi la scelta è più stretta di come questa voce l'aveva posta**: sugli ordini di canale gli importi restano quelli ricevuti, e l'imponibile si ricava per differenza. Quello che manca non è la decisione — è che **le colonne non lo dichiarano** e che un consumatore le ha lette come nette.
+
+**Cosa aggiunge il 15/08.** La strada (b) è già stata imboccata, ma **in un punto solo e senza dirlo**: i rimborsi leggono `order.taxes_included` e scorporano di conseguenza (`shopify-refund.util.ts:185-210`, scritto il 14/08). L'import degli ordini, nello stesso momento, continua a non leggerlo. Non è più «una decisione da prendere»: è **una decisione presa a metà**, ed è la metà che nessuno ha dichiarato.
+
+---
+
 ## Livello 4 — Consumo e comportamenti non richiesti
 
 ### 4.1 — «Sincronizza location» parte da sola
 
 Si avvia a ogni apertura della pagina Impostazioni e al ritorno dall'autenticazione. È l'azione che **crea e cancella sedi** e può modificare il piano del tenant. È l'unica del pannello che cancella e l'unica che parte da sola: almeno una delle due cose va resa esplicita.
+
+_Aggiornato il 15/08/2026: gli inneschi erano **tre**, non due — il terzo partiva da qualunque schermata dell'applicazione — e l'azione rinomina anche le sedi esistenti. Il fatto era quindi più grave di «consumo»: vedi **3.14**, che lo porta al livello che gli compete. **Tutti e tre sono spenti dal 15/08**; questa voce resta perché il difetto che li rendeva dannosi — abbinamento per nome e creazione automatica — non è chiuso._
 
 ### 4.2 — Letture ripetute continue
 

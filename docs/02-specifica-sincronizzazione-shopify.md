@@ -564,6 +564,8 @@ Le **operazioni ricorrenti nelle rispettive schermate**, con un vocabolario unic
 
 **Sincronizza sedi** come funzione, ma non deve più partire da sola all'apertura della pagina, e deve dichiarare che cancella.
 
+> ✅ **Fatto a metà, il 15/08/2026.** I tre inneschi automatici sono spenti — erano tre e non uno: la prima apertura delle Impostazioni, il ritorno da OAuth, e un effect della shell che scattava **da qualunque schermata**, una volta per sessione del browser (registro difetti 3.14). **Resta da fare la seconda metà**: il pulsante ancora non dichiara che cancella, e l'abbinamento è ancora per nome identico con creazione automatica di ciò che non trova. Quella parte appartiene al §4.2, non a qui.
+
 ---
 
 ## 8. Cosa resta aperto
