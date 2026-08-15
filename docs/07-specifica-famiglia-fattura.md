@@ -39,6 +39,23 @@ _Misurato 14/08._ L'identità del contatore è `@@unique([tenantId, type, series
 
 Se un commercialista chiedesse il sezionale vero per le note di credito, oggi non si può dare. Servirebbe il contatore per tipo — lavoro vero e una migration in più. **Fuori scope, registrato qui perché non venga dato per fatto.**
 
+### La verifica di collisione, prima di applicare l'indice
+
+L'indice unico si ricrea partizionando sul **numeratore**, quindi `CREATE UNIQUE INDEX` fallisce se due documenti dello stesso tenant e della stessa serie portano lo stesso numero fra i tipi che il `CASE` unifica. Va verificato **nel momento in cui si applica**: il database è condiviso e il ramo del collega è attivo.
+
+```sql
+SELECT tenant_id, series, number, COUNT(*) AS quanti,
+       STRING_AGG(DISTINCT type::text, ', ') AS tipi,
+       STRING_AGG(reference, ' | ') AS riferimenti
+FROM documents
+WHERE number IS NOT NULL
+  AND type IN ('invoice_draft', 'invoice_accompanying', 'credit_note')
+GROUP BY tenant_id, series, number
+HAVING COUNT(*) > 1;
+```
+
+_Eseguita il 15/08 (senza `credit_note`, che ancora non esiste): **zero righe**._ L'unico documento numerato della famiglia è `FT-0001`, un'accompagnatoria senza serie, numero 1. L'indice reggerebbe — ma la query va rifatta, non riusata.
+
 ### Avviso all'operatore
 
 Con percorsi separati per tipo (§4), l'operatore vede tre voci distinte e conclude naturalmente che le numerazioni siano tre. Serve un'informazione passiva accanto al campo Numero in testata, che spieghi il progressivo condiviso.
@@ -250,18 +267,20 @@ _Aperto — tipo di movimento._ `StockMovementType.return` esiste già ed è que
 
 **Stato: deciso 14/08, integrato 15/08 con la regola del magazzino. Non iniziato. Resta aperta la verifica sull'inclusione documenti; il tipo di movimento (`return`) è da confermare in implementazione.**
 
-## §7 · Testata dell'accompagnatoria
+## §7 · Testata dell'accompagnatoria — ✅ **già corretto, misurato il 15/08**
 
-_Misurato 14/08 sul database:_ `available()` restituisce **zero contatori** per `invoice_accompanying`. Interroga `documentCounter` col tipo grezzo, e per quel tipo non esiste né può esistere una riga — è escluso dai numeratori configurabili per costruzione. Risultato: testata senza numero proposto.
+⚠️ **Questa sezione descriveva un difetto che non c'è più.** Diceva che `available()` interroga `documentCounter` col tipo grezzo e restituisce zero contatori per l'accompagnatoria — testata senza numero proposto — e che il pannello Numerazioni filtra `counter.type === type`.
 
-**La Nota di credito nascerà con lo stesso difetto**, perché ricade nella stessa esclusione. Non è una rifinitura: è la condizione perché il terzo tipo funzioni il primo giorno.
+_Misurato il 15/08, entrambi i punti sono chiusi:_
 
-**Due punti d'innesto, non uno:**
+| Punto                | Stato                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `available()`        | usa **`documentNumberingType(type)`** (`document-counters.service.ts:171`), col commento che spiega perché               |
+| Pannello Numerazioni | il dialogo Serie usa lo **specchio frontend** `documentNumberingType` (`document-series-manager-dialog.component.ts:56`) |
 
-1. `available()` — va corretta usando `documentNumberingType`
-2. **Il pannello Numerazioni** aperto dall'ingranaggio accanto al campo Serie riceve il tipo grezzo e filtra `counter.type === type`: per accompagnatoria e nota di credito mostra zero righe. Senza questo, testata corretta e pannello vuoto.
+**Cosa resta vero, e vale per la Nota di credito:** i due punti funzionano _perché_ la mappatura al numeratore è centralizzata. La nota li eredita **gratis**, a patto che `credit_note` sia aggiunta alla mappatura — vedi §19, dove i punti da toccare sono elencati e sono tre, non due.
 
-**Stato: deciso 14/08, non iniziato.**
+**Stato: superato dai fatti. Nessun lavoro qui.**
 
 ## §8 · Fuori scope
 
@@ -518,3 +537,51 @@ _Misurato 13/08:_ Proforma, Fattura e Fattura accompagnatoria condividono **una 
 **I test devono dimostrare la cosa giusta**, cioè che **prima della GET** titolo, comportamento e tipo sono già corretti: un test che verifica dopo il caricamento passerebbe anche oggi.
 
 _Cosa se ne vede finché non è corretto:_ titolo «Modifica proforma» su una fattura, dicitura «Documento non fiscale» stampata sopra un documento fiscale, tendina Serie che parte con le serie sbagliate. E fino al 15/08 anche un `type` sbagliato spedito al server — quel campo non viaggia più (vedi la nota nel salvataggio), ma la causa resta.
+
+---
+
+## §19 · Checkpoint strutturale — censimento, misurato il 15/08/2026
+
+Fotografia dello stato **prima** di unificare il registro. Serve a due cose: dire quanto è grande la superficie da toccare, e impedire che si cambino file alla cieca.
+
+### La superficie è piccola, ed è centralizzata
+
+| Cosa                                  | Dove vive oggi                                                                                                                                        | Stato                                                                                                             |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Elenco Fatture                        | profilo `invoice` in `document-sales-register.config.ts`                                                                                              | `types` = due tipi, `typeFilterOptions` = tre voci (Tutti, Fattura, Accompagnatoria), `createVariants` = due voci |
+| Elenco separato delle Note di credito | **non esiste**                                                                                                                                        | il tipo non esiste ancora                                                                                         |
+| Voce di navigazione                   | hub Documenti: **due** voci (`Fattura`, `Fattura accompagnatoria`) che puntano allo **stesso** elenco con `queryParams.type` a preimpostare il filtro | ne servirà una terza, non una pagina                                                                              |
+| Permessi                              | famiglia `invoice` — una sola per tutti e tre i tipi                                                                                                  | nessun lavoro                                                                                                     |
+| Rotte di creazione                    | `fattura/new`, `fattura-accompagnatoria/new`                                                                                                          | ne manca una per la nota                                                                                          |
+| Rotta di modifica                     | **una sola**, `sales/:id/edit`, **senza** `salesDocumentType` nei `data`                                                                              | è il difetto del §18                                                                                              |
+| Costruttore dei link di modifica      | **uno solo**: `documentEditPath` in `document-routing.util.ts`                                                                                        | correggere la rotta = cambiare una funzione, non inseguire i chiamanti                                            |
+
+**La conseguenza pratica del censimento**: registro e rotte sono la stessa superficie — il «Nuovo ▾» _è_ un elenco di link di creazione — e i chiamanti dei link passano tutti da una funzione sola. Il lavoro è quindi contenuto, e va fatto in un blocco solo per non toccare gli stessi file due volte.
+
+### La numerazione: tre punti, non due
+
+La mappatura «quale tipo possiede il numeratore» è centralizzata, e tutto il resto la eredita (`available()`, pannello Serie, cronologia, proposta del numero). Per la Nota di credito vanno toccati:
+
+1. `api/.../document-type.util.ts` → `documentNumberingType` — la nota numera sotto `invoice_draft`;
+2. `api/.../document-type.util.ts` → `documentNumberingTypes` — il ramo `invoice_draft` deve restituire **tre** tipi, o chi legge la partizione ne vede due terzi e propone numeri già occupati;
+3. `src/app/domain/documents/models/document-numbering.util.ts` → lo **specchio frontend**, che il dialogo Numerazioni usa.
+
+Più il `CASE` dell'indice unico, che della mappatura è la quarta faccia — la migration del 11/08 lo dice a chiare lettere: _«se un domani un altro tipo dovesse condividere il numeratore, va aggiunto QUI oltre che in `documentNumberingType`»_.
+
+### Le due migration, pronte e **non applicate**
+
+| Ordine | Cartella                                           | Contenuto                                                         | Perché separata                                                                                                                                                                      |
+| ------ | -------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1      | `20260807020000_credit_note_document_type`         | `ALTER TYPE "DocumentType" ADD VALUE IF NOT EXISTS 'credit_note'` | **Ripresa identica** dal ramo `feature/fattura-elettronica`, byte per byte (307 byte), prima che il ramo sparisca                                                                    |
+| 2      | `20260815210000_credit_note_numerazione_condivisa` | `DROP INDEX` + `CREATE UNIQUE INDEX` col `CASE` esteso alla nota  | `ALTER TYPE ... ADD VALUE` può stare in transazione, ma il valore **non è utilizzabile finché quella transazione non ha fatto commit**, e Prisma esegue ogni file in una transazione |
+
+_Verificato in sola lettura il 15/08 sul database condiviso:_
+
+- **nessuna delle due risulta applicata** (`_prisma_migrations`: 119 righe, l'ultima del 14/08, nessuna col nome cercato) — quindi **nessun checksum registrato da rispettare**: prenderla identica resta la scelta prudente verso una storia che non controlliamo, non un vincolo assoluto;
+- `credit_note` **non è nell'enum**: 19 valori;
+- l'indice attuale è esattamente il `CASE` con la sola accompagnatoria;
+- **zero collisioni di numero** fra i tipi che condivideranno il contatore (§2): l'indice reggerebbe.
+
+⚠️ **Le misure sul database valgono il giorno in cui sono state fatte.** Il database è condiviso e il collega è attivo: prima del `prisma:deploy` vanno rifatte, in particolare collisioni e stato migration.
+
+**Stato: preparato, NON applicato. L'esecuzione sul database condiviso la decide Luigi.**
