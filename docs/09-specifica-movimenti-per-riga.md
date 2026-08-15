@@ -365,6 +365,60 @@ E c'è la Nota di credito: se prende la casella «Carica magazzino» (`07-specif
 
 ---
 
+## §9-bis · L'annullamento: due comportamenti, e resta aperto
+
+**Registrato, non deciso.** La modifica ordinaria è chiusa — aggiorna lo stesso movimento — ma l'annullamento è semanticamente un'altra cosa, e questo lavoro ci ha lasciato dentro due comportamenti diversi:
+
+| Documento                              | Annullandolo                                                                                  |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| già convertito (ha movimenti per riga) | il sync a righe vuote li **rimuove**: i movimenti spariscono, la giacenza torna               |
+| mai passato dal sync (legacy)          | resta il comportamento storico: uno **storno accodato**, e i due movimenti restano a registro |
+
+Il primo è il comportamento che l'Arrivo merce ha già, ed è il motivo per cui è stato imitato. Ma **non è stato deciso che sia la regola generale**, e non va dedotto da qui: un documento annullato che cancella le proprie tracce e uno che le lascia con lo storno raccontano due storie diverse a chi legge il registro fra sei mesi.
+
+Va chiuso a sé, prima di estendere la politica ad altri tipi.
+
+---
+
+## §9-ter · Censimento: chi legge i movimenti, e cosa cambia per lui
+
+_Misurato 15/08, dopo FASE 2._ La domanda era: passando da «un movimento eventualmente aggregato per variante» a «un movimento per riga documento», qualche risultato funzionale cambia?
+
+### Chi conta le righe
+
+| Punto                                                        | Cosa fa                      | Cambia                                           |
+| ------------------------------------------------------------ | ---------------------------- | ------------------------------------------------ |
+| Elenco Movimenti (totale paginazione)                        | conta righe                  | **sì** — più righe, ed è il comportamento voluto |
+| Export movimenti                                             | esporta righe                | **sì** — più righe                               |
+| Cambio shop Shopify («quanti movimenti verranno cancellati») | conta righe                  | **sì** — numero più grande                       |
+| «Il prodotto ha movimenti?» prima di eliminarlo              | presenza                     | no                                               |
+| «La location ha movimenti?» prima di cancellarla             | presenza                     | no                                               |
+| Guardie del salvataggio documenti                            | presenza                     | no                                               |
+| Situazione di magazzino                                      | `SUM(quantity)` per variante | **no**                                           |
+
+### ⚠️ Il punto vero sono i report vendite, e non era previsto
+
+Il ricavo di un movimento **non sta sul movimento**: si legge dalla riga collegata via `sourceLineId` (`movement-sales-revenue.util.ts`). I movimenti dello scarico di vendita non ce l'avevano, quindi:
+
+| Grandezza              | Prima di FASE 2                                | Dopo                             |
+| ---------------------- | ---------------------------------------------- | -------------------------------- |
+| Pezzi venduti          | i DDT c'erano già (tipo `sale`)                | invariato                        |
+| **Fatturato**          | DDT = **0**, la riga non era risolvibile       | DDT = totale delle righe         |
+| **Numero transazioni** | DDT **non contati** (`sourceDocumentId` nullo) | contati, una volta per documento |
+| Margine                | DDT fuori (costo non congelato sul movimento)  | invariato                        |
+
+E cambia **documento per documento**, man mano che ciascuno si converte al primo salvataggio: per un periodo i report mescolano DDT convertiti e non.
+
+### ⚠️ La decisione che rende il punto più grande: **i DDT non sono vendite**
+
+_Dichiarato da Luigi il 15/08._ Se il DDT non è una vendita, allora **non era giusto nemmeno prima**: i suoi pezzi finivano già in «pezzi venduti», ed erano invisibili solo nel fatturato perché il ricavo non si risolveva. FASE 2 non ha creato il problema — lo ha reso visibile.
+
+Ma la conseguenza va guardata in faccia prima di correggere: **il fatturato dei report nasce dai MOVIMENTI, non dai documenti fiscali.** La Fattura che segue un DDT non movimenta nulla, quindi togliendo i DDT dal report quel fatturato **non viene sostituito da niente**: sparisce. Il che dice che la fonte del ricavo, per un gestionale che fattura, non può essere il magazzino.
+
+**Non toccato, e da chiudere a sé.** Qui si registra soltanto che cosa è misurato e perché la correzione non è «filtrare via i DDT».
+
+---
+
 ## §10 · Stato e punto di ripresa
 
 **Stato al 15/08/2026: FASE 1 e FASE 2 eseguite** (§4-bis e §4-ter). L'identità delle righe è stabile nel salvataggio generico, e lo scarico di vendita — DDT e Fattura accompagnatoria — scrive un movimento per riga che si aggiorna in posto. Nessuna migration, nessuna pulizia dei dati storici: la conversione avviene documento per documento, al primo salvataggio.

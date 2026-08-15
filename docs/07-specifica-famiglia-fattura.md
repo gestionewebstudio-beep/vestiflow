@@ -468,3 +468,53 @@ Il verso negativo lo dà il tipo documento (§6), e questo significa che **ogni 
 **Non sono necessariamente tutti.** I luoghi da censire prima di dichiarare l'elenco: elenco documenti, totale della selezione, export CSV, PDF e stampe, report di vendita, riepiloghi IVA, dashboard, registro corrispettivi.
 
 ⚠️ **Il censimento va eseguito e riportato prima di aggiornare questa sezione con l'elenco vero.** Scrivere qui sette punti perché sette ne sono stati ipotizzati, quando il repository ne ha quattro o dodici, produce esattamente il tipo di specifica che questo documento evita: un elenco che sembra misurato e non lo è.
+
+---
+
+## §17 · La riga Fattura: cinque colonne che le altre maschere hanno
+
+**Deciso 15/08: entra nel lavoro della famiglia Fattura.** Non aspetta più il rientro di `feature/fattura-elettronica` — quel ramo viene eliminato, e con lui è sparito il proprietario di questo lavoro. Non iniziato.
+
+La riga della Fattura è oggi `variantId · description · quantity · unitPrice · vatCodeId · discountPercent · loadsStock`. Rispetto a DDT e Ordine cliente mancano cinque colonne, **e non hanno tutte la stessa natura** — la distinzione va tenuta, perché decide chi le vede e dove stanno:
+
+| Colonna          | Natura                              | Nota                                                                       |
+| ---------------- | ----------------------------------- | -------------------------------------------------------------------------- |
+| Q.tà disponibile | **informazione gestionale interna** | non è un dato del documento: si legge, non si salva                        |
+| Costo d'acquisto | **informazione gestionale interna** | solo col permesso «Visualizza costi d'acquisto», come nelle altre maschere |
+| U.m.             | **dato del documento**              | vedi sotto: la colonna esiste già sulla riga                               |
+| Prezzo scontato  | **lettura economica**               | derivato, non editabile                                                    |
+| Totale riga      | **lettura economica**               | calcolato, **non editabile**                                               |
+
+**Riuso, non seconda implementazione.** Le celle e i calcoli esistono: `app-document-line-unit-cell` per l'unità di misura, e le formule di riga che DDT e Ordine cliente già usano. Una seconda copia di quelle formule dentro la Fattura sarebbe il difetto, non la funzione.
+
+### ⚠️ L'unità di misura non è «non mostrata»: viene cancellata
+
+_Misurato 15/08, catena intera._ Il dato **non si perde per strada** — si perde perché la maschera non lo produce, e poi lo azzera:
+
+| Anello                                            | Stato                                              |
+| ------------------------------------------------- | -------------------------------------------------- |
+| Colonna `DocumentLine.unitOfMeasure`              | esiste                                             |
+| DTO di ingresso (`create`/`update`)               | la accetta (`create-document.dto.ts:57`)           |
+| Servizio, persistenza, copia da documento incluso | la trasporta (`documents.service.ts:1699`)         |
+| Modello e mapper frontend                         | la leggono e saprebbero inviarla                   |
+| **Maschera Fattura**                              | **non ha né colonna né controllo, e non la invia** |
+
+E qui sta il difetto vero: `computeLines` scrive `unitOfMeasure: line.unitOfMeasure?.trim() \|\| null`. Un salvataggio che non manda il campo **lo azzera**. Una fattura che ha ereditato l'unità di misura da un DDT incluso la perde al primo salvataggio dalla sua maschera, in silenzio.
+
+**Vincolo per chi implementa:** si usa `DocumentLine.unitOfMeasure`, che c'è. Nessun secondo campo.
+
+---
+
+## §18 · La rotta di modifica non porta il tipo
+
+**Deciso 15/08: entra nel lavoro della famiglia Fattura.** Non aspetta più il ramo FE. Non iniziato.
+
+_Misurato 13/08:_ Proforma, Fattura e Fattura accompagnatoria condividono **una sola rotta di modifica** e nei suoi `data` non c'è `salesDocumentType`. Finché il documento non arriva dalla rete, `documentType()` ricade sul predefinito **Proforma per tutti e tre**.
+
+È lo stesso difetto che il §4 chiude per la creazione, e la regola è già decisa lì: **il tipo è dichiarato nell'indirizzo, non dedotto leggendo il documento**. Vale anche per la modifica, e per la Nota di credito dal primo giorno.
+
+**Prima di correggere — censimento, non solo la rotta.** Vanno trovati e nominati tutti i punti che portano a quella rotta e tutti quelli che la leggono: collegamenti di creazione, collegamenti di modifica dagli elenchi e dai dettagli, generazioni da altri documenti, ritorni dopo il salvataggio. Correggere la rotta senza aver censito chi la costruisce lascia indietro i chiamanti che continuano a non dichiarare il tipo.
+
+**I test devono dimostrare la cosa giusta**, cioè che **prima della GET** titolo, comportamento e tipo sono già corretti: un test che verifica dopo il caricamento passerebbe anche oggi.
+
+_Cosa se ne vede finché non è corretto:_ titolo «Modifica proforma» su una fattura, dicitura «Documento non fiscale» stampata sopra un documento fiscale, tendina Serie che parte con le serie sbagliate. E fino al 15/08 anche un `type` sbagliato spedito al server — quel campo non viaggia più (vedi la nota nel salvataggio), ma la causa resta.
