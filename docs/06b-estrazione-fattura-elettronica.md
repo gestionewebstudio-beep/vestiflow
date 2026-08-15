@@ -141,6 +141,28 @@ Caso di prova del ramo: 25,00 € ivati al 22% = netto esatto 2049,180328 unità
 
 **Nota importante**: la formula di ripartizione **coincide già** con quella usata da `develop` nei totali persistiti (`documents.service.ts:3559-3561`) — quella scelta è già verificata fiscalmente corretta su questo progetto (`docs/01-registro-difetti-shopify.md:816`). Manca solo che l'XML la applichi.
 
+### A.4-bis — Sconto extra documento: la regola funzionale, decisa 15/08
+
+Registrata qui perché è il posto dove il tema è già trattato per intero, e perché la parte ancora aperta è di questo blocco.
+
+|                 |                                                                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Che cos'è**   | uno **sconto di documento**, applicato dopo gli sconti di riga, che vive nel riepilogo a piè di documento                                                           |
+| **Cosa non è**  | uno sconto delle righe. Non modifica prezzo unitario, sconto di riga, descrizione o percentuale della riga                                                          |
+| **Forma**       | **solo percentuale**, come oggi. _Deciso 15/08:_ **nessun campo a importo in euro** — niente secondo campo, nessuna regola di priorità fra % e €, nessuna migration |
+| **Distinto da** | lo sconto ordine Shopify, che è un dato del canale e non si ricalcola (`01-registro-difetti-shopify.md`, prove #1010/#1011)                                         |
+
+**La ripartizione interna fra le aliquote non contraddice la regola.** _Misurato 15/08:_ il motore distribuisce l'effetto dello sconto sulle basi IVA in proporzione al peso di ciascuna riga — frontend `document-totals.util.ts:44`, backend `documents.service.ts:3540`. È una necessità di calcolo, non uno sconto commerciale assegnato alle righe: senza, la somma delle imposte di riga non tornerebbe con l'imposta del documento.
+
+**Frontend e backend non divergono.** _Misurato 15/08_, contro il timore opposto: nel ramo con sconto entrambi arrotondano a intero l'imponibile ripartito, e su un intero `round(netto × aliquota)` e `lordo − netto` danno per costruzione lo stesso numero. Non c'è un centesimo di scarto da riconciliare.
+
+**Quello che resta aperto è più stretto, ed è materia di questo blocco.** Con lo sconto si perde la coda esatta a sei decimali — lo dichiara il codice stesso: _«Qui l'imponibile è già ripartito e arrotondato: l'esattezza finisce»_ (`documents.service.ts:3561`). Da verificare, prima di serializzare l'XML:
+
+1. se un documento scontato possa valere un centesimo diverso dallo stesso documento senza sconto;
+2. se il riepilogo per aliquota, costruito sommando valori **già arrotondati per riga**, torni a `imponibile_gruppo × aliquota` — che è ciò che i controlli SdI verificano (§A.2, e i codici di controllo restano da confermare su fonte ufficiale, §G).
+
+I casi di prova minimi: una sola aliquota con sconto; 22% e 10% insieme; tre aliquote con centesimi dispari; sconti di riga più sconto documento; righe a IVA 0 o con Natura insieme a righe con IVA positiva; Nota di credito con sconto documento.
+
 ```ts
 export function applyDocumentDiscount(
   lines: readonly FatturaPaLine[],
@@ -1148,11 +1170,17 @@ Tutte le strutture esistono con due tipi su `develop`. **Tre adattamenti obbliga
 
 **Verdetto: già presente in develop** (come risposta) — da riportare nella specifica come punto chiuso.
 
-### D.16 — ⚠️ La specifica `07` §6 si contraddice — da segnalare a Luigi
+### D.16 — ⚠️ ~~La specifica `07` §6 si contraddice~~ — **RISOLTA IL 15/08, e nel verso opposto a quello scritto qui**
 
-Il ⚠️ in testa a «Il magazzino» dice che la NC non movimenta il magazzino e non ha la casella; la sottosezione successiva parla ancora di «aggiungere il ramo di carico della nota di credito» e lascia aperto `StockMovementType.return`. Sono residui del ragionamento precedente alla decisione del 14/08: **vanno cancellati o marcati come superati**, o chi esegue implementerà un carico che nessuno vuole.
+⚠️ **Questo paragrafo diceva il contrario di ciò che vale oggi. Correggerlo era urgente: nella forma precedente istruiva chi esegue a cancellare un lavoro che invece va fatto.**
 
-Di conseguenza lo sganciamento di `DEDICATED_WORKFLOW_DOCUMENT_TYPES` **non è più un prerequisito** — resta una pulizia sensata in sé (l'alias afferma implicitamente «ogni tipo che carica ha una maschera dedicata»), ma non blocca nulla.
+Qui c'era scritto che il ⚠️ in testa a «Il magazzino» della `07` era la regola buona — la NC non movimenta, niente casella — e che le frasi sul «ramo di carico della nota di credito» e su `StockMovementType.return` erano **residui da cancellare**, «o chi esegue implementerà un carico che nessuno vuole». Ne discendeva che lo sganciamento di `DEDICATED_WORKFLOW_DOCUMENT_TYPES` non fosse più un prerequisito.
+
+**Il 15/08 la contraddizione è stata sciolta al contrario:** il paragrafo del §5-bis è stato **ritirato**, e la regola in vigore è che la Nota di credito **ha** il controllo «Carica magazzino» sulle sole righe movimentabili, default non spuntato (`07` §6, «Il magazzino — regola in vigore»). Il carico quindi si fa, `return` è il tipo di movimento previsto, e **lo sganciamento dell'alias torna a essere un prerequisito**: senza, la nota nasce increabile dal percorso generico (422).
+
+**Perché questo documento aveva capito il contrario, e vale la pena saperlo.** Non era un errore di lettura: la `07` conteneva davvero due stesure incompatibili della stessa giornata, e questo paragrafo ha creduto alla più recente per posizione nel file — quella marcata «⚠️ Superato». La decisione vera stava in un documento che non è in `git`. È il motivo per cui una decisione ritirata ora si **dichiara ritirata**, con la data, invece di essere sovrascritta: un ⚠️ senza il testo che nomina ciò che supera è indistinguibile dal residuo che dice di essere.
+
+**Il carico della nota va innestato sul percorso per riga** — `09-specifica-movimenti-per-riga.md` — non su quello aggregato dello scarico di vendita.
 
 ### D.17 — DIVERGENTE dalla specifica `07` §4: percorsi separati solo per la creazione
 
