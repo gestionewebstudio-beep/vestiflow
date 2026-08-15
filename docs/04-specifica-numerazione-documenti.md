@@ -843,6 +843,37 @@ Vendita online e Corrispettivo usano `DocumentSequence`: contatore autonomo, ser
 
 Il lavoro non è «unificarlo sullo schema nuovo» ma **togliere al corrispettivo la numerazione che ha**.
 
+#### La Vendita online era nella diagnosi ma non nella conclusione _(misurato il 15/08/2026)_
+
+La frase qui sopra nomina il solo corrispettivo, mentre il paragrafo che la precede nomina **«Vendita online e Corrispettivo»**. La vendita online è quindi rimasta fuori dalla conclusione pur avendo lo stesso difetto — e ce l'ha per intero: stesso contatore, stessa serie `'A'` scritta nel codice, stesso anno nel riferimento, stesse quattro colonne (`series`, `number`, `year`, `reference`).
+
+**Ma il motivo per toglierla è più forte che per il corrispettivo, perché qui un numero migliore esiste già.** L'elenco Vendite online mostra **due colonne di numero affiancate**: «Numero» con `VO-2026-0001`, che VestiFlow si inventa, e «Ordine origine» con `#1004`, che arriva dal canale. È il secondo quello che il cliente cita, che si vede nell'admin Shopify e con cui si riconcilia.
+
+Ed è il principio già deciso in cima a questo stesso §8 per gli ordini: _«portano il numero del canale»_.
+
+**Il numero inventato non serve a distinguere le righe.** Lo schema ha `salesOrderId @unique`: una vendita online per ordine, mai due. Il numero del canale identifica quindi già la riga da solo — verificato sui dati: 5 righe, 5 numeri d'ordine distinti, 5 ordini distinti.
+
+**E cancella un'informazione vera.** Sulle cinque righe misurate i numeri di canale sono `#1004, #1005, #1006, #1008, #1009`: **manca `#1007`**. Il progressivo interno, continuo da 1 a 5, quel salto non lo mostra. Un ordine che non è arrivato all'evasione è un fatto che si vuole vedere; la rinumerazione lo liscia via.
+
+**Cosa cade.** Cade il **riferimento visibile** `VO-2026-0001`: al suo posto la colonna «Numero» mostra il numero del canale, e la colonna «Ordine origine» sparisce perché direbbe la stessa cosa due volte.
+
+**Come va classificato il file, e non altrimenti** _(deciso 15/08)_. `online-sale-fulfillment.service.ts` va registrato come **residuo del vecchio modello di numerazione della Vendita online, da riesaminare nell'esecuzione di questo §8** — **non** come «secondo formatter da allineare al nuovo formato documentale». La distinzione non è formale: allinearlo automaticamente vorrebbe dire dare una forma nuova e più bella a un numero che la decisione qui sopra elimina, e il lavoro andrebbe rifatto al contrario. Vale anche per l'upsert su `DocumentSequence` che lo stesso file fa in proprio (:609): è l'ultimo scrittore vivo del motore vecchio, e cade con lo stesso blocco.
+
+#### Il `number` interno resta APERTO — non discende da questa decisione
+
+Vanno tenuti distinti:
+
+- **l'identificativo commerciale visibile** → il numero del canale. Deciso.
+- **l'eventuale `number` intero interno** → possibile dato tecnico. **Non deciso.**
+
+Che `VO-…` non debba essere mostrato **non implica** che la colonna intera debba sparire. Prima di toglierla va censito chi la usa per: **ordinamento · vincoli · interrogazioni · relazioni · ritentativi e idempotenza · esportazioni · Corrispettivi · altri processi**. Se non ha consumatori utili, si valuterà di non valorizzarla più; se serve tecnicamente, può restare interna senza diventare il numero commerciale della vendita.
+
+Un dato già noto da non perdere: la riga porta `@@unique([tenantId, series, year, number])`, quindi la colonna non è isolata — toglierla tocca un vincolo.
+
+#### Il Corrispettivo non eredita questa soluzione
+
+Vendita online e Corrispettivo condividono oggi **parte del motore**, e da qui viene la tentazione di dargli la stessa risposta. Non vale: la Vendita online ha un numero migliore già in tabella, **il Corrispettivo no** — è un registro economico derivato, e la domanda per lui non è «quale numero mostrare al posto del suo» ma **se una numerazione locale gli serva affatto**. Va verificata separatamente quando si apre quel blocco, insieme alle due informazioni che cadono e che nessun dato ricostruisce (stato di verifica e motivazione dell'esclusione).
+
 `feature/cassa` ha già scritto codice sul corrispettivo con una sequenza condivisa fra cassa e online. **Quella scelta è superata da questa decisione** e va comunicata al collega prima che si lavori nella direzione vecchia.
 
 ---
@@ -1097,6 +1128,88 @@ Le due forme convivono nella stessa colonna «Documento» dei Movimenti.
 
 **E `CAR` è il prefisso configurato dell'Arrivo merce**, non il tipo di movimento: la somiglianza con «Carico» è casuale (Carico manuale ha `CM`, Carico iniziale `CI`, e generano movimenti `load` identici). Nella colonna «Documento» dei Movimenti c'è il riferimento memorizzato; nella causale, accanto, c'è una frase ricostruita da `number` + data che **il riferimento non lo guarda mai** — e in cui **la serie non compare mai**, quindi due arrivi n. 9 di serie diverse hanno causali identiche. Nota utile a chi decide: quella colonna «Documento» è **nascosta di default**; di norma l'operatore vede solo la causale, cioè già la forma «parola + numero».
 
+### Le misure sul database — 15/08/2026, sola lettura
+
+_Il censimento del 13/08 aveva letto il **codice**. Queste sono le **righe**: 104 documenti, 4 tenant, nessuna bozza senza numero._
+
+**La colonna `number` è già il numero puro, e non va toccata.** In **104 righe su 104** il numero dentro il riferimento coincide con la colonna intera. Il modello dati separa già i quattro pezzi — `number` (intero), `series`, `year`, `reference` (stringa) — e il pezzo che l'operatore deve vedere esiste già pulito. **Non c'è niente da eliminare dal database**: il lavoro è tutto di rappresentazione, come si sperava.
+
+**Nessuno rilegge la stringa per estrarne il numero.** Zero `split`, zero espressioni regolari sul riferimento in tutta l'app: si scrive una volta e si mostra così com'è. Chi cambia il formato non rompe nessun calcolo a valle.
+
+**Ma il riferimento è memorizzato, non calcolato — e questo è il fatto che decide il lavoro.** La stringa nasce al momento della numerazione e resta in colonna. Cambiare il formatter cambia **solo i documenti nuovi**.
+
+E non è un'ipotesi: **è già successo**. Il commit `8b60a7d9` («riferimento PREFISSO-SERIE-NUMERO, anno fuori dalla numerazione») ha cambiato la forma una volta, e le righe di prima non sono state riscritte. Oggi, nella stessa colonna, convivono:
+
+| Forma nel database    | Righe | Esempio             | Cosa dice la colonna `series`   |
+| --------------------- | ----- | ------------------- | ------------------------------- |
+| `PREFISSO-ANNO-NNNN`  | 78    | `CAR-2026-0001`     | `A` — **l'anno non è la serie** |
+| `PREFISSO-NNNN`       | 25    | `DDT-0005`          | vuota                           |
+| `PREFISSO-SERIE-NNNN` | 1     | `DDT-Test ddt-0001` | `Test ddt`                      |
+
+Il registro mostra quindi **già oggi** due formati mescolati, e la maggioranza delle righe porta in mezzo un anno che il codice attuale non ci metterebbe più. Chi guarda l'elenco non vede una numerazione: ne vede due.
+
+**La conseguenza per chi eseguirà**: cambiare il formatter e fermarsi lì aggiunge una **terza** forma alle due esistenti. La domanda vera non è «che forma diamo ai numeri nuovi», ma **«che fine fanno le 104 righe già scritte»** — e ha tre risposte possibili (lasciarle, calcolare la vista da `number` + `series` ignorando la colonna, riscrivere la colonna con una migration). Va decisa **prima** di toccare il formatter, non dopo.
+
+**Il momento è quello giusto, e si vede dai numeri**: della famiglia Fattura esiste **un solo documento numerato** (`FT-0001`), e **nessun documento è mai stato emesso per via elettronica** — la colonna `externally_issued_at` è vuota su tutte le righe. Non c'è un archivio fiscale da rispettare: il costo di questa decisione non sarà mai più basso di adesso.
+
+**Nella tabella `documents` il formatter vecchio è morto, non vivo.** Tutte e 78 le righe con l'anno sono nate fra il **1° e il 25 luglio**; il cambio di forma è del **28**; dal 29 in poi ogni documento ha la forma nuova. Sono storia congelata, non produzione in corso. Il secondo formatter (`online-sale-fulfillment.service.ts:618`) è vivo, ma scrive in **un'altra tabella** — `online_sales` — e quel numero è materia di §8, non di questa voce: **non va sistemato, va tolto** (vedi lì).
+
+**Resta però la lezione, ed è di questa voce.** Il 28 luglio la forma canonica è cambiata, la copia privata no, e per diciotto giorni nessuno se n'è accorto: nessun test mette in relazione i due formatter, e ognuno passa i propri. Se §11 si esegue cambiando la sola funzione canonica, succede la stessa cosa — quindi la modifica deve lasciare **una guardia** che impedisca a un secondo compositore di esistere, non solo correggere quello noto.
+
+**Un prefisso solo è stato personalizzato da un tenant**: `OF` sull'Ordine fornitore. Tutti gli altri usano i default di `document-defaults.ts`. Togliere la sigla dalla vista non cancella quelle impostazioni, ma le rende **senza effetto visibile**: va deciso se il campo resta (e dove si vede) o se sparisce dalle Impostazioni.
+
+**Il vincolo duro del 13/08 regge ancora**: `supplier_orders` ha `@@unique([tenantId, reference])`. Lì la stringa **è un'identità del database**, non un'etichetta — e due ordini fornitore di serie diverse con lo stesso numero, oggi distinti da `OF-A-0005` e `OF-B-0005`, diventerebbero entrambi `5`. Sulla tabella `documents` questo problema non esiste: l'unicità sta su `number`, non sulla stringa.
+
+### Le quattro decisioni che mancano prima di eseguire
+
+Confermate aperte il 15/08. Nessuna è tecnica: le prende Luigi.
+
+1. **La forma quando c'è una serie.** La convenzione italiana della fattura è `17/2026`, Danea scrive `DDT 264/Web 2026`: con serie `MI` sarebbe `5/MI`, non `MI-0005`. Da fissare la barra, l'ordine dei due pezzi, e se l'anno entra o resta il metadato che §1 ha già fatto uscire dalla numerazione.
+2. ~~**La serie predefinita non deve comparire.**~~ **Risolta dalla misura del 15/08: il modello distingue già, e non serve nessuna euristica.** Vedi sotto.
+3. **Le 104 righe già scritte.** Lasciarle com'è (il registro resta misto), calcolare la vista da `number` + `series` ignorando la colonna memorizzata, oppure riscrivere la colonna con una migration.
+4. **Il campo Prefisso nelle Impostazioni.** Resta configurabile ma senza effetto visibile, o sparisce?
+
+### La serie `A` non è una serie: misurato il 15/08, sola lettura
+
+_Chiesto esplicitamente di **non** dedurre il significato dal valore letterale, e di misurare prima. La misura c'è, e chiude la questione senza euristiche._
+
+**Il modello distingue già i due casi, ed è esplicito.** `DocumentCounter.series` è **nullable**, e il commento dello schema lo dichiara: _«serie NULL = «senza serie» (riferimento PREFISSO-NUMERO)»_. Una serie vera è testo libero (max 20 caratteri). Quindi «senza serie» **non** si scrive `'A'`: si scrive `NULL`.
+
+**Nessun operatore ha mai creato una serie chiamata `A`.** Quaranta contatori configurati, con serie `NULL`, `Mi`, `Test ddt`, `NA`. Contatori con serie `A`: **zero**.
+
+**Le `A` sui documenti sono il fossile del motore vecchio**, e la prova è doppia:
+
+| Serie sul documento | Documenti | Con un contatore corrispondente | Creati               |
+| ------------------- | --------- | ------------------------------- | -------------------- |
+| `'A'`               | **78**    | **0**                           | 1–25 luglio          |
+| `NULL`              | 25        | 24 su 25                        | dal 29 luglio in poi |
+| `'Test ddt'`        | 1         | 1                               | 31 luglio            |
+
+Le date si separano da sole, e sullo stesso taglio del cambio di formato (28 luglio): prima i contatori non esistevano e `'A'` era il default tecnico scritto nel codice; dopo, la serie si prende da un contatore vero. _(L'unico `NULL` senza contatore è l'accompagnatoria del 15/08, che per costruzione non ha contatore proprio: pesca da quello della Fattura — è la regola del §7, non un'anomalia.)_
+
+**La regola da scrivere non è quindi `if (series === 'A')`.** È: **la serie compare quando c'è, e «non c'è» si chiama `NULL`.** Le 78 righe con `'A'` non sono un caso da riconoscere a runtime: sono **dati storici**, e appartengono alla decisione 3 qui sopra — la stessa che riguarda le 104 righe.
+
+**Resta un margine, piccolo e da dichiarare.** Il nome serie è testo libero: **oggi un operatore può creare un contatore chiamato `A`**, e nessuna validazione lo impedisce. Se lo facesse, i suoi documenti nuovi porterebbero `series = 'A'` come i fossili di luglio, e nella tabella `documents` i due casi sarebbero indistinguibili **per quel tenant e quel tipo**. Non è successo, e ha una soluzione facile — nella normalizzazione dei dati storici (decisione 3) le `'A'` di luglio diventano `NULL`, e da lì in poi `'A'` significa solo «serie scelta da qualcuno». Va fatto **in quell'ordine**: chi introducesse la serie nella forma visibile prima della normalizzazione mostrerebbe `5/A` su settantotto documenti che una serie non ce l'hanno mai avuta.
+
+### Il motore vecchio: cosa è ancora vivo, e cosa è già morto
+
+Stessa misura, perché la forma della serie e il motore che la assegna sono la stessa questione.
+
+`DocumentSequence` — il contatore che **memorizza** il progressivo — è superato da `max+1` sui documenti reali, ma la tabella ha ancora righe: `goods_receipt` (ferma a 35), `sales_ddt` (2), `quote` (1), `manual_unload` (1), `store_sale` (1), `customer_order` (5), **`online_sale` (5)** e **`corrispettivo` (6)**.
+
+- **`nextDocumentNumber` in `document-totals.util.ts:17`** — la funzione che fa `documentSequence.upsert` — **non ha nemmeno un chiamante**: zero riferimenti in tutto `api/src`, neanche un test. È codice morto, e va rimosso **insieme** alla tabella (punto 7 dell'ordine di esecuzione), non prima.
+- **L'unico scrittore vivo è `online-sale-fulfillment.service.ts:609`**, che fa l'upsert in proprio. È lo stesso file del riferimento parallelo, ed è materia di **§8** — non di questa voce.
+
+Gli altri servizi (`store-sales`, `supplier-orders`, `manual-sales-orders`, `documents`) importano l'omonima da `document-numbering.util`, che è quella nuova: stesso nome, motore diverso. **Due funzioni con lo stesso nome in due file** sono il motivo per cui questa distinzione va scritta e non lasciata alla lettura.
+
+### Cosa l'esecuzione dovrà toccare, oltre al codice
+
+Perché §0-bis vale anche qui — la guida si aggiorna **dentro** il blocco, non dopo:
+
+- **`GUIDA-UTENTE-VESTIFLOW.md`**, sezione «Impostazioni numerazione»: oggi promette per iscritto la forma `PREFISSO-SERIE-NUMERO` (es. `AM-A-0042`). È corretta finché §11 non si esegue, e diventa falsa il giorno dopo.
+- **La guardia contro il secondo compositore** (`GUARDIE-MANCANTI.md` voce 14): senza, la prossima copia nasce alla prossima maschera.
+- **La riga «Rif. …» fra documenti**, che oggi ripete la sigla dentro una frase che già nomina il tipo — `Rif. DDT DDT-0005` invece di `Rif. DDT 5`.
+
 ### Chi decide, e dove
 
 **Il `<Numero>` verso lo SdI è materia del ramo `feature/fattura-elettronica`**, che vive dentro `develop`. Va deciso **con il collega**, non qui: è lui che sta riscrivendo quel percorso, e il test che fissa il comportamento attuale è suo.
@@ -1111,7 +1224,8 @@ Da questa parte non è stato implementato niente, di proposito.
 2. **§2 — proposta per data.** Dodici chiamate in sette file, più i tre punti del conflitto, il campo data sul DTO di anteprima, l'indice composito e la query in SQL puro.
 3. **§4 — controllo cronologico** con avviso persistente. Dipende dal 2.
 4. **§7 — famiglia fattura**, sottotipi. Additivo.
-5. **Rimozione della numerazione dal Corrispettivo** — coordinare con `feature/cassa`, e decidere prima le due informazioni che cadono.
-6. **Rimozione di `DocumentSequence`** — backup sistemato prima.
+5. **§11 — sigla e zeri fuori dal numero visibile.** Prima servono le quattro decisioni aperte (forma con la serie, serie predefinita, sorte delle 104 righe già scritte, campo Prefisso nelle Impostazioni). L'esecuzione lascia una guardia contro il secondo formatter.
+6. **Rimozione della numerazione dal Corrispettivo e dalla Vendita online** — coordinare con `feature/cassa`, e decidere prima le due informazioni che cadono. La Vendita online è il caso più semplice dei due: il numero che la sostituisce esiste già in tabella.
+7. **Rimozione di `DocumentSequence`** — backup sistemato prima.
 
 I punti 1, 2 e 3 non collidono con `bugfix/righe-documento` né con i rami del collega.

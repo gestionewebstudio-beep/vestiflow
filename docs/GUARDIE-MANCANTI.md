@@ -13,8 +13,8 @@ Ogni voce porta uno **stato di verifica**, e va preso sul serio:
 | ✅ **VERIFICATO**    | riaperto e ricontrollato a mano sul codice, con le prove qui sotto          |
 | ◻️ **DA VERIFICARE** | risultato dell'analisi, non ricontrollato: **da confermare prima di agire** |
 
-Tredici voci, di cui **cinque verificate a mano** — quelle che hanno conseguenze più serie. Le
-altre sette sono attendibili ma non confermate: valgono come punti di partenza, non come
+Quattordici voci, di cui **sei verificate a mano** — quelle che hanno conseguenze più serie. Le
+altre otto sono attendibili ma non confermate: valgono come punti di partenza, non come
 fatti.
 
 **Questo è il registro dichiarato dei difetti generali.** Ci finisce ciò che si trova
@@ -27,6 +27,8 @@ sta qui.
 
 _Aggiunte il 13/08/2026, trovate lavorando alla numerazione: la sezione «un secondo
 bersaglio» dentro la voce 2, le voci 10, 11 e 12._
+
+_Aggiunta il 15/08/2026, trovata lavorando alla famiglia Fattura: la voce 14._
 
 > **Il criterio di accettazione che ne esce**, e vale come regola di revisione:
 >
@@ -515,6 +517,66 @@ di `dist/` senza dipendere da alcuna build. Chi lo lancia da solo serve qualunqu
 artefatto sia rimasto su disco — e se l'ultima build era `production`, quel bundle
 parla con l'API di produzione mentre si crede di provare in locale. La guida operatore
 prescrive i due comandi in coppia; il difetto è che nulla lo fa rispettare.
+
+---
+
+## 14. ✅ Il riferimento del documento ha due compositori, e uno non ha seguito il cambio
+
+**VERIFICATO il 15/08/2026** su codice, cronologia git e righe di database.
+
+L'invariante non è nemmeno dichiarato: si dà per scontato che «il riferimento di un
+documento si scrive in un modo solo». Ne esistono **due**.
+
+| Dove                                           | Forma                   | Chi la usa                  |
+| ---------------------------------------------- | ----------------------- | --------------------------- |
+| `api/src/documents/document-totals.util.ts:38` | `PREFISSO[-SERIE]-NNNN` | dodici punti del backend    |
+| `api/src/order-reservations/…:618` (privata)   | `PREFISSO-ANNO-NNNN`    | un punto: le vendite online |
+
+La copia mette **l'anno** dove il canonico mette **la serie** — e la riga salva
+`series: 'A'` in colonna, quindi la serie c'è ma nella stringa non compare mai.
+
+**La prova che nessuna guardia esiste**: il 28/07 il commit `8b60a7d9` ha tolto l'anno
+dalla forma canonica. La copia non ha seguito, e **per diciotto giorni nessuno se n'è
+accorto** — trovato per caso il 15/08 misurando altro. I test non mancano: ce ne sono per
+entrambe, ed entrambe passano. Nessuno mette in relazione le due, ed è esattamente il
+difetto — non sta in nessuna delle due funzioni, sta nel fatto che siano due.
+
+Perché il progetto non poteva accorgersene da solo: le vendite online le genera un
+**webhook**, non un operatore, quindi nessuno guarda mentre nascono; e le due forme si
+incontrano in un posto solo — la colonna «Documento» dei Movimenti — che è **nascosta di
+default**.
+
+**Gravità oggi: bassa.** Il riferimento della vendita online è un'etichetta interna
+(`online_sale` e `corrispettivo` sono tipi interni, esclusi per scelta dai Numeratori), e
+il registro Corrispettivi ordina sulla colonna intera, non sulla stringa. Nessun conto
+sbagliato.
+
+**Gravità domani: è il punto.** `04-…§11` toglierà sigla e zeri dal numero visibile di
+tutti i documenti. Se si cambia la sola funzione canonica succede la stessa cosa del
+28/07, ma peggio: i documenti diventano `5`, le vendite online restano `VO-2026-0005`, e
+le due forme oggi simili diventano irriconoscibili.
+
+**Forma della correzione — e attenzione a non sbagliare bersaglio.** Per la vendita online
+la risposta **non** è allineare la forma: quel numero non deve esistere (`04-…§8`, dove il
+numero del canale che lo sostituisce è già in tabella). Ciò che va aggiunto qui è la
+guardia: uno script che fallisce se un riferimento documento viene composto fuori dalla
+funzione unica — la stessa forma di `check-vat-formulas.mjs` proposto al punto 8, e per la
+stessa ragione: è ciò che intercetta la **terza** copia, non la seconda.
+
+> ⚠️ **Classificazione, fissata il 15/08.** `online-sale-fulfillment.service.ts` **non** va
+> registrato come «secondo formatter da uniformare»: è un **residuo del vecchio modello di
+> numerazione della Vendita online**, da riesaminare nell'esecuzione di `04-…§8`. Questa
+> voce riguarda la **guardia mancante** — l'invariante «un solo compositore» che niente fa
+> rispettare — e resta valida anche dopo che quel file sarà sparito, perché il rischio non
+> è quel file: è il prossimo.
+
+**Adiacente, stessa radice, trovato nella stessa misura:** esistono **due funzioni con lo
+stesso nome** in due file — `nextDocumentNumber` in `document-numbering.util.ts:310` (viva,
+`max+1` sui documenti reali) e in `document-totals.util.ts:17` (il vecchio
+`documentSequence.upsert`). La seconda **non ha nemmeno un chiamante**: zero riferimenti in
+tutto `api/src`, neanche un test. È codice morto che porta il nome di codice vivo — chi
+cerca «dove si assegna il numero» ha una probabilità su due di leggere il motore sbagliato.
+Va rimossa **insieme** alla tabella `DocumentSequence`, non prima.
 
 ---
 

@@ -526,7 +526,7 @@ E qui sta il difetto vero: `computeLines` scrive `unitOfMeasure: line.unitOfMeas
 
 ## §18 · La rotta di modifica non porta il tipo
 
-**Deciso 15/08: entra nel lavoro della famiglia Fattura.** Non aspetta più il ramo FE. Non iniziato.
+**Deciso 15/08: entra nel lavoro della famiglia Fattura.** Non aspetta più il ramo FE. ✅ **Fatto il 15/08** — vedi §20.
 
 _Misurato 13/08:_ Proforma, Fattura e Fattura accompagnatoria condividono **una sola rotta di modifica** e nei suoi `data` non c'è `salesDocumentType`. Finché il documento non arriva dalla rete, `documentType()` ricade sul predefinito **Proforma per tutti e tre**.
 
@@ -551,7 +551,7 @@ Fotografia dello stato **prima** di unificare il registro. Serve a due cose: dir
 | Elenco Fatture                        | profilo `invoice` in `document-sales-register.config.ts`                                                                                              | `types` = due tipi, `typeFilterOptions` = tre voci (Tutti, Fattura, Accompagnatoria), `createVariants` = due voci |
 | Elenco separato delle Note di credito | **non esiste**                                                                                                                                        | il tipo non esiste ancora                                                                                         |
 | Voce di navigazione                   | hub Documenti: **due** voci (`Fattura`, `Fattura accompagnatoria`) che puntano allo **stesso** elenco con `queryParams.type` a preimpostare il filtro | ne servirà una terza, non una pagina                                                                              |
-| Permessi                              | famiglia `invoice` — una sola per tutti e tre i tipi                                                                                                  | nessun lavoro                                                                                                     |
+| Permessi                              | famiglia `invoice` — una sola per tutti e tre i tipi                                                                                                  | ⚠️ **qui il censimento aveva scritto «nessun lavoro»: sbagliato** — vedi sotto                                    |
 | Rotte di creazione                    | `fattura/new`, `fattura-accompagnatoria/new`                                                                                                          | ne manca una per la nota                                                                                          |
 | Rotta di modifica                     | **una sola**, `sales/:id/edit`, **senza** `salesDocumentType` nei `data`                                                                              | è il difetto del §18                                                                                              |
 | Costruttore dei link di modifica      | **uno solo**: `documentEditPath` in `document-routing.util.ts`                                                                                        | correggere la rotta = cambiare una funzione, non inseguire i chiamanti                                            |
@@ -584,4 +584,167 @@ _Verificato in sola lettura il 15/08 sul database condiviso:_
 
 ⚠️ **Le misure sul database valgono il giorno in cui sono state fatte.** Il database è condiviso e il collega è attivo: prima del `prisma:deploy` vanno rifatte, in particolare collisioni e stato migration.
 
-**Stato: preparato, NON applicato. L'esecuzione sul database condiviso la decide Luigi.**
+**Stato: ✅ APPLICATE il 16/08/2026** sul database condiviso, con `npm run prisma:deploy`, su via esplicito di Luigi.
+
+#### Il checkpoint prima dell'applicazione, e cosa ha dato
+
+Chiesto e fatto in sola lettura: pending **solo le due** attese; **nessuna** migration fallita o incomplete; `credit_note` assente dall'enum (19 valori); collisioni misurate col bucket esatto — non sui `reference` — **zero**; l'indice esisteva una volta sola e nessun vincolo dipendeva da lui; PostgreSQL **17.6**; nome temporaneo libero.
+
+Due cose emerse dal checkpoint, che valgono da registrare:
+
+- **Le sei migration «sconosciute» non lo erano.** `migrate status` segnalava sei migration nel database e assenti in locale: sono tutte di `origin/feature/cassa`, commit del 6–7 agosto, ramo sospeso. **Non toccano** `DocumentType` né `documents_number_unique`; nominano `documents` solo come bersaglio di chiavi esterne (`store_sale_payments`, `fiscal_receipts`, `corrispettivo_entries`). Nessuna interferenza.
+- **`BEGIN`/`COMMIT` espliciti dentro una migration sono stati valutati e scartati.** Prisma applica ogni file già dentro una transazione: un `BEGIN` annidato è un no-op, ma il `COMMIT` chiuderebbe **in anticipo** la transazione di Prisma, togliendo la rete invece di aggiungerla. La variante _create-first_ (indice nuovo con nome temporaneo, poi `DROP` del vecchio, poi `RENAME`) resta la forma corretta se un domani si volesse la protezione anche senza quel presupposto — non è stata adottata perché il file era già committato e la protezione transazionale bastava.
+
+#### Le verifiche subito dopo — tutte verdi
+
+| Verifica                                                                                                 | Esito                                                                         |
+| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Le due migration applicate, concluse, non annullate                                                      | ✅ 1 passo ciascuna                                                           |
+| Migration fallite                                                                                        | ✅ nessuna                                                                    |
+| `credit_note` nell'enum                                                                                  | ✅ 20 valori                                                                  |
+| `documents_number_unique` presente una volta sola                                                        | ✅                                                                            |
+| Indici temporanei residui                                                                                | ✅ nessuno                                                                    |
+| Accompagnatoria **e** Nota di credito mappate su `invoice_draft`, `NULLS NOT DISTINCT`, `WHERE` parziale | ✅                                                                            |
+| Collisioni                                                                                               | ✅ 0                                                                          |
+| Documenti totali                                                                                         | ✅ 104, invariati                                                             |
+| Note di credito create automaticamente                                                                   | ✅ nessuna                                                                    |
+| `FT-0001`                                                                                                | ✅ intatta — accompagnatoria, n. 1, senza serie, confermata, totale invariato |
+| Elenco Fatture con filtro «Tutti»                                                                        | ✅ **torna a funzionare** (era la query che dava `22P02`)                     |
+| Fattura/Accompagnatoria esistenti apribili con le righe                                                  | ✅                                                                            |
+
+⚠️ **Nota per chi rileggerà l'indice:** Postgres normalizza `IN (a, b)` in `= ANY (ARRAY[…])`. La definizione finale **non contiene** la stringa `IN (` — il controllo va fatto sui due valori, non sulla sintassi.
+
+**Applicate senza punto di ripristino, per decisione esplicita.** Il database è su Supabase Free (nessun backup gestito), nessun backup manuale è mai stato fatto, e `pg_dump` non è installato. La scelta è stata presa sapendo che **nessuna delle due migration tocca dati**: una aggiunge un valore a un enum, l'altra ricostruisce un indice. Resta il fatto che il progetto non ha alcun punto di ripristino — e la prima operazione che tocca davvero i dati (la normalizzazione delle 104 `reference`, `04-…§11` decisione 3) **non va aperta prima di averlo**.
+
+### Il pacchetto `credit_note` lato codice — fatto il 15/08, database non toccato
+
+Primo passo eseguito: il tipo esiste nel codice, in tutte le mappe, **senza** che il database lo conosca. Tutto verde — API 1583 test, frontend 1396, componenti 424, type-check pulito sui due lati.
+
+**Le sette classificazioni**, ciascuna decisa una per una e non per somiglianza di nome:
+
+| Elenco                                  | La nota entra? | Con quale avvertenza scritta nel codice                                                                                                                                     |
+| --------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DOCUMENT_TYPES`                        | sì             | —                                                                                                                                                                           |
+| `SALES_INVOICE_DOCUMENT_TYPES`          | sì             | —                                                                                                                                                                           |
+| `ACCOUNTANT_DOCUMENT_TYPES`             | sì             | ⚠️ deve entrarci **col verso negativo**: renderla visibile senza applicare il segno la fa sommare come una fattura in più, e il commercialista legge uno storno come ricavo |
+| `PRICE_MODE_VAT_INCLUDED_DEFAULT_TYPES` | sì             | ⚠️ vale per la nota **creata vuota**; una nota generata da una fattura **eredita il modello dell'origine** — il default non deve sovrascriverlo                             |
+| `NON_STOCK_DOCUMENT_TYPES`              | sì             | ⚠️ significa **solo** casella magazzino spenta di default, non «non movimenta mai»                                                                                          |
+| `HAS_PRINTED_SHEET` / `PRINT_KIND`      | sì             | foglio stampato, famiglia `sales`                                                                                                                                           |
+| famiglia permessi `invoice`             | sì             | chi emette fatture deve poterle stornare: un permesso separato darebbe metà mestiere                                                                                        |
+
+#### Due guardie hanno preso il difetto che il censimento aveva mancato
+
+La riga «Permessi → nessun lavoro» della tabella qui sopra era sbagliata: la mappa tipo → famiglia è **esplicita**, e va completata **su entrambi i lati**. Non l'ha scoperto una rilettura, l'hanno fatto fallire due test che nessuno aveva scritto per questa occasione:
+
+- `ogni DocumentType ha una famiglia (nessun tipo orfano)` — API;
+- `nessun tipo del catalogo frontend resta senza famiglia` — il suo gemello web.
+
+Un terzo test — la partizione del numeratore — è diventato rosso perché leggeva due tipi e ora ne legge tre: è la prova che la numerazione condivisa funziona davvero.
+
+**Vale la pena registrarlo come metodo, non come aneddoto**: il censimento aveva letto le mappe e concluso «nessun lavoro» perché la famiglia `invoice` esisteva già. Ciò che gli era sfuggito è che l'appartenenza va **dichiarata**, non ereditata. Un censimento fatto leggendo può sbagliare così; una guardia che pretende una decisione positiva per ogni tipo, no.
+
+#### Il prefisso `FT` **non è una decisione**
+
+La nota usa `FT` come fallback perché il progressivo è uno solo per i tre tipi: prefissi diversi sullo stesso contatore darebbero `FT-0005` e `NC-0006`, che si leggono come due numerazioni mentre sono la stessa.
+
+Ma la questione vera è un'altra e non appartiene a questo documento: **`04-…§11` ha deciso di togliere sigla e zeri dal numero visibile di tutti i documenti.** Quando §11 sarà eseguita, questa riga cade insieme a tutte le altre. Il commento nel codice lo dice esplicitamente, perché chi la leggerà non debba ricostruirlo.
+
+---
+
+## §20 · Registro unico e rotte — ✅ **fatto il 15/08/2026**, database non toccato
+
+Chiude §3 (elenco), §4 (percorsi), §5 (creazione) e §18 (rotta di modifica). Verde: **1408** test frontend, **427** di componente, type-check e `npm run lint` (tutti e otto i controlli) puliti.
+
+### Il registro
+
+Un elenco solo, «Fatture», con i **tre** tipi. `types` li prendeva già da `SALES_INVOICE_DOCUMENT_TYPES`, quindi il lavoro era attorno: quarta voce nel filtro «Tipo», terza in «Nuovo ▾», sottotitolo riscritto (diceva «con o senza trasporto merce incluso», che le note di credito non le comprende), e terza voce nell'hub che punta **allo stesso elenco filtrato** — `queryParams: { type: 'credit_note' }` — non a una pagina nuova.
+
+La colonna «Tipo doc.» non è stata toccata: esisteva già e legge `documentTypeLabel`, che il pacchetto `credit_note` aveva già esteso.
+
+**Aggiunta non richiesta, e la nomino**: la Nota di credito è entrata anche nel menu «Altro documento» del registro generico, dove Fattura e Accompagnatoria c'erano già. Un menu che elenca due tipi su tre di una famiglia fa cercare il terzo altrove.
+
+### Le rotte: una per tipo, generate da una mappa sola
+
+`sales/:id/edit` **non esiste più**. Al suo posto quattro rotte di modifica — una per tipo della maschera vendita — generate da `SALES_FORM_ROUTE_SEGMENT`, che è la **fonte unica** dei segmenti: da lì nascono creazione, modifica, duplicazione e i collegamenti dell'elenco.
+
+È una mappa esaustiva (`Record<SalesFormDocumentType, string>`), non un elenco: **un quinto tipo aggiunto alla famiglia non compila** finché non gli si dà un indirizzo. Per ottenerla è stata tolta l'annotazione `readonly DocumentType[]` da `SALES_FORM_DOCUMENT_TYPES`, che allargava il tipo e impediva di derivarne l'unione.
+
+**Il ripiego a Proforma non è stato reso più intelligente: è stato tolto il caso che lo rendeva necessario.** `routeType` ora è obbligatorio (`requireSalesDocumentType`) e una rotta senza tipo si ferma con un errore leggibile — perché su una fattura «comportarsi da proforma» significa stamparci sopra «non valida ai fini IVA», e una pagina che non si apre è un difetto che si vede, mentre un documento fiscale vestito da proforma no.
+
+**Un guadagno non previsto**: le rotte per tipo chiedono il permesso **esatto**. La vecchia rotta unica accettava «gestisci fatture OPPURE proforma» e lasciava il rifiuto all'API — cioè a maschera già aperta e compilata.
+
+### I test, e la prova che mordono
+
+Il difetto stava **prima** della GET, quindi i test misurano quella finestra: `getDocumentById` restituisce un Observable che non emette **mai**, così l'unica fonte possibile del tipo è la rotta. Con quella premessa, il titolo dice già «Modifica fattura» / «Modifica nota di credito», e la dicitura proforma non c'è.
+
+Le altre guardie, tutte espresse come **regola** e non come caso:
+
+- ogni rotta che apre la maschera vendita dichiara il proprio tipo, e dev'essere un tipo che quella maschera gestisce;
+- ogni tipo ha **esattamente** una rotta di creazione e una di modifica;
+- il percorso di duplicazione usa gli stessi segmenti, non una seconda tabella;
+- `sales/:id/edit` non esiste più;
+- i tre tipi chiedono il permesso della famiglia `invoice` e **non** quello della proforma.
+
+**Provate rompendo apposta una rotta** (tolto `salesDocumentType` da `nota-di-credito/new`): due test falliscono, e il messaggio nomina la rotta esatta. Ripristinata.
+
+Ritoccato anche un test preesistente che contava le voci del menu (`toHaveLength(9)`): ora confronta con l'elenco dichiarato, perché «sono nove» invecchia a ogni voce mentre «non ne manca nessuna» no.
+
+### ✅ Il codice e la migration sono una coppia — ricomposta il 16/08
+
+_Quanto segue descriveva la finestra fra il 15 e il 16 agosto, in cui il codice conosceva `credit_note` e il database no. **Le migration sono state applicate il 16/08** e l'elenco è tornato a funzionare. Resta scritto perché la catena spiega una regola che vale per la prossima volta._
+
+**L'elenco Fatture non funzionava finché la migration non era applicata**, e non era una deduzione: è stato misurato eseguendo la query esatta che la pagina manda.
+
+```
+invalid input value for enum "DocumentType": "credit_note"   (Postgres 22P02)
+```
+
+Il motivo è la catena completa: il filtro «Tutti» interroga tutti i tipi del profilo, quindi manda `types=invoice_draft,invoice_accompanying,credit_note`; il DTO valida contro l'enum del **client Prisma**, che `credit_note` ce l'ha da quando lo schema è stato rigenerato; e il database, che non l'ha, rifiuta la query.
+
+È esattamente ciò che `regole-qualita` chiama **«lo schema e la sua migration sono una coppia»**: `prisma generate` senza `prisma:deploy` lascia lo stato peggiore dei due. Qui la coppia si è spezzata in modo previsto — le due migration sono pronte e non applicate per decisione esplicita — ma va detto chiaro:
+
+> **La lezione, che vale oltre questo caso:** rigenerare il client Prisma senza applicare la migration non lascia il sistema «come prima» — lo lascia nello stato peggiore dei due, perché il codice comincia a chiedere al database una cosa che il database non sa. O tutti e tre insieme — schema, migration, `prisma:deploy` — oppure nessuno dei tre.
+
+Le alternative, per completezza: tenere il registro a due tipi fino alla migration sarebbe stato il «registro provvisorio» già scartato il 15/08, e avrebbe costretto a rifare due volte lo stesso lavoro. Per questo si è scelto di lasciare l'elenco rotto per una notte, con la rottura dichiarata qui, invece di costruire qualcosa da disfare.
+
+---
+
+## §21 · Il nome `invoice_draft` e il ciclo fiscale da ripulire
+
+**Deciso il 16/08/2026. Registrato, non iniziato.** Nessuna riga toccata: qui c'è solo la misura e la decisione.
+
+### Il nome è un fossile
+
+`invoice_draft` voleva dire **«bozza fattura»**, ed era esatto: all'origine VestiFlow non emetteva fatture, ne preparava la bozza da mandare al commercialista. `DOCUMENTO-FUNZIONALE-SOLO-GESTIONALE.md:327` lo elenca ancora così. Il tipo nasce il 1° luglio nella migration di fondazione, senza commento — il nome bastava a spiegarsi.
+
+Poi il prodotto si è mosso e il nome no. Quel tipo oggi **è la Fattura**: ciclo fiscale, stampa, e da §9 anche la fatturazione elettronica. Tutto ciò che l'operatore vede dice «Fattura» — etichetta, prefisso `FT`, titolo di stampa. È rimasto indietro solo il valore nell'enum.
+
+E c'è la coincidenza che lo rende fuorviante: **«Bozza» oggi è uno _stato_**, non un tipo. Una Fattura può essere in bozza o no, mentre il suo tipo si chiama `invoice_draft` comunque. La stessa parola in due posti con due significati — ed è il motivo per cui il dubbio è tornato due volte, l'ultima come voce aperta **A.4.1** di `QUADRO-DECISIONI-FATTURE.md` (_«va **letto**, non assunto»_), chiusa dalla misura del 15/08: `invoice_draft` è la Fattura, `proforma` è un valore distinto con contatore, prefisso `PRO` e titolo propri.
+
+**Quando rinominarlo.** Non durante questo lavoro. Il valore non è solo un'etichetta in tre punti che contano: è scritto **dentro l'indice unico** come espressione (`THEN 'invoice_draft'::"DocumentType"`), vive nel **database condiviso** dove il collega ha un ramo aperto sulla stessa famiglia, e compare negli **indirizzi** (`?type=invoice_draft`) e nelle preferenze colonne salvate dagli operatori. Superficie: 61 file di codice, 6 migration. Il momento giusto è **insieme al merge col ramo del collega**, quando il database smette di avere due storie.
+
+### «Inviata al commercialista» non serve: è una struttura in più
+
+**Decisione del proprietario del progetto, 16/08.** La marcatura di quale fattura è stata mandata al commercialista **non si tiene**.
+
+Il motivo non è che sia complicata, ma che è **contabilità sulla contabilità**: qualcuno deve ricordarsi di spuntarla, e una seconda fonte di verità che dipende dalla memoria di un operatore diverge dalla prima senza che nessuno se ne accorga.
+
+**La misura dice che non è mai stata usata**, e non per poco:
+
+|                                                       |       |
+| ----------------------------------------------------- | ----- |
+| Fatture in stato `sent` («Inviata al commercialista») | **0** |
+| Fatture in stato `externally_registered`              | **0** |
+| `externally_issued_at` valorizzata (su 104 documenti) | **0** |
+
+L'unica fattura esistente è `confirmed`. I tre documenti che portano quegli stati sono di **altri tipi**.
+
+**Cosa cade.** Del ciclo fiscale della Fattura restano gli stati che descrivono un fatto — bozza, confermata, annullata — e cadono i due che descrivono un adempimento fatto altrove. Con loro cadono le tre caselle del Registro commercialista che li contano (`accountant-register.component.html`: «Da emettere», «Inviate al commercialista», «Registrate esternamente») e i contatori che le alimentano (`accountant-register-document-counts.util.ts`).
+
+**Cosa NON cade, e va tenuto distinto.** Tre cose:
+
+1. **Il Registro commercialista resta.** Le tre caselle non sono il registro: lo stesso modulo conta anche i DDT da fatturare e i documenti fornitore in sospeso, che sono fatti veri e restano.
+2. **`sent` e `externally_registered` sono stati _generici_**, non della sola Fattura: li usano altri tipi (tre documenti oggi). Quello che cade è **il ciclo fiscale della Fattura**, non necessariamente i valori dell'enum — toglierli dall'enum è una decisione separata, e più cara.
+3. **La trasmissione allo SdI è un'altra cosa.** Quando la fattura elettronica entra (§9), esisterà uno stato «trasmessa» — ma sarà un **fatto riportato dal sistema di interscambio**, non una spunta messa a mano. Togliere la marcatura manuale adesso non ostacola quel lavoro: gli libera il posto.
+
+**Coordinamento.** Il ciclo di stati della Fattura è esattamente la superficie che il lavoro di fatturazione elettronica toccherà. Questa pulizia va fatta **dentro quel blocco**, non prima e non in parallelo.
