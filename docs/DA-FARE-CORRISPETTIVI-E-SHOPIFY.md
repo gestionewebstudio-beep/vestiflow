@@ -1,7 +1,7 @@
 # Cosa resta da fare — corrispettivi, resi e sincronizzazione Shopify
 
-**Aggiornato:** 14/08/2026, sera
-**Ramo:** `numerazione-documento-2` (si continua su questo)
+**Aggiornato:** 15/08/2026, notte
+**Ramo:** `numerazione-documento-2` (si continua su questo; contiene tutto `develop` + 33 commit — non `main`, che è 205 commit più indietro e gira la produzione)
 **A che serve:** riprendere il lavoro in un'altra sessione **senza ricostruire niente**. Ogni voce dice cosa è già misurato, cosa è deciso e cosa no.
 
 ---
@@ -89,14 +89,54 @@ Il passaggio 1 è fatto: nessuna UI la legge, nessuna scrittura la alimenta dal 
 
 ## Difetti aperti, misurati e non ancora corretti
 
-| Rif.       | Difetto                                                                       | Stato                                   |
-| ---------- | ----------------------------------------------------------------------------- | --------------------------------------- |
-| `01` §3.12 | **Le righe della Vendita online** portano ancora l'aliquota media inventata   | l'import è corretto, lo **snapshot** no |
-| `01` §3.9  | Le righe importate ignorano lo sconto: 120,00 di righe su un ordine da 104,00 | aperto                                  |
-| `01` §3.11 | Vendita con una riga non scaricata dichiara «scarico completo»                | aperto                                  |
-| `01` §3.8  | L'**impegno** usa ancora il ripiego alfabetico sulla sede                     | chiuso solo lo scarico, e mai eseguito  |
-| `01` §2.1  | `orders/cancelled` non registrato sul negozio                                 | da fare **dall'ambiente pubblicato**    |
-| `01` §2.14 | Il reso dichiarato e non ancora elaborato non esiste per VestiFlow            | aperto, da decidere se coprirlo         |
+| Rif.       | Difetto                                                                          | Stato                                                                          |
+| ---------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `01` §3.9  | Le righe importate ignoravano lo sconto: 120,00 di righe su un ordine da 104,00  | ✅ **chiuso e provato** su `#1010`/`#1011` (15/08)                             |
+| `01` §3.13 | Il Codice IVA della vendita online lo sceglieva l'imposta incassata, mai lo zero | ✅ **chiuso** — non ancora eseguito in produzione (scatta all'evasione)        |
+| `01` §3.14 | La sync sedi partiva da sola, da tre punti, e creava/rinominava/cancellava       | ✅ **inneschi spenti** — il servizio (nome, creazione automatica) resta aperto |
+| `01` §3.15 | Le righe di canale scrivono importi IVATI in colonne lette come NETTE            | aperto — scelta di modello, non ancora presa                                   |
+| sotto      | Ordine cliente: sconto a importo, sconto extra a importo, spedizione sui manuali | aperto — disegno deciso, non implementato                                      |
+| `01` §3.12 | **Le righe della Vendita online** portano ancora l'aliquota media inventata      | l'import è corretto, lo **snapshot** no                                        |
+| `01` §3.11 | Vendita con una riga non scaricata dichiara «scarico completo»                   | aperto                                                                         |
+| `01` §3.8  | L'**impegno** usa ancora il ripiego alfabetico sulla sede                        | chiuso solo lo scarico, e mai eseguito                                         |
+| `01` §2.1  | `orders/cancelled` non registrato sul negozio                                    | da fare **dall'ambiente pubblicato**                                           |
+| `01` §2.14 | Il reso dichiarato e non ancora elaborato non esiste per VestiFlow               | aperto, da decidere se coprirlo                                                |
+
+## Novità della notte del 15/08 — da leggere prima di riprendere
+
+**Fatto, provato, committato** — 5 commit sul ramo, tutti verdi (961+418 frontend, 1527 API):
+
+1. Sconto di riga Shopify — si legge da `discount_allocations`, mai si ricalcola. Provato su due ordini costruiti apposta, uno con sconto a importo.
+2. Codice IVA della vendita online — si aggancia solo se univoco; mai a zero, mai con più codici alla stessa aliquota.
+3. Maschera Ordine cliente — su un ordine di canale il riepilogo si legge dalla testata (spedizione, sconto, imponibile per differenza), non si ricalcola col motore manuale.
+4. Sedi — i tre inneschi automatici sono spenti. Il pulsante manuale resta.
+
+**Deciso ma non implementato — è il prossimo lavoro sull'Ordine cliente.** Una banda unica in entrambi i documenti (manuale e Shopify), con questi campi editabili in tutti e due:
+
+```
+Totale prodotti
+Sconto ordine        ← dal canale, sola presa d'atto · 0,00 sui manuali
+Sconto extra   [ 0% ]
+Sconto importo [ 0,00 ]   ← NUOVO, colonna additiva su sales_orders
+Spedizione            ← NUOVO su tutti e due i documenti
+Imponibile
+IVA
+Totale documento
+```
+
+Decisioni prese, da non riaprire:
+
+- l'importo del canale (`discountMinor`, esiste già) resta **distinto** dal nuovo campo che scrive l'operatore — altrimenti il sync lo cancellerebbe al prossimo giro;
+- ordine di applicazione: **prima la percentuale, poi l'importo**;
+- l'IVA dell'importo si ripartisce sulle righe in proporzione, come già fa la percentuale — **tranne** sulle righe Shopify, dove l'allocazione del canale non si ricalcola mai;
+- **su un ordine Shopify il campo sconto importo diventa editabile**: resta pieno col valore del canale finché l'operatore non lo tocca. Da decidere il comportamento al prossimo sync — oggi la maschera di un ordine di canale è di sola lettura su tutto il resto, e questo campo ne uscirebbe da solo;
+- migration: colonna additiva `document_discount_minor` su `sales_orders`, scritta a mano, `prisma:deploy`.
+
+**Non deciso, resta il §3.15.** Se scorporare i prezzi Shopify a netto all'import (come fa già il catalogo) o dichiarare che le colonne dell'ordine di canale sono lorde. `PREZZI-SHOPIFY-SPEC.md` §1-bis e §4.1 la analizzano dal 7 agosto; i rimborsi la applicano già (leggono `taxes_included`), l'import degli ordini no — stessa cartella, stesso payload, due dottrine.
+
+**La fase iniziale di collegamento Shopify** _(deciso il 15/08, sospesa)_. Le sedi si agganciano **a mano** — non più solo per nome — quando esistono già da entrambe le parti; ogni sede completa i propri dati (indirizzo, impostazioni); e questo passo sta insieme all'assegnazione del Codice IVA ai prodotti importati (`02` §4.1-4.3). Non è più «poi un avviso»: è il lavoro descritto lì, ed è il più grande dei tre rimasti.
+
+**Topologia del ramo, verificata il 15/08.** `numerazione-documento-2` contiene **tutto `develop`** più 33 commit — non diverge, è un fast-forward pulito (6 migration, tutte aggiunte pure). È `main` a essere 205 commit indietro rispetto a `develop`, ed è `main` che gira in produzione su Railway sullo stesso database condiviso. Il merge previsto è su `develop`: il rischio di migration incrociate descritto per `main` non si applica a questo passaggio.
 
 Sul §3.12: la **correzione all'import è provata sui dati veri** (righe d'ordine riscritte con 2,31 al 4% e 4,51 al 22%). Restano sbagliati gli **snapshot** già scritti — `VO-2026-0004`, `VO-2026-0005`, `COR-2026-0005/0006` — e **non si toccano**: sono istantanee, e sono l'unica testimonianza rimasta del difetto.
 
