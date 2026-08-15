@@ -14,6 +14,10 @@ import { OnlineOrderLifecycleService } from '../order-reservations/online-order-
 import type { ReservationLineInput } from '../order-reservations/stock-reservation.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
+import {
+  mapShopifyLineDiscountMinor,
+  shopifyLineTotalMinor,
+} from './shopify-line-discount.util';
 import { mapShopifyLineVat } from './shopify-line-vat.util';
 import { shopifyDecimalToMinor, shopifyGid } from './shopify-money.util';
 import { mapShopifyRefunds, type ShopifyRefundKind } from './shopify-refund.util';
@@ -223,6 +227,7 @@ export class ShopifySyncService {
           );
           const unitMinor = shopifyDecimalToMinor(String(line.price ?? '0'));
           const qty = Number(line.quantity ?? 0);
+          const discountMinor = mapShopifyLineDiscountMinor(line);
           const vat = mapShopifyLineVat(line);
           return {
             externalLineId: line.id != null ? String(line.id) : `pos-${index}`,
@@ -230,8 +235,13 @@ export class ShopifySyncService {
             sku: String(line.sku ?? '—'),
             title: String(line.title ?? line.name ?? 'Riga ordine'),
             quantity: qty,
+            // Prezzo PIENO e totale EFFETTIVO, entrambi veri: la loro differenza
+            // è lo sconto allocato dal canale, esatta al centesimo. Prima si
+            // scriveva il prezzo pieno anche come totale e lo sconto si buttava,
+            // così le righe non facevano il totale dell'ordine — 120,00 € di
+            // righe su un ordine da 104,00 (registro difetti 3.9).
             unitPriceMinor: unitMinor,
-            totalMinor: unitMinor * qty,
+            totalMinor: shopifyLineTotalMinor(unitMinor, qty, discountMinor),
             // L'IVA della riga come la dichiara il canale. Prima si buttava, e
             // a valle veniva ricostruita ripartendo l'imposta dell'ordine in
             // proporzione al valore: il totale tornava, ogni riga era sbagliata
