@@ -4,7 +4,15 @@ import { describe, expect, it } from 'vitest';
 import { findVatCodeForDerivedRate } from './vat-reverse-match.util';
 import type { VatCodeWithNature } from './vat-codes.service';
 
-function vatCode(overrides: Partial<VatCodeWithNature> & { code: string; ratePercent: number }) {
+// `ratePercent` si scrive come numero e la fabbrica lo converte in `Decimal`.
+// Va tolto dal `Partial`, o l'intersezione lo tipizza `Decimal & number`: un
+// tipo che nessun valore soddisfa, e ogni chiamata qui sotto non compila.
+function vatCode(
+  overrides: Omit<Partial<VatCodeWithNature>, 'ratePercent'> & {
+    code: string;
+    ratePercent: number;
+  },
+) {
   return {
     id: `vat-${overrides.code}`,
     tenantId: 'tenant-1',
