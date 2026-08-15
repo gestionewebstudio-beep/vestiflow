@@ -1206,7 +1206,19 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
         {
           provide: ProductService,
           useValue: {
-            searchVariantSummaries: () => of(catalogo),
+            // ⚠️ Il filtro per `variantId` va rispettato, come fa il servizio
+            // vero. Prima questo finto catalogo lo ignorava e rispondeva
+            // sempre con tutto: la ricerca per id — quella che il form usa
+            // quando la variante non è ancora fra le pinned — tornava il
+            // PRIMO articolo del catalogo qualunque cosa si chiedesse. Un
+            // test che agganciava la seconda variante non poteva funzionare,
+            // e la causa non era nel form.
+            searchVariantSummaries: (params?: { readonly variantId?: string }) =>
+              of(
+                params?.variantId
+                  ? catalogo.filter((row) => row['variantId'] === params.variantId)
+                  : catalogo,
+              ),
             // L'endpoint per codice tace sui casi ambigui: qui non deve mai
             // essere la strada che salva il test.
             findVariantByCode: () => throwError(() => new Error('404')),
@@ -1216,8 +1228,62 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
         },
       ],
     });
-    return view.fixture.componentInstance as unknown as CodeForm;
+    return view.fixture.componentInstance as unknown as CodeForm & {
+      onVariantSelect: (index: number, variantId: string | null) => void;
+    };
   }
+
+  /**
+   * Sostituzione d'articolo sulla stessa riga (difetto trovato il 15/08/2026).
+   *
+   * Il prezzo si scriveva solo se il campo era vuoto: richiamando un secondo
+   * articolo sulla riga, restava il prezzo del primo. La riga diceva un
+   * articolo e costava un altro, e nessuno se ne accorgeva fino alla fattura.
+   */
+  it('sostituendo l’articolo sulla riga, il prezzo segue il nuovo', async () => {
+    const form = await apri([
+      variante({
+        variantId: 'var-A',
+        sku: 'MAG-A',
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+      }),
+      variante({
+        variantId: 'var-B',
+        sku: 'MAG-B',
+        sellingPrice: { amountMinor: 2500, currencyCode: 'EUR' },
+      }),
+    ]);
+
+    form.onVariantSelect(0, 'var-A');
+    expect(form.lines.at(0).controls['unitPrice']!.value).toBe('10,00');
+
+    form.onVariantSelect(0, 'var-B');
+
+    expect(form.lines.at(0).controls['variantId']!.value).toBe('var-B');
+    expect(form.lines.at(0).controls['unitPrice']!.value).toBe('25,00');
+  });
+
+  // Il rovescio: un articolo SENZA prezzo non lascia in piedi quello di prima.
+  // Svuotare è corretto, tenere il vecchio no.
+  it('sostituendo con un articolo senza prezzo, il campo si svuota', async () => {
+    const form = await apri([
+      variante({
+        variantId: 'var-A',
+        sku: 'MAG-A',
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+      }),
+      variante({
+        variantId: 'var-zero',
+        sku: 'MAG-Z',
+        sellingPrice: { amountMinor: 0, currencyCode: 'EUR' },
+      }),
+    ]);
+
+    form.onVariantSelect(0, 'var-A');
+    form.onVariantSelect(0, 'var-zero');
+
+    expect(form.lines.at(0).controls['unitPrice']!.value).toBe('');
+  });
 
   it('più corrispondenze esatte aprono la scelta invece di tacere', async () => {
     const form = await apri([

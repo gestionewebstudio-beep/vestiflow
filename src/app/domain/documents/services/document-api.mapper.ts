@@ -393,6 +393,13 @@ export function mapDocumentTypeSettingApiRow(row: DocumentTypeSetting): Document
 
 /** Riga documento in creazione/aggiornamento. */
 export interface DocumentLineInputBody {
+  /**
+   * Id della riga già salvata, inviato solo in modifica: dice al server di
+   * aggiornare QUELLA riga invece di cancellarla e ricrearne una nuova.
+   * Assente = riga nuova. Preservare l'id è ciò che tiene agganciati alla riga
+   * il movimento di magazzino e i seriali — `docs/09-specifica-movimenti-per-riga.md`.
+   */
+  readonly id?: EntityId;
   readonly variantId?: EntityId;
   readonly sku?: string;
   readonly description: string;

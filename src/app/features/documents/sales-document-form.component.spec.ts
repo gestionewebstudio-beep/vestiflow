@@ -67,6 +67,10 @@ interface SetupOptions {
    * sessione»: è lo scenario dei test sui totali, dove i permessi non contano.
    */
   readonly permissions?: readonly TenantPermissionKey[];
+  /** Catalogo articoli: la ricerca per nome e quella per id lo rispettano. */
+  readonly variantSummaries?: readonly Record<string, unknown>[];
+  /** Codici IVA disponibili: servono alla catena di precedenza della riga. */
+  readonly vatCodes?: readonly Record<string, unknown>[];
 }
 
 describe('SalesDocumentFormComponent', () => {
@@ -109,7 +113,7 @@ describe('SalesDocumentFormComponent', () => {
     );
     const toast = { showInfo: vi.fn(), showError: vi.fn() };
 
-    await render(SalesDocumentFormComponent, {
+    const view = await render(SalesDocumentFormComponent, {
       providers: [
         // Serve da quando le righe usano il sistema condiviso delle colonne:
         // TableColumnPreferenceService costruisce l'API delle preferenze, che
@@ -163,10 +167,25 @@ describe('SalesDocumentFormComponent', () => {
             getCustomers: () => of({ data: CUSTOMERS, page: 1, pageSize: 100, total: 1 }),
           },
         },
-        { provide: ProductService, useValue: { searchVariantSummaries: () => of([]) } },
+        {
+          provide: ProductService,
+          useValue: {
+            // Il filtro per `variantId` va rispettato come nel servizio vero:
+            // un catalogo che risponde sempre con tutto farebbe agganciare il
+            // primo articolo qualunque cosa si chieda.
+            searchVariantSummaries: (params?: { readonly variantId?: string }) => {
+              const catalogo = options.variantSummaries ?? [];
+              return of(
+                params?.variantId
+                  ? catalogo.filter((row) => row['variantId'] === params.variantId)
+                  : catalogo,
+              );
+            },
+          },
+        },
         // Iniettato per la generazione «Concludi ordine → Fattura accompagnatoria».
         { provide: SalesOrderService, useValue: { concludeManualPrefill: vi.fn() } },
-        { provide: VatCodeService, useValue: { list: () => of([]) } },
+        { provide: VatCodeService, useValue: { list: () => of(options.vatCodes ?? []) } },
         // Tipi documento della controparte: li chiede il blocco condiviso in
         // testata, che senza un HttpClient nel test non arriverebbe in fondo.
         { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
@@ -192,7 +211,7 @@ describe('SalesDocumentFormComponent', () => {
       ],
     });
 
-    return { createDocument, toast };
+    return { createDocument, toast, component: view.fixture.componentInstance };
   }
 
   /** Cliente + una riga valida: il minimo che il salvataggio pretende. */
@@ -343,5 +362,90 @@ describe('SalesDocumentFormComponent', () => {
     expect(screen.getAllByRole('button', { name: 'Gestisci numerazioni' }).length).toBeGreaterThan(
       0,
     );
+  });
+
+  // ── Sostituzione d'articolo sulla riga ────────────────────────────────────
+  //
+  // Qui il prezzo si riscriveva già; il **Codice IVA** no, e restava quello
+  // dell'articolo precedente: un'aliquota sbagliata su un documento fiscale,
+  // che nessuno vede perché la colonna mostra un codice, non un errore.
+  it('sostituendo l’articolo, prezzo e Codice IVA seguono il nuovo', async () => {
+    const { component } = await setup({
+      vatCodes: [
+        {
+          id: 'iva-22',
+          ratePercent: 22,
+          calculationMode: 'standard',
+          isActive: true,
+          usageScope: 'both',
+        },
+        {
+          id: 'iva-10',
+          ratePercent: 10,
+          calculationMode: 'standard',
+          isActive: true,
+          usageScope: 'both',
+        },
+      ],
+      variantSummaries: [
+        {
+          variantId: 'var-A',
+          productId: 'p-A',
+          sku: 'A-1',
+          articleCode: '001',
+          productName: 'Articolo A',
+          title: 'Articolo A',
+          sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+          defaultVatCodeId: 'iva-22',
+          managesStock: true,
+        },
+        {
+          variantId: 'var-B',
+          productId: 'p-B',
+          sku: 'B-1',
+          articleCode: '002',
+          productName: 'Articolo B',
+          title: 'Articolo B',
+          sellingPrice: { amountMinor: 2500, currencyCode: 'EUR' },
+          defaultVatCodeId: 'iva-10',
+          managesStock: true,
+        },
+      ],
+    });
+    const form = component as unknown as {
+      onVariantSelect: (index: number, variantId: string, known: unknown) => void;
+      lines: { at: (i: number) => { controls: Record<string, { value: unknown }> } };
+    };
+    const catalogo = {
+      A: {
+        variantId: 'var-A',
+        sku: 'A-1',
+        articleCode: '001',
+        productName: 'Articolo A',
+        barcode: undefined,
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+        defaultVatCodeId: 'iva-22',
+        managesStock: true,
+      },
+      B: {
+        variantId: 'var-B',
+        sku: 'B-1',
+        articleCode: '002',
+        productName: 'Articolo B',
+        barcode: undefined,
+        sellingPrice: { amountMinor: 2500, currencyCode: 'EUR' },
+        defaultVatCodeId: 'iva-10',
+        managesStock: true,
+      },
+    };
+
+    form.onVariantSelect(0, 'var-A', catalogo.A);
+    expect(form.lines.at(0).controls['unitPrice']!.value).toBe('10,00');
+    expect(form.lines.at(0).controls['vatCodeId']!.value).toBe('iva-22');
+
+    form.onVariantSelect(0, 'var-B', catalogo.B);
+
+    expect(form.lines.at(0).controls['unitPrice']!.value).toBe('25,00');
+    expect(form.lines.at(0).controls['vatCodeId']!.value).toBe('iva-10');
   });
 });

@@ -22,6 +22,22 @@ import { DocumentAddressDto, DocumentTransportFieldsDto } from './document-trans
 
 /** Riga documento in input. La testata calcola i totali server-side. */
 export class DocumentLineInputDto {
+  /**
+   * Id della riga già salvata, presente solo in modifica: è ciò che consente al
+   * salvataggio di AGGIORNARE la riga esistente invece di cancellarla e
+   * ricrearla con un id nuovo. Assente = riga nuova.
+   *
+   * L'identità della riga non è un dettaglio di persistenza: è l'ancora a cui
+   * si appendono gli effetti collegati (movimento di magazzino via
+   * `sourceLineId`, seriali via `InventorySerial.documentLineId`). Ricreare le
+   * righe a ogni salvataggio li stacca tutti — vedi
+   * `docs/09-specifica-movimenti-per-riga.md` §3. Stesso campo, stesso ruolo
+   * che ha già sull'Arrivo merce (`SaveGoodsReceiptLineDto.id`).
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsOptional()
   @IsUUID()
   variantId?: string;

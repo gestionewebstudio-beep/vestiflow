@@ -73,8 +73,22 @@ function createPrismaMock() {
       update: vi.fn(),
       delete: vi.fn(),
     },
-    documentLine: { deleteMany: vi.fn() },
+    // Righe: dalla correzione «identità stabile» il salvataggio non cancella e
+    // ricrea, ma aggiorna per id (`updateMany` con documento+tenant nel where) e
+    // crea solo le righe nuove. `deleteMany` resta per le righe sparite.
+    documentLine: {
+      deleteMany: vi.fn(),
+      create: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
     documentRevision: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
+    // Aggancio DDT della fattura: nessuno di default, quindi una Fattura
+    // accompagnatoria scarica (con un DDT agganciato la merce è già uscita).
+    invoiceSalesDdtLink: {
+      count: vi.fn().mockResolvedValue(0),
+      deleteMany: vi.fn(),
+      createMany: vi.fn(),
+    },
     documentSequence: { upsert: vi.fn(), findUnique: vi.fn() },
     productVariant: {
       findFirst: vi.fn().mockResolvedValue({
@@ -526,9 +540,7 @@ describe('DocumentsService', () => {
       await service.create(tenantId, {
         type: DocumentType.proforma,
         documentDate: '2026-03-01',
-        lines: [
-          { description: 'Capo', quantity: 1, unitPriceMinor: 10000, discountPercent: 13.6 },
-        ],
+        lines: [{ description: 'Capo', quantity: 1, unitPriceMinor: 10000, discountPercent: 13.6 }],
       });
 
       const data = prisma.document.create.mock.calls[0]![0]!.data;
@@ -569,18 +581,17 @@ describe('DocumentsService', () => {
     // corrette (GoodsReceiptWorkflowService.saveGoodsReceipt, POST
     // documents/goods-receipt/save). Il percorso generico POST /documents
     // deve rifiutarli per evitare bozze prive di fornitore/location valide.
-    it.each([
-      DocumentType.goods_receipt,
-      DocumentType.manual_load,
-      DocumentType.initial_load,
-    ])('rifiuta la creazione generica di %s: usa il flusso dedicato arrivo merce', async (type) => {
-      const { service } = createService(prisma, resolvedSetting({ type }));
+    it.each([DocumentType.goods_receipt, DocumentType.manual_load, DocumentType.initial_load])(
+      'rifiuta la creazione generica di %s: usa il flusso dedicato arrivo merce',
+      async (type) => {
+        const { service } = createService(prisma, resolvedSetting({ type }));
 
-      await expect(
-        service.create(tenantId, { type, documentDate: '2026-01-10' }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
-      expect(prisma.document.create).not.toHaveBeenCalled();
-    });
+        await expect(
+          service.create(tenantId, { type, documentDate: '2026-01-10' }),
+        ).rejects.toBeInstanceOf(UnprocessableEntityException);
+        expect(prisma.document.create).not.toHaveBeenCalled();
+      },
+    );
 
     it('il messaggio di rifiuto indica il flusso dedicato, senza dettagli tecnici', async () => {
       const { service } = createService(
@@ -1471,6 +1482,244 @@ describe('DocumentsService', () => {
     });
   });
 
+  // ── Identità stabile delle righe (FASE 1) ────────────────────────────────
+  //
+  // Il salvataggio generico cancellava tutte le righe e le ricreava: gli id
+  // cambiavano a ogni salvataggio, e con loro si staccava tutto ciò che a una
+  // riga si aggancia — il movimento di magazzino via `sourceLineId`, i seriali
+  // via `InventorySerial.documentLineId`. Qui si verifica che l'identità
+  // sopravviva. Causa e piano: `docs/09-specifica-movimenti-per-riga.md` §3.
+  describe('update — identità delle righe', () => {
+    function docWithLines(lines: unknown[]) {
+      return { ...draftDocumentForNumberUpdate(7), lines };
+    }
+
+    function savedLine(id: string, overrides: Record<string, unknown> = {}) {
+      return {
+        id,
+        documentId: 'doc-q',
+        tenantId,
+        lineNumber: 1,
+        variantId: 'var-1',
+        sku: 'SKU-1',
+        description: 'Riga',
+        quantity: 1,
+        unitPriceMinor: new Prisma.Decimal(1000),
+        discountPercent: new Prisma.Decimal(0),
+        vatRatePercent: 22,
+        lineTotalMinor: 1000,
+        loadsStock: false,
+        unitOfMeasure: null,
+        isReference: false,
+        supplierOrderLineId: null,
+        lotCode: null,
+        lotExpiryDate: null,
+        serialNumbers: [],
+        vatCodeId: null,
+        vatSnapshot: null,
+        ...overrides,
+      };
+    }
+
+    function inputLine(overrides: Record<string, unknown> = {}) {
+      return { description: 'Riga', quantity: 1, unitPriceMinor: 1000, ...overrides };
+    }
+
+    function arrange(lines: unknown[]) {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.quote, numberPrefix: 'PRE' }),
+      );
+      const doc = docWithLines(lines);
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
+      prisma.document.update.mockResolvedValue({ ...doc, lines: [] });
+      return service;
+    }
+
+    /** Id passati a `updateMany`, nell'ordine in cui il servizio li ha scritti. */
+    function updatedIds(): string[] {
+      return prisma.documentLine.updateMany.mock.calls.map(
+        (call) => (call[0] as { where: { id: string } }).where.id,
+      );
+    }
+
+    it('aggiorna le righe esistenti mantenendo il loro id, senza ricrearle', async () => {
+      const service = arrange([savedLine('line-1'), savedLine('line-2', { lineNumber: 2 })]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [inputLine({ id: 'line-1', quantity: 5 }), inputLine({ id: 'line-2', quantity: 3 })],
+      });
+
+      expect(updatedIds()).toEqual(['line-1', 'line-2']);
+      expect(prisma.documentLine.create).not.toHaveBeenCalled();
+      expect(prisma.documentLine.deleteMany).not.toHaveBeenCalled();
+      // La quantità nuova finisce sulla stessa riga, non su una copia.
+      const first = prisma.documentLine.updateMany.mock.calls[0]![0] as {
+        data: { quantity: number };
+      };
+      expect(first.data.quantity).toBe(5);
+    });
+
+    it('assegna un id nuovo solo alle righe nuove', async () => {
+      const service = arrange([savedLine('line-1')]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [inputLine({ id: 'line-1' }), inputLine({ description: 'Riga aggiunta' })],
+      });
+
+      expect(updatedIds()).toEqual(['line-1']);
+      expect(prisma.documentLine.create).toHaveBeenCalledTimes(1);
+      // La riga nuova non porta con sé un id dichiarato dal client.
+      const created = prisma.documentLine.create.mock.calls[0]![0] as {
+        data: Record<string, unknown>;
+      };
+      expect(created.data.id).toBeUndefined();
+      expect(created.data.documentId).toBe('doc-q');
+      expect(created.data.tenantId).toBe(tenantId);
+    });
+
+    it('elimina la sola riga rimossa, e lascia stare le altre', async () => {
+      const service = arrange([
+        savedLine('line-1'),
+        savedLine('line-2', { lineNumber: 2 }),
+        savedLine('line-3', { lineNumber: 3 }),
+      ]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [inputLine({ id: 'line-1' }), inputLine({ id: 'line-3' })],
+      });
+
+      expect(prisma.documentLine.deleteMany).toHaveBeenCalledWith({
+        where: { documentId: 'doc-q', tenantId, id: { in: ['line-2'] } },
+      });
+      expect(updatedIds()).toEqual(['line-1', 'line-3']);
+    });
+
+    it('tiene distinte due righe dello stesso articolo', async () => {
+      const service = arrange([
+        savedLine('line-1', { variantId: 'var-1' }),
+        savedLine('line-2', { variantId: 'var-1', lineNumber: 2 }),
+      ]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [
+          inputLine({ id: 'line-1', variantId: 'var-1', quantity: 2 }),
+          inputLine({ id: 'line-2', variantId: 'var-1', quantity: 3 }),
+        ],
+      });
+
+      // Due entità, non una somma: è la condizione perché domani ciascuna possa
+      // avere il proprio movimento (§09 «due righe stesso articolo»).
+      expect(updatedIds()).toEqual(['line-1', 'line-2']);
+      expect(prisma.documentLine.create).not.toHaveBeenCalled();
+    });
+
+    it('conserva l’identità anche delle righe di riferimento e senza articolo', async () => {
+      const service = arrange([
+        savedLine('line-ref', {
+          isReference: true,
+          variantId: null,
+          description: 'Rif. Ordine 12',
+        }),
+        savedLine('line-serv', {
+          variantId: null,
+          description: 'Spese di trasporto',
+          lineNumber: 2,
+        }),
+      ]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [
+          inputLine({ id: 'line-ref', isReference: true, description: 'Rif. Ordine 12' }),
+          inputLine({ id: 'line-serv', description: 'Spese di trasporto' }),
+        ],
+      });
+
+      expect(updatedIds()).toEqual(['line-ref', 'line-serv']);
+      expect(prisma.documentLine.create).not.toHaveBeenCalled();
+    });
+
+    it('riordinare le righe cambia la posizione, non l’identità', async () => {
+      const service = arrange([savedLine('line-1'), savedLine('line-2', { lineNumber: 2 })]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [inputLine({ id: 'line-2' }), inputLine({ id: 'line-1' })],
+      });
+
+      const calls = prisma.documentLine.updateMany.mock.calls.map(
+        (call) => call[0] as { where: { id: string }; data: { lineNumber: number } },
+      );
+      expect(calls.map((c) => [c.where.id, c.data.lineNumber])).toEqual([
+        ['line-2', 1],
+        ['line-1', 2],
+      ]);
+      expect(prisma.documentLine.create).not.toHaveBeenCalled();
+      expect(prisma.documentLine.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('salvare due volte lo stesso documento non duplica né ricrea nulla', async () => {
+      const lines = [savedLine('line-1'), savedLine('line-2', { lineNumber: 2 })];
+      const service = arrange(lines);
+      const payload = {
+        lines: [inputLine({ id: 'line-1' }), inputLine({ id: 'line-2' })],
+      };
+
+      await service.update(tenantId, 'doc-q', payload);
+      // Secondo salvataggio identico: il documento riletto ha gli stessi id.
+      const doc = docWithLines(lines);
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
+      await service.update(tenantId, 'doc-q', payload);
+
+      expect(updatedIds()).toEqual(['line-1', 'line-2', 'line-1', 'line-2']);
+      expect(prisma.documentLine.create).not.toHaveBeenCalled();
+      expect(prisma.documentLine.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('rifiuta un id di riga che non appartiene al documento', async () => {
+      const service = arrange([savedLine('line-1')]);
+
+      await expect(
+        service.update(tenantId, 'doc-q', {
+          lines: [inputLine({ id: '11111111-1111-4111-8111-111111111111' })],
+        }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+      // Rifiuto PRIMA di scrivere: nessuna riga toccata.
+      expect(prisma.documentLine.updateMany).not.toHaveBeenCalled();
+      expect(prisma.documentLine.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.documentLine.create).not.toHaveBeenCalled();
+    });
+
+    it('rifiuta lo stesso id dichiarato da due righe', async () => {
+      const service = arrange([savedLine('line-1')]);
+
+      await expect(
+        service.update(tenantId, 'doc-q', {
+          lines: [inputLine({ id: 'line-1' }), inputLine({ id: 'line-1' })],
+        }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(prisma.documentLine.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('impone documento e tenant nel where dell’aggiornamento', async () => {
+      const service = arrange([savedLine('line-1')]);
+
+      await service.update(tenantId, 'doc-q', { lines: [inputLine({ id: 'line-1' })] });
+
+      const where = (prisma.documentLine.updateMany.mock.calls[0]![0] as { where: object }).where;
+      expect(where).toEqual({ id: 'line-1', documentId: 'doc-q', tenantId });
+    });
+
+    it('si ferma se la riga è sparita sotto un salvataggio concorrente', async () => {
+      const service = arrange([savedLine('line-1')]);
+      prisma.documentLine.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(
+        service.update(tenantId, 'doc-q', { lines: [inputLine({ id: 'line-1' })] }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
   describe('update', () => {
     // Numero imposto in testata anche in modifica: riscrive numero e
     // riferimento, ma solo quando cambia davvero rispetto al salvato.
@@ -1480,9 +1729,7 @@ describe('DocumentsService', () => {
         resolvedSetting({ type: DocumentType.quote, numberPrefix: 'PRE' }),
       );
       const doc = draftDocumentForNumberUpdate(7);
-      prisma.document.findFirst
-        .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc });
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
       prisma.document.update.mockResolvedValue({ ...doc, lines: [] });
 
       await service.update(tenantId, 'doc-q', { number: 12 });
@@ -1498,9 +1745,7 @@ describe('DocumentsService', () => {
         resolvedSetting({ type: DocumentType.quote, numberPrefix: 'PRE' }),
       );
       const doc = draftDocumentForNumberUpdate(7);
-      prisma.document.findFirst
-        .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc });
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
       prisma.document.update.mockResolvedValue({ ...doc, lines: [] });
 
       await service.update(tenantId, 'doc-q', { number: 7 });
@@ -1603,7 +1848,11 @@ describe('DocumentsService', () => {
       expect(prisma.document.update).not.toHaveBeenCalled();
     });
 
-    it('sales_ddt confermato: riconcilia scarico vendita e registra revisione', async () => {
+    // Dalla correzione «movimenti per riga»: la modifica non accoda più una
+    // rettifica del delta, ma scrive il movimento della riga con il suo
+    // `sourceLineId`. Qui il documento non ha movimenti pregressi nel mock,
+    // quindi il sync ne crea uno nuovo per la riga.
+    it('sales_ddt confermato: scarico per riga con sourceLineId e revisione registrata', async () => {
       const { service, channelSync } = createService(
         prisma,
         resolvedSetting({ type: DocumentType.sales_ddt }),
@@ -1647,16 +1896,19 @@ describe('DocumentsService', () => {
           },
         ],
       };
-      prisma.document.findFirst
-        .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc });
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
       prisma.documentRevision.findFirst.mockResolvedValue(null);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
       prisma.inventoryLevel.findUnique.mockResolvedValue({ onHand: 20, available: 20 });
       prisma.stockMovement.create.mockResolvedValue({});
       prisma.documentLine.deleteMany.mockResolvedValue({ count: 1 });
-      prisma.document.update.mockResolvedValue({ ...doc, lines: doc.lines });
+      // Il salvataggio conserva l'identità della riga: `saved.lines` è la riga
+      // `l1` con la quantità nuova, ed è da lì che il sync legge.
+      prisma.document.update.mockResolvedValue({
+        ...doc,
+        lines: [{ ...doc.lines[0], quantity: 8 }],
+      });
 
       await service.update(
         tenantId,
@@ -1664,6 +1916,7 @@ describe('DocumentsService', () => {
         {
           lines: [
             {
+              id: 'l1',
               description: 'Maglia',
               variantId: 'var-1',
               quantity: 8,
@@ -1680,12 +1933,219 @@ describe('DocumentsService', () => {
           data: expect.objectContaining({
             type: 'sale',
             variantId: 'var-1',
-            quantity: 3,
+            quantity: 8,
+            sourceLineId: 'l1',
+            sourceDocumentId: 'doc-ddt',
+            sourceDocumentType: DocumentType.sales_ddt,
           }),
         }),
       );
       expect(prisma.documentRevision.create).toHaveBeenCalled();
       expect(channelSync.pushInventoryLevels).toHaveBeenCalledWith(tenantId, 'var-1', ['loc-1']);
+    });
+
+    // Regressione del 15/08, trovata al primo collaudo a schermo: la guardia
+    // dei flussi dedicati rifiutava OGNI documento con movimenti per riga. Da
+    // quando lo scarico di vendita li ha, un DDT si salvava una volta sola — il
+    // primo salvataggio creava i movimenti, il secondo veniva respinto con
+    // «aggiornalo dal suo flusso dedicato, non con PATCH». Il DDT il suo flusso
+    // dedicato non ce l'ha: è questo.
+    it('DDT già convertito ai movimenti per riga: il PATCH continua a salvarlo', async () => {
+      const { service } = createService(prisma, resolvedSetting({ type: DocumentType.sales_ddt }));
+      const savedLine = {
+        id: 'l-ddt',
+        lineNumber: 1,
+        variantId: 'var-1',
+        sku: 'SKU-1',
+        description: 'Maglietta',
+        quantity: 3,
+        unitPriceMinor: 2500,
+        discountPercent: 0,
+        lineTotalMinor: 7500,
+        loadsStock: true,
+        documentId: 'doc-ddt2',
+        tenantId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const doc = {
+        id: 'doc-ddt2',
+        tenantId,
+        type: DocumentType.sales_ddt,
+        status: DocumentStatus.confirmed,
+        series: null,
+        year: 2026,
+        number: 5,
+        reference: 'DDT-0005',
+        documentDate: new Date('2026-08-15'),
+        currency: 'EUR',
+        supplierId: null,
+        customerId: 'cust-1',
+        locationId: 'loc-1',
+        targetLocationId: null,
+        adjustmentDirection: null,
+        notes: null,
+        internalComment: null,
+        externalDocNumber: null,
+        documentDiscountPercent: 0,
+        onlineSaleId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lines: [savedLine],
+      };
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
+      prisma.documentRevision.findFirst.mockResolvedValue(null);
+      prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
+      prisma.document.update.mockResolvedValue({ ...doc, lines: [{ ...savedLine, quantity: 2 }] });
+      // Il documento ha GIÀ i suoi movimenti per riga: è lo stato in cui la
+      // guardia scattava.
+      prisma.stockMovement.count.mockResolvedValue(1);
+      prisma.stockMovement.findMany.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) =>
+          where.sourceLineId === null
+            ? Promise.resolve([])
+            : Promise.resolve([
+                {
+                  id: 'mov-ddt',
+                  tenantId,
+                  type: 'sale',
+                  variantId: 'var-1',
+                  sku: 'SKU-1',
+                  locationId: 'loc-1',
+                  quantity: 3,
+                  reason: 'DDT vendita DDT-0005',
+                  sourceLineId: 'l-ddt',
+                  createdAt: new Date('2026-08-15T16:00:00.000Z'),
+                },
+              ]),
+      );
+
+      await service.update(tenantId, 'doc-ddt2', {
+        lines: [
+          {
+            id: 'l-ddt',
+            description: 'Maglietta',
+            variantId: 'var-1',
+            quantity: 2,
+            unitPriceMinor: 2500,
+            loadsStock: true,
+          },
+        ],
+      });
+
+      expect(prisma.stockMovement.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'mov-ddt' },
+          data: expect.objectContaining({ quantity: 2 }),
+        }),
+      );
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+    });
+
+    // Il difetto misurato il 15/08: l'accompagnatoria scaricava alla conferma e
+    // poi, se modificata, NON riconciliava nulla — documento e magazzino
+    // divergevano in silenzio. Nessuna accompagnatoria esisteva ancora nel
+    // database, quindi il difetto non era mai stato incontrato.
+    it('accompagnatoria confermata e modificata: il suo movimento si aggiorna, non diverge', async () => {
+      const { service } = createService(
+        prisma,
+        resolvedSetting({ type: DocumentType.invoice_accompanying, numberPrefix: 'FTA' }),
+      );
+      const savedLine = {
+        id: 'l-acc',
+        lineNumber: 1,
+        variantId: 'var-1',
+        sku: 'SKU-1',
+        description: 'Maglia',
+        quantity: 3,
+        unitPriceMinor: 2000,
+        discountPercent: 0,
+        lineTotalMinor: 6000,
+        loadsStock: true,
+        documentId: 'doc-acc',
+        tenantId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const doc = {
+        id: 'doc-acc',
+        tenantId,
+        type: DocumentType.invoice_accompanying,
+        status: DocumentStatus.confirmed,
+        series: 'A',
+        year: 2026,
+        number: 3,
+        reference: 'FTA-0003',
+        documentDate: new Date('2026-08-15'),
+        currency: 'EUR',
+        supplierId: null,
+        customerId: 'cust-1',
+        locationId: 'loc-1',
+        targetLocationId: null,
+        adjustmentDirection: null,
+        notes: null,
+        internalComment: null,
+        externalDocNumber: null,
+        documentDiscountPercent: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lines: [savedLine],
+      };
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
+      prisma.documentRevision.findFirst.mockResolvedValue(null);
+      prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
+      prisma.document.update.mockResolvedValue({
+        ...doc,
+        lines: [{ ...savedLine, quantity: 2 }],
+      });
+      // Il movimento nato alla conferma, collegato alla riga.
+      prisma.stockMovement.findMany.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) =>
+          where.sourceLineId === null
+            ? Promise.resolve([])
+            : Promise.resolve([
+                {
+                  id: 'mov-acc',
+                  tenantId,
+                  type: 'sale',
+                  variantId: 'var-1',
+                  sku: 'SKU-1',
+                  locationId: 'loc-1',
+                  quantity: 3,
+                  reason: 'Fattura accompagnatoria FTA-0003',
+                  sourceLineId: 'l-acc',
+                  createdAt: new Date('2026-08-15T09:00:00.000Z'),
+                },
+              ]),
+      );
+
+      await service.update(tenantId, 'doc-acc', {
+        lines: [
+          {
+            id: 'l-acc',
+            description: 'Maglia',
+            variantId: 'var-1',
+            quantity: 2,
+            unitPriceMinor: 2000,
+            loadsStock: true,
+          },
+        ],
+      });
+
+      // Lo stesso movimento passa a 2, e un pezzo torna in giacenza.
+      expect(prisma.stockMovement.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'mov-acc' },
+          data: expect.objectContaining({ quantity: 2 }),
+        }),
+      );
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+      expect(prisma.inventoryLevel.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ variantId: 'var-1', locationId: 'loc-1' }),
+          data: expect.objectContaining({ onHand: { increment: 1 } }),
+        }),
+      );
     });
 
     it('transfer confermato: riconcilia movimenti transfer', async () => {
@@ -1728,9 +2188,7 @@ describe('DocumentsService', () => {
           },
         ],
       };
-      prisma.document.findFirst
-        .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc });
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
       prisma.documentRevision.findFirst.mockResolvedValue(null);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
@@ -1804,9 +2262,7 @@ describe('DocumentsService', () => {
           },
         ],
       };
-      prisma.document.findFirst
-        .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc });
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
       prisma.documentRevision.findFirst.mockResolvedValue(null);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
@@ -1878,9 +2334,7 @@ describe('DocumentsService', () => {
           },
         ],
       };
-      prisma.document.findFirst
-        .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc });
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
       prisma.documentRevision.findFirst.mockResolvedValue(null);
       prisma.inventoryLevel.upsert.mockResolvedValue({});
       prisma.inventoryLevel.updateMany.mockResolvedValue({ count: 1 });
@@ -2033,9 +2487,7 @@ describe('DocumentsService', () => {
           },
         ],
       };
-      prisma.document.findFirst
-        .mockResolvedValueOnce(doc)
-        .mockResolvedValueOnce({ ...doc });
+      prisma.document.findFirst.mockResolvedValueOnce(doc).mockResolvedValueOnce({ ...doc });
       // Il documento ha già movimenti per riga (creati da confirm() o dal
       // salvataggio dedicato): il PATCH generico, pur senza righe, NON deve
       // ri-generare movimenti aggregati.
@@ -2405,5 +2857,4 @@ describe('DocumentsService', () => {
       expect(prisma.document.delete).not.toHaveBeenCalled();
     });
   });
-
 });

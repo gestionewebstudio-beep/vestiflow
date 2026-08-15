@@ -557,6 +557,42 @@ Prodotti e Clienti ricevono le colonne ma le usano solo per sapere **se** una co
 
 Il **pin** non compare sui documenti: nessuna delle tre configurazioni dichiara `pinnable`.
 
+### 7.0-ter Sostituire l'articolo su una riga già compilata _(corretto 15/08/2026)_
+
+**La regola.** I campi che vengono dall'ARTICOLO — prezzo, costo, prezzi di vendita, Codice IVA — appartengono all'articolo. Quando su una riga si richiama un articolo diverso, **si riscrivono**, anche svuotandosi se il nuovo non li ha. Tenere il prezzo del precedente non è conservare un dato: è un dato sbagliato, e non lo vede nessuno finché non arriva la fattura.
+
+Restano fuori i campi che **non** vengono dall'articolo: lo sconto di riga viene dal cliente (o dal fornitore), e cambiare articolo non cambia a chi si vende.
+
+**Il difetto.** Due maschere scrivevano quei campi **solo se vuoti**:
+
+| Maschera                                            | Campi                                                     | Chiamante            |
+| --------------------------------------------------- | --------------------------------------------------------- | -------------------- |
+| Ordine cliente · DDT · Preventivo · Scarico manuale | `unitPrice`, `vatCodeId`                                  | `applySummaryToLine` |
+| Arrivo merce                                        | `unitCost`, `sellingPrice`, `compareAtPrice`, `vatCodeId` | `onVariantSelect`    |
+
+«Vuoto» era usato come sinonimo di «nessuno ha ancora deciso». Su una riga nuova è vero; su una riga a cui si cambia articolo è falso — quei valori li aveva decisi **l'articolo di prima**.
+
+Le altre due maschere non avevano il difetto e sono il riferimento: la **Fattura** scrive il prezzo senza condizioni, l'**Ordine fornitore** riscrive tutto e azzera lo sconto.
+
+**La correzione** distingue i due gesti con un parametro esplicito (`replacedArticle`), perché il ramo «solo se vuoto» serve ancora — è quello che protegge la riga precompilata da un documento d'origine, dove i valori sono di quel documento e non si toccano (non retroattività).
+
+**Un secondo buco, trovato dal test.** Nell'Arrivo merce, se l'articolo non era fra i risultati di ricerca — cioè **ogni aggancio per codice**: SKU, EAN, codice articolo — non veniva applicato **niente**: mancava il ripiego che l'Ordine cliente ha da sempre. Ora la summary si chiede per id e si applica, e la logica vive in un metodo solo (`applyVariantSummaryToLine`) che entrambe le strade richiamano.
+
+⚠️ **Due trappole nelle impalcature di test, corrette insieme al difetto** — perché sono ciò che lo aveva nascosto:
+
+- i finti `ProductService` **ignoravano il filtro per `variantId`** e rispondevano sempre con l'intero catalogo: la ricerca per id tornava il primo articolo qualunque cosa si chiedesse, e una prova sulla seconda variante non poteva funzionare;
+- il tipo delle fixture dell'Arrivo merce era `typeof NON_STOCK_SUMMARY`, cioè **una sola costante**: con `as const` ogni campo è un letterale, e una fixture con un altro `variantId` non compilava. Un'impalcatura che ammette un articolo solo impedisce per costruzione di provare il secondo.
+
+### 7.0-bis Il menu dentro l'intestazione — un `overflow` che lo ritagliava _(corretto 15/08/2026)_
+
+Quattro intestazioni ospitano un menu a tendina invece della sola etichetta: **modalità prezzo** del DDT vendita, **modalità costo** dell'Arrivo merce (due colonne) e dell'Ordine fornitore. Il menu vive dentro `.doc-form__th-menu-wrap`, in `position: absolute` sotto il bordo inferiore del contenitore.
+
+Il contenitore era in elenco fra gli elementi con `max-block-size` + `overflow: hidden` — la regola che tiene le etichette a due righe (`styles/_document-form.scss`). Il menu si apriva davvero e veniva **ritagliato via**: a schermo la freccia sembrava morta, in tutte e quattro le maschere.
+
+Il commento accanto alla regola diceva già la cosa giusta — _«il taglio sta sull'ETICHETTA, non sulla cella, o taglierebbe il menu»_ — ma il wrap era finito nell'elenco lo stesso, ed è proprio l'elemento che il commento voleva proteggere. **Il tetto di due righe non si è perso**: dentro il wrap l'etichetta è un `.doc-form__th-sort`, che resta in elenco.
+
+⚠️ **Regola per chi tocca quelle regole:** un elemento che ospita un popup non può portare `overflow: hidden`. E nessun test unitario lo prende — in jsdom il layout non esiste e il menu «c'è» comunque. La guardia è un e2e che asserisce la **visibilità** della voce, non la presenza: `e2e/goods-receipt.spec.ts`, «menu di intestazione costi».
+
 ### 7.1 I token di gruppo — nessuno è orfano
 
 I token colore dei gruppi (`--table-group-*-rule`) disegnano la **sottolineatura sotto l'intestazione** di ogni gruppo; il token divisore (`--color-table-group-divider`) disegna il bordo verticale forte del separatore **e** il bordo superiore del riepilogo totali.
@@ -621,6 +657,13 @@ Esiste **solo in Arrivo merce**: `toggleLineSort` e `applyLineSort`, col compara
 Su Ordine fornitore l'ordine **sopravvive per caso**: le righe vengono cancellate e ricreate a ogni salvataggio, e una `SELECT` senza `ORDER BY` su una tabella piccola torna in ordine fisico. Aggiungere l'ordinamento senza la colonna produrrebbe un ordine **persistente e non garantito** — peggio di entrambe le alternative.
 
 _Effetto collaterale non legato al riordino, ma da sapere se si tocca quel salvataggio:_ `DocumentLine.supplierOrderLineId` ha `onDelete: SetNull`, quindi ogni salvataggio di un ordine fornitore **azzera il collegamento** delle righe arrivo merce che puntavano a quelle righe.
+
+⚠️ **Aggiornamento 15/08/2026 — la stessa cosa accadeva sui `DocumentLine`, e non accade più.** Il PATCH generico dei documenti cancellava tutte le righe e le ricreava: gli id cambiavano a ogni salvataggio, e con loro si staccava tutto ciò che alla riga si aggancia. Da oggi il salvataggio **aggiorna per id** e cancella solo le righe sparite — `persistDocumentLinesTx` in `documents.service.ts`, misure e motivo in `09-specifica-movimenti-per-riga.md` §3 e §4-bis.
+
+Due conseguenze per questa tabella:
+
+- l'ordine per `lineNumber` continua a valere, ma ora insiste su **righe che sopravvivono al salvataggio**: riordinare cambia la posizione, non l'identità;
+- **l'Ordine fornitore resta il caso legacy**, con `SupplierOrderLine` su tabella propria e senza `lineNumber`. Il difetto gemello descritto qui sopra è ancora vivo lì, e non è stato toccato.
 
 ### 8.3 Il trascinamento
 

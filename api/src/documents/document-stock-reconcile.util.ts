@@ -2,7 +2,6 @@ import type { DocumentLine } from '@prisma/client';
 
 import {
   applyStockLoad,
-  applyStockSale,
   applyStockUnload,
   type StockMovementActor,
 } from '../inventory/inventory-movement.util';
@@ -48,9 +47,7 @@ export async function reverseDocumentStockLoad(
     readonly actor: StockMovementActor;
   },
 ): Promise<StockReconcileResult> {
-  const reason = params.reference
-    ? `Annullamento ${params.reference}`
-    : 'Annullamento documento';
+  const reason = params.reference ? `Annullamento ${params.reference}` : 'Annullamento documento';
   const map = aggregateStockLines(params.lines);
   const deltas: Array<{ sku: string; delta: number }> = [];
 
@@ -72,96 +69,17 @@ export async function reverseDocumentStockLoad(
 }
 
 /**
- * Riconcilia giacenze dopo modifica DDT vendita / documento con scarico.
- * Delta nel risultato = variazione inventario (negativo = più scarico).
+ * ⚠️ `reconcileDocumentStockUnload` viveva qui, ed è stata **rimossa il
+ * 15/08/2026**. Riconciliava le giacenze dopo la modifica di un DDT
+ * aggregando per variante e **accodando** movimenti «rettifica scarico +1»:
+ * la giacenza tornava giusta, ma il registro raccontava un'uscita e un
+ * rientro che non erano mai avvenuti — il documento era solo stato corretto.
+ *
+ * Al suo posto c'è `document-stock-unload-sync.util.ts`: un movimento per
+ * riga, ritrovato via `sourceLineId` e **aggiornato in posto**. Non è un
+ * ripiego temporaneo, ed è il motivo per cui questa funzione non deve
+ * tornare: vedi `docs/09-specifica-movimenti-per-riga.md`.
  */
-export async function reconcileDocumentStockUnload(
-  tx: Parameters<typeof applyStockSale>[0],
-  params: {
-    readonly tenantId: string;
-    readonly documentId: string;
-    readonly reference: string | null;
-    readonly oldLocationId: string;
-    readonly newLocationId: string;
-    readonly oldLines: readonly DocumentLine[];
-    readonly newLines: readonly DocumentLine[];
-    readonly actor: StockMovementActor;
-  },
-): Promise<StockReconcileResult> {
-  const reasonBase = params.reference ? `Modifica ${params.reference}` : 'Modifica documento';
-  const externalRef = params.documentId;
-  const oldMap = aggregateStockLines(params.oldLines);
-  const newMap = aggregateStockLines(params.newLines);
-  const deltas: Array<{ sku: string; delta: number }> = [];
-
-  if (params.oldLocationId !== params.newLocationId) {
-    for (const entry of oldMap.values()) {
-      await applyStockLoad(tx, {
-        tenantId: params.tenantId,
-        variantId: entry.variantId,
-        sku: entry.sku,
-        locationId: params.oldLocationId,
-        quantity: entry.quantity,
-        reason: `${reasonBase}: cambio location (ripristino scarico)`,
-        externalRef,
-        actor: params.actor,
-      });
-      deltas.push({ sku: entry.sku, delta: entry.quantity });
-    }
-    for (const entry of newMap.values()) {
-      await applyStockSale(tx, {
-        tenantId: params.tenantId,
-        variantId: entry.variantId,
-        sku: entry.sku,
-        locationId: params.newLocationId,
-        quantity: entry.quantity,
-        reason: `${reasonBase}: cambio location (scarico)`,
-        externalRef,
-        actor: params.actor,
-      });
-      deltas.push({ sku: entry.sku, delta: -entry.quantity });
-    }
-    return { deltas };
-  }
-
-  const allVariantIds = new Set([...oldMap.keys(), ...newMap.keys()]);
-  for (const variantId of allVariantIds) {
-    const oldQty = oldMap.get(variantId)?.quantity ?? 0;
-    const newEntry = newMap.get(variantId);
-    const newQty = newEntry?.quantity ?? 0;
-    const sku = newEntry?.sku ?? oldMap.get(variantId)?.sku ?? variantId;
-    const unloadDelta = newQty - oldQty;
-    if (unloadDelta === 0) {
-      continue;
-    }
-    if (unloadDelta > 0) {
-      await applyStockSale(tx, {
-        tenantId: params.tenantId,
-        variantId,
-        sku,
-        locationId: params.newLocationId,
-        quantity: unloadDelta,
-        reason: `${reasonBase}: rettifica scarico +${unloadDelta}`,
-        externalRef,
-        actor: params.actor,
-      });
-    } else {
-      await applyStockLoad(tx, {
-        tenantId: params.tenantId,
-        variantId,
-        sku,
-        locationId: params.newLocationId,
-        quantity: -unloadDelta,
-        reason: `${reasonBase}: rettifica scarico ${unloadDelta}`,
-        externalRef,
-        actor: params.actor,
-      });
-    }
-    deltas.push({ sku, delta: -unloadDelta });
-  }
-
-  return { deltas };
-}
 
 /** Ripristina giacenza dopo annullamento documento con scarico (es. DDT vendita). */
 export async function reverseDocumentStockUnload(
@@ -175,9 +93,7 @@ export async function reverseDocumentStockUnload(
     readonly actor: StockMovementActor;
   },
 ): Promise<StockReconcileResult> {
-  const reason = params.reference
-    ? `Annullamento ${params.reference}`
-    : 'Annullamento documento';
+  const reason = params.reference ? `Annullamento ${params.reference}` : 'Annullamento documento';
   const map = aggregateStockLines(params.lines);
   const deltas: Array<{ sku: string; delta: number }> = [];
 

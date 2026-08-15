@@ -1415,7 +1415,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       return;
     }
     const copy = this.createLine();
-    copy.patchValue(source.getRawValue());
+    // L'id NON si duplica: la copia è una riga nuova. Senza questo azzeramento
+    // il salvataggio riceverebbe due righe che dichiarano lo stesso id.
+    copy.patchValue({ ...source.getRawValue(), id: '' });
     this.lines.insert(index + 1, copy);
     this.markFormDirty();
   }
@@ -1696,9 +1698,19 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     known: VariantSummary | null = null,
   ): void {
     const line = this.lines.at(index);
+    // Sostituzione d'articolo: la riga ne aveva già un altro. Qui il prezzo si
+    // riscriveva già; il Codice IVA no, e restava quello dell'articolo
+    // precedente — un'aliquota sbagliata su un documento fiscale.
+    const previousVariantId = line.controls.variantId.value;
+    const replacedArticle = Boolean(previousVariantId) && previousVariantId !== variantId;
     line.controls.variantId.setValue(variantId ?? '');
     const match = known ?? this.searchedVariants().find((v) => v.variantId === variantId);
     if (match) {
+      if (replacedArticle) {
+        // Si riparte dalla catena di precedenza (articolo → aliquota legacy →
+        // predefinito aziendale) invece di ereditare la scelta di prima.
+        line.controls.vatCodeId.setValue('', { emitEvent: false });
+      }
       line.controls.description.setValue(match.productName);
       line.controls.sku.setValue(match.sku);
       line.controls.articleCode.setValue(match.articleCode);
@@ -2146,6 +2158,8 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           const price = parseMoneyInput(line.unitPrice, this.currency);
           const ratePercent = Number(line.vatRatePercent) || 0;
           return {
+            // Vuoto = riga nuova. Presente = aggiorna quella riga, non ricrearla.
+            id: line.id || undefined,
             variantId: line.variantId || undefined,
             // Fotografia dello SKU sulla riga, come su ogni altro documento: il
             // documento riaperto dice quello che diceva quando fu compilato.
@@ -2618,6 +2632,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       // Come sopra: la riga si costruisce in un punto solo.
       const group = this.createLine();
       group.patchValue({
+        // L'identità della riga sopravvive al salvataggio: si rimanda indietro
+        // così com'è arrivata.
+        id: line.id,
         variantId: line.variantId ?? '',
         sku: line.sku ?? '',
         description: line.description,
@@ -2643,6 +2660,13 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   private createLine() {
     return this.fb.group({
+      /**
+       * Id della riga già salvata: vuoto per una riga nuova. Viaggia al server
+       * in modifica, ed è ciò che gli consente di aggiornare la riga invece di
+       * ricrearla — con lei restano agganciati movimento e seriali.
+       * Va azzerato in ogni duplicazione: due righe non possono avere lo stesso id.
+       */
+      id: this.fb.control(''),
       variantId: this.fb.control(''),
       // Le tre chiavi d'identità e lo SKU fotografato. I primi tre non si
       // salvano — si digitano per TROVARE l'articolo e restano scritti se non

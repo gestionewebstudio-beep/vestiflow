@@ -2877,80 +2877,176 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * l'aggancio riceve l'id della variante, e «con quale codice» è
    * un'informazione che altrimenti si perde per strada.
    */
-  protected onVariantSelect(index: number, value: string | null, linkedWith?: string): void {
+  protected onVariantSelect(
+    index: number,
+    value: string | null,
+    linkedWith?: string,
+    /**
+     * Uso interno: lo passa il ripiego asincrono qui sotto. Alla seconda
+     * chiamata la riga porta già il nuovo articolo, quindi il confronto con il
+     * precedente direbbe «nessuna sostituzione» e i campi del vecchio
+     * resterebbero — cioè il difetto che questo ramo esiste per chiudere.
+     */
+    replacedArticleOverride?: boolean,
+  ): void {
     const line = this.lines.at(index);
+    // Sostituzione d'articolo: la riga aveva già un altro articolo. I dati di
+    // quello vecchio — costo, prezzi, Codice IVA — non devono sopravvivergli.
+    // Il ramo «solo se vuoto» qui sotto resta per l'altro caso, che è opposto:
+    // la riga precompilata da un documento d'origine, che non si tocca.
+    const previousVariantId = line.controls.variantId.value;
+    const replacedArticle =
+      replacedArticleOverride ?? (Boolean(previousVariantId) && previousVariantId !== value);
     line.controls.variantId.setValue(value ?? '');
     if (value) {
       const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
         (v) => v.variantId === value,
       );
+      if (!summary) {
+        // L'articolo può non essere fra i risultati di ricerca: succede ogni
+        // volta che si aggancia per CODICE — SKU, EAN, codice articolo — senza
+        // aver prima cercato per nome. Senza questo ripiego la riga restava
+        // con l'articolo agganciato e i campi di PRIMA: costo, prezzi e Codice
+        // IVA di un altro articolo, oppure vuoti.
+        //
+        // Non basta aspettare `pinnedVariants`: quel segnale carica davvero la
+        // summary, ma nessuno la riapplica alla riga — l'effetto che lo osserva
+        // sincronizza solo codici e accessibilità dei campi.
+        const locationId = this.form.controls.locationId.value || undefined;
+        this.productService
+          .searchVariantSummaries({ variantId: value, locationId })
+          .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+          .subscribe((rows) => {
+            const fetched = rows[0];
+            // La riga può essere cambiata nel frattempo: si applica solo se
+            // l'articolo agganciato è ancora quello per cui si è chiesto.
+            if (!fetched || this.lines.at(index)?.controls.variantId.value !== value) {
+              return;
+            }
+            this.applyVariantSummaryToLine(index, fetched, replacedArticle, linkedWith);
+          });
+      }
       if (summary) {
-        line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
-        line.controls.sku.setValue(summary.sku, { emitEvent: false });
-        line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
-        const label = summary.productName || summary.title;
-        line.controls.productName.setValue(label, { emitEvent: false });
-        if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
-          line.controls.sellingPrice.setValue(
-            moneyToDecimalString(summary.sellingPrice).replace('.', ','),
-          );
-        }
-        if (!line.controls.compareAtPrice.value.trim() && summary.compareAtPrice?.amountMinor) {
-          line.controls.compareAtPrice.setValue(
-            moneyToDecimalString(summary.compareAtPrice).replace('.', ','),
-          );
-        }
-        // Precedenza Codice IVA (§9.1, Fase IVA §7): articolo → Codice IVA
-        // predefinito del fornitore (se attivo/acquisto) → predefinito
-        // aziendale (risolto da ensureLineVatCode). La riga già valorizzata
-        // (es. da documento origine) non viene toccata.
-        if (!line.controls.vatCodeId.value) {
-          const productVatCode = summary.defaultVatCodeId
-            ? this.vatCodeById().get(summary.defaultVatCodeId)
-            : undefined;
-          if (productVatCode?.isActive && isPurchaseVatCode(productVatCode)) {
-            line.controls.vatCodeId.setValue(productVatCode.id, { emitEvent: false });
-            this.syncLegacyVatRate(line);
-          }
-        }
-        if (!line.controls.vatCodeId.value) {
-          const supplierVatCode = this.selectedSupplier()?.defaultVatCodeId
-            ? this.vatCodeById().get(this.selectedSupplier()!.defaultVatCodeId!)
-            : undefined;
-          if (supplierVatCode?.isActive && isPurchaseVatCode(supplierVatCode)) {
-            line.controls.vatCodeId.setValue(supplierVatCode.id, { emitEvent: false });
-            this.syncLegacyVatRate(line);
-          }
-        }
-        this.ensureLineVatCode(line);
-        // Il costo va dopo il Codice IVA: senza aliquota non si saprebbe come
-        // mostrarlo quando la colonna lavora a costi ivati.
-        if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
-          line.controls.unitCost.setValue(
-            this.costFieldValue(summary.purchasePrice.amountMinor, line),
-          );
-        }
-        if (!line.controls.discountPercent.value.trim()) {
-          const supplierDiscount = this.selectedSupplier()?.supplierDiscount?.trim();
-          if (supplierDiscount) {
-            line.controls.discountPercent.setValue(supplierDiscount, { emitEvent: false });
-          }
-        }
-        // NON da `summary.supplierSku`: da quando la conferma non filtra per
-        // fornitore, quel campo è il primo collegamento in ordine
-        // deterministico — il codice di un fornitore qualsiasi. Vedi
-        // `supplierCodeForDocumentLine`.
-        const supplierSku = supplierCodeForDocumentLine({
-          linkedWith,
-          ofDocumentSupplier: this.supplierSkuByVariantId().get(value),
-        });
-        if (supplierSku) {
-          line.controls.supplierSku.setValue(supplierSku, { emitEvent: false });
-        }
+        this.applyVariantSummaryToLine(index, summary, replacedArticle, linkedWith);
       }
     }
     this.codeLookup.clear();
     this.clearProductAutocomplete();
+    this.syncLineFieldAccess();
+    this.markFormDirty();
+  }
+
+  /**
+   * Scrive sulla riga i dati dell'articolo scelto.
+   *
+   * Vive fuori da `onVariantSelect` perché serve a DUE strade: la scelta da
+   * elenco, dove la summary è già in mano, e l'aggancio per codice, dove
+   * arriva dopo un giro di rete. Prima esisteva solo la prima, e agganciando
+   * per SKU o EAN la riga restava con i dati dell'articolo precedente.
+   *
+   * `replacedArticle` distingue i due gesti, che chiedono l'opposto:
+   * - **riga nuova o precompilata da un documento d'origine** (`false`): si
+   *   riempie solo ciò che è vuoto, perché quei valori sono di quel documento;
+   * - **articolo sostituito su una riga già compilata** (`true`): costo,
+   *   prezzi e Codice IVA si **riscrivono**, anche svuotandosi. Il costo di un
+   *   altro articolo non è un dato da conservare: è un dato sbagliato.
+   */
+  private applyVariantSummaryToLine(
+    index: number,
+    summary: VariantSummary,
+    replacedArticle: boolean,
+    linkedWith?: string,
+  ): void {
+    const line = this.lines.at(index);
+    const value = summary.variantId;
+    line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
+    line.controls.sku.setValue(summary.sku, { emitEvent: false });
+    line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
+    const label = summary.productName || summary.title;
+    line.controls.productName.setValue(label, { emitEvent: false });
+    if (replacedArticle) {
+      // Sostituzione: i prezzi seguono il nuovo articolo, e se non ne ha
+      // si svuotano. Tenere quelli di prima farebbe pubblicare su Shopify
+      // il prezzo di un articolo diverso.
+      line.controls.sellingPrice.setValue(
+        summary.sellingPrice.amountMinor > 0
+          ? moneyToDecimalString(summary.sellingPrice).replace('.', ',')
+          : '',
+      );
+      line.controls.compareAtPrice.setValue(
+        summary.compareAtPrice?.amountMinor
+          ? moneyToDecimalString(summary.compareAtPrice).replace('.', ',')
+          : '',
+      );
+    } else {
+      if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
+        line.controls.sellingPrice.setValue(
+          moneyToDecimalString(summary.sellingPrice).replace('.', ','),
+        );
+      }
+      if (!line.controls.compareAtPrice.value.trim() && summary.compareAtPrice?.amountMinor) {
+        line.controls.compareAtPrice.setValue(
+          moneyToDecimalString(summary.compareAtPrice).replace('.', ','),
+        );
+      }
+    }
+    // Precedenza Codice IVA (§9.1, Fase IVA §7): articolo → Codice IVA
+    // predefinito del fornitore (se attivo/acquisto) → predefinito
+    // aziendale (risolto da ensureLineVatCode). La riga già valorizzata
+    // (es. da documento origine) non viene toccata.
+    if (replacedArticle) {
+      // Il Codice IVA della riga è quello dell'articolo: sostituendolo si
+      // riparte dalla catena di precedenza, non si eredita il precedente.
+      line.controls.vatCodeId.setValue('', { emitEvent: false });
+    }
+    if (!line.controls.vatCodeId.value) {
+      const productVatCode = summary.defaultVatCodeId
+        ? this.vatCodeById().get(summary.defaultVatCodeId)
+        : undefined;
+      if (productVatCode?.isActive && isPurchaseVatCode(productVatCode)) {
+        line.controls.vatCodeId.setValue(productVatCode.id, { emitEvent: false });
+        this.syncLegacyVatRate(line);
+      }
+    }
+    if (!line.controls.vatCodeId.value) {
+      const supplierVatCode = this.selectedSupplier()?.defaultVatCodeId
+        ? this.vatCodeById().get(this.selectedSupplier()!.defaultVatCodeId!)
+        : undefined;
+      if (supplierVatCode?.isActive && isPurchaseVatCode(supplierVatCode)) {
+        line.controls.vatCodeId.setValue(supplierVatCode.id, { emitEvent: false });
+        this.syncLegacyVatRate(line);
+      }
+    }
+    this.ensureLineVatCode(line);
+    // Il costo va dopo il Codice IVA: senza aliquota non si saprebbe come
+    // mostrarlo quando la colonna lavora a costi ivati.
+    if (replacedArticle) {
+      // Come i prezzi: il costo segue il nuovo articolo, o si svuota.
+      line.controls.unitCost.setValue(
+        summary.purchasePrice?.amountMinor
+          ? this.costFieldValue(summary.purchasePrice.amountMinor, line)
+          : '',
+      );
+    } else if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
+      line.controls.unitCost.setValue(this.costFieldValue(summary.purchasePrice.amountMinor, line));
+    }
+    if (!line.controls.discountPercent.value.trim()) {
+      const supplierDiscount = this.selectedSupplier()?.supplierDiscount?.trim();
+      if (supplierDiscount) {
+        line.controls.discountPercent.setValue(supplierDiscount, { emitEvent: false });
+      }
+    }
+    // NON da `summary.supplierSku`: da quando la conferma non filtra per
+    // fornitore, quel campo è il primo collegamento in ordine
+    // deterministico — il codice di un fornitore qualsiasi. Vedi
+    // `supplierCodeForDocumentLine`.
+    const supplierSku = supplierCodeForDocumentLine({
+      linkedWith,
+      ofDocumentSupplier: this.supplierSkuByVariantId().get(value),
+    });
+    if (supplierSku) {
+      line.controls.supplierSku.setValue(supplierSku, { emitEvent: false });
+    }
     this.syncLineFieldAccess();
     this.markFormDirty();
   }

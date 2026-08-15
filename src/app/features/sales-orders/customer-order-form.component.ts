@@ -2451,6 +2451,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   /** Selezione variante su una riga: snapshot codici + default operativi. */
   protected onVariantSelect(index: number, variantId: string | null): void {
     const line = this.lines.at(index);
+    // Prima di sovrascriverlo: se la riga aveva GIÀ un altro articolo, questa è
+    // una sostituzione, e i dati dell'articolo vecchio non devono sopravvivere
+    // a quello nuovo — prezzo compreso. Vedi `applySummaryToLine`.
+    const previousVariantId = line.controls.variantId.value;
+    const replacedArticle = Boolean(previousVariantId) && previousVariantId !== variantId;
     line.controls.variantId.setValue(variantId ?? '');
     if (variantId) {
       const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
@@ -2461,18 +2466,36 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         // si svuota (debounce) i searched tornano [], e senza pin la riga
         // perdeva disponibilità/codici dopo ~1s (Q.tà disp. che "sparisce").
         this.pinnedVariants.update((current) => mergeVariantSummaries([summary], current));
-        this.applySummaryToLine(line, summary);
+        this.applySummaryToLine(line, summary, replacedArticle);
       } else {
-        this.pinVariantSummary(index, variantId);
+        this.pinVariantSummary(index, variantId, 0, replacedArticle);
       }
     }
     this.clearProductAutocomplete();
     this.markFormDirty();
   }
 
+  /**
+   * Scrive sulla riga i dati dell'articolo scelto.
+   *
+   * `replacedArticle` distingue i due gesti, che chiedono l'opposto:
+   *
+   * - **riga nuova, o dato che arriva in ritardo** (`false`): si riempie solo
+   *   ciò che è vuoto. È il caso di un documento riaperto, dove il prezzo
+   *   salvato è quello di allora e non va toccato — un documento non cambia da
+   *   sé quando cambia il listino.
+   * - **articolo sostituito su una riga già compilata** (`true`): i dati
+   *   dell'articolo si **riscrivono**, anche a costo di svuotarli. Il prezzo
+   *   dell'articolo vecchio su quello nuovo non è un dato conservato: è un
+   *   dato sbagliato, e nessuno se ne accorge finché non arriva la fattura.
+   *
+   * Lo sconto resta fuori da entrambi i casi: viene dal CLIENTE, non
+   * dall'articolo, e cambiare articolo non cambia a chi si sta vendendo.
+   */
   private applySummaryToLine(
     line: ReturnType<CustomerOrderFormComponent['createLine']>,
     summary: VariantSummary,
+    replacedArticle = false,
   ): void {
     line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
     line.controls.sku.setValue(summary.sku, { emitEvent: false });
@@ -2485,7 +2508,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     line.controls.commitsStock.setValue(!isService, { emitEvent: false });
     // Codice IVA: predefinito articolo (se attivo/vendita) → predefinito globale.
     // Prima del prezzo: in modalità ivata serve l'aliquota per mostrarlo.
-    if (!line.controls.vatCodeId.value) {
+    if (replacedArticle || !line.controls.vatCodeId.value) {
       const productVat = summary.defaultVatCodeId
         ? this.vatCodeById().get(summary.defaultVatCodeId)
         : undefined;
@@ -2499,11 +2522,19 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     // Segue il listino scelto in testata (§B4): una riga aggiunta dopo aver
     // scelto un listino deve nascere con quel prezzo, non col prezzo articolo.
     const listinoPrice = listinoUnitPrice(summary, this.listinoChoice());
-    if (!line.controls.unitPrice.value.trim() && (listinoPrice?.amountMinor ?? 0) > 0) {
+    const listinoMinor = listinoPrice?.amountMinor ?? 0;
+    if (replacedArticle) {
+      // Sostituzione: il prezzo segue il nuovo articolo, e se quello non ne ha
+      // il campo si SVUOTA. Lasciare il prezzo di prima è il difetto: la riga
+      // dice un articolo e costa un altro.
       line.controls.unitPrice.setValue(
-        this.priceFieldValue(listinoPrice?.amountMinor ?? 0, this.lineRateOf(line)),
+        listinoMinor > 0 ? this.priceFieldValue(listinoMinor, this.lineRateOf(line)) : '',
         { emitEvent: false },
       );
+    } else if (!line.controls.unitPrice.value.trim() && listinoMinor > 0) {
+      line.controls.unitPrice.setValue(this.priceFieldValue(listinoMinor, this.lineRateOf(line)), {
+        emitEvent: false,
+      });
     }
     // Sconto anagrafica cliente proposto come default (mai sovrascrive).
     if (!line.controls.discount.value.trim()) {
@@ -2515,7 +2546,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   }
 
   /** Carica e fissa la summary di una variante (righe da ordine esistente/scan). */
-  private pinVariantSummary(index: number, variantId: string, quantityToAdd = 0): void {
+  private pinVariantSummary(
+    index: number,
+    variantId: string,
+    quantityToAdd = 0,
+    replacedArticle = false,
+  ): void {
     const locationId = this.form.controls.locationId.value || undefined;
     this.productService
       .searchVariantSummaries({ variantId, locationId })
@@ -2528,7 +2564,9 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         this.pinnedVariants.update((current) => mergeVariantSummaries([summary], current));
         const line = this.lines.at(index);
         if (line && line.controls.variantId.value === summary.variantId) {
-          this.applySummaryToLine(line, summary);
+          // La sostituzione si propaga anche quando la summary arriva dal
+          // server: è lo stesso gesto, solo con un giro di rete in mezzo.
+          this.applySummaryToLine(line, summary, replacedArticle);
           if (quantityToAdd > 0) {
             const current = Number(line.controls.quantity.value) || 0;
             line.controls.quantity.setValue(current + quantityToAdd);
@@ -4487,6 +4525,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       const unitPrice = parseMoneyInput(raw.unitPrice, this.currency);
       const index = this.lines.controls.indexOf(line);
       lines.push({
+        // Vuoto = riga nuova. Presente = aggiorna quella riga, non ricrearla.
+        id: raw.id || undefined,
         variantId: raw.variantId || undefined,
         sku: raw.sku.trim() || undefined,
         description: raw.productName.trim() || raw.sku.trim() || 'Riga documento',
@@ -4752,9 +4792,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         const group = this.createLine();
         group.setValue(
           {
-            // Le righe documento vengono sostituite integralmente al PATCH:
-            // nessun id riga da preservare (a differenza dell'ordine cliente).
-            id: '',
+            // L'id della riga documento si conserva e si rimanda indietro al
+            // salvataggio: il PATCH aggiorna la riga esistente invece di
+            // ricrearla. (Prima le righe venivano sostituite integralmente e
+            // qui si azzerava — è la causa radice descritta in
+            // `docs/09-specifica-movimenti-per-riga.md` §3.)
+            id: line.id,
             variantId: line.variantId ?? '',
             articleCode: '',
             sku: line.sku ?? '',

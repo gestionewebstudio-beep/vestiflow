@@ -92,6 +92,31 @@ L'interfaccia deve privilegiare:
 - **Eccezione sync**: i delta di giacenza che arrivano da Shopify (vendite online, rettifiche fatte nell'admin Shopify) generano movimenti con origine `shopify` (`type: sale` o `adjustment`). Non sono "modifiche silenziose" ma nemmeno azioni utente: l'origine deve essere distinguibile nello storico.
 - **DEROGA Scarico manuale (prompt Scarico manuale, 2026-07 — scelta esplicita del cliente)**: il SOLO tipo documento `manual_unload` aggiorna la giacenza direttamente al salvataggio SENZA creare `StockMovement` (implementazione: `api/src/documents/document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello scarico; la sua eliminazione NON ripristina le giacenze. Il push inventario verso i canali (Shopify/TikTok) resta obbligatorio post-commit: la sync legge la giacenza, non i movimenti. Questa deroga NON è un precedente per altri tipi documento.
 
+### Un movimento per riga, aggiornato in posto — non uno per salvataggio _(15/08/2026)_
+
+«Ogni modifica inventariale produce un movimento tracciabile» qui sopra dice **cosa deve esistere**, non **quante volte va scritto**. La distinzione va esplicitata, perché letta male produce un registro che cresce a ogni correzione di battitura.
+
+> **Una riga di documento che movimenta magazzino ha esattamente UN movimento collegato, identificato da `StockMovement.sourceLineId`. Il salvataggio successivo AGGIORNA quel movimento; non ne accoda un altro.**
+
+Non è una scelta nuova: è nello schema, con il vincolo che la fa rispettare — `@@unique([sourceDocumentType, sourceLineId])`, e il commento della colonna dice «al massimo UN movimento per riga (no doppi carichi)».
+
+**Il criterio è cosa è successo davvero.** Correggere un DDT da 3 pezzi a 2 non significa che ne siano usciti 3 e poi ne sia rientrato 1: **è sempre uscita una quantità sola**, e il documento era compilato male. Il movimento rappresenta il **contenuto corrente** del documento, non la storia dei salvataggi. Quindi:
+
+| Evento                                                     | Movimento                                      |
+| ---------------------------------------------------------- | ---------------------------------------------- |
+| modifica di una riga di documento                          | si **aggiorna** quello collegato               |
+| riga eliminata, o spunta magazzino tolta                   | il movimento si **elimina**, la giacenza torna |
+| nuovo evento fisico successivo (merce che rientra davvero) | movimento **nuovo**                            |
+| storno o rettifica esplicita                               | movimento **nuovo**, tracciato come tale       |
+
+**VIETATO** far comparire movimenti di rettifica (`rettifica scarico +1`) come effetto della semplice modifica di un documento: sono rumore in un registro che l'operatore legge, e affermano un evento fisico che non è avvenuto.
+
+Ne discende anche che **due righe dello stesso articolo restano due movimenti distinti**: aggregare per variante perde il legame con la riga, ed è ciò che rende impossibile ritrovare il movimento al salvataggio dopo.
+
+_Stato al 15/08:_ la regola è rispettata da **tutti** i documenti che movimentano — Arrivo merce, Rettifica, Trasferimento e, da oggi, lo **scarico di vendita** (DDT vendita e Fattura accompagnatoria). Misure, cause e correzione in `docs/09-specifica-movimenti-per-riga.md`. La deroga dello Scarico manuale qui sopra resta fuori da tutto questo: non crea movimenti affatto.
+
+I documenti storici si convertono **da sé al primo salvataggio**: il sync somma l'effetto netto dei movimenti aggregati, lo annulla, li cancella e riscrive un movimento per riga. La giacenza non si muove di un pezzo. Non esiste uno script di conversione, e non deve esistere.
+
 ## Multi-tenant
 
 - Tutte le entità di business DEVONO essere tenant-aware.

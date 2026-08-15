@@ -1613,6 +1613,9 @@ export class StockOperationFormComponent implements CanComponentDeactivate {
       lines: raw.lines
         .filter((line) => line.variantId || line.description.trim())
         .map((line) => ({
+          // Come nel salvataggio dedicato: l'id della riga già salvata torna
+          // indietro, così il PATCH la aggiorna invece di ricrearla.
+          id: line.id || undefined,
           variantId: line.variantId || undefined,
           sku: line.sku.trim() || undefined,
           description:
