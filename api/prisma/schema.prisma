@@ -245,6 +245,14 @@ enum DocumentType {
   /// `documentNumberingType`), si differenzia per sezioni trasporto e
   /// destinazione e per lo scarico di magazzino quando non aggancia un DDT.
   invoice_accompanying
+  /// Nota di credito di vendita (TD04): terzo tipo della famiglia Fattura.
+  /// Condivide registro, maschera, permessi e — soprattutto — UN SOLO
+  /// progressivo con gli altri due (`documentNumberingType`, e il CASE
+  /// dell'indice unico che ne è la seconda faccia). Quantità e importi restano
+  /// POSITIVI: il verso economico negativo lo dà il tipo, mai il segno nella
+  /// quantità. Il magazzino lo muove solo se l'operatore spunta «Carica
+  /// magazzino» sulle righe movimentabili, e la spunta nasce spenta.
+  credit_note
   online_sale // Vendita online (documento interno generato dall'evasione, fase 2)
   corrispettivo // Corrispettivo collegato alla Vendita online (registro interno, fase 2)
   customer_order // Ordine cliente manuale (numeratore dedicato; l'ordine vive in SalesOrder)

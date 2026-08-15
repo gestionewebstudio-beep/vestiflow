@@ -61,6 +61,9 @@ const FAMIGLIA_ATTESA: Readonly<Record<string, DocumentPermissionFamily>> = {
   proforma: 'proforma',
   invoice_draft: 'invoice',
   invoice_accompanying: 'invoice',
+  // Terzo tipo della famiglia: stessi permessi degli altri due — chi emette
+  // fatture deve poterle stornare.
+  credit_note: 'invoice',
   online_sale: 'online_sale',
   corrispettivo: 'online_sale',
   customer_order: 'sales_order',

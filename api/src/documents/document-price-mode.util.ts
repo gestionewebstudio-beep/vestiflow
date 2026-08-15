@@ -11,6 +11,11 @@ export const PRICE_MODE_VAT_INCLUDED_DEFAULT_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
   DocumentType.invoice_draft,
   DocumentType.invoice_accompanying,
+  // ⚠️ Vale per la nota di credito creata VUOTA. Una nota **generata da una
+  // fattura** eredita il modello economico della fattura d'origine: se quella
+  // era a prezzi netti, la nota resta netta. Il default non la sovrascrive —
+  // sarebbe una modifica retroattiva mascherata da preferenza.
+  DocumentType.credit_note,
   DocumentType.sales_ddt,
   DocumentType.quote,
   DocumentType.manual_unload,

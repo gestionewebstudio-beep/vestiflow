@@ -29,6 +29,8 @@ const HAS_PRINTED_SHEET: Readonly<Record<DocumentTypeValue, boolean>> = {
   [DocumentType.Proforma]: true,
   [DocumentType.InvoiceDraft]: true,
   [DocumentType.InvoiceAccompanying]: true,
+  // Si stampa come le altre due: e' un documento fiscale.
+  [DocumentType.CreditNote]: true,
   // Vive in `sales_orders`: lo stampa la sezione Ordini cliente.
   [DocumentType.CustomerOrder]: false,
   [DocumentType.StoreSale]: true,
@@ -70,6 +72,9 @@ const PRINT_KIND: Readonly<Record<DocumentTypeValue, DocumentPrintKind>> = {
   [DocumentType.Proforma]: 'sales',
   [DocumentType.InvoiceDraft]: 'sales',
   [DocumentType.InvoiceAccompanying]: 'sales',
+  // Stesso impaginato della famiglia commerciale: cambiano titolo, verso e
+  // contenuto, non la forma del foglio.
+  [DocumentType.CreditNote]: 'sales',
   [DocumentType.CustomerOrder]: 'sales',
   // Cassa negozio: il cliente può non esserci, la sede c'è sempre.
   [DocumentType.StoreSale]: 'sales',
