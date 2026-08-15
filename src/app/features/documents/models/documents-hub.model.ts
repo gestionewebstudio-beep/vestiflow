@@ -168,9 +168,11 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         icon: 'pi-truck',
         available: true,
       },
-      // Fattura e Fattura accompagnatoria: voci separate ma stesso elenco e
+      // I TRE tipi della famiglia Fattura: voci separate ma stesso elenco e
       // stesso numeratore. Il `type` in query preimposta il filtro Tipo della
       // lista condivisa, che resta comunque modificabile dall'operatore.
+      // Nessuna delle tre porta a una pagina propria: il progressivo è uno solo
+      // e un registro separato lo mostrerebbe pieno di buchi.
       {
         id: 'invoice',
         family: 'invoice',
@@ -189,6 +191,16 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         route: ['/app/documents/fattura'],
         queryParams: { type: 'invoice_accompanying' },
         icon: 'pi-truck',
+        available: true,
+      },
+      {
+        id: 'credit-note',
+        family: 'invoice',
+        label: 'Nota di credito',
+        description: 'Storno totale o parziale di una fattura già emessa.',
+        route: ['/app/documents/fattura'],
+        queryParams: { type: 'credit_note' },
+        icon: 'pi-replay',
         available: true,
       },
       {

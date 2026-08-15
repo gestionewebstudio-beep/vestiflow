@@ -56,9 +56,10 @@ export interface SalesDocumentRegisterConfig {
   readonly showPendingInvoiceFilter: boolean;
   /**
    * Tipi mostrati nell'elenco. Quasi tutte le pagine dedicate ne hanno uno solo
-   * (= `type`) e nascondono il filtro «Tipo». Le Fatture fanno eccezione:
-   * Fattura e Fattura accompagnatoria condividono un unico elenco, quindi qui
-   * ci sono entrambi i tipi e la lista mostra colonna e filtro «Tipo».
+   * (= `type`) e nascondono il filtro «Tipo». Le Fatture fanno eccezione: i
+   * **tre** tipi della famiglia (Fattura, Fattura accompagnatoria, Nota di
+   * credito) condividono un unico elenco, quindi qui ci sono tutti e tre e la
+   * lista mostra colonna e filtro «Tipo».
    */
   readonly types?: readonly DocumentType[];
   /**
@@ -134,11 +135,20 @@ const INVOICE_STATUS_OPTIONS: readonly SelectMenuOption[] = [
   { value: DocumentStatus.Cancelled, label: 'Annullata' },
 ];
 
-/** Opzioni del filtro «Tipo» dell'elenco fatture (con la voce «Tutti»). */
+/**
+ * Opzioni del filtro «Tipo» dell'elenco fatture (con la voce «Tutti»).
+ *
+ * Le tre voci sono i tre tipi della famiglia, nell'ordine in cui l'operatore se
+ * li aspetta: prima la fattura semplice, poi le due varianti. Vanno tenute
+ * allineate a `SALES_INVOICE_DOCUMENT_TYPES`, che decide quali documenti
+ * l'elenco carica: una voce di filtro senza il tipo corrispondente in `types`
+ * darebbe un elenco sempre vuoto, e il contrario un tipo non filtrabile.
+ */
 export const INVOICE_TYPE_FILTER_OPTIONS: readonly SelectMenuOption[] = [
   { value: '', label: 'Tutti' },
   { value: DocumentType.InvoiceDraft, label: 'Fattura' },
   { value: DocumentType.InvoiceAccompanying, label: 'Fattura accompagnatoria' },
+  { value: DocumentType.CreditNote, label: 'Nota di credito' },
 ];
 
 /** Opzioni del filtro «Tipo» dell'elenco Vendita/Reso in negozio. */
@@ -256,8 +266,11 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     detailPanelTitle: 'Dati registrazione',
     detailNotFoundTitle: 'Registrazione fattura fornitore non trovata',
   },
-  // Elenco condiviso da Fattura e Fattura accompagnatoria: un solo numeratore,
+  // Elenco condiviso dai TRE tipi della famiglia Fattura: un solo numeratore,
   // una sola pagina, filtro «Tipo» preimpostato dalla voce hub di provenienza.
+  // La Nota di credito non ha un elenco proprio, e non deve averlo: sta nella
+  // stessa serie progressiva delle fatture, e un registro separato mostrerebbe
+  // una numerazione con i buchi lasciati dall'altro (`07-…§3`).
   invoice: {
     profile: 'invoice',
     type: DocumentType.InvoiceDraft,
@@ -265,7 +278,7 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     typeFilterOptions: INVOICE_TYPE_FILTER_OPTIONS,
     pageTitle: 'Fatture',
     pageSubtitle:
-      'Fatture fiscali da inviare al commercialista, con o senza trasporto merce incluso.',
+      'Fatture, fatture accompagnatorie e note di credito da inviare al commercialista, in un unico progressivo.',
     createLabel: 'Nuova fattura',
     createPath: '/app/documents/fattura/new',
     createVariants: [
@@ -278,6 +291,11 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
         type: DocumentType.InvoiceAccompanying,
         label: 'Nuova fattura accompagnatoria',
         path: '/app/documents/fattura-accompagnatoria/new',
+      },
+      {
+        type: DocumentType.CreditNote,
+        label: 'Nuova nota di credito',
+        path: '/app/documents/nota-di-credito/new',
       },
     ],
     listPath: '/app/documents/fattura',

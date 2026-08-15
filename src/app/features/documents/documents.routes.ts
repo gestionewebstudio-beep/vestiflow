@@ -13,6 +13,13 @@ import {
   DOCUMENTS_SECTION_GROUPS,
   REQUIRED_TENANT_PERMISSION_GROUPS_KEY,
 } from '@core/permissions/tenant-permissions.util';
+import { documentTypeLabel } from '@domain/documents/models/document-labels.util';
+import {
+  SALES_FORM_DOCUMENT_TYPES,
+  type SalesFormDocumentType,
+} from '@domain/documents/models/document-sales.util';
+
+import { SALES_FORM_ROUTE_SEGMENT } from './models/document-routing.util';
 
 // Matrice permessi documenti: ogni rotta chiede la SEZIONE (porta) E la
 // FAMIGLIA del tipo — gli stessi due gruppi che l'API esige a livello di
@@ -27,6 +34,40 @@ const familyManage = (family: DocumentPermissionFamily) => [
   [TenantPermission.SectionDocuments],
   [docManagePermission(family)],
 ];
+
+/**
+ * Le rotte di modifica della maschera vendita, una per tipo, generate dalla
+ * mappa dei segmenti (`SALES_FORM_ROUTE_SEGMENT`).
+ *
+ * Sono generate e non scritte a mano per la stessa ragione per cui la mappa è
+ * esaustiva: un tipo aggiunto alla famiglia deve **ottenere** la sua rotta,
+ * non aspettare che qualcuno se ne ricordi. Scritte a mano sarebbero quattro
+ * blocchi quasi identici, e il quinto sarebbe quello dimenticato.
+ */
+function salesFormEditRoutes(): Routes {
+  return SALES_FORM_DOCUMENT_TYPES.map((type) => ({
+    path: `${SALES_FORM_ROUTE_SEGMENT[type]}/:id/edit`,
+    title: `Modifica ${documentTypeLabel(type).toLocaleLowerCase('it-IT')}`,
+    loadComponent: () =>
+      import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
+    canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage(SALES_FORM_PERMISSION_FAMILY[type]),
+      salesDocumentType: type,
+    },
+  }));
+}
+
+/** Famiglia permessi di ciascun tipo della maschera vendita, esaustiva. */
+const SALES_FORM_PERMISSION_FAMILY: Readonly<
+  Record<SalesFormDocumentType, DocumentPermissionFamily>
+> = {
+  [DocumentType.Proforma]: 'proforma',
+  [DocumentType.InvoiceDraft]: 'invoice',
+  [DocumentType.InvoiceAccompanying]: 'invoice',
+  [DocumentType.CreditNote]: 'invoice',
+};
 
 export const documentsRoutes: Routes = [
   {
@@ -203,6 +244,20 @@ export const documentsRoutes: Routes = [
     },
   },
   {
+    // Terzo tipo della stessa famiglia, stesso form: cambiano il verso
+    // economico e la casella «Carica magazzino» per riga, non il componente.
+    path: 'nota-di-credito/new',
+    title: 'Nuova nota di credito',
+    loadComponent: () =>
+      import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
+    canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyManage('invoice'),
+      salesDocumentType: DocumentType.CreditNote,
+    },
+  },
+  {
     // DDT vendita: stessa maschera dell'Ordine cliente in modalità sales-ddt
     // (prompt DDT §BASE — righe identiche, testata con Pagamento e «Seguirà
     // doc. di vendita», sezioni Trasporto e Indirizzi, scarico al salvataggio).
@@ -310,24 +365,19 @@ export const documentsRoutes: Routes = [
       documentListProfile: 'invoice',
     },
   },
-  {
-    // Form condiviso proforma/fattura: la famiglia effettiva dipende dal
-    // documento caricato, l'API rifiuta comunque il tipo non gestibile.
-    path: 'sales/:id/edit',
-    title: 'Modifica documento vendita',
-    loadComponent: () =>
-      import('./sales-document-form.component').then((m) => m.SalesDocumentFormComponent),
-    canActivate: [tenantPermissionGuard],
-    canDeactivate: [unsavedChangesGuard],
-    data: {
-      // Form condiviso: basta gestire una delle due famiglie per aprirlo,
-      // l'API rifiuta comunque il documento del tipo non gestibile.
-      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: [
-        [TenantPermission.SectionDocuments],
-        [docManagePermission('invoice'), docManagePermission('proforma')],
-      ],
-    },
-  },
+  // ── Modifica: UNA ROTTA PER TIPO ──────────────────────────────────────────
+  //
+  // Sostituiscono `sales/:id/edit`, che il tipo non lo portava. Il form lo
+  // ricavava allora dal documento **caricato**, e fino alla risposta della GET
+  // ricadeva su Proforma: titolo «Modifica proforma» su una fattura, dicitura
+  // «Proforma non valida ai fini IVA» stampata sopra un documento fiscale,
+  // tendina Serie partita con le serie sbagliate (`07-…§18`, `03-…§4.11`).
+  //
+  // Il tipo nel percorso lo rende noto PRIMA della lettura, e con esso il
+  // permesso esatto: ogni rotta chiede la propria famiglia invece dell'unione
+  // di due (l'unione apriva la maschera a chi non gestiva quel tipo, lasciando
+  // il rifiuto all'API — cioè a lavoro già fatto).
+  ...salesFormEditRoutes(),
   {
     path: ':id/print',
     title: 'Stampa documento',

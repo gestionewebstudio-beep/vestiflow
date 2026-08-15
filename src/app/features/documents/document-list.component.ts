@@ -77,7 +77,7 @@ import {
   documentStatusLabel,
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
-import { documentDuplicateFormRoute } from './models/document-routing.util';
+import { documentDuplicateFormRoute, salesFormRouteSegment } from './models/document-routing.util';
 import {
   DOCUMENT_LIST_COLUMN_DEFS,
   DOCUMENT_LIST_COLUMN_PRESETS,
@@ -128,7 +128,9 @@ const EMPTY_META: PageMeta = {
  * decorativo: è quello che permette di chiedere il permesso della famiglia
  * corrispondente senza riscrivere qui la mappa tipo → famiglia.
  */
-const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & { readonly type: DocumentType })[] = [
+export const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & {
+  readonly type: DocumentType;
+})[] = [
   {
     value: 'purchase-invoice',
     label: 'Registrazione fattura fornitore',
@@ -146,6 +148,9 @@ const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & { readonly type: Do
     label: 'Fattura accompagnatoria',
     type: DocumentType.InvoiceAccompanying,
   },
+  // Il terzo tipo della famiglia sta qui come gli altri due: un menu che ne
+  // elenca due su tre suggerisce che il terzo si crei da un'altra parte.
+  { value: 'credit-note', label: 'Nota di credito', type: DocumentType.CreditNote },
 ];
 
 type DocumentListState =
@@ -988,6 +993,9 @@ export class DocumentListComponent {
       case 'invoice-accompanying':
         this.openNewInvoice(DocumentType.InvoiceAccompanying);
         break;
+      case 'credit-note':
+        this.openNewInvoice(DocumentType.CreditNote);
+        break;
       default:
         break;
     }
@@ -1422,13 +1430,18 @@ export class DocumentListComponent {
     void this.router.navigate(['/app/documents/quote/new']);
   }
 
-  /** Nuova fattura del tipo scelto: le due varianti condividono il form. */
+  /**
+   * Nuovo documento della famiglia Fattura, del tipo scelto: i tre tipi
+   * condividono il form e si distinguono per l'indirizzo.
+   *
+   * Il percorso viene dalla mappa dei segmenti, non da un confronto: qui c'era
+   * un ternario a due rami, e con l'arrivo della Nota di credito avrebbe
+   * mandato il terzo tipo sulla rotta della Fattura semplice — senza errori,
+   * creando un documento del tipo sbagliato.
+   */
   protected openNewInvoice(type: DocumentType): void {
-    const path =
-      type === DocumentType.InvoiceAccompanying
-        ? '/app/documents/fattura-accompagnatoria/new'
-        : '/app/documents/fattura/new';
-    void this.router.navigate([path]);
+    const segment = salesFormRouteSegment(type);
+    void this.router.navigate([`/app/documents/${segment ?? 'fattura'}/new`]);
   }
 
   /** «Nuovo …» della pagina dedicata (Preventivi, Proforma, DDT, Fatture). */

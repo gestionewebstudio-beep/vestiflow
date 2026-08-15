@@ -35,6 +35,7 @@ import { TenantPermission } from '@core/models/tenant-permission.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { DocumentStatus, DocumentType, TransportPort } from '@core/models/document.model';
+import { requireSalesDocumentType } from './models/document-routing.util';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import {
@@ -250,8 +251,17 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   protected readonly proformaDisclaimer = PROFORMA_DISCLAIMER;
   protected readonly DocumentType = DocumentType;
 
-  private readonly routeType = this.route.snapshot.data['salesDocumentType'] as
-    DocumentType | undefined;
+  /**
+   * Il tipo dichiarato dalla rotta. **Obbligatorio**: ogni indirizzo che apre
+   * questa maschera lo porta, in creazione e in modifica.
+   *
+   * Se manca è una rotta scritta male, e si ferma qui con un errore leggibile
+   * invece di aprire il documento sbagliato: su una fattura, «comportarsi da
+   * proforma» significa stampare «non valida ai fini IVA» sopra un documento
+   * fiscale. Una pagina che non si apre è un difetto che si vede; un documento
+   * fiscale vestito da proforma, no.
+   */
+  private readonly routeType = requireSalesDocumentType(this.route.snapshot.data);
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
@@ -295,13 +305,22 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   protected readonly listinoWarnings = signal<readonly string[]>([]);
   protected readonly showListinoSelect = computed(() => this.listinoOptions().length > 1);
 
-  protected readonly documentType = computed(() => {
-    const loaded = this.loadedDocument()?.type;
-    if (loaded) {
-      return loaded;
-    }
-    return this.routeType ?? DocumentType.Proforma;
-  });
+  /**
+   * Il tipo del documento in maschera. Viene dalla ROTTA, sempre: creazione e
+   * modifica hanno entrambe un indirizzo per tipo, e `routeType` non è mai
+   * indefinito (lo prova `documents.routes.spec.ts`).
+   *
+   * Il documento caricato conferma, non decide: se i due divergessero sarebbe
+   * un link sbagliato, non un caso da gestire.
+   *
+   * Qui c'era `?? DocumentType.Proforma`, e non era una precauzione innocua:
+   * sulla vecchia rotta `sales/:id/edit` il tipo non c'era, quindi fino alla
+   * risposta della GET **ogni** documento si comportava da proforma — titolo,
+   * dicitura «non valida ai fini IVA», serie sbagliate (`07-…§18`). Il ripiego
+   * non è stato reso più intelligente: è stato tolto il caso che lo rendeva
+   * necessario.
+   */
+  protected readonly documentType = computed(() => this.loadedDocument()?.type ?? this.routeType);
 
   protected readonly isProforma = computed(() => isProformaDocumentType(this.documentType()));
   protected readonly isInvoiceDraft = computed(() =>

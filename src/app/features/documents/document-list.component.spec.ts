@@ -13,7 +13,7 @@ import { OperationalLocationsService } from '@domain/inventory/services/operatio
 import { SupplierService } from '@domain/suppliers/services/supplier.service';
 import { TableViewPreferenceApiService } from '@shared/table-columns/table-view-preference-api.service';
 
-import { DocumentListComponent } from './document-list.component';
+import { DocumentListComponent, SECONDARY_CREATE_ENTRIES } from './document-list.component';
 import { ExternalDocumentTypeService } from '@domain/documents/services/external-document-type.service';
 
 /**
@@ -196,7 +196,10 @@ describe('DocumentListComponent — comandi di creazione e matrice permessi', ()
   it('al titolare resta tutto il menu', async () => {
     const view = await renderList('generic', { role: UserRole.Owner, permissions: [] });
 
-    expect(tipiOfferti(view)).toHaveLength(9);
+    // Il confronto è con l'elenco dichiarato, non con un numero: `toHaveLength(9)`
+    // andava aggiornato a mano a ogni voce nuova, e diceva «sono nove» invece di
+    // «non ne manca nessuna» — che è la regola vera per chi ha tutti i permessi.
+    expect(tipiOfferti(view)).toEqual(SECONDARY_CREATE_ENTRIES.map((entry) => entry.label));
     expect(screen.queryByRole('button', { name: /Crea altro tipo di documento/i })).not.toBeNull();
   });
 });

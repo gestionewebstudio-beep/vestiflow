@@ -2,7 +2,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { AuthService } from '@core/auth';
 import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { of } from 'rxjs';
+import { NEVER, of } from 'rxjs';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { DocumentType } from '@core/models/document.model';
@@ -78,6 +78,18 @@ interface SetupOptions {
    * per cui il difetto del corpo di PATCH è arrivato fino a schermo.
    */
   readonly editDocument?: Record<string, unknown>;
+  /**
+   * Tipo dichiarato dalla ROTTA. Predefinito Proforma, che è quello che i test
+   * storici assumevano. Da valorizzare quando conta chi decide il tipo: la
+   * rotta o il documento caricato (`07-…§18`).
+   */
+  readonly routeType?: DocumentType;
+  /**
+   * La GET del documento non risponde mai: serve a osservare la maschera nella
+   * finestra in cui il documento non è ancora arrivato — la finestra in cui il
+   * difetto del ripiego a Proforma si vedeva.
+   */
+  readonly documentNeverLoads?: boolean;
 }
 
 describe('SalesDocumentFormComponent', () => {
@@ -122,7 +134,8 @@ describe('SalesDocumentFormComponent', () => {
     const updateDocument = vi.fn((_id: string, _body: unknown) =>
       of({ id: 'doc-1', number: options.assignedNumber ?? proposedNumber ?? 1 }),
     );
-    const editParams = options.editDocument ? { id: 'doc-1' } : {};
+    const editParams = options.editDocument || options.documentNeverLoads ? { id: 'doc-1' } : {};
+    const routeType = options.routeType ?? DocumentType.Proforma;
 
     const view = await render(SalesDocumentFormComponent, {
       providers: [
@@ -160,11 +173,11 @@ describe('SalesDocumentFormComponent', () => {
           provide: ActivatedRoute,
           useValue: {
             snapshot: {
-              data: { salesDocumentType: DocumentType.Proforma },
+              data: { salesDocumentType: routeType },
               queryParamMap: convertToParamMap({}),
             },
             paramMap: of(convertToParamMap(editParams)),
-            data: of({ salesDocumentType: DocumentType.Proforma }),
+            data: of({ salesDocumentType: routeType }),
           },
         },
         { provide: OperationalLocationsService, useValue: operationalLocationsMock() },
@@ -207,7 +220,12 @@ describe('SalesDocumentFormComponent', () => {
         {
           provide: DocumentService,
           useValue: {
-            getDocumentById: vi.fn(() => of(options.editDocument ?? null)),
+            // `documentNeverLoads`: un Observable che non emette mai, così la
+            // maschera resta nella finestra «id nella rotta, documento non
+            // ancora arrivato» — dove il tipo può venire solo dalla rotta.
+            getDocumentById: vi.fn(() =>
+              options.documentNeverLoads ? NEVER : of(options.editDocument ?? null),
+            ),
             updateDocument,
             // Controllo cronologico (§4): serie in ordine, nessun avviso.
             checkChronology: () => of({ conflicts: [], dismissed: false }),
@@ -558,5 +576,50 @@ describe('SalesDocumentFormComponent', () => {
 
     expect(form.lines.at(0).controls['unitPrice']!.value).toBe('25,00');
     expect(form.lines.at(0).controls['vatCodeId']!.value).toBe('iva-10');
+  });
+
+  /**
+   * Il tipo del documento prima che il documento arrivi — regressione di `07-…§18`.
+   *
+   * Prima delle rotte per tipo, la modifica passava da `sales/:id/edit`, che il
+   * tipo non lo portava: il form lo prendeva dal documento **caricato**, e nella
+   * finestra fra l'apertura e la risposta della GET si comportava da proforma.
+   * Non era un dettaglio invisibile: il titolo diceva «Modifica proforma» su una
+   * fattura, e la nota precompilata ci scriveva «Documento non fiscale / Proforma
+   * non valida ai fini IVA».
+   *
+   * Questi test misurano **quella finestra**: la GET non risponde mai, quindi
+   * l'unica fonte possibile del tipo è la rotta.
+   */
+  describe('SalesDocumentFormComponent — il tipo viene dalla rotta, non dall attesa', () => {
+    it('in modifica, prima che il documento arrivi, la fattura è già una fattura', async () => {
+      await setup({
+        routeType: DocumentType.InvoiceDraft,
+        documentNeverLoads: true,
+      });
+
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Modifica fattura');
+      expect(screen.queryByText(/Proforma non valida ai fini IVA/)).toBeNull();
+    });
+
+    it('lo stesso vale per la nota di credito, che non è né fattura né proforma', async () => {
+      await setup({
+        routeType: DocumentType.CreditNote,
+        documentNeverLoads: true,
+      });
+
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toContain(
+        'Modifica nota di credito',
+      );
+    });
+
+    it('la proforma resta una proforma: la rotta dice il tipo anche quando è quello vecchio', async () => {
+      await setup({
+        routeType: DocumentType.Proforma,
+        documentNeverLoads: true,
+      });
+
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Modifica proforma');
+    });
   });
 });
