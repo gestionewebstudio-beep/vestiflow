@@ -371,9 +371,13 @@ describe('SalesDocumentFormComponent', () => {
   // che nessuno vede perché la colonna mostra un codice, non un errore.
   it('sostituendo l’articolo, prezzo e Codice IVA seguono il nuovo', async () => {
     const { component } = await setup({
+      // Fixture complete: la cella usa la mappatura condivisa, che legge anche
+      // `code` (l'etichetta in cella) e `description` (il dettaglio nel menu).
       vatCodes: [
         {
           id: 'iva-22',
+          code: '22',
+          description: 'Imponibile 22%',
           ratePercent: 22,
           calculationMode: 'standard',
           isActive: true,
@@ -381,6 +385,8 @@ describe('SalesDocumentFormComponent', () => {
         },
         {
           id: 'iva-10',
+          code: '10',
+          description: 'Imponibile 10%',
           ratePercent: 10,
           calculationMode: 'standard',
           isActive: true,

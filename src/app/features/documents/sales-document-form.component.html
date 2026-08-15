@@ -934,6 +934,7 @@
                       @if (isLineColumnVisible('vat')) {
                         <td
                           class="doc-form__cell doc-form__cell--editable doc-form__cell--vat doc-form__col--tax doc-form__col--sep"
+                          [title]="lineVatTooltip(i)"
                         >
                           <!--
                             Cella a ricerca-e-selezione, come nelle altre
@@ -941,6 +942,10 @@
                             fuoco la raggiunge, si digita il codice e l'elenco
                             filtra per prefisso. Prima qui c'era la tendina —
                             l'ultima rimasta su una riga documento.
+
+                            In cella si legge il solo CODICE: aliquota e
+                            descrizione stanno nel menu e nel `title` della
+                            cella, come sulle altre tre maschere.
                           -->
                           <app-document-line-select-cell
                             [lineIndex]="i"

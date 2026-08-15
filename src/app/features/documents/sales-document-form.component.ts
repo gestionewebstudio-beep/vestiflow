@@ -50,6 +50,10 @@ import {
 } from '@core/utils/discount-percent.util';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import {
+  vatCodeSelectOption,
+  vatOptionsIncludingSelected,
+} from '@domain/documents/utils/document-vat-options.util';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
@@ -145,7 +149,10 @@ import {
   netFromGrossMinor,
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentService } from '@domain/documents/services/document.service';
-import type { CreateDocumentBody } from '@domain/documents/services/document-api.mapper';
+import type {
+  CreateDocumentBody,
+  UpdateDocumentBody,
+} from '@domain/documents/services/document-api.mapper';
 import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
@@ -622,10 +629,17 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private readonly vatCodeById = computed(() => toVatCodeById(this.vatCodes()));
 
   /** Codici attivi utilizzabili in vendita, ordinati come in Impostazioni. */
+  /**
+   * Opzioni Codice IVA di vendita, nella forma condivisa: in cella si legge il
+   * **codice**, aliquota e descrizione stanno nel `detail` del menu e nel
+   * tooltip di riga. Qui l'etichetta era la dicitura intera — «22 · 22% ·
+   * Imponibile» — che in una cella stretta arrivava troncata a metà parola.
+   * Era l'ultima maschera rimasta sulla forma vecchia.
+   */
   protected readonly salesVatOptions = computed<readonly SelectMenuOption[]>(() =>
     this.vatCodes()
       .filter((vatCode) => vatCode.isActive && isSalesVatCode(vatCode))
-      .map((vatCode) => ({ value: vatCode.id, label: vatCodeOptionLabel(vatCode) })),
+      .map(vatCodeSelectOption),
   );
 
   private readonly tenantSettings = toSignal(
@@ -1746,16 +1760,21 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   /** Opzioni della riga: codici attivi + eventuale codice storico disattivato. */
   protected lineVatOptions(index: number): readonly SelectMenuOption[] {
-    const options = this.salesVatOptions();
-    const selectedId = this.lines.at(index)?.controls.vatCodeId.value;
-    if (!selectedId || options.some((option) => option.value === selectedId)) {
-      return options;
-    }
-    const selected = this.vatCodeById().get(selectedId);
-    if (!selected) {
-      return options;
-    }
-    return [...options, { value: selected.id, label: vatCodeOptionLabel(selected) }];
+    // Stessa funzione condivisa delle altre tre maschere: qui c'era una copia
+    // scritta a mano che faceva la stessa cosa — tenere il codice già scelto
+    // fra le opzioni anche se nel frattempo è stato disattivato, o riaprendo un
+    // documento storico la cella risulterebbe vuota.
+    return vatOptionsIncludingSelected(
+      this.salesVatOptions(),
+      this.lines.at(index)?.controls.vatCodeId.value,
+      this.vatCodeById(),
+    );
+  }
+
+  /** Sulla cella si legge il codice; il resto sta qui, come nelle altre tre. */
+  protected lineVatTooltip(index: number): string {
+    const vatCode = this.vatCodeById().get(this.lines.at(index)?.controls.vatCodeId.value ?? '');
+    return vatCode ? vatCodeOptionLabel(vatCode) : 'Nessun Codice IVA';
   }
 
   protected onLineVatSelect(index: number, value: string | null): void {
@@ -1994,6 +2013,17 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     this.loadTick.update((t) => t + 1);
   }
 
+  /**
+   * Corpo del PATCH: il corpo della creazione meno i due campi che valgono solo
+   * alla nascita. Sta in un metodo suo, e non in un `...body` spread, perché il
+   * giorno in cui la creazione guadagnerà un altro campo di sola nascita questo
+   * è il posto dove si nota — un `delete` sparso nel salvataggio no.
+   */
+  private toUpdateBody(body: CreateDocumentBody): UpdateDocumentBody {
+    const { type: _type, sourceDocumentId: _sourceDocumentId, ...rest } = body;
+    return rest;
+  }
+
   private validateForm(): boolean {
     if (this.form.invalid || this.hasInvalidPrice() || !this.hasValidLine()) {
       this.form.markAllAsTouched();
@@ -2182,9 +2212,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     this._submitState.set({ status: 'saving' });
 
     const save$ = editId
-      ? this.documentService.updateDocument(editId, {
-          ...body,
-        })
+      ? // Il PATCH non accetta `type` né `sourceDocumentId`, e l'API valida con
+        // `forbidNonWhitelisted`: mandarli fa rispondere **400** — senza un
+        // messaggio da mostrare, quindi a schermo il salvataggio semplicemente
+        // non accadeva. Ed è giusto che il DTO non li accetti: il tipo di un
+        // documento non cambia in modifica, e l'origine è un legame che nasce
+        // con lui. La maschera del DDT costruisce da sempre un corpo suo per la
+        // modifica; qui si spediva quello della creazione.
+        this.documentService.updateDocument(editId, this.toUpdateBody(body))
       : this.documentService.createDocument(body);
 
     // Nascita-confermato (Fase 3): create e update producono già un documento
