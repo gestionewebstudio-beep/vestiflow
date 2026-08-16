@@ -1856,6 +1856,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       if (!line.controls.productName.value.trim()) {
         line.controls.productName.setValue(summary.productName, { emitEvent: false });
       }
+      // L'unità di misura si CATTURA dall'anagrafica, come il nome e lo SKU:
+      // il documento è una fotografia, e la riga se la tiene anche se domani
+      // l'articolo cambia. Senza questa riga il controllo restava vuoto, a
+      // schermo compariva lo stesso il valore dell'articolo — il ripiego di
+      // `lineUnitOfMeasure` — e sul documento non si salvava niente:
+      // **zero righe su 99 avevano una U.M.**, e sembrava che l'avessero tutte.
+      if (!line.controls.unitOfMeasure.value.trim()) {
+        line.controls.unitOfMeasure.setValue(summary.unitOfMeasure ?? 'pz', {
+          emitEvent: false,
+        });
+      }
       // Riallineamento in blocco: qui un «codice con cui hai agganciato» non
       // esiste, quindi vale solo quello del fornitore della testata.
       //

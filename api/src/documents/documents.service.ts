@@ -276,8 +276,16 @@ interface ComputedLine {
   lineNetExactMinor: number;
   vatCodeId: string | null;
   vatSnapshot: Prisma.InputJsonObject | null;
-  /** Fotografia dell'unità di misura: il documento la tiene per sé. */
-  unitOfMeasure: string | null;
+  /**
+   * Fotografia dell'unità di misura: il documento la tiene per sé.
+   *
+   * ⚠️ **Tre stati, non due.** `undefined` = la maschera non l’ha mandata,
+   * quindi non la si tocca; `null` = svuotata dall’operatore; una stringa =
+   * il valore. Collassare i primi due su `null` era il difetto: un salvataggio
+   * da una maschera che non ha la colonna **cancellava** un valore che
+   * l’operatore non aveva eliminato.
+   */
+  unitOfMeasure: string | null | undefined;
   loadsStock: boolean;
   /** Riga «documento collegato»: separatore informativo, fuori dai totali. */
   isReference: boolean;
@@ -1510,7 +1518,9 @@ export class DocumentsService {
       lines:
         lines?.map((line, index) => ({
           ...line,
-          // Anteprima: la riga calcolata prende la forma della colonna.
+          // Anteprima: la riga calcolata prende la forma della colonna, che
+          // non conosce «non inviata» — qui `undefined` vale quanto `null`.
+          unitOfMeasure: line.unitOfMeasure ?? null,
           unitPriceMinor: new Prisma.Decimal(line.unitPriceMinor),
           discountPercent: new Prisma.Decimal(line.discountPercent),
           id: `new-${index}`,
@@ -1815,7 +1825,7 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
-            unitOfMeasure: line.unitOfMeasure,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1841,7 +1851,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
-            unitOfMeasure: line.unitOfMeasure,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1886,7 +1896,7 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
-            unitOfMeasure: line.unitOfMeasure,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1920,7 +1930,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
-            unitOfMeasure: line.unitOfMeasure,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -1970,7 +1980,7 @@ export class DocumentsService {
             vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot),
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
-            unitOfMeasure: line.unitOfMeasure,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -2001,7 +2011,7 @@ export class DocumentsService {
             vatRatePercent: line.vatRatePercent,
             lineTotalMinor: line.lineTotalMinor,
             loadsStock: line.loadsStock,
-            unitOfMeasure: line.unitOfMeasure,
+            unitOfMeasure: line.unitOfMeasure ?? null,
             isReference: line.isReference === true,
             supplierOrderLineId: line.supplierOrderLineId ?? null,
             lotCode: line.lotCode ?? null,
@@ -3424,7 +3434,10 @@ export class DocumentsService {
         lineNetExactMinor,
         vatCodeId,
         vatSnapshot,
-        unitOfMeasure: line.unitOfMeasure?.trim() || null,
+        // `undefined` resta `undefined`: chi non manda il campo non lo tocca.
+        // Una stringa vuota resta uno svuotamento esplicito.
+        unitOfMeasure:
+          line.unitOfMeasure === undefined ? undefined : line.unitOfMeasure.trim() || null,
         // Una reference non muove merce, qualunque cosa arrivi dal client e
         // qualunque sia il default del tipo. Finora reggeva solo perché una
         // riga senza variante non entra in `isStockLine`: coincidenza, non regola.

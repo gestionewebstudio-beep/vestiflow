@@ -1578,6 +1578,59 @@ describe('DocumentsService', () => {
       expect(first.data.quantity).toBe(5);
     });
 
+    // ── Unità di misura: il salvataggio non cancella ciò che non gli è stato
+    // chiesto di cambiare (contratto della riga, fetta 1) ─────────────────
+    //
+    // Il round-trip dev'essere CONSERVATIVO: aprire e salvare un documento non
+    // può modificare un dato che l'operatore non ha toccato. Vale per ogni
+    // maschera che non espone la colonna — oggi DDT, Fattura, Proforma e Nota
+    // di credito non ce l'hanno.
+
+    it('non cancella l’unità di misura quando la maschera non la manda', async () => {
+      const service = arrange([savedLine('line-1', { unitOfMeasure: 'kg' })]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [inputLine({ id: 'line-1', quantity: 5 })],
+      });
+
+      const data = (prisma.documentLine.updateMany.mock.calls[0]![0] as {
+        data: Record<string, unknown>;
+      }).data;
+      // `undefined` è il modo in cui Prisma dice «non toccare questa colonna»:
+      // non finisce nella UPDATE. È la differenza con `null`, che invece la
+      // scriverebbe — ed è esattamente ciò che succedeva prima.
+      expect(data.unitOfMeasure).toBeUndefined();
+      expect(data.quantity).toBe(5);
+    });
+
+    it('la svuota se l’operatore la svuota davvero', async () => {
+      const service = arrange([savedLine('line-1', { unitOfMeasure: 'kg' })]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [inputLine({ id: 'line-1', unitOfMeasure: '' })],
+      });
+
+      const data = (prisma.documentLine.updateMany.mock.calls[0]![0] as {
+        data: Record<string, unknown>;
+      }).data;
+      // Stringa vuota = svuotamento esplicito, ed è un gesto diverso dal
+      // silenzio: qui la colonna si scrive, a null.
+      expect(data.unitOfMeasure).toBeNull();
+    });
+
+    it('la scrive quando arriva', async () => {
+      const service = arrange([savedLine('line-1')]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [inputLine({ id: 'line-1', unitOfMeasure: '  kg  ' })],
+      });
+
+      const data = (prisma.documentLine.updateMany.mock.calls[0]![0] as {
+        data: Record<string, unknown>;
+      }).data;
+      expect(data.unitOfMeasure).toBe('kg');
+    });
+
     it('assegna un id nuovo solo alle righe nuove', async () => {
       const service = arrange([savedLine('line-1')]);
 

@@ -870,96 +870,163 @@ anche per i nuovi, o se debba seguire la preferenza dell'operatore come fanno i 
 
 ---
 
-## 11 · Il contratto della riga documento — 🟡 da scrivere, poi da eseguire a fette
+## 11 · Contratto funzionale della riga documento — 🟡 **in corso, a fette per concetto**
 
-**Sollevata da Luigi il 16/08:** _«la colonna cod. articolo dovrebbe essere la stessa ovunque,
-stessa cosa EAN, SKU, codice fornitore, nome prodotto, U.M., costo, sconto, IVA»_. Ha ragione,
-e la misura lo dimostra oltre il caso del prezzo.
+⚠️ **Riscritta il 16/08.** Prima era un confronto fra tre entità **colonna per colonna** —
+34 / 18 / 15 — e una tabella di quel tipo spinge verso l’uniformità **fisica**, che non è ciò
+che serve.
 
-⚠️ **Vale per TUTTI i documenti**, non per i tre misurati: il confronto qui sotto è un
-campione, la regola no.
+> **Non si allineano le tabelle: si allinea il significato.** Righe diverse possono
+> legittimamente avere modelli tecnici diversi; quello che deve essere uno è il **contratto
+> funzionale** — cosa un campo vuole dire, chi lo possiede, quando si cattura, cosa gli
+> succede quando la riga passa da un documento a un altro.
 
-### Le tre entità riga, misurate concetto per concetto (16/08)
+**L’esempio che lo dimostra.** Lo sconto è `num(7,4)` sui documenti e **testo** sull’Ordine
+cliente. Alla lettura «colonne» sembra un tipo da uniformare; alla lettura «contratto» sono
+**due modelli di dato**: uno conserva la notazione digitata (`4+10%`), l’altro la percentuale
+risolta. La domanda giusta non è _quale colonna vince_, è **cosa deve poter esprimere e
+conservare lo sconto di una riga VestiFlow** — e la risposta potrebbe essere che sono due
+informazioni diverse, non una.
 
-| Concetto                                                        | `document_lines`             | `sales_order_lines`  | `supplier_order_lines`                     |
-| --------------------------------------------------------------- | ---------------------------- | -------------------- | ------------------------------------------ |
-| Nome prodotto                                                   | `description`                | **`title`**          | `description`                              |
-| Prezzo unitario                                                 | `num(16,6)`                  | **`integer`**        | —                                          |
-| Sconto                                                          | `discountPercent` `num(7,4)` | **`discount` TESTO** | `discountPercent` `num(7,4)`               |
-| Quantità                                                        | `quantity`                   | `quantity`           | **`orderedQuantity`** + `receivedQuantity` |
-| EAN / barcode                                                   | —                            | **solo qui**         | —                                          |
-| Riga di riferimento                                             | `isReference`                | `isReference`        | **assente**                                |
-| SKU · U.M. · codice IVA · snapshot IVA · variante · numero riga | ✅                           | ✅                   | ✅                                         |
-| Lotto · scadenza · matricole                                    | solo qui                     | —                    | —                                          |
+### Come si procede: per CONCETTO, non per entità
 
-Colonne totali: **34 · 18 · 15**.
+Una fetta = **un concetto attraverso tutte le righe**, non «prima `DocumentLine`, poi
+`SalesOrderLine`».
 
-### Tre classi di divergenza, che costano in modo diverso
+**Le incoerenze vivono fra le entità, non dentro.** Guardando un’entità alla volta si vede un
+campo che funziona; è solo mettendo in fila i modi in cui esiste che si vede che sono tre. E
+ogni fetta finisce con una **decisione scrivibile in una riga**, non con una tabella da
+rileggere.
 
-1. **Stesso concetto, nome diverso** — `description` vs `title`. Nessuna ragione, solo storia.
-   Costa a ogni mapper, a ogni carico di inclusione, a ogni test.
-2. **Stesso concetto, tipo diverso** — e qui la sorpresa peggiore: lo **sconto** è `num(7,4)`
-   sui documenti e **testo** sull'ordine cliente. Non è un dettaglio di precisione: sono due
-   **modelli di dato** — uno conserva la notazione digitata (`4+10%`), l'altro la percentuale
-   risolta — e la conversione avviene nel mezzo.
-3. **Concetto presente in una e assente nell'altra** — il barcode c'è solo sull'ordine cliente;
-   `isReference` manca all'Ordine fornitore, quindi **la regola del blocco A non copre quella
-   maschera**.
+**Per ogni concetto:** significato funzionale · documenti in cui è pertinente · sorgente del
+valore · persistenza · editabilità · comportamento in copia/inclusione/conversione ·
+conservazione al salvataggio successivo · distinzione fra valore derivato e valore modificato
+a mano · precisione e formato · regressioni.
 
-### ⚠️ Nome ≠ descrizione — la cautela di Luigi, verificata
+### Le fette, in ordine
 
-Il prodotto ha **due campi distinti, entrambi sincronizzati con Shopify**:
+| #   | Concetto                             | Stato                                   |
+| --- | ------------------------------------ | --------------------------------------- |
+| 1   | **Unità di misura**                  | ✅ **fatta il 16/08**                   |
+| 2   | **Prezzo al pubblico**               | 🔵 prossima                             |
+| 3   | Prezzo e netto/ivato                 | ⚪ (assorbe le voci 7 e 10)             |
+| 4   | Sconti                               | ⚪                                      |
+| 5   | Nome e descrizione                   | ⚪ ⚠️ attenzione alla sincronia Shopify |
+| 6   | SKU · codice articolo · EAN          | ⚪                                      |
+| 7   | Quantità e precisione                | ⚪                                      |
+| 8   | Provenienza e identità strutturata   | ⚪ (assorbe la voce 2)                  |
+| 9   | Campi pertinenti a un solo documento | ⚪ (il lotto, voce 3)                   |
 
-| VestiFlow             | Shopify                                       |
-| --------------------- | --------------------------------------------- |
-| `Product.name`        | `title`                                       |
-| `Product.description` | `body_html` (convertito da/in testo semplice) |
+**Voci assorbite:** la **5** (cinque colonne della riga Fattura) e la **6** (prezzo al pubblico
+nell’Arrivo merce) non sono più blocchi a sé: sono i difetti che le prime due fette hanno
+trovato. Le voci **7**, **10** e **2** entrano nelle fette 3 e 8.
 
-E qui sta la trappola: **il campo della RIGA contiene il NOME**, non la descrizione — ma sui
-documenti si chiama `description` e sull'ordine cliente `title`. Quindi il nome della riga
-collide col nome del campo _descrizione_ del prodotto, e il nome dell'ordine collide con la
-parola che Shopify usa per il _nome_.
+---
 
-**Qualunque uniformazione deve partire da qui**: decidere come si chiama «il nome del prodotto
-fotografato sulla riga», sapendo che `description` è già occupato da un'altra cosa che va su
-`body_html`. Sbagliarlo romperebbe la sincronizzazione.
+### ✅ Fetta 1 · Unità di misura — censita e corretta il 16/08
 
-### «Cod. articolo» e «Codice fornitore» non sono colonne di riga — e non è colpa di Shopify
+#### Il concetto, misurato
 
-**Misurato:** non esistono su nessuna delle tre entità. Le celle che si vedono in maschera
-leggono dalla **variante** e dal **link fornitore**.
+| Chi la possiede         | Forma                          |
+| ----------------------- | ------------------------------ |
+| `Product.unitOfMeasure` | **obbligatoria**, default `pz` |
+| `TenantFeatureSettings` | default del tenant, `pz`       |
+| `UnitOfMeasureOption`   | elenco gestito, **18 voci**    |
+| `DocumentLine`          | nullable — **fotografia**      |
+| `SalesOrderLine`        | nullable — fotografia          |
+| `SupplierOrderLine`     | nullable — fotografia          |
 
-Luigi si chiedeva se dipendesse dalla sincronizzazione. **No:** `articleCode` è un codice
-**interno di VestiFlow**, generato da `nextArticleCodeInTx` — anche quando il prodotto arriva
-da Shopify, il codice glielo assegniamo noi. Nessun vincolo esterno.
+**La regola non andava decisa: era già scritta**, nell’Ordine cliente, e con la sua storia
+accanto:
 
-Resta però una **domanda aperta e non decisa**: oggi lo **SKU è fotografato sulla riga** e il
-codice articolo no. Un codice di catalogo può legittimamente non essere un dato del documento
-— ma allora vale anche per lo SKU, e la differenza fra i due nessuno l'ha scritta.
+> «la riga cattura il valore all’inserimento e se lo tiene, indipendente da come l’anagrafica
+> cambia dopo» — la stessa regola del prezzo, il **documento fotografia**.
 
-### Perché non si fa subito, e perché va deciso subito
+#### Il difetto: non era quello che credevamo
 
-**Non si esegue tutto insieme:** sarebbe la migration più grande del progetto e toccherebbe tre
-maschere in contemporanea. **Ma va deciso tutto insieme**, altrimenti si continua a rattoppare
-colonna per colonna — che è precisamente quello che stava succedendo col prezzo.
+La voce 5 diceva «una fattura che l’ha ereditata da un DDT la perde al primo salvataggio».
+**Misurato: nessuna riga documento ha mai avuto una U.M.** — 0 su 137, tutti i tipi. Non c’era
+niente da ereditare, e il difetto era un altro, in due parti.
 
-**Il valore non è l'uniformità estetica.** È che ogni volta che si tocca una riga si scopre una
-divergenza: l'unità di misura azzerata (voce 5), il prezzo che non scorpora (voce 10), la
-reference che perdeva la natura (blocco A), il flag che manca a una maschera su tre. **Sono lo
-stesso difetto visto da angoli diversi**, e finché il contratto non è scritto continueranno a
-uscirne di nuovi.
+**a) L’Arrivo merce non catturava.** Ha la colonna e la manda al salvataggio, ma il controllo
+nasce vuoto e nessuno lo riempiva alla scelta dell’articolo. A schermo compariva lo stesso il
+valore — `lineUnitOfMeasure` **ripiega sull’anagrafica** — quindi sembrava tutto a posto:
+**0 righe su 99**, e l’operatore vedeva `pz` su tutte.
 
-### Cosa serve
+⚠️ **È il difetto peggiore della coppia**: il valore mostrato non era mai il valore salvato.
 
-Una **specifica del contratto di riga**: per ogni concetto il nome canonico, il tipo, se è
-fotografato sulla riga o letto dal catalogo, e in quali documenti esiste. Misura e decisioni,
-zero codice. Poi l'esecuzione a fette, ognuna un albero valido.
+**b) Il salvataggio cancellava.** `computeLines` scriveva `unitOfMeasure: line.unitOfMeasure
+?.trim() || null`, che collassa **«non inviata»** e **«svuotata»** sullo stesso `null`. Ogni
+salvataggio da una maschera che non espone la colonna — DDT, Fattura, Proforma, Nota di
+credito, che infatti **non ce l’hanno affatto** — azzerava il campo.
 
-`03-specifica-unificazione-righe-documento.md` **non lo copre**: unifica l'interazione —
-tastiera, U.M., ricerca, celle condivise — e si ferma prima dell'insieme delle colonne.
+#### Le due correzioni
 
-**Da dove si ricomincia:** dalla tabella qui sopra, estesa a tutte le entità riga (mancano
-`online_sale_lines`, `corrispettivo_entry_lines` e le righe della cassa).
+**Round-trip conservativo.** `ComputedLine.unitOfMeasure` ha ora **tre stati**: `undefined` =
+non inviata, non si tocca; `null` = svuotata dall’operatore; stringa = il valore. `undefined`
+è il modo in cui Prisma dice «non toccare questa colonna», quindi non entra nella `UPDATE`.
+
+> **Aprire e salvare un documento non può modificare un dato che l’operatore non ha toccato.**
+
+Vale per **ogni** campo, e questa è la prima volta che il contratto lo rende vero per uno.
+
+**Cattura nell’Arrivo merce.** Alla scelta dell’articolo la riga prende la U.M. dall’anagrafica
+se è vuota, come già fa per nome e SKU — e come l’Ordine cliente fa da sempre.
+
+#### Guardie
+
+Tre test: non cancella quando la maschera non manda · **svuota se l’operatore svuota davvero**
+(stringa vuota ≠ silenzio) · scrive quando arriva. **Mutation test**: rimettendo il collasso su
+`null`, il primo fallisce con `expected null to be undefined`.
+
+#### Cosa NON è stato fatto, e perché
+
+⛔ **Non è stata aggiunta la colonna U.M. alle maschere di vendita.** Non è una perdita di
+dati: è una funzione che manca, ed è la voce 5 (`07` §17), che ne riguarda cinque. Aggiungerne
+una sola qui avrebbe deciso metà di quel blocco di straforo.
+
+⚠️ **Lo storico non si riscrive:** le 137 righe restano senza U.M. Nessun backfill — non
+sapremmo con quale valore, se non indovinando dall’anagrafica di oggi, che è esattamente il
+ripiego che ha nascosto il difetto.
+
+---
+
+### 🔵 Fetta 2 · Prezzo al pubblico — prossima
+
+Comportamento osservato (voce 6): l’operatore lo digita nell’Arrivo merce e **sparisce**.
+
+⚠️ **Prima della correzione va identificato dove quel valore deve andare secondo il modello
+già esistente** — riga documento, prodotto/variante, listino, o altra struttura prevista. **Non
+si crea una persistenza nuova solo perché il campo è visibile.**
+
+Se la destinazione è già definita dal dominio, si corregge. Se emergesse che il campo UI esiste
+senza che sia mai stato deciso cosa debba aggiornare, **quella è una decisione funzionale** e ci
+si ferma su quel solo punto.
+
+---
+
+### Il censimento già fatto, che resta valido
+
+⚠️ **Nome e descrizione — la trappola.** `Product` ha **due** campi, entrambi sincronizzati:
+`name` → `title`, `description` → `body_html`. Ma il campo della **riga** contiene il **nome**,
+e si chiama `description` sui documenti e `title` sull’ordine. Il primo collide col campo
+_descrizione_ del prodotto, il secondo con la parola che Shopify usa per il _nome_. La fetta 5
+parte da qui, o rompe la sincronizzazione.
+
+**Cod. articolo e Codice fornitore** non sono colonne di riga in nessuna delle tre, e **non
+dipende da Shopify**: `articleCode` è interno, generato da `nextArticleCodeInTx` anche quando
+il prodotto arriva dal canale. Resta aperto perché lo **SKU sia fotografato sulla riga e il
+codice articolo no**.
+
+**Il perimetro è più largo di tre entità:** mancano `online_sale_lines`,
+`corrispettivo_entry_lines` e le righe della cassa.
+
+`03-specifica-unificazione-righe-documento.md` **non copre questo**: unifica l’**interazione**
+— tastiera, U.M., ricerca — e si ferma prima del significato dei campi.
+
+**Da dove si ricomincia:** dalla fetta 2.
+
+---
 
 ## 9 · Coda già registrata, fuori da questo blocco
 
@@ -981,8 +1048,14 @@ tastiera, U.M., ricerca, celle condivise — e si ferma prima dell'insieme delle
 3. **1 · Collegamenti Fattura ↔ NC** — ⏸️ **fermo qui, in attesa di Luigi.** Le decisioni
    funzionali si discutono **prima** dell'implementazione: cardinalità NC→Fatture, riferimenti
    manuali, e il fatto che `sourceDocumentId` sia una colonna mai scritta.
-4. **11 · Il contratto della riga** e le altre, nell'ordine che Luigi sceglierà voce per voce.
-   Il censimento nome/descrizione, SKU/articleCode e sconti è **registrato e non aperto**.
+4. **11 · Contratto funzionale della riga** — 🟡 **in corso**, a fette **per concetto**.
+   Fetta 1 (unità di misura) chiusa il 16/08; la 2 (prezzo al pubblico) è la prossima.
+   Assorbe le voci 5, 6, 7, 10 e 2: non sono più blocchi a sé.
+5. **3 · Il lotto in uscita** — capacità specifica, entra come campo pertinente a un solo
+   documento e non blocca il contratto.
+
+⚠️ **La riscrittura della maschera Vendita al banco viene DOPO il contratto**, non prima:
+rifarla su un modello riga ancora da decidere significherebbe rifarla due volte.
 
 **Regola di lavoro, imparata tre volte il 16/08:** ogni voce comincia **misurando**, non
 eseguendo. Le tre correzioni di quel giorno — il menu «Nuovo» esteso senza guardarlo,
