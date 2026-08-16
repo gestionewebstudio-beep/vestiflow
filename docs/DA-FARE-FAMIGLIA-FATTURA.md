@@ -423,6 +423,99 @@ condiviso c'è già.
 il che è corretto perché così sono stati compilati. Ma va confermato che sia il default voluto
 anche per i nuovi, o se debba seguire la preferenza dell'operatore come fanno i documenti.
 
+---
+
+## 11 · Il contratto della riga documento — 🟡 da scrivere, poi da eseguire a fette
+
+**Sollevata da Luigi il 16/08:** _«la colonna cod. articolo dovrebbe essere la stessa ovunque,
+stessa cosa EAN, SKU, codice fornitore, nome prodotto, U.M., costo, sconto, IVA»_. Ha ragione,
+e la misura lo dimostra oltre il caso del prezzo.
+
+⚠️ **Vale per TUTTI i documenti**, non per i tre misurati: il confronto qui sotto è un
+campione, la regola no.
+
+### Le tre entità riga, misurate concetto per concetto (16/08)
+
+| Concetto                                                        | `document_lines`             | `sales_order_lines`  | `supplier_order_lines`                     |
+| --------------------------------------------------------------- | ---------------------------- | -------------------- | ------------------------------------------ |
+| Nome prodotto                                                   | `description`                | **`title`**          | `description`                              |
+| Prezzo unitario                                                 | `num(16,6)`                  | **`integer`**        | —                                          |
+| Sconto                                                          | `discountPercent` `num(7,4)` | **`discount` TESTO** | `discountPercent` `num(7,4)`               |
+| Quantità                                                        | `quantity`                   | `quantity`           | **`orderedQuantity`** + `receivedQuantity` |
+| EAN / barcode                                                   | —                            | **solo qui**         | —                                          |
+| Riga di riferimento                                             | `isReference`                | `isReference`        | **assente**                                |
+| SKU · U.M. · codice IVA · snapshot IVA · variante · numero riga | ✅                           | ✅                   | ✅                                         |
+| Lotto · scadenza · matricole                                    | solo qui                     | —                    | —                                          |
+
+Colonne totali: **34 · 18 · 15**.
+
+### Tre classi di divergenza, che costano in modo diverso
+
+1. **Stesso concetto, nome diverso** — `description` vs `title`. Nessuna ragione, solo storia.
+   Costa a ogni mapper, a ogni carico di inclusione, a ogni test.
+2. **Stesso concetto, tipo diverso** — e qui la sorpresa peggiore: lo **sconto** è `num(7,4)`
+   sui documenti e **testo** sull'ordine cliente. Non è un dettaglio di precisione: sono due
+   **modelli di dato** — uno conserva la notazione digitata (`4+10%`), l'altro la percentuale
+   risolta — e la conversione avviene nel mezzo.
+3. **Concetto presente in una e assente nell'altra** — il barcode c'è solo sull'ordine cliente;
+   `isReference` manca all'Ordine fornitore, quindi **la regola del blocco A non copre quella
+   maschera**.
+
+### ⚠️ Nome ≠ descrizione — la cautela di Luigi, verificata
+
+Il prodotto ha **due campi distinti, entrambi sincronizzati con Shopify**:
+
+| VestiFlow             | Shopify                                       |
+| --------------------- | --------------------------------------------- |
+| `Product.name`        | `title`                                       |
+| `Product.description` | `body_html` (convertito da/in testo semplice) |
+
+E qui sta la trappola: **il campo della RIGA contiene il NOME**, non la descrizione — ma sui
+documenti si chiama `description` e sull'ordine cliente `title`. Quindi il nome della riga
+collide col nome del campo _descrizione_ del prodotto, e il nome dell'ordine collide con la
+parola che Shopify usa per il _nome_.
+
+**Qualunque uniformazione deve partire da qui**: decidere come si chiama «il nome del prodotto
+fotografato sulla riga», sapendo che `description` è già occupato da un'altra cosa che va su
+`body_html`. Sbagliarlo romperebbe la sincronizzazione.
+
+### «Cod. articolo» e «Codice fornitore» non sono colonne di riga — e non è colpa di Shopify
+
+**Misurato:** non esistono su nessuna delle tre entità. Le celle che si vedono in maschera
+leggono dalla **variante** e dal **link fornitore**.
+
+Luigi si chiedeva se dipendesse dalla sincronizzazione. **No:** `articleCode` è un codice
+**interno di VestiFlow**, generato da `nextArticleCodeInTx` — anche quando il prodotto arriva
+da Shopify, il codice glielo assegniamo noi. Nessun vincolo esterno.
+
+Resta però una **domanda aperta e non decisa**: oggi lo **SKU è fotografato sulla riga** e il
+codice articolo no. Un codice di catalogo può legittimamente non essere un dato del documento
+— ma allora vale anche per lo SKU, e la differenza fra i due nessuno l'ha scritta.
+
+### Perché non si fa subito, e perché va deciso subito
+
+**Non si esegue tutto insieme:** sarebbe la migration più grande del progetto e toccherebbe tre
+maschere in contemporanea. **Ma va deciso tutto insieme**, altrimenti si continua a rattoppare
+colonna per colonna — che è precisamente quello che stava succedendo col prezzo.
+
+**Il valore non è l'uniformità estetica.** È che ogni volta che si tocca una riga si scopre una
+divergenza: l'unità di misura azzerata (voce 5), il prezzo che non scorpora (voce 10), la
+reference che perdeva la natura (blocco A), il flag che manca a una maschera su tre. **Sono lo
+stesso difetto visto da angoli diversi**, e finché il contratto non è scritto continueranno a
+uscirne di nuovi.
+
+### Cosa serve
+
+Una **specifica del contratto di riga**: per ogni concetto il nome canonico, il tipo, se è
+fotografato sulla riga o letto dal catalogo, e in quali documenti esiste. Misura e decisioni,
+zero codice. Poi l'esecuzione a fette, ognuna un albero valido.
+
+`03-specifica-unificazione-righe-documento.md` **non lo copre**: unifica l'interazione —
+tastiera, U.M., ricerca, celle condivise — e si ferma prima dell'insieme delle colonne.
+
+**Da dove si ricomincia:** dalla tabella qui sopra, estesa a tutte le entità riga (mancano
+`online_sale_lines`, `corrispettivo_entry_lines` e le righe della cassa).
+
 ## 9 · Coda già registrata, fuori da questo blocco
 
 | Voce                                           | Dove       | Perché è fuori                                                                                                               |
