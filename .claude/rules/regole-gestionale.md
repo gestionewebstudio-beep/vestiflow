@@ -141,6 +141,23 @@ I documenti storici si convertono **da sé al primo salvataggio**: il sync somma
 - Shopify espone i prezzi come **stringhe decimali** (es. `"29.90"`): la conversione stringa ↔ unità minori avviene in un'unica funzione di mapping testata, mai sparsa nel codice.
 - La formattazione display usa `Intl.NumberFormat` centralizzato, mai concatenazione manuale.
 
+### La colonna è una, i comportamenti sono tanti _(deciso 16/08/2026)_
+
+> **Ogni prezzo o costo UNITARIO è `NUMERIC(16,6)`. I totali e gli importi già arrotondati sono interi.**
+
+La discriminante non è il documento, è **cosa contiene la colonna**:
+
+| Contenuto                                                                | Tipo            | Perché                                                              |
+| ------------------------------------------------------------------------ | --------------- | ------------------------------------------------------------------- |
+| **Prezzo o costo unitario** — quello che si digita, o da cui si scorpora | `Decimal(16,6)` | può nascere da un ivato, e la coda è ciò che lo fa tornare identico |
+| **Totale, imposta, importo pagato** — risultato già arrotondato          | `Int`           | si arrotonda all'uscita, e lì l'uscita è già avvenuta               |
+
+**Il comportamento della colonna non cambia il suo tipo.** La stessa colonna prezzo è in sola lettura sull'Ordine fornitore, si digita su Preventivo, Ordine cliente, DDT e Fatture, e sull'Arrivo merce aggiorna anche l'anagrafica. Sono tre mestieri diversi della **stessa** grandezza: il tipo e la semantica del denaro non hanno ragione di divergere fra un documento e l'altro.
+
+**Dove divergono, divergono per storia.** Misurato il 16/08: `DocumentLine` è stato portato a sei decimali, `SupplierOrderLine` dopo, `SalesOrderLine` mai — e la conseguenza si vedeva a schermo, con la stessa maschera che offriva il netto/ivato sul DDT e non sull'Ordine cliente, perché il numero finiva in due posti diversi.
+
+**Prima di aggiungere una colonna di denaro**, la domanda è una sola: _questo valore può essere il risultato di uno scorporo?_ Se sì, è `Decimal(16,6)`. Non «è già intero adesso»: **potrà** non esserlo il giorno in cui quella maschera avrà il netto/ivato, e a quel punto la migration costa quanto le righe di codice che leggono quella colonna.
+
 ---
 
 # OWNERSHIP DEI DATI — LA REGOLA SHOPIFY PIÙ IMPORTANTE

@@ -13,7 +13,7 @@ Ogni voce porta uno **stato di verifica**, e va preso sul serio:
 | ✅ **VERIFICATO**    | riaperto e ricontrollato a mano sul codice, con le prove qui sotto          |
 | ◻️ **DA VERIFICARE** | risultato dell'analisi, non ricontrollato: **da confermare prima di agire** |
 
-Quattordici voci, di cui **sei verificate a mano** — quelle che hanno conseguenze più serie. Le
+Quindici voci, di cui **sette verificate a mano** — quelle che hanno conseguenze più serie. Le
 altre otto sono attendibili ma non confermate: valgono come punti di partenza, non come
 fatti.
 
@@ -29,6 +29,10 @@ _Aggiunte il 13/08/2026, trovate lavorando alla numerazione: la sezione «un sec
 bersaglio» dentro la voce 2, le voci 10, 11 e 12._
 
 _Aggiunta il 15/08/2026, trovata lavorando alla famiglia Fattura: la voce 14._
+
+_Aggiunta il 16/08/2026, trovata chiedendosi perché lo stesso selettore c'è sul DDT e non
+sull'Ordine cliente: la voce **15**. Nello stesso giro la voce 8 è risultata **già risolta** —
+la nota era rimasta indietro rispetto al codice, ed è segnalata come tale._
 
 > **Il criterio di accettazione che ne esce**, e vale come regola di revisione:
 >
@@ -299,15 +303,22 @@ esempio, costo 10,05 con sconto 13% al 22%: a schermo IVA 1,92, salvata 1,93. Ne
 7 test della maschera tocca i totali. L'Arrivo merce **non** è affetto: chiama il calcolo
 condiviso.
 
-> Questo si somma a un difetto **separato e verificato** dello stesso file: l'Ordine
-> fornitore ha la modalità costi netto/ivato **attiva**, ma le colonne
-> `SupplierOrderLine.unitCostMinor` e `enteredUnitCostMinor` sono **intere** e lo scorporo
-> è arrotondato — il netto memorizzato è sbagliato di mezzo centesimo.
-> Il sintomo visibile però è **uno solo**: riaprendo l'ordine si rivede il valore digitato
-> (il form legge `enteredUnitCost`, :906), e il centesimo sbagliato compare solo quando
-> l'ordine viene importato in un Arrivo merce. Misurato: correzione **CONTENUTA**, ~10
-> punti su 6 file, mezza giornata, valle vuota. Vedi `docs/PREZZI-SHOPIFY-SPEC.md`
-> §5-bis e §5-ter.
+> ✅ **RISOLTO — verificato il 16/08/2026, e la nota qui sotto era rimasta indietro.**
+>
+> Diceva che `SupplierOrderLine.unitCostMinor` e `enteredUnitCostMinor` sono **intere** e
+> che lo scorporo perde mezzo centesimo. **Oggi sono `Decimal(16,6)`**, sia nello schema
+> Prisma sia nel database. Il difetto è stato corretto e la nota no.
+>
+> _Lasciata visibile di proposito: è la prova che una nota invecchia mentre il codice
+> cambia. Il 16/08 l'ho citata come fatto attuale senza misurare la colonna — lo stesso
+> errore che aveva prodotto la rinomina di «Listino». **Una nota è un indizio, la colonna
+> è la verità.**_
+>
+> Il testo originale, per storia: «l'Ordine fornitore ha la modalità costi netto/ivato
+> attiva, ma le colonne sono intere e lo scorporo è arrotondato — il netto memorizzato è
+> sbagliato di mezzo centesimo. Il sintomo visibile è uno solo: riaprendo l'ordine si
+> rivede il valore digitato, e il centesimo sbagliato compare solo quando l'ordine viene
+> importato in un Arrivo merce.» Vedi `docs/PREZZI-SHOPIFY-SPEC.md` §5-bis e §5-ter.
 
 **Forma:** cancellare il calcolo locale e chiamare quello condiviso (come fa già l'Arrivo
 merce), più uno script `check-vat-formulas.mjs` che fallisce se una formula IVA compare
@@ -637,3 +648,48 @@ solo le righe documento, mentre tre pacchetti gemelli restano scoperti. I due te
 calcolo IVA sono copiati a mano l'uno dall'altro e lo dichiarano nel titolo — una coppia di
 test duplicati non è una guardia contro la divergenza: è la stessa duplicazione un piano
 più su.
+
+---
+
+## 15. 🔴 Sette colonne di prezzo unitario non sono nella forma canonica
+
+**VERIFICATO il 16/08/2026** sul database, colonna per colonna. Non è un'ipotesi: è la mappa completa di ogni colonna di denaro dello schema.
+
+La regola è ora scritta in `regole-gestionale` → «La colonna è una, i comportamenti sono tanti»: **ogni prezzo o costo unitario è `Decimal(16,6)`, i totali sono interi**. Queste sette non la rispettano.
+
+### Chi è a posto, e perché il confronto vale
+
+**14 colonne sono già canoniche** — e sono esattamente i prezzi e costi _unitari_: `document_lines.unit_price_minor`, `entered_unit_cost`, `unit_cost_net`, `unit_cost_gross`, `unit_vat_amount`, `product_variants.selling_price_minor`, `shopify_price_minor`, `products.selling_price_minor`, `shopify_price_minor`, `listino1..3_price_minor`, `supplier_order_lines.unit_cost_minor`, `entered_unit_cost_minor`.
+
+**65 sono intere, e quasi tutte giustamente**: `subtotal`, `tax`, `total`, `line_total`, `amount` sono **totali**, e il totale si arrotonda al centesimo per regola.
+
+### Le sette fuori norma
+
+| Colonna                                                                   | Cos'è                                                                        | Chi la legge (punti da rivedere) |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------- |
+| **`sales_order_lines.unit_price_minor`**                                  | il prezzo digitato al cliente                                                | ~25                              |
+| `products.purchase_price_minor` · `product_variants.purchase_price_minor` | costo d'acquisto                                                             | ~42                              |
+| `products.compare_at_price_minor`                                         | prezzo barrato                                                               | ~17                              |
+| `stock_movements.unit_cost_minor`                                         | costo del movimento                                                          | ~25                              |
+| `supplier_variant_links.last_purchase_price_minor`                        | ultimo prezzo pagato                                                         | ~9                               |
+| `online_sale_lines.unit_price_minor`                                      | prezzo da canale — **caso a parte**, arriva da Shopify come stringa decimale | —                                |
+
+_I conteggi escludono i punti già avvolti in `Number(...)`, che reggerebbero il cambio senza modifiche._
+
+### Il sintomo che l'ha fatta emergere
+
+L'**Ordine cliente non ha il selettore netto/ivato**, mentre il DDT — stessa maschera, stesso componente — ce l'ha. Non è una scelta di interfaccia: il DDT scrive su `Document`, che la coda decimale ce l'ha; l'Ordine cliente scrive su `SalesOrder`, che non ce l'ha. Digitare **25,00 ivato** al 22% dà **20,491803…** netto: su una colonna intera diventa `2049`, e rimostrato ivato torna **24,9978**.
+
+### Perché non si fa tutto in un colpo
+
+**La migration è banale** — `ALTER COLUMN ... TYPE numeric(16,6)` è una conversione senza perdita, e le tabelle sono minuscole: 59 righe ordine, 250 prodotti, 438 varianti, 179 movimenti, 23 link, 8 righe online.
+
+**Il costo è il codice**: `Int → Decimal` cambia il tipo TypeScript da `number` a `Prisma.Decimal`, e ogni uso aritmetico non avvolto in `Number(...)` smette di compilare. Sono **~118 punti** su aree scorrelate fra loro — ordini, prodotti, movimenti, link fornitore.
+
+**Vanno quindi affettate**, una colonna (o una coppia coerente) per commit, ognuno con albero valido e verificato. La prima fetta naturale è `sales_order_lines.unit_price_minor`: è la più piccola (~25 punti, tutti in `sales-orders/`), è autoconclusa, e **sblocca una funzione visibile** — il netto/ivato sull'Ordine cliente.
+
+⚠️ **Nessuna migration è stata scritta né applicata.** Il database è condiviso: si scrive a mano e si applica solo su via esplicito.
+
+### Un dato che ridimensiona l'urgenza, senza toglierla
+
+Delle 137 righe documento già su `numeric(16,6)`, **una sola** ha davvero una coda decimale. Il difetto è quindi **latente**, non attivo: si manifesta quando qualcuno digita ivato, e nei dati di prova è successo una volta. Ma la regola esiste perché a regime, con aliquota 22%, **un prezzo su cinque** perde un centesimo.
