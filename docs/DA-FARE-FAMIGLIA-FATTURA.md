@@ -1483,139 +1483,143 @@ rappresentazione aziendale. Il dettaglio delle due, e perché non è una sola, s
 3. la **preferenza aziendale** corrispondente, per tutto il resto: documenti nuovi,
    anagrafiche, liste, viste.
 
-#### Il censimento dei meccanismi esistenti — sei, non quattro
+#### Il censimento completo — **rifatto il 16/08 dopo la fetta 3**
 
-Fatto prima di aggiungerne uno, e il risultato è che **un meccanismo di tenant esiste già**.
+Misurato su schema, codice e **dati veri**. Il quadro è cambiato: la fetta 3 ha aggiunto una
+persistenza e un tipo di preferenza che prima non c’erano.
 
-| #   | Meccanismo                                  | Livello                 | Vivo?                               |
-| --- | ------------------------------------------- | ----------------------- | ----------------------------------- |
-| 1   | `documents.pricesIncludeVat`                | **il documento**        | ✅ è la scelta giusta, e prevale    |
-| 2   | `documents.purchaseCostEntryMode`           | il documento (acquisto) | ✅ il gemello del costo             |
-| 3   | `documentLines.costEntryModeSnapshot`       | **la riga**             | ✅ fotografia, non preferenza       |
-| 4   | **`documentTypeSettings.pricesIncludeVat`** | **tenant × tipo**       | ⚠️ **esiste già** — vedi sotto      |
-| 5   | `userDocumentPriceModePreference`           | utente × tipo           | ⚠️ è il default dei documenti nuovi |
-| 6   | `userProductPriceModePreference`            | utente (anagrafica)     | ⚠️ stessa forma, altro dominio      |
-| —   | `supplierOrders.costEntryMode`              | l’ordine fornitore      | ✅ come il n°1, per l’acquisto      |
+##### 1 · Dove sono persistite, oggi
 
-**Il n°4 è la scoperta che cambia il lavoro.** `DocumentTypeSetting.pricesIncludeVat` è già
-una preferenza **di tenant**, per tipo documento, letta alla creazione:
-`const pricesIncludeVat = dto.pricesIncludeVat ?? setting.pricesIncludeVat`.
+| Colonna                                     | Modello                    | Livello           | Cosa dice                                 |
+| ------------------------------------------- | -------------------------- | ----------------- | ----------------------------------------- |
+| `documents.prices_include_vat`              | `Document`                 | **il documento**  | modalità PREZZO con cui è stato compilato |
+| `documents.purchase_cost_entry_mode`        | `Document`                 | **il documento**  | modalità COSTO (Arrivo merce)             |
+| `sales_orders.prices_include_vat`           | `SalesOrder`               | **l’ordine**      | 🆕 dalla fetta 3                          |
+| `supplier_orders.cost_entry_mode`           | `SupplierOrder`            | **l’ordine**      | modalità COSTO                            |
+| `document_lines.cost_entry_mode_snapshot`   | `DocumentLine`             | **la riga**       | fotografia, non preferenza                |
+| `document_type_settings.prices_include_vat` | `DocumentTypeSetting`      | **tenant × tipo** | ⚠️ vedi §4                                |
+| `user_document_price_mode_preferences`      | per (tenant, utente, tipo) | **utente**        | l’ultima scelta                           |
+| `user_product_price_mode_preferences`       | per (tenant, utente)       | **utente**        | idem, in anagrafica                       |
 
-_Misurato:_ **una sola riga in tutto il database** la porta a `true`, e per
-`supplier_order`. **Nessun pannello nelle Impostazioni la espone**: esiste, è letta, e non si
-può cambiare.
+**Nessun livello aziendale vero e proprio esiste.** Il più vicino è `DocumentTypeSetting`, che
+però è per **tipo documento**, non per azienda — granularità diversa da quella decisa.
 
-⚠️ **Quindi la preferenza aziendale non è una quinta cosa da aggiungere sopra quattro: è il
-n°4 da rendere visibile e da mettere sopra il n°5.** Aggiungerne una parallela creerebbe due
-default di tenant che possono contraddirsi.
+##### 2 · Chi le legge, maschera per maschera
 
-#### La catena dei ripieghi accidentali, misurata
+| Maschera                        | Legge la preferenza utente su    | File                                    |
+| ------------------------------- | -------------------------------- | --------------------------------------- |
+| Arrivo merce                    | il tipo del documento            | `goods-receipt-form.component.ts:699`   |
+| Proforma / Fattura / NC         | `documentType()`                 | `sales-document-form.component.ts:2561` |
+| Ordine fornitore                | `supplier_order`                 | `supplier-order-form.component.ts:1047` |
+| Preventivo / DDT / Scarico man. | il tipo del registro             | `customer-order-form.component.ts:1881` |
+| **Ordine cliente**              | 🆕 `customer_order`              | stesso file, `priceModeDocumentType`    |
+| Anagrafica articolo             | preferenza prodotto (senza tipo) | `product-form.component.ts:401`         |
 
-Oggi la modalità di un documento **nuovo** si decide così:
+⚠️ **Fino al 16/08 l’Ordine cliente non leggeva niente** e restava sempre netto. Ora ha un tipo
+suo (`customer_order`), per la stessa ragione per cui ha un numeratore suo: prendere il ripiego
+`Quote` gli farebbe ereditare l’ultima scelta fatta sul **Preventivo**.
 
-```text
-preferenza UTENTE per il tipo   ??   primo utilizzo per famiglia (vendita ivato / acquisto netto)
-```
-
-⛔ **Il setting di tenant (n°4) non entra in questa catena**: lo legge il `create` del
-documento come ripiego di `dto.pricesIncludeVat`, ma la maschera manda **sempre** un valore,
-preso dalla preferenza utente. Il default aziendale è quindi **scavalcato in pratica**.
-
-⛔ **E l’Ordine cliente prende in prestito la preferenza del Preventivo** —
-`registryDocumentType = Quote` — perché non vive in `documents` e non ha un tipo suo in questa
-catena. Non esiste **nessuna** preferenza salvata per `quote`: quindi l’Ordine cliente nasce
-sempre **ivato**, per primo utilizzo, ed è la condizione in cui il difetto n°3 morde.
-
-#### ⚠️ DUE preferenze, non una — **corretto il 16/08, prima di implementare**
-
-> Qui era scritto «una preferenza sola, due letture». **È stato scartato.** Una sola
-> impostazione costringerebbe a dire: _se vendo a prezzi ivati, devo per forza ragionare anche
-> a costi ivati_ — e non è affatto detto.
-
-Il caso normale, non quello di scuola:
-
-|                       |                                                                        |
-| --------------------- | ---------------------------------------------------------------------- |
-| **Prezzi di vendita** | **Ivati** — si vende al pubblico                                       |
-| **Costi di acquisto** | **Netti** — si tratta con fornitori e si guardano margini e imponibili |
-
-Prezzo e costo **condividono il concetto** netto/ivato, ma **non sono lo stesso dominio**.
-
-**Impostazioni → Prezzi:**
+##### 3 · Come si sceglie il default di un documento NUOVO
 
 ```text
-Prezzi di vendita     ○ Netto   ● Ivato
-Costi di acquisto     ● Netto   ○ Ivato
+PREZZO   preferenza UTENTE per il tipo  ??  primo utilizzo (vendita ivato / acquisto netto)
+COSTO    dto.costEntryMode              ??  'vat_excluded'          ← costante nel codice
 ```
 
-Due default aziendali indipendenti, ognuno con la **stessa** gerarchia già decisa:
+| Documento nuovo      | Prezzo                                             | Costo                  |
+| -------------------- | -------------------------------------------------- | ---------------------- |
+| `Document` (create)  | `dto.pricesIncludeVat ?? setting.pricesIncludeVat` | —                      |
+| **Arrivo merce**     | `setting.pricesIncludeVat` (scritto sul documento) | ⛔ `?? 'vat_excluded'` |
+| **Ordine fornitore** | —                                                  | ⛔ `?? 'vat_excluded'` |
+| **Ordine cliente**   | `dto.pricesIncludeVat ?? false`                    | —                      |
+
+##### 4 · Dove il livello aziendale viene scavalcato — misurato
+
+⛔ **`DocumentTypeSetting.pricesIncludeVat` ha UNA sola riga in tutto il database:**
 
 ```text
-default aziendale  →  modalità del documento nuovo  →  modalità persistita sul documento
+document_type_settings:  1 riga    supplier_order → prices_include_vat = TRUE
+supplier_orders:        18 ordini  cost_entry_mode = vat_excluded   (tutti)
 ```
 
-Creato il documento, **vince sempre il documento**: l’impostazione aziendale non cambia
-retroattivamente niente.
+**L’unica riga aziendale che esiste dice «ivato», e tutti e diciotto gli ordini che governa
+sono netti.** Non è un caso limite: è il meccanismo che non funziona. L’Ordine fornitore carica
+quel setting (`documentSettings.getResolved`) e poi, per la modalità costo, usa la costante.
 
-#### Perché due è anche più estensibile
+⛔ **E nessun pannello delle Impostazioni lo espone**: il campo esiste sul DTO del servizio,
+ma non c’è nessuna schermata da cui cambiarlo. Verificato: zero occorrenze in
+`features/settings/`.
 
-È la ragione più forte, e riguarda quello che verrà dopo. Con due preferenze separate ogni
-schermata sa **quale** delle due guardare, e le due possono divergere senza contraddizioni:
+Sul PREZZO invece il setting è letto davvero (`dto.pricesIncludeVat ?? setting.pricesIncludeVat`)
+ma **la maschera manda sempre un valore**, preso dalla preferenza utente: il ripiego non scatta
+quasi mai.
 
-| Schermata                    | Legge                                                            |
-| ---------------------------- | ---------------------------------------------------------------- |
-| Anagrafica prodotti          | preferenza **prezzi**                                            |
-| Ordine cliente, DDT, Fattura | preferenza **prezzi**                                            |
-| Ordine fornitore             | preferenza **costi**                                             |
-| **Arrivo merce**             | **tutte e due** — costo dai costi, prezzo al pubblico dai prezzi |
-| Report ricavi                | preferenza **prezzi**                                            |
-| Report acquisti              | preferenza **costi**                                             |
-| **Margini**                  | **tutte e due**, coerentemente, anche se divergono               |
+##### 5 · Consumatori della preferenza utente — l’elenco completo
 
-⚠️ **L’Arrivo merce da solo basta a decidere la questione**: sulla stessa riga convivono un
-costo e un prezzo al pubblico (fetta 2). Con una preferenza unica dovrebbero per forza essere
-espressi nello stesso modo, il che è proprio la combinazione che un negozio non vuole.
+| Chi                                     | Dove                   | Legge                     | Scrive                                             |
+| --------------------------------------- | ---------------------- | ------------------------- | -------------------------------------------------- |
+| `DocumentPriceModePreferenceService`    | `documents/`           | `resolvePricesIncludeVat` | `remember`                                         |
+| `documents.service.ts:1160`             | creazione documento    | —                         | ✅ solo alla creazione                             |
+| `goods-receipt-workflow.service.ts:178` | creazione arrivo merce | —                         | ✅ via **ponte** `costEntryModeToPricesIncludeVat` |
+| `ProductPriceModePreferenceService`     | `products/`            | idem, senza tipo          | idem                                               |
+| le sei maschere di §2                   | frontend               | ✅                        | —                                                  |
 
-**Il ponte `pricesIncludeVatToCostEntryMode` / `costEntryModeToPricesIncludeVat` resta utile
-tecnicamente** dove i due tipi si incontrano, ma **non deve più imporre** una preferenza sola:
-è una conversione di rappresentazione, non un vincolo funzionale.
+**Il costo non ha una preferenza sua**: passa dal ponte e finisce nella stessa tabella del
+prezzo, sotto il tipo del documento. Funziona perché i tipi non si sovrappongono (`goods_receipt`
+e `supplier_order` sono solo acquisto), ma **è un’omonimia, non un progetto** — e va detto prima
+di appoggiarci sopra due preferenze aziendali.
 
-#### La catena del costo, misurata — è messa peggio di quella del prezzo
+_Dati:_ 7 righe di preferenza utente-documento, 1 di preferenza prodotto.
 
-```text
-Arrivo merce      dto.purchaseCostEntryMode  ??  'vat_excluded'   ← scritto a mano
-Ordine fornitore  dto.costEntryMode          ??  'vat_excluded'   ← scritto a mano
+##### 6 · Ripieghi scritti a mano — l’elenco
+
+| File                                        | Riga | Ripiego                                       |
+| ------------------------------------------- | ---- | --------------------------------------------- |
+| `goods-receipt-workflow.service.ts`         | 339  | `dto.purchaseCostEntryMode ?? 'vat_excluded'` |
+| `supplier-orders.service.ts`                | 140  | `dto.costEntryMode ?? 'vat_excluded'`         |
+| `manual-sales-orders.service.ts`            | 339  | `dto.pricesIncludeVat ?? false`               |
+| `document-price-mode-preference.service.ts` | 28   | `?? firstUsePricesIncludeVat(type)`           |
+
+Solo l’ultimo è una regola dichiarata (vendita ivato / acquisto netto, in una costante con
+l’elenco dei tipi). Gli altri tre sono costanti nude.
+
+#### La proposta minima — due campi, dove stanno già i default aziendali
+
+> **`TenantFeatureSettings` ospita già `defaultUnitOfMeasure` e `defaultVatCodeId`: sono
+> esattamente la stessa cosa — «come si riempiono i documenti in questa azienda». Le due
+> modalità stanno lì, non in una tabella nuova.**
+
+```prisma
+model TenantFeatureSettings {
+  // … defaultUnitOfMeasure, defaultVatCodeId …
+  salesPricesIncludeVat  Boolean @default(false) @map("sales_prices_include_vat")
+  purchaseCostsIncludeVat Boolean @default(false) @map("purchase_costs_include_vat")
+}
 ```
 
-⛔ Sul prezzo il default aziendale c’è (`documentTypeSettings.pricesIncludeVat`) e viene
-**scavalcato**; sul costo **non viene consultato affatto**: il ripiego è una costante nel
-codice, uguale per ogni tenant. Un’azienda che lavora a costi ivati non ha nessun posto dove
-dirlo — lo deve riscegliere su ogni documento.
+**Quattro passi, in ordine:**
 
-**La preferenza utente il costo ce l’ha già**, e passa proprio dal ponte:
-`remember(..., costEntryModeToPricesIncludeVat(dto.purchaseCostEntryMode))`. Utente e documento
-sono coperti; manca **solo** il livello aziendale, e ne servono **due**.
+1. **i due campi** + il pannello **Impostazioni → Prezzi** che li espone (oggi non esiste una
+   schermata per nessuna delle due);
+2. **i tre ripieghi nudi diventano letture del default aziendale** — è tutto il lavoro sul
+   backend: `?? 'vat_excluded'` → `?? default.purchaseCostsIncludeVat`, e così il terzo;
+3. **la preferenza utente scende sotto**: resta «l’ultima scelta di questo operatore», ma il
+   default aziendale è il primo che parla per un documento nuovo;
+4. **niente tocca i documenti esistenti**: chi ha una modalità persistita la conserva, e le
+   letture di un documento salvato non passano mai dal default.
 
-#### ⚠️ Quattro cose distinte, che non vanno fuse
+⚠️ **`DocumentTypeSetting.pricesIncludeVat` va deciso, non lasciato lì.** È un terzo livello
+(tenant × tipo) fra l’azienda e il documento, invisibile, con **una riga che contraddice il
+comportamento reale**. Due strade, ed è una scelta di Luigi:
 
-| Cosa                                | Dice                                            |
-| ----------------------------------- | ----------------------------------------------- |
-| **Preferenza prezzi** netto/ivato   | _come esprimo_ il prezzo                        |
-| **Preferenza costi** netto/ivato    | _come esprimo_ il costo                         |
-| **«Aggiorna prezzi articolo»**      | _dove propago_ la modifica del prezzo (fetta 2) |
-| **«Aggiorna costo di riferimento»** | _dove propago_ la modifica del costo            |
+|                                                              | Conseguenza                                                                   |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| **si ritira** e quella riga confluisce nel default aziendale | un livello in meno; si perde la possibilità di dire «i DDT sì, le fatture no» |
+| **resta come deroga per tipo**, ma esposta nel pannello      | più potere, e un livello in più da spiegare                                   |
 
-Le prime due sono **default aziendali di rappresentazione**; le ultime due sono **azioni
-operative del documento**. Non si sovrappongono, e nessuna delle quattro sostituisce un’altra.
-
-#### Che fine fa la preferenza utente
-
-Non si butta: **scende di livello**. Resta ciò che è oggi — «l’ultima scelta di questo
-operatore per questo tipo» — ma **sotto** il default aziendale, e mai come sorgente di verità
-per un documento già salvato.
-
-⚠️ **La regola che non deve rompersi:** riaprire un documento mostra **la modalità del
-documento**, non quella di chi lo apre. È il difetto n°3 visto dall’altro lato.
+_Raccomandazione:_ **ritirarlo**. Un livello che nessuno ha mai potuto impostare, con una sola
+riga inserita chissà quando e disattesa da tutti gli ordini che governa, non è una funzione: è
+una trappola in attesa di essere scoperta da chi la troverà accesa.
 
 #### ⛔ Perimetro: i report restano fuori da questa fetta
 
