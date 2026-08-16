@@ -87,11 +87,7 @@ const CUSTOM_OPTION_VALUE = '__custom__';
  * vedono netti o ivati a seconda di come l'operatore preferisce lavorare.
  */
 type PriceField =
-  | 'sellingPrice'
-  | 'shopifyPrice'
-  | 'listino1Price'
-  | 'listino2Price'
-  | 'listino3Price';
+  'sellingPrice' | 'shopifyPrice' | 'listino1Price' | 'listino2Price' | 'listino3Price';
 
 const PRICE_FIELDS: readonly PriceField[] = [
   'sellingPrice',
@@ -451,6 +447,14 @@ export class ProductGeneralStepComponent implements OnInit {
         this.form.controls.subcategory.enable({ emitEvent: false });
         this.form.controls.internalNotes.enable({ emitEvent: false });
         this.form.controls.supplierId.enable({ emitEvent: false });
+        // Il PREZZO DI VENDITA è del gestionale, ed è la ragione per cui questa
+        // riga esiste (17/08/2026). Al canale va `shopifyPrice`, un'altra
+        // colonna: il prezzo articolo non arriva a Shopify nemmeno volendo, e
+        // il ri-sync non lo tocca proprio perché — dice la specifica — è
+        // dell'operatore. Bloccarlo qui significava che Shopify non te lo
+        // cambiava ma nemmeno tu potevi: l’unico campo dichiarato tuo era
+        // l’unico intoccabile.
+        this.form.controls.sellingPrice.enable({ emitEvent: false });
         // Stessa ragione per i listini aggiuntivi: sono prezzi del gestionale,
         // nessun canale li conosce. Un catalogo gestito da Shopify non è un
         // motivo per non poter dare a un articolo il suo prezzo all'ingrosso.
