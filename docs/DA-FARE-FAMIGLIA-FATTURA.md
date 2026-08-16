@@ -332,21 +332,37 @@ esiste uno, ed è il motivo per cui la colonna è vuota senza che nulla sia ross
 
 ### ⏸️ Quattro decisioni funzionali emerse — da chiudere prima di scrivere codice
 
-1. **Il segno.** In Danea le righe della NC sono `-5`, `-4`, `-4` e il totale è `-183,03`.
-   VestiFlow memorizza quantità **negative**, o positive col segno dato dal tipo documento?
-   Tocca totali, magazzino e stampa. ⚠️ Per la FE le due cose non sono equivalenti: nel
-   tracciato **TD04 quantità e prezzi sono positivi** — è il tipo documento a portare il segno.
-2. **Storno totale o parziale.** «Prende le righe della Fattura come base»: **tutte, a quantità
-   piena**, e poi l'operatore corregge? Il caso comune è il reso di un pezzo su dieci.
-3. **Il magazzino.** Una NC per merce resa fa **rientrare** la merce? Oggi `loadsStock` in
-   conversione è `targetType === sales_ddt`, quindi per la NC sarebbe `false` **per default
-   accidentale**, non per scelta. Nello screenshot Danea le spunte «Scarica magazzino» sono
-   tutte vuote.
-4. **Da quali fatture.** Solo `invoice_draft`, o anche la **Fattura accompagnatoria**? E in
-   quale **stato** deve essere la Fattura perché il comando compaia?
+**Chiuse tutte e quattro il 16/08.** Due lo erano già — le avevo riaperte senza controllare la
+specifica, ed è lo stesso errore di trattare una premessa come una domanda. Le regole vivono in
+`07` §6; qui resta solo cosa ne discende per il lavoro.
 
-**Da dove si ricomincia:** da queste quattro domande. Il modello funzionale è deciso, le
-verifiche sono fatte, il codice non è iniziato.
+| #   | Decisione                                                                                  | Dove sta        |
+| --- | ------------------------------------------------------------------------------------------ | --------------- |
+| 1   | **Segno** — quantità e importi positivi, verso dal tipo. Era già deciso il 14/08           | `07` §6         |
+| 2   | **Precompilato totale**, parziale togliendo righe o quantità. Over-credit fuori            | `07` §6 (nuovo) |
+| 3   | **«Carica magazzino»** per riga movimentabile, default **OFF sempre**. Già deciso il 15/08 | `07` §6         |
+| 4   | **Origini**: Fattura e Fattura accompagnatoria sì; Proforma/Preventivo/Ordine/DDT no       | `07` §6 (nuovo) |
+
+### ⏸️ La mappatura degli stati — misurata, in attesa di conferma
+
+La regola funzionale è: _non si genera una NC da una Fattura ancora correggibile._ Mappata
+sugli stati reali, **«ancora correggibile» non è `draft`**:
+
+- `draft` **non esiste** — zero documenti su 105, e il servizio di blocco lo dice per iscritto:
+  «le bozze non esistono come documenti che si riaprono»;
+- `confirmed` per la Fattura si chiama **«Da emettere»** — numero assegnato, **non ancora
+  uscita**, e si riapre bloccata con un banner di sblocco esplicito: correggerla è il gesto
+  previsto;
+- **`externally_registered` = «Inviata al commercialista»** è la soglia: da lì il documento è
+  uscito e la correzione richiede una NC;
+- `printed` e `sent` sono storici, non più raggiungibili.
+
+⚠️ **Conseguenza:** oggi il comando sarebbe disponibile su **zero fatture** — l'unica Fattura
+del database è `confirmed`. Non è un difetto della regola: il ciclo fiscale non è mai stato
+percorso fino in fondo. I test dovranno portare una Fattura fino a «Inviata al commercialista».
+
+**Da dove si ricomincia:** dalla conferma di Luigi su questa mappatura. Il resto è deciso, le
+cinque verifiche sono fatte, il codice non è iniziato.
 
 ---
 

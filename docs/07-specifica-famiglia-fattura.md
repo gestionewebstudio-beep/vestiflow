@@ -182,9 +182,46 @@ L'esclusione di una vendita online dal registro (`08` §8) si **deriva** dal fat
 
 Due strade: dal menù «Nuovo», vuota; oppure **da una fattura aperta**, con riferimento al documento d'origine e righe ereditate. La seconda è il gesto prevalente.
 
-_Dedotto, da verificare:_ che l'inclusione documenti esistente copra questo caso. Non è stato misurato.
+⚠️ **Misurato il 16/08, e la deduzione che stava qui era sbagliata.** Diceva «_da verificare: che l'inclusione documenti esistente copra questo caso_». Non lo copre, e **non deve**: sono due meccanismi diversi. L'inclusione fonde righe da N documenti e **non** valorizza `sourceDocumentId`; la **conversione** genera un documento da un predecessore diretto e lo valorizza. La Nota di credito appartiene alla seconda famiglia.
 
-In Danea la nota eredita **tutta la catena** dei riferimenti — fattura, DDT, ordine — non solo la fattura.
+Il percorso della conversione **esiste ed è completo** — `convertPrefill` restituisce l'origine, la maschera la conserva, il servizio la persiste nella stessa transazione — ma ammette **due sole origini**, Proforma e DDT vendita. **La Fattura non è fra queste: «Genera Nota di credito» oggi non esiste da nessuna parte.** È un percorso nuovo, non la modifica di uno esistente.
+
+In Danea la nota eredita **tutta la catena** dei riferimenti — fattura, DDT, ordine — non solo la fattura. _Da noi questo è già risolto:_ la conversione copia `isReference` su tutte le righe (blocco A, §26), quindi `Rif. DDT` e `Rif. Ordine` che stanno sulla Fattura arrivano sulla Nota marcati.
+
+### Il precompilato: totale, poi si toglie — deciso 16/08
+
+> **«Genera Nota di credito» precompila TUTTE le righe della Fattura d'origine, con le quantità e gli importi storici. Lo storno parziale si ottiene togliendo righe o riducendo le quantità prima di salvare.**
+
+Non esiste un passo di selezione: il totale è il precompilato, il parziale è una modifica del precompilato. Fattura con `Maglia ×10` e `Pantalone ×3` → la Nota nasce con `Maglia ×10` e `Pantalone ×3`; per stornare due maglie l'operatore porta la prima a `2` ed elimina la seconda.
+
+**Il residuo accreditabile resta fuori.** Quanto di una Fattura sia ancora stornabile dopo Note precedenti è il blocco **over-credit**, aperto e separato: qui non si controlla nulla.
+
+### Da quali documenti può partire — deciso 16/08 per il tipo, misurato per lo stato
+
+**Per tipo, la regola è chiusa:**
+
+| Origine                                      | Genera NC | Perché                                            |
+| -------------------------------------------- | --------- | ------------------------------------------------- |
+| **Fattura** (`invoice_draft`)                | ✅        | ha effetto economico e fiscale                    |
+| **Fattura accompagnatoria**                  | ✅        | stesso ciclo fiscale, stessa famiglia             |
+| Proforma · Preventivo · Ordine cliente · DDT | ⛔        | nessun effetto fiscale: non c'è nulla da stornare |
+
+**Per lo stato, la regola funzionale è:** _non si genera una Nota di credito da una Fattura ancora correggibile. Se si può ancora correggere la Fattura, si corregge quella._ La Nota serve quando il documento è **uscito**, e la correzione deve essere rappresentata da un documento nuovo.
+
+⚠️ **Mappata sugli stati reali il 16/08, e il risultato non è quello che il nome suggerisce.** Nella famiglia Fattura le etichette del ciclo fiscale **non** coincidono con i nomi tecnici:
+
+| Stato tecnico           | Etichetta Fattura                 | Cosa significa davvero                                               |
+| ----------------------- | --------------------------------- | -------------------------------------------------------------------- |
+| `draft`                 | Bozza                             | **non esiste**: zero documenti su 105, nessuna maschera lo produce   |
+| `confirmed`             | **«Da emettere»**                 | numero assegnato, **non ancora emessa**, modificabile previo sblocco |
+| `printed`               | «Da emettere»                     | storico, non più raggiungibile                                       |
+| `externally_registered` | **«Inviata al commercialista»**   | **il documento è uscito** — è qui che la correzione richiede una NC  |
+| `sent`                  | «Inviata» / «Emessa esternamente» | storico, non più raggiungibile                                       |
+| `cancelled`             | Annullata                         | —                                                                    |
+
+**Quindi «ancora correggibile» NON è `draft`: è `confirmed`.** Una Fattura «Da emettere» ha già il numero, ma non è ancora uscita, e si apre bloccata con un banner di sblocco esplicito: correggerla è il gesto previsto. La soglia oltre la quale serve la Nota è **l'invio al commercialista**, cioè `externally_registered`.
+
+⚠️ **Conseguenza da conoscere prima di scrivere il comando:** con questa regola, oggi il comando sarebbe disponibile su **zero fatture** — l'unica Fattura del database è `confirmed`. Non è un difetto della regola: è che il ciclo fiscale non è mai stato percorso fino in fondo. Va tenuto presente per i test, che devono portare una Fattura fino a «Inviata al commercialista» prima di poterla stornare.
 
 ### Il segno: importi positivi, verso dato dal tipo
 
