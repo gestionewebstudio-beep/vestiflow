@@ -372,7 +372,7 @@ export class ShellLayoutComponent {
 
     if (canOpenRetailRegister(user)) {
       salesItems.push({
-        label: 'Vendita negozio',
+        label: 'Vendita al banco',
         icon: 'pi-shopping-bag',
         route: '/app/sales/register',
         activeRoutePrefix: '/app/sales/register',

@@ -28,9 +28,17 @@ const FINANCIAL_TONES: Record<string, BadgeTone> = {
   voided: 'error',
 };
 
+/**
+ * Come si chiama l'origine di una riga del registro.
+ *
+ * ⚠️ `shopify_pos` diceva «Negozio», che è il negozio di **Shopify**, non
+ * quello di VestiFlow — e `store`, che è davvero la cassa di VestiFlow,
+ * mancava del tutto perché la Vendita al banco nel registro non ci entrava.
+ */
 const SOURCE_LABELS: Record<string, string> = {
-  shopify_online: 'Online',
-  shopify_pos: 'Negozio',
+  shopify_online: 'Shopify online',
+  shopify_pos: 'Shopify POS',
+  store: 'Vendita al banco',
   manual: 'Manuale',
 };
 

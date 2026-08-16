@@ -887,7 +887,7 @@ I tipi `sale` e `return` **non** sono selezionabili nel form manuale **Registra 
 - Profilo Shopify: entrambe le voci in sidebar; `activeRouteExclude` evita doppia evidenziazione su `/app/sales/register`
 
 - Service HTTP: `InventoryService.registerRetailScan()` (`src/app/features/inventory/services/inventory.service.ts`)
-- Label origine movimento: **Vendita negozio** (`inventory-labels.util.ts` → `MovementOrigin.VestiflowPos`)
+- Label origine movimento: **Vendita al banco** (`inventory-labels.util.ts` → `MovementOrigin.VestiflowPos`)
 
 ### Sidebar: evidenziazione sezione su sotto-route
 

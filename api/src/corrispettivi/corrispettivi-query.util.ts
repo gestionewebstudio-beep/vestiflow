@@ -1,4 +1,6 @@
 import {
+  DocumentStatus,
+  DocumentType,
   Prisma,
   SalesOrderFinancialStatus as PrismaFinancial,
   SalesOrderRefundKind as PrismaRefundKind,
@@ -10,10 +12,20 @@ import {
   type SalesOrderListFilters,
 } from '../sales-orders/sales-order-query.util';
 import { prismaFinancialFilter, toPrismaSource } from '../sales-orders/sales-order.enum-mapper';
+import {
+  sourcesFor,
+  type CorrispettiviAmbito,
+  type CorrispettiviCanale,
+} from './corrispettivi-classification.util';
 
 export interface CorrispettiviListFilters extends SalesOrderListFilters {
-  readonly onlineOnly?: boolean;
-  readonly posOnly?: boolean;
+  /**
+   * Le due dimensioni del Registro, **derivate** dall’origine e mai persistite.
+   * Sostituiscono `onlineOnly`/`posOnly`, che erano un asse solo travestito da
+   * due e non sapevano dire «tutto Shopify, online e POS insieme».
+   */
+  readonly ambito?: CorrispettiviAmbito;
+  readonly canale?: CorrispettiviCanale;
   readonly refundsOnly?: boolean;
   /** `all` · `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
   readonly rowType?: string;
@@ -64,12 +76,13 @@ export function buildCorrispettiviWhere(
   const prismaSource = toPrismaSource(query.source);
   const fulfilledAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
 
-  let sourceFilter: PrismaSource | Prisma.EnumSalesOrderSourceFilter | undefined = prismaSource;
-  if (query.onlineOnly) {
-    sourceFilter = PrismaSource.shopify_online;
-  } else if (query.posOnly) {
-    sourceFilter = PrismaSource.shopify_pos;
-  }
+  // Ambito e canale restringono insieme, e la loro intersezione può essere
+  // VUOTA (es. Online + VestiFlow, che oggi non esiste): in quel caso la lista
+  // resta vuota — `{ in: [] }` — invece di mostrare tutto, che è la risposta
+  // sbagliata alla domanda giusta.
+  const classified = sourcesFor(query.ambito, query.canale);
+  const sourceFilter: PrismaSource | Prisma.EnumSalesOrderSourceFilter | undefined =
+    classified ? { in: classified } : prismaSource;
 
   const where: Prisma.SalesOrderWhereInput = {
     tenantId,
@@ -122,12 +135,9 @@ export function buildCorrispettiviRefundWhere(
   const occurredAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
   const prismaSource = toPrismaSource(query.source);
 
-  let sourceFilter: PrismaSource | undefined = prismaSource;
-  if (query.onlineOnly) {
-    sourceFilter = PrismaSource.shopify_online;
-  } else if (query.posOnly) {
-    sourceFilter = PrismaSource.shopify_pos;
-  }
+  const classified = sourcesFor(query.ambito, query.canale);
+  const sourceFilter: PrismaSource | Prisma.EnumSalesOrderSourceFilter | undefined =
+    classified ? { in: classified } : prismaSource;
 
   // «Resi» e «Rimborsi» sono due voci diverse perché sono due gesti diversi:
   // nel primo la merce è tornata, nel secondo solo il denaro. Gli annullamenti
@@ -144,5 +154,59 @@ export function buildCorrispettiviRefundWhere(
     kind,
     ...(occurredAt ? { occurredAt } : {}),
     ...(sourceFilter ? { order: { source: sourceFilter } } : {}),
+  };
+}
+
+/**
+ * Le **Vendite al banco** del periodo: la terza sorgente del Registro (`11` §5).
+ *
+ * Restituisce `null` quando i filtri escludono già il canale VestiFlow o
+ * l'ambito online — così chi chiama non interroga una tabella per scartarne il
+ * risultato. Un `null` significa «questa sorgente non c'entra con la domanda»,
+ * non «non ci sono righe».
+ *
+ * ⚠️ **La data del registro è `documentDate`**, non `createdAt`: è la data
+ * economica della vendita, quella che l'operatore vede e che il periodo deve
+ * misurare. Una vendita registrata il giorno dopo resta del giorno prima.
+ *
+ * I documenti annullati restano fuori: una vendita annullata non è un
+ * corrispettivo. Le bozze non esistono su questo tipo — nasce confermato.
+ */
+export function buildCorrispettiviStoreSaleWhere(
+  tenantId: string,
+  query: CorrispettiviListFilters,
+): Prisma.DocumentWhereInput | null {
+  const sources = sourcesFor(query.ambito, query.canale);
+  if (sources && !sources.includes(PrismaSource.store)) {
+    return null;
+  }
+  // Il filtro per origine dell'elenco ordini vale anche qui: chiedere
+  // `source=manual` non deve far comparire le vendite al banco.
+  const prismaSource = toPrismaSource(query.source);
+  if (prismaSource && prismaSource !== PrismaSource.store) {
+    return null;
+  }
+  // Uno stato di pagamento descrive un ORDINE: chiederlo esclude una sorgente
+  // che non ne ha, invece di mostrarla senza. È la stessa scelta già fatta per
+  // le rettifiche, che pure non hanno stato di pagamento.
+  if (query.financialStatus || query.refundsOnly) {
+    return null;
+  }
+
+  const documentDate = buildPlacedAtFilter(query.placedFrom, query.placedTo);
+
+  return {
+    tenantId,
+    type: DocumentType.store_sale,
+    status: { not: DocumentStatus.cancelled },
+    ...(documentDate ? { documentDate } : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { reference: { contains: query.search, mode: 'insensitive' } },
+            { customerName: { contains: query.search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
   };
 }

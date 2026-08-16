@@ -40,6 +40,7 @@ import { CorrispettiviOrdersTableComponent } from '../../components/corrispettiv
 import { CorrispettiviSummaryComponent } from '../../components/corrispettivi-summary/corrispettivi-summary.component';
 import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
 import {
+  type CorrispettiviListQuery,
   type CorrispettiviRegisterRow,
   type CorrispettiviSummary,
 } from '../../models/corrispettivi.model';
@@ -137,14 +138,22 @@ export class CorrispettiviReportComponent {
    * la decisione aperta sull'`excluded_invoiced` (`04` §8), e non si risolve
    * nascondendoli.
    */
-  protected readonly channelFilter = computed(() => {
-    const value = this.queryParams().get('channel');
-    return value === 'online' || value === 'pos' ? value : 'all';
+  /**
+   * **Ambito** e **Canale** sono due assi, non uno.
+   *
+   * Fino al 16/08/2026 ce n'era uno solo, `channel`, che li mescolava e non
+   * sapeva rispondere a «tutto Shopify, online e POS insieme» — perché quella
+   * domanda tiene fermo il canale e libero l'ambito.
+   */
+  protected readonly ambitoFilter = computed<NonNullable<CorrispettiviListQuery['ambito']>>(() => {
+    const value = this.queryParams().get('ambito');
+    return value === 'online' || value === 'fisico_pos' ? value : 'all';
   });
 
-  protected readonly onlineOnly = computed(() => this.channelFilter() === 'online');
-
-  protected readonly posOnly = computed(() => this.channelFilter() === 'pos');
+  protected readonly canaleFilter = computed<NonNullable<CorrispettiviListQuery['canale']>>(() => {
+    const value = this.queryParams().get('canale');
+    return value === 'shopify' || value === 'vestiflow' ? value : 'all';
+  });
 
   /** Tipo di riga: filtra l'elenco, mai il riepilogo. */
   protected readonly rowTypeFilter = computed(() => {
@@ -194,10 +203,18 @@ export class CorrispettiviReportComponent {
    * L'ambito si legge dall'ORIGINE della vendita, che è un fatto: Shopify
    * ecommerce → Online, Shopify POS → Fisico/POS. Nessuno stato da aggiornare.
    */
-  protected readonly channelOptions: readonly SelectMenuOption[] = [
+  /** Ambito: come è arrivata la vendita — da un canale online, oppure no. */
+  protected readonly ambitoOptions: readonly SelectMenuOption[] = [
     { value: 'all', label: 'Tutti gli ambiti' },
     { value: 'online', label: 'Online' },
-    { value: 'pos', label: 'Fisico/POS' },
+    { value: 'fisico_pos', label: 'Fisico/POS' },
+  ];
+
+  /** Canale: chi ha raccolto la vendita. */
+  protected readonly canaleOptions: readonly SelectMenuOption[] = [
+    { value: 'all', label: 'Tutti i canali' },
+    { value: 'shopify', label: 'Shopify' },
+    { value: 'vestiflow', label: 'VestiFlow' },
   ];
 
   protected readonly rowTypeOptions: readonly SelectMenuOption[] = [
@@ -212,8 +229,8 @@ export class CorrispettiviReportComponent {
     placedFrom: this.dateRange().placedFrom,
     placedTo: this.dateRange().placedTo,
     rowType: this.rowTypeFilter() === 'all' ? undefined : this.rowTypeFilter(),
-    onlineOnly: this.onlineOnly() || undefined,
-    posOnly: this.posOnly() || undefined,
+    ambito: this.ambitoFilter(),
+    canale: this.canaleFilter(),
     page: 1,
     pageSize: 100,
   }));
@@ -309,9 +326,13 @@ export class CorrispettiviReportComponent {
     this.updateParams({ to: value || null, period: ReportPeriodPreset.Custom });
   }
 
-  protected onChannelChange(value: string | null): void {
-    // «all» è il predefinito: non lo si scrive nell'indirizzo.
-    this.updateParams({ channel: !value || value === 'all' ? null : value });
+  // «all» è il predefinito: non lo si scrive nell'indirizzo.
+  protected onAmbitoChange(value: string | null): void {
+    this.updateParams({ ambito: !value || value === 'all' ? null : value });
+  }
+
+  protected onCanaleChange(value: string | null): void {
+    this.updateParams({ canale: !value || value === 'all' ? null : value });
   }
 
   protected onRowTypeChange(value: string | null): void {
@@ -378,7 +399,8 @@ export class CorrispettiviReportComponent {
         year: this.query().year ?? null,
         month: this.query().month ?? null,
         quarter: this.query().quarter ?? null,
-        channel: this.channelFilter() === 'all' ? null : this.channelFilter(),
+        ambito: this.ambitoFilter() === 'all' ? null : this.ambitoFilter(),
+        canale: this.canaleFilter() === 'all' ? null : this.canaleFilter(),
         rowType: this.rowTypeFilter() === 'all' ? null : this.rowTypeFilter(),
       },
     });
@@ -396,8 +418,8 @@ export class CorrispettiviReportComponent {
       placedFrom: this.dateRange().placedFrom,
       placedTo: this.dateRange().placedTo,
       rowType: this.rowTypeFilter() === 'all' ? undefined : this.rowTypeFilter(),
-      onlineOnly: this.onlineOnly() || undefined,
-      posOnly: this.posOnly() || undefined,
+      ambito: this.ambitoFilter(),
+      canale: this.canaleFilter(),
     };
   }
 

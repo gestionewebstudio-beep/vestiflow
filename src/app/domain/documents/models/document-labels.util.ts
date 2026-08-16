@@ -25,8 +25,8 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.InvoiceDraft]: 'Fattura',
   [DocumentType.InvoiceAccompanying]: 'Fattura accompagnatoria',
   [DocumentType.CreditNote]: 'Nota di credito',
-  [DocumentType.StoreSale]: 'Vendita negozio',
-  [DocumentType.StoreReturn]: 'Reso vendita negozio',
+  [DocumentType.StoreSale]: 'Vendita al banco',
+  [DocumentType.StoreReturn]: 'Reso vendita al banco',
   [DocumentType.Quote]: 'Preventivo',
   [DocumentType.CustomerOrder]: 'Ordine cliente',
 };

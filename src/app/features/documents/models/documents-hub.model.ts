@@ -130,7 +130,7 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
       {
         id: 'store-sale-register',
         gate: 'retail-register',
-        label: 'Vendita negozio',
+        label: 'Vendita al banco',
         description: 'Cassa a carrello per vendite immediate in negozio.',
         route: ['/app/sales/register'],
         icon: 'pi-shopping-bag',

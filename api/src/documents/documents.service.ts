@@ -970,7 +970,7 @@ export class DocumentsService {
     }
     if (isFlowOnlyDocumentType(dto.type)) {
       throw new UnprocessableEntityException(
-        'Vendite e resi negozio si registrano dalla cassa (Vendita negozio), non dal registro documenti.',
+        'Vendite e resi si registrano dalla cassa (Vendita al banco), non dal registro documenti.',
       );
     }
     if (isDedicatedWorkflowDocumentType(dto.type)) {
@@ -2549,7 +2549,7 @@ export class DocumentsService {
     this.assertIncludedSalesOrdersManageable(user, [], doc.linkedSalesOrders.length);
     if (isFlowOnlyDocumentType(doc.type)) {
       throw new ConflictException(
-        'Le vendite negozio non si annullano: registra un Reso vendita negozio per il rientro della merce.',
+        'Una Vendita al banco non si annulla: registra un Reso vendita al banco per il rientro della merce.',
       );
     }
     // Scarico manuale diretto (prompt Scarico manuale): niente annullamento —

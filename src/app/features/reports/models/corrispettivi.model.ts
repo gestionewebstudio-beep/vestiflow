@@ -65,8 +65,10 @@ export interface CorrispettiviListQuery {
   readonly source?: string;
   readonly placedFrom?: string;
   readonly placedTo?: string;
-  readonly onlineOnly?: boolean;
-  readonly posOnly?: boolean;
+  /** Ambito: online oppure no. Derivato dall’origine, mai persistito. */
+  readonly ambito?: 'all' | 'online' | 'fisico_pos';
+  /** Canale: chi ha raccolto la vendita. Dimensione distinta dall’ambito. */
+  readonly canale?: 'all' | 'shopify' | 'vestiflow';
   /** `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
   readonly rowType?: string;
   readonly refundsOnly?: boolean;

@@ -27,18 +27,25 @@ contabile** solo perché ci sono.
 
 ---
 
-## 1. Nome della funzione — ⏸️ decisione aperta
+## 1. Nome della funzione — ✅ **deciso e applicato il 16/08**
 
-La denominazione proposta è **«Vendita al banco»**, più precisa di «Vendita negozio» perché
-descrive il caso d'uso: la registrazione gestionale di **una singola vendita fisica al banco**.
+La denominazione esposta all’operatore è **«Vendita al banco»**, più precisa di «Vendita
+negozio» perché descrive il caso d’uso: la registrazione gestionale di **una singola vendita
+fisica al banco**.
 
-Il tipo tecnico resta `store_sale`. **Non si rinominano enum, rotte, tabelle o valori DB solo
-per uniformare l'etichetta.**
+Il tipo tecnico resta **`store_sale`**. Nessuna migration, nessuna rinomina di enum, rotte,
+tabelle o valori DB per adeguare un’etichetta.
 
-_Misurato il 16/08:_ «Vendita negozio» compare in **26 punti** di codice non-test, su 13 file —
-etichette dei tipi documento, hub, sidebar, briciole, registro vendite, guida tecnica — più la
-**causale dei movimenti** (`reason: 'Vendita negozio …'`), che finisce **nello storico e non si
-riscrive**. Vedi §20.2.
+**Applicata dove indica davvero il documento `store_sale`:** etichette dei tipi documento e
+del reso, voce di hub, voce di sidebar, briciola, etichetta dell’origine movimento, i due
+messaggi d’errore che la nominano, e le **causali dei movimenti nuovi**.
+
+⚠️ **Non** è stata toccata la parola «negozio» dove indica altro: ambito fisico, sede,
+vendite fisiche in generale.
+
+⚠️ **Le causali già scritte restano come sono** — `Vendita negozio VN-2026-0001` —, e nessun
+backfill le riscrive. Nello storico movimenti convivranno le due diciture: è il prezzo di non
+toccare un registro che l’operatore ha già letto, e va saputo invece che scoperto.
 
 ---
 
@@ -98,33 +105,48 @@ economico/analitico, mai fisico.
 
 ---
 
-## 5. Rapporto con il Registro Corrispettivi — ⛔ **da implementare**
+## 5. Rapporto con il Registro Corrispettivi — ✅ **implementato il 16/08**
 
-**5.1** Se una Vendita al banco è conclusa, per VestiFlow quella vendita **esiste
-economicamente** e deve comparire nel Registro:
+**5.1** Una Vendita al banco conclusa **esiste economicamente** per VestiFlow e compare nel
+Registro:
 
 ```text
 Origine: Vendita al banco · Ambito: Fisico/POS · Canale: VestiFlow
 ```
 
-Il Registro è un **registro economico interno derivato**, non la replica della chiusura
-giornaliera del registratore.
+### Come, e perché così
 
-⛔ _Misurato il 16/08: **oggi non ci compare.**_ Vedi §20.1 — è il lavoro vero di questa
-specifica.
+**La sorgente canonica resta `Document.type = store_sale`. Il Registro la LEGGE.**
+
+Non si crea un `SalesOrder` per farla entrare: sarebbe una **seconda rappresentazione
+persistita** della stessa transazione, cioè esattamente ciò che il §2 della `10` vieta.
+
+Il Registro aveva già una giuntura fatta apposta — `buildRegisterRows` **fondeva due sorgenti
+in memoria** (vendite e rettifiche) ordinandole per data, con un tetto dichiarato oltre il
+quale chiede di restringere il periodo. La Vendita al banco è la **terza** sorgente e passa di
+lì: nessuna UNION scritta a mano, nessuna tabella nuova, nessuna vista.
+
+Conseguenze registrate nel tipo di riga:
+
+- `salesOrderId` è **nullable** e `documentId` è nuovo: una riga del registro può venire da un
+  ordine **o** da un documento;
+- `financialStatus` è `null` sulla Vendita al banco: si incassa al banco, non ha un ciclo di
+  pagamento, e inventarne uno direbbe una cosa non vera;
+- la data del registro è **`documentDate`**, non `createdAt`: una vendita registrata il giorno
+  dopo resta del giorno prima;
+- i documenti **annullati** restano fuori.
+
+**Il riepilogo legge le stesse tre sorgenti dell’elenco.** Se ne leggesse due, la somma della
+colonna non farebbe il totale in fondo — il difetto che questa schermata ha già avuto una
+volta con le rettifiche.
 
 **5.2 Vendita senza RT collegato.** Vendita da 19,99 € + battitura manuale sulla cassa → nel
-Registro **una sola vendita da 19,99 €**. La battitura non crea una seconda vendita in
-VestiFlow.
+Registro **una sola vendita da 19,99 €**.
 
-**5.3 Vendita non certificata.** Anche senza prova dell'emissione, la vendita gestionale **non
-sparisce**: il prodotto è uscito, il magazzino è sceso, il ricavo esiste. La presenza nel
-Registro **non certifica** l'emissione.
+**5.3 Vendita non certificata.** La vendita gestionale **non sparisce**: il prodotto è uscito,
+il magazzino è sceso, il ricavo esiste. La presenza nel Registro **non certifica** l’emissione.
 
-**Non si introduce** in questo blocco nessuno stato tipo `scontrinato`, `non_scontrinato`,
-`fiscal_status`, `excluded_pos_register`.
-
----
+Nessuno stato tipo `scontrinato`, `fiscal_status`, `excluded_pos_register`.
 
 ## 6. Registratore telematico
 
@@ -393,3 +415,54 @@ riga:
   tecnico e nome esposto — cosa già vera oggi, e accettabile, ma da sapere.
 
 **Non è una decisione tecnica: è come si chiama una cosa davanti all'operatore.**
+
+---
+
+## 21. Ambito e Canale — ✅ implementati come dimensioni derivate
+
+Sono **due assi, non uno**. Fino al 16/08 ce n’era uno solo, `channel`, che li mescolava e non
+sapeva rispondere a «tutto Shopify, online e POS insieme» — quella domanda tiene fermo il
+canale e **libero** l’ambito.
+
+| Origine (`source`) | Ambito     | Canale    |
+| ------------------ | ---------- | --------- |
+| `shopify_online`   | Online     | Shopify   |
+| `shopify_pos`      | Fisico/POS | Shopify   |
+| `store`            | Fisico/POS | VestiFlow |
+| `manual`           | Fisico/POS | VestiFlow |
+
+**Nessuna colonna persistente:** entrambe si derivano dall’**origine**, che è un fatto scritto
+alla creazione. Due colonne in più sarebbero due dati da tenere allineati a uno che c’è già.
+
+⚠️ **`manual` è il caso che ha obbligato a scegliere, e la specifica non lo nominava.** È un
+Ordine cliente digitato a mano, quindi **non online**. Sta con le vendite fisiche perché
+**l’asse separa online da non-online**, non «al banco» da «non al banco» — ed è la lettura che
+rende l’asse **totale**: senza, «Tutti» non sarebbe «Online + Fisico/POS» e una riga sparirebbe
+da entrambi i filtri restando nel totale.
+
+Se un giorno servisse distinguerlo, è **una riga** di `corrispettivi-classification.util.ts` da
+cambiare, non la struttura.
+
+### L’intersezione vuota è un risultato, non un errore
+
+`Online + VestiFlow` oggi non esiste. La lista resta **vuota** — `{ in: [] }` — invece di
+mostrare tutto: mostrare tutto sarebbe la risposta sbagliata alla domanda giusta. Ha un test
+suo, perché è il tipo di caso che si sbaglia scrivendo `if (!sources) return {}`.
+
+### Etichette corrette per strada
+
+«Negozio» indicava lo **Shopify POS** e «Cassa» la Vendita al banco: due nomi che si
+scambiavano il posto. Ora ogni origine nomina la sorgente vera — **Shopify online**,
+**Shopify POS**, **Vendita al banco**, **Manuale**.
+
+---
+
+## 22. Cosa resta fuori, misurato
+
+- **Il filtro Fatturazione** non c’è: per la Vendita al banco **non esiste** una relazione
+  documentale con la Fattura (§11), e non si inventa qui. Blocco Famiglia Fattura.
+- **I resi al banco** (`store_return`) **non entrano** ancora nel Registro come rettifiche: la
+  specifica §5 parla della vendita, e trattarli richiede di decidere se sono una riga negativa
+  a sé — come le rettifiche di canale — o altro. **Oggi nel database non ce n’è nessuno.**
+- **Il Report del venduto non è stato toccato**: la Vendita al banco c’era già, perché quel
+  motore legge i **movimenti** (§8).

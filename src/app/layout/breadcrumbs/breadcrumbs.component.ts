@@ -33,7 +33,7 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   situation: 'Situazione',
   movements: 'Movimenti',
   counts: 'Inventario',
-  register: 'Vendita negozio',
+  register: 'Vendita al banco',
   online: 'Vendite online',
   corrispettivi: 'Corrispettivi',
   shopify: 'Ordini Shopify',

@@ -223,7 +223,7 @@ export class StoreSalesService {
             sku: line.sku ?? '',
             locationId: dto.locationId,
             quantity: line.quantity,
-            reason: `Vendita negozio ${reference}`,
+            reason: `Vendita al banco ${reference}`,
             externalRef: doc.id,
             sourceDocumentType: DocumentType.store_sale,
             sourceDocumentId: doc.id,
@@ -270,7 +270,7 @@ export class StoreSalesService {
         select: { reference: true },
       });
       if (!sale) {
-        throw new NotFoundException('Vendita negozio origine non trovata.');
+        throw new NotFoundException('Vendita al banco origine non trovata.');
       }
       saleReference = sale.reference;
     }
@@ -397,7 +397,7 @@ export class StoreSalesService {
             sku: line.sku ?? '',
             locationId: dto.locationId,
             quantity: line.quantity,
-            reason: `Reso vendita negozio ${reference}${saleSuffix}: ${dto.reason.trim()}`,
+            reason: `Reso vendita al banco ${reference}${saleSuffix}: ${dto.reason.trim()}`,
             externalRef: doc.id,
             sourceDocumentType: DocumentType.store_return,
             sourceDocumentId: doc.id,

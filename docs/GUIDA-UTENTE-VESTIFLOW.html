@@ -1012,7 +1012,7 @@ ol {
 <tr>
 <td><strong>Vendite al banco</strong></td>
 <td>Sì — <strong>Registra vendita</strong></td>
-<td>Tutti i profili; movimento magazzino (origine <strong>Vendita negozio</strong>), non ordine di vendita</td>
+<td>Tutti i profili; movimento magazzino (origine <strong>Vendita al banco</strong>), non ordine di vendita</td>
 </tr>
 <tr>
 <td><strong>Vendite (lista ordini)</strong></td>
@@ -1368,7 +1368,7 @@ ol {
 <td>Correzione quantità (motivo obbligatorio)</td>
 </tr>
 </tbody></table>
-<p>Le <strong>vendite</strong> e i <strong>resi al banco</strong> non si registrano nel form <strong>Registra movimento</strong>: usa <strong>Registra vendita</strong> in sidebar. Nello <strong>storico movimenti</strong> compaiono come tipo <strong>Vendita</strong> o <strong>Reso</strong> con origine <strong>Vendita negozio</strong>.</p>
+<p>Le <strong>vendite</strong> e i <strong>resi al banco</strong> non si registrano nel form <strong>Registra movimento</strong>: usa <strong>Registra vendita</strong> in sidebar. Nello <strong>storico movimenti</strong> compaiono come tipo <strong>Vendita</strong> o <strong>Reso</strong> con origine <strong>Vendita al banco</strong>.</p>
 <p>Ogni movimento resta nello <strong>storico</strong> con data, operatore e origine (gestionale, Shopify o vendita negozio).</p>
 <h3 id="cercare-giacenze-sku-o-barcode">Cercare giacenze (SKU o barcode)</h3>
 <ol>
@@ -1758,7 +1758,7 @@ serie chiamata come l&#39;anno.</p>
 <li><strong>Pistola barcode USB</strong> — funziona come tastiera: focus nel campo, scan, Invio o pulsante.</li>
 <li><strong>Sessione corrente</strong> — ultime operazioni della sessione (non sostituisce lo storico movimenti).</li>
 </ul>
-<p>Ogni scansione valida genera un movimento in <strong>Magazzino → Movimenti</strong> con origine <strong>Vendita negozio</strong>. Se lo stock <strong>disponibile</strong> è insufficiente, la vendita viene rifiutata.</p>
+<p>Ogni scansione valida genera un movimento in <strong>Magazzino → Movimenti</strong> con origine <strong>Vendita al banco</strong>. Se lo stock <strong>disponibile</strong> è insufficiente, la vendita viene rifiutata.</p>
 <h3 id="vendite-solo-profilo-shopify">Vendite (solo profilo Shopify)</h3>
 <ul>
 <li>Provengono da <strong>Shopify Online</strong> o <strong>Shopify POS</strong>.</li>
@@ -1910,7 +1910,7 @@ serie chiamata come l&#39;anno.</p>
 <li>Scansiona il barcode (pistola USB o camera) e <strong>Registra vendita</strong>.</li>
 <li>Per un reso cliente: <strong>Registra storno</strong> nello stesso schermo.</li>
 </ol>
-<p><strong>Consigli:</strong> mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla <strong>Movimenti</strong> con origine <strong>Vendita negozio</strong> se qualcosa non quadra.</p>
+<p><strong>Consigli:</strong> mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla <strong>Movimenti</strong> con origine <strong>Vendita al banco</strong> se qualcosa non quadra.</p>
 <p>Non compare la lista <strong>Vendite</strong> né <strong>Clienti</strong>: il tracciamento vendite in VestiFlow è il movimento di magazzino.</p>
 <h3 id="profilo-shopify-negozio-fisico">Profilo Shopify (negozio fisico)</h3>
 <p>Due scenari possibili:</p>
@@ -2090,6 +2090,53 @@ serie chiamata come l&#39;anno.</p>
 </ul>
 <p>La versione in-app è pensata per chi lavora nel negozio: passi operativi, dove cliccare e cosa aspettarsi. Per assistenza su configurazione o problemi di sync, contatta il tuo <strong>referente VestiFlow</strong>.</p>
 <hr>
+<h3 id="le-vendite-al-banco-nei-corrispettivi-dal-16-agosto-2026">Le Vendite al banco nei Corrispettivi <em>(dal 16 agosto 2026)</em></h3>
+<p>Una <strong>Vendita al banco</strong> conclusa compare nei <strong>Corrispettivi</strong>, classificata come
+<strong>Fisico/POS · VestiFlow</strong>. Prima non ci compariva affatto: il Registro leggeva solo le vendite
+arrivate dai canali, e quello che battevi alla cassa restava fuori dal tuo quadro economico.</p>
+<p><strong>Che il registratore di cassa la certifichi non la fa sparire da qui.</strong> Se registri 19,99 € in
+VestiFlow e poi batti 19,99 € sulla tua cassa, per VestiFlow <strong>c&#39;è una vendita sola</strong>: il
+Registro rappresenta quella vendita, non ne crea una seconda.</p>
+<p>⚠️ <strong>Non è il contrario, però:</strong> vedere la vendita nei Corrispettivi <strong>non vuol dire</strong> che
+VestiFlow abbia verificato che lo scontrino sia stato emesso. Sono due cose distinte, e possono
+esistere vendite battute solo sulla cassa che VestiFlow non conosce.</p>
+<p><strong>Due filtri, non uno.</strong> «Ambito» dice <strong>come è arrivata</strong> la vendita — Online oppure
+Fisico/POS — e «Canale» dice <strong>chi l&#39;ha raccolta</strong> — Shopify o VestiFlow. Servono entrambi
+perché rispondono a domande diverse:</p>
+<table>
+<thead>
+<tr>
+<th>Vuoi vedere</th>
+<th>Ambito</th>
+<th>Canale</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>le tue vendite al banco</td>
+<td>Fisico/POS</td>
+<td>VestiFlow</td>
+</tr>
+<tr>
+<td>il POS di Shopify</td>
+<td>Fisico/POS</td>
+<td>Shopify</td>
+</tr>
+<tr>
+<td>l&#39;ecommerce</td>
+<td>Online</td>
+<td>Shopify</td>
+</tr>
+<tr>
+<td><strong>tutto Shopify</strong>, negozio e sito insieme</td>
+<td>Tutti</td>
+<td>Shopify</td>
+</tr>
+<tr>
+<td>il quadro completo</td>
+<td>Tutti</td>
+<td>Tutti</td>
+</tr>
+</tbody></table>
 
 </body>
 </html>

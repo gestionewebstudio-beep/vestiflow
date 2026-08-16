@@ -3,6 +3,12 @@ import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 
 
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import {
+  CORRISPETTIVI_AMBITO,
+  CORRISPETTIVI_CANALE,
+  type CorrispettiviAmbito,
+  type CorrispettiviCanale,
+} from '../corrispettivi-classification.util';
+import {
   API_FINANCIAL_VALUES,
   API_SOURCE_ONLINE,
   API_SOURCE_POS,
@@ -53,19 +59,15 @@ export class ListCorrispettiviQueryDto extends PaginationQueryDto {
   @Matches(ISO_DATE)
   placedTo?: string;
 
+  /** Ambito: come è arrivata la vendita — online oppure no (`11` §5). */
   @IsOptional()
-  @Transform(({ value }) => toOptionalBoolean(value))
-  @IsBoolean()
-  onlineOnly?: boolean;
+  @IsIn([...CORRISPETTIVI_AMBITO])
+  ambito?: CorrispettiviAmbito;
 
+  /** Canale: chi ha raccolto la vendita. Dimensione distinta dall’ambito. */
   @IsOptional()
-  @Transform(({ value }) => toOptionalBoolean(value))
-  @IsBoolean()
-  posOnly?: boolean;
-
-  @IsOptional()
-  @Transform(({ value }) => toOptionalBoolean(value))
-  @IsBoolean()
+  @IsIn([...CORRISPETTIVI_CANALE])
+  canale?: CorrispettiviCanale;
 
   @IsOptional()
   @Transform(({ value }) => toOptionalBoolean(value))

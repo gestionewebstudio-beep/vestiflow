@@ -438,7 +438,7 @@ Solo il **Titolare** può collegare o scollegare TikTok Shop.
 | **Prodotti importati da Shopify** (`Fonte: Shopify`)  | Solo dati operativi                       | Titolo, prezzi vendita, varianti e immagini in **Shopify Admin**; in VestiFlow: **stagione** e **prezzo di acquisto** |
 | **Giacenze**                                          | Sì (carichi, rettifiche…)                 | Vendite Shopify via webhook; vendite negozio via **Registra vendita** (tutti i profili); push canale dopo scansione   |
 | **Ordini fornitori**                                  | Sì, solo in VestiFlow                     | Non passano da Shopify/TikTok                                                                                         |
-| **Vendite al banco**                                  | Sì — **Registra vendita**                 | Tutti i profili; movimento magazzino (origine **Vendita negozio**), non ordine di vendita                             |
+| **Vendite al banco**                                  | Sì — **Registra vendita**                 | Tutti i profili; movimento magazzino (origine **Vendita al banco**), non ordine di vendita                            |
 | **Vendite (lista ordini)**                            | Sola lettura                              | Da Shopify Online e POS (**solo profilo Shopify**)                                                                    |
 | **Clienti**                                           | Sola lettura                              | Da Shopify (profilo Shopify)                                                                                          |
 | **Sedi (location)**                                   | Sync + **selezione attiva** (entro piano) | Solo sedi attive in magazzino, movimenti e topbar; blocco dopo primo salvataggio                                      |
@@ -625,7 +625,7 @@ Puoi **scansionare il barcode** sotto il campo Variante per selezionare automati
 | **Trasferimento** | Spostamento tra due sedi                  |
 | **Rettifica**     | Correzione quantità (motivo obbligatorio) |
 
-Le **vendite** e i **resi al banco** non si registrano nel form **Registra movimento**: usa **Registra vendita** in sidebar. Nello **storico movimenti** compaiono come tipo **Vendita** o **Reso** con origine **Vendita negozio**.
+Le **vendite** e i **resi al banco** non si registrano nel form **Registra movimento**: usa **Registra vendita** in sidebar. Nello **storico movimenti** compaiono come tipo **Vendita** o **Reso** con origine **Vendita al banco**.
 
 Ogni movimento resta nello **storico** con data, operatore e origine (gestionale, Shopify o vendita negozio).
 
@@ -910,7 +910,7 @@ Schermata **Registra vendita** per aggiornare le giacenze dopo vendita o reso in
 - **Pistola barcode USB** — funziona come tastiera: focus nel campo, scan, Invio o pulsante.
 - **Sessione corrente** — ultime operazioni della sessione (non sostituisce lo storico movimenti).
 
-Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con origine **Vendita negozio**. Se lo stock **disponibile** è insufficiente, la vendita viene rifiutata.
+Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con origine **Vendita al banco**. Se lo stock **disponibile** è insufficiente, la vendita viene rifiutata.
 
 ### Vendite (solo profilo Shopify)
 
@@ -1048,7 +1048,7 @@ Per negozi con **cassa fiscale o POS esterno** e VestiFlow solo come gestionale:
 4. Scansiona il barcode (pistola USB o camera) e **Registra vendita**.
 5. Per un reso cliente: **Registra storno** nello stesso schermo.
 
-**Consigli:** mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla **Movimenti** con origine **Vendita negozio** se qualcosa non quadra.
+**Consigli:** mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla **Movimenti** con origine **Vendita al banco** se qualcosa non quadra.
 
 Non compare la lista **Vendite** né **Clienti**: il tracciamento vendite in VestiFlow è il movimento di magazzino.
 
@@ -1271,3 +1271,29 @@ La voce **Guida** compare in sidebar subito sotto **Impostazioni** e apre questo
 La versione in-app è pensata per chi lavora nel negozio: passi operativi, dove cliccare e cosa aspettarsi. Per assistenza su configurazione o problemi di sync, contatta il tuo **referente VestiFlow**.
 
 ---
+
+### Le Vendite al banco nei Corrispettivi _(dal 16 agosto 2026)_
+
+Una **Vendita al banco** conclusa compare nei **Corrispettivi**, classificata come
+**Fisico/POS · VestiFlow**. Prima non ci compariva affatto: il Registro leggeva solo le vendite
+arrivate dai canali, e quello che battevi alla cassa restava fuori dal tuo quadro economico.
+
+**Che il registratore di cassa la certifichi non la fa sparire da qui.** Se registri 19,99 € in
+VestiFlow e poi batti 19,99 € sulla tua cassa, per VestiFlow **c'è una vendita sola**: il
+Registro rappresenta quella vendita, non ne crea una seconda.
+
+⚠️ **Non è il contrario, però:** vedere la vendita nei Corrispettivi **non vuol dire** che
+VestiFlow abbia verificato che lo scontrino sia stato emesso. Sono due cose distinte, e possono
+esistere vendite battute solo sulla cassa che VestiFlow non conosce.
+
+**Due filtri, non uno.** «Ambito» dice **come è arrivata** la vendita — Online oppure
+Fisico/POS — e «Canale» dice **chi l'ha raccolta** — Shopify o VestiFlow. Servono entrambi
+perché rispondono a domande diverse:
+
+| Vuoi vedere                               | Ambito     | Canale    |
+| ----------------------------------------- | ---------- | --------- |
+| le tue vendite al banco                   | Fisico/POS | VestiFlow |
+| il POS di Shopify                         | Fisico/POS | Shopify   |
+| l'ecommerce                               | Online     | Shopify   |
+| **tutto Shopify**, negozio e sito insieme | Tutti      | Shopify   |
+| il quadro completo                        | Tutti      | Tutti     |

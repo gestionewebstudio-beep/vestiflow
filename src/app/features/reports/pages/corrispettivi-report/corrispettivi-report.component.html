@@ -71,12 +71,21 @@
       riepilogo — vedi la nota accanto al totale.
     -->
     <app-select-menu
-      [options]="channelOptions"
-      [value]="channelFilter()"
-      ariaLabel="Filtra per canale di vendita"
+      [options]="ambitoOptions"
+      [value]="ambitoFilter()"
+      ariaLabel="Filtra per ambito"
+      placeholder="Ambito"
+      [compact]="true"
+      (valueChange)="onAmbitoChange($event)"
+      [filterChip]="true"
+    />
+    <app-select-menu
+      [options]="canaleOptions"
+      [value]="canaleFilter()"
+      ariaLabel="Filtra per canale"
       placeholder="Canale"
       [compact]="true"
-      (valueChange)="onChannelChange($event)"
+      (valueChange)="onCanaleChange($event)"
       [filterChip]="true"
     />
     <app-select-menu

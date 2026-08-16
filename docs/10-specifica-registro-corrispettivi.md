@@ -62,7 +62,9 @@ Il Registro non crea archivi separati per canale. I sottoinsiemi si ottengono co
 L'operatore inesperto entra e vede il quadro generale. Chi sa cosa cerca sceglie periodo e
 filtri, poi stampa o esporta **quel** sottoinsieme.
 
-**Stato al 16/08:** Periodo, Ambito e Tipo evento ci sono. **Canale** e **Fatturazione** no —
+**Stato al 16/08, sera:** Periodo, **Ambito**, **Canale** e Tipo evento ci sono — ambito e
+canale come **dimensioni distinte derivate dall’origine** (`11` §21). Resta fuori la sola
+**Fatturazione** —
 vedi §7.
 
 ---

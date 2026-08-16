@@ -163,7 +163,7 @@ export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
   [DocumentType.corrispettivo]: 'Corrispettivo',
   [DocumentType.customer_order]: 'Ordine cliente',
   [DocumentType.store_sale]: 'Vendita in negozio',
-  [DocumentType.store_return]: 'Reso vendita negozio',
+  [DocumentType.store_return]: 'Reso vendita al banco',
   [DocumentType.quote]: 'Preventivo',
 };
 

@@ -117,13 +117,13 @@ describe('DocumentsHubComponent — card filtrate per famiglia', () => {
   // La cassa non ha una famiglia documento: la governa `retail.register`, e le
   // sue tre condizioni sono le stesse che chiedono sidebar e guard di rotta.
   // Prima erano scritte in tre modi diversi e la card si vedeva comunque.
-  it('nasconde «Vendita negozio» a chi non ha il permesso di battere', async () => {
+  it('nasconde «Vendita al banco» a chi non ha il permesso di battere', async () => {
     await apri(utente([TenantPermission.SectionDocuments, TenantPermission.SectionSales]));
 
-    expect(screen.queryByText('Vendita negozio')).toBeNull();
+    expect(screen.queryByText('Vendita al banco')).toBeNull();
   });
 
-  it('mostra «Vendita negozio» con sezione Vendite e permesso di cassa', async () => {
+  it('mostra «Vendita al banco» con sezione Vendite e permesso di cassa', async () => {
     await apri(
       utente([
         TenantPermission.SectionDocuments,
@@ -132,13 +132,13 @@ describe('DocumentsHubComponent — card filtrate per famiglia', () => {
       ]),
     );
 
-    expect(screen.getByText('Vendita negozio')).toBeTruthy();
+    expect(screen.getByText('Vendita al banco')).toBeTruthy();
   });
 
   it('nasconde la cassa a chi ha il permesso ma non la sezione Vendite', async () => {
     await apri(utente([TenantPermission.SectionDocuments, TenantPermission.RetailRegister]));
 
-    expect(screen.queryByText('Vendita negozio')).toBeNull();
+    expect(screen.queryByText('Vendita al banco')).toBeNull();
   });
 
   // «Ordini fornitore» e «Ordini cliente» sono le due sole card che portano

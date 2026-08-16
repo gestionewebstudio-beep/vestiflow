@@ -139,11 +139,11 @@ export class CorrispettiviService {
     if (query.placedTo) {
       params = params.set('placedTo', query.placedTo);
     }
-    if (query.onlineOnly) {
-      params = params.set('onlineOnly', 'true');
+    if (query.ambito && query.ambito !== 'all') {
+      params = params.set('ambito', query.ambito);
     }
-    if (query.posOnly) {
-      params = params.set('posOnly', 'true');
+    if (query.canale && query.canale !== 'all') {
+      params = params.set('canale', query.canale);
     }
 
     if (query.refundsOnly) {
