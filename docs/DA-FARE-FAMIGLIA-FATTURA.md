@@ -834,7 +834,13 @@ deciso come si comporta quando i due divergono.
 
 ---
 
-## 7 · Il netto/ivato sul «Prezzo al pubblico» — 🟡 il componente c'è, la semantica no
+## 7 · Il netto/ivato sul «Prezzo al pubblico» — ⏸️ **assorbita nella fetta 3**
+
+Resta valida la distinzione registrata: sull'Ordine fornitore sarebbe un **cambio di vista**
+su un valore in sola lettura, sull'Arrivo merce un **modo di inserimento** — e lì, dal 16/08,
+la colonna si scrive solo con la spunta «Aggiorna prezzi articolo» (fetta 2).
+
+### Il testo originale, per storia
 
 Il componente esiste (`app-price-mode-menu`, `07` §25) e la regola generale è fissata: **Costo
 sugli acquisti, Prezzo sulle vendite**.
@@ -873,7 +879,16 @@ proposto. Serve un indicatore **in memoria** — non va salvato, basta che viva 
 
 ---
 
-## 10 · L'Ordine cliente non ha il netto/ivato — ⚪ manca una colonna
+## 10 · L'Ordine cliente e il netto/ivato — ⏸️ **assorbita nella fetta 3**
+
+⚠️ **Il titolo era falso, e il censimento del 16/08 l'ha smentito: il selettore c'è.** Il
+difetto è un altro, ed è doppio — la colonna `integer` che perde un centesimo su un prezzo
+ivato su cinque, e la **modalità non persistita sull'ordine**, che fa vedere lo stesso
+ordine in due modi a due operatori.
+
+Censimento completo e decisione aperta: **voce 11, fetta 3**.
+
+### Il testo originale, per storia
 
 **Misurato il 16/08**, a valle del §25. Nella maschera Ordine cliente l'intestazione della
 colonna Prezzo mostra la parola secca «Prezzo», **senza il menu** netto/ivato che tutte le
@@ -937,16 +952,16 @@ a mano · precisione e formato · regressioni.
 
 ### Le fette, in ordine
 
-| #   | Concetto                           | Stato                                    |
-| --- | ---------------------------------- | ---------------------------------------- |
-| 1   | **Unità di misura**                | ✅ **fatta il 16/08**                    |
-| 2   | **Prezzo al pubblico**             | ✅ **fatta il 16/08**                    |
-| 3   | Prezzo e netto/ivato               | 🔵 **prossima** (assorbe le voci 7 e 10) |
-| 4   | Sconti                             | ⚪                                       |
-| 5   | Nome e descrizione                 | ⚪ ⚠️ attenzione alla sincronia Shopify  |
-| 6   | SKU · codice articolo · EAN        | ⚪                                       |
-| 7   | Quantità e precisione              | ⚪                                       |
-| 8   | Provenienza e identità strutturata | ⚪ (assorbe la voce 2)                   |
+| #   | Concetto                           | Stato                                   |
+| --- | ---------------------------------- | --------------------------------------- |
+| 1   | **Unità di misura**                | ✅ **fatta il 16/08**                   |
+| 2   | **Prezzo al pubblico**             | ✅ **fatta il 16/08**                   |
+| 3   | Prezzo e netto/ivato               | ⏸️ **censita, decisione aperta**        |
+| 4   | Sconti                             | ⚪                                      |
+| 5   | Nome e descrizione                 | ⚪ ⚠️ attenzione alla sincronia Shopify |
+| 6   | SKU · codice articolo · EAN        | ⚪                                      |
+| 7   | Quantità e precisione              | ⚪                                      |
+| 8   | Provenienza e identità strutturata | ⚪ (assorbe la voce 2)                  |
 
 **Voci assorbite:** la **5** (cinque colonne della riga Fattura) e la **6** (prezzo al pubblico
 nell’Arrivo merce) non sono più blocchi a sé: sono i difetti che le prime due fette hanno
@@ -1114,6 +1129,92 @@ centesimo** · ignora un prezzo canale mandato per sbaglio a modulo spento.
 `goods-receipt-workflow.service.ts` · `variant-summary.dto.ts` · `products.service.ts` ·
 `goods-receipt-line-columns.config.ts` · `goods-receipt-form.component.ts` e `.html` ·
 `variant-summary.model.ts` · `product.service.ts` (frontend).
+
+### ⏸️ Fetta 3 · Prezzo e netto/ivato — censita il 16/08, **una decisione aperta**
+
+Assorbe le voci **7** e **10**, e la prima cosa che il censimento ha fatto è **smentire il
+titolo della voce 10**.
+
+#### ⚠️ «L’Ordine cliente non ha il netto/ivato» è falso: ce l’ha
+
+Il selettore c’è, in **quattro** maschere su quattro — Arrivo merce, Ordine fornitore, Ordine
+cliente e maschera vendita. Sull’Ordine cliente cambia modo e **converte le righe** con
+`grossFromNetMinor` / `netFromGrossMinor`.
+
+**Il difetto non è l’assenza: è che quella conversione non torna indietro.**
+
+#### Il difetto, misurato
+
+```text
+digitato ivato    25,00 €
+netto esatto      2049,180328 centesimi
+su colonna Int    2049
+rimostrato ivato  24,9978 €        ⛔ un centesimo perso
+su numeric(16,6)  25,00 €          ✅ torna identico
+```
+
+**Un prezzo ivato su cinque non torna**: 1.947 su 9.901 fra 1 e 100 € al 22%. Non è un caso
+raro da manuale — è il caso normale.
+
+#### La divergenza, per entità
+
+| Entità riga            | Prezzo unitario     | Modalità netto/ivato                            |
+| ---------------------- | ------------------- | ----------------------------------------------- |
+| `document_lines`       | **`numeric(16,6)`** | `documents.prices_include_vat` — **persistita** |
+| `supplier_order_lines` | **`numeric(16,6)`** | `supplier_orders.cost_entry_mode` — persistita  |
+| `sales_order_lines`    | ⛔ **`integer`**    | ⛔ **non persistita**                           |
+| `online_sale_lines`    | ⛔ `integer`        | — (arriva dal canale)                           |
+
+Le due colonne di costo dell’Arrivo merce (`entered_unit_cost`, `unit_cost_net/gross`) sono
+già a sei decimali: **il costo è a posto, il prezzo no.**
+
+#### Due difetti distinti, e vanno separati
+
+**1 · Il tipo della colonna.** `SalesOrderLine.unitPriceMinor` è `integer`: la coda decimale
+non ci sta, e il round-trip perde un centesimo. È lo stesso difetto che la regola del denaro
+descrive (`regole-gestionale`, «La colonna è una, i comportamenti sono tanti»): _ogni prezzo o
+costo **unitario** è `NUMERIC(16,6)`_.
+
+**2 · La modalità non è persistita sull’Ordine cliente.** Vive solo come **preferenza
+dell’operatore** (`UserDocumentPriceModePreference`), quindi:
+
+- due operatori aprono lo stesso ordine e lo vedono **in due modi diversi**;
+- riaprendo un ordine non si sa **come era stato compilato**;
+- sui `Document` invece la modalità è **sul documento**, ed è la scelta giusta: descrive **quel
+  documento**, non chi lo guarda.
+
+⚠️ **Il secondo è più grave del primo**, e non se ne era mai parlato: un centesimo si nota
+poco, due schermate che mostrano numeri diversi per lo stesso ordine si notano subito — e chi
+le vede pensa che uno dei due sia sbagliato.
+
+#### ⛔ La decisione aperta
+
+> **La modalità netto/ivato dell’Ordine cliente deve diventare una proprietà dell’ordine, come
+> lo è già per i documenti?**
+
+È una decisione, non un dettaglio tecnico: cambia cosa vede un secondo operatore, e cambia il
+significato del dato salvato. Le opzioni:
+
+| Opzione                             | Conseguenza                                                      |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| **sull’ordine**, come sui documenti | coerenza piena; serve una colonna e una migration                |
+| **resta preferenza utente**         | nessun lavoro, ma la doppia lettura resta e va almeno dichiarata |
+
+#### Il costo della correzione del tipo, misurato
+
+La migration è banale — `ALTER COLUMN ... TYPE numeric(16,6)` è senza perdita, e la tabella ha
+**59 righe**. Il costo è il codice: `Int → Decimal` cambia il tipo TypeScript da `number` a
+`Prisma.Decimal`, e ogni uso aritmetico non avvolto in `Number(...)` smette di compilare —
+**~25 punti**, tutti in `sales-orders/`.
+
+⚠️ **`online_sale_lines` resta fuori:** il prezzo arriva dal canale come stringa decimale già
+arrotondata, e non c’è nessuno scorporo da cui nasca una coda. Correggerlo per simmetria
+sarebbe uniformare una struttura senza una ragione funzionale — quello che la voce 11 non fa.
+
+**Da dove si ricomincia:** dalla decisione sulla modalità. Il tipo della colonna si può
+correggere in una fetta sua, ed è la più piccola delle due.
+
+---
 
 ### Il censimento già fatto, che resta valido
 
