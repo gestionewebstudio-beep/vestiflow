@@ -21,11 +21,112 @@ Ogni voce dice **da dove ricominciare** se ci si ferma a metà.
 
 ---
 
-## 1 · Collegamenti Fattura ↔ Nota di credito — 🟡 il prossimo
+## A · Righe di riferimento — semantica `isReference` end-to-end — 🔴 **PRIORITÀ IMMEDIATA**
 
-**Perché per primo:** senza la relazione con l'origine, la Nota di credito non è una nota di
-credito — è una fattura col segno girato. E tutto il resto del dominio NC (segno, magazzino)
-poggia su questa.
+**Precedenza decisa il 16/08**, dopo aver trovato la causa radice. Viene **prima** di Fattura ↔
+Nota di credito: quelle relazioni useranno questo meccanismo nella UI e nelle catene
+documentali, e costruirci sopra mentre è rotto propagherebbe il difetto al terzo tipo.
+
+### Non è «valorizzare `isReference` nella Fattura»
+
+> **Una riga di riferimento è una riga descrittiva, non economica e non fisica. `isReference`
+> è il discriminante strutturale, e deve essere rispettato da tutti i consumer.**
+
+La specifica distingue già il **collegamento strutturato** dalla **descrizione testuale**
+(`07` §12): non basta la scritta «Rif. …», e **non si riconosce una reference analizzandone il
+testo** — mai, né a runtime né in un backfill.
+
+**End-to-end vuol dire questi punti, tutti:**
+
+persistenza · GET/PATCH · **inclusione** · calcoli di riga e di documento · IVA · sconti ·
+totali · stock · stampa e UI · export dove pertinente · **FatturaPA**.
+
+Una reference **resta visibile come descrizione** dove previsto — nell'elenco righe, nella
+stampa gestionale — ma **non diventa riga economica o fisica, né `DettaglioLinee`**.
+
+### La causa radice, misurata
+
+**Lato API `isReference` oggi non significa niente.** Viene accettato dal DTO, salvato,
+restituito — e basta. Nessun filtro nei calcoli IVA, nei totali, nell'XML. L'unico posto dove
+fa qualcosa è **il frontend dell'Ordine cliente**, in sei punti, e solo nel browser.
+
+La maschera vendita, quando include un documento, crea la riga `Rif. …` **senza valorizzare il
+flag** (`sales-document-form.component.ts`, `onDocumentIncluded`): nasce come riga qualunque
+con `quantity: 1`.
+
+⚠️ **Due protezioni odierne sono accidentali, e non vanno scambiate per garanzie:**
+
+| Cosa regge   | Perché                                                                      | Quando cede                                                                      |
+| ------------ | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| I totali     | la riga ha prezzo `0`, e sommare zero non sposta niente                     | se qualcuno digita un prezzo su quella riga, o se uno sconto documento la prende |
+| Il magazzino | `isStockLine` richiede `variantId != null`, e una reference non ha articolo | mai, finché resta senza articolo — ma non è il flag a proteggerlo                |
+
+**Il danno attuale e reale è l'XML**: la riga esce come `DettaglioLinee` con quantità 1 — una
+riga prodotto per il cliente e per l'Agenzia. Più tutto ciò che conta le righe.
+
+### L'inclusione fa parte di questo blocco
+
+`IncludedDocumentLine` **non trasporta `isReference`**. È la causa della **perdita semantica
+lungo le catene documentali**: una reference corretta a monte diventa una riga ordinaria nel
+documento successivo, e da lì può finire nei calcoli, nell'IVA o nell'XML come se fosse un
+prodotto.
+
+> **Quando una riga di riferimento viene copiata da un documento incluso, deve conservare
+> `isReference = true` anche nel documento destinazione e dopo i successivi salvataggi.**
+
+**Criterio di accettazione, dichiarato da Luigi:**
+
+1. il documento **A** contiene una riga prodotto e una riga `Rif. …` marcata;
+2. si crea il documento **B** includendo A;
+3. nel documento B quella riga arriva con **`isReference = true`**;
+4. si salva B;
+5. si riapre B → **ancora `true`**.
+
+Va verificato anche l'**accumulo progressivo** del `07` §12: includendo due documenti si
+ottengono due righe `Rif. …`, più quelle che ciascuno si portava dietro — e **tutte** devono
+restare marcate.
+
+### Perimetro
+
+**Backend e frontend, non solo il form.** Il censimento da fare prima di scrivere: tutti i
+punti in cui l'Ordine cliente rispetta già `isReference` (sei nel suo componente), confrontati
+con maschera e servizio della famiglia Fattura, per nominare **dove il flag si perde** e
+**quali consumer non lo rispettano**.
+
+**Da dove si ricomincia:** dal censimento dei consumer, in lettura.
+
+---
+
+## A-bis · Il dato storico incoerente — ⚪ da misurare prima di qualunque backfill
+
+**Misurato il 16/08.** Righe con descrizione «Rif. …» già nel database:
+
+| Documento   | `is_reference` | Righe                                              |
+| ----------- | -------------- | -------------------------------------------------- |
+| `sales_ddt` | ✅ `true`      | 2                                                  |
+| `sales_ddt` | ❌ **`false`** | 1 — `Rif. Preventivo PRE-2026-0001 del 20/07/2026` |
+
+Non è solo la famiglia Fattura: **anche il DDT ne ha una non marcata**. Sono tre righe in
+tutto, ma se non si nominano adesso il difetto si ripresenta quando un filtro nuovo si
+comporterà in modo diverso su due documenti che sembrano uguali.
+
+**Non si normalizza adesso, e non con un parser del testo `Rif. …`.**
+
+Prima va stabilito **se quelle righe si possono identificare con dati strutturali affidabili**.
+Se l'unico criterio disponibile fosse la descrizione, allora **il dato storico si corregge in
+modo esplicito e controllato** — non introducendo una regola a runtime sul testo, che
+resterebbe lì per sempre e «riparerebbe» il difetto con un'euristica invece che con il dato.
+
+**Da dove si ricomincia:** dalla domanda «esiste un criterio strutturale?», non dal backfill.
+
+---
+
+## 1 · Collegamenti Fattura ↔ Nota di credito — 🟡 **dopo il blocco A**
+
+**Perché non più per primo:** la Nota di credito senza relazione con l'origine è una fattura
+col segno girato, e tutto il dominio NC poggia su questa. Ma quelle relazioni **useranno il
+meccanismo delle righe di riferimento**, che oggi è rotto (blocco A): costruirci sopra
+significherebbe propagare il difetto al terzo tipo.
 
 ### Cosa è già misurato
 
@@ -58,8 +159,32 @@ presenta come se fosse l'unica possibile — per questo sulla Nota di credito co
 6. cosa serve alla **NC riferita a una fattura esterna o storica** — che non è un documento
    nostro, quindi numero e data si digitano.
 
-**La soluzione «Fattura collegata» non è approvata**: è la voce del tracciato che
-corrisponde al bisogno, non ancora il disegno.
+### Le alternative in campo — registrate, nessuna scelta presa
+
+| Candidato                       | Cosa coprirebbe                                                             | Stato                                               |
+| ------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------- |
+| **`Document.sourceDocumentId`** | NC **generata da una** Fattura VestiFlow. **Esiste già**                    | da valutare per primo: è la soluzione più economica |
+| La sua **relazione inversa**    | **più NC dalla stessa Fattura** — «da questa fattura sono nate queste note» | **compatibile**, non richiede niente di nuovo       |
+| **`InvoiceSalesDdtLink`**       | molti-a-molti fra documenti                                                 | **pattern candidato, NON decisione**                |
+| Una relazione dedicata          | da disegnare                                                                | solo se le prime non bastano                        |
+
+⚠️ **La cardinalità funzionale va scelta prima del modello tecnico**, non dedotta da una tabella
+che assomiglia:
+
+- **una Fattura può avere più Note di credito** → **deciso** (`07` §13), e la relazione inversa
+  di `sourceDocumentId` lo copre già;
+- **una NC collegata a più Fatture VestiFlow** → **APERTO**. Non è deciso, e non si deduce né da
+  `DatiFattureCollegate` né dall'esistenza di `InvoiceSalesDdtLink`;
+- **NC riferita a una fattura esterna o storica** → **ammessa e decisa** (`07` §13). Manca il
+  **modello tecnico dei riferimenti manuali**: numero e data digitati. ⚠️ **Non riusare**
+  `externalDocNumber` / `externalDocDate`, che sono del **ciclo fornitore** — un altro mestiere,
+  disponibile solo perché esiste.
+
+### La fattura elettronica resta fuori da questo blocco
+
+`DatiFattureCollegate` e le altre quattro sezioni mancanti restano **censite e non
+implementate**. Quando arriveranno leggeranno le **relazioni strutturate**, non le righe
+descrittive — sono due piani distinti e non si sostituiscono (`07` §12).
 
 ### Vincolo già scritto nelle specifiche
 
@@ -77,12 +202,19 @@ su quelli che l'operatore può digitare.
 
 Portati: `variantId · sku · barcode · description · quantity · unitPriceMinor · discount · vatCodeId`
 
-| Campo che cade              | Decisione                                                           |
-| --------------------------- | ------------------------------------------------------------------- |
-| **`unitOfMeasure`**         | 🔵 **va portato.** È un dato del documento, digitato dall'operatore |
-| **`loadsStock`**            | 🟡 da decidere: è del tipo documento o della riga?                  |
-| `lotCode` · `lotExpiryDate` | 🔵 **si porta com'era** — deciso o vuoto, senza inventare (voce 3)  |
-| `serialNumbers`             | 🔵 **stessa regola**                                                |
+| Campo che cade              | Decisione                                                                 |
+| --------------------------- | ------------------------------------------------------------------------- |
+| **`isReference`**           | 🔴 **va portato — ma sta nel blocco A**, che ha la precedenza. Vedi sotto |
+| **`unitOfMeasure`**         | 🔵 **va portato.** È un dato del documento, digitato dall'operatore       |
+| **`loadsStock`**            | 🟡 da decidere: è del tipo documento o della riga?                        |
+| `lotCode` · `lotExpiryDate` | 🔵 **si porta com'era** — deciso o vuoto, senza inventare (voce 3)        |
+| `serialNumbers`             | 🔵 **stessa regola**                                                      |
+
+⚠️ **Questa voce e il blocco A toccano lo stesso file e la stessa interfaccia**
+(`IncludedDocumentLine`). `isReference` non va staccato e portato qui: è **parte della
+semantica** che il blocco A deve rendere affidabile, e trasportarlo senza che i consumer lo
+rispettino sposterebbe un flag che non significa ancora niente. Gli altri campi possono
+seguire nello stesso passaggio, una volta che il blocco A ha fissato la forma.
 
 ⚠️ **L'unità di misura si perde due volte**, e la seconda è peggiore: la maschera vendita non
 la manda al salvataggio e `computeLines` scrive `null`. Quindi una fattura che l'ha ereditata
@@ -272,10 +404,14 @@ proposto. Serve un indicatore **in memoria** — non va salvato, basta che viva 
 
 ## Ordine deciso
 
-1. **Collegamenti Fattura ↔ NC** (voce 1) — censimento delle sei voci, poi disegno
-2. poi le altre, nell'ordine che Luigi sceglierà voce per voce
+1. **A · Righe di riferimento** — la semantica `isReference` end-to-end, inclusione compresa.
+   **Priorità immediata**: è il meccanismo su cui poggia tutto il resto.
+2. **A-bis · Il dato storico** — solo la domanda «esiste un criterio strutturale?», nessun
+   backfill.
+3. **1 · Collegamenti Fattura ↔ NC** — scelta della cardinalità, poi il modello.
+4. le altre, nell'ordine che Luigi sceglierà voce per voce.
 
-**Regola di lavoro, imparata due volte oggi:** ogni voce comincia **misurando**, non
-eseguendo. Le due regressioni del 16/08 — il menu «Nuovo» esteso senza guardarlo, e «Listino»
-rinominato su una premessa non verificata — sono nate entrambe dall'aver trattato una
-premessa come un fatto.
+**Regola di lavoro, imparata tre volte il 16/08:** ogni voce comincia **misurando**, non
+eseguendo. Le tre correzioni di quel giorno — il menu «Nuovo» esteso senza guardarlo,
+«Listino» rinominato su una premessa non verificata, e la cardinalità della NC dedotta da una
+tabella che assomigliava — sono nate tutte dall'aver trattato una premessa come un fatto.
