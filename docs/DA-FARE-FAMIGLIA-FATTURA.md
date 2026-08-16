@@ -1211,30 +1211,64 @@ La migration è banale — `ALTER COLUMN ... TYPE numeric(16,6)` è senza perdit
 arrotondata, e non c’è nessuno scorporo da cui nasca una coda. Correggerlo per simmetria
 sarebbe uniformare una struttura senza una ragione funzionale — quello che la voce 11 non fa.
 
-#### 🔴 Il terzo difetto, trovato il 16/08 preparando la migration — **peggiore dei primi due**
+#### 🔴 Il terzo difetto — **ridimensionato il 16/08 verificando il template**
 
-⚠️ **L'Ordine cliente salva a video quello che mostra, e l'API lo legge come netto.**
+> ⚠️ **Correzione di quanto era scritto qui.** Il difetto era stato descritto come attivo
+> («l’Ordine cliente nasce ivato e memorizza un lordo dove il calcolo si aspetta un netto»).
+> **È falso, e lo sono anche le due premesse da cui discendeva.** Misurato prima di
+> implementare, ed è il motivo per cui il censimento viene prima del codice.
 
-Il documento e l’ordine fanno due cose diverse nello stesso gesto:
+**Cosa è stato verificato davvero:**
 
-| Percorso                      | Cosa salva                                                      |
-| ----------------------------- | --------------------------------------------------------------- |
-| **Documento** (DDT, Fattura…) | `netFromDisplayed(...)` — **converte a netto** prima di salvare |
-| **Ordine cliente**            | `unitPrice.amountMinor` — **il valore mostrato, così com’è**    |
+| Affermazione precedente                               | Misura                                                        |
+| ----------------------------------------------------- | ------------------------------------------------------------- |
+| «l’Ordine cliente **ha** il selettore netto/ivato»    | ⛔ **falso** — il template lo esclude, in tutti e due i punti |
+| «prende in prestito la preferenza del **Preventivo**» | ⛔ **falso** — non legge **nessuna** preferenza               |
+| «nasce **ivato** per primo utilizzo»                  | ⛔ **falso** — nasce **netto**, e non può cambiare            |
 
-E lato API `computeManualOrderLines` calcola l’IVA **sopra**:
-`lineVatTotalMinor = totalMinor × aliquota / 100`.
+Nel template, in entrambi i punti in cui il selettore compare, c’è la stessa guardia:
 
-**Quindi un Ordine cliente compilato in modalità ivato memorizza un lordo dove il calcolo si
-aspetta un netto, e ci somma l'IVA una seconda volta. Il totale è gonfiato dell'aliquota.**
+```html
+@if (!isOrder) { … Modalità prezzo … }
+<!-- testata -->
+@if (isOrder) { Prezzo } @else { … }
+<!-- intestazione di colonna -->
+```
 
-⚠️ **E la modalità predefinita dell’Ordine cliente è proprio «ivato»**: non esiste nessuna
-preferenza salvata per `quote` (0 righe), quindi vale sempre il primo utilizzo, che per i tipi
-di vendita è **ivato**.
+con il commento che dice il perché: _«L’Ordine cliente ne è escluso finché non arriva il
+supporto backend dedicato (SalesOrder)»_. E `initPriceModeForNewDocument()` esce subito
+(`if (!this.isRegistryDocument) return`), quindi il segnale resta al suo `signal(false)`
+iniziale.
 
-⚠️ **Ne discende anche che l’Ordine cliente prende in prestito la preferenza del Preventivo**
-(`registryDocumentType = Quote`), che è la stessa confusione già corretta per la numerazione
-con `numberingDocumentType`.
+**Ne discende che il titolo della voce 10 era giusto e la mia smentita era sbagliata:**
+l’Ordine cliente il netto/ivato **non ce l’ha**. Ce l’hanno Preventivo, DDT vendita e Scarico
+manuale, che vivono nello **stesso componente** — ed è lì che avevo guardato.
+
+#### Il difetto vero: è **latente**, non attivo
+
+Resta vero, e va corretto, che le due strade di salvataggio dello stesso componente non fanno
+la stessa cosa:
+
+| Metodo                                    | Prezzo inviato al server                     |
+| ----------------------------------------- | -------------------------------------------- |
+| `buildRegistryLines()` — Preventivo, DDT… | `netFromDisplayed(...)` — **scorpora**       |
+| `buildSavePayload()` — Ordine cliente     | `unitPrice.amountMinor` — **il valore nudo** |
+
+⚠️ **Oggi non fa danno solo perché la modalità è bloccata su netto**, e in netto
+`netFromDisplayed` è l’identità. **Il giorno in cui si accende il selettore — cioè il punto 2
+di questa fetta — quella riga diventa il difetto che avevo descritto.** Accendere la modalità
+senza correggere il salvataggio _introdurrebbe_ il bug invece di trovarlo.
+
+**Quindi i punti 2 e 3 della fetta non sono due lavori: sono uno solo, e non si separano.**
+
+#### Cosa cambia per lo storico: il rischio è **zero**, non «17 da controllare»
+
+Se la maschera non ha mai potuto essere messa in ivato, **nessun ordine esistente può contenere
+un lordo memorizzato come netto**. `false` per lo storico non è più «la dichiarazione della
+lettura già applicata», che era una formula prudente: è **il fatto**.
+
+L’elenco dei 17 ordini con IVA resta prodotto come richiesto — per un controllo a campione, non
+perché ci sia una riparazione in sospeso.
 
 #### Le quattro risposte sullo storico
 
@@ -1273,31 +1307,34 @@ Il difetto n°3 non era nella premessa quando la migration è stata autorizzata.
 1. **la correzione va fatta anche in avanti** — il salvataggio dell’Ordine cliente deve
    convertire a netto come fa il documento. Non è una decisione: è il comportamento già
    stabilito per i `Document`, e senza di essa persistere la modalità non basta;
-2. **lo storico però resta sbagliato dove lo è**, e cosa farne è una scelta di Luigi:
-   lasciarlo com’è dichiarandolo, oppure rivedere a mano i **17** ordini con IVA.
+2. ~~lo storico resta sbagliato dove lo è~~ — **decaduto**: verificato che la maschera non ha
+   mai potuto essere messa in ivato, nessuno storico è sbagliato. Vedi la correzione sopra.
+
+**Decisione di Luigi, 16/08:** nessuna correzione automatica, nessuna euristica, nessun
+ricalcolo. Lo storico prende `false`, che è la lettura con cui quei numeri sono già stati
+calcolati — e non viene presentato come ricostruzione di una scelta dell’operatore.
 
 ---
 
-#### La regola aziendale netto/ivato — **decisa il 16/08, da implementare**
+#### Le due regole aziendali netto/ivato — **decise il 16/08, da implementare**
 
-> **VestiFlow ha una modalità aziendale predefinita netto/ivato che governa la
-> rappresentazione dei prezzi dove non esiste una scelta più specifica. I documenti che
-> supportano una propria modalità la persistono e prevalgono sul default. La preferenza di
-> visualizzazione NON modifica la semantica economica, gli snapshot fiscali né lo storico.**
+> **VestiFlow ha DUE modalità aziendali predefinite netto/ivato — una per i prezzi di vendita,
+> una per i costi di acquisto — che governano la rappresentazione dove non esiste una scelta
+> più specifica. Un documento che porta una modalità propria e persistita prevale sempre. La
+> preferenza di visualizzazione NON modifica la semantica economica, gli snapshot fiscali né
+> lo storico.**
 
-**Impostazioni → Prezzi → Visualizzazione predefinita: ○ Netto ● Ivato.** Governa **prezzi e costi**, ed è del
-**tenant**, non dell’operatore — se fosse personale si tornerebbe al difetto appena scoperto:
-due operatori che vedono lo stesso dato in modo diverso senza sapere quale sia la
-rappresentazione aziendale.
+Sono del **tenant**, non dell’operatore: se fossero personali resterebbe il difetto già
+descritto — due operatori che vedono lo stesso dato in modo diverso senza sapere quale sia la
+rappresentazione aziendale. Il dettaglio delle due, e perché non è una sola, sta più sotto in
+«DUE preferenze, non una».
 
-**La gerarchia, dal più specifico:**
+**La gerarchia, dal più specifico — identica per prezzi e per costi:**
 
 1. il **documento**, quando ha una modalità propria e persistita → prevale sempre;
 2. la scelta dell’operatore **su quel documento**, che diventa la modalità del documento;
-3. la **preferenza aziendale**, per tutto il resto: documenti nuovi, anagrafiche, liste, viste.
-
-⚠️ **Due concetti che non vanno confusi**, e che restano distinti: **netto/ivato** dice _come
-esprimo_ il prezzo; **«Aggiorna prezzi articolo»** (fetta 2) dice _dove propago_ la modifica.
+3. la **preferenza aziendale** corrispondente, per tutto il resto: documenti nuovi,
+   anagrafiche, liste, viste.
 
 #### Il censimento dei meccanismi esistenti — sei, non quattro
 
@@ -1342,40 +1379,87 @@ preso dalla preferenza utente. Il default aziendale è quindi **scavalcato in pr
 catena. Non esiste **nessuna** preferenza salvata per `quote`: quindi l’Ordine cliente nasce
 sempre **ivato**, per primo utilizzo, ed è la condizione in cui il difetto n°3 morde.
 
-#### Vale anche per i COSTI — deciso il 16/08
+#### ⚠️ DUE preferenze, non una — **corretto il 16/08, prima di implementare**
 
-> **La preferenza aziendale è il default generale della rappresentazione economica: prezzi di
-> vendita **e** costi di acquisto, con la stessa gerarchia.**
+> Qui era scritto «una preferenza sola, due letture». **È stato scartato.** Una sola
+> impostazione costringerebbe a dire: _se vendo a prezzi ivati, devo per forza ragionare anche
+> a costi ivati_ — e non è affatto detto.
 
-Non serve un secondo interruttore: il ponte fra i due mondi **esiste già** e si chiama
-`pricesIncludeVatToCostEntryMode` / `costEntryModeToPricesIncludeVat`. Una preferenza sola,
-due letture.
+Il caso normale, non quello di scuola:
 
-**La catena del costo, misurata — ed è messa peggio di quella del prezzo:**
+|                       |                                                                        |
+| --------------------- | ---------------------------------------------------------------------- |
+| **Prezzi di vendita** | **Ivati** — si vende al pubblico                                       |
+| **Costi di acquisto** | **Netti** — si tratta con fornitori e si guardano margini e imponibili |
+
+Prezzo e costo **condividono il concetto** netto/ivato, ma **non sono lo stesso dominio**.
+
+**Impostazioni → Prezzi:**
+
+```text
+Prezzi di vendita     ○ Netto   ● Ivato
+Costi di acquisto     ● Netto   ○ Ivato
+```
+
+Due default aziendali indipendenti, ognuno con la **stessa** gerarchia già decisa:
+
+```text
+default aziendale  →  modalità del documento nuovo  →  modalità persistita sul documento
+```
+
+Creato il documento, **vince sempre il documento**: l’impostazione aziendale non cambia
+retroattivamente niente.
+
+#### Perché due è anche più estensibile
+
+È la ragione più forte, e riguarda quello che verrà dopo. Con due preferenze separate ogni
+schermata sa **quale** delle due guardare, e le due possono divergere senza contraddizioni:
+
+| Schermata                    | Legge                                                            |
+| ---------------------------- | ---------------------------------------------------------------- |
+| Anagrafica prodotti          | preferenza **prezzi**                                            |
+| Ordine cliente, DDT, Fattura | preferenza **prezzi**                                            |
+| Ordine fornitore             | preferenza **costi**                                             |
+| **Arrivo merce**             | **tutte e due** — costo dai costi, prezzo al pubblico dai prezzi |
+| Report ricavi                | preferenza **prezzi**                                            |
+| Report acquisti              | preferenza **costi**                                             |
+| **Margini**                  | **tutte e due**, coerentemente, anche se divergono               |
+
+⚠️ **L’Arrivo merce da solo basta a decidere la questione**: sulla stessa riga convivono un
+costo e un prezzo al pubblico (fetta 2). Con una preferenza unica dovrebbero per forza essere
+espressi nello stesso modo, il che è proprio la combinazione che un negozio non vuole.
+
+**Il ponte `pricesIncludeVatToCostEntryMode` / `costEntryModeToPricesIncludeVat` resta utile
+tecnicamente** dove i due tipi si incontrano, ma **non deve più imporre** una preferenza sola:
+è una conversione di rappresentazione, non un vincolo funzionale.
+
+#### La catena del costo, misurata — è messa peggio di quella del prezzo
 
 ```text
 Arrivo merce      dto.purchaseCostEntryMode  ??  'vat_excluded'   ← scritto a mano
 Ordine fornitore  dto.costEntryMode          ??  'vat_excluded'   ← scritto a mano
 ```
 
-⛔ Sul prezzo il default aziendale c’è e viene **scavalcato**; sul costo **non viene
-consultato affatto**: il ripiego è una costante nel codice, uguale per ogni tenant. Un’azienda
-che lavora a costi ivati non ha nessun posto dove dirlo — lo deve scegliere su ogni documento.
+⛔ Sul prezzo il default aziendale c’è (`documentTypeSettings.pricesIncludeVat`) e viene
+**scavalcato**; sul costo **non viene consultato affatto**: il ripiego è una costante nel
+codice, uguale per ogni tenant. Un’azienda che lavora a costi ivati non ha nessun posto dove
+dirlo — lo deve riscegliere su ogni documento.
 
-**La preferenza utente invece il costo ce l’ha già**, e passa proprio dal ponte: alla creazione
-`remember(..., costEntryModeToPricesIncludeVat(dto.purchaseCostEntryMode))`. Quindi utente e
-documento sono coperti; manca **solo** il livello aziendale.
+**La preferenza utente il costo ce l’ha già**, e passa proprio dal ponte:
+`remember(..., costEntryModeToPricesIncludeVat(dto.purchaseCostEntryMode))`. Utente e documento
+sono coperti; manca **solo** il livello aziendale, e ne servono **due**.
 
-⚠️ **Restano tre cose distinte, e non vanno fuse:**
+#### ⚠️ Quattro cose distinte, che non vanno fuse
 
 | Cosa                                | Dice                                            |
 | ----------------------------------- | ----------------------------------------------- |
-| **netto/ivato**                     | _come esprimo_ prezzo e costo                   |
+| **Preferenza prezzi** netto/ivato   | _come esprimo_ il prezzo                        |
+| **Preferenza costi** netto/ivato    | _come esprimo_ il costo                         |
 | **«Aggiorna prezzi articolo»**      | _dove propago_ la modifica del prezzo (fetta 2) |
 | **«Aggiorna costo di riferimento»** | _dove propago_ la modifica del costo            |
 
-Le ultime due sono spunte **di documento** e restano dove sono: governano la propagazione, non
-la rappresentazione.
+Le prime due sono **default aziendali di rappresentazione**; le ultime due sono **azioni
+operative del documento**. Non si sovrappongono, e nessuna delle quattro sostituisce un’altra.
 
 #### Che fine fa la preferenza utente
 
