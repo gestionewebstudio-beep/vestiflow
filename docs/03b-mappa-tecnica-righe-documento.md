@@ -1262,14 +1262,26 @@ Una riga documento ne ha di più che l'operatore può digitare. **Cadono**, e no
 
 #### La regola del lotto — decisa il 16/08, confermata su Danea
 
-> **Il lotto non si trascina: si sceglie nel documento che movimenta il magazzino.**
+> **Il lotto lo decide il documento che movimenta il magazzino. Una volta deciso è un fatto, e da lì in poi si trascina.**
 
-Quando in un DDT si include un ordine con articoli a lotto, è **il DDT** a chiedere quale lotto — e lo chiede **solo se ce n'è più di uno disponibile con giacenza positiva**. È il comportamento osservato in Danea, ed è quello giusto per una ragione di dominio: il lotto è un **fatto del magazzino nel momento dell'uscita**, non un'intenzione espressa quando si è preso l'ordine. Fra l'ordine e la consegna il lotto disponibile può essere cambiato, essere finito, o essere scaduto.
+_Prima formulazione, corretta da Luigi lo stesso giorno: avevo scritto «il lotto non si trascina», che è vero solo a monte del movimento. **Se un DDT ha già deciso i lotti e quel DDT viene incluso in una fattura, la fattura se li porta.**_
 
-Ne discendono tre cose per chi implementa:
+La discriminante non è il tipo di documento: è **se la merce si è già mossa**.
 
-1. **L'inclusione non trasporta `lotCode` / `lotExpiryDate` / `serialNumbers`** — e su questo il comportamento attuale è già corretto, per caso più che per scelta.
-2. **I documenti che movimentano devono chiederlo**: la scelta va offerta sulla riga, con l'elenco dei lotti in giacenza — numero, scadenza e quantità disponibile — e va risolta prima di poter confermare.
-3. **Se il lotto disponibile è uno solo si prende quello**, senza chiedere niente. La domanda è un costo, e va pagata solo quando c'è davvero una scelta da fare.
+| Origine                                   | Ha movimentato? | Il lotto nel documento che la include           |
+| ----------------------------------------- | --------------- | ----------------------------------------------- |
+| Preventivo · Ordine cliente               | no              | **non esiste ancora** → lo chiede chi movimenta |
+| **DDT vendita** · Fattura accompagnatoria | **sì**          | **già deciso** → si trascina, non si richiede   |
+
+**Il perché.** Prima del movimento il lotto sarebbe un'**intenzione**, e le intenzioni sul magazzino invecchiano: fra l'ordine e la consegna quel lotto può essere finito, scaduto o essere andato a un altro cliente. Dopo il movimento il lotto è un **fatto già avvenuto**: quella merce, con quel lotto, è materialmente uscita. Richiederlo in fattura vorrebbe dire chiedere all'operatore di ridecidere una cosa già successa — e permettergli di scrivere in fattura un lotto diverso da quello davvero consegnato.
+
+Ne discendono quattro cose per chi implementa:
+
+1. **L'inclusione trasporta `lotCode` / `lotExpiryDate` / `serialNumbers` quando l'origine ha movimentato**, e non li trasporta quando non l'ha fatto. Oggi non li trasporta **mai**: metà corretto per caso, metà da correggere.
+2. **I documenti che movimentano devono chiederlo** quando l'origine non l'ha deciso: elenco dei lotti in giacenza con numero, scadenza e quantità disponibile, risolto prima di poter confermare.
+3. **Se il lotto disponibile è uno solo si prende quello**, senza chiedere. La domanda è un costo, e si paga solo quando c'è davvero una scelta.
+4. **Il lotto trascinato non si rimette in discussione**: in fattura si legge, non si sceglie. Cambiarlo lì significherebbe dichiarare consegnata merce diversa da quella uscita.
 
 Vale identico per le **matricole**, con la differenza che lì la quantità è sempre uno per pezzo.
+
+⚠️ **Il caso limite da guardare quando si implementa:** la **Fattura accompagnatoria**, che movimenta **solo quando non ha un DDT agganciato** (`document-type.util.ts`). Con il DDT agganciato eredita; senza, deve chiedere. È lo stesso documento che si comporta nei due modi, e la discriminante è la stessa: la merce si è già mossa o no.
