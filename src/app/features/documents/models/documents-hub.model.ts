@@ -168,39 +168,20 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         icon: 'pi-truck',
         available: true,
       },
-      // I TRE tipi della famiglia Fattura: voci separate ma stesso elenco e
-      // stesso numeratore. Il `type` in query preimposta il filtro Tipo della
-      // lista condivisa, che resta comunque modificabile dall'operatore.
-      // Nessuna delle tre porta a una pagina propria: il progressivo è uno solo
-      // e un registro separato lo mostrerebbe pieno di buchi.
+      // UNA sola scorciatoia per la famiglia Fattura (deciso 16/08). Erano tre
+      // voci che portavano allo stesso elenco con il filtro preimpostato, e
+      // quel filtro era anche — per un difetto — il selettore di cosa si
+      // creava. Sciolto quel legame, tre porte per una stanza sola dicevano
+      // all'operatore che le stanze fossero tre.
+      // Il tipo si sceglie dentro: dal menu «Nuovo» per crearlo, dal filtro
+      // «Tipo» per guardarlo.
       {
         id: 'invoice',
         family: 'invoice',
-        label: 'Fattura',
-        description: 'Fattura fiscale da inviare al commercialista.',
+        label: 'Fatture',
+        description: 'Fatture, accompagnatorie e note di credito, in un unico progressivo.',
         route: ['/app/documents/fattura'],
-        queryParams: { type: 'invoice_draft' },
         icon: 'pi-receipt',
-        available: true,
-      },
-      {
-        id: 'invoice-accompanying',
-        family: 'invoice',
-        label: 'Fattura accompagnatoria',
-        description: 'Fattura fiscale con trasporto merce incluso.',
-        route: ['/app/documents/fattura'],
-        queryParams: { type: 'invoice_accompanying' },
-        icon: 'pi-truck',
-        available: true,
-      },
-      {
-        id: 'credit-note',
-        family: 'invoice',
-        label: 'Nota di credito',
-        description: 'Storno totale o parziale di una fattura già emessa.',
-        route: ['/app/documents/fattura'],
-        queryParams: { type: 'credit_note' },
-        icon: 'pi-replay',
         available: true,
       },
       {

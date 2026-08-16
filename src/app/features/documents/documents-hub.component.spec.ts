@@ -14,6 +14,7 @@ import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
 
 import { DocumentsHubComponent } from './documents-hub.component';
+import { DOCUMENT_HUB_GROUPS } from './models/documents-hub.model';
 
 /**
  * L'hub è l'indice dei documenti: mostrare una card che il guard di rotta
@@ -76,7 +77,33 @@ describe('DocumentsHubComponent — card filtrate per famiglia', () => {
   it('con «Gestisci» ma senza «Consulta» la card resta: gestire implica consultare', async () => {
     await apri(utente([TenantPermission.SectionDocuments, docManagePermission('invoice')]));
 
-    expect(screen.getByText('Fattura')).toBeTruthy();
+    expect(screen.getByText('Fatture')).toBeTruthy();
+  });
+
+  /**
+   * Una sola porta per la famiglia Fattura — deciso il 16/08.
+   *
+   * Erano tre card verso lo stesso elenco, ciascuna con il filtro preimpostato;
+   * e finché il filtro decideva anche cosa si creava, sembravano tre documenti
+   * diversi. Sciolto quel legame (vedi `document-list.component.ts`), tre porte
+   * per una stanza sola raccontano una struttura che non esiste.
+   */
+  it('la famiglia Fattura ha UNA sola scorciatoia, non tre', async () => {
+    await apri(utente([TenantPermission.SectionDocuments, docManagePermission('invoice')]));
+
+    expect(screen.getAllByText('Fatture')).toHaveLength(1);
+    expect(screen.queryByText('Fattura accompagnatoria')).toBeNull();
+    expect(screen.queryByText('Nota di credito')).toBeNull();
+  });
+
+  it('la scorciatoia non preimposta più un tipo: porta all elenco intero', () => {
+    const voci = DOCUMENT_HUB_GROUPS.flatMap((gruppo) => gruppo.items).filter(
+      (voce) => voce.family === 'invoice',
+    );
+
+    expect(voci).toHaveLength(1);
+    expect(voci[0]!.queryParams).toBeUndefined();
+    expect(voci[0]!.route).toEqual(['/app/documents/fattura']);
   });
 
   it('senza permessi non resta nessuna card di famiglia', async () => {

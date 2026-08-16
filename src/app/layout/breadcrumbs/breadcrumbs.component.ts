@@ -48,6 +48,9 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   proforma: 'Proforma',
   fattura: 'Fatture',
   'fattura-accompagnatoria': 'Fattura accompagnatoria',
+  // Senza questa voce il segmento usciva grezzo — «nota-di-credito», trattini
+  // compresi: un segmento sconosciuto ricade su `decodeURIComponent`.
+  'nota-di-credito': 'Nota di credito',
   'sales-ddt': 'DDT vendita',
   quote: 'Preventivi',
   'codici-iva': 'Codici IVA',

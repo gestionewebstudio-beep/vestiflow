@@ -1,9 +1,11 @@
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
+import { DocumentType } from '@core/models/document.model';
 import { UserRole } from '@core/models/user.model';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { CustomerService } from '@domain/customers/services/customer.service';
@@ -62,8 +64,14 @@ interface UtenteDiProva {
   readonly permissions: readonly string[];
 }
 
-async function renderList(profile: DocumentListProfile, user: UtenteDiProva | null = null) {
+async function renderList(
+  profile: DocumentListProfile,
+  user: UtenteDiProva | null = null,
+  /** Filtro «Tipo» già attivo, come se si arrivasse da un link filtrato. */
+  typeFilter?: string,
+) {
   const data = { documentListProfile: profile };
+  const queryParams = typeFilter ? { type: typeFilter } : {};
   return render(DocumentListComponent, {
     providers: [
       provideRouter([]),
@@ -71,8 +79,8 @@ async function renderList(profile: DocumentListProfile, user: UtenteDiProva | nu
         provide: ActivatedRoute,
         useValue: {
           data: of(data),
-          snapshot: { data, queryParamMap: convertToParamMap({}) },
-          queryParamMap: of(convertToParamMap({})),
+          snapshot: { data, queryParamMap: convertToParamMap(queryParams) },
+          queryParamMap: of(convertToParamMap(queryParams)),
         },
       },
       { provide: AuthService, useValue: { currentUser: () => user } },
@@ -201,5 +209,114 @@ describe('DocumentListComponent — comandi di creazione e matrice permessi', ()
     // «non ne manca nessuna» — che è la regola vera per chi ha tutti i permessi.
     expect(tipiOfferti(view)).toEqual(SECONDARY_CREATE_ENTRIES.map((entry) => entry.label));
     expect(screen.queryByRole('button', { name: /Crea altro tipo di documento/i })).not.toBeNull();
+  });
+});
+
+/**
+ * Il filtro «Tipo» guarda, il menu «Nuovo» crea — e non si toccano.
+ *
+ * Il difetto che questi test chiudono (trovato guardando la schermata, non dai
+ * test): il registro Fatture usava il filtro **anche** come selettore implicito
+ * del documento da creare. Con il filtro su Nota di credito il pulsante
+ * diventava «Nuova nota di credito» e ci mandava; con Accompagnatoria, l'altra.
+ * L'operatore non aveva modo di creare una Fattura mentre guardava le note di
+ * credito, e nell'empty state si leggeva «Nessuna fattura» sopra un pulsante
+ * «Nuova nota di credito».
+ *
+ * Veniva dal modulo a due tipi (`17de1f68`), dove la scorciatoia sembrava una
+ * comodità. Col terzo tipo è diventata visibile — ma era sbagliata già prima.
+ */
+describe('DocumentListComponent — il filtro non decide cosa si crea', () => {
+  const titolare = { role: UserRole.Owner, permissions: [] };
+
+  /** Le voci del menu «Nuovo» dell'elenco condiviso. */
+  function vociDelMenuNuovo(view: { fixture: { componentInstance: unknown } }): readonly string[] {
+    const component = view.fixture.componentInstance as {
+      createVariantOptions: () => readonly { readonly label: string; readonly value: string }[];
+    };
+    return component.createVariantOptions().map((option) => option.label);
+  }
+
+  function rotteDelMenuNuovo(view: { fixture: { componentInstance: unknown } }): readonly string[] {
+    const component = view.fixture.componentInstance as {
+      createVariantOptions: () => readonly { readonly value: string }[];
+    };
+    return component.createVariantOptions().map((option) => option.value);
+  }
+
+  const TRE_TIPI = ['Nuova fattura', 'Nuova fattura accompagnatoria', 'Nuova nota di credito'];
+
+  for (const filtro of ['', 'invoice_draft', 'invoice_accompanying', 'credit_note']) {
+    it(`con filtro «${filtro || 'Tutti'}» il menu Nuovo offre sempre i tre tipi`, async () => {
+      const view = await renderList('invoice', titolare, filtro || undefined);
+
+      expect(vociDelMenuNuovo(view)).toEqual(TRE_TIPI);
+    });
+  }
+
+  it('dal filtro Nota di credito posso creare una Fattura', async () => {
+    const view = await renderList('invoice', titolare, 'credit_note');
+    const component = view.fixture.componentInstance as unknown as {
+      onCreateVariant: (type: string) => void;
+    };
+    const router = TestBed.inject(Router);
+    const naviga = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+    component.onCreateVariant(DocumentType.InvoiceDraft);
+
+    expect(naviga).toHaveBeenCalledWith('/app/documents/fattura/new');
+  });
+
+  it('dal filtro Fattura accompagnatoria posso creare una Nota di credito', async () => {
+    const view = await renderList('invoice', titolare, 'invoice_accompanying');
+    const component = view.fixture.componentInstance as unknown as {
+      onCreateVariant: (type: string) => void;
+    };
+    const router = TestBed.inject(Router);
+    const naviga = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+    component.onCreateVariant(DocumentType.CreditNote);
+
+    expect(naviga).toHaveBeenCalledWith('/app/documents/nota-di-credito/new');
+  });
+
+  // Un solo render per `it`: TestBed non si lascia riconfigurare due volte
+  // (nota in testa al file). Che le ETICHETTE non cambino col filtro lo prova
+  // il ciclo qui sopra su tutti e quattro; qui si fissa che sotto il filtro più
+  // «lontano» dalla Fattura le rotte restino comunque quelle dei tre tipi.
+  it('sotto il filtro Nota di credito le rotte del menu sono comunque i tre tipi', async () => {
+    const view = await renderList('invoice', titolare, 'credit_note');
+
+    expect(rotteDelMenuNuovo(view)).toEqual([
+      DocumentType.InvoiceDraft,
+      DocumentType.InvoiceAccompanying,
+      DocumentType.CreditNote,
+    ]);
+  });
+
+  it('lo stato vuoto non propone un tipo al posto dell operatore', async () => {
+    const view = await renderList('invoice', titolare, 'credit_note');
+    const component = view.fixture.componentInstance as unknown as {
+      emptyStateCtaLabel: () => string | undefined;
+      emptyStateTitle: () => string;
+      emptyStateDescription: () => string;
+    };
+
+    // Nessuna CTA a bottone singolo: al suo posto il menu a tre voci.
+    expect(component.emptyStateCtaLabel()).toBeUndefined();
+    // E i testi non nominano un solo tipo della famiglia.
+    expect(component.emptyStateTitle()).not.toMatch(/fattura/i);
+    expect(component.emptyStateDescription()).toContain('note di credito');
+  });
+
+  it('gli elenchi a tipo singolo restano col bottone diretto', async () => {
+    const view = await renderList('quote', titolare);
+
+    expect(vociDelMenuNuovo(view)).toEqual([]);
+    expect(
+      (
+        view.fixture.componentInstance as unknown as { salesCreateLabel: () => string | undefined }
+      ).salesCreateLabel(),
+    ).toBe('Nuovo preventivo');
   });
 });

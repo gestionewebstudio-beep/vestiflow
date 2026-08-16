@@ -20,13 +20,29 @@
       <div class="doc-list__actions">
         @if (salesRegister()) {
           <!--
-            Elenchi condivisi (Fatture): l'etichetta segue il filtro «Tipo».
+            Elenchi condivisi da più tipi (Fatture): UN SOLO comando «Nuovo»,
+            con una voce per tipo, sempre le stesse. Il filtro «Tipo» qui non
+            entra: decide cosa si guarda, non cosa si crea.
+            Elenchi a tipo singolo: il bottone diretto, che non ha da scegliere.
             Vendita/Reso negozio: nessun bottone — si registrano dalla cassa.
           -->
-          <app-button (click)="openNewSalesDocument()">
-            <i class="pi pi-plus" aria-hidden="true"></i>
-            {{ salesCreateLabel() }}
-          </app-button>
+          @if (createVariantOptions().length > 0) {
+            <app-select-menu
+              class="doc-list__create-menu"
+              [options]="createVariantOptions()"
+              value=""
+              ariaLabel="Nuovo documento"
+              placeholder="Nuovo"
+              triggerIcon="pi-plus"
+              [includeEmptyOption]="false"
+              (valueChange)="onCreateVariant($event)"
+            />
+          } @else {
+            <app-button (click)="openNewSalesDocument()">
+              <i class="pi pi-plus" aria-hidden="true"></i>
+              {{ salesCreateLabel() }}
+            </app-button>
+          }
         } @else if (isGoodsReceiptList()) {
           <app-button (click)="openNewGoodsReceipt()">
             <i class="pi pi-plus" aria-hidden="true"></i>
@@ -442,7 +458,21 @@
       [icon]="emptyStateIcon()"
       [ctaLabel]="emptyStateCtaLabel()"
       (ctaClick)="onEmptyStateCta()"
-    />
+    >
+      <!-- Stesso comando della testata, non una seconda decisione: dove i tipi
+           creabili sono più d'uno, anche qui si sceglie. -->
+      @if (createVariantOptions().length > 0 && canManageDocuments()) {
+        <app-select-menu
+          [options]="createVariantOptions()"
+          value=""
+          ariaLabel="Nuovo documento"
+          placeholder="Nuovo"
+          triggerIcon="pi-plus"
+          [includeEmptyOption]="false"
+          (valueChange)="onCreateVariant($event)"
+        />
+      }
+    </app-empty-state>
   } @else {
     @if (actionError(); as err) {
       <app-error-state [description]="err.message" />

@@ -279,6 +279,9 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     pageTitle: 'Fatture',
     pageSubtitle:
       'Fatture, fatture accompagnatorie e note di credito da inviare al commercialista, in un unico progressivo.',
+    // `createLabel`/`createPath` restano per i chiamanti che chiedono «il
+    // documento predefinito della pagina» (duplicazioni, link diretti). La
+    // TESTATA non li usa: dove ci sono `createVariants` mostra il menu.
     createLabel: 'Nuova fattura',
     createPath: '/app/documents/fattura/new',
     createVariants: [
@@ -299,16 +302,24 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
       },
     ],
     listPath: '/app/documents/fattura',
-    emptyTitle: 'Nessuna fattura',
+    // Testi della FAMIGLIA, non della sola Fattura: l'elenco ne mostra tre e il
+    // filtro può essere su uno qualsiasi. Dicevano «Nessuna fattura» e «crea una
+    // nuova fattura» mentre il pulsante accanto diceva «Nuova nota di credito»:
+    // tre stringhe, due semantiche. Restano al plurale e senza tipo, perché il
+    // comando che le accompagna non ne sceglie più uno.
+    emptyTitle: 'Nessun documento',
     emptyDescription:
-      'Non ci sono fatture che corrispondono ai filtri. Crea una nuova fattura per preparare i dati da trasmettere al commercialista.',
+      'Non ci sono fatture, fatture accompagnatorie o note di credito che corrispondono ai filtri. Creane una nuova per preparare i dati da trasmettere al commercialista.',
     emptyIcon: 'pi-receipt',
     searchPlaceholder: 'Cerca per numero o cliente…',
     statusOptions: INVOICE_STATUS_OPTIONS,
     showPendingInvoiceFilter: false,
     viewId: TableViewId.InvoiceDraftDocumentsList,
-    detailPanelTitle: 'Dati fattura',
-    detailNotFoundTitle: 'Fattura non trovata',
+    // Stessa ragione dei testi vuoti: l'anteprima si apre su uno qualsiasi dei
+    // tre tipi, e «Dati fattura» sopra una nota di credito è sbagliato. Il tipo
+    // esatto l'operatore lo legge nella colonna «Tipo» e nella testata.
+    detailPanelTitle: 'Dati documento',
+    detailNotFoundTitle: 'Documento non trovato',
   },
   // Elenco condiviso da Vendita e Reso in negozio: entrambi nascono dalla
   // cassa in un'unica transazione con i movimenti, quindi la pagina è di sola

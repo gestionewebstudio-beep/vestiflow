@@ -290,23 +290,27 @@ export class DocumentListComponent {
   });
 
   /**
-   * Variante di creazione attiva: segue il filtro «Tipo» così che «Nuovo …»
-   * crei il documento che l'operatore sta guardando. Su «Tutti» resta la
-   * variante predefinita del profilo (la Fattura semplice).
+   * Le voci del menu «Nuovo»: **una per tipo, sempre tutte**, qualunque sia il
+   * filtro attivo.
+   *
+   * Qui c'era `activeCreateVariant`, che sceglieva la variante **seguendo il
+   * filtro «Tipo»**: con il filtro su Nota di credito il pulsante diventava
+   * «Nuova nota di credito» e ci mandava. Sembrava una comodità ed era un
+   * difetto — il filtro è un modo di **guardare** l'elenco, non di **dichiarare
+   * cosa si sta per creare**, e usarlo per entrambi toglieva all'operatore la
+   * possibilità di creare una Fattura mentre guarda le note di credito. Il
+   * meccanismo veniva dal modulo a due tipi (`17de1f68`) e con il terzo è
+   * diventato visibile.
    */
-  private readonly activeCreateVariant = computed(() => {
-    const sales = this.salesRegister();
-    const variants = sales?.createVariants;
-    if (!sales || !variants) {
-      return null;
-    }
-    const selected = this.sharedTypeFilter();
-    return variants.find((v) => v.type === selected) ?? variants.find((v) => v.type === sales.type);
-  });
-
-  protected readonly salesCreateLabel = computed(
-    () => this.activeCreateVariant()?.label ?? this.salesRegister()?.createLabel,
+  protected readonly createVariantOptions = computed<readonly SelectMenuOption[]>(() =>
+    (this.salesRegister()?.createVariants ?? []).map((variant) => ({
+      value: variant.type,
+      label: variant.label,
+    })),
   );
+
+  /** Elenchi a tipo singolo: l'etichetta del bottone, che non ha varianti. */
+  protected readonly salesCreateLabel = computed(() => this.salesRegister()?.createLabel);
 
   /** Pagine di sola consultazione (Vendita/Reso negozio): nessun «Nuovo …». */
   protected readonly showCreateAction = computed(
@@ -315,6 +319,12 @@ export class DocumentListComponent {
 
   protected readonly emptyStateCtaLabel = computed(() => {
     if (!this.showCreateAction()) {
+      return undefined;
+    }
+    // Elenchi condivisi: nessuna CTA a bottone singolo, perché sceglierebbe un
+    // tipo al posto dell'operatore. Lo stato vuoto riceve il menu a tre voci
+    // per proiezione (vedi template) — è lo stesso comando della testata.
+    if (this.createVariantOptions().length > 0) {
       return undefined;
     }
     const salesLabel = this.salesCreateLabel();
@@ -1448,7 +1458,19 @@ export class DocumentListComponent {
   protected openNewSalesDocument(): void {
     const sales = this.salesRegister();
     if (sales) {
-      void this.router.navigateByUrl(this.activeCreateVariant()?.path ?? sales.createPath);
+      void this.router.navigateByUrl(sales.createPath);
+    }
+  }
+
+  /**
+   * Voce scelta nel menu «Nuovo» degli elenchi condivisi: porta alla rotta
+   * dichiarata dalla variante, **senza toccare il filtro**. Scegliere cosa
+   * creare e scegliere cosa guardare restano due gesti distinti.
+   */
+  protected onCreateVariant(type: string | null): void {
+    const variant = this.salesRegister()?.createVariants?.find((v) => v.type === type);
+    if (variant) {
+      void this.router.navigateByUrl(variant.path);
     }
   }
 
