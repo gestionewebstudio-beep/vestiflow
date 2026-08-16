@@ -1,22 +1,34 @@
 import { SalesOrderSource as PrismaSource } from '@prisma/client';
 
 /**
- * Le due dimensioni del Registro Corrispettivi (`11` §5, `10` §3).
+ * Chi entra nel Registro Corrispettivi, e come si classifica (`11` §5, `10` §3).
  *
- * **Ambito e Canale sono cose diverse e non si mescolano.** Fino al 16/08/2026
- * c'era un filtro solo che li confondeva, con due etichette che dicevano il
- * falso: «Shopify» comprendeva le sole vendite online — anche il POS è Shopify
- * — e «Negozio» indicava lo **Shopify POS**, non la cassa di VestiFlow.
+ * **Due domande in quest'ordine, e non una sola.**
  *
- * | Vendita             | Ambito     | Canale    |
- * | ------------------- | ---------- | --------- |
- * | Vendita al banco    | Fisico/POS | VestiFlow |
- * | Shopify POS         | Fisico/POS | Shopify   |
- * | Shopify ecommerce   | Online     | Shopify   |
+ * 1. *questo evento è un corrispettivo?* — non tutte le origini lo sono;
+ * 2. solo per quelle che lo sono: *che ambito e che canale?*
  *
- * ⚠️ **Nessuna colonna persistente**: entrambe si derivano dall'**origine**
- * della vendita, che è un fatto scritto alla creazione. Aggiungere due colonne
- * significherebbe due dati da tenere allineati a uno che c'è già.
+ * ⚠️ **Invertirle produce un errore concettuale, e c'è già cascato uno.** Il
+ * 16/08 avevo classificato `manual` come Fisico/POS ragionando «non è online,
+ * quindi è fisico». È falso: **Fisico/POS non significa «tutto ciò che non è
+ * online», significa una vendita fisica effettiva.** Un Ordine cliente manuale
+ * è un **impegno commerciale** — si prende al telefono, in ufficio, per email —
+ * e non dice niente su come avverrà la vendita: si concluderà con un DDT, una
+ * fattura, o niente. Non è una Vendita al banco, non è una vendita online, e
+ * **non è un corrispettivo**.
+ *
+ * L'effetto economico di un Ordine cliente arriva dal **documento che lo
+ * conclude**, secondo le relazioni documentali previste — non dalla sua origine.
+ *
+ * | Origine          | Corrispettivo? | Ambito     | Canale    |
+ * | ---------------- | -------------- | ---------- | --------- |
+ * | `shopify_online` | ✅             | Online     | Shopify   |
+ * | `shopify_pos`    | ✅             | Fisico/POS | Shopify   |
+ * | `store`          | ✅             | Fisico/POS | VestiFlow |
+ * | `manual`         | ⛔ **no**      | —          | —         |
+ *
+ * **Nessuna colonna persistente**: tutto si deriva dall'**origine**, che è un
+ * fatto scritto alla creazione.
  */
 
 export const CORRISPETTIVI_AMBITO = ['all', 'online', 'fisico_pos'] as const;
@@ -25,66 +37,71 @@ export type CorrispettiviAmbito = (typeof CORRISPETTIVI_AMBITO)[number];
 export const CORRISPETTIVI_CANALE = ['all', 'shopify', 'vestiflow'] as const;
 export type CorrispettiviCanale = (typeof CORRISPETTIVI_CANALE)[number];
 
-/**
- * **Ambito = come è arrivata la vendita: da un canale online, oppure no.**
- *
- * È la lettura che rende l'asse **totale**, e serve: senza, «Tutti» non
- * sarebbe «Online + Fisico/POS» e una riga sparirebbe da entrambi i filtri
- * restando nel totale — il tipo di incoerenza che un registro non può avere.
- *
- * ⚠️ `manual` è il caso che obbliga a scegliere, e la specifica non lo nomina:
- * è un Ordine cliente digitato a mano, quindi **non online**. Sta con le
- * vendite fisiche perché l'asse separa online da non-online, non «al banco» da
- * «non al banco». Se un giorno servisse distinguerlo, è **questa riga** da
- * cambiare, non la struttura.
- */
-const AMBITO_BY_SOURCE: Readonly<Record<PrismaSource, Exclude<CorrispettiviAmbito, 'all'>>> = {
-  [PrismaSource.shopify_online]: 'online',
-  [PrismaSource.shopify_pos]: 'fisico_pos',
-  [PrismaSource.store]: 'fisico_pos',
-  [PrismaSource.manual]: 'fisico_pos',
-};
-
-/** **Canale = chi ha raccolto la vendita.** Anche qui: un fatto, non uno stato. */
-const CANALE_BY_SOURCE: Readonly<Record<PrismaSource, Exclude<CorrispettiviCanale, 'all'>>> = {
-  [PrismaSource.shopify_online]: 'shopify',
-  [PrismaSource.shopify_pos]: 'shopify',
-  [PrismaSource.store]: 'vestiflow',
-  [PrismaSource.manual]: 'vestiflow',
-};
-
-export function ambitoOfSource(source: PrismaSource): Exclude<CorrispettiviAmbito, 'all'> {
-  return AMBITO_BY_SOURCE[source];
+/** Come una riga ammessa si classifica nelle due dimensioni del Registro. */
+export interface CorrispettivoClassification {
+  readonly ambito: Exclude<CorrispettiviAmbito, 'all'>;
+  readonly canale: Exclude<CorrispettiviCanale, 'all'>;
 }
 
-export function canaleOfSource(source: PrismaSource): Exclude<CorrispettiviCanale, 'all'> {
-  return CANALE_BY_SOURCE[source];
+/**
+ * `null` = **questa origine non è una sorgente di corrispettivi**, e la sua
+ * assenza dal Registro è una decisione, non una dimenticanza.
+ *
+ * ⚠️ Il `Record` è **esaustivo di proposito**: un'origine nuova non compila
+ * finché qualcuno non dichiara se entra — e con quale classificazione — oppure
+ * se non è pertinente. È l'unico punto in cui quella scelta si può prendere,
+ * ed è il motivo per cui questo file esiste separato dalle query.
+ */
+const REGISTRO_BY_SOURCE: Readonly<Record<PrismaSource, CorrispettivoClassification | null>> = {
+  [PrismaSource.shopify_online]: { ambito: 'online', canale: 'shopify' },
+  [PrismaSource.shopify_pos]: { ambito: 'fisico_pos', canale: 'shopify' },
+  [PrismaSource.store]: { ambito: 'fisico_pos', canale: 'vestiflow' },
+  // Impegno commerciale, non vendita: vedi il commento in testa al file.
+  [PrismaSource.manual]: null,
+};
+
+/** Le origini che sono corrispettivi. Il resto del Registro parte da qui. */
+export const CORRISPETTIVI_SOURCES: readonly PrismaSource[] = Object.values(PrismaSource).filter(
+  (source) => REGISTRO_BY_SOURCE[source] != null,
+);
+
+export function classificationOfSource(
+  source: PrismaSource,
+): CorrispettivoClassification | null {
+  return REGISTRO_BY_SOURCE[source];
+}
+
+export function isCorrispettivoSource(source: PrismaSource): boolean {
+  return REGISTRO_BY_SOURCE[source] != null;
 }
 
 /**
  * Le origini che sopravvivono a una coppia ambito+canale.
  *
- * Restituisce `undefined` quando entrambi sono «tutti»: chi chiama non deve
- * aggiungere un filtro `source` che non restringe niente — e soprattutto non
- * deve **escludere** origini future non ancora mappate.
+ * **Restituisce sempre un elenco, mai `undefined`.** Anche «tutti + tutti»
+ * filtra: filtra via ciò che non è un corrispettivo. Prima tornava `undefined`
+ * per «non restringere», e con quella forma un Ordine cliente manuale entrava
+ * nel Registro — **misurato: due ordini per 229,36 €**.
  *
- * Un insieme **vuoto** è invece un risultato legittimo (es. Online + VestiFlow,
- * che oggi non esiste): la lista deve restare vuota, non mostrare tutto.
+ * Un insieme **vuoto** resta un risultato legittimo (es. Online + VestiFlow,
+ * che oggi non esiste): la lista resta vuota, non mostra tutto.
  */
 export function sourcesFor(
   ambito: CorrispettiviAmbito | undefined,
   canale: CorrispettiviCanale | undefined,
-): PrismaSource[] | undefined {
+): PrismaSource[] {
   const wantsAmbito = ambito != null && ambito !== 'all';
   const wantsCanale = canale != null && canale !== 'all';
-  if (!wantsAmbito && !wantsCanale) {
-    return undefined;
-  }
-  return Object.values(PrismaSource).filter(
-    (source) =>
-      (!wantsAmbito || ambitoOfSource(source) === ambito) &&
-      (!wantsCanale || canaleOfSource(source) === canale),
-  );
+  return CORRISPETTIVI_SOURCES.filter((source) => {
+    const classification = REGISTRO_BY_SOURCE[source];
+    if (!classification) {
+      return false;
+    }
+    return (
+      (!wantsAmbito || classification.ambito === ambito) &&
+      (!wantsCanale || classification.canale === canale)
+    );
+  });
 }
 
 export function toAmbito(value?: string): CorrispettiviAmbito | undefined {

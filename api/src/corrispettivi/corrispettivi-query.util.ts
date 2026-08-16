@@ -76,20 +76,25 @@ export function buildCorrispettiviWhere(
   const prismaSource = toPrismaSource(query.source);
   const fulfilledAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
 
-  // Ambito e canale restringono insieme, e la loro intersezione può essere
-  // VUOTA (es. Online + VestiFlow, che oggi non esiste): in quel caso la lista
-  // resta vuota — `{ in: [] }` — invece di mostrare tutto, che è la risposta
-  // sbagliata alla domanda giusta.
+  // Il filtro per origine c’è SEMPRE, e non è una restrizione dei filtri: è la
+  // prima domanda del Registro — *questo evento è un corrispettivo?* Un Ordine
+  // cliente manuale non lo è (impegno commerciale, non vendita), e senza questa
+  // riga entrava: misurati due ordini per 229,36 €.
+  //
+  // Ambito e canale restringono poi fra le origini ammesse, e la loro
+  // intersezione può essere VUOTA (es. Online + VestiFlow): la lista resta
+  // vuota — `{ in: [] }` — invece di mostrare tutto.
   const classified = sourcesFor(query.ambito, query.canale);
-  const sourceFilter: PrismaSource | Prisma.EnumSalesOrderSourceFilter | undefined =
-    classified ? { in: classified } : prismaSource;
+  const sourceFilter: Prisma.EnumSalesOrderSourceFilter = {
+    in: prismaSource ? classified.filter((source) => source === prismaSource) : classified,
+  };
 
   const where: Prisma.SalesOrderWhereInput = {
     tenantId,
     // La vendita esiste per il registro solo quando la merce è partita.
     fulfilledAt: fulfilledAt ? { ...fulfilledAt, not: null } : { not: null },
     ...(financialFilter ? { financialStatus: { in: financialFilter } } : {}),
-    ...(sourceFilter ? { source: sourceFilter } : {}),
+    source: sourceFilter,
     ...(query.refundsOnly
       ? {
           financialStatus: {
@@ -135,9 +140,12 @@ export function buildCorrispettiviRefundWhere(
   const occurredAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
   const prismaSource = toPrismaSource(query.source);
 
+  // Stessa prima domanda delle vendite: una rettifica su un ordine che non è un
+  // corrispettivo non è un corrispettivo negativo.
   const classified = sourcesFor(query.ambito, query.canale);
-  const sourceFilter: PrismaSource | Prisma.EnumSalesOrderSourceFilter | undefined =
-    classified ? { in: classified } : prismaSource;
+  const sourceFilter: Prisma.EnumSalesOrderSourceFilter = {
+    in: prismaSource ? classified.filter((source) => source === prismaSource) : classified,
+  };
 
   // «Resi» e «Rimborsi» sono due voci diverse perché sono due gesti diversi:
   // nel primo la merce è tornata, nel secondo solo il denaro. Gli annullamenti
@@ -153,7 +161,7 @@ export function buildCorrispettiviRefundWhere(
     tenantId,
     kind,
     ...(occurredAt ? { occurredAt } : {}),
-    ...(sourceFilter ? { order: { source: sourceFilter } } : {}),
+    order: { source: sourceFilter },
   };
 }
 
@@ -176,8 +184,7 @@ export function buildCorrispettiviStoreSaleWhere(
   tenantId: string,
   query: CorrispettiviListFilters,
 ): Prisma.DocumentWhereInput | null {
-  const sources = sourcesFor(query.ambito, query.canale);
-  if (sources && !sources.includes(PrismaSource.store)) {
+  if (!sourcesFor(query.ambito, query.canale).includes(PrismaSource.store)) {
     return null;
   }
   // Il filtro per origine dell'elenco ordini vale anche qui: chiedere

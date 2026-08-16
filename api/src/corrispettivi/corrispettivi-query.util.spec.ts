@@ -31,8 +31,15 @@ describe('buildCorrispettiviWhere', () => {
     expect(source.in).toContain(PrismaSource.shopify_pos);
   });
 
-  it('senza filtro di ambito il Registro non esclude nessuna origine', () => {
-    expect(buildCorrispettiviWhere(tenantId, {}).source).toBeUndefined();
+  // ⚠️ Il filtro origine c’è SEMPRE, ed è la PRIMA domanda del Registro:
+  // «questo evento è un corrispettivo?». Un Ordine cliente manuale non lo è —
+  // impegno commerciale, non vendita — e senza questa riga entrava: misurati
+  // due ordini per 229,36 €.
+  it('senza filtri il Registro scarta comunque le origini che non sono corrispettivi', () => {
+    const source = buildCorrispettiviWhere(tenantId, {}).source as { in: string[] };
+    expect(source.in).not.toContain(PrismaSource.manual);
+    expect(source.in).toContain(PrismaSource.shopify_online);
+    expect(source.in).toContain(PrismaSource.store);
   });
 
   // ── La Vendita al banco: terza sorgente del Registro (`11` §5) ─────────
@@ -130,7 +137,12 @@ describe('buildCorrispettiviRefundWhere', () => {
     });
     expect(buildCorrispettiviRefundWhere(tenantId, { ambito: 'fisico_pos', canale: 'shopify' }).order)
       .toEqual({ source: { in: [PrismaSource.shopify_pos] } });
-    expect(buildCorrispettiviRefundWhere(tenantId, {}).order).toBeUndefined();
+    // Anche qui il filtro resta: una rettifica su un ordine che non è un
+    // corrispettivo non è un corrispettivo negativo.
+    const senzaFiltri = buildCorrispettiviRefundWhere(tenantId, {}).order as {
+      source: { in: string[] };
+    };
+    expect(senzaFiltri.source.in).not.toContain(PrismaSource.manual);
   });
 
   it('ignora i filtri che descrivono un ordine e non una rettifica', () => {
@@ -139,6 +151,10 @@ describe('buildCorrispettiviRefundWhere', () => {
       search: 'Rossi',
     });
 
-    expect(where).toEqual({ tenantId, kind: { not: PrismaRefundKind.cancellation } });
+    expect(where.tenantId).toBe(tenantId);
+    expect(where.kind).toEqual({ not: PrismaRefundKind.cancellation });
+    // Lo stato di pagamento e la ricerca descrivono un ORDINE: qui non entrano.
+    expect(where).not.toHaveProperty('financialStatus');
+    expect(where).not.toHaveProperty('OR');
   });
 });

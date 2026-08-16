@@ -418,44 +418,68 @@ riga:
 
 ---
 
-## 21. Ambito e Canale — ✅ implementati come dimensioni derivate
+## 21. Chi entra nel Registro, e poi Ambito e Canale — ✅ implementati
 
-Sono **due assi, non uno**. Fino al 16/08 ce n’era uno solo, `channel`, che li mescolava e non
-sapeva rispondere a «tutto Shopify, online e POS insieme» — quella domanda tiene fermo il
-canale e **libero** l’ambito.
+**Sono due domande, in quest’ordine.** Prima _questo evento è un corrispettivo?_, e solo per
+le righe ammesse _che ambito e che canale?_
 
-| Origine (`source`) | Ambito     | Canale    |
-| ------------------ | ---------- | --------- |
-| `shopify_online`   | Online     | Shopify   |
-| `shopify_pos`      | Fisico/POS | Shopify   |
-| `store`            | Fisico/POS | VestiFlow |
-| `manual`           | Fisico/POS | VestiFlow |
+| Origine (`source`) | Corrispettivo? | Ambito     | Canale    |
+| ------------------ | -------------- | ---------- | --------- |
+| `shopify_online`   | ✅             | Online     | Shopify   |
+| `shopify_pos`      | ✅             | Fisico/POS | Shopify   |
+| `store`            | ✅             | Fisico/POS | VestiFlow |
+| `manual`           | ⛔ **no**      | —          | —         |
 
-**Nessuna colonna persistente:** entrambe si derivano dall’**origine**, che è un fatto scritto
-alla creazione. Due colonne in più sarebbero due dati da tenere allineati a uno che c’è già.
+### ⚠️ `manual` non entra, e invertire le due domande produce un errore concettuale
 
-⚠️ **`manual` è il caso che ha obbligato a scegliere, e la specifica non lo nominava.** È un
-Ordine cliente digitato a mano, quindi **non online**. Sta con le vendite fisiche perché
-**l’asse separa online da non-online**, non «al banco» da «non al banco» — ed è la lettura che
-rende l’asse **totale**: senza, «Tutti» non sarebbe «Online + Fisico/POS» e una riga sparirebbe
-da entrambi i filtri restando nel totale.
+**Corretto il 16/08, poche ore dopo averlo sbagliato io.** Avevo classificato `manual` come
+Fisico/POS ragionando _«non è online, quindi è fisico»_. È falso, e il progetto ha sempre
+separato le due cose:
 
-Se un giorno servisse distinguerlo, è **una riga** di `corrispettivi-classification.util.ts` da
-cambiare, non la struttura.
+> **Fisico/POS non significa «tutto ciò che non è online»: significa una vendita fisica
+> effettiva.**
+
+Un **Ordine cliente manuale** è un **impegno commerciale**. Si prende al telefono, in ufficio,
+per email; non è una Vendita al banco, non è una vendita online, non modifica di per sé la
+giacenza, e **non dice niente su come avverrà la vendita** — si concluderà con un DDT, una
+fattura, o con niente.
+
+`source = manual` dice **come è nato l’ordine**, non l’ambito della vendita finale.
+
+L’effetto economico arriva dal **documento che lo conclude**, secondo le relazioni documentali
+previste. Non si inventa qui.
+
+**Misurato prima della correzione: due Ordini cliente manuali evasi entravano nel Registro,
+per 229,36 €.** Ora non entrano.
+
+### La matematica del filtro torna sull’insieme giusto
+
+`Tutti = Online + Fisico/POS` deve essere vero **sul dataset dei Corrispettivi**, non su tutti
+i valori possibili di `SalesOrderSource`. È ciò che permette a `manual` di restare fuori senza
+rompere l’asse — e ha un test suo.
+
+### La guardia di esaustività resta, e ora chiede di più
+
+`Record<SalesOrderSource, Classificazione | null>` **esaustivo**: un’origine nuova non compila
+finché qualcuno non dichiara **se entra nel Registro** e con quale classificazione, **oppure**
+che non è una sorgente di corrispettivi. `null` è una decisione, non una dimenticanza.
+
+### Nessuna colonna persistente
+
+Ammissione e classificazione si derivano dall’**origine**, che è un fatto scritto alla
+creazione. Due colonne in più sarebbero due dati da tenere allineati a uno che c’è già.
 
 ### L’intersezione vuota è un risultato, non un errore
 
-`Online + VestiFlow` oggi non esiste. La lista resta **vuota** — `{ in: [] }` — invece di
-mostrare tutto: mostrare tutto sarebbe la risposta sbagliata alla domanda giusta. Ha un test
-suo, perché è il tipo di caso che si sbaglia scrivendo `if (!sources) return {}`.
+`Online + VestiFlow` oggi non esiste: la lista resta **vuota**, non mostra tutto. Ha un test
+suo, perché è il caso che si sbaglia scrivendo `if (!sources) return {}` — ed è esattamente la
+forma che faceva entrare gli ordini manuali.
 
 ### Etichette corrette per strada
 
 «Negozio» indicava lo **Shopify POS** e «Cassa» la Vendita al banco: due nomi che si
 scambiavano il posto. Ora ogni origine nomina la sorgente vera — **Shopify online**,
 **Shopify POS**, **Vendita al banco**, **Manuale**.
-
----
 
 ## 22. Cosa resta fuori, misurato
 
