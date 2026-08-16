@@ -1285,7 +1285,7 @@ Il difetto n°3 non era nella premessa quando la migration è stata autorizzata.
 > supportano una propria modalità la persistono e prevalgono sul default. La preferenza di
 > visualizzazione NON modifica la semantica economica, gli snapshot fiscali né lo storico.**
 
-**Impostazioni → Prezzi → Visualizzazione prezzi predefinita: ○ Netto ● Ivato.** È del
+**Impostazioni → Prezzi → Visualizzazione predefinita: ○ Netto ● Ivato.** Governa **prezzi e costi**, ed è del
 **tenant**, non dell’operatore — se fosse personale si tornerebbe al difetto appena scoperto:
 due operatori che vedono lo stesso dato in modo diverso senza sapere quale sia la
 rappresentazione aziendale.
@@ -1341,6 +1341,41 @@ preso dalla preferenza utente. Il default aziendale è quindi **scavalcato in pr
 `registryDocumentType = Quote` — perché non vive in `documents` e non ha un tipo suo in questa
 catena. Non esiste **nessuna** preferenza salvata per `quote`: quindi l’Ordine cliente nasce
 sempre **ivato**, per primo utilizzo, ed è la condizione in cui il difetto n°3 morde.
+
+#### Vale anche per i COSTI — deciso il 16/08
+
+> **La preferenza aziendale è il default generale della rappresentazione economica: prezzi di
+> vendita **e** costi di acquisto, con la stessa gerarchia.**
+
+Non serve un secondo interruttore: il ponte fra i due mondi **esiste già** e si chiama
+`pricesIncludeVatToCostEntryMode` / `costEntryModeToPricesIncludeVat`. Una preferenza sola,
+due letture.
+
+**La catena del costo, misurata — ed è messa peggio di quella del prezzo:**
+
+```text
+Arrivo merce      dto.purchaseCostEntryMode  ??  'vat_excluded'   ← scritto a mano
+Ordine fornitore  dto.costEntryMode          ??  'vat_excluded'   ← scritto a mano
+```
+
+⛔ Sul prezzo il default aziendale c’è e viene **scavalcato**; sul costo **non viene
+consultato affatto**: il ripiego è una costante nel codice, uguale per ogni tenant. Un’azienda
+che lavora a costi ivati non ha nessun posto dove dirlo — lo deve scegliere su ogni documento.
+
+**La preferenza utente invece il costo ce l’ha già**, e passa proprio dal ponte: alla creazione
+`remember(..., costEntryModeToPricesIncludeVat(dto.purchaseCostEntryMode))`. Quindi utente e
+documento sono coperti; manca **solo** il livello aziendale.
+
+⚠️ **Restano tre cose distinte, e non vanno fuse:**
+
+| Cosa                                | Dice                                            |
+| ----------------------------------- | ----------------------------------------------- |
+| **netto/ivato**                     | _come esprimo_ prezzo e costo                   |
+| **«Aggiorna prezzi articolo»**      | _dove propago_ la modifica del prezzo (fetta 2) |
+| **«Aggiorna costo di riferimento»** | _dove propago_ la modifica del costo            |
+
+Le ultime due sono spunte **di documento** e restano dove sono: governano la propagazione, non
+la rappresentazione.
 
 #### Che fine fa la preferenza utente
 
