@@ -1204,10 +1204,10 @@ _Misurato il 16/08/2026, chiarendo con Luigi la semantica. Nessuna modifica._
 
 Le maschere documento hanno **due colonne di prezzo diverse**, e non è la stessa cosa scritta in due modi:
 
-| Colonna                               | Cos'è                                                   | Dove                                    | Editabile               |
-| ------------------------------------- | ------------------------------------------------------- | --------------------------------------- | ----------------------- |
-| `unitPrice` — «Prezzo»                | il **prezzo del documento**, quello che il cliente paga | Ordine cliente · DDT · maschera vendita | **sì**                  |
-| `sellingPrice` — «Prezzo al pubblico» | il prezzo **di catalogo** dell'articolo                 | Ordine fornitore · Arrivo merce         | **dipende, vedi sotto** |
+| Colonna                              | Cos'è                                                   | Dove                                    | Editabile               |
+| ------------------------------------ | ------------------------------------------------------- | --------------------------------------- | ----------------------- |
+| `unitPrice` — «Prezzo»               | il **prezzo del documento**, quello che il cliente paga | Ordine cliente · DDT · maschera vendita | **sì**                  |
+| `sellingPrice` — «Prezzo di vendita» | il prezzo **di catalogo** dell'articolo                 | Ordine fornitore · Arrivo merce         | **dipende, vedi sotto** |
 
 ### La stessa colonna, due mestieri diversi
 
@@ -1254,7 +1254,7 @@ Quindi un prezzo negoziato — arrivato da un preventivo incluso, o digitato a m
 
 Comunque si decida, **la differenza fra le due maschere resta da sanare**: la stessa azione dà due risultati diversi a seconda di dove la fai.
 
-### Registrato e non fatto: il netto/ivato su «Prezzo al pubblico»
+### Registrato e non fatto: il netto/ivato su «Prezzo di vendita»
 
 Richiesta di Luigi (16/08): quella colonna non dice se è netta o ivata, e chi lavora all'ingrosso ha bisogno di leggerla nell'uno o nell'altro modo. Il componente esiste già (`app-price-mode-menu`, `07-…§25`).
 

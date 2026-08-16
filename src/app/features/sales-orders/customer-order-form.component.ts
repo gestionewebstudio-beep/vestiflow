@@ -1689,7 +1689,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
   //
   // Non e' un dato del documento ma un modo di riempirlo: sceglierlo riscrive i
   // prezzi delle righe, che restano modificabili una per una. Per questo non si
-  // memorizza e alla riapertura torna su «Prezzo articolo»: quello che conta
+  // memorizza e alla riapertura torna su «Prezzo di vendita»: quello che conta
   // sono i prezzi che l'operatore ha lasciato nel documento.
   protected readonly listinoChoice = signal<DocumentListinoChoice>('article');
   protected readonly listinoOptions = computed(() => listinoSelectOptions(this.tenantSettings()));
@@ -2531,7 +2531,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     }
     // Il prezzo d'anagrafica è netto: in modalità ivata si mostra con l'IVA.
     // Segue il listino scelto in testata (§B4): una riga aggiunta dopo aver
-    // scelto un listino deve nascere con quel prezzo, non col prezzo articolo.
+    // scelto un listino deve nascere con quel prezzo, non col prezzo di vendita.
     const listinoPrice = listinoUnitPrice(summary, this.listinoChoice());
     const listinoMinor = listinoPrice?.amountMinor ?? 0;
     if (replacedArticle) {

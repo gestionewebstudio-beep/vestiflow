@@ -795,7 +795,7 @@ dei calcoli dentro la Fattura sarebbe il difetto, non la funzione.
 
 ---
 
-## 6 · Il prezzo al pubblico nell'Arrivo merce — ✅ **CHIUSA nella fetta 2 (16/08)**
+## 6 · Il prezzo di vendita nell'Arrivo merce — ✅ **CHIUSA nella fetta 2 (16/08)**
 
 ⚠️ **Censita il 16/08: non «si perde per strada», NON PARTE.** Per un articolo esistente il
 valore non è nel DTO di riga, non c'è una colonna sulla riga documento, e nessun codice lo
@@ -807,7 +807,7 @@ fetta 2**.
 
 ### Il testo originale, per storia
 
-**Misurato:** per un articolo **già esistente**, il prezzo al pubblico scritto in riga **non
+**Misurato:** per un articolo **già esistente**, il prezzo di vendita scritto in riga **non
 va da nessuna parte**. Non aggiorna l'anagrafica e non viene salvato sul documento.
 
 Tre punti chiudono la catena:
@@ -834,7 +834,7 @@ deciso come si comporta quando i due divergono.
 
 ---
 
-## 7 · Il netto/ivato sul «Prezzo al pubblico» — ⏸️ **assorbita nella fetta 3**
+## 7 · Il netto/ivato sul «Prezzo di vendita» — ⏸️ **assorbita nella fetta 3**
 
 Resta valida la distinzione registrata: sull'Ordine fornitore sarebbe un **cambio di vista**
 su un valore in sola lettura, sull'Arrivo merce un **modo di inserimento** — e lì, dal 16/08,
@@ -845,7 +845,7 @@ la colonna si scrive solo con la spunta «Aggiorna prezzi articolo» (fetta 2).
 Il componente esiste (`app-price-mode-menu`, `07` §25) e la regola generale è fissata: **Costo
 sugli acquisti, Prezzo sulle vendite**.
 
-Resta fuori `sellingPrice`, la colonna «Prezzo al pubblico», che non dice se è netta o ivata —
+Resta fuori `sellingPrice`, la colonna «Prezzo di vendita», che non dice se è netta o ivata —
 e chi lavora all'ingrosso ha bisogno di leggerla nell'uno o nell'altro modo.
 
 ⚠️ **Significa due cose diverse nelle due maschere**, e va deciso prima:
@@ -955,7 +955,7 @@ a mano · precisione e formato · regressioni.
 | #   | Concetto                           | Stato                                   |
 | --- | ---------------------------------- | --------------------------------------- |
 | 1   | **Unità di misura**                | ✅ **fatta il 16/08**                   |
-| 2   | **Prezzo al pubblico**             | ✅ **fatta il 16/08**                   |
+| 2   | **Prezzo di vendita**              | ✅ **fatta il 16/08**                   |
 | 3   | Prezzo e netto/ivato               | ⏸️ **censita, decisione aperta**        |
 | 4   | Sconti                             | ⚪                                      |
 | 5   | Nome e descrizione                 | ⚪ ⚠️ attenzione alla sincronia Shopify |
@@ -963,7 +963,7 @@ a mano · precisione e formato · regressioni.
 | 7   | Quantità e precisione              | ⚪                                      |
 | 8   | Provenienza e identità strutturata | ⚪ (assorbe la voce 2)                  |
 
-**Voci assorbite:** la **5** (cinque colonne della riga Fattura) e la **6** (prezzo al pubblico
+**Voci assorbite:** la **5** (cinque colonne della riga Fattura) e la **6** (prezzo di vendita
 nell’Arrivo merce) non sono più blocchi a sé: sono i difetti che le prime due fette hanno
 trovato. Le voci **7**, **10** e **2** entrano nelle fette 3 e 8.
 
@@ -1043,7 +1043,7 @@ ripiego che ha nascosto il difetto.
 
 ---
 
-### ✅ Fetta 2 · Prezzo al pubblico — decisa e chiusa il 16/08
+### ✅ Fetta 2 · Prezzo di vendita — decisa e chiusa il 16/08
 
 #### Significato, misurato
 
@@ -1856,7 +1856,7 @@ codice articolo no**.
    funzionali si discutono **prima** dell'implementazione: cardinalità NC→Fatture, riferimenti
    manuali, e il fatto che `sourceDocumentId` sia una colonna mai scritta.
 4. **11 · Contratto funzionale della riga** — 🟡 **in corso**, a fette **per concetto**.
-   Fetta 1 (unità di misura) chiusa il 16/08; la 2 (prezzo al pubblico) è la prossima.
+   Fetta 1 (unità di misura) chiusa il 16/08; la 2 (prezzo di vendita) è la prossima.
    Assorbe le voci 5, 6, 7, 10 e 2: non sono più blocchi a sé.
 5. **12 · Gestione lotti** — ⏸️ **sottosistema autonomo**, fuori dal censimento delle righe:
    va progettato e costruito per intero (disponibilità, selezione, persistenza, movimenti,

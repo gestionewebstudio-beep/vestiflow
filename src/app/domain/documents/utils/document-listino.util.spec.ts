@@ -41,21 +41,21 @@ const VARIANT = {
 } satisfies Pick<VariantSummary, 'sellingPrice' | 'listinoPrices'>;
 
 describe('listinoSelectOptions', () => {
-  it('offre il prezzo articolo e i soli listini attivi, col nome del tenant', () => {
+  it('offre il prezzo di vendita e i soli listini attivi, col nome del tenant', () => {
     expect(listinoSelectOptions(SETTINGS)).toEqual([
-      { value: 'article', label: 'Prezzo articolo' },
+      { value: 'article', label: 'Prezzo di vendita' },
       { value: '1', label: 'Ingrosso' },
       { value: '3', label: 'Outlet' },
     ]);
   });
 
-  it('senza impostazioni resta il solo prezzo articolo', () => {
-    expect(listinoSelectOptions(null)).toEqual([{ value: 'article', label: 'Prezzo articolo' }]);
+  it('senza impostazioni resta il solo prezzo di vendita', () => {
+    expect(listinoSelectOptions(null)).toEqual([{ value: 'article', label: 'Prezzo di vendita' }]);
   });
 });
 
 describe('parseListinoChoice', () => {
-  it('legge le tre posizioni, tutto il resto è il prezzo articolo', () => {
+  it('legge le tre posizioni, tutto il resto è il prezzo di vendita', () => {
     expect(parseListinoChoice('1')).toBe(1);
     expect(parseListinoChoice('3')).toBe(3);
     expect(parseListinoChoice('article')).toBe('article');
@@ -65,18 +65,18 @@ describe('parseListinoChoice', () => {
 });
 
 describe('listinoUnitPrice', () => {
-  it('il prezzo articolo è il comportamento di sempre', () => {
+  it('il prezzo di vendita è il comportamento di sempre', () => {
     expect(listinoUnitPrice(VARIANT, 'article')).toEqual({
       amountMinor: 2990,
       currencyCode: 'EUR',
     });
   });
 
-  it('un listino valorizzato vince sul prezzo articolo', () => {
+  it('un listino valorizzato vince sul prezzo di vendita', () => {
     expect(listinoUnitPrice(VARIANT, 1)).toEqual({ amountMinor: 1990, currencyCode: 'EUR' });
   });
 
-  // La regola che conta: senza valore NON si ripiega sul prezzo articolo. Chi
+  // La regola che conta: senza valore NON si ripiega sul prezzo di vendita. Chi
   // chiama mette la riga a zero e lo segnala, perché un documento non deve
   // uscire a un prezzo che nessuno ha deciso.
   it('un listino non valorizzato non ripiega: nessun prezzo', () => {

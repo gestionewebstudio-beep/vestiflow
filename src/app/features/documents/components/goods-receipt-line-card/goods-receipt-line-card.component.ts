@@ -39,7 +39,7 @@ export interface GoodsReceiptLineCardGroup {
  *
  * La forma è di `app-document-line-card`; qui resta ciò che un documento
  * d'acquisto ha da dire: il costo nella modalità netto/ivato della testata, il
- * prezzo al pubblico e quello barrato, e il flag «carica magazzino», che decide
+ * prezzo di vendita e quello barrato, e il flag «carica magazzino», che decide
  * se questa riga muove giacenza.
  *
  * **Due cose sono cambiate adottando la forma**, e sono allineamenti non

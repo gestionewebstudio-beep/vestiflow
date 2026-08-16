@@ -691,7 +691,7 @@ describe('SalesDocumentFormComponent', () => {
       // Se un giorno queste diventassero «Netto»/«Ivato», qualcuno avrà fuso i
       // due controlli: sono le due cose che questa guardia tiene separate.
       expect(component.listinoOptions().map((o) => o.label)).toEqual([
-        'Prezzo articolo',
+        'Prezzo di vendita',
         'Ingrosso',
         'Outlet',
       ]);

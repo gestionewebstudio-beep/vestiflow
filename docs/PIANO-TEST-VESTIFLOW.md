@@ -1046,7 +1046,7 @@ Se il pulsante manca e la schermata **non lascia capire quale dei due casi sia**
 
 1. **Prodotti → Aggiungi prodotto** (`/app/products/new`).
 2. Verifica che il toggle mostri **Inserimento rapido** attivo (predefinito).
-3. Compila solo **Nome** (es. `TEST-A-Maglietta`) e **Prezzo vendita** (es. 29,90 €).
+3. Compila solo **Nome** (es. `TEST-A-Maglietta`) e **Prezzo di vendita** (es. 29,90 €).
 4. Verifica che lo **SKU** si generi automaticamente dal nome.
 5. Opzionale: clicca **Genera** accanto a **EAN** e verifica che compaia un codice.
 6. Clicca **Crea prodotto**.

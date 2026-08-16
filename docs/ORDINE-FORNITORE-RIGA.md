@@ -203,7 +203,7 @@ ivato → netto → ivato rimette lo stesso costo, e il salvataggio manda il val
 
 ## Fuori ambito
 
-- L'**Arrivo merce** ha ancora Prezzo al pubblico e Prezzo barrato accanto al Costo, con
+- L'**Arrivo merce** ha ancora Prezzo di vendita e Prezzo barrato accanto al Costo, con
   il selettore netto/ivato solo sul costo: la stessa trappola tolta di qui.
 - Il **DDT vendita** e l'**Ordine cliente**, che perdono il centesimo sui prezzi digitati
   a mano per lo stesso motivo.

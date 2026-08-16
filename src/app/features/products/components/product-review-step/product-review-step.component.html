@@ -105,7 +105,7 @@
             @for (name of optionNames(); track name) {
               <th scope="col">{{ name }}</th>
             }
-            <th scope="col" class="review-step-table__cell--numeric">Prezzo vendita</th>
+            <th scope="col" class="review-step-table__cell--numeric">Prezzo di vendita</th>
             <th scope="col" class="review-step-table__cell--numeric">Prezzo acquisto</th>
             <th scope="col">Barcode</th>
           </tr>
@@ -117,7 +117,10 @@
               @for (name of optionNames(); track name) {
                 <td [attr.data-label]="name">{{ optionValue(variant, name) || '—' }}</td>
               }
-              <td class="review-step-table__cell--numeric tabular-nums" data-label="Prezzo vendita">
+              <td
+                class="review-step-table__cell--numeric tabular-nums"
+                data-label="Prezzo di vendita"
+              >
                 {{ formatPrice(variant.sellingPrice) }}
               </td>
               <td

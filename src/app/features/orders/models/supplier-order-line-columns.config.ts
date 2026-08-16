@@ -15,7 +15,7 @@ export const SUPPLIER_ORDER_LINES_VIEW = TableViewId.SupplierOrderLines;
 //
 // - NIENTE «Impegna magazzino»: l'ordine fornitore non incide su giacenze né
 //   disponibilità, quindi la colonna non avrebbe un valore da mostrare;
-// - «Prezzo al pubblico» e «Prezzo barrato» ci sono, ma SPENTE di default
+// - «Prezzo di vendita» e «Prezzo barrato» ci sono, ma SPENTE di default
 //   (deciso 11/08/2026, allineando al documento funzionale §9.1 che le vuole
 //   «attivabili dal selettore colonne»).
 //
@@ -63,7 +63,7 @@ export const SUPPLIER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
   // Prezzi di vendita: attivabili, mai accesi da soli (vedi la nota in testa).
   {
     id: 'sellingPrice',
-    label: 'Prezzo al pubblico',
+    label: 'Prezzo di vendita',
     numeric: true,
     defaultVisible: false,
     defaultWidthPx: 104,
@@ -137,7 +137,7 @@ export const SUPPLIER_ORDER_LINE_PRESETS: TableViewPresetMap = {
 /**
  * Alias colonna legacy salvata nelle preferenze utente.
  *
- * Serve solo per le colonne RINOMINATE: quelle rimosse («Prezzo al pubblico»,
+ * Serve solo per le colonne RINOMINATE: quelle rimosse («Prezzo di vendita»,
  * «Prezzo barrato») non hanno bisogno di niente, perché `reconcileStateWithDefs`
  * scarta dalle preferenze salvate ogni id che non compare più fra le
  * definizioni registrate.

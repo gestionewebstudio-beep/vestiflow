@@ -312,7 +312,9 @@
 
           <div class="general-step__pricing-fields">
             <div class="general-step__field">
-              <label class="general-step__label" for="product-selling-price">Prezzo articolo</label>
+              <label class="general-step__label" for="product-selling-price"
+                >Prezzo di vendita</label
+              >
               <input
                 id="product-selling-price"
                 class="general-step__control"
@@ -335,14 +337,14 @@
 
             @if (shopifyActive()) {
               <!-- Prezzo Shopify (§B): valore proprio, pubblicato online. Precompilato
-                   dal prezzo articolo e lo segue finché non viene toccato; poi
+                   dal prezzo di vendita e lo segue finché non viene toccato; poi
                    indipendente. Zero è legittimo, con avviso non bloccante. -->
               <div class="general-step__field">
                 <label class="general-step__label" for="product-shopify-price">
                   Prezzo Shopify
                   <app-hover-tooltip
                     [inline]="true"
-                    text="Prezzo pubblicato su Shopify per questo articolo. Nasce uguale al prezzo articolo e lo segue finché non lo modifichi; da quel momento è indipendente."
+                    text="Prezzo pubblicato su Shopify per questo articolo. Nasce uguale al prezzo di vendita e lo segue finché non lo modifichi; da quel momento è indipendente."
                   >
                     <i
                       class="pi pi-info-circle general-step__info"

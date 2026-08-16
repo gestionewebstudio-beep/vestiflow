@@ -596,7 +596,7 @@
                           class="doc-form__col--calc doc-form__num"
                           [style.width]="lineColumnWidth('sellingPrice')"
                         >
-                          Prezzo al pubblico
+                          Prezzo di vendita
                           <span
                             appTableColumnResize
                             (resized)="onLineColumnResize('sellingPrice', $event)"
@@ -961,7 +961,7 @@
                         @if (isLineColumnVisible('sellingPrice')) {
                           <td
                             class="doc-form__col--calc doc-form__cell doc-form__cell--readonly doc-form__cell--computed doc-form__num tabular-nums"
-                            data-label="Prezzo al pubblico"
+                            data-label="Prezzo di vendita"
                           >
                             {{ lineCatalogPrice(i, 'sellingPrice') }}
                           </td>

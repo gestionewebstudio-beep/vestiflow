@@ -83,7 +83,7 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
   },
   {
     id: 'sellingPrice',
-    label: 'Prezzo al pubblico',
+    label: 'Prezzo di vendita',
     numeric: true,
     defaultWidthPx: 96,
     minWidthPx: 72,

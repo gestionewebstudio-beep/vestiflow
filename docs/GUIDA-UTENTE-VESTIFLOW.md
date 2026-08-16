@@ -530,14 +530,14 @@ All’apertura compare la modalità **Inserimento rapido** (consigliata per aggi
 
 Su **un’unica schermata** compili:
 
-| Campo              | Obbligatorio | Note                                              |
-| ------------------ | ------------ | ------------------------------------------------- |
-| **Nome prodotto**  | Sì           |                                                   |
-| **SKU**            | Sì           | Suggerito automaticamente dal nome (modificabile) |
-| **EAN**            | No           | Opzionale; pulsante **Genera** per codice EAN-13  |
-| **Prezzo vendita** | Sì           |                                                   |
-| **Brand**          | No           |                                                   |
-| **Categoria**      | No           | Completabile anche dopo                           |
+| Campo                 | Obbligatorio | Note                                              |
+| --------------------- | ------------ | ------------------------------------------------- |
+| **Nome prodotto**     | Sì           |                                                   |
+| **SKU**               | Sì           | Suggerito automaticamente dal nome (modificabile) |
+| **EAN**               | No           | Opzionale; pulsante **Genera** per codice EAN-13  |
+| **Prezzo di vendita** | Sì           |                                                   |
+| **Brand**             | No           |                                                   |
+| **Categoria**         | No           | Completabile anche dopo                           |
 
 - **Altri dati catalogo** (sezione espandibile): stagione, stato, IVA, unità di misura, tag, descrizione, immagini…
 - Pulsante **Crea prodotto** in fondo — **non** serve completare brand, categoria o opzioni taglia/colore.
@@ -846,7 +846,7 @@ Il **costo** che paghi è un dato del carico: il costo della singola taglia si a
 **sempre**, e la prima spunta decide solo se propagarlo anche al costo di riferimento
 dell'articolo.
 
-Il **prezzo al pubblico** invece **non è un dato del documento**: è il prezzo di listino
+Il **prezzo di vendita** invece **non è un dato del documento**: è il prezzo di listino
 dell'articolo, e il carico è solo il momento comodo per cambiarlo. Perciò:
 
 - **spunta accesa** → il campo si scrive, e quello che scrivi aggiorna il prezzo della taglia
@@ -861,7 +861,7 @@ chiaramente «adesso non si tocca» di uno che accetta un numero e lo butta via.
 o spegnere dal menu **Colonne** (di default è spenta). Segue la stessa spunta: si scrive solo
 a spunta accesa.
 
-⚠️ **Prezzo al pubblico e Prezzo Shopify restano due prezzi distinti**, ed è voluto: quello
+⚠️ **Prezzo di vendita e Prezzo Shopify restano due prezzi distinti**, ed è voluto: quello
 che pubblichi online può essere diverso da quello del tuo listino. Con Shopify collegato,
 cambiare uno **non** cambia l’altro. Senza Shopify collegato la colonna non c’è, e il prezzo
 del canale segue quello di listino solo quando questo cambia davvero.
