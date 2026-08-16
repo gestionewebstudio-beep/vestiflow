@@ -343,26 +343,112 @@ specifica, ed è lo stesso errore di trattare una premessa come una domanda. Le 
 | 3   | **«Carica magazzino»** per riga movimentabile, default **OFF sempre**. Già deciso il 15/08 | `07` §6         |
 | 4   | **Origini**: Fattura e Fattura accompagnatoria sì; Proforma/Preventivo/Ordine/DDT no       | `07` §6 (nuovo) |
 
-### ⏸️ La mappatura degli stati — misurata, in attesa di conferma
+### ✅ Nessun gate di stato — deciso il 16/08
 
-La regola funzionale è: _non si genera una NC da una Fattura ancora correggibile._ Mappata
-sugli stati reali, **«ancora correggibile» non è `draft`**:
+**L'unica condizione è il TIPO del documento d'origine.** La regola «solo da una Fattura
+uscita», che avevo proposto e mappato su `externally_registered`, è **ritirata**: quello stato è
+una struttura **legacy** in uscita (blocco E qui sotto), e legarci una funzione nuova
+significherebbe costruire su una fondazione che si sta smontando.
 
-- `draft` **non esiste** — zero documenti su 105, e il servizio di blocco lo dice per iscritto:
-  «le bozze non esistono come documenti che si riaprono»;
-- `confirmed` per la Fattura si chiama **«Da emettere»** — numero assegnato, **non ancora
-  uscita**, e si riapre bloccata con un banner di sblocco esplicito: correggerla è il gesto
-  previsto;
-- **`externally_registered` = «Inviata al commercialista»** è la soglia: da lì il documento è
-  uscito e la correzione richiede una NC;
-- `printed` e `sent` sono storici, non più raggiungibili.
+Nessuno stato sostitutivo va inventato. La distinzione fra **creare** gestionalmente una Nota e
+**poterla emettere** fiscalmente è materia del blocco Fatturazione elettronica, non di questo.
 
-⚠️ **Conseguenza:** oggi il comando sarebbe disponibile su **zero fatture** — l'unica Fattura
-del database è `confirmed`. Non è un difetto della regola: il ciclo fiscale non è mai stato
-percorso fino in fondo. I test dovranno portare una Fattura fino a «Inviata al commercialista».
+**Fattura → NC può quindi procedere senza vincoli.** Regola in `07` §6.
 
-**Da dove si ricomincia:** dalla conferma di Luigi su questa mappatura. Il resto è deciso, le
-cinque verifiche sono fatte, il codice non è iniziato.
+---
+
+## E · Rimuovere `externally_registered` — 🟡 **censito in lettura il 16/08, nulla rimosso**
+
+Struttura **legacy** della fase iniziale: `externally_registered`, mostrato come «Inviata al
+commercialista». Va rimossa. Qui c'è dov'è, cosa succede togliendola, e la risposta alla
+domanda «si può fare da sola?».
+
+### ⚠️ Prima di tutto: sono DUE enum diversi con lo stesso nome
+
+| Enum                                           | Dove                                                           | Rimuovere?                          |
+| ---------------------------------------------- | -------------------------------------------------------------- | ----------------------------------- |
+| `DocumentStatus.externally_registered`         | stato del **documento**                                        | ✅ è questo                         |
+| `SalesOrderFiscalStatus.externally_registered` | stato fiscale **corrispettivi** (`sales_orders.fiscal_status`) | ⛔ **altro concetto, non si tocca** |
+
+Un `grep` sul valore prende entrambi. Il secondo governa il registro corrispettivi ed è vivo:
+`corrispettivi-fiscal.enum-mapper.ts`, `corrispettivi.model.ts`, il filtro del report. **Quattro
+delle occorrenze trovate sono sue.**
+
+### Dove viene assegnato — un punto solo
+
+`documents.service.ts` → `registerExternal()`, unica scrittura. Esposta da
+`documents.controller.ts` e chiamata dai due dettagli documento (generico e vendita) dietro un
+dialogo di conferma. **Non esiste l'azione inversa**: nessun modo di tornare indietro.
+
+### Dove viene letto
+
+| Punto                                         | Cosa fa                                                                             |
+| --------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `document-labels.util.ts`                     | etichetta «Registrato esternamente» / «Inviata al commercialista», tono `vestiflow` |
+| `document-sales-register.config.ts`           | **due** voci di filtro nel registro (generico e fatture)                            |
+| `goods-receipt-form.component.ts`             | avviso: «le modifiche non aggiornano il gestionale contabile esterno»               |
+| `accountant-register-document-counts.util.ts` | contatore **«Registrate esternamente»** del registro commercialista                 |
+| `documents.service.ts` (edit)                 | ⚠️ **il blocco modifica** — vedi sotto                                              |
+
+**Nella UI il pulsante compare su tre tipi** — Fattura, Fattura accompagnatoria, Proforma — e
+solo se lo stato è `confirmed`, `printed` o `sent`.
+
+### ⛔ La logica funzionale che va decisa: è l'unico stato non modificabile
+
+`CONFIRMED_EDITABLE_STATUSES` = `confirmed · printed · sent`. **`externally_registered` non c'è**,
+e la stessa lista è duplicata nel frontend. Quindi oggi:
+
+> Un documento registrato esternamente **non è più modificabile**, e non esiste modo di tornare
+> indietro. È l'unico blocco definitivo dell'applicazione oltre all'annullamento.
+
+**Togliendo lo stato si toglie anche quel blocco.** Non è un effetto collaterale da assorbire: è
+una decisione che spetta a Luigi. Le strade sono tre — nessun blocco (ogni documento resta
+modificabile previo sblocco), un blocco legato ad altro (il ciclo FE, quando ci sarà), oppure
+uno esplicito e reversibile che oggi non esiste.
+
+### Un difetto già presente, latente
+
+Il registro commercialista ha quattro contatori. **«Inviate al commercialista» conta `sent`** —
+uno stato che nessuna azione produce più — mentre l'azione chiamata «Inviata al commercialista»
+scrive `externally_registered`, che finisce sotto **«Registrate esternamente»**. Premere il
+pulsante fa comparire il documento nella casella sbagliata. È **latente**: i contatori guardano
+solo `invoice_draft`, e nel database non ce n'è nessuno.
+
+### Il dato reale
+
+Due documenti in quello stato, **entrambi `goods_receipt`** — non fatture. Vanno spostati a un
+altro stato prima di poter rimuovere il valore.
+
+### Cosa protegge i test
+
+**Undici occorrenze, tutte in `documents.service.spec.ts`**: registra data e riferimenti,
+rifiuta le bozze, accetta una fattura confermata, e il controllo permessi sulla sede. Nessun
+test di frontend, nessun e2e.
+
+### ⚠️ Il vincolo tecnico: un valore di enum Postgres non si toglie
+
+`ALTER TYPE … DROP VALUE` **non esiste**. Rimuoverlo davvero dal database significa ricreare il
+tipo — pesante su un database condiviso col collega. La via praticabile è in due tempi:
+**prima** si rimuovono codice, UI e azione lasciando il valore nell'enum; **poi**, quando serve
+e in una finestra concordata, si valuta se toglierlo anche dal tipo.
+
+### ✅ Si può fare come blocco autonomo?
+
+**Sì, e in due tagli.**
+
+**Taglio 1 — indipendente da tutto, sicuro.** Togliere l'azione «Inviata al commercialista» e le
+sue tracce: pulsante e dialogo nei due dettagli, endpoint, metodo di servizio, le due voci di
+filtro, l'avviso dell'arrivo merce, il contatore del registro. Non tocca la Fatturazione
+elettronica, non tocca i corrispettivi, non tocca la Nota di credito. **La sola cosa che serve
+prima è la decisione sul blocco modifica.**
+
+**Taglio 2 — il database, quando conviene.** Spostare i due arrivi merce a un altro stato, poi
+eventualmente ricreare il tipo enum. Rimandabile a tempo indefinito senza costo.
+
+**Nessuna dipendenza dal blocco FE.** Il legame è solo nominale — l'etichetta parla del
+commercialista — ma nel codice non c'è una riga di fatturazione elettronica che lo legga.
+
+**Da dove si ricomincia:** dalla decisione sul blocco modifica. Poi il taglio 1, in un commit.
 
 ---
 

@@ -206,22 +206,13 @@ Non esiste un passo di selezione: il totale è il precompilato, il parziale è u
 | **Fattura accompagnatoria**                  | ✅        | stesso ciclo fiscale, stessa famiglia             |
 | Proforma · Preventivo · Ordine cliente · DDT | ⛔        | nessun effetto fiscale: non c'è nulla da stornare |
 
-**Per lo stato, la regola funzionale è:** _non si genera una Nota di credito da una Fattura ancora correggibile. Se si può ancora correggere la Fattura, si corregge quella._ La Nota serve quando il documento è **uscito**, e la correzione deve essere rappresentata da un documento nuovo.
+> **Per lo stato non esiste alcun gate: l'unica condizione è il TIPO del documento d'origine.** _Deciso da Luigi il 16/08._
 
-⚠️ **Mappata sugli stati reali il 16/08, e il risultato non è quello che il nome suggerisce.** Nella famiglia Fattura le etichette del ciclo fiscale **non** coincidono con i nomi tecnici:
+⚠️ **Qui c'era la regola opposta, e ci è stata mezza giornata.** Diceva che la Nota si genera solo da una Fattura «uscita», e mappava quella soglia su `externally_registered`. **Ritirata**: `externally_registered` = «Inviata al commercialista» è una **struttura legacy** della fase iniziale del progetto, destinata a essere rimossa (censimento in `DA-FARE-FAMIGLIA-FATTURA`, blocco E). Costruirci sopra il gate della Nota di credito avrebbe legato una funzione nuova a una struttura in uscita.
 
-| Stato tecnico           | Etichetta Fattura                 | Cosa significa davvero                                               |
-| ----------------------- | --------------------------------- | -------------------------------------------------------------------- |
-| `draft`                 | Bozza                             | **non esiste**: zero documenti su 105, nessuna maschera lo produce   |
-| `confirmed`             | **«Da emettere»**                 | numero assegnato, **non ancora emessa**, modificabile previo sblocco |
-| `printed`               | «Da emettere»                     | storico, non più raggiungibile                                       |
-| `externally_registered` | **«Inviata al commercialista»**   | **il documento è uscito** — è qui che la correzione richiede una NC  |
-| `sent`                  | «Inviata» / «Emessa esternamente» | storico, non più raggiungibile                                       |
-| `cancelled`             | Annullata                         | —                                                                    |
+**Nessuno stato sostitutivo va inventato**, e la generazione gestionale della Nota **non va legata al futuro ciclo della Fatturazione elettronica**. La distinzione fra _creare gestionalmente_ una Nota e _poterla emettere o trasmettere_ fiscalmente è materia del blocco FE (`06b`), non di questo.
 
-**Quindi «ancora correggibile» NON è `draft`: è `confirmed`.** Una Fattura «Da emettere» ha già il numero, ma non è ancora uscita, e si apre bloccata con un banner di sblocco esplicito: correggerla è il gesto previsto. La soglia oltre la quale serve la Nota è **l'invio al commercialista**, cioè `externally_registered`.
-
-⚠️ **Conseguenza da conoscere prima di scrivere il comando:** con questa regola, oggi il comando sarebbe disponibile su **zero fatture** — l'unica Fattura del database è `confirmed`. Non è un difetto della regola: è che il ciclo fiscale non è mai stato percorso fino in fondo. Va tenuto presente per i test, che devono portare una Fattura fino a «Inviata al commercialista» prima di poterla stornare.
+_Resta comunque misurato_, perché serve a chi leggerà: nella famiglia Fattura le etichette **non** coincidono coi nomi tecnici — `confirmed` si mostra come **«Da emettere»**, e `draft` **non esiste** (zero documenti su 105).
 
 ### Il segno: importi positivi, verso dato dal tipo
 
