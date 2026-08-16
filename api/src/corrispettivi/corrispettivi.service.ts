@@ -1,11 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
-  SalesOrderFiscalStatus as PrismaFiscal,
   SalesOrderFulfillmentStatus as PrismaFulfillment,
   SalesOrderRefundKind as PrismaRefundKind,
   type SalesOrder,
   type SalesOrderFinancialStatus,
-  type SalesOrderFiscalStatus,
   type SalesOrderRefundKind,
   type SalesOrderSource,
 } from '@prisma/client';
@@ -79,7 +77,6 @@ export interface CorrispettiviRegisterRow {
   readonly totalMinor: number;
   /** Solo sulle vendite: una rettifica non ha stato di pagamento né fiscale. */
   readonly financialStatus: SalesOrderFinancialStatus | null;
-  readonly fiscalStatus: SalesOrderFiscalStatus | null;
   /** Solo sulle rettifiche: che gesto è stato. */
   readonly refundKind: SalesOrderRefundKind | null;
   readonly note: string | null;
@@ -199,7 +196,6 @@ export class CorrispettiviService {
         taxMinor: order.taxMinor,
         totalMinor: order.totalMinor,
         financialStatus: order.financialStatus,
-        fiscalStatus: order.fiscalStatus,
         refundKind: null,
         note: null,
       })),
@@ -218,7 +214,6 @@ export class CorrispettiviService {
         taxMinor: -refund.taxMinor,
         totalMinor: -refund.totalMinor,
         financialStatus: null,
-        fiscalStatus: null,
         refundKind: refund.kind,
         note: refund.note,
       })),
@@ -241,7 +236,6 @@ export class CorrispettiviService {
         discountMinor: true,
         totalMinor: true,
         financialStatus: true,
-        fiscalStatus: true,
         source: true,
       },
     });

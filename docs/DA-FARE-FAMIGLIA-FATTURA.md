@@ -563,65 +563,84 @@ eseguita: togliendo `followedBySalesDoc: true` dal servizio, il primo fallisce
 
 ---
 
-## I · `sales_orders.fiscal_status` — ⏸️ **fermo su un punto solo, ed è funzionale**
+## I · `sales_orders.fiscal_status` — ✅ **RIMOSSO il 16/08/2026**
 
-Il campo andava chiuso insieme al resto. **Non l'ho rimosso**, e la ragione non è prudenza:
-è che la misura ha smentito la premessa da cui partiva la decisione.
+⚠️ **Questa voce diceva «fermo su un punto funzionale», e il punto è stato deciso.** Avevo
+sospeso la rimozione perché `excluded_pos_register` sembrava un requisito vero mai
+implementato: «le vendite POS non devono entrare nel Registro». **La decisione è l'opposta.**
 
-### Quello che governa: niente
+> **Shopify POS compare nel Registro Corrispettivi, classificato come vendita fisica/POS.**
+> Che la cassa o un RT esterno la certifichi **non è un doppio conteggio**: nel Registro
+> stiamo rappresentando economicamente quella vendita, non creandone una seconda.
 
-Censiti tutti i lettori dopo la rimozione del flusso consegna. `fiscalStatus` compare **solo**
-come valore di filtro e come etichetta nell'export. **Nessun comportamento dipende da lui**:
-non c'è una query del Registro che escluda o includa una vendita in base al suo valore.
+Specifica corrente: **`10-specifica-registro-corrispettivi.md`**.
 
-### Quello che ha smentito la premessa
+### La duplicazione: cercata alla causa radice, non c'è
 
-| Atteso                                                  | Misurato                                                                                                                                         |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| «`excluded_pos_register` lo scrive la sync Shopify POS» | il **codice** lo scriverebbe, ma **non esiste un solo ordine POS**: 24 manuali + 13 online, e **tutti** e 37 `pending_registration`              |
-| «`invoiced` non ha producer»                            | confermato: nessuno, mai                                                                                                                         |
-| «l'esclusione reale vive su `CorrispettivoEntry`»       | ⛔ **non più**: quella tabella **non viene più scritta da nessuno** — il registro è derivato dall'11/08 (`08` §10), e le sue 6 righe sono storia |
+Un ordine Shopify POS importato **non** genera anche una Vendita negozio VestiFlow: le
+vendite negozio nascono **solo** da `POST /store-sales`, un gesto esplicito alla cassa, e la
+sync crea un `SalesOrder` e basta. **Una transazione, una rappresentazione.**
 
-L'ultima riga è quella che conta, ed è un errore che avevo scritto io ieri: dicevo che il
-doppio conteggio di una vendita fatturata è impedito da `CorrispettivoEntry.excludedFromSummary`.
-**Lo era**, quando quella tabella si scriveva. Oggi non si scrive più, quindi quel meccanismo
-vale solo per le sei righe già esistenti.
+### Rimosso
 
-### ⛔ Cosa succederebbe oggi a un ordine POS nel Registro
+Colonna `sales_orders.fiscal_status`, tipo PostgreSQL `SalesOrderFiscalStatus`, il suo indice,
+la scrittura nella sync Shopify, il filtro API e il suo DTO, il mapper degli stati, il tipo e
+le etichette lato frontend, il filtro «Tutti gli stati fiscali», la colonna «Stato fiscale»
+in tabella e nel CSV. **Nessun enum sostitutivo.**
 
-**Ci entrerebbe, e verrebbe contato.** Il Registro seleziona le vendite evase, senza guardare
-né `fiscalStatus` né l'origine; la cassa registra lo stesso incasso per conto suo con il
-proprio scontrino. **Sono due conteggi dello stesso denaro.**
+**Migration** `20260816170000_rimuove_stato_fiscale_ordine`. Misurato prima: 37 vendite, tutte
+`pending_registration` (il default), nessun'altra colonna sul tipo, un indice. Dopo: colonna,
+tipo e indice spariti; 37 ordini e 6.768,53 € di totale **invariati**; `DocumentStatus`
+intatto con i suoi sei valori.
 
-Quindi `excluded_pos_register` **non è un valore morto: è un requisito vero, mai implementato.**
-Rimuoverlo cancellerebbe l'unica traccia scritta di una regola che serve — e che nessuno ha
-ancora fatto rispettare.
+⚠️ Qui il tipo si **droppa davvero**, a differenza dei valori morti lasciati in
+`DocumentStatus` (blocco G): togliere un **valore** da un enum PostgreSQL non si può, togliere
+un **tipo** che non ha più colonne sì.
 
-Non succede nulla **oggi** solo perché di ordini POS non ce n'è nessuno. Il primo che arriva
-gonfia il Registro.
+### UI riallineata
 
-### ⏸️ La decisione che serve, ed è una sola
+«Corrispettivi commercialista» → **«Corrispettivi»** (schermata e stampa); sottotitolo che
+diceva «le vendite POS sono escluse» — l'esatto contrario della decisione — riscritto; filtro
+canale → **ambito**, con le etichette corrette.
 
-**Dove vive la regola «le vendite POS non entrano nel Registro corrispettivi»?**
+⚠️ Le due vecchie **dicevano il falso**: «Shopify» comprendeva le sole vendite online (anche
+il POS è Shopify) e «Negozio» indicava lo **Shopify POS**, non la cassa di VestiFlow.
 
-- **Sulla sorgente** — `source = shopify_pos` è già sul record, è già scritto da sempre, ed è
-  un **fatto** (da dove arriva la vendita), non uno stato che qualcuno deve ricordarsi di
-  aggiornare. Con questa scelta `fiscal_status` sparisce per intero, e la regola diventa una
-  riga nelle condizioni di inclusione del Registro. **È l'opzione che consiglio.**
-- **Su una classificazione dedicata** — se le esclusioni saranno più di una e per motivi
-  diversi (POS, fuori campo, già fatturata…), allora serve un campo, ma andrebbe **sul
-  Registro** e non sulla vendita: è del registro che dice cosa entra.
+### Guardie — e sono incrociate, perché il difetto lo è
 
-⚠️ **Perché mi sono fermato invece di scegliere:** implementare la prima opzione **cambia cosa
-il Registro mostra**, e i criteri economici del Registro sono esplicitamente fuori da questo
-lavoro. Non è un dettaglio tecnico: è una regola fiscale.
+**`scripts/check-registro-legacy.mjs`**, dentro `npm run lint`: attraversa **API, frontend ed
+e2e** in una passata e fallisce se rientra uno dei **14 termini ritirati**. Esiste perché
+**niente di tutto questo si romperebbe tornando** — un `fiscalStatus` riaggiunto a un DTO
+compila, passa i test, non fa arrossare nulla, e ricostruisce un modello che abbiamo deciso di
+non avere. I commenti che _raccontano_ la rimozione sono esentati.
 
-**Cosa resta nel frattempo**, e non è «a metà per pigrizia**: la colonna con i suoi tre valori
-e la scrittura della sync. Nessuno di loro fa nulla — ma sono l'unico posto dove la regola POS
-è scritta, e cancellarla prima di riscriverla altrove è il modo di perderla.
+**`corrispettivi-export.service.spec.ts`**: le intestazioni del file che esce non portano
+«Stato fiscale» né «Data consegna commercialista», e nessuna nomina consegne o registrazioni.
+Guarda le intestazioni e non le righe di proposito: sono il contratto del file verso chi lo
+apre, e la prima cosa che si riaggiunge «perché serve anche questo campo».
 
-**Da dove si ricomincia:** dalla domanda qui sopra. Il censimento è completo, la misura dice
-che nulla si rompe oggi, e la scelta cambia dove vive una regola fiscale.
+**Mutation test su entrambe**, e mordono: rimettendo `Stato fiscale` fra le intestazioni il
+test fallisce; rimettendo `fiscalStatus` in un DTO di filtro la guardia esce con 1 e stampa il
+perché.
+
+### ⏸️ Cosa resta aperto, e non è piccolo
+
+Il Registro **non implementa nessuna esclusione** — non ne ha una da quando la tabella
+`CorrispettivoEntry` ha smesso di essere scritta (11/08). Due cose mancano, ed erano dietro
+la premessa sbagliata che avevo scritto:
+
+1. **la vendita già fatturata** non deve rientrare nei totali dove produrrebbe doppio
+   conteggio — va determinata dalla **relazione reale col documento**, non da un'etichetta;
+2. **le vendite negozio VestiFlow non entrano affatto** nel Registro: sono `Document` di tipo
+   `store_sale`, non `SalesOrder`, e il Registro aggrega solo i secondi. La specifica dice
+   che devono esserci (`10` §2).
+
+Mancano anche i filtri **Canale** e **Fatturazione** del `10` §3.
+
+Tutte e quattro cambiano **cosa il Registro mostra**: sono lavoro proprio, non rifinitura.
+
+**Da dove si ricomincia:** dal punto 2, che è il più visibile — un negozio che vende alla
+cassa di VestiFlow oggi non si vede nel suo quadro economico.
 
 ---
 

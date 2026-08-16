@@ -6,6 +6,24 @@
 
 ---
 
+## ⚠️ Leggere prima: la specifica del Registro è cambiata il 16/08/2026
+
+Esiste ora **`10-specifica-registro-corrispettivi.md`**, ed è la fonte corrente. Tre cose
+che questo file dava per assodate non lo sono più:
+
+1. **Nessun flusso «commercialista».** Consegne, invii e registrazioni sono stati
+   rimossi — codice, UI e persistenza. Periodo → filtri → stampa/export → fine.
+2. **Shopify POS compare nel Registro** come vendita fisica/POS. Non si esclude: si
+   classifica, e la classificazione viene da `source`.
+3. **`SalesOrderFiscalStatus` non esiste più**, colonna e tipo PostgreSQL. Non è stato
+   sostituito.
+
+E una che era scritta qui e altrove ed era falsa: **`CorrispettivoEntry` non è la sorgente
+del Registro** — quella tabella non viene più scritta dall'11/08, e le sue righe residue
+sono storia. Non ci si deduce la logica nuova (`10` §7).
+
+---
+
 ## Prima di toccare qualsiasi cosa: tre fatti che cambiano come si legge tutto
 
 ### 1. I webhook di Shopify vanno in PRODUZIONE, non sulla macchina di sviluppo

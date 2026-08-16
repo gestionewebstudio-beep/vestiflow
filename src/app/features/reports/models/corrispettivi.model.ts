@@ -1,14 +1,6 @@
 import type { CurrencyCode, EntityId, IsoDateString, Money } from '@core/models/common.model';
 
 /** Stato fiscale corrispettivi per il commercialista (§8). */
-export const SalesOrderFiscalStatus = {
-  PendingRegistration: 'pending_registration',
-  ExcludedPosRegister: 'excluded_pos_register',
-  Invoiced: 'invoiced',
-} as const;
-
-export type SalesOrderFiscalStatus =
-  (typeof SalesOrderFiscalStatus)[keyof typeof SalesOrderFiscalStatus];
 
 /**
  * Una riga del registro: o una vendita, o una rettifica.
@@ -37,7 +29,6 @@ export interface CorrispettiviRegisterRow {
   readonly tax: Money;
   readonly total: Money;
   readonly financialStatus?: string;
-  readonly fiscalStatus?: SalesOrderFiscalStatus;
   readonly refundKind?: CorrispettiviRefundKind;
   readonly note?: string;
 }
@@ -72,7 +63,6 @@ export interface CorrispettiviListQuery {
   readonly search?: string;
   readonly financialStatus?: string;
   readonly source?: string;
-  readonly fiscalStatus?: SalesOrderFiscalStatus;
   readonly placedFrom?: string;
   readonly placedTo?: string;
   readonly onlineOnly?: boolean;
@@ -81,18 +71,3 @@ export interface CorrispettiviListQuery {
   readonly rowType?: string;
   readonly refundsOnly?: boolean;
 }
-
-export const FISCAL_STATUS_LABELS: Record<SalesOrderFiscalStatus, string> = {
-  [SalesOrderFiscalStatus.PendingRegistration]: 'Da registrare',
-  [SalesOrderFiscalStatus.ExcludedPosRegister]: 'Escluso (cassa/POS)',
-  [SalesOrderFiscalStatus.Invoiced]: 'Fatturato',
-};
-
-export const FISCAL_STATUS_TONES: Record<
-  SalesOrderFiscalStatus,
-  'neutral' | 'info' | 'success' | 'warning' | 'error'
-> = {
-  [SalesOrderFiscalStatus.PendingRegistration]: 'warning',
-  [SalesOrderFiscalStatus.ExcludedPosRegister]: 'neutral',
-  [SalesOrderFiscalStatus.Invoiced]: 'success',
-};

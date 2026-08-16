@@ -2,7 +2,7 @@
   <header class="corrispettivi__header">
     <div class="corrispettivi__heading">
       <app-back-button />
-      <h1 class="corrispettivi__title">Corrispettivi commercialista</h1>
+      <h1 class="corrispettivi__title">Corrispettivi</h1>
       <p class="corrispettivi__subtitle">{{ pageSubtitle() }}</p>
     </div>
     @if (canExport()) {
@@ -65,18 +65,9 @@
   />
 
   <div class="corrispettivi__filters">
-    <app-select-menu
-      [options]="fiscalStatusOptions"
-      [value]="fiscalStatusFilter() ?? ''"
-      ariaLabel="Filtra per stato fiscale"
-      placeholder="Stato fiscale"
-      [compact]="true"
-      (valueChange)="onFiscalStatusChange($event)"
-      [filterChip]="true"
-    />
     <!--
-      Canale e tipo sono indipendenti dal periodo e fra loro: si può chiedere
-      «2° trimestre 2026 · Shopify · Resi». Il tipo filtra l'ELENCO, non il
+      Ambito e tipo sono indipendenti dal periodo e fra loro: si può chiedere
+      «2° trimestre 2026 · Fisico/POS · Resi». Il tipo filtra l'ELENCO, non il
       riepilogo — vedi la nota accanto al totale.
     -->
     <app-select-menu

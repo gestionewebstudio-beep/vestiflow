@@ -1,6 +1,5 @@
 import {
   Prisma,
-  SalesOrderFiscalStatus as PrismaFiscal,
   SalesOrderFinancialStatus as PrismaFinancial,
   SalesOrderRefundKind as PrismaRefundKind,
   SalesOrderSource as PrismaSource,
@@ -11,10 +10,8 @@ import {
   type SalesOrderListFilters,
 } from '../sales-orders/sales-order-query.util';
 import { prismaFinancialFilter, toPrismaSource } from '../sales-orders/sales-order.enum-mapper';
-import { toPrismaFiscalStatus } from './corrispettivi-fiscal.enum-mapper';
 
 export interface CorrispettiviListFilters extends SalesOrderListFilters {
-  readonly fiscalStatus?: string;
   readonly onlineOnly?: boolean;
   readonly posOnly?: boolean;
   readonly refundsOnly?: boolean;
@@ -66,7 +63,6 @@ export function buildCorrispettiviWhere(
   const financialFilter = prismaFinancialFilter(query.financialStatus);
   const prismaSource = toPrismaSource(query.source);
   const fulfilledAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
-  const fiscalStatus = toPrismaFiscalStatus(query.fiscalStatus);
 
   let sourceFilter: PrismaSource | Prisma.EnumSalesOrderSourceFilter | undefined = prismaSource;
   if (query.onlineOnly) {
@@ -81,7 +77,6 @@ export function buildCorrispettiviWhere(
     fulfilledAt: fulfilledAt ? { ...fulfilledAt, not: null } : { not: null },
     ...(financialFilter ? { financialStatus: { in: financialFilter } } : {}),
     ...(sourceFilter ? { source: sourceFilter } : {}),
-    ...(fiscalStatus ? { fiscalStatus } : {}),
     ...(query.refundsOnly
       ? {
           financialStatus: {

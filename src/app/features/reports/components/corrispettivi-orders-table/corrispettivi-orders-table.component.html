@@ -8,7 +8,6 @@
         <th scope="col">Cliente</th>
         <th scope="col">Canale</th>
         <th scope="col">Pagamento</th>
-        <th scope="col">Stato fiscale</th>
         <th scope="col" class="corrispettivi-table__cell--num">Imponibile</th>
         <th scope="col" class="corrispettivi-table__cell--num">IVA</th>
         <th scope="col" class="corrispettivi-table__cell--num">Totale</th>
@@ -45,15 +44,6 @@
             } @else {
               <!-- Una rettifica non ha stato di pagamento: la cella resta muta
                    invece di ereditare quello della vendita, che sarebbe falso. -->
-              <span class="corrispettivi-table__empty" aria-hidden="true">—</span>
-            }
-          </td>
-          <td data-label="Stato fiscale">
-            @if (row.fiscalStatus) {
-              <app-badge [tone]="fiscalTone[row.fiscalStatus]">
-                {{ fiscalLabel[row.fiscalStatus] }}
-              </app-badge>
-            } @else {
               <span class="corrispettivi-table__empty" aria-hidden="true">—</span>
             }
           </td>

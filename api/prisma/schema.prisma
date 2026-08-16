@@ -185,19 +185,6 @@ enum SalesOrderSource {
   store
 }
 
-/// Stato fiscale corrispettivi per il commercialista (§8 piano funzionale).
-enum SalesOrderFiscalStatus {
-  pending_registration
-  excluded_pos_register
-  invoiced
-  /// ⚠️ `delivered_to_accountant` ed `externally_registered` esistono ancora nel
-  /// tipo PostgreSQL e NON qui: il flusso «consegna al commercialista» è stato
-  /// ritirato il 16/08/2026 — nessuna riga li porta e nessun codice li scrive —
-  /// ma ALTER TYPE ... DROP VALUE non esiste, e ricostruire il tipo su un
-  /// database condiviso non vale il guadagno. Toglierli da qui è la garanzia
-  /// che conta: il client Prisma non li espone, quindi non compilano.
-}
-
 /// Stato magazzino della Vendita online (fase 2 §3): scarico completo,
 /// parziale (righe senza impegno, richiede verifica) o non applicato
 /// (ordini storici importati già evasi: nessun impegno da consumare).
@@ -1267,7 +1254,6 @@ model SalesOrder {
   taxMinor          Int                         @default(0) @map("tax_minor")
   shippingMinor     Int                         @default(0) @map("shipping_minor")
   discountMinor     Int                         @default(0) @map("discount_minor")
-  fiscalStatus      SalesOrderFiscalStatus      @default(pending_registration) @map("fiscal_status")
   placedAt          DateTime                    @map("placed_at")
   shopifyOrderId    String?                     @map("shopify_order_id")
   /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8);
@@ -1329,7 +1315,6 @@ model SalesOrder {
 
   @@unique([tenantId, shopifyOrderId])
   @@index([tenantId, placedAt(sort: Desc)])
-  @@index([tenantId, fiscalStatus, placedAt(sort: Desc)])
   @@index([documentId])
   @@map("sales_orders")
 }

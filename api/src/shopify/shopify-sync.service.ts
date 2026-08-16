@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   OnlineOrderEventType,
   SalesOrderFinancialStatus,
-  SalesOrderFiscalStatus,
   SalesOrderFulfillmentStatus,
   SalesOrderRefundKind,
   SalesOrderSource,
@@ -205,14 +204,15 @@ export class ShopifySyncService {
             data: orderData,
           })
         : await tx.salesOrder.create({
+            // ⚠️ Qui la sync scriveva uno `fiscalStatus`, e per gli ordini POS
+            // scriveva «escluso dal registro». Non lo fa più (16/08/2026):
+            // **Shopify POS compare nel Registro Corrispettivi** come vendita
+            // fisica/POS, e l'ambito lo dice già `source`, che è un fatto e non
+            // uno stato da ricordarsi di aggiornare.
             data: {
               tenantId,
               shopifyOrderId,
               ...orderData,
-              fiscalStatus:
-                source === SalesOrderSource.shopify_pos
-                  ? SalesOrderFiscalStatus.excluded_pos_register
-                  : SalesOrderFiscalStatus.pending_registration,
             },
           });
 

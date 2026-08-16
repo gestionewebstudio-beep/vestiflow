@@ -24,7 +24,7 @@
 12. [Anagrafica fornitori](#12-anagrafica-fornitori)
 13. [Documenti fiscali e operativi](#13-documenti-fiscali-e-operativi)
 14. [Vendite e clienti](#14-vendite-e-clienti)
-15. [Report, dashboard e registro commercialista](#15-report-dashboard-e-registro-commercialista)
+15. [Report, dashboard e corrispettivi](#15-report-dashboard-e-corrispettivi)
 16. [Usare VestiFlow da smartphone](#16-usare-vestiflow-da-smartphone)
 17. [Negozio fisico: vendite al banco](#17-negozio-fisico-vendite-al-banco)
 18. [Profilo, foto e sicurezza account](#18-profilo-foto-e-sicurezza-account)
@@ -44,7 +44,7 @@ Con un account puoi:
 - registrare **carichi, scarichi, trasferimenti e rettifiche** con storico;
 - creare e ricevere **ordini fornitori**;
 - gestire **documenti** (arrivi merce, DDT, trasferimenti, rettifiche, proforma e bozze fattura);
-- consultare il **registro commercialista** con i documenti da fatturare o registrare;
+- consultare i **Corrispettivi**, e i **DDT da fatturare** dalla lista Documenti;
 - **registrare vendite e resi al banco** con scansione barcode (profilo **Solo gestionale**);
 - consultare **vendite e clienti** importati da Shopify (profilo Shopify);
 - tenere **catalogo e stock allineati** al canale e-commerce collegato, se presente.
@@ -88,21 +88,21 @@ In alto a destra clicca l'icona **Esci** (freccia verso l'uscita). Compare una *
 
 Su desktop resta sempre visibile; su smartphone si apre con l'icona **menu** in alto.
 
-| Voce                        | A cosa serve                                                                               |
-| --------------------------- | ------------------------------------------------------------------------------------------ |
-| **Dashboard**               | Riepilogo attività                                                                         |
-| **Prodotti**                | Catalogo, creazione, modifica, import/export CSV                                           |
-| **Magazzino**               | Apre **Cerca giacenza** (ricerca rapida, ideale su mobile)                                 |
-| **Fornitori**               | Anagrafica fornitori (nome, contatti, P.IVA)                                               |
-| **Ordini Fornitori**        | Acquisti dai fornitori                                                                     |
-| **Documenti**               | Registro documenti: arrivi merce, DDT, trasferimenti, rettifiche, impostazioni numerazione |
-| **Registra vendita**        | Vendite e storni al banco con barcode (tutti i profili canale)                             |
-| **Vendite**                 | Ordini da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                    |
-| **Clienti**                 | Anagrafica da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                |
-| **Report**                  | Indicatori e riepiloghi                                                                    |
-| **Registro commercialista** | Riepilogo documenti fiscali e corrispettivi per periodo (collegato a **Documenti**)        |
-| **Impostazioni**            | Profilo, foto, tema, sedi, integrazione canale (Shopify o TikTok se prevista), sicurezza   |
-| **Guida**                   | Manuale utente integrato nell'app                                                          |
+| Voce                 | A cosa serve                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| **Dashboard**        | Riepilogo attività                                                                         |
+| **Prodotti**         | Catalogo, creazione, modifica, import/export CSV                                           |
+| **Magazzino**        | Apre **Cerca giacenza** (ricerca rapida, ideale su mobile)                                 |
+| **Fornitori**        | Anagrafica fornitori (nome, contatti, P.IVA)                                               |
+| **Ordini Fornitori** | Acquisti dai fornitori                                                                     |
+| **Documenti**        | Registro documenti: arrivi merce, DDT, trasferimenti, rettifiche, impostazioni numerazione |
+| **Registra vendita** | Vendite e storni al banco con barcode (tutti i profili canale)                             |
+| **Vendite**          | Ordini da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                    |
+| **Clienti**          | Anagrafica da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                |
+| **Report**           | Indicatori e riepiloghi                                                                    |
+| **Corrispettivi**    | Quadro economico di vendite e rettifiche per periodo, con filtri e stampa/export           |
+| **Impostazioni**     | Profilo, foto, tema, sedi, integrazione canale (Shopify o TikTok se prevista), sicurezza   |
+| **Guida**            | Manuale utente integrato nell'app                                                          |
 
 Su mobile, **Esci** è in fondo al menu ☰ (sotto tutte le voci); su desktop resta anche in topbar.
 
@@ -196,7 +196,7 @@ Per **Amministratore**, **Manager** e **Commesso** il referente VestiFlow assegn
 | **Eliminare prodotti**               | Rimozione prodotti dal catalogo (nei limiti previsti da Fonte/sync).                                       |
 | **Gestire ordini fornitore**         | Crea, modifica, invia e annulla ordini fornitore.                                                          |
 | **Ricevere ordini fornitore**        | Registra merce in arrivo da ordine fornitore (flusso rapido da **Ordini Fornitori**).                      |
-| **Consultare documenti**             | Lista e dettaglio **Documenti**; filtri registro commercialista e DDT da fatturare.                        |
+| **Consultare documenti**             | Lista e dettaglio **Documenti**; filtro **DDT da fatturare**.                                              |
 | **Gestire documenti**                | Crea e modifica documenti (arrivo merce, DDT, trasferimenti, rettifiche, impostazioni numerazione).        |
 | **Registrare vendite al banco**      | Schermata **Registra vendita** (vendite e storni).                                                         |
 | **Consultare report**                | Dashboard e sezione **Report**.                                                                            |
@@ -232,7 +232,7 @@ I valori sotto sono i default **prima** di eventuali personalizzazioni del refer
 | Ordini fornitore (gestione)                     | Sì       | Sì             | Sì               | No                        |
 | Ricezione merce                                 | Sì       | Sì             | Sì               | Sì                        |
 | Documenti (consultazione / gestione)            | Sì       | Sì             | Sì               | Consultazione             |
-| Registro commercialista                         | Sì       | Sì             | Sì               | No                        |
+| Corrispettivi                                   | Sì       | Sì             | Sì               | No                        |
 | Registra vendita al banco                       | Sì       | Sì             | Sì               | Sì                        |
 | Report + export CSV / sync vendite-clienti      | Sì       | Sì             | Sì               | Solo consultazione report |
 | Sede fisica (anagrafica)                        | Sì       | Sì             | No               | No                        |
@@ -721,7 +721,7 @@ VestiFlow centralizza i documenti che impattano magazzino e contabilità. **Non 
 ### Dove trovarli
 
 - **Documenti** — registro completo con filtri, colonne personalizzabili e azioni di creazione
-- **Registro commercialista** — riepilogo KPI per periodo con link ai filtri preimpostati (vedi [§15](#15-report-dashboard-e-registro-commercialista))
+- **Corrispettivi** — quadro economico per periodo, con filtri e stampa/export (vedi [§15](#15-report-dashboard-e-corrispettivi))
 
 ### Tipi di documento
 
@@ -754,14 +754,14 @@ Le azioni disponibili nel **dettaglio documento** dipendono da tipo e stato (con
 
 ### Registro documenti — filtri utili
 
-| Filtro / vista           | A cosa serve                                                          |
-| ------------------------ | --------------------------------------------------------------------- |
-| **Tipo** e **Stato**     | Restringe l'elenco (es. solo DDT vendita confermati)                  |
-| **Periodo** (da / a)     | Intervallo date documento                                             |
-| **Cliente**              | Documenti vendita per anagrafica                                      |
-| **Vista commercialista** | Solo tipi rilevanti per contabilità (da link Registro commercialista) |
-| **DDT da fatturare**     | DDT vendita attivi **senza** bozza fattura collegata                  |
-| **Ricerca**              | Numero, riferimento, note                                             |
+| Filtro / vista       | A cosa serve                                                          |
+| -------------------- | --------------------------------------------------------------------- |
+| **Tipo** e **Stato** | Restringe l'elenco (es. solo DDT vendita confermati)                  |
+| **Periodo** (da / a) | Intervallo date documento                                             |
+| **Cliente**          | Documenti vendita per anagrafica                                      |
+| **DDT da fatturare** | DDT con «Seguirà doc. di vendita» che nessuna fattura viva ha incluso |
+| **DDT da fatturare** | DDT vendita attivi **senza** bozza fattura collegata                  |
+| **Ricerca**          | Numero, riferimento, note                                             |
 
 I filtri restano nell'**URL** della pagina: puoi salvare o condividere il link con il commercialista.
 
@@ -948,7 +948,7 @@ Con **una sola sede** questo non ti riguarda: non c'è niente da scegliere.
 
 ---
 
-## 15. Report, dashboard e registro commercialista
+## 15. Report, dashboard e corrispettivi
 
 ### Dashboard
 
@@ -956,25 +956,27 @@ Pagina iniziale dopo il login: vendite recenti, ordini fornitore in attesa e ind
 
 ### Report
 
-Tabelle e KPI su prodotti, giacenze e ordini. I filtri **periodo** (da / a) usano un **selettore data con calendario**, coerente con la data attesa negli ordini fornitori e con il **Registro commercialista**.
+Tabelle e KPI su prodotti, giacenze e ordini. I filtri **periodo** (da / a) usano un **selettore data con calendario**, coerente con la data attesa negli ordini fornitori e con i **Corrispettivi**.
 
-### Registro commercialista
+### Corrispettivi
 
-Voce dedicata in sidebar (**Registro commercialista**, sotto **Report**): riepilogo per **periodo** di documenti fiscali e corrispettivi vendite online.
+Voce dedicata in sidebar, sotto **Vendite**: il **quadro economico** delle vendite e delle rettifiche che VestiFlow conosce, per periodo.
 
-| Tab               | Contenuto                                                                                                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Documenti**     | KPI: totale documenti, bozze fattura da emettere, inviate al commercialista, emesse/registrate esternamente, **DDT vendita in attesa fattura**, documenti fornitore da registrare |
-| **Corrispettivi** | Riepilogo vendite ecommerce nel periodo (profilo Shopify) con link al dettaglio                                                                                                   |
+> ⚠️ **Cambiato il 16 agosto 2026.** Qui c'era il **Registro commercialista**, con dei contatori che dividevano i documenti fra «già inviati» e «da inviare» al commercialista, e un pulsante «Segna consegnato». **Non ci sono più**, e non torneranno: VestiFlow non tiene traccia di cosa hai già mandato.
 
-**Collegamenti rapidi** (tab Documenti):
+**Come si usa, in tre passi:**
 
-- **Apri registro documenti filtrato** — apre **Documenti** con vista commercialista e date del periodo
-- **DDT da fatturare** — elenco DDT vendita confermati senza bozza fattura collegata
+1. scegli il **periodo** — preset rapidi, oppure Mese / Trimestre / Anno, oppure un intervallo tuo;
+2. restringi con i **filtri** se ti serve un sottoinsieme: **ambito** (Tutti · Online · Fisico/POS) e **tipo** (vendite, resi, rimborsi);
+3. **stampa o esporta** quel sottoinsieme — CSV, foglio Excel o PDF.
 
-Usa questi link per preparare il pacchetto mensile per il commercialista senza ricostruire i filtri a mano.
+Fine. **Non c'è un «dopo».** Puoi esportare lo stesso periodo dieci volte: non cambia niente, non resta traccia, nessuna vendita viene marcata. Se il commercialista ti richiede marzo a settembre, rifai marzo.
 
-#### Come leggere il registro corrispettivi _(agosto 2026)_
+**Le vendite in negozio con Shopify POS ci sono**, classificate come **Fisico/POS**. Che le abbia già certificate il registratore di cassa non è un motivo per nasconderle: nel quadro economico interno devono comparire, una volta sola e riconoscibili. Se ti serve il solo ecommerce, metti **ambito = Online**.
+
+**Per i DDT ancora da fatturare** non usi questa pagina: vai in **Documenti → DDT vendita** e spunti il filtro **«DDT da fatturare»**. Ti mostra quelli su cui hai messo «Seguirà doc. di vendita» e che nessuna fattura ha ancora incluso — e se una fattura viene annullata, il suo DDT ricompare lì.
+
+#### Come leggere i corrispettivi _(agosto 2026)_
 
 **Il periodo si sceglie per calendario, non a mano.** Oltre ai preset rapidi (ultimi 7 o 30 giorni, mese corrente, mese scorso, anno corrente) trovi **Mese…**, **Trimestre…** e **Anno…**: scegliendoli compaiono i selettori che servono — il mese e l'anno, il trimestre e l'anno, l'anno soltanto. Per il 2° trimestre 2026 non devi scrivere `01/04` e `30/06`: lo scegli.
 
@@ -992,7 +994,7 @@ I selettori compaiono **solo** dove hanno senso: «mese corrente» non chiede l'
 
 **«Reso» e «Rimborso» sono cose diverse**: nel primo caso la merce è tornata in magazzino, nel secondo sono tornati solo i soldi (un capo rovinato, uno sconto concesso dopo la vendita).
 
-**Il totale in fondo si ricostruisce sommando la colonna.** È voluto: se il numero non torna, lo vedi riga per riga senza dover chiedere a nessuno. La vendita originale **non viene mai cancellata né corretta** — resta alla sua data, e il reso la rettifica alla propria. È anche ciò che permette al commercialista di collegare il reso alla vendita da cui viene.
+**Il totale in fondo si ricostruisce sommando la colonna.** È voluto: se il numero non torna, lo vedi riga per riga senza dover chiedere a nessuno. La vendita originale **non viene mai cancellata né corretta** — resta alla sua data, e il reso la rettifica alla propria. È anche ciò che permette a chi tiene la contabilità di collegare il reso alla vendita da cui viene.
 
 **Gli annullamenti non tolgono niente al totale.** Li vedi contati nel riepilogo, ma valgono zero: annullano una vendita che non era mai stata registrata.
 
@@ -1111,13 +1113,15 @@ In **Impostazioni → Aspetto** (o dalla **topbar**) scegli **Chiaro**, **Scuro*
 2. Dopo una modifica permessi: **esci e rientra** o ricarica con **Ctrl+F5** (Mac: **Cmd+Shift+R**).
 3. Esempi: **Sincronizza catalogo** richiede import/export prodotti; **Registra movimento** richiede gestione giacenze; **Documenti** richiede consultare/gestire documenti; **Collega Shopify** è solo per il **Titolare**.
 
-### Non vedo Documenti o Registro commercialista
+### Non vedo Documenti o Corrispettivi
 
-Verifica i permessi **Consultare documenti** e **Consultare report**. Il **Registro commercialista** richiede accesso ai report. Dopo una modifica permessi: esci e rientra.
+Verifica i permessi **Consultare documenti** e **Consultare report**. I **Corrispettivi** richiedono accesso ai report. Dopo una modifica permessi: esci e rientra.
 
 ### Cosa significa «DDT da fatturare»?
 
-Sono **DDT vendita** già confermati (consegnati al cliente) per i quali non esiste ancora una **bozza fattura** collegata in VestiFlow. Apri l'elenco filtrato da **Registro commercialista** o dal filtro omonimo in **Documenti** per emettere o registrare le fatture esternamente.
+Sono i **DDT vendita** su cui hai spuntato **«Seguirà doc. di vendita»** e che nessuna Fattura viva ha ancora incluso. Li trovi in **Documenti → DDT vendita**, spuntando il filtro **«DDT da fatturare»**.
+
+⚠️ **Corretto il 16 agosto 2026.** Prima diceva «confermati senza bozza fattura collegata», e il filtro faceva davvero così: mostrava **tutti** i DDT confermati, compresi quelli che una fattura non la aspettano. Ora guarda la spunta — e se una fattura viene **annullata**, il DDT che aveva incluso **torna** nell'elenco.
 
 ### Differenza tra Registra arrivo merce (ordine) e Arrivo merce manuale
 

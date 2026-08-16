@@ -7,7 +7,6 @@ import {
   API_SOURCE_ONLINE,
   API_SOURCE_POS,
 } from '../../sales-orders/sales-order.enum-mapper';
-import { API_FISCAL_STATUS_VALUES } from '../corrispettivi-fiscal.enum-mapper';
 
 const SOURCE_VALUES = [API_SOURCE_ONLINE, API_SOURCE_POS] as const;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -45,9 +44,6 @@ export class ListCorrispettiviQueryDto extends PaginationQueryDto {
   @IsIn([...SOURCE_VALUES])
   source?: string;
 
-  @IsOptional()
-  @IsIn([...API_FISCAL_STATUS_VALUES])
-  fiscalStatus?: string;
 
   @IsOptional()
   @Matches(ISO_DATE)

@@ -526,8 +526,18 @@ modi diversi. Che è il problema da cui è nato tutto il lavoro sul blocco docum
 
 ### Il resto, che invece è a posto
 
-Le vendite POS prendono `fiscalStatus: excluded_pos_register`, perché a registrarle
-fiscalmente è la cassa.
+⚠️ **Riscritto il 16/08/2026, ed è la seconda correzione in poche ore.** Qui si è detto
+prima che le vendite POS erano «escluse dalla consegna al commercialista», poi che il
+valore `excluded_pos_register` «non escludeva niente». Entrambe le frasi partivano
+dall'idea che il POS andasse tolto dal Registro. **La decisione è l'opposta:**
+
+> **Shopify POS compare nel Registro Corrispettivi, classificato come vendita
+> fisica/POS.** Che la cassa o un RT esterno la certifichi non la fa sparire dal quadro
+> economico interno — la classifica.
+
+Il valore `excluded_pos_register` e tutto `SalesOrderFiscalStatus` **non esistono più**:
+l'ambito si legge da `sales_orders.source`, che è un fatto. Specifica corrente:
+`10-specifica-registro-corrispettivi.md` §4.
 
 ⚠️ **Misurato il 16/08/2026, e non è come la frase qui sopra diceva.** Diceva che le POS sono
 «escluse dalla consegna al commercialista» e che solo `shopify_online` entra nel conteggio:

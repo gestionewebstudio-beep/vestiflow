@@ -40,7 +40,6 @@ import { CorrispettiviOrdersTableComponent } from '../../components/corrispettiv
 import { CorrispettiviSummaryComponent } from '../../components/corrispettivi-summary/corrispettivi-summary.component';
 import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
 import {
-  SalesOrderFiscalStatus,
   type CorrispettiviRegisterRow,
   type CorrispettiviSummary,
 } from '../../models/corrispettivi.model';
@@ -120,13 +119,6 @@ export class CorrispettiviReportComponent {
     formatReportPeriodLabel({ ...this.query(), period: this.displayPeriod() }),
   );
 
-  protected readonly fiscalStatusFilter = computed(() => {
-    const value = this.queryParams().get('fiscalStatus') ?? '';
-    return Object.values(SalesOrderFiscalStatus).includes(value as SalesOrderFiscalStatus)
-      ? (value as SalesOrderFiscalStatus)
-      : undefined;
-  });
-
   /**
    * Canale, con **«Tutti» come predefinito**.
    *
@@ -193,10 +185,19 @@ export class CorrispettiviReportComponent {
     return this.query().dateTo ?? todayIsoDate();
   });
 
+  /**
+   * **Ambito**, non canale — riscritto il 16/08/2026 con due etichette che
+   * dicevano il falso: «Shopify» comprendeva le sole vendite online (anche il
+   * POS è Shopify), e «Negozio» indicava lo **Shopify POS**, non la cassa di
+   * VestiFlow.
+   *
+   * L'ambito si legge dall'ORIGINE della vendita, che è un fatto: Shopify
+   * ecommerce → Online, Shopify POS → Fisico/POS. Nessuno stato da aggiornare.
+   */
   protected readonly channelOptions: readonly SelectMenuOption[] = [
-    { value: 'all', label: 'Tutti i canali' },
-    { value: 'online', label: 'Shopify' },
-    { value: 'pos', label: 'Negozio' },
+    { value: 'all', label: 'Tutti gli ambiti' },
+    { value: 'online', label: 'Online' },
+    { value: 'pos', label: 'Fisico/POS' },
   ];
 
   protected readonly rowTypeOptions: readonly SelectMenuOption[] = [
@@ -206,24 +207,10 @@ export class CorrispettiviReportComponent {
     { value: 'refunds', label: 'Solo rimborsi' },
   ];
 
-  /**
-   * Solo **classificazioni** fiscali. Gli stati del vecchio flusso di consegna
-   * al commercialista — «Da registrare», «Consegnato», «Registrato
-   * esternamente» — sono spariti il 16/08/2026 insieme al flusso: VestiFlow
-   * non tiene traccia di cosa è già stato mandato, l'operatore sceglie un
-   * periodo e stampa o esporta quante volte vuole.
-   */
-  protected readonly fiscalStatusOptions: readonly SelectMenuOption[] = [
-    { value: '', label: 'Tutti gli stati fiscali' },
-    { value: SalesOrderFiscalStatus.ExcludedPosRegister, label: 'Escluso (cassa/POS)' },
-    { value: SalesOrderFiscalStatus.Invoiced, label: 'Fatturato' },
-  ];
-
   private readonly listQuery = computed(() => ({
     tick: this.refreshTick(),
     placedFrom: this.dateRange().placedFrom,
     placedTo: this.dateRange().placedTo,
-    fiscalStatus: this.fiscalStatusFilter(),
     rowType: this.rowTypeFilter() === 'all' ? undefined : this.rowTypeFilter(),
     onlineOnly: this.onlineOnly() || undefined,
     posOnly: this.posOnly() || undefined,
@@ -322,10 +309,6 @@ export class CorrispettiviReportComponent {
     this.updateParams({ to: value || null, period: ReportPeriodPreset.Custom });
   }
 
-  protected onFiscalStatusChange(value: string | null): void {
-    this.updateParams({ fiscalStatus: value || null });
-  }
-
   protected onChannelChange(value: string | null): void {
     // «all» è il predefinito: non lo si scrive nell'indirizzo.
     this.updateParams({ channel: !value || value === 'all' ? null : value });
@@ -412,7 +395,6 @@ export class CorrispettiviReportComponent {
     return {
       placedFrom: this.dateRange().placedFrom,
       placedTo: this.dateRange().placedTo,
-      fiscalStatus: this.fiscalStatusFilter(),
       rowType: this.rowTypeFilter() === 'all' ? undefined : this.rowTypeFilter(),
       onlineOnly: this.onlineOnly() || undefined,
       posOnly: this.posOnly() || undefined,

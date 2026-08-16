@@ -1,5 +1,4 @@
 import {
-  SalesOrderFiscalStatus as PrismaFiscal,
   SalesOrderRefundKind as PrismaRefundKind,
   SalesOrderSource as PrismaSource,
 } from '@prisma/client';
@@ -10,22 +9,20 @@ import { buildCorrispettiviRefundWhere, buildCorrispettiviWhere } from './corris
 describe('buildCorrispettiviWhere', () => {
   const tenantId = 'tenant-1';
 
-  // Il filtro «solo da consegnare» non esiste più: il flusso di consegna al
-  // commercialista è stato ritirato il 16/08/2026. Restano le sole
-  // classificazioni fiscali, che non sono passaggi di un flusso.
-  it('filtra per classificazione fiscale', () => {
-    const where = buildCorrispettiviWhere(tenantId, {
-      fiscalStatus: 'excluded_pos_register',
-    });
-
-    expect(where.tenantId).toBe(tenantId);
-    expect(where.fiscalStatus).toBe(PrismaFiscal.excluded_pos_register);
+  // Lo stato fiscale non esiste più (16/08/2026): il Registro classifica per
+  // ORIGINE, che è un fatto della vendita. Shopify POS compare come vendita
+  // fisica/POS, non viene escluso — la scelta la fa il filtro di ambito.
+  it('il filtro di ambito seleziona per origine, non per stato', () => {
+    expect(buildCorrispettiviWhere(tenantId, { posOnly: true }).source).toBe(
+      PrismaSource.shopify_pos,
+    );
+    expect(buildCorrispettiviWhere(tenantId, { onlineOnly: true }).source).toBe(
+      PrismaSource.shopify_online,
+    );
   });
 
-  it('gli stati del vecchio flusso di consegna non sono più accettati', () => {
-    for (const ritirato of ['delivered_to_accountant', 'externally_registered']) {
-      expect(buildCorrispettiviWhere(tenantId, { fiscalStatus: ritirato }).fiscalStatus).toBeUndefined();
-    }
+  it('senza filtro di ambito il Registro non esclude nessuna origine', () => {
+    expect(buildCorrispettiviWhere(tenantId, {}).source).toBeUndefined();
   });
 
   it('il periodo si misura sulla data di EVASIONE, non su quella dell ordine', () => {
@@ -92,7 +89,6 @@ describe('buildCorrispettiviRefundWhere', () => {
 
   it('ignora i filtri che descrivono un ordine e non una rettifica', () => {
     const where = buildCorrispettiviRefundWhere(tenantId, {
-      fiscalStatus: 'excluded_pos_register',
       financialStatus: 'paid',
       search: 'Rossi',
     });

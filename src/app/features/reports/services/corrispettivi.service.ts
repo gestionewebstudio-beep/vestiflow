@@ -16,7 +16,6 @@ import type {
   CorrispettiviRegisterRow,
   CorrispettiviRowKind,
   CorrispettiviSummary,
-  SalesOrderFiscalStatus,
 } from '../models/corrispettivi.model';
 
 const HTTP_TIMEOUT_MS = 15000;
@@ -36,7 +35,6 @@ interface CorrispettiviRegisterApiRow {
   readonly taxMinor: number;
   readonly totalMinor: number;
   readonly financialStatus?: string | null;
-  readonly fiscalStatus?: SalesOrderFiscalStatus | null;
   readonly refundKind?: CorrispettiviRefundKind | null;
   readonly note?: string | null;
 }
@@ -134,9 +132,7 @@ export class CorrispettiviService {
     if (query.source) {
       params = params.set('source', query.source);
     }
-    if (query.fiscalStatus) {
-      params = params.set('fiscalStatus', query.fiscalStatus);
-    }
+
     if (query.placedFrom) {
       params = params.set('placedFrom', query.placedFrom);
     }
@@ -183,7 +179,6 @@ function mapRegisterRow(row: CorrispettiviRegisterApiRow): CorrispettiviRegister
     tax: money(row.taxMinor, currency),
     total: money(row.totalMinor, currency),
     financialStatus: row.financialStatus ?? undefined,
-    fiscalStatus: row.fiscalStatus ?? undefined,
     refundKind: row.refundKind ?? undefined,
     note: row.note ?? undefined,
   };

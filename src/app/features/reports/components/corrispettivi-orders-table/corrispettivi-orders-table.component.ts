@@ -6,8 +6,6 @@ import { BadgeComponent } from '@shared/components/badge/badge.component';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
 
 import {
-  FISCAL_STATUS_LABELS,
-  FISCAL_STATUS_TONES,
   type CorrispettiviRefundKind,
   type CorrispettiviRegisterRow,
 } from '../../models/corrispettivi.model';
@@ -61,8 +59,6 @@ export class CorrispettiviOrdersTableComponent {
 
   protected readonly formatMoney = formatMoney;
   protected readonly formatDate = formatDate;
-  protected readonly fiscalLabel = FISCAL_STATUS_LABELS;
-  protected readonly fiscalTone = FISCAL_STATUS_TONES;
 
   protected sourceLabel(source: string): string {
     return SOURCE_LABELS[source] ?? source;
