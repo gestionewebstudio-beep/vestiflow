@@ -1285,6 +1285,12 @@ model SalesOrder {
   /// Sconto extra percentuale sull'intero documento, dopo gli sconti riga
   /// (stesso pattern di Document.documentDiscountPercent in Arrivo merce).
   documentDiscountPercent Decimal               @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
+  /// Modalità con cui i prezzi sono stati DIGITATI su questo ordine: netti o
+  /// ivati. È una proprietà dell'ORDINE, come `Document.pricesIncludeVat` lo è
+  /// del documento — non una preferenza di chi lo apre: due operatori devono
+  /// vedere lo stesso ordine nello stesso modo, e riaprendolo si deve sapere
+  /// come era stato compilato. Il prezzo memorizzato resta comunque il NETTO.
+  pricesIncludeVat  Boolean                     @default(false) @map("prices_include_vat")
   /// Annullamento comunicato dal canale (impegni rilasciati, ordine in storico).
   cancelledAt       DateTime?                   @map("cancelled_at")
   /// Evasione completa registrata dal canale (evento canonico fulfilled).
@@ -1332,7 +1338,13 @@ model SalesOrderLine {
   sku            String
   title          String
   quantity       Int
-  unitPriceMinor Int     @map("unit_price_minor")
+  /// Prezzo unitario NETTO in unità minori, con coda decimale: 25,00 ivati al
+  /// 22% valgono 2049,180328 centesimi netti, ed è quella coda a farli tornare
+  /// 25,00 quando il prezzo viene rimostrato ivato (regole-gestionale, «La
+  /// colonna è una, i comportamenti sono tanti»: ogni prezzo UNITARIO è
+  /// numeric(16,6), perché può nascere da uno scorporo).
+  unitPriceMinor Decimal @map("unit_price_minor") @db.Decimal(16, 6)
+  /// Totale riga già arrotondato: resta intero.
   totalMinor     Int     @map("total_minor")
   // ── Righe Ordine cliente manuale (source = manual) ──
   /// Ordinamento visuale delle righe nella maschera.

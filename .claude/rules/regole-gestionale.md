@@ -154,7 +154,26 @@ La discriminante non è il documento, è **cosa contiene la colonna**:
 
 **Il comportamento della colonna non cambia il suo tipo.** La stessa colonna prezzo è in sola lettura sull'Ordine fornitore, si digita su Preventivo, Ordine cliente, DDT e Fatture, e sull'Arrivo merce aggiorna anche l'anagrafica. Sono tre mestieri diversi della **stessa** grandezza: il tipo e la semantica del denaro non hanno ragione di divergere fra un documento e l'altro.
 
-**Dove divergono, divergono per storia.** Misurato il 16/08: `DocumentLine` è stato portato a sei decimali, `SupplierOrderLine` dopo, `SalesOrderLine` mai — e la conseguenza si vedeva a schermo, con la stessa maschera che offriva il netto/ivato sul DDT e non sull'Ordine cliente, perché il numero finiva in due posti diversi.
+**Dove divergevano, divergevano per storia.** `DocumentLine` è stato portato a sei decimali,
+`SupplierOrderLine` dopo, `SalesOrderLine` **il 16/08/2026** — ed è l'ultima. La conseguenza si
+vedeva a schermo: la stessa maschera offriva il netto/ivato sul DDT e non sull'Ordine cliente,
+perché il numero finiva in due posti diversi. **Il selettore non mancava per scelta: mancava la
+colonna che poteva ospitarne il risultato**, e il template lo diceva — «escluso finché non
+arriva il supporto backend dedicato».
+
+### L'arrotondamento sta sul totale di riga, mai sul prezzo unitario
+
+> **`quantità × prezzo × sconto` si calcola ESATTO e si arrotonda una volta sola, alla fine.**
+
+Arrotondare il prezzo unitario prima di moltiplicarlo è l'arrotondamento prematuro che questa
+regola vieta, e con una colonna a sei decimali smette di essere teorico: 3 pezzi da 33,33 €
+scontati del 7% valgono 92,99 €, ma passando per un unitario arrotondato (30,9969 → 31,00)
+diventano 93,00 — un centesimo che il cliente non deve.
+
+Vale in entrambe le direzioni: il prezzo unitario **non** si tronca in ingresso (`Math.trunc`
+butterebbe via proprio la coda), e la coda oltre le quattro cifre di centesimo si taglia con
+`toStorableMinor`, perché oltre lì non c'è precisione — c'è il rumore del float, e la colonna
+rifiuterebbe la scala.
 
 **Prima di aggiungere una colonna di denaro**, la domanda è una sola: _questo valore può essere il risultato di uno scorporo?_ Se sì, è `Decimal(16,6)`. Non «è già intero adesso»: **potrà** non esserlo il giorno in cui quella maschera avrà il netto/ivato, e a quel punto la migration costa quanto le righe di codice che leggono quella colonna.
 

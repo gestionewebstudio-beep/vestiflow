@@ -1130,7 +1130,7 @@ centesimo** · ignora un prezzo canale mandato per sbaglio a modulo spento.
 `goods-receipt-line-columns.config.ts` · `goods-receipt-form.component.ts` e `.html` ·
 `variant-summary.model.ts` · `product.service.ts` (frontend).
 
-### ⏸️ Fetta 3 · Prezzo e netto/ivato — censita il 16/08, **una decisione aperta**
+### ✅ Fetta 3 · Prezzo e netto/ivato — **chiusa il 16/08/2026**
 
 Assorbe le voci **7** e **10**, e la prima cosa che il censimento ha fatto è **smentire il
 titolo della voce 10**.
@@ -1315,6 +1315,153 @@ ricalcolo. Lo storico prende `false`, che è la lettura con cui quei numeri sono
 calcolati — e non viene presentato come ricostruzione di una scelta dell’operatore.
 
 ---
+
+---
+
+## ✅ Fetta 3 — eseguita e provata
+
+### Causa radice
+
+**Una sola, e non era «manca il selettore»: mancava la colonna che poteva ospitarne il
+risultato.**
+
+`sales_order_lines.unit_price_minor` era `integer`. Un prezzo digitato ivato produce un netto
+con la coda — 25,00 al 22% valgono 2049,180328 centesimi — e su un intero diventa 2049, che
+rimostrato ivato fa 24,99. Succede a **un prezzo ivato su cinque** (1.947 su 9.901 fra 1 e
+100 € al 22%). Senza un posto dove mettere quel numero, il selettore netto/ivato non poteva
+essere acceso, e infatti il template lo escludeva dicendolo: _«finché non arriva il supporto
+backend dedicato»_.
+
+Da lì discendevano gli altri due difetti, che erano **conseguenze**, non cause:
+
+1. la modalità non aveva dove essere persistita → sarebbe stata una preferenza di chi apre;
+2. `buildSavePayload()` mandava il valore nudo mentre `buildRegistryLines()` scorporava →
+   innocuo finché la modalità era bloccata su netto, **difetto vero il giorno dopo**.
+
+### Migration
+
+`20260816190000_ordine_cliente_netto_ivato` — scritta a mano, applicata con
+`npm run prisma:deploy`.
+
+```sql
+ALTER TABLE "sales_order_lines" ALTER COLUMN "unit_price_minor" TYPE numeric(16, 6);
+ALTER TABLE "sales_orders"      ADD COLUMN "prices_include_vat" boolean NOT NULL DEFAULT false;
+```
+
+`integer → numeric(16,6)` è **senza perdita**: ogni intero è un decimale con coda zero.
+`false` sullo storico non è una supposizione su cosa l’operatore intendesse — è il fatto, dato
+che la maschera non ha mai potuto essere messa in ivato.
+
+### File toccati
+
+| File                                                             | Cosa                                                       |
+| ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| `api/prisma/schema.prisma`                                       | `Decimal(16,6)` sulla riga, `pricesIncludeVat` sull’ordine |
+| `…/migrations/20260816190000_…`                                  | la migration, col perché scritto dentro                    |
+| `api/src/sales-orders/manual-sales-order.util.ts`                | niente `Math.trunc`, arrotondamento sul totale di riga     |
+| `api/src/sales-orders/manual-sales-orders.service.ts`            | persiste la modalità; «Concludi ordine» la eredita         |
+| `api/src/sales-orders/dto/save-manual-sales-order.dto.ts`        | `pricesIncludeVat` in ingresso                             |
+| `api/src/sales-orders/sales-order-pdf.service.ts`                | `Number()` sul Decimal                                     |
+| `api/src/order-reservations/online-sale-fulfillment.service.ts`  | `Number()`, coda conservata                                |
+| `src/app/domain/sales-orders/services/sales-order-api.mapper.ts` | accetta la stringa Prisma, `Number()`                      |
+| `src/app/domain/sales-orders/services/sales-order.service.ts`    | `pricesIncludeVat` nel payload                             |
+| `src/app/core/models/sales-order.model.ts`                       | il campo sul modello                                       |
+| `…/customer-order-form.component.ts` · `.html`                   | selettore acceso, netto canonico, salvataggio che scorpora |
+
+### Prima e dopo
+
+|                                           | prima                     | dopo                                           |
+| ----------------------------------------- | ------------------------- | ---------------------------------------------- |
+| Selettore netto/ivato sull’Ordine cliente | **assente**               | c’è, in testata e nell’intestazione di colonna |
+| Modalità di un ordine                     | nessuna                   | **sull’ordine**, come sui documenti            |
+| Chi apre l’ordine                         | vedeva sempre netto       | vede **la modalità dell’ordine**               |
+| Prezzo unitario                           | `integer`                 | `numeric(16,6)`                                |
+| 25,00 ivati, riaperti                     | 24,99                     | **25,00**                                      |
+| Salvataggio in ivato                      | avrebbe mandato il lordo  | manda il netto                                 |
+| 3 × 33,33 con 7%                          | 93,00                     | **92,99**                                      |
+| «Concludi ordine»                         | documento sempre in netto | eredita la modalità dell’ordine                |
+
+### Test eseguiti
+
+**3.056 test verdi** — 987 (frontend) + 451 (componenti) + 1.618 (API).
+
+Le prove nuove, una per ogni punto chiesto:
+
+| Prova                                                    | Dove       |
+| -------------------------------------------------------- | ---------- |
+| netto → ivato → netto: prezzo identico                   | componente |
+| passando a netto **e salvando lì**, la coda non si perde | componente |
+| ivato: al server va il netto, non il mostrato            | componente |
+| 25,00 ivati memorizzati con la coda, non troncati        | componente |
+| ridigitando vince il digitato, non il ricordato          | componente |
+| aprendo un ordine vince **la sua** modalità              | componente |
+| due operatori vedono lo stesso ordine uguale             | componente |
+| ordine riaperto e risalvato: prezzo invariato            | componente |
+| ordine storico in netto: riaperto e risalvato identico   | componente |
+| lo sconto non arrotonda l’unitario                       | API        |
+| la coda arriva intatta sulla riga                        | API        |
+| la coda oltre 4 cifre di centesimo si taglia             | API        |
+| prezzo intero: lo storico non si muove                   | API        |
+| netto con coda → imponibile + imposta = lordo digitato   | API        |
+
+**Prove di mutazione** — le guardie mordono davvero:
+
+| Guasto reintrodotto                                          | Prove che si accendono |
+| ------------------------------------------------------------ | ---------------------- |
+| il salvataggio rimanda il valore nudo (il difetto originale) | **5**                  |
+| il netto ricordato viene ignorato                            | **3**                  |
+
+### Lo storico economico NON è stato ricalcolato
+
+Verificato **sui dati veri**, non per ragionamento: ricalcolati tutti e 24 gli ordini manuali
+con la formula nuova e confrontati riga per riga con il database.
+
+```text
+ordini manuali esaminati:                    24
+ordini che cambierebbero risalvandoli:        0
+righe con sconto E quantità > 1:              1   (OC-0008, e nemmeno quella cambia)
+```
+
+Nessun `UPDATE`, nessuna euristica, nessuna conversione: la migration aggiunge una colonna e
+allarga un tipo.
+
+### I 17 ordini con IVA — elenco per un controllo a campione
+
+⚠️ **Non c’è niente da riparare**: la maschera non ha mai potuto stare in ivato, quindi
+nessuno di questi può contenere un lordo scambiato per netto. L’elenco è quello richiesto, per
+un controllo manuale se lo si vuole fare.
+
+| #   | Numero       | Data       | Cliente      | Imponibile | IVA    | Totale |
+| --- | ------------ | ---------- | ------------ | ---------- | ------ | ------ |
+| 1   | OC-2026-0001 | 16/07/2026 | Revoll Srls  | 35,00      | 7,70   | 42,70  |
+| 2   | OC-2026-0003 | 17/07/2026 | Revoll Srls  | 7,00       | 1,54   | 8,54   |
+| 3   | OC-2026-0004 | 20/07/2026 | Revoll Srls  | 160,00     | 35,20  | 195,20 |
+| 4   | OC-2026-0002 | 22/07/2026 | Pippo Franco | 15,00      | 3,30   | 18,30  |
+| 5   | OC-2026-0005 | 22/07/2026 | Revoll Srls  | 85,00      | 18,70  | 103,70 |
+| 6   | OC-2026-0006 | 23/07/2026 | Revoll Srls  | 60,00      | 13,20  | 73,20  |
+| 7   | OC-2026-0003 | 23/07/2026 | Pippo Franco | 15,00      | 3,30   | 18,30  |
+| 8   | OC-2026-0007 | 24/07/2026 | Revoll Srls  | 42,00      | 9,24   | 51,24  |
+| 9   | OC-2026-0008 | 25/07/2026 | Revoll Srls  | 14,00      | 3,08   | 17,08  |
+| 10  | OC-0003      | 29/07/2026 | Revoll Srls  | 28,00      | 6,16   | 34,16  |
+| 11  | OC-0001      | 29/07/2026 | Revoll Srls  | 60,00      | 13,20  | 73,20  |
+| 12  | OC-0002      | 29/07/2026 | Karine Ruby  | 20,00      | 4,40   | 24,40  |
+| 13  | OC-0004      | 30/07/2026 | Revoll Srls  | 82,94      | 18,25  | 101,19 |
+| 14  | OC-0005      | 31/07/2026 | Revoll Srls  | 7,59       | 1,67   | 9,26   |
+| 15  | OC-0006      | 01/08/2026 | Revoll Srls  | 743,95     | 163,67 | 907,62 |
+| 16  | OC-0007      | 08/08/2026 | Revoll Srls  | 40,00      | 8,80   | 48,80  |
+| 17  | OC-0008      | 11/08/2026 | Revoll Srls  | 125,60     | 27,63  | 153,23 |
+
+Tutti e 17 hanno `imponibile + IVA = totale`, e i 13 ordini `shopify_online` non c’entrano:
+arrivano dal canale, non da questa maschera.
+
+### Gap rimasti — dichiarati, non nascosti
+
+| Gap                                                                                            | Stato                                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **La stampa dell’ordine mostra il netto** anche se l’ordine è in ivato                         | come fa già `document-pdf.service.ts`: è il comportamento esistente dell’app, non una svista di questa fetta. Se deve seguire la modalità è una decisione a sé |
+| **`online_sale_lines` resta `integer`**                                                        | voluto: il prezzo arriva dal canale come stringa già arrotondata, non c’è nessuno scorporo da cui nasca una coda                                               |
+| **`sales-document-form.component.ts`** ha lo stesso `setPriceMode` che riconverte dal mostrato | maschera **congelata** (`feature/fattura-elettronica` la sta riscrivendo): non toccata di proposito                                                            |
+| **Il gate di copertura fallisce** (14,35% contro 80%)                                          | ⚠️ **preesistente**: identico prima e dopo, verificato su albero pulito. Problema suo, non di questa fetta                                                     |
 
 #### Le due regole aziendali netto/ivato — **decise il 16/08, da implementare**
 

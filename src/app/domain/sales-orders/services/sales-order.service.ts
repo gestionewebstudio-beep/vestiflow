@@ -64,6 +64,12 @@ export interface SaveManualOrderInput {
   readonly paymentTerms?: string;
   /** Sconto extra % documento (0-100), dopo gli sconti riga. */
   readonly documentDiscountPercent?: number;
+  /**
+   * Modalità con cui i prezzi sono stati digitati: netti (`false`) o ivati.
+   * `unitPriceMinor` porta comunque il NETTO — questo dice solo come va
+   * rimostrato, e si salva sull'ordine perché è una sua proprietà.
+   */
+  readonly pricesIncludeVat?: boolean;
   /** Righe opzionali: l'ordine può esistere con la sola testata. */
   readonly lines: readonly SaveManualOrderLineInput[];
 }

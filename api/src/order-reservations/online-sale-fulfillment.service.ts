@@ -541,7 +541,9 @@ export class OnlineSaleFulfillmentService {
         barcode: line.variantId ? (barcodeByVariantId.get(line.variantId) ?? null) : null,
         description: line.title,
         quantity: line.quantity,
-        unitPriceMinor: line.unitPriceMinor,
+        // Prezzo unitario a sei decimali dal 16/08: `Number` conserva la coda,
+        // e la riga documento la ospita (anche lì la colonna è numeric(16,6)).
+        unitPriceMinor: Number(line.unitPriceMinor),
         subtotalMinor,
         vatRatePercent,
         taxMinor,

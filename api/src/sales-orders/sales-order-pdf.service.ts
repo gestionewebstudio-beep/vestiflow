@@ -128,7 +128,9 @@ export class SalesOrderPdfService {
       line.sku,
       line.title || line.sku,
       String(line.quantity),
-      formatMinorAmount(line.unitPriceMinor, currency),
+      // La stampa mostra il NETTO, come quella dei documenti
+      // (`document-pdf.service.ts`): due decimali, l'arrotondamento è l'uscita.
+      formatMinorAmount(Number(line.unitPriceMinor), currency),
       line.discount?.trim() ? line.discount : '—',
       this.vatLabel(line.vatSnapshot),
       formatMinorAmount(line.totalMinor, currency),

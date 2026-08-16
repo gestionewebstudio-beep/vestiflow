@@ -334,6 +334,9 @@ export class ManualSalesOrdersService {
           notes: dto.notes?.trim() || null,
           paymentTerms: dto.paymentTerms?.trim() || null,
           documentDiscountPercent,
+          // Modalità di digitazione dei prezzi: proprietà dell'ordine, non di
+          // chi lo apre. Il prezzo memorizzato resta comunque il netto.
+          pricesIncludeVat: dto.pricesIncludeVat ?? false,
           placedAt: documentDate,
           subtotalMinor: totals.subtotalMinor,
           taxMinor: totals.taxMinor,
@@ -611,6 +614,10 @@ export class ManualSalesOrdersService {
       externalRef: order.externalRef ?? undefined,
       internalComment: `Generato da Concludi ordine ${order.orderNumber}`,
       documentDiscountPercent: Number(order.documentDiscountPercent),
+      // Il documento di scarico eredita la modalità netto/ivato dell'ordine,
+      // come il DDT generato da proforma eredita quella della proforma. Non è
+      // una scelta nuova: è la stessa regola, applicata all'altra origine.
+      pricesIncludeVat: order.pricesIncludeVat,
       includedSalesOrderIds: [order.id],
       // Numero e data dell'ordine: servono al client per comporre la riga
       // «Rif. Ordine cliente …». Il testo NON si compone qui — il formatter
@@ -624,7 +631,12 @@ export class ManualSalesOrdersService {
         quantity: line.quantity,
         // Prezzo unitario SCONTATO (cascata già applicata alla riga ordine):
         // il documento di scarico eredita i prezzi reali, sconto riga a 0.
-        unitPriceMinor: line.quantity > 0 ? Math.round(line.totalMinor / line.quantity) : 0,
+        //
+        // ESATTO, non arrotondato: la colonna di destinazione è numeric(16,6),
+        // e arrotondare qui faceva divergere di un centesimo il totale del
+        // documento da quello dell'ordine appena concluso (7,59 € su 3 pezzi
+        // → 253 × 3 = 7,59 solo per caso; su altre cifre no).
+        unitPriceMinor: line.quantity > 0 ? line.totalMinor / line.quantity : 0,
         discountPercent: 0,
         vatCodeId: line.vatCodeId ?? undefined,
         // Le reference che l'ordine si portava dietro restano reference anche
@@ -803,7 +815,8 @@ export class ManualSalesOrdersService {
         barcode: line.barcode ?? undefined,
         title: line.title,
         quantity: line.quantity,
-        unitPriceMinor: line.unitPriceMinor,
+        // Duplica: il prezzo si riporta ESATTO, coda decimale compresa.
+        unitPriceMinor: Number(line.unitPriceMinor),
         discount: line.discount ?? undefined,
         vatCodeId: line.vatCodeId ?? undefined,
         commitsStock: line.commitsStock,

@@ -117,6 +117,16 @@ export class SaveManualSalesOrderDto {
   @IsUUID()
   id?: string;
 
+  /**
+   * Modalità con cui i prezzi sono stati DIGITATI su questo ordine: netti
+   * (assente o `false`) o ivati. Il client manda comunque il NETTO in
+   * `unitPriceMinor` — questo campo dice soltanto come quel netto va rimostrato,
+   * ed è una proprietà dell'ordine, non di chi lo apre.
+   */
+  @IsOptional()
+  @IsBoolean()
+  pricesIncludeVat?: boolean;
+
   @IsUUID()
   customerId!: string;
 

@@ -49,6 +49,19 @@ verificati liberi **prima**, come vuole §13-bis: il database portava già
 
 **La biforcazione che sorprende.** `CustomerOrderFormComponent` serve quattro tipi tramite il route data `customerDocumentKind`, ma **salva su due tabelle diverse**: il predicato `isRegistryDocument` devia Preventivi / DDT / Scarico manuale su `saveRegistryDocument` → `DocumentLine`; solo l'Ordine cliente passa da `SalesOrderLine`.
 
+⚠️ **È la biforcazione che teneva l'Ordine cliente indietro** _(risolto il 16/08/2026)_. Le due
+strade di salvataggio dello stesso componente non facevano la stessa cosa col prezzo:
+`buildRegistryLines()` scorporava il netto, `buildSavePayload()` mandava il valore mostrato così
+com'era. Non faceva danno solo perché il selettore netto/ivato **sull'Ordine cliente non
+esisteva** — il template lo escludeva «finché non arriva il supporto backend dedicato», e il
+supporto mancante era una colonna: `sales_order_lines.unit_price_minor` era `integer` e non
+poteva ospitare la coda decimale di uno scorporo.
+
+Oggi la colonna è `numeric(16,6)` come le altre due, la modalità vive su
+`sales_orders.prices_include_vat` come vive su `documents.prices_include_vat`, e le due strade
+mandano entrambe il netto. **Chi guarda questa tabella per capire dove copiare: le due righe
+della prima colonna adesso si comportano uguale.**
+
 **Vendita/reso in negozio non è una maschera documento.** Produce documenti `store_sale` / `store_return`, poi consultabili in sola lettura, ma il carrello **non è una `FormArray`**: è un carrello a segnali (`signal<readonly CartLine[]>`) con gestori `(change)` propri, e non ha **alcuna** navigazione da tastiera. Allinearla non è aggiungere le frecce: è cambiare l'architettura della riga.
 
 Non è però un silo: riusa già da `domain/` il pannello di ricerca prodotto, le utility IVA, la scheda articolo e i servizi. Ciò che non condivide non lo condivide **perché è diverso**. Le celle di riga condivise, che sono legate al valore e non al form, resterebbero adottabili anche lì.

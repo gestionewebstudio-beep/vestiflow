@@ -11,7 +11,13 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormArray,
+  NonNullableFormBuilder,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
@@ -111,7 +117,6 @@ import {
   grossFromNetMinor,
   lineVatFromNetExact,
   netFromGrossExact,
-  netFromGrossMinor,
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentNumberConflictStore } from '@domain/documents/state/document-number-conflict.store';
 import { DocumentChronologyGuard } from '@domain/documents/state/document-chronology-guard';
@@ -439,6 +444,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * guardava la serie di un altro tipo documento.
    */
   protected readonly numberingDocumentType = this.isOrder
+    ? DocumentType.CustomerOrder
+    : this.registryDocumentType;
+  /**
+   * Tipo che governa la PREFERENZA netto/ivato, per la stessa ragione per cui
+   * la numerazione ha il suo: l'Ordine cliente non vive in `documents`, e
+   * prendere qui il ripiego `Quote` gli farebbe ereditare la preferenza del
+   * Preventivo — l'ultima scelta fatta su un'altra maschera.
+   */
+  private readonly priceModeDocumentType = this.isOrder
     ? DocumentType.CustomerOrder
     : this.registryDocumentType;
 
@@ -1859,15 +1873,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
    * Il DDT generato da proforma e il duplicato ereditano invece l'origine.
    */
   private initPriceModeForNewDocument(): void {
-    if (!this.isRegistryDocument) {
-      return;
-    }
     const params = this.route.snapshot.queryParamMap;
     if (params.get('fromDocument') || params.get('duplicateFrom')) {
       return;
     }
     this.documentService
-      .getPriceModePreference(this.registryDocumentType)
+      .getPriceModePreference(this.priceModeDocumentType)
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (pricesIncludeVat) => this.pricesIncludeVat.set(pricesIncludeVat),
@@ -2828,32 +2839,33 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.priceModeMenuOpen.update((open) => !open);
   }
 
+  /**
+   * Cambio netto ↔ ivato: cambia SOLO come il prezzo si vede, mai quanto vale.
+   *
+   * Si legge il netto di ogni riga PRIMA di cambiare modalità e lo si riscrive
+   * dopo: la grandezza attraversa il cambio intatta, coda decimale compresa, e
+   * netto → ivato → netto riporta lo stesso identico valore. La forma
+   * precedente riconvertiva il valore MOSTRATO — due decimali — e il giro
+   * perdeva il centesimo che questa fetta esiste per non perdere.
+   */
   protected setPriceMode(pricesIncludeVat: boolean): void {
     this.priceModeMenuOpen.set(false);
     if (pricesIncludeVat === this.pricesIncludeVat() || this.formReadOnly()) {
       return;
     }
-    this.lines.controls.forEach((line, index) => {
-      if (this.isReferenceLine(line)) {
-        return;
-      }
-      const price = parseMoneyInput(line.controls.unitPrice.value, this.currency);
-      const rate = this.lineVatRate(index);
-      if (!price || price.amountMinor <= 0 || rate <= 0) {
-        return;
-      }
-      const converted = pricesIncludeVat
-        ? grossFromNetMinor(price.amountMinor, rate)
-        : netFromGrossMinor(price.amountMinor, rate);
-      line.controls.unitPrice.setValue(
-        moneyToDecimalString({ amountMinor: converted, currencyCode: this.currency }).replace(
-          '.',
-          ',',
-        ),
-        { emitEvent: false },
-      );
-    });
+    const nets = this.lines.controls.map((line, index) =>
+      this.isReferenceLine(line) ? null : this.lineNetMinor(line, index),
+    );
     this.pricesIncludeVat.set(pricesIncludeVat);
+    this.lines.controls.forEach((line, index) => {
+      const net = nets[index];
+      const rate = this.lineVatRate(index);
+      if (net == null || net <= 0 || rate <= 0) {
+        return;
+      }
+      line.controls.unitPrice.setValue(this.priceFieldValue(net, rate), { emitEvent: false });
+      this.rememberLineNet(line, net, rate);
+    });
     this.markFormDirty();
   }
 
@@ -2956,6 +2968,45 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     const line = this.lines.at(index);
     const entered = parseMoneyInput(line.controls.unitPrice.value, this.currency);
     return this.netFromDisplayed(entered?.amountMinor ?? 0, this.lineVatRate(index));
+  }
+
+  // ── Il netto canonico di una riga, e perché non basta il campo ─────────────
+  //
+  // Il campo prezzo mostra DUE decimali — sempre, in ogni schermata, è la regola
+  // del denaro. Il netto memorizzato però può avere una coda: 25,00 ivati al 22%
+  // valgono 2049,180328 centesimi. Se a ogni cambio di modalità il netto venisse
+  // ricalcolato da quello che il campo mostra, la coda si perderebbe al primo
+  // giro e il prezzo ivato tornerebbe 24,99 per sempre.
+  //
+  // Quindi il netto caricato resta il buono FINCHÉ il campo mostra ancora
+  // esattamente quello che ci era stato scritto. Appena l'operatore lo ridigita,
+  // il valore vero è il suo e si scorpora — che è ciò che deve succedere.
+
+  private readonly lineNetCanonical = new WeakMap<
+    AbstractControl,
+    { readonly net: number; readonly shown: string }
+  >();
+
+  /** Ricorda il netto esatto di una riga insieme a come lo si sta mostrando. */
+  private rememberLineNet(line: AbstractControl, netMinor: number, ratePercent: number): void {
+    this.lineNetCanonical.set(line, {
+      net: netMinor,
+      shown: this.priceFieldValue(netMinor, ratePercent),
+    });
+  }
+
+  /**
+   * Netto da salvare per la riga: quello ricordato se il campo non è stato
+   * toccato, altrimenti lo scorporo del valore digitato.
+   */
+  private lineNetMinor(line: AbstractControl, index: number): number {
+    const control = (line as ReturnType<CustomerOrderFormComponent['createLine']>).controls
+      .unitPrice;
+    const remembered = this.lineNetCanonical.get(line);
+    if (remembered && remembered.shown === control.value) {
+      return remembered.net;
+    }
+    return this.lineUnitNetMinor(index);
   }
 
   /** Aliquota effettiva della riga (solo modalità standard, 0 altrimenti). */
@@ -4096,6 +4147,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
   // ── Caricamento ordine esistente nel form ───────────────────────────────
   private patchFormFromOrder(order: SalesOrder): void {
+    // Ordine esistente: vince la modalità dell'ORDINE. Se qui si leggesse la
+    // preferenza di chi apre, due operatori vedrebbero lo stesso ordine in due
+    // modi e non si saprebbe come era stato compilato.
+    this.pricesIncludeVat.set(order.pricesIncludeVat === true);
     this.suppressDirtyMarking = true;
     try {
       this.form.patchValue({
@@ -4133,7 +4188,14 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             barcode: line.barcode ?? '',
             productName: line.title,
             quantity: line.quantity,
-            unitPrice: moneyToDecimalString(line.unitPrice).replace('.', ','),
+            // Memorizzato netto: si rimostra nella modalità dell'ordine.
+            unitPrice:
+              line.unitPrice.amountMinor > 0
+                ? this.priceFieldValue(
+                    line.unitPrice.amountMinor,
+                    this.rateOfVatCodeId(line.vatCodeId),
+                  )
+                : '',
             discount: line.discount ?? '',
             vatCodeId: line.vatCodeId ?? '',
             commitsStock: line.commitsStock ?? true,
@@ -4142,6 +4204,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             isReference: line.isReference === true,
           },
           { emitEvent: false },
+        );
+        this.rememberLineNet(
+          group,
+          line.unitPrice.amountMinor,
+          this.rateOfVatCodeId(line.vatCodeId),
         );
         this.lines.push(group, { emitEvent: false });
       }
@@ -4417,7 +4484,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       if (this.lineIsEmpty(line)) {
         continue;
       }
-      const unitPrice = parseMoneyInput(raw.unitPrice, this.currency);
+      const index = this.lines.controls.indexOf(line);
       lines.push({
         id: raw.id || undefined,
         variantId: raw.variantId || undefined,
@@ -4425,7 +4492,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         barcode: raw.barcode.trim() || undefined,
         title: raw.productName.trim() || raw.sku.trim() || 'Articolo',
         quantity: Number(raw.quantity) || 0,
-        unitPriceMinor: unitPrice?.amountMinor ?? 0,
+        // Al server va il NETTO: se il campo mostrava l'ivato, si scorpora qui.
+        // È la stessa riga che `buildRegistryLines` aveva già e questa non
+        // aveva: finché la modalità era bloccata su netto non faceva danno,
+        // dal momento in cui si può scegliere l'ivato lo farebbe.
+        unitPriceMinor: this.lineNetMinor(line, index),
         discount: raw.discount.trim() || undefined,
         vatCodeId: raw.vatCodeId || undefined,
         commitsStock: raw.commitsStock,
@@ -4438,6 +4509,8 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       customerId: value.customerId,
       locationId: value.locationId || undefined,
       documentDate: value.documentDate,
+      // La modalità è dell'ORDINE: si salva con lui, non si rilegge da chi apre.
+      pricesIncludeVat: this.pricesIncludeVat(),
       series: this.numbering.chosenSeries(),
       // La proposta NON torna indietro come imposizione: viaggia solo il numero
       // che l'operatore ha digitato, o due che salvano insieme si
@@ -4527,7 +4600,6 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       if (this.lineIsEmpty(line)) {
         continue;
       }
-      const unitPrice = parseMoneyInput(raw.unitPrice, this.currency);
       const index = this.lines.controls.indexOf(line);
       lines.push({
         // Vuoto = riga nuova. Presente = aggiorna quella riga, non ricrearla.
@@ -4537,7 +4609,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         description: raw.productName.trim() || raw.sku.trim() || 'Riga documento',
         quantity: Number(raw.quantity) || 0,
         // Al server va il netto: se il campo mostrava l'ivato, si scorpora qui.
-        unitPriceMinor: this.netFromDisplayed(unitPrice?.amountMinor ?? 0, this.lineVatRate(index)),
+        // Il netto CARICATO ha la precedenza su quello ricavabile dal campo,
+        // che ha due decimali: riaprire un documento e risalvarlo senza toccare
+        // niente non deve limargli la coda decimale.
+        unitPriceMinor: this.lineNetMinor(line, index),
         // Le righe documento persistono la percentuale effettiva intera
         // (cascata "4+10%" → 14): stessa resa dei totali in anteprima.
         discountPercent: parseEffectiveDiscountPercent(raw.discount),
@@ -4830,6 +4905,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
             isReference: line.isReference === true,
           },
           { emitEvent: false },
+        );
+        this.rememberLineNet(
+          group,
+          line.unitPrice.amountMinor,
+          line.vatSnapshot?.ratePercent ?? this.rateOfVatCodeId(line.vatCodeId),
         );
         this.lines.push(group, { emitEvent: false });
       }

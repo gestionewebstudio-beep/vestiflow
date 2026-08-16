@@ -174,6 +174,79 @@ describe('computeManualOrderLines / computeManualOrderTotals', () => {
   });
 });
 
+/**
+ * Sei decimali sul prezzo unitario — dal 16/08/2026.
+ *
+ * La colonna era `integer`, quindi il netto di un prezzo digitato ivato veniva
+ * troncato e non tornava più: 25,00 al 22% valgono 2049,180328 centesimi netti,
+ * e 2049 tondi rimostrati ivati fanno 24,99. Succede a un prezzo ivato su
+ * cinque, non è il caso raro da manuale.
+ */
+describe('coda decimale del prezzo unitario', () => {
+  it('lo sconto NON arrotonda il prezzo unitario: arrotonda il totale di riga', () => {
+    // 3 pezzi da 33,33 scontati del 7%: il conto esatto è 92,9907 → 92,99.
+    // Arrotondando PRIMA il prezzo unitario (30,9969 → 31,00) uscivano 93,00,
+    // un centesimo che il cliente non doveva.
+    const vatCodesById = new Map([['vat-22', vatCode()]]);
+    const lines = computeManualOrderLines(
+      [{ title: 'Articolo', quantity: 3, unitPriceMinor: 3333, discount: '7%' }],
+      vatCodesById,
+    );
+
+    expect(discountedUnitPriceMinor(3333, '7%')).toBe(3099.69);
+    expect(lines[0]!.totalMinor).toBe(9299);
+    expect(lines[0]!.totalMinor).not.toBe(3 * 3100);
+  });
+
+  it('il netto con la coda decimale arriva intatto sulla riga', () => {
+    const lines = computeManualOrderLines(
+      [{ title: 'Articolo', quantity: 1, unitPriceMinor: 2049.180328 }],
+      new Map(),
+    );
+
+    // Prima veniva troncato a 2049 da `Math.trunc`.
+    expect(lines[0]!.unitPriceMinor).toBe(2049.1803);
+  });
+
+  it('la coda oltre le quattro cifre di centesimo si taglia: è rumore del float', () => {
+    // La colonna è numeric(16,6) — sei decimali di euro. Oltre lì non c'è
+    // precisione: 25 / 1,22 in binario non finisce mai, e il database
+    // rifiuterebbe la scala.
+    const lines = computeManualOrderLines(
+      [{ title: 'Articolo', quantity: 1, unitPriceMinor: 2049.18032786885 }],
+      new Map(),
+    );
+
+    expect(lines[0]!.unitPriceMinor).toBe(2049.1803);
+  });
+
+  it('un prezzo intero resta esattamente com’era: lo storico non si muove', () => {
+    const vatCodesById = new Map([['vat-22', vatCode()]]);
+    const lines = computeManualOrderLines(
+      [{ title: 'Articolo', quantity: 3, unitPriceMinor: 3500, vatCodeId: 'vat-22' }],
+      vatCodesById,
+    );
+
+    expect(lines[0]!.unitPriceMinor).toBe(3500);
+    expect(lines[0]!.totalMinor).toBe(10500);
+    expect(lines[0]!.lineVatTotalMinor).toBe(2310);
+  });
+
+  it('netto con coda: imponibile e imposta fanno tornare il lordo digitato', () => {
+    const vatCodesById = new Map([['vat-22', vatCode()]]);
+    const lines = computeManualOrderLines(
+      [{ title: 'Articolo', quantity: 1, unitPriceMinor: 2049.180328, vatCodeId: 'vat-22' }],
+      vatCodesById,
+    );
+    const totals = computeManualOrderTotals(lines);
+
+    // 25,00 € digitati ivati devono tornare 25,00 € di totale documento.
+    expect(totals.totalMinor).toBe(2500);
+    expect(totals.subtotalMinor).toBe(2049);
+    expect(totals.taxMinor).toBe(451);
+  });
+});
+
 describe('isPersistableManualOrderLine', () => {
   it('riga valida: prodotto + quantità > 0', () => {
     expect(

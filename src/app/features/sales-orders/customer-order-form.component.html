@@ -425,25 +425,23 @@
                   (manageSeries)="seriesDialogOpen.set(true)"
                 />
 
-                @if (!isOrder) {
-                  <!-- Modalità prezzo: netto o ivato. Su desktop lo stesso
-                         controllo vive nell'intestazione di colonna. L'Ordine
-                         cliente ne è escluso finché non arriva il supporto
-                         backend dedicato (SalesOrder). -->
-                  <div class="doc-panel__field">
-                    <span class="doc-panel__label">Modalità prezzo</span>
-                    <app-select-menu
-                      [options]="priceModeOptions"
-                      [value]="pricesIncludeVat() ? 'gross' : 'net'"
-                      ariaLabel="Modalità prezzo netto o ivato"
-                      placeholder="Netto"
-                      [includeEmptyOption]="false"
-                      [compact]="true"
-                      [fullWidth]="true"
-                      (valueChange)="setPriceMode($event === 'gross')"
-                    />
-                  </div>
-                }
+                <!-- Modalità prezzo: netto o ivato. Su desktop lo stesso
+                     controllo vive nell'intestazione di colonna. Dal 16/08/2026
+                     c'è anche sull'Ordine cliente: la modalità si persiste su
+                     SalesOrder.pricesIncludeVat, che era il supporto mancante. -->
+                <div class="doc-panel__field">
+                  <span class="doc-panel__label">Modalità prezzo</span>
+                  <app-select-menu
+                    [options]="priceModeOptions"
+                    [value]="pricesIncludeVat() ? 'gross' : 'net'"
+                    ariaLabel="Modalità prezzo netto o ivato"
+                    placeholder="Netto"
+                    [includeEmptyOption]="false"
+                    [compact]="true"
+                    [fullWidth]="true"
+                    (valueChange)="setPriceMode($event === 'gross')"
+                  />
+                </div>
 
                 <!-- Listino (§B4): non è un dato del documento, è come lo si
                        riempie. Sceglierlo riscrive i prezzi delle righe, che
@@ -1165,32 +1163,29 @@
                           <!-- Modalità prezzo netto/ivato integrata nell'header di
                              colonna (stesso pattern dell'Arrivo merce): l'etichetta
                              riflette la modalità corrente e il menu la cambia.
-                             L'Ordine cliente (isOrder) resta netto finché non
-                             arriva il supporto backend dedicato (SalesOrder). -->
-                          @if (isOrder) {
-                            Prezzo
-                          } @else {
-                            <span class="doc-form__th-menu-wrap">
-                              <button
-                                type="button"
-                                class="doc-form__th-sort doc-form__th-sort--num"
-                                aria-haspopup="menu"
-                                [attr.aria-expanded]="priceModeMenuOpen()"
-                                aria-label="Modalità prezzo del documento"
-                                (click)="togglePriceModeMenu()"
-                              >
-                                {{ priceRowLabel() }}
-                              </button>
-                              <app-price-mode-menu
-                                [pricesIncludeVat]="pricesIncludeVat()"
-                                netLabel="Usa prezzi netti"
-                                grossLabel="Usa prezzi ivati"
-                                ariaLabel="Modalità prezzo del documento"
-                                [disabled]="formReadOnly()"
-                                (modeChange)="setPriceMode($event)"
-                              />
-                            </span>
-                          }
+                             Dal 16/08/2026 anche sull'Ordine cliente: la modalità
+                             si persiste su SalesOrder.pricesIncludeVat, che era
+                             il supporto backend mancante. -->
+                          <span class="doc-form__th-menu-wrap">
+                            <button
+                              type="button"
+                              class="doc-form__th-sort doc-form__th-sort--num"
+                              aria-haspopup="menu"
+                              [attr.aria-expanded]="priceModeMenuOpen()"
+                              aria-label="Modalità prezzo del documento"
+                              (click)="togglePriceModeMenu()"
+                            >
+                              {{ priceRowLabel() }}
+                            </button>
+                            <app-price-mode-menu
+                              [pricesIncludeVat]="pricesIncludeVat()"
+                              netLabel="Usa prezzi netti"
+                              grossLabel="Usa prezzi ivati"
+                              ariaLabel="Modalità prezzo del documento"
+                              [disabled]="formReadOnly()"
+                              (modeChange)="setPriceMode($event)"
+                            />
+                          </span>
                           <span
                             appTableColumnResize
                             [minWidthPx]="lineColumnMinWidth('unitPrice')"

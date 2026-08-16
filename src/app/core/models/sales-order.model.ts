@@ -172,6 +172,12 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly paymentTerms?: string;
   /** Sconto extra % sull'intero documento, dopo gli sconti riga. */
   readonly documentDiscountPercent?: number;
+  /**
+   * Modalità con cui i prezzi dell'ordine sono stati DIGITATI: netti o ivati.
+   * È una proprietà dell'ordine, non di chi lo apre — due operatori devono
+   * vederlo nello stesso modo. Il prezzo memorizzato resta comunque il netto.
+   */
+  readonly pricesIncludeVat?: boolean;
 }
 
 /**
