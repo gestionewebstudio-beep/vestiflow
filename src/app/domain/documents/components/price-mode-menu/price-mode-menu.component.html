@@ -1,0 +1,43 @@
+<button
+  type="button"
+  class="doc-form__th-menu-trigger"
+  aria-haspopup="menu"
+  [attr.aria-expanded]="expanded()"
+  [attr.aria-label]="ariaLabel()"
+  [disabled]="disabled()"
+  (click)="toggle()"
+>
+  <i class="pi pi-chevron-down" aria-hidden="true"></i>
+</button>
+@if (open()) {
+  <div class="doc-form__th-menu" role="menu" [attr.aria-label]="ariaLabel()">
+    <button
+      type="button"
+      class="doc-form__th-menu-item"
+      role="menuitemradio"
+      [attr.aria-checked]="!pricesIncludeVat()"
+      (click)="select(false)"
+    >
+      @if (!pricesIncludeVat()) {
+        <i class="pi pi-check" aria-hidden="true"></i>
+      } @else {
+        <span class="doc-form__th-menu-check" aria-hidden="true"></span>
+      }
+      {{ netLabel() }}
+    </button>
+    <button
+      type="button"
+      class="doc-form__th-menu-item"
+      role="menuitemradio"
+      [attr.aria-checked]="pricesIncludeVat()"
+      (click)="select(true)"
+    >
+      @if (pricesIncludeVat()) {
+        <i class="pi pi-check" aria-hidden="true"></i>
+      } @else {
+        <span class="doc-form__th-menu-check" aria-hidden="true"></span>
+      }
+      {{ grossLabel() }}
+    </button>
+  </div>
+}

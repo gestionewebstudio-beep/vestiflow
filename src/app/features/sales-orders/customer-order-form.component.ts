@@ -225,6 +225,7 @@ import {
 import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 
 const VARIANT_SEARCH_DEBOUNCE_MS = 300;
 const VARIANT_SEARCH_MIN_CHARS = 2;
@@ -308,6 +309,7 @@ interface AvailabilityIssue {
   imports: [
     FirstClickSelectsDirective,
     InlineBannerComponent,
+    PriceModeMenuComponent,
     ReactiveFormsModule,
     CustomerOrderLineCardComponent,
     CdkDropList,

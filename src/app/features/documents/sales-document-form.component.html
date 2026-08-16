@@ -152,6 +152,7 @@
                       [value]="pricesIncludeVat() ? 'gross' : 'net'"
                       ariaLabel="Modalità prezzo netto o ivato"
                       placeholder="Netto"
+                      [includeEmptyOption]="false"
                       [compact]="true"
                       [fullWidth]="true"
                       (valueChange)="setPriceMode($event === 'gross')"
@@ -173,11 +174,11 @@
 
                 @if (showListinoSelect() && !formReadOnly()) {
                   <div class="doc-panel__field">
-                    <span class="doc-panel__label">Listino</span>
+                    <span class="doc-panel__label">Prezzo</span>
                     <app-select-menu
                       [options]="listinoOptions()"
                       [value]="listinoValue()"
-                      ariaLabel="Listino applicato alle righe"
+                      ariaLabel="Prezzo applicato alle righe"
                       placeholder="Prezzo articolo"
                       [compact]="true"
                       [fullWidth]="true"
@@ -367,31 +368,25 @@
               (manageSeries)="seriesDialogOpen.set(true)"
             />
 
-            <!-- Modalità prezzo del documento: netto o ivato. Cambiandola i prezzi
-                 si convertono così i totali non si spostano. -->
-            <div class="doc-form__field">
-              <span class="doc-form__label">Modalità prezzo</span>
-              <app-select-menu
-                [options]="priceModeOptions"
-                [value]="pricesIncludeVat() ? 'gross' : 'net'"
-                ariaLabel="Modalità prezzo netto o ivato"
-                placeholder="Netto"
-                [compact]="true"
-                [fullWidth]="true"
-                (valueChange)="setPriceMode($event === 'gross')"
-              />
-            </div>
+            <!-- La modalità prezzo NON sta più qui: vive sull'intestazione della
+                 colonna Prezzo, dove sta anche nelle altre tre maschere. Un
+                 campo di testata la teneva lontana dai numeri che governa, e
+                 rendeva questa maschera l'unica diversa (`07-…§24`). -->
 
-            <!-- Listino (§B4): non è un dato del documento, è come lo si riempie.
+            <!-- (§B4): non è un dato del documento, è come lo si riempie.
                  Sceglierlo riscrive i prezzi delle righe, che restano
-                 modificabili una per una. -->
+                 modificabili una per una.
+                 Si chiama «Prezzo» e non «Listino» per decisione del 16/08: i
+                 listini in VestiFlow non sono mai stati usati, e la parola
+                 chiedeva all'operatore di imparare un termine per una cosa che
+                 per lui è il prezzo applicato. -->
             @if (showListinoSelect() && !formReadOnly()) {
               <div class="doc-form__field">
-                <span class="doc-form__label">Listino</span>
+                <span class="doc-form__label">Prezzo</span>
                 <app-select-menu
                   [options]="listinoOptions()"
                   [value]="listinoValue()"
-                  ariaLabel="Listino applicato alle righe"
+                  ariaLabel="Prezzo applicato alle righe"
                   placeholder="Prezzo articolo"
                   [compact]="true"
                   [fullWidth]="true"
@@ -665,23 +660,38 @@
                         class="doc-form__num doc-form__col--sale"
                         [style.width]="lineColumnWidth('unitPrice')"
                       >
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('unitPrice', 'Prezzo')"
-                          title="Prezzo"
-                          (click)="toggleLineSort('unitPrice')"
-                        >
-                          {{ priceRowLabel() }}
-                          @if (lineSort.column() === 'unitPrice') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
+                        <!-- L'etichetta ordina, il chevron sceglie netto/ivato:
+                             due mestieri distinti sullo stesso titolo, come
+                             nelle altre maschere. Prima la scelta stava in un
+                             campo «Modalità prezzo» in testata — l'unica delle
+                             quattro maschere fuori standard, e proprio quella
+                             fiscale (`07-…§24`). -->
+                        <span class="doc-form__th-menu-wrap">
+                          <button
+                            type="button"
+                            class="doc-form__th-sort doc-form__th-sort--num"
+                            [attr.aria-label]="lineSortAriaLabel('unitPrice', 'Prezzo')"
+                            title="Prezzo"
+                            (click)="toggleLineSort('unitPrice')"
+                          >
+                            {{ priceRowLabel() }}
+                            @if (lineSort.column() === 'unitPrice') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
+                          </button>
+                          <app-price-mode-menu
+                            [pricesIncludeVat]="pricesIncludeVat()"
+                            netLabel="Usa prezzi netti"
+                            grossLabel="Usa prezzi ivati"
+                            [disabled]="formReadOnly()"
+                            (modeChange)="setPriceMode($event)"
+                          />
+                        </span>
                         <span
                           appTableColumnResize
                           (resized)="onLineColumnResize('unitPrice', $event)"

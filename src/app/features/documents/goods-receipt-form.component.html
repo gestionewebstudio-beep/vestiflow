@@ -924,58 +924,16 @@
                                   ></i>
                                 }
                               </button>
-                              <button
-                                type="button"
-                                class="doc-form__th-menu-trigger"
-                                aria-haspopup="menu"
-                                [attr.aria-expanded]="costModeMenuOpen()"
-                                aria-label="Modalità costi del documento"
-                                (click)="toggleCostModeMenu()"
-                              >
-                                <i class="pi pi-chevron-down" aria-hidden="true"></i>
-                              </button>
-                              @if (costModeMenuOpen()) {
-                                <div
-                                  class="doc-form__th-menu"
-                                  role="menu"
-                                  aria-label="Modalità costi"
-                                >
-                                  <button
-                                    type="button"
-                                    class="doc-form__th-menu-item"
-                                    role="menuitemradio"
-                                    [attr.aria-checked]="costEntryMode() === 'vat_excluded'"
-                                    (click)="selectCostMode('vat_excluded')"
-                                  >
-                                    @if (costEntryMode() === 'vat_excluded') {
-                                      <i class="pi pi-check" aria-hidden="true"></i>
-                                    } @else {
-                                      <span
-                                        class="doc-form__th-menu-check"
-                                        aria-hidden="true"
-                                      ></span>
-                                    }
-                                    Usa costi netti
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="doc-form__th-menu-item"
-                                    role="menuitemradio"
-                                    [attr.aria-checked]="costEntryMode() === 'vat_included'"
-                                    (click)="selectCostMode('vat_included')"
-                                  >
-                                    @if (costEntryMode() === 'vat_included') {
-                                      <i class="pi pi-check" aria-hidden="true"></i>
-                                    } @else {
-                                      <span
-                                        class="doc-form__th-menu-check"
-                                        aria-hidden="true"
-                                      ></span>
-                                    }
-                                    Usa costi ivati
-                                  </button>
-                                </div>
-                              }
+                              <app-price-mode-menu
+                                [pricesIncludeVat]="costEntryMode() === 'vat_included'"
+                                netLabel="Usa costi netti"
+                                grossLabel="Usa costi ivati"
+                                ariaLabel="Modalità costi del documento"
+                                [disabled]="formReadOnly()"
+                                (modeChange)="
+                                  selectCostMode($event ? 'vat_included' : 'vat_excluded')
+                                "
+                              />
                             </span>
                             <span
                               appTableColumnResize
@@ -1634,6 +1592,7 @@
                       [value]="costEntryMode()"
                       ariaLabel="Modalità costo netto o ivato"
                       placeholder="Netto"
+                      [includeEmptyOption]="false"
                       [compact]="true"
                       [fullWidth]="true"
                       (valueChange)="

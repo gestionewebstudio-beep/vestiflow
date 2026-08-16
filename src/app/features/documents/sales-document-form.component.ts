@@ -122,6 +122,7 @@ import type { DocumentLineCodeField } from '@domain/documents/utils/document-cod
 import type { LineCodeChoice } from '@domain/documents/models/document-line-code-choice.model';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import {
   includeSourceKindsForDocumentType,
   type IncludedDocumentPayload,
@@ -205,6 +206,7 @@ type SubmitState =
     DateInputComponent,
     DocumentIncludePanelComponent,
     DocumentMobilePanelComponent,
+    PriceModeMenuComponent,
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
     DocumentLineSelectCellComponent,

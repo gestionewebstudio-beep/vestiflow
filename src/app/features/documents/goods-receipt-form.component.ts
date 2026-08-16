@@ -212,6 +212,7 @@ import { FirstClickSelectsDirective } from '@shared/directives/first-click-selec
 import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -252,6 +253,7 @@ type GoodsReceiptLineFocusField =
     CdkDragHandle,
     FirstClickSelectsDirective,
     InlineBannerComponent,
+    PriceModeMenuComponent,
     ReactiveFormsModule,
     RouterLink,
     BackButtonComponent,

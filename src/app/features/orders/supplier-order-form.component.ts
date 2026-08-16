@@ -150,6 +150,7 @@ import { documentSearchLaunchTerm } from '@domain/documents/utils/document-searc
 import { AttachmentsPanelComponent } from '@shared/components/attachments-panel/attachments-panel.component';
 import { computeDocumentTotals } from '@domain/documents/utils/document-totals.util';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -219,6 +220,7 @@ function todayIsoDate(): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     AttachmentsPanelComponent,
+    PriceModeMenuComponent,
     CdkDropList,
     CdkDrag,
     CdkDragHandle,
