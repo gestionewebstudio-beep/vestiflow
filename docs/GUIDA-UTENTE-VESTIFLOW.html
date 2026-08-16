@@ -1626,10 +1626,51 @@ ol {
 <li><strong>Righe in griglia:</strong> menu <strong>Colonne</strong> (preset, resize intestazioni, <strong>Ripristina colonne</strong>); cerca articolo per <strong>nome, SKU o barcode/EAN</strong>; <strong>Crea articolo rapido</strong> o <strong>Crea anagrafica completa</strong> (pannello laterale senza uscire dal documento). Colonne: descrizione, quantità, costo, IVA, lotto/scadenza/seriali (se attivi in Impostazioni), flag <strong>Carica magazzino</strong>, totale riga.</li>
 <li><strong>Ordine fornitore collegato:</strong> se apri l&#39;arrivo da <strong>Registra arrivo merce</strong> sull&#39;ordine, compaiono anche colonne <strong>Ordinato / Già ricevuto / Residuo</strong> per ogni riga.</li>
 <li><strong>Conferma:</strong> se il costo differisce dall&#39;ultimo prezzo fornitore e la policy lo prevede, compare un dialog per <strong>aggiornare i prezzi fornitore</strong>.</li>
+<li><strong>Prezzi articolo:</strong> due spunte in testata decidono cosa il carico scrive in anagrafica — vedi qui sotto.</li>
 <li><strong>Documento già confermato:</strong> dal form restano disponibili <strong>Anteprima stampa</strong> e il download del PDF. L&#39;arrivo merce non ha azioni di ciclo di vita fiscale: la copertura contabile è tracciata dal collegamento alla fattura fornitore.</li>
 <li>Opzionali per riga: <strong>lotto</strong>, <strong>scadenza lotto</strong>, <strong>numeri seriali</strong> (testo separato da virgola).</li>
 </ul>
 <p>Alla <strong>conferma</strong> dell&#39;arrivo merce (o carico manuale/iniziale) VestiFlow registra i <strong>carichi</strong> in magazzino, aggiorna le giacenze e, se collegato, l&#39;ordine fornitore e l&#39;<strong>in arrivo</strong> (e Shopify/TikTok se collegati).</p>
+<h4 id="cosa-il-carico-scrive-in-anagrafica-dal-16-agosto-2026">Cosa il carico scrive in anagrafica <em>(dal 16 agosto 2026)</em></h4>
+<p>In fondo alla testata trovi <strong>due spunte</strong>, tutte e due accese di default. Fanno cose diverse,
+e vale la pena saperlo:</p>
+<table>
+<thead>
+<tr>
+<th>Spunta</th>
+<th>Cosa decide</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aggiorna anche il costo di riferimento in anagrafica</strong></td>
+<td>se il costo pagato aggiorna anche il costo dell’<strong>articolo</strong></td>
+</tr>
+<tr>
+<td><strong>Aggiorna prezzi articolo</strong></td>
+<td>se i prezzi che scrivi sulle righe aggiornano l’anagrafica</td>
+</tr>
+</tbody></table>
+<p>⚠️ <strong>Non funzionano allo stesso modo, e la differenza si vede.</strong></p>
+<p>Il <strong>costo</strong> che paghi è un dato del carico: il costo della singola taglia si aggiorna
+<strong>sempre</strong>, e la prima spunta decide solo se propagarlo anche al costo di riferimento
+dell&#39;articolo.</p>
+<p>Il <strong>prezzo al pubblico</strong> invece <strong>non è un dato del documento</strong>: è il prezzo di listino
+dell&#39;articolo, e il carico è solo il momento comodo per cambiarlo. Perciò:</p>
+<ul>
+<li><strong>spunta accesa</strong> → il campo si scrive, e quello che scrivi aggiorna il prezzo della taglia
+in anagrafica;</li>
+<li><strong>spunta spenta</strong> → il campo resta <strong>visibile ma non modificabile</strong>.</li>
+</ul>
+<p>Non è una limitazione: prima quella casella si poteva scrivere sempre, e per gli articoli già
+esistenti <strong>il valore digitato non andava da nessuna parte</strong>. Meglio un campo che dice
+chiaramente «adesso non si tocca» di uno che accetta un numero e lo butta via.</p>
+<p><strong>Se hai Shopify collegato</strong> compare anche la colonna <strong>Prezzo Shopify</strong>, che puoi accendere
+o spegnere dal menu <strong>Colonne</strong> (di default è spenta). Segue la stessa spunta: si scrive solo
+a spunta accesa.</p>
+<p>⚠️ <strong>Prezzo al pubblico e Prezzo Shopify restano due prezzi distinti</strong>, ed è voluto: quello
+che pubblichi online può essere diverso da quello del tuo listino. Con Shopify collegato,
+cambiare uno <strong>non</strong> cambia l’altro. Senza Shopify collegato la colonna non c’è, e il prezzo
+del canale segue quello di listino solo quando questo cambia davvero.</p>
 <p><strong>Modifica di un documento già confermato:</strong> apri il documento in modifica, clicca <strong>Sblocca modifica</strong> e conferma l&#39;avviso — VestiFlow aggiorna movimenti e giacenze e salva lo storico revisioni.</p>
 <h3 id="allegati">Allegati</h3>
 <p>Nel <strong>form arrivo merce</strong> (dopo il primo salvataggio bozza) e nel <strong>dettaglio documento</strong>, pannello <strong>Allegati</strong>: carica PDF o immagini (es. DDT cartaceo del fornitore, foto colli). Utile per audit e consegna al commercialista.</p>

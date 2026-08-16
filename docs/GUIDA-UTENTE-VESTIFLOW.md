@@ -783,10 +783,47 @@ Da **Documenti**, pulsante **Nuovo documento** (se hai **Gestire documenti**):
 - **Righe in griglia:** menu **Colonne** (preset, resize intestazioni, **Ripristina colonne**); cerca articolo per **nome, SKU o barcode/EAN**; **Crea articolo rapido** o **Crea anagrafica completa** (pannello laterale senza uscire dal documento). Colonne: descrizione, quantità, costo, IVA, lotto/scadenza/seriali (se attivi in Impostazioni), flag **Carica magazzino**, totale riga.
 - **Ordine fornitore collegato:** se apri l'arrivo da **Registra arrivo merce** sull'ordine, compaiono anche colonne **Ordinato / Già ricevuto / Residuo** per ogni riga.
 - **Conferma:** se il costo differisce dall'ultimo prezzo fornitore e la policy lo prevede, compare un dialog per **aggiornare i prezzi fornitore**.
+- **Prezzi articolo:** due spunte in testata decidono cosa il carico scrive in anagrafica — vedi qui sotto.
 - **Documento già confermato:** dal form restano disponibili **Anteprima stampa** e il download del PDF. L'arrivo merce non ha azioni di ciclo di vita fiscale: la copertura contabile è tracciata dal collegamento alla fattura fornitore.
 - Opzionali per riga: **lotto**, **scadenza lotto**, **numeri seriali** (testo separato da virgola).
 
 Alla **conferma** dell'arrivo merce (o carico manuale/iniziale) VestiFlow registra i **carichi** in magazzino, aggiorna le giacenze e, se collegato, l'ordine fornitore e l'**in arrivo** (e Shopify/TikTok se collegati).
+
+#### Cosa il carico scrive in anagrafica _(dal 16 agosto 2026)_
+
+In fondo alla testata trovi **due spunte**, tutte e due accese di default. Fanno cose diverse,
+e vale la pena saperlo:
+
+| Spunta                                                   | Cosa decide                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------------ |
+| **Aggiorna anche il costo di riferimento in anagrafica** | se il costo pagato aggiorna anche il costo dell’**articolo** |
+| **Aggiorna prezzi articolo**                             | se i prezzi che scrivi sulle righe aggiornano l’anagrafica   |
+
+⚠️ **Non funzionano allo stesso modo, e la differenza si vede.**
+
+Il **costo** che paghi è un dato del carico: il costo della singola taglia si aggiorna
+**sempre**, e la prima spunta decide solo se propagarlo anche al costo di riferimento
+dell'articolo.
+
+Il **prezzo al pubblico** invece **non è un dato del documento**: è il prezzo di listino
+dell'articolo, e il carico è solo il momento comodo per cambiarlo. Perciò:
+
+- **spunta accesa** → il campo si scrive, e quello che scrivi aggiorna il prezzo della taglia
+  in anagrafica;
+- **spunta spenta** → il campo resta **visibile ma non modificabile**.
+
+Non è una limitazione: prima quella casella si poteva scrivere sempre, e per gli articoli già
+esistenti **il valore digitato non andava da nessuna parte**. Meglio un campo che dice
+chiaramente «adesso non si tocca» di uno che accetta un numero e lo butta via.
+
+**Se hai Shopify collegato** compare anche la colonna **Prezzo Shopify**, che puoi accendere
+o spegnere dal menu **Colonne** (di default è spenta). Segue la stessa spunta: si scrive solo
+a spunta accesa.
+
+⚠️ **Prezzo al pubblico e Prezzo Shopify restano due prezzi distinti**, ed è voluto: quello
+che pubblichi online può essere diverso da quello del tuo listino. Con Shopify collegato,
+cambiare uno **non** cambia l’altro. Senza Shopify collegato la colonna non c’è, e il prezzo
+del canale segue quello di listino solo quando questo cambia davvero.
 
 **Modifica di un documento già confermato:** apri il documento in modifica, clicca **Sblocca modifica** e conferma l'avviso — VestiFlow aggiorna movimenti e giacenze e salva lo storico revisioni.
 

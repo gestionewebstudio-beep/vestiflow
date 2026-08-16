@@ -11,6 +11,16 @@ export interface VariantSummaryDto {
     readonly amountMinor: number;
     readonly currencyCode: string;
   };
+  /**
+   * Prezzo del canale Shopify della variante. **Distinto** dal prezzo al
+   * pubblico e mai sincronizzato con esso oltre alla politica dell'anagrafica.
+   * Serve alle maschere che lo mostrano: senza, la colonna nascerebbe vuota e
+   * l'operatore scriverebbe su un campo di cui non vede il valore corrente.
+   */
+  readonly shopifyPrice?: {
+    readonly amountMinor: number;
+    readonly currencyCode: string;
+  } | null;
   readonly purchasePrice?: {
     readonly amountMinor: number;
     readonly currencyCode: string;

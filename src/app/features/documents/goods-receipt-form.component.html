@@ -970,6 +970,20 @@
                             ></span>
                           </th>
                         }
+                        @if (showShopifyPrice() && isLineColumnVisible('shopifyPrice')) {
+                          <th
+                            scope="col"
+                            class="doc-form__num"
+                            [style.width]="lineColumnWidth('shopifyPrice')"
+                          >
+                            Prezzo Shopify
+                            <span
+                              appTableColumnResize
+                              [minWidthPx]="lineColumnMinWidth('shopifyPrice')"
+                              (resized)="onLineColumnResize('shopifyPrice', $event)"
+                            ></span>
+                          </th>
+                        }
                         @if (isLineColumnVisible('compareAtPrice')) {
                           <th
                             scope="col"
@@ -1421,6 +1435,9 @@
                           }
                           @if (isLineColumnVisible('sellingPrice')) {
                             <td class="doc-form__cell doc-form__num">
+                              <!-- Sola lettura senza la spunta «Aggiorna prezzi
+                                   articolo»: il prezzo non è un dato della riga, e un
+                                   campo scrivibile senza destinazione sarebbe una bugia. -->
                               <input
                                 [id]="'gr-selling-' + i"
                                 class="doc-form__input doc-form__input--table doc-form__input--num"
@@ -1428,8 +1445,24 @@
                                 inputmode="decimal"
                                 formControlName="sellingPrice"
                                 placeholder="0,00"
+                                [readonly]="articlePricesReadOnly()"
                                 (blur)="onLineOperationalBlur(i)"
                                 (keydown)="onLineFieldKeydown(i, 'sellingPrice', $event)"
+                              />
+                            </td>
+                          }
+                          @if (showShopifyPrice() && isLineColumnVisible('shopifyPrice')) {
+                            <td class="doc-form__cell doc-form__num">
+                              <input
+                                [id]="'gr-shopify-' + i"
+                                class="doc-form__input doc-form__input--table doc-form__input--num"
+                                type="text"
+                                inputmode="decimal"
+                                formControlName="shopifyPrice"
+                                placeholder="0,00"
+                                [readonly]="articlePricesReadOnly()"
+                                (blur)="onLineOperationalBlur(i)"
+                                (keydown)="onLineFieldKeydown(i, 'shopifyPrice', $event)"
                               />
                             </td>
                           }
@@ -1766,6 +1799,20 @@
                   (change)="setUpdateArticleReferenceCost($any($event.target).checked)"
                 />
                 Aggiorna anche il costo di riferimento in anagrafica
+              </label>
+
+              <!-- A differenza del costo, qui non c’è un effetto «sempre»: il
+                   prezzo non è un dato del documento. Spenta la spunta, i campi
+                   prezzo tornano in sola lettura invece di accettare un valore
+                   che non avrebbe dove andare. -->
+              <label class="doc-form__check">
+                <input
+                  type="checkbox"
+                  [checked]="updateArticlePrices()"
+                  [disabled]="formReadOnly()"
+                  (change)="setUpdateArticlePrices($any($event.target).checked)"
+                />
+                Aggiorna prezzi articolo
               </label>
             </div>
           </div>

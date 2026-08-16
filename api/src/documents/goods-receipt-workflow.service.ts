@@ -42,6 +42,7 @@ import {
   enrichReceiptLinesWithSupplierOrderLineIds,
   reconcileSupplierOrderReceipt,
 } from './document-supplier-order.util';
+import { applyArticlePriceUpdates } from './document-article-price.util';
 import { applySupplierPriceUpdates } from './document-supplier-price.util';
 import {
   buildDocumentNumberConflict,
@@ -783,6 +784,23 @@ export class GoodsReceiptWorkflowService {
         savedLines,
         dto.updateArticleReferenceCost === true,
       );
+
+      // Prezzi di anagrafica (fetta 2). Spunta accesa di default: senza, i
+      // campi sono in sola lettura in maschera e qui non arriva niente.
+      // La politica Shopify è quella dell'anagrafica prodotti, riusata.
+      const updateArticlePrices = dto.updateArticlePrices !== false;
+      if (updateArticlePrices) {
+        await applyArticlePriceUpdates(
+          tx,
+          tenantId,
+          (dto.lines ?? []).map((line) => ({
+            variantId: line.variantId ?? null,
+            sellingPriceMinor: line.sellingPriceMinor,
+            shopifyPriceMinor: line.shopifyPriceMinor,
+          })),
+          { updateArticlePrices },
+        );
+      }
 
       if (existing && sync.deltas.length > 0) {
         await this.recordRevision(tx, tenantId, documentId, sync.deltas, actor);

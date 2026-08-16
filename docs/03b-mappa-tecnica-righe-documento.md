@@ -1200,6 +1200,16 @@ Le maschere documento hanno **due colonne di prezzo diverse**, e non è la stess
 
 `sellingPrice` è **in sola lettura sull'Ordine fornitore** (`doc-form__cell--readonly doc-form__cell--computed`) ed **editabile sull'Arrivo merce** (`<input formControlName="sellingPrice">`).
 
+⚠️ **Aggiornato il 16/08/2026.** Sull'Arrivo merce l'editabilità è ora **condizionata**: la
+spunta di documento **«Aggiorna prezzi articolo»**, accesa di default, decide se i prezzi
+aggiornano l'anagrafica — e spenta li rende **in sola lettura**, perché il prezzo non è un
+dato della riga e un campo scrivibile senza destinazione sarebbe una bugia. Fino a quel
+giorno il valore digitato per un articolo **esistente** non partiva affatto.
+
+Col modulo Shopify attivo compare anche **«Prezzo Shopify»**, colonna nascondibile e spenta
+di default, che riusa la politica dell'anagrafica prodotti. I due prezzi restano distinti.
+Dettaglio in `DA-FARE-FAMIGLIA-FATTURA` voce 11, fetta 2.
+
 Non è un'incoerenza: sono due momenti diversi. Quando ordini guardi il prezzo di vendita per decidere quanto comprare; quando la merce arriva, quello è il momento in cui il prezzo di vendita si stabilisce o si aggiorna. **Va però saputo prima di toccarla**, perché rende la stessa richiesta due cose diverse nelle due maschere.
 
 ### La regola di dominio sul prezzo, dichiarata da Luigi

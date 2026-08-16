@@ -133,6 +133,27 @@ export class SaveGoodsReceiptLineDto {
   @Min(0)
   enteredUnitCostMinor?: number;
 
+  /**
+   * Prezzo al pubblico digitato sulla riga (unità minori). **Non è un dato
+   * del documento**: non esiste una colonna sulla riga, ed è di proposito —
+   * il prezzo appartiene all'articolo. Serve solo ad aggiornare l'anagrafica
+   * quando la spunta di documento è accesa. `undefined` = non toccare.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sellingPriceMinor?: number;
+
+  /**
+   * Prezzo Shopify digitato sulla riga (unità minori). Distinto dal prezzo al
+   * pubblico e **mai sincronizzato con esso** oltre alla politica esistente:
+   * «la pubblicazione legge sempre e solo questo».
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  shopifyPriceMinor?: number;
+
   @IsOptional()
   @IsBoolean()
   loadsStock?: boolean;
@@ -294,4 +315,16 @@ export class SaveGoodsReceiptDto {
   @IsOptional()
   @IsBoolean()
   updateArticleReferenceCost?: boolean;
+
+  /**
+   * Spunta di documento «Aggiorna prezzi articolo», accesa di default.
+   *
+   * Decide se i prezzi digitati sulle righe aggiornano l'anagrafica. A
+   * differenza del costo **non c'è un effetto “sempre”**: il prezzo non è un
+   * fatto del carico, e senza la spunta i campi restano in sola lettura —
+   * un campo editabile senza destinazione sarebbe una bugia.
+   */
+  @IsOptional()
+  @IsBoolean()
+  updateArticlePrices?: boolean;
 }

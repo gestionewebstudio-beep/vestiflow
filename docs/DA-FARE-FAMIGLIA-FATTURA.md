@@ -795,7 +795,7 @@ dei calcoli dentro la Fattura sarebbe il difetto, non la funzione.
 
 ---
 
-## 6 · Il prezzo al pubblico nell'Arrivo merce — ⏸️ **assorbita nella fetta 2 della voce 11**
+## 6 · Il prezzo al pubblico nell'Arrivo merce — ✅ **CHIUSA nella fetta 2 (16/08)**
 
 ⚠️ **Censita il 16/08: non «si perde per strada», NON PARTE.** Per un articolo esistente il
 valore non è nel DTO di riga, non c'è una colonna sulla riga documento, e nessun codice lo
@@ -937,16 +937,16 @@ a mano · precisione e formato · regressioni.
 
 ### Le fette, in ordine
 
-| #   | Concetto                           | Stato                                   |
-| --- | ---------------------------------- | --------------------------------------- |
-| 1   | **Unità di misura**                | ✅ **fatta il 16/08**                   |
-| 2   | **Prezzo al pubblico**             | 🔵 prossima                             |
-| 3   | Prezzo e netto/ivato               | ⚪ (assorbe le voci 7 e 10)             |
-| 4   | Sconti                             | ⚪                                      |
-| 5   | Nome e descrizione                 | ⚪ ⚠️ attenzione alla sincronia Shopify |
-| 6   | SKU · codice articolo · EAN        | ⚪                                      |
-| 7   | Quantità e precisione              | ⚪                                      |
-| 8   | Provenienza e identità strutturata | ⚪ (assorbe la voce 2)                  |
+| #   | Concetto                           | Stato                                    |
+| --- | ---------------------------------- | ---------------------------------------- |
+| 1   | **Unità di misura**                | ✅ **fatta il 16/08**                    |
+| 2   | **Prezzo al pubblico**             | ✅ **fatta il 16/08**                    |
+| 3   | Prezzo e netto/ivato               | 🔵 **prossima** (assorbe le voci 7 e 10) |
+| 4   | Sconti                             | ⚪                                       |
+| 5   | Nome e descrizione                 | ⚪ ⚠️ attenzione alla sincronia Shopify  |
+| 6   | SKU · codice articolo · EAN        | ⚪                                       |
+| 7   | Quantità e precisione              | ⚪                                       |
+| 8   | Provenienza e identità strutturata | ⚪ (assorbe la voce 2)                   |
 
 **Voci assorbite:** la **5** (cinque colonne della riga Fattura) e la **6** (prezzo al pubblico
 nell’Arrivo merce) non sono più blocchi a sé: sono i difetti che le prime due fette hanno
@@ -1028,106 +1028,92 @@ ripiego che ha nascosto il difetto.
 
 ---
 
-### ⏸️ Fetta 2 · Prezzo al pubblico — censita il 16/08, **una decisione aperta**
+### ✅ Fetta 2 · Prezzo al pubblico — decisa e chiusa il 16/08
 
-#### Significato funzionale, misurato
+#### Significato, misurato
 
-`sellingPrice` — «Prezzo al pubblico» — **non è un prezzo del documento**: è il prezzo **di
-catalogo dell'articolo** (`03b` §16). È l'altra colonna rispetto a `unitPrice`, che è quello
-che il cliente paga.
-
-La stessa colonna fa **due mestieri**: in **sola lettura** sull'Ordine fornitore — quando
-ordini guardi il prezzo di vendita per decidere quanto comprare — ed **editabile**
-sull'Arrivo merce, perché, dichiarato da Luigi il 16/08:
-
-> «quando la merce arriva, quello è il momento in cui il prezzo di vendita **si stabilisce o
-> si aggiorna**».
-
-#### Sorgente canonica
-
-| Campo                              | Dove                    | Note                                                                                  |
-| ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------- |
-| `Product.sellingPriceMinor`        | articolo, `num(16,6)`   | il prezzo di catalogo                                                                 |
-| `ProductVariant.sellingPriceMinor` | variante, `num(16,6)`   | il prezzo effettivo della taglia — **è questo** che la maschera legge                 |
-| `shopifyPriceMinor`                | articolo **e** variante | ⚠️ prezzo del canale, **indipendente**: «la pubblicazione legge sempre e solo questo» |
-| `listino1/2/3PriceMinor`           | solo articolo           | mai sincronizzati                                                                     |
-
-La maschera precompila da `VariantSummaryDto.sellingPrice`, cioè dalla **variante**.
-
-#### Comportamento oggi
-
-**Controllo UI.** Nasce vuoto. Alla scelta dell'articolo si riempie dal prezzo della variante,
-ma **solo se è vuoto** — un valore digitato non viene sovrascritto. **Eccezione:** se
-l'operatore **sostituisce** l'articolo della riga, i prezzi seguono il nuovo articolo e si
-svuotano se non ne ha; il commento nel codice spiega perché — «tenere quelli di prima farebbe
-pubblicare su Shopify il prezzo di un articolo diverso».
-
-**Payload.** ⛔ Per un **articolo esistente il valore non parte affatto.** `sellingPriceMinor`
-esiste **solo** dentro `SaveGoodsReceiptNewProductDto`, il corpo dell'articolo **nuovo**. Il
-DTO di riga non ha nessun prezzo al pubblico.
-
-L'unico altro uso è il precompilato del pannello «crea articolo», che è **disabilitato di
-proposito** quando la riga ha già una variante.
-
-**Persistenza documentale.** ⛔ `DocumentLine` **non ha una colonna** per il prezzo al pubblico,
-e non è una dimenticanza: coerente con la semantica, il dato è dell'articolo, non della riga.
+`sellingPrice` **non è un prezzo del documento**: è il prezzo **di catalogo dell'articolo**
+(`03b` §16). Editabile sull'Arrivo merce perché, dichiarato da Luigi, «quando la merce arriva
+è il momento in cui il prezzo di vendita si stabilisce o si aggiorna»; in sola lettura
+sull'Ordine fornitore, dove serve solo a decidere quanto comprare.
 
 #### Causa radice
 
-> **La maschera espone, per ogni riga, un campo che per gli articoli esistenti non ha nessuna
-> destinazione.** Non «si perde per strada»: non parte. Il percorso esiste solo per l'articolo
-> che nasce in quel momento.
+> **La maschera esponeva, per ogni riga, un campo che per gli articoli esistenti non aveva
+> nessuna destinazione.** Non «si perdeva per strada»: non partiva. `sellingPriceMinor`
+> viveva **solo** nel corpo dell'articolo **nuovo**.
 
-È lo **stesso difetto della fetta 1** in una forma diversa: un campo che a video si comporta
-come se fosse acquisito, e che non lo è.
+Stesso difetto della fetta 1 in altra forma: un campo che a video si comporta come se fosse
+acquisito, e non lo è.
 
-#### ⛔ La decisione aperta — e il metro di paragone la rende netta
+#### La regola decisa
 
-Per il **costo** il dominio ha una regola articolata e scritta
-(`document-supplier-price.util.ts`):
+> **Spunta di documento «Aggiorna prezzi articolo», accesa di default. Accesa: i prezzi si
+> modificano e aggiornano l'anagrafica. Spenta: restano visibili ma NON modificabili.**
 
-- costo **effettivo della variante**: **sempre** aggiornato dal carico;
-- **ultimo prezzo fornitore**: aggiornato quando c'è un fornitore collegato;
-- costo di **riferimento dell'articolo**: **solo se l'operatore spunta l'opzione sul
-  documento** (`updateArticleReferenceCost`).
+⚠️ **Non è la gemella della spunta del costo, e la differenza è la ragione della sola
+lettura.** Il costo ha un valore proprio del documento — è ciò che si è pagato — e la sua
+spunta decide solo se propagarlo anche al costo di **riferimento** dell'articolo; il costo
+**effettivo** della variante si aggiorna comunque, sempre.
 
-Per il **prezzo al pubblico su un articolo esistente**: **niente**. Nessun campo nel DTO di
-riga, nessuna funzione, nessuna spunta, nessuna politica di tenant.
+Il prezzo no: **non esiste sulla riga**. Quindi non c'è nessun effetto «sempre», e a spunta
+spenta i campi non sono «non propagati» — sono **in sola lettura**. Lasciarli scrivibili
+significherebbe accettare un valore che non ha dove andare, che è esattamente il difetto.
 
-**Non è «deciso e non implementato»: non è mai stato deciso.** La semantica del campo è
-dichiarata, il meccanismo no.
+⛔ **Nessuna colonna di snapshot aggiunta a `DocumentLine`** per imitare il costo.
 
-**Cosa va deciso, in una domanda:**
+#### Il prezzo Shopify
 
-> Quando l'operatore scrive un prezzo al pubblico su una riga di Arrivo merce di un articolo
-> **che esiste già**, quel valore aggiorna l'anagrafica — e se sì, **con quale meccanismo**?
+Con il modulo Shopify attivo compare anche la colonna **«Prezzo Shopify»**, nascondibile dal
+selettore Colonne come le altre, e **spenta di default**.
 
-Le opzioni, col precedente accanto:
+⚠️ **Il gating è sull'esistenza, non sulla visibilità:** senza il modulo la colonna non viene
+nemmeno **registrata**, quindi non compare nel selettore. Un tenant senza Shopify non ne trova
+traccia, e nessuna chiamata al canale parte.
 
-| Opzione                                                          | Precedente nel dominio                |
-| ---------------------------------------------------------------- | ------------------------------------- |
-| **sempre**, come il costo effettivo della variante               | è già così per il costo               |
-| **con una spunta di documento**, come il costo di riferimento    | è già così per il costo dell'articolo |
-| **mai**: la colonna resta informativa e va messa in sola lettura | è già così sull'Ordine fornitore      |
+**La politica non è nuova: è quella dell'anagrafica prodotti, riusata identica.**
 
-⚠️ **Tre cose che pesano sulla scelta, misurate:**
+| Modulo Shopify | Comportamento                                                                   |
+| -------------- | ------------------------------------------------------------------------------- |
+| **attivo**     | valore proprio, scritto com'è; **assente = non toccare**                        |
+| **spento**     | il prezzo canale segue quello di vendita **solo se questo cambia al centesimo** |
 
-1. **Variante o articolo?** Il costo distingue: effettivo sulla variante, riferimento
-   sull'articolo. Il prezzo ha entrambi i campi, e la maschera legge quello della **variante**.
-   Un carico con più taglie dello stesso articolo scriverebbe righe diverse.
-2. **Shopify.** `shopifyPriceMinor` è indipendente, ma il suo commento dice: «con Shopify
-   **disattivo** segue il prezzo articolo solo quando questo cambia valore». Scrivere il prezzo
-   dal carico può quindi **cambiare ciò che si pubblica**.
-3. **La colonna è editabile anche sull'Ordine fornitore?** No — lì è in sola lettura, e la
-   scelta «mai» renderebbe le due maschere coerenti al prezzo di togliere una capacità che
-   Luigi ha descritto come voluta.
+⛔ **I due prezzi restano due dati distinti**: nessuna fusione e nessuna sincronizzazione
+nuova. Una coda decimale diversa non è un prezzo nuovo (§sei decimali).
 
-**Fermato qui**, come stabilito: la fetta 2 non si chiude senza questa decisione, e il campo
-resta com'è — nessuna persistenza inventata solo perché il campo è visibile.
+#### Variante, non articolo
 
-**Da dove si ricomincia:** dalla domanda qui sopra.
+La riga punta a una **variante**, ed è dalla variante che la maschera legge il prezzo. Si
+scrive quindi la variante, con le logiche che l'anagrafica usa già — **nessuna gestione delle
+varianti specifica dell'Arrivo merce**, e per gli articoli nuovi resta l'anagrafica.
 
----
+⚠️ **`Product.sellingPriceMinor` non viene toccato.** Sul costo il livello articolo ha una
+spunta separata; qui la spunta è una sola e non è stato chiesto di propagare al catalogo. Se
+servirà è una decisione a sé.
+
+#### Un difetto trovato per strada
+
+Il `VariantSummaryDto` **non portava il prezzo Shopify**: la colonna sarebbe nata vuota, e
+l'operatore avrebbe scritto su un campo di cui non vedeva il valore corrente — la stessa forma
+del difetto che questa fetta è venuta a chiudere. Aggiunto al summary e precompilato come gli
+altri prezzi: riempie **solo se vuoto**, e alla **sostituzione** dell'articolo segue il nuovo.
+
+#### Guardie
+
+Otto test su `applyArticlePriceUpdates`: la spunta spenta non scrive niente · la spunta accesa
+scrive sulla variante · una riga senza articolo non tocca niente · con Shopify attivo scrive
+entrambi i prezzi senza fonderli · prezzo canale assente = non toccare **anche se il pubblico
+cambia** · con Shopify spento il canale segue · **non lo tocca se il prezzo è lo stesso al
+centesimo** · ignora un prezzo canale mandato per sbaglio a modulo spento.
+
+**Mutation test:** togliendo la guardia della spunta, il primo fallisce.
+
+#### File toccati
+
+`document-article-price.util.ts` (nuovo) · `save-goods-receipt.dto.ts` ·
+`goods-receipt-workflow.service.ts` · `variant-summary.dto.ts` · `products.service.ts` ·
+`goods-receipt-line-columns.config.ts` · `goods-receipt-form.component.ts` e `.html` ·
+`variant-summary.model.ts` · `product.service.ts` (frontend).
 
 ### Il censimento già fatto, che resta valido
 

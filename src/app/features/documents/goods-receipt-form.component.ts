@@ -128,6 +128,7 @@ import { DocumentPrintActionsComponent } from '@domain/documents/components/docu
 import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
 import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
+import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
 import { unitOfMeasureSelectOptions } from '@domain/products/utils/unit-of-measure-options.util';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
@@ -234,6 +235,7 @@ type GoodsReceiptLineFocusField =
   | 'unitCost'
   | 'discount'
   | 'sellingPrice'
+  | 'shopifyPrice'
   | 'compareAtPrice'
   | 'vat'
   | 'lot'
@@ -368,6 +370,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
 
   protected readonly lineColumnsView = TableViewId.GoodsReceiptLines;
+  /**
+   * Il modulo Shopify del tenant decide se la colonna «Prezzo Shopify»
+   * **esiste**, non se si vede: un tenant senza Shopify non deve trovarla
+   * nemmeno nel selettore Colonne, né avere riferimenti o chiamate al canale.
+   */
+  protected readonly showShopifyPrice = computed(() =>
+    showShopifyIntegration(this.authService.currentUser()?.tenantChannelProfile),
+  );
+
   protected readonly lineColumnDefs = GOODS_RECEIPT_LINE_COLUMNS;
   protected readonly loadsStockTooltip =
     'Se attivo, la quantità della riga aggiorna la disponibilità di magazzino. Se disattivato, la riga resta nel documento ma non movimenta il magazzino.';
@@ -567,6 +578,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * quel documento (§Punto A).
    */
   protected readonly updateArticleReferenceCost = signal(true);
+
+  /**
+   * Spunta per-documento «Aggiorna prezzi articolo». Default ACCESO.
+   *
+   * ⚠️ **Non è la gemella di quella del costo, e la differenza conta.** Il
+   * costo ha un valore proprio del documento e la spunta decide solo se
+   * propagarlo anche al costo di RIFERIMENTO dell’articolo. Il prezzo al
+   * pubblico invece **non esiste sulla riga**: è un dato dell’anagrafica.
+   *
+   * Perciò a spunta spenta i due campi prezzo non sono «non propagati»: sono
+   * **in sola lettura**. Lasciarli editabili significherebbe accettare un
+   * valore che non ha dove andare — il difetto che questa fetta ha trovato.
+   */
+  protected readonly updateArticlePrices = signal(true);
   private readonly pendingSupplierOrderId = signal<string | null>(null);
   private readonly pendingLinkedSupplierOrderRef = signal<string | null>(null);
 
@@ -693,6 +718,14 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     return null;
   });
+
+  /**
+   * I due campi prezzo sono scrivibili solo quando la spunta è accesa: senza,
+   * il valore digitato non avrebbe nessuna destinazione.
+   */
+  protected readonly articlePricesReadOnly = computed(
+    () => this.formReadOnly() || !this.updateArticlePrices(),
+  );
 
   protected readonly formReadOnly = computed(
     () => this.isConfirmedEdit() && !this.editLock.unlocked(),
@@ -1057,7 +1090,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   constructor() {
     this.columnPreferences.registerView(
       GOODS_RECEIPT_LINES_VIEW,
-      GOODS_RECEIPT_LINE_COLUMNS,
+      // Senza il modulo Shopify la colonna del prezzo canale non entra
+      // proprio nel selettore: è il gating, e sta qui perché è l'unico punto
+      // in cui le colonne si dichiarano.
+      this.showShopifyPrice()
+        ? GOODS_RECEIPT_LINE_COLUMNS
+        : GOODS_RECEIPT_LINE_COLUMNS.filter((column) => column.id !== 'shopifyPrice'),
       GOODS_RECEIPT_LINE_PRESETS,
     );
 
@@ -1647,6 +1685,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       ['gr-cost-', 'unitCost'],
       ['gr-discount-', 'discount'],
       ['gr-selling-', 'sellingPrice'],
+      ['gr-shopify-', 'shopifyPrice'],
       ['gr-compare-', 'compareAtPrice'],
       ['gr-vat-', 'vat'],
       ['gr-lot-', 'lot'],
@@ -1719,6 +1758,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       'unitCost',
       'discount',
       'sellingPrice',
+      'shopifyPrice',
       'compareAtPrice',
       // Rientrata nel giro: era fuori perché la cella IVA era un
       // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
@@ -1776,6 +1816,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       unitCost: `gr-cost-${index}`,
       discount: `gr-discount-${index}`,
       sellingPrice: `gr-selling-${index}`,
+      shopifyPrice: `gr-shopify-${index}`,
       compareAtPrice: `gr-compare-${index}`,
       vat: `gr-vat-${index}`,
       lot: `gr-lot-${index}`,
@@ -2988,10 +3029,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           ? moneyToDecimalString(summary.compareAtPrice).replace('.', ',')
           : '',
       );
+      // Il prezzo del canale segue lo stesso criterio: tenere quello di prima
+      // pubblicherebbe su Shopify il prezzo di un articolo diverso.
+      line.controls.shopifyPrice.setValue(
+        summary.shopifyPrice?.amountMinor
+          ? moneyToDecimalString(summary.shopifyPrice).replace('.', ',')
+          : '',
+      );
     } else {
       if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
         line.controls.sellingPrice.setValue(
           moneyToDecimalString(summary.sellingPrice).replace('.', ','),
+        );
+      }
+      if (!line.controls.shopifyPrice.value.trim() && summary.shopifyPrice?.amountMinor) {
+        line.controls.shopifyPrice.setValue(
+          moneyToDecimalString(summary.shopifyPrice).replace('.', ','),
         );
       }
       if (!line.controls.compareAtPrice.value.trim() && summary.compareAtPrice?.amountMinor) {
@@ -3243,6 +3296,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   /** Spunta «Aggiorna anche il costo di riferimento in anagrafica». */
   protected setUpdateArticleReferenceCost(checked: boolean): void {
     this.updateArticleReferenceCost.set(checked);
+  }
+
+  /** Spunta «Aggiorna prezzi articolo»: spegnendola i prezzi tornano in sola lettura. */
+  protected setUpdateArticlePrices(checked: boolean): void {
+    this.updateArticlePrices.set(checked);
   }
 
   private syncSupplierOrderLineMapFromDocument(doc: DocumentRecord): void {
@@ -4108,6 +4166,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       unitCost: this.fb.control(''),
       discountPercent: this.fb.control(''),
       sellingPrice: this.fb.control(''),
+      shopifyPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(''),
       vatCodeId: this.fb.control(''),
@@ -4215,6 +4274,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       unitCost: this.fb.control(line.unitCostText),
       discountPercent: this.fb.control(''),
       sellingPrice: this.fb.control(''),
+      shopifyPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(line.vatRatePercentText),
       vatCodeId: this.fb.control(''),
@@ -4472,6 +4532,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           // parte nello stesso salvataggio (punto A).
           loadsStock: line.loadsStock && (Boolean(line.variantId) || newProduct != null),
           unitOfMeasure: line.unitOfMeasure?.trim() || undefined,
+          // I prezzi partono SOLO con la spunta accesa: a spunta spenta i campi
+          // sono in sola lettura, e mandarli sarebbe mandare un valore che
+          // l’operatore non ha potuto scegliere.
+          ...(this.updateArticlePrices()
+            ? {
+                sellingPriceMinor: parseMoneyInput(line.sellingPrice, this.currency)?.amountMinor,
+                shopifyPriceMinor: this.showShopifyPrice()
+                  ? parseMoneyInput(line.shopifyPrice, this.currency)?.amountMinor
+                  : undefined,
+              }
+            : {}),
           supplierOrderLineId: line.supplierOrderLineId || undefined,
           lotCode: line.lotCode.trim() || undefined,
           lotExpiryDate: line.lotExpiryDate
@@ -4515,6 +4586,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const body = {
       ...this.buildSaveGoodsReceiptBody(),
       updateArticleReferenceCost: options?.updateArticleReferenceCost,
+      updateArticlePrices: this.updateArticlePrices(),
     };
     return this.documentService.saveGoodsReceipt(body).pipe(
       map(({ document, warnings, createdProducts }) => {
@@ -4794,6 +4866,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       unitCost: this.fb.control(''),
       discountPercent: this.fb.control(''),
       sellingPrice: this.fb.control(''),
+      shopifyPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(''),
       vatCodeId: this.fb.control(''),
