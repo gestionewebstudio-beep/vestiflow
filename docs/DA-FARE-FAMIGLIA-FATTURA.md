@@ -1211,6 +1211,74 @@ La migration è banale — `ALTER COLUMN ... TYPE numeric(16,6)` è senza perdit
 arrotondata, e non c’è nessuno scorporo da cui nasca una coda. Correggerlo per simmetria
 sarebbe uniformare una struttura senza una ragione funzionale — quello che la voce 11 non fa.
 
+#### 🔴 Il terzo difetto, trovato il 16/08 preparando la migration — **peggiore dei primi due**
+
+⚠️ **L'Ordine cliente salva a video quello che mostra, e l'API lo legge come netto.**
+
+Il documento e l’ordine fanno due cose diverse nello stesso gesto:
+
+| Percorso                      | Cosa salva                                                      |
+| ----------------------------- | --------------------------------------------------------------- |
+| **Documento** (DDT, Fattura…) | `netFromDisplayed(...)` — **converte a netto** prima di salvare |
+| **Ordine cliente**            | `unitPrice.amountMinor` — **il valore mostrato, così com’è**    |
+
+E lato API `computeManualOrderLines` calcola l’IVA **sopra**:
+`lineVatTotalMinor = totalMinor × aliquota / 100`.
+
+**Quindi un Ordine cliente compilato in modalità ivato memorizza un lordo dove il calcolo si
+aspetta un netto, e ci somma l'IVA una seconda volta. Il totale è gonfiato dell'aliquota.**
+
+⚠️ **E la modalità predefinita dell’Ordine cliente è proprio «ivato»**: non esiste nessuna
+preferenza salvata per `quote` (0 righe), quindi vale sempre il primo utilizzo, che per i tipi
+di vendita è **ivato**.
+
+⚠️ **Ne discende anche che l’Ordine cliente prende in prestito la preferenza del Preventivo**
+(`registryDocumentType = Quote`), che è la stessa confusione già corretta per la numerazione
+con `numberingDocumentType`.
+
+#### Le quattro risposte sullo storico
+
+**1 · Qual è oggi il default effettivo?** **Ivato.** Preferenza per `quote`: nessuna (0 righe
+salvate). Quindi vale `firstUsePricesIncludeVat(quote)`, e `quote` è nell’elenco dei tipi di
+vendita che partono ivati.
+
+**2 · Quanti ordini sono coinvolti?** **24** ordini cliente manuali, **32** righe, di cui **28**
+con un codice IVA e IVA calcolata. **17** ordini hanno `tax_minor > 0`. I 13 ordini
+`shopify_online` **non c’entrano**: arrivano dal canale, non da questa maschera.
+
+**3 · Dai dati persistiti si può determinare la modalità?** **No, e non si deve provare.**
+Niente la registra. L’unica strada sarebbe indovinare dai prezzi — vietato, ed è anche il
+motivo per cui il difetto è rimasto invisibile: **i totali memorizzati sono coerenti fra loro**
+(17 su 17: `imponibile + IVA = totale`). Sono coerenti perché **derivano tutti dalla stessa
+lettura**, quella che tratta il prezzo come netto. La coerenza interna non dice niente su cosa
+l’operatore avesse digitato.
+
+**4 · Che valore propone la migration, e perché non altera nulla?** **`false` — netto — per
+tutti gli ordini esistenti.**
+
+Non è una supposizione su cosa l’operatore intendeva: è la **dichiarazione della lettura che
+quei numeri già hanno**. Imponibile, IVA e totale memorizzati sono stati calcolati trattando
+`unitPriceMinor` come netto; marcare lo storico `false` rende esplicito ciò che è già
+implicito, e **non tocca un solo valore economico**.
+
+⚠️ **Ciò che quel `false` NON fa** — e va detto, o la migration sembra risolvere più di quanto
+risolve: **non ripara** gli ordini che erano stati compilati in ivato. Quelli hanno un lordo
+memorizzato come netto e un totale gonfiato, e resteranno così. Ripararli richiederebbe
+sapere quali sono, cioè indovinare.
+
+#### ⛔ La decisione che serve prima della migration
+
+Il difetto n°3 non era nella premessa quando la migration è stata autorizzata. Cambia due cose:
+
+1. **la correzione va fatta anche in avanti** — il salvataggio dell’Ordine cliente deve
+   convertire a netto come fa il documento. Non è una decisione: è il comportamento già
+   stabilito per i `Document`, e senza di essa persistere la modalità non basta;
+2. **lo storico però resta sbagliato dove lo è**, e cosa farne è una scelta di Luigi:
+   lasciarlo com’è dichiarandolo, oppure rivedere a mano i **17** ordini con IVA.
+
+**Da dove si ricomincia:** dal punto 2. Il resto — colonna `numeric(16,6)`, modalità persistita,
+salvataggio che converte — è deciso e pronto.
+
 **Da dove si ricomincia:** dalla decisione sulla modalità. Il tipo della colonna si può
 correggere in una fetta sua, ed è la più piccola delle due.
 
