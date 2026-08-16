@@ -404,17 +404,32 @@ export class DocumentsService {
         : query.settlement === 'settled'
           ? { outstandingMinor: { lte: 0 } }
           : {}),
+      // «DDT da fatturare»: quelli su cui l'operatore ha spuntato «Seguirà
+      // doc. di vendita» e che nessuna Fattura viva ha ancora consumato.
+      //
+      // ⚠️ Riscritto il 16/08/2026. Guardava `derivedDocuments`, cioè
+      // `sourceDocumentId`, e sbagliava due volte:
+      //
+      // 1. `sourceDocumentId` è la GENERAZIONE da un predecessore singolo,
+      //    mentre una Fattura ne INCLUDE molti: il legame giusto è
+      //    `InvoiceSalesDdtLink`, che è molti-a-uno e ha il suo indice
+      //    `(tenantId, salesDdtId)`;
+      // 2. `sourceDocumentId` non è mai stato scritto da nessuno, quindi il
+      //    filtro considerava «da fatturare» TUTTI i DDT confermati —
+      //    compresi quelli senza la spunta, che una fattura non la aspettano.
+      //
+      // Una Fattura annullata non consuma il DDT: il legame resta in tabella,
+      // ma il DDT torna da fatturare. Per questo si guarda lo stato della
+      // fattura collegata e non la sola esistenza del legame.
       ...(query.pendingInvoice
         ? {
             type: DocumentType.sales_ddt,
             status: {
               in: [DocumentStatus.confirmed, DocumentStatus.printed, DocumentStatus.sent],
             },
-            derivedDocuments: {
-              none: {
-                type: DocumentType.invoice_draft,
-                status: { not: DocumentStatus.cancelled },
-              },
+            followedBySalesDoc: true,
+            invoiceLinks: {
+              none: { invoice: { status: { not: DocumentStatus.cancelled } } },
             },
           }
         : {}),

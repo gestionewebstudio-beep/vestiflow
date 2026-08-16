@@ -254,26 +254,41 @@ describe('DocumentsService', () => {
       );
     });
 
-    it('applica filtro pendingInvoice su DDT senza bozza fattura', async () => {
+    // «DDT da fatturare» = spunta «Seguirà doc. di vendita» E nessuna Fattura
+    // viva che lo abbia incluso. Il legame è `InvoiceSalesDdtLink` (molti-a-uno),
+    // non `sourceDocumentId` (generazione da un predecessore singolo).
+    it('«DDT da fatturare» guarda la spunta e i legami fattura, non sourceDocumentId', async () => {
       const { service } = createService(prisma);
       prisma.document.findMany.mockResolvedValue([]);
       prisma.document.count.mockResolvedValue(0);
 
       await service.list(tenantId, { page: 1, pageSize: 20, pendingInvoice: true });
 
-      expect(prisma.document.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            type: DocumentType.sales_ddt,
-            derivedDocuments: {
-              none: {
-                type: DocumentType.invoice_draft,
-                status: { not: DocumentStatus.cancelled },
-              },
-            },
-          }),
-        }),
-      );
+      const where = prisma.document.findMany.mock.calls[0]?.[0]?.where as Record<string, unknown>;
+      expect(where.type).toBe(DocumentType.sales_ddt);
+      expect(where.followedBySalesDoc).toBe(true);
+      expect(where.invoiceLinks).toEqual({
+        none: { invoice: { status: { not: DocumentStatus.cancelled } } },
+      });
+      // La vecchia condizione non deve tornare: si reggeva su una colonna che
+      // nessuno scrive, e prendeva anche i DDT senza spunta.
+      expect(where.derivedDocuments).toBeUndefined();
+    });
+
+    // Una Fattura annullata non consuma il DDT: il legame resta in tabella ma il
+    // DDT torna da fatturare. È il motivo per cui si guarda lo STATO della
+    // fattura collegata e non la sola esistenza del legame.
+    it('un DDT legato a una sola Fattura annullata resta da fatturare', async () => {
+      const { service } = createService(prisma);
+      prisma.document.findMany.mockResolvedValue([]);
+      prisma.document.count.mockResolvedValue(0);
+
+      await service.list(tenantId, { page: 1, pageSize: 20, pendingInvoice: true });
+
+      const where = prisma.document.findMany.mock.calls[0]?.[0]?.where as {
+        invoiceLinks?: { none?: { invoice?: { status?: { not?: unknown } } } };
+      };
+      expect(where.invoiceLinks?.none?.invoice?.status?.not).toBe(DocumentStatus.cancelled);
     });
 
     it('titolare vede tutti i documenti, nessun filtro location aggiunto', async () => {

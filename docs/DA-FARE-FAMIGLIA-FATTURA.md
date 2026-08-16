@@ -483,7 +483,10 @@ Nessuno storico utente perso: erano vuote tutte e tre.
 davvero una vendita dal registro.** `excluded_pos_register` lo scrive la sync e **nessuna
 query lo rilegge come regola**; `invoiced` **non lo scrive nessuno**, mai. Il doppio conteggio
 di una vendita fatturata è impedito altrove — da `CorrispettivoEntry.excludedFromSummary` e
-dallo stato `excluded_invoiced`, su un'altra tabella e un altro enum.
+dallo stato `excluded_invoiced`. ⚠️ **Corretto il 16/08 poche ore dopo:** quella tabella
+**non viene più scritta da nessuno** — il registro è derivato dall'11/08 — quindi quel
+meccanismo vale solo per le sei righe storiche. Oggi **nessuna** esclusione è implementata:
+vedi blocco I.
 
 Sono stati **conservati lo stesso**, perché toglierli sarebbe rimuovere una classificazione
 fiscale per associazione con un flusso diverso — e perché il vincolo «una vendita fatturata
@@ -520,6 +523,105 @@ guadagno: è pulizia estetica su valori che nessuno può più produrre.
 ⚠️ **Conseguenza da conoscere:** `schema.prisma` e il tipo PostgreSQL divergono di proposito
 su questi tre valori. È voluto e scritto qui; su questo database i comandi dichiarativi sono
 già vietati per altre ragioni (`regole-qualita`), quindi non cambia nulla in pratica.
+
+---
+
+## H · «DDT da fatturare» — ✅ **corretto il 16/08/2026**
+
+Il filtro del registro DDT prometteva «confermati senza fattura collegata» e misurava
+un'altra cosa. Ora dice quello che deve:
+
+> **DDT da fatturare = spunta «Seguirà doc. di vendita» attiva E nessuna Fattura viva che
+> l'abbia già incluso.**
+
+### I due difetti, e sono di natura diversa
+
+**1. Guardava il legame sbagliato.** Interrogava `derivedDocuments`, cioè `sourceDocumentId`,
+che rappresenta la **generazione da un predecessore singolo**. Ma una Fattura **include** più
+DDT: è un molti-a-uno, e ha già la sua tabella — `InvoiceSalesDdtLink`, con l'indice
+`(tenantId, salesDdtId)` fatto apposta. Generazione e inclusione sono due relazioni diverse
+(`07` §12) e non si sostituiscono.
+
+**2. Guardava una colonna che nessuno scrive.** `sourceDocumentId` è NULL su tutti i 105
+documenti (`GUARDIE` §16): la condizione «nessuna fattura derivata» era **sempre vera**.
+
+**Misurato sul database:** il vecchio criterio dichiarava **14 DDT da fatturare su 14**;
+il nuovo ne dichiara **0**, perché nessun DDT ha la spunta. Prima il filtro non filtrava —
+restituiva tutto, e prendeva anche i DDT che una fattura non la aspettano affatto.
+
+### La fattura annullata non consuma il DDT
+
+Il legame resta in tabella, ma il DDT **torna da fatturare**: per questo la condizione guarda
+lo **stato della fattura collegata** e non la sola esistenza del legame. Ha un test suo.
+
+### Guardie
+
+Due test in `documents.service.spec.ts`: uno prova che il filtro usa spunta e legami e che
+**`derivedDocuments` non torna**, uno prova il caso della fattura annullata. Mutation test
+eseguita: togliendo `followedBySalesDoc: true` dal servizio, il primo fallisce
+(`expected undefined to be true`).
+
+---
+
+## I · `sales_orders.fiscal_status` — ⏸️ **fermo su un punto solo, ed è funzionale**
+
+Il campo andava chiuso insieme al resto. **Non l'ho rimosso**, e la ragione non è prudenza:
+è che la misura ha smentito la premessa da cui partiva la decisione.
+
+### Quello che governa: niente
+
+Censiti tutti i lettori dopo la rimozione del flusso consegna. `fiscalStatus` compare **solo**
+come valore di filtro e come etichetta nell'export. **Nessun comportamento dipende da lui**:
+non c'è una query del Registro che escluda o includa una vendita in base al suo valore.
+
+### Quello che ha smentito la premessa
+
+| Atteso                                                  | Misurato                                                                                                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| «`excluded_pos_register` lo scrive la sync Shopify POS» | il **codice** lo scriverebbe, ma **non esiste un solo ordine POS**: 24 manuali + 13 online, e **tutti** e 37 `pending_registration`              |
+| «`invoiced` non ha producer»                            | confermato: nessuno, mai                                                                                                                         |
+| «l'esclusione reale vive su `CorrispettivoEntry`»       | ⛔ **non più**: quella tabella **non viene più scritta da nessuno** — il registro è derivato dall'11/08 (`08` §10), e le sue 6 righe sono storia |
+
+L'ultima riga è quella che conta, ed è un errore che avevo scritto io ieri: dicevo che il
+doppio conteggio di una vendita fatturata è impedito da `CorrispettivoEntry.excludedFromSummary`.
+**Lo era**, quando quella tabella si scriveva. Oggi non si scrive più, quindi quel meccanismo
+vale solo per le sei righe già esistenti.
+
+### ⛔ Cosa succederebbe oggi a un ordine POS nel Registro
+
+**Ci entrerebbe, e verrebbe contato.** Il Registro seleziona le vendite evase, senza guardare
+né `fiscalStatus` né l'origine; la cassa registra lo stesso incasso per conto suo con il
+proprio scontrino. **Sono due conteggi dello stesso denaro.**
+
+Quindi `excluded_pos_register` **non è un valore morto: è un requisito vero, mai implementato.**
+Rimuoverlo cancellerebbe l'unica traccia scritta di una regola che serve — e che nessuno ha
+ancora fatto rispettare.
+
+Non succede nulla **oggi** solo perché di ordini POS non ce n'è nessuno. Il primo che arriva
+gonfia il Registro.
+
+### ⏸️ La decisione che serve, ed è una sola
+
+**Dove vive la regola «le vendite POS non entrano nel Registro corrispettivi»?**
+
+- **Sulla sorgente** — `source = shopify_pos` è già sul record, è già scritto da sempre, ed è
+  un **fatto** (da dove arriva la vendita), non uno stato che qualcuno deve ricordarsi di
+  aggiornare. Con questa scelta `fiscal_status` sparisce per intero, e la regola diventa una
+  riga nelle condizioni di inclusione del Registro. **È l'opzione che consiglio.**
+- **Su una classificazione dedicata** — se le esclusioni saranno più di una e per motivi
+  diversi (POS, fuori campo, già fatturata…), allora serve un campo, ma andrebbe **sul
+  Registro** e non sulla vendita: è del registro che dice cosa entra.
+
+⚠️ **Perché mi sono fermato invece di scegliere:** implementare la prima opzione **cambia cosa
+il Registro mostra**, e i criteri economici del Registro sono esplicitamente fuori da questo
+lavoro. Non è un dettaglio tecnico: è una regola fiscale.
+
+**Cosa resta nel frattempo**, e non è «a metà per pigrizia**: la colonna con i suoi tre valori
+e la scrittura della sync. Nessuno di loro fa nulla — ma sono l'unico posto dove la regola POS
+è scritta, e cancellarla prima di riscriverla altrove è il modo di perderla.
+
+**Da dove si ricomincia:** dalla domanda qui sopra. Il censimento è completo, la misura dice
+che nulla si rompe oggi, e la scelta cambia dove vive una regola fiscale.
 
 ---
 
