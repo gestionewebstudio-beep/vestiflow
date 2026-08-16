@@ -693,3 +693,39 @@ L'**Ordine cliente non ha il selettore netto/ivato**, mentre il DDT — stessa m
 ### Un dato che ridimensiona l'urgenza, senza toglierla
 
 Delle 137 righe documento già su `numeric(16,6)`, **una sola** ha davvero una coda decimale. Il difetto è quindi **latente**, non attivo: si manifesta quando qualcuno digita ivato, e nei dati di prova è successo una volta. Ma la regola esiste perché a regime, con aliquota 22%, **un prezzo su cinque** perde un centesimo.
+
+---
+
+## 16. 🔴 Una colonna esiste, nessuno la scrive, e chi la legge non se ne accorge (16/08/2026)
+
+`documents.source_document_id` è nello schema, è indicizzata, è tipizzata, ed è **NULL su tutti
+i 105 documenti del database**. Non è «poco usata»: non è **mai** stata scritta — nemmeno dai
+tre documenti nati da un'inclusione, che il riferimento all'origine lo portano soltanto come
+riga descrittiva.
+
+**Perché è una guardia mancante e non una nota.** Una colonna vuota si comporta come una
+colonna piena: la query riesce, il tipo torna, i test passano. Un elenco «note di credito nate
+da questa fattura» costruito sulla relazione inversa risponderebbe **«nessuna»** per ogni
+fattura, e non sbaglierebbe una riga di SQL. Il difetto non ha sintomo — ha solo un risultato
+plausibile e sbagliato.
+
+**Come è emersa:** cercando un criterio strutturale per le righe di riferimento storiche
+(A-bis). Non è stata trovata da un test, da un lint o da un errore: è stata trovata **guardando
+il dato**, ed è l'unico modo in cui si trova questa classe di difetti.
+
+**La stessa classe, già vista due volte nella stessa misura:**
+
+- `document_lines.line_source` — **NULL su tutte le 137 righe**;
+- `documents.reference` — valorizzata su tutte, ma **non contiene ciò che il nome promette**:
+  è il numero del documento stesso, non un riferimento a un altro documento. Peggiore della
+  colonna vuota, perché chi la legge ottiene una stringa sensata.
+
+**La guardia che manca**, e che vale per tutte e tre: un controllo periodico che elenchi le
+**colonne dichiarate e mai popolate**. Non deve fallire la build — una colonna nuova è
+legittimamente vuota il primo giorno — ma deve **comparire**, perché oggi l'unico modo di
+saperlo è interrogare il database a mano.
+
+**Non si sta proponendo di rimuoverle.** `sourceDocumentId` serve, ed è il punto di partenza
+del blocco «Collegamenti Fattura ↔ Nota di credito». Il difetto è che nel piano di lavoro
+figurava come **«esiste già»**, cioè come infrastruttura disponibile, quando è una colonna da
+cominciare a scrivere.

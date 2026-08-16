@@ -101,27 +101,77 @@ con maschera e servizio della famiglia Fattura, per nominare **dove il flag si p
 
 ---
 
-## A-bis · Il dato storico incoerente — ⚪ da misurare prima di qualunque backfill
+## A-bis · Il dato storico incoerente — ✅ **misurato e chiuso senza intervento (16/08)**
 
-**Misurato il 16/08.** Righe con descrizione «Rif. …» già nel database:
+**La domanda era una sola:** quelle righe si possono identificare con **dati strutturali**,
+senza leggere il testo `Rif. …`? **La risposta misurata è no.** Nessun backfill, nessuna
+modifica dati, nessuna regola a runtime sul testo.
 
-| Documento   | `is_reference` | Righe                                              |
-| ----------- | -------------- | -------------------------------------------------- |
-| `sales_ddt` | ✅ `true`      | 2                                                  |
-| `sales_ddt` | ❌ **`false`** | 1 — `Rif. Preventivo PRE-2026-0001 del 20/07/2026` |
+### Il dato
 
-Non è solo la famiglia Fattura: **anche il DDT ne ha una non marcata**. Sono tre righe in
-tutto, ma se non si nominano adesso il difetto si ripresenta quando un filtro nuovo si
-comporterà in modo diverso su due documenti che sembrano uguali.
+Tre righe in tutto, tutte su DDT di vendita, tutte in posizione 1:
 
-**Non si normalizza adesso, e non con un parser del testo `Rif. …`.**
+| `documents.reference` | Riga                                      | `is_reference` | Creato   |
+| --------------------- | ----------------------------------------- | -------------- | -------- |
+| `DDT-2026-0002`       | `Rif. Preventivo PRE-2026-0001 del 20/07` | ❌ **`false`** | 22/07/26 |
+| `DDT-0001`            | `Rif. Ordine cliente OC-0003 del 29/07`   | ✅ `true`      | 29/07/26 |
+| `DDT-0002`            | `Rif. Preventivo PRE-0002 del 31/07`      | ✅ `true`      | 30/07/26 |
 
-Prima va stabilito **se quelle righe si possono identificare con dati strutturali affidabili**.
-Se l'unico criterio disponibile fosse la descrizione, allora **il dato storico si corregge in
-modo esplicito e controllato** — non introducendo una regola a runtime sul testo, che
-resterebbe lì per sempre e «riparerebbe» il difetto con un'euristica invece che con il dato.
+Su 137 righe documento, **2 sono marcate e 135 no**. Non è la famiglia Fattura ad avere il
+problema: è il DDT, ed è **una riga sola**.
 
-**Da dove si ricomincia:** dalla domanda «esiste un criterio strutturale?», non dal backfill.
+### Perché non esiste un criterio strutturale
+
+L'impronta delle tre righe è identica: **niente variante, niente SKU, prezzo 0, totale 0, non
+muove magazzino, nessuna unità di misura, nessun lotto**. Sembra una firma. Non lo è: è
+**esattamente la forma di una riga vuota**, e le righe vuote esistono davvero.
+
+| Criterio                                       | Righe prese | Davvero reference | Falsi positivi |
+| ---------------------------------------------- | ----------: | ----------------: | -------------: |
+| senza variante                                 |          31 |                 2 |         **29** |
+| prezzo unitario 0                              |          70 |                 2 |         **68** |
+| impronta piena (variante + prezzo + non muove) |      **23** |                 2 |         **20** |
+| — di cui su `goods_receipt`                    |          20 |                 0 |      **20** ⛔ |
+| — di cui su `sales_ddt`                        |           3 |                 2 |          **0** |
+
+I venti falsi positivi sono righe vere di arrivo merce, con descrizioni come
+`Riga documento`, `Pippo`, `goku`, `test 2`. Il criterio non distingue una riga di
+riferimento da una riga **lasciata in bianco**, perché nel dato **non c'è differenza**.
+
+Restringere ai soli DDT porterebbe la precisione a 3 su 3 — ma **per caso**: i DDT non hanno
+(ancora) righe in bianco, e niente lo impedisce. Un criterio che regge finché nessuno lascia
+una riga vuota su un DDT non è un criterio: è una coincidenza con una scadenza.
+
+**Nessun altro appiglio.** Sulle 31 righe senza variante: `supplier_order_line_id` mai
+valorizzato, `linked_goods_receipt_id` mai valorizzato, `unit_of_measure` mai valorizzato,
+`line_source` **NULL su tutte e 137** le righe della tabella. Il codice IVA c'è su 30 righe su
+31 — quindi non separa niente.
+
+### Il legame a livello di documento non esiste come dato
+
+Cercato anche lì, ed è la scoperta che conta di più: **`documents.source_document_id` esiste
+nello schema ed è NULL su tutti i 105 documenti.** Non è mai stato scritto.
+
+E **`documents.reference` non è un collegamento**: contiene il numero **del documento stesso**
+nel vecchio formato (un `goods_receipt` ha `CAR-2026-0001`, un DDT ha `DDT-0002`). È
+un'istantanea della propria numerazione, non un puntatore all'origine — conferma quanto già
+misurato in `04-specifica-numerazione-documenti.md` §11.
+
+### Conseguenze — due, e vanno in blocchi diversi
+
+1. **A-bis si chiude qui.** L'unico criterio disponibile è la descrizione, cioè proprio
+   l'euristica vietata. Il difetto è **una riga su 137**, isolata, su un documento di prova di
+   luglio. Correggerla richiederebbe una decisione esplicita di Luigi su un dato singolo, non
+   una regola: **finché non la prende, resta com'è, nominata qui.** Non costa niente perché il
+   codice non la interroga per il testo — dal blocco A in poi ogni consumer guarda il flag.
+2. **`source_document_id` mai scritto entra nel blocco 1.** La voce «Collegamenti Fattura ↔
+   Nota di credito» presuppone un legame documento→documento: quel legame **esiste come
+   colonna e non esiste come dato**. Va nominato lì come punto di partenza, non trattato come
+   infrastruttura già disponibile.
+
+**Nota di metodo.** Le due righe marcate hanno `quantity = 1`; il blocco A scrive ora
+`quantity: 0`. Quindi anche **le righe marcate sono storiche nella forma**, e nessun criterio
+basato sulla quantità reggerebbe a cavallo del cambio.
 
 ---
 
@@ -165,12 +215,26 @@ presenta come se fosse l'unica possibile — per questo sulla Nota di credito co
 
 ### Le alternative in campo — registrate, nessuna scelta presa
 
-| Candidato                       | Cosa coprirebbe                                                             | Stato                                               |
-| ------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------- |
-| **`Document.sourceDocumentId`** | NC **generata da una** Fattura VestiFlow. **Esiste già**                    | da valutare per primo: è la soluzione più economica |
-| La sua **relazione inversa**    | **più NC dalla stessa Fattura** — «da questa fattura sono nate queste note» | **compatibile**, non richiede niente di nuovo       |
-| **`InvoiceSalesDdtLink`**       | molti-a-molti fra documenti                                                 | **pattern candidato, NON decisione**                |
-| Una relazione dedicata          | da disegnare                                                                | solo se le prime non bastano                        |
+| Candidato                       | Cosa coprirebbe                                                             | Stato                                         |
+| ------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------- |
+| **`Document.sourceDocumentId`** | NC **generata da una** Fattura VestiFlow. **Esiste già**                    | ⚠️ **colonna sì, dato no** — vedi sotto       |
+| La sua **relazione inversa**    | **più NC dalla stessa Fattura** — «da questa fattura sono nate queste note» | **compatibile**, non richiede niente di nuovo |
+| **`InvoiceSalesDdtLink`**       | molti-a-molti fra documenti                                                 | **pattern candidato, NON decisione**          |
+| Una relazione dedicata          | da disegnare                                                                | solo se le prime non bastano                  |
+
+⚠️ **`sourceDocumentId` è NULL su tutti i 105 documenti** (misurato in A-bis, 16/08). La
+colonna esiste nello schema e **nessuno l'ha mai scritta** — nemmeno i tre documenti nati da
+un'inclusione, che portano il riferimento **solo come riga descrittiva**.
+
+Cambia la natura del lavoro: non è «riusare un legame che c'è», è **cominciare a scriverlo**.
+Il che è meno costoso, non di più — non c'è dato storico da conciliare — ma va detto prima,
+perché «esiste già» suggerisce una base che sotto è vuota. E l'inverso di una colonna mai
+popolata restituisce sempre l'insieme vuoto: qualunque elenco «note nate da questa fattura»
+costruito oggi risponderebbe «nessuna» senza sbagliare una query.
+
+Da non confondere: **`documents.reference` non è un puntatore all'origine** — contiene il
+numero **del documento stesso** nel vecchio formato. Chi lo scambiasse per un collegamento
+troverebbe 105 documenti «collegati» a sé stessi.
 
 ⚠️ **La cardinalità funzionale va scelta prima del modello tecnico**, non dedotta da una tabella
 che assomiglia:
@@ -531,10 +595,13 @@ tastiera, U.M., ricerca, celle condivise — e si ferma prima dell'insieme delle
 ## Ordine deciso
 
 1. ~~**A · Righe di riferimento**~~ — ✅ **fatto il 16/08** (`07` §26).
-2. **A-bis · Il dato storico** — solo la domanda «esiste un criterio strutturale?», nessun
-   backfill.
-3. **1 · Collegamenti Fattura ↔ NC** — scelta della cardinalità, poi il modello.
-4. le altre, nell'ordine che Luigi sceglierà voce per voce.
+2. ~~**A-bis · Il dato storico**~~ — ✅ **chiuso il 16/08 senza intervento**: criterio
+   strutturale **inesistente**, la riga sbagliata resta nominata e non toccata.
+3. **1 · Collegamenti Fattura ↔ NC** — ⏸️ **fermo qui, in attesa di Luigi.** Le decisioni
+   funzionali si discutono **prima** dell'implementazione: cardinalità NC→Fatture, riferimenti
+   manuali, e il fatto che `sourceDocumentId` sia una colonna mai scritta.
+4. **11 · Il contratto della riga** e le altre, nell'ordine che Luigi sceglierà voce per voce.
+   Il censimento nome/descrizione, SKU/articleCode e sconti è **registrato e non aperto**.
 
 **Regola di lavoro, imparata tre volte il 16/08:** ogni voce comincia **misurando**, non
 eseguendo. Le tre correzioni di quel giorno — il menu «Nuovo» esteso senza guardarlo,
