@@ -657,11 +657,13 @@ Chiude §3 (elenco), §4 (percorsi), §5 (creazione) e §18 (rotta di modifica).
 
 ### Il registro
 
-Un elenco solo, «Fatture», con i **tre** tipi. `types` li prendeva già da `SALES_INVOICE_DOCUMENT_TYPES`, quindi il lavoro era attorno: quarta voce nel filtro «Tipo», terza in «Nuovo ▾», sottotitolo riscritto (diceva «con o senza trasporto merce incluso», che le note di credito non le comprende), e terza voce nell'hub che punta **allo stesso elenco filtrato** — `queryParams: { type: 'credit_note' }` — non a una pagina nuova.
+Un elenco solo, «Fatture», con i **tre** tipi. `types` li prendeva già da `SALES_INVOICE_DOCUMENT_TYPES`, quindi il lavoro era attorno: quarta voce nel filtro «Tipo» e sottotitolo riscritto (diceva «con o senza trasporto merce incluso», che le note di credito non le comprende).
 
 La colonna «Tipo doc.» non è stata toccata: esisteva già e legge `documentTypeLabel`, che il pacchetto `credit_note` aveva già esteso.
 
 **Aggiunta non richiesta, e la nomino**: la Nota di credito è entrata anche nel menu «Altro documento» del registro generico, dove Fattura e Accompagnatoria c'erano già. Un menu che elenca due tipi su tre di una famiglia fa cercare il terzo altrove.
+
+> ⚠️ **Questa sezione, il 15/08, dichiarava fatte due cose che non lo erano**: «terza voce in «Nuovo ▾»» e la terza card nell'hub come soluzione buona. Il ▾ **non esisteva**, e le tre card poggiavano su un difetto. Corretto il 16/08 — vedi §22, che è il seguito di questa sezione e va letto con lei.
 
 ### Le rotte: una per tipo, generate da una mappa sola
 
@@ -748,3 +750,269 @@ L'unica fattura esistente è `confirmed`. I tre documenti che portano quegli sta
 3. **La trasmissione allo SdI è un'altra cosa.** Quando la fattura elettronica entra (§9), esisterà uno stato «trasmessa» — ma sarà un **fatto riportato dal sistema di interscambio**, non una spunta messa a mano. Togliere la marcatura manuale adesso non ostacola quel lavoro: gli libera il posto.
 
 **Coordinamento.** Il ciclo di stati della Fattura è esattamente la superficie che il lavoro di fatturazione elettronica toccherà. Questa pulizia va fatta **dentro quel blocco**, non prima e non in parallelo.
+
+---
+
+## §22 · Il filtro guarda, «Nuovo» crea — corretto il 16/08/2026
+
+Seguito di §20, che aveva dichiarato fatto un pezzo mai esistito. **Trovato guardando la schermata, non dai test.**
+
+### Il difetto
+
+Il registro Fatture usava il filtro «Tipo» **anche** come selettore implicito del documento da creare. Con il filtro su Nota di credito il pulsante diventava «Nuova nota di credito» e ci mandava; con Accompagnatoria, l'altra. Nell'empty state si leggeva **«Nessuna fattura»** sopra un pulsante **«Nuova nota di credito»**: tre stringhe, due semantiche.
+
+Due conseguenze, e la seconda è quella che conta:
+
+- l'operatore **non poteva** creare una Fattura mentre guardava le note di credito;
+- il `Nuovo ▾` **non è mai esistito**: era un `app-button` semplice, mai un menu.
+
+### La causa radice, e la parte che riguarda chi ha lavorato
+
+Il meccanismo — `activeCreateVariant` → `salesCreateLabel` → rotta — **non era nuovo**: `git log -S activeCreateVariant` lo data a `17de1f68`, il modulo Fattura + Accompagnatoria. Il commento nel template lo dichiarava apertamente: _«l'etichetta segue il filtro «Tipo»»_. Con due tipi sembrava una comodità.
+
+Il 15/08 è stata **aggiunta una terza voce a quel meccanismo** invece di notare che il meccanismo implementa la regola opposta a §5 (_«Dal pulsante «Nuovo» si sceglie il tipo, tramite menù a tendina con tre voci»_), e §20 ha registrato «fatto». È il difetto che questo progetto combatte ovunque: **estendere una struttura senza chiedersi se la struttura sia quella giusta**. Nessun test poteva prenderlo, perché i test scritti provavano ciò che era stato fatto, non la regola.
+
+### La regola, adesso
+
+> **Il filtro «Tipo» decide cosa si GUARDA. Il menu «Nuovo» decide cosa si CREA. I due non si toccano.**
+
+- Il filtro resta a quattro voci e agisce **solo** sulla query dell'elenco.
+- `Nuovo` è **un menu a tre voci**, identico con qualsiasi filtro attivo, e ogni voce va alla propria rotta esplicita senza toccare il filtro.
+- Lo stato vuoto riceve **lo stesso menu** per proiezione — non una seconda decisione, e non una CTA che sceglierebbe un tipo al posto dell'operatore.
+
+Gli elenchi a **tipo singolo** (Preventivi, Proforma, DDT, Scarico manuale, Registrazioni fattura) restano col bottone diretto: non hanno niente da scegliere. La discriminante è la presenza di `createVariants`, non il nome del profilo.
+
+### L'hub: una sola porta
+
+**Deciso il 16/08.** Le tre card verso lo stesso elenco filtrato **diventano una**: «Fatture», senza `queryParams`. Finché il filtro decideva anche cosa si creava, quelle card erano tre scorciatoie di creazione travestite da scorciatoie di navigazione; sciolto il legame, tre porte per una stanza sola raccontano una struttura che non esiste.
+
+### I testi che nominavano un tipo solo
+
+L'elenco ne mostra tre e il filtro può stare su uno qualsiasi, quindi le stringhe della pagina sono **della famiglia**:
+
+|                       | Prima                          | Adesso                  |
+| --------------------- | ------------------------------ | ----------------------- |
+| `emptyTitle`          | «Nessuna fattura»              | «Nessun documento»      |
+| `emptyDescription`    | «…crea una **nuova fattura**…» | nomina i tre tipi       |
+| `detailPanelTitle`    | «Dati fattura»                 | «Dati documento»        |
+| `detailNotFoundTitle` | «Fattura non trovata»          | «Documento non trovato» |
+
+_Gli ultimi due non erano nell'elenco chiesto: li ho corretti perché sono la stessa classe di difetto — l'anteprima si apre su uno qualsiasi dei tre, e «Dati fattura» sopra una nota di credito è sbagliato allo stesso modo._
+
+### Il componente condiviso è stato esteso, non scavalcato
+
+`app-empty-state` aveva **solo** `ctaLabel` + `ctaClick`: un bottone. Dove l'azione è una scelta fra più cose quel modello non basta, e la strada sbagliata sarebbe stata metterci un comando di fianco, fuori dal riquadro. Ha ricevuto una **fessura di proiezione**: chi ha un comando proprio lo passa dentro, chi ha una CTA continua a passare l'etichetta, e se non arriva né l'uno né l'altra il contenitore sparisce (`:empty`). Nessun `::ng-deep`, nessuna copia.
+
+### Le guardie
+
+Provate **reintroducendo il difetto** (il menu che filtra le voci sul tipo attivo): **quattro test falliscono**, e ognuno nomina il filtro sotto cui è caduto.
+
+- con «Tutti», Fattura, Accompagnatoria e Nota di credito il menu offre **sempre** i tre tipi;
+- dal filtro Nota di credito si crea una **Fattura**; dal filtro Accompagnatoria una **Nota di credito** — e la rotta di arrivo è quella esplicita del tipo;
+- lo stato vuoto **non** espone una CTA a tipo singolo, e i suoi testi non nominano una sola fattura;
+- gli elenchi a tipo singolo **conservano** il bottone diretto;
+- nell'hub la famiglia ha **una** voce, senza `queryParams`, e le due scorciatoie non esistono più.
+
+Restano in piedi i test di §20 su rotte esplicite, tipo noto prima della GET e assenza del ripiego a Proforma.
+
+### Trovato di passaggio
+
+Le briciole non conoscevano `nota-di-credito` e avrebbero mostrato il segmento grezzo, trattini compresi: un segmento senza etichetta ricade su `decodeURIComponent`. Aggiunta la voce.
+
+---
+
+## §23 · La maschera Nota di credito, vista per la prima volta — misurato il 16/08/2026
+
+**Verifica in sola lettura, nessuna modifica.** Le rotte funzionano; questo non vuol dire che la maschera e il dettaglio siano semanticamente corretti per una Nota di credito.
+
+Il filo che lega quasi tutti i punti è uno solo: **la NC è stata aggiunta a liste ed elenchi, e da quelle liste ha ereditato comportamenti che nessuno ha deciso per lei.** È lo stesso difetto del menu «Nuovo» (§22), in un altro punto della stessa maschera.
+
+### 1 · Briciole diverse fra nuovo, dettaglio e modifica — perché
+
+| Vista     | Percorso reale                        | Briciole                                         |
+| --------- | ------------------------------------- | ------------------------------------------------ |
+| Nuovo     | `documents/nota-di-credito/new`       | Documenti > Nota di credito > Nuovo              |
+| Dettaglio | **`documents/<id>`**                  | Documenti > FT-0002                              |
+| Modifica  | `documents/nota-di-credito/<id>/edit` | Documenti > Nota di credito > FT-0002 > Modifica |
+
+**Causa:** non c'è un ramo dedicato ai documenti di vendita in `breadcrumbs.component.ts` — si passa dal ciclo generico che cammina i segmenti dell'indirizzo e traduce ognuno con `SEGMENT_LABELS`. Le tre viste hanno **tre forme di percorso diverse**, quindi tre gerarchie diverse.
+
+E il dettaglio ne ha una quarta ragione, che è un difetto a sé: **`sales-document-form.component.ts:248` ha `listPath = '/app/documents'` fisso.** Dopo il salvataggio la maschera manda al **dettaglio generico**, non a quello del registro Fatture — e `Annulla` torna all'hub invece che all'elenco. La maschera non sa a quale registro appartiene.
+
+**Gerarchia decisa (Luigi, 16/08):** `Documenti > Fatture > Nuova nota di credito` · `Documenti > Fatture > FT-0002` · `Documenti > Fatture > FT-0002 > Modifica`. Il tipo lo dice l'H1, che resta com'è: «Nuova nota di credito» è corretto. Le briciole non devono far credere che «Nota di credito» sia un registro autonomo.
+
+### 2 · «Riferimento DDT (opzionale)» sulla Nota di credito — eredità, non scelta
+
+**Regola:** la NC **non usa** il flusso «Includi documento/DDT». Nasce vuota, o è generata da una Fattura; il suo riferimento naturale è semmai la fattura d'origine, anche esterna (§13).
+
+**Osservato:** la maschera NC mostra «Riferimento DDT (opzionale)» con «Aggancia un DDT…», e al salvataggio manda `linkedSalesDdtIds`.
+
+**Causa tecnica:** il blocco è dentro `@if (isSalesInvoice())` — `sales-document-form.component.html:193` (pannello mobile) e `:404` (desktop) — e `isSalesInvoice()` chiama `isSalesInvoiceDocumentType`, che legge **`SALES_INVOICE_DOCUMENT_TYPES`**. Il 15/08 a quella lista è stata aggiunta `CreditNote`: da quel momento ogni blocco governato da quel gate vale anche per la NC, **senza che nessuno l'abbia deciso**.
+
+**E non è solo quel campo.** Lo stesso gate governa, in `sales-document-form.component.ts:2169`, l'invio di:
+
+- `paymentTerms` · `paymentDueDate` · `iban`
+- **`linkedSalesDdtIds`**
+
+Quattro cose ereditate in blocco. Termini di pagamento e IBAN su una nota di credito **possono** avere senso (si rimborsa su un conto), l'aggancio DDT no — ma la questione è che nessuna delle quattro è stata scelta: sono arrivate perché il tipo è entrato in una lista.
+
+### 3 · «Causale» — è la causale di FATTURAZIONE, non quella di trasporto
+
+**Osservato:** il campo si chiama `billingCause`, dichiarato nello schema come _«Causale fatturazione (bozza fattura, §9.2)»_ (`schema.prisma:2143`).
+
+**È dimostrabilmente distinta dalle altre due causali del progetto:**
+
+| Campo             | Cos'è                              | Chi lo mostra                                               |
+| ----------------- | ---------------------------------- | ----------------------------------------------------------- |
+| `billingCause`    | causale di fatturazione            | gate `isSalesInvoice()` → i tre tipi                        |
+| `transportCausal` | **causale di trasporto**           | gate `isInvoiceAccompanying()` → **solo** l'accompagnatoria |
+| `causalText`      | causale di carico («DDT 145 del…») | arrivo merce                                                |
+
+**Quindi il sospetto è infondato: sulla NC non compare la causale di trasporto.** Quella è correttamente riservata all'accompagnatoria. Resta però nello stesso blocco ereditato del punto 2: è pertinente per natura, non per decisione.
+
+### 4 · «Prezzo 7,00 €» nel dettaglio, «Prezzo ivato 8,54 €» in modifica
+
+**I calcoli sono corretti.** 7,00 imponibile + 1,54 IVA = 8,54. Nessun errore di importo.
+
+**Il difetto è di rappresentazione**, e ha una causa precisa: le due viste leggono **valori diversi sotto etichette che non lo dicono**.
+
+| Vista     | Cosa legge                                                                                 | Etichetta                                              |
+| --------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| Modifica  | il valore **ivato** derivato, quando `pricesIncludeVat` è acceso                           | «Prezzo ivato» — dice quale                            |
+| Dettaglio | `line.unitPrice`, cioè il **netto memorizzato** — `document-lines-table.component.html:34` | **«Prezzo»**, intestazione **fissa** nel markup (`:8`) |
+
+La tabella righe del dettaglio non guarda mai `pricesIncludeVat` del documento: mostra sempre il netto sotto un'etichetta generica. Lo stesso documento si legge quindi «7,00» di là e «8,54» di qua, e nessuna delle due viste dice all'operatore quale delle due sta guardando.
+
+### 5 · Data documento e data di creazione — **nessun difetto**
+
+Il pannello «Dati documento» mostra **`Data documento` come PRIMA riga** (`sales-document-detail.component.ts:105`), e `Creato il` più in basso (`:218`). Entrambe ci sono e sono due informazioni diverse: il documento è datato 15/08 ed è stato creato il 16/08 (dopo mezzanotte). Nessuna contraddizione, nessun dato mancante.
+
+### 6 · Il selettore netto/ivato è in testata, non sulla colonna Prezzo
+
+**Osservato:** nella maschera vendita il comando è un campo **«Modalità prezzo»** nella testata — `sales-document-form.component.html:151` (mobile) e `:375` (desktop). L'intestazione della colonna Prezzo porta **solo** il pulsante di ordinamento (`:668-684`), nessun menu.
+
+**Ma il pattern a menu sull'intestazione esiste, in tre altre maschere:**
+
+| Maschera                     | Dove                                             |
+| ---------------------------- | ------------------------------------------------ |
+| Arrivo merce                 | `goods-receipt-form.component.html:910`, `:1035` |
+| Ordine fornitore             | `supplier-order-form.component.html:530`         |
+| DDT vendita / Ordine cliente | `customer-order-form.component.html:1172`        |
+
+Tutte e tre usano `doc-form__th-menu-wrap` con l'etichetta che riflette la modalità e il chevron che apre il menu. La **maschera vendita è l'unica fuori dallo standard** — e proprio quella dove il documento è fiscale.
+
+**Due meccanismi per la stessa scelta**, in maschere che l'operatore usa nella stessa giornata.
+
+### Cosa NON è stato toccato
+
+`FT-0002` resta com'è: prefisso e zeri appartengono a `04-…§11` e non si mescolano a questo blocco. Dominio NC, segno economico e «Carica magazzino» restano fuori: prima si ripulisce la semantica della maschera.
+
+### §23-bis · Correzione al punto 2-3, e un difetto trovato cercandone la conferma
+
+_Luigi, 16/08, mostrando la maschera Fattura di Danea: «la causale nei documenti di vendita fa parte dei dati per la fatturazione elettronica»._
+
+**La lettura del §23 punto 2 era sbagliata.** «Riferimento DDT» sulla Fattura **non è** un residuo: è il blocco **`DatiDDT`** del tracciato FatturaPA (2.1.8), e il codice lo emette davvero — `fatturapa-xml.util.ts:285-290`. In Danea non è nemmeno un campo a sé: è **una delle voci** di «Doc. emesso in seguito a» — Ordine d'acquisto · Contratto · Convenzione · Ricezione · **Fattura collegata** · Doc. di trasporto — cioè i blocchi `DatiOrdineAcquisto`, `DatiContratto`, `DatiConvenzione`, `DatiRicezione`, `DatiFattureCollegate`, `DatiDDT`.
+
+**Il che cambia la conclusione sulla Nota di credito, e in meglio.** Non le serve _meno_ di quel blocco: le serve **la voce giusta dello stesso blocco** — `DatiFattureCollegate`, la fattura d'origine — che è esattamente il riferimento naturale già deciso al §13. Il difetto non è «un campo di troppo», è **un campo che non discrimina la voce**: la maschera offre solo il DDT perché è l'unica implementata.
+
+**Cosa manca davvero, misurato.** Della fascia «Proprietà fattura elettronica» il modello ha **un solo campo**: `billingCause`. Non esistono `TipoDocumento` scelto dall'operatore (TD01/TD24/TD25/TD26 — oggi è una costante), bollo virtuale, CIG, CUP, né i blocchi diversi da `DatiDDT`.
+
+#### ⚠️ Il difetto: la «Causale» che l'operatore scrive non arriva nell'XML
+
+Due campi diversi si presentano entrambi come «Causale», e vanno in due posti diversi:
+
+| Campo                                                            | Dove finisce                                                                           |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `billingCause` — quello **etichettato «Causale»** nella maschera | PDF (`document-pdf.service.ts:307`, `:527`), dettaglio, colonna elenco                 |
+| `notes` — le **note** del documento                              | **`<Causale>` dell'XML** (`document-xml.service.ts:131` → `fatturapa-xml.util.ts:348`) |
+
+Quindi: chi compila «Causale» aspettandosi che entri nella fattura elettronica **la ottiene solo sulla copia cartacea**; e le note, che possono essere un promemoria interno, **finiscono nel tracciato** che vede il cliente e registra l'Agenzia.
+
+**Aggravante:** `billingCause` è già **sovraccarico** — l'Arrivo merce ci scrive dentro il testo letterale `'In attesa fattura'` come marcatore di stato (`goods-receipt-workflow.service.ts:882`). La stessa colonna porta un flag di processo su un tipo e testo libero su un altro.
+
+**Non corretto**: registrato qui, appartiene al blocco fatturazione elettronica (§9).
+
+---
+
+## §24 · Tre cose capite guardando Danea — da decidere prima di implementare
+
+_16/08/2026. Registrate, non iniziate. La prima ha una domanda aperta per Luigi._
+
+### 1 · Il selettore netto/ivato va unificato — e non è dov'è adesso
+
+**Deciso da Luigi:** il comando che sceglie fra importi netti e ivati **sta sull'intestazione della colonna che governa**, in tutte le maschere, e non come campo separato in testata.
+
+| Famiglia documenti                                       | Colonna    |
+| -------------------------------------------------------- | ---------- |
+| Ordine fornitore · Arrivo merce                          | **Costo**  |
+| Preventivi · Ordine cliente · DDT · Fatture (e famiglia) | **Prezzo** |
+
+**Stato misurato:** il pattern **esiste già** in tre maschere su quattro — `doc-form__th-menu-wrap` con l'etichetta che riflette la modalità e il chevron che apre il menu: Arrivo merce (`goods-receipt-form.component.html:910`, `:1035`), Ordine fornitore (`supplier-order-form.component.html:530`), DDT vendita / Ordine cliente (`customer-order-form.component.html:1172`).
+
+**Fuori standard è la sola maschera vendita** — Proforma, Fattura, Accompagnatoria, Nota di credito — che usa un campo «Modalità prezzo» in testata (`sales-document-form.component.html:151` mobile, `:375` desktop). Cioè proprio la maschera dove il documento è fiscale.
+
+Il lavoro è quindi **portare il pattern esistente sulla maschera vendita**, non inventarne uno: e va estratto in un punto solo, o diventa la quinta copia.
+
+> ✅ **Chiarito il 16/08.** Non c'erano due regole: «listino» stava per **listino al pubblico**, che qui si chiama **prezzo**. Quindi la regola è una sola e senza eccezioni — **acquisti sul Costo, vendite sul Prezzo**. Il campo Listino della testata (quale listino alimenta le righe) è un'altra cosa e non si muove.
+
+### 2 · La fascia «Proprietà fattura elettronica» — cosa manca davvero
+
+Danea raccoglie in una scheda i dati che il tracciato chiede e che oggi noi non abbiamo. Misurato: dell'intera fascia il modello ha **un solo campo**, `billingCause`.
+
+| Dato                                                                                                               | Tracciato              | Stato                                                |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------- | ---------------------------------------------------- |
+| Tipo documento elettronico (TD01 · TD24 · TD25 · TD26 · TD04)                                                      | 2.1.1.1                | **costante nel codice**, non scelto                  |
+| Causale                                                                                                            | 2.1.1.11               | c'è come campo, **ma non arriva nell'XML** (§23-bis) |
+| Bollo virtuale                                                                                                     | 2.1.1.6                | **assente**                                          |
+| «Doc. emesso in seguito a» → Ordine d'acquisto · Contratto · Convenzione · Ricezione · **Fattura collegata** · DDT | 2.1.2 – 2.1.8          | **solo `DatiDDT`**                                   |
+| CIG · CUP                                                                                                          | dentro i blocchi sopra | **assenti**                                          |
+
+**Per la Nota di credito la voce che serve è «Fattura collegata»** (`DatiFattureCollegate`), che è anche il riferimento naturale già deciso al §13 — inclusa la fattura d'origine **esterna o storica**, che non è un documento VestiFlow. Non serve toglierle il blocco: serve dargli le voci.
+
+Il dettaglio dei tracciati e delle regole SdI sta in `06b-estrazione-fattura-elettronica.md`; qui resta il fatto che **la maschera della famiglia Fattura non ha dove ospitarli**.
+
+### 3 · Come si dispongono i campi — **rinviata alla fine, per decisione del 16/08**
+
+I dati sono tanti: fascia fiscale, **pagamenti** (`paymentTerms`, `paymentDueDate`, `iban`, più le rate del §C di `06b`), trasporto, indirizzi, note.
+
+**La preferenza di Luigi sono le schede** — tre o quattro linguette, si clicca quella che serve e si compila. Ha guardato la sezione comprimibile «Trasporto» del DDT e l'ha giudicata **poco pratica**: è il prodotto provato da chi lo usa, e vale più di una preferenza architetturale.
+
+**Avevo obiettato che le schede nascondono campi che spostano il totale. L'obiezione era più larga dei fatti**, e va ridimensionata per iscritto: della fascia fiscale l'unico campo che tocca il totale è il **bollo virtuale**. `TipoDocumento`, `Causale`, i blocchi «documento collegato», CIG e CUP non spostano un centesimo. Quindi non è un argomento contro le schede: è **un vincolo sul disegno** — ciò che muove il totale non sta dietro una linguetta, e il piede del documento resta sempre visibile.
+
+**Decisione operativa (16/08): non si sceglie adesso.** Prima si inseriscono i dati e i campi che mancano; la disposizione si decide alla fine, con i campi veri sotto gli occhi invece che su un elenco. È la scelta giusta anche tecnicamente: raggruppare è l'ultimo passo, e farlo prima obbligherebbe a rifarlo.
+
+**Quando si deciderà**, tenere presente che tocca l'anatomia condivisa da sei schermate (`styles/_document-form.scss`): la disposizione va scelta **una volta per tutta la famiglia documento**, non per la sola Fattura.
+
+---
+
+## §25 · Il selettore netto/ivato unificato — ✅ fatto il 16/08/2026
+
+Chiude il §24 punto 1.
+
+### La regola, senza eccezioni
+
+> **Il comando netto/ivato sta sull'intestazione della colonna che governa: Costo sugli acquisti, Prezzo sulle vendite.**
+
+_Chiarito da Luigi il 16/08: «listino» stava per **listino al pubblico**, che qui si chiama **prezzo**. Non c'erano due regole diverse per gli stessi documenti._
+
+### Il componente, e perché esiste
+
+La stessa tendina era scritta a mano in **tre** maschere — Arrivo merce, Ordine fornitore, DDT/Ordine cliente — a 45-54 righe l'una. La maschera vendita ne avrebbe fatta **una quarta**, mentre `regole-architettura` impone l'estrazione già a «> 15 righe duplicate in 2+ posti».
+
+`app-price-mode-menu` (`domain/documents/components/price-mode-menu/`) le sostituisce tutte: **154 righe di markup diventate 8 per chiamante.**
+
+**Verificato prima di scriverlo, non dato per scontato:** `app-select-menu` **non poteva** servire. Il suo trigger stampa sempre `selectedLabel()` più il chevron e non ha una forma sola-icona; in un'intestazione dove l'etichetta è già il pulsante di ordinamento si leggerebbe «Prezzo ivato» due volte. È la ragione per cui le tre copie erano nate a mano, ed è annotata **nel componente**, perché chi un giorno volesse «semplificare» trovi la misura già fatta.
+
+**Cosa resta al chiamante, di proposito:** il pulsante di **ordinamento** (alcune maschere ce l'hanno, altre no) e la **conversione dello stato** — le maschere d'acquisto memorizzano `vat_excluded`/`vat_included`, quelle di vendita un booleano. Il componente non deve sapere come ciascuna maschera salva la scelta.
+
+**Due cose che nessuna delle tre copie aveva:** **Esc** chiude e il **clic fuori** chiude. Una tendina che resta aperta mentre l'operatore scrive altrove copre la riga sotto.
+
+**Non toccato:** il menu «Azioni colonna IVA» dell'Arrivo merce, che condivide solo l'aspetto — è un'altra funzione.
+
+### Il difetto visibile, corretto in quattro maschere
+
+Il menu «Modalità prezzo» mostrava **«Netto» due volte**: `app-select-menu` ha `includeEmptyOption` a `true` di default e rendeva una voce fantasma con l'etichetta del segnaposto. Il valore non è mai vuoto, quindi la voce non serviva. Corretto in tutte e quattro le maschere che hanno quel campo su mobile — dove il campo resta, perché su card le intestazioni di colonna non esistono.
+
+### «Listino» si chiama «Prezzo»
+
+_Deciso il 16/08._ I listini in VestiFlow non sono mai stati usati, e la parola chiedeva all'operatore di imparare un termine per una cosa che per lui è il prezzo applicato. Il campo che sceglie **quale prezzo alimenta le righe** si chiama ora **«Prezzo»**, testata e mobile.

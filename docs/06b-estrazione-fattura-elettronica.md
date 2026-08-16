@@ -1362,3 +1362,41 @@ Ogni riga qui sotto è un'affermazione **del ramo**, non verificata da questa es
 - **Elenco RF01-RF19, esclusione RF03** — tabella `RegimeFiscale` del tracciato (§E.1). Qui `develop` ha già una fonte indipendente che concorda col ramo su tutti i 18 codici: è il segnale più forte a favore, ma resta una verifica incrociata fra due fonti non ufficiali, non una verifica su fonte ufficiale.
 
 **Dove verificare**: Elenco dei controlli ufficiale e specifiche tecniche del tracciato FatturaPA in vigore su `fatturapa.gov.it`. La versione conta — un controllo può cambiare fra revisioni del tracciato, e non si sa con certezza quale versione avesse in mano chi ha scritto il ramo il 7 agosto.
+
+---
+
+## §H — Misurato il 16/08/2026, guardando la maschera reale
+
+_Aggiunte dopo che la Nota di credito è diventata creabile (migration applicate il 16/08) e dopo aver visto la fascia «Proprietà fattura elettronica» di Danea. Nessuna correzione fatta._
+
+### H.1 — ⚠️ La «Causale» che l'operatore scrive non entra nell'XML
+
+Due campi diversi si presentano come «Causale» e prendono strade diverse:
+
+| Campo                                                                    | Dove finisce                                                                           |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `billingCause` — quello **etichettato «Causale»** nella maschera vendita | PDF (`document-pdf.service.ts:307`, `:527`), dettaglio, colonna elenco                 |
+| `notes` — le **note** del documento                                      | **`<Causale>` dell'XML** — `document-xml.service.ts:131` → `fatturapa-xml.util.ts:348` |
+
+Conseguenza doppia, e la seconda è la peggiore: chi compila «Causale» aspettandosi il tracciato **la ottiene solo sulla carta**; e le note, che possono essere un promemoria interno, **finiscono nel file** che vede il cliente e registra l'Agenzia.
+
+**Aggravante:** `billingCause` è già sovraccarico — l'Arrivo merce ci scrive dentro il testo letterale `'In attesa fattura'` come marcatore di stato (`goods-receipt-workflow.service.ts:882`). La stessa colonna porta un flag di processo su un tipo e testo libero su un altro. Chi decide dove va la Causale deve decidere anche questo.
+
+### H.2 — Della fascia «dati fattura elettronica» il modello ha UN campo
+
+| Dato                                                                                                  | Tracciato              | Stato misurato                                               |
+| ----------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------ |
+| `TipoDocumento` (TD01 · TD04 · TD24 · TD25 · TD26)                                                    | 2.1.1.1                | **costante nel codice**, l'operatore non sceglie             |
+| `Causale`                                                                                             | 2.1.1.11               | campo presente, **scollegato dall'XML** (H.1)                |
+| Bollo virtuale                                                                                        | 2.1.1.6                | **assente**                                                  |
+| `DatiOrdineAcquisto` · `DatiContratto` · `DatiConvenzione` · `DatiRicezione` · `DatiFattureCollegate` | 2.1.2 – 2.1.7          | **assenti**                                                  |
+| `DatiDDT`                                                                                             | 2.1.8                  | **presente e funzionante** (`fatturapa-xml.util.ts:285-290`) |
+| CIG · CUP                                                                                             | dentro i blocchi sopra | **assenti**                                                  |
+
+In Danea questi non sono campi sparsi: sono **un menu solo**, «Doc. emesso in seguito a», con sei voci e i campi N. / del / CIG / CUP accanto. Noi ne abbiamo implementata **una**, il DDT, e la maschera la offre come se fosse l'unica possibile.
+
+### H.3 — Cosa ne discende per la Nota di credito
+
+Il §13 dice che la NC può riferirsi a una fattura d'origine **anche esterna o storica**. Quel riferimento **è** `DatiFattureCollegate` (2.1.6): non un campo da inventare, una voce del blocco che già esiste a metà.
+
+Quindi la NC **non va privata** del blocco «documento collegato» — come poteva sembrare vedendo «Riferimento DDT» sulla sua maschera: va portata sulla **voce giusta**. E siccome l'origine può essere esterna, quella voce deve accettare **numero e data digitati a mano**, non solo un documento scelto da un elenco VestiFlow.
