@@ -490,3 +490,86 @@ scambiavano il posto. Ora ogni origine nomina la sorgente vera — **Shopify onl
   a sé — come le rettifiche di canale — o altro. **Oggi nel database non ce n’è nessuno.**
 - **Il Report del venduto non è stato toccato**: la Vendita al banco c’era già, perché quel
   motore legge i **movimenti** (§8).
+
+---
+
+## 23. ⏸️ Da fare — Vendita al banco → documenti (censimento, non correzione)
+
+**In sospeso.** Prima va rifatta la schermata e le funzioni della Vendita al banco; questo
+blocco viene dopo, e comincia **misurando**.
+
+### ⚠️ Verificato il 16/08: le tre azioni oggi NON esistono
+
+Il censimento nasceva dalla domanda «che catena documentale stanno costruendo?». La risposta
+misurata è: **nessuna, perché non ci sono.**
+
+| Azione                             | Stato oggi                                                                                                                                                                                       |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Includi documento**              | `includeSourceKindsForDocumentType` torna `[]` per tutto tranne il DDT vendita, e le sorgenti includibili sono Preventivo e Ordine cliente. La Vendita al banco **non si include e non include** |
+| **Genera Fattura**                 | le uniche origini di conversione sono **Proforma** e **DDT vendita** (`buildConversionDto`): `store_sale` non è fra queste                                                                       |
+| **Genera Fattura accompagnatoria** | idem                                                                                                                                                                                             |
+
+**Cambia la natura del lavoro:** non è una correzione di una catena sbagliata, è il **disegno**
+di una catena che non c’è. Metà delle domande del censimento — retry, eliminazione, modifica,
+`sourceLineId`, doppio movimento — non hanno un comportamento da osservare: hanno una regola da
+decidere.
+
+**Resta però un censimento**, e non si salta: le domande vanno girate dal passato al futuro,
+e la risposta va cercata **nei percorsi analoghi che esistono già** — DDT → Fattura, e
+l’inclusione Preventivo/Ordine → DDT. Quelli sì che hanno un comportamento osservabile, e
+sono il precedente da cui la Vendita al banco erediterebbe.
+
+### Il rischio che il censimento deve chiudere per primo
+
+> **La Fattura accompagnatoria, presa da sola, è un documento che può avere effetto fisico.**
+
+Se nasce da una Vendita al banco conclusa, **l’uscita è già avvenuta**:
+
+```text
+Vendita al banco  →  −1 fisico
+Fattura accomp.   →  −1 di nuovo   ⛔ mai
+```
+
+Quindi la domanda vera non è «funziona il pulsante», è: **come fa la Fattura accompagnatoria a
+sapere che non deve scaricare?** Oggi lo scarico è governato da `loadsStock` per riga, e la
+conversione lo imposta guardando il **tipo di destinazione**, non l’origine — che è
+esattamente il punto in cui la regola andrebbe scritta.
+
+### La domanda da non dare per risposta
+
+⚠️ **Non si dà per scontato che le tre azioni debbano avere lo stesso significato.**
+«Includi documento» è **inclusione** (molti-a-uno, righe fuse); «Genera» è **conversione**
+(uno-a-uno, `sourceDocumentId`). Sono due relazioni diverse e non si sostituiscono (`07` §12).
+Prima si guarda cosa sono nel codice e quali relazioni condividono, poi si separano
+**comportamento osservato**, **regola corretta** e **causa radice**.
+
+### Le domande, per ciascuna azione
+
+| Punto                  | Cosa dobbiamo sapere                                                              |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| Documento origine      | è davvero lo `store_sale` **concluso**?                                           |
+| Documento destinazione | quale `DocumentType` crea, apre o importa?                                        |
+| Relazione              | FK/tabella strutturata, oppure solo copia righe / reference / testo?              |
+| Righe                  | vengono copiate? conservano un’origine riga **strutturata**?                      |
+| Giacenza               | viene modificata **ancora**?                                                      |
+| Movimento              | nasce un **secondo** `stock_movement`?                                            |
+| `sourceLineId`         | punta alla riga Vendita al banco o alla nuova riga fattura?                       |
+| Impegnata              | viene toccata senza motivo?                                                       |
+| Location               | ereditata, bloccata, coerente con lo scarico già avvenuto?                        |
+| Fattura normale        | è **puramente economica** quando deriva da una vendita già scaricata?             |
+| Accompagnatoria        | capisce che **non deve scaricare di nuovo**?                                      |
+| Corrispettivi          | la relazione permette di dirla **fatturata** senza duplicare il valore economico? |
+| Retry                  | il doppio clic può creare due fatture o due relazioni?                            |
+| Eliminazione           | eliminando la fattura, che succede alla vendita e allo scarico originale?         |
+| Modifica               | cambiare la quantità in fattura può alterare il magazzino **già scaricato**?      |
+
+### Metodo
+
+Censimento di **rotte, componenti, API, database e relazioni**, e verifica **separata** di
+quantità e movimenti **prima** di qualunque correzione. Nessuna modifica nel primo passaggio.
+
+⚠️ Si lega al gap del `10` §7: **il filtro «fatturato»** dei Corrispettivi ha bisogno proprio
+di questa relazione. È lo stesso lavoro visto da due lati.
+
+**Da dove si ricomincia:** dalla schermata e dalle funzioni della Vendita al banco, che vengono
+prima. Poi da qui, misurando i due percorsi analoghi che esistono.
