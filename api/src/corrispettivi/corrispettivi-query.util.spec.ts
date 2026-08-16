@@ -10,24 +10,22 @@ import { buildCorrispettiviRefundWhere, buildCorrispettiviWhere } from './corris
 describe('buildCorrispettiviWhere', () => {
   const tenantId = 'tenant-1';
 
-  it('filtra solo online con pendingDeliveryOnly', () => {
+  // Il filtro «solo da consegnare» non esiste più: il flusso di consegna al
+  // commercialista è stato ritirato il 16/08/2026. Restano le sole
+  // classificazioni fiscali, che non sono passaggi di un flusso.
+  it('filtra per classificazione fiscale', () => {
     const where = buildCorrispettiviWhere(tenantId, {
-      pendingDeliveryOnly: true,
-      placedFrom: '2026-06-01',
-      placedTo: '2026-06-30',
+      fiscalStatus: 'excluded_pos_register',
     });
 
     expect(where.tenantId).toBe(tenantId);
-    expect(where.source).toBe(PrismaSource.shopify_online);
-    expect(where.fiscalStatus).toBe(PrismaFiscal.pending_registration);
+    expect(where.fiscalStatus).toBe(PrismaFiscal.excluded_pos_register);
   });
 
-  it('filtra per stato fiscale esplicito', () => {
-    const where = buildCorrispettiviWhere(tenantId, {
-      fiscalStatus: 'delivered_to_accountant',
-    });
-
-    expect(where.fiscalStatus).toBe(PrismaFiscal.delivered_to_accountant);
+  it('gli stati del vecchio flusso di consegna non sono più accettati', () => {
+    for (const ritirato of ['delivered_to_accountant', 'externally_registered']) {
+      expect(buildCorrispettiviWhere(tenantId, { fiscalStatus: ritirato }).fiscalStatus).toBeUndefined();
+    }
   });
 
   it('il periodo si misura sulla data di EVASIONE, non su quella dell ordine', () => {
@@ -94,7 +92,7 @@ describe('buildCorrispettiviRefundWhere', () => {
 
   it('ignora i filtri che descrivono un ordine e non una rettifica', () => {
     const where = buildCorrispettiviRefundWhere(tenantId, {
-      fiscalStatus: 'delivered_to_accountant',
+      fiscalStatus: 'excluded_pos_register',
       financialStatus: 'paid',
       search: 'Rossi',
     });

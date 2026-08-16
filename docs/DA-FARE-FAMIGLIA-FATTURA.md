@@ -414,23 +414,16 @@ fatturare» — e il filtro `pendingInvoice` che resta — si reggono su `source
 **nessun documento ha mai valorizzato** (`GUARDIE` §16). Finché è così, quel filtro considera
 da fatturare **tutti** i DDT confermati. La causa è nel blocco 1, non qui.
 
-### ⏸️ I due Arrivi merce — SQL pronta, **non eseguita**
+### ✅ I due Arrivi merce — normalizzati il 16/08
 
-`CAR-2026-0003` e `CAR-2026-0008` restano `externally_registered`. L’operazione minima,
-verificabile e idempotente è in **`docs/sql/normalizza-arrivi-merce-externally-registered.sql`**:
-porta `status` a `confirmed` e `registration_date` a `NULL`, **solo** sui `goods_receipt` in
-quello stato, dentro una transazione con conteggio prima e dopo.
+`CAR-2026-0003` e `CAR-2026-0008` sono tornati `confirmed` con `registration_date` a `NULL`,
+dentro la migration `20260816150000_ritira_consegna_commercialista`. Misurato dopo, sui loro
+id esatti: **3 movimenti, 18 pezzi, 3 varianti — identici**; righe, quantità, numero, serie,
+`document_date` e `confirmed_at` invariati. Gli arrivi merce confermati passano da 78 a 80.
 
-Non tocca righe, quantità, movimenti, giacenze, numero, serie, `document_date` né
-`confirmed_at`. **Attende il via esplicito**: è un database condiviso.
-
-**Dopo l’esecuzione** si tolgono il membro `ExternallyRegistered` dall’enum frontend, la sua
-etichetta, il suo tono e il test di guardia. **Non prima:** `STATUS_LABELS` è un
-`Record<DocumentStatus, …>` esaustivo, e quei due documenti resterebbero senza etichetta **in
-silenzio**. Il test `document-labels.util.spec.ts` esiste per questo, e va via con loro.
-
-Il valore resta nell’enum PostgreSQL: `ALTER TYPE … DROP VALUE` non esiste, e ricreare il tipo
-su un database condiviso non vale il guadagno.
+Il membro `ExternallyRegistered`, la sua etichetta, il suo tono e il test di guardia sono
+stati rimossi **dopo**, in questo ordine e non prima — vedi il blocco G per il valore che
+resta nel tipo PostgreSQL.
 
 ### Verifiche eseguite
 
@@ -446,51 +439,87 @@ rinominato `e2e/helpers/documents-list.ts`.
 
 ---
 
-## F · «Consegnato al commercialista» nei Corrispettivi — ⏸️ **censito, NON toccato**
+## F · «Consegna al commercialista» nei Corrispettivi — ✅ **RIMOSSA il 16/08/2026**
 
-**Decisione di Luigi, 16/08:** «anche i corrispettivi non voglio sapere se li ho già inviati.
-Quelli verranno esportati con stampe e file e nei periodi definiti dal cliente o dal
-commercialista. Tutto manuale.»
+**La decisione:** «anche i corrispettivi non voglio sapere se li ho già inviati. Quelli
+verranno esportati con stampe e file e nei periodi definiti dal cliente o dal commercialista.
+Tutto manuale.»
 
-**Non l’ho toccato**, perché il Registro Corrispettivi era il dominio escluso in modo esplicito
-e perché la rimozione richiede una scelta che non è stata presa: **quali dei cinque stati
-fiscali sopravvivono.**
+> **Vendite e rettifiche → regole di inclusione → Registro → filtri periodo → stampa/export.**
+> Non esiste un «dopo»: niente da inviare → inviato → consegnato → registrato. Esportare lo
+> stesso periodo due volte è consentito e non produce effetti.
 
-### Cosa c’è
+### Rimosso
 
-| Pezzo                                                    | Dove                                                      |
-| -------------------------------------------------------- | --------------------------------------------------------- |
-| `SalesOrderFiscalStatus` — 5 valori                      | `schema.prisma`, su `sales_orders.fiscal_status`          |
-| `POST /corrispettivi/mark-delivered` + DTO               | `corrispettivi.controller.ts`, `corrispettivi.service.ts` |
-| `GET /corrispettivi/deliveries`                          | stesso controller                                         |
-| Tabella `corrispettivi_deliveries`                       | 13 colonne — periodo, canale, conteggi, totali, note      |
-| Pannello «Consegna al commercialista» + tabella consegne | `corrispettivi-deliveries`, `corrispettivi-report`        |
-| Filtro per stato fiscale + etichette e toni              | `corrispettivi.model.ts`, `corrispettivi-report`          |
+`markDelivered()` e il suo DTO · `GET /corrispettivi/deliveries` · `PATCH
+/corrispettivi/orders/:id/fiscal-status` — la registrazione manuale dello stato, senza UI ·
+pannello «Consegna al commercialista» e tabella consegne · pulsante «Segna consegnato» ·
+filtro «Solo da consegnare» · riquadro «Da consegnare» del riepilogo · `pendingDeliveryCount`
+e `pendingDeliveryOnly` end-to-end · il componente `corrispettivi-deliveries` · modelli, DTO,
+metodi client · **la colonna «Data consegna commercialista» dal CSV, dallo spreadsheet e dal
+PDF**.
 
-### Il dato: la funzione non è mai stata usata
+### Rimosso anche dal database
 
-**Zero consegne registrate.** Tutti e **37** gli ordini di vendita sono
-`pending_registration` — nessuno è mai passato a `delivered_to_accountant`. La rimozione non
-perde niente.
+| Oggetto                            | Righe prima       | Nota                                    |
+| ---------------------------------- | ----------------- | --------------------------------------- |
+| tabella `corrispettivi_deliveries` | **0**             | nessun vincolo entrante, nessuna vista  |
+| `sales_orders.fiscal_delivered_at` | **0 valorizzate** | la scriveva solo `markDelivered()`      |
+| `sales_orders.fiscal_note`         | **0 valorizzate** | la scriveva solo `updateFiscalStatus()` |
 
-### ⛔ La decisione che manca
+Nessuno storico utente perso: erano vuote tutte e tre.
 
-I cinque valori **non sono tutti della stessa famiglia**:
+### I cinque stati fiscali, uno per uno
 
-| Valore                    | Dice                                 | Va via?                                        |
-| ------------------------- | ------------------------------------ | ---------------------------------------------- |
-| `delivered_to_accountant` | «l’ho già mandato»                   | ✅ è esattamente ciò che Luigi non vuole       |
-| `externally_registered`   | «il commercialista l’ha registrato»  | ✅ stessa famiglia                             |
-| `pending_registration`    | lo stato **iniziale** di tutti e 37  | ⛔ **e allora cosa diventa?**                  |
-| `excluded_pos_register`   | escluso dal registro corrispettivi   | ❓ è una classificazione fiscale, non un invio |
-| `invoiced`                | fatturato invece che a corrispettivo | ❓ idem                                        |
+| Valore                    | Verdetto                                         | Perché                                                                                                                                      |
+| ------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `delivered_to_accountant` | ⛔ **fuori**                                     | è il flusso ritirato                                                                                                                        |
+| `externally_registered`   | ⛔ **fuori**                                     | idem — da non confondere con l'omonimo `DocumentStatus`                                                                                     |
+| `pending_registration`    | ✅ resta come **default**, non come stato utente | lo portano tutte e 37 le vendite; l'etichetta non dice più «Da registrare» ma **«Nessuna classificazione»**, e non è più offerto nel filtro |
+| `excluded_pos_register`   | ✅ **resta**                                     | è una classificazione: la sync Shopify lo scrive sugli ordini POS, che la cassa registra per conto suo                                      |
+| `invoiced`                | ✅ **resta**                                     | classificazione fiscale, non passaggio di consegna                                                                                          |
 
-Se restano solo tre valori, `pending_registration` non ha più un «dopo»: diventa un default
-che non cambia mai, cioè una colonna inutile. Se invece la colonna intera va via, vanno decisi
-il destino del **filtro per stato fiscale** nel report e quello della **tabella consegne**.
+⚠️ **Verificato prima di conservarli, ed è un risultato scomodo: nessuno dei due esclude
+davvero una vendita dal registro.** `excluded_pos_register` lo scrive la sync e **nessuna
+query lo rilegge come regola**; `invoiced` **non lo scrive nessuno**, mai. Il doppio conteggio
+di una vendita fatturata è impedito altrove — da `CorrispettivoEntry.excludedFromSummary` e
+dallo stato `excluded_invoiced`, su un'altra tabella e un altro enum.
 
-**Da dove si ricomincia:** da questa domanda. Il censimento è fatto, il dato dice che non si
-perde niente, la decisione è di Luigi.
+Sono stati **conservati lo stesso**, perché toglierli sarebbe rimuovere una classificazione
+fiscale per associazione con un flusso diverso — e perché il vincolo «una vendita fatturata
+non si conta due volte» è nel modello, anche se oggi passa da un'altra strada. **Che oggi non
+facciano nulla resta una domanda aperta, non una cosa da chiudere in silenzio.**
+
+### Non toccato
+
+Vendite, resi, rimborsi, criteri economici del Registro, `CorrispettivoStatus` e il registro
+derivato `corrispettivo_entries`. Il permesso `reports.fiscal_register` **resta**: lo usa il
+registro derivato, che è la funzione valida. Ne è stato corretto solo il commento, che parlava
+di una consegna che non esiste più.
+
+---
+
+## G · I valori enum morti in PostgreSQL — 📌 **lasciati apposta, documentato**
+
+Tre valori restano nei tipi PostgreSQL senza nessun consumer applicativo:
+
+- `DocumentStatus.externally_registered`
+- `SalesOrderFiscalStatus.delivered_to_accountant`
+- `SalesOrderFiscalStatus.externally_registered`
+
+**Nessuna riga li porta** (verificato dopo la migration) e **nessun codice può scriverli**:
+sono spariti da `schema.prisma`, quindi il client Prisma non li espone e un'assegnazione non
+compila. Sono spariti anche dall'enum del frontend, dalle etichette e dai toni.
+
+**Perché non si tolgono anche dal tipo.** `ALTER TYPE … DROP VALUE` non esiste in PostgreSQL:
+servirebbe ricostruire il tipo — togliere il default della colonna, crearne uno nuovo,
+convertire, rinominare, rimettere il default. Su un **database condiviso**, dove convivono le
+tabelle di un altro ramo che questo schema non conosce, il rischio non è proporzionato al
+guadagno: è pulizia estetica su valori che nessuno può più produrre.
+
+⚠️ **Conseguenza da conoscere:** `schema.prisma` e il tipo PostgreSQL divergono di proposito
+su questi tre valori. È voluto e scritto qui; su questo database i comandi dichiarativi sono
+già vietati per altre ragioni (`regole-qualita`), quindi non cambia nulla in pratica.
 
 ---
 

@@ -63,7 +63,6 @@ export const DocumentStatus = {
   Confirmed: 'confirmed',
   Printed: 'printed',
   Sent: 'sent',
-  ExternallyRegistered: 'externally_registered',
   Cancelled: 'cancelled',
 } as const;
 export type DocumentStatus = (typeof DocumentStatus)[keyof typeof DocumentStatus];

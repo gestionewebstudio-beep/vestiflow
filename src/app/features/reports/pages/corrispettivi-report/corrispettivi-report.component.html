@@ -38,15 +38,6 @@
           <i class="pi pi-download" aria-hidden="true"></i>
           Export per commercialista
         </app-button>
-        @if (canManageFiscalRegister()) {
-          <app-button
-            variant="primary"
-            [disabled]="!summary() || summary()!.pendingDeliveryCount === 0"
-            (click)="openMarkDelivered()"
-          >
-            Segna consegnato
-          </app-button>
-        }
       </div>
     }
   </header>
@@ -106,13 +97,6 @@
       (valueChange)="onRowTypeChange($event)"
       [filterChip]="true"
     />
-    <app-button
-      variant="ghost"
-      [class.corrispettivi__filter--active]="pendingOnly()"
-      (click)="togglePendingOnly()"
-    >
-      Solo da consegnare
-    </app-button>
   </div>
 
   @if (loading()) {
@@ -138,16 +122,5 @@
         <app-corrispettivi-orders-table [rows]="orders()" />
       }
     </section>
-
-    <app-corrispettivi-deliveries [deliveries]="deliveries()" />
   }
-
-  <app-confirm-dialog
-    title="Consegna al commercialista"
-    [message]="markDeliveredMessage()"
-    confirmLabel="Conferma consegna"
-    [(open)]="markDeliveredOpen"
-    [busy]="markDeliveredBusy()"
-    (confirmed)="confirmMarkDelivered()"
-  />
 </section>

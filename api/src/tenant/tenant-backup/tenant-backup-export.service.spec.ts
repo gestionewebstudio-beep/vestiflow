@@ -49,7 +49,6 @@ function createExportPrismaMock(tenant: { id: string; name: string }) {
     stockReservation: { findMany: emptyList },
     stockReservationEvent: { findMany: emptyList },
     onlineOrderEvent: { findMany: emptyList },
-    corrispettiviDelivery: { findMany: emptyList },
     document: { findMany: emptyList },
     documentLine: { findMany: emptyList },
     documentRevision: { findMany: emptyList },

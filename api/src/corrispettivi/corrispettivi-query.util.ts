@@ -17,7 +17,6 @@ export interface CorrispettiviListFilters extends SalesOrderListFilters {
   readonly fiscalStatus?: string;
   readonly onlineOnly?: boolean;
   readonly posOnly?: boolean;
-  readonly pendingDeliveryOnly?: boolean;
   readonly refundsOnly?: boolean;
   /** `all` · `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
   readonly rowType?: string;
@@ -45,7 +44,7 @@ export interface CorrispettiviListFilters extends SalesOrderListFilters {
  *
  * **VestiFlow non può derivarla oggi**: _misurato il 14/08/2026_, su
  * `SalesOrder` esistono `placedAt`, `fulfilledAt`, `cancelledAt` e
- * `fiscalDeliveredAt`, e **nessuna data di incasso** — le transazioni del
+ * **nessuna data di incasso** — le transazioni del
  * canale non vengono importate. Manca il dato, non la logica.
  *
  * Quindi la formulazione corretta, e da non irrigidire: **per il flusso
@@ -83,12 +82,6 @@ export function buildCorrispettiviWhere(
     ...(financialFilter ? { financialStatus: { in: financialFilter } } : {}),
     ...(sourceFilter ? { source: sourceFilter } : {}),
     ...(fiscalStatus ? { fiscalStatus } : {}),
-    ...(query.pendingDeliveryOnly
-      ? {
-          fiscalStatus: PrismaFiscal.pending_registration,
-          source: PrismaSource.shopify_online,
-        }
-      : {}),
     ...(query.refundsOnly
       ? {
           financialStatus: {

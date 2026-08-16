@@ -268,9 +268,6 @@ export class TenantBackupImportService {
       case 'onlineOrderEvents':
         await tx.onlineOrderEvent.deleteMany({ where: { tenantId } });
         return;
-      case 'corrispettiviDeliveries':
-        await tx.corrispettiviDelivery.deleteMany({ where: { tenantId } });
-        return;
       case 'documents':
         await tx.document.deleteMany({ where: { tenantId } });
         return;
@@ -529,9 +526,6 @@ export class TenantBackupImportService {
         return;
       case 'onlineOrderEvents':
         await tx.onlineOrderEvent.createMany({ data });
-        return;
-      case 'corrispettiviDeliveries':
-        await tx.corrispettiviDelivery.createMany({ data });
         return;
       case 'documents':
         await tx.document.createMany({ data });

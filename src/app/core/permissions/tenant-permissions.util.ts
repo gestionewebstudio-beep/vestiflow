@@ -352,9 +352,13 @@ export function canExportOperationalData(user: User | null | undefined): boolean
 }
 
 /**
- * Scritture del registro fiscale (consegna al commercialista, stato fiscale,
- * righe del registro corrispettivi). Distinto dall'export: scaricare un CSV e
- * correggere la contabilità sono due mestieri diversi.
+ * Scritture del registro corrispettivi derivato (righe, esclusioni, rettifiche).
+ * Distinto dall'export: scaricare un CSV e correggere la contabilità sono due
+ * mestieri diversi.
+ *
+ * ⚠️ Non riguarda più «la consegna al commercialista»: quel flusso è stato
+ * ritirato il 16/08/2026 e VestiFlow non tiene traccia di cosa è già stato
+ * mandato. L'operatore sceglie un periodo, stampa o esporta, e nulla cambia.
  */
 export function canManageFiscalRegister(user: User | null | undefined): boolean {
   if (hasFullTenantAccess(user)) {

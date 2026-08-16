@@ -46,7 +46,6 @@ export const CORRISPETTIVI_ACCOUNTANT_HEADERS = [
   'Totale',
   'Stato pagamento',
   'Stato fiscale',
-  'Data consegna commercialista',
   'Nota',
   'Valuta',
 ] as const;
@@ -170,10 +169,9 @@ export class CorrispettiviExportService {
           ? financialStatusDisplayLabel(row.financialStatus)
           : '',
         'Stato fiscale': row.fiscalStatus ? fiscalStatusDisplayLabel(row.fiscalStatus) : '',
-        'Data consegna commercialista': row.fiscalDeliveredAt
-          ? ROME_DATE_FORMAT.format(row.fiscalDeliveredAt)
-          : '',
-        Nota: row.note ?? row.fiscalNote ?? '',
+        // La colonna «Data consegna commercialista» non c'è più: il file si
+        // produce per periodo, quante volte serve, e non registra nulla.
+        Nota: row.note ?? '',
         Valuta: row.currency,
       }));
   }

@@ -57,17 +57,19 @@ resi e rimborsi alla loro data.
 
 L'argomento di questa sezione **non cambia, si semplifica**: modificare un ordine evaso
 sposta all'indietro un riepilogo che potrebbe essere già stato consegnato, e la copia in
-`CorrispettiviDelivery` resta com'era. Cade solo la metà del ragionamento che riguardava il
-registro congelato.
+⚠️ **Aggiornato il 16/08/2026: `CorrispettiviDelivery` non esiste più.** Il flusso «consegna
+al commercialista» è stato ritirato — VestiFlow non tiene traccia di cosa è già stato mandato,
+e l'operatore stampa o esporta un periodo quante volte vuole. Il ragionamento qui sotto resta
+come cronaca: la sua metà sul registro congelato era già caduta prima.
 
-Modificare un ordine evaso li romperebbe in due modi opposti: il registro COR- resterebbe
-fermo mentre l'ordine cambia, e il riepilogo si sposterebbe all'indietro. Se quel periodo
-era già stato consegnato, la copia congelata in `CorrispettiviDelivery` resta com'era, il
-riepilogo ne mostra altri, e l'ordine è marcato `delivered_to_accountant` — quindi **niente
-segnala la differenza**.
+Modificare un ordine evaso li romperebbe: il registro COR- resterebbe fermo mentre l'ordine
+cambia, e il riepilogo si sposterebbe all'indietro.
 
-> **Il divieto non protegge solo un registro interno: protegge i numeri già consegnati al
-> commercialista.** È l'argomento più forte che abbiamo.
+⚠️ **La seconda metà di questo argomento è decaduta il 16/08/2026**, e va detto perché era
+«l'argomento più forte che avevamo»: parlava della copia congelata in `CorrispettiviDelivery`
+e dell'ordine marcato `delivered_to_accountant`. Non esistono più. Il divieto resta in piedi
+sulla prima metà — il registro derivato e il riepilogo che divergono — che non dipendeva da
+nessuna consegna.
 
 ### 4. La regola di progetto lo dice già
 
@@ -524,9 +526,14 @@ modi diversi. Che è il problema da cui è nato tutto il lavoro sul blocco docum
 
 ### Il resto, che invece è a posto
 
-Le vendite POS sono **escluse dalla consegna al commercialista**: prendono
-`fiscalStatus: excluded_pos_register`, e solo `shopify_online` entra nel conteggio dei
-documenti da consegnare. A registrarle fiscalmente è la cassa. Questo è coerente e voluto.
+Le vendite POS prendono `fiscalStatus: excluded_pos_register`, perché a registrarle
+fiscalmente è la cassa.
+
+⚠️ **Misurato il 16/08/2026, e non è come la frase qui sopra diceva.** Diceva che le POS sono
+«escluse dalla consegna al commercialista» e che solo `shopify_online` entra nel conteggio:
+il conteggio non esiste più, ma soprattutto **quel valore non esclude niente**. Nessuna query
+del registro lo legge come regola — è una classificazione scritta dalla sync e mostrata come
+etichetta. Sopravvive per questo, non per un effetto che non ha.
 
 ### Un vincolo che vive solo in un commento
 

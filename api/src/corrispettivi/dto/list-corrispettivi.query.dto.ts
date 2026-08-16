@@ -70,7 +70,6 @@ export class ListCorrispettiviQueryDto extends PaginationQueryDto {
   @IsOptional()
   @Transform(({ value }) => toOptionalBoolean(value))
   @IsBoolean()
-  pendingDeliveryOnly?: boolean;
 
   @IsOptional()
   @Transform(({ value }) => toOptionalBoolean(value))

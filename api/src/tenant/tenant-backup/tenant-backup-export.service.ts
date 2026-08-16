@@ -173,8 +173,6 @@ export class TenantBackupExportService {
         return this.prisma.stockReservationEvent.findMany({ where: { tenantId } });
       case 'onlineOrderEvents':
         return this.prisma.onlineOrderEvent.findMany({ where: { tenantId } });
-      case 'corrispettiviDeliveries':
-        return this.prisma.corrispettiviDelivery.findMany({ where: { tenantId } });
       case 'documents':
         return this.prisma.document.findMany({ where: { tenantId } });
       case 'documentLines':

@@ -18,8 +18,6 @@ import { API_SOURCE_ONLINE, API_SOURCE_POS } from '../sales-orders/sales-order.e
 import { isRefundFinancialStatus } from './corrispettivi-fiscal.enum-mapper';
 import { buildCorrispettiviRefundWhere, buildCorrispettiviWhere } from './corrispettivi-query.util';
 import type { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
-import type { MarkCorrispettiviDeliveredDto } from './dto/mark-corrispettivi-delivered.dto';
-import type { UpdateFiscalStatusDto } from './dto/update-fiscal-status.dto';
 
 export interface CorrispettiviSummaryDto {
   readonly orderCount: number;
@@ -32,7 +30,6 @@ export interface CorrispettiviSummaryDto {
   readonly discountMinor: number;
   readonly totalMinor: number;
   readonly taxableMinor: number;
-  readonly pendingDeliveryCount: number;
   // ── Rettifiche del periodo (specifica 08 §4) ────────────────────────────
   /** Quante rettifiche, annullamenti esclusi. */
   readonly refundCount: number;
@@ -45,22 +42,6 @@ export interface CorrispettiviSummaryDto {
   readonly netTotalMinor: number;
   readonly netTaxMinor: number;
   readonly netTaxableMinor: number;
-}
-
-export interface CorrispettiviDeliveryRow {
-  readonly id: string;
-  readonly periodFrom: Date;
-  readonly periodTo: Date;
-  readonly channelFilter: string;
-  readonly orderCount: number;
-  readonly subtotalMinor: number;
-  readonly taxMinor: number;
-  readonly shippingMinor: number;
-  readonly totalMinor: number;
-  readonly refundsCount: number;
-  readonly note: string | null;
-  readonly createdByName: string;
-  readonly createdAt: Date;
 }
 
 export type CorrispettiviOrderRow = SalesOrder & {
@@ -99,8 +80,6 @@ export interface CorrispettiviRegisterRow {
   /** Solo sulle vendite: una rettifica non ha stato di pagamento né fiscale. */
   readonly financialStatus: SalesOrderFinancialStatus | null;
   readonly fiscalStatus: SalesOrderFiscalStatus | null;
-  readonly fiscalDeliveredAt: Date | null;
-  readonly fiscalNote: string | null;
   /** Solo sulle rettifiche: che gesto è stato. */
   readonly refundKind: SalesOrderRefundKind | null;
   readonly note: string | null;
@@ -221,8 +200,6 @@ export class CorrispettiviService {
         totalMinor: order.totalMinor,
         financialStatus: order.financialStatus,
         fiscalStatus: order.fiscalStatus,
-        fiscalDeliveredAt: order.fiscalDeliveredAt,
-        fiscalNote: order.fiscalNote,
         refundKind: null,
         note: null,
       })),
@@ -242,8 +219,6 @@ export class CorrispettiviService {
         totalMinor: -refund.totalMinor,
         financialStatus: null,
         fiscalStatus: null,
-        fiscalDeliveredAt: null,
-        fiscalNote: null,
         refundKind: refund.kind,
         note: refund.note,
       })),
@@ -277,7 +252,6 @@ export class CorrispettiviService {
     let shippingMinor = 0;
     let discountMinor = 0;
     let totalMinor = 0;
-    let pendingDeliveryCount = 0;
 
     for (const order of orders) {
       subtotalMinor += order.subtotalMinor;
@@ -287,12 +261,6 @@ export class CorrispettiviService {
       totalMinor += order.totalMinor;
       if (isRefundFinancialStatus(order.financialStatus)) {
         refundsCount += 1;
-      }
-      if (
-        order.fiscalStatus === PrismaFiscal.pending_registration &&
-        order.source === 'shopify_online'
-      ) {
-        pendingDeliveryCount += 1;
       }
     }
 
@@ -344,7 +312,6 @@ export class CorrispettiviService {
       discountMinor,
       totalMinor,
       taxableMinor,
-      pendingDeliveryCount,
       refundCount: refunds.length,
       refundTotalMinor,
       refundTaxMinor,
@@ -354,125 +321,7 @@ export class CorrispettiviService {
       netTaxMinor: taxMinor - refundTaxMinor,
       netTaxableMinor: Math.max(0, totalMinor - refundTotalMinor - (taxMinor - refundTaxMinor)),
     };
-  }
 
-  async markDelivered(
-    tenantId: string,
-    user: UserProfileDto,
-    dto: MarkCorrispettiviDeliveredDto,
-  ): Promise<CorrispettiviDeliveryRow> {
-    const placedAt = buildPlacedAtFilter(dto.placedFrom, dto.placedTo);
-    if (!placedAt?.gte || !placedAt?.lte) {
-      throw new BadRequestException('Periodo non valido');
-    }
-
-    const channel = dto.channel ?? API_SOURCE_ONLINE;
-    const where = buildCorrispettiviWhere(tenantId, {
-      placedFrom: dto.placedFrom,
-      placedTo: dto.placedTo,
-      ...(channel === API_SOURCE_ONLINE ? { onlineOnly: true } : {}),
-      ...(channel === API_SOURCE_POS ? { posOnly: true } : {}),
-      fiscalStatus: 'pending_registration',
-    });
-
-    const orders = await this.prisma.salesOrder.findMany({
-      where,
-      select: {
-        id: true,
-        subtotalMinor: true,
-        taxMinor: true,
-        shippingMinor: true,
-        totalMinor: true,
-        financialStatus: true,
-      },
-    });
-
-    if (orders.length === 0) {
-      throw new BadRequestException('Nessun ordine da consegnare nel periodo selezionato');
-    }
-
-    const summary = this.aggregateOrders(orders);
-    const now = new Date();
-
-    const periodFrom = placedAt.gte!;
-    const periodTo = placedAt.lte!;
-
-    const delivery = await this.prisma.$transaction(async (tx) => {
-      await tx.salesOrder.updateMany({
-        where: { id: { in: orders.map((o) => o.id) } },
-        data: {
-          fiscalStatus: PrismaFiscal.delivered_to_accountant,
-          fiscalDeliveredAt: now,
-        },
-      });
-
-      return tx.corrispettiviDelivery.create({
-        data: {
-          tenantId,
-          periodFrom,
-          periodTo,
-          channelFilter: channel,
-          orderCount: orders.length,
-          subtotalMinor: summary.subtotalMinor,
-          taxMinor: summary.taxMinor,
-          shippingMinor: summary.shippingMinor,
-          totalMinor: summary.totalMinor,
-          refundsCount: summary.refundsCount,
-          note: dto.note?.trim() || null,
-          createdById: user.id,
-          createdByName: user.displayName,
-        },
-      });
-    });
-
-    return delivery;
-  }
-
-  async listDeliveries(
-    tenantId: string,
-    page = 1,
-    pageSize = 20,
-  ): Promise<Paginated<CorrispettiviDeliveryRow>> {
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.corrispettiviDelivery.findMany({
-        where: { tenantId },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.corrispettiviDelivery.count({ where: { tenantId } }),
-    ]);
-
-    return { items, total, page, pageSize };
-  }
-
-  async updateFiscalStatus(
-    tenantId: string,
-    orderId: string,
-    dto: UpdateFiscalStatusDto,
-  ): Promise<CorrispettiviOrderRow> {
-    const existing = await this.prisma.salesOrder.findFirst({
-      where: { id: orderId, tenantId },
-    });
-    if (!existing) {
-      throw new NotFoundException('Vendita non trovata');
-    }
-
-    const fiscalStatus = dto.fiscalStatus as PrismaFiscal;
-
-    const updated = await this.prisma.salesOrder.update({
-      where: { id: orderId },
-      data: {
-        fiscalStatus,
-        fiscalNote: dto.fiscalNote?.trim() || null,
-        ...(fiscalStatus === PrismaFiscal.delivered_to_accountant
-          ? { fiscalDeliveredAt: new Date() }
-          : {}),
-      },
-      include: { customer: { select: { party: { select: { email: true } } } } },
-    });
-    const { customer, ...rest } = updated;
-    return { ...rest, customer: customer ? { email: customer.party.email } : null };
   }
 
   private aggregateOrders(

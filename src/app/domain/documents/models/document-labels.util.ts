@@ -36,7 +36,6 @@ const STATUS_LABELS: Record<DocumentStatus, string> = {
   [DocumentStatus.Confirmed]: 'Confermato',
   [DocumentStatus.Printed]: 'Stampato',
   [DocumentStatus.Sent]: 'Inviato',
-  [DocumentStatus.ExternallyRegistered]: 'Registrato esternamente',
   [DocumentStatus.Cancelled]: 'Annullato',
 };
 
@@ -45,7 +44,6 @@ const STATUS_TONES: Record<DocumentStatus, BadgeTone> = {
   [DocumentStatus.Confirmed]: 'success',
   [DocumentStatus.Printed]: 'info',
   [DocumentStatus.Sent]: 'info',
-  [DocumentStatus.ExternallyRegistered]: 'vestiflow',
   [DocumentStatus.Cancelled]: 'error',
 };
 
@@ -66,11 +64,9 @@ export function documentStatusLabelForType(
   // Stati fiscali di Fattura e Fattura accompagnatoria. `Sent` non è più
   // raggiungibile e resta mappato solo per i documenti storici che lo hanno già.
   //
-  // ⚠️ `ExternallyRegistered` non compare qui di proposito (16/08/2026):
-  // l'azione «Inviata al commercialista» è stata rimossa, quindi nessuna
-  // fattura può più raggiungere quello stato e rimapparne l'etichetta
-  // racconterebbe un ciclo che non esiste. Il nome generico resta in
-  // `STATUS_LABELS` finché i due arrivi merce storici non sono normalizzati.
+  // ⚠️ `ExternallyRegistered` non esiste più (16/08/2026): l'azione «Inviata
+  // al commercialista» è stata rimossa e i due arrivi merce che lo portavano
+  // sono tornati `confirmed`. Il valore resta nel tipo PostgreSQL, morto.
   if (isSalesInvoiceDocumentType(type)) {
     if (status === DocumentStatus.Sent && doc.externallyIssuedAt) {
       return 'Emessa esternamente';

@@ -188,10 +188,14 @@ enum SalesOrderSource {
 /// Stato fiscale corrispettivi per il commercialista (§8 piano funzionale).
 enum SalesOrderFiscalStatus {
   pending_registration
-  delivered_to_accountant
-  externally_registered
   excluded_pos_register
   invoiced
+  /// ⚠️ `delivered_to_accountant` ed `externally_registered` esistono ancora nel
+  /// tipo PostgreSQL e NON qui: il flusso «consegna al commercialista» è stato
+  /// ritirato il 16/08/2026 — nessuna riga li porta e nessun codice li scrive —
+  /// ma ALTER TYPE ... DROP VALUE non esiste, e ricostruire il tipo su un
+  /// database condiviso non vale il guadagno. Toglierli da qui è la garanzia
+  /// che conta: il client Prisma non li espone, quindi non compilano.
 }
 
 /// Stato magazzino della Vendita online (fase 2 §3): scarico completo,
@@ -295,7 +299,10 @@ enum DocumentStatus {
   confirmed // Confermato: numero assegnato, movimenti generati
   printed // Stampato
   sent // Inviato
-  externally_registered // Registrato esternamente (fattura/commercialista)
+  /// ⚠️ `externally_registered` sta nel tipo PostgreSQL e non qui: l'azione
+  /// «Inviata al commercialista» è stata rimossa il 16/08/2026 e i due arrivi
+  /// merce che lo portavano sono tornati `confirmed`. Stesso motivo dell'enum
+  /// SalesOrderFiscalStatus: il valore fisico resta, il client non lo espone.
   cancelled // Annullato
 }
 
@@ -364,7 +371,6 @@ model Tenant {
   stockReservations       StockReservation[]
   stockReservationEvents  StockReservationEvent[]
   onlineOrderEvents       OnlineOrderEvent[]
-  corrispettiviDeliveries CorrispettiviDelivery[]
   onlineSales             OnlineSale[]
   onlineSaleLines         OnlineSaleLine[]
   corrispettivoEntries    CorrispettivoEntry[]
@@ -1262,8 +1268,6 @@ model SalesOrder {
   shippingMinor     Int                         @default(0) @map("shipping_minor")
   discountMinor     Int                         @default(0) @map("discount_minor")
   fiscalStatus      SalesOrderFiscalStatus      @default(pending_registration) @map("fiscal_status")
-  fiscalDeliveredAt DateTime?                   @map("fiscal_delivered_at")
-  fiscalNote        String?                     @map("fiscal_note")
   placedAt          DateTime                    @map("placed_at")
   shopifyOrderId    String?                     @map("shopify_order_id")
   /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8);
@@ -1331,29 +1335,6 @@ model SalesOrder {
 }
 
 /// Storico consegne corrispettivi al commercialista (batch per periodo).
-model CorrispettiviDelivery {
-  id            String   @id @default(uuid()) @db.Uuid
-  tenantId      String   @map("tenant_id") @db.Uuid
-  periodFrom    DateTime @map("period_from")
-  periodTo      DateTime @map("period_to")
-  channelFilter String   @map("channel_filter")
-  orderCount    Int      @map("order_count")
-  subtotalMinor Int      @map("subtotal_minor")
-  taxMinor      Int      @map("tax_minor")
-  shippingMinor Int      @map("shipping_minor")
-  totalMinor    Int      @map("total_minor")
-  refundsCount  Int      @default(0) @map("refunds_count")
-  note          String?
-  createdById   String?  @map("created_by_id") @db.Uuid
-  createdByName String   @map("created_by_name")
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-
-  @@index([tenantId, createdAt(sort: Desc)])
-  @@map("corrispettivi_deliveries")
-}
-
 model SalesOrderLine {
   id             String  @id @default(uuid()) @db.Uuid
   orderId        String  @map("order_id") @db.Uuid

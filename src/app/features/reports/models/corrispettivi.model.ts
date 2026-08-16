@@ -3,8 +3,6 @@ import type { CurrencyCode, EntityId, IsoDateString, Money } from '@core/models/
 /** Stato fiscale corrispettivi per il commercialista (§8). */
 export const SalesOrderFiscalStatus = {
   PendingRegistration: 'pending_registration',
-  DeliveredToAccountant: 'delivered_to_accountant',
-  ExternallyRegistered: 'externally_registered',
   ExcludedPosRegister: 'excluded_pos_register',
   Invoiced: 'invoiced',
 } as const;
@@ -40,8 +38,6 @@ export interface CorrispettiviRegisterRow {
   readonly total: Money;
   readonly financialStatus?: string;
   readonly fiscalStatus?: SalesOrderFiscalStatus;
-  readonly fiscalDeliveredAt?: IsoDateString;
-  readonly fiscalNote?: string;
   readonly refundKind?: CorrispettiviRefundKind;
   readonly note?: string;
 }
@@ -57,7 +53,6 @@ export interface CorrispettiviSummary {
   readonly discount: Money;
   readonly total: Money;
   readonly taxable: Money;
-  readonly pendingDeliveryCount: number;
   /** Rettifiche del periodo, alla loro data. Gli annullamenti restano fuori. */
   readonly refundCount: number;
   readonly refundTotal: Money;
@@ -69,22 +64,6 @@ export interface CorrispettiviSummary {
   readonly netTotal: Money;
   readonly netTax: Money;
   readonly netTaxable: Money;
-}
-
-export interface CorrispettiviDelivery {
-  readonly id: EntityId;
-  readonly periodFrom: IsoDateString;
-  readonly periodTo: IsoDateString;
-  readonly channelFilter: string;
-  readonly orderCount: number;
-  readonly subtotal: Money;
-  readonly tax: Money;
-  readonly shipping: Money;
-  readonly total: Money;
-  readonly refundsCount: number;
-  readonly note?: string;
-  readonly createdByName: string;
-  readonly createdAt: IsoDateString;
 }
 
 export interface CorrispettiviListQuery {
@@ -100,21 +79,11 @@ export interface CorrispettiviListQuery {
   readonly posOnly?: boolean;
   /** `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
   readonly rowType?: string;
-  readonly pendingDeliveryOnly?: boolean;
   readonly refundsOnly?: boolean;
-}
-
-export interface MarkCorrispettiviDeliveredRequest {
-  readonly placedFrom: string;
-  readonly placedTo: string;
-  readonly channel?: 'online' | 'pos' | 'all';
-  readonly note?: string;
 }
 
 export const FISCAL_STATUS_LABELS: Record<SalesOrderFiscalStatus, string> = {
   [SalesOrderFiscalStatus.PendingRegistration]: 'Da registrare',
-  [SalesOrderFiscalStatus.DeliveredToAccountant]: 'Consegnato al commercialista',
-  [SalesOrderFiscalStatus.ExternallyRegistered]: 'Registrato esternamente',
   [SalesOrderFiscalStatus.ExcludedPosRegister]: 'Escluso (cassa/POS)',
   [SalesOrderFiscalStatus.Invoiced]: 'Fatturato',
 };
@@ -124,8 +93,6 @@ export const FISCAL_STATUS_TONES: Record<
   'neutral' | 'info' | 'success' | 'warning' | 'error'
 > = {
   [SalesOrderFiscalStatus.PendingRegistration]: 'warning',
-  [SalesOrderFiscalStatus.DeliveredToAccountant]: 'info',
-  [SalesOrderFiscalStatus.ExternallyRegistered]: 'success',
   [SalesOrderFiscalStatus.ExcludedPosRegister]: 'neutral',
   [SalesOrderFiscalStatus.Invoiced]: 'success',
 };
