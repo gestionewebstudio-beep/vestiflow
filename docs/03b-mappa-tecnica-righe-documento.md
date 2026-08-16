@@ -1236,3 +1236,26 @@ Comunque si decida, **la differenza fra le due maschere resta da sanare**: la st
 Richiesta di Luigi (16/08): quella colonna non dice se è netta o ivata, e chi lavora all'ingrosso ha bisogno di leggerla nell'uno o nell'altro modo. Il componente esiste già (`app-price-mode-menu`, `07-…§25`).
 
 ⚠️ **Ma significa due cose diverse nelle due maschere**, e va deciso prima: sull'Ordine fornitore sarebbe un **cambio di vista** su un valore in sola lettura; sull'Arrivo merce, dove la colonna si scrive, sarebbe un **modo di inserimento**, come già è per il Costo.
+
+### 16-bis. L'inclusione non ricarica dal catalogo — ma trasporta 8 campi su 12
+
+_Misurato il 16/08/2026, sul timore giusto di Luigi: «quando viene incluso in un nuovo documento non bisogna sempre ricaricare, altrimenti si perderanno tutte le digitazioni fatte in qualsiasi campo»._
+
+**La buona notizia: il ricaricamento non c'è.** La riga inclusa viene riempita **dal carico del documento d'origine**, con `emitEvent: false` perché nessun effetto collaterale possa sovrascriverla. Nessuna chiamata al catalogo, nessun ricalcolo. Il preventivo portato a 10 € arriva a 10 €.
+
+**La cattiva: il carico non porta tutto.** `IncludedDocumentLine` ha **otto** campi:
+
+`variantId` · `sku` · `barcode` · `description` · `quantity` · `unitPriceMinor` · `discount` · `vatCodeId`
+
+Una riga documento ne ha di più che l'operatore può digitare. **Cadono**, e non perché vengano ricaricate — perché non partono mai:
+
+| Campo perso                 | Perché pesa                                                                                                                                                                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`unitOfMeasure`**         | l'unità di misura scritta a mano sparisce. E si somma al difetto del §17 di `07`: la maschera vendita non la manda **e la azzera** — quindi non si perde solo nel passaggio, si perde anche al primo salvataggio successivo |
+| `loadsStock`                | la spunta «scarica magazzino» della riga torna al default del tipo                                                                                                                                                          |
+| `lotCode` · `lotExpiryDate` | lotto e scadenza digitati                                                                                                                                                                                                   |
+| `serialNumbers`             | le matricole inserite                                                                                                                                                                                                       |
+
+**L'effetto è quello che Luigi temeva, la causa no.** Non è «ricarica e sovrascrive»: è **un carico incompleto**. La differenza conta perché cambia la correzione — non serve impedire un ricaricamento che non avviene, serve **completare i campi trasportati**.
+
+**Il criterio da fissare prima di scrivere codice**, perché non è ovvio: non tutti i campi vanno portati sempre. La quantità sì, il prezzo sì, l'unità di misura sì. Ma lotto e matricole appartengono alla **merce fisica movimentata**, e un preventivo non ne ha movimentata nessuna: portarle in un DDT significherebbe dichiarare uscita una matricola che l'operatore non ha ancora scelto. Vanno decisi **uno per uno**, non con una regola sola.
