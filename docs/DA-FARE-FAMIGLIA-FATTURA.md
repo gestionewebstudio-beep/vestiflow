@@ -673,7 +673,29 @@ da un DDT **la perde al primo salvataggio**, in silenzio. Entra nella voce 5.
 
 ---
 
-## 3 · La scelta del lotto in uscita — 🔵 regola decisa, funzione da costruire
+## 12 · GESTIONE LOTTI — ⏸️ **sottosistema da progettare e costruire per intero**
+
+⚠️ **Deciso il 16/08: il lotto esce dal censimento delle righe e diventa un blocco autonomo.**
+Non è un concetto di riga che si possa censire insieme agli altri: è un **sottosistema**, e
+prenderne pezzi dentro un lavoro che parla d'altro significherebbe deciderlo a metà.
+
+**Va progettato e costruito per intero:**
+
+- **disponibilità** — quali lotti esistono, con quanta merce, in quale sede;
+- **selezione** — come si sceglie un lotto in uscita, e cosa succede quando ce ne sono più
+  d'uno per lo stesso articolo;
+- **persistenza** — dove vive il legame riga ↔ lotto;
+- **movimenti** — come il lotto viaggia sul movimento, e cosa ne fa la giacenza;
+- **quantità** — la giacenza per lotto, e il suo rapporto con quella per variante × sede;
+- **documenti di entrata e di uscita** — comportamento in ciascuno;
+- **API** — nessun endpoint dei lotti disponibili esiste oggi.
+
+⛔ **Fino ad allora:** nessun endpoint, nessun selettore, nessuna logica lotto, e nessuna
+decisione parziale presa di straforo dentro altri lavori.
+
+---
+
+### La regola d'inclusione, già decisa — è il solo pezzo che c'è
 
 > **L'inclusione riporta quello che c'è: se il lotto era già deciso si porta deciso, se non lo
 > era si porta non deciso. Chi ha bisogno del dato e non ce l'ha, lo chiede.**
@@ -773,7 +795,17 @@ dei calcoli dentro la Fattura sarebbe il difetto, non la funzione.
 
 ---
 
-## 6 · Il prezzo al pubblico nell'Arrivo merce — 🔴 oggi si digita e sparisce
+## 6 · Il prezzo al pubblico nell'Arrivo merce — ⏸️ **assorbita nella fetta 2 della voce 11**
+
+⚠️ **Censita il 16/08: non «si perde per strada», NON PARTE.** Per un articolo esistente il
+valore non è nel DTO di riga, non c'è una colonna sulla riga documento, e nessun codice lo
+scrive in anagrafica. Il percorso esiste solo per l'articolo che **nasce** in quel momento.
+
+**Resta aperta una decisione funzionale** — se e con quale meccanismo quel valore debba
+aggiornare l'anagrafica di un articolo già esistente. Censimento completo e opzioni: **voce 11,
+fetta 2**.
+
+### Il testo originale, per storia
 
 **Misurato:** per un articolo **già esistente**, il prezzo al pubblico scritto in riga **non
 va da nessuna parte**. Non aggiorna l'anagrafica e non viene salvato sul documento.
@@ -905,21 +937,26 @@ a mano · precisione e formato · regressioni.
 
 ### Le fette, in ordine
 
-| #   | Concetto                             | Stato                                   |
-| --- | ------------------------------------ | --------------------------------------- |
-| 1   | **Unità di misura**                  | ✅ **fatta il 16/08**                   |
-| 2   | **Prezzo al pubblico**               | 🔵 prossima                             |
-| 3   | Prezzo e netto/ivato                 | ⚪ (assorbe le voci 7 e 10)             |
-| 4   | Sconti                               | ⚪                                      |
-| 5   | Nome e descrizione                   | ⚪ ⚠️ attenzione alla sincronia Shopify |
-| 6   | SKU · codice articolo · EAN          | ⚪                                      |
-| 7   | Quantità e precisione                | ⚪                                      |
-| 8   | Provenienza e identità strutturata   | ⚪ (assorbe la voce 2)                  |
-| 9   | Campi pertinenti a un solo documento | ⚪ (il lotto, voce 3)                   |
+| #   | Concetto                           | Stato                                   |
+| --- | ---------------------------------- | --------------------------------------- |
+| 1   | **Unità di misura**                | ✅ **fatta il 16/08**                   |
+| 2   | **Prezzo al pubblico**             | 🔵 prossima                             |
+| 3   | Prezzo e netto/ivato               | ⚪ (assorbe le voci 7 e 10)             |
+| 4   | Sconti                             | ⚪                                      |
+| 5   | Nome e descrizione                 | ⚪ ⚠️ attenzione alla sincronia Shopify |
+| 6   | SKU · codice articolo · EAN        | ⚪                                      |
+| 7   | Quantità e precisione              | ⚪                                      |
+| 8   | Provenienza e identità strutturata | ⚪ (assorbe la voce 2)                  |
 
 **Voci assorbite:** la **5** (cinque colonne della riga Fattura) e la **6** (prezzo al pubblico
 nell’Arrivo merce) non sono più blocchi a sé: sono i difetti che le prime due fette hanno
 trovato. Le voci **7**, **10** e **2** entrano nelle fette 3 e 8.
+
+⛔ **Il lotto NON è una fetta di questo censimento.** La gestione lotti va ancora progettata
+e costruita per intero — disponibilità, selezione, persistenza, movimenti, quantità,
+comportamento nei documenti di entrata e di uscita, API. Non è un concetto di riga che si
+possa censire: è un **sottosistema**. Prenderne pezzi qui significherebbe deciderlo a metà,
+dentro un lavoro che parla d'altro. Blocco autonomo, più avanti — voce **12**.
 
 ---
 
@@ -991,17 +1028,104 @@ ripiego che ha nascosto il difetto.
 
 ---
 
-### 🔵 Fetta 2 · Prezzo al pubblico — prossima
+### ⏸️ Fetta 2 · Prezzo al pubblico — censita il 16/08, **una decisione aperta**
 
-Comportamento osservato (voce 6): l’operatore lo digita nell’Arrivo merce e **sparisce**.
+#### Significato funzionale, misurato
 
-⚠️ **Prima della correzione va identificato dove quel valore deve andare secondo il modello
-già esistente** — riga documento, prodotto/variante, listino, o altra struttura prevista. **Non
-si crea una persistenza nuova solo perché il campo è visibile.**
+`sellingPrice` — «Prezzo al pubblico» — **non è un prezzo del documento**: è il prezzo **di
+catalogo dell'articolo** (`03b` §16). È l'altra colonna rispetto a `unitPrice`, che è quello
+che il cliente paga.
 
-Se la destinazione è già definita dal dominio, si corregge. Se emergesse che il campo UI esiste
-senza che sia mai stato deciso cosa debba aggiornare, **quella è una decisione funzionale** e ci
-si ferma su quel solo punto.
+La stessa colonna fa **due mestieri**: in **sola lettura** sull'Ordine fornitore — quando
+ordini guardi il prezzo di vendita per decidere quanto comprare — ed **editabile**
+sull'Arrivo merce, perché, dichiarato da Luigi il 16/08:
+
+> «quando la merce arriva, quello è il momento in cui il prezzo di vendita **si stabilisce o
+> si aggiorna**».
+
+#### Sorgente canonica
+
+| Campo                              | Dove                    | Note                                                                                  |
+| ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------- |
+| `Product.sellingPriceMinor`        | articolo, `num(16,6)`   | il prezzo di catalogo                                                                 |
+| `ProductVariant.sellingPriceMinor` | variante, `num(16,6)`   | il prezzo effettivo della taglia — **è questo** che la maschera legge                 |
+| `shopifyPriceMinor`                | articolo **e** variante | ⚠️ prezzo del canale, **indipendente**: «la pubblicazione legge sempre e solo questo» |
+| `listino1/2/3PriceMinor`           | solo articolo           | mai sincronizzati                                                                     |
+
+La maschera precompila da `VariantSummaryDto.sellingPrice`, cioè dalla **variante**.
+
+#### Comportamento oggi
+
+**Controllo UI.** Nasce vuoto. Alla scelta dell'articolo si riempie dal prezzo della variante,
+ma **solo se è vuoto** — un valore digitato non viene sovrascritto. **Eccezione:** se
+l'operatore **sostituisce** l'articolo della riga, i prezzi seguono il nuovo articolo e si
+svuotano se non ne ha; il commento nel codice spiega perché — «tenere quelli di prima farebbe
+pubblicare su Shopify il prezzo di un articolo diverso».
+
+**Payload.** ⛔ Per un **articolo esistente il valore non parte affatto.** `sellingPriceMinor`
+esiste **solo** dentro `SaveGoodsReceiptNewProductDto`, il corpo dell'articolo **nuovo**. Il
+DTO di riga non ha nessun prezzo al pubblico.
+
+L'unico altro uso è il precompilato del pannello «crea articolo», che è **disabilitato di
+proposito** quando la riga ha già una variante.
+
+**Persistenza documentale.** ⛔ `DocumentLine` **non ha una colonna** per il prezzo al pubblico,
+e non è una dimenticanza: coerente con la semantica, il dato è dell'articolo, non della riga.
+
+#### Causa radice
+
+> **La maschera espone, per ogni riga, un campo che per gli articoli esistenti non ha nessuna
+> destinazione.** Non «si perde per strada»: non parte. Il percorso esiste solo per l'articolo
+> che nasce in quel momento.
+
+È lo **stesso difetto della fetta 1** in una forma diversa: un campo che a video si comporta
+come se fosse acquisito, e che non lo è.
+
+#### ⛔ La decisione aperta — e il metro di paragone la rende netta
+
+Per il **costo** il dominio ha una regola articolata e scritta
+(`document-supplier-price.util.ts`):
+
+- costo **effettivo della variante**: **sempre** aggiornato dal carico;
+- **ultimo prezzo fornitore**: aggiornato quando c'è un fornitore collegato;
+- costo di **riferimento dell'articolo**: **solo se l'operatore spunta l'opzione sul
+  documento** (`updateArticleReferenceCost`).
+
+Per il **prezzo al pubblico su un articolo esistente**: **niente**. Nessun campo nel DTO di
+riga, nessuna funzione, nessuna spunta, nessuna politica di tenant.
+
+**Non è «deciso e non implementato»: non è mai stato deciso.** La semantica del campo è
+dichiarata, il meccanismo no.
+
+**Cosa va deciso, in una domanda:**
+
+> Quando l'operatore scrive un prezzo al pubblico su una riga di Arrivo merce di un articolo
+> **che esiste già**, quel valore aggiorna l'anagrafica — e se sì, **con quale meccanismo**?
+
+Le opzioni, col precedente accanto:
+
+| Opzione                                                          | Precedente nel dominio                |
+| ---------------------------------------------------------------- | ------------------------------------- |
+| **sempre**, come il costo effettivo della variante               | è già così per il costo               |
+| **con una spunta di documento**, come il costo di riferimento    | è già così per il costo dell'articolo |
+| **mai**: la colonna resta informativa e va messa in sola lettura | è già così sull'Ordine fornitore      |
+
+⚠️ **Tre cose che pesano sulla scelta, misurate:**
+
+1. **Variante o articolo?** Il costo distingue: effettivo sulla variante, riferimento
+   sull'articolo. Il prezzo ha entrambi i campi, e la maschera legge quello della **variante**.
+   Un carico con più taglie dello stesso articolo scriverebbe righe diverse.
+2. **Shopify.** `shopifyPriceMinor` è indipendente, ma il suo commento dice: «con Shopify
+   **disattivo** segue il prezzo articolo solo quando questo cambia valore». Scrivere il prezzo
+   dal carico può quindi **cambiare ciò che si pubblica**.
+3. **La colonna è editabile anche sull'Ordine fornitore?** No — lì è in sola lettura, e la
+   scelta «mai» renderebbe le due maschere coerenti al prezzo di togliere una capacità che
+   Luigi ha descritto come voluta.
+
+**Fermato qui**, come stabilito: la fetta 2 non si chiude senza questa decisione, e il campo
+resta com'è — nessuna persistenza inventata solo perché il campo è visibile.
+
+**Da dove si ricomincia:** dalla domanda qui sopra.
 
 ---
 
@@ -1051,8 +1175,9 @@ codice articolo no**.
 4. **11 · Contratto funzionale della riga** — 🟡 **in corso**, a fette **per concetto**.
    Fetta 1 (unità di misura) chiusa il 16/08; la 2 (prezzo al pubblico) è la prossima.
    Assorbe le voci 5, 6, 7, 10 e 2: non sono più blocchi a sé.
-5. **3 · Il lotto in uscita** — capacità specifica, entra come campo pertinente a un solo
-   documento e non blocca il contratto.
+5. **12 · Gestione lotti** — ⏸️ **sottosistema autonomo**, fuori dal censimento delle righe:
+   va progettato e costruito per intero (disponibilità, selezione, persistenza, movimenti,
+   quantità, documenti, API). Nessuna decisione parziale altrove.
 
 ⚠️ **La riscrittura della maschera Vendita al banco viene DOPO il contratto**, non prima:
 rifarla su un modello riga ancora da decidere significherebbe rifarla due volte.
