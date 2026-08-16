@@ -147,6 +147,7 @@ Il contenuto di **Impostazioni** dipende dal **profilo canale** del tuo negozio 
 
 Pannello visibile a **Titolare** e **Amministratore** (accesso completo al tenant). Consente di attivare:
 
+- **Prezzi di vendita: Netti o Ivati** — come la tua azienda ragiona sui prezzi (vedi sotto)
 - **Gestione lotti e scadenze** — colonne lotto/scadenza in arrivo merce
 - **Gestione numeri seriali** — colonna seriali in arrivo merce
 - **Policy aggiornamento prezzo fornitore** in carico: sempre / chiedi conferma / mai
@@ -154,6 +155,46 @@ Pannello visibile a **Titolare** e **Amministratore** (accesso completo al tenan
 - Avvisi e blocco su **giacenze negative**
 
 Le modifiche si applicano a tutti gli utenti del negozio.
+
+##### Prezzi di vendita: Netti o Ivati _(dal 16 agosto 2026)_
+
+Dice come la tua azienda **normalmente** esprime i prezzi di vendita. Non è una regola rigida:
+è il punto di partenza.
+
+| Se vendi…                          | Scegli                                    |
+| ---------------------------------- | ----------------------------------------- |
+| al **dettaglio**, al pubblico      | **Ivati** — il prezzo che il cliente paga |
+| all'**ingrosso**, ad altre aziende | **Netti** — imponibile, l'IVA si aggiunge |
+
+**Dove si vede:**
+
+- ogni **documento di vendita nuovo** (preventivo, ordine cliente, DDT, fattura) parte da qui;
+- l'**anagrafica articoli** mostra i prezzi di listino nello stesso modo.
+
+**Cosa NON cambia:**
+
+- i **documenti già salvati** restano come sono. Ognuno si ricorda la modalità con cui è stato
+  compilato, e riaprendolo la ritrovi — anche se nel frattempo l'impostazione è cambiata, e
+  anche se lo apre un tuo collega;
+- il **valore** dei documenti non si tocca mai: cambia solo come il prezzo si scrive e si legge.
+
+**Sul singolo documento puoi sempre cambiare modalità**, con il menu sull'intestazione della
+colonna Prezzo. VestiFlow **si ricorda la tua ultima scelta per quel tipo di documento**: se fai
+sempre le fatture in netto, le tue fatture nuove partiranno nette anche se l'azienda è impostata
+su ivato.
+
+⚠️ **Se cambi l'impostazione aziendale, quelle memorie si azzerano** e tutti ripartono dalla
+scelta nuova. È voluto: altrimenti cambieresti l'impostazione e non succederebbe niente a chi ha
+già lavorato.
+
+**E i costi di acquisto?** Partono **sempre netti** — arrivo merce e ordine fornitore. Puoi
+passare alla vista ivata sul singolo documento quando ti conviene (per esempio per confrontare
+con la fattura del fornitore), e quel documento se la ricorda; ma il documento successivo
+riparte netto. Non c'è un'impostazione aziendale per i costi, perché per un'azienda che detrae
+l'IVA il costo **è** l'imponibile.
+
+**La cassa (vendita al banco)** resta sempre ivata: al banco il prezzo esposto è quello che il
+cliente paga.
 
 #### Sede fisica (anagrafica cliente)
 

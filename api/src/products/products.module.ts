@@ -6,7 +6,7 @@ import { ShopifyModule } from '../shopify/shopify.module';
 import { CatalogCategoriesController } from './catalog-categories.controller';
 import { CatalogCategoriesService } from './catalog-categories.service';
 import { ProductMediaService } from './product-media.service';
-import { ProductPriceModePreferenceService } from './product-price-mode-preference.service';
+import { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import { ProductsController } from './products.controller';
 import { ProductsExportService } from './products-export.service';
 import { ProductsImportService } from './products-import.service';
@@ -23,7 +23,7 @@ import { SkuGeneratorService } from './sku-generator.service';
     ProductsExportService,
     SkuGeneratorService,
     CatalogCategoriesService,
-    ProductPriceModePreferenceService,
+    DocumentPriceModePreferenceService,
   ],
 })
 export class ProductsModule {}

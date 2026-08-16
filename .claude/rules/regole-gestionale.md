@@ -175,6 +175,73 @@ butterebbe via proprio la coda), e la coda oltre le quattro cifre di centesimo s
 `toStorableMinor`, perché oltre lì non c'è precisione — c'è il rumore del float, e la colonna
 rifiuterebbe la scala.
 
+### Netto/ivato: chi decide, in che ordine _(deciso 16/08/2026)_
+
+> **La modalità netto/ivato ha DUE livelli per i prezzi di vendita e UNO per i costi. Non di
+> più: ogni livello in mezzo è un comando che non comanda.**
+
+```text
+PREZZI DI VENDITA   convenzione aziendale  →  memoria dell’operatore  →  modalità del documento
+COSTI DI ACQUISTO   sempre netti           →  (nessuna memoria)      →  modalità del documento
+```
+
+**La convenzione aziendale** (`TenantFeatureSettings.salesPricesIncludeVat`, in Impostazioni →
+Prezzi) non è solo il default dei documenti nuovi: è **come questa azienda esprime i prezzi**.
+Al dettaglio si ragiona ivato, all’ingrosso netto. Vale quindi anche per le viste che non sono
+documenti — anagrafica e listini oggi, i report quando ci arriveremo.
+
+⚠️ **La convenzione ha due comportamenti diversi, e vanno tenuti distinti:**
+
+|                                         | Quando viene letta        | Cambiarla dopo                |
+| --------------------------------------- | ------------------------- | ----------------------------- |
+| **Documenti**                           | una volta, alla creazione | non tocca niente di esistente |
+| **Viste** (anagrafica, listini, report) | ogni volta che si guarda  | cambia quello che si vede     |
+
+Non è una contraddizione: un documento è un **fatto** e conserva la modalità con cui è stato
+compilato; una vista è una **lettura**, e segue la convenzione corrente.
+
+**La memoria dell’operatore** resta solo dove si CREA qualcosa, cioè sui documenti di vendita:
+è l’ultima scelta di quella persona per quel tipo, scritta alla creazione e mai in modifica.
+
+⚠️ **Cambiare la convenzione AZZERA le memorie dei tipi di vendita**, e non è un dettaglio
+implementativo: senza, il titolare imposta «netto» e ognuno continua a creare ivato per una
+memoria che non sa di avere — l’impostazione sembra rotta, ed è il primo difetto che verrebbe
+segnalato.
+
+**I costi non hanno né convenzione né memoria.** Per un’azienda che detrae l’IVA il costo _è_ il
+netto: Arrivo merce e Ordine fornitore partono sempre netti, e l’inserimento ivato resta una
+comodità del **singolo documento**, dove il selettore c’è e la scelta si persiste.
+
+#### Gli esoneri, e come si scrivono
+
+Chi non risponde alla convenzione sta **fuori da `SALES_PRICE_MODE_TYPES`**, che è l’unico
+elenco: la modalità proposta e le memorie da azzerare leggono lo stesso.
+
+| Chi                                                          | Perché                                                                                                    |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| **cassa negozio** (`store_sale`, `store_return`)             | sempre ivata, deciso in `store-sales.service.ts`. Al banco il prezzo esposto è quello che il cliente paga |
+| **famiglia acquisto**                                        | i costi partono sempre netti                                                                              |
+| **tipi senza prezzi** (trasferimento, rettifica, inventario) | non usano la modalità                                                                                     |
+
+⚠️ **Sulla cassa c’è una revisione in sospeso.** «Fisico/POS» e «netto/ivato» sono **due assi
+diversi** — è la stessa distinzione già fatta sul canale `manual` nel Registro Corrispettivi —
+e un grossista che vende al banco potrebbe volerla netta. Da rivedere col rifacimento della
+Vendita al banco, non di straforo.
+
+#### Due meccanismi ritirati, e perché non torneranno
+
+| Ritirato                                                                   | Perché non funzionava                                                                                                                                                                                             |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DocumentTypeSetting.pricesIncludeVat` — un default per **tipo documento** | nessun pannello lo esponeva. UNA riga in tutto il database, per `supplier_order`, e diciotto ordini netti a smentirla: non ha mai deciso niente, perché la maschera manda sempre un valore e il `??` non scattava |
+| `UserProductPriceModePreference` — memoria personale in **anagrafica**     | l’anagrafica non è un documento: è una vista, e due colleghi devono leggere lo stesso listino allo stesso modo                                                                                                    |
+
+⚠️ **E la memoria dell’operatore non deve tornare a coprire i costi.** Fino al 16/08 la modalità
+costo veniva ricordata dentro `user_document_price_mode_preferences` — la tabella dei **prezzi**
+— tradotta da un ponte costo↔prezzo. Reggeva solo perché i tipi delle due famiglie non si
+sovrappongono: il primo tipo buono per entrambe l’avrebbe rotta in silenzio.
+
+---
+
 **Prima di aggiungere una colonna di denaro**, la domanda è una sola: _questo valore può essere il risultato di uno scorporo?_ Se sì, è `Decimal(16,6)`. Non «è già intero adesso»: **potrà** non esserlo il giorno in cui quella maschera avrà il netto/ivato, e a quel punto la migration costa quanto le righe di codice che leggono quella colonna.
 
 ---

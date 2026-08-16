@@ -46,7 +46,7 @@ import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { ListVariantSummariesQueryDto } from './dto/list-variant-summaries.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductMediaService } from './product-media.service';
-import { ProductPriceModePreferenceService } from './product-price-mode-preference.service';
+import { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import { ProductsExportService } from './products-export.service';
 import { ProductsImportService } from './products-import.service';
 import { ProductsService, type ProductWithVariants } from './products.service';
@@ -105,7 +105,7 @@ export class ProductsController {
     private readonly productsExport: ProductsExportService,
     private readonly suppliers: SuppliersService,
     private readonly skuGenerator: SkuGeneratorService,
-    private readonly priceModePreference: ProductPriceModePreferenceService,
+    private readonly priceModePreference: DocumentPriceModePreferenceService,
   ) {}
 
   // L'utente serve al service per il costo d'acquisto (dato sensibile
@@ -272,20 +272,23 @@ export class ProductsController {
   }
 
   /**
-   * Modalità prezzo (netto/ivato) della sezione Listini da proporre a un articolo
-   * nuovo: preferenza ricordata dell'operatore ?? primo utilizzo (ivato).
+   * Modalità prezzo (netto/ivato) della sezione Listini: la **convenzione
+   * aziendale** sui prezzi di vendita.
+   *
+   * ⚠️ Dal 16/08/2026 non è più una preferenza dell'operatore. L'anagrafica
+   * non è un documento: è una vista del catalogo, e sta dalla stessa parte di
+   * report, movimenti e liste — dove serve un riferimento comune, o due
+   * colleghi guardano lo stesso listino e ne leggono due. La memoria
+   * personale resta solo dove si CREA qualcosa: i documenti di vendita.
+   *
    * Rotta statica: DEVE precedere `@Get(':id')`, altrimenti `:id` la cattura.
    */
   @Get('price-mode-preference')
   @RequirePermissions(TenantPermission.CatalogManage)
   async getPriceModePreference(
     @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
   ): Promise<{ pricesIncludeVat: boolean }> {
-    const pricesIncludeVat = await this.priceModePreference.resolvePricesIncludeVat(
-      tenantId,
-      user.id,
-    );
+    const pricesIncludeVat = await this.priceModePreference.salesPricesIncludeVat(tenantId);
     return { pricesIncludeVat };
   }
 
@@ -307,10 +310,8 @@ export class ProductsController {
     @Body() dto: CreateProductDto,
   ): Promise<ProductWithVariants> {
     const product = await this.products.create(tenantId, dto, user);
-    // Ricorda la modalità Listini scelta (solo alla creazione, come i documenti).
-    if (dto.listinoPricesIncludeVat !== undefined) {
-      await this.priceModePreference.remember(tenantId, user.id, dto.listinoPricesIncludeVat);
-    }
+    // ⚠️ Qui la modalità Listini veniva ricordata come preferenza personale.
+    // Rimosso il 16/08/2026: l'anagrafica segue la convenzione aziendale.
     return product;
   }
 

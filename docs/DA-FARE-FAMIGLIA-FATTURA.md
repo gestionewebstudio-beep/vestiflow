@@ -1583,43 +1583,183 @@ _Dati:_ 7 righe di preferenza utente-documento, 1 di preferenza prodotto.
 Solo l’ultimo è una regola dichiarata (vendita ivato / acquisto netto, in una costante con
 l’elenco dei tipi). Gli altri tre sono costanti nude.
 
-#### La proposta minima — due campi, dove stanno già i default aziendali
+## ✅ Convenzione aziendale prezzi — eseguita il 16/08/2026
 
-> **`TenantFeatureSettings` ospita già `defaultUnitOfMeasure` e `defaultVatCodeId`: sono
-> esattamente la stessa cosa — «come si riempiono i documenti in questa azienda». Le due
-> modalità stanno lì, non in una tabella nuova.**
+### Cosa c’è adesso
 
-```prisma
-model TenantFeatureSettings {
-  // … defaultUnitOfMeasure, defaultVatCodeId …
-  salesPricesIncludeVat  Boolean @default(false) @map("sales_prices_include_vat")
-  purchaseCostsIncludeVat Boolean @default(false) @map("purchase_costs_include_vat")
-}
+**Impostazioni → Prezzi → «Prezzi di vendita: Ivati / Netti».** Un interruttore solo, in
+`TenantFeatureSettings.salesPricesIncludeVat`, dove stanno già `defaultUnitOfMeasure` e
+`defaultVatCodeId` — è la stessa cosa: «come si riempiono i documenti in questa azienda».
+
+```text
+PREZZI DI VENDITA   convenzione aziendale  →  memoria dell’operatore  →  modalità del documento
+COSTI DI ACQUISTO   sempre netti           →  (nessuna memoria)      →  modalità del documento
 ```
 
-**Quattro passi, in ordine:**
+⚠️ **Cambiare la convenzione azzera le memorie degli operatori sui tipi di vendita.** Senza,
+il titolare imposta «netto» e ognuno continua a creare ivato per una memoria che non sa di
+avere: l’impostazione sembra rotta, ed è il primo difetto che verrebbe segnalato. I tipi di
+acquisto e la cassa restano fuori — non rispondono alla convenzione.
 
-1. **i due campi** + il pannello **Impostazioni → Prezzi** che li espone (oggi non esiste una
-   schermata per nessuna delle due);
-2. **i tre ripieghi nudi diventano letture del default aziendale** — è tutto il lavoro sul
-   backend: `?? 'vat_excluded'` → `?? default.purchaseCostsIncludeVat`, e così il terzo;
-3. **la preferenza utente scende sotto**: resta «l’ultima scelta di questo operatore», ma il
-   default aziendale è il primo che parla per un documento nuovo;
-4. **niente tocca i documenti esistenti**: chi ha una modalità persistita la conserva, e le
-   letture di un documento salvato non passano mai dal default.
+### Perché UN interruttore e non due
 
-⚠️ **`DocumentTypeSetting.pricesIncludeVat` va deciso, non lasciato lì.** È un terzo livello
-(tenant × tipo) fra l’azienda e il documento, invisibile, con **una riga che contraddice il
-comportamento reale**. Due strade, ed è una scelta di Luigi:
+Era previsto anche «Costi di acquisto: Netto / Ivato». È stato **scartato**: se ogni documento
+di acquisto nasce comunque netto, quell’interruttore sarebbe un comando che non comanda — e ne
+abbiamo appena tolti due così. Per un’azienda che detrae l’IVA il costo **è** il netto;
+l’inserimento ivato resta una comodità del singolo documento, dove il selettore c’è ancora.
 
-|                                                              | Conseguenza                                                                   |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| **si ritira** e quella riga confluisce nel default aziendale | un livello in meno; si perde la possibilità di dire «i DDT sì, le fatture no» |
-| **resta come deroga per tipo**, ma esposta nel pannello      | più potere, e un livello in più da spiegare                                   |
+### Cosa è stato ritirato
 
-_Raccomandazione:_ **ritirarlo**. Un livello che nessuno ha mai potuto impostare, con una sola
-riga inserita chissà quando e disattesa da tutti gli ordini che governa, non è una funzione: è
-una trappola in attesa di essere scoperta da chi la troverà accesa.
+| Ritirato                                                              | Sostituito da                 | Righe di dati                                |
+| --------------------------------------------------------------------- | ----------------------------- | -------------------------------------------- |
+| `DocumentTypeSetting.pricesIncludeVat` — default per **tipo**         | la convenzione aziendale      | 1 (`supplier_order`, disattesa da 18 ordini) |
+| `UserProductPriceModePreference` — memoria in **anagrafica**          | la convenzione aziendale      | 1                                            |
+| memoria **costo** dentro la tabella dei prezzi (via ponte)            | niente: i costi partono netti | —                                            |
+| `pricesIncludeVatToCostEntryMode` / `costEntryModeToPricesIncludeVat` | —                             | —                                            |
+
+⚠️ **Le colonne e le tabelle restano nel database.** Il database è condiviso col collega, e una
+`DROP` di ciò che il suo ramo potrebbe ancora leggere lo romperebbe a runtime. Il codice che le
+usava non c’è più — sono morte, non rimosse. **La migration che le lascia cadere si scrive dopo
+il merge**, ed è l’unico pezzo di questo blocco che resta in sospeso.
+
+### Gli esoneri
+
+Vivono in **un elenco solo**, `SALES_PRICE_MODE_TYPES`: la modalità proposta e le memorie da
+azzerare leggono lo stesso, quindi non possono divergere.
+
+| Chi                                              | Perché                                    |
+| ------------------------------------------------ | ----------------------------------------- |
+| **cassa negozio** (`store_sale`, `store_return`) | sempre ivata, in `store-sales.service.ts` |
+| **famiglia acquisto**                            | i costi partono sempre netti              |
+| **tipi senza prezzi**                            | non usano la modalità                     |
+
+⚠️ **Sulla cassa resta una revisione in sospeso.** «Fisico/POS» e «netto/ivato» sono due assi
+diversi — stessa distinzione già fatta sul canale `manual` nel Registro Corrispettivi — e un
+grossista che vende al banco potrebbe volerla netta. Il forzamento sta in **due righe letterali**
+di `store-sales.service.ts` (195, 359), non nel default per tipo: la cassa non consulta niente,
+quindi questo blocco non l’ha sfiorata. Da rivedere col rifacimento della Vendita al banco.
+
+---
+
+## 📐 Censimento richiesto il 16/08 — listino, memoria costo, movimenti, report
+
+**Misurato, non dedotto. Nessuna implementazione su Movimenti e Report.**
+
+### 1 · Anagrafica e listini — ✅ il ritiro era sicuro
+
+| Domanda                               | Misura                                                                                              |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Cosa rappresenta `sellingPriceMinor`? | il **netto**, `Decimal(16,6)` — con la coda decimale                                                |
+| Il dato è memorizzato netto o ivato?  | **sempre netto**, e lo dice il DTO: _«La forma memorizzata dei prezzi resta sempre netta»_          |
+| Quale IVA converte?                   | il Codice IVA **dell’articolo**, o il predefinito del tenant (`conversionRate`)                     |
+| La preferenza governa solo la vista?  | **sì.** `listinoPricesIncludeVat` _«NON è un dato dell’articolo e non viene persistito su di esso»_ |
+
+Il componente tiene il **netto canonico** in `netPrices()` e riscrive i campi da lì con
+`emitEvent: false` — è lo stesso schema costruito oggi per l’Ordine cliente. Il commento nel
+codice è esplicito: _«Toggle netti/ivati: cambia solo la vista»_.
+
+✅ **Quindi far leggere al listino la convenzione aziendale non tocca nessun salvataggio.** La
+conversione usa l’IVA **corrente** dell’articolo, ed è corretto: l’anagrafica è una vista del
+presente, non una rilettura del passato.
+
+### 2 · Memoria costo — ✅ tolta la memoria, ⛔ NON toccati i campi persistiti
+
+La memoria è stata rimossa (era la ragione per cui la tabella dei prezzi conteneva modalità di
+acquisto). **I campi sul documento e sulla riga sono rimasti**, e il censimento dice perché:
+
+| Campo                                 | Verdetto                                                       |
+| ------------------------------------- | -------------------------------------------------------------- |
+| `documents.purchaseCostEntryMode`     | ⛔ **NON rimovibile** — vedi sotto                             |
+| `supplierOrders.costEntryMode`        | ⛔ **NON rimovibile**, stessa ragione                          |
+| `documentLines.costEntryModeSnapshot` | scritto e riletto in aggiornamento; è la fotografia della riga |
+
+⚠️ **Il motivo, ed è il difetto che si sarebbe introdotto togliendoli.** L’Arrivo merce NON
+ricarica il costo dal netto: ricarica **`enteredUnitCost`, il valore digitato**, e il commento
+nel codice lo dice —
+
+```ts
+// Con costi ivati la colonna mostra il valore digitato (lordo), non
+// il netto canonico persistito in unitPrice (§11.4).
+unitCost: line.enteredUnitCostMinor != null ? … : line.unitPrice,
+```
+
+Senza la modalità persistita, riaprire un arrivo compilato in ivato metterebbe **un lordo in un
+campo che la maschera crede netto**, e il salvataggio successivo lo tratterebbe come netto:
+**il costo si gonfierebbe dell’aliquota**. È esattamente il difetto corretto stamattina
+sull’Ordine cliente, in direzione opposta.
+
+**La modalità costo non è quindi «solo una vista»**, e la condizione per poterla non conservare
+— «i costi sono in forma canonica e la conversione è di sola presentazione» — **non vale qui**.
+
+### 3 · Movimenti — ⛔ solo censito, non toccato
+
+**Il movimento NON contiene il ricavo.** Contiene solo il costo:
+
+| Colonna                            | Cosa                                                            |
+| ---------------------------------- | --------------------------------------------------------------- |
+| `unitCostMinor` · `totalCostMinor` | `Int` — costo **netto** di riga, congelato alla vendita         |
+| —                                  | ⛔ **nessuna colonna di ricavo, di IVA o di prezzo di vendita** |
+
+Il ricavo si **deriva** seguendo `sourceLineId` → riga di vendita, e legge
+`DocumentLine.lineGrossTotalMinor`, cioè **il LORDO**. Verificato sui dati: `netto + IVA =
+lordo` su tutte le righe controllate (300+66=366, 1000+220=1220, 2500+550=3050…).
+
+⚠️ **Ne discende che oggi il report mette insieme due basi diverse: costo NETTO e ricavo
+LORDO.** Il margine che ne esce è gonfiato dell’IVA. Non l’ho toccato — è dentro il perimetro
+che hai chiuso — ma è la misura che serve per deciderlo.
+
+⚠️ **E per la maggior parte dei movimenti il ricavo non è derivabile affatto:**
+
+```text
+movimenti totali                      179
+con sourceLineId (riga collegata)      81   (45%)
+
+movimenti di vendita/reso              87
+  SENZA riga collegata                 83   ⛔
+    · origine shopify                  46
+    · origine manual                   18
+    · origine vestiflow_pos            16
+    · online_sale (shopify)             3
+  senza costo congelato                84
+```
+
+Per quegli 83 il ricavo vale **0**, e il codice lo dice: _«0 quando la riga collegata non è
+risolvibile (es. movimento storico senza documento)»_.
+
+**L’IVA storica è recuperabile?** Dove la riga c’è, **sì e in modo strutturato**: la riga porta
+`vatSnapshot` (134 righe su 137), e il legame è un vincolo unico
+`@@unique([sourceDocumentType, sourceLineId])` — non un accostamento per data o per variante.
+Dove la riga non c’è, **no**, e non c’è modo di ricostruirla senza inventarla.
+
+### 4 · Report del venduto — ⛔ solo censito, non toccato
+
+| Domanda                         | Misura                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| Che valore legge dai movimenti? | il **costo** (`totalCostMinor`), netto                                         |
+| E il ricavo?                    | **non dai movimenti**: dalla riga collegata, `lineGrossTotalMinor` = **lordo** |
+| È netto?                        | ⛔ **no**: costo netto, ricavo lordo                                           |
+| L’IVA storica è ricostruibile?  | sì **solo** dove `sourceLineId` esiste (4 vendite su 87 oggi)                  |
+
+**Cosa servirebbe per una rappresentazione netto/ivato affidabile**, misurato:
+
+1. che **ogni** movimento di vendita porti `sourceLineId` — oggi 4 su 87. La regola «un
+   movimento per riga» (15/08) lo garantisce d’ora in poi; lo storico no, e non si sana con
+   un’euristica;
+2. che il ricavo sia letto su **una base sola** — oggi lordo contro un costo netto;
+3. l’IVA dell’evento, che c’è già nello `vatSnapshot` della riga: **non serve** l’aliquota
+   corrente dell’anagrafica, ed è bene perché usarla sarebbe rileggere il passato con una
+   regola di adesso.
+
+✅ **La tua proposta — colonne esplicite Prezzo netto · IVA · Prezzo ivato — regge alla misura**
+e ha un vantaggio che la preferenza non ha: non cambia il significato di una colonna sotto gli
+occhi di chi la legge. Da discutere in un blocco suo.
+
+### Export CSV
+
+Da censire insieme al blocco Movimenti: non l’ho aperto per non allargare il perimetro. Quel che
+si sa già è che qualunque cosa esporti oggi eredita le due basi diverse di cui sopra.
+
+---
 
 #### ⛔ Perimetro: i report restano fuori da questa fetta
 

@@ -649,6 +649,7 @@ describe('SalesDocumentFormComponent', () => {
    */
   describe('il selettore Listino non è il selettore netto/ivato', () => {
     const CON_DUE_LISTINI: TenantFeatureSettings = {
+      salesPricesIncludeVat: true,
       lotsEnabled: false,
       serialsEnabled: false,
       variantsEnabled: true,

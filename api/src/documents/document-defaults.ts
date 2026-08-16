@@ -173,7 +173,6 @@ export interface ResolvedDocumentTypeSetting {
   readonly autoNumbering: boolean;
   readonly numberPrefix: string;
   readonly defaultSeries: string;
-  readonly pricesIncludeVat: boolean;
   readonly defaultNotes: string | null;
 }
 
@@ -185,8 +184,6 @@ export function defaultTypeSetting(type: DocumentType): ResolvedDocumentTypeSett
     autoNumbering: true,
     numberPrefix: DEFAULT_NUMBER_PREFIX[type],
     defaultSeries: 'A',
-    // Cassa negozio: prezzi al pubblico IVA inclusa (scorporo interno).
-    pricesIncludeVat: isFlowOnlyDocumentType(type),
     defaultNotes: type === DocumentType.proforma ? PROFORMA_DEFAULT_NOTES : null,
   };
 }

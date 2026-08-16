@@ -10,6 +10,7 @@ import {
 } from './document-listino.util';
 
 const SETTINGS: TenantFeatureSettings = {
+  salesPricesIncludeVat: true,
   lotsEnabled: false,
   serialsEnabled: false,
   variantsEnabled: true,

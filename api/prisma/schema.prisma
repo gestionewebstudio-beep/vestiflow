@@ -1995,6 +1995,19 @@ model TenantFeatureSettings {
   defaultUnitOfMeasure          String                    @default("pz") @map("default_unit_of_measure")
   /// Codice IVA predefinito aziendale.
   defaultVatCodeId              String?                   @map("default_vat_code_id") @db.Uuid
+  /// Convenzione aziendale sui PREZZI DI VENDITA: netti o ivati.
+  ///
+  /// Non è solo il default dei documenti nuovi — è come questa azienda guarda i
+  /// prezzi: al dettaglio si ragiona ivato, all'ingrosso netto. Governa quindi
+  /// anche le viste che non appartengono a un documento (anagrafica, listini, e
+  /// in futuro i report). `true` = ivato, che è ciò con cui il sistema partiva
+  /// prima che questa impostazione esistesse.
+  ///
+  /// ⚠️ NON esiste la gemella per i COSTI, ed è una scelta: i costi partono
+  /// sempre netti. Per un'azienda che detrae l'IVA il costo *è* il netto, e
+  /// l'inserimento ivato resta una comodità del singolo documento — non una
+  /// convenzione aziendale.
+  salesPricesIncludeVat         Boolean                   @default(true) @map("sales_prices_include_vat")
   /// Listini aggiuntivi (fissi 3): nome rinominabile e attivazione. Il primo è
   /// attivo di default, gli altri due si attivano quando servono.
   listino1Name                  String?                   @map("listino1_name")

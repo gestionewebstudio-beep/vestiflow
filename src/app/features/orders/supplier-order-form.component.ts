@@ -1035,25 +1035,21 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
   }
 
   /**
-   * Modalità costi iniziale del nuovo ordine fornitore: eredita l'ultima scelta
-   * dell'operatore per questo tipo documento (preferenza ricordata lato backend).
-   * Non tocca la modifica di un ordine esistente né una scelta manuale già fatta.
+   * ⚠️ Qui la modalità costo partiva dalla preferenza ricordata
+   * dell'operatore. Rimosso il 16/08/2026: **i costi partono sempre netti**.
+   *
+   * Per un'azienda che detrae l'IVA il costo *è* il netto, e l'inserimento
+   * ivato resta una comodità del singolo documento — il selettore in testata
+   * non è cambiato. Non essendo una convenzione aziendale non ha un default
+   * nelle Impostazioni, e non essendo una preferenza non se la ricorda
+   * nessuno: un ordine fornitore nuovo riapre sempre in netto.
+   *
+   * La memoria che c’era finiva per giunta nella tabella dei PREZZI, tradotta
+   * da un ponte costo↔prezzo: reggeva solo perché i tipi di acquisto e quelli
+   * di vendita non si sovrappongono.
    */
   private initCostModeForNewOrder(): void {
-    if (this.editOrderId() || this.costEntryModeTouched) {
-      return;
-    }
-    this.documentService
-      .getPriceModePreference(DocumentType.SupplierOrder)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (pricesIncludeVat) => {
-          if (!this.costEntryModeTouched) {
-            this.costEntryMode.set(pricesIncludeVat ? 'vat_included' : 'vat_excluded');
-          }
-        },
-        error: () => undefined,
-      });
+    // Il segnale nasce già `vat_excluded`: non c’è niente da chiedere.
   }
 
   private markFormDirty(): void {

@@ -26,6 +26,26 @@
     </fieldset>
 
     <fieldset class="tenant-ops__group">
+      <legend class="tenant-ops__legend">Prezzi</legend>
+      <p class="tenant-ops__hint">
+        Come questa azienda esprime i prezzi di vendita: al dettaglio si ragiona ivato, all'ingrosso
+        netto. Vale per i documenti di vendita nuovi e per l'anagrafica articoli. I costi di
+        acquisto partono sempre netti, e si possono inserire ivati sul singolo documento.
+      </p>
+      <label class="tenant-ops__field" for="tenant-ops-sales-vat">
+        Prezzi di vendita
+        <select id="tenant-ops-sales-vat" formControlName="salesPricesIncludeVat">
+          <option value="gross">Ivati</option>
+          <option value="net">Netti</option>
+        </select>
+      </label>
+      <p class="tenant-ops__hint">
+        Cambiandolo, i documenti già salvati restano come sono: ognuno conserva la modalità con cui
+        è stato compilato.
+      </p>
+    </fieldset>
+
+    <fieldset class="tenant-ops__group">
       <legend class="tenant-ops__legend">Default articoli</legend>
       <label class="tenant-ops__field" for="tenant-ops-uom">
         Unità di misura predefinita

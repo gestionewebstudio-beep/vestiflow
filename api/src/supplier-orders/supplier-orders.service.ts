@@ -23,7 +23,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { DocumentSettingsService } from '../documents/document-settings.service';
 import { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
-import { costEntryModeToPricesIncludeVat } from '../documents/document-price-mode.util';
 import { formatDocumentReference } from '../documents/document-totals.util';
 import {
   buildDocumentNumberConflict,
@@ -225,18 +224,10 @@ export class SupplierOrdersService {
         throw error;
       });
 
-    // Ricorda la modalità costo (netto/ivato) scelta per l'ordine fornitore,
-    // solo alla creazione: il successivo la ripropone.
-    if (user?.id && dto.costEntryMode !== undefined) {
-      await this.priceModePreference
-        .remember(
-          tenantId,
-          user.id,
-          DocumentType.supplier_order,
-          costEntryModeToPricesIncludeVat(costEntryMode),
-        )
-        .catch(() => undefined);
-    }
+    // ⚠️ Come nell'Arrivo merce: qui la modalità costo veniva ricordata nella
+    // tabella dei prezzi, attraverso il ponte costo↔prezzo. Rimosso il
+    // 16/08/2026 — l'ordine fornitore parte sempre netto, e il selettore
+    // resta sul documento.
 
     return result;
   }

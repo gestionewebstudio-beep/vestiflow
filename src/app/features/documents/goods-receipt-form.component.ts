@@ -686,26 +686,21 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   ];
 
   /**
-   * Nuovo documento: la modalità costo (netto/ivato) parte dalla preferenza
-   * ricordata dell'operatore per questo tipo (?? primo utilizzo: netto). Mai sui
-   * documenti caricati (mostrano la modalità con cui sono stati creati) né dopo
-   * una scelta manuale.
+   * ⚠️ Qui la modalità costo partiva dalla preferenza ricordata
+   * dell'operatore. Rimosso il 16/08/2026: **i costi partono sempre netti**.
+   *
+   * Per un'azienda che detrae l'IVA il costo *è* il netto, e l'inserimento
+   * ivato resta una comodità del singolo documento — il selettore in testata
+   * non è cambiato. Non essendo una convenzione aziendale non ha un default
+   * nelle Impostazioni, e non essendo una preferenza non se la ricorda
+   * nessuno: un arrivo merce nuovo riapre sempre in netto.
+   *
+   * La memoria che c’era finiva per giunta nella tabella dei PREZZI, tradotta
+   * da un ponte costo↔prezzo: reggeva solo perché i tipi di acquisto e quelli
+   * di vendita non si sovrappongono.
    */
   private initCostModeForNewDocument(): void {
-    if (this.editDocumentId() || this.costEntryModeTouched) {
-      return;
-    }
-    this.documentService
-      .getPriceModePreference(this.form.controls.type.value)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (pricesIncludeVat) => {
-          if (!this.costEntryModeTouched) {
-            this.costEntryMode.set(pricesIncludeVat ? 'vat_included' : 'vat_excluded');
-          }
-        },
-        error: () => undefined,
-      });
+    // Il segnale nasce già `vat_excluded`: non c’è niente da chiedere.
   }
 
   protected readonly operationalStatusWarning = computed(() => {

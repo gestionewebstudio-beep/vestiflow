@@ -30,7 +30,6 @@ function resolvedSetting(
     autoNumbering: true,
     numberPrefix: 'DDT',
     defaultSeries: 'A',
-    pricesIncludeVat: false,
     defaultNotes: null,
     ...overrides,
   };
@@ -183,6 +182,8 @@ function createService(prisma: ReturnType<typeof createPrismaMock>, setting = re
   };
   const priceModePreference = {
     resolvePricesIncludeVat: vi.fn().mockResolvedValue(false),
+    resolveCompanyDefault: vi.fn().mockResolvedValue(false),
+    salesPricesIncludeVat: vi.fn().mockResolvedValue(false),
     remember: vi.fn().mockResolvedValue(undefined),
   };
   // Nessun tipo documento controparte nei casi di questo file: il risolutore
@@ -580,8 +581,13 @@ describe('DocumentsService', () => {
     // NETTO e l'imposta si calcola sopra, che l'operatore stesse guardando
     // prezzi netti o ivati. Prima, con «prezzi ivati», lo stesso numero veniva
     // scorporato: due documenti con la stessa riga valevano importi diversi.
+    //
+    // ⚠️ Dal 16/08/2026 la modalità di un documento nuovo non viene più dal
+    // default per TIPO (`resolvedSetting`, ritirato) ma dalla convenzione
+    // AZIENDALE: qui si pilota quella.
     it('i totali partono dal netto di riga, qualunque modalità mostri la testata', async () => {
-      const { service } = createService(prisma, resolvedSetting({ pricesIncludeVat: true }));
+      const { service, priceModePreference } = createService(prisma);
+      priceModePreference.resolveCompanyDefault.mockResolvedValue(true);
       prisma.document.create.mockResolvedValue({
         id: 'doc-2',
         status: DocumentStatus.draft,
@@ -633,7 +639,8 @@ describe('DocumentsService', () => {
     // documento valeva 123,96 — un centesimo meno di quello che l'operatore
     // aveva scritto, e diverso da quello che il campo prezzo gli rimostrava.
     it('il totale torna al prezzo ivato digitato, coda decimale compresa', async () => {
-      const { service } = createService(prisma, resolvedSetting({ pricesIncludeVat: true }));
+      const { service, priceModePreference } = createService(prisma);
+      priceModePreference.resolveCompanyDefault.mockResolvedValue(true);
       prisma.document.create.mockResolvedValue({
         id: 'doc-3',
         status: DocumentStatus.draft,

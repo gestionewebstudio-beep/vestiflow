@@ -27,6 +27,8 @@ describe('ProductsController', () => {
   const skuGenerator = { previewSku: vi.fn() };
   const priceModePreference = {
     resolvePricesIncludeVat: vi.fn().mockResolvedValue(true),
+    resolveCompanyDefault: vi.fn().mockResolvedValue(true),
+    salesPricesIncludeVat: vi.fn().mockResolvedValue(true),
     remember: vi.fn().mockResolvedValue(undefined),
   };
 
@@ -134,7 +136,13 @@ describe('ProductsController', () => {
     expect(products.create).toHaveBeenCalledWith(tenantId, dto, user);
   });
 
-  it('create ricorda la modalità Listini scelta (solo su create)', async () => {
+  // ⚠️ Fino al 16/08/2026 qui si verificava il contrario: che la modalità
+  // Listini venisse RICORDATA come preferenza personale. L'anagrafica non è un
+  // documento — è una vista del catalogo — e sta dalla stessa parte di report e
+  // liste, dove serve un riferimento comune: due colleghi devono leggere lo
+  // stesso listino allo stesso modo. La memoria personale resta solo dove si
+  // CREA qualcosa, cioè sui documenti di vendita.
+  it('create NON ricorda nessuna modalità personale', async () => {
     const dto = {
       name: 'Nuovo',
       status: 'active',
@@ -146,7 +154,16 @@ describe('ProductsController', () => {
 
     await controller.create(tenantId, { id: 'user-1' } as never, dto as never);
 
-    expect(priceModePreference.remember).toHaveBeenCalledWith(tenantId, 'user-1', false);
+    expect(priceModePreference.remember).not.toHaveBeenCalled();
+  });
+
+  it('la modalità Listini proposta è la convenzione AZIENDALE', async () => {
+    priceModePreference.salesPricesIncludeVat.mockResolvedValue(true);
+
+    await expect(controller.getPriceModePreference(tenantId)).resolves.toEqual({
+      pricesIncludeVat: true,
+    });
+    expect(priceModePreference.salesPricesIncludeVat).toHaveBeenCalledWith(tenantId);
   });
 
   it('exportCsv restituisce StreamableFile', async () => {
