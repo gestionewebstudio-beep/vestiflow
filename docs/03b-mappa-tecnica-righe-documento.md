@@ -1259,3 +1259,17 @@ Una riga documento ne ha di più che l'operatore può digitare. **Cadono**, e no
 **L'effetto è quello che Luigi temeva, la causa no.** Non è «ricarica e sovrascrive»: è **un carico incompleto**. La differenza conta perché cambia la correzione — non serve impedire un ricaricamento che non avviene, serve **completare i campi trasportati**.
 
 **Il criterio da fissare prima di scrivere codice**, perché non è ovvio: non tutti i campi vanno portati sempre. La quantità sì, il prezzo sì, l'unità di misura sì. Ma lotto e matricole appartengono alla **merce fisica movimentata**, e un preventivo non ne ha movimentata nessuna: portarle in un DDT significherebbe dichiarare uscita una matricola che l'operatore non ha ancora scelto. Vanno decisi **uno per uno**, non con una regola sola.
+
+#### La regola del lotto — decisa il 16/08, confermata su Danea
+
+> **Il lotto non si trascina: si sceglie nel documento che movimenta il magazzino.**
+
+Quando in un DDT si include un ordine con articoli a lotto, è **il DDT** a chiedere quale lotto — e lo chiede **solo se ce n'è più di uno disponibile con giacenza positiva**. È il comportamento osservato in Danea, ed è quello giusto per una ragione di dominio: il lotto è un **fatto del magazzino nel momento dell'uscita**, non un'intenzione espressa quando si è preso l'ordine. Fra l'ordine e la consegna il lotto disponibile può essere cambiato, essere finito, o essere scaduto.
+
+Ne discendono tre cose per chi implementa:
+
+1. **L'inclusione non trasporta `lotCode` / `lotExpiryDate` / `serialNumbers`** — e su questo il comportamento attuale è già corretto, per caso più che per scelta.
+2. **I documenti che movimentano devono chiederlo**: la scelta va offerta sulla riga, con l'elenco dei lotti in giacenza — numero, scadenza e quantità disponibile — e va risolta prima di poter confermare.
+3. **Se il lotto disponibile è uno solo si prende quello**, senza chiedere niente. La domanda è un costo, e va pagata solo quando c'è davvero una scelta da fare.
+
+Vale identico per le **matricole**, con la differenza che lì la quantità è sempre uno per pezzo.
