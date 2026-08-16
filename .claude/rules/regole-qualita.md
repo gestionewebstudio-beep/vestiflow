@@ -350,6 +350,26 @@ righe eseguite dice poco. Misurarla sull'unione dei due mondi darebbe un 55%
 che non significa niente e farebbe fallire per sempre il comando più ovvio —
 che è il modo migliore per insegnare a ignorarlo.
 
+### ⚠️ `tsc --noEmit` non verifica i template Angular
+
+**Misurato il 16/08/2026, due volte nello stesso lavoro.** `npx tsc --noEmit`
+è passato pulito mentre nei template c'erano **errori veri** — un componente non
+importato, un binding a un input inesistente, una proprietà mancante su un tipo
+di controlli. Li ha trovati `npm test`, che invoca il compilatore Angular.
+
+**Quindi «type-check pulito» non vuol dire «l'applicazione compila».** Per
+qualunque modifica che tocchi un `.html` di componente — o un tipo che un
+template legge — il controllo minimo è un comando che accenda il **template
+compiler**: oggi `npm test`, o `npm run build`.
+
+Vale soprattutto per chi rifattorizza tipi condivisi: un campo aggiunto a
+un'interfaccia di controlli si vede nei template, non in `tsc`.
+
+_Registrato come **requisito di verifica**, non come modifica alla
+configurazione: rendere il controllo più esplicito (un `typecheck` che includa i
+template, o un passo di build in CI) è una scelta separata, da fare quando si
+decide — non un effetto collaterale di questa nota._
+
 ## Coverage Reporting
 
 - Genera report `lcov` e mostralo nel CI (Codecov, Coveralls, GitHub Actions summary).

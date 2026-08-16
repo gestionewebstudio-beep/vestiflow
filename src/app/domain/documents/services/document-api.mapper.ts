@@ -421,6 +421,25 @@ export interface DocumentLineInputBody {
 }
 
 /** Body POST /documents. */
+/**
+ * Risposta del precompilato di conversione: il corpo di creazione **più il tipo
+ * dell'origine**, che serve a comporre la riga di riferimento al predecessore.
+ * Specchio di `ConvertPrefillDto` dell'API — e tipo a sé, perché quel campo non
+ * deve mai diventare accettabile in ingresso.
+ */
+export interface ConvertPrefillBody extends CreateDocumentBody {
+  readonly sourceDocumentType: DocumentType;
+}
+
+/**
+ * Risposta del precompilato «Concludi ordine»: il corpo di creazione più numero
+ * e data dell'ordine, che servono a comporre la riga di riferimento.
+ */
+export interface ConcludePrefillBody extends CreateDocumentBody {
+  readonly sourceSalesOrderNumber: string;
+  readonly sourceSalesOrderPlacedAt: IsoDateString;
+}
+
 export interface CreateDocumentBody {
   readonly type: DocumentType;
   readonly series?: string;

@@ -71,6 +71,18 @@ export interface ManualSalesOrderMeta {
  * variare la Impegnata). Gli ordini Shopify online/POS restano read-model
  * dei rispettivi connettori: questo servizio li rifiuta esplicitamente.
  */
+/**
+ * Risposta del precompilato «Concludi ordine»: il corpo di creazione **più i
+ * dati dell'ordine d'origine** che servono a comporre la riga di riferimento.
+ *
+ * Tipo a sé per la stessa ragione di `ConvertPrefillDto`: cosa il server manda
+ * e cosa accetta sono due cose, e confonderle è già costato un 400 muto.
+ */
+export type ConcludePrefillDto = CreateDocumentDto & {
+  readonly sourceSalesOrderNumber: string;
+  readonly sourceSalesOrderPlacedAt: string;
+};
+
 @Injectable()
 export class ManualSalesOrdersService {
   private readonly logger = new Logger(ManualSalesOrdersService.name);
@@ -543,7 +555,7 @@ export class ManualSalesOrdersService {
     orderId: string,
     documentType: string,
     user?: UserProfileDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConcludePrefillDto> {
     if (!(DOCUMENT_STOCK_UNLOAD_TYPES as readonly string[]).includes(documentType)) {
       throw new UnprocessableEntityException(
         'Tipo documento di scarico non disponibile in VestiFlow.',
@@ -600,6 +612,11 @@ export class ManualSalesOrdersService {
       internalComment: `Generato da Concludi ordine ${order.orderNumber}`,
       documentDiscountPercent: Number(order.documentDiscountPercent),
       includedSalesOrderIds: [order.id],
+      // Numero e data dell'ordine: servono al client per comporre la riga
+      // «Rif. Ordine cliente …». Il testo NON si compone qui — il formatter
+      // canonico vive nel frontend, e duplicarlo sarebbe la terza copia.
+      sourceSalesOrderNumber: order.orderNumber,
+      sourceSalesOrderPlacedAt: order.placedAt.toISOString(),
       lines: order.lines.map((line) => ({
         variantId: line.variantId ?? undefined,
         sku: line.sku || undefined,
@@ -610,6 +627,10 @@ export class ManualSalesOrdersService {
         unitPriceMinor: line.quantity > 0 ? Math.round(line.totalMinor / line.quantity) : 0,
         discountPercent: 0,
         vatCodeId: line.vatCodeId ?? undefined,
+        // Le reference che l'ordine si portava dietro restano reference anche
+        // nel documento di scarico: senza, la catena del `07` §12 si spezza qui
+        // come si spezzava nella conversione.
+        isReference: line.isReference,
         loadsStock: line.commitsStock && Boolean(line.variantId),
       })),
     };

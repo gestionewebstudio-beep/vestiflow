@@ -53,6 +53,7 @@ import {
   type DocumentListRow,
   type DocumentWithLines,
 } from './documents.service';
+import type { ConvertPrefillDto } from './documents.service';
 import { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
 import { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
 import { SaveTransferDto } from './dto/save-transfer.dto';
@@ -451,7 +452,7 @@ export class DocumentsController {
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ConvertDocumentDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConvertPrefillDto> {
     return this.documents.convertPrefill(tenantId, id, dto, user);
   }
 

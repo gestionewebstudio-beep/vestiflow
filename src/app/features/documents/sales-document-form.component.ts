@@ -124,6 +124,9 @@ import { DocumentIncludePanelComponent } from '@domain/documents/components/docu
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import {
+  IncludeSourceKind,
+  conversionReferenceLine,
+  includeReferenceLine,
   includeSourceKindsForDocumentType,
   type IncludedDocumentPayload,
 } from '@domain/documents/models/document-include.util';
@@ -189,6 +192,17 @@ type SubmitState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
   | { readonly status: 'error'; readonly error: AppError };
+
+/**
+ * Precompilato di apertura: arriva da DUE strade con forme diverse —
+ * `convert-prefill` porta anche il tipo dell'origine, «Concludi ordine» no.
+ * La riga di riferimento nasce solo quando quel tipo c'è.
+ */
+type ConversionPrefill = CreateDocumentBody & {
+  readonly sourceDocumentType?: DocumentType;
+  readonly sourceSalesOrderNumber?: string;
+  readonly sourceSalesOrderPlacedAt?: string;
+};
 
 @Component({
   selector: 'app-sales-document-form',
@@ -1896,7 +1910,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
     const referenceLine = this.createLine();
     referenceLine.patchValue(
-      { description: payload.referenceText, quantity: 1, vatRatePercent: '' },
+      { ...payload.referenceLine, vatRatePercent: '' },
       { emitEvent: false },
     );
     groups.push(referenceLine);
@@ -1909,6 +1923,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           description: line.description,
           quantity: line.quantity,
           discountPercent: line.discount,
+          isReference: line.isReference === true,
           vatCodeId: line.vatCodeId ?? '',
           vatRatePercent: '',
         },
@@ -2226,6 +2241,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
             // accompagnatoria lo fa solo senza DDT agganciato: con un DDT le
             // giacenze sono già scese, quindi le righe non devono scaricare.
             loadsStock: this.showLoadsStockColumn() ? line.loadsStock : false,
+            // Senza questo il flag non sopravvive al salvataggio: la riga
+            // riaperta tornerebbe una riga qualunque.
+            isReference: line.isReference === true,
           };
         }),
     };
@@ -2567,14 +2585,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     this.refreshNumberProposal();
   }
 
-  private prefillFromConversion(prefill: CreateDocumentBody): void {
+  private prefillFromConversion(prefill: ConversionPrefill): void {
     // Prefill programmatico (conversione/da ordine): non è una modifica utente.
     this.withoutDirtyMarking(() => {
       this.applyConversionPrefill(prefill);
     });
   }
 
-  private applyConversionPrefill(prefill: CreateDocumentBody): void {
+  private applyConversionPrefill(prefill: ConversionPrefill): void {
     this._sourceDocumentId.set(prefill.sourceDocumentId ?? null);
     this._includedSalesOrderIds.set([...(prefill.includedSalesOrderIds ?? [])]);
     // Documento generato: eredita la modalità prezzo dell'origine (dal prefill).
@@ -2602,6 +2620,34 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       this.selectedCustomer.set(this.customers().find((c) => c.id === prefill.customerId) ?? null);
     }
     this.lines.clear();
+
+    // Riferimento al predecessore diretto (`07` §12). Qui NON c'era: convertendo
+    // una Proforma in Fattura il riferimento all'origine spariva, mentre
+    // convertendola in Ordine cliente compariva — perché quella maschera se lo
+    // costruiva da sé. La riga la compone ora l'utility condivisa, per entrambe.
+    // Due strade, una regola. La conversione porta il tipo dell'origine; il
+    // «Concludi ordine» porta numero e data dell'ordine cliente — che ha già la
+    // sua etichetta canonica fra le sorgenti includibili. Il testo lo compone
+    // sempre la stessa utility.
+    const seed = prefill.sourceDocumentType
+      ? conversionReferenceLine(
+          prefill.sourceDocumentType,
+          prefill.externalRef,
+          prefill.documentDate,
+        )
+      : prefill.sourceSalesOrderNumber
+        ? includeReferenceLine(
+            IncludeSourceKind.CustomerOrder,
+            prefill.sourceSalesOrderNumber,
+            prefill.sourceSalesOrderPlacedAt ?? prefill.documentDate,
+          )
+        : null;
+    if (seed) {
+      const referenceLine = this.createLine();
+      referenceLine.patchValue({ ...seed, vatRatePercent: '' }, { emitEvent: false });
+      this.lines.push(referenceLine);
+    }
+
     for (const line of prefill.lines ?? []) {
       // Una riga la costruisce `createLine`, e basta lei: qui c'era una seconda
       // copia dei controlli, scritta a mano. Copie così non divergono con un
@@ -2620,6 +2666,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         vatCodeId: '',
         discountPercent:
           line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
+        isReference: line.isReference === true,
         loadsStock: line.loadsStock ?? false,
       });
       this.lines.push(group);
@@ -2706,6 +2753,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         discountPercent:
           line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
         loadsStock: line.loadsStock,
+        // Chiude il giro: senza, il documento riaperto perdeva la natura della
+        // riga e il salvataggio successivo la rimandava indietro come ordinaria.
+        isReference: line.isReference === true,
       });
       this.lines.push(group);
     }
@@ -2738,6 +2788,11 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       vatRatePercent: this.fb.control('22'),
       vatCodeId: this.fb.control(''),
       discountPercent: this.fb.control(''),
+      // Riga di RIFERIMENTO (§12): descrittiva, non economica e non fisica.
+      // Non e' editabile dall'operatore — la valorizzano inclusione e
+      // conversione, e deve sopravvivere a save -> reopen.
+      isReference: this.fb.control(false),
+
       // «Scarica mag.»: il default segue il tipo articolo già in VestiFlow
       // (Articolo scarica, Servizio no). Righe senza variante non muovono nulla.
       loadsStock: this.fb.control(false),

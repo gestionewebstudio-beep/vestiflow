@@ -101,6 +101,7 @@ import { DocumentProductSearchPanelComponent } from '@domain/documents/component
 import {
   CUSTOMER_ORDER_INCLUDE_SOURCES,
   IncludeSourceKind,
+  conversionReferenceLine,
   includeSourceKindsForDocumentType,
   includedPayloadFromSalesOrder,
   type IncludedDocumentPayload,
@@ -1974,17 +1975,20 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
     const groups: ReturnType<CustomerOrderFormComponent['createLine']>[] = [];
 
-    const referenceLine = this.createLine();
-    referenceLine.patchValue(
-      {
-        productName: this.conversionReferenceText(doc),
-        quantity: 1,
-        commitsStock: false,
-        isReference: true,
-      },
-      { emitEvent: false },
-    );
-    groups.push(referenceLine);
+    const seed = conversionReferenceLine(doc.type, doc.reference, doc.documentDate);
+    if (seed) {
+      const referenceLine = this.createLine();
+      referenceLine.patchValue(
+        {
+          productName: seed.description,
+          quantity: seed.quantity,
+          commitsStock: false,
+          isReference: seed.isReference,
+        },
+        { emitEvent: false },
+      );
+      groups.push(referenceLine);
+    }
 
     for (const line of doc.lines ?? []) {
       const group = this.createLine();
@@ -2025,16 +2029,10 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
     this.markFormDirty();
   }
 
-  /** «Rif. Proforma PRO-2026-0007 del 30/07/2026» per la riga di riferimento. */
-  private conversionReferenceText(doc: DocumentRecord): string {
-    const date = new Intl.DateTimeFormat('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).format(new Date(doc.documentDate));
-    const ref = doc.reference?.trim();
-    return ref ? `Rif. Proforma ${ref} del ${date}` : `Rif. Proforma del ${date}`;
-  }
+  // `conversionReferenceText` viveva qui: ricomponeva a mano lo stesso formato
+  // che `document-include.util` già produceva, con «Proforma» come etichetta
+  // fissa. Due copie della stessa frase, e la terza sarebbe nata con la Nota di
+  // credito (`07` §12). Ora la riga la costruisce `conversionReferenceLine`.
 
   /** Alza il flag durante le patch programmatiche dell'intestatario. */
   private suppressRecipientAutofillTracking = false;
@@ -3894,7 +3892,12 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
 
     const referenceLine = this.createLine();
     referenceLine.patchValue(
-      { productName: payload.referenceText, quantity: 1, commitsStock: false, isReference: true },
+      {
+        productName: payload.referenceLine.description,
+        quantity: payload.referenceLine.quantity,
+        commitsStock: false,
+        isReference: payload.referenceLine.isReference,
+      },
       { emitEvent: false },
     );
     groups.push(referenceLine);

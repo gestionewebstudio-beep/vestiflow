@@ -21,7 +21,11 @@ Ogni voce dice **da dove ricominciare** se ci si ferma a metà.
 
 ---
 
-## A · Righe di riferimento — semantica `isReference` end-to-end — 🔴 **PRIORITÀ IMMEDIATA**
+## A · Righe di riferimento — semantica `isReference` end-to-end — ✅ **FATTO il 16/08/2026**
+
+✅ **Chiuso.** Il resoconto completo sta in `07` §26: cosa è cambiato, cosa NON è cambiato di
+proposito (id, posizione, conteggio voci), le tre mutation test e il difetto del fixture che i
+test hanno trovato. Qui resta la fotografia di com'era.
 
 **Precedenza decisa il 16/08**, dopo aver trovato la causa radice. Viene **prima** di Fattura ↔
 Nota di credito: quelle relazioni useranno questo meccanismo nella UI e nelle catene
@@ -390,6 +394,35 @@ proposto. Serve un indicatore **in memoria** — non va salvato, basta che viva 
 
 ---
 
+---
+
+## 10 · L'Ordine cliente non ha il netto/ivato — ⚪ manca una colonna
+
+**Misurato il 16/08**, a valle del §25. Nella maschera Ordine cliente l'intestazione della
+colonna Prezzo mostra la parola secca «Prezzo», **senza il menu** netto/ivato che tutte le
+altre maschere hanno. Il DDT, che usa lo stesso componente, il menu ce l'ha.
+
+**Non è una dimenticanza del §25**: è un'esclusione dichiarata nel template — _«L'Ordine
+cliente (`isOrder`) resta netto finché non arriva il supporto backend dedicato»_ — e la causa
+è concreta:
+
+| Entità           | `pricesIncludeVat` |
+| ---------------- | ------------------ |
+| `Document`       | ✅ c'è             |
+| **`SalesOrder`** | ❌ **non c'è**     |
+
+Senza quella colonna la modalità non si può memorizzare: sarebbe un interruttore che al
+salvataggio **si dimentica**, e riaprendo l'ordine i prezzi si rileggerebbero nell'altra
+modalità. Peggio di non averlo.
+
+**Serve una migration additiva** su `SalesOrder`, più il giro completo (DTO, service, form,
+riapertura). Poi il menu si accende togliendo la condizione `isOrder`, perché il componente
+condiviso c'è già.
+
+⚠️ **Da decidere prima:** gli ordini esistenti nascono tutti netti (il default della colonna),
+il che è corretto perché così sono stati compilati. Ma va confermato che sia il default voluto
+anche per i nuovi, o se debba seguire la preferenza dell'operatore come fanno i documenti.
+
 ## 9 · Coda già registrata, fuori da questo blocco
 
 | Voce                                           | Dove       | Perché è fuori                                                                                                               |
@@ -404,8 +437,7 @@ proposto. Serve un indicatore **in memoria** — non va salvato, basta che viva 
 
 ## Ordine deciso
 
-1. **A · Righe di riferimento** — la semantica `isReference` end-to-end, inclusione compresa.
-   **Priorità immediata**: è il meccanismo su cui poggia tutto il resto.
+1. ~~**A · Righe di riferimento**~~ — ✅ **fatto il 16/08** (`07` §26).
 2. **A-bis · Il dato storico** — solo la domanda «esiste un criterio strutturale?», nessun
    backfill.
 3. **1 · Collegamenti Fattura ↔ NC** — scelta della cardinalità, poi il modello.

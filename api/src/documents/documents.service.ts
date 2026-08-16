@@ -307,6 +307,22 @@ interface DocumentTotals {
  * documento di carico (arrivo merce, carico manuale, carico iniziale) genera
  * carichi e movimenti.
  */
+/**
+ * La risposta del precompilato di conversione: il corpo di creazione **più il
+ * tipo dell'origine**.
+ *
+ * È un tipo a sé e non `CreateDocumentDto` per una ragione già pagata: il DTO
+ * di ingresso valida con `forbidNonWhitelisted`, e confondere «cosa il server
+ * manda» con «cosa il server accetta» è ciò che fece rispondere 400 al PATCH
+ * senza un messaggio da mostrare. Il client ha bisogno del tipo d'origine per
+ * comporre la riga di riferimento — non può dedurlo, perché una Fattura può
+ * nascere sia da una Proforma sia da un DDT — ma quel campo non deve mai
+ * diventare accettabile in ingresso.
+ */
+export type ConvertPrefillDto = CreateDocumentDto & {
+  readonly sourceDocumentType: DocumentType;
+};
+
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -2417,7 +2433,7 @@ export class DocumentsService {
     id: string,
     dto: ConvertDocumentDto,
     user?: UserProfileDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConvertPrefillDto> {
     return this.buildConversionDto(tenantId, id, dto, user);
   }
 
@@ -2426,7 +2442,7 @@ export class DocumentsService {
     id: string,
     dto: ConvertDocumentDto,
     user?: UserProfileDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConvertPrefillDto> {
     const source = await this.getById(tenantId, id, user);
     this.assertDocumentLocationWritable(user, source);
     const isProformaSource = source.type === DocumentType.proforma;
@@ -2468,8 +2484,10 @@ export class DocumentsService {
       }
     }
 
-    const createDto: CreateDocumentDto = {
+    const createDto: ConvertPrefillDto = {
       type: dto.targetType,
+      // Il client non puo dedurlo: una Fattura nasce sia da Proforma sia da DDT.
+      sourceDocumentType: source.type,
       documentDate: source.documentDate.toISOString(),
       customerId: source.customerId ?? undefined,
       locationId,
@@ -2497,6 +2515,10 @@ export class DocumentsService {
         unitPriceMinor: Number(line.unitPriceMinor),
         discountPercent: Number(line.discountPercent),
         vatRatePercent: vatSnapshotRatePercent(line.vatSnapshot) ?? undefined,
+        // Le righe di riferimento dell'origine viaggiano come tutte le altre.
+        // Senza questo perdono la loro natura per strada e nel documento
+        // convertito tornano righe ordinarie (`07` §12).
+        isReference: line.isReference,
         loadsStock: dto.targetType === DocumentType.sales_ddt,
       })),
     };
@@ -3373,9 +3395,19 @@ export class DocumentsService {
   ): ComputedLine[] {
     const defaultLoadsStock = documentTypeDefaultLoadsStock(documentType);
     return input.map((line, index) => {
-      const quantity = line.quantity;
-      const unitPriceMinor = line.unitPriceMinor ?? 0;
-      const discountPercent = line.discountPercent ?? 0;
+      // ── Riga di RIFERIMENTO (`07` §12) ──────────────────────────────────
+      //
+      // Descrittiva: non economica e non fisica. La protezione è QUESTA, non
+      // il fatto che oggi porti quantità e prezzo a zero — uno zero regge
+      // finché nessuno scrive, e non dichiara niente a chi legge il codice.
+      //
+      // Resta una riga a tutti gli effetti: conserva id, posizione e viene
+      // contata fra le voci. Cambia solo che non partecipa ai conti e non
+      // muove magazzino.
+      const isReference = line.isReference === true;
+      const quantity = isReference ? 0 : line.quantity;
+      const unitPriceMinor = isReference ? 0 : (line.unitPriceMinor ?? 0);
+      const discountPercent = isReference ? 0 : (line.discountPercent ?? 0);
       const lineNetExactMinor = (quantity * unitPriceMinor * (100 - discountPercent)) / 100;
       const lineTotalMinor = Math.round(lineNetExactMinor);
 
@@ -3418,7 +3450,10 @@ export class DocumentsService {
         vatCodeId,
         vatSnapshot,
         unitOfMeasure: line.unitOfMeasure?.trim() || null,
-        loadsStock: line.loadsStock ?? defaultLoadsStock,
+        // Una reference non muove merce, qualunque cosa arrivi dal client e
+        // qualunque sia il default del tipo. Finora reggeva solo perché una
+        // riga senza variante non entra in `isStockLine`: coincidenza, non regola.
+        loadsStock: isReference ? false : (line.loadsStock ?? defaultLoadsStock),
         isReference: line.isReference === true,
         supplierOrderLineId: line.supplierOrderLineId ?? null,
         lotCode: line.lotCode?.trim() || null,

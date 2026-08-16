@@ -467,6 +467,84 @@ describe('DocumentsService', () => {
       expect(prisma.document.aggregate).not.toHaveBeenCalled();
     });
 
+    /**
+     * La riga di riferimento non e' una riga economica ne' fisica — blocco A.
+     *
+     * Il difetto che questi test chiudono: `isReference` esisteva ma lato API
+     * non lo guardava nessuno. La riga reggeva solo perche' arrivava con prezzo
+     * zero e senza variante — due coincidenze, non una regola: bastava che
+     * qualcuno scrivesse un prezzo su quella riga per farla entrare nei conti.
+     *
+     * Qui la riga arriva CON quantita' e prezzo, apposta: e' il caso che le
+     * protezioni accidentali non coprivano.
+     */
+    it('una riga di riferimento non entra nei totali, anche se porta importi', async () => {
+      const { service } = createService(prisma);
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
+
+      await service.create(tenantId, {
+        type: DocumentType.proforma,
+        documentDate: '2026-03-01',
+        lines: [
+          {
+            description: 'Rif. Preventivo PRE-0001 del 20/07/2026',
+            quantity: 3,
+            unitPriceMinor: 9999,
+            discountPercent: 50,
+            vatRatePercent: 22,
+            isReference: true,
+          },
+          { description: 'Maglia', quantity: 2, unitPriceMinor: 1000, vatRatePercent: 22 },
+        ],
+      });
+
+      const data = prisma.document.create.mock.calls[0]![0]!.data;
+      // Solo la seconda riga fa 2000 + 440 di IVA: la prima non aggiunge nulla.
+      expect(data.subtotalMinor).toBe(2000);
+      expect(data.taxMinor).toBe(440);
+      expect(data.totalMinor).toBe(2440);
+      // Ma resta una riga a tutti gli effetti: due righe salvate, non una.
+      // Identita', posizione e conteggio non cambiano (`07` §12).
+      expect(data.lines.create).toHaveLength(2);
+      expect(data.lines.create[0]).toMatchObject({
+        lineNumber: 1,
+        isReference: true,
+        lineTotalMinor: 0,
+      });
+    });
+
+    it('una riga di riferimento non muove magazzino, nemmeno se lo chiede', async () => {
+      const { service } = createService(prisma);
+      prisma.document.create.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.draft,
+        lines: [{ lineNumber: 1 }],
+      });
+      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
+
+      await service.create(tenantId, {
+        type: DocumentType.proforma,
+        documentDate: '2026-03-01',
+        lines: [
+          {
+            description: 'Rif. DDT 17 del 30/07/2026',
+            quantity: 5,
+            unitPriceMinor: 0,
+            isReference: true,
+            loadsStock: true,
+          },
+        ],
+      });
+
+      const data = prisma.document.create.mock.calls[0]![0]!.data;
+      expect(data.lines.create[0]).toMatchObject({ isReference: true, loadsStock: false });
+    });
+
     it('calcola totali riga e IVA con prezzi IVA esclusa', async () => {
       const { service } = createService(prisma);
       prisma.document.create.mockResolvedValue({

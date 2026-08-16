@@ -297,6 +297,10 @@ describe('ManualSalesOrdersService.conclude', () => {
     prisma.salesOrder.findFirst.mockResolvedValue({
       id: 'order-1',
       orderNumber: 'OC-0012',
+      // Obbligatoria nello schema (`SalesOrder.placedAt`): il finto ordine la
+      // ometteva, e il precompilato che la usa per la riga di riferimento ha
+      // fatto emergere la lacuna del fixture.
+      placedAt: new Date('2026-07-29T00:00:00.000Z'),
       source: 'manual',
       cancelledAt: null,
       fulfilledAt: null,
@@ -427,5 +431,71 @@ describe('ManualSalesOrdersService.delete', () => {
 
     await expect(service.delete(tenantId, 'order-1')).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.salesOrder.delete).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * «Concludi ordine» è un altro punto d'ingresso della regola `07` §12, non un
+ * flusso a parte: il documento generato eredita le reference dell'ordine e
+ * riceve il riferimento all'ordine stesso.
+ */
+describe('ManualSalesOrdersService.concludePrefill — riferimenti', () => {
+  const prisma = createPrismaMock();
+
+  beforeEach(() => {
+    prisma.salesOrder.findFirst.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'OC-0012',
+      placedAt: new Date('2026-07-29T00:00:00.000Z'),
+      source: 'manual',
+      cancelledAt: null,
+      fulfilledAt: null,
+      documentId: null,
+      locationId: 'loc-1',
+      customerId: 'cust-1',
+      customerName: 'Boutique Rossi',
+      currency: 'EUR',
+      subtotalMinor: 0,
+      taxMinor: 0,
+      totalMinor: 0,
+      notes: null,
+      externalRef: null,
+      documentDiscountPercent: 0,
+      lines: [
+        {
+          // La reference che l'ordine si era portato dietro dal preventivo.
+          variantId: null,
+          sku: null,
+          title: 'Rif. Preventivo PRE-0002 del 31/07/2026',
+          quantity: 0,
+          totalMinor: 0,
+          vatCodeId: null,
+          commitsStock: false,
+          isReference: true,
+        },
+      ],
+    });
+  });
+
+  it('la reference dell ordine resta reference nel documento di scarico', async () => {
+    const { service } = createService(prisma);
+
+    const dto = await service.concludePrefill(tenantId, 'order-1', 'sales_ddt', testOwnerUser());
+
+    expect(dto.lines?.[0]).toMatchObject({
+      description: 'Rif. Preventivo PRE-0002 del 31/07/2026',
+      isReference: true,
+    });
+  });
+
+  it('e il precompilato porta numero e data per la reference all ordine', async () => {
+    const { service } = createService(prisma);
+
+    const dto = await service.concludePrefill(tenantId, 'order-1', 'sales_ddt', testOwnerUser());
+
+    // Il TESTO non si compone qui: il formatter canonico vive nel frontend, e
+    // duplicarlo sarebbe la terza copia della stessa frase (`07` §12).
+    expect(dto.sourceSalesOrderNumber).toBe('OC-0012');
+    expect(dto.sourceSalesOrderPlacedAt).toBe('2026-07-29T00:00:00.000Z');
   });
 });

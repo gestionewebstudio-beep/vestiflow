@@ -905,14 +905,21 @@
                         <td
                           class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--stock"
                         >
-                          <input
-                            [id]="'sd-qty-' + i"
-                            class="doc-form__input doc-form__input--table doc-form__input--num"
-                            type="number"
-                            min="1"
-                            formControlName="quantity"
-                            aria-label="Qtà"
-                          />
+                          <!-- Riga di riferimento: la cella resta VUOTA. Il valore
+                               tecnico è 0 (`07` §12: «non hanno codice né quantità
+                               né importo»), ma mostrarlo direbbe «zero pezzi» invece
+                               di «non pertinente» — e un campo che si può scrivere
+                               invita a scriverci. -->
+                          @if (!line.controls.isReference.value) {
+                            <input
+                              [id]="'sd-qty-' + i"
+                              class="doc-form__input doc-form__input--table doc-form__input--num"
+                              type="number"
+                              min="1"
+                              formControlName="quantity"
+                              aria-label="Qtà"
+                            />
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('unitPrice')) {

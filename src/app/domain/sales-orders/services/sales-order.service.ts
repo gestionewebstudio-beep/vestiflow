@@ -9,7 +9,7 @@ import { ApiHttpClient } from '@core/http/api-http.client';
 import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 import type { SalesOrder } from '@core/models/sales-order.model';
-import type { CreateDocumentBody } from '@domain/documents/services/document-api.mapper';
+import type { ConcludePrefillBody } from '@domain/documents/services/document-api.mapper';
 
 import type {
   SalesOrderListQuery,
@@ -206,9 +206,9 @@ export class SalesOrderService {
    * (testata + righe + aggancio ordine) da cui il form di destinazione si apre.
    * Nessun documento nasce qui: si crea solo al salvataggio del form.
    */
-  concludeManualPrefill(id: EntityId, documentType: string): Observable<CreateDocumentBody> {
+  concludeManualPrefill(id: EntityId, documentType: string): Observable<ConcludePrefillBody> {
     return this.http
-      .post<CreateDocumentBody>(this.url(`/sales-orders/manual/${id}/conclude-prefill`), {
+      .post<ConcludePrefillBody>(this.url(`/sales-orders/manual/${id}/conclude-prefill`), {
         documentType,
       })
       .pipe(timeout(HTTP_TIMEOUT_MS));

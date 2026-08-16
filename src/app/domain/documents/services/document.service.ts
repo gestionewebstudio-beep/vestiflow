@@ -18,6 +18,7 @@ import type { LinkableGoodsReceipt } from '../models/goods-receipt-causal.model'
 import {
   mapDocumentApiRow,
   mapVatBreakdown,
+  type ConvertPrefillBody,
   type CreateDocumentBody,
   type DocumentApiRow,
   type GoodsReceiptCreatedProductApiRow,
@@ -407,9 +408,9 @@ export class DocumentService {
    * `sourceDocumentId`) SENZA crearlo. Il form di destinazione si apre già
    * precompilato e crea il documento solo al salvataggio.
    */
-  convertPrefill(id: EntityId, targetType: DocumentType): Observable<CreateDocumentBody> {
+  convertPrefill(id: EntityId, targetType: DocumentType): Observable<ConvertPrefillBody> {
     return this.http
-      .post<CreateDocumentBody>(this.url(`/documents/${id}/convert-prefill`), { targetType })
+      .post<ConvertPrefillBody>(this.url(`/documents/${id}/convert-prefill`), { targetType })
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 

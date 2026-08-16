@@ -17,15 +17,19 @@
   -->
   <ng-container cardControls>
     <app-document-line-card-control label="Qtà">
-      <input
-        class="sd-card__num"
-        type="number"
-        min="1"
-        step="1"
-        inputmode="numeric"
-        [formControl]="line().controls.quantity"
-        [attr.aria-label]="'Quantità riga ' + (lineIndex() + 1)"
-      />
+      <!-- Riga di riferimento: nessuna quantità, come sul desktop. Vale la
+           stessa ragione: 0 si legge «zero pezzi», non «non pertinente». -->
+      @if (!line().controls.isReference.value) {
+        <input
+          class="sd-card__num"
+          type="number"
+          min="1"
+          step="1"
+          inputmode="numeric"
+          [formControl]="line().controls.quantity"
+          [attr.aria-label]="'Quantità riga ' + (lineIndex() + 1)"
+        />
+      }
     </app-document-line-card-control>
 
     <app-document-line-card-control [label]="priceLabel()">

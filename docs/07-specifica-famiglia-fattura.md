@@ -1032,3 +1032,76 @@ _Questa sezione diceva che il campo era stato rinominato «Prezzo», con la moti
 **Come è successo, perché non ricapiti:** la richiesta conteneva una condizione — «se listino non l'abbiamo mai usato» — e la rinomina è stata eseguita **senza verificarla**. Bastava una query. È lo stesso schema del menu «Nuovo» (§22): agire su una premessa non misurata.
 
 **La guardia** sta in `sales-document-form.component.spec.ts` e fissa la **distinzione**, non l'etichetta: il selettore si chiama «Listino» e offre le **sorgenti prezzo del tenant**, non «Netto» e «Ivato». Provata reintroducendo la rinomina: fallisce.
+
+---
+
+## §26 · Blocco A — `isReference` è una semantica, non un flag — ✅ fatto il 16/08/2026
+
+Chiude il difetto trovato sciogliendo il «dovrebbe» del §12. **Non tocca XML/FatturaPA**, che resta esplicitamente fuori: le sezioni mancanti del tracciato sono censite in `06b` §H e appartengono al blocco fatturazione elettronica.
+
+### La regola
+
+> **Una riga di riferimento è una riga descrittiva: non economica e non fisica. `isReference` è il discriminante strutturale, e lo rispettano tutti i consumer.**
+>
+> **Non si riconosce mai una reference analizzandone il testo** — né a runtime né in un backfill.
+
+### Cosa era, e perché non bastava
+
+`DocumentLine.isReference` esisteva, ma **lato API non significava niente**: accettato, salvato, restituito, e nessun filtro nei calcoli, nei totali, nel magazzino. L'unico posto dove faceva qualcosa era il frontend dell'Ordine cliente, in sei punti, solo nel browser. La maschera vendita creava la riga `Rif. …` **senza valorizzarlo**.
+
+⚠️ **Due protezioni erano accidentali**, e vanno ricordate come tali perché non tornino a sembrare garanzie:
+
+| Cosa reggeva | Perché                                                     | Quando avrebbe ceduto                                                                          |
+| ------------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| I totali     | la riga aveva prezzo `0`, e sommare zero non sposta niente | appena qualcuno avesse scritto un prezzo su quella riga, o uno sconto documento l'avesse presa |
+| Il magazzino | `isStockLine` pretende `variantId != null`                 | mai finché resta senza articolo — ma non era il flag a proteggerlo                             |
+
+**Adesso la protezione è la regola.** In `computeLines` una reference azzera quantità, prezzo e sconto **prima** dei conti, e `loadsStock` va a `false` qualunque cosa arrivi dal client e qualunque sia il default del tipo.
+
+### Cosa NON è cambiato, di proposito
+
+- **Resta una riga a tutti gli effetti**: conserva **id** e **posizione**, ed è **contata fra le voci** (`07` §12, e Danea mostra «5 voci» includendo i riferimenti). `persistDocumentLinesTx` la tratta come tutte le altre — comportamento corretto, non toccato.
+- **Il testo non è cambiato.** La Proforma produce la stessa frase di prima; per il DDT, che prima non produceva riga affatto, l'etichetta è **«DDT»** e non «DDT vendita»: il formato canonico delle reference non è quello delle etichette di interfaccia.
+
+### La quantità
+
+**Tecnicamente `0`** — deciso per non rendere nullable una colonna che tutto il resto legge come numero certo. **In interfaccia la cella è vuota e non editabile**: l'input non si rende affatto, perché `0` si legge «zero pezzi» e non «non pertinente», e un campo scrivibile invita a scriverci.
+
+⚠️ Lo zero **non è la protezione**: quella è `isReference`. Il tipo `ReferenceLineSeed` fissa `quantity: 0` come letterale, quindi una regressione lì **non compila**.
+
+### I tre percorsi che creano documenti da altri documenti
+
+Tutti e tre **preservano le reference esistenti e aggiungono quella del predecessore diretto** (§12, accumulo progressivo — con più documenti inclusi le reference **si sommano**, nessuna deduplicazione):
+
+| Percorso                                          | Prima                          | Adesso                          |
+| ------------------------------------------------- | ------------------------------ | ------------------------------- |
+| **Includi documento**                             | testo sì, flag no              | riga completa dall'utility      |
+| **Conversione** (proforma/DDT → fattura/proforma) | **nessuna riga**, e flag perso | riga aggiunta, flag trasportato |
+| **Concludi ordine → Fattura accompagnatoria**     | **nessuna riga**, e flag perso | riga aggiunta, flag trasportato |
+
+**Il giro completo è protetto**: creazione → salvataggio → GET → modifica → PATCH → riapertura.
+
+### Un formatter solo, lato frontend
+
+`conversionReferenceText` dell'Ordine cliente — che ricomponeva a mano la stessa frase con «Proforma» come etichetta fissa — **è stato eliminato**. La riga completa la costruisce `document-include.util`, e il carico dell'inclusione porta **la riga**, non più il solo testo: prima ogni maschera ci aggiungeva il resto a modo suo, e una lo marcava mentre l'altra no.
+
+**Il testo non si compone mai lato API.** Non esiste codice condiviso fra `api/` e `src/`, quindi portarlo là avrebbe creato la terza copia. Il server manda **i dati** — tipo dell'origine per la conversione, numero e data dell'ordine per il «Concludi ordine» — in **tipi di risposta distinti** dal corpo di creazione (`ConvertPrefillDto`, `ConcludePrefillDto`): confondere «cosa il server manda» con «cosa accetta» è ciò che fece rispondere 400 al PATCH senza un messaggio.
+
+### Le guardie
+
+Quattordici test nuovi. Provati **reintroducendo il difetto**:
+
+| Mutazione                                | Esito                                                                       |
+| ---------------------------------------- | --------------------------------------------------------------------------- |
+| `isReference` ignorato in `computeLines` | ❌ 2 test — `expected 16999 to be 2000`: la riga sarebbe entrata nei totali |
+| flag perso nel trasporto del carico      | ❌ 1 test — `expected false to be true`                                     |
+| `quantity: 1` nel seed                   | ❌ **non compila**                                                          |
+
+### Trovato dai test, non dal codice
+
+Il finto ordine di `manual-sales-orders.service.spec.ts` **non aveva `placedAt`**, obbligatoria nello schema. Il precompilato che la usa ha fatto emergere la lacuna: corretto il fixture, non il codice.
+
+### Fuori dal blocco A
+
+- **`A-bis`**: le righe storiche con `isReference = false` — **nessuna modifica**. Prima va stabilito se esiste un criterio strutturale affidabile per identificarle.
+- **XML / FatturaPA**: le reference oggi possono ancora finire in `DettaglioLinee`. Registrato in `06b` §H, non toccato.
