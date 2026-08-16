@@ -1276,6 +1276,105 @@ Il difetto n°3 non era nella premessa quando la migration è stata autorizzata.
 2. **lo storico però resta sbagliato dove lo è**, e cosa farne è una scelta di Luigi:
    lasciarlo com’è dichiarandolo, oppure rivedere a mano i **17** ordini con IVA.
 
+---
+
+#### La regola aziendale netto/ivato — **decisa il 16/08, da implementare**
+
+> **VestiFlow ha una modalità aziendale predefinita netto/ivato che governa la
+> rappresentazione dei prezzi dove non esiste una scelta più specifica. I documenti che
+> supportano una propria modalità la persistono e prevalgono sul default. La preferenza di
+> visualizzazione NON modifica la semantica economica, gli snapshot fiscali né lo storico.**
+
+**Impostazioni → Prezzi → Visualizzazione prezzi predefinita: ○ Netto ● Ivato.** È del
+**tenant**, non dell’operatore — se fosse personale si tornerebbe al difetto appena scoperto:
+due operatori che vedono lo stesso dato in modo diverso senza sapere quale sia la
+rappresentazione aziendale.
+
+**La gerarchia, dal più specifico:**
+
+1. il **documento**, quando ha una modalità propria e persistita → prevale sempre;
+2. la scelta dell’operatore **su quel documento**, che diventa la modalità del documento;
+3. la **preferenza aziendale**, per tutto il resto: documenti nuovi, anagrafiche, liste, viste.
+
+⚠️ **Due concetti che non vanno confusi**, e che restano distinti: **netto/ivato** dice _come
+esprimo_ il prezzo; **«Aggiorna prezzi articolo»** (fetta 2) dice _dove propago_ la modifica.
+
+#### Il censimento dei meccanismi esistenti — sei, non quattro
+
+Fatto prima di aggiungerne uno, e il risultato è che **un meccanismo di tenant esiste già**.
+
+| #   | Meccanismo                                  | Livello                 | Vivo?                               |
+| --- | ------------------------------------------- | ----------------------- | ----------------------------------- |
+| 1   | `documents.pricesIncludeVat`                | **il documento**        | ✅ è la scelta giusta, e prevale    |
+| 2   | `documents.purchaseCostEntryMode`           | il documento (acquisto) | ✅ il gemello del costo             |
+| 3   | `documentLines.costEntryModeSnapshot`       | **la riga**             | ✅ fotografia, non preferenza       |
+| 4   | **`documentTypeSettings.pricesIncludeVat`** | **tenant × tipo**       | ⚠️ **esiste già** — vedi sotto      |
+| 5   | `userDocumentPriceModePreference`           | utente × tipo           | ⚠️ è il default dei documenti nuovi |
+| 6   | `userProductPriceModePreference`            | utente (anagrafica)     | ⚠️ stessa forma, altro dominio      |
+| —   | `supplierOrders.costEntryMode`              | l’ordine fornitore      | ✅ come il n°1, per l’acquisto      |
+
+**Il n°4 è la scoperta che cambia il lavoro.** `DocumentTypeSetting.pricesIncludeVat` è già
+una preferenza **di tenant**, per tipo documento, letta alla creazione:
+`const pricesIncludeVat = dto.pricesIncludeVat ?? setting.pricesIncludeVat`.
+
+_Misurato:_ **una sola riga in tutto il database** la porta a `true`, e per
+`supplier_order`. **Nessun pannello nelle Impostazioni la espone**: esiste, è letta, e non si
+può cambiare.
+
+⚠️ **Quindi la preferenza aziendale non è una quinta cosa da aggiungere sopra quattro: è il
+n°4 da rendere visibile e da mettere sopra il n°5.** Aggiungerne una parallela creerebbe due
+default di tenant che possono contraddirsi.
+
+#### La catena dei ripieghi accidentali, misurata
+
+Oggi la modalità di un documento **nuovo** si decide così:
+
+```text
+preferenza UTENTE per il tipo   ??   primo utilizzo per famiglia (vendita ivato / acquisto netto)
+```
+
+⛔ **Il setting di tenant (n°4) non entra in questa catena**: lo legge il `create` del
+documento come ripiego di `dto.pricesIncludeVat`, ma la maschera manda **sempre** un valore,
+preso dalla preferenza utente. Il default aziendale è quindi **scavalcato in pratica**.
+
+⛔ **E l’Ordine cliente prende in prestito la preferenza del Preventivo** —
+`registryDocumentType = Quote` — perché non vive in `documents` e non ha un tipo suo in questa
+catena. Non esiste **nessuna** preferenza salvata per `quote`: quindi l’Ordine cliente nasce
+sempre **ivato**, per primo utilizzo, ed è la condizione in cui il difetto n°3 morde.
+
+#### Che fine fa la preferenza utente
+
+Non si butta: **scende di livello**. Resta ciò che è oggi — «l’ultima scelta di questo
+operatore per questo tipo» — ma **sotto** il default aziendale, e mai come sorgente di verità
+per un documento già salvato.
+
+⚠️ **La regola che non deve rompersi:** riaprire un documento mostra **la modalità del
+documento**, non quella di chi lo apre. È il difetto n°3 visto dall’altro lato.
+
+#### ⛔ Perimetro: i report restano fuori da questa fetta
+
+**I Report del venduto derivano dai MOVIMENTI**, secondo l’architettura corrente già
+verificata (fetta 1 della `11`, §8 della `11-specifica-vendita-al-banco`).
+
+In questa fase: **non** si modifica il Report del venduto · **non** si cambia la sorgente dei
+report · **non** si introducono conversioni storiche nei movimenti · **non** si usa l’IVA
+corrente dell’anagrafica per reinterpretare dati storici.
+
+Il lavoro corrente si limita a: **contratto prezzi, modalità netto/ivato, default aziendale.**
+
+**Requisito futuro, annotato:**
+
+> Report e viste basate sui movimenti dovranno essere coerenti con la preferenza aziendale
+> netto/ivato, usando **dati storici affidabili** e senza alterare la semantica economica
+> persistita.
+
+⚠️ **Perché non basta la preferenza.** Per mostrare `20,491803 netto → 25,00 ivato` serve
+l’**IVA di quell’evento**. Prenderla dall’anagrafica di oggi sarebbe rileggere il passato con
+una regola di adesso — l’opposto del documento-fotografia. Il blocco dedicato dovrà censire:
+se il movimento contiene già quel che serve, se può risalire alla riga sorgente e al suo
+snapshot IVA, quali report lavorano sulle righe e quali su `stock_movements`, e **dove la
+conversione non è storicamente determinabile**. Dove manca, **non si approssima**.
+
 **Da dove si ricomincia:** dal punto 2. Il resto — colonna `numeric(16,6)`, modalità persistita,
 salvataggio che converte — è deciso e pronto.
 
