@@ -4,8 +4,8 @@ import { DocumentType } from '@prisma/client';
  * Tipi documento la cui modalità netto/ivato è governata dalla **convenzione
  * aziendale sui prezzi di vendita** (`TenantFeatureSettings.salesPricesIncludeVat`).
  *
- * ⚠️ Fino al 16/08/2026 questa costante si chiamava
- * `PRICE_MODE_VAT_INCLUDED_DEFAULT_TYPES` e diceva «questi partono ivati». Era
+ * ⚠️ Fino al 16/08/2026 questa costante portava un nome che dichiarava un
+ * VALORE — «questi partono ivati». Era
  * la regola scritta nel codice che l'impostazione aziendale ha sostituito: la
  * lista è la stessa, ma adesso non dichiara più un valore — dichiara **chi
  * risponde alla convenzione**. Il valore lo decide il titolare.

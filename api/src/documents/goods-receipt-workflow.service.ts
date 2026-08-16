@@ -586,8 +586,8 @@ export class GoodsReceiptWorkflowService {
         supplierOrderId: dto.supplierOrderId ?? existing?.supplierOrderId ?? null,
         currency: dto.currency ?? existing?.currency ?? 'EUR',
         // Documento di ACQUISTO: il prezzo di vendita non c’entra, e la
-        // modalità che conta è quella del costo, qui sotto. Prima veniva da
-        // `setting.pricesIncludeVat`, che per questi tipi valeva comunque
+        // modalità che conta è quella del costo, qui sotto. Prima veniva dal
+        // default per tipo documento, che per questi tipi valeva comunque
         // sempre `false`.
         pricesIncludeVat: false,
         purchaseCostEntryMode: costEntryMode,

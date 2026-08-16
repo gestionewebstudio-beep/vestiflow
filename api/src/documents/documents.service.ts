@@ -1011,11 +1011,11 @@ export class DocumentsService {
     // Modalità prezzo del documento (netto/ivato): come l'operatore stava
     // guardando i prezzi, per ritrovare il documento come l'aveva compilato.
     // Non entra nei totali: le righe portano il netto, l'imposta si calcola.
-    // Ripiego: la convenzione AZIENDALE, non più `setting.pricesIncludeVat`.
-    // Quel campo era un terzo livello (tenant × tipo) che nessun pannello
-    // esponeva e che questo `??` non raggiungeva mai, perché la maschera manda
-    // sempre un valore: una riga in tutto il database, per supplier_order, e
-    // diciotto ordini netti a smentirla.
+    // Ripiego: la convenzione AZIENDALE. Prima qui c’era un terzo livello
+    // (tenant × tipo) che nessun pannello esponeva e che questo `??` non
+    // raggiungeva mai, perché la maschera manda sempre un valore: una riga in
+    // tutto il database, per supplier_order, e diciotto ordini netti a
+    // smentirla. Ritirato il 17/08/2026, colonna compresa.
     const pricesIncludeVat =
       dto.pricesIncludeVat ??
       (await this.priceModePreference.resolveCompanyDefault(tenantId, dto.type));

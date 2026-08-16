@@ -372,7 +372,6 @@ model Tenant {
   userTableViewPreferences UserTableViewPreference[]
   userDocumentPriceModePreferences UserDocumentPriceModePreference[]
   userDocumentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
-  userProductPriceModePreferences  UserProductPriceModePreference[]
   documentSequences       DocumentSequence[]
   documentTypeSettings    DocumentTypeSetting[]
   documentCounters        DocumentCounter[]
@@ -430,7 +429,6 @@ model User {
   tableViewPreferences      UserTableViewPreference[]
   documentPriceModePreferences UserDocumentPriceModePreference[]
   documentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
-  productPriceModePreferences  UserProductPriceModePreference[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -664,7 +662,7 @@ model Product {
   /// sempre NETTI come ogni prezzo del gestionale. Rinominabili/attivabili nelle
   /// impostazioni tenant. Mai sincronizzati.
   /// La modalità netto/ivato con cui si compilano NON sta qui: è una preferenza
-  /// dell'operatore (`UserProductPriceModePreference`), non dell'articolo.
+  /// aziendale (`TenantFeatureSettings.salesPricesIncludeVat`), non dell'articolo.
   listino1PriceMinor              Decimal?                @map("listino1_price_minor") @db.Decimal(16, 6)
   listino2PriceMinor              Decimal?                @map("listino2_price_minor") @db.Decimal(16, 6)
   listino3PriceMinor              Decimal?                @map("listino3_price_minor") @db.Decimal(16, 6)
@@ -1913,8 +1911,6 @@ model DocumentTypeSetting {
   numberPrefix      String?      @map("number_prefix")
   /// Serie predefinita per distinguere sedi/sezioni (es. 'A', 'MI').
   defaultSeries     String       @default("A") @map("default_series")
-  /// Gestione prezzi ivati vs imponibili.
-  pricesIncludeVat  Boolean      @default(false) @map("prices_include_vat")
   /// Testo automatico in fondo al documento.
   defaultNotes      String?      @map("default_notes")
   createdAt         DateTime     @default(now()) @map("created_at")
@@ -2713,24 +2709,4 @@ model UserDocumentPriceModePreference {
   @@unique([tenantId, userId, documentType], map: "user_doc_price_mode_pref_tenant_user_type_key")
   @@index([tenantId, userId], map: "user_doc_price_mode_pref_tenant_user_idx")
   @@map("user_document_price_mode_preferences")
-}
-
-/// Preferenza operatore della modalità prezzo (netto/ivato) della sezione Listini
-/// in anagrafica articolo. Stessa logica di UserDocumentPriceModePreference:
-/// ricordata al salvataggio di un articolo, riproposta alla creazione del
-/// successivo, per (tenant, utente). Primo utilizzo: ivato. La modifica di un
-/// articolo esistente NON aggiorna la preferenza: solo la creazione lo fa.
-model UserProductPriceModePreference {
-  id               String   @id @default(uuid()) @db.Uuid
-  tenantId         String   @map("tenant_id") @db.Uuid
-  userId           String   @map("user_id") @db.Uuid
-  pricesIncludeVat Boolean  @map("prices_include_vat")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, userId], map: "user_product_price_mode_pref_tenant_user_key")
-  @@index([tenantId, userId], map: "user_product_price_mode_pref_tenant_user_idx")
-  @@map("user_product_price_mode_preferences")
 }

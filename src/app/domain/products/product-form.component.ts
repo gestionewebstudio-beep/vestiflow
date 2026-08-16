@@ -752,7 +752,7 @@ export class ProductFormComponent implements CanComponentDeactivate {
       ? this.service.updateProduct(id, toUpdateProductDto(draft))
       : // Alla creazione viaggia anche la modalità con cui l'operatore ha
         // compilato i listini: serve al backend solo per ricordargliela.
-        this.service.createProduct(toCreateProductDto(draft, this.listinoPricesIncludeVat()));
+        this.service.createProduct(toCreateProductDto(draft));
 
     const supplierId = draft.general.supplierId.trim();
     const request$ = baseRequest$.pipe(

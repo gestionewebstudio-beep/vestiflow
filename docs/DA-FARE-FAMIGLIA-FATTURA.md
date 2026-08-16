@@ -1617,10 +1617,29 @@ l’inserimento ivato resta una comodità del singolo documento, dove il seletto
 | memoria **costo** dentro la tabella dei prezzi (via ponte)            | niente: i costi partono netti | —                                            |
 | `pricesIncludeVatToCostEntryMode` / `costEntryModeToPricesIncludeVat` | —                             | —                                            |
 
-⚠️ **Le colonne e le tabelle restano nel database.** Il database è condiviso col collega, e una
-`DROP` di ciò che il suo ramo potrebbe ancora leggere lo romperebbe a runtime. Il codice che le
-usava non c’è più — sono morte, non rimosse. **La migration che le lascia cadere si scrive dopo
-il merge**, ed è l’unico pezzo di questo blocco che resta in sospeso.
+✅ **Anche le strutture sono cadute** — migration `20260817000000_ritira_default_prezzo_per_tipo`,
+applicata il 17/08. Non è rimasto debito tecnico da questo blocco.
+
+⚠️ **Era stato segnalato un rischio, e va messo a verbale perché la decisione è stata presa
+sapendolo.** I rami che leggono ancora quelle strutture sono **sette**, `main` compreso — e
+`main` è quello che Railway ha deployato. Su quei rami, adesso, la creazione di un documento va
+in errore: Prisma seleziona tutti gli scalari e la colonna non c’è più.
+
+⚠️ **Il vincolo non era il ramo Casse.** Misurato ramo per ramo: `origin/develop` (15/08),
+`origin/feature/stampa-documenti` (15/08) e `origin/feature/dati-titolare` (14/08) sono più
+recenti di `origin/feature/cassa` (07/08) e leggono le stesse identiche cose, negli stessi due
+file (`documents.service.ts`, `goods-receipt-workflow.service.ts`). Riallineare il solo ramo
+Casse non avrebbe sbloccato niente.
+
+**Decisione del proprietario del progetto (17/08):** si porta a termine il lavoro pulito. I rami
+fermi si riallineano al VestiFlow corrente quando verranno ripresi, e nessun tenant è in
+produzione vera — sono tutti banchi di prova.
+
+**Al posto del debito c’è una guardia.** `npm run check:modalita-prezzo` (nono controllo dentro
+`npm run lint`) fa fallire il build se le strutture rientrano — nello schema o nel codice — e
+verifica anche il positivo: che la convenzione aziendale esista, che la modalità del singolo
+documento non sia sparita, e che l’elenco dei tipi governati sia **uno solo**. La mutazione
+conferma che morde: rimessa la colonna nello schema, il controllo si accende.
 
 ### Gli esoneri
 
