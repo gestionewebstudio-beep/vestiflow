@@ -158,7 +158,9 @@ né origine né documenti fiscali. Le due che serviranno:
 
 1. **fatturato** — una vendita già fatturata non deve rientrare nei totali dove produrrebbe
    doppio conteggio: va determinata dalla **relazione reale col documento**;
-2. **le vendite negozio VestiFlow** oggi **non entrano affatto** nel Registro: sono `Document`
+2. **le vendite negozio VestiFlow** oggi **non entrano affatto** nel Registro — specifica
+   dedicata in **`11-specifica-vendita-al-banco.md`**, che decide il risultato (`Fisico/POS ·
+VestiFlow`) e lascia aperto il meccanismo. Sono `Document`
    di tipo `store_sale`, non `SalesOrder`, e il Registro aggrega solo i secondi. Il §2 dice che
    devono esserci.
 
