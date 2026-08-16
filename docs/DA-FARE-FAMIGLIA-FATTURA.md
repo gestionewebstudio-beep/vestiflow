@@ -164,10 +164,16 @@ misurato in `04-specifica-numerazione-documenti.md` §11.
    luglio. Correggerla richiederebbe una decisione esplicita di Luigi su un dato singolo, non
    una regola: **finché non la prende, resta com'è, nominata qui.** Non costa niente perché il
    codice non la interroga per il testo — dal blocco A in poi ogni consumer guarda il flag.
-2. **`source_document_id` mai scritto entra nel blocco 1.** La voce «Collegamenti Fattura ↔
-   Nota di credito» presuppone un legame documento→documento: quel legame **esiste come
-   colonna e non esiste come dato**. Va nominato lì come punto di partenza, non trattato come
-   infrastruttura già disponibile.
+2. **`source_document_id` vuoto entra nel blocco 1** — ma **non** per la ragione scritta qui
+   la prima volta. ⚠️ **Correzione del 16/08, stesso giorno:** avevo scritto «nessuno l'ha mai
+   scritta», e non è vero. Il percorso è **completo**: `convertPrefill` restituisce
+   `sourceDocumentId`, la maschera lo tiene in un signal e lo rimanda nel corpo del create, il
+   DTO lo accetta e `documents.service.ts` lo persiste. È **mai stato esercitato**, che è
+   un'altra cosa: nel database non esiste **un solo documento nato da una conversione**. I
+   documenti collegati che ci sono nascono da **inclusione** o da **Concludi ordine**, e
+   nessuno dei due passa di lì. Il difetto restava — la colonna è vuota — ma la diagnosi era
+   sbagliata, e cambia il costo del blocco 1: non è da costruire, è da **collegare a una
+   coppia origine→destinazione nuova**.
 
 **Nota di metodo.** Le due righe marcate hanno `quantity = 1`; il blocco A scrive ora
 `quantity: 0`. Quindi anche **le righe marcate sono storiche nella forma**, e nessun criterio
@@ -259,7 +265,88 @@ descrittive — sono due piani distinti e non si sostituiscono (`07` §12).
 `07` §13 chiede che una NC generata da una Fattura conservi una **relazione strutturata** con
 l'origine e i **suoi snapshot storici**. Il solo testo visibile non basta.
 
-**Da dove si ricomincia:** dal censimento delle sei voci, in lettura.
+### ✅ Il modello funzionale — **deciso da Luigi il 16/08**
+
+Tre concetti distinti, che **non sono intercambiabili**:
+
+| Concetto                 | Significato                                                         |
+| ------------------------ | ------------------------------------------------------------------- |
+| `sourceDocumentId`       | il documento da cui VestiFlow ha **generato direttamente** questo   |
+| righe `isReference`      | riferimenti **descrittivi**, visibili nel documento                 |
+| riferimenti Proprietà FE | riferimenti **dichiarati**, struttura separata e **futura** (`06b`) |
+
+**NC generata da una Fattura** — nasce **solo** dall'azione «Genera Nota di credito» sulla
+Fattura. Prende righe e snapshot storici dell'origine; conserva le reference descrittive della
+catena e aggiunge `Rif. Fattura …`; valorizza `sourceDocumentId` con l'id della Fattura. Nelle
+future Proprietà FE il **primo** riferimento nasce precompilato da lì.
+
+**NC creata da zero** — cliente e righe si compilano a mano. `sourceDocumentId = NULL`. **Non
+usa «Includi documento»** e non può importare righe di una Fattura esistente. Nelle future
+Proprietà FE si potranno dichiarare più documenti (più fatture, un DDT): **quei riferimenti non
+diventano sorgenti gestionali**.
+
+**Cardinalità:** una Fattura può generare **più** NC; una NC generata nasce da **una sola**
+Fattura. **Nessuna tabella molti-a-molti serve in questa fase** — la relazione inversa di
+`sourceDocumentId` copre già «da questa fattura sono nate queste note».
+
+**Nessun backfill.** I 105 `NULL` restano. L'origine non si deduce da `reference` né dal testo
+delle righe.
+
+### Le cinque verifiche — fatte in lettura il 16/08
+
+**1 · «Fattura → Genera NC» oggi non esiste, da nessuna parte.** L'API ammette **due sole**
+origini di conversione (`buildConversionDto`): Proforma e DDT vendita; ogni altra origine è
+respinta con un `ConflictException`. La UI espone `canConvertToInvoice` e `canConvertToSalesDdt`
+— non c'è un terzo comando. **È un percorso nuovo**, non la modifica di uno esistente.
+
+**2 · Cosa la conversione copia già, e cosa no.** Di testata viaggiano cliente, sede, valuta,
+`pricesIncludeVat`, note, commento interno, causale, pagamento e i due indirizzi. Di riga:
+`variantId`, `sku`, `description`, `quantity`, `unitPriceMinor`, `discountPercent`,
+`vatRatePercent` e **`isReference`** (dal blocco A). **Non** viaggiano:
+
+| Non copiato                                    | Perché conta per la NC                                               |
+| ---------------------------------------------- | -------------------------------------------------------------------- |
+| `vatCodeId`                                    | viaggia **solo l'aliquota**, non il codice — e la FE vuole il codice |
+| `unitOfMeasure`                                | è la voce 5 di questo piano, già nota                                |
+| `lotCode`, `lotExpiryDate`, `serialNumbers`    | voce 3: uno storno di merce con lotto senza lotto è monco            |
+| costi (`enteredUnitCost`, `unitCostNet/Gross`) | da decidere se una NC li conserva                                    |
+| `supplierOrderLineId`, `linkedGoodsReceiptId`  | legami del ciclo acquisto: **giusto** che non passino                |
+
+**3 · Dove valorizzare `sourceDocumentId`.** Già fatto e atomico: `documents.service.ts` lo
+scrive nella stessa `create` del documento e delle righe. **Non serve un passo nuovo** — serve
+che il percorso Fattura → NC ci arrivi.
+
+**4 · Le reference descrittive usano il blocco A, e manca un solo tassello.**
+`conversionReferenceLine` costruisce la riga dal `CONVERSION_SOURCE_LABELS`, che contiene
+**solo** Proforma e DDT. Per una Fattura tornerebbe `null`: **nessuna riga `Rif. Fattura …`**.
+⚠️ La mappa è `Partial<Record<…>>`, quindi **il compilatore non lo direbbe**: è un buco
+silenzioso, non un errore. L'ereditarietà della catena invece **è già a posto** — la
+conversione copia `isReference` su tutte le righe, quindi `Rif. DDT` e `Rif. Ordine` che stanno
+sulla Fattura arrivano sulla NC marcati.
+
+**5 · I test che servono.** Una Fattura → **due** NC, ciascuna col proprio `sourceDocumentId`
+verso la stessa origine; la relazione inversa che le restituisce entrambe; una NC da zero con
+`sourceDocumentId` NULL; le reference della catena che sopravvivono al salvataggio e alla
+riapertura. ⚠️ E **un test che percorra la conversione fino alla persistenza**: oggi non ne
+esiste uno, ed è il motivo per cui la colonna è vuota senza che nulla sia rosso (`GUARDIE` §16).
+
+### ⏸️ Quattro decisioni funzionali emerse — da chiudere prima di scrivere codice
+
+1. **Il segno.** In Danea le righe della NC sono `-5`, `-4`, `-4` e il totale è `-183,03`.
+   VestiFlow memorizza quantità **negative**, o positive col segno dato dal tipo documento?
+   Tocca totali, magazzino e stampa. ⚠️ Per la FE le due cose non sono equivalenti: nel
+   tracciato **TD04 quantità e prezzi sono positivi** — è il tipo documento a portare il segno.
+2. **Storno totale o parziale.** «Prende le righe della Fattura come base»: **tutte, a quantità
+   piena**, e poi l'operatore corregge? Il caso comune è il reso di un pezzo su dieci.
+3. **Il magazzino.** Una NC per merce resa fa **rientrare** la merce? Oggi `loadsStock` in
+   conversione è `targetType === sales_ddt`, quindi per la NC sarebbe `false` **per default
+   accidentale**, non per scelta. Nello screenshot Danea le spunte «Scarica magazzino» sono
+   tutte vuote.
+4. **Da quali fatture.** Solo `invoice_draft`, o anche la **Fattura accompagnatoria**? E in
+   quale **stato** deve essere la Fattura perché il comando compaia?
+
+**Da dove si ricomincia:** da queste quattro domande. Il modello funzionale è deciso, le
+verifiche sono fatte, il codice non è iniziato.
 
 ---
 

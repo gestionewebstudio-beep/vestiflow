@@ -696,36 +696,44 @@ Delle 137 righe documento già su `numeric(16,6)`, **una sola** ha davvero una c
 
 ---
 
-## 16. 🔴 Una colonna esiste, nessuno la scrive, e chi la legge non se ne accorge (16/08/2026)
+## 16. 🟡 Una colonna esiste, il codice la scrive, e nessuno l'ha mai esercitata (16/08/2026)
 
-`documents.source_document_id` è nello schema, è indicizzata, è tipizzata, ed è **NULL su tutti
-i 105 documenti del database**. Non è «poco usata»: non è **mai** stata scritta — nemmeno dai
-tre documenti nati da un'inclusione, che il riferimento all'origine lo portano soltanto come
-riga descrittiva.
+`documents.source_document_id` è nello schema dal 1º luglio, è indicizzata, ha la sua foreign
+key — ed è **NULL su tutti i 105 documenti del database**.
 
-**Perché è una guardia mancante e non una nota.** Una colonna vuota si comporta come una
-colonna piena: la query riesce, il tipo torna, i test passano. Un elenco «note di credito nate
-da questa fattura» costruito sulla relazione inversa risponderebbe **«nessuna»** per ogni
-fattura, e non sbaglierebbe una riga di SQL. Il difetto non ha sintomo — ha solo un risultato
-plausibile e sbagliato.
+⚠️ **Questa voce è già stata corretta una volta, lo stesso giorno.** Era intitolata «nessuno la
+scrive», ed era falsa: il percorso c'è tutto — `convertPrefill` restituisce l'id dell'origine,
+la maschera lo conserva e lo rimanda nel corpo del create, il DTO lo accetta, il servizio lo
+persiste. Avevo dedotto «mai scritta» da «sempre vuota», che è esattamente l'errore che questo
+documento raccoglie.
 
-**Come è emersa:** cercando un criterio strutturale per le righe di riferimento storiche
-(A-bis). Non è stata trovata da un test, da un lint o da un errore: è stata trovata **guardando
-il dato**, ed è l'unico modo in cui si trova questa classe di difetti.
+**La causa vera è più interessante della prima.** Nel database non esiste **un solo documento
+nato da una conversione**: le uniche previste sono Proforma → Fattura e DDT → Fattura/Proforma,
+e nessuno le ha mai salvate. I documenti collegati che ci sono nascono da **inclusione** o da
+**Concludi ordine**, e né l'una né l'altro passano di lì.
 
-**La stessa classe, già vista due volte nella stessa misura:**
+**Perché resta una guardia mancante.** Un percorso completo, compilato, tipizzato e **mai
+percorso** non è più affidabile di uno assente: è solo più convincente. La colonna vuota si
+comporta come una piena — la query riesce, il tipo torna, i test passano — e un elenco «note di
+credito nate da questa fattura» risponderebbe **«nessuna»** per ogni fattura senza sbagliare una
+riga di SQL.
+
+**La stessa classe, trovata nella stessa misura:**
 
 - `document_lines.line_source` — **NULL su tutte le 137 righe**;
-- `documents.reference` — valorizzata su tutte, ma **non contiene ciò che il nome promette**:
-  è il numero del documento stesso, non un riferimento a un altro documento. Peggiore della
+- `documents.reference` — valorizzata su tutte, ma **non contiene ciò che il nome promette**: è
+  il numero del documento stesso, non un riferimento a un altro documento. Peggiore della
   colonna vuota, perché chi la legge ottiene una stringa sensata.
 
-**La guardia che manca**, e che vale per tutte e tre: un controllo periodico che elenchi le
-**colonne dichiarate e mai popolate**. Non deve fallire la build — una colonna nuova è
-legittimamente vuota il primo giorno — ma deve **comparire**, perché oggi l'unico modo di
-saperlo è interrogare il database a mano.
+**Le due guardie che mancano**, e sono distinte:
 
-**Non si sta proponendo di rimuoverle.** `sourceDocumentId` serve, ed è il punto di partenza
-del blocco «Collegamenti Fattura ↔ Nota di credito». Il difetto è che nel piano di lavoro
-figurava come **«esiste già»**, cioè come infrastruttura disponibile, quando è una colonna da
-cominciare a scrivere.
+1. un controllo periodico che elenchi le **colonne dichiarate e mai popolate** — non deve
+   fallire la build, una colonna nuova è legittimamente vuota il primo giorno, ma deve
+   **comparire**: oggi l'unico modo di saperlo è interrogare il database a mano;
+2. un test che **percorra almeno una volta** ogni cammino documento→documento fino alla
+   persistenza. Il primo controllo dice che la colonna è vuota; solo il secondo dice se il
+   codice che dovrebbe riempirla funziona.
+
+**Non si sta proponendo di rimuoverla.** `sourceDocumentId` serve, ed è il punto di partenza del
+blocco «Collegamenti Fattura ↔ Nota di credito» — dove ora si sa che va **collegato a una coppia
+origine→destinazione nuova**, non costruito da zero.
