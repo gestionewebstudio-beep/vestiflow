@@ -76,11 +76,6 @@
     }
   </header>
 
-  @if (isAccountantView() && !isSalesRegisterList()) {
-    <p class="doc-list__banner" role="status">
-      Vista registro commercialista: tipi documento rilevanti per contabilità e fatturazione.
-    </p>
-  }
   @if (isPendingInvoiceView()) {
     <p class="doc-list__banner doc-list__banner--highlight" role="status">
       DDT vendita confermati senza bozza fattura collegata.

@@ -603,7 +603,6 @@ export class DocumentListComponent {
         linkStatus: undefined,
         externalDocumentTypeId: undefined,
         locationId: undefined,
-        accountant: undefined,
         pendingInvoice: sales.showPendingInvoiceFilter ? q.pendingInvoice : undefined,
       };
     }
@@ -612,7 +611,6 @@ export class DocumentListComponent {
         ...q,
         types: [...GOODS_RECEIPT_DOCUMENT_TYPES],
         type: undefined,
-        accountant: undefined,
         pendingInvoice: undefined,
         customerId: undefined,
       };
@@ -739,10 +737,9 @@ export class DocumentListComponent {
         q.paymentMethod,
       );
     }
-    // accountant/pendingInvoice sono boolean (mai nullish): vanno in OR esplicito.
+    // pendingInvoice è boolean (mai nullish): va in OR esplicito.
     return (
       Boolean(q.search ?? q.type ?? q.status ?? q.dateFrom ?? q.dateTo ?? q.customerId) ||
-      q.accountant === true ||
       q.pendingInvoice === true
     );
   });
@@ -782,12 +779,10 @@ export class DocumentListComponent {
     if (q.type) count++;
     if (q.status) count++;
     if (q.customerId) count++;
-    if (q.accountant === true) count++;
     if (q.pendingInvoice === true) count++;
     return count;
   });
 
-  protected readonly isAccountantView = computed(() => Boolean(this.query().accountant));
   protected readonly isPendingInvoiceView = computed(() => Boolean(this.query().pendingInvoice));
 
   // takeUntilDestroyed() gestisce l'unsubscribe; i campi evitano subscription "ignorate".
@@ -1035,7 +1030,6 @@ export class DocumentListComponent {
         settlement: null,
         paymentMethod: null,
         createdById: null,
-        accountant: null,
         pendingInvoice: null,
         page: null,
       },

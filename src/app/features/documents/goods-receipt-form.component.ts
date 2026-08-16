@@ -691,9 +691,6 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (status === DocumentStatus.Sent) {
       return 'Documento segnato come inviato al fornitore o al commercialista.';
     }
-    if (status === DocumentStatus.ExternallyRegistered) {
-      return 'Documento registrato esternamente: le modifiche non aggiornano il gestionale contabile esterno.';
-    }
     return null;
   });
 

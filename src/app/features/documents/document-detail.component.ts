@@ -82,30 +82,8 @@ type DetailState =
   | { readonly status: 'error'; readonly error: AppError };
 
 /**
- * Tipi documento che espongono l'azione «Inviata al commercialista»
- * (registrazione esterna). Nessun altro tipo mostra azioni di ciclo di vita
- * fiscale: per abilitarne uno nuovo basta aggiungerlo a questo elenco.
- */
-const EXTERNAL_REGISTRATION_DOCUMENT_TYPES: readonly DocumentType[] = [
-  DocumentType.InvoiceDraft,
-  DocumentType.InvoiceAccompanying,
-  DocumentType.Proforma,
-] as const;
-
-function supportsExternalRegistration(type: DocumentType): boolean {
-  return (EXTERNAL_REGISTRATION_DOCUMENT_TYPES as readonly string[]).includes(type);
-}
-
-/** Etichetta dell'azione e testo del dialogo di conferma (unico per tutti i tipi). */
-const EXTERNAL_REGISTRATION_LABEL = 'Inviata al commercialista';
-const EXTERNAL_REGISTRATION_MESSAGE =
-  'Segna questo documento come inviato al commercialista per la registrazione.';
-
-/**
  * Dettaglio documento (smart, sola lettura). Espone le transizioni di stato
  * (conferma, annullamento, eliminazione) con dialogo per le azioni sensibili.
- * L'unica azione di ciclo di vita fiscale è «Inviata al commercialista», e
- * solo per i tipi in EXTERNAL_REGISTRATION_DOCUMENT_TYPES.
  */
 @Component({
   selector: 'app-document-detail',
@@ -334,27 +312,6 @@ export class DocumentDetailComponent {
     canManageDocumentType(this.authService.currentUser(), this.document()?.type ?? null),
   );
 
-  /**
-   * «Inviata al commercialista» (registrazione esterna): unica azione di ciclo
-   * di vita fiscale esposta, e solo per i tipi in
-   * EXTERNAL_REGISTRATION_DOCUMENT_TYPES. Gli altri documenti non mostrano
-   * alcuna azione di stato.
-   *
-   * Gli stati Stampato/Inviato non sono più raggiungibili dall'interfaccia ma
-   * restano ammessi qui per i documenti storici già in quegli stati.
-   */
-  protected readonly canRegisterExternal = computed(() => {
-    const doc = this.document();
-    if (!this.canManage() || !doc || !supportsExternalRegistration(doc.type)) {
-      return false;
-    }
-    return (
-      doc.status === DocumentStatus.Confirmed ||
-      doc.status === DocumentStatus.Printed ||
-      doc.status === DocumentStatus.Sent
-    );
-  });
-
   protected readonly canPrintLabels = computed(() => {
     const doc = this.document();
     return (
@@ -498,9 +455,6 @@ export class DocumentDetailComponent {
     return doc != null && isPrintableDocumentType(doc.type);
   });
 
-  protected readonly registerButtonLabel = EXTERNAL_REGISTRATION_LABEL;
-  protected readonly registerDialogMessage = EXTERNAL_REGISTRATION_MESSAGE;
-
   protected readonly editButtonLabel = computed(() => {
     const doc = this.document();
     if (!doc) {
@@ -562,7 +516,6 @@ export class DocumentDetailComponent {
     return state.status === 'error' ? state.error : null;
   });
 
-  protected readonly registerDialogOpen = signal(false);
   protected readonly cancelDialogOpen = signal(false);
   protected readonly deleteDialogOpen = signal(false);
 
@@ -720,23 +673,11 @@ export class DocumentDetailComponent {
     }
   }
 
-  protected requestRegister(): void {
-    this.registerDialogOpen.set(true);
-  }
   protected requestCancel(): void {
     this.cancelDialogOpen.set(true);
   }
   protected requestDelete(): void {
     this.deleteDialogOpen.set(true);
-  }
-
-  /**
-   * Registrazione esterna: numero e data del documento esterno restano quelli
-   * già acquisiti sul documento, il dialogo è una semplice conferma.
-   */
-  protected registerExternal(): void {
-    this.registerDialogOpen.set(false);
-    this.runAction((id) => this.service.registerExternal(id, {}));
   }
 
   protected printLabels(): void {

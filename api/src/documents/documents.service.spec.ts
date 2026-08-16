@@ -7,7 +7,6 @@ import {
 import { DocumentStatus, DocumentType, Prisma } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
 import { TenantPermission } from '../auth/tenant-permission.constants';
 
 import type { DocumentSettingsService } from './document-settings.service';
@@ -253,19 +252,6 @@ describe('DocumentsService', () => {
           where: expect.objectContaining({ tenantId, customerId: 'cust-1' }),
         }),
       );
-    });
-
-    it('applica filtro accountant con tipi registro commercialista', async () => {
-      const { service } = createService(prisma);
-      prisma.document.findMany.mockResolvedValue([]);
-      prisma.document.count.mockResolvedValue(0);
-
-      await service.list(tenantId, { page: 1, pageSize: 20, accountant: true });
-
-      const where = prisma.document.findMany.mock.calls[0]?.[0]?.where as {
-        type?: { in?: DocumentType[] };
-      };
-      expect(where.type?.in).toEqual([...ACCOUNTANT_DOCUMENT_TYPES]);
     });
 
     it('applica filtro pendingInvoice su DDT senza bozza fattura', async () => {
@@ -1155,67 +1141,6 @@ describe('DocumentsService', () => {
   });
 
   describe('transizioni di stato', () => {
-    it('registerExternal registra data e riferimenti esterni', async () => {
-      const { service } = createService(prisma);
-      prisma.document.findFirst.mockResolvedValue({
-        id: 'doc-1',
-        status: DocumentStatus.confirmed,
-        externalDocNumber: null,
-        externalDocDate: null,
-        externalRef: null,
-        lines: [],
-      });
-      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
-
-      await service.registerExternal(tenantId, 'doc-1', {
-        externalDocNumber: 'FT-99',
-        externalDocDate: '2026-04-01',
-        note: 'commercialista',
-      });
-
-      const data = prisma.document.update.mock.calls[0]![0]!.data;
-      expect(data.status).toBe(DocumentStatus.externally_registered);
-      expect(data.externalDocNumber).toBe('FT-99');
-      expect(data.externalRef).toBe('commercialista');
-      expect(data.registrationDate).toBeInstanceOf(Date);
-    });
-
-    it('registerExternal rifiuta le bozze', async () => {
-      const { service } = createService(prisma);
-      prisma.document.findFirst.mockResolvedValue({
-        id: 'doc-1',
-        status: DocumentStatus.draft,
-        lines: [],
-      });
-
-      await expect(service.registerExternal(tenantId, 'doc-1', {})).rejects.toBeInstanceOf(
-        ConflictException,
-      );
-    });
-
-    // «Inviata al commercialista» è l'unica azione fiscale: sulla Fattura non
-    // richiede più un passaggio preliminare di emissione esterna.
-    it('registerExternal accetta una fattura confermata senza emissione esterna', async () => {
-      const { service } = createService(prisma);
-      prisma.document.findFirst.mockResolvedValue({
-        id: 'doc-1',
-        type: DocumentType.invoice_draft,
-        status: DocumentStatus.confirmed,
-        externallyIssuedAt: null,
-        externalDocNumber: null,
-        externalDocDate: null,
-        externalRef: null,
-        lines: [],
-      });
-      prisma.document.update.mockResolvedValue({ id: 'doc-1', lines: [] });
-
-      await service.registerExternal(tenantId, 'doc-1', {});
-
-      expect(prisma.document.update.mock.calls[0]![0]!.data.status).toBe(
-        DocumentStatus.externally_registered,
-      );
-    });
-
     it('cancel rifiuta un documento già annullato', async () => {
       const { service } = createService(prisma);
       prisma.document.findFirst.mockResolvedValue({
@@ -1839,7 +1764,9 @@ describe('DocumentsService', () => {
         id: 'doc-1',
         tenantId,
         type: DocumentType.sales_ddt,
-        status: DocumentStatus.externally_registered,
+        // Annullato: dopo la rimozione di «Inviata al commercialista» è lo stato
+        // non modificabile che resta.
+        status: DocumentStatus.cancelled,
         lines: [],
         series: 'A',
         documentDate: new Date('2026-01-01'),
@@ -2801,16 +2728,6 @@ describe('DocumentsService', () => {
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.document.create).not.toHaveBeenCalled();
-    });
-
-    it('registerExternal (transizione di stato) rifiuta con 403 una sede non assegnata', async () => {
-      const { service } = createService(prisma);
-      prisma.document.findFirst.mockResolvedValue(docInLocB({ status: DocumentStatus.confirmed }));
-
-      await expect(
-        service.registerExternal(tenantId, 'doc-b', {}, clerkViewAll()),
-      ).rejects.toBeInstanceOf(ForbiddenException);
-      expect(prisma.document.update).not.toHaveBeenCalled();
     });
 
     it('listRevisions rifiuta con 403 un documento di una sede non autorizzata in lettura', async () => {

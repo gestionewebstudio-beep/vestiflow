@@ -435,13 +435,6 @@ export class ShellLayoutComponent {
         icon: 'pi-chart-line',
         route: '/app/reports',
         activeRoutePrefix: '/app/reports',
-        activeRouteExclude: ['/app/reports/accountant-register'],
-      });
-      manageItems.push({
-        label: 'Registro commercialista',
-        icon: 'pi-briefcase',
-        route: '/app/reports/accountant-register',
-        activeRoutePrefix: '/app/reports/accountant-register',
       });
     }
 

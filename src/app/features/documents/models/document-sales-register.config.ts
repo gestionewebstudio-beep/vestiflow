@@ -122,7 +122,6 @@ const GENERIC_STATUS_OPTIONS: readonly SelectMenuOption[] = [
   { value: DocumentStatus.Confirmed, label: 'Confermato' },
   { value: DocumentStatus.Printed, label: 'Stampato' },
   { value: DocumentStatus.Sent, label: 'Inviato' },
-  { value: DocumentStatus.ExternallyRegistered, label: 'Registrato esternamente' },
   { value: DocumentStatus.Cancelled, label: 'Annullato' },
 ];
 
@@ -131,7 +130,6 @@ const INVOICE_STATUS_OPTIONS: readonly SelectMenuOption[] = [
   { value: DocumentStatus.Draft, label: 'Bozza' },
   { value: DocumentStatus.Confirmed, label: 'Da emettere' },
   { value: DocumentStatus.Sent, label: 'Inviata al commercialista' },
-  { value: DocumentStatus.ExternallyRegistered, label: 'Registrata esternamente' },
   { value: DocumentStatus.Cancelled, label: 'Annullata' },
 ];
 

@@ -1639,6 +1639,14 @@ serie chiamata come l&#39;anno.</p>
 <td><strong>Esportare dati</strong></td>
 </tr>
 </tbody></table>
+<h4 id="️-resi-e-rimborsi-con-più-sedi--cosa-controllare-su-shopify">⚠️ Resi e rimborsi con più sedi — cosa controllare su Shopify</h4>
+<p>Se hai <strong>più di una sede</strong>, quando elabori un reso o un rimborso con ricarica di magazzino <strong>controlla la sede proposta da Shopify prima di confermare</strong>: non è quella da cui la merce è partita.</p>
+<p>Verificato il 14/08/2026 su ordini reali: un ordine spedito da «Shop location» proponeva il rientro su un&#39;altra sede. Shopify segue la <strong>priorità delle sedi</strong> configurata, non l&#39;evasione — quindi il default è quasi sempre da correggere a mano, e nessuno te lo segnala.</p>
+<p>Il posto dove guardare è la tendina <strong>«Restituisci articolo a inventario presso: …»</strong>, nella schermata del rimborso o dell&#39;elaborazione del reso. Cambiala sulla sede da cui la merce era realmente uscita.</p>
+<p>Con <strong>una sola sede</strong> questo non ti riguarda: non c&#39;è niente da scegliere.</p>
+<blockquote>
+<p>Esiste anche un difetto di VestiFlow sullo stesso tema, già registrato e da correggere: la sede da cui il gestionale scarica non è sempre quella che ha spedito. Finché non è chiuso, con più sedi le giacenze per sede vanno lette con prudenza — il totale resta corretto, la ripartizione no.</p>
+</blockquote>
 <h3 id="clienti-profilo-shopify">Clienti (profilo Shopify)</h3>
 <ul>
 <li>Anagrafica da Shopify, <strong>sola lettura</strong> in VestiFlow.</li>
@@ -1694,6 +1702,52 @@ serie chiamata come l&#39;anno.</p>
 <li><strong>DDT da fatturare</strong> — elenco DDT vendita confermati senza bozza fattura collegata</li>
 </ul>
 <p>Usa questi link per preparare il pacchetto mensile per il commercialista senza ricostruire i filtri a mano.</p>
+<h4 id="come-leggere-il-registro-corrispettivi-agosto-2026">Come leggere il registro corrispettivi <em>(agosto 2026)</em></h4>
+<p><strong>Il periodo si sceglie per calendario, non a mano.</strong> Oltre ai preset rapidi (ultimi 7 o 30 giorni, mese corrente, mese scorso, anno corrente) trovi <strong>Mese…</strong>, <strong>Trimestre…</strong> e <strong>Anno…</strong>: scegliendoli compaiono i selettori che servono — il mese e l&#39;anno, il trimestre e l&#39;anno, l&#39;anno soltanto. Per il 2° trimestre 2026 non devi scrivere <code>01/04</code> e <code>30/06</code>: lo scegli.</p>
+<p>I selettori compaiono <strong>solo</strong> dove hanno senso: «mese corrente» non chiede l&#39;anno, perché è il mese di adesso. <strong>Personalizzato</strong> resta per i periodi che non sono di calendario, tipo dal 15 marzo al 18 maggio.</p>
+<p><strong>Una vendita entra nel registro quando la merce parte, non quando l&#39;ordine arriva.</strong> Un ordine ricevuto il 30 luglio e spedito il 2 agosto è un corrispettivo di <strong>agosto</strong>. Un ordine mai spedito non compare in nessun periodo, e un ordine annullato prima della spedizione non compare mai — la vendita non è avvenuta.</p>
+<p><strong>I resi e i rimborsi compaiono come righe a sé, con l&#39;importo in negativo</strong>, alla data in cui sono avvenuti — non a quella della vendita. Quindi in un elenco puoi trovare:</p>
+<table>
+<thead>
+<tr>
+<th>Data</th>
+<th>Tipo</th>
+<th>Ordine</th>
+<th>Totale</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>14/08</td>
+<td>Vendita</td>
+<td>#1008</td>
+<td>130,01</td>
+</tr>
+<tr>
+<td>14/08</td>
+<td>Reso</td>
+<td>#1008</td>
+<td>−80,01</td>
+</tr>
+<tr>
+<td>14/08</td>
+<td>Rimborso</td>
+<td>#1008</td>
+<td>−5,00</td>
+</tr>
+</tbody></table>
+<p><strong>«Reso» e «Rimborso» sono cose diverse</strong>: nel primo caso la merce è tornata in magazzino, nel secondo sono tornati solo i soldi (un capo rovinato, uno sconto concesso dopo la vendita).</p>
+<p><strong>Il totale in fondo si ricostruisce sommando la colonna.</strong> È voluto: se il numero non torna, lo vedi riga per riga senza dover chiedere a nessuno. La vendita originale <strong>non viene mai cancellata né corretta</strong> — resta alla sua data, e il reso la rettifica alla propria. È anche ciò che permette al commercialista di collegare il reso alla vendita da cui viene.</p>
+<p><strong>Gli annullamenti non tolgono niente al totale.</strong> Li vedi contati nel riepilogo, ma valgono zero: annullano una vendita che non era mai stata registrata.</p>
+<p>Se qualche vendita risulta <strong>evasa senza data</strong>, il riepilogo te lo dice: non è conteggiata in nessun periodo, e va sistemata. Non sparisce in silenzio.</p>
+<p><strong>Il file che esporti contiene le stesse righe che vedi.</strong> CSV, Excel e PDF portano vendite e rettifiche con una colonna <strong>Tipo</strong>, in ordine di data, e la somma delle righe fa esattamente il totale stampato in testa. È il modo per cui il commercialista può rifare il conto senza chiederti niente.</p>
+<h4 id="canale-e-tipo">Canale e tipo</h4>
+<p>Accanto al periodo trovi altri due filtri, indipendenti fra loro e dal periodo:</p>
+<ul>
+<li><strong>Canale</strong> — tutti, Shopify, oppure Negozio. Di partenza il registro mostra <strong>tutti i canali</strong>: se una parte delle vendite restasse fuori per difetto, nessuno se ne accorgerebbe;</li>
+<li><strong>Tipo</strong> — vendite e rettifiche insieme, oppure solo vendite, solo resi, solo rimborsi.</li>
+</ul>
+<p>Puoi combinarli: «2° trimestre 2026 · Shopify · Solo resi» per vedere cosa è tornato indietro in quel trimestre.</p>
+<p><strong>Attenzione a una cosa, ed è voluta</strong>: il filtro <strong>Tipo</strong> cambia solo l&#39;elenco, non il totale. Se guardi «Solo resi», in fondo continui a leggere il corrispettivo del periodo — non la somma dei soli resi. Serve a non avere mai sotto gli occhi un numero negativo che sembra un totale e non lo è.</p>
 <hr>
 <h2 id="16-usare-vestiflow-da-smartphone">16. Usare VestiFlow da smartphone</h2>
 <p>VestiFlow è una <strong>app web installabile (PWA)</strong>:</p>

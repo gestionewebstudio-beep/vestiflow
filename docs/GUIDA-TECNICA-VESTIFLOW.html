@@ -885,7 +885,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 </tbody></table>
 <p>Mapper: <code>ensureQuickModeDraft</code>, <code>createSingleVariantDraft</code> in <code>product-form.mapper.ts</code>. Creazione inline anche in <strong>arrivo merce</strong> (<code>goods-receipt-form</code>) con payload minimo API.</p>
-<p><strong>Arrivo merce (<code>goods-receipt-form.component</code>):</strong> griglia tabellare righe con <strong>column picker</strong> (<code>goods_receipt_lines</code>), resize colonne, card mobile; tipi <code>goods_receipt</code>, <code>supplier_ddt</code>, <code>supplier_invoice_accompanying</code>, <code>manual_load</code>, <code>initial_load</code>; testata con anteprima numero (<code>GET /documents/preview-number</code>); colonne <strong>Ord./Ric./Res.</strong> se ordine collegato; <strong>Sblocca modifica</strong> su confermati; dialog prezzo fornitore (<code>GET /documents/:id/supplier-price-diffs</code>, policy da <code>TenantFeatureSettings</code>); <strong>SlidePanel</strong> + <code>ProductFormComponent.embeddedPanel</code> per anagrafica completa; azioni lifecycle (print/send/register-external) nel form; lotti/seriali condizionati a flag tenant.</p>
+<p><strong>Arrivo merce (<code>goods-receipt-form.component</code>):</strong> griglia tabellare righe con <strong>column picker</strong> (<code>goods_receipt_lines</code>), resize colonne, card mobile; tipi <code>goods_receipt</code>, <code>supplier_ddt</code>, <code>supplier_invoice_accompanying</code>, <code>manual_load</code>, <code>initial_load</code>; testata con anteprima numero (<code>GET /documents/preview-number</code>); colonne <strong>Ord./Ric./Res.</strong> se ordine collegato; <strong>Sblocca modifica</strong> su confermati; dialog prezzo fornitore (<code>GET /documents/:id/supplier-price-diffs</code>, policy da <code>TenantFeatureSettings</code>); <strong>SlidePanel</strong> + <code>ProductFormComponent.embeddedPanel</code> per anagrafica completa; azioni lifecycle nel form; lotti/seriali condizionati a flag tenant.</p>
 <h3 id="taxonomy-shopify-e-metafield-di-categoria">Taxonomy Shopify e metafield di categoria</h3>
 <p>Picker e attributi categoria nel form prodotto (step <strong>Dati generali</strong>).</p>
 <table>
@@ -1624,12 +1624,6 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 <tr>
 <td>POST</td>
-<td><code>/documents/:id/register-external</code></td>
-<td>Registrato esternamente</td>
-<td><code>documents.manage</code></td>
-</tr>
-<tr>
-<td>POST</td>
 <td><code>/documents/:id/mark-externally-issued</code></td>
 <td>Emessa esternamente (bozza fattura)</td>
 <td><code>documents.manage</code></td>
@@ -1687,24 +1681,6 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 </tbody></table>
 <p>Tabella <code>tenant_feature_settings</code> (RLS + REVOKE anon/authenticated). FE: <code>TenantOperationalSettingsPanelComponent</code> in Impostazioni. Service: <code>TenantFeatureSettingsService</code> (API + FE).</p>
-<h3 id="registro-commercialista-accountant-register">Registro commercialista (<code>/accountant-register</code>)</h3>
-<table>
-<thead>
-<tr>
-<th>Metodo</th>
-<th>Path</th>
-<th>Azione</th>
-<th>Permessi</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>GET</td>
-<td><code>/accountant-register/summary</code></td>
-<td>KPI documenti + corrispettivi</td>
-<td><code>reports.view</code></td>
-</tr>
-</tbody></table>
-<p>Service: <code>AccountantRegisterService</code> — conteggi aggregati (query raw unificata in <code>accountant-register-document-counts.util.ts</code>). FE: <code>/app/reports/accountant-register</code> con link a <code>/app/documents?accountant=1&amp;…</code> e <code>pendingInvoice=1</code>.</p>
 <h3 id="preferenze-colonne-tabella">Preferenze colonne tabella</h3>
 <table>
 <thead>
@@ -1782,8 +1758,6 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <li><p><code>showSalesOrderHistory(profile)</code> — <strong>Vendite</strong> solo Shopify</p>
 </li>
 <li><p><code>canViewDocuments</code> / <code>canManageDocuments</code> — voci <strong>Documenti</strong> e azioni create</p>
-</li>
-<li><p><strong>Registro commercialista</strong> — route dedicata con <code>activeRouteExclude</code> su Report</p>
 </li>
 <li><p>Profilo Shopify: entrambe le voci in sidebar; <code>activeRouteExclude</code> evita doppia evidenziazione su <code>/app/sales/register</code></p>
 </li>
@@ -2008,12 +1982,8 @@ cd api &amp;&amp; npm run test
 <td><code>document-list-query.model.spec.ts</code>, <code>serial-numbers-input.util.spec.ts</code></td>
 </tr>
 <tr>
-<td>FE registro commercialista</td>
-<td><code>accountant-register.model.spec.ts</code></td>
-</tr>
-<tr>
-<td>E2E registro commercialista → DDT da fatturare</td>
-<td><code>e2e/accountant-register.spec.ts</code>, <code>e2e/helpers/accountant-register.ts</code>, smoke in <code>e2e/ci-smoke.spec.ts</code></td>
+<td>E2E DDT da fatturare (filtri URL, banner, checkbox)</td>
+<td><code>e2e/helpers/documents-list.ts</code>, smoke in <code>e2e/ci-smoke.spec.ts</code></td>
 </tr>
 </tbody></table>
 <h3 id="ci-github-actions">CI GitHub Actions</h3>
@@ -2041,7 +2011,6 @@ cd api &amp;&amp; npm run test
 <ul>
 <li><input disabled="" type="checkbox"> Login tenant test</li>
 <li><input disabled="" type="checkbox"> <strong>Documenti</strong> — lista, filtro DDT da fatturare, conferma arrivo merce test</li>
-<li><input disabled="" type="checkbox"> <strong>Registro commercialista</strong> — KPI periodo + link a documenti filtrati</li>
 <li><input disabled="" type="checkbox"> Platform admin → Clienti → Nuovo cliente (staging)</li>
 <li><input disabled="" type="checkbox"> Platform admin → <strong>Apri gestionale (assistenza)</strong> su tenant test → banner + operazione magazzino → <strong>Esci dall&#39;assistenza</strong></li>
 <li><input disabled="" type="checkbox"> Profilo canale Shopify e TikTok su tenant test</li>
@@ -2169,11 +2138,11 @@ cd api &amp;&amp; npm run test
 </tr>
 <tr>
 <td>Modulo documenti (DDT, arrivi, trasferimenti)</td>
-<td>Implementato — registro, allegati, numerazione, filtri commercialista / pending invoice</td>
+<td>Implementato — registro, allegati, numerazione, filtro DDT da fatturare</td>
 </tr>
 <tr>
 <td>Registro commercialista unificato</td>
-<td>Implementato — KPI documenti + corrispettivi, link filtrati a <code>/app/documents</code></td>
+<td><strong>Rimosso il 16/08/2026</strong> — classificava i documenti come inviati/da inviare al commercialista</td>
 </tr>
 <tr>
 <td>Incoming su ordini fornitore inviati</td>

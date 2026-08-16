@@ -432,7 +432,7 @@ cd api && npm run backfill:catalog-origin:apply  # scrive su DB
 
 Mapper: `ensureQuickModeDraft`, `createSingleVariantDraft` in `product-form.mapper.ts`. Creazione inline anche in **arrivo merce** (`goods-receipt-form`) con payload minimo API.
 
-**Arrivo merce (`goods-receipt-form.component`):** griglia tabellare righe con **column picker** (`goods_receipt_lines`), resize colonne, card mobile; tipi `goods_receipt`, `supplier_ddt`, `supplier_invoice_accompanying`, `manual_load`, `initial_load`; testata con anteprima numero (`GET /documents/preview-number`); colonne **Ord./Ric./Res.** se ordine collegato; **Sblocca modifica** su confermati; dialog prezzo fornitore (`GET /documents/:id/supplier-price-diffs`, policy da `TenantFeatureSettings`); **SlidePanel** + `ProductFormComponent.embeddedPanel` per anagrafica completa; azioni lifecycle (print/send/register-external) nel form; lotti/seriali condizionati a flag tenant.
+**Arrivo merce (`goods-receipt-form.component`):** griglia tabellare righe con **column picker** (`goods_receipt_lines`), resize colonne, card mobile; tipi `goods_receipt`, `supplier_ddt`, `supplier_invoice_accompanying`, `manual_load`, `initial_load`; testata con anteprima numero (`GET /documents/preview-number`); colonne **Ord./Ric./Res.** se ordine collegato; **Sblocca modifica** su confermati; dialog prezzo fornitore (`GET /documents/:id/supplier-price-diffs`, policy da `TenantFeatureSettings`); **SlidePanel** + `ProductFormComponent.embeddedPanel` per anagrafica completa; azioni lifecycle nel form; lotti/seriali condizionati a flag tenant.
 
 ### Taxonomy Shopify e metafield di categoria
 
@@ -819,7 +819,6 @@ Modulo `api/src/documents/` + feature Angular `src/app/features/documents/`.
 | POST            | `/documents/:id/convert`                | Conversione (es. DDT vendita → bozza fattura)                           | `documents.manage` |
 | POST            | `/documents/:id/print`                  | Marca stampato                                                          | `documents.manage` |
 | POST            | `/documents/:id/send`                   | Marca inviato (bozze fattura)                                           | `documents.manage` |
-| POST            | `/documents/:id/register-external`      | Registrato esternamente                                                 | `documents.manage` |
 | POST            | `/documents/:id/mark-externally-issued` | Emessa esternamente (bozza fattura)                                     | `documents.manage` |
 | POST            | `/documents/:id/cancel`                 | Annullamento con reversal stock se applicabile                          | `documents.manage` |
 | DELETE          | `/documents/:id`                        | Elimina bozza                                                           | `documents.manage` |
@@ -842,14 +841,6 @@ Modulo `api/src/documents/` + feature Angular `src/app/features/documents/`.
 | PATCH  | `/tenant/feature-settings` | Aggiorna impostazioni           | accesso tenant owner+ |
 
 Tabella `tenant_feature_settings` (RLS + REVOKE anon/authenticated). FE: `TenantOperationalSettingsPanelComponent` in Impostazioni. Service: `TenantFeatureSettingsService` (API + FE).
-
-### Registro commercialista (`/accountant-register`)
-
-| Metodo | Path                           | Azione                        | Permessi       |
-| ------ | ------------------------------ | ----------------------------- | -------------- |
-| GET    | `/accountant-register/summary` | KPI documenti + corrispettivi | `reports.view` |
-
-Service: `AccountantRegisterService` — conteggi aggregati (query raw unificata in `accountant-register-document-counts.util.ts`). FE: `/app/reports/accountant-register` con link a `/app/documents?accountant=1&…` e `pendingInvoice=1`.
 
 ### Preferenze colonne tabella
 
@@ -893,7 +884,6 @@ I tipi `sale` e `return` **non** sono selezionabili nel form manuale **Registra 
 - `showRetailSalesRegister(profile)` — Registra vendita per gestionale, Shopify, TikTok
 - `showSalesOrderHistory(profile)` — **Vendite** solo Shopify
 - `canViewDocuments` / `canManageDocuments` — voci **Documenti** e azioni create
-- **Registro commercialista** — route dedicata con `activeRouteExclude` su Report
 - Profilo Shopify: entrambe le voci in sidebar; `activeRouteExclude` evita doppia evidenziazione su `/app/sales/register`
 
 - Service HTTP: `InventoryService.registerRetailScan()` (`src/app/features/inventory/services/inventory.service.ts`)
@@ -1004,8 +994,7 @@ cd api && npm run test
 | Impostazioni operative tenant                                       | `api/src/tenant/tenant-feature-settings.service.spec.ts`                                                                                                                            |
 | Preferenze colonne — validazione stateJson / reset FE               | `api/src/user-preferences/table-view-state.util.spec.ts`, `user-table-views.service.spec.ts`, `src/app/shared/table-columns/table-column-preference.service.spec.ts`                |
 | FE documenti — query URL / seriali input                            | `document-list-query.model.spec.ts`, `serial-numbers-input.util.spec.ts`                                                                                                            |
-| FE registro commercialista                                          | `accountant-register.model.spec.ts`                                                                                                                                                 |
-| E2E registro commercialista → DDT da fatturare                      | `e2e/accountant-register.spec.ts`, `e2e/helpers/accountant-register.ts`, smoke in `e2e/ci-smoke.spec.ts`                                                                            |
+| E2E DDT da fatturare (filtri URL, banner, checkbox)                 | `e2e/helpers/documents-list.ts`, smoke in `e2e/ci-smoke.spec.ts`                                                                                                                    |
 
 ### CI GitHub Actions
 
@@ -1035,7 +1024,6 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 
 - [ ] Login tenant test
 - [ ] **Documenti** — lista, filtro DDT da fatturare, conferma arrivo merce test
-- [ ] **Registro commercialista** — KPI periodo + link a documenti filtrati
 - [ ] Platform admin → Clienti → Nuovo cliente (staging)
 - [ ] Platform admin → **Apri gestionale (assistenza)** su tenant test → banner + operazione magazzino → **Esci dall'assistenza**
 - [ ] Profilo canale Shopify e TikTok su tenant test
@@ -1099,8 +1087,8 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 | Multi-store commerciali in un tenant          | Non supportato — un shop = un tenant                                                                 |
 | Invito utenti / cambio ruolo self-service     | Non in UI — solo provisioning iniziale + richiesta operatore                                         |
 | Sessione assistenza platform admin → tenant   | Implementata — 2 h, read/write, audit `support_sessions`, banner UI                                  |
-| Modulo documenti (DDT, arrivi, trasferimenti) | Implementato — registro, allegati, numerazione, filtri commercialista / pending invoice              |
-| Registro commercialista unificato             | Implementato — KPI documenti + corrispettivi, link filtrati a `/app/documents`                       |
+| Modulo documenti (DDT, arrivi, trasferimenti) | Implementato — registro, allegati, numerazione, filtro DDT da fatturare                              |
+| Registro commercialista unificato             | **Rimosso il 16/08/2026** — classificava i documenti come inviati/da inviare al commercialista       |
 | Incoming su ordini fornitore inviati          | Implementato — stato `incoming` in `InventoryLevel`, sync con ricezione / arrivo merce               |
 | Tracciamento lotti / seriali                  | Implementato — flag tenant + colonne in arrivo merce; consultazione seriali in UI limitata           |
 | Impostazioni operative tenant (lotti/policy)  | Implementato — `tenant_feature_settings`, pannello Impostazioni                                      |

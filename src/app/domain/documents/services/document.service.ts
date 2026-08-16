@@ -80,7 +80,6 @@ export class DocumentService {
     if (query.settlement) params = params.set('settlement', query.settlement);
     if (query.paymentMethod) params = params.set('paymentMethod', query.paymentMethod);
     if (query.createdById) params = params.set('createdById', query.createdById);
-    if (query.accountant) params = params.set('accountant', '1');
     if (query.pendingInvoice) params = params.set('pendingInvoice', '1');
 
     return this.http.get<ApiPaginated<DocumentApiRow>>(this.url('/documents'), { params }).pipe(
@@ -345,16 +344,6 @@ export class DocumentService {
     return this.http
       .get(this.url(`/documents/${id}/export/xml`), { responseType: 'blob' })
       .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
-  }
-
-  /** «Inviata al commercialista»: registrazione esterna del documento fiscale. */
-  registerExternal(
-    id: EntityId,
-    body: { externalDocNumber?: string; externalDocDate?: string; note?: string },
-  ): Observable<DocumentRecord> {
-    return this.http
-      .post<DocumentApiRow>(this.url(`/documents/${id}/register-external`), body)
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
   listAttachments(id: EntityId): Observable<readonly DocumentAttachment[]> {

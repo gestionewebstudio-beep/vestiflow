@@ -57,7 +57,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { lineVatFromNetExact } from '../vat/vat-line-calculation.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
-import { ACCOUNTANT_DOCUMENT_TYPES } from './accountant-document-types.constant';
 import { ExternalDocumentTypesService } from './external-document-types.service';
 import { receiptVatBreakdown, type VatBreakdownEntry } from './purchase-invoice-vat-summary.util';
 import { syncGoodsReceiptLineMovements } from './document-goods-receipt-sync.util';
@@ -128,7 +127,6 @@ import type { CreateDocumentDto, DocumentLineInputDto } from './dto/create-docum
 import type { DocumentAddressDto } from './dto/document-transport.dto';
 import type { ListDocumentOperatorsQueryDto } from './dto/list-document-operators.query.dto';
 import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
-import type { RegisterExternalDto } from './dto/register-external.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
 
 export type DocumentWithLines = Document & { lines: DocumentLine[] };
@@ -406,7 +404,6 @@ export class DocumentsService {
         : query.settlement === 'settled'
           ? { outstandingMinor: { lte: 0 } }
           : {}),
-      ...(query.accountant ? { type: { in: [...ACCOUNTANT_DOCUMENT_TYPES] } } : {}),
       ...(query.pendingInvoice
         ? {
             type: DocumentType.sales_ddt,
@@ -2524,43 +2521,6 @@ export class DocumentsService {
     };
 
     return createDto;
-  }
-
-  /**
-   * «Inviata al commercialista»: unica azione di ciclo di vita fiscale, esposta
-   * dall'interfaccia su Fattura, Fattura accompagnatoria e Proforma. Gli stati
-   * stampato/inviato non sono più raggiungibili ma restano accettati in ingresso
-   * per i documenti storici che li hanno già.
-   */
-  async registerExternal(
-    tenantId: string,
-    id: string,
-    dto: RegisterExternalDto,
-    user?: UserProfileDto,
-  ): Promise<DocumentWithLines> {
-    const doc = await this.getById(tenantId, id, user);
-    this.assertDocumentTypeManageable(user, doc.type);
-    this.assertDocumentLocationWritable(user, doc);
-    if (
-      doc.status !== DocumentStatus.confirmed &&
-      doc.status !== DocumentStatus.printed &&
-      doc.status !== DocumentStatus.sent
-    ) {
-      throw new ConflictException(
-        'Solo documenti confermati, stampati o inviati possono essere registrati esternamente.',
-      );
-    }
-    return this.prisma.document.update({
-      where: { id },
-      data: {
-        status: DocumentStatus.externally_registered,
-        registrationDate: new Date(),
-        externalDocNumber: dto.externalDocNumber ?? doc.externalDocNumber,
-        externalDocDate: dto.externalDocDate ? new Date(dto.externalDocDate) : doc.externalDocDate,
-        externalRef: dto.note ?? doc.externalRef,
-      },
-      include: { lines: { orderBy: { lineNumber: 'asc' } } },
-    });
   }
 
   async cancel(tenantId: string, id: string, user?: UserProfileDto): Promise<DocumentDetail> {

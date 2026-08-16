@@ -158,13 +158,6 @@ export const SECONDARY_PAGES: readonly SecondaryPage[] = [
     route: '/app/sales/corrispettivi',
     parent: '/app/sales',
   },
-  {
-    label: 'Registro commercialista',
-    sub: 'Registro unificato vendite e storni',
-    icon: 'pi-book',
-    route: '/app/reports/accountant-register',
-    parent: '/app/reports',
-  },
   // Impostazioni
   {
     label: 'Codici IVA',

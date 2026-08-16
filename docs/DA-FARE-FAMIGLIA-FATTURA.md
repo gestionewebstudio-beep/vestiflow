@@ -357,183 +357,140 @@ Nessuno stato sostitutivo va inventato. La distinzione fra **creare** gestionalm
 
 ---
 
-## E · Rimuovere `externally_registered` — 🟡 **censito in lettura il 16/08, nulla rimosso**
+## E · Registro commercialista e «Inviata al commercialista» — ✅ **RIMOSSI il 16/08/2026**
 
-Struttura **legacy** della fase iniziale: `externally_registered`, mostrato come «Inviata al
-commercialista». Va rimossa. Qui c'è dov'è, cosa succede togliendola, e la risposta alla
-domanda «si può fare da sola?».
+**La decisione, di Luigi:** «nessun documento voglio sapere se è stato inviato al
+commercialista, mi regolo io con i filtri e le stampe». La struttura che classificava i
+documenti in _già spediti_ e _da inviare_ era un errore di impostazione, e va via tutta —
+non se ne costruisce una sostitutiva.
 
-### ⚠️ Prima di tutto: sono DUE enum diversi con lo stesso nome
+### Cosa è stato rimosso
 
-| Enum                                           | Dove                                                           | Rimuovere?                          |
-| ---------------------------------------------- | -------------------------------------------------------------- | ----------------------------------- |
-| `DocumentStatus.externally_registered`         | stato del **documento**                                        | ✅ è questo                         |
-| `SalesOrderFiscalStatus.externally_registered` | stato fiscale **corrispettivi** (`sales_orders.fiscal_status`) | ⛔ **altro concetto, non si tocca** |
+**Il flusso «Inviata al commercialista».** Metodo di servizio `registerExternal()` — unica
+scrittura dello stato — endpoint `POST /documents/:id/register-external`, DTO dedicato, metodo
+client, pulsante e dialogo di conferma nei **due** dettagli documento (il vendita eredita la
+classe ma ha template proprio), le due voci di filtro del registro, l’avviso dell’Arrivo merce.
 
-Un `grep` sul valore prende entrambi. Il secondo governa il registro corrispettivi ed è vivo:
-`corrispettivi-fiscal.enum-mapper.ts`, `corrispettivi.model.ts`, il filtro del report. **Quattro
-delle occorrenze trovate sono sue.**
+**Il Registro commercialista.** Modulo API completo (controller, service, DTO, query dei
+conteggi), pagina, modello, service frontend, rotta, voce di sidebar, voce di ricerca globale,
+briciole, link dalla pagina Report.
 
-### Dove viene assegnato — un punto solo
+**Il filtro `accountant`.** Non aveva un comando proprio: il solo produttore era il link del
+registro. Rimosso insieme — parametro di query, campo del DTO, banner della lista, e la
+costante `ACCOUNTANT_DOCUMENT_TYPES` che serviva solo a lui.
 
-`documents.service.ts` → `registerExternal()`, unica scrittura. Esposta da
-`documents.controller.ts` e chiamata dai due dettagli documento (generico e vendita) dietro un
-dialogo di conferma. **Non esiste l'azione inversa**: nessun modo di tornare indietro.
+### Cosa è stato preservato, e perché
 
-### Dove viene letto
+| Preservato                                            | Perché                                                                                                        |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Filtro «DDT da fatturare»** (`pendingInvoice`)      | ha una **casella propria** nel registro DDT: è un filtro operativo, non una classificazione fiscale           |
+| **Registro Corrispettivi** e `SalesOrderFiscalStatus` | dominio diverso, protetto esplicitamente — vedi blocco F                                                      |
+| `externallyIssuedAt`                                  | campo distinto del ciclo fattura, altra semantica                                                             |
+| `externalDocNumber` / `externalDocDate`               | ciclo fornitore: li scrivono altre maschere                                                                   |
+| `registrationDate` **come campo**                     | colonna in elenco, dettaglio e stampa; **obbligatoria** nella Fattura d’acquisto, dove governa la numerazione |
+| Le due liste `CONFIRMED_EDITABLE_STATUSES`            | invariate: il blocco spariva perché lo stato non era nella lista                                              |
 
-| Punto                                         | Cosa fa                                                                             |
-| --------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `document-labels.util.ts`                     | etichetta «Registrato esternamente» / «Inviata al commercialista», tono `vestiflow` |
-| `document-sales-register.config.ts`           | **due** voci di filtro nel registro (generico e fatture)                            |
-| `goods-receipt-form.component.ts`             | avviso: «le modifiche non aggiornano il gestionale contabile esterno»               |
-| `accountant-register-document-counts.util.ts` | contatore **«Registrate esternamente»** del registro commercialista                 |
-| `documents.service.ts` (edit)                 | ⚠️ **il blocco modifica** — vedi sotto                                              |
+### Il blocco modifica: non c’era niente da modificare
 
-**Nella UI il pulsante compare su tre tipi** — Fattura, Fattura accompagnatoria, Proforma — e
-solo se lo stato è `confirmed`, `printed` o `sent`.
+`externally_registered` era l’**unico blocco definitivo** oltre all’annullamento, e senza
+ritorno. Si ritira insieme allo stato, **senza sostituti**: i documenti tornano alle normali
+regole di sblocco. L’immutabilità di una Fattura davvero emessa si progetterà nel blocco FE, e
+dovrà dipendere dal **vero stato fiscale** — non da «registrata esternamente», che non lo era.
 
-### ✅ Il blocco modifica si ritira con lo stato — deciso il 16/08
+Le due liste sono **identiche a com’erano**. Va scritto proprio perché chi cerca la modifica e
+non la trova potrebbe crederla dimenticata.
 
-`CONFIRMED_EDITABLE_STATUSES` = `confirmed · printed · sent`, e `externally_registered` non c'è:
-è oggi l'**unico blocco definitivo** dell'applicazione oltre all'annullamento, e senza ritorno.
+### La causa radice delle incoerenze trovate
 
-> **Si ritira insieme allo stato. Nessun blocco permanente lo sostituisce.** I documenti tornano
-> a seguire le normali regole di modifica e sblocco previste dal loro stato e dal loro tipo.
+**Non era `sent` contro `externally_registered`: era il registro stesso.** Due dei quattro
+contatori delle «Bozze fattura» classificavano su `sent`, uno stato che nessuna azione produce
+più; l’azione chiamata «Inviata al commercialista» scriveva `externally_registered`, contato
+sotto un’altra voce. Premere il pulsante faceva comparire il documento nella casella sbagliata.
 
-L'eventuale **immutabilità di una Fattura realmente emessa** si progetta nel blocco Fatturazione
-elettronica, e dovrà dipendere dal **vero stato fiscale** del documento — non da «registrata
-esternamente», che non lo è mai stato.
+Non è stato corretto: **è stato rimosso il modello che lo produceva**, che è la richiesta.
 
-Nella pratica non si tocca nulla: le due liste `CONFIRMED_EDITABLE_STATUSES` (API e frontend)
-restano **identiche a com'erano**. Il blocco spariva perché lo stato non era nella lista; tolto
-lo stato, sparisce il blocco. **Nessuna riga da modificare, ed è il motivo per cui va scritto:
-un lettore futuro che non trova la modifica potrebbe pensare che sia stata dimenticata.**
+Un secondo difetto è emerso e **non appartiene a questo blocco**: il contatore «DDT vendita da
+fatturare» — e il filtro `pendingInvoice` che resta — si reggono su `source_document_id`, che
+**nessun documento ha mai valorizzato** (`GUARDIE` §16). Finché è così, quel filtro considera
+da fatturare **tutti** i DDT confermati. La causa è nel blocco 1, non qui.
 
-### Un difetto già presente, latente
+### ⏸️ I due Arrivi merce — SQL pronta, **non eseguita**
 
-Il registro commercialista ha quattro contatori. **«Inviate al commercialista» conta `sent`** —
-uno stato che nessuna azione produce più — mentre l'azione chiamata «Inviata al commercialista»
-scrive `externally_registered`, che finisce sotto **«Registrate esternamente»**. Premere il
-pulsante fa comparire il documento nella casella sbagliata. È **latente**: i contatori guardano
-solo `invoice_draft`, e nel database non ce n'è nessuno.
+`CAR-2026-0003` e `CAR-2026-0008` restano `externally_registered`. L’operazione minima,
+verificabile e idempotente è in **`docs/sql/normalizza-arrivi-merce-externally-registered.sql`**:
+porta `status` a `confirmed` e `registration_date` a `NULL`, **solo** sui `goods_receipt` in
+quello stato, dentro una transazione con conteggio prima e dopo.
 
-### Cosa protegge i test
+Non tocca righe, quantità, movimenti, giacenze, numero, serie, `document_date` né
+`confirmed_at`. **Attende il via esplicito**: è un database condiviso.
 
-**Undici occorrenze, tutte in `documents.service.spec.ts`**: registra data e riferimenti,
-rifiuta le bozze, accetta una fattura confermata, e il controllo permessi sulla sede. Nessun
-test di frontend, nessun e2e.
+**Dopo l’esecuzione** si tolgono il membro `ExternallyRegistered` dall’enum frontend, la sua
+etichetta, il suo tono e il test di guardia. **Non prima:** `STATUS_LABELS` è un
+`Record<DocumentStatus, …>` esaustivo, e quei due documenti resterebbero senza etichetta **in
+silenzio**. Il test `document-labels.util.spec.ts` esiste per questo, e va via con loro.
 
-### ⚠️ Il vincolo tecnico: un valore di enum Postgres non si toglie
+Il valore resta nell’enum PostgreSQL: `ALTER TYPE … DROP VALUE` non esiste, e ricreare il tipo
+su un database condiviso non vale il guadagno.
 
-`ALTER TYPE … DROP VALUE` **non esiste**. Rimuoverlo davvero dal database significa ricreare il
-tipo — pesante su un database condiviso col collega. **Deciso il 16/08: il valore resta
-nell'enum, e non si prepara nessuna migration distruttiva per toglierlo.**
+### Verifiche eseguite
 
----
+`npm run lint` (con tutte e sette le guardie) · `tsc --noEmit` su API e frontend ·
+**`npm run build`**, che è l’unico che vede i template · `npm run test:api` **1580 test, 179
+file** · `npm test` **1430 test, 207 file**. Tutto verde.
 
-### I due arrivi merce — verificati il 16/08, **nessun record aggiornato**
-
-**Stato attuale, identico per entrambi:**
-
-| Campo                                  | `CAR-2026-0003`         | `CAR-2026-0008`         |
-| -------------------------------------- | ----------------------- | ----------------------- |
-| numero · fornitore                     | 3 · fornitore test 1    | 8 · Fornitore test 2    |
-| stato                                  | `externally_registered` | `externally_registered` |
-| data documento · conferma              | 15/07 · 15/07           | 15/07 · 15/07           |
-| **data registrazione**                 | **15/07**               | **15/07**               |
-| numero e data documento esterno        | **vuoti**               | **vuoti**               |
-| riferimento esterno · ordine fornitore | **vuoti**               | **vuoti**               |
-| annullato                              | no                      | no                      |
-| righe · righe che caricano             | 2 · 2                   | 1 · 1                   |
-| movimenti · pezzi                      | 2 · 8                   | 1 · 10                  |
-
-Creati e conclusi **lo stesso giorno**, 15 luglio. Nessun dato del ciclo fornitore compilato:
-l'azione è stata premuta con il dialogo a conferma semplice, che manda un corpo vuoto e scrive
-**solo** stato e data di registrazione.
-
-**Lo stato che avrebbero avuto senza quella funzione: `confirmed`.** Non è una deduzione — è
-come stanno **78 arrivi merce su 81**, tutti con `registration_date` a NULL. Il ciclo ordinario
-dell'Arrivo merce finisce alla conferma: numero assegnato, movimenti generati, `confirmed_at`
-valorizzato. Sopra non c'è nient'altro. Il terzo fuori posto è in `sent`, altro residuo dello
-stesso periodo.
-
-**Cosa comporta cambiare il solo `status`:**
-
-| Ambito                        | Effetto                                                                                                                                                                                                                                    |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Movimenti e giacenze**      | **nessuno.** I 3 movimenti sono `load`, agganciati per `source_document_id`; nessuna logica di stock guarda lo stato del documento. 3 varianti, 18 pezzi, tutto invariato                                                                  |
-| **Numerazione**               | nessuno: numero e serie già assegnati, il contatore non si tocca                                                                                                                                                                           |
-| **Modificabilità**            | ⚠️ **cambia, ed è voluto**: da bloccati per sempre tornano modificabili previo sblocco, come ogni altro arrivo merce                                                                                                                       |
-| **Registro commercialista**   | ⚠️ il contatore «Documenti fornitore da registrare» passa da **72 a 74**. Non è un difetto: quel contatore cerca arrivi merce senza numero documento esterno, e questi due lo sono. Erano esclusi solo perché lo stato non era nella lista |
-| **Elenco documenti e stampa** | il badge cambia da «Registrato esternamente» a «Confermato»                                                                                                                                                                                |
-
-**Resta un residuo da decidere: `registration_date = 15/07`.** È un campo **legittimo e vivo** —
-colonna «Data registrazione» in elenco, dettaglio e stampa, e **obbligatorio** nella Fattura
-d'acquisto, dove governa la numerazione. Su un arrivo merce però non è normalmente valorizzato
-(0 su 78). Qui l'ha scritto `registerExternal` come effetto collaterale. **Azzerarlo o lasciarlo
-è una scelta di Luigi**, non una conseguenza tecnica: la si prende con il Taglio 2.
+Adattati: `document-list-query.model.spec.ts` (non parsa più `accountant`), il fixture «non
+editabile» di `documents.service.spec.ts` — che ora usa `cancelled`, lo stato non modificabile
+che resta — e l’e2e, dove il test che passava dal registro è stato rimosso mentre quello che
+verifica i **filtri DDT da fatturare** sopravvive: entrava dall’URL, non dalla pagina. Helper
+rinominato `e2e/helpers/documents-list.ts`.
 
 ---
 
-### ✅ Blocco autonomo — sì, in due tagli
+## F · «Consegnato al commercialista» nei Corrispettivi — ⏸️ **censito, NON toccato**
 
-**Nessuna dipendenza dal blocco FE.** Il legame è solo nominale: nel codice non c'è una riga di
-fatturazione elettronica che legga questo stato.
+**Decisione di Luigi, 16/08:** «anche i corrispettivi non voglio sapere se li ho già inviati.
+Quelli verranno esportati con stampe e file e nei periodi definiti dal cliente o dal
+commercialista. Tutto manuale.»
 
-⚠️ **Ordine obbligato fra i due tagli.** `STATUS_LABELS` e `STATUS_TONES` sono
-`Record<DocumentStatus, …>` **esaustivi**: togliendo la voce mentre i due arrivi merce hanno
-ancora quello stato, il loro badge resterebbe **senza etichetta e senza tinta** — nessun errore,
-solo un buco. Quindi **o prima si spostano i due record, o le due voci di etichetta restano
-finché non si spostano.** È la sola sequenza vincolata di tutto il lavoro.
+**Non l’ho toccato**, perché il Registro Corrispettivi era il dominio escluso in modo esplicito
+e perché la rimozione richiede una scelta che non è stata presa: **quali dei cinque stati
+fiscali sopravvivono.**
 
-#### Taglio 1 — il codice. Piano preciso, 14 punti
+### Cosa c’è
 
-**API — l'azione sparisce**
+| Pezzo                                                    | Dove                                                      |
+| -------------------------------------------------------- | --------------------------------------------------------- |
+| `SalesOrderFiscalStatus` — 5 valori                      | `schema.prisma`, su `sales_orders.fiscal_status`          |
+| `POST /corrispettivi/mark-delivered` + DTO               | `corrispettivi.controller.ts`, `corrispettivi.service.ts` |
+| `GET /corrispettivi/deliveries`                          | stesso controller                                         |
+| Tabella `corrispettivi_deliveries`                       | 13 colonne — periodo, canale, conteggi, totali, note      |
+| Pannello «Consegna al commercialista» + tabella consegne | `corrispettivi-deliveries`, `corrispettivi-report`        |
+| Filtro per stato fiscale + etichette e toni              | `corrispettivi.model.ts`, `corrispettivi-report`          |
 
-| #   | File                                                       | Cosa                                                                         |
-| --- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 1   | `documents.service.ts` (~2535-2570)                        | **rimuovere** `registerExternal()`, unica scrittura dello stato              |
-| 2   | `documents.controller.ts` (47, 462-468)                    | **rimuovere** l'endpoint e l'import del DTO                                  |
-| 3   | `dto/register-external.dto.ts`                             | **eliminare il file**: nessun altro consumer                                 |
-| 4   | `accountant-register-document-counts.util.ts` (81-82, 114) | **rimuovere** il contatore `invoice_draft_registered` — vedi §Registro sotto |
-| 5   | `accountant-register.service.ts` (20, 47, 60, 70)          | rimuovere il campo corrispondente                                            |
+### Il dato: la funzione non è mai stata usata
 
-**Frontend — pulsante, dialogo, filtri, etichette**
+**Zero consegne registrate.** Tutti e **37** gli ordini di vendita sono
+`pending_registration` — nessuno è mai passato a `delivered_to_accountant`. La rimozione non
+perde niente.
 
-| #   | File                                                                            | Cosa                                                                                                                                   |
-| --- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| 6   | `document-detail.component.ts` (88-101, 346-356, 501-502, 565, 724, 737-739)    | rimuovere `EXTERNAL_REGISTRATION_*`, `supportsExternalRegistration`, `canRegisterExternal`, `registerDialogOpen`, `registerExternal()` |
-| 7   | `document-detail.component.html` (65-67, 144-155)                               | rimuovere il pulsante e il `app-confirm-dialog`                                                                                        |
-| 8   | `sales-document-detail.component.html` (67-69, 181-192)                         | **stesse due rimozioni**: eredita dal generico ma ha template proprio                                                                  |
-| 9   | `document.service.ts` (351)                                                     | rimuovere il metodo client                                                                                                             |
-| 10  | `document-sales-register.config.ts` (125, 134)                                  | rimuovere **due** voci di filtro (registro generico e registro fatture)                                                                |
-| 11  | `goods-receipt-form.component.ts` (694)                                         | rimuovere il ramo dell'avviso                                                                                                          |
-| 12  | `document-labels.util.ts` (39, 48, 68-74)                                       | ⚠️ **dopo il Taglio 2**: voce di `STATUS_LABELS`, di `STATUS_TONES`, e il ramo in `documentStatusLabelForType`                         |
-| 13  | `core/models/document.model.ts` (66)                                            | ⚠️ **dopo il Taglio 2**: membro dell'enum                                                                                              |
-| 14  | `accountant-register.model.ts` + `accountant-register.component.html` (117-121) | rimuovere campo e riquadro «Registrate esternamente»                                                                                   |
+### ⛔ La decisione che manca
 
-**Test** — `documents.service.spec.ts`: cadono i tre casi di `registerExternal` (1158, 1183, 1198) e quello dei permessi (2806). Restano da adattare i fixture alle righe 1215 e 1842, che
-usano il valore come stato di partenza. **Nessun test frontend, nessun e2e.**
+I cinque valori **non sono tutti della stessa famiglia**:
 
-**Non si tocca:** `SalesOrderFiscalStatus` e tutto il Registro Corrispettivi;
-`externallyIssuedAt`, che è un campo diverso del ciclo fattura; `externalDocNumber` /
-`externalDocDate`, che appartengono al ciclo fornitore e li scrivono altre maschere;
-`registrationDate` come campo; le due liste `CONFIRMED_EDITABLE_STATUSES`, che restano identiche.
+| Valore                    | Dice                                 | Va via?                                        |
+| ------------------------- | ------------------------------------ | ---------------------------------------------- |
+| `delivered_to_accountant` | «l’ho già mandato»                   | ✅ è esattamente ciò che Luigi non vuole       |
+| `externally_registered`   | «il commercialista l’ha registrato»  | ✅ stessa famiglia                             |
+| `pending_registration`    | lo stato **iniziale** di tutti e 37  | ⛔ **e allora cosa diventa?**                  |
+| `excluded_pos_register`   | escluso dal registro corrispettivi   | ❓ è una classificazione fiscale, non un invio |
+| `invoiced`                | fatturato invece che a corrispettivo | ❓ idem                                        |
 
-#### Taglio 2 — i due record, quando Luigi decide
+Se restano solo tre valori, `pending_registration` non ha più un «dopo»: diventa un default
+che non cambia mai, cioè una colonna inutile. Se invece la colonna intera va via, vanno decisi
+il destino del **filtro per stato fiscale** nel report e quello della **tabella consegne**.
 
-Spostarli a `confirmed`, decidere se azzerare `registration_date`, e **solo dopo** i punti 12 e 13. Il valore resta nell'enum Postgres: nessuna migration distruttiva.
-
-#### ⚠️ Il Registro commercialista — segnalato, non ristrutturato
-
-Il difetto `sent` vs `externally_registered` (sopra) **resta com'è**. Il Taglio 1 toglie il solo
-contatore che conta lo stato in uscita; **non si costruisce nuova logica attorno a quel
-registro** finché non è deciso se quella sezione abbia ancora senso. Da chiarire lì: due dei
-quattro contatori delle «Bozze fattura» contano `sent`, che nessuna azione produce più.
-
-**Da dove si ricomincia:** dal Taglio 1, punti 1-11 e 14, in un commit. I punti 12-13 aspettano
-il Taglio 2.
+**Da dove si ricomincia:** da questa domanda. Il censimento è fatto, il dato dice che non si
+perde niente, la decisione è di Luigi.
 
 ---
 

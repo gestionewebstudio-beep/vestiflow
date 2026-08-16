@@ -64,11 +64,6 @@
             Converti in DDT vendita
           </app-button>
         }
-        @if (canRegisterExternal()) {
-          <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestRegister()">
-            {{ registerButtonLabel }}
-          </app-button>
-        }
         @if (canCancel()) {
           <app-button variant="ghost" [disabled]="actionSaving()" (click)="requestCancel()">
             Annulla
@@ -178,18 +173,6 @@
     }
   }
 </section>
-
-<!-- Conferma semplice: numero e data del documento esterno restano quelli
-     già acquisiti sul documento. -->
-<app-confirm-dialog
-  [(open)]="registerDialogOpen"
-  [title]="registerButtonLabel"
-  [message]="registerDialogMessage"
-  confirmLabel="Conferma"
-  cancelLabel="Annulla"
-  [busy]="actionSaving()"
-  (confirmed)="registerExternal()"
-/>
 
 <app-confirm-dialog
   [(open)]="cancelDialogOpen"

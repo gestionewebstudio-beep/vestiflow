@@ -86,11 +86,6 @@ export class ListDocumentsQueryDto extends PaginationQueryDto {
   @IsUUID()
   externalDocumentTypeId?: string;
 
-  @IsOptional()
-  @Transform(({ value }) => value === '1' || value === 'true' || value === true)
-  @IsBoolean()
-  accountant?: boolean;
-
   /** DDT vendita confermati senza bozza fattura derivata. */
   @IsOptional()
   @Transform(({ value }) => value === '1' || value === 'true' || value === true)
