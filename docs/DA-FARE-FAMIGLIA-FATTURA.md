@@ -393,18 +393,22 @@ dialogo di conferma. **Non esiste l'azione inversa**: nessun modo di tornare ind
 **Nella UI il pulsante compare su tre tipi** — Fattura, Fattura accompagnatoria, Proforma — e
 solo se lo stato è `confirmed`, `printed` o `sent`.
 
-### ⛔ La logica funzionale che va decisa: è l'unico stato non modificabile
+### ✅ Il blocco modifica si ritira con lo stato — deciso il 16/08
 
-`CONFIRMED_EDITABLE_STATUSES` = `confirmed · printed · sent`. **`externally_registered` non c'è**,
-e la stessa lista è duplicata nel frontend. Quindi oggi:
+`CONFIRMED_EDITABLE_STATUSES` = `confirmed · printed · sent`, e `externally_registered` non c'è:
+è oggi l'**unico blocco definitivo** dell'applicazione oltre all'annullamento, e senza ritorno.
 
-> Un documento registrato esternamente **non è più modificabile**, e non esiste modo di tornare
-> indietro. È l'unico blocco definitivo dell'applicazione oltre all'annullamento.
+> **Si ritira insieme allo stato. Nessun blocco permanente lo sostituisce.** I documenti tornano
+> a seguire le normali regole di modifica e sblocco previste dal loro stato e dal loro tipo.
 
-**Togliendo lo stato si toglie anche quel blocco.** Non è un effetto collaterale da assorbire: è
-una decisione che spetta a Luigi. Le strade sono tre — nessun blocco (ogni documento resta
-modificabile previo sblocco), un blocco legato ad altro (il ciclo FE, quando ci sarà), oppure
-uno esplicito e reversibile che oggi non esiste.
+L'eventuale **immutabilità di una Fattura realmente emessa** si progetta nel blocco Fatturazione
+elettronica, e dovrà dipendere dal **vero stato fiscale** del documento — non da «registrata
+esternamente», che non lo è mai stato.
+
+Nella pratica non si tocca nulla: le due liste `CONFIRMED_EDITABLE_STATUSES` (API e frontend)
+restano **identiche a com'erano**. Il blocco spariva perché lo stato non era nella lista; tolto
+lo stato, sparisce il blocco. **Nessuna riga da modificare, ed è il motivo per cui va scritto:
+un lettore futuro che non trova la modifica potrebbe pensare che sia stata dimenticata.**
 
 ### Un difetto già presente, latente
 
@@ -413,11 +417,6 @@ uno stato che nessuna azione produce più — mentre l'azione chiamata «Inviata
 scrive `externally_registered`, che finisce sotto **«Registrate esternamente»**. Premere il
 pulsante fa comparire il documento nella casella sbagliata. È **latente**: i contatori guardano
 solo `invoice_draft`, e nel database non ce n'è nessuno.
-
-### Il dato reale
-
-Due documenti in quello stato, **entrambi `goods_receipt`** — non fatture. Vanno spostati a un
-altro stato prima di poter rimuovere il valore.
 
 ### Cosa protegge i test
 
@@ -428,27 +427,113 @@ test di frontend, nessun e2e.
 ### ⚠️ Il vincolo tecnico: un valore di enum Postgres non si toglie
 
 `ALTER TYPE … DROP VALUE` **non esiste**. Rimuoverlo davvero dal database significa ricreare il
-tipo — pesante su un database condiviso col collega. La via praticabile è in due tempi:
-**prima** si rimuovono codice, UI e azione lasciando il valore nell'enum; **poi**, quando serve
-e in una finestra concordata, si valuta se toglierlo anche dal tipo.
+tipo — pesante su un database condiviso col collega. **Deciso il 16/08: il valore resta
+nell'enum, e non si prepara nessuna migration distruttiva per toglierlo.**
 
-### ✅ Si può fare come blocco autonomo?
+---
 
-**Sì, e in due tagli.**
+### I due arrivi merce — verificati il 16/08, **nessun record aggiornato**
 
-**Taglio 1 — indipendente da tutto, sicuro.** Togliere l'azione «Inviata al commercialista» e le
-sue tracce: pulsante e dialogo nei due dettagli, endpoint, metodo di servizio, le due voci di
-filtro, l'avviso dell'arrivo merce, il contatore del registro. Non tocca la Fatturazione
-elettronica, non tocca i corrispettivi, non tocca la Nota di credito. **La sola cosa che serve
-prima è la decisione sul blocco modifica.**
+**Stato attuale, identico per entrambi:**
 
-**Taglio 2 — il database, quando conviene.** Spostare i due arrivi merce a un altro stato, poi
-eventualmente ricreare il tipo enum. Rimandabile a tempo indefinito senza costo.
+| Campo                                  | `CAR-2026-0003`         | `CAR-2026-0008`         |
+| -------------------------------------- | ----------------------- | ----------------------- |
+| numero · fornitore                     | 3 · fornitore test 1    | 8 · Fornitore test 2    |
+| stato                                  | `externally_registered` | `externally_registered` |
+| data documento · conferma              | 15/07 · 15/07           | 15/07 · 15/07           |
+| **data registrazione**                 | **15/07**               | **15/07**               |
+| numero e data documento esterno        | **vuoti**               | **vuoti**               |
+| riferimento esterno · ordine fornitore | **vuoti**               | **vuoti**               |
+| annullato                              | no                      | no                      |
+| righe · righe che caricano             | 2 · 2                   | 1 · 1                   |
+| movimenti · pezzi                      | 2 · 8                   | 1 · 10                  |
 
-**Nessuna dipendenza dal blocco FE.** Il legame è solo nominale — l'etichetta parla del
-commercialista — ma nel codice non c'è una riga di fatturazione elettronica che lo legga.
+Creati e conclusi **lo stesso giorno**, 15 luglio. Nessun dato del ciclo fornitore compilato:
+l'azione è stata premuta con il dialogo a conferma semplice, che manda un corpo vuoto e scrive
+**solo** stato e data di registrazione.
 
-**Da dove si ricomincia:** dalla decisione sul blocco modifica. Poi il taglio 1, in un commit.
+**Lo stato che avrebbero avuto senza quella funzione: `confirmed`.** Non è una deduzione — è
+come stanno **78 arrivi merce su 81**, tutti con `registration_date` a NULL. Il ciclo ordinario
+dell'Arrivo merce finisce alla conferma: numero assegnato, movimenti generati, `confirmed_at`
+valorizzato. Sopra non c'è nient'altro. Il terzo fuori posto è in `sent`, altro residuo dello
+stesso periodo.
+
+**Cosa comporta cambiare il solo `status`:**
+
+| Ambito                        | Effetto                                                                                                                                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Movimenti e giacenze**      | **nessuno.** I 3 movimenti sono `load`, agganciati per `source_document_id`; nessuna logica di stock guarda lo stato del documento. 3 varianti, 18 pezzi, tutto invariato                                                                  |
+| **Numerazione**               | nessuno: numero e serie già assegnati, il contatore non si tocca                                                                                                                                                                           |
+| **Modificabilità**            | ⚠️ **cambia, ed è voluto**: da bloccati per sempre tornano modificabili previo sblocco, come ogni altro arrivo merce                                                                                                                       |
+| **Registro commercialista**   | ⚠️ il contatore «Documenti fornitore da registrare» passa da **72 a 74**. Non è un difetto: quel contatore cerca arrivi merce senza numero documento esterno, e questi due lo sono. Erano esclusi solo perché lo stato non era nella lista |
+| **Elenco documenti e stampa** | il badge cambia da «Registrato esternamente» a «Confermato»                                                                                                                                                                                |
+
+**Resta un residuo da decidere: `registration_date = 15/07`.** È un campo **legittimo e vivo** —
+colonna «Data registrazione» in elenco, dettaglio e stampa, e **obbligatorio** nella Fattura
+d'acquisto, dove governa la numerazione. Su un arrivo merce però non è normalmente valorizzato
+(0 su 78). Qui l'ha scritto `registerExternal` come effetto collaterale. **Azzerarlo o lasciarlo
+è una scelta di Luigi**, non una conseguenza tecnica: la si prende con il Taglio 2.
+
+---
+
+### ✅ Blocco autonomo — sì, in due tagli
+
+**Nessuna dipendenza dal blocco FE.** Il legame è solo nominale: nel codice non c'è una riga di
+fatturazione elettronica che legga questo stato.
+
+⚠️ **Ordine obbligato fra i due tagli.** `STATUS_LABELS` e `STATUS_TONES` sono
+`Record<DocumentStatus, …>` **esaustivi**: togliendo la voce mentre i due arrivi merce hanno
+ancora quello stato, il loro badge resterebbe **senza etichetta e senza tinta** — nessun errore,
+solo un buco. Quindi **o prima si spostano i due record, o le due voci di etichetta restano
+finché non si spostano.** È la sola sequenza vincolata di tutto il lavoro.
+
+#### Taglio 1 — il codice. Piano preciso, 14 punti
+
+**API — l'azione sparisce**
+
+| #   | File                                                       | Cosa                                                                         |
+| --- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 1   | `documents.service.ts` (~2535-2570)                        | **rimuovere** `registerExternal()`, unica scrittura dello stato              |
+| 2   | `documents.controller.ts` (47, 462-468)                    | **rimuovere** l'endpoint e l'import del DTO                                  |
+| 3   | `dto/register-external.dto.ts`                             | **eliminare il file**: nessun altro consumer                                 |
+| 4   | `accountant-register-document-counts.util.ts` (81-82, 114) | **rimuovere** il contatore `invoice_draft_registered` — vedi §Registro sotto |
+| 5   | `accountant-register.service.ts` (20, 47, 60, 70)          | rimuovere il campo corrispondente                                            |
+
+**Frontend — pulsante, dialogo, filtri, etichette**
+
+| #   | File                                                                            | Cosa                                                                                                                                   |
+| --- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 6   | `document-detail.component.ts` (88-101, 346-356, 501-502, 565, 724, 737-739)    | rimuovere `EXTERNAL_REGISTRATION_*`, `supportsExternalRegistration`, `canRegisterExternal`, `registerDialogOpen`, `registerExternal()` |
+| 7   | `document-detail.component.html` (65-67, 144-155)                               | rimuovere il pulsante e il `app-confirm-dialog`                                                                                        |
+| 8   | `sales-document-detail.component.html` (67-69, 181-192)                         | **stesse due rimozioni**: eredita dal generico ma ha template proprio                                                                  |
+| 9   | `document.service.ts` (351)                                                     | rimuovere il metodo client                                                                                                             |
+| 10  | `document-sales-register.config.ts` (125, 134)                                  | rimuovere **due** voci di filtro (registro generico e registro fatture)                                                                |
+| 11  | `goods-receipt-form.component.ts` (694)                                         | rimuovere il ramo dell'avviso                                                                                                          |
+| 12  | `document-labels.util.ts` (39, 48, 68-74)                                       | ⚠️ **dopo il Taglio 2**: voce di `STATUS_LABELS`, di `STATUS_TONES`, e il ramo in `documentStatusLabelForType`                         |
+| 13  | `core/models/document.model.ts` (66)                                            | ⚠️ **dopo il Taglio 2**: membro dell'enum                                                                                              |
+| 14  | `accountant-register.model.ts` + `accountant-register.component.html` (117-121) | rimuovere campo e riquadro «Registrate esternamente»                                                                                   |
+
+**Test** — `documents.service.spec.ts`: cadono i tre casi di `registerExternal` (1158, 1183, 1198) e quello dei permessi (2806). Restano da adattare i fixture alle righe 1215 e 1842, che
+usano il valore come stato di partenza. **Nessun test frontend, nessun e2e.**
+
+**Non si tocca:** `SalesOrderFiscalStatus` e tutto il Registro Corrispettivi;
+`externallyIssuedAt`, che è un campo diverso del ciclo fattura; `externalDocNumber` /
+`externalDocDate`, che appartengono al ciclo fornitore e li scrivono altre maschere;
+`registrationDate` come campo; le due liste `CONFIRMED_EDITABLE_STATUSES`, che restano identiche.
+
+#### Taglio 2 — i due record, quando Luigi decide
+
+Spostarli a `confirmed`, decidere se azzerare `registration_date`, e **solo dopo** i punti 12 e 13. Il valore resta nell'enum Postgres: nessuna migration distruttiva.
+
+#### ⚠️ Il Registro commercialista — segnalato, non ristrutturato
+
+Il difetto `sent` vs `externally_registered` (sopra) **resta com'è**. Il Taglio 1 toglie il solo
+contatore che conta lo stato in uscita; **non si costruisce nuova logica attorno a quel
+registro** finché non è deciso se quella sezione abbia ancora senso. Da chiarire lì: due dei
+quattro contatori delle «Bozze fattura» contano `sent`, che nessuna azione produce più.
+
+**Da dove si ricomincia:** dal Taglio 1, punti 1-11 e 14, in un commit. I punti 12-13 aspettano
+il Taglio 2.
 
 ---
 
