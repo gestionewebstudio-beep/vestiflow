@@ -1258,30 +1258,25 @@ Una riga documento ne ha di più che l'operatore può digitare. **Cadono**, e no
 
 **L'effetto è quello che Luigi temeva, la causa no.** Non è «ricarica e sovrascrive»: è **un carico incompleto**. La differenza conta perché cambia la correzione — non serve impedire un ricaricamento che non avviene, serve **completare i campi trasportati**.
 
-**Il criterio da fissare prima di scrivere codice**, perché non è ovvio: non tutti i campi vanno portati sempre. La quantità sì, il prezzo sì, l'unità di misura sì. Ma lotto e matricole appartengono alla **merce fisica movimentata**, e un preventivo non ne ha movimentata nessuna: portarle in un DDT significherebbe dichiarare uscita una matricola che l'operatore non ha ancora scelto. Vanno decisi **uno per uno**, non con una regola sola.
+**Il criterio, fissato il 16/08:** l'inclusione **riporta quello che c'è**. Non è una regola per campo ma una regola sola — _si porta ciò che era stato deciso, così com'era_ — e il campo che ne aveva bisogno di più, il lotto, la rende evidente. Vedi sotto.
 
-#### La regola del lotto — decisa il 16/08, confermata su Danea
+#### La regola del lotto — decisa il 16/08, dopo due formulazioni sbagliate
 
-> **Il lotto lo decide il documento che movimenta il magazzino. Una volta deciso è un fatto, e da lì in poi si trascina.**
+> **L'inclusione riporta quello che c'è: se il lotto era già deciso si porta deciso, se non lo era si porta non deciso. Chi ha bisogno del dato e non ce l'ha, lo chiede.**
 
-_Prima formulazione, corretta da Luigi lo stesso giorno: avevo scritto «il lotto non si trascina», che è vero solo a monte del movimento. **Se un DDT ha già deciso i lotti e quel DDT viene incluso in una fattura, la fattura se li porta.**_
+_Terza formulazione, ed è quella di Luigi. Le prime due erano surrogati: «il lotto non si trascina mai» (falso — da un DDT compilato si trascina) e «dipende se la merce si è già mossa» (un **proxy** che correla ma non è la regola). Il criterio non è l'evento, è **lo stato del dato**._
 
-La discriminante non è il tipo di documento: è **se la merce si è già mossa**.
+**Perché il proxy sbagliava.** Un Ordine cliente **potrebbe** avere il lotto deciso, se qualcuno l'ha compilato: allora si porta, anche se nulla si è mosso. E un DDT **potrebbe** essere stato salvato senza deciderlo: allora si porta non deciso, anche se la merce è uscita. Guardare il tipo di documento, o l'aver movimentato, risponde alla domanda sbagliata.
 
-| Origine                                   | Ha movimentato? | Il lotto nel documento che la include           |
-| ----------------------------------------- | --------------- | ----------------------------------------------- |
-| Preventivo · Ordine cliente               | no              | **non esiste ancora** → lo chiede chi movimenta |
-| **DDT vendita** · Fattura accompagnatoria | **sì**          | **già deciso** → si trascina, non si richiede   |
-
-**Il perché.** Prima del movimento il lotto sarebbe un'**intenzione**, e le intenzioni sul magazzino invecchiano: fra l'ordine e la consegna quel lotto può essere finito, scaduto o essere andato a un altro cliente. Dopo il movimento il lotto è un **fatto già avvenuto**: quella merce, con quel lotto, è materialmente uscita. Richiederlo in fattura vorrebbe dire chiedere all'operatore di ridecidere una cosa già successa — e permettergli di scrivere in fattura un lotto diverso da quello davvero consegnato.
+**Un dato mancante non si inventa.** Se a monte non era deciso, arriva vuoto — **anche se quello è uno stato sbagliato**. Il sistema non riempie il buco scegliendo un lotto al posto dell'operatore: lo **segnala**, con gli avvisi che vanno previsti dove le cose sono incomplete. Coerente con la regola dei controlli: warning non bloccanti, blocco solo per l'integrità dei dati.
 
 Ne discendono quattro cose per chi implementa:
 
-1. **L'inclusione trasporta `lotCode` / `lotExpiryDate` / `serialNumbers` quando l'origine ha movimentato**, e non li trasporta quando non l'ha fatto. Oggi non li trasporta **mai**: metà corretto per caso, metà da correggere.
-2. **I documenti che movimentano devono chiederlo** quando l'origine non l'ha deciso: elenco dei lotti in giacenza con numero, scadenza e quantità disponibile, risolto prima di poter confermare.
-3. **Se il lotto disponibile è uno solo si prende quello**, senza chiedere. La domanda è un costo, e si paga solo quando c'è davvero una scelta.
-4. **Il lotto trascinato non si rimette in discussione**: in fattura si legge, non si sceglie. Cambiarlo lì significherebbe dichiarare consegnata merce diversa da quella uscita.
+1. **L'inclusione trasporta `lotCode` / `lotExpiryDate` / `serialNumbers` così come sono**, valorizzati o vuoti. Oggi non li trasporta mai: da correggere in entrambi i versi.
+2. **Ciò che è già deciso non si ridecide.** Si legge, non si sceglie — riaprirlo permetterebbe di scrivere un lotto diverso da quello effettivamente consegnato.
+3. **Ciò che manca si chiede, dove serve.** La domanda scatta quando il documento ha bisogno del lotto e la riga non ce l'ha — **indipendentemente da come quella riga è nata**, per inclusione o digitata.
+4. **La domanda si fa solo se c'è una scelta.** Più lotti disponibili con giacenza positiva → si sceglie, con numero, scadenza e quantità disponibile (la finestra «Ricerca lotto in giacenza» di Danea). **Un lotto solo → si prende, senza chiedere.** Nessuno disponibile → avviso.
 
 Vale identico per le **matricole**, con la differenza che lì la quantità è sempre uno per pezzo.
 
-⚠️ **Il caso limite da guardare quando si implementa:** la **Fattura accompagnatoria**, che movimenta **solo quando non ha un DDT agganciato** (`document-type.util.ts`). Con il DDT agganciato eredita; senza, deve chiedere. È lo stesso documento che si comporta nei due modi, e la discriminante è la stessa: la merce si è già mossa o no.
+**Il caso che chiarisce tutto**, dichiarato da Luigi: una **Fattura accompagnatoria creata da zero**, con gli articoli inseriti a mano. Nessuna inclusione, quindi nessun lotto deciso a monte: quando un articolo ha più lotti disponibili, **lo si sceglie lì**. Non è un'eccezione — è la stessa regola vista dal caso senza origine.

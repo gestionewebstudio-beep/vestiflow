@@ -77,12 +77,12 @@ su quelli che l'operatore può digitare.
 
 Portati: `variantId · sku · barcode · description · quantity · unitPriceMinor · discount · vatCodeId`
 
-| Campo che cade              | Decisione                                                                        |
-| --------------------------- | -------------------------------------------------------------------------------- |
-| **`unitOfMeasure`**         | 🔵 **va portato.** È un dato del documento, digitato dall'operatore              |
-| **`loadsStock`**            | 🟡 da decidere: è del tipo documento o della riga?                               |
-| `lotCode` · `lotExpiryDate` | 🔵 **dipende dall'origine** — si porta se ha movimentato, altrimenti no (voce 3) |
-| `serialNumbers`             | 🔵 **stessa regola**                                                             |
+| Campo che cade              | Decisione                                                           |
+| --------------------------- | ------------------------------------------------------------------- |
+| **`unitOfMeasure`**         | 🔵 **va portato.** È un dato del documento, digitato dall'operatore |
+| **`loadsStock`**            | 🟡 da decidere: è del tipo documento o della riga?                  |
+| `lotCode` · `lotExpiryDate` | 🔵 **si porta com'era** — deciso o vuoto, senza inventare (voce 3)  |
+| `serialNumbers`             | 🔵 **stessa regola**                                                |
 
 ⚠️ **L'unità di misura si perde due volte**, e la seconda è peggiore: la maschera vendita non
 la manda al salvataggio e `computeLines` scrive `null`. Quindi una fattura che l'ha ereditata
@@ -94,29 +94,26 @@ da un DDT **la perde al primo salvataggio**, in silenzio. Entra nella voce 5.
 
 ## 3 · La scelta del lotto in uscita — 🔵 regola decisa, funzione da costruire
 
-> **Il lotto lo decide il documento che movimenta il magazzino. Una volta deciso è un fatto, e
-> da lì in poi si trascina.**
+> **L'inclusione riporta quello che c'è: se il lotto era già deciso si porta deciso, se non lo
+> era si porta non deciso. Chi ha bisogno del dato e non ce l'ha, lo chiede.**
 
-Confermato osservando Danea (16/08): includendo un ordine in un DDT, è **il DDT** a chiedere
-quale lotto, e **solo se ce n'è più di uno disponibile con giacenza positiva**. Ma **se quel
-DDT viene poi incluso in una fattura, la fattura i lotti se li porta**: sono già decisi.
+_Terza formulazione, ed è quella di Luigi. Le prime due erano surrogati: «non si trascina mai»
+(falso — da un DDT compilato si trascina) e «dipende se la merce si è già mossa» (un **proxy**
+che correla ma non è la regola). **Il criterio non è l'evento, è lo stato del dato.**_
 
-**La discriminante non è il tipo di documento: è se la merce si è già mossa.**
+**Perché il proxy sbagliava.** Un Ordine cliente **potrebbe** avere il lotto deciso, se
+qualcuno l'ha compilato: allora si porta, anche se nulla si è mosso. E un DDT **potrebbe**
+essere stato salvato senza deciderlo: allora si porta vuoto, anche se la merce è uscita.
 
-| Origine                                | Ha movimentato? | Nel documento che la include      |
-| -------------------------------------- | --------------- | --------------------------------- |
-| Preventivo · Ordine cliente            | no              | **non esiste ancora** → si chiede |
-| **DDT vendita** · Fattura accompagnat. | **sì**          | **già deciso** → si trascina      |
+**Un dato mancante non si inventa.** Se a monte non era deciso arriva vuoto, **anche se quello
+è uno stato sbagliato**: il sistema non riempie il buco scegliendo al posto dell'operatore, lo
+**segnala**. Gli avvisi sull'incompleto vanno previsti — warning non bloccanti, come da regola
+dei controlli.
 
-**Il perché è di dominio:** prima del movimento il lotto è un'**intenzione**, e le intenzioni
-sul magazzino invecchiano — fra ordine e consegna può essere finito, scaduto o andato ad
-altri. Dopo il movimento è un **fatto già avvenuto**: quella merce, con quel lotto, è
-materialmente uscita. Richiederlo in fattura significherebbe permettere di scrivere un lotto
-diverso da quello davvero consegnato.
-
-⚠️ **Caso limite:** la **Fattura accompagnatoria** movimenta **solo senza DDT agganciato**.
-Con il DDT eredita, senza deve chiedere. Stesso documento, due comportamenti — e la
-discriminante è sempre la stessa.
+**Il caso che chiarisce tutto**, dichiarato da Luigi: una **Fattura accompagnatoria creata da
+zero**, articoli inseriti a mano. Nessuna inclusione, nessun lotto deciso a monte → quando un
+articolo ha più lotti disponibili, **lo si sceglie lì**. Non è un'eccezione: è la stessa regola
+vista dal caso senza origine.
 
 ### Cosa esiste e cosa manca
 
@@ -130,28 +127,24 @@ discriminante è sempre la stessa.
 
 ### Come deve comportarsi
 
-**Quando l'origine NON ha movimentato — il documento chiede:**
+**Il lotto sulla riga è già valorizzato** (arrivato da un'inclusione, o digitato):
 
-- **Un solo lotto disponibile → si prende quello**, senza chiedere. La domanda è un costo, e
-  si paga solo quando c'è davvero una scelta.
-- **Più lotti → si chiede**, mostrando numero, scadenza e **quantità disponibile**, come fa
-  la finestra «Ricerca lotto in giacenza» di Danea.
-- **Nessun lotto disponibile** → è un avviso, non un blocco (regola dei controlli: warning
-  non bloccanti, salvo integrità dei dati).
+- **si legge, non si sceglie.** Riaprirlo permetterebbe di scrivere un lotto diverso da quello
+  effettivamente consegnato;
+- **niente interrogazione delle giacenze**: se quella merce è già uscita non è più in giacenza,
+  e la domanda darebbe la risposta sbagliata.
 
-**Quando l'origine HA movimentato — il documento eredita:**
+**Il lotto manca e il documento ne ha bisogno** — indipendentemente da come la riga è nata:
 
-- il lotto arriva dalla riga d'origine e **si legge, non si sceglie**: cambiarlo significherebbe
-  dichiarare consegnata merce diversa da quella uscita;
-- niente interrogazione delle giacenze: quella merce **non è più in giacenza**, è già uscita.
-  Chiedere «quali lotti sono disponibili» darebbe la risposta sbagliata proprio nel caso in cui
-  la domanda non andava fatta.
+- **un solo lotto disponibile → si prende quello**, senza chiedere. La domanda è un costo, e si
+  paga solo quando c'è davvero una scelta;
+- **più lotti → si sceglie**, con numero, scadenza e **quantità disponibile**, come la finestra
+  «Ricerca lotto in giacenza» di Danea;
+- **nessun lotto disponibile** → avviso, non blocco.
 
 Vale identico per le **matricole**, dove però la quantità è sempre uno per pezzo.
 
-**Da dove si ricomincia:** dall'endpoint dei lotti disponibili — serve al primo caso, ed è il
-pezzo mancante a monte. Ma il **secondo** caso non ne ha bisogno: si chiude estendendo il
-carico dell'inclusione (voce 2), che è lavoro indipendente e più piccolo.
+**Da dove si ricomincia:** i due casi sono lavori separati. **Trasportare ciò che è già deciso** si chiude estendendo il carico dell'inclusione (voce 2), e non richiede niente di nuovo. **Chiedere ciò che manca** richiede l'endpoint dei lotti disponibili, che non esiste: è il pezzo a monte del resto.
 
 ---
 
