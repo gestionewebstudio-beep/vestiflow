@@ -174,11 +174,11 @@
 
                 @if (showListinoSelect() && !formReadOnly()) {
                   <div class="doc-panel__field">
-                    <span class="doc-panel__label">Prezzo</span>
+                    <span class="doc-panel__label">Listino</span>
                     <app-select-menu
                       [options]="listinoOptions()"
                       [value]="listinoValue()"
-                      ariaLabel="Prezzo applicato alle righe"
+                      ariaLabel="Listino applicato alle righe"
                       placeholder="Prezzo articolo"
                       [compact]="true"
                       [fullWidth]="true"
@@ -373,20 +373,24 @@
                  campo di testata la teneva lontana dai numeri che governa, e
                  rendeva questa maschera l'unica diversa (`07-…§24`). -->
 
-            <!-- (§B4): non è un dato del documento, è come lo si riempie.
+            <!-- Listino (§B4): non è un dato del documento, è come lo si riempie.
                  Sceglierlo riscrive i prezzi delle righe, che restano
                  modificabili una per una.
-                 Si chiama «Prezzo» e non «Listino» per decisione del 16/08: i
-                 listini in VestiFlow non sono mai stati usati, e la parola
-                 chiedeva all'operatore di imparare un termine per una cosa che
-                 per lui è il prezzo applicato. -->
+                 ⚠️ NON è il selettore netto/ivato, che vive sull'intestazione
+                 della colonna Prezzo: sono due controlli diversi che stanno solo
+                 vicini in testata. Qui si sceglie QUALE listino alimenta le
+                 righe (`products.listino1..3_price_minor`, accesi nelle
+                 impostazioni del tenant); là si sceglie COME leggere l'importo.
+                 Rinominarlo «Prezzo» — fatto per errore in `3d1afa37` e
+                 annullato — confonde le due cose e usa la stessa parola della
+                 colonna degli importi. -->
             @if (showListinoSelect() && !formReadOnly()) {
               <div class="doc-form__field">
-                <span class="doc-form__label">Prezzo</span>
+                <span class="doc-form__label">Listino</span>
                 <app-select-menu
                   [options]="listinoOptions()"
                   [value]="listinoValue()"
-                  ariaLabel="Prezzo applicato alle righe"
+                  ariaLabel="Listino applicato alle righe"
                   placeholder="Prezzo articolo"
                   [compact]="true"
                   [fullWidth]="true"

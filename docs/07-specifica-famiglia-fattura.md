@@ -1013,6 +1013,22 @@ La stessa tendina era scritta a mano in **tre** maschere — Arrivo merce, Ordin
 
 Il menu «Modalità prezzo» mostrava **«Netto» due volte**: `app-select-menu` ha `includeEmptyOption` a `true` di default e rendeva una voce fantasma con l'etichetta del segnaposto. Il valore non è mai vuoto, quindi la voce non serviva. Corretto in tutte e quattro le maschere che hanno quel campo su mobile — dove il campo resta, perché su card le intestazioni di colonna non esistono.
 
-### «Listino» si chiama «Prezzo»
+### ⚠️ «Listino» resta «Listino» — la rinomina era una regressione, annullata
 
-_Deciso il 16/08._ I listini in VestiFlow non sono mai stati usati, e la parola chiedeva all'operatore di imparare un termine per una cosa che per lui è il prezzo applicato. Il campo che sceglie **quale prezzo alimenta le righe** si chiama ora **«Prezzo»**, testata e mobile.
+_Questa sezione diceva che il campo era stato rinominato «Prezzo», con la motivazione «i listini non sono mai stati usati». **Era falso, ed è stato annullato il 16/08** con un commit correttivo. Resta scritto perché l'errore è istruttivo._
+
+**Sono tre cose diverse, e vanno tenute separate:**
+
+| Controllo       | Cosa decide                                 | Dove sta                          |
+| --------------- | ------------------------------------------- | --------------------------------- |
+| **Listino**     | **quale sorgente prezzi** alimenta le righe | campo di testata                  |
+| **Netto/Ivato** | **come si legge** l'importo                 | intestazione della colonna Prezzo |
+| **Prezzo**      | il **valore economico** della riga          | la colonna                        |
+
+**Il Listino è un selettore commerciale vero**, non l'etichetta del netto/ivato che gli sta accanto in testata: ha lo stato tipizzato (`'article' | 1 | 2 | 3`), le opzioni dagli slot accesi nelle impostazioni del tenant col loro nome, un avviso dedicato quando un articolo non ha prezzo nel listino scelto, e **sceglierlo riscrive i prezzi di tutte le righe**. I prezzi vivono in `products.listino1..3_price_minor`.
+
+**E i listini sono in uso**, misurato: **tutti e quattro i tenant** hanno `listino1_active = true`, uno li ha anche battezzati.
+
+**Come è successo, perché non ricapiti:** la richiesta conteneva una condizione — «se listino non l'abbiamo mai usato» — e la rinomina è stata eseguita **senza verificarla**. Bastava una query. È lo stesso schema del menu «Nuovo» (§22): agire su una premessa non misurata.
+
+**La guardia** sta in `sales-document-form.component.spec.ts` e fissa la **distinzione**, non l'etichetta: il selettore si chiama «Listino» e offre le **sorgenti prezzo del tenant**, non «Netto» e «Ivato». Provata reintroducendo la rinomina: fallisce.

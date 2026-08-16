@@ -18,6 +18,7 @@ import { ExternalDocumentTypeService } from '@domain/documents/services/external
 import { ProductService } from '@domain/products/services/product.service';
 import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 import { TenantCompanyService } from '@domain/tenant/services/tenant-company.service';
+import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature-settings.model';
 import { TenantFeatureSettingsService } from '@domain/tenant/services/tenant-feature-settings.service';
 
 import { SalesDocumentFormComponent } from './sales-document-form.component';
@@ -90,6 +91,11 @@ interface SetupOptions {
    * difetto del ripiego a Proforma si vedeva.
    */
   readonly documentNeverLoads?: boolean;
+  /**
+   * Impostazioni del tenant. Servono al selettore **Listino**, che compare solo
+   * quando c'è più di una sorgente prezzo fra cui scegliere.
+   */
+  readonly tenantSettings?: TenantFeatureSettings | null;
 }
 
 describe('SalesDocumentFormComponent', () => {
@@ -213,7 +219,10 @@ describe('SalesDocumentFormComponent', () => {
         // Tipi documento della controparte: li chiede il blocco condiviso in
         // testata, che senza un HttpClient nel test non arriverebbe in fondo.
         { provide: ExternalDocumentTypeService, useValue: { list: () => of([]) } },
-        { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
+        {
+          provide: TenantFeatureSettingsService,
+          useValue: { getSettings: () => of(options.tenantSettings ?? null) },
+        },
         // Dati cedente: alimentano l'IBAN precompilato in fattura.
         { provide: TenantCompanyService, useValue: { getCompany: () => of(null) } },
         { provide: ToastService, useValue: toast },
@@ -620,6 +629,71 @@ describe('SalesDocumentFormComponent', () => {
       });
 
       expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Modifica proforma');
+    });
+  });
+
+  /**
+   * Il selettore **Listino** non è il selettore netto/ivato — guardia del 16/08.
+   *
+   * Il 16/08 l'etichetta «Listino» è stata rinominata «Prezzo» credendo che
+   * fosse il titolo del controllo netto/ivato che le sta accanto in testata
+   * (commit `3d1afa37`, annullato). Sono due controlli diversi, e la premessa
+   * su cui poggiava la rinomina — «i listini non li abbiamo mai usati» — era
+   * falsa: i prezzi stanno in `products.listino1..3_price_minor` e tutti i
+   * tenant hanno il primo listino acceso.
+   *
+   * Il test fissa la DISTINZIONE, non l'etichetta:
+   * - **Listino** = quale sorgente prezzi alimenta le righe;
+   * - **netto/ivato** = come si legge l'importo (sull'intestazione di colonna);
+   * - **Prezzo** = il valore economico della riga.
+   */
+  describe('il selettore Listino non è il selettore netto/ivato', () => {
+    const CON_DUE_LISTINI: TenantFeatureSettings = {
+      lotsEnabled: false,
+      serialsEnabled: false,
+      variantsEnabled: true,
+      barcodeScannerEnabled: true,
+      supplierOrdersEnabled: true,
+      goodsReceiptEnabled: true,
+      warehouseValuationEnabled: true,
+      allowNegativeInventory: false,
+      warnNegativeInventory: true,
+      blockNegativeInventory: false,
+      defaultUnitOfMeasure: 'pz',
+      defaultVatCodeId: null,
+      listino1Name: 'Ingrosso',
+      listino1Active: true,
+      listino2Name: null,
+      listino2Active: false,
+      listino3Name: 'Outlet',
+      listino3Active: true,
+    };
+
+    it('si chiama «Listino», e non prende il nome del valore che governa', async () => {
+      await setup({ tenantSettings: CON_DUE_LISTINI });
+
+      // Testata desktop e pannello mobile convivono nel DOM: due occorrenze
+      // sono la norma in questa maschera, e l'etichetta deve essere la stessa.
+      expect(screen.getAllByLabelText('Listino applicato alle righe').length).toBeGreaterThan(0);
+      // Il nome accessibile non deve diventare «Prezzo…»: quella parola è già
+      // della colonna degli importi, e chiamare così anche questo rende i due
+      // controlli indistinguibili per chi usa un lettore di schermo.
+      expect(screen.queryByLabelText('Prezzo applicato alle righe')).toBeNull();
+    });
+
+    it('offre le SORGENTI prezzo del tenant, non netto e ivato', async () => {
+      const view = await setup({ tenantSettings: CON_DUE_LISTINI });
+      const component = view.component as unknown as {
+        listinoOptions: () => readonly { readonly label: string }[];
+      };
+
+      // Se un giorno queste diventassero «Netto»/«Ivato», qualcuno avrà fuso i
+      // due controlli: sono le due cose che questa guardia tiene separate.
+      expect(component.listinoOptions().map((o) => o.label)).toEqual([
+        'Prezzo articolo',
+        'Ingrosso',
+        'Outlet',
+      ]);
     });
   });
 });
