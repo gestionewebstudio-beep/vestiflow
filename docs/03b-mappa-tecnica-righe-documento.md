@@ -1182,3 +1182,57 @@ Dalla più volatile alla più stabile:
 | Difetti (§9)                                  | alcuni potrebbero essere già stati corretti altrove         |
 | Sovrapposizione fra le due celle gemelle (§3) | solo se qualcuno tocca quelle due celle                     |
 | Forma di `VatCode` e `PaymentOption` (§6)     | raramente — sono schema                                     |
+
+---
+
+## 16. Le colonne di prezzo: quale maschera ne ha quale, e chi può scriverci
+
+_Misurato il 16/08/2026, chiarendo con Luigi la semantica. Nessuna modifica._
+
+Le maschere documento hanno **due colonne di prezzo diverse**, e non è la stessa cosa scritta in due modi:
+
+| Colonna                               | Cos'è                                                   | Dove                                    | Editabile               |
+| ------------------------------------- | ------------------------------------------------------- | --------------------------------------- | ----------------------- |
+| `unitPrice` — «Prezzo»                | il **prezzo del documento**, quello che il cliente paga | Ordine cliente · DDT · maschera vendita | **sì**                  |
+| `sellingPrice` — «Prezzo al pubblico» | il prezzo **di catalogo** dell'articolo                 | Ordine fornitore · Arrivo merce         | **dipende, vedi sotto** |
+
+### La stessa colonna, due mestieri diversi
+
+`sellingPrice` è **in sola lettura sull'Ordine fornitore** (`doc-form__cell--readonly doc-form__cell--computed`) ed **editabile sull'Arrivo merce** (`<input formControlName="sellingPrice">`).
+
+Non è un'incoerenza: sono due momenti diversi. Quando ordini guardi il prezzo di vendita per decidere quanto comprare; quando la merce arriva, quello è il momento in cui il prezzo di vendita si stabilisce o si aggiorna. **Va però saputo prima di toccarla**, perché rende la stessa richiesta due cose diverse nelle due maschere.
+
+### La regola di dominio sul prezzo, dichiarata da Luigi
+
+> **Il prezzo si propone, poi appartiene alla riga.**
+
+- In Preventivo e Ordine cliente il prezzo viene **proposto** (dall'articolo o dal listino scelto in testata), e resta modificabile riga per riga.
+- Quando quel documento viene **incluso o convertito** in un documento di vendita — ordine, DDT, fattura — la riga si riporta **così com'è**: se nel preventivo l'articolo era stato portato a 10 €, nel documento generato vale 10 €.
+
+**Verificato nel codice:** l'inclusione trasporta `unitPriceMinor: line.unitPrice.amountMinor`, il prezzo della riga d'origine. Non c'è nessun ricalcolo dal listino lungo quel percorso (`document-include.util.ts`).
+
+### ⚠️ Il caso che il codice tratta in due modi — aperto
+
+Il **cambio del listino in testata** riscrive i prezzi delle righe. Ma:
+
+| Maschera         | Cosa riscrive                                                        |
+| ---------------- | -------------------------------------------------------------------- |
+| Ordine cliente   | tutte le righe con un articolo, **saltando le righe di riferimento** |
+| Maschera vendita | **tutte** le righe con un articolo, nessuna eccezione                |
+
+Quindi un prezzo negoziato — arrivato da un preventivo incluso, o digitato a mano — **viene sovrascritto** se si tocca il listino dopo. In silenzio: l'unico avviso scatta quando il listino quel prezzo non ce l'ha affatto.
+
+**Due letture, entrambe difendibili**, e la scelta è di dominio:
+
+1. _«cambiare listino vuol dire riprezzare tutto»_ → il comportamento è giusto, manca un avviso prima di farlo;
+2. _«un prezzo concordato non si tocca»_ → il cambio listino deve saltare le righe con prezzo modificato a mano.
+
+**Dato che pesa sulla scelta:** oggi la riga **non registra** se il suo prezzo viene dal listino o è stato negoziato. Per distinguerli servirebbe un'informazione in più.
+
+Comunque si decida, **la differenza fra le due maschere resta da sanare**: la stessa azione dà due risultati diversi a seconda di dove la fai.
+
+### Registrato e non fatto: il netto/ivato su «Prezzo al pubblico»
+
+Richiesta di Luigi (16/08): quella colonna non dice se è netta o ivata, e chi lavora all'ingrosso ha bisogno di leggerla nell'uno o nell'altro modo. Il componente esiste già (`app-price-mode-menu`, `07-…§25`).
+
+⚠️ **Ma significa due cose diverse nelle due maschere**, e va deciso prima: sull'Ordine fornitore sarebbe un **cambio di vista** su un valore in sola lettura; sull'Arrivo merce, dove la colonna si scrive, sarebbe un **modo di inserimento**, come già è per il Costo.
