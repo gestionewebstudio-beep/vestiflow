@@ -270,10 +270,18 @@ export function corrispettiviFiltersToQuery(
     che già calcola resta vuota. Non è un espediente — è esattamente il
     percorso di prima, lasciato intatto.
 
-    Quando l'API parlerà il plurale, questo diventa un `origini` esplicitamente
-    vuoto: **è l'unico caso in cui un insieme vuoto sul filo significa
-    «niente»**, ed è il motivo per cui deve avere un nome proprio invece di
-    condividere `[]` con «tutti».
+    ⚠️ **Quando l'API parlerà il plurale, questo NON diventa un `origini`
+    vuoto.** Sarebbe caricare l'array vuoto di due significati opposti — «tutti»
+    e «niente» — cioè ricreare sul filo esattamente l'ambiguità che questo
+    booleano esiste per sciogliere, e nel punto in cui è più difficile
+    accorgersene. La regola resta una sola, ovunque:
+
+        insieme vuoto o parametro assente  →  nessuna restrizione  →  TUTTI
+        nessunRisultato                    →  contraddizione       →  ZERO
+
+    Il flag sopravvive quindi fino a dove il dataset si può interrompere: o un
+    parametro esplicito suo sull'API, o un corto circuito nel service prima
+    della richiesta. Mai travestito da insieme.
   */
   if (filters.nessunRisultato) {
     return {

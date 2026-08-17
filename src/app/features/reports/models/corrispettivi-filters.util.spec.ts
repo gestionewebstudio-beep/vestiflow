@@ -207,6 +207,49 @@ describe('la domanda che parte verso l’API', () => {
   });
 });
 
+describe('«tutti» e «niente» non condividono mai la stessa scrittura', () => {
+  /**
+   * ⚠️ Le due righe di questa tabella sono la ragione d'essere di
+   * `nessunRisultato`. Se un giorno collassassero — se «nessun risultato»
+   * tornasse a essere un insieme vuoto — il Registro mostrerebbe TUTTO dove
+   * deve mostrare niente, e nessun errore lo segnalerebbe.
+   */
+  it('nessun filtro chiede tutte le righe; la contraddizione non ne chiede nessuna', () => {
+    const tutti = parseCorrispettiviFilters(indirizzo({}));
+    const niente = parseCorrispettiviFilters(indirizzo({ ambito: 'online', origine: 'store' }));
+
+    expect(tutti.origini).toEqual([]);
+    expect(tutti.nessunRisultato).toBe(false);
+
+    // Stesso insieme vuoto di origini, significato opposto: a distinguerli è
+    // **solo** il flag. È il motivo per cui non può sparire nel plurale.
+    expect(niente.origini).toEqual([]);
+    expect(niente.nessunRisultato).toBe(true);
+  });
+
+  /**
+   * I filtri normali non producono mai un insieme vuoto verso l'API: o portano
+   * un valore, o non compaiono. `in: []` in Prisma non è «tutti», è «niente».
+   */
+  it('nessun filtro normale genera un insieme vuoto sul filo', () => {
+    const casi = [
+      indirizzo({}),
+      indirizzo({ origini: CORRISPETTIVI_ORIGINI.join(',') }),
+      indirizzo({ tipi: 'sales,returns,refunds' }),
+      indirizzo({ origini: 'store', tipi: 'sales', sedi: 'loc-1' }),
+    ];
+
+    for (const params of casi) {
+      const filtri = parseCorrispettiviFilters(params);
+      if (filtri.nessunRisultato) continue;
+
+      for (const valore of Object.values(corrispettiviFiltersToQuery(filtri))) {
+        expect(Array.isArray(valore) && valore.length === 0).toBe(false);
+      }
+    }
+  });
+});
+
 describe('Ambito è una scorciatoia, non un filtro', () => {
   it('«Tutti» non restringe niente', () => {
     expect(originiPerAmbito('all')).toEqual([]);
