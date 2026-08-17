@@ -962,7 +962,29 @@
                             class="doc-form__num"
                             [style.width]="lineColumnWidth('sellingPrice')"
                           >
-                            Prezzo di vendita
+                            <!-- Modalità dei PREZZI DI VENDITA, distinta da quella dei
+                                 costi: governa insieme prezzo di vendita, barrato e
+                                 prezzo Shopify. Stato di sessione, seminato dalla
+                                 convenzione aziendale e mai persistito. -->
+                            <span class="doc-form__th-menu-wrap">
+                              <button
+                                type="button"
+                                class="doc-form__th-sort doc-form__th-sort--num"
+                                aria-haspopup="menu"
+                                aria-label="Modalità dei prezzi di vendita"
+                                (click)="salesPriceModeMenuOpen.set(!salesPriceModeMenuOpen())"
+                              >
+                                {{ salesPricesIncludeVat() ? 'Prezzo ivato' : 'Prezzo netto' }}
+                              </button>
+                              <app-price-mode-menu
+                                [pricesIncludeVat]="salesPricesIncludeVat()"
+                                netLabel="Usa prezzi netti"
+                                grossLabel="Usa prezzi ivati"
+                                ariaLabel="Modalità dei prezzi di vendita"
+                                [disabled]="formReadOnly()"
+                                (modeChange)="selectSalesPriceMode($event)"
+                              />
+                            </span>
                             <span
                               appTableColumnResize
                               [minWidthPx]="lineColumnMinWidth('sellingPrice')"

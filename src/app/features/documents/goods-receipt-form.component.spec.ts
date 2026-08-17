@@ -113,6 +113,8 @@ interface GoodsReceiptSetupOptions {
   readonly counters?: readonly DocumentCounterView[];
   /** Numero che il server assegna davvero al salvataggio. */
   readonly assignedNumber?: number;
+  /** Convenzione aziendale sui prezzi di vendita: semina la modalità di riga. */
+  readonly salesPricesIncludeVat?: boolean;
 }
 
 /** Operatore senza permessi: l'array salvato È la verità, anche vuoto. */
@@ -193,7 +195,17 @@ function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
     },
     { provide: VatCodeService, useValue: { list: () => of(options?.vatCodes ?? []) } },
     { provide: PaymentOptionsService, useValue: { list: () => of([]) } },
-    { provide: TenantFeatureSettingsService, useValue: { getSettings: () => of(null) } },
+    {
+      provide: TenantFeatureSettingsService,
+      useValue: {
+        getSettings: () =>
+          of(
+            options?.salesPricesIncludeVat === undefined
+              ? null
+              : ({ salesPricesIncludeVat: options.salesPricesIncludeVat } as never),
+          ),
+      },
+    },
     {
       provide: TableViewPreferenceApiService,
       useValue: { load: () => of(null), save: () => of(undefined) },
@@ -937,6 +949,172 @@ describe('GoodsReceiptFormComponent', () => {
 
       expect(form.lines.at(0).controls['variantId']!.value).toBe('var-1');
       expect(form.lines.at(0).controls['supplierSku']!.value).toBe('F-100');
+    });
+  });
+
+  /**
+   * I PREZZI DI VENDITA della riga di arrivo merce — 17/08/2026.
+   *
+   * ⚠️ Prima di oggi le tre colonne (prezzo di vendita, barrato, prezzo
+   * Shopify) si leggevano e si scrivevano GREZZE: di fatto nette, senza dirlo.
+   * E siccome la convenzione aziendale predefinita è ivata, in anagrafica si
+   * digitava ivato e qui lo stesso numero finiva netto — **due schermate,
+   * stesso prezzo, due significati**.
+   *
+   * Il COSTO ha la sua modalità e non c'entra: concorre al totale del
+   * documento, questi tre no. Sono dati dell'ARTICOLO che passano di qui.
+   */
+  describe('modalità dei prezzi di vendita', () => {
+    const IVA_22 = {
+      id: 'vat-22',
+      code: '22',
+      description: 'IVA 22%',
+      ratePercent: 22,
+      nonDeductiblePercent: 0,
+      calculationMode: 'standard',
+      vatAffectsSupplierTotal: true,
+      usageScope: 'both',
+      isActive: true,
+      isDefault: true,
+      natureKey: null,
+      natureLabel: null,
+      officialCode: null,
+      notes: null,
+      sortOrder: 0,
+    };
+
+    async function conRiga(options?: {
+      salesPricesIncludeVat?: boolean;
+      prezzo?: string;
+      barrato?: string;
+    }) {
+      const { fixture } = await setup({
+        vatCodes: [IVA_22],
+        salesPricesIncludeVat: options?.salesPricesIncludeVat,
+      });
+      const component = fixture.componentInstance;
+      component.form.controls.supplierId.setValue('sup-1');
+      component.form.controls.locationId.setValue('loc-1');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      let guard = 0;
+      while (component['lines'].length === 0 && guard++ < 20) {
+        component['addLine']();
+      }
+      const line = component['lines'].at(0);
+      line.controls.productName.setValue('Articolo');
+      line.controls.quantity.setValue(1);
+      line.controls.vatCodeId.setValue(IVA_22.id);
+      if (options?.prezzo !== undefined) {
+        line.controls.sellingPrice.setValue(options.prezzo);
+      }
+      if (options?.barrato !== undefined) {
+        line.controls.compareAtPrice.setValue(options.barrato);
+      }
+      return { fixture, component, line };
+    }
+
+    it('azienda IVATA: la riga nasce in modalità ivata', async () => {
+      const { component } = await conRiga({ salesPricesIncludeVat: true });
+
+      expect(component['salesPricesIncludeVat']()).toBe(true);
+    });
+
+    it('azienda NETTA: la riga nasce in modalità netta', async () => {
+      const { component } = await conRiga({ salesPricesIncludeVat: false });
+
+      expect(component['salesPricesIncludeVat']()).toBe(false);
+    });
+
+    it('azienda ivata, 70,00 digitati: al server va il NETTO canonico', async () => {
+      const { component, line } = await conRiga({
+        salesPricesIncludeVat: true,
+        prezzo: '70,00',
+      });
+
+      // 70 / 1,22 = 57,377049… — la coda è ciò che fa tornare 70,00.
+      const netto = component['lineSalesNetMinor'](line, 'sellingPrice') as number;
+      expect(netto).toBeCloseTo(5737.7049, 3);
+      expect(netto).not.toBe(5738);
+    });
+
+    it('azienda netta, 70,00 digitati: il netto è 70,00, nessuna conversione', async () => {
+      const { component, line } = await conRiga({
+        salesPricesIncludeVat: false,
+        prezzo: '70,00',
+      });
+
+      expect(component['lineSalesNetMinor'](line, 'sellingPrice')).toBe(7000);
+    });
+
+    it('il cambio modalità muove i TRE campi insieme', async () => {
+      const { component, line } = await conRiga({
+        salesPricesIncludeVat: false,
+        prezzo: '100,00',
+        barrato: '150,00',
+      });
+      line.controls.shopifyPrice.setValue('120,00');
+
+      component['selectSalesPriceMode'](true);
+
+      expect(line.controls.sellingPrice.value).toBe('122,00');
+      expect(line.controls.compareAtPrice.value).toBe('183,00');
+      expect(line.controls.shopifyPrice.value).toBe('146,40');
+    });
+
+    it('il cambio modalità PREZZI non tocca il costo', async () => {
+      const { component, line } = await conRiga({
+        salesPricesIncludeVat: false,
+        prezzo: '100,00',
+      });
+      line.controls.unitCost.setValue('50,00');
+
+      component['selectSalesPriceMode'](true);
+
+      expect(line.controls.unitCost.value).toBe('50,00');
+      expect(component['costEntryMode']()).toBe('vat_excluded');
+    });
+
+    it('il cambio modalità COSTO non tocca i prezzi di vendita', async () => {
+      const { component, line } = await conRiga({
+        salesPricesIncludeVat: false,
+        prezzo: '100,00',
+      });
+
+      component['selectCostMode']('vat_included');
+
+      expect(line.controls.sellingPrice.value).toBe('100,00');
+      expect(component['salesPricesIncludeVat']()).toBe(false);
+    });
+
+    /**
+     * ⚠️ La prova che il giro non deriva: il campo mostra due decimali, e
+     * ricalcolare il netto da lì a ogni cambio limerebbe la coda al primo
+     * passaggio — 70,00 tornerebbe 69,99.
+     */
+    it('ivato → netto → ivato: il valore economico non deriva', async () => {
+      const { component, line } = await conRiga({
+        salesPricesIncludeVat: true,
+        prezzo: '70,00',
+      });
+      const partenza = component['lineSalesNetMinor'](line, 'sellingPrice');
+
+      component['selectSalesPriceMode'](false);
+      expect(line.controls.sellingPrice.value).toBe('57,38');
+
+      component['selectSalesPriceMode'](true);
+      expect(line.controls.sellingPrice.value).toBe('70,00');
+      expect(component['lineSalesNetMinor'](line, 'sellingPrice')).toBe(partenza);
+    });
+
+    it('campo vuoto resta vuoto: assente non è zero', async () => {
+      const { component, line } = await conRiga({ salesPricesIncludeVat: true });
+
+      expect(component['lineSalesNetMinor'](line, 'compareAtPrice')).toBeNull();
+
+      component['selectSalesPriceMode'](false);
+      expect(line.controls.compareAtPrice.value).toBe('');
     });
   });
 });

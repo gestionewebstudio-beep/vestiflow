@@ -147,21 +147,38 @@ metodo privato che non usava `this`, e **nessuna prova la copriva** mentre decid
 che finiscono sotto gli occhi del cliente. Nove prove, fra cui quella che `null` non diventa
 `0.00`.
 
-#### ⬜ Resta: l’Arrivo merce
+#### ✅ Fatto: anche l’Arrivo merce
 
 Le sue tre colonne di vendita — Prezzo di vendita, Prezzo barrato, Prezzo Shopify — **non
-seguono nessuna modalità**: si scrivono e si rileggono grezze, quindi di fatto nette senza
-dirlo. Deciso il 17/08: **selettore di sessione come in anagrafica**, inizializzato dalla
-convenzione aziendale, **nessuna persistenza e nessuna memoria**.
+seguivano nessuna modalità**: si scrivevano e si rileggevano grezze, quindi nette senza dirlo.
+E siccome la convenzione predefinita è ivata, in anagrafica si digitava ivato e qui lo stesso
+numero finiva netto: **due schermate, stesso prezzo, due significati.**
 
-⚠️ **Trappola per chi esegue:** l’Arrivo merce è un documento di **acquisto**, quindi
-`resolvePricesIncludeVat` gli risponde `false` per costruzione. Le tre colonne devono leggere
-**direttamente** `salesPricesIncludeVat` — il componente inietta già
-`TenantFeatureSettingsService`, quindi la convenzione è a portata di mano senza endpoint nuovi.
+Adesso hanno **un solo stato** netto/ivato, distinto da quello dei costi:
 
-⚠️ **Perché conta:** oggi la convenzione predefinita è ivata, quindi in anagrafica si digita
-ivato; sulla riga dell’Arrivo merce si digita lo stesso numero intendendolo ivato e finisce
-netto. **Due schermate, stesso prezzo, due significati.**
+```text
+salesPricesIncludeVat (tenant)  →  semina lo stato di sessione  →  il selettore lo cambia
+                                                                →  nessuna persistenza
+```
+
+⚠️ **Seminato, non letto ogni volta.** Leggere la convenzione a ogni conversione avrebbe reso
+la modalità **fissa**, e il selettore un comando che non comanda.
+
+⚠️ **E non passa da `resolvePricesIncludeVat`**: l’Arrivo merce è un documento di acquisto,
+quindi quella catena gli risponde `false` per costruzione. La convenzione arriva dal tenant,
+che il componente aveva già iniettato.
+
+**Il costo resta separato**, con la sua modalità di documento: concorre al totale, questi tre
+no — sono dati dell’ARTICOLO che passano di qui, ed è la seconda porta che scrive l’anagrafica.
+
+**Difetto trovato dalle prove, non dall’occhio:** al primo tentativo i netti venivano letti
+**dopo** aver cambiato modalità, e il giro diventava un’identità — il campo non si muoveva di
+un centesimo e la modalità cambiava solo di nome. Adesso si leggono prima e si riscrivono dopo,
+come nell’Ordine cliente.
+
+Nove prove, fra cui le sette chieste: azienda ivata e netta, i tre campi che si muovono
+insieme, prezzi e costo che non si toccano a vicenda, il giro senza deriva, il campo vuoto che
+resta vuoto. Mutazione: rimesso l’ordine sbagliato, due prove si accendono.
 
 ### ⬜ Da fare: separare «Prezzi di vendita» da «Listini»
 
