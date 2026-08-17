@@ -240,24 +240,29 @@ export class ProductGeneralStepComponent implements OnInit {
   });
 
   /**
-   * Il segnaposto del Codice IVA **dice quale aliquota si applicherà**.
+   * Il campo mostra **l'aliquota, e basta** — la stessa cosa che mostra quando
+   * un codice è scelto esplicitamente (`triggerLabel`).
    *
-   * ⚠️ Diceva «Predefinito aziendale», che è vero e inutile: l'operatore
-   * guardava l'anagrafica e non sapeva se quell'articolo sarebbe uscito al 22%
-   * o al 10% — per saperlo doveva aprire Impostazioni, in un'altra schermata,
+   * ⚠️ Diceva «Predefinito aziendale», che è vero e inutile: guardando la
+   * scheda non si sapeva se quell'articolo sarebbe uscito al 22% o al 10%, e
+   * per saperlo si doveva aprire Impostazioni — un altro pezzo di applicazione,
    * per un dato che sta a due centimetri dal campo.
    *
-   * Il valore resta **vuoto** nel controllo, e non è un dettaglio: significa
+   * ⚠️ E non basta aggiungerla accanto: «Predefinito aziendale · 22%» dice due
+   * cose dove ne serve una, e la parola lunga si prende il campo per spiegare
+   * un meccanismo che all'operatore non serve conoscere mentre compila. Chi
+   * vuole sapere DA DOVE viene quell'aliquota apre la tendina, dove la voce lo
+   * dice per esteso.
+   *
+   * Il valore salvato resta **vuoto**, e non è un dettaglio: vuoto significa
    * «segui la convenzione aziendale», quindi il giorno in cui l'azienda cambia
    * predefinita questo articolo la segue. Scrivere il codice dentro al campo lo
-   * congelerebbe — è la stessa distinzione fra convenzione e memoria del
+   * congelerebbe — è la stessa distinzione fra convenzione e memoria di
    * `regole-gestionale`. A cambiare è ciò che si LEGGE, non ciò che si salva.
    */
   protected readonly vatPlaceholder = computed(() => {
     const predefinito = this.vatCodes().find((entry) => entry.isDefault);
-    return predefinito
-      ? `Predefinito aziendale · ${formatVatRate(predefinito.ratePercent)}`
-      : 'Predefinito aziendale';
+    return predefinito ? formatVatRate(predefinito.ratePercent) : 'Predefinito aziendale';
   });
 
   protected readonly trackingSelectOptions: readonly SelectMenuOption[] = (
