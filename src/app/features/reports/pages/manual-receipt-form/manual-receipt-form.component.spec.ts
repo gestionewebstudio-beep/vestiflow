@@ -384,3 +384,43 @@ describe('ManualReceiptFormComponent — numero ed eliminazione', () => {
     expect(remove).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Il rifiuto del salvataggio si VEDE (17/08/2026).
+ *
+ * ⚠️ **Il difetto era un pulsante che sembrava rotto.** `submitError` esisteva,
+ * era `protected` e veniva calcolato correttamente — e nessuno lo leggeva:
+ * l'unico banner della maschera era agganciato agli errori di CARICAMENTO.
+ * Ogni rifiuto finiva in un signal che non arrivava a schermo.
+ *
+ * La prova attraversa il varco della Sede apposta: senza quello il salvataggio
+ * si ferma prima, sul campo obbligatorio, e non arriverebbe mai al controllo
+ * sulle righe — cioè al punto in cui il difetto viveva.
+ */
+describe('ManualReceiptFormComponent — il rifiuto del salvataggio si vede', () => {
+  it('lettere nell’importo: la riga non vale, e la maschera lo dice', async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    // 1. Il varco: senza Sede le righe restano spente e non si arriva al punto.
+    await scegliSede(user);
+
+    // 2. Un importo che non è un importo. Il campo lo ACCETTA di proposito:
+    //    `type="text" inputmode="decimal"` è la scelta giusta, perché con i
+    //    separatori decimali italiani `type="number"` non va.
+    const importo = screen.getAllByLabelText(/Importo riga 1/i)[0] as HTMLInputElement;
+    await user.clear(importo);
+    await user.type(importo, 'abc');
+
+    // 3. Il rifiuto.
+    await user.click(screen.getByRole('button', { name: 'Salva corrispettivo' }));
+
+    // 4. ⚠️ E si vede. Prima qui non compariva niente: il messaggio esisteva,
+    //    scritto in un signal che il template non leggeva.
+    //
+    //    `findAll` e non `find`: in jsdom convivono la vista a tabella e quella
+    //    a card — a nasconderne una è il CSS, che qui non gira. Basta che il
+    //    rifiuto sia leggibile, non che lo sia una volta sola.
+    expect((await screen.findAllByText(/Aggiungi almeno una riga/i)).length).toBeGreaterThan(0);
+  });
+});
