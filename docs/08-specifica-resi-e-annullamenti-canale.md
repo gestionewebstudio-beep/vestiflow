@@ -3,7 +3,7 @@
 **Data:** 14/08/2026
 **Stato del documento:** piano, non consuntivo. Ogni voce porta il proprio stato. Nessuna voce va letta come già fatta se non lo dice.
 **Owner:** Luigi
-**Migration richiesta:** per il §4 **una additiva, già fatta** il 14/08 (`sales_order_refunds`) — qui era scritto «nessuna», e il §4 spiega perché è cambiato. Ne serve **una distruttiva** per eliminare `corrispettivo_entries` (§10): è l'ultima cosa, e va in due tempi.
+**Migration richiesta:** per il §4 **una additiva, già fatta** il 14/08 (`sales_order_refunds`). La **distruttiva** che elimina `corrispettivo_entries` (§10) è stata **fatta il 17/08** — migration `20260817140000_ritira_corrispettivo_legacy`.
 
 **Perimetro.** Cosa succede a un ordine di canale **dopo** la vendita: annullamento, rimborso, reso, rientro della merce, e cosa ne è del Corrispettivo. Non tratta la sincronizzazione in sé (`02`), non tratta i difetti uno per uno (`01`, punti 2.13-2.15 e 3.8).
 
@@ -338,9 +338,19 @@ Da affrontare quando si costruiranno i filtri e gli export del **registro deriva
 6. **§5 e §6 — i commenti.** Il perché della data del corrispettivo accanto a `createFromFulfilledOrderTx`, e la correzione di `emitRestockEvents`. Il secondo è ✅ **fatto il 14/08**.
 7. **Le fonti normative in allegato** — una volta sola, e i «riferito» del §4, del §5 e del §8 diventano verificati.
 
-## §10 · Cosa serve perché `corrispettivo_entries` smetta di essere scritta
+## §10 · ✅ `corrispettivo_entries` — ritirata il 17/08/2026
 
-_Censimento del 14/08/2026. La decisione è dell'11/08 (`04` §8) ma il codice non l'ha seguita: **ogni evasione ne scrive ancora una**._
+_Censimento del 14/08/2026, chiuso il 17/08. La decisione era dell’11/08 (`04` §8) e il codice non l’aveva seguita: allora **ogni evasione ne scriveva ancora una**._
+
+> **Chiuso.** Le due tabelle, gli endpoint, la maschera, i DTO, `CorrispettivoEntryStatus` e
+> `DocumentType.corrispettivo` **nel codice** sono caduti con la migration
+> `20260817140000_ritira_corrispettivo_legacy`. Il valore resta morto nel tipo PostgreSQL
+> (`ALTER TYPE … DROP VALUE` non esiste) e la guardia `check:registro` lo tiene fuori.
+>
+> ⚠️ **Prima di eliminare è stato censito cosa si stava perdendo** (`10` §11): la domanda era
+> se quella verticale contenesse già la **registrazione manuale economica** in stile Danea.
+> Verdetto **A** — era solo il duplicatore automatico. Il **Corrispettivo manuale** (`10` §12)
+> è quindi funzione nuova, non un ripristino.
 
 **La superficie è piccola: 13 file** fra API e frontend nominano l'entità. E due vincoli che si temevano non ci sono:
 
@@ -395,12 +405,14 @@ Nessuno storico dell'operatore da migrare prima che la tabella cada. L'unica not
 
    Il mini-censimento prima di togliere ha trovato **tre viste** che leggevano la voce e non erano il registro: il badge nel dettaglio Vendita online, la colonna nell'elenco Vendite online e quella negli Ordini cliente. Mostravano numero `COR-…` e stato, cioè un oggetto persistente che nel modello derivato non esiste — lì il corrispettivo è un periodo, non un documento. **Tolti insieme alla scrittura**, senza sostituirli: «rientra nel registro di agosto» sarebbe quasi tautologico, visto che ogni vendita evasa ci rientra per definizione. Un eventuale «Apri nel Registro Corrispettivi» è una funzione di navigazione nuova, da valutare a parte.
 
-   Cosa **non** è caduto, e va saputo: `DocumentType.corrispettivo` resta nella configurazione — prefisso `COR`, etichetta, famiglia permessi. Solo la **numerazione** non è più consumata. Toglierlo è un lavoro a sé.
+   Cosa **non** era caduto il 14/08, e va saputo: `DocumentType.corrispettivo` restava nella
+   configurazione — prefisso `COR`, etichetta, famiglia permessi; solo la **numerazione** non era
+   più consumata. ✅ **Tolto anche quello il 17/08**, insieme al resto.
 
    ⚠️ E non chiude il difetto dell'aliquota media (`01` §3.12): la stessa ripartizione alimenta anche le righe della **Vendita online**, che restano. Spegne uno scrittore su due.
 
 5. **La numerazione cade da sé**: `DocumentType.corrispettivo` è consumato in **un solo punto** (`online-sale-fulfillment.service.ts:580`). È il «togliere al corrispettivo la numerazione che ha» del `04` §8.
-6. **La migration che elimina le tabelle è DISTRUTTIVA**, ed è la prima di questo ramo. Il database è condiviso e c'è un ambiente pubblicato: va fatta **in due tempi** — prima si smette di scrivere e leggere, poi, in un rilascio successivo, si eliminano le tabelle.
+6. **La migration che elimina le tabelle è DISTRUTTIVA**, ed è la prima di questo ramo. ✅ **Fatta il 17/08 in due tempi, come previsto**: il 14/08 si è smesso di scrivere e leggere, il 17/08 sono cadute le tabelle. Il rischio residuo — `main` su Railway scriveva ancora quelle tabelle a ogni evasione, quindi fino al rilascio di questo ramo un ordine evaso manda in rollback l’intera transazione — è stato **messo a verbale e accettato**: nessun tenant è in produzione vera.
 
 **I passi 1-4 non richiedono nessuna migration.** Solo il 6 la richiede, e può aspettare quanto serve.
 

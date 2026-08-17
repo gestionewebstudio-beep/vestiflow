@@ -142,7 +142,7 @@ export interface SalesOrder extends TenantScoped, Timestamped {
     readonly type: string;
     readonly status: string;
   };
-  /** Vendita online generata dall'evasione (fase 2): scarico + Corrispettivo. */
+  /** Vendita online generata dall'evasione (fase 2): lo scarico di magazzino. */
   readonly onlineSale?: SalesOrderOnlineSaleLink;
   // ── Testata Ordine cliente manuale (source = manual) ──
   /** Location/magazzino di origine degli impegni. */
@@ -218,17 +218,6 @@ export const OnlineSaleInventoryStatus = {
 export type OnlineSaleInventoryStatus =
   (typeof OnlineSaleInventoryStatus)[keyof typeof OnlineSaleInventoryStatus];
 
-/** Stato della voce Corrispettivo collegata alla Vendita online. */
-export const CorrispettivoEntryStatus = {
-  ToVerify: 'to_verify',
-  Included: 'included',
-  ExcludedInvoiced: 'excluded_invoiced',
-  Adjusted: 'adjusted',
-  Refunded: 'refunded',
-} as const;
-export type CorrispettivoEntryStatus =
-  (typeof CorrispettivoEntryStatus)[keyof typeof CorrispettivoEntryStatus];
-
 /** Riferimento alla Vendita online collegata a un ordine evaso. */
 export interface SalesOrderOnlineSaleLink {
   readonly id: EntityId;
@@ -236,10 +225,4 @@ export interface SalesOrderOnlineSaleLink {
   readonly fulfilledAt: IsoDateString;
   readonly inventoryStatus: OnlineSaleInventoryStatus;
   readonly refundedAt?: IsoDateString;
-  readonly corrispettivo?: {
-    readonly id: EntityId;
-    readonly reference: string;
-    readonly fiscalDate: IsoDateString;
-    readonly status: CorrispettivoEntryStatus;
-  };
 }

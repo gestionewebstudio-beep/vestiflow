@@ -9,16 +9,9 @@ import { ApiHttpClient } from '@core/http/api-http.client';
 import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 
-import {
-  mapCorrispettivoStatus,
-  mapInventoryStatus,
-} from '@domain/sales-orders/services/sales-order-api.mapper';
+import { mapInventoryStatus } from '@domain/sales-orders/services/sales-order-api.mapper';
 
 import type {
-  CorrispettivoEntryDetail,
-  CorrispettivoEntryListQuery,
-  CorrispettivoEntryRow,
-  CorrispettivoEntryUpdate,
   OnlineSaleDetail,
   OnlineSaleListQuery,
   OnlineSaleRow,
@@ -27,68 +20,30 @@ import type {
 const HTTP_TIMEOUT_MS = 15000;
 
 /** Righe API con stati come stringhe grezze (mappate nei modelli frontend). */
-type OnlineSaleApiRow = Omit<OnlineSaleRow, 'inventoryStatus' | 'corrispettivoStatus'> & {
+type OnlineSaleApiRow = Omit<OnlineSaleRow, 'inventoryStatus'> & {
   readonly inventoryStatus: string;
-  readonly corrispettivoStatus: string | null;
 };
 
-type OnlineSaleApiDetail = Omit<
-  OnlineSaleDetail,
-  'inventoryStatus' | 'corrispettivoStatus' | 'corrispettivo'
-> & {
+type OnlineSaleApiDetail = Omit<OnlineSaleDetail, 'inventoryStatus'> & {
   readonly inventoryStatus: string;
-  readonly corrispettivoStatus: string | null;
-  readonly corrispettivo: {
-    readonly id: EntityId;
-    readonly reference: string;
-    readonly fiscalDate: string;
-    readonly status: string;
-  } | null;
-};
-
-type CorrispettivoEntryApiRow = Omit<CorrispettivoEntryRow, 'status'> & {
-  readonly status: string;
-};
-
-type CorrispettivoEntryApiDetail = Omit<CorrispettivoEntryDetail, 'status'> & {
-  readonly status: string;
 };
 
 function mapOnlineSaleRow(row: OnlineSaleApiRow): OnlineSaleRow {
-  return {
-    ...row,
-    inventoryStatus: mapInventoryStatus(row.inventoryStatus),
-    corrispettivoStatus: row.corrispettivoStatus
-      ? mapCorrispettivoStatus(row.corrispettivoStatus)
-      : null,
-  };
+  return { ...row, inventoryStatus: mapInventoryStatus(row.inventoryStatus) };
 }
 
 function mapOnlineSaleDetail(row: OnlineSaleApiDetail): OnlineSaleDetail {
-  return {
-    ...row,
-    inventoryStatus: mapInventoryStatus(row.inventoryStatus),
-    corrispettivoStatus: row.corrispettivoStatus
-      ? mapCorrispettivoStatus(row.corrispettivoStatus)
-      : null,
-    corrispettivo: row.corrispettivo
-      ? { ...row.corrispettivo, status: mapCorrispettivoStatus(row.corrispettivo.status) }
-      : null,
-  };
-}
-
-function mapEntryRow(row: CorrispettivoEntryApiRow): CorrispettivoEntryRow {
-  return { ...row, status: mapCorrispettivoStatus(row.status) };
-}
-
-function mapEntryDetail(row: CorrispettivoEntryApiDetail): CorrispettivoEntryDetail {
-  return { ...row, status: mapCorrispettivoStatus(row.status) };
+  return { ...row, inventoryStatus: mapInventoryStatus(row.inventoryStatus) };
 }
 
 /**
- * Accesso al registro Vendite online e al registro Corrispettivi (fase 3
- * §4-§5). Le vendite sono read-only (snapshot di sistema); sulle voci
- * corrispettivo sono modificabili solo stato, data fiscale ed esclusioni.
+ * Accesso al registro Vendite online (fase 3 §4): snapshot di sistema, sola
+ * lettura. Nessuna schermata li crea o li modifica.
+ *
+ * ⚠️ Qui c'erano anche i tre metodi del registro Corrispettivi legacy
+ * (`/online-sales/register/entries`). Sono caduti il 17/08/2026 insieme alle
+ * loro tabelle: il Registro attuale è una vista **derivata** che aggrega
+ * vendite e documenti per periodo, e vive in `features/reports`.
  */
 @Injectable({ providedIn: 'root' })
 export class OnlineSalesService {
@@ -121,51 +76,6 @@ export class OnlineSalesService {
     return this.http
       .get<OnlineSaleApiDetail>(this.url(`/online-sales/${id}`))
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapOnlineSaleDetail));
-  }
-
-  getCorrispettivoEntries(
-    query: CorrispettivoEntryListQuery = {},
-  ): Observable<PaginatedResponse<CorrispettivoEntryRow>> {
-    let params = new HttpParams()
-      .set('page', String(query.page ?? 1))
-      .set('pageSize', String(query.pageSize ?? 20));
-    params = appendIfPresent(params, {
-      search: query.search,
-      channel: query.channel,
-      status: query.status,
-      fiscalFrom: query.fiscalFrom,
-      fiscalTo: query.fiscalTo,
-      invoiceIssued: query.invoiceIssued,
-      excludedFromSummary: query.excludedFromSummary,
-      vatRatePercent: query.vatRatePercent,
-    });
-
-    return this.http
-      .get<ApiPaginated<CorrispettivoEntryApiRow>>(this.url('/online-sales/register/entries'), {
-        params,
-      })
-      .pipe(
-        timeout(HTTP_TIMEOUT_MS),
-        map((response) => {
-          const paginated = toPaginatedResponse(response);
-          return { data: paginated.data.map(mapEntryRow), meta: paginated.meta };
-        }),
-      );
-  }
-
-  getCorrispettivoEntryById(id: EntityId): Observable<CorrispettivoEntryDetail> {
-    return this.http
-      .get<CorrispettivoEntryApiDetail>(this.url(`/online-sales/register/entries/${id}`))
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapEntryDetail));
-  }
-
-  updateCorrispettivoEntry(
-    id: EntityId,
-    update: CorrispettivoEntryUpdate,
-  ): Observable<CorrispettivoEntryRow> {
-    return this.http
-      .patch<CorrispettivoEntryApiRow>(this.url(`/online-sales/register/entries/${id}`), update)
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapEntryRow));
   }
 
   private url(path: string): string {

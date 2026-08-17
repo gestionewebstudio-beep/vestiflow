@@ -37,7 +37,7 @@ const FAMILY_TO_TYPES: Readonly<Record<DocumentPermissionFamily, readonly Docume
     DocumentType.credit_note,
   ],
   store_sale: [DocumentType.store_sale, DocumentType.store_return],
-  online_sale: [DocumentType.online_sale, DocumentType.corrispettivo],
+  online_sale: [DocumentType.online_sale],
   transfer: [DocumentType.transfer],
   adjustment: [
     DocumentType.adjustment,
@@ -68,6 +68,22 @@ export function documentTypesOfFamily(family: DocumentPermissionFamily): readonl
   return FAMILY_TO_TYPES[family];
 }
 
+/**
+ * Famiglia di un tipo, o `null` se non ne ha. Serve alle DUE domande che
+ * arrivano da fuori — «può vedere?» e «può gestire?» — dove un tipo senza
+ * famiglia deve dare un **diniego**, non un errore.
+ *
+ * ⚠️ La differenza con `documentFamilyOf` non è cosmetica. Quella tira apposta,
+ * perché il chiamante che le passa un tipo sta lavorando su un documento vero e
+ * un tipo orfano lì è un difetto. Qui invece il tipo arriva **dal client** —
+ * `assertCanViewDocumentType` è nata per le rotte che lo ricevono come
+ * parametro — e un tipo che non esiste nella matrice non deve produrre un 500:
+ * deve essere negato. È la stessa risposta che dà già il frontend.
+ */
+function familyOrNull(type: DocumentType): DocumentPermissionFamily | null {
+  return TYPE_TO_FAMILY.get(type) ?? null;
+}
+
 export function canViewDocumentType(
   user: PermissionUser | null | undefined,
   type: DocumentType,
@@ -75,7 +91,10 @@ export function canViewDocumentType(
   if (hasFullTenantAccess(user)) {
     return true;
   }
-  const family = documentFamilyOf(type);
+  const family = familyOrNull(type);
+  if (!family) {
+    return false;
+  }
   // «Gestisci» implica «Consulta»: chi può creare una fattura può leggerla.
   return (
     hasTenantPermission(user, docViewPermission(family)) ||
@@ -115,7 +134,9 @@ export function canManageDocumentType(
   if (hasFullTenantAccess(user)) {
     return true;
   }
-  return hasTenantPermission(user, docManagePermission(documentFamilyOf(type)));
+  const family = familyOrNull(type);
+  // Un tipo senza famiglia non è gestibile da nessuno: vedi `familyOrNull`.
+  return family !== null && hasTenantPermission(user, docManagePermission(family));
 }
 
 /**

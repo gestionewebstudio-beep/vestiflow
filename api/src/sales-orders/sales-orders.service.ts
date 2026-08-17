@@ -22,7 +22,6 @@ export interface SalesOrderOnlineSaleRef {
   readonly fulfilledAt: Date;
   readonly inventoryStatus: string;
   readonly refundedAt: Date | null;
-  readonly corrispettivo: { id: string; reference: string; status: string } | null;
 }
 
 export type SalesOrderListRow = SalesOrder & {
@@ -42,19 +41,13 @@ export type SalesOrderDetailRow = SalesOrder & {
   document: { id: string; reference: string | null; type: string; status: string } | null;
   /** Nome della location di origine (ordini manuali). */
   locationName: string | null;
-  /** Vendita online generata dall'evasione (fase 2), con Corrispettivo collegato. */
+  /** Vendita online generata dall'evasione (fase 2). */
   onlineSale: {
     id: string;
     reference: string;
     fulfilledAt: Date;
     inventoryStatus: string;
     refundedAt: Date | null;
-    corrispettivo: {
-      id: string;
-      reference: string;
-      fiscalDate: Date;
-      status: string;
-    } | null;
   } | null;
 };
 
@@ -126,7 +119,6 @@ export class SalesOrdersService {
               // Location di scarico: è la risposta alla colonna quando gli
               // impegni non ci sono più. Non esce nella riga (vedi sotto).
               location: { select: { name: true } },
-              corrispettivo: { select: { id: true, reference: true, status: true } },
             },
           },
           reservations: {
@@ -156,7 +148,6 @@ export class SalesOrdersService {
             fulfilledAt: onlineSale.fulfilledAt,
             inventoryStatus: onlineSale.inventoryStatus,
             refundedAt: onlineSale.refundedAt,
-            corrispettivo: onlineSale.corrispettivo,
           }
         : null,
       committedQuantity: reservations.reduce(
@@ -192,9 +183,6 @@ export class SalesOrdersService {
             fulfilledAt: true,
             inventoryStatus: true,
             refundedAt: true,
-            corrispettivo: {
-              select: { id: true, reference: true, fiscalDate: true, status: true },
-            },
           },
         },
       },

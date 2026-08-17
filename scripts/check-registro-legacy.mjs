@@ -11,6 +11,11 @@
  *     lo storico consegne, `delivered_to_accountant`);
  *   · lo **stato fiscale della vendita** (`sales_orders.fiscal_status`).
  *
+ * Il 17/08/2026 si è aggiunta la quarta, della stessa famiglia: il
+ * **Corrispettivo come documento autonomo** — voci COR-… con numero, stato e
+ * righe proprie, generate a ogni evasione. Il Registro Corrispettivi RESTA:
+ * è una vista derivata, e non ha nulla a che vedere con questo.
+ *
  * Perché serve una guardia e non bastano i test: nessuna di queste cose
  * romperebbe qualcosa tornando. Un `fiscalStatus` riaggiunto a un DTO compila,
  * passa i test e non fa arrossare niente — semplicemente ricostruisce un
@@ -90,6 +95,62 @@ const VIETATI = [
     termine: 'excluded_pos_register',
     perche:
       'Shopify POS COMPARE nel Registro come vendita fisica/POS: non si esclude, si classifica.',
+  },
+
+  // ── Il «Corrispettivo come documento autonomo», ritirato il 17/08/2026 ────
+  // Diverso da tutto ciò che sta sopra, e va tenuto distinto: NON è il
+  // Registro Corrispettivi, che resta ed è una vista **derivata** — aggrega
+  // vendite e documenti per periodo, senza record propri. Qui si vieta il
+  // modello precedente, in cui ogni evasione generava una voce COR-… con un
+  // suo numero, uno stato e le sue righe.
+  //
+  // Termini scelti perché NON collidono col registro derivato, che continua a
+  // usare `corrispettivi-*` in lungo e in largo: `corrispettiviRegisterRoutes`
+  // e `CORRISPETTIVI_ACCOUNTANT_*` sono suoi e restano leciti.
+  {
+    termine: 'CorrispettivoEntry',
+    perche:
+      'voce di corrispettivo con numero e stato propri: il Registro è derivato, una tabella parallela può solo divergere da ciò che rispecchia.',
+  },
+  { termine: 'corrispettivoEntry', perche: 'idem, forma delegate Prisma.' },
+  {
+    termine: 'corrispettivo_entries',
+    perche: 'tabella rimossa dalla migration `ritira_corrispettivo_legacy`.',
+  },
+  { termine: 'corrispettivo_entry_lines', perche: 'idem, righe analitiche.' },
+  {
+    termine: 'CorrispettivoStatus',
+    perche: 'enum PostgreSQL degli stati voce: rimosso col resto della verticale.',
+  },
+  {
+    termine: 'corrispettivoStatus',
+    perche: 'stato della voce esposto su vendite e ordini: non esiste più una voce da qualificare.',
+  },
+  {
+    termine: 'mapCorrispettivoStatus',
+    perche: 'mapper dello stato voce: senza voci non ha nulla da mappare.',
+  },
+  {
+    termine: 'CorrispettivoRegisterService',
+    perche: 'servizio API della maschera legacy: gli endpoint sono caduti con le tabelle.',
+  },
+  {
+    termine: 'CorrispettiviRegisterComponent',
+    perche:
+      'maschera legacy: mostrava aliquote inventate sugli ordini multi-aliquota (registro difetti 3.12). La rotta /app/sales/corrispettivi carica il registro DERIVATO.',
+  },
+  {
+    termine: 'register/entries',
+    perche: 'endpoint della maschera legacy (`/online-sales/register/entries`): rimosso.',
+  },
+  {
+    termine: 'DocumentType.corrispettivo',
+    perche:
+      'tipo documento «corrispettivo»: resta morto nel tipo PostgreSQL (ALTER TYPE ... DROP VALUE non esiste) ma FUORI dal codice. Nessuna riga lo porta.',
+  },
+  {
+    termine: 'DocumentType.Corrispettivo',
+    perche: 'idem, forma frontend.',
   },
 ];
 

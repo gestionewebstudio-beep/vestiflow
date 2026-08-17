@@ -2,7 +2,6 @@
 // riusate da lista, dettaglio, report e dashboard.
 
 import {
-  CorrispettivoEntryStatus,
   OnlineSaleInventoryStatus,
   SalesOrderFinancialStatus,
   SalesOrderFulfillmentStatus,
@@ -83,30 +82,6 @@ export function onlineSaleInventoryStatusLabel(status: OnlineSaleInventoryStatus
 
 export function onlineSaleInventoryStatusTone(status: OnlineSaleInventoryStatus): BadgeTone {
   return ONLINE_SALE_INVENTORY_TONES[status];
-}
-
-const CORRISPETTIVO_STATUS_LABELS: Record<CorrispettivoEntryStatus, string> = {
-  [CorrispettivoEntryStatus.ToVerify]: 'Da verificare',
-  [CorrispettivoEntryStatus.Included]: 'Incluso nel riepilogo',
-  [CorrispettivoEntryStatus.ExcludedInvoiced]: 'Escluso (fatturato)',
-  [CorrispettivoEntryStatus.Adjusted]: 'Rettificato',
-  [CorrispettivoEntryStatus.Refunded]: 'Rimborsato',
-};
-
-const CORRISPETTIVO_STATUS_TONES: Record<CorrispettivoEntryStatus, BadgeTone> = {
-  [CorrispettivoEntryStatus.ToVerify]: 'warning',
-  [CorrispettivoEntryStatus.Included]: 'success',
-  [CorrispettivoEntryStatus.ExcludedInvoiced]: 'neutral',
-  [CorrispettivoEntryStatus.Adjusted]: 'info',
-  [CorrispettivoEntryStatus.Refunded]: 'error',
-};
-
-export function corrispettivoStatusLabel(status: CorrispettivoEntryStatus): string {
-  return CORRISPETTIVO_STATUS_LABELS[status];
-}
-
-export function corrispettivoStatusTone(status: CorrispettivoEntryStatus): BadgeTone {
-  return CORRISPETTIVO_STATUS_TONES[status];
 }
 
 /** Riepilogo righe ordine per lista vendite (titolo Shopify congelato al momento dell'ordine). */

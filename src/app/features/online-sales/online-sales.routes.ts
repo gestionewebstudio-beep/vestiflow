@@ -7,8 +7,8 @@ import {
 } from '@core/permissions/tenant-permissions.util';
 
 // Le pagine appartengono a questa feature ma i path stanno nell'area Vendite:
-// il composition root (app.routes.ts) le monta sotto /app/sales/online e
-// /app/sales/corrispettivi, così sales-orders non deve importare da qui.
+// il composition root (app.routes.ts) le monta sotto /app/sales/online, così
+// sales-orders non deve importare da qui.
 export const onlineSalesRoutes: Routes = [
   {
     path: '',
@@ -25,16 +25,5 @@ export const onlineSalesRoutes: Routes = [
       import('./online-sale-detail.component').then((m) => m.OnlineSaleDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: ONLINE_SALES_VIEW_GROUPS },
-  },
-];
-
-export const corrispettiviRegisterRoutes: Routes = [
-  {
-    path: '',
-    title: 'Corrispettivi',
-    loadComponent: () =>
-      import('./corrispettivi-register.component').then((m) => m.CorrispettiviRegisterComponent),
-    canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: ONLINE_SALES_VIEW_GROUPS, reuse: true },
   },
 ];

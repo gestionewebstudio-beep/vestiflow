@@ -72,7 +72,6 @@ describe('SalesOrdersService', () => {
           inventoryStatus: 'unloaded',
           refundedAt: null,
           location: { name: 'Magazzino test 3' },
-          corrispettivo: null,
         },
         reservations: [],
       },
@@ -91,7 +90,6 @@ describe('SalesOrdersService', () => {
       fulfilledAt: new Date('2026-08-08T13:32:35.000Z'),
       inventoryStatus: 'unloaded',
       refundedAt: null,
-      corrispettivo: null,
     });
   });
 
