@@ -81,6 +81,23 @@ export interface CorrispettiviFilters {
   readonly tipi: readonly string[];
   /** Sedi selezionate. **Vuoto = tutte.** */
   readonly sedi: readonly string[];
+  /**
+   * ⚠️ **«Nessun risultato», che NON è «nessuna restrizione».**
+   *
+   * Sono due stati diversi e non possono condividere `[]`. Un vecchio
+   * indirizzo poteva **contraddirsi** — ambito, canale e origine erano filtri
+   * indipendenti — e `?ambito=online&origine=store` rendeva zero righe. Con la
+   * convenzione «vuoto = tutti», tradurlo in un insieme vuoto direbbe
+   * l'opposto: l'intero registro. E far vincere il vincolo più fine
+   * **allargherebbe** comunque il sottoinsieme, che è ciò che la compatibilità
+   * deve impedire.
+   *
+   * Questo booleano è la rappresentazione minima della differenza. **La UI non
+   * può produrlo**: con Ambito ridotto a scorciatoia sull'insieme Origine
+   * (§16), la contraddizione non è più esprimibile. Serve solo a leggere gli
+   * indirizzi salvati, e con loro morirà.
+   */
+  readonly nessunRisultato: boolean;
 }
 
 /**
@@ -146,7 +163,10 @@ function leggiInsieme(
  * È un difetto che nessun test avrebbe visto, perché l'indirizzo continua a
  * funzionare: risponde solo a una domanda diversa.
  */
-function originiDaiVecchiParametri(params: ParamMap): readonly string[] {
+function originiDaiVecchiParametri(params: ParamMap): {
+  origini: readonly string[];
+  nessunRisultato: boolean;
+} {
   const ambito = params.get('ambito');
   const canale = params.get('canale');
   const origine = params.get('origine');
@@ -159,32 +179,26 @@ function originiDaiVecchiParametri(params: ParamMap): readonly string[] {
   ).map((o) => o.id);
 
   /*
-    ⚠️ **L'indirizzo contraddittorio, e perché non può restare vuoto.**
+    ⚠️ **L'intersezione VERAMENTE vuota è «nessun risultato», non «tutti».**
 
-    Ambito, canale e origine erano filtri INDIPENDENTI, quindi potevano negarsi
-    a vicenda: `?ambito=online&origine=store` rendeva zero righe — ed è
-    esattamente la contraddizione per cui Ambito è stato ritirato (§16).
+    Un vincolo era presente e nessuna origine lo soddisfa: l'indirizzo rendeva
+    zero righe, e deve continuare a renderne zero. Riportarlo come `[]` direbbe
+    l'opposto — «nessuna restrizione» — e mostrerebbe l'intero registro.
 
-    Nella nuova convenzione «vuoto = tutti», però, un'intersezione vuota
-    direbbe il contrario di ciò che l'indirizzo chiedeva: mostrerebbe l'INTERO
-    registro dove prima non mostrava niente. E «nessuna origine» non è
-    esprimibile: è lo stesso insieme di «tutte».
-
-    Vince quindi il vincolo **più fine** fra quelli presenti — l'origine, poi il
-    canale. È l'unica scelta che non mostra mai PIÙ di ciò che l'indirizzo
-    chiedeva, ed è coerente col ritiro: i due vincoli grossolani sono proprio la
-    parte che si sta togliendo.
+    ⚠️ E nemmeno vale far vincere il vincolo più fine: `?ambito=online&
+    origine=store` diventerebbe «tutte le Vendite al banco», cioè un
+    sottoinsieme più LARGO di quello che l'indirizzo descriveva. La
+    compatibilità che si sta preservando è proprio quella.
   */
-  if (scelte.length === 0) {
-    if (origine !== null && origine !== 'all' && CORRISPETTIVI_ORIGINI.includes(origine)) {
-      return [origine];
-    }
-    if (canale !== null && canale !== 'all') {
-      return CORRISPETTIVI_ORIGIN_DEFS.filter((o) => o.canale === canale).map((o) => o.id);
-    }
-  }
+  const qualcheVincolo =
+    (ambito !== null && ambito !== 'all') ||
+    (canale !== null && canale !== 'all') ||
+    (origine !== null && origine !== 'all');
 
-  return normalizza(scelte, CORRISPETTIVI_ORIGINI);
+  return {
+    origini: normalizza(scelte, CORRISPETTIVI_ORIGINI),
+    nessunRisultato: qualcheVincolo && scelte.length === 0,
+  };
 }
 
 /**
@@ -209,11 +223,15 @@ function sediDaiVecchiParametri(params: ParamMap): readonly string[] {
 
 /** I filtri correnti: prima il plurale, poi i vecchi parametri come ripiego. */
 export function parseCorrispettiviFilters(params: ParamMap): CorrispettiviFilters {
+  const plurale = leggiInsieme(params, 'origini', CORRISPETTIVI_ORIGINI);
+  // Il plurale non può contraddirsi: è un insieme, non due vincoli incrociati.
+  const daVecchi = plurale === null ? originiDaiVecchiParametri(params) : null;
+
   return {
-    origini:
-      leggiInsieme(params, 'origini', CORRISPETTIVI_ORIGINI) ?? originiDaiVecchiParametri(params),
+    origini: plurale ?? daVecchi!.origini,
     tipi: leggiInsieme(params, 'tipi', CORRISPETTIVI_TIPI) ?? tipiDaiVecchiParametri(params),
     sedi: leggiInsieme(params, 'sedi') ?? sediDaiVecchiParametri(params),
+    nessunRisultato: daVecchi?.nessunRisultato ?? false,
   };
 }
 
@@ -244,6 +262,29 @@ export function parseCorrispettiviFilters(params: ParamMap): CorrispettiviFilter
 export function corrispettiviFiltersToQuery(
   filters: CorrispettiviFilters,
 ): Pick<CorrispettiviListQuery, 'ambito' | 'canale' | 'origine' | 'rowType' | 'locationId'> {
+  /*
+    ⚠️ **La contraddizione si RIPRODUCE, non si risolve.**
+
+    Zero righe è ciò che quell'indirizzo rendeva, e ciò che deve continuare a
+    rendere: si rimandano all'API due vincoli che si negano, e l'intersezione
+    che già calcola resta vuota. Non è un espediente — è esattamente il
+    percorso di prima, lasciato intatto.
+
+    Quando l'API parlerà il plurale, questo diventa un `origini` esplicitamente
+    vuoto: **è l'unico caso in cui un insieme vuoto sul filo significa
+    «niente»**, ed è il motivo per cui deve avere un nome proprio invece di
+    condividere `[]` con «tutti».
+  */
+  if (filters.nessunRisultato) {
+    return {
+      ambito: 'online',
+      canale: 'all',
+      origine: 'store',
+      rowType: undefined,
+      locationId: undefined,
+    };
+  }
+
   return {
     ambito: ambitoEsprimibile(filters.origini),
     canale: canaleEsprimibile(filters.origini),

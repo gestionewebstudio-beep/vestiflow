@@ -28,6 +28,7 @@ describe('insieme vuoto = nessuna restrizione', () => {
       origini: [],
       tipi: [],
       sedi: [],
+      nessunRisultato: false,
     });
   });
 
@@ -83,21 +84,37 @@ describe('compatibilità con i vecchi indirizzi', () => {
   });
 
   /**
-   * ⚠️ Un indirizzo che si contraddice — ed erano filtri indipendenti, quindi
-   * possibile. Prima rendeva zero righe; lasciarlo diventare l'insieme vuoto
-   * direbbe il CONTRARIO, perché vuoto ora significa «tutti»: l'intero
-   * registro dove prima non c'era niente. Vince il vincolo più fine.
+   * ⚠️ **Il caso che distingue «nessun risultato» da «nessuna restrizione».**
+   *
+   * Ambito e origine erano filtri indipendenti, quindi potevano negarsi:
+   * `?ambito=online&origine=store` rendeva **zero righe**. Riportarlo come
+   * insieme vuoto direbbe il contrario — «tutti» — e far vincere il vincolo
+   * più fine darebbe tutte le Vendite al banco: in un caso più righe di prima,
+   * nell'altro pure. La compatibilità è proprio ciò che si sta preservando.
    */
-  it('un indirizzo contraddittorio non si allarga a «tutti»', () => {
+  it('un indirizzo contraddittorio resta a zero righe, come prima', () => {
     const filtri = parseCorrispettiviFilters(indirizzo({ ambito: 'online', origine: 'store' }));
 
-    expect(filtri.origini).toEqual(['store']);
+    expect(filtri.nessunRisultato).toBe(true);
+    // E la domanda che parte porta due vincoli che si negano: l'intersezione
+    // che l'API già calcola resta vuota, com'era.
+    const query = corrispettiviFiltersToQuery(filtri);
+    expect(query.ambito).toBe('online');
+    expect(query.origine).toBe('store');
   });
 
-  it('contraddizione fra ambito e canale: resta il canale, non tutto', () => {
+  it('contraddizione fra ambito e canale: anche quella è zero righe', () => {
     const filtri = parseCorrispettiviFilters(indirizzo({ ambito: 'online', canale: 'vestiflow' }));
 
-    expect(filtri.origini).toEqual(['store', 'manual_receipt']);
+    expect(filtri.nessunRisultato).toBe(true);
+  });
+
+  /** ⚠️ Un filtro che semplicemente non restringe NON è una contraddizione. */
+  it('senza vincoli non c’è nessuna contraddizione da segnalare', () => {
+    expect(parseCorrispettiviFilters(indirizzo({})).nessunRisultato).toBe(false);
+    expect(
+      parseCorrispettiviFilters(indirizzo({ ambito: 'all', canale: 'all' })).nessunRisultato,
+    ).toBe(false);
   });
 
   /** `refundsOnly` era una congiunzione travestita da booleano. */
@@ -132,7 +149,9 @@ describe('la domanda che parte verso l’API', () => {
    * «vuoto» non significa «tutti», significa NIENTE.
    */
   it('gli insiemi vuoti non diventano un filtro', () => {
-    expect(corrispettiviFiltersToQuery({ origini: [], tipi: [], sedi: [] })).toEqual({
+    expect(
+      corrispettiviFiltersToQuery({ origini: [], tipi: [], sedi: [], nessunRisultato: false }),
+    ).toEqual({
       ambito: 'all',
       canale: 'all',
       origine: undefined,
@@ -143,7 +162,12 @@ describe('la domanda che parte verso l’API', () => {
 
   it('un insieme di uno viaggia come il vecchio parametro singolo', () => {
     expect(
-      corrispettiviFiltersToQuery({ origini: ['store'], tipi: ['returns'], sedi: ['loc-1'] }),
+      corrispettiviFiltersToQuery({
+        origini: ['store'],
+        tipi: ['returns'],
+        sedi: ['loc-1'],
+        nessunRisultato: false,
+      }),
     ).toEqual({
       ambito: 'fisico_pos',
       canale: 'vestiflow',
@@ -159,7 +183,12 @@ describe('la domanda che parte verso l’API', () => {
    */
   it('{resi, rimborsi} non si spaccia per un tipo solo', () => {
     expect(
-      corrispettiviFiltersToQuery({ origini: [], tipi: ['returns', 'refunds'], sedi: [] }).rowType,
+      corrispettiviFiltersToQuery({
+        origini: [],
+        tipi: ['returns', 'refunds'],
+        sedi: [],
+        nessunRisultato: false,
+      }).rowType,
     ).toBeUndefined();
   });
 
