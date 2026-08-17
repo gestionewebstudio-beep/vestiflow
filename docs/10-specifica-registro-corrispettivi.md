@@ -1093,17 +1093,43 @@ cassa esterna. Non lo si usa per correggere vendite online Shopify, che sono rec
 La traduzione avviene **in un punto solo** — `parseCorrispettiviFilters` — che è il posto nato
 apposta perché schermata e stampa non divergessero (§14):
 
-| Vecchio parametro | Diventa                                                    |
-| ----------------- | ---------------------------------------------------------- |
-| `ambito=online`   | `origini = {shopify_online}`                               |
-| `canale=shopify`  | `origini = {shopify_online, shopify_pos}`                  |
-| `origine=store`   | `origini = {store}`                                        |
-| `rowType=returns` | `tipi = {returns}`                                         |
-| `refundsOnly=1`   | `tipi = {returns, refunds}` — la congiunzione, esplicitata |
-| `locationId=x`    | `sedi = {x}`                                               |
+> ⚠️ **I tre parametri di origine si convertono INSIEME, non uno per uno.** Ambito, Canale e
+> Origine oggi si combinano per **intersezione** — è ciò che fa `sourcesFor(ambito, canale,
+origine)` — e tradurli separatamente per poi unire i risultati darebbe un insieme più largo di
+> quello che l'indirizzo salvato descriveva.
+
+|                         | Preso da solo                          | In combinazione                                    |
+| ----------------------- | -------------------------------------- | -------------------------------------------------- |
+| `ambito=fisico_pos`     | `{store, shopify_pos, manual_receipt}` |                                                    |
+| `canale=shopify`        | `{shopify_online, shopify_pos}`        |                                                    |
+| **`ambito=…&canale=…`** | —                                      | **`{shopify_pos}`** — l'intersezione, non l'unione |
+
+La conversione corretta è quindi una sola: **si tiene l'origine che soddisfa TUTTI e tre i vincoli
+presenti**, esattamente come oggi. In pratica è la stessa funzione già scritta, letta al contrario —
+non una nuova tabella da mantenere allineata a mano.
+
+| Vecchio parametro               | Diventa                                                            |
+| ------------------------------- | ------------------------------------------------------------------ |
+| `ambito` · `canale` · `origine` | `origini` = le origini che soddisfano **tutti** i vincoli presenti |
+| `rowType=returns`               | `tipi = {returns}`                                                 |
+| `refundsOnly=1`                 | `tipi = {returns, refunds}` — la congiunzione, esplicitata         |
+| `locationId=x`                  | `sedi = {x}`                                                       |
 
 I nuovi indirizzi portano solo il plurale. Nessun indirizzo salvato smette di funzionare, e nessuno
 dei due sensi di lettura vive in due posti.
+
+### Insieme vuoto = nessuna restrizione = Tutti, **ovunque**
+
+La regola non vale solo per la UI: deve leggersi allo stesso modo in **interfaccia, indirizzo,
+parser, API e riepilogo**. Da cui due conseguenze che vanno scritte, perché sono il punto in cui
+un'implementazione fedele può divergere lo stesso:
+
+- **Un insieme che contiene tutti i valori si normalizza a vuoto.** Altrimenti `origini=a,b,c,d` e
+  l'assenza del parametro sarebbero due scritture della stessa domanda, e due indirizzi diversi per
+  la stessa schermata — che è come nascono le divergenze fra stampa ed elenco.
+- **Vuoto non diventa mai un `in: []` nella query.** Un `in` con l'insieme vuoto in Prisma non
+  significa «tutti»: significa **niente**. Il filtro va omesso, non passato vuoto — ed è il modo più
+  facile di trasformare «Tutti» in «nessuna riga».
 
 ### Il riepilogo segue la selezione — ed è un CAMBIO di comportamento
 
