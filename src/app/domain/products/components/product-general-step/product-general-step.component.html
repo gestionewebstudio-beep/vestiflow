@@ -226,7 +226,7 @@
             [options]="vatSelectOptions()"
             [value]="vatSelectValue()"
             ariaLabel="Codice IVA del prodotto"
-            placeholder="Predefinito aziendale"
+            [placeholder]="vatPlaceholder()"
             [compact]="true"
             [fitContent]="true"
             [includeEmptyOption]="true"

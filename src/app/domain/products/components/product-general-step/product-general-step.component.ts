@@ -239,6 +239,27 @@ export class ProductGeneralStepComponent implements OnInit {
       }));
   });
 
+  /**
+   * Il segnaposto del Codice IVA **dice quale aliquota si applicherà**.
+   *
+   * ⚠️ Diceva «Predefinito aziendale», che è vero e inutile: l'operatore
+   * guardava l'anagrafica e non sapeva se quell'articolo sarebbe uscito al 22%
+   * o al 10% — per saperlo doveva aprire Impostazioni, in un'altra schermata,
+   * per un dato che sta a due centimetri dal campo.
+   *
+   * Il valore resta **vuoto** nel controllo, e non è un dettaglio: significa
+   * «segui la convenzione aziendale», quindi il giorno in cui l'azienda cambia
+   * predefinita questo articolo la segue. Scrivere il codice dentro al campo lo
+   * congelerebbe — è la stessa distinzione fra convenzione e memoria del
+   * `regole-gestionale`. A cambiare è ciò che si LEGGE, non ciò che si salva.
+   */
+  protected readonly vatPlaceholder = computed(() => {
+    const predefinito = this.vatCodes().find((entry) => entry.isDefault);
+    return predefinito
+      ? `Predefinito aziendale · ${formatVatRate(predefinito.ratePercent)}`
+      : 'Predefinito aziendale';
+  });
+
   protected readonly trackingSelectOptions: readonly SelectMenuOption[] = (
     Object.values(InventoryTrackingMode) as InventoryTrackingMode[]
   ).map((value) => ({
