@@ -42,10 +42,25 @@
     }
   </header>
 
+  <!--
+    Qui la card è il SELETTORE DI PERIODO, non una barra di export: il suo
+    pulsante interno chiamava `exportAccountantCsv()`, cioè esattamente la
+    stessa azione di «Export per commercialista» in testata — stesso metodo,
+    stessi filtri, stesso file. Due pulsanti per un'azione sola, e per giunta
+    il secondo era primary: due CTA primarie nella stessa vista, vietato
+    (regole-stile-ui §5).
+
+    Spento QUI e non nel componente condiviso: nelle altre due schermate che
+    lo montano (Report, elenco Ordini cliente) quel pulsante è l'unico modo di
+    esportare, e sta dentro il loro gate di permesso.
+
+    Il posto della primary resta libero per «+ Aggiungi corrispettivo», che
+    oggi non ha ancora una maschera da aprire.
+  -->
   <app-report-corrispettivi-export
     title="Periodo corrispettivi"
     [subtitle]="filterSubtitle()"
-    exportButtonLabel="Esporta CSV periodo"
+    [showExportButton]="false"
     [showChannelFilter]="false"
     [period]="displayPeriod()"
     [dateFrom]="dateFromDraft()"
@@ -54,14 +69,12 @@
     [month]="query().month"
     [quarter]="query().quarter"
     [periodLabel]="periodLabel()"
-    [exporting]="exporting()"
     (periodChange)="onPeriodChange($event)"
     (dateFromChange)="onDateFromChange($event)"
     (dateToChange)="onDateToChange($event)"
     (yearChange)="onYearChange($event)"
     (monthChange)="onMonthChange($event)"
     (quarterChange)="onQuarterChange($event)"
-    (exportClick)="exportAccountantCsv()"
   />
 
   <div class="corrispettivi__filters">
