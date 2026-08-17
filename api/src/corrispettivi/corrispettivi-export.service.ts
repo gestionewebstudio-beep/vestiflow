@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import type { SalesOrderRefundKind } from '@prisma/client';
+
 import type { PdfDocumentInstance } from '../common/pdf/pdf-document.types';
 
 import {
@@ -19,7 +21,11 @@ import {
   financialStatusDisplayLabel,
   sourceDisplayLabel,
 } from '../sales-orders/sales-order.enum-mapper';
-import { CorrispettiviService } from './corrispettivi.service';
+import {
+  CorrispettiviService,
+  type CorrispettiviRegisterRow,
+  type CorrispettiviRowKind,
+} from './corrispettivi.service';
 import type { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
 
 /**
@@ -48,13 +54,60 @@ export const CORRISPETTIVI_ACCOUNTANT_HEADERS = [
   'Valuta',
 ] as const;
 
-/** Come si chiama una riga nel file: le stesse parole della schermata. */
-const ROW_TYPE_LABELS: Record<string, string> = {
+/**
+ * La chiave della colonna «Tipo»: il gesto della rettifica quando c'è,
+ * altrimenti la natura della riga.
+ */
+type CorrispettivoRowTypeKey = SalesOrderRefundKind | CorrispettiviRowKind;
+
+/**
+ * Come si chiama una riga nel file: le stesse parole della schermata.
+ *
+ * ⚠️ **Il `Record` è esaustivo di proposito, e non ha più un fallback che
+ * decida al posto nostro.** Fino al 17/08/2026 era un `Record<string, string>`
+ * con un `?? 'Rettifica'` in coda: una riga di tipo non previsto usciva verso
+ * il commercialista come **Rettifica**, cioè come una riga a segno negativo che
+ * abbatte il corrispettivo del periodo. È un significato economico falso su un
+ * file che esce dall'azienda, e nessuno se ne sarebbe accorto — il file si apre
+ * in Excel, non passa da un test.
+ *
+ * Oggi la chiave è tipizzata: un `SalesOrderRefundKind` o un
+ * `CorrispettiviRowKind` nuovo **non compila** finché qualcuno non dichiara come
+ * si chiama nel file. È la stessa guardia di `REGISTRO_BY_SOURCE` e di
+ * `sourceDisplayLabel` — il compilatore al posto della memoria di chi modifica.
+ */
+export const ROW_TYPE_LABELS: Readonly<Record<CorrispettivoRowTypeKey, string>> = {
   sale: 'Vendita',
+  // Una rettifica di cui non conosciamo il gesto: dice ciò che la riga è
+  // (importi negativi), non un gesto che non sappiamo essere avvenuto.
+  refund: 'Rettifica',
   return_with_restock: 'Reso',
   refund_only: 'Rimborso',
   cancellation: 'Annullamento',
 };
+
+/**
+ * L'etichetta di una riga che il catalogo non conosce.
+ *
+ * Non è un doppione del vincolo del compilatore: il database è **condiviso fra
+ * rami**, e un valore di enum aggiunto altrove arriva nei dati prima del codice
+ * che lo sa nominare. In quel caso il commercialista legge «Non classificato» e
+ * chiede — non legge «Rettifica» e sottrae.
+ */
+const UNKNOWN_ROW_TYPE_LABEL = 'Non classificato';
+
+/**
+ * L'etichetta della colonna «Tipo» per una riga del registro.
+ *
+ * Esportata perché è la regola che il test presidia: nessun tipo sconosciuto
+ * deve poter uscire con l'etichetta di un tipo che esiste.
+ */
+export function corrispettivoRowTypeLabel(
+  row: Pick<CorrispettiviRegisterRow, 'kind' | 'refundKind'>,
+): string {
+  const key: CorrispettivoRowTypeKey = row.refundKind ?? row.kind;
+  return ROW_TYPE_LABELS[key] ?? UNKNOWN_ROW_TYPE_LABEL;
+}
 
 const ROME_DATETIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
   timeZone: 'Europe/Rome',
@@ -153,7 +206,7 @@ export class CorrispettiviExportService {
       .map((row) => ({
         // «Data» e non «data vendita»: su una rettifica è la data del reso.
         Data: ROME_DATETIME_FORMAT.format(row.occurredAt),
-        Tipo: ROW_TYPE_LABELS[row.refundKind ?? row.kind] ?? 'Rettifica',
+        Tipo: corrispettivoRowTypeLabel(row),
         'Numero ordine': row.orderNumber,
         Canale: sourceDisplayLabel(row.source),
         Cliente: row.customerName,

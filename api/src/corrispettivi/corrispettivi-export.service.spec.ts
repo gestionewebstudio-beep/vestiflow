@@ -1,6 +1,11 @@
+import { SalesOrderRefundKind } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
-import { CORRISPETTIVI_ACCOUNTANT_HEADERS } from './corrispettivi-export.service';
+import {
+  CORRISPETTIVI_ACCOUNTANT_HEADERS,
+  ROW_TYPE_LABELS,
+  corrispettivoRowTypeLabel,
+} from './corrispettivi-export.service';
 
 /**
  * Test incrociato fra la decisione funzionale e il file che esce.
@@ -44,5 +49,57 @@ describe('export corrispettivi — colonne del file', () => {
       /consegn|inviat|registrat|commercialista/i.test(h),
     );
     expect(sospette).toEqual([]);
+  });
+});
+
+/**
+ * La colonna «Tipo» dice quanto una riga vale, non solo come si chiama:
+ * «Rettifica» significa segno negativo, e chi legge il file lo sottrae.
+ *
+ * Fino al 17/08/2026 un tipo non previsto usciva **come Rettifica**, perché la
+ * mappa aveva un `?? 'Rettifica'` in coda. Questi test presidiano la regola che
+ * quel fallback violava: **un tipo sconosciuto non può prendere in prestito il
+ * significato economico di un tipo che esiste**.
+ */
+describe('export corrispettivi — etichetta della colonna «Tipo»', () => {
+  /** Un valore che il catalogo non conosce: il Corrispettivo manuale è in arrivo. */
+  const tipoNonPrevisto = { kind: 'sale', refundKind: 'nuovo_tipo' } as unknown as Parameters<
+    typeof corrispettivoRowTypeLabel
+  >[0];
+
+  it('un tipo non previsto NON esce come «Rettifica»', () => {
+    expect(corrispettivoRowTypeLabel(tipoNonPrevisto)).not.toBe('Rettifica');
+  });
+
+  it('un tipo non previsto non prende in prestito nessuna etichetta esistente', () => {
+    // Non basta che non sia «Rettifica»: «Vendita» sarebbe altrettanto falso,
+    // e a segno opposto.
+    expect(Object.values(ROW_TYPE_LABELS)).not.toContain(
+      corrispettivoRowTypeLabel(tipoNonPrevisto),
+    );
+  });
+
+  it('le righe vere mantengono la loro etichetta', () => {
+    expect(corrispettivoRowTypeLabel({ kind: 'sale', refundKind: null })).toBe('Vendita');
+    expect(
+      corrispettivoRowTypeLabel({
+        kind: 'refund',
+        refundKind: SalesOrderRefundKind.return_with_restock,
+      }),
+    ).toBe('Reso');
+    expect(
+      corrispettivoRowTypeLabel({ kind: 'refund', refundKind: SalesOrderRefundKind.refund_only }),
+    ).toBe('Rimborso');
+    expect(
+      corrispettivoRowTypeLabel({ kind: 'refund', refundKind: SalesOrderRefundKind.cancellation }),
+    ).toBe('Annullamento');
+  });
+
+  it('ogni gesto di rettifica del database ha la sua etichetta', () => {
+    // Guardia che vale anche se qualcuno riallargasse la chiave della mappa a
+    // `string`: il vincolo del compilatore sparirebbe, questo test no.
+    for (const kind of Object.values(SalesOrderRefundKind)) {
+      expect(ROW_TYPE_LABELS[kind]).toBeTruthy();
+    }
   });
 });
