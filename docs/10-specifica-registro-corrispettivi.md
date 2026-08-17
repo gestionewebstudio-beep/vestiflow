@@ -1,15 +1,29 @@
 # 10 · Specifica — Struttura Vendite e Registro Corrispettivi
 
-**Fonte:** nota funzionale del proprietario del progetto, 16/08/2026. Questo file è la
-**specifica corrente** del Registro Corrispettivi: in caso di conflitto con testi precedenti
-(`08`, `ORDINI-CANALE-ESTERNO`, guide) vale questo.
+**Fonte:** nota funzionale del proprietario del progetto, 16/08/2026, più il censimento della
+verticale legacy del 17/08 (§11). Questo file è la **specifica corrente** del Registro
+Corrispettivi: in caso di conflitto con testi precedenti (`08`, `ORDINI-CANALE-ESTERNO`, guide)
+vale questo.
 
 ---
 
 ## §1 · Principio
 
-> **Il Registro Corrispettivi è la vista economica generale derivata delle vendite e delle
-> rettifiche che VestiFlow conosce.**
+> **Il Registro Corrispettivi non è direttamente editabile e non esiste un Documento
+> Corrispettivo.** Le vendite e le rettifiche note a VestiFlow confluiscono nel Registro dalle
+> proprie sorgenti canoniche. È inoltre prevista una sorgente autonoma **«Corrispettivo
+> manuale»**, esclusivamente economica e senza effetti di magazzino, per registrare importi non
+> ricostruibili dalle sorgenti gestionali.
+
+⚠️ **Formulazione corretta il 17/08/2026.** Qui c'era scritto che il Registro è «la vista
+economica generale **derivata**», e quell'assoluto è diventato falso nel momento in cui si è
+deciso il Corrispettivo manuale (§12): una registrazione digitata dall'operatore **è** un
+record proprio, e nessuna derivazione la produce.
+
+**Ciò che non cambia è il divieto vero**: il Registro non si corregge riga per riga, e non
+esiste un tipo documento «Corrispettivo». Una riga entra o perché una sorgente viva l'ha
+prodotta, o perché qualcuno ha registrato un importo che nessuna sorgente poteva produrre — e
+in quel caso lo si vede, perché l'origine lo dice.
 
 L'operatore vede il quadro completo e ottiene i sottoinsiemi con i **filtri**, non con archivi
 o flussi paralleli. È lo stesso criterio già in uso nell'area Ordini:
@@ -205,8 +219,10 @@ di VestiFlow.
 ## §10 · La guardia
 
 `scripts/check-registro-legacy.mjs`, dentro `npm run lint`, attraversa **API, frontend ed e2e**
-e fallisce se rientra uno dei 14 termini ritirati — `fiscalStatus`, `markDelivered`,
-`excluded_pos_register`, `registerExternal`, `accountant-register`, …
+e fallisce se rientra uno dei **26** termini ritirati — `fiscalStatus`, `markDelivered`,
+`excluded_pos_register`, `registerExternal`, `accountant-register`, e dal 17/08 i dodici del
+Corrispettivo-documento (`CorrispettivoEntry`, `corrispettivo_entries`, `register/entries`,
+`DocumentType.corrispettivo`, …).
 
 Esiste perché **niente di tutto questo si romperebbe tornando**: un `fiscalStatus` riaggiunto a
 un DTO compila, passa i test e non fa arrossare nulla. Ricostruisce solo un modello che abbiamo
@@ -214,3 +230,366 @@ deciso di non avere. Le decisioni funzionali non hanno un compilatore.
 
 I commenti che **raccontano** la rimozione sono esentati: vietare anche quelli costringerebbe a
 cancellare la spiegazione.
+
+---
+
+## §11 · La registrazione manuale economica — censita il 17/08, e non c'era
+
+Prima di eliminare `corrispettivo_entries` è stata posta una domanda che valeva la pena porre:
+**quella verticale conteneva già la registrazione manuale in stile Danea** — righe `Importo ·
+IVA · Descrizione`, senza articoli e senza magazzino, che serve quando la cassa esterna ha
+battuto e VestiFlow non c'era?
+
+Censimento su `a4b6b5e8`, sei dimensioni indipendenti e tre verifiche in contraddittorio.
+
+> **Risposta: no. Quella verticale era SOLO il duplicatore automatico.**
+>
+> La **forma della riga** era però già quella giusta, ed è l'unica eredità che vale.
+
+### I tre livelli, tenuti distinti
+
+| | Struttura dati | Codice che lo faceva | UI raggiungibile |
+| --- | --- | --- | --- |
+| schema delle due tabelle | parziale | no | no |
+| superficie API | **no** | no | no |
+| chi scriveva le voci | parziale | **no** | no |
+| maschera legacy | no | no | **no** |
+| righe analitiche | **sì** | no | no |
+| magazzino · COR · sequenze | sì | parziale | no |
+
+⚠️ **La distinzione non è pedanteria.** Una struttura che *permette* una cosa e un sistema che
+la *fa* sono lontanissimi: qui la riga era della forma giusta **per caso**, perché copiava un
+documento importato che di articoli non ne portava.
+
+### I fatti che chiudono la questione
+
+- **Nessun `POST`, nessun `DELETE`, in nessuna versione.** Il controller importava da
+  `@nestjs/common` i soli `Get` e `Patch` — non aveva nemmeno i simboli per farlo. E la porta
+  generica era chiusa a chiave: `POST /documents` rifiutava il tipo con «generato
+  automaticamente dal sistema e non può essere creato manualmente».
+- **Il `PATCH` toccava quattro metadati** — stato, data fiscale, «fatturato», «escluso dal
+  riepilogo». Il suo DTO lo dichiarava: «I totali NON sono modificabili: sono lo snapshot della
+  Vendita online». È **riconciliazione**, il mestiere opposto a registrare.
+- **La maschera non aveva un pulsante «Nuova»**, e al 14/08 era già **scollegata dalla rotta**:
+  `/app/sales/corrispettivi` caricava già il registro derivato. Il suo stato vuoto lo diceva
+  all'operatore: «Le voci del registro vengono create automaticamente insieme alle Vendite
+  online».
+- **Nessun campo distingueva automatico da manuale.** Il canale `manual` esiste nell'enum, ma
+  nessun codice l'ha mai scritto su un corrispettivo.
+- **Una voce non toccava le giacenze**: i movimenti erano della Vendita online e lo dicevano da
+  sé (`sourceDocumentType: online_sale`). Su questo la verticale era già economica pura.
+- **`DocumentType.corrispettivo`, il prefisso COR e la sequenza appartenevano al solo modello
+  documentale**: serie `'A'` fissa e anno preso da `fulfilledAt`, cioè dal canale. L'operatore
+  non poteva scegliere né serie, né anno, né numero — e la tabella `documents` non ha mai avuto
+  una riga di quel tipo.
+
+### Cosa si riprende come modello (non come codice)
+
+1. **La riga senza articolo**: descrizione libera + quantità + imponibile + imposta + totale.
+   Il precedente c'è, ed è in produzione da luglio — la voce «Spedizione».
+2. **L'IVA per riga come Codice IVA + snapshot congelato**, mai un'aliquota nuda. Regge le
+   aliquote miste nella stessa registrazione senza toccare la testata.
+3. **Le due date distinte**, operativa e fiscale, con la seconda proposta dalla prima.
+4. **Il vocabolario dei filtri**: periodo sulla data **fiscale**, non sulla data documento.
+
+⚠️ **Un difetto da non ereditare: gli importi erano `Int`.** Una riga digitata **ivata** non
+tornerebbe identica alla rilettura — è esattamente ciò che `regole-gestionale` vieta. Gli
+unitari vanno `Decimal(16,6)`.
+
+### Cosa resta legacy, e non torna
+
+`onlineSaleId @unique` · `salesOrderId` · `channel` obbligatorio · `status` a cinque valori ·
+`invoiceIssued` · `excludedFromSummary` · `exclusionReason` · `adjustmentNote` · `refundedAt` ·
+`isShipping` · la derivazione dell'IVA per corrispondenza inversa · `DocumentType.corrispettivo`
+col prefisso COR e la sua sequenza.
+
+Sono tutti attrezzi per **correggere ciò che nasce da solo**. Su una riga che l'operatore scrive
+lui non hanno oggetto.
+
+### La domanda che il censimento NON può chiudere
+
+Il Registro di oggi è una vista **derivata**, senza record propri (§1, §7). Una registrazione
+manuale **è** un record proprio: da qualche parte deve stare.
+
+**Se sia un tipo documento vero — con numerazione, stampa e contatore configurabile — oppure
+una tabella dedicata al Registro, il legacy non lo dice**, perché il suo tipo era per
+costruzione interno, non stampabile e fuori dai contatori. È una decisione di prodotto.
+
+**Decisa il 17/08, subito dopo il censimento: §12.**
+
+---
+
+## §12 · Il Corrispettivo manuale — deciso il 17/08/2026
+
+**Fonte:** nota funzionale del proprietario del progetto, 17/08/2026, scritta dopo il verdetto
+del §11. Questa sezione è la specifica della funzione; l'implementazione la segue.
+
+### La regola
+
+> **Il Corrispettivo manuale è una registrazione ECONOMICA autonoma**, inserita direttamente
+> dall'operatore quando VestiFlow conosce l'importo ma non la vendita analitica che l'ha
+> prodotto.
+
+I casi reali sono quattro, e sono tutti lo stesso caso: **il dato economico esiste, gli
+articoli no.**
+
+- la cassa esterna ha battuto mentre VestiFlow non era disponibile;
+- vendite battute in cassa e non più ricostruibili riga per riga;
+- differenza certa fra la chiusura della cassa esterna e ciò che VestiFlow conosce;
+- recupero di importi storici di cui si sanno importo e IVA, non gli articoli.
+
+### Cosa fa, e cosa non fa
+
+| Fa                                        | Non fa                                             |
+| ----------------------------------------- | -------------------------------------------------- |
+| entra nel Registro Corrispettivi        | **non** ha un registro proprio                   |
+| entra nei totali                        | **non** crea prodotti né varianti                |
+| entra in stampa, CSV ed export          | **non** genera movimenti di magazzino            |
+| si include/esclude coi filtri normali   | **non** tocca Giacenza · Impegnata · Disponibile |
+| è riconoscibile: **origine = manuale**  | **non** crea `SalesOrder` né `Document`          |
+| ha un numero progressivo proprio        | **non** crea pagamenti, incassi o Tesoreria      |
+
+#### ⚠️ Multi-aliquota nella registrazione, aggregato nel Registro _(deciso il 17/08)_
+
+Qui c'era scritto che entra «nei totali **e nella suddivisione IVA**». **La suddivisione IVA
+del Registro non esiste**: il riepilogo ha un `taxMinor` unico, l'export una sola colonna
+«IVA», e l'imponibile non è nemmeno letto — si ricava per differenza. Promettere di entrarci
+prometteva una cosa inesistente.
+
+> **La registrazione conserva OBBLIGATORIAMENTE le sue righe per aliquota**, ciascuna con
+> Codice IVA e snapshot. **Nel Registro compare aggregata**, come ogni altra sorgente.
+
+**Non si trasforma il Registro in una vista analitica per aliquota adesso.** Sarebbe un lavoro
+che tocca tutte e quattro le sorgenti.
+
+⚠️ **Correzione del 17/08**: qui era scritto che «Shopify, in questo flusso, il dettaglio IVA
+per riga non lo porta». **È vero del flusso, falso del dato.** La sync persiste l'IVA e lo
+snapshot su ogni riga, le rettifiche hanno una tabella dedicata per aliquota, e la Vendita al
+banco ha il Codice IVA vero. **Il dato c'è: è il Registro che non lo legge**, perché le sue
+query caricano solo le testate.
+
+Il motivo per rimandare quindi non è l'assenza del dato — è che leggerlo per tutte le sorgenti
+è un lavoro proprio, con almeno un ostacolo noto: `SalesOrder.taxMinor` viene da `total_tax` di
+Shopify e **include l'imposta di spedizione**, che sulle righe non c'è. Un dettaglio
+ricostruito dalle righe non tornerebbe con la colonna IVA della stessa riga.
+
+✅ **Verificato il 17/08 — l'export non richiede alcun rifacimento.** L'informazione per
+aliquota del Corrispettivo manuale si conserva in modo **additivo**: una colonna in coda alle
+dodici esistenti, senza spostare nulla, senza cambiare il numero di righe, senza toccare PDF,
+DTO, controller, frontend o test.
+
+⚠️ **Il divieto sul magazzino non è una conseguenza: è la definizione.** Una registrazione che
+non conosce gli articoli non può muovere quantità, e se un giorno qualcuno provasse a farlo
+starebbe inventando merce. È il primo test obbligatorio (§17 della nota): creare, modificare ed
+eliminare un Corrispettivo manuale deve produrre **zero** `StockMovement`.
+
+### La testata
+
+**Numero progressivo** · **Data** · **Location** · **modalità Ivati/Netti** · **Note**
+(facoltative).
+
+- **Una sola data**, che è quella economica e determina il periodo del Registro. ⚠️ **Non
+  tornano** data fiscale e data registrazione del legacy: erano due perché una nasceva dal
+  canale e l'altra la correggeva l'operatore. Qui la digita l'operatore, ed è una.
+- **Location obbligatoria**, `NOT NULL` nel database e verificata sia dall'API sia dalla
+  maschera: precompilata se ce n'è una sola utilizzabile o se esiste un default valido, sempre
+  modificabile, e **se ce ne sono più d'una e nessuna è scelta, non si salva**.
+
+  > **Non esiste un Corrispettivo manuale con Location non determinata.** È una regola del
+  > modello, non una convalida di maschera.
+
+  La stessa regola vale funzionalmente per la **Vendita al banco**, dove la location serve
+  anche al movimento fisico.
+- **Modalità Ivati/Netti**: un solo selettore per l'intera registrazione, **senza memoria
+  operatore**, e parte da **Ivati** — perché il caso operativo è riportare i valori di una
+  chiusura di cassa, che sono ivati. Cambiando modalità i valori si **convertono**, non si
+  reinterpretano.
+- **Niente** cliente, pagamento, protocollo, serie, prefisso.
+
+### Le righe
+
+`Descrizione` · `Importo` · `Codice IVA`. Più righe, più aliquote.
+
+```text
+70,00 | IVA 22% | Vendite cassa esterna
+30,00 | IVA 10% | Vendite cassa esterna
+```
+
+- L'importo è **ivato o imponibile secondo la modalità** della testata.
+- L'IVA usa i **Codici IVA reali** dell'anagrafica fiscale, mai una percentuale scollegata, e
+  la riga porta lo **snapshot storico**: se il Codice IVA cambia domani, la registrazione di
+  ieri non cambia. È l'unica cosa che si eredita dal legacy, ed era la sua parte migliore.
+- **Niente quantità, SKU, EAN, prodotto o variante.** Una riga senza articolo è già stata
+  progettata e messa in produzione in questo gestionale — la voce «Spedizione» delle vendite
+  online — quindi non è un precedente da inventare.
+- Una riga vuota pronta all'inserimento **non è una riga del database**.
+
+### La precisione
+
+⚠️ **Il difetto da non ereditare.** Nel legacy gli importi erano `Int`, e con `Int` un importo
+digitato **ivato non torna identico** alla rilettura. Vale la regola del denaro: **unitari
+`Decimal(16,6)`, totali interi, si arrotonda solo all'uscita**.
+
+Il caso che deve passare, ed è il test che decide se la funzione è fatta bene:
+
+> **70,00 ivati al 22% → salvato → riaperto in modalità Ivati = 70,00.** Non 69,99, non 70,01.
+
+Si riusano le utility economiche già in casa. **Non si scrive un secondo motore IVA.**
+
+### La numerazione
+
+Numero progressivo automatico, **riusando il motore comune** del progetto: tenant-safe,
+assegnazione atomica sotto lo stesso lucchetto degli altri, stessa regola di data.
+
+Tecnicamente serve una **chiave** nell'elenco dei tipi che i numeratori usano — `manual_receipt`
+— ed è **la stessa cosa che fanno già l'Ordine cliente manuale e l'Ordine fornitore**, che
+vivono in tabelle proprie e non hanno mai una riga in `documents`. Il codice lo dice: «l'enum
+serve solo al numeratore». Quell'elenco non è «i documenti»: è **le chiavi dei numeratori**.
+
+⚠️ **Nessun contatore ad hoc, e nessun ritorno di `DocumentType.corrispettivo` o del prefisso
+`COR`.** Il numero identifica la registrazione, non la trasforma in un documento fiscale. Si
+mostra **nudo** — `1`, `2`, `3` — secondo la convenzione già decisa, senza zeri di riempimento.
+
+Il numero compare nella maschera, nel Registro, nei filtri se il pattern comune li prevede, e
+negli export dove serve identificare la registrazione.
+
+#### ⚠️ Il numero segue la dottrina di VestiFlow, buchi compresi _(corretto il 17/08)_
+
+Qui c'era scritto «**nessun riuso del numero dopo una cancellazione**». **È stato corretto**,
+perché contraddiceva il motore vivo e perché la ragione per cui sembrava servire non regge.
+
+Il motore di VestiFlow dichiara il contrario in testa al proprio file: eliminando l'ultimo
+della sequenza il progressivo scende e quel numero torna disponibile; i buchi **in mezzo**
+restano tali. Non è un difetto: è la conseguenza voluta di aver tolto il contatore autonomo
+dall'assegnazione.
+
+> **Il Corrispettivo manuale numera come tutto il resto. I buchi sono ammessi, e non si
+> rinumera mai un record successivo per tapparne uno.**
+
+**Il motivo è che non è un documento fiscale.** Il documento commerciale emesso da un
+registratore telematico ha una sua numerazione progressiva prevista dal sistema RT; questa è
+una **registrazione economica interna** e il numero serve a una cosa sola — identificarla:
+
+```text
+Corrispettivo manuale 21
+Corrispettivo manuale 22   ← eliminato
+Corrispettivo manuale 23
+```
+
+`21, 23` va benissimo. Non c'è niente da proteggere, e inventare una regola speciale avrebbe
+richiesto proprio quel contatore persistente che il paragrafo sopra vieta: le due frasi non
+potevano valere insieme.
+
+#### ⚠️ «Idempotente su doppio invio»: si tiene ciò che c'è _(corretto il 17/08)_
+
+Anche questa è stata ridimensionata. **In VestiFlow non esiste un protocollo di idempotenza**
+— `idempotency` non compare in una riga di codice, né nell'API né nel frontend. Le chiavi di
+dedupe esistono solo per i fatti che arrivano dai canali esterni.
+
+> **Non se ne introduce uno qui.** Valgono le protezioni correnti: la guardia `saving()` lato
+> UI, la transazione, e l'assegnazione atomica del numero sotto lucchetto.
+
+Due invii non prenderanno mai lo stesso numero — **quello è già garantito**. Che due invii
+completi non creino due registrazioni è un problema **trasversale a tutte le creazioni** di
+VestiFlow, non di questo modulo, e si affronta quando lo si affronta per tutti.
+
+### L'integrazione
+
+Il Corrispettivo manuale **non ha una schermata sua**: la schermata Corrispettivi resta unica,
+e dentro convivono le sorgenti derivate e le registrazioni manuali, distinguibili dall'origine.
+
+Il pulsante **«+ Aggiungi corrispettivo»** sta lì, ed è **la primary CTA della pagina**.
+
+⚠️ Per esserlo bisogna **spegnere una primary che c'è già e non si vede**: la schermata monta
+il componente di export senza disattivarne il bottone, che è acceso per default e senza
+variante — quindi primary. È un **doppione**: la stessa azione è già in testata come «Export
+per commercialista». Si spegne quello. Due primary nella stessa vista sono vietate da
+`regole-stile-ui` §5.
+
+Senza filtri i manuali **sono inclusi** nel Registro e nei suoi totali; con i filtri si isolano
+o si escludono. Vale il principio di sempre: **ciò che il Registro mostra è ciò che esce**, e
+il totale a schermo deve coincidere col totale esportato.
+
+#### La colonna Location, e «Non determinata» _(deciso il 17/08)_
+
+Il Registro oggi **non conosce la location affatto** — zero occorrenze in
+`api/src/corrispettivi/`, nemmeno per la Vendita al banco, dove il dato sarebbe già lì. Con
+questo lavoro entra: colonna e filtro.
+
+| Sorgente                 | Location                                                      |
+| ------------------------ | ------------------------------------------------------------- |
+| **Vendita al banco**     | certa — obbligatoria nel DTO, verificata, scritta in testata  |
+| **Corrispettivo manuale**| certa e obbligatoria per costruzione                          |
+| **Shopify** online e POS | certa **quando disponibile**; altrimenti **«Non determinata»** |
+
+⚠️ **«Non determinata» è un'anomalia temporanea, non uno stato del modello.** Non è una terza
+possibilità legittima accanto alle altre: è il modo onesto di dire «questo dato oggi non c'è»
+finché la sincronizzazione Shopify non sarà rivista. La regola target resta una sola — **ogni
+riga del Registro ha una location certa** — e quando la sync sarà sistemata quella dicitura
+deve sparire da sé.
+
+**Perché serve.** Per gli ordini Shopify il Registro può leggere la location solo dalla Vendita
+online, dove il valore **può mancare** e, dove c'è, **può essere stato indovinato**: se la sede
+Shopify non è mappata, il codice ripiega sulla **prima sede in ordine alfabetico**. Il danno è
+già stato misurato una volta — «Shopify spediva da *Shop location*, VestiFlow scaricava da
+*Magazzino test 3* — prima per la M». Il valore letto **non porta con sé se sia stato
+dichiarato o indovinato**, e presentare come fatto una scelta alfabetica del codice, in un
+registro che va al commercialista, è peggio che non dire niente.
+
+> **Mai inventare una sede. Mai mostrare il ripiego alfabetico come se fosse reale.**
+
+**Filtrando per una sede**, le righe «Non determinata» non possono esserle attribuite, quindi
+**escono dal risultato** — ma la schermata **lo dichiara**:
+
+```text
+3 registrazioni con Location non determinata non incluse nel filtro
+```
+
+⚠️ **Non spariscono in silenzio**, ed è il punto: un Registro che perde righe appena si sceglie
+una sede mostrerebbe un totale più basso del vero, che in un registro fiscale è il difetto
+peggiore possibile. **Senza filtro Location restano normalmente nel Registro e nei totali.**
+
+**Fuori da questo lavoro**: rendere affidabile la location Shopify. Non si tocca la sync qui —
+è tracciato come lacuna del blocco sincronizzazione (`02` e `DA-FARE-CORRISPETTIVI-E-SHOPIFY`).
+
+⚠️ **Stampa ed export non scrivono nulla**: nessuno stato, nessun «inviato al commercialista»,
+ripetibili quante volte si vuole. È la stessa decisione del §5, e non si riapre.
+
+### Modifica ed eliminazione
+
+La modifica **aggiorna lo stesso record**, non ne crea un secondo: una registrazione digitata a
+mano si può sbagliare, ed è normale correggerla.
+
+#### L'eliminazione è semplice, e resta semplice _(deciso il 17/08)_
+
+> **Tre verbi e basta: creare, modificare, eliminare.** L'eliminazione rimuove la registrazione
+> e le sue righe; da quel momento non partecipa più al Registro, ai totali né agli export.
+
+**Niente `status`, niente stato «Annullato», niente soft-delete, niente controregistrazione,
+niente workflow.** E soprattutto: **nessun pattern di audit nuovo**, perché VestiFlow oggi non
+ne ha uno — misurato il 17/08:
+
+| Cercato                | Trovato                                                                                |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| soft-delete vero       | **una sola tabella** in tutto il progetto (`external_document_types`), e condizionale   |
+| il secondo `deletedAt` | `vat_codes` — **letto in undici punti, scritto da nessuno**: sembra esistere e non c'è  |
+| eliminazione documenti | **hard delete** vero, con le revisioni in cascata                                        |
+| audit log generico     | non esiste: l'unico copre i soli account utente                                          |
+| `updatedBy`            | **non esiste in nessuna tabella** dello schema                                            |
+
+⚠️ **La conseguenza va detta, non nascosta**: eliminando il n. 12 il Registro passa da 11 a 13,
+e un export di agosto ristampato a settembre non conterrà più quella registrazione. **È
+accettabile**, ed è il prezzo di non costruire un impianto che il progetto non ha da nessuna
+altra parte. Il giorno in cui VestiFlow avrà un audit vero, questa funzione lo erediterà come
+tutte le altre.
+
+**E il buco non si tappa mai**: non si rinumerano le registrazioni successive.
+
+### Fuori perimetro, dichiarato
+
+**Pagamenti e Tesoreria.** Il riferimento Danea mostra la scheda pagamento, e VestiFlow la
+collegherà quando quel dominio esisterà. Fino ad allora il Corrispettivo manuale non crea
+incassi, scadenze, risorse finanziarie né movimenti di tesoreria — e **non si costruisce una
+mini-Tesoreria dentro i Corrispettivi**.
+
+**Sconti.** Non entrano: è una registrazione per aliquota e importo, non una vendita analitica.

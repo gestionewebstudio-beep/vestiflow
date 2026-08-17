@@ -1,0 +1,35 @@
+-- Il Corrispettivo manuale entra nell'elenco dei tipi che i NUMERATORI usano.
+--
+-- ── ⚠️ NON e' un tipo documento, ed e' il punto ─────────────────────────────
+-- Il Corrispettivo manuale non ha e non avra' mai una riga in `documents`: vive
+-- in una tabella propria (`manual_receipts`, migration successiva). Il valore
+-- serve SOLO come chiave della sequenza.
+--
+-- Non e' un'eccezione che si apre adesso: e' la convenzione con cui due tipi
+-- vivono gia' da mesi, e il codice lo dice a chiare lettere in
+-- `document-defaults.ts` — «Ordine cliente manuale: vive in SalesOrder, l'enum
+-- serve solo al numeratore». Stessa cosa per `supplier_order`.
+--
+--   `DocumentType` NON e' «l'elenco dei documenti»: e' «le chiavi dei numeratori».
+--
+-- Il motore di numerazione comune e' tipizzato su questo enum a ogni livello —
+-- la firma di `nextDocumentNumber`, il lucchetto `lockDocumentCounter`, la
+-- colonna `document_counters.type`, la tabella esaustiva `DEFAULT_NUMBER_PREFIX`.
+-- O si aggiunge un valore qui, o non si usa quel motore. Non esiste una terza
+-- strada, e un motore proprio darebbe al progetto due dottrine di numerazione.
+--
+-- ── ⚠️ PERCHE' E' UN FILE DA SOLO ───────────────────────────────────────────
+-- `ALTER TYPE ... ADD VALUE` puo' stare in una transazione, ma il valore
+-- aggiunto NON e' utilizzabile finche' quella transazione non ha fatto commit.
+-- Prisma esegue ogni file in una transazione: usare 'manual_receipt' nella
+-- stessa migration che lo aggiunge fallirebbe. La lezione e' gia' scritta in
+-- 20260815210000, e l'ordine e' garantito dal nome della cartella.
+--
+-- ── COSA NON E' ─────────────────────────────────────────────────────────────
+-- Non e' il ritorno di `corrispettivo`, ritirato il 17/08 (20260817140000) e
+-- tenuto fuori dal codice dalla guardia `check:registro`. Quello era un
+-- DOCUMENTO generato in automatico a ogni evasione, con prefisso `COR-`, serie
+-- 'A' e anno decisi dal canale. Questo e' una registrazione ECONOMICA che
+-- l'operatore digita, senza prefisso e senza zeri: 1, 2, 3.
+
+ALTER TYPE "DocumentType" ADD VALUE 'manual_receipt';

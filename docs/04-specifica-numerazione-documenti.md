@@ -801,13 +801,42 @@ Le vendite in negozio ci finiscono automaticamente. Il «registra corrispettivi 
 
 **Superate:** la separazione per serie fra cassa e canali; «precompila e conferma» a fine giornata; la chiusura di periodo.
 
-### Niente registrazione manuale
+### ~~Niente registrazione manuale~~ → superata il 17/08/2026
 
-Valutata e scartata l'11 agosto. Il motivo non è il codice — sarebbe poca cosa — ma il fatto che offrirebbe **due strade per lo stesso risultato**: battere le vendite (che scaricano il magazzino e alimentano il registro) oppure digitare il totale a fine giornata (che il magazzino non lo tocca). La seconda è più veloce, quindi verrebbe scelta, e dopo tre giorni di guasto la giacenza è sbagliata senza che nessuno capisca perché.
+⚠️ **Questa sezione diceva che la registrazione manuale era «valutata e scartata l'11 agosto».
+Non vale più**: il **Corrispettivo manuale** è stato deciso il 17/08 e la sua specifica sta in
+`10-specifica-registro-corrispettivi.md` §12. Il testo resta qui sotto perché la sua
+motivazione è ancora giusta — e va capito **perché non si applica**, o tornerà a sembrare una
+contraddizione a chiunque legga i due documenti.
 
-I casi che sembravano richiederla sono già coperti: il **registro di emergenza** dalla vendita al banco (sotto), il **fatturato pregresso** dall'import iniziale.
+> _Testo dell'11/08, conservato:_ «Il motivo non è il codice — sarebbe poca cosa — ma il fatto
+> che offrirebbe **due strade per lo stesso risultato**: battere le vendite (che scaricano il
+> magazzino e alimentano il registro) oppure digitare il totale a fine giornata (che il
+> magazzino non lo tocca). La seconda è più veloce, quindi verrebbe scelta, e dopo tre giorni
+> di guasto la giacenza è sbagliata senza che nessuno capisca perché.»
 
-Se dopo mesi di uso reale emerge un caso scoperto, si aggiunge — ma una scorciatoia che sbaglia il magazzino, una volta presa dagli operatori, non si toglie più.
+**Perché non si applica.** Quel timore riguarda una scorciatoia che **sostituisce** la vendita
+analitica: stessa informazione, due strade, e gli operatori prendono la più veloce. Il
+Corrispettivo manuale non è quella cosa — è una **registrazione economica pura**, senza
+articoli, per i casi in cui la vendita analitica **non esiste e non è ricostruibile**:
+
+- la cassa esterna ha battuto mentre VestiFlow non era disponibile;
+- vendite non più ricostruibili riga per riga;
+- differenza certa fra la chiusura della cassa esterna e ciò che VestiFlow conosce;
+- importi storici di cui si sanno importo e IVA, non gli articoli.
+
+Non c'è nessun magazzino da sbagliare, perché **non c'è nessun articolo da muovere**: il
+divieto sui movimenti non è una precauzione, è la definizione della funzione, ed è il primo
+test obbligatorio. Le due strade non esistono: dove la vendita analitica c'è, si batte; dove
+non c'è, prima non si registrava niente.
+
+**Ciò che resta vero della sezione originale** è la sua ultima riga — «una scorciatoia che
+sbaglia il magazzino, una volta presa dagli operatori, non si toglie più» — ed è la ragione
+per cui il Corrispettivo manuale non può **mai** acquisire righe articolo. Se un giorno
+qualcuno proponesse di aggiungergli un prodotto, questa è la nota da rileggere.
+
+I due casi che l'11/08 sembravano coprire tutto restano coperti come allora: il **registro di
+emergenza** dalla vendita al banco (sotto), il **fatturato pregresso** dall'import iniziale.
 
 ### Il registro di emergenza
 
@@ -837,11 +866,17 @@ L'esclusione in sé si ricostruisce (è la vendita fatturata, vedi §10). Le alt
 
 **Vanno decise prima di scrivere il prompt**, non durante.
 
+✅ **Chiuso il 17/08/2026.** Le tabelle sono cadute (migration `ritira_corrispettivo_legacy`) e le tre informazioni **non tornano**, per una ragione più netta di quella scritta qui sopra: appartengono alla **riconciliazione** di righe prodotte da un automatismo — marcare a mano ciò che nasce da solo — e non a una registrazione che l'operatore scrive lui. Il Corrispettivo manuale non ne ha nessuna: una data sola, nessuno stato di verifica, nessuna esclusione motivata. Il censimento che lo dimostra sta in `10` §11.
+
 ### Il vecchio motore
 
 Vendita online e Corrispettivo usano `DocumentSequence`: contatore autonomo, serie `'A'` scritta nel codice, anno nella partizione, riferimento `COR-2026-0001`. Tabelle proprie (`online_sales`, `corrispettivo_entries`) col vincolo `(tenant, serie, anno, numero)`.
 
 Il lavoro non è «unificarlo sullo schema nuovo» ma **togliere al corrispettivo la numerazione che ha**.
+
+✅ **Fatto il 17/08/2026**, e nel modo più radicale: non gli è stata cambiata la numerazione, è caduto lui. `COR-` e `DocumentType.corrispettivo` sono fuori dal codice, e una guardia di lint impedisce che rientrino.
+
+⚠️ **Il Corrispettivo manuale che nasce al suo posto non eredita niente di tutto questo.** Usa il **motore comune** — quello di questa specifica, con la regola di data e il lucchetto — attraverso una chiave `manual_receipt` nell'elenco dei tipi che i numeratori usano. È la stessa cosa che fanno l'Ordine cliente manuale e l'Ordine fornitore: vivono in tabelle proprie, non hanno mai una riga in `documents`, e l'enum serve loro **solo** al numeratore. Nessun prefisso, nessuno zero di riempimento: `1`, `2`, `3`.
 
 #### La Vendita online era nella diagnosi ma non nella conclusione _(misurato il 15/08/2026)_
 

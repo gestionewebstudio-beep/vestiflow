@@ -89,19 +89,77 @@ corrispettivo 206,01
 - **l'aggancio delle location**, che è il prerequisito per leggere le _fulfillment orders_ e chiudere il ripiego alfabetico sull'impegno (`01` §3.8, parte ancora aperta);
 - il resto del disegno in `02-specifica-sincronizzazione-shopify.md`, che è **disegno e non consuntivo**.
 
+### 2-bis. ⚠️ La GUIDA UTENTE va aggiornata quando la maschera esiste — non prima
+
+Il **Corrispettivo manuale** (`10` §12) è deciso e specificato, le fondamenta sono in
+piedi (enum, tabelle, migration applicate), ma **all'operatore non è ancora visibile niente**.
+
+`GUIDA-UTENTE-VESTIFLOW.md` §15 «Corrispettivi» oggi **è ancora esatta** — verificato il
+17/08: descrive il quadro economico per periodo, non nomina la verticale ritirata, e non
+descriveva nemmeno il pulsante export doppione che è stato spento. Non c'è niente da correggere
+adesso, e scrivere in guida una funzione che non c'è è peggio che non scriverla.
+
+**Cosa andrà aggiunto quando la maschera sarà pronta**, in §15 subito dopo «Come si usa»:
+
+- il pulsante **«+ Aggiungi corrispettivo»** e a cosa serve — i quattro casi reali (cassa
+  esterna durante un guasto, vendite non ricostruibili, differenza di chiusura, importi
+  storici), detti con parole da operatore;
+- che è una registrazione **solo economica**: non tocca il magazzino, non crea prodotti;
+- righe `Descrizione · Importo · Codice IVA`, più aliquote nella stessa registrazione;
+- il selettore **Ivati/Netti**, che parte da Ivati perché si copiano i valori della cassa;
+- che si può **correggere ed eliminare**, e che eliminando resta un buco nella numerazione —
+  è normale e non si rinumera niente;
+- la colonna **Location** e il perché di **«Non determinata»** sulle righe Shopify, con la
+  riga che dichiara quante ne restano fuori quando si filtra per sede.
+
+⚠️ E va aggiornata anche la tabella dei permessi di §15: la scrittura sul Registro passa da
+`reports.fiscal_register`, la cui descrizione parla ancora di «marca le consegne al
+commercialista» — flusso **ritirato**. Quel testo va riscritto quando il permesso viene usato
+davvero: oggi non lo usa nessuna rotta.
+
 ### 2. Specifica sedi
 
-Ferma dalla mattina del 14/08. Non ci sono misure nuove da riportare.
+Ferma dalla mattina del 14/08.
 
-### 3. Eliminazione di `corrispettivo_entries` — rilascio a sé
+#### ⚠️ Lacuna registrata il 17/08: la Location Shopify non è strutturalmente affidabile
 
-Il passaggio 1 è fatto: nessuna UI la legge, nessuna scrittura la alimenta dal ramo. **Manca solo il passaggio distruttivo**, e va fatto in un rilascio separato perché il database è condiviso:
+> **La Location delle vendite e delle evasioni Shopify deve essere sempre determinata in modo
+> affidabile, e non deve dipendere da ripieghi arbitrari.**
 
-- `DROP` di `corrispettivo_entries` e `corrispettivo_entry_lines`;
-- endpoint `/online-sales/register/entries`, componente `corrispettivi-register`, DTO e mapper legacy;
-- `DocumentType.corrispettivo` **solo se** un censimento conferma zero consumer: oggi resta nella configurazione (prefisso `COR`, etichetta, famiglia permessi), ed è solo la **numerazione** a non essere più consumata.
+Emersa costruendo il **Corrispettivo manuale** (`10` §12), che porta la colonna Location dentro
+il Registro Corrispettivi. Misurata, non ipotizzata:
 
-⚠️ **Prima del DROP**: `main` in produzione **scrive ancora** quelle tabelle a ogni evasione. Finché non è rilasciato questo ramo, eliminarle romperebbe la produzione.
+- `SalesOrder.locationId` **esiste ma è della sola testata manuale**, e la sync non lo scrive
+  mai — né in `orderData` né nel `create`. Per gli ordini di canale il Registro può leggere la
+  location **solo** dalla Vendita online;
+- `OnlineSale.locationId` **è nullable**, e la sync passa una location all'evento solo se ci
+  sono righe impegnabili;
+- dove il valore c'è, **può essere stato indovinato**: se la sede Shopify non è mappata,
+  `resolveShopifyOrderLocationId` ripiega sulla **prima sede licenziata in ordine alfabetico**
+  (`orderBy: { name: 'asc' }`). Il danno è già stato misurato una volta e sta scritto nel
+  codice: «Shopify spediva da *Shop location*, VestiFlow scaricava da *Magazzino test 3* —
+  prima per la M»;
+- la relazione è `onDelete: SetNull`: il dato **si perde** se la sede viene eliminata.
+
+⚠️ **Il punto che conta**: il valore letto **non porta con sé se sia stato dichiarato dal canale
+o indovinato**. Chi lo legge non può distinguere i due casi.
+
+**Nel frattempo il Registro dice «Non determinata»** e non inventa niente — è un'**anomalia
+temporanea dichiarata**, non uno stato del modello (`10` §12). Quando questa lacuna sarà
+chiusa, quella dicitura deve sparire da sé.
+
+**Non si tocca la sync adesso**, per decisione esplicita del 17/08: il Corrispettivo manuale non
+si blocca per sistemare Shopify. Questo caso si affronta qui, nel blocco sincronizzazione.
+
+### 3. ✅ Eliminazione di `corrispettivo_entries` — **fatta il 17/08/2026**
+
+Migration `20260817140000_ritira_corrispettivo_legacy`, applicata. Sono caduti: le due tabelle e i loro dati (6 voci, 11 righe, tutte ferme al 14/08 alle 20:53), la riga di numeratore rimasta, gli endpoint `/online-sales/register/entries`, il servizio, i DTO, la maschera `corrispettivi-register`, i mapper, `CorrispettivoEntryStatus` e `DocumentType.corrispettivo` **dal codice**.
+
+⚠️ **Il valore resta morto nel tipo PostgreSQL**, ed è deliberato: `ALTER TYPE … DROP VALUE` non esiste, e ricostruire il tipo significherebbe riscrivere ogni colonna che lo usa. Stessa scelta già fatta il 16/08 per `externally_registered`. La guardia `check:registro` copre ora **26** termini e impedisce che rientri nel codice.
+
+**Il rischio è stato messo a verbale e accettato**: `main` — che gira su Railway — scriveva ancora quelle tabelle a ogni evasione, quindi fino al rilascio di questo ramo un ordine evaso su un negozio collegato manda in rollback l'intera transazione. Nessun tenant è in produzione vera.
+
+**Prima di eliminare è stato fatto un censimento** (`10` §11) per verificare che non stesse cadendo anche una funzione utile: la registrazione manuale economica in stile Danea. Verdetto **A** — era solo il duplicatore automatico. Da lì nasce il **Corrispettivo manuale** (`10` §12), che è funzione nuova, non un ripristino.
 
 ---
 

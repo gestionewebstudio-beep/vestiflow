@@ -60,7 +60,9 @@ const HAS_PRINTED_SHEET: Readonly<Record<DocumentType, boolean>> = {
   [DocumentType.credit_note]: true,
   // Registri interni della fase 2: nessuna riga in `documents`.
   [DocumentType.online_sale]: false,
-  [DocumentType.corrispettivo]: false,
+  // Vive in `manual_receipts`: non e' un documento e non ha un foglio da
+  // stampare. Compare nella stampa del REGISTRO come una riga fra le altre.
+  [DocumentType.manual_receipt]: false,
   // Vive in `sales_orders`: lo stampa SalesOrderPdfService.
   [DocumentType.customer_order]: false,
   [DocumentType.store_sale]: true,
@@ -87,6 +89,11 @@ export type DocumentPrintKind =
  * `documentPrintShowsValues`, che è un asse indipendente.
  */
 const PRINT_KIND: Readonly<Record<DocumentType, DocumentPrintKind>> = {
+  // Non ha un foglio da stampare (`HAS_PRINTED_SHEET` lo dice a `false`): la
+  // voce esiste solo perché la mappa è esaustiva. Se un giorno arrivasse qui
+  // davvero, «generic» è l'unica testata che non promette dati che non ha —
+  // nessun fornitore, nessun cliente.
+  [DocumentType.manual_receipt]: 'generic',
   [DocumentType.supplier_order]: 'generic',
   // Famiglia carico: fornitore + sede + causale. Sul carico manuale e su
   // quello iniziale il fornitore spesso manca, e la causale resta l'unica cosa
@@ -112,7 +119,6 @@ const PRINT_KIND: Readonly<Record<DocumentType, DocumentPrintKind>> = {
   // contenuto, non la forma del foglio.
   [DocumentType.credit_note]: 'sales',
   [DocumentType.online_sale]: 'sales',
-  [DocumentType.corrispettivo]: 'generic',
   [DocumentType.customer_order]: 'sales',
   // Cassa negozio: il cliente può non esserci, la sede c'è sempre.
   [DocumentType.store_sale]: 'sales',
