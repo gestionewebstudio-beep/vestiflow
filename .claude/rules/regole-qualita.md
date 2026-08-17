@@ -340,7 +340,7 @@ describe('formatPrice', () => {
 | ----------------- | ---------------------------------------------------------------- |
 | `test`            | esegue tutti i test del frontend e dice se passano. Nient'altro. |
 | `test:watch`      | lo stesso, in watch, per lavorarci                               |
-| `test:coverage`   | **il gate di copertura**: soglie 80/75 sul codice non-componente |
+| `test:coverage`   | **il gate di copertura**: soglie 76/69/71/76 sul non-componente  |
 | `test:components` | i soli test di componente, senza copertura                       |
 | `test:everything` | i tre sopra più l'API — è quello che gira al push                |
 
@@ -373,7 +373,47 @@ decide — non un effetto collaterale di questa nota._
 ## Coverage Reporting
 
 - Genera report `lcov` e mostralo nel CI (Codecov, Coveralls, GitHub Actions summary).
-- Soglia minima totale: 80%.
+- Soglia minima: **76% statement e righe, 69% branch, 71% funzioni**, con
+  `coverageExclude` sui componenti — **`.ts` e `.html` insieme**.
+
+### ⚠️ Il gate misurava i template, ed era rosso da sempre _(17/08/2026)_
+
+Qui c’era scritto «soglia minima totale: 80%». Non è mai stata applicata, perché
+`angular.json` aveva le soglie ma **nessun `coverageExclude`**: il `--exclude` sulla riga di
+comando toglie i **test** dei componenti dall’esecuzione, non i loro **file** dal denominatore.
+
+Risultato: si misurava la copertura di codice i cui test non venivano eseguiti, **template
+inclusi** — ogni `.component.html` a 0%. Il totale usciva **14,37%**, il gate falliva sempre, e
+siccome sta nell’hook `pre-push`, **non si riusciva a pushare**.
+
+```text
+con i template dentro          14,37%   ← quello che si misurava
+esclusi solo i .component.ts   22,56%
+esclusi anche i .component.html 76,44%  ← la prima misura vera
+```
+
+**Le soglie sono state portate alla misura reale, non abbassate.** Un gate sempre rosso è un
+gate spento: non ferma niente, e chi lo incontra impara ad aggirarlo. A 76/69/71/76 comincia a
+fare il suo mestiere — **da lì può solo salire**, e una regressione la ferma davvero.
+
+⚠️ **Alzarle è lavoro dichiarato, non un ritocco al numero.** Misurato il 17/08: **167 file
+non-componente su 325 non hanno un proprio test**, così distribuiti —
+
+```text
+32  core/models        in gran parte interfacce e tipi: poco da coprire
+18  domain/documents
+13  domain/products
+13  core/auth
+11  features/documents
+```
+
+— mentre le aree che contano di più sono già alte: `core/api` 91%, `core/auth` 97%,
+`core/interceptors` 100%, `core/guards` 90%.
+
+⚠️ **E i componenti restano fuori dal numero per scelta**, non per pigrizia: i loro test
+esistono (`npm run test:components`, 451 prove) ma sono test di **comportamento**, dove le righe
+eseguite dicono poco. Misurarli qui rimetterebbe il gate a 14%.
+
 - Nuovo codice DEVE avere coverage ≥ 80% (regola "diff coverage").
 
 ---
