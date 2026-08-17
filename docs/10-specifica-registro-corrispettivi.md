@@ -248,17 +248,17 @@ Censimento su `a4b6b5e8`, sei dimensioni indipendenti e tre verifiche in contrad
 
 ### I tre livelli, tenuti distinti
 
-| | Struttura dati | Codice che lo faceva | UI raggiungibile |
-| --- | --- | --- | --- |
-| schema delle due tabelle | parziale | no | no |
-| superficie API | **no** | no | no |
-| chi scriveva le voci | parziale | **no** | no |
-| maschera legacy | no | no | **no** |
-| righe analitiche | **sì** | no | no |
-| magazzino · COR · sequenze | sì | parziale | no |
+|                            | Struttura dati | Codice che lo faceva | UI raggiungibile |
+| -------------------------- | -------------- | -------------------- | ---------------- |
+| schema delle due tabelle   | parziale       | no                   | no               |
+| superficie API             | **no**         | no                   | no               |
+| chi scriveva le voci       | parziale       | **no**               | no               |
+| maschera legacy            | no             | no                   | **no**           |
+| righe analitiche           | **sì**         | no                   | no               |
+| magazzino · COR · sequenze | sì             | parziale             | no               |
 
-⚠️ **La distinzione non è pedanteria.** Una struttura che *permette* una cosa e un sistema che
-la *fa* sono lontanissimi: qui la riga era della forma giusta **per caso**, perché copiava un
+⚠️ **La distinzione non è pedanteria.** Una struttura che _permette_ una cosa e un sistema che
+la _fa_ sono lontanissimi: qui la riga era della forma giusta **per caso**, perché copiava un
 documento importato che di articoli non ne portava.
 
 ### I fatti che chiudono la questione
@@ -340,14 +340,14 @@ articoli no.**
 
 ### Cosa fa, e cosa non fa
 
-| Fa                                        | Non fa                                             |
-| ----------------------------------------- | -------------------------------------------------- |
-| entra nel Registro Corrispettivi        | **non** ha un registro proprio                   |
-| entra nei totali                        | **non** crea prodotti né varianti                |
-| entra in stampa, CSV ed export          | **non** genera movimenti di magazzino            |
-| si include/esclude coi filtri normali   | **non** tocca Giacenza · Impegnata · Disponibile |
-| è riconoscibile: **origine = manuale**  | **non** crea `SalesOrder` né `Document`          |
-| ha un numero progressivo proprio        | **non** crea pagamenti, incassi o Tesoreria      |
+| Fa                                     | Non fa                                           |
+| -------------------------------------- | ------------------------------------------------ |
+| entra nel Registro Corrispettivi       | **non** ha un registro proprio                   |
+| entra nei totali                       | **non** crea prodotti né varianti                |
+| entra in stampa, CSV ed export         | **non** genera movimenti di magazzino            |
+| si include/esclude coi filtri normali  | **non** tocca Giacenza · Impegnata · Disponibile |
+| è riconoscibile: **origine = manuale** | **non** crea `SalesOrder` né `Document`          |
+| ha un numero progressivo proprio       | **non** crea pagamenti, incassi o Tesoreria      |
 
 #### ⚠️ Multi-aliquota nella registrazione, aggregato nel Registro _(deciso il 17/08)_
 
@@ -400,6 +400,7 @@ eliminare un Corrispettivo manuale deve produrre **zero** `StockMovement`.
 
   La stessa regola vale funzionalmente per la **Vendita al banco**, dove la location serve
   anche al movimento fisico.
+
 - **Modalità Ivati/Netti**: un solo selettore per l'intera registrazione, **senza memoria
   operatore**, e parte da **Ivati** — perché il caso operativo è riportare i valori di una
   chiusura di cassa, che sono ivati. Cambiando modalità i valori si **convertono**, non si
@@ -516,11 +517,11 @@ Il Registro oggi **non conosce la location affatto** — zero occorrenze in
 `api/src/corrispettivi/`, nemmeno per la Vendita al banco, dove il dato sarebbe già lì. Con
 questo lavoro entra: colonna e filtro.
 
-| Sorgente                 | Location                                                      |
-| ------------------------ | ------------------------------------------------------------- |
-| **Vendita al banco**     | certa — obbligatoria nel DTO, verificata, scritta in testata  |
-| **Corrispettivo manuale**| certa e obbligatoria per costruzione                          |
-| **Shopify** online e POS | certa **quando disponibile**; altrimenti **«Non determinata»** |
+| Sorgente                  | Location                                                       |
+| ------------------------- | -------------------------------------------------------------- |
+| **Vendita al banco**      | certa — obbligatoria nel DTO, verificata, scritta in testata   |
+| **Corrispettivo manuale** | certa e obbligatoria per costruzione                           |
+| **Shopify** online e POS  | certa **quando disponibile**; altrimenti **«Non determinata»** |
 
 ⚠️ **«Non determinata» è un'anomalia temporanea, non uno stato del modello.** Non è una terza
 possibilità legittima accanto alle altre: è il modo onesto di dire «questo dato oggi non c'è»
@@ -531,8 +532,8 @@ deve sparire da sé.
 **Perché serve.** Per gli ordini Shopify il Registro può leggere la location solo dalla Vendita
 online, dove il valore **può mancare** e, dove c'è, **può essere stato indovinato**: se la sede
 Shopify non è mappata, il codice ripiega sulla **prima sede in ordine alfabetico**. Il danno è
-già stato misurato una volta — «Shopify spediva da *Shop location*, VestiFlow scaricava da
-*Magazzino test 3* — prima per la M». Il valore letto **non porta con sé se sia stato
+già stato misurato una volta — «Shopify spediva da _Shop location_, VestiFlow scaricava da
+_Magazzino test 3_ — prima per la M». Il valore letto **non porta con sé se sia stato
 dichiarato o indovinato**, e presentare come fatto una scelta alfabetica del codice, in un
 registro che va al commercialista, è peggio che non dire niente.
 
@@ -571,11 +572,11 @@ ne ha uno — misurato il 17/08:
 
 | Cercato                | Trovato                                                                                |
 | ---------------------- | -------------------------------------------------------------------------------------- |
-| soft-delete vero       | **una sola tabella** in tutto il progetto (`external_document_types`), e condizionale   |
-| il secondo `deletedAt` | `vat_codes` — **letto in undici punti, scritto da nessuno**: sembra esistere e non c'è  |
-| eliminazione documenti | **hard delete** vero, con le revisioni in cascata                                        |
-| audit log generico     | non esiste: l'unico copre i soli account utente                                          |
-| `updatedBy`            | **non esiste in nessuna tabella** dello schema                                            |
+| soft-delete vero       | **una sola tabella** in tutto il progetto (`external_document_types`), e condizionale  |
+| il secondo `deletedAt` | `vat_codes` — **letto in undici punti, scritto da nessuno**: sembra esistere e non c'è |
+| eliminazione documenti | **hard delete** vero, con le revisioni in cascata                                      |
+| audit log generico     | non esiste: l'unico copre i soli account utente                                        |
+| `updatedBy`            | **non esiste in nessuna tabella** dello schema                                         |
 
 ⚠️ **La conseguenza va detta, non nascosta**: eliminando il n. 12 il Registro passa da 11 a 13,
 e un export di agosto ristampato a settembre non conterrà più quella registrazione. **È
@@ -593,3 +594,116 @@ incassi, scadenze, risorse finanziarie né movimenti di tesoreria — e **non si
 mini-Tesoreria dentro i Corrispettivi**.
 
 **Sconti.** Non entrano: è una registrazione per aliquota e importo, non una vendita analitica.
+
+---
+
+## §13 · Come si costruisce — il punto d'innesto, misurato
+
+_Censimento del 17/08/2026 sul codice vivo. Le fondamenta (enum `manual_receipt`, tabelle,
+migration) sono **già applicate**; qui c'è quello che resta._
+
+⚠️ **Questa sezione esiste perché non si rimisuri.** I riferimenti sono al codice del 17/08:
+se una riga non torna, vale il codice — ma la **forma** del ragionamento resta valida.
+
+### Il Registro non è una UNION: sono query indipendenti fuse in memoria
+
+E la Vendita al banco — che è un `Document`, non un ordine — è entrata **senza tabelle nuove e
+senza cambiare la forma**. È il precedente esatto da imitare: la quarta sorgente fa lo stesso
+percorso della terza.
+
+### I sette punti, in quattro file
+
+1. **`REGISTRO_BY_SOURCE`** (`corrispettivi-classification.util.ts`) — una voce in più. È
+   l'**unico** posto dove si decide «questo è un corrispettivo», ed è un `Record` esaustivo
+   apposta: da lì derivano da sole le sorgenti, la classificazione e tutti i filtri
+   ambito/canale.
+2. **Una `buildCorrispettiviManualWhere`** in `corrispettivi-query.util.ts`, gemella di quella
+   della Vendita al banco. Stessa firma, e **soprattutto** stesso `return null` quando i filtri
+   escludono già la sorgente: è così che una domanda che riguarda solo gli ordini — stato di
+   pagamento, «solo resi» — spegne una sorgente che ordine non è.
+3. **`buildRegisterRows`** — tre innesti puntuali, non una riscrittura: un quarto `count` nel
+   `Promise.all` (⚠️ **senza, il tetto di 5.000 misura meno di quanto elenca**), un quarto
+   `findMany`, un quarto blocco `.map`. Il `.sort` finale non si tocca.
+4. **`getSummary`** — leggere, sommare, contare la sorgente nuova. ⚠️ **Toccando solo il punto 3
+   la colonna smette di fare il totale in fondo**: è un difetto che questa schermata ha già
+   avuto una volta, e il commento nel codice lo racconta.
+5. **`CorrispettiviRegisterRow`** — il prefisso di `rowId` e il campo che porta l'origine.
+6. **L'etichetta dell'origine** — è uno `switch` esaustivo **senza ramo predefinito**: non
+   compila finché non la si dichiara. È una guardia buona, ma è un file in più da toccare.
+7. **⚠️ Il settimo non è opzionale.** La mappa delle etichette dell'export è stata resa
+   esaustiva il 17/08 proprio per questo: un tipo nuovo **non compila** finché non ha un nome.
+   Prima, una riga non mappata usciva **«Rettifica»** — cioè a segno negativo — su un file
+   consegnato al commercialista.
+
+### L'origine: si allarga il tipo della riga, non l'enum del database
+
+Non esiste oggi una dimensione che dica «questa riga è un Corrispettivo manuale»: le dimensioni
+sono **due** — ambito e canale — ed entrambe derivano da un unico dato, l'origine dell'ordine.
+E la casella più vicina è **già occupata** dalla Vendita al banco: classificarcelo dentro
+mescolerebbe le due cose in un filtro.
+
+> **Si allarga il tipo della riga del Registro, non l'enum `SalesOrderSource`.**
+
+La riga del Registro è già un DTO normalizzato — `salesOrderId` è nullabile apposta, e
+`documentId` esiste proprio per le sorgenti che ordini non sono. Mettere in
+`sales_orders.source` un'origine che quella tabella non avrà **mai** è scrivere una cosa falsa
+per comodità di tipizzazione. Il `Record` resta esaustivo sulla nuova unione, quindi **la
+guardia del compilatore non si perde**.
+
+La colonna dell'export si chiama «Canale»: con una quarta origine va letta **«Origine»**. È una
+stringa da cambiare, non un lavoro.
+
+### Cosa si riusa tale e quale — nessuna matematica nuova
+
+⚠️ **Non si scrive un secondo motore IVA.** Tutto ciò che serve esiste ed è collaudato:
+
+| Serve                                         | Si usa                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| netto **da memorizzare** (con la coda)        | `netFromGrossExact`                                                 |
+| ivato **da mostrare** (arrotondato)           | `grossFromNetMinor`                                                 |
+| tagliare la coda a quanto tiene la colonna    | `toStorableMinor`                                                   |
+| «è cambiato?»                                 | `sameAmountAtCent` — al centesimo                                   |
+| imponibile/imposta/totale da un importo ivato | `computeVatLineAmounts` con `vat_included`                          |
+| snapshot del Codice IVA                       | `buildVatCodeSnapshot` — il suo commento nomina già i corrispettivi |
+| selettore Ivati/Netti                         | `app-price-mode-menu`, già condiviso da cinque testate              |
+| cella Codice IVA di riga                      | `app-document-line-select-cell`, `freeText=false`                   |
+| anatomia della maschera                       | i fogli globali `_document-form*.scss`                              |
+
+⚠️ **Due trappole già misurate.** `amounts.unitNetMinor` è **arrotondato** e NON è il netto da
+salvare — il gesto giusto sta nell'Ordine fornitore. E il meccanismo di conversione fra
+modalità si copia dalla forma **nuova** (Ordine fornitore, netto canonico in un controllo
+nascosto), **mai** dalla maschera Fatture: quella riconverte il valore mostrato a due decimali
+e perde il centesimo, ed è dichiarata congelata.
+
+**Permessi**: `reports.fiscal_register` esiste già — ⚠️ ma **nessun template, guard o rotta lo
+usa**: questa sarebbe la prima applicazione, quindi non c'è un precedente da copiare. E la sua
+descrizione parla ancora di «marca le consegne al commercialista», flusso **ritirato**: va
+riscritta.
+
+**Location**: si segue la sequenza dell'Ordine cliente manuale e la guardia **pura**
+`assertLocationInUserScope`. ⛔ **Non** quella della Vendita al banco: pretende
+`inventory.manage`, che su un'entità senza magazzino è un requisito sbagliato.
+
+⚠️ **Il riepilogo totali non è un componente**: è lo stesso blocco ricopiato in cinque
+maschere. Il Corrispettivo manuale sarebbe la sesta copia. Estrarlo è la cosa giusta, ma è
+**lavoro dichiarato** — non un ritocco da fare di straforo qui.
+
+### Le prove obbligatorie
+
+La prima non è negoziabile e viene prima delle altre:
+
+1. **creare, modificare ed eliminare un Corrispettivo manuale produce ZERO `StockMovement`**, e
+   non muove Giacenza, Impegnata né Disponibile;
+2. **70,00 ivati al 22% → salvato → riaperto in modalità Ivati = 70,00.** Non 69,99, non 70,01;
+3. cambio Ivati → Netti **senza variazione economica**: i valori si convertono, non si
+   reinterpretano;
+4. più righe con **aliquote diverse** nella stessa registrazione;
+5. una **riga vuota non viene salvata**;
+6. Codice IVA + snapshot: cambiando il Codice IVA, **la registrazione storica non cambia**;
+7. la modifica **aggiorna lo stesso record**, non ne crea un secondo;
+8. **tenant A non vede né modifica** i corrispettivi di tenant B;
+9. compare **una sola volta** nel Registro, con origine visibile, e **dentro i totali**;
+10. il filtro isola ed esclude il manuale; **totale a schermo = totale esportato**, incluso ed
+    escluso;
+11. l'export ripetuto **non ha effetti collaterali**;
+12. **nessuna regressione** delle tre sorgenti già presenti.
