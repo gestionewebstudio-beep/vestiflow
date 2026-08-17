@@ -1,16 +1,50 @@
 <div class="corrispettivi-table-wrap">
   <table class="corrispettivi-table">
     <thead class="corrispettivi-table__head">
+      <!--
+        ⚠️ **Le colonne sono configurabili** (`TableViewId.CorrispettiviRegister`).
+        Cliente, Email cliente, Pagamento e Nota esistono ma nascono **spente**:
+        il Registro non è un archivio clienti, e lo stato di pagamento oggi crea
+        soprattutto incoerenza fra sorgenti che un ciclo di pagamento non ce
+        l'hanno. Chi le vuole le riaccende dal selettore Colonne — i dati
+        arrivano comunque dall'API ed escono comunque nell'export.
+      -->
       <tr>
-        <th scope="col">Data</th>
-        <th scope="col">Tipo</th>
-        <th scope="col">Ordine</th>
-        <th scope="col">Cliente</th>
-        <th scope="col">Canale</th>
-        <th scope="col">Pagamento</th>
-        <th scope="col" class="corrispettivi-table__cell--num">Imponibile</th>
-        <th scope="col" class="corrispettivi-table__cell--num">IVA</th>
-        <th scope="col" class="corrispettivi-table__cell--num">Totale</th>
+        @if (isVisible('occurredAt')) {
+          <th scope="col">Data</th>
+        }
+        @if (isVisible('kind')) {
+          <th scope="col">Tipo</th>
+        }
+        @if (isVisible('orderNumber')) {
+          <th scope="col">Numero</th>
+        }
+        @if (isVisible('customerName')) {
+          <th scope="col">Cliente</th>
+        }
+        <!--
+          «Canale» fino al 17/08/2026, quando le origini erano tre e venivano
+          tutte da un ordine. Con la quarta — il Corrispettivo manuale, che
+          ordine non è — «canale» direbbe il falso: nessun canale l'ha raccolta.
+        -->
+        @if (isVisible('source')) {
+          <th scope="col">Origine</th>
+        }
+        @if (isVisible('location')) {
+          <th scope="col">Sede</th>
+        }
+        @if (isVisible('financialStatus')) {
+          <th scope="col">Pagamento</th>
+        }
+        @if (isVisible('taxable')) {
+          <th scope="col" class="corrispettivi-table__cell--num">Imponibile</th>
+        }
+        @if (isVisible('tax')) {
+          <th scope="col" class="corrispettivi-table__cell--num">IVA</th>
+        }
+        @if (isVisible('total')) {
+          <th scope="col" class="corrispettivi-table__cell--num">Totale</th>
+        }
       </tr>
     </thead>
     <tbody>
@@ -21,41 +55,126 @@
         vista a parte.
       -->
       @for (row of rows(); track row.rowId) {
+        <!--
+          ⚠️ **Si apre cliccando la riga, come ogni altra lista di VestiFlow.**
+
+          Prima il varco era il *numero* sottolineato: un collegamento largo un
+          carattere, in una colonna dove gli altri numeri non fanno niente —
+          nessuno poteva indovinare che «2» si aprisse e «#1009» no. Il pattern
+          della casa è `document-table`: riga intera, `tabindex`, Invio e Spazio,
+          e la maschera che si apre in sola lettura col suo «Modifica».
+
+          Le righe delle altre tre sorgenti non sono cliccabili perché non hanno
+          dove aprirsi: restano senza `tabindex`, senza mano e senza etichetta.
+        -->
         <tr
           class="corrispettivi-table__row"
           [class.corrispettivi-table__row--refund]="row.kind === 'refund'"
+          [class.corrispettivi-table__row--clickable]="isOpenable(row)"
+          [attr.tabindex]="isOpenable(row) ? 0 : null"
+          [attr.aria-label]="
+            isOpenable(row) ? 'Apri il corrispettivo manuale n. ' + row.orderNumber : null
+          "
+          (click)="openRow(row)"
+          (keydown.enter)="openRow(row)"
+          (keydown.space)="onRowSpace(row, $event)"
         >
-          <td class="tabular-nums" data-label="Data">{{ formatDate(row.occurredAt) }}</td>
-          <td data-label="Tipo">
-            @if (row.kind === 'refund') {
-              <app-badge tone="warning">{{ refundLabel(row.refundKind) }}</app-badge>
-            } @else {
-              <span class="corrispettivi-table__kind">Vendita</span>
-            }
-          </td>
-          <td class="tabular-nums" data-label="Ordine">{{ row.orderNumber }}</td>
-          <td data-label="Cliente">{{ row.customerName }}</td>
-          <td data-label="Canale">{{ sourceLabel(row.source) }}</td>
-          <td data-label="Pagamento">
-            @if (row.financialStatus) {
-              <app-badge [tone]="financialTone(row.financialStatus)">
-                {{ financialLabel(row.financialStatus) }}
-              </app-badge>
-            } @else {
-              <!-- Una rettifica non ha stato di pagamento: la cella resta muta
-                   invece di ereditare quello della vendita, che sarebbe falso. -->
-              <span class="corrispettivi-table__empty" aria-hidden="true">—</span>
-            }
-          </td>
-          <td class="corrispettivi-table__cell--num tabular-nums" data-label="Imponibile">
-            {{ formatMoney(row.taxable) }}
-          </td>
-          <td class="corrispettivi-table__cell--num tabular-nums" data-label="IVA">
-            {{ formatMoney(row.tax) }}
-          </td>
-          <td class="corrispettivi-table__cell--num tabular-nums" data-label="Totale">
-            {{ formatMoney(row.total) }}
-          </td>
+          @if (isVisible('occurredAt')) {
+            <td class="tabular-nums corrispettivi-table__cell--date" data-label="Data">
+              {{ formatDate(row.occurredAt) }}
+            </td>
+          }
+          @if (isVisible('kind')) {
+            <td data-label="Tipo">
+              @if (row.kind === 'refund') {
+                <!--
+                  ⚠️ **Testo colorato, non una pill.** Un badge dentro una cella
+                  alza la riga e mette un riquadro attorno a una parola che è già
+                  distinta dal colore: in una tabella da consultare a colpo
+                  d'occhio è rumore, e per una colonna che ha un valore su ogni
+                  riga il riquadro non segnala più niente.
+                -->
+                <span class="corrispettivi-table__kind corrispettivi-table__kind--refund">
+                  {{ refundLabel(row.refundKind) }}
+                </span>
+              } @else {
+                <!--
+                  ⚠️ **«Vendita» anche per il Corrispettivo manuale.** Aveva un
+                  tipo suo — «Registrazione» — ed è stato corretto: economicamente
+                  rappresenta una vendita avvenuta, e «Registrazione» era una
+                  distinzione tecnica che all'operatore non serve. La sua
+                  particolarità la porta la colonna Origine.
+                -->
+                <span class="corrispettivi-table__kind">Vendita</span>
+              }
+            </td>
+          }
+          @if (isVisible('orderNumber')) {
+            <td class="tabular-nums" data-label="Numero">{{ row.orderNumber }}</td>
+          }
+          @if (isVisible('customerName')) {
+            <td data-label="Cliente">
+              @if (row.customerName) {
+                {{ row.customerName }}
+              } @else {
+                <!-- Una chiusura di cassa non sa a chi ha venduto: vuoto è la
+                     risposta vera, non un dato che manca. -->
+                <span class="corrispettivi-table__empty" aria-hidden="true">—</span>
+              }
+            </td>
+          }
+          @if (isVisible('source')) {
+            <td data-label="Origine">{{ sourceLabel(row.source) }}</td>
+          }
+          @if (isVisible('location')) {
+            <td data-label="Sede">
+              @if (row.locationName) {
+                {{ row.locationName }}
+              } @else {
+                <!--
+                  «Non determinata» per esteso, e non una cella vuota: è
+                  un'anomalia temporanea delle righe Shopify — dove la sede può
+                  mancare o essere stata indovinata dal ripiego alfabetico della
+                  sync — non uno stato del modello. Quando la sync sarà sistemata
+                  questa dicitura deve sparire da sé (`docs/10` §12).
+                -->
+                <span class="corrispettivi-table__undetermined">
+                  {{ locationUndeterminedLabel }}
+                </span>
+              }
+            </td>
+          }
+          @if (isVisible('financialStatus')) {
+            <td data-label="Pagamento">
+              @if (row.financialStatus) {
+                <span
+                  class="corrispettivi-table__payment"
+                  [class]="'corrispettivi-table__payment--' + financialTone(row.financialStatus)"
+                >
+                  {{ financialLabel(row.financialStatus) }}
+                </span>
+              } @else {
+                <!-- Una rettifica non ha stato di pagamento: la cella resta muta
+                     invece di ereditare quello della vendita, che sarebbe falso. -->
+                <span class="corrispettivi-table__empty" aria-hidden="true">—</span>
+              }
+            </td>
+          }
+          @if (isVisible('taxable')) {
+            <td class="corrispettivi-table__cell--num tabular-nums" data-label="Imponibile">
+              {{ formatMoney(row.taxable) }}
+            </td>
+          }
+          @if (isVisible('tax')) {
+            <td class="corrispettivi-table__cell--num tabular-nums" data-label="IVA">
+              {{ formatMoney(row.tax) }}
+            </td>
+          }
+          @if (isVisible('total')) {
+            <td class="corrispettivi-table__cell--num tabular-nums" data-label="Totale">
+              {{ formatMoney(row.total) }}
+            </td>
+          }
         </tr>
       }
     </tbody>

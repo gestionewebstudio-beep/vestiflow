@@ -14,24 +14,75 @@
   font-size: var(--text-sm);
 }
 
+/*
+  ⚠️ **La tabella si adatta alla larghezza invece di far comparire la barra.**
+
+  Senza `overflow-wrap`, la larghezza minima di una tabella è la somma delle
+  larghezze «min-content» delle celle: basta un «Non determinata» o un
+  «VN-2026-0001» perché il browser si rifiuti di stringere oltre, e comparisse
+  la barra orizzontale — che `regole-architettura` vieta quando non è voluta.
+
+  Con questo il testo si spezza e la tabella rientra. Il wrapper conserva
+  `overflow-x: auto` come rete: su schermi molto stretti scorrere è meglio che
+  spezzare una parola per lettera.
+*/
+.corrispettivi-table th,
+.corrispettivi-table td {
+  overflow-wrap: anywhere;
+}
+
+/* I numeri non si spezzano mai: «57,69 €» su due righe non è un numero. */
+.corrispettivi-table__cell--num {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+/*
+  Densità da gestionale: le righe respiravano troppo — `--space-3` sopra e
+  sotto su una tabella che si legge a colpo d'occhio significa meno righe a
+  schermo e più scroll, in una vista che serve a consultare.
+*/
+/*
+  ⚠️ **I token dell'intestazione tabella sono due, e ne usavo uno solo.**
+  `regole-stile-ui` §2 li dà in coppia: `--color-table-header-bg` per il fondo e
+  `--color-table-header-fg` per il testo. Qui c'era `--color-text-subtle`, che è
+  il grigio dei segnaposto — più chiaro, e su un fondo già grigio il contrasto
+  scendeva sotto il leggibile.
+
+  Altezza: `--table-head-h` è 32px per specifica, e il padding la portava oltre.
+*/
 .corrispettivi-table__head th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: var(--space-3) var(--space-4);
+  block-size: var(--table-head-h);
+  padding: 0 var(--space-3);
   text-align: left;
   text-transform: uppercase;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-subtle);
+  /* §3: 9,5–10px, weight 760, tracking .045em. Qui non c'era `font-size` e
+     l'intestazione ereditava i 13px del corpo tabella — grande quanto il dato
+     che deve etichettare. */
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.045em;
+  color: var(--color-table-header-fg);
   background-color: var(--color-table-header-bg);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-table-header-rule);
   white-space: nowrap;
 }
 
 .corrispettivi-table__row td {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-1) var(--space-3);
   border-bottom: var(--border-width) solid var(--color-border);
   vertical-align: middle;
+}
+
+/*
+  La data sta su UNA riga: «17 ago 2026» andava a capo e raddoppiava l'altezza
+  di ogni riga della tabella per il solo gusto di stringere una colonna.
+*/
+.corrispettivi-table__cell--date {
+  white-space: nowrap;
 }
 
 /*
@@ -47,12 +98,67 @@
   color: var(--color-danger);
 }
 
+/*
+  Il tipo di riga si legge dal COLORE della parola, non da un riquadro attorno.
+  Una pill segnala un'eccezione; qui ogni riga ha un tipo, quindi il riquadro
+  non distingue niente e alza soltanto la riga.
+*/
 .corrispettivi-table__kind {
+  color: var(--color-text-muted);
+}
+
+/* Una rettifica toglie: stessa tinta della sua colonna importi. */
+.corrispettivi-table__kind--refund {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.corrispettivi-table__payment--success {
+  color: var(--color-ok);
+}
+
+.corrispettivi-table__payment--warning {
+  color: var(--color-warning);
+}
+
+.corrispettivi-table__payment--error {
+  color: var(--color-danger);
+}
+
+.corrispettivi-table__payment--neutral {
   color: var(--color-text-muted);
 }
 
 .corrispettivi-table__empty {
   color: var(--color-text-subtle);
+}
+
+/*
+  «Non determinata» si legge come un'annotazione, non come un nome di sede:
+  è il modo onesto di dire che il dato oggi non c'è, e non deve somigliare a
+  una terza sede accanto alle altre.
+*/
+.corrispettivi-table__undetermined {
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+/*
+  La riga di una registrazione manuale si apre: stessa mano e stesso hover di
+  `document-table`, perché è lo stesso gesto. Le altre righe non prendono nulla
+  di tutto questo — il segnale deve distinguere ciò che si apre da ciò che no.
+*/
+.corrispettivi-table__row--clickable {
+  cursor: pointer;
+}
+
+.corrispettivi-table__row--clickable:hover td {
+  background-color: var(--color-surface-hover);
+}
+
+.corrispettivi-table__row--clickable:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: calc(var(--focus-ring-width) * -1);
 }
 
 .corrispettivi-table__cell--num,

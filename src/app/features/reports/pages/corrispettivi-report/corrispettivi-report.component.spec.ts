@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
+import { APP_CONFIG } from '@core/config/app-config.token';
 import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
 import type { User } from '@core/models/user.model';
 import { UserRole } from '@core/models/user.model';
@@ -72,11 +73,19 @@ const riepilogoVuoto: CorrispettiviSummary = {
   netTotal: zero,
   netTax: zero,
   netTaxable: zero,
+  locationUndeterminedExcludedCount: 0,
 };
 
-async function apri(): Promise<void> {
+async function apri(
+  summary: CorrispettiviSummary = riepilogoVuoto,
+  user: User = titolare(),
+): Promise<void> {
   await render(CorrispettiviReportComponent, {
     providers: [
+      // Il selettore Colonne passa da `TableColumnPreferenceService`, che salva le
+      // preferenze via HTTP e quindi tira `APP_CONFIG`. Senza, il componente non si
+      // costruisce affatto — e il test fallirebbe per una ragione che non c'entra.
+      { provide: APP_CONFIG, useValue: { apiBaseUrl: '/api/v1' } },
       provideRouter([]),
       {
         provide: ActivatedRoute,
@@ -84,14 +93,15 @@ async function apri(): Promise<void> {
       },
       {
         provide: AuthService,
-        useValue: { currentUser: () => titolare() },
+        useValue: { currentUser: () => user },
       },
       {
         provide: CorrispettiviService,
         useValue: {
           listOrders: () =>
             of({ data: [], meta: { page: 1, pageSize: 100, total: 0, totalPages: 0 } }),
-          getSummary: () => of(riepilogoVuoto),
+          getSummary: () => of(summary),
+          listLocations: () => of([{ id: 'loc-1', name: 'Negozio Centro' }]),
         },
       },
       {
@@ -113,9 +123,60 @@ describe('CorrispettiviReportComponent — una sola CTA di export', () => {
   it('lascia in testata tutte le azioni che il pulsante spento copriva', async () => {
     await apri();
 
-    expect(screen.getByRole('button', { name: /export per commercialista/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /export excel/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /scarica pdf/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /anteprima stampa/i })).toBeTruthy();
+    // Le etichette sono state accorciate al nome del formato — quattro pulsanti
+    // larghi che ripetevano il verbo prendevano due file in cima alla pagina —
+    // ma le AZIONI sono le stesse quattro, ed è quello che il test presidia.
+    expect(screen.getByRole('button', { name: /^CSV$/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Excel$/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^PDF$/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Stampa$/i })).toBeTruthy();
+  });
+
+  /**
+   * Il posto lasciato libero dal doppione è quello della primary vera: «+
+   * Aggiungi corrispettivo» (`docs/10` §12). Resta **una sola** primary nella
+   * vista — le quattro azioni di export sono ghost e secondary.
+   */
+  it('la primary della pagina è «Aggiungi corrispettivo»', async () => {
+    await apri();
+
+    expect(screen.getByRole('button', { name: /aggiungi corrispettivo/i })).toBeTruthy();
+  });
+});
+
+/**
+ * ⚠️ Filtrando per sede le righe che una sede non ce l'hanno escono dal
+ * risultato — a quella sede non sono attribuibili — ma **non spariscono in
+ * silenzio**: un registro che perde righe appena si sceglie una sede mostrerebbe
+ * un totale più basso del vero, che in un registro fiscale è il difetto peggiore
+ * possibile (`docs/10` §12).
+ */
+describe('CorrispettiviReportComponent — sedi non determinate', () => {
+  it('dichiara quante righe il filtro Sede ha lasciato fuori', async () => {
+    await apri({ ...riepilogoVuoto, locationUndeterminedExcludedCount: 3 });
+
+    expect(screen.getByText(/3 registrazioni con Location non determinata/i)).toBeTruthy();
+  });
+
+  it('senza righe escluse non dice niente: il numero misura ciò che il filtro toglie', async () => {
+    await apri();
+
+    expect(screen.queryByText(/Location non determinata/i)).toBeNull();
+  });
+});
+
+/**
+ * Il pulsante è ergonomia: il controllo vero sta sull'API, che risponde 403.
+ * Ma mostrarlo a chi non può usarlo produce un errore dopo il lavoro, non prima.
+ */
+describe('CorrispettiviReportComponent — chi può registrare', () => {
+  it('senza il permesso del registro fiscale la primary non compare', async () => {
+    await apri(riepilogoVuoto, {
+      ...titolare(),
+      role: UserRole.Clerk,
+      permissions: ['section.sales', 'section.reports', 'doc.online_sale.view'],
+    });
+
+    expect(screen.queryByRole('button', { name: /aggiungi corrispettivo/i })).toBeNull();
   });
 });

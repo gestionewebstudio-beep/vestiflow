@@ -1,0 +1,570 @@
+<section class="doc-form mr-form">
+  @if (loadError(); as failed) {
+    <app-inline-banner tone="error" [message]="failed.message" />
+  }
+
+  <div class="doc-form__head-row">
+    <app-back-button />
+    <h1 class="doc-form__title">
+      @if (isEdit()) {
+        Corrispettivo manuale
+        @if (assignedNumber(); as number) {
+          <span class="mr-form__number tabular-nums">n. {{ number }}</span>
+        }
+      } @else {
+        Nuovo corrispettivo manuale
+      }
+    </h1>
+  </div>
+
+  @if (createdByName(); as autore) {
+    <!--
+      Chi l'ha registrata: è l'unica traccia che questa entità conserva, ed è
+      uno snapshot del nome — regge anche se l'utente cambia nome o sparisce.
+      Su una registrazione digitata a mano è l'informazione che si cerca per
+      prima quando un numero non torna.
+    -->
+    <p class="mr-form__meta">Registrato da {{ autore }}</p>
+  }
+
+  <!--
+    ⚠️ **Non «incasso»**, ed è una correzione concettuale, non di stile: un
+    incasso è un movimento di denaro, e Pagamenti e Tesoreria sono dichiarati
+    FUORI perimetro (`10` §12 — «non crea pagamenti, incassi o Tesoreria»).
+    Chiamarlo così nella sua stessa maschera è ciò che porta qualcuno a cercarci
+    una scheda pagamento che non esiste.
+
+    Una riga sola: i quattro casi reali stanno in guida, qui serve il criterio.
+  -->
+  <p class="mr-form__intro">
+    Registra un corrispettivo quando il dato economico è certo ma la vendita analitica non è
+    disponibile o non è ricostruibile.
+  </p>
+
+  <!--
+    Blocco alla riapertura: un corrispettivo salvato si apre protetto, come ogni
+    altro documento del gestionale. Stesso componente e stesso servizio delle
+    altre maschere — il banner non si riscrive per feature.
+  -->
+  @if (formReadOnly()) {
+    <app-edit-lock-banner (unlock)="requestUnlockEdit()" />
+  }
+
+  <form class="doc-form__form" [formGroup]="form" (ngSubmit)="save()">
+    <!--
+      ⚠️ `fieldset[disabled]` e non un `[disabled]` per controllo: disabilita
+      NATIVAMENTE ogni campo e pulsante che contiene, compresi quelli dentro i
+      componenti condivisi che un input `disabled` non ce l'hanno. Le azioni
+      Chiudi/Salva stanno fuori, o si spegnerebbero con tutto il resto.
+    -->
+    <fieldset class="doc-form__gate-fields" [disabled]="formReadOnly()">
+      <div class="doc-form__header">
+        <!--
+          ⚠️ **La tripletta di classi, non la sola `--header`.** Ogni maschera
+          documento usa `--header --header-compact --header-row`: con la prima
+          soltanto le celle diventano tutte larghe uguali — Numero e Data
+          enormi, e il selettore Ivati/Netti che va a capo da solo.
+        -->
+        <div
+          class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
+        >
+          <!--
+            La Sede è il PRIMO campo: l'occhio cade lì, ed è la sola cosa che
+            senza scelta non fa andare avanti — `manual_receipts.location_id` è
+            `NOT NULL`, ed è una regola del MODELLO, non una convalida di
+            maschera. Finché è vuota il controllo porta la tinta d'attesa, che
+            NON è il rosso dell'errore: aprire una registrazione nuova non è uno
+            sbaglio dell'operatore.
+
+            `--span2` perché è l'unico campo con un nome di sede dentro: gli
+            altri tre ospitano un numero, una data e una parola.
+          -->
+          <div
+            class="doc-form__field doc-form__field--span2"
+            [class.doc-form__field--waiting]="locationWaiting()"
+          >
+            <span class="doc-form__label">Sede</span>
+            <app-select-menu
+              [options]="locationOptions()"
+              [value]="form.controls.locationId.value"
+              ariaLabel="Sede"
+              placeholder="Seleziona sede…"
+              [compact]="true"
+              [fullWidth]="true"
+              [searchable]="true"
+              searchPlaceholder="Cerca sede…"
+              searchAriaLabel="Cerca sede"
+              (valueChange)="form.controls.locationId.setValue($event ?? '')"
+            />
+            @if (fieldInvalid('locationId')) {
+              <p class="doc-form__error">Campo obbligatorio.</p>
+            }
+          </div>
+
+          <!--
+            ⚠️ **Il cancello della testata**: finché la Sede è vuota, il resto
+            della registrazione è spento — come Arrivo merce e Ordine fornitore.
+            La ragione qui non è tecnica (nessun campo di riga dipende dalla
+            sede): è la **prevedibilità**, deciso il 17/08. Quattro maschere che
+            si comportano allo stesso modo valgono più di una regola in meno.
+
+            Il cancello NON avvolge la Sede, o si spegnerebbe da sé.
+          -->
+          <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
+            <div class="doc-form__field">
+              <span class="doc-form__label">Numero</span>
+              <!--
+                In sola lettura, e vuoto finché non c'è: il numero lo assegna il
+                motore comune al salvataggio. Mostrarne uno «previsto»
+                prometterebbe una cifra che un altro operatore può prendere nel
+                frattempo.
+              -->
+              <p class="doc-form__readonly tabular-nums">
+                {{ assignedNumber() ?? 'Assegnato al salvataggio' }}
+              </p>
+            </div>
+
+            <div class="doc-form__field">
+              <label class="doc-form__label" for="mr-date">Data</label>
+              <app-date-input
+                inputId="mr-date"
+                formControlName="documentDate"
+                ariaLabel="Data della registrazione"
+                [compact]="true"
+                [fullWidth]="true"
+              />
+              @if (fieldInvalid('documentDate')) {
+                <p class="doc-form__error">Campo obbligatorio.</p>
+              }
+            </div>
+
+            <div class="doc-form__field">
+              <span class="doc-form__label">Importi</span>
+              <!--
+                Un solo selettore per l'intera registrazione, e parte da
+                «Ivati»: il caso operativo è ricopiare i valori di una chiusura
+                di cassa, che ivati lo sono. Cambiando modalità i valori si
+                CONVERTONO — il netto canonico non si tocca mai.
+              -->
+              <app-select-menu
+                [options]="priceModeOptions"
+                [value]="priceModeValue()"
+                ariaLabel="Importi ivati o netti"
+                placeholder="Ivati"
+                [includeEmptyOption]="false"
+                [compact]="true"
+                [fullWidth]="true"
+                (valueChange)="setPriceMode($event)"
+              />
+            </div>
+          </fieldset>
+        </div>
+      </div>
+
+      <fieldset class="doc-form__gate-fields" [disabled]="headerGateActive()">
+        <section class="doc-form__lines" aria-labelledby="mr-lines-title">
+          <div class="doc-form__lines-head">
+            <h2 id="mr-lines-title" class="doc-form__subtitle">Righe</h2>
+            @if (!headerGateActive()) {
+              <div class="doc-form__lines-tools">
+                <app-button type="button" variant="ghost" (click)="addLineFromToolbar()">
+                  <i class="pi pi-plus" aria-hidden="true"></i>
+                  Aggiungi riga
+                </app-button>
+              </div>
+            }
+          </div>
+
+          <!--
+        ⚠️ A cancello chiuso le righe **non ci sono**, non sono sbiadite: una
+        tabella intera a metà tinta occupa mezzo schermo per non poter essere
+        usata (`regole-stile-ui` §7). Al suo posto uno stato vuoto che dice
+        COSA manca.
+      -->
+          @if (headerGateActive()) {
+            <app-empty-state
+              [title]="linesEmptyTitle()"
+              [description]="linesEmptyDescription()"
+              icon="pi-list"
+            />
+          } @else {
+            <div class="doc-form__table-wrap">
+              <table class="doc-form__table mr-form__table">
+                <thead>
+                  <!--
+              ⚠️ Il testo dell'intestazione sta NUDO nel `<th>`, come in ogni
+              altra maschera. `doc-form__th-label` è la classe di uno `<span>`
+              INTERNO ed è `display: inline-flex`: messa sul `<th>` lo toglie dal
+              layout della tabella, e le intestazioni si impilano una sotto
+              l'altra a sinistra. È il difetto che questa riga di commento
+              esiste per non far tornare.
+            -->
+                  <!--
+              L'ordine è quello del riferimento gestionale: prima i VALORI, la
+              descrizione ultima e larga. Non è estetica — dice all'operatore
+              cosa serve davvero: importo e aliquota. La descrizione è
+              facoltativa, e messa in coda si vede che lo è.
+
+              Le larghezze seguono il dato che ospitano: l'IVA è un codice
+              breve, gli importi non superano le sei cifre, e tutto ciò che
+              avanza va alla descrizione — che è l'unica a poter essere lunga.
+            -->
+                  <tr>
+                    <th scope="col" class="doc-form__num" style="width: 13%">
+                      {{ pricesIncludeVat() ? 'Importo ivato' : 'Importo netto' }}
+                    </th>
+                    <th scope="col" class="doc-form__col--tax" style="width: 8%">IVA</th>
+                    <th scope="col" class="doc-form__num doc-form__col--calc" style="width: 12%">
+                      Imponibile
+                    </th>
+                    <th scope="col" class="doc-form__num doc-form__col--calc" style="width: 12%">
+                      Imposta
+                    </th>
+                    <th scope="col" style="width: 50%">Descrizione</th>
+                    <th scope="col" style="width: 5%"><span class="sr-only">Azioni</span></th>
+                  </tr>
+                </thead>
+                <tbody formArrayName="lines">
+                  @for (line of lines.controls; track $index) {
+                    <tr [formGroupName]="$index">
+                      <td
+                        class="doc-form__cell doc-form__cell--editable doc-form__num"
+                        data-label="Importo"
+                      >
+                        <!-- Il campo è una VISTA sul netto canonico: quello che si
+                       digita qui aggiorna il netto, e il selettore ivati/netti
+                       ridisegna il campo senza mai ricostruire il netto da ciò
+                       che si vede. -->
+                        <input
+                          [id]="'mr-amount-' + $index"
+                          class="doc-form__input doc-form__input--table doc-form__input--num"
+                          type="text"
+                          inputmode="decimal"
+                          formControlName="amount"
+                          placeholder="0,00"
+                          [attr.aria-label]="'Importo riga ' + ($index + 1)"
+                          (input)="onAmountInput($index, $any($event.target).value)"
+                        />
+                      </td>
+                      <td class="doc-form__cell doc-form__col--tax" data-label="IVA">
+                        <app-document-line-select-cell
+                          [lineIndex]="$index"
+                          [inputId]="'mr-vat-' + $index"
+                          ariaLabel="Codice IVA riga"
+                          [options]="lineVatOptions($index)"
+                          [value]="line.controls.vatCodeId.value"
+                          [disabled]="formReadOnly()"
+                          [inColumnCycle]="false"
+                          (valueChange)="onLineVatSelect($index, $event)"
+                        />
+                      </td>
+                      <td
+                        class="doc-form__cell doc-form__cell--computed doc-form__num"
+                        data-label="Imponibile"
+                      >
+                        <span class="tabular-nums">{{ formatMoney(lineNet($index)) }}</span>
+                      </td>
+                      <td
+                        class="doc-form__cell doc-form__cell--computed doc-form__num"
+                        data-label="Imposta"
+                      >
+                        <span class="tabular-nums">{{ formatMoney(lineVat($index)) }}</span>
+                      </td>
+                      <!--
+                  Ultima e larga: la descrizione è FACOLTATIVA, e il posto in cui
+                  sta lo dice senza doverlo scrivere. Prende tutto lo spazio che
+                  le altre non usano — è l'unica colonna che può essere lunga.
+                -->
+                      <td class="doc-form__cell doc-form__cell--editable" data-label="Descrizione">
+                        <input
+                          [id]="'mr-desc-' + $index"
+                          class="doc-form__input doc-form__input--table"
+                          type="text"
+                          formControlName="description"
+                          placeholder="Facoltativa"
+                          [attr.aria-label]="'Descrizione riga ' + ($index + 1)"
+                        />
+                      </td>
+                      <td class="doc-form__cell doc-form__cell--actions">
+                        @if (!formReadOnly()) {
+                          <button
+                            type="button"
+                            class="doc-form__line-remove"
+                            [attr.aria-label]="'Elimina riga ' + ($index + 1)"
+                            (click)="removeLine($index)"
+                          >
+                            <i class="pi pi-trash" aria-hidden="true"></i>
+                          </button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <!--
+        ⚠️ La vista card NON è un adattamento: sotto lg il foglio globale spegne
+        `.doc-form__table-wrap`, quindi senza questo blocco le righe non
+        sparirebbero «male» — sparirebbero e basta.
+
+        La forma è quella condivisa da tutte le maschere documento
+        (`app-document-line-card` + control/group/field): la card dà la forma, la
+        maschera dice cosa metterci dentro.
+      -->
+            <div class="doc-form__cards" formArrayName="lines">
+              @for (line of lines.controls; track $index) {
+                <ng-container [formGroupName]="$index">
+                  <app-document-line-card
+                    [lineIndex]="$index"
+                    [open]="isLineOpen($index)"
+                    [readOnly]="formReadOnly()"
+                    [canRemove]="lines.length > 1"
+                    [title]="lineCardTitle($index)"
+                    [meta]="lineCardMeta($index)"
+                    (toggled)="toggleLine($index)"
+                    (removeRequested)="removeLine($index)"
+                    (removed)="removeLine($index)"
+                    (duplicated)="duplicateLine($index)"
+                  >
+                    <ng-container cardControls>
+                      <app-document-line-card-control
+                        [label]="pricesIncludeVat() ? 'Importo ivato' : 'Importo netto'"
+                      >
+                        <input
+                          [id]="'mr-m-amount-' + $index"
+                          class="doc-form__input doc-form__input--num tabular-nums"
+                          type="text"
+                          inputmode="decimal"
+                          formControlName="amount"
+                          placeholder="0,00"
+                          [attr.aria-label]="'Importo riga ' + ($index + 1)"
+                          (input)="onAmountInput($index, $any($event.target).value)"
+                        />
+                      </app-document-line-card-control>
+
+                      <app-document-line-card-control label="IVA">
+                        <!--
+                    La stessa cella del desktop. `inColumnCycle="false"` perché
+                    qui le colonne non esistono e il Tab resta al browser: la
+                    scelta si prende toccando.
+                  -->
+                        <app-document-line-select-cell
+                          [lineIndex]="$index"
+                          [inputId]="'mr-m-vat-' + $index"
+                          ariaLabel="Codice IVA riga"
+                          [options]="lineVatOptions($index)"
+                          [value]="line.controls.vatCodeId.value"
+                          [inColumnCycle]="false"
+                          (valueChange)="onLineVatSelect($index, $event)"
+                        />
+                      </app-document-line-card-control>
+
+                      <app-document-line-card-control label="Imposta">
+                        <span class="tabular-nums">{{ formatMoney(lineVat($index)) }}</span>
+                      </app-document-line-card-control>
+                    </ng-container>
+
+                    <ng-container cardBody>
+                      <app-document-line-card-group label="Riga" [first]="true" />
+
+                      <app-document-line-card-field
+                        label="Descrizione"
+                        [controlId]="'mr-m-desc-' + $index"
+                        [full]="true"
+                      >
+                        <input
+                          [id]="'mr-m-desc-' + $index"
+                          class="doc-form__input"
+                          type="text"
+                          formControlName="description"
+                          placeholder="Vendite cassa esterna"
+                        />
+                      </app-document-line-card-field>
+
+                      <app-document-line-card-field label="Imponibile" [readonly]="true">
+                        <span class="tabular-nums">{{ formatMoney(lineNet($index)) }}</span>
+                      </app-document-line-card-field>
+
+                      <app-document-line-card-field label="Imposta" [readonly]="true">
+                        <span class="tabular-nums">{{ formatMoney(lineVat($index)) }}</span>
+                      </app-document-line-card-field>
+                    </ng-container>
+                  </app-document-line-card>
+                </ng-container>
+              }
+            </div>
+          }
+        </section>
+
+        <!-- ── Banda finale: totali a destra, note a sinistra (sticky a lg+) ── -->
+        <div class="doc-form__footer-grid">
+          <aside class="doc-form__totals-bar" aria-label="Totali della registrazione">
+            <dl class="doc-form__totals">
+              <div class="doc-form__totals-row">
+                <dt>Imponibile</dt>
+                <dd class="tabular-nums">{{ formatMoney(totals().subtotal) }}</dd>
+              </div>
+              <div class="doc-form__totals-row">
+                <dt>IVA</dt>
+                <dd class="tabular-nums">{{ formatMoney(totals().tax) }}</dd>
+              </div>
+              <div class="doc-form__totals-row doc-form__totals-row--total">
+                <dt>Totale registrazione</dt>
+                <dd class="tabular-nums">
+                  <strong>{{ formatMoney(totals().total) }}</strong>
+                </dd>
+              </div>
+            </dl>
+          </aside>
+
+          <div class="doc-form__footer-notes">
+            <div class="doc-form__field">
+              <label class="doc-form__label" for="mr-notes">Note</label>
+              <textarea
+                id="mr-notes"
+                class="doc-form__textarea"
+                rows="2"
+                formControlName="notes"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+    </fieldset>
+
+    @if (submitError(); as appError) {
+      <p class="doc-form__submit-error" role="alert">{{ appError.message }}</p>
+    }
+
+    <div class="doc-form__actions mr-form__actions">
+      @if (isEdit()) {
+        <!--
+          L'eliminazione sta qui e non fra le azioni principali: è rara, ed è la
+          sola che non si annulla. Il numero non si riusa e il buco resta.
+        -->
+        <app-button
+          type="button"
+          variant="danger"
+          [disabled]="saving() || deleting()"
+          (click)="askDelete()"
+        >
+          Elimina
+        </app-button>
+      }
+      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancel()">
+        Chiudi
+      </app-button>
+      @if (!formReadOnly()) {
+        <!--
+          «Salva corrispettivo», non «Salva documento»: `regole-stile-ui` §5
+          impone la stessa etichetta a ogni DOCUMENTO, e questo documento non è
+          — non ha una riga in `documents`, non si stampa come tale, non entra
+          nella matrice dei permessi documentali (`10` §12).
+
+          A registrazione protetta il pulsante non c'è: si sblocca dal banner in
+          cima, che è il gesto delle altre maschere.
+        -->
+        <app-button type="submit" [loading]="saving()" [disabled]="saving()">
+          Salva corrispettivo
+        </app-button>
+      }
+    </div>
+  </form>
+</section>
+
+@if (unlockDialogOpen()) {
+  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelUnlockEdit()"></div>
+  <div
+    class="doc-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="mr-unlock-title"
+  >
+    <h2 id="mr-unlock-title" class="doc-form__exit-title">Sbloccare la registrazione?</h2>
+    <p class="doc-form__exit-message">
+      Il corrispettivo n. {{ assignedNumber() }} è già registrato ed entra nei totali del Registro.
+      Sbloccandolo puoi correggerne importi, aliquote e sede: le modifiche aggiornano la stessa
+      registrazione, senza crearne una seconda.
+    </p>
+    <div class="doc-form__exit-actions">
+      <app-button type="button" variant="ghost" (click)="cancelUnlockEdit()">Annulla</app-button>
+      <app-button type="button" (click)="confirmUnlockEdit()">Sblocca</app-button>
+    </div>
+  </div>
+}
+
+@if (exitDialogOpen()) {
+  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelExitDialog()"></div>
+  <div
+    class="doc-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="mr-exit-title"
+  >
+    <h2 id="mr-exit-title" class="doc-form__exit-title">Modifiche non salvate</h2>
+    <p class="doc-form__exit-message">
+      Ci sono modifiche non salvate. Vuoi salvarle prima di chiudere?
+    </p>
+    @if (submitError(); as appError) {
+      <p class="doc-form__exit-error" role="alert">{{ appError.message }}</p>
+    }
+    <div class="doc-form__exit-actions">
+      <app-button type="button" variant="ghost" [disabled]="saving()" (click)="cancelExitDialog()">
+        Annulla
+      </app-button>
+      <app-button
+        type="button"
+        variant="secondary"
+        [disabled]="saving()"
+        (click)="confirmExitWithoutSaving()"
+      >
+        Chiudi senza salvare
+      </app-button>
+      <app-button
+        type="button"
+        [loading]="saving()"
+        [disabled]="saving()"
+        (click)="confirmExitSaving()"
+      >
+        Salva e chiudi
+      </app-button>
+    </div>
+  </div>
+}
+
+@if (deleteDialogOpen()) {
+  <div class="doc-form__exit-backdrop" aria-hidden="true" (click)="cancelDelete()"></div>
+  <div
+    class="doc-form__exit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="mr-delete-title"
+  >
+    <h2 id="mr-delete-title" class="doc-form__exit-title">Eliminare la registrazione?</h2>
+    <!--
+      La conseguenza si dice, non si nasconde: da quel momento la registrazione
+      non partecipa più ai totali né agli export, e un export di questo mese
+      ristampato fra un mese non la conterrà più.
+    -->
+    <p class="doc-form__exit-message">
+      La registrazione e le sue righe vengono eliminate: non entreranno più nel Registro, nei totali
+      né negli export. Il numero {{ assignedNumber() }} resta un buco nella numerazione e non viene
+      riusato.
+    </p>
+    <div class="doc-form__exit-actions">
+      <app-button type="button" variant="ghost" [disabled]="deleting()" (click)="cancelDelete()">
+        Annulla
+      </app-button>
+      <app-button
+        type="button"
+        variant="danger"
+        [loading]="deleting()"
+        [disabled]="deleting()"
+        (click)="confirmDelete()"
+      >
+        Elimina
+      </app-button>
+    </div>
+  </div>
+}

@@ -1,8 +1,13 @@
 <section class="corrispettivi-summary" aria-labelledby="corrispettivi-summary-title">
-  <div class="corrispettivi-summary__head">
-    <h2 id="corrispettivi-summary-title" class="corrispettivi-summary__title">Riepilogo periodo</h2>
-    <p class="corrispettivi-summary__period">{{ periodLabel() }}</p>
-  </div>
+  <!--
+    Il titolo resta per i lettori di schermo — la sezione ha un `aria-labelledby`
+    e senza un'intestazione sarebbe una regione senza nome — ma non occupa più
+    una riga: in fondo alla pagina, sotto le righe di quel periodo, «Riepilogo
+    periodo» era la didascalia di ciò che si stava già guardando.
+  -->
+  <h2 id="corrispettivi-summary-title" class="sr-only">
+    Riepilogo del periodo {{ periodLabel() }}
+  </h2>
 
   <!--
     Si legge come una riconciliazione: venduto, rettifiche, quanto resta. Il
@@ -30,7 +35,16 @@
       <div class="corrispettivi-summary__item">
         <dt>
           Annullamenti
-          <span class="corrispettivi-summary__hint">vendite mai avvenute, nessun effetto</span>
+          <!--
+            La spiegazione sta in un tooltip, non in una riga di testo: su una
+            banda di numeri allineati una frase su due righe alzava l'intera
+            fascia e spezzava l'allineamento delle voci accanto. Il dato resta
+            raggiungibile, e chi legge i numeri li legge.
+          -->
+          <app-hover-tooltip
+            [inline]="true"
+            text="Vendite mai avvenute: si contano per trasparenza, ma non tolgono niente al corrispettivo del periodo."
+          />
         </dt>
         <dd class="tabular-nums">{{ summary().cancellationCount }}</dd>
       </div>

@@ -12,6 +12,7 @@ import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
 import type {
   CorrispettiviListQuery,
+  CorrispettiviLocation,
   CorrispettiviRefundKind,
   CorrispettiviRegisterRow,
   CorrispettiviRowKind,
@@ -24,12 +25,15 @@ const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 interface CorrispettiviRegisterApiRow {
   readonly rowId: string;
   readonly kind: CorrispettiviRowKind;
-  readonly salesOrderId: EntityId;
+  readonly salesOrderId: EntityId | null;
+  readonly manualReceiptId?: EntityId | null;
   readonly orderNumber: string;
   readonly occurredAt: string;
   readonly source: string;
   readonly customerName: string;
   readonly customerEmail?: string | null;
+  readonly locationId?: EntityId | null;
+  readonly locationName?: string | null;
   readonly currency: string;
   readonly taxableMinor: number;
   readonly taxMinor: number;
@@ -57,6 +61,7 @@ interface CorrispettiviSummaryApi {
   readonly netTotalMinor: number;
   readonly netTaxMinor: number;
   readonly netTaxableMinor: number;
+  readonly locationUndeterminedExcludedCount?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -81,6 +86,16 @@ export class CorrispettiviService {
           };
         }),
       );
+  }
+
+  /**
+   * Le sedi del filtro. Chiede la CONSULTAZIONE del Registro, non il diritto di
+   * registrare: chi può solo leggere deve poter comunque filtrare per sede.
+   */
+  listLocations(): Observable<readonly CorrispettiviLocation[]> {
+    return this.http
+      .get<readonly CorrispettiviLocation[]>(this.url('/corrispettivi/locations'))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   getSummary(query: CorrispettiviListQuery = {}): Observable<CorrispettiviSummary> {
@@ -145,6 +160,12 @@ export class CorrispettiviService {
     if (query.canale && query.canale !== 'all') {
       params = params.set('canale', query.canale);
     }
+    if (query.origine && query.origine !== 'all') {
+      params = params.set('origine', query.origine);
+    }
+    if (query.locationId) {
+      params = params.set('locationId', query.locationId);
+    }
 
     if (query.refundsOnly) {
       params = params.set('refundsOnly', 'true');
@@ -166,12 +187,15 @@ function mapRegisterRow(row: CorrispettiviRegisterApiRow): CorrispettiviRegister
   return {
     rowId: row.rowId,
     kind: row.kind,
-    salesOrderId: row.salesOrderId,
+    salesOrderId: row.salesOrderId ?? undefined,
+    manualReceiptId: row.manualReceiptId ?? undefined,
     orderNumber: row.orderNumber,
     occurredAt: row.occurredAt,
     source: row.source,
     customerName: row.customerName,
     customerEmail: row.customerEmail ?? undefined,
+    locationId: row.locationId ?? undefined,
+    locationName: row.locationName ?? undefined,
     currency,
     // Gli importi arrivano già col segno: sulle rettifiche sono negativi, ed è
     // quel segno che rende la colonna sommabile a occhio.
@@ -203,6 +227,7 @@ function mapSummary(row: CorrispettiviSummaryApi): CorrispettiviSummary {
     netTotal: money(row.netTotalMinor),
     netTax: money(row.netTaxMinor),
     netTaxable: money(row.netTaxableMinor),
+    locationUndeterminedExcludedCount: row.locationUndeterminedExcludedCount ?? 0,
   };
 }
 

@@ -16,6 +16,10 @@ import type {
   CorrispettiviSummary,
 } from '../../models/corrispettivi.model';
 import {
+  corrispettiviFiltersToQuery,
+  parseCorrispettiviFilters,
+} from '../../models/corrispettivi-filters.util';
+import {
   formatReportPeriodLabel,
   parseReportListQuery,
   resolveReportDateRange,
@@ -56,10 +60,24 @@ export class CorrispettiviPrintComponent {
 
   protected readonly dateRange = computed(() => resolveReportDateRange(this.query()));
 
+  /**
+   * ⚠️ **La stampa deve rispondere alla STESSA domanda della schermata.**
+   *
+   * Qui c'erano il solo periodo e un `onlineOnly` che nessuno mandava più — non
+   * un filtro sbagliato: un campo inerte, che l'API non conosce e che
+   * `buildParams` non scriveva nemmeno nella richiesta. Ambito, canale, tipo e
+   * sede viaggiavano nell'indirizzo e non venivano letti: chi guardava
+   * «2° trimestre · Fisico/POS · Resi» stampava tutto il trimestre.
+   *
+   * Ora i filtri si leggono da `parseCorrispettiviFilters`, lo stesso punto da
+   * cui li legge il Registro: due letture della stessa cosa divergono sempre.
+   */
+  private readonly filters = computed(() => parseCorrispettiviFilters(this.queryParams()));
+
   private readonly listQuery = computed(() => ({
     placedFrom: this.dateRange().placedFrom,
     placedTo: this.dateRange().placedTo,
-    onlineOnly: this.queryParams().get('onlineOnly') !== '0',
+    ...corrispettiviFiltersToQuery(this.filters()),
     page: 1,
     pageSize: 500,
   }));

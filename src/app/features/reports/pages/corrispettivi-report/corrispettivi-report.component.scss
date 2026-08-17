@@ -1,37 +1,78 @@
 @use 'breakpoints' as bp;
 
-:host {
-  display: block;
-}
+/*
+  ⚠️ **`block-size: 100%` qui non poteva funzionare, e faceva il danno opposto.**
 
-.corrispettivi {
+  La pagina non è sola dentro `main.shell__content`: sopra di lei ci stanno le
+  briciole di pane. Chiedere il 100% di quell'area significa chiedere
+  «tutto lo spazio» a chi ne ha già ceduto un pezzo — il blocco valeva 100% PIÙ
+  l'altezza delle briciole, la barra di scorrimento compariva sull'intera
+  pagina e il riepilogo finiva tagliato sotto il bordo. E siccome il pannello
+  prendeva `1fr` di quell'altezza gonfiata, con dodici righe restava mezza
+  schermata bianca dentro la card.
+
+  Il tetto lo mette ora l'elenco su di sé, in unità di viewport — lo stesso
+  modo di `_document-form.scss` (`min(75vh, …)`). Non dipende da nessuna catena
+  di altezze: la pagina è alta quanto il suo contenuto, l'elenco smette di
+  crescere prima di spingere fuori il riepilogo, e da lì in poi scorre dentro
+  di sé. Restano fermi testata, filtri e riepilogo, che è ciò che serviva.
+
+  ⚠️ **Poi il tetto in `dvh` è caduto a sua volta**, ed era il difetto opposto:
+  una misura decisa a occhio, che lasciava vuoto lo spazio buono quando le righe
+  erano poche e smetteva di usarlo quando ce n'era. `main.shell__content` è ora
+  una colonna flessibile: `flex: 1` chiede **ciò che resta** dopo le briciole di
+  pane, qualunque sia la finestra. Niente numeri indovinati, e l'elenco si
+  ferma esattamente dove comincia il riepilogo.
+*/
+:host {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  flex: 1;
+  min-block-size: 0;
 }
 
+/*
+  ⚠️ **Una sola regione di scroll, ed è l'elenco.**
+
+  Testata, filtri e riepilogo stanno fermi; a scorrere sono le righe del
+  periodo, che è ciò che si consulta. Il `1fr` sul pannello e i `min-block-size:
+  0` sono la coppia che lo rende possibile: senza il secondo, un figlio in
+  overflow allarga il genitore invece di scorrere dentro di sé, e torna la barra
+  sulla pagina intera.
+
+  La densità è da gestionale: il `gap` era `--space-5` fra tutti i blocchi, e su
+  una schermata da consultare significava mezzo schermo di aria.
+*/
+.corrispettivi {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  flex: 1;
+  min-block-size: 0;
+}
+
+/*
+  Testata compatta: il titolo e le azioni su una riga sola, e il ritorno
+  «Indietro» accanto al titolo invece che sopra. Lo spazio guadagnato va
+  all'elenco, che è la cosa che si consulta.
+*/
 .corrispettivi__header {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
 }
 
 .corrispettivi__heading {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-// Nel flex a colonna il pulsante non deve stirarsi a tutta larghezza; col gap
-// del blocco lo stacco dal titolo arriva a --space-2, come nelle altre liste.
-.corrispettivi__heading app-back-button {
-  align-self: flex-start;
-  margin-block-end: var(--space-1);
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .corrispettivi__title {
   margin: 0;
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: var(--font-weight-bold);
 }
 
@@ -47,10 +88,15 @@
   gap: var(--space-3);
 }
 
+/*
+  I filtri stanno su una riga finché ci stanno, e vanno a capo stretti quando
+  non ci stanno: il `gap` era `--space-3` e li mandava a capo prima del
+  necessario, prendendo due fasce di altezza a una barra di chip.
+*/
 .corrispettivi__filters {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-1) var(--space-2);
   align-items: center;
 }
 
@@ -59,19 +105,32 @@
 }
 
 .corrispettivi__panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-5);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3);
+  min-block-size: 0;
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
 }
 
+/* L'unica cosa che scorre. */
+.corrispettivi__panel-scroll {
+  overflow-y: auto;
+  min-block-size: 0;
+}
+
 .corrispettivi__panel-head {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+/* Il selettore Colonne va in coda alla riga, staccato dal conteggio. */
+.corrispettivi__panel-head app-table-column-picker {
+  margin-inline-start: auto;
 }
 
 .corrispettivi__panel-title {
