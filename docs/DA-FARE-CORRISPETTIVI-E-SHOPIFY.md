@@ -535,3 +535,37 @@ righe restituite restano 150 — non un commento.
 Da riprendere quando si toccherà `Paginated` per altre ragioni, **non prima**: aprire quel
 refactor adesso significherebbe muovere un tipo condiviso per un problema che oggi un test
 tiene fermo.
+
+### 4. Il Codice IVA si comporta in due modi diversi — e non è un duplicato
+
+Osservato in anagrafica prodotto il 17/08/2026: il campo Codice IVA della scheda **non si
+usa da tastiera** come quello delle righe documento.
+
+Non è codice copiato. Sono **due componenti con due modelli di interazione**:
+
+| Dove                | Componente                      | Cos'è, tecnicamente        | Tastiera                                                                                  |
+| ------------------- | ------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------- |
+| righe documento     | `app-document-line-select-cell` | un `<input>` vero          | si digita e filtra, Invio sceglie e resta, **Tab risolve e va al campo dopo**, ←/→ escono |
+| anagrafica, testate | `app-select-menu`               | un `<button>` con pannello | si apre, si cerca dentro il pannello, Escape chiude                                       |
+
+⚠️ **La divergenza è dichiarata, non accidentale.** `regole-stile-ui` §5 dice che la cella di
+riga «sostituisce `app-select-menu` dentro le righe, **e solo lì** — le altre 179 istanze del
+menu restano dove sono», perché nata per un problema delle righe: il giro del fuoco fra le
+colonne, che in una tabella è il gesto principale.
+
+**Il difetto vero non è la duplicazione: è che all'operatore i due campi sembrano lo stesso
+campo.** Stesso dato, stesso aspetto, e il dito sul Tab ottiene due cose diverse a seconda
+della schermata.
+
+Tre strade, e nessuna è gratis:
+
+1. **Portare la cella di riga fuori dalle righe** — contraddice la regola citata, che è stata
+   scritta con una ragione: fuori da una tabella il Tab non ha un «campo dopo» nella stessa
+   colonna, e metà del contratto della cella non ha senso.
+2. **Dare a `select-menu` la parte di tastiera che manca** (digita-e-filtra sul trigger, Tab che
+   risolve). È la strada più coerente, e tocca **179 istanze**: va misurata prima, non decisa qui.
+3. **Accettare la differenza** e dichiararla, se si conclude che una scheda e una riga sono
+   contesti diversi anche per il dito.
+
+Da decidere quando si riprenderà l'anagrafica, **non di straforo dentro un lavoro sui
+Corrispettivi**: qualunque delle tre tocca componenti condivisi da mezza applicazione.
