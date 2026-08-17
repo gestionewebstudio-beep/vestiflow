@@ -29,7 +29,6 @@ import {
 } from '@core/models/tenant-channel-profile.model';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
@@ -73,7 +72,6 @@ type CorrispettiviState =
   imports: [
     BackButtonComponent,
     ButtonComponent,
-    ConfirmDialogComponent,
     CorrispettiviOrdersTableComponent,
     CorrispettiviSummaryComponent,
     EmptyStateComponent,
