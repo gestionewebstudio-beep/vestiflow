@@ -227,6 +227,81 @@ describe('ProductGeneralStepComponent', () => {
       expect(price).toHaveValue(123.97);
     });
 
+    /**
+     * Il prezzo barrato è entrato fra i prezzi di vendita il 17/08/2026.
+     *
+     * ⚠️ Era l'unico dei sei a ignorare il selettore **in silenzio**: si
+     * inseriva «come va mostrato al cliente». La conseguenza usciva dal
+     * gestionale — verso Shopify la stessa riga variante portava `price`
+     * netto e `compare_at_price` ivato, cioè uno sconto mostrato al cliente
+     * gonfiato dell'aliquota.
+     */
+    it('il barrato segue la modalità come gli altri prezzi di vendita', async () => {
+      const { fixture } = await renderStep({
+        // Netto a DB: 70,00
+        value: { ...EMPTY_GENERAL, sellingPrice: 100, compareAtPrice: 70 },
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22],
+        tenantDefaultVatCodeId: VAT_22.id,
+        pricesIncludeVat: true,
+      });
+      await fixture.whenStable();
+
+      expect(screen.getByLabelText(/Prezzo barrato/)).toHaveValue(85.4);
+
+      fixture.componentRef.setInput('pricesIncludeVat', false);
+      await fixture.whenStable();
+      expect(screen.getByLabelText(/Prezzo barrato/)).toHaveValue(70);
+    });
+
+    /**
+     * Il caso che ha fatto emergere il problema, chiesto da Luigi: 70,00
+     * ivati al 22% hanno un netto che in unità minori NON è intero
+     * (5737,704918). Se si memorizzasse arrotondato, la riapertura in ivato
+     * darebbe 69,99 o 70,01.
+     */
+    it('70,00 ivati tornano 70,00 esatti dopo il giro', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn<(value: ProductGeneralDraft) => void>();
+      const { fixture } = await renderStep({
+        value: EMPTY_GENERAL,
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22],
+        tenantDefaultVatCodeId: VAT_22.id,
+        pricesIncludeVat: true,
+      });
+      fixture.componentInstance.valueChange.subscribe(onChange);
+      await fixture.whenStable();
+
+      const barrato = screen.getByLabelText(/Prezzo barrato/);
+      await user.clear(barrato);
+      await user.type(barrato, '70');
+
+      // Netto canonico con la coda: 70 / 1,22 = 57,377049…
+      expect(onChange.mock.calls.at(-1)?.[0].compareAtPrice).toBeCloseTo(57.377049, 6);
+
+      fixture.componentRef.setInput('pricesIncludeVat', false);
+      await fixture.whenStable();
+      expect(barrato).toHaveValue(57.38);
+
+      fixture.componentRef.setInput('pricesIncludeVat', true);
+      await fixture.whenStable();
+      expect(barrato).toHaveValue(70);
+    });
+
+    it('barrato vuoto resta vuoto: nessun barrato NON è un barrato a zero', async () => {
+      const { fixture } = await renderStep({
+        value: { ...EMPTY_GENERAL, sellingPrice: 100, compareAtPrice: null },
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22],
+        tenantDefaultVatCodeId: VAT_22.id,
+        pricesIncludeVat: true,
+      });
+      await fixture.whenStable();
+
+      expect(screen.getByLabelText(/Prezzo barrato/)).toHaveValue(null);
+    });
+
     it('senza aliquota il toggle non compare: non c è nulla da scorporare', async () => {
       await renderStep({
         value: EMPTY_GENERAL,

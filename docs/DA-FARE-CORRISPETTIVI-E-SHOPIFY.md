@@ -127,6 +127,42 @@ esplicitamente che l’azienda possa ragionare all’ingrosso.
 | «Prezzo unitario» nei movimenti                       | è il valore dell’**evento**, non il prezzo di catalogo                |
 | «Prezzo barrato», «Prezzo Shopify»                    | sono altri prezzi, e si chiamano già bene                             |
 
+### ✅ Fatto il 17/08: il prezzo barrato è un prezzo di vendita come gli altri
+
+Era l’unico dei sei a ignorare il selettore netto/ivato, **in silenzio**. Adesso è in
+`PRICE_FIELDS`, la colonna è `Decimal(16,6)` e il valore memorizzato è il netto canonico.
+
+⚠️ **I 6 valori esistenti sono stati portati a `NULL`**, non a zero — il barrato è facoltativo
+e zero direbbe «esiste e vale zero». Misurati prima: 6 prodotti su 250, tutti dello stesso
+tenant di prova, tutti al 22%, coi nomi che lo dicono («test import listini», «The Compare at
+Price Snowboard»). `Int → Decimal` è senza perdita **numerica**, ma la **semantica** cambiava:
+un 70,00 scritto intendendo «ivati» sarebbe stato riletto come netto e mostrato 85,40.
+
+**Difetto trovato dalle prove, non dall’occhio:** `currentDraft()` riscriveva cinque prezzi dal
+netto canonico e lasciava passare il barrato **grezzo** dal form. Con il campo dentro
+`PRICE_FIELDS` ma fuori da lì, il valore digitato non veniva mai scorporato.
+
+`buildVariantsPayload` è stata estratta dal servizio di push in una util propria — era un
+metodo privato che non usava `this`, e **nessuna prova la copriva** mentre decide due valori
+che finiscono sotto gli occhi del cliente. Nove prove, fra cui quella che `null` non diventa
+`0.00`.
+
+#### ⬜ Resta: l’Arrivo merce
+
+Le sue tre colonne di vendita — Prezzo di vendita, Prezzo barrato, Prezzo Shopify — **non
+seguono nessuna modalità**: si scrivono e si rileggono grezze, quindi di fatto nette senza
+dirlo. Deciso il 17/08: **selettore di sessione come in anagrafica**, inizializzato dalla
+convenzione aziendale, **nessuna persistenza e nessuna memoria**.
+
+⚠️ **Trappola per chi esegue:** l’Arrivo merce è un documento di **acquisto**, quindi
+`resolvePricesIncludeVat` gli risponde `false` per costruzione. Le tre colonne devono leggere
+**direttamente** `salesPricesIncludeVat` — il componente inietta già
+`TenantFeatureSettingsService`, quindi la convenzione è a portata di mano senza endpoint nuovi.
+
+⚠️ **Perché conta:** oggi la convenzione predefinita è ivata, quindi in anagrafica si digita
+ivato; sulla riga dell’Arrivo merce si digita lo stesso numero intendendolo ivato e finisce
+netto. **Due schermate, stesso prezzo, due significati.**
+
 ### ⬜ Da fare: separare «Prezzi di vendita» da «Listini»
 
 > **Un listino non è un altro prezzo: è una regola commerciale alternativa** che assegna un

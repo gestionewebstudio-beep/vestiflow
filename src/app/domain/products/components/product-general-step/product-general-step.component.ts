@@ -83,14 +83,30 @@ const STATUS_OPTIONS: readonly StatusOption[] = [
 const CUSTOM_OPTION_VALUE = '__custom__';
 
 /**
- * I prezzi della sezione Listini. Il draft li porta sempre NETTI; nei campi si
- * vedono netti o ivati a seconda di come l'operatore preferisce lavorare.
+ * Tutti i valori commerciali di VENDITA dell'articolo. Il draft li porta sempre
+ * NETTI; nei campi si vedono netti o ivati a seconda di come l'operatore
+ * preferisce lavorare, e il selettore è UNO per tutti e sei.
+ *
+ * ⚠️ `compareAtPrice` è entrato qui il 17/08/2026, ed era l'unica eccezione:
+ * si inseriva «come va mostrato al cliente» e ignorava il selettore **in
+ * silenzio**. La conseguenza usciva dal gestionale — verso Shopify la stessa
+ * riga variante portava `price` netto e `compare_at_price` ivato, cioè uno
+ * sconto mostrato al cliente gonfiato dell'aliquota.
+ *
+ * Il **costo di riferimento** resta fuori di proposito: appartiene al dominio
+ * costi, che è sempre netto e ha una convenzione sua.
  */
 type PriceField =
-  'sellingPrice' | 'shopifyPrice' | 'listino1Price' | 'listino2Price' | 'listino3Price';
+  | 'sellingPrice'
+  | 'compareAtPrice'
+  | 'shopifyPrice'
+  | 'listino1Price'
+  | 'listino2Price'
+  | 'listino3Price';
 
 const PRICE_FIELDS: readonly PriceField[] = [
   'sellingPrice',
+  'compareAtPrice',
   'shopifyPrice',
   'listino1Price',
   'listino2Price',
@@ -396,6 +412,7 @@ export class ProductGeneralStepComponent implements OnInit {
   // scelta di visualizzazione.
   private readonly netPrices = signal<NetPrices>({
     sellingPrice: 0,
+    compareAtPrice: null,
     shopifyPrice: 0,
     listino1Price: null,
     listino2Price: null,
@@ -498,6 +515,7 @@ export class ProductGeneralStepComponent implements OnInit {
     // server e possono presentarsi dopo questo momento).
     this.netPrices.set({
       sellingPrice: initial.sellingPrice,
+      compareAtPrice: initial.compareAtPrice,
       shopifyPrice: initial.shopifyPrice,
       listino1Price: initial.listino1Price,
       listino2Price: initial.listino2Price,
@@ -598,6 +616,9 @@ export class ProductGeneralStepComponent implements OnInit {
       // Sostituirlo con 0 salverebbe un prezzo che nessuno ha digitato.
       sellingPrice: prices.sellingPrice as number,
       shopifyPrice: prices.shopifyPrice as number,
+      // Il barrato e' facoltativo: `null` significa «nessun prezzo barrato», e
+      // non va confuso con zero — zero direbbe «esiste e vale zero».
+      compareAtPrice: prices.compareAtPrice,
     };
   }
 

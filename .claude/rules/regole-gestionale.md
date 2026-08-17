@@ -212,6 +212,26 @@ segnalato.
 netto: Arrivo merce e Ordine fornitore partono sempre netti, e l’inserimento ivato resta una
 comodità del **singolo documento**, dove il selettore c’è e la scelta si persiste.
 
+#### In anagrafica il selettore governa SEI campi, non cinque _(17/08/2026)_
+
+> **Tutti i valori commerciali di vendita dell’articolo seguono la stessa modalità:** prezzo di
+> vendita, **prezzo barrato**, prezzo Shopify, listino 1/2/3.
+
+⚠️ Il **barrato** era l’unica eccezione, e la ignorava **in silenzio**: si inseriva «come va
+mostrato al cliente», il tooltip lo diceva e il codice lo confermava (fuori da `PRICE_FIELDS`),
+ma a schermo i sei campi sembravano governati dallo stesso interruttore.
+
+**La conseguenza usciva dal gestionale.** Verso Shopify la stessa riga variante portava
+`price` NETTO (segue il selettore) e `compare_at_price` IVATO (non lo seguiva): due basi
+affiancate sotto gli occhi del cliente, con lo sconto mostrato gonfiato dell’aliquota.
+
+**Il costo di riferimento resta fuori**, ed è etichettato **«(netto)»**: appartiene al dominio
+costi, che è sempre netto e ha una convenzione sua.
+
+⚠️ **`null` non è zero.** Il barrato è facoltativo: `null` significa «nessun prezzo barrato»,
+e verso Shopify la chiave non entra proprio nella riga — `compare_at_price: "0.00"` là non è
+un’assenza, è **un barrato che vale zero**, cioè uno sconto inventato del 100%.
+
 #### Gli esoneri, e come si scrivono
 
 Chi non risponde alla convenzione sta **fuori da `SALES_PRICE_MODE_TYPES`**, che è l’unico

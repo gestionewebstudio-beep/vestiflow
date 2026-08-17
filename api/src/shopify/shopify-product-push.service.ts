@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ShopifyAdminClient } from './shopify-admin.client';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { minorToShopifyDecimal } from './shopify-money.util';
+import { buildVariantsPayload } from './shopify-variant-payload.util';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
@@ -365,10 +366,12 @@ export class ShopifyProductPushService {
 
   private buildShopifyProductPayload(product: ProductWithVariants): Record<string, unknown> {
     const options = this.normalizeOptions(product.options);
-    const { shopifyOptions, variantRows } = this.buildVariantsPayload(
+    const { shopifyOptions, variantRows } = buildVariantsPayload(
       options,
       product.variants,
-      product.compareAtPriceMinor,
+      // Sei decimali dal 17/08: `Number` conserva la coda. `null` resta
+      // `null` — nessun barrato NON e' un barrato a zero.
+      product.compareAtPriceMinor == null ? null : Number(product.compareAtPriceMinor),
     );
 
     return {
@@ -620,68 +623,6 @@ export class ShopifyProductPushService {
       }));
   }
 
-  private buildVariantsPayload(
-    options: ProductOptionRow[],
-    variants: ProductWithVariants['variants'],
-    // Il prezzo barrato è un dato dell'articolo: si replica su ogni variante,
-    // perché l'API di Shopify lo tiene per-variante.
-    compareAtPriceMinor: number | null,
-  ): {
-    shopifyOptions: { name: string; values: string[] }[];
-    variantRows: Record<string, unknown>[];
-  } {
-    const effectiveOptions =
-      options.length > 0 ? options : [{ name: 'Title', values: ['Default Title'] }];
-
-    const shopifyOptions = effectiveOptions.map((option) => ({
-      name: option.name,
-      values: [...option.values],
-    }));
-
-    const optionNames = effectiveOptions.map((option) => option.name);
-
-    const variantRows = variants.map((variant) => {
-      const optionValues = Array.isArray(variant.optionValues)
-        ? (variant.optionValues as VariantOptionRow[])
-        : [];
-      const byName = new Map(optionValues.map((entry) => [entry.name, entry.value]));
-
-      const row: Record<string, unknown> = {
-        sku: variant.sku ?? undefined,
-        // Prezzo del canale Shopify: valore proprio, indipendente dal prezzo
-        // articolo. Nessun ripiego (§B, modello definitivo).
-        price: minorToShopifyDecimal(Number(variant.shopifyPriceMinor)),
-        barcode: variant.barcode ?? undefined,
-        inventory_management: 'shopify',
-      };
-
-      if (compareAtPriceMinor != null) {
-        row['compare_at_price'] = minorToShopifyDecimal(compareAtPriceMinor);
-      }
-
-      if (variant.shopifyVariantId) {
-        row['id'] = Number(variant.shopifyVariantId);
-      }
-
-      if (options.length === 0) {
-        row['option1'] = 'Default Title';
-      } else {
-        if (optionNames[0]) {
-          row['option1'] = byName.get(optionNames[0]) ?? optionNames[0];
-        }
-        if (optionNames[1]) {
-          row['option2'] = byName.get(optionNames[1]);
-        }
-        if (optionNames[2]) {
-          row['option3'] = byName.get(optionNames[2]);
-        }
-      }
-
-      return row;
-    });
-
-    return { shopifyOptions, variantRows };
-  }
 
   private mapProductStatus(status: ProductStatus): 'draft' | 'active' | 'archived' {
     switch (status) {

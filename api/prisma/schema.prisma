@@ -649,7 +649,16 @@ model Product {
   /// varianti e prezzo quando la variante è la sola default anonima (rispecchiata).
   sellingPriceMinor               Decimal                 @default(0) @map("selling_price_minor") @db.Decimal(16, 6)
   /// Prezzo barrato: dato SOLO dell'articolo (nessuna dimensione per-variante).
-  compareAtPriceMinor             Int?                    @map("compare_at_price_minor")
+  ///
+  /// NETTO canonico come ogni altro prezzo di vendita, con la coda decimale:
+  /// dal 17/08/2026 segue la modalità netto/ivato insieme a prezzo di vendita,
+  /// prezzo Shopify e listini. Prima era «come digitato» ed era l'unico dei sei
+  /// a ignorare il selettore — sulla stessa riga variante Shopify riceveva un
+  /// barrato ivato accanto a un prezzo netto.
+  ///
+  /// `null` = nessun prezzo barrato. NON è zero: zero direbbe «esiste e vale
+  /// zero», e `isValidCompareAt` lo scarterebbe comunque.
+  compareAtPriceMinor             Decimal?                @map("compare_at_price_minor") @db.Decimal(16, 6)
   /// Costo d'acquisto di RIFERIMENTO: seeda le nuove varianti. Il costo effettivo
   /// per taglia vive sulla variante (aggiornato dai carichi).
   purchasePriceMinor              Int?                    @map("purchase_price_minor")
