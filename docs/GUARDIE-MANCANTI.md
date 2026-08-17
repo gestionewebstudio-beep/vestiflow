@@ -815,3 +815,36 @@ contorno. Le tre misure che la decisione richiede:
 3. **In CI può stare solo nel job `e2e`.** Il job `lint-and-test` **non ha `DATABASE_URL`** —
    i segreti del database sono solo sul job Playwright. Metterlo in `lint-and-test` lo farebbe
    fallire a ogni esecuzione, e un gate sempre rosso è un gate spento.
+
+## 19. `tabindex="0"` insieme ad `aria-hidden="true"` — sedici occorrenze
+
+Segnalato dalla console del browser il 17/08/2026, sull'anagrafica prodotto:
+
+```html
+<i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+```
+
+> _aria-hidden on an element because its descendant retained focus. The focus must not be
+> hidden from assistive technology users._
+
+È una **contraddizione**: l'elemento entra nel giro del Tab — quindi chi naviga da tastiera ci
+si ferma sopra — ed è al tempo stesso dichiarato invisibile alle tecnologie assistive. Chi usa
+uno screen reader arriva su un elemento di cui il lettore non sa dire nulla: il fuoco sparisce
+nel vuoto.
+
+Sono le icone informative accanto alle etichette dei campi, che aprono `app-hover-tooltip`. Il
+`tabindex` c'è perché il suggerimento si deve poter aprire **anche da tastiera** — giusto — e
+l'`aria-hidden` perché un'icona decorativa non va letta. Prese una alla volta hanno senso
+entrambe; insieme no.
+
+**Misurate: 16 occorrenze in `src/app`**, quindi non è un caso isolato di una maschera.
+
+La correzione non è togliere il `tabindex` — perderebbe l'accesso da tastiera al suggerimento —
+ma dare all'elemento un ruolo e un nome (`role="button"`, `aria-label` con il testo del
+tooltip, senza `aria-hidden`), oppure spostare il `tabindex` su un `<button>` vero che
+avvolge l'icona decorativa.
+
+⚠️ **E poi la guardia**: `axe-core` è previsto da `regole-qualita` («zero violazioni serious o
+critical») e questa è una violazione che axe segnala di suo. Sedici occorrenze vive significano
+che quel controllo **non gira** su queste schermate — trovare il perché vale più che correggere
+le sedici.
