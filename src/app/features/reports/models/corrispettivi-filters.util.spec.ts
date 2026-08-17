@@ -261,3 +261,56 @@ describe('Ambito è una scorciatoia, non un filtro', () => {
     expect(originiPerAmbito('fisico_pos')).toEqual(['shopify_pos', 'store', 'manual_receipt']);
   });
 });
+
+/**
+ * ⚠️ **Dalla nuova interfaccia `nessunRisultato` non è più producibile**
+ * (`docs/10` §16, passo 5 del blocco A).
+ *
+ * Quello stato nasce da una CONTRADDIZIONE fra `ambito`, `canale` e `origine`,
+ * che erano tre vincoli indipendenti. La schermata ora scrive **un insieme
+ * solo** — e cancella i vecchi parametri quando tocca un filtro — quindi non
+ * c'è più niente con cui contraddirsi.
+ *
+ * Questi test misurano la proprietà sul PARSER: qualunque indirizzo fatto di
+ * soli parametri plurali dà `nessunRisultato: false`. È la metà verificabile
+ * qui; l'altra — che la schermata scriva solo quelli — sta nel suo componente.
+ */
+describe('la nuova interfaccia non può produrre «nessun risultato»', () => {
+  const PLURALI: Record<string, string>[] = [
+    {},
+    { origini: 'store' },
+    { origini: 'store,manual_receipt' },
+    { origini: CORRISPETTIVI_ORIGINI.join(',') },
+    { tipi: 'returns' },
+    { tipi: 'sales,returns,refunds' },
+    { sedi: 'loc-1,loc-2' },
+    { origini: 'shopify_pos,store', tipi: 'returns,refunds', sedi: 'loc-1' },
+    // Anche un insieme di origini che nessun ambito descrive: è proprio il
+    // caso che i vecchi parametri non sapevano esprimere.
+    { origini: 'shopify_online,store' },
+  ];
+
+  it('nessuna combinazione di insiemi genera lo stato contraddittorio', () => {
+    for (const params of PLURALI) {
+      expect(parseCorrispettiviFilters(indirizzo(params)).nessunRisultato).toBe(false);
+    }
+  });
+
+  it('valori inventati negli insiemi non lo generano: si scartano e basta', () => {
+    // ⚠️ La differenza con i vecchi parametri: lì un vincolo non soddisfatto
+    // significava «zero righe», qui una voce inesistente esce dall'insieme e
+    // ciò che resta continua a valere.
+    const filtri = parseCorrispettiviFilters(indirizzo({ origini: 'inventata', tipi: 'boh' }));
+
+    expect(filtri.nessunRisultato).toBe(false);
+    expect(filtri.origini).toEqual([]);
+  });
+
+  it('lo stato resta raggiungibile SOLO dai vecchi indirizzi', () => {
+    // È l'altra faccia: finché i vecchi collegamenti devono funzionare, il
+    // campo serve. Sparirà con loro, non prima.
+    expect(
+      parseCorrispettiviFilters(indirizzo({ ambito: 'online', origine: 'store' })).nessunRisultato,
+    ).toBe(true);
+  });
+});

@@ -57,10 +57,9 @@ import {
 } from '../../models/corrispettivi.model';
 import {
   ambitoEsprimibile,
-  canaleEsprimibile,
   corrispettiviFiltersToQuery,
   parseCorrispettiviFilters,
-  soloValore,
+  originiPerAmbito,
 } from '../../models/corrispettivi-filters.util';
 import {
   formatReportPeriodLabel,
@@ -178,10 +177,25 @@ export class CorrispettiviReportComponent {
    */
   private readonly filters = computed(() => parseCorrispettiviFilters(this.queryParams()));
 
+  /*
+    Gli insiemi che i tre menu mostrano spuntati. **Vuoto = tutte**, e il chip
+    lo dice col segnaposto invece che con una casella «Tutti» — che accanto
+    alle voci creerebbe lo stato contraddittorio «Tutti insieme ad alcune».
+  */
+  protected readonly filtriOrigini = computed(() => this.filters().origini);
+  protected readonly filtriTipi = computed(() => this.filters().tipi);
+  protected readonly filtriSedi = computed(() => this.filters().sedi);
+
+  /**
+   * Quale scorciatoia Ambito descrive l'insieme corrente — per il solo chip.
+   *
+   * ⚠️ **Non è un filtro**: nessuna richiesta e nessun indirizzo lo portano.
+   * Se l'operatore affina le origini fino a un insieme che non corrisponde a
+   * nessun ambito, il chip torna a «Tutti» — perché la verità è l'insieme, e
+   * Ambito ha solo aiutato a comporlo.
+   */
   protected readonly ambitoFilter = computed(() => ambitoEsprimibile(this.filters().origini));
-  protected readonly canaleFilter = computed(() => canaleEsprimibile(this.filters().origini));
   /** Tipo di riga: filtra l'elenco, mai il riepilogo. */
-  protected readonly rowTypeFilter = computed(() => soloValore(this.filters().tipi) ?? 'all');
 
   protected readonly canExport = computed(() =>
     canExportOperationalData(this.authService.currentUser()),
@@ -208,8 +222,6 @@ export class CorrispettiviReportComponent {
       .pipe(catchError(() => of([] as readonly CorrispettiviLocation[]))),
     { initialValue: [] as readonly CorrispettiviLocation[] },
   );
-
-  protected readonly locationFilter = computed(() => soloValore(this.filters().sedi) ?? 'all');
 
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
     this.locations().map((location) => ({ value: location.id, label: location.name })),
@@ -398,8 +410,6 @@ export class CorrispettiviReportComponent {
     return value === 'all' ? '' : value;
   }
 
-  protected readonly origineFilter = computed(() => soloValore(this.filters().origini) ?? 'all');
-
   /**
    * **Origine**: la terza dimensione, e la sola che isola il Corrispettivo
    * manuale. Ambito e canale non bastano — condivide con la Vendita al banco la
@@ -522,24 +532,62 @@ export class CorrispettiviReportComponent {
   }
 
   // «all» è il predefinito: non lo si scrive nell'indirizzo.
+  /*
+    ⚠️ **I filtri si scrivono SOLO al plurale, e i vecchi parametri si
+    cancellano** (`docs/10` §16).
+
+    È ciò che rende vera la proprietà «dalla nuova interfaccia
+    `nessunRisultato` non è producibile»: quello stato nasce da una
+    CONTRADDIZIONE fra `ambito`, `canale` e `origine`, che erano tre vincoli
+    indipendenti. Scrivendo un insieme solo, non c'è più niente con cui
+    contraddirsi — e ripulendo i tre vecchi parametri non ne resta uno appeso
+    nell'indirizzo a contraddire quello nuovo.
+
+    Senza la pulizia, un operatore che arriva da un vecchio collegamento e poi
+    tocca un filtro si troverebbe l'indirizzo mezzo vecchio e mezzo nuovo: il
+    parser darebbe la precedenza al plurale, ma i residui resterebbero lì a
+    confondere chi lo legge o lo condivide.
+  */
+  private updateFiltri(patch: Record<string, string | null>): void {
+    this.updateParams({
+      ...patch,
+      ambito: null,
+      canale: null,
+      origine: null,
+      rowType: null,
+      locationId: null,
+      refundsOnly: null,
+    });
+  }
+
+  /** Insieme vuoto = nessuna restrizione: il parametro sparisce dall'indirizzo. */
+  private valoreInsieme(values: readonly string[]): string | null {
+    return values.length > 0 ? values.join(',') : null;
+  }
+
+  /**
+   * **Ambito è una scorciatoia, non un filtro** (§16).
+   *
+   * Spunta un gruppo di origini e finisce lì: da quel momento l'operatore
+   * affina liberamente, e Ambito non continua a dire rigidamente «Fisico/POS».
+   * Non viaggia più nell'indirizzo, quindi non può più contraddire l'insieme
+   * che ha inizializzato — che era il difetto per cui è stato ritirato.
+   */
   protected onAmbitoChange(value: string | null): void {
-    this.updateParams({ ambito: !value || value === 'all' ? null : value });
+    const ambito = value === 'online' || value === 'fisico_pos' ? value : 'all';
+    this.updateFiltri({ origini: this.valoreInsieme(originiPerAmbito(ambito)) });
   }
 
-  protected onCanaleChange(value: string | null): void {
-    this.updateParams({ canale: !value || value === 'all' ? null : value });
+  protected onOrigineValues(values: readonly string[]): void {
+    this.updateFiltri({ origini: this.valoreInsieme(values) });
   }
 
-  protected onRowTypeChange(value: string | null): void {
-    this.updateParams({ rowType: !value || value === 'all' ? null : value });
+  protected onTipiValues(values: readonly string[]): void {
+    this.updateFiltri({ tipi: this.valoreInsieme(values) });
   }
 
-  protected onOrigineChange(value: string | null): void {
-    this.updateParams({ origine: !value || value === 'all' ? null : value });
-  }
-
-  protected onLocationChange(value: string | null): void {
-    this.updateParams({ locationId: !value || value === 'all' ? null : value });
+  protected onSediValues(values: readonly string[]): void {
+    this.updateFiltri({ sedi: this.valoreInsieme(values) });
   }
 
   /** «+ Aggiungi corrispettivo»: la primary CTA della pagina (`docs/10` §12). */

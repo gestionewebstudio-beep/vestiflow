@@ -175,34 +175,50 @@
       manuale. Ambito e canale non bastano — condivide con la Vendita al banco
       la coppia Fisico/POS · VestiFlow.
     -->
+    <!--
+      ⚠️ **Tre insiemi, non tre scelte singole** (`docs/10` §16).
+
+      `includeEmptyOption="false"`: **nessuna casella «Tutti»**. Assenza di
+      restrizione È «tutti», e una casella con quel nome accanto alle voci crea
+      lo stato contraddittorio «Tutti spuntato insieme ad alcune».
+
+      Il chip lo fa già `select-menu`: vuoto → il segnaposto («Tutte»), fino a
+      due → i nomi, oltre → «N selezionati».
+    -->
     <app-select-menu
       chipLabel="Origine"
       [options]="origineOptions"
       ariaLabel="Filtra per origine"
-      [value]="chipValue(origineFilter())"
+      [multiple]="true"
+      [values]="filtriOrigini()"
       placeholder="Tutte"
       [compact]="true"
-      (valueChange)="onOrigineChange($event)"
+      [includeEmptyOption]="false"
+      (valuesChange)="onOrigineValues($event)"
       [filterChip]="true"
     />
     <app-select-menu
       chipLabel="Tipo"
       [options]="rowTypeOptions"
       ariaLabel="Filtra per tipo di riga"
-      [value]="chipValue(rowTypeFilter())"
+      [multiple]="true"
+      [values]="filtriTipi()"
       placeholder="Vendite e rettifiche"
       [compact]="true"
-      (valueChange)="onRowTypeChange($event)"
+      [includeEmptyOption]="false"
+      (valuesChange)="onTipiValues($event)"
       [filterChip]="true"
     />
     <app-select-menu
       chipLabel="Sede"
       [options]="locationOptions()"
       ariaLabel="Filtra per sede"
-      [value]="chipValue(locationFilter())"
+      [multiple]="true"
+      [values]="filtriSedi()"
       placeholder="Tutte"
       [compact]="true"
-      (valueChange)="onLocationChange($event)"
+      [includeEmptyOption]="false"
+      (valuesChange)="onSediValues($event)"
       [filterChip]="true"
     />
   </div>
