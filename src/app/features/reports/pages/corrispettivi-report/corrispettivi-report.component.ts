@@ -56,8 +56,11 @@ import {
   type CorrispettiviSummary,
 } from '../../models/corrispettivi.model';
 import {
+  ambitoEsprimibile,
+  canaleEsprimibile,
   corrispettiviFiltersToQuery,
   parseCorrispettiviFilters,
+  soloValore,
 } from '../../models/corrispettivi-filters.util';
 import {
   formatReportPeriodLabel,
@@ -175,10 +178,10 @@ export class CorrispettiviReportComponent {
    */
   private readonly filters = computed(() => parseCorrispettiviFilters(this.queryParams()));
 
-  protected readonly ambitoFilter = computed(() => this.filters().ambito);
-  protected readonly canaleFilter = computed(() => this.filters().canale);
+  protected readonly ambitoFilter = computed(() => ambitoEsprimibile(this.filters().origini));
+  protected readonly canaleFilter = computed(() => canaleEsprimibile(this.filters().origini));
   /** Tipo di riga: filtra l'elenco, mai il riepilogo. */
-  protected readonly rowTypeFilter = computed(() => this.filters().rowType);
+  protected readonly rowTypeFilter = computed(() => soloValore(this.filters().tipi) ?? 'all');
 
   protected readonly canExport = computed(() =>
     canExportOperationalData(this.authService.currentUser()),
@@ -206,7 +209,7 @@ export class CorrispettiviReportComponent {
     { initialValue: [] as readonly CorrispettiviLocation[] },
   );
 
-  protected readonly locationFilter = computed(() => this.filters().locationId);
+  protected readonly locationFilter = computed(() => soloValore(this.filters().sedi) ?? 'all');
 
   protected readonly locationOptions = computed<readonly SelectMenuOption[]>(() =>
     this.locations().map((location) => ({ value: location.id, label: location.name })),
@@ -395,7 +398,7 @@ export class CorrispettiviReportComponent {
     return value === 'all' ? '' : value;
   }
 
-  protected readonly origineFilter = computed(() => this.filters().origine);
+  protected readonly origineFilter = computed(() => soloValore(this.filters().origini) ?? 'all');
 
   /**
    * **Origine**: la terza dimensione, e la sola che isola il Corrispettivo

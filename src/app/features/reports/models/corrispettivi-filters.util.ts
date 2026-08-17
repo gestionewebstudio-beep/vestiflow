@@ -21,68 +21,263 @@ import type { CorrispettiviListQuery } from './corrispettivi.model';
  *
  * ⚠️ **Due letture della stessa cosa divergono sempre**, ed è già successo qui.
  * Chi aggiunge un filtro al Registro lo aggiunge qui, e lo prendono entrambe.
+ *
+ * ## I filtri sono INSIEMI (`docs/10` §16)
+ *
+ * Origine, Tipo e Sede sono insiemi, non scelte singole. Il segnale che la
+ * scelta singola non bastava era già nel codice dell'API, che calcolava un
+ * `rowType` di valore `refunds_and_returns`: una congiunzione inventata come
+ * stringa, perché l'enum non poteva esprimere un insieme.
+ *
+ * **Insieme vuoto = nessuna restrizione = «Tutti».** Uniforme fra interfaccia,
+ * indirizzo, parser, API e riepilogo — e da qui discendono le due regole di
+ * normalizzazione applicate sotto.
  */
 
-/** Valori ammessi per il tipo di riga: specchio del DTO dell'API. */
-const ROW_TYPE_FILTERS: readonly string[] = ['all', 'sales', 'returns', 'refunds'];
-
-/**
- * Le **origini** che il Registro conosce: specchio di `CORRISPETTIVI_ORIGINS`
- * dell'API. Sono i valori che esistono davvero, non un elenco di comodo.
- */
-export const CORRISPETTIVI_ORIGINI: readonly string[] = [
-  'shopify_online',
-  'shopify_pos',
-  'store',
-  'manual_receipt',
-];
-
-export interface CorrispettiviFilters {
-  readonly ambito: NonNullable<CorrispettiviListQuery['ambito']>;
-  readonly canale: NonNullable<CorrispettiviListQuery['canale']>;
-  /**
-   * **Origine**: da cosa nasce la riga. Terza dimensione, non un sinonimo delle
-   * prime due — senza, il Corrispettivo manuale non si isola: condivide con la
-   * Vendita al banco la coppia Fisico/POS · VestiFlow.
-   */
-  readonly origine: string;
-  readonly rowType: string;
-  readonly locationId: string;
+/** Le origini del Registro, con l'ambito e il canale a cui appartengono. */
+export interface CorrispettiviOriginDef {
+  readonly id: string;
+  readonly label: string;
+  readonly ambito: 'online' | 'fisico_pos';
+  readonly canale: 'shopify' | 'vestiflow';
 }
 
-/** `all` è il predefinito di tutti e cinque, e non si scrive nell'indirizzo. */
-export function parseCorrispettiviFilters(params: ParamMap): CorrispettiviFilters {
+/**
+ * Specchio di `REGISTRO_BY_SOURCE` dell'API. Ambito e canale vivono **qui
+ * dentro**, come attributi dell'origine, e non come due filtri paralleli: è la
+ * decisione del §16 — una sola verità nel filtro, l'insieme delle origini.
+ *
+ * ⚠️ Il **Corrispettivo manuale sta fra le origini fisiche**, ed è una scelta
+ * di dominio dichiarata: serve a recuperare corrispettivi non registrati
+ * analiticamente in VestiFlow, tipicamente da una cassa esterna.
+ */
+export const CORRISPETTIVI_ORIGIN_DEFS: readonly CorrispettiviOriginDef[] = [
+  { id: 'shopify_online', label: 'Shopify online', ambito: 'online', canale: 'shopify' },
+  { id: 'shopify_pos', label: 'Shopify POS', ambito: 'fisico_pos', canale: 'shopify' },
+  { id: 'store', label: 'Vendita al banco', ambito: 'fisico_pos', canale: 'vestiflow' },
+  {
+    id: 'manual_receipt',
+    label: 'Corrispettivo manuale',
+    ambito: 'fisico_pos',
+    canale: 'vestiflow',
+  },
+];
+
+export const CORRISPETTIVI_ORIGINI: readonly string[] = CORRISPETTIVI_ORIGIN_DEFS.map((o) => o.id);
+
+/**
+ * I tipi di evento selezionabili. Gli **annullamenti restano fuori**: non sono
+ * un tipo di riga ma un fatto contato a parte nel riepilogo, perché la vendita
+ * che annullano non è mai entrata nel registro (specifica `08` §4). Renderli
+ * selezionabili significherebbe mostrare righe con un importo che non deve
+ * entrare in nessun totale.
+ */
+export const CORRISPETTIVI_TIPI: readonly string[] = ['sales', 'returns', 'refunds'];
+
+export interface CorrispettiviFilters {
+  /** Origini selezionate. **Vuoto = tutte.** */
+  readonly origini: readonly string[];
+  /** Tipi di evento selezionati. **Vuoto = tutti.** */
+  readonly tipi: readonly string[];
+  /** Sedi selezionate. **Vuoto = tutte.** */
+  readonly sedi: readonly string[];
+}
+
+/**
+ * Le origini di un ambito — la **scorciatoia**, non un filtro (§16).
+ *
+ * Ambito non viaggia più come dimensione autonoma: con Origine a insieme era
+ * ridondante, e soprattutto poteva **contraddirla** — «Ambito: Online +
+ * Origine: Vendita al banco» è un insieme vuoto, e l'operatore vedeva zero
+ * righe senza saperne il motivo. Qui è solo il comando che inizializza una
+ * selezione, che poi l'operatore affina liberamente.
+ */
+export function originiPerAmbito(ambito: 'all' | 'online' | 'fisico_pos'): readonly string[] {
+  if (ambito === 'all') return [];
+  return CORRISPETTIVI_ORIGIN_DEFS.filter((o) => o.ambito === ambito).map((o) => o.id);
+}
+
+/**
+ * ⚠️ **Un insieme che contiene TUTTI i valori si normalizza a vuoto.**
+ *
+ * Senza, `origini=a,b,c,d` e l'assenza del parametro sarebbero due scritture
+ * della stessa domanda — quindi due indirizzi diversi per la stessa schermata,
+ * che è come nascono le divergenze fra stampa ed elenco che questa util esiste
+ * per impedire.
+ */
+function normalizza(valori: readonly string[], universo: readonly string[]): readonly string[] {
+  const scelti = universo.filter((v) => valori.includes(v));
+  return scelti.length === universo.length ? [] : scelti;
+}
+
+/**
+ * Legge un parametro a lista (`a,b,c`).
+ *
+ * Con un `universo` noto tiene solo i valori che esistono davvero e normalizza
+ * l'insieme pieno a vuoto. Senza — è il caso delle **sedi**, i cui
+ * identificativi dipendono dal tenant e questa util non li conosce — si tiene
+ * ciò che l'indirizzo porta: a scartare gli identificativi inesistenti è l'API,
+ * che è l'unica a sapere quali siano.
+ */
+function leggiInsieme(
+  params: ParamMap,
+  nome: string,
+  universo?: readonly string[],
+): readonly string[] | null {
+  const grezzo = params.get(nome);
+  if (grezzo === null) return null;
+  const valori = grezzo
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v !== '');
+  return universo ? normalizza(valori, universo) : [...new Set(valori)];
+}
+
+/**
+ * ⚠️ **I tre parametri di origine si convertono INSIEME, non uno per uno.**
+ *
+ * Ambito, canale e origine si combinavano per **intersezione** — è ciò che fa
+ * `sourcesFor(ambito, canale, origine)` sull'API — e tradurli separatamente per
+ * poi unire i risultati darebbe un insieme **più largo** di quello che
+ * l'indirizzo salvato descriveva: `?ambito=fisico_pos&canale=shopify` vale
+ * `{shopify_pos}`, non i quattro elementi che la lettura ingenua metterebbe
+ * insieme.
+ *
+ * È un difetto che nessun test avrebbe visto, perché l'indirizzo continua a
+ * funzionare: risponde solo a una domanda diversa.
+ */
+function originiDaiVecchiParametri(params: ParamMap): readonly string[] {
   const ambito = params.get('ambito');
   const canale = params.get('canale');
-  const rowType = params.get('rowType') ?? 'all';
-  const origine = params.get('origine') ?? 'all';
+  const origine = params.get('origine');
 
+  const scelte = CORRISPETTIVI_ORIGIN_DEFS.filter(
+    (o) =>
+      (ambito === null || ambito === 'all' || o.ambito === ambito) &&
+      (canale === null || canale === 'all' || o.canale === canale) &&
+      (origine === null || origine === 'all' || o.id === origine),
+  ).map((o) => o.id);
+
+  /*
+    ⚠️ **L'indirizzo contraddittorio, e perché non può restare vuoto.**
+
+    Ambito, canale e origine erano filtri INDIPENDENTI, quindi potevano negarsi
+    a vicenda: `?ambito=online&origine=store` rendeva zero righe — ed è
+    esattamente la contraddizione per cui Ambito è stato ritirato (§16).
+
+    Nella nuova convenzione «vuoto = tutti», però, un'intersezione vuota
+    direbbe il contrario di ciò che l'indirizzo chiedeva: mostrerebbe l'INTERO
+    registro dove prima non mostrava niente. E «nessuna origine» non è
+    esprimibile: è lo stesso insieme di «tutte».
+
+    Vince quindi il vincolo **più fine** fra quelli presenti — l'origine, poi il
+    canale. È l'unica scelta che non mostra mai PIÙ di ciò che l'indirizzo
+    chiedeva, ed è coerente col ritiro: i due vincoli grossolani sono proprio la
+    parte che si sta togliendo.
+  */
+  if (scelte.length === 0) {
+    if (origine !== null && origine !== 'all' && CORRISPETTIVI_ORIGINI.includes(origine)) {
+      return [origine];
+    }
+    if (canale !== null && canale !== 'all') {
+      return CORRISPETTIVI_ORIGIN_DEFS.filter((o) => o.canale === canale).map((o) => o.id);
+    }
+  }
+
+  return normalizza(scelte, CORRISPETTIVI_ORIGINI);
+}
+
+/**
+ * I tipi dai vecchi parametri. `refundsOnly` era già una congiunzione — «resi
+ * **e** rimborsi» — travestita da booleano: qui diventa ciò che è sempre stato.
+ */
+function tipiDaiVecchiParametri(params: ParamMap): readonly string[] {
+  const rowType = params.get('rowType');
+  if (rowType !== null && CORRISPETTIVI_TIPI.includes(rowType)) {
+    return [rowType];
+  }
+  if (params.get('refundsOnly') !== null) {
+    return normalizza(['returns', 'refunds'], CORRISPETTIVI_TIPI);
+  }
+  return [];
+}
+
+function sediDaiVecchiParametri(params: ParamMap): readonly string[] {
+  const legacy = params.get('locationId');
+  return legacy !== null && legacy !== 'all' ? [legacy] : [];
+}
+
+/** I filtri correnti: prima il plurale, poi i vecchi parametri come ripiego. */
+export function parseCorrispettiviFilters(params: ParamMap): CorrispettiviFilters {
   return {
-    ambito: ambito === 'online' || ambito === 'fisico_pos' ? ambito : 'all',
-    canale: canale === 'shopify' || canale === 'vestiflow' ? canale : 'all',
-    origine: CORRISPETTIVI_ORIGINI.includes(origine) ? origine : 'all',
-    rowType: ROW_TYPE_FILTERS.includes(rowType) ? rowType : 'all',
-    locationId: params.get('locationId') ?? 'all',
+    origini:
+      leggiInsieme(params, 'origini', CORRISPETTIVI_ORIGINI) ?? originiDaiVecchiParametri(params),
+    tipi: leggiInsieme(params, 'tipi', CORRISPETTIVI_TIPI) ?? tipiDaiVecchiParametri(params),
+    sedi: leggiInsieme(params, 'sedi') ?? sediDaiVecchiParametri(params),
   };
 }
 
 /**
  * Gli stessi filtri nella forma che il service manda all'API.
  *
- * `all` diventa `undefined` dove l'API lo pretende (`rowType`, `locationId`) e
- * resta `all` dove è un valore legittimo (ambito e canale, che il `buildParams`
- * omette da sé). È l'unico punto in cui questa traduzione avviene: farla due
- * volte è il modo in cui elenco ed export smettono di rispondere alla stessa
- * domanda.
+ * ⚠️ **Codice con una SCADENZA.** L'API oggi conosce solo i parametri singolari,
+ * quindi qui gli insiemi si traducono all'indietro. Funziona perché in questo
+ * passo tutti gli insiemi raggiungibili sono ancora esprimibili: la UI è a
+ * scelta singola, e l'unico insieme a due elementi che può arrivare —
+ * `{returns, refunds}`, dal vecchio `refundsOnly` — si riscrive esattamente
+ * come `refundsOnly`.
+ *
+ * **Nel momento in cui la UI diventa a spunte questa traduzione deve essere già
+ * sparita**, sostituita dai parametri plurali sull'API — e non è una cautela
+ * generica: la traduzione è **esatta solo per gli insiemi che i vecchi
+ * parametri sapevano descrivere**, cioè quelli che condividono un ambito o un
+ * canale. `{shopify_pos, store}` no: i due canali differiscono, il canale
+ * uscirebbe `all` e l'API renderebbe anche il Corrispettivo manuale. Oggi
+ * quell'insieme non è raggiungibile; il giorno delle spunte lo è, e il filtro
+ * degraderebbe in silenzio — lo stesso difetto di `onlineOnly` che ha reso
+ * necessaria questa util.
+ *
+ * ⚠️ **Insieme vuoto = filtro OMESSO**, mai passato vuoto. Su un `in: []` di
+ * Prisma «vuoto» non significa «tutti»: significa **niente**, ed è il modo più
+ * facile di trasformare «Tutti» in «nessuna riga».
  */
 export function corrispettiviFiltersToQuery(
   filters: CorrispettiviFilters,
 ): Pick<CorrispettiviListQuery, 'ambito' | 'canale' | 'origine' | 'rowType' | 'locationId'> {
   return {
-    ambito: filters.ambito,
-    canale: filters.canale,
-    origine: filters.origine === 'all' ? undefined : filters.origine,
-    rowType: filters.rowType === 'all' ? undefined : filters.rowType,
-    locationId: filters.locationId === 'all' ? undefined : filters.locationId,
+    ambito: ambitoEsprimibile(filters.origini),
+    canale: canaleEsprimibile(filters.origini),
+    origine: filters.origini.length === 1 ? filters.origini[0] : undefined,
+    rowType: filters.tipi.length === 1 ? filters.tipi[0] : undefined,
+    locationId: filters.sedi.length === 1 ? filters.sedi[0] : undefined,
   };
+}
+
+/**
+ * Il solo valore di un insieme, se ne ha esattamente uno.
+ *
+ * Serve finché i menu sono a scelta singola: un insieme di uno è ciò che un
+ * menu sa mostrare, tutto il resto è «Tutti». Sparisce con le spunte, insieme
+ * alla traduzione all'indietro.
+ */
+export function soloValore(insieme: readonly string[]): string | undefined {
+  return insieme.length === 1 ? insieme[0] : undefined;
+}
+
+/** L'ambito che descrive esattamente l'insieme, se ce n'è uno. */
+export function ambitoEsprimibile(origini: readonly string[]): 'all' | 'online' | 'fisico_pos' {
+  if (origini.length === 0) return 'all';
+  const ambiti = new Set(origini.map((id) => defOf(id)?.ambito));
+  return ambiti.size === 1 ? [...ambiti][0]! : 'all';
+}
+
+/** Il canale che descrive esattamente l'insieme, se ce n'è uno. */
+export function canaleEsprimibile(origini: readonly string[]): 'all' | 'shopify' | 'vestiflow' {
+  if (origini.length === 0) return 'all';
+  const canali = new Set(origini.map((id) => defOf(id)?.canale));
+  return canali.size === 1 ? [...canali][0]! : 'all';
+}
+
+function defOf(id: string): CorrispettiviOriginDef | undefined {
+  return CORRISPETTIVI_ORIGIN_DEFS.find((o) => o.id === id);
 }
