@@ -13,7 +13,9 @@ import {
 } from '../sales-orders/sales-order-query.util';
 import { prismaFinancialFilter, toPrismaSource } from '../sales-orders/sales-order.enum-mapper';
 import {
-  includesManualReceipts,
+  effectiveOrigins,
+  MANUAL_RECEIPT_ORIGIN,
+  salesOrderSourcesOf,
   sourcesFor,
   type CorrispettiviAmbito,
   type CorrispettiviCanale,
@@ -51,6 +53,21 @@ export interface CorrispettiviListFilters extends SalesOrderListFilters {
    * ed è esattamente il difetto che il numero dichiarato deve smentire.
    */
   readonly undeterminedLocationOnly?: boolean;
+
+  // ── I filtri a INSIEME (`docs/10` §16) ────────────────────────────────
+  /** Origini selezionate. **Vuoto o assente = tutte.** */
+  readonly origini?: readonly string[];
+  /** Tipi di evento selezionati. **Vuoto o assente = tutti.** */
+  readonly tipi?: readonly string[];
+  /** Sedi selezionate. **Vuoto o assente = tutte.** */
+  readonly sedi?: readonly string[];
+  /**
+   * ⚠️ **«Nessun risultato», che NON è «nessuna restrizione».** Un vecchio
+   * indirizzo poteva contraddirsi e rendere zero righe: deve continuare a
+   * renderne zero. Ha un campo suo perché l'insieme vuoto significa già
+   * «tutti», e caricarlo del significato opposto lo renderebbe illeggibile.
+   */
+  readonly nessunRisultato?: boolean;
 }
 
 /**
@@ -59,11 +76,50 @@ export interface CorrispettiviListFilters extends SalesOrderListFilters {
  * `locationId: null` in Prisma è un valore, non «qualunque»: è ciò che aggancia
  * le righe che una sede non ce l'hanno.
  */
-function locationFilter(query: CorrispettiviListFilters): { locationId?: string | null } {
+function locationFilter(query: CorrispettiviListFilters): {
+  locationId?: string | null | { in: string[] };
+} {
   if (query.undeterminedLocationOnly) {
     return { locationId: null };
   }
+  // ⚠️ Insieme vuoto = nessuna restrizione: il filtro si OMETTE, non si passa
+  // vuoto. `{ in: [] }` in Prisma non è «tutte le sedi», è nessuna riga.
+  if (query.sedi && query.sedi.length > 0) {
+    return { locationId: { in: [...query.sedi] } };
+  }
   return query.locationId ? { locationId: query.locationId } : {};
+}
+
+/**
+ * I tipi di evento chiesti (`docs/10` §16). **Vuoto o assente = tutti.**
+ *
+ * Il singolare `rowType` resta per gli indirizzi salvati, e `refundsOnly` era
+ * già una congiunzione travestita da booleano — «resi **e** rimborsi» — che qui
+ * torna a essere ciò che è sempre stata.
+ */
+export function tipiRichiesti(query: CorrispettiviListFilters): readonly string[] {
+  if (query.tipi && query.tipi.length > 0) {
+    return query.tipi.filter((t) => t !== 'all');
+  }
+  if (query.rowType && query.rowType !== 'all') {
+    return [query.rowType];
+  }
+  if (query.refundsOnly) {
+    return ['returns', 'refunds'];
+  }
+  return [];
+}
+
+/** Vuole le vendite? Insieme vuoto = tutti, quindi sì. */
+export function wantsSales(query: CorrispettiviListFilters): boolean {
+  const tipi = tipiRichiesti(query);
+  return tipi.length === 0 || tipi.includes('sales');
+}
+
+/** Vuole le rettifiche? Idem. */
+export function wantsRefunds(query: CorrispettiviListFilters): boolean {
+  const tipi = tipiRichiesti(query);
+  return tipi.length === 0 || tipi.includes('returns') || tipi.includes('refunds');
 }
 
 /**
@@ -119,7 +175,7 @@ export function buildCorrispettiviWhere(
   // intersezione può essere VUOTA (es. Online + VestiFlow): la lista resta
   // vuota — `{ in: [] }` — invece di mostrare tutto.
   const sourceFilter: Prisma.EnumSalesOrderSourceFilter = {
-    in: sourcesFor(query.ambito, query.canale, query.origine),
+    in: salesOrderSourcesOf(effectiveOrigins(query)),
   };
 
   const where: Prisma.SalesOrderWhereInput = {
@@ -179,18 +235,31 @@ export function buildCorrispettiviRefundWhere(
   // Stessa prima domanda delle vendite: una rettifica su un ordine che non è un
   // corrispettivo non è un corrispettivo negativo.
   const sourceFilter: Prisma.EnumSalesOrderSourceFilter = {
-    in: sourcesFor(query.ambito, query.canale, query.origine),
+    in: salesOrderSourcesOf(effectiveOrigins(query)),
   };
 
   // «Resi» e «Rimborsi» sono due voci diverse perché sono due gesti diversi:
   // nel primo la merce è tornata, nel secondo solo il denaro. Gli annullamenti
   // restano fuori in ogni caso — non rettificano niente.
+  /*
+    ⚠️ **Un INSIEME di generi, non una catena di ternari.**
+
+    Era la forma che non sapeva dire «resi + rimborsi» e per la quale il
+    servizio aveva dovuto inventare la stringa `refunds_and_returns` (`docs/10`
+    §16): un enum che contiene una congiunzione sta chiedendo di essere un
+    insieme.
+
+    Insieme vuoto = nessuna restrizione, e quindi `not: cancellation`: gli
+    annullamenti restano fuori in ogni caso, perché non rettificano niente.
+  */
+  const generi: PrismaRefundKind[] = [];
+  for (const tipo of tipiRichiesti(query)) {
+    if (tipo === 'returns') generi.push(PrismaRefundKind.return_with_restock);
+    if (tipo === 'refunds') generi.push(PrismaRefundKind.refund_only);
+  }
+
   const kind =
-    query.rowType === 'returns'
-      ? { equals: PrismaRefundKind.return_with_restock }
-      : query.rowType === 'refunds'
-        ? { equals: PrismaRefundKind.refund_only }
-        : { not: PrismaRefundKind.cancellation };
+    generi.length > 0 ? { in: generi } : { not: PrismaRefundKind.cancellation };
 
   return {
     tenantId,
@@ -227,7 +296,7 @@ export function buildCorrispettiviStoreSaleWhere(
   // Ambito, canale e ORIGINE decidono insieme: chiedere «Origine = Corrispettivo
   // manuale» spegne la Vendita al banco, che fino al 17/08 non si poteva
   // distinguere da lei — condividono la coppia Fisico/POS · VestiFlow.
-  if (!sourcesFor(query.ambito, query.canale, query.origine).includes(PrismaSource.store)) {
+  if (!effectiveOrigins(query).includes(PrismaSource.store)) {
     return null;
   }
   // Uno stato di pagamento descrive un ORDINE: chiederlo esclude una sorgente
@@ -283,7 +352,7 @@ export function buildCorrispettiviManualWhere(
   tenantId: string,
   query: CorrispettiviListFilters,
 ): Prisma.ManualReceiptWhereInput | null {
-  if (!includesManualReceipts(query.ambito, query.canale, query.origine)) {
+  if (!effectiveOrigins(query).includes(MANUAL_RECEIPT_ORIGIN)) {
     return null;
   }
   if (query.financialStatus || query.refundsOnly) {

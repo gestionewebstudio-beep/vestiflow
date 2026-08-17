@@ -27,6 +27,21 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const ROW_TYPE_VALUES = ['all', 'sales', 'returns', 'refunds'] as const;
 export type CorrispettiviRowTypeFilter = (typeof ROW_TYPE_VALUES)[number];
 
+/**
+ * Un parametro a lista (`a,b,c`) letto come insieme, senza ripetizioni.
+ *
+ * Accetta anche la forma ripetuta (`?tipi=a&tipi=b`), che è come alcuni client
+ * scrivono gli array: due scritture della stessa domanda devono dare lo stesso
+ * insieme, o il Registro risponderebbe diversamente a seconda di chi chiede.
+ */
+function toStringSet(value: unknown): string[] | undefined {
+  const grezzi = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
+  const valori = grezzi
+    .map((v) => String(v).trim())
+    .filter((v) => v !== '');
+  return valori.length > 0 ? [...new Set(valori)] : undefined;
+}
+
 function toOptionalBoolean(value: unknown): boolean | undefined {
   if (value === true || value === 'true' || value === '1') {
     return true;
@@ -120,4 +135,53 @@ export class ListCorrispettiviQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsIn([...ROW_TYPE_VALUES])
   rowType?: string;
+
+  // ── I filtri a INSIEME (`docs/10` §16) ──────────────────────────────────
+  //
+  // Origine, Tipo e Sede sono insiemi. I singolari qui sopra restano perché i
+  // vecchi indirizzi continuino a funzionare: a tradurli è il parser del
+  // frontend, e chi arriva qui col plurale ha già la forma definitiva.
+  //
+  // ⚠️ **Insieme vuoto = nessuna restrizione = TUTTI**, e il parametro non si
+  // manda affatto. Un `in: []` di Prisma non significa «tutti»: significa
+  // NIENTE, ed è il modo più facile di trasformare un «Tutti» in «nessuna
+  // riga». I costruttori di query omettono il filtro invece di passarlo vuoto.
+
+  /** Origini selezionate. Assente = tutte. */
+  @IsOptional()
+  @Transform(({ value }) => toStringSet(value))
+  @IsIn([...CORRISPETTIVI_ORIGINE_VALUES], { each: true })
+  origini?: string[];
+
+  /** Tipi di evento selezionati. Assente = tutti. */
+  @IsOptional()
+  @Transform(({ value }) => toStringSet(value))
+  @IsIn([...ROW_TYPE_VALUES], { each: true })
+  tipi?: string[];
+
+  /** Sedi selezionate. Assente = tutte. */
+  @IsOptional()
+  @Transform(({ value }) => toStringSet(value))
+  @IsUUID('4', { each: true })
+  sedi?: string[];
+
+  /**
+   * ⚠️ **«Nessun risultato», che NON è «nessuna restrizione».**
+   *
+   * Un vecchio indirizzo poteva contraddirsi — ambito, canale e origine erano
+   * filtri indipendenti — e `?ambito=online&origine=store` rendeva zero righe.
+   * Deve continuare a renderne zero.
+   *
+   * Ha un parametro **suo** invece di essere un `origini` vuoto: caricare
+   * l'insieme vuoto di «tutti» e «niente» insieme ricreerebbe sul filo proprio
+   * l'ambiguità che si sta sciogliendo, nel punto in cui è più difficile
+   * accorgersene.
+   *
+   * **Compatibilità transitoria**: la nuova interfaccia non potrà produrlo, e
+   * con i vecchi indirizzi morirà anche questo campo.
+   */
+  @IsOptional()
+  @Transform(({ value }) => toOptionalBoolean(value))
+  @IsBoolean()
+  nessunRisultato?: boolean;
 }

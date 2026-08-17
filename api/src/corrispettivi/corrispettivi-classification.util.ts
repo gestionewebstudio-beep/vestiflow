@@ -181,6 +181,58 @@ export function sourcesFor(
   return originsFor(ambito, canale, origine).filter(isSalesOrderSource);
 }
 
+/** Un filtro che porta un insieme di origini, o i vecchi vincoli singoli. */
+export interface OriginSelection {
+  readonly origini?: readonly string[];
+  readonly ambito?: CorrispettiviAmbito;
+  readonly canale?: CorrispettiviCanale;
+  readonly origine?: string;
+  /** Contraddizione di un vecchio indirizzo: zero righe, non «tutte». */
+  readonly nessunRisultato?: boolean;
+}
+
+/**
+ * Le origini che una richiesta seleziona davvero (`docs/10` §16).
+ *
+ * ⚠️ **Insieme assente o vuoto = nessuna restrizione = TUTTE.** Non è una
+ * comodità: è la regola uniforme fra interfaccia, indirizzo, parser, API e
+ * riepilogo, e qui è il punto in cui potrebbe rompersi per distrazione —
+ * restituire l'insieme vuoto significherebbe «nessuna origine», cioè nessuna
+ * riga, dove l'utente non ha chiesto niente.
+ *
+ * Il **plurale vince** sui vecchi vincoli: chi lo manda ha già la forma
+ * definitiva, e i singolari restano solo per gli indirizzi salvati.
+ */
+export function effectiveOrigins(selection: OriginSelection): CorrispettivoOrigin[] {
+  /*
+    ⚠️ **Qui l'insieme vuoto è la risposta GIUSTA, ed è l'unico punto.**
+
+    Le due letture opposte dell'insieme vuoto convivono in tutto il sistema
+    solo perché non si incontrano mai: sul filo e nei filtri «vuoto» significa
+    «nessuna restrizione», e a dire «niente» è `nessunRisultato`, che ha un
+    campo suo. Qui, all'ultimo passo prima di Prisma, quel campo si traduce
+    nell'unica forma che il database capisce come «nessuna riga»: un `in` senza
+    valori.
+
+    È la traduzione, non l'ambiguità: chi legge una riga sopra sa ancora quale
+    dei due significati aveva in mano.
+  */
+  if (selection.nessunRisultato) {
+    return [];
+  }
+
+  const insieme = selection.origini;
+  if (insieme && insieme.length > 0) {
+    return CORRISPETTIVI_ORIGINS.filter((origin) => insieme.includes(origin));
+  }
+  return originsFor(selection.ambito, selection.canale, selection.origine);
+}
+
+/** Le sole origini interrogabili su `sales_orders`. */
+export function salesOrderSourcesOf(origins: readonly CorrispettivoOrigin[]): PrismaSource[] {
+  return origins.filter(isSalesOrderSource);
+}
+
 /** La quarta sorgente sopravvive ai filtri di classificazione? */
 export function includesManualReceipts(
   ambito: CorrispettiviAmbito | undefined,
