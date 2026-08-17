@@ -180,36 +180,30 @@ Nove prove, fra cui le sette chieste: azienda ivata e netta, i tre campi che si 
 insieme, prezzi e costo che non si toccano a vicenda, il giro senza deriva, il campo vuoto che
 resta vuoto. Mutazione: rimesso l’ordine sbagliato, due prove si accendono.
 
-### ⬜ Da fare: separare «Prezzi di vendita» da «Listini»
+### ✅ Fatto il 17/08: «Prezzi di vendita» e «Listini» sono due sezioni
 
-> **Un listino non è un altro prezzo: è una regola commerciale alternativa** che assegna un
-> prezzo diverso allo stesso articolo — Ingrosso, Rivenditori, VIP. È la distinzione che
-> permetterà domani di dire «il cliente X compra a listino Ingrosso» e farla ereditare al
-> documento.
-
-Oggi la sezione si intitola **«Listini»** e contiene cinque campi, di cui tre lo sono davvero:
+> **Un listino non è un altro prezzo: è una regola commerciale alternativa** — Ingrosso,
+> Rivenditori — che assegna un prezzo diverso allo stesso articolo.
 
 ```text
-Listini            Prezzo di vendita ⛔ · Prezzo Shopify ⛔ · Listino 1 · 2 · 3 ✅
-(fuori sezione)    Prezzo barrato · Costo di riferimento
+Prezzi di vendita    Prezzo di vendita · Prezzo barrato · Prezzo Shopify (se attivo)
+Listini              Listino 1 · 2 · 3        (nomi dati in Impostazioni)
+(fuori)              Costo di riferimento (netto)
 ```
 
-⚠️ **E le due schermate non si capiscono fra loro:** in Impostazioni i tre si chiamano
-«Listini aggiuntivi»; in anagrafica «Listini» ne indica cinque. La stessa parola per due insiemi
-diversi a due schermate di distanza — è il difetto vero, non una preferenza di gusto. Il
-criterio per escludere lo dà già il codice, in un commento di quella sezione: _«Barrato e costo
-di riferimento restano fuori: non sono listini»_ — applicato agli altri due, esclude anche loro.
+**Un solo selettore netto/ivato** per tutta l’area prezzi: sta nella testata della prima
+sezione e governa tutti e sei i campi. Il costo è fuori, e adesso **lo dice l’etichetta** —
+il tooltip diceva già «sempre al netto d’IVA», ma restava nascosto.
 
-**L’assetto deciso:**
+**Il barrato è salito** dalla coda della scheda, dove stava accanto al costo: è una componente
+della politica di vendita, non un dato amministrativo. Era la parte di impaginato del lavoro,
+non di parole.
 
-```text
-Prezzi di vendita   Prezzo di vendita · Prezzo barrato · Prezzo Shopify
-Listini             Listino 1 · 2 · 3        (nomi dati in Impostazioni)
-(fuori da entrambi) Costo di riferimento     — è un costo, non un prezzo
-```
+⚠️ **E le due schermate adesso dicono la stessa cosa:** in Impostazioni i tre si chiamano
+«Listini aggiuntivi», qui «Listini» ne indica esattamente tre. Prima ne indicava cinque.
 
-⚠️ **Non è solo un’etichetta: sposta «Prezzo barrato»**, che oggi sta fuori sezione accanto al
-costo. È un cambio di impaginato, e per questo non è stato fatto insieme alla rinomina.
+Tre prove tengono la struttura: le due testate esistono, il barrato e il prezzo Shopify stanno
+con il prezzo di vendita, e il costo dichiara la sua base.
 
 ### ⬜ Da decidere: le frecce dei campi numerici
 

@@ -143,6 +143,60 @@ describe('ProductGeneralStepComponent', () => {
     expect(lastCall?.category).toBe('Top');
   });
 
+  /**
+   * Le due sezioni dell’area prezzi — 17/08/2026.
+   *
+   * Un listino non è un altro prezzo: è una **regola commerciale alternativa**
+   * (Ingrosso, Rivenditori) che assegna un prezzo diverso allo stesso
+   * articolo. Prima la sezione si chiamava «Listini» e ne conteneva cinque, di
+   * cui tre lo erano davvero — e in Impostazioni gli stessi tre si chiamavano
+   * «Listini aggiuntivi»: la stessa parola per due insiemi, a due schermate di
+   * distanza.
+   */
+  describe('le due sezioni dell’area prezzi', () => {
+    it('«Prezzi di vendita» tiene i tre prezzi veri, barrato compreso', async () => {
+      await renderStep({
+        value: EMPTY_GENERAL,
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22],
+        tenantDefaultVatCodeId: VAT_22.id,
+        shopifyActive: true,
+      });
+
+      expect(screen.getByRole('heading', { name: 'Prezzi di vendita' })).toBeVisible();
+      expect(screen.getByLabelText('Prezzo di vendita')).toBeVisible();
+      expect(screen.getByLabelText(/Prezzo barrato/)).toBeVisible();
+      expect(screen.getByLabelText(/Prezzo Shopify/)).toBeVisible();
+    });
+
+    it('«Listini» è una sezione a sé', async () => {
+      await renderStep({
+        value: EMPTY_GENERAL,
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22],
+        tenantDefaultVatCodeId: VAT_22.id,
+      });
+
+      expect(screen.getByRole('heading', { name: 'Listini' })).toBeVisible();
+      expect(screen.getByLabelText('Ingrosso')).toBeVisible();
+    });
+
+    it('il costo dichiara la sua base: è fuori dal selettore', async () => {
+      await renderStep({
+        value: EMPTY_GENERAL,
+        listinoSlots: LISTINO_SLOTS,
+        vatCodes: [VAT_22],
+        tenantDefaultVatCodeId: VAT_22.id,
+        canSeeCosts: true,
+      });
+
+      // Stringa e non regex: le parentesi di «(netto)» in una regex sarebbero un
+      // gruppo, e il confronto passerebbe anche senza le parentesi a schermo —
+      // cioè proprio la cosa che questa prova deve tenere ferma.
+      expect(screen.getByLabelText('Costo di riferimento (netto)', { exact: false })).toBeVisible();
+    });
+  });
+
   describe('sezione Listini', () => {
     it('mostra solo i listini attivi, col nome dato dall azienda', async () => {
       await renderStep({
