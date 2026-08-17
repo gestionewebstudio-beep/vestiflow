@@ -89,10 +89,17 @@ corrispettivo 206,01
 - **l'aggancio delle location**, che è il prerequisito per leggere le _fulfillment orders_ e chiudere il ripiego alfabetico sull'impegno (`01` §3.8, parte ancora aperta);
 - il resto del disegno in `02-specifica-sincronizzazione-shopify.md`, che è **disegno e non consuntivo**.
 
-### 2-bis. ⚠️ La GUIDA UTENTE va aggiornata quando la maschera esiste — non prima
+### 2-bis. ✅ Il Corrispettivo manuale è costruito — 17/08/2026
 
-Il **Corrispettivo manuale** (`10` §12) è deciso e specificato, le fondamenta sono in
-piedi (enum, tabelle, migration applicate), ma **all'operatore non è ancora visibile niente**.
+**Fatto.** Entità, API, innesto nel Registro, colonna e filtro Sede, colonna origine e
+dettaglio IVA nell'export, maschera di creazione/modifica/eliminazione, con le prove del
+`10` §13. Il consuntivo della costruzione — le sette cose che il §13 non prevedeva, e cosa
+resta — è in **`10` §14**.
+
+⚠️ **La guida utente è stata aggiornata insieme** (§15). Qui sotto resta il testo di allora,
+perché dice ancora _cosa_ doveva entrarci e serve a rileggerlo con occhio critico.
+
+_Testo del 17/08, prima della costruzione:_
 
 `GUIDA-UTENTE-VESTIFLOW.md` §15 «Corrispettivi» oggi **è ancora esatta** — verificato il
 17/08: descrive il quadro economico per periodo, non nomina la verticale ritirata, e non
@@ -137,7 +144,7 @@ il Registro Corrispettivi. Misurata, non ipotizzata:
 - dove il valore c'è, **può essere stato indovinato**: se la sede Shopify non è mappata,
   `resolveShopifyOrderLocationId` ripiega sulla **prima sede licenziata in ordine alfabetico**
   (`orderBy: { name: 'asc' }`). Il danno è già stato misurato una volta e sta scritto nel
-  codice: «Shopify spediva da *Shop location*, VestiFlow scaricava da *Magazzino test 3* —
+  codice: «Shopify spediva da _Shop location_, VestiFlow scaricava da _Magazzino test 3_ —
   prima per la M»;
 - la relazione è `onDelete: SetNull`: il dato **si perde** se la sede viene eliminata.
 

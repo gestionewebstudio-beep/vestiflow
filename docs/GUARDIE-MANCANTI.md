@@ -737,3 +737,81 @@ riga di SQL.
 **Non si sta proponendo di rimuoverla.** `sourceDocumentId` serve, ed è il punto di partenza del
 blocco «Collegamenti Fattura ↔ Nota di credito» — dove ora si sa che va **collegato a una coppia
 origine→destinazione nuova**, non costruito da zero.
+
+---
+
+## 17. 🟡 «In attesa» è il ripiego di uno stato di pagamento sconosciuto (17/08/2026)
+
+**Trovato lavorando al Corrispettivo manuale**, ed è il **gemello a due funzioni di distanza**
+del difetto corretto lo stesso giorno sull'export dei corrispettivi.
+
+`financialStatusDisplayLabel` (`api/src/sales-orders/sales-order.enum-mapper.ts`) chiude con un
+ramo predefinito:
+
+```ts
+    case PrismaFinancial.authorized:
+    case PrismaFinancial.pending:
+    default:
+      return 'In attesa';
+```
+
+Uno stato di pagamento **non previsto** esce quindi come «In attesa» — nella colonna «Stato
+pagamento» dello **stesso CSV** che va al commercialista, accanto alla colonna «Tipo» dove il
+ripiego identico è stato appena tolto perché faceva uscire una riga ignota come «Rettifica».
+
+**Perché non è stato corretto insieme all'altro.** È una decisione del proprietario del progetto,
+presa il 17/08: `financialStatusDisplayLabel` è **esclusivamente** lo stato finanziario di
+pagamento, non lo stato di invio al commercialista — quel flusso è ritirato (`10` §5) e non
+torna. Il Corrispettivo manuale non gestisce pagamenti né Tesoreria, e correggerlo qui avrebbe
+riaperto un perimetro dichiarato chiuso.
+
+> **Va verificato quando si riprendono Pagamenti, Tesoreria ed export finanziari**, insieme al
+> resto di quel dominio.
+
+**La differenza con l'altro caso, per chi lo riprenderà.** Sull'export la correzione era
+strutturale: la mappa è stata **tipizzata**, quindi un tipo nuovo non compila finché non ha un
+nome, e un fallback runtime neutro copre il caso — reale, su un database condiviso fra rami — in
+cui un valore d'enum arriva nei dati prima del codice che lo sa nominare. Qui servirebbe la
+stessa forma: `switch` esaustivo **senza `default`**, più un'etichetta neutra («Non classificato»)
+per il valore che il codice ancora non conosce.
+
+⚠️ **E c'è un secondo posto, sul frontend.** `FINANCIAL_LABELS` in
+`src/app/features/reports/components/corrispettivi-orders-table/corrispettivi-orders-table.component.ts`
+è un `Record<string, string>` con `?? status` in coda: lì lo sconosciuto esce come chiave grezza
+(`authorized_partial`), che è **meno dannoso** — non finge un significato — ma è comunque un
+secondo posto dove la stessa decisione va presa una volta sola.
+
+---
+
+## 18. 🟡 Nella catena dei controlli niente accende l'API (17/08/2026)
+
+**Misurato il 17/08**, ed è il difetto di quel giorno a dimostrarlo: `tsc` pulito, 1645 prove
+verdi, dieci guardie verdi — **e il backend non partiva**.
+
+| Controllo                    | Cosa prova                                                |
+| ---------------------------- | --------------------------------------------------------- |
+| `npm run build --prefix api` | che i tipi tornano — è l'**unico** type-check del backend |
+| `npm run test:api`           | i moduli **uno per uno**, istanziati con `new`            |
+| le nove guardie `.mjs`       | testo e coerenza fra file: nessuna avvia un processo      |
+
+**Il buco è nel mezzo.** I test API non usano `Test.createTestingModule` — `@nestjs/testing` non
+è nemmeno fra le dipendenze: i service si costruiscono a mano con le dipendenze castate. Quindi
+un **grafo di moduli Nest che non si risolve** — un provider mancante, una dipendenza circolare,
+un `@Module` non importato in `AppModule` — compila, passa i test, e muore al primo avvio.
+
+**Lo strumento c'è ed è verificato**: `scripts/check-api-boot.mjs`, `npm run check:api-boot`.
+Avvia `node dist/main.js` su una porta effimera, attende `GET /api/v1/health`, e chiude il
+processo in un `finally` — riuscita, fallimento, timeout o Ctrl-C. Provato in entrambi i versi il
+17/08: verde su database raggiungibile, rosso con l'output del processo su database morto,
+uscita 1, **nessun processo Node rimasto**.
+
+⚠️ **Non è agganciato a nessun gate, ed è deliberato**: dove metterlo è una decisione, non un
+contorno. Le tre misure che la decisione richiede:
+
+1. **`npm run lint` è escluso.** Il lint deve girare senza database; questo controllo un database
+   lo pretende — `PrismaService.onModuleInit` fa `$connect()`, quindi senza DB il boot muore.
+2. **Il posto naturale è `.husky/pre-push`**, subito dopo `npm run build --prefix api`: quel
+   passo produce `dist/main.js`, e questo lo accende. Costa pochi secondi.
+3. **In CI può stare solo nel job `e2e`.** Il job `lint-and-test` **non ha `DATABASE_URL`** —
+   i segreti del database sono solo sul job Playwright. Metterlo in `lint-and-test` lo farebbe
+   fallire a ogni esecuzione, e un gate sempre rosso è un gate spento.

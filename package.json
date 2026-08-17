@@ -55,7 +55,8 @@
     "icons:generate": "node scripts/generate-icons.mjs",
     "prepare": "husky",
     "check:registro": "node scripts/check-registro-legacy.mjs",
-    "check:modalita-prezzo": "node scripts/check-modalita-prezzo.mjs"
+    "check:modalita-prezzo": "node scripts/check-modalita-prezzo.mjs",
+    "check:api-boot": "node scripts/check-api-boot.mjs"
   },
   "private": true,
   "packageManager": "npm@10.9.0",

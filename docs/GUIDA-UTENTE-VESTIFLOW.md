@@ -1080,6 +1080,50 @@ Se qualche vendita risulta **evasa senza data**, il riepilogo te lo dice: non è
 
 **Il file che esporti contiene le stesse righe che vedi.** CSV, Excel e PDF portano vendite e rettifiche con una colonna **Tipo**, in ordine di data, e la somma delle righe fa esattamente il totale stampato in testa. È il modo per cui il commercialista può rifare il conto senza chiederti niente.
 
+#### Aggiungere un corrispettivo a mano _(dal 17 agosto 2026)_
+
+A volte il dato economico è certo ma la vendita analitica non c'è e non è ricostruibile: la cassa esterna ha battuto mentre il gestionale non era disponibile, hai una chiusura di cassa da recuperare, o stai riportando importi vecchi di cui sai quanto e con che IVA, ma non cosa è stato venduto.
+
+Per questi casi c'è il pulsante **«+ Aggiungi corrispettivo»**, in alto nella pagina Corrispettivi.
+
+> ⚠️ **È una registrazione solo economica.** Non crea prodotti, non crea clienti, e **non tocca il magazzino**: giacenza, impegnata e disponibile restano come sono. Non poteva essere altrimenti — una registrazione che non sa quali articoli sono usciti non può togliere pezzi da nessuna parte, e se lo facesse starebbe inventando merce.
+
+**Cosa si compila:**
+
+- la **data** — è quella economica, e decide in che periodo la registrazione entra;
+- la **sede** — obbligatoria: un corrispettivo appartiene sempre a un punto vendita o a un magazzino;
+- gli **importi ivati o netti** — un solo selettore per tutta la registrazione, che parte da **Ivati** perché è il verso in cui arrivano i numeri di una chiusura di cassa;
+- le **righe**: descrizione, importo e **Codice IVA**. Più righe, anche con aliquote diverse:
+
+```text
+70,00   IVA 22%   Vendite cassa esterna
+30,00   IVA 10%   Vendite cassa esterna
+```
+
+**Il selettore Ivati/Netti converte, non reinterpreta.** Passando da Ivati a Netti i 70,00 diventano 57,38 e il totale resta 70,00: stai guardando lo stesso importo da un'altra parte. Puoi passare avanti e indietro quante volte vuoi senza perdere un centesimo.
+
+**Il numero lo assegna VestiFlow al salvataggio**, e si vede nudo: 1, 2, 3. Non è un numero fiscale — il documento commerciale lo emette il registratore di cassa, che è un'altra cosa — serve solo a ritrovare la registrazione.
+
+**Si corregge e si elimina.** Una registrazione digitata a mano si può sbagliare: aprila dal suo numero nell'elenco e modificala, oppure eliminala. ⚠️ **Eliminando resta un buco nella numerazione** — dopo il 12 eliminato si passa da 11 a 13 — ed è normale: i numeri successivi non si rinumerano. E un export di questo mese, ristampato fra un mese, non conterrà più la registrazione eliminata.
+
+**Nel Registro si riconosce dall'origine**, che dice «Corrispettivo manuale». Senza filtri entra nell'elenco e nei totali come tutte le altre righe.
+
+⚠️ **Chi può farlo.** Serve il permesso **«Registrare corrispettivi manuali»** (gruppo Report), oltre a quelli che già servono per vedere i Corrispettivi. Senza, il pulsante non compare.
+
+#### La colonna Sede, e «Non determinata» _(dal 17 agosto 2026)_
+
+L'elenco ha una colonna **Sede** e un filtro per sceglierla.
+
+Su alcune righe che arrivano da Shopify leggerai **«Non determinata»**, in corsivo. Vuol dire quello che dice: quella vendita non porta con sé da quale sede è partita, e VestiFlow **non se la inventa**. È una cosa che va sistemata nella sincronizzazione, non uno stato normale.
+
+⚠️ **Filtrando per una sede quelle righe escono** — a una sede precisa non sono attribuibili — **ma la pagina te lo dice**:
+
+```text
+3 registrazioni con Location non determinata non incluse nel filtro
+```
+
+È l'avviso che conta: senza, il totale scenderebbe scegliendo una sede e nessuno saprebbe perché. **Togli il filtro Sede e tornano dentro**, nell'elenco e nel totale.
+
 #### Canale e tipo
 
 Accanto al periodo trovi altri due filtri, indipendenti fra loro e dal periodo:

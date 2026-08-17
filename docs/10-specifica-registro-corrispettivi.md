@@ -707,3 +707,322 @@ La prima non è negoziabile e viene prima delle altre:
     escluso;
 11. l'export ripetuto **non ha effetti collaterali**;
 12. **nessuna regressione** delle tre sorgenti già presenti.
+
+---
+
+## §14 · Com'è stato costruito — 17/08/2026
+
+_Consuntivo della costruzione, non un secondo disegno. Il §12 dice **cosa** deve fare e il §13
+**dove** si innesta; qui c'è ciò che si è scoperto **facendolo**, e che né l'uno né l'altro
+potevano sapere._
+
+### Le sette cose che il §13 non prevedeva
+
+#### 1. ⚠️ Il motore di numerazione aveva bisogno di una QUARTA sorgente
+
+Il §12 dice «si riusa il motore comune, con la chiave `manual_receipt`», e non basta.
+`numberSourceForType` conosceva tre tabelle — `documents`, `sales_orders`, `supplier_orders` —
+con `'document'` come **ramo predefinito**. Una chiave nuova ci sarebbe caduta dentro in
+silenzio: il massimo si sarebbe letto su `documents`, dove `manual_receipt` non comparirà mai,
+quindi **sempre 0**, ogni registrazione nata col numero 1, e a fermarle il vincolo unico — dopo il
+lavoro.
+
+`DocumentNumberSource` ha ora un quarto valore, e con lui il ramo in `lastAssignedNumber`, la
+tabella in `primoNumeroLibero` e `'ManualReceipt'` in `MODELLI_NUMERATI` (che è ciò che fa
+riconoscere il conflitto dal **modello**, non dalle colonne).
+
+#### 2. Il numero non si sceglie, quindi il conflitto non si negozia
+
+Le maschere documento, al numero rifiutato, rispondono con `buildDocumentNumberConflict` e un
+avviso che propone il primo libero. Qui **non c'è un campo numero**: proporne uno sarebbe un
+comando che non comanda. Il conflitto si **riconosce** con la guardia comune
+(`isDocumentNumberConflict`) e si dice cosa è successo — «assegnato a un'altra registrazione
+nello stesso istante, riprova». È quasi irraggiungibile: l'assegnazione passa dall'advisory lock.
+
+#### 3. L'origine è un'unione, e la classificazione la condivide con la Vendita al banco
+
+`CorrispettivoOrigin = SalesOrderSource | 'manual_receipt'`, e `REGISTRO_BY_SOURCE` è esaustivo
+su **quell'unione**. La classificazione è **Fisico/POS · VestiFlow**, la stessa della Vendita al
+banco — ed è giusto: sono entrambe incassi fisici raccolti da VestiFlow, e chi filtra quella
+coppia le vuole tutte e due.
+
+> **Ciò che non si condivide è l'ORIGINE.** Il §13 avvertiva che «la casella più vicina è già
+> occupata»: il rischio non era la coppia, era riusare `source = store` sulla riga — che avrebbe
+> reso una registrazione digitata indistinguibile da una vendita battuta al banco, in colonna e
+> nel file per il commercialista.
+
+`CORRISPETTIVI_SOURCES` resta la sola parte **interrogabile su `sales_orders`**: è ciò che
+impedisce a un valore che quella tabella non ha di finire in un filtro Prisma.
+
+#### 4. Un `kind` proprio — provato, e ritirato lo stesso giorno
+
+Il settimo innesto del §13 si era realizzato con un terzo valore di `CorrispettiviRowKind`,
+«Registrazione», per non chiamare «Vendita» una riga che nessuno aveva battuto.
+
+**È durato il tempo di vederlo in colonna.** Un Registro che affianca «Vendita», «Reso»,
+«Rimborso» e «Registrazione» mette sullo stesso asse tre **fatti economici** e una **provenienza**:
+di quella riga l'operatore continuava a non sapere il segno. E il segno c'era — economicamente
+è una vendita avvenuta.
+
+> `kind` risponde a «**cosa è successo**», `source` a «**da dove arriva**». La distinzione
+> tecnica che serviva davvero la porta già la colonna **Origine**, dove «Corrispettivo manuale»
+> sta accanto a «Shopify online» e «Vendita al banco» senza rubare il posto a niente.
+
+`CorrispettiviRowKind` è tornato a due valori.
+
+#### 5. L'export ha preso DUE colonne in coda, non una
+
+Il §12 ne prevedeva una. Sono due, e la seconda è una scelta presa costruendo:
+
+| Colonna           | Perché                                                                                                                                                            |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dettaglio IVA** | quella prevista: l'informazione per aliquota della registrazione, vuota sulle altre tre sorgenti — dove il dato esiste ma il Registro non lo legge                |
+| **Sede**          | con questo lavoro il Registro mostra la sede e ci si filtra sopra. Un file prodotto con quel filtro attivo, che la sede non la nomina, non dice di quale sede sia |
+
+Entrambe **in coda**: le dodici precedenti non si spostano, e chi ha un foglio agganciato alle
+loro posizioni continua a leggerle dov'erano. Un test lo presidia.
+
+E la quarta colonna si chiama **«Origine»**, non più «Canale» — su schermo, nel CSV e nel PDF.
+Con una sorgente che nessun canale ha raccolto, «canale» diceva il falso.
+
+#### 6. ⚠️ Due elenchi di sedi, perché sono due domande diverse
+
+`GET /inventory/locations` chiede `section.inventory`, e chi lavora sul Registro tipicamente non
+ce l'ha: la tendina sarebbe arrivata **vuota con un 403 assorbito in silenzio** dal frontend, e
+una sede obbligatoria che non si può scegliere è una maschera che non salva.
+
+| Endpoint                         | Domanda                           | Permesso               |
+| -------------------------------- | --------------------------------- | ---------------------- |
+| `GET /corrispettivi/locations`   | «di quali sedi posso CONSULTARE?» | vista del Registro     |
+| `GET /manual-receipts/locations` | «su quali posso REGISTRARE?»      | scrittura sul Registro |
+
+Unificarli darebbe o un filtro chiuso a chi può solo leggere, o una tendina che propone sedi su
+cui il salvataggio poi risponde 403.
+
+⚠️ **Due endpoint, ma UNA sola regola d'accesso**, ed è quella centrale. Qui, costruendo, ne era
+nata una seconda: «il Registro è storico, quindi il suo elenco non filtra per sede attiva né
+inclusa nel piano». Ragionevole a leggersi, e **inventata**: viveva solo in questo file, e
+avrebbe reso il Corrispettivo manuale l'unico posto di VestiFlow con una politica di sedi propria
+— cioè il posto dove un domani una revoca di licenza non sarebbe arrivata.
+
+È stata ritirata. Entrambi gli endpoint passano da `listLocationsInScope`, quindi dallo stesso
+`resolveOperationalLocationScope` del resto dell'applicazione; **la differenza fra i due resta
+quella che il modello centrale già faceva** — lettura contro scrittura, dove la sola lettura
+ammette in più `inventory.view_all_locations`. Nessuna terza regola.
+
+E `POST`/`PATCH` verificano sempre tutti e tre i cardini, in quest'ordine: sede **del tenant** e
+utilizzabile (`resolveLicensedLocationScope`), poi **utente autorizzato** su quella sede
+(`assertLocationInUserScope`, in modalità scrittura).
+
+#### 7. Le righe si spengono a testata incompleta — per uniformità, non per necessità tecnica
+
+Qui il ragionamento e la decisione sono andati in direzioni diverse, ed è giusto che il
+consuntivo lo dica.
+
+`regole-stile-ui` §7 prescrive lo stato vuoto finché mancano «i campi obbligatori **che le
+governano**», e in questa maschera **nessuna riga dipende dalla sede**: descrizione, importo e
+Codice IVA non leggono articoli, giacenze né prezzi. Sul piano tecnico la premessa della regola
+non c'era.
+
+**La scelta è stata comunque il varco**, ed è del proprietario del progetto: chi apre un
+Corrispettivo manuale ha appena chiuso un Ordine cliente o un Arrivo merce, e in quelle maschere
+la prima cosa che si fa è scegliere. Un'eccezione «tecnicamente giustificata» sarebbe rimasta
+un'eccezione da spiegare a ogni operatore nuovo. **L'uniformità di un gesto ripetuto vale più
+della libertà di digitare un importo prima del suo luogo.**
+
+La sede è anche il campo che si segna con la **tinta d'attesa** (`--color-field-waiting`): aprire
+una registrazione nuova non è un errore dell'operatore.
+
+### Il filtro Sede, e la riga che dichiara ciò che toglie
+
+Filtrando per una sede, le righe che una sede non ce l'hanno **escono** — a quella sede non sono
+attribuibili — e la schermata lo dice:
+
+```text
+3 registrazioni con Location non determinata non incluse nel filtro
+```
+
+Il numero arriva dal riepilogo (`locationUndeterminedExcludedCount`) e si calcola dagli **stessi
+builder** dell'elenco, con un `undeterminedLocationOnly` che sostituisce la sede scelta con
+«nessuna sede». Una seconda catena di filtri scritta a mano conterebbe righe diverse da quelle
+che spariscono, ed è esattamente ciò che il numero deve smentire.
+
+**Senza filtro Sede il numero è zero**, e non è una scorciatoia: senza filtro quelle righe sono
+dentro il Registro e dentro i totali.
+
+### Il permesso: prima applicazione vera
+
+`reports.fiscal_register` esisteva dal piano permessi e **nessuna rotta, guard o template lo
+usava**. Ora governa creazione, modifica ed eliminazione — insieme alla vista del Registro, nella
+stessa forma dell'export (vista + `reports.export`).
+
+La sua descrizione è stata **riscritta su entrambe le sponde**: diceva «marca le consegne al
+commercialista, cambia lo stato fiscale di un ordine e corregge le righe del registro», e sono
+tre cose che non esistono più — il flusso commercialista è ritirato (§5), lo stato fiscale della
+vendita è stato eliminato (§6), e il Registro non si corregge riga per riga (§1).
+
+### Le prove, e dove stanno
+
+| Prova del §13                                    | Dove                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------ |
+| 1 — **zero `StockMovement`**, giacenze intoccate | `manual-receipts.service.spec.ts`, sui tre verbi                   |
+| 2 — 70,00 ivati → salvato → riaperto = **70,00** | `manual-receipt-totals.util.spec.ts` **e** la maschera             |
+| 3 — Ivati ⇄ Netti senza variazione economica     | entrambi, e con il controesempio a 85,40                           |
+| 4 — più aliquote nella stessa registrazione      | `manual-receipt-totals.util.spec.ts`                               |
+| 5 — la riga vuota non si salva                   | util, service e maschera                                           |
+| 6 — snapshot: il codice cambia, lo storico no    | `manual-receipt-totals.util.spec.ts`                               |
+| 7 — la modifica aggiorna lo **stesso** record    | `manual-receipts.service.spec.ts`                                  |
+| 8 — tenant A non vede né modifica quelli di B    | `manual-receipts.service.spec.ts`                                  |
+| 9–10 — origine visibile, filtri, totali          | `corrispettivi-classification.util.spec.ts`, `-query.util.spec.ts` |
+| 11–12 — export ripetibile, nessuna regressione   | `corrispettivi-export.service.spec.ts` + la suite intera           |
+
+La prima è scritta come **spie sulle delegate proibite** (`stockMovement`, `inventoryLevel`,
+`stockReservation`, `document`, `salesOrder`): il difetto da fermare non è un calcolo sbagliato,
+è qualcuno che un giorno «collega anche il magazzino».
+
+### ⚠️ L'ordinamento del Registro non era brutto: non esisteva
+
+Il difetto è saltato fuori guardando la schermata — il n. 1 sopra il n. 2 — e la causa non era
+un ordine sbagliato: era **l'assenza di un ordine**.
+
+Due sorgenti su quattro portano una data economica `DATE`. Letta come istante è **mezzanotte**,
+quindi due Corrispettivi manuali dello stesso giorno pareggiano, e `Array.sort` lasciava l'ordine
+in cui le quattro query erano state concatenate. **Quell'ordine il database non lo garantisce**:
+lo stesso periodo poteva tornare diverso a ogni caricamento, ed è il difetto peggiore di un
+registro contabile — chi lo confronta due volte trova due documenti diversi senza aver toccato
+niente.
+
+L'ordine canonico è a tre livelli, e non contiene nessuna priorità inventata fra Vendita, Reso e
+Rimborso, né fra sorgenti:
+
+| Livello | Criterio                   | Perché                                                                                                                                                 |
+| ------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1       | **giorno economico**, DESC | è la grandezza che tutte e quattro le sorgenti hanno davvero. Tiene le righe di una giornata **contigue**                                              |
+| 2       | **istante reale**, DESC    | dove esiste strutturalmente. Una vendita e il suo reso si ordinano per l'ora in cui sono avvenuti — non perché «i resi vanno sopra»                    |
+| 3       | `rowId`, crescente         | il pareggio esiste (righe importate dalla stessa sincronizzazione, stesso millisecondo) e deve risolversi **sempre allo stesso modo**, non come capita |
+
+⚠️ Il primo livello è il **giorno**, non l'istante, e la differenza non è cosmetica: con
+l'istante grezzo una registrazione manuale delle 18:10 finirebbe **sotto** una vendita delle
+14:32, perché la sua data economica è una mezzanotte. Sarebbe un artefatto del tipo di colonna,
+presentato all'operatore come ordine dei fatti.
+
+L'export usa il verso **crescente** dello stesso comparatore — il file per il commercialista si
+legge dal primo giorno — e un test verifica che sia l'inverso esatto, riga per riga: un registro
+che si riconcilia col proprio riepilogo non può riordinarsi per strada.
+
+La contiguità per giornata è anche la **precondizione** di ciò che verrà: i subtotali per
+giornata economica in stampa (vedi «Cosa resta»). Il dettaglio delle singole righe **non** è
+stato aggregato.
+
+### La schermata, dopo averla usata
+
+Il §12 e il §13 non disegnavano il Registro: queste sono correzioni nate guardandolo pieno.
+
+- **Le colonne sono configurabili** (`TableViewId.CorrispettiviRegister`). La tabella mostra
+  Data · Tipo · Numero · Origine · Sede · Imponibile · IVA · Totale; Cliente e Pagamento
+  **esistono ma nascono spente** — il Registro non è un archivio clienti, e lo stato di pagamento
+  fra sorgenti che un ciclo di pagamento non ce l'hanno crea più incoerenza che informazione.
+  Nessun dato è stato tolto dall'API né dall'export.
+- **Il filtro Origine è una dimensione vera**, non un ripiego. Isolare il Corrispettivo manuale
+  prima non si poteva: il filtro `source` accettava solo `online`/`pos`, nessuna schermata lo
+  mandava, e Ambito + Canale restituiscono insieme Vendita al banco e Corrispettivo manuale
+  (condividono la coppia, vedi §14.3). **Canale è sparito dalla barra** — con Origine accanto era
+  ridondante — ma resta nel modello, nell'API e nell'indirizzo.
+- **Niente pill nelle celle.** Tipo e Pagamento si leggono dal **colore della parola**: un
+  riquadro segnala un'eccezione, e in una colonna che ha un valore su **ogni** riga non distingue
+  niente — alza solo la riga in una vista che si consulta a colpo d'occhio.
+- **La riga si apre cliccandola**, come in `document-table`. Il varco era il _numero_
+  sottolineato: un collegamento largo un carattere, in una colonna dove «#1009» non fa niente e
+  «2» si apriva. Le righe delle altre tre sorgenti non prendono né mano né `tabindex`: non hanno
+  dove aprirsi.
+- ⚠️ **La pagina occupa l'area, e a scorrere è il solo elenco.** Chiedeva `block-size: 100%` a
+  `main.shell__content`, dove però **non è sola**: sopra di lei ci sono le briciole di pane.
+  Otteneva quindi il 100% di un'area già in parte occupata — barra di scorrimento sull'intera
+  pagina e riepilogo tagliato sotto il bordo. `main` è ora una colonna flessibile e la pagina
+  dichiara `flex: 1`: riceve **ciò che resta**, senza tetti in `dvh` decisi a occhio, che erano
+  il difetto opposto (spazio buono lasciato vuoto con poche righe).
+
+### Cosa resta, dichiarato
+
+- **Il riepilogo totali è ora la sesta copia.** Il §13 lo diceva già — estrarlo è lavoro proprio,
+  non un ritocco da fare di straforo qui. Il **foglio** però non è duplicato: la maschera usa le
+  classi globali `_document-form*.scss`, quindi è il solo markup a ripetersi.
+- **La location Shopify resta inaffidabile**, e «Non determinata» con lei. Fuori da questo lavoro
+  per decisione del §12: è una lacuna del blocco sincronizzazione.
+- **Riepilogo e stampa per giornata economica** — il prossimo affinamento del Registro, indicato
+  esplicitamente dal proprietario del progetto. L'ordine canonico è già la sua precondizione: le
+  righe di una giornata sono contigue, quindi i subtotali si possono introdurre **senza toccare
+  la semantica** né aggregare il dettaglio. ⚠️ **Non è l'invio RT**, e le due cose non vanno
+  confuse: questo è un modo di leggere il registro, quello è una trasmissione fiscale.
+- **L'ordinamento cliccabile sulle colonne resta fuori.** Un riordino locale agirebbe sulle sole
+  righe caricate — cento su un periodo che ne ha di più — e produrrebbe un ordine che sembra
+  globale e non lo è. Quando si farà, si farà sull'insieme intero, lato API.
+- **La suddivisione IVA del Registro** non esiste ancora per le altre tre sorgenti. Il dato c'è,
+  è il Registro che non lo legge, e leggerlo per tutte è un lavoro con un ostacolo noto
+  (`SalesOrder.taxMinor` include l'imposta di spedizione, che sulle righe non c'è).
+- ✅ **La stampa del Registro divergeva dalla schermata, ed è stata corretta** (era un difetto
+  preesistente, trovato costruendo). `corrispettivi-print.component.ts` leggeva un parametro che
+  nessuno mandava più (`onlineOnly` — unica occorrenza viva nel repository, mai spedita da
+  `buildParams`) e **non leggeva affatto** `ambito`, `canale` e `rowType`, che la schermata gli
+  passa nell'indirizzo: chi stampava guardando «2° trimestre · Fisico/POS · Resi» otteneva un
+  foglio con tutto il trimestre.
+
+  La correzione non è una seconda lettura dei parametri, che sarebbe la stessa divergenza
+  riscritta più in là: schermata e stampa leggono ora **la stessa funzione**
+  (`corrispettivi-filters.util.ts`), e i test confrontano **la domanda che le due pagine fanno
+  all'API** — un filtro Fisico/POS + Resi + Sede X deve produrre lo stesso sottoinsieme di qua e
+  di là.
+
+---
+
+## §15 · Export e Stampa non sono la stessa famiglia — 17/08/2026
+
+_Decisione del proprietario del progetto, presa progettando il raggruppamento giornaliero.
+Precede l'implementazione: qui c'è **cosa deve valere**, non com'è fatto oggi._
+
+Oggi le tre uscite sono **la stessa cosa in tre formati**: PDF, Excel e CSV nascono dallo stesso
+`exportQuery()` sul frontend, dallo stesso `ListCorrispettiviQueryDto` sull'API, e si chiamano
+tutte e tre `corrispettivi-commercialista`. La decisione le divide in **due famiglie con due
+mestieri diversi**.
+
+| Uscita     | Cos'è                                 | Deve rispettare                                                                               |
+| ---------- | ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **PDF**    | export della **vista corrente**       | periodo · filtri · **raggruppamento attivo** · ordinamento corrente · **colonne configurate** |
+| **Excel**  | export della **vista corrente**       | le stesse cinque cose                                                                         |
+| **CSV**    | export **dati** per il commercialista | il **sottoinsieme filtrato**. Non deve replicare graficamente la vista                        |
+| **Stampa** | funzione **separata**                 | da progettare a parte: contenuto e formato propri                                             |
+
+### Le tre conseguenze che questa riga di tabella porta con sé
+
+**1. Le colonne devono viaggiare.** È la novità vera: finora nessuna uscita sapeva quali colonne
+fossero accese, perché il selettore Colonne vive nel frontend e l'export aveva un elenco fisso.
+PDF ed Excel ora ne dipendono.
+
+⚠️ E qui c'è un impegno preso in §14.5 da non rompere: le **dodici colonne originali dell'export
+non si spostano**, perché chi ha un foglio agganciato alle loro posizioni continua a leggerle
+dov'erano. Quella garanzia vale ora per il **CSV**, che è l'export dati; PDF ed Excel seguono la
+vista, ed è esattamente il motivo per cui le due famiglie devono separarsi invece di condividere
+un elenco di colonne che non può essere fisso e mobile insieme.
+
+**2. Il raggruppamento è presentazione, e non deve poter diventare un filtro.** Viaggia in un tipo
+suo (`groupBy`), separato dai filtri: chi costruisce le query Prisma non lo riceve proprio. La
+prova che lo inchioda: **a parità di filtri, `groupBy = none` e `groupBy = day` restituiscono le
+stesse righe e lo stesso riepilogo complessivo** — cambia solo la disposizione.
+
+**3. ⚠️ I subtotali giornalieri si calcolano sull'API, non sulle righe caricate.** Il Registro
+carica cento righe per volta: un subtotale calcolato a schermo è giusto **finché la giornata sta
+tutta in una pagina**, e sbaglia in silenzio appena un giorno si spezza fra due pagine. Sbaglia
+per difetto e in modo plausibile, che su un registro contabile è la forma peggiore. L'aggregato
+per giornata è quindi fratello del riepilogo complessivo, calcolato sull'intero insieme filtrato.
+
+### Stampa: esplicitamente NON agganciata al PDF
+
+> **Stampa non è «il PDF su carta», e non va legata alla sua pipeline né al suo layout.**
+
+Oggi sono due strade tecniche diverse — la Stampa è una pagina Angular che rilegge l'indirizzo,
+il PDF lo disegna il server — e la tentazione di unificarle è forte proprio perché il risultato
+si somiglia. La decisione è di **non** unificarle adesso: contenuto e formato della Stampa si
+decidono a parte, quando ci si arriva.
+
+Ciò che resta valido da subito è la correzione di §14: la Stampa legge **gli stessi filtri** della
+schermata, dalla stessa funzione. È il minimo che non può divergere, qualunque forma prenderà poi.

@@ -104,6 +104,29 @@ jobs:
       - name: Prepare API environment
         run: cp api/.env.example api/.env
 
+      # Il gradino che mancava: niente, in tutta la catena, accendeva l'API.
+      # `build` prova che i tipi tornano e `test:api` prova i moduli UNO PER UNO
+      # (istanziati con `new`, senza TestBed): un grafo di moduli Nest che non si
+      # risolve — un provider mancante, un @Module non importato — compila, passa
+      # i test, e muore al primo avvio. E' successo il 17/08/2026.
+      #
+      # Sta in QUESTO job e non in `lint-and-test` perche' qui c'e' DATABASE_URL:
+      # `PrismaService.onModuleInit` fa `$connect()`, quindi senza database il
+      # boot non arriva in fondo. Nel job dei test i segreti non ci sono, e il
+      # passo fallirebbe a ogni esecuzione — un gate sempre rosso e' un gate
+      # spento.
+      - name: Build API
+        run: npm run build --prefix api
+
+      - name: Smoke test avvio API
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
+          CORS_ORIGINS: http://localhost:4200
+        run: npm run check:api-boot
+
       - name: Run Playwright E2E (CI smoke — sempre)
         env:
           E2E_USE_MOCK_AUTH: '1'
