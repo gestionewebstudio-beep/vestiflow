@@ -1026,3 +1026,140 @@ decidono a parte, quando ci si arriva.
 
 Ciò che resta valido da subito è la correzione di §14: la Stampa legge **gli stessi filtri** della
 schermata, dalla stessa funzione. È il minimo che non può divergere, qualunque forma prenderà poi.
+
+---
+
+## §16 · I filtri diventano insiemi, e Ambito smette di essere una dimensione — 17/08/2026
+
+_Decisione del proprietario del progetto. **Aggiorna il §3**, dove Ambito e Canale erano dimensioni
+autonome: quella struttura resta valida come descrizione di ciò che il Registro sa dire, non più
+come forma del filtro._
+
+### Il segnale c'era già nel codice
+
+La scelta singola era **già** insufficiente, e l'aveva ammesso da sé: il servizio calcola un
+`rowType` di valore `refunds_and_returns` quando arriva il vecchio `refundsOnly`. È una
+**congiunzione inventata come stringa**, perché il tipo enumerato non poteva esprimere un insieme.
+
+> Quando un enum comincia a contenere delle «e», sta chiedendo di diventare un insieme. Qui non si
+> aggiunge una comodità: si dà al dato la forma che aveva già.
+
+### Cosa è a scelta singola e cosa a insieme
+
+| Filtro        | Forma           | Perché                                                                                  |
+| ------------- | --------------- | --------------------------------------------------------------------------------------- |
+| **Periodo**   | scelta singola  | un intervallo è uno                                                                     |
+| **Origine**   | **insieme**     | «Vendita al banco + Corrispettivo manuale» è una domanda reale, e oggi non si può porre |
+| **Tipo**      | **insieme**     | il Registro è multi-evento per natura: Vendite + Resi, Resi + Rimborsi                  |
+| **Sede**      | **insieme**     | in un multi-magazzino «due negozi su quattro» è la norma, non l'eccezione               |
+| **Raggruppa** | scelta singola  | Nessuno · Giorno                                                                        |
+| **Ambito**    | **scorciatoia** | vedi sotto: non viaggia più come filtro                                                 |
+
+⚠️ **Nessuna casella «Tutti» dentro i menu.** Assenza di restrizione **è** «tutti»: una casella
+«Tutti» accanto alle voci crea lo stato contraddittorio «Tutti spuntato insieme ad alcune». Il chip
+dice «Origine: Tutte», «Origine: 2», o i nomi quando sono pochi.
+
+### ⚠️ Ambito è una scorciatoia, non una seconda dimensione
+
+> **Una sola verità nel filtro: l'insieme `origini[]`.**
+
+Con Origine a insieme, Ambito diventa ridondante **nello stesso identico modo in cui lo era
+Canale**, ritirato dalla barra il giorno prima: Online è `{shopify_online}`, Fisico/POS è
+`{store, shopify_pos, manual_receipt}`.
+
+E non è solo ridondante: **i due possono contraddirsi**. `Ambito: Online` + `Origine: Vendita al
+banco` è un insieme vuoto, e l'operatore vede zero righe senza che niente gliene dica il motivo. Un
+filtro che può negare sé stesso è un difetto che nessun test trova, perché tecnicamente funziona.
+
+Ambito resta quindi come **comando rapido** che spunta un gruppo di origini:
+
+| Scorciatoia    | Spunta                                                     |
+| -------------- | ---------------------------------------------------------- |
+| **Tutti**      | tutte le origini                                           |
+| **Online**     | Shopify online                                             |
+| **Fisico/POS** | Vendita al banco · Shopify POS · **Corrispettivo manuale** |
+
+Dopo la scorciatoia l'operatore affina liberamente, e **Ambito non continua a dire rigidamente
+«Fisico/POS»**: ha inizializzato una selezione, non l'ha vincolata. Togliendo Shopify POS
+dall'insieme, il filtro non entra in contraddizione con nulla — perché non c'è più nulla con cui
+contraddirsi.
+
+**Il Corrispettivo manuale sta fra le origini fisiche**, ed è una scelta di dominio dichiarata:
+serve a recuperare corrispettivi non registrati analiticamente in VestiFlow, tipicamente da una
+cassa esterna. Non lo si usa per correggere vendite online Shopify, che sono recuperabili.
+
+### Compatibilità: i vecchi indirizzi continuano a funzionare
+
+La traduzione avviene **in un punto solo** — `parseCorrispettiviFilters` — che è il posto nato
+apposta perché schermata e stampa non divergessero (§14):
+
+| Vecchio parametro | Diventa                                                    |
+| ----------------- | ---------------------------------------------------------- |
+| `ambito=online`   | `origini = {shopify_online}`                               |
+| `canale=shopify`  | `origini = {shopify_online, shopify_pos}`                  |
+| `origine=store`   | `origini = {store}`                                        |
+| `rowType=returns` | `tipi = {returns}`                                         |
+| `refundsOnly=1`   | `tipi = {returns, refunds}` — la congiunzione, esplicitata |
+| `locationId=x`    | `sedi = {x}`                                               |
+
+I nuovi indirizzi portano solo il plurale. Nessun indirizzo salvato smette di funzionare, e nessuno
+dei due sensi di lettura vive in due posti.
+
+### Il riepilogo segue la selezione — ed è un CAMBIO di comportamento
+
+Oggi **tutti i campi economici del riepilogo ignorano il filtro Tipo**: `getSummary` non ha gli
+interruttori `wantsSales`/`wantsRefunds` che l'elenco applica nel servizio, e interroga le
+rettifiche con `rowType: undefined` esplicito. Era deliberato — «filtrando Resi il totale deve
+continuare a dire quanto si è incassato, non −205,01, che qualcuno trascriverebbe».
+
+**La proprietà che ora si pretende è più forte**, e le due non convivono:
+
+> **A parità di filtri, la somma dei sottoinsiemi deve fare il riepilogo del periodo.**
+
+Se i giorni filtrano e il periodo no, non possono riconciliarsi per costruzione. Il riepilogo segue
+quindi la selezione — e la vecchia preoccupazione cade da sé con la multi-selezione: con Vendite +
+Resi + Rimborsi spuntati (il default) il numero è quello di sempre, e un totale di soli resi non ha
+bisogno di un'etichetta speciale perché **è** il totale di ciò che si è chiesto di vedere.
+
+⚠️ Resta preesistente e da verificare un'incoerenza interna: `locationUndeterminedExcludedCount`
+riceve la query intera e quindi **segue** il Tipo, mentre l'economia no. Già oggi il riepilogo non
+è coerente con sé stesso.
+
+### ⚠️ `max(0, …)` esce dalla matematica: il massimo non distribuisce
+
+```text
+Σ(totale − imposta)         =  Σtotale − Σimposta          ✅ additiva
+Σ max(0, totale − imposta)  ≠  max(0, Σtotale − Σimposta)  ❌
+```
+
+Due campi lo usano: `taxableMinor` e `netTaxableMinor`. Il clamp scatta su un sottoinsieme in cui le
+rettifiche superano le vendite: quello esce 0 invece del suo valore negativo, e la somma delle parti
+supera il tutto.
+
+**Togliere il clamp non cambia il significato economico di nessuna sorgente**: cambia che un
+imponibile netto negativo viene detto invece di essere schiacciato. Ed è già ciò che il Registro fa
+**sulle righe**, dove un reso mostra −73,24 €.
+
+È lo stesso principio della dottrina del denaro — _si arrotonda solo all'uscita_ — applicato al
+clamp: **si clampa solo all'uscita, mai dentro il calcolo.** L'accumulatore resta fatto di sole
+somme e differenze, quindi additivo per costruzione, e «Σparti = tutto» diventa un test che non può
+passare per caso.
+
+### L'ordine dei due blocchi, e perché non si invertono
+
+| Blocco | Contenuto                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------------------- |
+| **A**  | filtri a insieme, Ambito scorciatoia, riepilogo che segue la selezione, clamp fuori, accumulatore unico |
+| **B**  | preset Oggi/Ieri/Giorno, `Raggruppa: Giorno`, subtotali giornalieri, PDF ed Excel fedeli alla vista     |
+
+B poggia su A: un subtotale giornaliero non si può scrivere prima di sapere **quale insieme
+rappresenta**, e il PDF non può riprodurre fedelmente una vista che sta ancora cambiando forma.
+Farli insieme significherebbe scrivere due volte lo stesso accumulatore.
+
+### Gli Annullamenti restano fuori dai tipi selezionabili
+
+Oggi non sono un tipo di riga: sono esclusi **sempre** dalle righe (`kind: { not: cancellation }`) e
+contati a parte nel riepilogo, perché la vendita che annullano non è mai entrata nel registro
+(specifica `08` §4). Renderli selezionabili significherebbe mostrare righe **con un importo che non
+deve entrare in nessun totale** — una riga che si legge diversamente da tutte le altre. Restano dove
+sono: dichiarati nel riepilogo, fuori dall'elenco.
