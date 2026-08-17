@@ -372,7 +372,7 @@ export class ShellLayoutComponent {
 
     if (canOpenRetailRegister(user)) {
       salesItems.push({
-        label: 'Vendita negozio',
+        label: 'Vendita al banco',
         icon: 'pi-shopping-bag',
         route: '/app/sales/register',
         activeRoutePrefix: '/app/sales/register',
@@ -435,13 +435,6 @@ export class ShellLayoutComponent {
         icon: 'pi-chart-line',
         route: '/app/reports',
         activeRoutePrefix: '/app/reports',
-        activeRouteExclude: ['/app/reports/accountant-register'],
-      });
-      manageItems.push({
-        label: 'Registro commercialista',
-        icon: 'pi-briefcase',
-        route: '/app/reports/accountant-register',
-        activeRoutePrefix: '/app/reports/accountant-register',
       });
     }
 

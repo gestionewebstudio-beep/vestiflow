@@ -49,6 +49,19 @@ verificati liberi **prima**, come vuole §13-bis: il database portava già
 
 **La biforcazione che sorprende.** `CustomerOrderFormComponent` serve quattro tipi tramite il route data `customerDocumentKind`, ma **salva su due tabelle diverse**: il predicato `isRegistryDocument` devia Preventivi / DDT / Scarico manuale su `saveRegistryDocument` → `DocumentLine`; solo l'Ordine cliente passa da `SalesOrderLine`.
 
+⚠️ **È la biforcazione che teneva l'Ordine cliente indietro** _(risolto il 16/08/2026)_. Le due
+strade di salvataggio dello stesso componente non facevano la stessa cosa col prezzo:
+`buildRegistryLines()` scorporava il netto, `buildSavePayload()` mandava il valore mostrato così
+com'era. Non faceva danno solo perché il selettore netto/ivato **sull'Ordine cliente non
+esisteva** — il template lo escludeva «finché non arriva il supporto backend dedicato», e il
+supporto mancante era una colonna: `sales_order_lines.unit_price_minor` era `integer` e non
+poteva ospitare la coda decimale di uno scorporo.
+
+Oggi la colonna è `numeric(16,6)` come le altre due, la modalità vive su
+`sales_orders.prices_include_vat` come vive su `documents.prices_include_vat`, e le due strade
+mandano entrambe il netto. **Chi guarda questa tabella per capire dove copiare: le due righe
+della prima colonna adesso si comportano uguale.**
+
 **Vendita/reso in negozio non è una maschera documento.** Produce documenti `store_sale` / `store_return`, poi consultabili in sola lettura, ma il carrello **non è una `FormArray`**: è un carrello a segnali (`signal<readonly CartLine[]>`) con gestori `(change)` propri, e non ha **alcuna** navigazione da tastiera. Allinearla non è aggiungere le frecce: è cambiare l'architettura della riga.
 
 Non è però un silo: riusa già da `domain/` il pannello di ricerca prodotto, le utility IVA, la scheda articolo e i servizi. Ciò che non condivide non lo condivide **perché è diverso**. Le celle di riga condivise, che sono legate al valore e non al form, resterebbero adottabili anche lì.
@@ -557,6 +570,52 @@ Prodotti e Clienti ricevono le colonne ma le usano solo per sapere **se** una co
 
 Il **pin** non compare sui documenti: nessuna delle tre configurazioni dichiara `pinnable`.
 
+### 7.0-quater Il corpo del PATCH della maschera Fattura _(corretto 15/08/2026)_
+
+**Modificare un documento dalla maschera Fattura non aveva mai funzionato** — Proforma, Fattura e Accompagnatoria. La maschera spediva in modifica **lo stesso corpo della creazione**, `type` e `sourceDocumentId` compresi; il DTO di aggiornamento non li prevede e l'API valida con `forbidNonWhitelisted`, quindi la risposta era **400**. Senza un messaggio da mostrare, a schermo il pulsante «Salva documento» sembrava inerte.
+
+Non era una regressione: verificato su `6ab98fb2` che quei due campi c'erano da prima. Non se n'era accorto nessuno perché nessuno aveva mai modificato uno di quei tre documenti.
+
+**La maschera del DDT costruisce da sempre un corpo apposta per la modifica**, ed è il modello: `type` e `sourceDocumentId` valgono alla nascita e non si rimandano. Ora anche la Fattura passa da `toUpdateBody`, un metodo e non uno spread — così il giorno in cui la creazione guadagnerà un altro campo di sola nascita, quello è il posto dove si nota.
+
+⚠️ **Perché era sfuggito ai test, e cosa è cambiato nell'impalcatura.** La spec della maschera sapeva montare **solo la creazione**: nessun test apriva un documento esistente, quindi il corpo del PATCH non lo guardava nessuno. Ora `setup({ editDocument })` monta la modifica — id nella rotta e documento restituito dalla GET — e due prove verificano che nel corpo non ci siano `type` né `sourceDocumentId`, e che la riga rimandi indietro il proprio `id` (§`09` §4-bis). **Verificate per mutazione**: rimettendo lo spread, falliscono.
+
+### 7.0-ter Sostituire l'articolo su una riga già compilata _(corretto 15/08/2026)_
+
+**La regola.** I campi che vengono dall'ARTICOLO — prezzo, costo, prezzi di vendita, Codice IVA — appartengono all'articolo. Quando su una riga si richiama un articolo diverso, **si riscrivono**, anche svuotandosi se il nuovo non li ha. Tenere il prezzo del precedente non è conservare un dato: è un dato sbagliato, e non lo vede nessuno finché non arriva la fattura.
+
+Restano fuori i campi che **non** vengono dall'articolo: lo sconto di riga viene dal cliente (o dal fornitore), e cambiare articolo non cambia a chi si vende.
+
+**Il difetto.** Due maschere scrivevano quei campi **solo se vuoti**:
+
+| Maschera                                            | Campi                                                     | Chiamante            |
+| --------------------------------------------------- | --------------------------------------------------------- | -------------------- |
+| Ordine cliente · DDT · Preventivo · Scarico manuale | `unitPrice`, `vatCodeId`                                  | `applySummaryToLine` |
+| Arrivo merce                                        | `unitCost`, `sellingPrice`, `compareAtPrice`, `vatCodeId` | `onVariantSelect`    |
+
+«Vuoto» era usato come sinonimo di «nessuno ha ancora deciso». Su una riga nuova è vero; su una riga a cui si cambia articolo è falso — quei valori li aveva decisi **l'articolo di prima**.
+
+Le altre due maschere non avevano il difetto e sono il riferimento: la **Fattura** scrive il prezzo senza condizioni, l'**Ordine fornitore** riscrive tutto e azzera lo sconto.
+
+**La correzione** distingue i due gesti con un parametro esplicito (`replacedArticle`), perché il ramo «solo se vuoto» serve ancora — è quello che protegge la riga precompilata da un documento d'origine, dove i valori sono di quel documento e non si toccano (non retroattività).
+
+**Un secondo buco, trovato dal test.** Nell'Arrivo merce, se l'articolo non era fra i risultati di ricerca — cioè **ogni aggancio per codice**: SKU, EAN, codice articolo — non veniva applicato **niente**: mancava il ripiego che l'Ordine cliente ha da sempre. Ora la summary si chiede per id e si applica, e la logica vive in un metodo solo (`applyVariantSummaryToLine`) che entrambe le strade richiamano.
+
+⚠️ **Due trappole nelle impalcature di test, corrette insieme al difetto** — perché sono ciò che lo aveva nascosto:
+
+- i finti `ProductService` **ignoravano il filtro per `variantId`** e rispondevano sempre con l'intero catalogo: la ricerca per id tornava il primo articolo qualunque cosa si chiedesse, e una prova sulla seconda variante non poteva funzionare;
+- il tipo delle fixture dell'Arrivo merce era `typeof NON_STOCK_SUMMARY`, cioè **una sola costante**: con `as const` ogni campo è un letterale, e una fixture con un altro `variantId` non compilava. Un'impalcatura che ammette un articolo solo impedisce per costruzione di provare il secondo.
+
+### 7.0-bis Il menu dentro l'intestazione — un `overflow` che lo ritagliava _(corretto 15/08/2026)_
+
+Quattro intestazioni ospitano un menu a tendina invece della sola etichetta: **modalità prezzo** del DDT vendita, **modalità costo** dell'Arrivo merce (due colonne) e dell'Ordine fornitore. Il menu vive dentro `.doc-form__th-menu-wrap`, in `position: absolute` sotto il bordo inferiore del contenitore.
+
+Il contenitore era in elenco fra gli elementi con `max-block-size` + `overflow: hidden` — la regola che tiene le etichette a due righe (`styles/_document-form.scss`). Il menu si apriva davvero e veniva **ritagliato via**: a schermo la freccia sembrava morta, in tutte e quattro le maschere.
+
+Il commento accanto alla regola diceva già la cosa giusta — _«il taglio sta sull'ETICHETTA, non sulla cella, o taglierebbe il menu»_ — ma il wrap era finito nell'elenco lo stesso, ed è proprio l'elemento che il commento voleva proteggere. **Il tetto di due righe non si è perso**: dentro il wrap l'etichetta è un `.doc-form__th-sort`, che resta in elenco.
+
+⚠️ **Regola per chi tocca quelle regole:** un elemento che ospita un popup non può portare `overflow: hidden`. E nessun test unitario lo prende — in jsdom il layout non esiste e il menu «c'è» comunque. La guardia è un e2e che asserisce la **visibilità** della voce, non la presenza: `e2e/goods-receipt.spec.ts`, «menu di intestazione costi».
+
 ### 7.1 I token di gruppo — nessuno è orfano
 
 I token colore dei gruppi (`--table-group-*-rule`) disegnano la **sottolineatura sotto l'intestazione** di ogni gruppo; il token divisore (`--color-table-group-divider`) disegna il bordo verticale forte del separatore **e** il bordo superiore del riepilogo totali.
@@ -621,6 +680,13 @@ Esiste **solo in Arrivo merce**: `toggleLineSort` e `applyLineSort`, col compara
 Su Ordine fornitore l'ordine **sopravvive per caso**: le righe vengono cancellate e ricreate a ogni salvataggio, e una `SELECT` senza `ORDER BY` su una tabella piccola torna in ordine fisico. Aggiungere l'ordinamento senza la colonna produrrebbe un ordine **persistente e non garantito** — peggio di entrambe le alternative.
 
 _Effetto collaterale non legato al riordino, ma da sapere se si tocca quel salvataggio:_ `DocumentLine.supplierOrderLineId` ha `onDelete: SetNull`, quindi ogni salvataggio di un ordine fornitore **azzera il collegamento** delle righe arrivo merce che puntavano a quelle righe.
+
+⚠️ **Aggiornamento 15/08/2026 — la stessa cosa accadeva sui `DocumentLine`, e non accade più.** Il PATCH generico dei documenti cancellava tutte le righe e le ricreava: gli id cambiavano a ogni salvataggio, e con loro si staccava tutto ciò che alla riga si aggancia. Da oggi il salvataggio **aggiorna per id** e cancella solo le righe sparite — `persistDocumentLinesTx` in `documents.service.ts`, misure e motivo in `09-specifica-movimenti-per-riga.md` §3 e §4-bis.
+
+Due conseguenze per questa tabella:
+
+- l'ordine per `lineNumber` continua a valere, ma ora insiste su **righe che sopravvivono al salvataggio**: riordinare cambia la posizione, non l'identità;
+- **l'Ordine fornitore resta il caso legacy**, con `SupplierOrderLine` su tabella propria e senza `lineNumber`. Il difetto gemello descritto qui sopra è ancora vivo lì, e non è stato toccato.
 
 ### 8.3 Il trascinamento
 
@@ -1129,3 +1195,111 @@ Dalla più volatile alla più stabile:
 | Difetti (§9)                                  | alcuni potrebbero essere già stati corretti altrove         |
 | Sovrapposizione fra le due celle gemelle (§3) | solo se qualcuno tocca quelle due celle                     |
 | Forma di `VatCode` e `PaymentOption` (§6)     | raramente — sono schema                                     |
+
+---
+
+## 16. Le colonne di prezzo: quale maschera ne ha quale, e chi può scriverci
+
+_Misurato il 16/08/2026, chiarendo con Luigi la semantica. Nessuna modifica._
+
+Le maschere documento hanno **due colonne di prezzo diverse**, e non è la stessa cosa scritta in due modi:
+
+| Colonna                              | Cos'è                                                   | Dove                                    | Editabile               |
+| ------------------------------------ | ------------------------------------------------------- | --------------------------------------- | ----------------------- |
+| `unitPrice` — «Prezzo»               | il **prezzo del documento**, quello che il cliente paga | Ordine cliente · DDT · maschera vendita | **sì**                  |
+| `sellingPrice` — «Prezzo di vendita» | il prezzo **di catalogo** dell'articolo                 | Ordine fornitore · Arrivo merce         | **dipende, vedi sotto** |
+
+### La stessa colonna, due mestieri diversi
+
+`sellingPrice` è **in sola lettura sull'Ordine fornitore** (`doc-form__cell--readonly doc-form__cell--computed`) ed **editabile sull'Arrivo merce** (`<input formControlName="sellingPrice">`).
+
+⚠️ **Aggiornato il 16/08/2026.** Sull'Arrivo merce l'editabilità è ora **condizionata**: la
+spunta di documento **«Aggiorna prezzi articolo»**, accesa di default, decide se i prezzi
+aggiornano l'anagrafica — e spenta li rende **in sola lettura**, perché il prezzo non è un
+dato della riga e un campo scrivibile senza destinazione sarebbe una bugia. Fino a quel
+giorno il valore digitato per un articolo **esistente** non partiva affatto.
+
+Col modulo Shopify attivo compare anche **«Prezzo Shopify»**, colonna nascondibile e spenta
+di default, che riusa la politica dell'anagrafica prodotti. I due prezzi restano distinti.
+Dettaglio in `DA-FARE-FAMIGLIA-FATTURA` voce 11, fetta 2.
+
+Non è un'incoerenza: sono due momenti diversi. Quando ordini guardi il prezzo di vendita per decidere quanto comprare; quando la merce arriva, quello è il momento in cui il prezzo di vendita si stabilisce o si aggiorna. **Va però saputo prima di toccarla**, perché rende la stessa richiesta due cose diverse nelle due maschere.
+
+### La regola di dominio sul prezzo, dichiarata da Luigi
+
+> **Il prezzo si propone, poi appartiene alla riga.**
+
+- In Preventivo e Ordine cliente il prezzo viene **proposto** (dall'articolo o dal listino scelto in testata), e resta modificabile riga per riga.
+- Quando quel documento viene **incluso o convertito** in un documento di vendita — ordine, DDT, fattura — la riga si riporta **così com'è**: se nel preventivo l'articolo era stato portato a 10 €, nel documento generato vale 10 €.
+
+**Verificato nel codice:** l'inclusione trasporta `unitPriceMinor: line.unitPrice.amountMinor`, il prezzo della riga d'origine. Non c'è nessun ricalcolo dal listino lungo quel percorso (`document-include.util.ts`).
+
+### ⚠️ Il caso che il codice tratta in due modi — aperto
+
+Il **cambio del listino in testata** riscrive i prezzi delle righe. Ma:
+
+| Maschera         | Cosa riscrive                                                        |
+| ---------------- | -------------------------------------------------------------------- |
+| Ordine cliente   | tutte le righe con un articolo, **saltando le righe di riferimento** |
+| Maschera vendita | **tutte** le righe con un articolo, nessuna eccezione                |
+
+Quindi un prezzo negoziato — arrivato da un preventivo incluso, o digitato a mano — **viene sovrascritto** se si tocca il listino dopo. In silenzio: l'unico avviso scatta quando il listino quel prezzo non ce l'ha affatto.
+
+**Due letture, entrambe difendibili**, e la scelta è di dominio:
+
+1. _«cambiare listino vuol dire riprezzare tutto»_ → il comportamento è giusto, manca un avviso prima di farlo;
+2. _«un prezzo concordato non si tocca»_ → il cambio listino deve saltare le righe con prezzo modificato a mano.
+
+**Dato che pesa sulla scelta:** oggi la riga **non registra** se il suo prezzo viene dal listino o è stato negoziato. Per distinguerli servirebbe un'informazione in più.
+
+Comunque si decida, **la differenza fra le due maschere resta da sanare**: la stessa azione dà due risultati diversi a seconda di dove la fai.
+
+### Registrato e non fatto: il netto/ivato su «Prezzo di vendita»
+
+Richiesta di Luigi (16/08): quella colonna non dice se è netta o ivata, e chi lavora all'ingrosso ha bisogno di leggerla nell'uno o nell'altro modo. Il componente esiste già (`app-price-mode-menu`, `07-…§25`).
+
+⚠️ **Ma significa due cose diverse nelle due maschere**, e va deciso prima: sull'Ordine fornitore sarebbe un **cambio di vista** su un valore in sola lettura; sull'Arrivo merce, dove la colonna si scrive, sarebbe un **modo di inserimento**, come già è per il Costo.
+
+### 16-bis. L'inclusione non ricarica dal catalogo — ma trasporta 8 campi su 12
+
+_Misurato il 16/08/2026, sul timore giusto di Luigi: «quando viene incluso in un nuovo documento non bisogna sempre ricaricare, altrimenti si perderanno tutte le digitazioni fatte in qualsiasi campo»._
+
+**La buona notizia: il ricaricamento non c'è.** La riga inclusa viene riempita **dal carico del documento d'origine**, con `emitEvent: false` perché nessun effetto collaterale possa sovrascriverla. Nessuna chiamata al catalogo, nessun ricalcolo. Il preventivo portato a 10 € arriva a 10 €.
+
+**La cattiva: il carico non porta tutto.** `IncludedDocumentLine` ha **otto** campi:
+
+`variantId` · `sku` · `barcode` · `description` · `quantity` · `unitPriceMinor` · `discount` · `vatCodeId`
+
+Una riga documento ne ha di più che l'operatore può digitare. **Cadono**, e non perché vengano ricaricate — perché non partono mai:
+
+| Campo perso                 | Perché pesa                                                                                                                                                                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`unitOfMeasure`**         | l'unità di misura scritta a mano sparisce. E si somma al difetto del §17 di `07`: la maschera vendita non la manda **e la azzera** — quindi non si perde solo nel passaggio, si perde anche al primo salvataggio successivo |
+| `loadsStock`                | la spunta «scarica magazzino» della riga torna al default del tipo                                                                                                                                                          |
+| `lotCode` · `lotExpiryDate` | lotto e scadenza digitati                                                                                                                                                                                                   |
+| `serialNumbers`             | le matricole inserite                                                                                                                                                                                                       |
+
+**L'effetto è quello che Luigi temeva, la causa no.** Non è «ricarica e sovrascrive»: è **un carico incompleto**. La differenza conta perché cambia la correzione — non serve impedire un ricaricamento che non avviene, serve **completare i campi trasportati**.
+
+**Il criterio, fissato il 16/08:** l'inclusione **riporta quello che c'è**. Non è una regola per campo ma una regola sola — _si porta ciò che era stato deciso, così com'era_ — e il campo che ne aveva bisogno di più, il lotto, la rende evidente. Vedi sotto.
+
+#### La regola del lotto — decisa il 16/08, dopo due formulazioni sbagliate
+
+> **L'inclusione riporta quello che c'è: se il lotto era già deciso si porta deciso, se non lo era si porta non deciso. Chi ha bisogno del dato e non ce l'ha, lo chiede.**
+
+_Terza formulazione, ed è quella di Luigi. Le prime due erano surrogati: «il lotto non si trascina mai» (falso — da un DDT compilato si trascina) e «dipende se la merce si è già mossa» (un **proxy** che correla ma non è la regola). Il criterio non è l'evento, è **lo stato del dato**._
+
+**Perché il proxy sbagliava.** Un Ordine cliente **potrebbe** avere il lotto deciso, se qualcuno l'ha compilato: allora si porta, anche se nulla si è mosso. E un DDT **potrebbe** essere stato salvato senza deciderlo: allora si porta non deciso, anche se la merce è uscita. Guardare il tipo di documento, o l'aver movimentato, risponde alla domanda sbagliata.
+
+**Un dato mancante non si inventa.** Se a monte non era deciso, arriva vuoto — **anche se quello è uno stato sbagliato**. Il sistema non riempie il buco scegliendo un lotto al posto dell'operatore: lo **segnala**, con gli avvisi che vanno previsti dove le cose sono incomplete. Coerente con la regola dei controlli: warning non bloccanti, blocco solo per l'integrità dei dati.
+
+Ne discendono quattro cose per chi implementa:
+
+1. **L'inclusione trasporta `lotCode` / `lotExpiryDate` / `serialNumbers` così come sono**, valorizzati o vuoti. Oggi non li trasporta mai: da correggere in entrambi i versi.
+2. **Ciò che è già deciso non si ridecide.** Si legge, non si sceglie — riaprirlo permetterebbe di scrivere un lotto diverso da quello effettivamente consegnato.
+3. **Ciò che manca si chiede, dove serve.** La domanda scatta quando il documento ha bisogno del lotto e la riga non ce l'ha — **indipendentemente da come quella riga è nata**, per inclusione o digitata.
+4. **La domanda si fa solo se c'è una scelta.** Più lotti disponibili con giacenza positiva → si sceglie, con numero, scadenza e quantità disponibile (la finestra «Ricerca lotto in giacenza» di Danea). **Un lotto solo → si prende, senza chiedere.** Nessuno disponibile → avviso.
+
+Vale identico per le **matricole**, con la differenza che lì la quantità è sempre uno per pezzo.
+
+**Il caso che chiarisce tutto**, dichiarato da Luigi: una **Fattura accompagnatoria creata da zero**, con gli articoli inseriti a mano. Nessuna inclusione, quindi nessun lotto deciso a monte: quando un articolo ha più lotti disponibili, **lo si sceglie lì**. Non è un'eccezione — è la stessa regola vista dal caso senza origine.

@@ -153,6 +153,24 @@ function jsonEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 }
 
+/**
+ * La variante è ancora quella che Shopify conosce?
+ *
+ * ⚠️ Il PREZZO DI VENDITA non entra nel confronto, dal 17/08/2026. Non è un
+ * campo del canale: al canale va `shopifyPriceMinor`, che è un’altra colonna —
+ * il push manda quello e non ha mai mandato questo. Il prezzo di vendita è
+ * interno al gestionale, la specifica dice che è dell’operatore, e il ri-sync
+ * da Shopify infatti non lo tocca.
+ *
+ * Finché stava qui, il gate diceva l’opposto: Shopify non te lo cambiava, ma
+ * nemmeno tu potevi. E il blocco arrivava per una via storta — su un prodotto
+ * SEMPLICE la maschera specchia il prezzo articolo sulla variante, quindi
+ * cambiare il prezzo dell’ARTICOLO faceva scattare il controllo sulla VARIANTE.
+ * Ci stava da quando prezzo articolo e prezzo Shopify erano lo stesso numero.
+ *
+ * Restano nel confronto SKU, valori opzione, barcode e valuta: quelli il canale
+ * li conosce davvero.
+ */
 function variantCatalogEqual(
   current: ProductVariantSnapshot,
   payload: UpdateVariantDto,
@@ -162,10 +180,7 @@ function variantCatalogEqual(
       normalizeOptionalString(payload.sku)?.toLowerCase() &&
     jsonEqual(current.optionValues, payload.optionValues) &&
     normalizeOptionalString(current.barcode) === normalizeOptionalString(payload.barcode) &&
-    current.currency === payload.sellingPrice.currency &&
-    // Al centesimo: una coda decimale diversa non è una modifica del catalogo
-    // e non deve far scattare il blocco «gestito da Shopify» (§sei decimali).
-    sameAmountAtCent(Number(current.sellingPriceMinor), payload.sellingPrice.amountMinor)
+    current.currency === payload.sellingPrice.currency
   );
 }
 

@@ -43,7 +43,6 @@ export interface DocumentListQuery {
   readonly paymentMethod?: string;
   /** Operatore che ha creato il documento. */
   readonly createdById?: string;
-  readonly accountant?: boolean;
   readonly pendingInvoice?: boolean;
 }
 
@@ -91,7 +90,6 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
     settlement: settlement === 'pending' || settlement === 'settled' ? settlement : undefined,
     paymentMethod: paymentMethod || undefined,
     createdById: isUuid(createdById) ? createdById : undefined,
-    accountant: params.get('accountant') === '1',
     pendingInvoice: params.get('pendingInvoice') === '1',
   };
 }

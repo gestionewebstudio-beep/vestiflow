@@ -22,7 +22,7 @@ export const INVENTORY_SITUATION_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'incoming', label: 'In arrivo', numeric: true, defaultVisible: false },
   { id: 'minThreshold', label: 'Soglia min.', numeric: true, defaultVisible: false },
   { id: 'purchasePrice', label: 'Prezzo acquisto', numeric: true, defaultVisible: true },
-  { id: 'sellingPrice', label: 'Prezzo vendita', numeric: true, defaultVisible: true },
+  { id: 'sellingPrice', label: 'Prezzo di vendita', numeric: true, defaultVisible: true },
   { id: 'totalIn', label: 'Carichi totali', numeric: true, defaultVisible: false },
   { id: 'totalOut', label: 'Scarichi totali', numeric: true, defaultVisible: false },
   { id: 'status', label: 'Stato', defaultVisible: true },

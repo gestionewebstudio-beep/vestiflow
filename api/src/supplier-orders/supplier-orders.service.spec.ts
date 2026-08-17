@@ -70,6 +70,8 @@ describe('SupplierOrdersService', () => {
       createVatCodesMock(),
       {
         resolvePricesIncludeVat: vi.fn().mockResolvedValue(false),
+        resolveCompanyDefault: vi.fn().mockResolvedValue(false),
+        salesPricesIncludeVat: vi.fn().mockResolvedValue(false),
         remember: vi.fn().mockResolvedValue(undefined),
       } as unknown as DocumentPriceModePreferenceService,
       {

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { TenantFeatureSettings } from '@prisma/client';
 
+import { SALES_PRICE_MODE_TYPES } from '../documents/document-price-mode.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { TenantFeatureSettingsDto } from './dto/tenant-feature-settings.dto';
 import type { UpdateTenantFeatureSettingsDto } from './dto/tenant-feature-settings.dto';
@@ -18,6 +19,8 @@ const DEFAULTS: Omit<TenantFeatureSettings, 'id' | 'tenantId' | 'createdAt' | 'u
   blockNegativeInventory: false,
   defaultUnitOfMeasure: 'pz',
   defaultVatCodeId: null,
+  // Ivato: è come partiva il sistema prima che l'impostazione esistesse.
+  salesPricesIncludeVat: true,
   // Listini aggiuntivi: il primo attivo di default, gli altri due attivabili.
   // Nome null → la UI mostra l'etichetta di default (B3).
   listino1Name: null,
@@ -45,11 +48,32 @@ export class TenantFeatureSettingsService {
     tenantId: string,
     dto: UpdateTenantFeatureSettingsDto,
   ): Promise<TenantFeatureSettingsDto> {
-    await this.getOrCreate(tenantId);
+    const before = await this.getOrCreate(tenantId);
     const row = await this.prisma.tenantFeatureSettings.update({
       where: { tenantId },
       data: dto,
     });
+
+    // Cambiare la convenzione aziendale AZZERA le memorie netto/ivato degli
+    // operatori sui tipi di vendita.
+    //
+    // Senza questo, l'impostazione sembrerebbe rotta: il titolare mette
+    // «netto», e chi ha già creato una fattura continua a vedersela nascere
+    // ivata per una memoria che nessuno sa di avere. Azzerando, tutti
+    // ripartono dalla convenzione nuova — e chi lavora diversamente rifà la
+    // sua scelta, che da lì in poi torna a essere ricordata.
+    //
+    // Solo i tipi di VENDITA: i costi non hanno né convenzione aziendale né
+    // memoria, partono sempre netti.
+    if (
+      dto.salesPricesIncludeVat !== undefined &&
+      dto.salesPricesIncludeVat !== before.salesPricesIncludeVat
+    ) {
+      await this.prisma.userDocumentPriceModePreference.deleteMany({
+        where: { tenantId, documentType: { in: [...SALES_PRICE_MODE_TYPES] } },
+      });
+    }
+
     return this.toDto(row);
   }
 
@@ -67,6 +91,7 @@ export class TenantFeatureSettingsService {
       blockNegativeInventory: row.blockNegativeInventory,
       defaultUnitOfMeasure: row.defaultUnitOfMeasure,
       defaultVatCodeId: row.defaultVatCodeId,
+      salesPricesIncludeVat: row.salesPricesIncludeVat,
       listino1Name: row.listino1Name,
       listino1Active: row.listino1Active,
       listino2Name: row.listino2Name,

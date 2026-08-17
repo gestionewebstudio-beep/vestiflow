@@ -218,13 +218,17 @@ describe('DocumentCountersService', () => {
 
       expect(view.missingCount).toBe(1);
       expect(view.missingNumbers).toEqual([3]);
-      // La fattura accompagnatoria numera sotto la fattura, e la colonna `type`
-      // porta il tipo GREZZO: la lettura deve prendere ENTRAMBI i tipi. Con la
-      // sola uguaglianza sul tipo-numeratore vedrebbe metà partizione, e i
-      // numeri delle accompagnatorie risulterebbero liberi pur essendo presi.
+      // Accompagnatoria e Nota di credito numerano sotto la Fattura, e la
+      // colonna `type` porta il tipo GREZZO: la lettura deve prendere TUTTI E
+      // TRE i tipi. Con la sola uguaglianza sul tipo-numeratore vedrebbe un
+      // terzo della partizione, e i numeri già presi risulterebbero liberi.
       const where = prisma.document.findMany.mock.calls[0]![0]!.where;
       expect(where.type).toEqual({
-        in: [DocumentType.invoice_draft, DocumentType.invoice_accompanying],
+        in: [
+          DocumentType.invoice_draft,
+          DocumentType.invoice_accompanying,
+          DocumentType.credit_note,
+        ],
       });
       expect(where.series).toBeNull();
     });

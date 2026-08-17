@@ -1,33 +1,82 @@
 import {
-  SalesOrderFiscalStatus as PrismaFiscal,
   SalesOrderRefundKind as PrismaRefundKind,
   SalesOrderSource as PrismaSource,
 } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
-import { buildCorrispettiviRefundWhere, buildCorrispettiviWhere } from './corrispettivi-query.util';
+import {
+  buildCorrispettiviRefundWhere,
+  buildCorrispettiviStoreSaleWhere,
+  buildCorrispettiviWhere,
+} from './corrispettivi-query.util';
 
 describe('buildCorrispettiviWhere', () => {
   const tenantId = 'tenant-1';
 
-  it('filtra solo online con pendingDeliveryOnly', () => {
-    const where = buildCorrispettiviWhere(tenantId, {
-      pendingDeliveryOnly: true,
+  // Lo stato fiscale non esiste più (16/08/2026): il Registro classifica per
+  // ORIGINE, che è un fatto della vendita. Shopify POS compare come vendita
+  // fisica/POS, non viene escluso — la scelta la fa il filtro di ambito.
+  it('ambito e canale restringono le origini, insieme', () => {
+    expect(buildCorrispettiviWhere(tenantId, { ambito: 'fisico_pos', canale: 'shopify' }).source)
+      .toEqual({ in: [PrismaSource.shopify_pos] });
+    expect(buildCorrispettiviWhere(tenantId, { ambito: 'online', canale: 'shopify' }).source)
+      .toEqual({ in: [PrismaSource.shopify_online] });
+  });
+
+  it('canale Shopify con ambito libero prende ecommerce e POS', () => {
+    const source = buildCorrispettiviWhere(tenantId, { canale: 'shopify' }).source as {
+      in: string[];
+    };
+    expect(source.in).toContain(PrismaSource.shopify_online);
+    expect(source.in).toContain(PrismaSource.shopify_pos);
+  });
+
+  // ⚠️ Il filtro origine c’è SEMPRE, ed è la PRIMA domanda del Registro:
+  // «questo evento è un corrispettivo?». Un Ordine cliente manuale non lo è —
+  // impegno commerciale, non vendita — e senza questa riga entrava: misurati
+  // due ordini per 229,36 €.
+  it('senza filtri il Registro scarta comunque le origini che non sono corrispettivi', () => {
+    const source = buildCorrispettiviWhere(tenantId, {}).source as { in: string[] };
+    expect(source.in).not.toContain(PrismaSource.manual);
+    expect(source.in).toContain(PrismaSource.shopify_online);
+    expect(source.in).toContain(PrismaSource.store);
+  });
+
+  // ── La Vendita al banco: terza sorgente del Registro (`11` §5) ─────────
+
+  it('la Vendita al banco entra nel Registro quando i filtri non la escludono', () => {
+    const where = buildCorrispettiviStoreSaleWhere(tenantId, {});
+    expect(where).not.toBeNull();
+    expect(where?.type).toBe('store_sale');
+    // Una vendita annullata non è un corrispettivo.
+    expect(where?.status).toEqual({ not: 'cancelled' });
+  });
+
+  it('la data del Registro è quella del documento, non quella di creazione', () => {
+    const where = buildCorrispettiviStoreSaleWhere(tenantId, {
       placedFrom: '2026-06-01',
       placedTo: '2026-06-30',
     });
-
-    expect(where.tenantId).toBe(tenantId);
-    expect(where.source).toBe(PrismaSource.shopify_online);
-    expect(where.fiscalStatus).toBe(PrismaFiscal.pending_registration);
+    expect(where?.documentDate).toEqual({
+      gte: new Date('2026-06-01T00:00:00.000Z'),
+      lte: new Date('2026-06-30T23:59:59.999Z'),
+    });
   });
 
-  it('filtra per stato fiscale esplicito', () => {
-    const where = buildCorrispettiviWhere(tenantId, {
-      fiscalStatus: 'delivered_to_accountant',
-    });
+  it('i filtri che escludono il canale VestiFlow la lasciano fuori', () => {
+    expect(buildCorrispettiviStoreSaleWhere(tenantId, { canale: 'shopify' })).toBeNull();
+    expect(buildCorrispettiviStoreSaleWhere(tenantId, { ambito: 'online' })).toBeNull();
+  });
 
-    expect(where.fiscalStatus).toBe(PrismaFiscal.delivered_to_accountant);
+  it('Fisico/POS + VestiFlow la tiene dentro', () => {
+    expect(
+      buildCorrispettiviStoreSaleWhere(tenantId, { ambito: 'fisico_pos', canale: 'vestiflow' }),
+    ).not.toBeNull();
+  });
+
+  it('uno stato di pagamento la esclude: è una domanda che riguarda gli ordini', () => {
+    expect(buildCorrispettiviStoreSaleWhere(tenantId, { financialStatus: 'paid' })).toBeNull();
+    expect(buildCorrispettiviStoreSaleWhere(tenantId, { refundsOnly: true })).toBeNull();
   });
 
   it('il periodo si misura sulla data di EVASIONE, non su quella dell ordine', () => {
@@ -82,23 +131,30 @@ describe('buildCorrispettiviRefundWhere', () => {
     expect(where.kind).toEqual({ not: PrismaRefundKind.cancellation });
   });
 
-  it('segue il canale dell ordine collegato', () => {
-    expect(buildCorrispettiviRefundWhere(tenantId, { onlineOnly: true }).order).toEqual({
-      source: PrismaSource.shopify_online,
+  it('segue ambito e canale dell ordine collegato', () => {
+    expect(buildCorrispettiviRefundWhere(tenantId, { ambito: 'online' }).order).toEqual({
+      source: { in: [PrismaSource.shopify_online] },
     });
-    expect(buildCorrispettiviRefundWhere(tenantId, { posOnly: true }).order).toEqual({
-      source: PrismaSource.shopify_pos,
-    });
-    expect(buildCorrispettiviRefundWhere(tenantId, {}).order).toBeUndefined();
+    expect(buildCorrispettiviRefundWhere(tenantId, { ambito: 'fisico_pos', canale: 'shopify' }).order)
+      .toEqual({ source: { in: [PrismaSource.shopify_pos] } });
+    // Anche qui il filtro resta: una rettifica su un ordine che non è un
+    // corrispettivo non è un corrispettivo negativo.
+    const senzaFiltri = buildCorrispettiviRefundWhere(tenantId, {}).order as {
+      source: { in: string[] };
+    };
+    expect(senzaFiltri.source.in).not.toContain(PrismaSource.manual);
   });
 
   it('ignora i filtri che descrivono un ordine e non una rettifica', () => {
     const where = buildCorrispettiviRefundWhere(tenantId, {
-      fiscalStatus: 'delivered_to_accountant',
       financialStatus: 'paid',
       search: 'Rossi',
     });
 
-    expect(where).toEqual({ tenantId, kind: { not: PrismaRefundKind.cancellation } });
+    expect(where.tenantId).toBe(tenantId);
+    expect(where.kind).toEqual({ not: PrismaRefundKind.cancellation });
+    // Lo stato di pagamento e la ricerca descrivono un ORDINE: qui non entrano.
+    expect(where).not.toHaveProperty('financialStatus');
+    expect(where).not.toHaveProperty('OR');
   });
 });

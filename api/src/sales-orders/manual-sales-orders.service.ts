@@ -71,6 +71,18 @@ export interface ManualSalesOrderMeta {
  * variare la Impegnata). Gli ordini Shopify online/POS restano read-model
  * dei rispettivi connettori: questo servizio li rifiuta esplicitamente.
  */
+/**
+ * Risposta del precompilato «Concludi ordine»: il corpo di creazione **più i
+ * dati dell'ordine d'origine** che servono a comporre la riga di riferimento.
+ *
+ * Tipo a sé per la stessa ragione di `ConvertPrefillDto`: cosa il server manda
+ * e cosa accetta sono due cose, e confonderle è già costato un 400 muto.
+ */
+export type ConcludePrefillDto = CreateDocumentDto & {
+  readonly sourceSalesOrderNumber: string;
+  readonly sourceSalesOrderPlacedAt: string;
+};
+
 @Injectable()
 export class ManualSalesOrdersService {
   private readonly logger = new Logger(ManualSalesOrdersService.name);
@@ -322,6 +334,9 @@ export class ManualSalesOrdersService {
           notes: dto.notes?.trim() || null,
           paymentTerms: dto.paymentTerms?.trim() || null,
           documentDiscountPercent,
+          // Modalità di digitazione dei prezzi: proprietà dell'ordine, non di
+          // chi lo apre. Il prezzo memorizzato resta comunque il netto.
+          pricesIncludeVat: dto.pricesIncludeVat ?? false,
           placedAt: documentDate,
           subtotalMinor: totals.subtotalMinor,
           taxMinor: totals.taxMinor,
@@ -543,7 +558,7 @@ export class ManualSalesOrdersService {
     orderId: string,
     documentType: string,
     user?: UserProfileDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConcludePrefillDto> {
     if (!(DOCUMENT_STOCK_UNLOAD_TYPES as readonly string[]).includes(documentType)) {
       throw new UnprocessableEntityException(
         'Tipo documento di scarico non disponibile in VestiFlow.',
@@ -599,7 +614,16 @@ export class ManualSalesOrdersService {
       externalRef: order.externalRef ?? undefined,
       internalComment: `Generato da Concludi ordine ${order.orderNumber}`,
       documentDiscountPercent: Number(order.documentDiscountPercent),
+      // Il documento di scarico eredita la modalità netto/ivato dell'ordine,
+      // come il DDT generato da proforma eredita quella della proforma. Non è
+      // una scelta nuova: è la stessa regola, applicata all'altra origine.
+      pricesIncludeVat: order.pricesIncludeVat,
       includedSalesOrderIds: [order.id],
+      // Numero e data dell'ordine: servono al client per comporre la riga
+      // «Rif. Ordine cliente …». Il testo NON si compone qui — il formatter
+      // canonico vive nel frontend, e duplicarlo sarebbe la terza copia.
+      sourceSalesOrderNumber: order.orderNumber,
+      sourceSalesOrderPlacedAt: order.placedAt.toISOString(),
       lines: order.lines.map((line) => ({
         variantId: line.variantId ?? undefined,
         sku: line.sku || undefined,
@@ -607,9 +631,18 @@ export class ManualSalesOrdersService {
         quantity: line.quantity,
         // Prezzo unitario SCONTATO (cascata già applicata alla riga ordine):
         // il documento di scarico eredita i prezzi reali, sconto riga a 0.
-        unitPriceMinor: line.quantity > 0 ? Math.round(line.totalMinor / line.quantity) : 0,
+        //
+        // ESATTO, non arrotondato: la colonna di destinazione è numeric(16,6),
+        // e arrotondare qui faceva divergere di un centesimo il totale del
+        // documento da quello dell'ordine appena concluso (7,59 € su 3 pezzi
+        // → 253 × 3 = 7,59 solo per caso; su altre cifre no).
+        unitPriceMinor: line.quantity > 0 ? line.totalMinor / line.quantity : 0,
         discountPercent: 0,
         vatCodeId: line.vatCodeId ?? undefined,
+        // Le reference che l'ordine si portava dietro restano reference anche
+        // nel documento di scarico: senza, la catena del `07` §12 si spezza qui
+        // come si spezzava nella conversione.
+        isReference: line.isReference,
         loadsStock: line.commitsStock && Boolean(line.variantId),
       })),
     };
@@ -782,7 +815,8 @@ export class ManualSalesOrdersService {
         barcode: line.barcode ?? undefined,
         title: line.title,
         quantity: line.quantity,
-        unitPriceMinor: line.unitPriceMinor,
+        // Duplica: il prezzo si riporta ESATTO, coda decimale compresa.
+        unitPriceMinor: Number(line.unitPriceMinor),
         discount: line.discount ?? undefined,
         vatCodeId: line.vatCodeId ?? undefined,
         commitsStock: line.commitsStock,

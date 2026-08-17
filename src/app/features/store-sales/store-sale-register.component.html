@@ -523,7 +523,7 @@
         @if (recentSales().length === 0 && !recentPending()) {
           <p class="pos__empty">Nessuna vendita negozio recente trovata.</p>
         } @else {
-          <ul class="pos__results" aria-label="Vendite negozio recenti">
+          <ul class="pos__results" aria-label="Vendite al banco recenti">
             @for (sale of recentSales(); track sale.id) {
               <li>
                 <button type="button" class="pos__result" (click)="selectSale(sale)">

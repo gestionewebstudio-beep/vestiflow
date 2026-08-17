@@ -312,6 +312,7 @@ export class ProductsService {
           optionValues: true,
           currency: true,
           sellingPriceMinor: true,
+          shopifyPriceMinor: true,
           purchasePriceMinor: true,
           product: {
             select: {
@@ -435,6 +436,10 @@ export class ProductsService {
           // Colonna a sei decimali: il numero esce come tale, chi lo mostra
           // arrotonda (§sei decimali).
           amountMinor: Number(row.sellingPriceMinor),
+          currencyCode: row.currency,
+        },
+        shopifyPrice: {
+          amountMinor: Number(row.shopifyPriceMinor),
           currencyCode: row.currency,
         },
         purchasePrice:

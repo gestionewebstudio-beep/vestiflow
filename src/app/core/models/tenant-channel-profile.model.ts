@@ -166,19 +166,27 @@ export function inventoryCountCloseHint(profile: TenantChannelProfile | undefine
     : 'tracciate e le giacenze verranno aggiornate nel gestionale.';
 }
 
+/**
+ * Sottotitolo del Registro Corrispettivi.
+ *
+ * ⚠️ Riscritto il 16/08/2026, e diceva tre cose che non sono più vere: «stati
+ * fiscali» e «storico consegne» — entrambi ritirati — e soprattutto «le vendite
+ * POS sono escluse», che era l'intenzione opposta a quella decisa. **Shopify POS
+ * compare nel Registro** come vendita fisica/POS: che la cassa la certifichi non
+ * la fa sparire dal quadro economico interno, la classifica.
+ */
 export function corrispettiviReportSubtitle(profile: TenantChannelProfile | undefined): string {
-  if (showShopifyIntegration(profile)) {
-    return 'Riepilogo vendite online Shopify con stati fiscali, export e storico consegne. Le vendite POS sono escluse (gestite da cassa).';
-  }
-  return 'Riepilogo vendite online registrate nel gestionale, con stati fiscali, export e storico consegne. Le vendite POS sono escluse (gestite da cassa).';
+  return showShopifyIntegration(profile)
+    ? 'Quadro economico delle vendite e delle rettifiche, online e fisiche/POS. Filtra il periodo e stampa o esporta.'
+    : 'Quadro economico delle vendite e delle rettifiche registrate nel gestionale. Filtra il periodo e stampa o esporta.';
 }
 
 export function corrispettiviReportFilterSubtitle(
   profile: TenantChannelProfile | undefined,
 ): string {
   return showShopifyIntegration(profile)
-    ? 'Filtra vendite Shopify per periodo. Di default mostra solo vendite online.'
-    : 'Filtra vendite online per periodo. Di default mostra solo vendite online.';
+    ? 'Filtra per periodo e ambito. Senza filtri il Registro mostra tutto.'
+    : 'Filtra per periodo. Senza filtri il Registro mostra tutto.';
 }
 
 export function corrispettiviReportEmptyHint(profile: TenantChannelProfile | undefined): string {

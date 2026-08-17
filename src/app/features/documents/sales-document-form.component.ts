@@ -35,6 +35,7 @@ import { TenantPermission } from '@core/models/tenant-permission.model';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { DocumentStatus, DocumentType, TransportPort } from '@core/models/document.model';
+import { requireSalesDocumentType } from './models/document-routing.util';
 import type { DocumentRecord } from '@core/models/document.model';
 import { isConfirmedEditableDocumentStatus } from '@core/models/document.model';
 import {
@@ -50,6 +51,10 @@ import {
 } from '@core/utils/discount-percent.util';
 import { customerDisplayName, type Customer } from '@core/models/customer.model';
 import { isSalesVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import {
+  vatCodeSelectOption,
+  vatOptionsIncludingSelected,
+} from '@domain/documents/utils/document-vat-options.util';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
@@ -117,7 +122,11 @@ import type { DocumentLineCodeField } from '@domain/documents/utils/document-cod
 import type { LineCodeChoice } from '@domain/documents/models/document-line-code-choice.model';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 import {
+  IncludeSourceKind,
+  conversionReferenceLine,
+  includeReferenceLine,
   includeSourceKindsForDocumentType,
   type IncludedDocumentPayload,
 } from '@domain/documents/models/document-include.util';
@@ -145,7 +154,10 @@ import {
   netFromGrossMinor,
 } from '@domain/documents/utils/document-vat.util';
 import { DocumentService } from '@domain/documents/services/document.service';
-import type { CreateDocumentBody } from '@domain/documents/services/document-api.mapper';
+import type {
+  CreateDocumentBody,
+  UpdateDocumentBody,
+} from '@domain/documents/services/document-api.mapper';
 import { SalesOrderService } from '@domain/sales-orders/services/sales-order.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { prefillDefaultLocation } from '@domain/inventory/utils/default-location-prefill.util';
@@ -181,6 +193,17 @@ type SubmitState =
   | { readonly status: 'saving' }
   | { readonly status: 'error'; readonly error: AppError };
 
+/**
+ * Precompilato di apertura: arriva da DUE strade con forme diverse —
+ * `convert-prefill` porta anche il tipo dell'origine, «Concludi ordine» no.
+ * La riga di riferimento nasce solo quando quel tipo c'è.
+ */
+type ConversionPrefill = CreateDocumentBody & {
+  readonly sourceDocumentType?: DocumentType;
+  readonly sourceSalesOrderNumber?: string;
+  readonly sourceSalesOrderPlacedAt?: string;
+};
+
 @Component({
   selector: 'app-sales-document-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -197,6 +220,7 @@ type SubmitState =
     DateInputComponent,
     DocumentIncludePanelComponent,
     DocumentMobilePanelComponent,
+    PriceModeMenuComponent,
     DocumentLineCodeCellComponent,
     DocumentLineProductCellComponent,
     DocumentLineSelectCellComponent,
@@ -243,8 +267,17 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   protected readonly proformaDisclaimer = PROFORMA_DISCLAIMER;
   protected readonly DocumentType = DocumentType;
 
-  private readonly routeType = this.route.snapshot.data['salesDocumentType'] as
-    DocumentType | undefined;
+  /**
+   * Il tipo dichiarato dalla rotta. **Obbligatorio**: ogni indirizzo che apre
+   * questa maschera lo porta, in creazione e in modifica.
+   *
+   * Se manca è una rotta scritta male, e si ferma qui con un errore leggibile
+   * invece di aprire il documento sbagliato: su una fattura, «comportarsi da
+   * proforma» significa stampare «non valida ai fini IVA» sopra un documento
+   * fiscale. Una pagina che non si apre è un difetto che si vede; un documento
+   * fiscale vestito da proforma, no.
+   */
+  private readonly routeType = requireSalesDocumentType(this.route.snapshot.data);
 
   private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
@@ -288,13 +321,22 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   protected readonly listinoWarnings = signal<readonly string[]>([]);
   protected readonly showListinoSelect = computed(() => this.listinoOptions().length > 1);
 
-  protected readonly documentType = computed(() => {
-    const loaded = this.loadedDocument()?.type;
-    if (loaded) {
-      return loaded;
-    }
-    return this.routeType ?? DocumentType.Proforma;
-  });
+  /**
+   * Il tipo del documento in maschera. Viene dalla ROTTA, sempre: creazione e
+   * modifica hanno entrambe un indirizzo per tipo, e `routeType` non è mai
+   * indefinito (lo prova `documents.routes.spec.ts`).
+   *
+   * Il documento caricato conferma, non decide: se i due divergessero sarebbe
+   * un link sbagliato, non un caso da gestire.
+   *
+   * Qui c'era `?? DocumentType.Proforma`, e non era una precauzione innocua:
+   * sulla vecchia rotta `sales/:id/edit` il tipo non c'era, quindi fino alla
+   * risposta della GET **ogni** documento si comportava da proforma — titolo,
+   * dicitura «non valida ai fini IVA», serie sbagliate (`07-…§18`). Il ripiego
+   * non è stato reso più intelligente: è stato tolto il caso che lo rendeva
+   * necessario.
+   */
+  protected readonly documentType = computed(() => this.loadedDocument()?.type ?? this.routeType);
 
   protected readonly isProforma = computed(() => isProformaDocumentType(this.documentType()));
   protected readonly isInvoiceDraft = computed(() =>
@@ -622,10 +664,17 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
   private readonly vatCodeById = computed(() => toVatCodeById(this.vatCodes()));
 
   /** Codici attivi utilizzabili in vendita, ordinati come in Impostazioni. */
+  /**
+   * Opzioni Codice IVA di vendita, nella forma condivisa: in cella si legge il
+   * **codice**, aliquota e descrizione stanno nel `detail` del menu e nel
+   * tooltip di riga. Qui l'etichetta era la dicitura intera — «22 · 22% ·
+   * Imponibile» — che in una cella stretta arrivava troncata a metà parola.
+   * Era l'ultima maschera rimasta sulla forma vecchia.
+   */
   protected readonly salesVatOptions = computed<readonly SelectMenuOption[]>(() =>
     this.vatCodes()
       .filter((vatCode) => vatCode.isActive && isSalesVatCode(vatCode))
-      .map((vatCode) => ({ value: vatCode.id, label: vatCodeOptionLabel(vatCode) })),
+      .map(vatCodeSelectOption),
   );
 
   private readonly tenantSettings = toSignal(
@@ -1415,7 +1464,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       return;
     }
     const copy = this.createLine();
-    copy.patchValue(source.getRawValue());
+    // L'id NON si duplica: la copia è una riga nuova. Senza questo azzeramento
+    // il salvataggio riceverebbe due righe che dichiarano lo stesso id.
+    copy.patchValue({ ...source.getRawValue(), id: '' });
     this.lines.insert(index + 1, copy);
     this.markFormDirty();
   }
@@ -1696,9 +1747,19 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     known: VariantSummary | null = null,
   ): void {
     const line = this.lines.at(index);
+    // Sostituzione d'articolo: la riga ne aveva già un altro. Qui il prezzo si
+    // riscriveva già; il Codice IVA no, e restava quello dell'articolo
+    // precedente — un'aliquota sbagliata su un documento fiscale.
+    const previousVariantId = line.controls.variantId.value;
+    const replacedArticle = Boolean(previousVariantId) && previousVariantId !== variantId;
     line.controls.variantId.setValue(variantId ?? '');
     const match = known ?? this.searchedVariants().find((v) => v.variantId === variantId);
     if (match) {
+      if (replacedArticle) {
+        // Si riparte dalla catena di precedenza (articolo → aliquota legacy →
+        // predefinito aziendale) invece di ereditare la scelta di prima.
+        line.controls.vatCodeId.setValue('', { emitEvent: false });
+      }
       line.controls.description.setValue(match.productName);
       line.controls.sku.setValue(match.sku);
       line.controls.articleCode.setValue(match.articleCode);
@@ -1734,16 +1795,21 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   /** Opzioni della riga: codici attivi + eventuale codice storico disattivato. */
   protected lineVatOptions(index: number): readonly SelectMenuOption[] {
-    const options = this.salesVatOptions();
-    const selectedId = this.lines.at(index)?.controls.vatCodeId.value;
-    if (!selectedId || options.some((option) => option.value === selectedId)) {
-      return options;
-    }
-    const selected = this.vatCodeById().get(selectedId);
-    if (!selected) {
-      return options;
-    }
-    return [...options, { value: selected.id, label: vatCodeOptionLabel(selected) }];
+    // Stessa funzione condivisa delle altre tre maschere: qui c'era una copia
+    // scritta a mano che faceva la stessa cosa — tenere il codice già scelto
+    // fra le opzioni anche se nel frattempo è stato disattivato, o riaprendo un
+    // documento storico la cella risulterebbe vuota.
+    return vatOptionsIncludingSelected(
+      this.salesVatOptions(),
+      this.lines.at(index)?.controls.vatCodeId.value,
+      this.vatCodeById(),
+    );
+  }
+
+  /** Sulla cella si legge il codice; il resto sta qui, come nelle altre tre. */
+  protected lineVatTooltip(index: number): string {
+    const vatCode = this.vatCodeById().get(this.lines.at(index)?.controls.vatCodeId.value ?? '');
+    return vatCode ? vatCodeOptionLabel(vatCode) : 'Nessun Codice IVA';
   }
 
   protected onLineVatSelect(index: number, value: string | null): void {
@@ -1844,7 +1910,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
     const referenceLine = this.createLine();
     referenceLine.patchValue(
-      { description: payload.referenceText, quantity: 1, vatRatePercent: '' },
+      { ...payload.referenceLine, vatRatePercent: '' },
       { emitEvent: false },
     );
     groups.push(referenceLine);
@@ -1857,6 +1923,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           description: line.description,
           quantity: line.quantity,
           discountPercent: line.discount,
+          isReference: line.isReference === true,
           vatCodeId: line.vatCodeId ?? '',
           vatRatePercent: '',
         },
@@ -1980,6 +2047,17 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   protected reload(): void {
     this.loadTick.update((t) => t + 1);
+  }
+
+  /**
+   * Corpo del PATCH: il corpo della creazione meno i due campi che valgono solo
+   * alla nascita. Sta in un metodo suo, e non in un `...body` spread, perché il
+   * giorno in cui la creazione guadagnerà un altro campo di sola nascita questo
+   * è il posto dove si nota — un `delete` sparso nel salvataggio no.
+   */
+  private toUpdateBody(body: CreateDocumentBody): UpdateDocumentBody {
+    const { type: _type, sourceDocumentId: _sourceDocumentId, ...rest } = body;
+    return rest;
   }
 
   private validateForm(): boolean {
@@ -2146,6 +2224,8 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           const price = parseMoneyInput(line.unitPrice, this.currency);
           const ratePercent = Number(line.vatRatePercent) || 0;
           return {
+            // Vuoto = riga nuova. Presente = aggiorna quella riga, non ricrearla.
+            id: line.id || undefined,
             variantId: line.variantId || undefined,
             // Fotografia dello SKU sulla riga, come su ogni altro documento: il
             // documento riaperto dice quello che diceva quando fu compilato.
@@ -2161,6 +2241,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
             // accompagnatoria lo fa solo senza DDT agganciato: con un DDT le
             // giacenze sono già scese, quindi le righe non devono scaricare.
             loadsStock: this.showLoadsStockColumn() ? line.loadsStock : false,
+            // Senza questo il flag non sopravvive al salvataggio: la riga
+            // riaperta tornerebbe una riga qualunque.
+            isReference: line.isReference === true,
           };
         }),
     };
@@ -2168,9 +2251,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     this._submitState.set({ status: 'saving' });
 
     const save$ = editId
-      ? this.documentService.updateDocument(editId, {
-          ...body,
-        })
+      ? // Il PATCH non accetta `type` né `sourceDocumentId`, e l'API valida con
+        // `forbidNonWhitelisted`: mandarli fa rispondere **400** — senza un
+        // messaggio da mostrare, quindi a schermo il salvataggio semplicemente
+        // non accadeva. Ed è giusto che il DTO non li accetti: il tipo di un
+        // documento non cambia in modifica, e l'origine è un legame che nasce
+        // con lui. La maschera del DDT costruisce da sempre un corpo suo per la
+        // modifica; qui si spediva quello della creazione.
+        this.documentService.updateDocument(editId, this.toUpdateBody(body))
       : this.documentService.createDocument(body);
 
     // Nascita-confermato (Fase 3): create e update producono già un documento
@@ -2497,14 +2585,14 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
     this.refreshNumberProposal();
   }
 
-  private prefillFromConversion(prefill: CreateDocumentBody): void {
+  private prefillFromConversion(prefill: ConversionPrefill): void {
     // Prefill programmatico (conversione/da ordine): non è una modifica utente.
     this.withoutDirtyMarking(() => {
       this.applyConversionPrefill(prefill);
     });
   }
 
-  private applyConversionPrefill(prefill: CreateDocumentBody): void {
+  private applyConversionPrefill(prefill: ConversionPrefill): void {
     this._sourceDocumentId.set(prefill.sourceDocumentId ?? null);
     this._includedSalesOrderIds.set([...(prefill.includedSalesOrderIds ?? [])]);
     // Documento generato: eredita la modalità prezzo dell'origine (dal prefill).
@@ -2532,6 +2620,34 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       this.selectedCustomer.set(this.customers().find((c) => c.id === prefill.customerId) ?? null);
     }
     this.lines.clear();
+
+    // Riferimento al predecessore diretto (`07` §12). Qui NON c'era: convertendo
+    // una Proforma in Fattura il riferimento all'origine spariva, mentre
+    // convertendola in Ordine cliente compariva — perché quella maschera se lo
+    // costruiva da sé. La riga la compone ora l'utility condivisa, per entrambe.
+    // Due strade, una regola. La conversione porta il tipo dell'origine; il
+    // «Concludi ordine» porta numero e data dell'ordine cliente — che ha già la
+    // sua etichetta canonica fra le sorgenti includibili. Il testo lo compone
+    // sempre la stessa utility.
+    const seed = prefill.sourceDocumentType
+      ? conversionReferenceLine(
+          prefill.sourceDocumentType,
+          prefill.externalRef,
+          prefill.documentDate,
+        )
+      : prefill.sourceSalesOrderNumber
+        ? includeReferenceLine(
+            IncludeSourceKind.CustomerOrder,
+            prefill.sourceSalesOrderNumber,
+            prefill.sourceSalesOrderPlacedAt ?? prefill.documentDate,
+          )
+        : null;
+    if (seed) {
+      const referenceLine = this.createLine();
+      referenceLine.patchValue({ ...seed, vatRatePercent: '' }, { emitEvent: false });
+      this.lines.push(referenceLine);
+    }
+
     for (const line of prefill.lines ?? []) {
       // Una riga la costruisce `createLine`, e basta lei: qui c'era una seconda
       // copia dei controlli, scritta a mano. Copie così non divergono con un
@@ -2550,6 +2666,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         vatCodeId: '',
         discountPercent:
           line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
+        isReference: line.isReference === true,
         loadsStock: line.loadsStock ?? false,
       });
       this.lines.push(group);
@@ -2618,6 +2735,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       // Come sopra: la riga si costruisce in un punto solo.
       const group = this.createLine();
       group.patchValue({
+        // L'identità della riga sopravvive al salvataggio: si rimanda indietro
+        // così com'è arrivata.
+        id: line.id,
         variantId: line.variantId ?? '',
         sku: line.sku ?? '',
         description: line.description,
@@ -2633,6 +2753,9 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
         discountPercent:
           line.discountPercent && line.discountPercent > 0 ? String(line.discountPercent) : '',
         loadsStock: line.loadsStock,
+        // Chiude il giro: senza, il documento riaperto perdeva la natura della
+        // riga e il salvataggio successivo la rimandava indietro come ordinaria.
+        isReference: line.isReference === true,
       });
       this.lines.push(group);
     }
@@ -2643,6 +2766,13 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
 
   private createLine() {
     return this.fb.group({
+      /**
+       * Id della riga già salvata: vuoto per una riga nuova. Viaggia al server
+       * in modifica, ed è ciò che gli consente di aggiornare la riga invece di
+       * ricrearla — con lei restano agganciati movimento e seriali.
+       * Va azzerato in ogni duplicazione: due righe non possono avere lo stesso id.
+       */
+      id: this.fb.control(''),
       variantId: this.fb.control(''),
       // Le tre chiavi d'identità e lo SKU fotografato. I primi tre non si
       // salvano — si digitano per TROVARE l'articolo e restano scritti se non
@@ -2658,6 +2788,11 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       vatRatePercent: this.fb.control('22'),
       vatCodeId: this.fb.control(''),
       discountPercent: this.fb.control(''),
+      // Riga di RIFERIMENTO (§12): descrittiva, non economica e non fisica.
+      // Non e' editabile dall'operatore — la valorizzano inclusione e
+      // conversione, e deve sopravvivere a save -> reopen.
+      isReference: this.fb.control(false),
+
       // «Scarica mag.»: il default segue il tipo articolo già in VestiFlow
       // (Articolo scarica, Servizio no). Righe senza variante non muovono nulla.
       loadsStock: this.fb.control(false),

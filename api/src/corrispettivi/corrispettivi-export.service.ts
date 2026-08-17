@@ -20,7 +20,6 @@ import {
   sourceDisplayLabel,
 } from '../sales-orders/sales-order.enum-mapper';
 import { CorrispettiviService } from './corrispettivi.service';
-import { fiscalStatusDisplayLabel } from './corrispettivi-fiscal.enum-mapper';
 import type { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
 
 /**
@@ -45,8 +44,6 @@ export const CORRISPETTIVI_ACCOUNTANT_HEADERS = [
   'IVA',
   'Totale',
   'Stato pagamento',
-  'Stato fiscale',
-  'Data consegna commercialista',
   'Nota',
   'Valuta',
 ] as const;
@@ -169,11 +166,10 @@ export class CorrispettiviExportService {
         'Stato pagamento': row.financialStatus
           ? financialStatusDisplayLabel(row.financialStatus)
           : '',
-        'Stato fiscale': row.fiscalStatus ? fiscalStatusDisplayLabel(row.fiscalStatus) : '',
-        'Data consegna commercialista': row.fiscalDeliveredAt
-          ? ROME_DATE_FORMAT.format(row.fiscalDeliveredAt)
-          : '',
-        Nota: row.note ?? row.fiscalNote ?? '',
+        // Le colonne «Stato fiscale» e «Data consegna commercialista» non ci
+        // sono più: il file si produce per periodo, quante volte serve, e non
+        // registra nulla.
+        Nota: row.note ?? '',
         Valuta: row.currency,
       }));
   }

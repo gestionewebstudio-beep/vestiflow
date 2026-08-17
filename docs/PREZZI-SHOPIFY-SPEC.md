@@ -239,6 +239,36 @@ articolo; variante esistente → non lo tocca.
 o assente, e il chiamante passa `variant.price ?? '0'`. Un prezzo mancante su Shopify
 diventa un prezzo di vendita **zero** in VestiFlow, senza errore.
 
+⚠️ **E resta zero per sempre**, proprio per via dell'asimmetria descritta sopra: il
+ri-sync non tocca più il prezzo articolo, quindi quando Shopify il prezzo ce l'avrà,
+l'interno non si rialzerà da solo. Idea registrata il 17/08 — compilarlo dal prezzo
+Shopify quando è zero, più un comando esplicito «Copia il prezzo Shopify nel prezzo
+interno» sull'elenco filtrato — in `DA-FARE-CORRISPETTIVI-E-SHOPIFY.md`, §«Prima
+sincronizzazione Shopify». Da progettare lì, non qui.
+
+## Il prezzo articolo è dell'operatore anche in scrittura _(17/08/2026)_
+
+La regola qui sopra — «il prezzo articolo è dell'operatore, non si tocca più» — diceva
+che **Shopify** non lo sovrascrive. Ma fino al 17/08 non lo poteva toccare nemmeno
+l'operatore: l'anagrafica lo disabilitava sui prodotti `catalogOrigin = shopify`, e il
+gate dell'API lo confrontava dentro `variantCatalogEqual`. L'unico campo dichiarato
+dell'operatore era l'unico intoccabile.
+
+**La ragione per cui si è potuto sbloccare da solo**, senza aspettare il blocco
+sincronizzazione: **il prezzo articolo non arriva al canale**. Il push manda
+`shopifyPriceMinor`, un'altra colonna —
+
+```ts
+price: minorToShopifyDecimal(Number(variant.shopifyPriceMinor)),
+```
+
+— quindi cambiarlo non può far divergere niente da Shopify. Il blocco stava lì da quando
+prezzo articolo e prezzo Shopify erano lo stesso numero, e nessuno c'era più tornato
+dopo averli separati.
+
+Nel confronto delle varianti restano **SKU, valori opzione, barcode e valuta**: quelli il
+canale li conosce davvero.
+
 ### 2.4 Nulla può accorgersi di un cambio di impostazione
 
 - **Nessun webhook.** `api/src/shopify/shopify-webhook-topics.ts` registra 8 topic

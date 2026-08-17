@@ -160,7 +160,7 @@ describe('ProductGeneralStepComponent', () => {
     it('in modalità ivata i campi mostrano il lordo e il draft resta netto', async () => {
       const onChange = vi.fn<(value: ProductGeneralDraft) => void>();
       const { fixture } = await renderStep({
-        // Netti a DB: 100,00 di prezzo articolo e 50,00 di listino.
+        // Netti a DB: 100,00 di prezzo di vendita e 50,00 di listino.
         value: { ...EMPTY_GENERAL, sellingPrice: 100, listino1Price: 50 },
         listinoSlots: LISTINO_SLOTS,
         vatCodes: [VAT_22],
@@ -170,7 +170,7 @@ describe('ProductGeneralStepComponent', () => {
       fixture.componentInstance.valueChange.subscribe(onChange);
       await fixture.whenStable();
 
-      expect(screen.getByLabelText('Prezzo articolo')).toHaveValue(122);
+      expect(screen.getByLabelText('Prezzo di vendita')).toHaveValue(122);
       expect(screen.getByLabelText('Ingrosso')).toHaveValue(61);
       // Cambiare come si guardano i prezzi non è una modifica dell'articolo.
       expect(onChange).not.toHaveBeenCalled();
@@ -212,7 +212,7 @@ describe('ProductGeneralStepComponent', () => {
       fixture.componentInstance.valueChange.subscribe(onChange);
       await fixture.whenStable();
 
-      const price = screen.getByLabelText('Prezzo articolo');
+      const price = screen.getByLabelText('Prezzo di vendita');
       await user.clear(price);
       await user.type(price, '123.97');
       expect(onChange.mock.calls.at(-1)?.[0].sellingPrice).toBeCloseTo(101.614754, 6);

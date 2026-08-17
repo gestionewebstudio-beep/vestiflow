@@ -1,6 +1,6 @@
 <!--
   La forma è della card condivisa; qui c'è quello che un ARRIVO MERCE ha da
-  dire: costo nella modalità netto/ivato del documento, prezzo al pubblico e
+  dire: costo nella modalità netto/ivato del documento, prezzo di vendita e
   barrato, e il flag «carica magazzino» che dice se questa riga muove giacenza.
 
   Due cose cambiano rispetto a prima, e discendono dall'adottare la forma:
@@ -155,14 +155,14 @@
       />
     </app-document-line-card-field>
 
-    <app-document-line-card-field label="Prezzo al pubblico">
+    <app-document-line-card-field label="Prezzo di vendita">
       <input
         class="doc-form__input"
         type="text"
         inputmode="decimal"
         [formControl]="line().controls.sellingPrice"
         placeholder="0,00"
-        aria-label="Prezzo al pubblico"
+        aria-label="Prezzo di vendita"
         (blur)="fieldBlur.emit(lineIndex())"
       />
     </app-document-line-card-field>

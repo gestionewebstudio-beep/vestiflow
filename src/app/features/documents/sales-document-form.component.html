@@ -152,6 +152,7 @@
                       [value]="pricesIncludeVat() ? 'gross' : 'net'"
                       ariaLabel="Modalità prezzo netto o ivato"
                       placeholder="Netto"
+                      [includeEmptyOption]="false"
                       [compact]="true"
                       [fullWidth]="true"
                       (valueChange)="setPriceMode($event === 'gross')"
@@ -178,7 +179,7 @@
                       [options]="listinoOptions()"
                       [value]="listinoValue()"
                       ariaLabel="Listino applicato alle righe"
-                      placeholder="Prezzo articolo"
+                      placeholder="Prezzo di vendita"
                       [compact]="true"
                       [fullWidth]="true"
                       (valueChange)="onListinoChange($event)"
@@ -367,24 +368,22 @@
               (manageSeries)="seriesDialogOpen.set(true)"
             />
 
-            <!-- Modalità prezzo del documento: netto o ivato. Cambiandola i prezzi
-                 si convertono così i totali non si spostano. -->
-            <div class="doc-form__field">
-              <span class="doc-form__label">Modalità prezzo</span>
-              <app-select-menu
-                [options]="priceModeOptions"
-                [value]="pricesIncludeVat() ? 'gross' : 'net'"
-                ariaLabel="Modalità prezzo netto o ivato"
-                placeholder="Netto"
-                [compact]="true"
-                [fullWidth]="true"
-                (valueChange)="setPriceMode($event === 'gross')"
-              />
-            </div>
+            <!-- La modalità prezzo NON sta più qui: vive sull'intestazione della
+                 colonna Prezzo, dove sta anche nelle altre tre maschere. Un
+                 campo di testata la teneva lontana dai numeri che governa, e
+                 rendeva questa maschera l'unica diversa (`07-…§24`). -->
 
             <!-- Listino (§B4): non è un dato del documento, è come lo si riempie.
                  Sceglierlo riscrive i prezzi delle righe, che restano
-                 modificabili una per una. -->
+                 modificabili una per una.
+                 ⚠️ NON è il selettore netto/ivato, che vive sull'intestazione
+                 della colonna Prezzo: sono due controlli diversi che stanno solo
+                 vicini in testata. Qui si sceglie QUALE listino alimenta le
+                 righe (`products.listino1..3_price_minor`, accesi nelle
+                 impostazioni del tenant); là si sceglie COME leggere l'importo.
+                 Rinominarlo «Prezzo» — fatto per errore in `3d1afa37` e
+                 annullato — confonde le due cose e usa la stessa parola della
+                 colonna degli importi. -->
             @if (showListinoSelect() && !formReadOnly()) {
               <div class="doc-form__field">
                 <span class="doc-form__label">Listino</span>
@@ -392,7 +391,7 @@
                   [options]="listinoOptions()"
                   [value]="listinoValue()"
                   ariaLabel="Listino applicato alle righe"
-                  placeholder="Prezzo articolo"
+                  placeholder="Prezzo di vendita"
                   [compact]="true"
                   [fullWidth]="true"
                   (valueChange)="onListinoChange($event)"
@@ -665,23 +664,38 @@
                         class="doc-form__num doc-form__col--sale"
                         [style.width]="lineColumnWidth('unitPrice')"
                       >
-                        <button
-                          type="button"
-                          class="doc-form__th-sort"
-                          [attr.aria-label]="lineSortAriaLabel('unitPrice', 'Prezzo')"
-                          title="Prezzo"
-                          (click)="toggleLineSort('unitPrice')"
-                        >
-                          {{ priceRowLabel() }}
-                          @if (lineSort.column() === 'unitPrice') {
-                            <i
-                              class="pi"
-                              [class.pi-sort-up]="lineSort.direction() === 'asc'"
-                              [class.pi-sort-down]="lineSort.direction() === 'desc'"
-                              aria-hidden="true"
-                            ></i>
-                          }
-                        </button>
+                        <!-- L'etichetta ordina, il chevron sceglie netto/ivato:
+                             due mestieri distinti sullo stesso titolo, come
+                             nelle altre maschere. Prima la scelta stava in un
+                             campo «Modalità prezzo» in testata — l'unica delle
+                             quattro maschere fuori standard, e proprio quella
+                             fiscale (`07-…§24`). -->
+                        <span class="doc-form__th-menu-wrap">
+                          <button
+                            type="button"
+                            class="doc-form__th-sort doc-form__th-sort--num"
+                            [attr.aria-label]="lineSortAriaLabel('unitPrice', 'Prezzo')"
+                            title="Prezzo"
+                            (click)="toggleLineSort('unitPrice')"
+                          >
+                            {{ priceRowLabel() }}
+                            @if (lineSort.column() === 'unitPrice') {
+                              <i
+                                class="pi"
+                                [class.pi-sort-up]="lineSort.direction() === 'asc'"
+                                [class.pi-sort-down]="lineSort.direction() === 'desc'"
+                                aria-hidden="true"
+                              ></i>
+                            }
+                          </button>
+                          <app-price-mode-menu
+                            [pricesIncludeVat]="pricesIncludeVat()"
+                            netLabel="Usa prezzi netti"
+                            grossLabel="Usa prezzi ivati"
+                            [disabled]="formReadOnly()"
+                            (modeChange)="setPriceMode($event)"
+                          />
+                        </span>
                         <span
                           appTableColumnResize
                           (resized)="onLineColumnResize('unitPrice', $event)"
@@ -891,14 +905,21 @@
                         <td
                           class="doc-form__cell doc-form__cell--editable doc-form__num doc-form__col--stock"
                         >
-                          <input
-                            [id]="'sd-qty-' + i"
-                            class="doc-form__input doc-form__input--table doc-form__input--num"
-                            type="number"
-                            min="1"
-                            formControlName="quantity"
-                            aria-label="Qtà"
-                          />
+                          <!-- Riga di riferimento: la cella resta VUOTA. Il valore
+                               tecnico è 0 (`07` §12: «non hanno codice né quantità
+                               né importo»), ma mostrarlo direbbe «zero pezzi» invece
+                               di «non pertinente» — e un campo che si può scrivere
+                               invita a scriverci. -->
+                          @if (!line.controls.isReference.value) {
+                            <input
+                              [id]="'sd-qty-' + i"
+                              class="doc-form__input doc-form__input--table doc-form__input--num"
+                              type="number"
+                              min="1"
+                              formControlName="quantity"
+                              aria-label="Qtà"
+                            />
+                          }
                         </td>
                       }
                       @if (isLineColumnVisible('unitPrice')) {
@@ -934,6 +955,7 @@
                       @if (isLineColumnVisible('vat')) {
                         <td
                           class="doc-form__cell doc-form__cell--editable doc-form__cell--vat doc-form__col--tax doc-form__col--sep"
+                          [title]="lineVatTooltip(i)"
                         >
                           <!--
                             Cella a ricerca-e-selezione, come nelle altre
@@ -941,6 +963,10 @@
                             fuoco la raggiunge, si digita il codice e l'elenco
                             filtra per prefisso. Prima qui c'era la tendina —
                             l'ultima rimasta su una riga documento.
+
+                            In cella si legge il solo CODICE: aliquota e
+                            descrizione stanno nel menu e nel `title` della
+                            cella, come sulle altre tre maschere.
                           -->
                           <app-document-line-select-cell
                             [lineIndex]="i"

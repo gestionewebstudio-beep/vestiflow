@@ -1916,9 +1916,20 @@ app-customer-order-form {
 //
 // L'etichetta tagliata resta leggibile per intero al passaggio del mouse: le
 // intestazioni portano il proprio nome nel `title`.
+//
+// ⚠️ **`.doc-form__th-menu-wrap` era in questo elenco, ed è stato tolto il
+// 15/08/2026.** La precauzione qui sopra — «non sulla cella, o taglierebbe il
+// menu» — veniva annullata due righe più giù: il wrap È l'elemento che ospita
+// il menu, che gli sta dentro in `position: absolute` sotto il bordo inferiore.
+// Con `overflow: hidden` la tendina si apriva e veniva ritagliata via: a
+// schermo la freccia sembrava morta, in tutte le maschere che hanno un menu di
+// intestazione — modalità prezzo del DDT, costo dell'Arrivo merce, Ordine
+// fornitore.
+//
+// Il tetto di due righe sull'etichetta **non si perde**: dentro il wrap
+// l'etichetta è un `.doc-form__th-sort`, che resta in elenco.
 .doc-form .doc-form__th-label,
-.doc-form .doc-form__th-sort,
-.doc-form .doc-form__th-menu-wrap {
+.doc-form .doc-form__th-sort {
   max-block-size: calc(2 * var(--leading-tight) * var(--text-label));
   overflow: hidden;
 }

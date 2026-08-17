@@ -2,7 +2,7 @@
   <header class="corrispettivi__header">
     <div class="corrispettivi__heading">
       <app-back-button />
-      <h1 class="corrispettivi__title">Corrispettivi commercialista</h1>
+      <h1 class="corrispettivi__title">Corrispettivi</h1>
       <p class="corrispettivi__subtitle">{{ pageSubtitle() }}</p>
     </div>
     @if (canExport()) {
@@ -38,15 +38,6 @@
           <i class="pi pi-download" aria-hidden="true"></i>
           Export per commercialista
         </app-button>
-        @if (canManageFiscalRegister()) {
-          <app-button
-            variant="primary"
-            [disabled]="!summary() || summary()!.pendingDeliveryCount === 0"
-            (click)="openMarkDelivered()"
-          >
-            Segna consegnato
-          </app-button>
-        }
       </div>
     }
   </header>
@@ -74,27 +65,27 @@
   />
 
   <div class="corrispettivi__filters">
-    <app-select-menu
-      [options]="fiscalStatusOptions"
-      [value]="fiscalStatusFilter() ?? ''"
-      ariaLabel="Filtra per stato fiscale"
-      placeholder="Stato fiscale"
-      [compact]="true"
-      (valueChange)="onFiscalStatusChange($event)"
-      [filterChip]="true"
-    />
     <!--
-      Canale e tipo sono indipendenti dal periodo e fra loro: si può chiedere
-      «2° trimestre 2026 · Shopify · Resi». Il tipo filtra l'ELENCO, non il
+      Ambito e tipo sono indipendenti dal periodo e fra loro: si può chiedere
+      «2° trimestre 2026 · Fisico/POS · Resi». Il tipo filtra l'ELENCO, non il
       riepilogo — vedi la nota accanto al totale.
     -->
     <app-select-menu
-      [options]="channelOptions"
-      [value]="channelFilter()"
-      ariaLabel="Filtra per canale di vendita"
+      [options]="ambitoOptions"
+      [value]="ambitoFilter()"
+      ariaLabel="Filtra per ambito"
+      placeholder="Ambito"
+      [compact]="true"
+      (valueChange)="onAmbitoChange($event)"
+      [filterChip]="true"
+    />
+    <app-select-menu
+      [options]="canaleOptions"
+      [value]="canaleFilter()"
+      ariaLabel="Filtra per canale"
       placeholder="Canale"
       [compact]="true"
-      (valueChange)="onChannelChange($event)"
+      (valueChange)="onCanaleChange($event)"
       [filterChip]="true"
     />
     <app-select-menu
@@ -106,13 +97,6 @@
       (valueChange)="onRowTypeChange($event)"
       [filterChip]="true"
     />
-    <app-button
-      variant="ghost"
-      [class.corrispettivi__filter--active]="pendingOnly()"
-      (click)="togglePendingOnly()"
-    >
-      Solo da consegnare
-    </app-button>
   </div>
 
   @if (loading()) {
@@ -138,16 +122,5 @@
         <app-corrispettivi-orders-table [rows]="orders()" />
       }
     </section>
-
-    <app-corrispettivi-deliveries [deliveries]="deliveries()" />
   }
-
-  <app-confirm-dialog
-    title="Consegna al commercialista"
-    [message]="markDeliveredMessage()"
-    confirmLabel="Conferma consegna"
-    [(open)]="markDeliveredOpen"
-    [busy]="markDeliveredBusy()"
-    (confirmed)="confirmMarkDelivered()"
-  />
 </section>

@@ -37,18 +37,16 @@ describe('parseDocumentListQuery', () => {
     expect(query.dateTo).toBe('2026-06-30');
   });
 
-  it('parsa customerId, accountant e pendingInvoice', () => {
+  it('parsa customerId e pendingInvoice', () => {
     const customerId = 'c0011111-1111-4111-8111-111111111001';
     const query = parseDocumentListQuery(
       paramMap({
         customerId,
-        accountant: '1',
         pendingInvoice: '1',
       }),
     );
 
     expect(query.customerId).toBe(customerId);
-    expect(query.accountant).toBe(true);
     expect(query.pendingInvoice).toBe(true);
   });
 

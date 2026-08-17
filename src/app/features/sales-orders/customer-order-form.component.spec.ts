@@ -214,7 +214,9 @@ describe('CustomerOrderFormComponent — le due viste di riga', () => {
       addLine: () => void;
       form: { controls: Record<string, { setValue: (v: unknown) => void }> };
       lines: {
-        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+        at: (i: number) => {
+          controls: Record<string, { setValue: (v: unknown) => void; value: unknown }>;
+        };
       };
     };
     // La testata va completata: finché mancano cliente e location le righe non
@@ -359,7 +361,9 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
 
     const component = view.fixture.componentInstance as unknown as {
       lines: {
-        at: (i: number) => { controls: Record<string, { setValue: (v: unknown) => void }> };
+        at: (i: number) => {
+          controls: Record<string, { setValue: (v: unknown) => void; value: unknown }>;
+        };
         length: number;
       };
       form: { controls: Record<string, { setValue: (v: unknown) => void; value: unknown }> };
@@ -372,7 +376,9 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
       };
       addLine: () => void;
       buildSavePayload: () => Record<string, unknown>;
-      pricesIncludeVat: { set: (v: boolean) => void };
+      pricesIncludeVat: { (): boolean; set: (v: boolean) => void };
+      setPriceMode: (pricesIncludeVat: boolean) => void;
+      patchFormFromOrder: (order: unknown) => void;
       numberConflictDialog: {
         open: (conflict: Record<string, unknown>) => void;
         isOpen: () => boolean;
@@ -410,6 +416,36 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
     controls['vatCodeId']!.setValue(line.vatCodeId ?? '');
     controls['discount']!.setValue(line.discount ?? '');
     controls['isReference']!.setValue(line.isReference ?? false);
+  }
+
+  /** Ordine già salvato, nella forma che il form riceve dal mapper. */
+  function ordineSalvato(over: {
+    pricesIncludeVat?: boolean;
+    unitPriceMinor?: number;
+  }): Record<string, unknown> {
+    const amountMinor = over.unitPriceMinor ?? 10000;
+    return {
+      id: 'ord-1',
+      orderNumber: 'OC-0001',
+      customerId: 'cli-1',
+      locationId: 'loc-1',
+      placedAt: '2026-08-01T00:00:00.000Z',
+      pricesIncludeVat: over.pricesIncludeVat === true,
+      documentDiscountPercent: 0,
+      lines: [
+        {
+          id: 'line-1',
+          sku: 'SKU-1',
+          title: 'Maglietta',
+          quantity: 1,
+          unitPrice: { amountMinor, currencyCode: 'EUR' },
+          lineTotal: { amountMinor: Math.round(amountMinor), currencyCode: 'EUR' },
+          vatCodeId: IVA_22.id,
+          commitsStock: true,
+          isReference: false,
+        },
+      ],
+    };
   }
 
   let view: Awaited<ReturnType<typeof setup>>;
@@ -562,6 +598,157 @@ describe('CustomerOrderFormComponent — caratterizzazione', () => {
       view.component.form.controls['documentDiscountPercent']!.setValue('15');
 
       expect(view.component.buildSavePayload()['documentDiscountPercent']).toBe(15);
+    });
+  });
+
+  /**
+   * Netto/ivato sull'Ordine cliente — acceso il 16/08/2026.
+   *
+   * La maschera non aveva il selettore: il template lo escludeva «finché non
+   * arriva il supporto backend dedicato». Adesso c'è, e con lui due regole che
+   * queste prove tengono ferme:
+   *
+   *  1. la modalità è una proprietà dell'ORDINE, non di chi lo apre;
+   *  2. il prezzo memorizzato è SEMPRE il netto, con la sua coda decimale.
+   */
+  describe('netto/ivato: la modalità è dell’ordine, il prezzo salvato è il netto', () => {
+    beforeEach(async () => {
+      view = await setup();
+    });
+
+    /** Il prezzo unitario che il salvataggio manderebbe al server. */
+    function savedPrice(): number {
+      const lines = view.component.buildSavePayload()['lines'] as readonly Record<
+        string,
+        unknown
+      >[];
+      return lines[0]!['unitPriceMinor'] as number;
+    }
+
+    /** Cosa mostra il campo prezzo della prima riga. */
+    function shownPrice(): unknown {
+      return view.component.lines.at(0).controls['unitPrice']!.value;
+    }
+
+    it('in modalità ivato al server va il NETTO, non il valore mostrato', () => {
+      view.component.setPriceMode(true);
+      fillLine(view.component, 0, { qty: 1, price: '122,00', vatCodeId: IVA_22.id });
+
+      // 122,00 ivati al 22% → 100,00 netti. Prima di oggi partiva 122,00 e
+      // l'API ci sommava di nuovo l'IVA: il totale usciva gonfio dell'aliquota.
+      expect(savedPrice()).toBe(10000);
+    });
+
+    it('in modalità netto il valore mostrato è già il netto', () => {
+      fillLine(view.component, 0, { qty: 1, price: '100,00', vatCodeId: IVA_22.id });
+
+      expect(savedPrice()).toBe(10000);
+    });
+
+    it('25,00 ivati si memorizzano con la coda decimale, non troncati', () => {
+      view.component.setPriceMode(true);
+      fillLine(view.component, 0, { qty: 1, price: '25,00', vatCodeId: IVA_22.id });
+
+      // 2500 / 1,22 = 2049,180327868… — la colonna ne tiene sei decimali di
+      // euro, ed è quella coda a far tornare 25,00 alla riapertura. Troncata a
+      // 2049 il prezzo tornerebbe 24,99, e un prezzo ivato su cinque lo fa.
+      expect(savedPrice()).toBeCloseTo(2049.1803, 4);
+      expect(savedPrice()).not.toBe(2049);
+    });
+
+    it('netto → ivato → netto: il prezzo torna IDENTICO', () => {
+      view.component.setPriceMode(true);
+      fillLine(view.component, 0, { qty: 1, price: '25,00', vatCodeId: IVA_22.id });
+      const partenza = savedPrice();
+
+      view.component.setPriceMode(false);
+      expect(shownPrice()).toBe('20,49');
+      view.component.setPriceMode(true);
+
+      // Il giro passa per un campo a DUE decimali: ricalcolare il netto da lì
+      // lo riporterebbe a 2049 tondo. Il netto attraversa il cambio intatto
+      // perché la modalità dice come si vede, non quanto vale.
+      expect(shownPrice()).toBe('25,00');
+      expect(savedPrice()).toBe(partenza);
+    });
+
+    it('passando a netto e salvando lì, la coda NON si perde', () => {
+      // È il caso in cui l'arrotondamento prematuro morderebbe davvero: il
+      // campo mostra 20,49, e salvare quello scriverebbe 2049 tondo — da lì in
+      // poi il prezzo ivato varrebbe 24,99 per sempre.
+      view.component.setPriceMode(true);
+      fillLine(view.component, 0, { qty: 1, price: '25,00', vatCodeId: IVA_22.id });
+      const ivato = savedPrice();
+
+      view.component.setPriceMode(false);
+
+      expect(shownPrice()).toBe('20,49');
+      expect(savedPrice()).toBe(ivato);
+      expect(savedPrice()).not.toBe(2049);
+    });
+
+    it('ridigitando il prezzo vince il valore digitato, non quello ricordato', () => {
+      // Il rovescio della medaglia: la memoria del netto non deve sopravvivere
+      // a una modifica dell'operatore, o il campo direbbe una cosa e il
+      // salvataggio ne scriverebbe un'altra.
+      view.component.patchFormFromOrder(
+        ordineSalvato({ pricesIncludeVat: true, unitPriceMinor: 2049.180328 }),
+      );
+      expect(savedPrice()).toBe(2049.180328);
+
+      view.component.lines.at(0).controls['unitPrice']!.setValue('61,00');
+
+      expect(savedPrice()).toBe(5000);
+    });
+
+    it('la modalità viaggia nel salvataggio, così l’ordine se la ricorda', () => {
+      view.component.setPriceMode(true);
+      fillLine(view.component, 0, { qty: 1, price: '10,00' });
+
+      expect(view.component.buildSavePayload()['pricesIncludeVat']).toBe(true);
+    });
+
+    it('aprendo un ordine vince la SUA modalità, non quella di chi lo apre', () => {
+      // L'operatore stava lavorando in ivato: è una sua preferenza, non un
+      // dato dell'ordine che sta per aprire.
+      view.component.setPriceMode(true);
+
+      view.component.patchFormFromOrder(ordineSalvato({ pricesIncludeVat: false }));
+
+      expect(view.component.pricesIncludeVat()).toBe(false);
+    });
+
+    it('due operatori vedono lo stesso ordine nello stesso modo', () => {
+      const ordine = ordineSalvato({ pricesIncludeVat: true });
+
+      view.component.setPriceMode(false); // primo operatore, preferenza netto
+      view.component.patchFormFromOrder(ordine);
+      const primo = shownPrice();
+
+      view.component.setPriceMode(true); // secondo operatore, preferenza ivato
+      view.component.patchFormFromOrder(ordine);
+
+      expect(shownPrice()).toBe(primo);
+    });
+
+    it('ordine riaperto e risalvato senza toccare niente: prezzo invariato', () => {
+      // È la prova che nessuna riapertura lima la coda decimale. Il campo
+      // mostra 25,00; il netto memorizzato ha sei decimali, e resta quello.
+      view.component.patchFormFromOrder(
+        ordineSalvato({ pricesIncludeVat: true, unitPriceMinor: 2049.180328 }),
+      );
+
+      expect(shownPrice()).toBe('25,00');
+      expect(savedPrice()).toBe(2049.180328);
+    });
+
+    it('ordine storico in netto: riaperto e risalvato resta identico', () => {
+      view.component.patchFormFromOrder(
+        ordineSalvato({ pricesIncludeVat: false, unitPriceMinor: 3500 }),
+      );
+
+      expect(shownPrice()).toBe('35,00');
+      expect(savedPrice()).toBe(3500);
     });
   });
 
@@ -1206,7 +1393,19 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
         {
           provide: ProductService,
           useValue: {
-            searchVariantSummaries: () => of(catalogo),
+            // ⚠️ Il filtro per `variantId` va rispettato, come fa il servizio
+            // vero. Prima questo finto catalogo lo ignorava e rispondeva
+            // sempre con tutto: la ricerca per id — quella che il form usa
+            // quando la variante non è ancora fra le pinned — tornava il
+            // PRIMO articolo del catalogo qualunque cosa si chiedesse. Un
+            // test che agganciava la seconda variante non poteva funzionare,
+            // e la causa non era nel form.
+            searchVariantSummaries: (params?: { readonly variantId?: string }) =>
+              of(
+                params?.variantId
+                  ? catalogo.filter((row) => row['variantId'] === params.variantId)
+                  : catalogo,
+              ),
             // L'endpoint per codice tace sui casi ambigui: qui non deve mai
             // essere la strada che salva il test.
             findVariantByCode: () => throwError(() => new Error('404')),
@@ -1216,8 +1415,62 @@ describe('CustomerOrderFormComponent — conferma dei codici', () => {
         },
       ],
     });
-    return view.fixture.componentInstance as unknown as CodeForm;
+    return view.fixture.componentInstance as unknown as CodeForm & {
+      onVariantSelect: (index: number, variantId: string | null) => void;
+    };
   }
+
+  /**
+   * Sostituzione d'articolo sulla stessa riga (difetto trovato il 15/08/2026).
+   *
+   * Il prezzo si scriveva solo se il campo era vuoto: richiamando un secondo
+   * articolo sulla riga, restava il prezzo del primo. La riga diceva un
+   * articolo e costava un altro, e nessuno se ne accorgeva fino alla fattura.
+   */
+  it('sostituendo l’articolo sulla riga, il prezzo segue il nuovo', async () => {
+    const form = await apri([
+      variante({
+        variantId: 'var-A',
+        sku: 'MAG-A',
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+      }),
+      variante({
+        variantId: 'var-B',
+        sku: 'MAG-B',
+        sellingPrice: { amountMinor: 2500, currencyCode: 'EUR' },
+      }),
+    ]);
+
+    form.onVariantSelect(0, 'var-A');
+    expect(form.lines.at(0).controls['unitPrice']!.value).toBe('10,00');
+
+    form.onVariantSelect(0, 'var-B');
+
+    expect(form.lines.at(0).controls['variantId']!.value).toBe('var-B');
+    expect(form.lines.at(0).controls['unitPrice']!.value).toBe('25,00');
+  });
+
+  // Il rovescio: un articolo SENZA prezzo non lascia in piedi quello di prima.
+  // Svuotare è corretto, tenere il vecchio no.
+  it('sostituendo con un articolo senza prezzo, il campo si svuota', async () => {
+    const form = await apri([
+      variante({
+        variantId: 'var-A',
+        sku: 'MAG-A',
+        sellingPrice: { amountMinor: 1000, currencyCode: 'EUR' },
+      }),
+      variante({
+        variantId: 'var-zero',
+        sku: 'MAG-Z',
+        sellingPrice: { amountMinor: 0, currencyCode: 'EUR' },
+      }),
+    ]);
+
+    form.onVariantSelect(0, 'var-A');
+    form.onVariantSelect(0, 'var-zero');
+
+    expect(form.lines.at(0).controls['unitPrice']!.value).toBe('');
+  });
 
   it('più corrispondenze esatte aprono la scelta invece di tacere', async () => {
     const form = await apri([

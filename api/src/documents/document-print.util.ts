@@ -56,6 +56,8 @@ const HAS_PRINTED_SHEET: Readonly<Record<DocumentType, boolean>> = {
   [DocumentType.proforma]: true,
   [DocumentType.invoice_draft]: true,
   [DocumentType.invoice_accompanying]: true,
+  // Si stampa e si consegna come le altre due: e' un documento fiscale.
+  [DocumentType.credit_note]: true,
   // Registri interni della fase 2: nessuna riga in `documents`.
   [DocumentType.online_sale]: false,
   [DocumentType.corrispettivo]: false,
@@ -106,6 +108,9 @@ const PRINT_KIND: Readonly<Record<DocumentType, DocumentPrintKind>> = {
   [DocumentType.proforma]: 'sales',
   [DocumentType.invoice_draft]: 'sales',
   [DocumentType.invoice_accompanying]: 'sales',
+  // Stesso impaginato della famiglia commerciale: cambiano titolo, verso e
+  // contenuto, non la forma del foglio.
+  [DocumentType.credit_note]: 'sales',
   [DocumentType.online_sale]: 'sales',
   [DocumentType.corrispettivo]: 'generic',
   [DocumentType.customer_order]: 'sales',

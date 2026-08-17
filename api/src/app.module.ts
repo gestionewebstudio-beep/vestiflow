@@ -6,7 +6,6 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { CorrispettiviModule } from './corrispettivi/corrispettivi.module';
-import { AccountantRegisterModule } from './accountant-register/accountant-register.module';
 import { CustomersModule } from './customers/customers.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -57,7 +56,6 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     OnlineSalesModule,
     StoreSalesModule,
     CorrispettiviModule,
-    AccountantRegisterModule,
     ShopifyModule,
     TikTokModule,
     AnalyticsModule,

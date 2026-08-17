@@ -1,5 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
+import { toStorableMinor } from '../common/money.util';
+
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { buildVatCodeSnapshot } from '../vat/vat-snapshot.util';
 
@@ -28,7 +30,15 @@ export function cascadeDiscountMultiplier(input: string | null | undefined): num
   return Math.min(1, Math.max(0, multiplier));
 }
 
-/** Prezzo unitario scontato in unità minori (arrotondamento al centesimo). */
+/**
+ * Prezzo unitario scontato in unità minori, ESATTO: nessun arrotondamento.
+ *
+ * L'arrotondamento sta sul TOTALE di riga, non qui. Arrotondare il prezzo
+ * unitario prima di moltiplicarlo per la quantità è l'arrotondamento prematuro
+ * che la regola del denaro vieta, e dal 16/08 farebbe anche danno vero: il
+ * prezzo unitario ora porta una coda decimale (`numeric(16,6)`), e 2049,180328
+ * troncati a 2049 rimostrati ivati fanno 24,99 invece di 25,00.
+ */
 export function discountedUnitPriceMinor(
   unitPriceMinor: number,
   discount: string | null | undefined,
@@ -36,7 +46,10 @@ export function discountedUnitPriceMinor(
   if (unitPriceMinor <= 0) {
     return 0;
   }
-  return Math.round(unitPriceMinor * cascadeDiscountMultiplier(discount));
+  // `toStorableMinor` taglia la coda oltre le 4 cifre di centesimo: oltre lì
+  // non c'è precisione, c'è il rumore del float (0,96 × 0,90 in binario dà
+  // 0,8640000000000001) e la colonna rifiuterebbe la scala.
+  return toStorableMinor(unitPriceMinor * cascadeDiscountMultiplier(discount));
 }
 
 export interface ManualOrderLineInput {
@@ -98,10 +111,14 @@ export function computeManualOrderLines(
 ): ComputedManualOrderLine[] {
   return lines.map((line, index) => {
     const quantity = Math.max(0, Math.trunc(line.quantity));
-    const unitPriceMinor = Math.max(0, Math.trunc(line.unitPriceMinor ?? 0));
+    // Niente `Math.trunc` sul prezzo: la coda decimale è il valore, non rumore.
+    const unitPriceMinor = toStorableMinor(Math.max(0, line.unitPriceMinor ?? 0));
     const discount = line.discount?.trim() || null;
     const unitDiscounted = discountedUnitPriceMinor(unitPriceMinor, discount);
-    const totalMinor = quantity * unitDiscounted;
+    // Si arrotonda QUI, una volta sola, sul totale di riga: è il valore che si
+    // memorizza intero. (Stessa forma di `documents.service.ts`, che calcola
+    // `quantity × prezzo × (100 − sconto) / 100` esatto e arrotonda in fondo.)
+    const totalMinor = Math.round(quantity * unitDiscounted);
 
     const vatCode = line.vatCodeId ? (vatCodesById.get(line.vatCodeId) ?? null) : null;
     const vatSnapshot = vatCode ? buildVatCodeSnapshot(vatCode) : null;
@@ -171,7 +188,9 @@ export function computeManualOrderTotals(
     subtotalMinor,
     taxMinor,
     totalMinor: subtotalMinor + taxMinor,
-    discountMinor: Math.max(0, grossMinor - subtotalMinor),
+    // `grossMinor` somma prezzi unitari che ora portano la coda decimale: si
+    // arrotonda qui, all'uscita, perché lo sconto complessivo si memorizza intero.
+    discountMinor: Math.max(0, Math.round(grossMinor - subtotalMinor)),
   };
 }
 

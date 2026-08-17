@@ -94,4 +94,43 @@ test.describe('Arrivo merce (documenti)', () => {
     await page.getByText(reference, { exact: true }).click();
     await expect(page.getByText('Concluso', { exact: true })).toBeVisible({ timeout: 15_000 });
   });
+
+  /**
+   * Guardia del menu di intestazione — netto/ivato (15/08/2026).
+   *
+   * Il menu si apriva davvero, ma un `overflow: hidden` sul contenitore lo
+   * ritagliava via: a schermo la freccia sembrava morta, in ogni maschera che
+   * ha un menu di intestazione. È un difetto che **nessun test unitario può
+   * prendere** — in jsdom non esiste il layout, e il menu «c'è» comunque.
+   * Serve un browser vero, e serve asserire la VISIBILITÀ, non la presenza.
+   */
+  test('menu di intestazione costi: la tendina si apre e si vede', async ({ page }) => {
+    test.setTimeout(90_000);
+
+    await page.goto('/app/documents/goods-receipt/new');
+    await expect(page.locator('h1.doc-form__title')).toHaveText('Nuovo arrivo merce', {
+      timeout: 30_000,
+    });
+
+    const trigger = page.getByRole('button', { name: 'Modalità costi del documento' });
+    if (!(await trigger.isVisible())) {
+      test.skip(true, 'Colonna costo non visibile per questo utente.');
+      return;
+    }
+
+    await trigger.click();
+
+    // `toBeVisible` fallisce anche quando l'elemento è nel DOM ma ritagliato:
+    // è esattamente la differenza che il difetto sfruttava.
+    const netItem = page.getByRole('menuitemradio', { name: 'Usa costi netti' });
+    const grossItem = page.getByRole('menuitemradio', { name: 'Usa costi ivati' });
+    await expect(netItem).toBeVisible({ timeout: 5_000 });
+    await expect(grossItem).toBeVisible();
+
+    // E si deve poter scegliere: l'intestazione cambia parola.
+    await grossItem.click();
+    await expect(page.getByRole('button', { name: /Costo ivato/i }).first()).toBeVisible({
+      timeout: 5_000,
+    });
+  });
 });

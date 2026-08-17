@@ -151,15 +151,19 @@ describe('product-form.mapper', () => {
         },
       };
 
-      const dto = toCreateProductDto(draft, true);
+      const dto = toCreateProductDto(draft);
       expect(dto.listino1Price).toEqual({ amountMinor: 2500, currencyCode: DEFAULT_CURRENCY });
       expect(dto.listino2Price).toBeNull();
       expect(dto.listino3Price).toBeNull();
-      // La modalità viaggia solo per farsi ricordare: non è un dato dell'articolo.
-      expect(dto.listinoPricesIncludeVat).toBe(true);
     });
 
-    it('senza modalità indicata il payload non la menziona (nessuna preferenza da ricordare)', () => {
+    // ⚠️ Fino al 17/08/2026 il payload portava anche `listinoPricesIncludeVat`,
+    // la modalità netto/ivato con cui la sezione Listini era stata compilata,
+    // perché il backend se la ricordasse come preferenza personale. Non viaggia
+    // più: l'anagrafica è una VISTA del catalogo, non un documento, e segue la
+    // convenzione aziendale — due colleghi devono leggere lo stesso listino allo
+    // stesso modo. I prezzi restano memorizzati netti, come sempre.
+    it('il payload NON porta nessuna modalità netto/ivato', () => {
       const empty = emptyProductFormDraft();
       const dto = toCreateProductDto({
         ...empty,

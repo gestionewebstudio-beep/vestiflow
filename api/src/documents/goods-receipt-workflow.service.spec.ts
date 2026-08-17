@@ -154,6 +154,8 @@ function createService(prisma: ReturnType<typeof createPrismaMock>) {
   const vatCodes = { buildSnapshot: vi.fn().mockReturnValue({}) };
   const priceModePreference = {
     resolvePricesIncludeVat: vi.fn().mockResolvedValue(false),
+    resolveCompanyDefault: vi.fn().mockResolvedValue(false),
+    salesPricesIncludeVat: vi.fn().mockResolvedValue(false),
     remember: vi.fn().mockResolvedValue(undefined),
   };
   const service = new GoodsReceiptWorkflowService(

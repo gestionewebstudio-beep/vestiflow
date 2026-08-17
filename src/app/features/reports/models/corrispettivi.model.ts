@@ -1,16 +1,6 @@
 import type { CurrencyCode, EntityId, IsoDateString, Money } from '@core/models/common.model';
 
 /** Stato fiscale corrispettivi per il commercialista (§8). */
-export const SalesOrderFiscalStatus = {
-  PendingRegistration: 'pending_registration',
-  DeliveredToAccountant: 'delivered_to_accountant',
-  ExternallyRegistered: 'externally_registered',
-  ExcludedPosRegister: 'excluded_pos_register',
-  Invoiced: 'invoiced',
-} as const;
-
-export type SalesOrderFiscalStatus =
-  (typeof SalesOrderFiscalStatus)[keyof typeof SalesOrderFiscalStatus];
 
 /**
  * Una riga del registro: o una vendita, o una rettifica.
@@ -39,9 +29,6 @@ export interface CorrispettiviRegisterRow {
   readonly tax: Money;
   readonly total: Money;
   readonly financialStatus?: string;
-  readonly fiscalStatus?: SalesOrderFiscalStatus;
-  readonly fiscalDeliveredAt?: IsoDateString;
-  readonly fiscalNote?: string;
   readonly refundKind?: CorrispettiviRefundKind;
   readonly note?: string;
 }
@@ -57,7 +44,6 @@ export interface CorrispettiviSummary {
   readonly discount: Money;
   readonly total: Money;
   readonly taxable: Money;
-  readonly pendingDeliveryCount: number;
   /** Rettifiche del periodo, alla loro data. Gli annullamenti restano fuori. */
   readonly refundCount: number;
   readonly refundTotal: Money;
@@ -71,61 +57,19 @@ export interface CorrispettiviSummary {
   readonly netTaxable: Money;
 }
 
-export interface CorrispettiviDelivery {
-  readonly id: EntityId;
-  readonly periodFrom: IsoDateString;
-  readonly periodTo: IsoDateString;
-  readonly channelFilter: string;
-  readonly orderCount: number;
-  readonly subtotal: Money;
-  readonly tax: Money;
-  readonly shipping: Money;
-  readonly total: Money;
-  readonly refundsCount: number;
-  readonly note?: string;
-  readonly createdByName: string;
-  readonly createdAt: IsoDateString;
-}
-
 export interface CorrispettiviListQuery {
   readonly page?: number;
   readonly pageSize?: number;
   readonly search?: string;
   readonly financialStatus?: string;
   readonly source?: string;
-  readonly fiscalStatus?: SalesOrderFiscalStatus;
   readonly placedFrom?: string;
   readonly placedTo?: string;
-  readonly onlineOnly?: boolean;
-  readonly posOnly?: boolean;
+  /** Ambito: online oppure no. Derivato dall’origine, mai persistito. */
+  readonly ambito?: 'all' | 'online' | 'fisico_pos';
+  /** Canale: chi ha raccolto la vendita. Dimensione distinta dall’ambito. */
+  readonly canale?: 'all' | 'shopify' | 'vestiflow';
   /** `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
   readonly rowType?: string;
-  readonly pendingDeliveryOnly?: boolean;
   readonly refundsOnly?: boolean;
 }
-
-export interface MarkCorrispettiviDeliveredRequest {
-  readonly placedFrom: string;
-  readonly placedTo: string;
-  readonly channel?: 'online' | 'pos' | 'all';
-  readonly note?: string;
-}
-
-export const FISCAL_STATUS_LABELS: Record<SalesOrderFiscalStatus, string> = {
-  [SalesOrderFiscalStatus.PendingRegistration]: 'Da registrare',
-  [SalesOrderFiscalStatus.DeliveredToAccountant]: 'Consegnato al commercialista',
-  [SalesOrderFiscalStatus.ExternallyRegistered]: 'Registrato esternamente',
-  [SalesOrderFiscalStatus.ExcludedPosRegister]: 'Escluso (cassa/POS)',
-  [SalesOrderFiscalStatus.Invoiced]: 'Fatturato',
-};
-
-export const FISCAL_STATUS_TONES: Record<
-  SalesOrderFiscalStatus,
-  'neutral' | 'info' | 'success' | 'warning' | 'error'
-> = {
-  [SalesOrderFiscalStatus.PendingRegistration]: 'warning',
-  [SalesOrderFiscalStatus.DeliveredToAccountant]: 'info',
-  [SalesOrderFiscalStatus.ExternallyRegistered]: 'success',
-  [SalesOrderFiscalStatus.ExcludedPosRegister]: 'neutral',
-  [SalesOrderFiscalStatus.Invoiced]: 'success',
-};

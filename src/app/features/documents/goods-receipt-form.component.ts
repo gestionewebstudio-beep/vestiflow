@@ -128,6 +128,7 @@ import { DocumentPrintActionsComponent } from '@domain/documents/components/docu
 import { UnitOfMeasureManagerDialogComponent } from '@domain/products/components/unit-of-measure-manager-dialog/unit-of-measure-manager-dialog.component';
 import type { UnitOfMeasureOption } from '@domain/products/models/unit-of-measure-option.model';
 import { UnitOfMeasureOptionService } from '@domain/products/services/unit-of-measure-option.service';
+import { showShopifyIntegration } from '@core/models/tenant-channel-profile.model';
 import { unitOfMeasureSelectOptions } from '@domain/products/utils/unit-of-measure-options.util';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 import {
@@ -212,6 +213,7 @@ import { FirstClickSelectsDirective } from '@shared/directives/first-click-selec
 import { CdkDrag, CdkDragHandle, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { documentSearchLaunchTerm } from '@domain/documents/utils/document-search-launch-term.util';
 import { trailingEmptyLineIndices } from '@domain/documents/utils/trailing-empty-lines.util';
+import { PriceModeMenuComponent } from '@domain/documents/components/price-mode-menu/price-mode-menu.component';
 
 type SubmitState =
   | { readonly status: 'idle' }
@@ -233,6 +235,7 @@ type GoodsReceiptLineFocusField =
   | 'unitCost'
   | 'discount'
   | 'sellingPrice'
+  | 'shopifyPrice'
   | 'compareAtPrice'
   | 'vat'
   | 'lot'
@@ -252,6 +255,7 @@ type GoodsReceiptLineFocusField =
     CdkDragHandle,
     FirstClickSelectsDirective,
     InlineBannerComponent,
+    PriceModeMenuComponent,
     ReactiveFormsModule,
     RouterLink,
     BackButtonComponent,
@@ -366,6 +370,15 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   private readonly tenantFeatureSettingsService = inject(TenantFeatureSettingsService);
 
   protected readonly lineColumnsView = TableViewId.GoodsReceiptLines;
+  /**
+   * Il modulo Shopify del tenant decide se la colonna «Prezzo Shopify»
+   * **esiste**, non se si vede: un tenant senza Shopify non deve trovarla
+   * nemmeno nel selettore Colonne, né avere riferimenti o chiamate al canale.
+   */
+  protected readonly showShopifyPrice = computed(() =>
+    showShopifyIntegration(this.authService.currentUser()?.tenantChannelProfile),
+  );
+
   protected readonly lineColumnDefs = GOODS_RECEIPT_LINE_COLUMNS;
   protected readonly loadsStockTooltip =
     'Se attivo, la quantità della riga aggiorna la disponibilità di magazzino. Se disattivato, la riga resta nel documento ma non movimenta il magazzino.';
@@ -565,6 +578,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * quel documento (§Punto A).
    */
   protected readonly updateArticleReferenceCost = signal(true);
+
+  /**
+   * Spunta per-documento «Aggiorna prezzi articolo». Default ACCESO.
+   *
+   * ⚠️ **Non è la gemella di quella del costo, e la differenza conta.** Il
+   * costo ha un valore proprio del documento e la spunta decide solo se
+   * propagarlo anche al costo di RIFERIMENTO dell’articolo. Il prezzo al
+   * pubblico invece **non esiste sulla riga**: è un dato dell’anagrafica.
+   *
+   * Perciò a spunta spenta i due campi prezzo non sono «non propagati»: sono
+   * **in sola lettura**. Lasciarli editabili significherebbe accettare un
+   * valore che non ha dove andare — il difetto che questa fetta ha trovato.
+   */
+  protected readonly updateArticlePrices = signal(true);
   private readonly pendingSupplierOrderId = signal<string | null>(null);
   private readonly pendingLinkedSupplierOrderRef = signal<string | null>(null);
 
@@ -659,26 +686,21 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   ];
 
   /**
-   * Nuovo documento: la modalità costo (netto/ivato) parte dalla preferenza
-   * ricordata dell'operatore per questo tipo (?? primo utilizzo: netto). Mai sui
-   * documenti caricati (mostrano la modalità con cui sono stati creati) né dopo
-   * una scelta manuale.
+   * ⚠️ Qui la modalità costo partiva dalla preferenza ricordata
+   * dell'operatore. Rimosso il 16/08/2026: **i costi partono sempre netti**.
+   *
+   * Per un'azienda che detrae l'IVA il costo *è* il netto, e l'inserimento
+   * ivato resta una comodità del singolo documento — il selettore in testata
+   * non è cambiato. Non essendo una convenzione aziendale non ha un default
+   * nelle Impostazioni, e non essendo una preferenza non se la ricorda
+   * nessuno: un arrivo merce nuovo riapre sempre in netto.
+   *
+   * La memoria che c’era finiva per giunta nella tabella dei PREZZI, tradotta
+   * da un ponte costo↔prezzo: reggeva solo perché i tipi di acquisto e quelli
+   * di vendita non si sovrappongono.
    */
   private initCostModeForNewDocument(): void {
-    if (this.editDocumentId() || this.costEntryModeTouched) {
-      return;
-    }
-    this.documentService
-      .getPriceModePreference(this.form.controls.type.value)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (pricesIncludeVat) => {
-          if (!this.costEntryModeTouched) {
-            this.costEntryMode.set(pricesIncludeVat ? 'vat_included' : 'vat_excluded');
-          }
-        },
-        error: () => undefined,
-      });
+    // Il segnale nasce già `vat_excluded`: non c’è niente da chiedere.
   }
 
   protected readonly operationalStatusWarning = computed(() => {
@@ -689,11 +711,16 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     if (status === DocumentStatus.Sent) {
       return 'Documento segnato come inviato al fornitore o al commercialista.';
     }
-    if (status === DocumentStatus.ExternallyRegistered) {
-      return 'Documento registrato esternamente: le modifiche non aggiornano il gestionale contabile esterno.';
-    }
     return null;
   });
+
+  /**
+   * I due campi prezzo sono scrivibili solo quando la spunta è accesa: senza,
+   * il valore digitato non avrebbe nessuna destinazione.
+   */
+  protected readonly articlePricesReadOnly = computed(
+    () => this.formReadOnly() || !this.updateArticlePrices(),
+  );
 
   protected readonly formReadOnly = computed(
     () => this.isConfirmedEdit() && !this.editLock.unlocked(),
@@ -1058,7 +1085,12 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   constructor() {
     this.columnPreferences.registerView(
       GOODS_RECEIPT_LINES_VIEW,
-      GOODS_RECEIPT_LINE_COLUMNS,
+      // Senza il modulo Shopify la colonna del prezzo canale non entra
+      // proprio nel selettore: è il gating, e sta qui perché è l'unico punto
+      // in cui le colonne si dichiarano.
+      this.showShopifyPrice()
+        ? GOODS_RECEIPT_LINE_COLUMNS
+        : GOODS_RECEIPT_LINE_COLUMNS.filter((column) => column.id !== 'shopifyPrice'),
       GOODS_RECEIPT_LINE_PRESETS,
     );
 
@@ -1648,6 +1680,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       ['gr-cost-', 'unitCost'],
       ['gr-discount-', 'discount'],
       ['gr-selling-', 'sellingPrice'],
+      ['gr-shopify-', 'shopifyPrice'],
       ['gr-compare-', 'compareAtPrice'],
       ['gr-vat-', 'vat'],
       ['gr-lot-', 'lot'],
@@ -1720,6 +1753,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       'unitCost',
       'discount',
       'sellingPrice',
+      'shopifyPrice',
       'compareAtPrice',
       // Rientrata nel giro: era fuori perché la cella IVA era un
       // `app-select-menu`, che non ha un campo con quell'identificativo. Ora è
@@ -1777,6 +1811,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       unitCost: `gr-cost-${index}`,
       discount: `gr-discount-${index}`,
       sellingPrice: `gr-selling-${index}`,
+      shopifyPrice: `gr-shopify-${index}`,
       compareAtPrice: `gr-compare-${index}`,
       vat: `gr-vat-${index}`,
       lot: `gr-lot-${index}`,
@@ -1856,6 +1891,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
       if (!line.controls.productName.value.trim()) {
         line.controls.productName.setValue(summary.productName, { emitEvent: false });
+      }
+      // L'unità di misura si CATTURA dall'anagrafica, come il nome e lo SKU:
+      // il documento è una fotografia, e la riga se la tiene anche se domani
+      // l'articolo cambia. Senza questa riga il controllo restava vuoto, a
+      // schermo compariva lo stesso il valore dell'articolo — il ripiego di
+      // `lineUnitOfMeasure` — e sul documento non si salvava niente:
+      // **zero righe su 99 avevano una U.M.**, e sembrava che l'avessero tutte.
+      if (!line.controls.unitOfMeasure.value.trim()) {
+        line.controls.unitOfMeasure.setValue(summary.unitOfMeasure ?? 'pz', {
+          emitEvent: false,
+        });
       }
       // Riallineamento in blocco: qui un «codice con cui hai agganciato» non
       // esiste, quindi vale solo quello del fornitore della testata.
@@ -2877,80 +2923,188 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * l'aggancio riceve l'id della variante, e «con quale codice» è
    * un'informazione che altrimenti si perde per strada.
    */
-  protected onVariantSelect(index: number, value: string | null, linkedWith?: string): void {
+  protected onVariantSelect(
+    index: number,
+    value: string | null,
+    linkedWith?: string,
+    /**
+     * Uso interno: lo passa il ripiego asincrono qui sotto. Alla seconda
+     * chiamata la riga porta già il nuovo articolo, quindi il confronto con il
+     * precedente direbbe «nessuna sostituzione» e i campi del vecchio
+     * resterebbero — cioè il difetto che questo ramo esiste per chiudere.
+     */
+    replacedArticleOverride?: boolean,
+  ): void {
     const line = this.lines.at(index);
+    // Sostituzione d'articolo: la riga aveva già un altro articolo. I dati di
+    // quello vecchio — costo, prezzi, Codice IVA — non devono sopravvivergli.
+    // Il ramo «solo se vuoto» qui sotto resta per l'altro caso, che è opposto:
+    // la riga precompilata da un documento d'origine, che non si tocca.
+    const previousVariantId = line.controls.variantId.value;
+    const replacedArticle =
+      replacedArticleOverride ?? (Boolean(previousVariantId) && previousVariantId !== value);
     line.controls.variantId.setValue(value ?? '');
     if (value) {
       const summary = mergeVariantSummaries(this.pinnedVariants(), this.searchedVariants()).find(
         (v) => v.variantId === value,
       );
+      if (!summary) {
+        // L'articolo può non essere fra i risultati di ricerca: succede ogni
+        // volta che si aggancia per CODICE — SKU, EAN, codice articolo — senza
+        // aver prima cercato per nome. Senza questo ripiego la riga restava
+        // con l'articolo agganciato e i campi di PRIMA: costo, prezzi e Codice
+        // IVA di un altro articolo, oppure vuoti.
+        //
+        // Non basta aspettare `pinnedVariants`: quel segnale carica davvero la
+        // summary, ma nessuno la riapplica alla riga — l'effetto che lo osserva
+        // sincronizza solo codici e accessibilità dei campi.
+        const locationId = this.form.controls.locationId.value || undefined;
+        this.productService
+          .searchVariantSummaries({ variantId: value, locationId })
+          .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+          .subscribe((rows) => {
+            const fetched = rows[0];
+            // La riga può essere cambiata nel frattempo: si applica solo se
+            // l'articolo agganciato è ancora quello per cui si è chiesto.
+            if (!fetched || this.lines.at(index)?.controls.variantId.value !== value) {
+              return;
+            }
+            this.applyVariantSummaryToLine(index, fetched, replacedArticle, linkedWith);
+          });
+      }
       if (summary) {
-        line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
-        line.controls.sku.setValue(summary.sku, { emitEvent: false });
-        line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
-        const label = summary.productName || summary.title;
-        line.controls.productName.setValue(label, { emitEvent: false });
-        if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
-          line.controls.sellingPrice.setValue(
-            moneyToDecimalString(summary.sellingPrice).replace('.', ','),
-          );
-        }
-        if (!line.controls.compareAtPrice.value.trim() && summary.compareAtPrice?.amountMinor) {
-          line.controls.compareAtPrice.setValue(
-            moneyToDecimalString(summary.compareAtPrice).replace('.', ','),
-          );
-        }
-        // Precedenza Codice IVA (§9.1, Fase IVA §7): articolo → Codice IVA
-        // predefinito del fornitore (se attivo/acquisto) → predefinito
-        // aziendale (risolto da ensureLineVatCode). La riga già valorizzata
-        // (es. da documento origine) non viene toccata.
-        if (!line.controls.vatCodeId.value) {
-          const productVatCode = summary.defaultVatCodeId
-            ? this.vatCodeById().get(summary.defaultVatCodeId)
-            : undefined;
-          if (productVatCode?.isActive && isPurchaseVatCode(productVatCode)) {
-            line.controls.vatCodeId.setValue(productVatCode.id, { emitEvent: false });
-            this.syncLegacyVatRate(line);
-          }
-        }
-        if (!line.controls.vatCodeId.value) {
-          const supplierVatCode = this.selectedSupplier()?.defaultVatCodeId
-            ? this.vatCodeById().get(this.selectedSupplier()!.defaultVatCodeId!)
-            : undefined;
-          if (supplierVatCode?.isActive && isPurchaseVatCode(supplierVatCode)) {
-            line.controls.vatCodeId.setValue(supplierVatCode.id, { emitEvent: false });
-            this.syncLegacyVatRate(line);
-          }
-        }
-        this.ensureLineVatCode(line);
-        // Il costo va dopo il Codice IVA: senza aliquota non si saprebbe come
-        // mostrarlo quando la colonna lavora a costi ivati.
-        if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
-          line.controls.unitCost.setValue(
-            this.costFieldValue(summary.purchasePrice.amountMinor, line),
-          );
-        }
-        if (!line.controls.discountPercent.value.trim()) {
-          const supplierDiscount = this.selectedSupplier()?.supplierDiscount?.trim();
-          if (supplierDiscount) {
-            line.controls.discountPercent.setValue(supplierDiscount, { emitEvent: false });
-          }
-        }
-        // NON da `summary.supplierSku`: da quando la conferma non filtra per
-        // fornitore, quel campo è il primo collegamento in ordine
-        // deterministico — il codice di un fornitore qualsiasi. Vedi
-        // `supplierCodeForDocumentLine`.
-        const supplierSku = supplierCodeForDocumentLine({
-          linkedWith,
-          ofDocumentSupplier: this.supplierSkuByVariantId().get(value),
-        });
-        if (supplierSku) {
-          line.controls.supplierSku.setValue(supplierSku, { emitEvent: false });
-        }
+        this.applyVariantSummaryToLine(index, summary, replacedArticle, linkedWith);
       }
     }
     this.codeLookup.clear();
     this.clearProductAutocomplete();
+    this.syncLineFieldAccess();
+    this.markFormDirty();
+  }
+
+  /**
+   * Scrive sulla riga i dati dell'articolo scelto.
+   *
+   * Vive fuori da `onVariantSelect` perché serve a DUE strade: la scelta da
+   * elenco, dove la summary è già in mano, e l'aggancio per codice, dove
+   * arriva dopo un giro di rete. Prima esisteva solo la prima, e agganciando
+   * per SKU o EAN la riga restava con i dati dell'articolo precedente.
+   *
+   * `replacedArticle` distingue i due gesti, che chiedono l'opposto:
+   * - **riga nuova o precompilata da un documento d'origine** (`false`): si
+   *   riempie solo ciò che è vuoto, perché quei valori sono di quel documento;
+   * - **articolo sostituito su una riga già compilata** (`true`): costo,
+   *   prezzi e Codice IVA si **riscrivono**, anche svuotandosi. Il costo di un
+   *   altro articolo non è un dato da conservare: è un dato sbagliato.
+   */
+  private applyVariantSummaryToLine(
+    index: number,
+    summary: VariantSummary,
+    replacedArticle: boolean,
+    linkedWith?: string,
+  ): void {
+    const line = this.lines.at(index);
+    const value = summary.variantId;
+    line.controls.articleCode.setValue(summary.articleCode, { emitEvent: false });
+    line.controls.sku.setValue(summary.sku, { emitEvent: false });
+    line.controls.barcode.setValue(summary.barcode ?? '', { emitEvent: false });
+    const label = summary.productName || summary.title;
+    line.controls.productName.setValue(label, { emitEvent: false });
+    if (replacedArticle) {
+      // Sostituzione: i prezzi seguono il nuovo articolo, e se non ne ha
+      // si svuotano. Tenere quelli di prima farebbe pubblicare su Shopify
+      // il prezzo di un articolo diverso.
+      line.controls.sellingPrice.setValue(
+        summary.sellingPrice.amountMinor > 0
+          ? moneyToDecimalString(summary.sellingPrice).replace('.', ',')
+          : '',
+      );
+      line.controls.compareAtPrice.setValue(
+        summary.compareAtPrice?.amountMinor
+          ? moneyToDecimalString(summary.compareAtPrice).replace('.', ',')
+          : '',
+      );
+      // Il prezzo del canale segue lo stesso criterio: tenere quello di prima
+      // pubblicherebbe su Shopify il prezzo di un articolo diverso.
+      line.controls.shopifyPrice.setValue(
+        summary.shopifyPrice?.amountMinor
+          ? moneyToDecimalString(summary.shopifyPrice).replace('.', ',')
+          : '',
+      );
+    } else {
+      if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
+        line.controls.sellingPrice.setValue(
+          moneyToDecimalString(summary.sellingPrice).replace('.', ','),
+        );
+      }
+      if (!line.controls.shopifyPrice.value.trim() && summary.shopifyPrice?.amountMinor) {
+        line.controls.shopifyPrice.setValue(
+          moneyToDecimalString(summary.shopifyPrice).replace('.', ','),
+        );
+      }
+      if (!line.controls.compareAtPrice.value.trim() && summary.compareAtPrice?.amountMinor) {
+        line.controls.compareAtPrice.setValue(
+          moneyToDecimalString(summary.compareAtPrice).replace('.', ','),
+        );
+      }
+    }
+    // Precedenza Codice IVA (§9.1, Fase IVA §7): articolo → Codice IVA
+    // predefinito del fornitore (se attivo/acquisto) → predefinito
+    // aziendale (risolto da ensureLineVatCode). La riga già valorizzata
+    // (es. da documento origine) non viene toccata.
+    if (replacedArticle) {
+      // Il Codice IVA della riga è quello dell'articolo: sostituendolo si
+      // riparte dalla catena di precedenza, non si eredita il precedente.
+      line.controls.vatCodeId.setValue('', { emitEvent: false });
+    }
+    if (!line.controls.vatCodeId.value) {
+      const productVatCode = summary.defaultVatCodeId
+        ? this.vatCodeById().get(summary.defaultVatCodeId)
+        : undefined;
+      if (productVatCode?.isActive && isPurchaseVatCode(productVatCode)) {
+        line.controls.vatCodeId.setValue(productVatCode.id, { emitEvent: false });
+        this.syncLegacyVatRate(line);
+      }
+    }
+    if (!line.controls.vatCodeId.value) {
+      const supplierVatCode = this.selectedSupplier()?.defaultVatCodeId
+        ? this.vatCodeById().get(this.selectedSupplier()!.defaultVatCodeId!)
+        : undefined;
+      if (supplierVatCode?.isActive && isPurchaseVatCode(supplierVatCode)) {
+        line.controls.vatCodeId.setValue(supplierVatCode.id, { emitEvent: false });
+        this.syncLegacyVatRate(line);
+      }
+    }
+    this.ensureLineVatCode(line);
+    // Il costo va dopo il Codice IVA: senza aliquota non si saprebbe come
+    // mostrarlo quando la colonna lavora a costi ivati.
+    if (replacedArticle) {
+      // Come i prezzi: il costo segue il nuovo articolo, o si svuota.
+      line.controls.unitCost.setValue(
+        summary.purchasePrice?.amountMinor
+          ? this.costFieldValue(summary.purchasePrice.amountMinor, line)
+          : '',
+      );
+    } else if (!line.controls.unitCost.value.trim() && summary.purchasePrice?.amountMinor) {
+      line.controls.unitCost.setValue(this.costFieldValue(summary.purchasePrice.amountMinor, line));
+    }
+    if (!line.controls.discountPercent.value.trim()) {
+      const supplierDiscount = this.selectedSupplier()?.supplierDiscount?.trim();
+      if (supplierDiscount) {
+        line.controls.discountPercent.setValue(supplierDiscount, { emitEvent: false });
+      }
+    }
+    // NON da `summary.supplierSku`: da quando la conferma non filtra per
+    // fornitore, quel campo è il primo collegamento in ordine
+    // deterministico — il codice di un fornitore qualsiasi. Vedi
+    // `supplierCodeForDocumentLine`.
+    const supplierSku = supplierCodeForDocumentLine({
+      linkedWith,
+      ofDocumentSupplier: this.supplierSkuByVariantId().get(value),
+    });
+    if (supplierSku) {
+      line.controls.supplierSku.setValue(supplierSku, { emitEvent: false });
+    }
     this.syncLineFieldAccess();
     this.markFormDirty();
   }
@@ -3137,6 +3291,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   /** Spunta «Aggiorna anche il costo di riferimento in anagrafica». */
   protected setUpdateArticleReferenceCost(checked: boolean): void {
     this.updateArticleReferenceCost.set(checked);
+  }
+
+  /** Spunta «Aggiorna prezzi articolo»: spegnendola i prezzi tornano in sola lettura. */
+  protected setUpdateArticlePrices(checked: boolean): void {
+    this.updateArticlePrices.set(checked);
   }
 
   private syncSupplierOrderLineMapFromDocument(doc: DocumentRecord): void {
@@ -4002,6 +4161,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       unitCost: this.fb.control(''),
       discountPercent: this.fb.control(''),
       sellingPrice: this.fb.control(''),
+      shopifyPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(''),
       vatCodeId: this.fb.control(''),
@@ -4109,6 +4269,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       unitCost: this.fb.control(line.unitCostText),
       discountPercent: this.fb.control(''),
       sellingPrice: this.fb.control(''),
+      shopifyPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(line.vatRatePercentText),
       vatCodeId: this.fb.control(''),
@@ -4366,6 +4527,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           // parte nello stesso salvataggio (punto A).
           loadsStock: line.loadsStock && (Boolean(line.variantId) || newProduct != null),
           unitOfMeasure: line.unitOfMeasure?.trim() || undefined,
+          // I prezzi partono SOLO con la spunta accesa: a spunta spenta i campi
+          // sono in sola lettura, e mandarli sarebbe mandare un valore che
+          // l’operatore non ha potuto scegliere.
+          ...(this.updateArticlePrices()
+            ? {
+                sellingPriceMinor: parseMoneyInput(line.sellingPrice, this.currency)?.amountMinor,
+                shopifyPriceMinor: this.showShopifyPrice()
+                  ? parseMoneyInput(line.shopifyPrice, this.currency)?.amountMinor
+                  : undefined,
+              }
+            : {}),
           supplierOrderLineId: line.supplierOrderLineId || undefined,
           lotCode: line.lotCode.trim() || undefined,
           lotExpiryDate: line.lotExpiryDate
@@ -4409,6 +4581,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     const body = {
       ...this.buildSaveGoodsReceiptBody(),
       updateArticleReferenceCost: options?.updateArticleReferenceCost,
+      updateArticlePrices: this.updateArticlePrices(),
     };
     return this.documentService.saveGoodsReceipt(body).pipe(
       map(({ document, warnings, createdProducts }) => {
@@ -4688,6 +4861,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       unitCost: this.fb.control(''),
       discountPercent: this.fb.control(''),
       sellingPrice: this.fb.control(''),
+      shopifyPrice: this.fb.control(''),
       compareAtPrice: this.fb.control(''),
       vatRatePercent: this.fb.control(''),
       vatCodeId: this.fb.control(''),

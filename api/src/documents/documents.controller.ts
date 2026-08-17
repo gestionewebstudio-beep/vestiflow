@@ -44,7 +44,6 @@ import { CreateDocumentDto } from './dto/create-document.dto';
 import { ConvertDocumentDto } from './dto/convert-document.dto';
 import { ListDocumentOperatorsQueryDto } from './dto/list-document-operators.query.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
-import { RegisterExternalDto } from './dto/register-external.dto';
 import { PreviewDocumentNumberQueryDto } from './dto/preview-document-number.query.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import {
@@ -53,6 +52,7 @@ import {
   type DocumentListRow,
   type DocumentWithLines,
 } from './documents.service';
+import type { ConvertPrefillDto } from './documents.service';
 import { SaveGoodsReceiptDto } from './dto/save-goods-receipt.dto';
 import { SavePurchaseInvoiceDto } from './dto/save-purchase-invoice.dto';
 import { SaveTransferDto } from './dto/save-transfer.dto';
@@ -451,20 +451,8 @@ export class DocumentsController {
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ConvertDocumentDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConvertPrefillDto> {
     return this.documents.convertPrefill(tenantId, id, dto, user);
-  }
-
-  /** «Inviata al commercialista»: unica azione di ciclo di vita fiscale. */
-  @Post(':id/register-external')
-  @RequireAnyPermissions(DOCUMENTS_MANAGE_PERMISSIONS)
-  registerExternal(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: RegisterExternalDto,
-  ): Promise<DocumentWithLines> {
-    return this.documents.registerExternal(tenantId, id, dto, user);
   }
 
   @Post(':id/cancel')

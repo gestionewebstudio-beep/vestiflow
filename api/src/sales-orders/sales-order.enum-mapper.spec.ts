@@ -44,8 +44,11 @@ describe('sales-order.enum-mapper', () => {
 
   describe('display labels', () => {
     it('sourceDisplayLabel', () => {
+      // ⚠️ «Online» e «Negozio» erano ambigue e si scambiavano il posto:
+      // «Negozio» era il negozio di SHOPIFY, non quello di VestiFlow. Ora ogni
+      // etichetta nomina la sorgente vera (`11` §1).
       expect(sourceDisplayLabel(PrismaSource.shopify_online)).toBe('Online');
-      expect(sourceDisplayLabel(PrismaSource.shopify_pos)).toBe('Negozio');
+      expect(sourceDisplayLabel(PrismaSource.shopify_pos)).toBe('Shopify POS');
     });
 
     it('financialStatusDisplayLabel copre tutti gli stati', () => {
@@ -69,7 +72,7 @@ describe('sales-order.enum-mapper', () => {
     // esaustivi senza ramo predefinito, quindi il prossimo valore nuovo lo dice il
     // compilatore — questi test lo dicono a chi legge.
     it('la cassa ha la sua etichetta, e non finisce nel ramo dell online', () => {
-      expect(sourceDisplayLabel(PrismaSource.store)).toBe('Cassa');
+      expect(sourceDisplayLabel(PrismaSource.store)).toBe('Vendita al banco');
       expect(fromPrismaSource(PrismaSource.store)).toBe('store');
     });
 

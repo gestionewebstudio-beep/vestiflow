@@ -23,7 +23,10 @@ const FAMILY_TO_TYPES: Readonly<Record<DocumentPermissionFamily, readonly string
   quote: [DocumentType.Quote],
   proforma: [DocumentType.Proforma],
   sales_ddt: [DocumentType.SalesDdt],
-  invoice: [DocumentType.InvoiceDraft, DocumentType.InvoiceAccompanying],
+  // I tre tipi della famiglia condividono UNA sola famiglia di permessi: chi
+  // gestisce le fatture gestisce anche le note di credito. Specchio della
+  // mappa API (`api/src/auth/document-permission.util.ts`).
+  invoice: [DocumentType.InvoiceDraft, DocumentType.InvoiceAccompanying, DocumentType.CreditNote],
   store_sale: [DocumentType.StoreSale, DocumentType.StoreReturn],
   // Documenti interni generati dall'evasione online: esistono nell'enum API ma
   // non nel modello frontend, che non li crea mai — qui servono solo a mappare

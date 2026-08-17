@@ -24,8 +24,9 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.Proforma]: 'Proforma',
   [DocumentType.InvoiceDraft]: 'Fattura',
   [DocumentType.InvoiceAccompanying]: 'Fattura accompagnatoria',
-  [DocumentType.StoreSale]: 'Vendita negozio',
-  [DocumentType.StoreReturn]: 'Reso vendita negozio',
+  [DocumentType.CreditNote]: 'Nota di credito',
+  [DocumentType.StoreSale]: 'Vendita al banco',
+  [DocumentType.StoreReturn]: 'Reso vendita al banco',
   [DocumentType.Quote]: 'Preventivo',
   [DocumentType.CustomerOrder]: 'Ordine cliente',
 };
@@ -35,7 +36,6 @@ const STATUS_LABELS: Record<DocumentStatus, string> = {
   [DocumentStatus.Confirmed]: 'Confermato',
   [DocumentStatus.Printed]: 'Stampato',
   [DocumentStatus.Sent]: 'Inviato',
-  [DocumentStatus.ExternallyRegistered]: 'Registrato esternamente',
   [DocumentStatus.Cancelled]: 'Annullato',
 };
 
@@ -44,7 +44,6 @@ const STATUS_TONES: Record<DocumentStatus, BadgeTone> = {
   [DocumentStatus.Confirmed]: 'success',
   [DocumentStatus.Printed]: 'info',
   [DocumentStatus.Sent]: 'info',
-  [DocumentStatus.ExternallyRegistered]: 'vestiflow',
   [DocumentStatus.Cancelled]: 'error',
 };
 
@@ -62,15 +61,13 @@ export function documentStatusLabelForType(
   status: DocumentStatus,
   doc: Pick<DocumentRecord, 'externallyIssuedAt'>,
 ): string {
-  // Stati fiscali condivisi da Fattura e Fattura accompagnatoria: entrambe
-  // seguono lo stesso ciclo «Da emettere → Inviata al commercialista».
-  // ExternallyRegistered è lo stato impostato dall'azione «Inviata al
-  // commercialista»; Sent non è più raggiungibile e resta mappato solo per i
-  // documenti storici che lo hanno già.
+  // Stati fiscali di Fattura e Fattura accompagnatoria. `Sent` non è più
+  // raggiungibile e resta mappato solo per i documenti storici che lo hanno già.
+  //
+  // ⚠️ `ExternallyRegistered` non esiste più (16/08/2026): l'azione «Inviata
+  // al commercialista» è stata rimossa e i due arrivi merce che lo portavano
+  // sono tornati `confirmed`. Il valore resta nel tipo PostgreSQL, morto.
   if (isSalesInvoiceDocumentType(type)) {
-    if (status === DocumentStatus.ExternallyRegistered) {
-      return 'Inviata al commercialista';
-    }
     if (status === DocumentStatus.Sent && doc.externallyIssuedAt) {
       return 'Emessa esternamente';
     }

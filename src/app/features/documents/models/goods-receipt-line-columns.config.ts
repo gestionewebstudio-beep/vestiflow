@@ -83,8 +83,19 @@ export const GOODS_RECEIPT_LINE_COLUMNS: readonly TableColumnDef[] = [
   },
   {
     id: 'sellingPrice',
-    label: 'Prezzo al pubblico',
+    label: 'Prezzo di vendita',
     numeric: true,
+    defaultWidthPx: 96,
+    minWidthPx: 72,
+  },
+  // Solo per i tenant col modulo Shopify: la colonna NON viene nemmeno
+  // registrata altrove, quindi non compare nel selettore. Spenta di default:
+  // chi la vuole se l'accende.
+  {
+    id: 'shopifyPrice',
+    label: 'Prezzo Shopify',
+    numeric: true,
+    defaultVisible: false,
     defaultWidthPx: 96,
     minWidthPx: 72,
   },

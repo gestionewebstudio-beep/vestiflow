@@ -23,14 +23,11 @@ import type { Paginated } from '../common/dto/pagination.dto';
 import { CorrispettiviExportService } from './corrispettivi-export.service';
 import {
   CorrispettiviService,
-  type CorrispettiviDeliveryRow,
   type CorrispettiviOrderRow,
   type CorrispettiviRegisterRow,
   type CorrispettiviSummaryDto,
 } from './corrispettivi.service';
 import { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
-import { MarkCorrispettiviDeliveredDto } from './dto/mark-corrispettivi-delivered.dto';
-import { UpdateFiscalStatusDto } from './dto/update-fiscal-status.dto';
 
 @Controller('corrispettivi')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -103,43 +100,6 @@ export class CorrispettiviController {
       type: 'application/pdf',
       disposition: `attachment; filename="${filename}"`,
     });
-  }
 
-  @Post('mark-delivered')
-  @RequireAllPermissionGroups([
-    ...ONLINE_SALES_VIEW_GROUPS,
-    [TenantPermission.ReportsFiscalRegister],
-  ])
-  markDelivered(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Body() dto: MarkCorrispettiviDeliveredDto,
-  ): Promise<CorrispettiviDeliveryRow> {
-    return this.corrispettivi.markDelivered(tenantId, user, dto);
-  }
-
-  @Get('deliveries')
-  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
-  listDeliveries(
-    @CurrentTenant() tenantId: string,
-    @Query('page') page?: string,
-    @Query('pageSize') pageSize?: string,
-  ): Promise<Paginated<CorrispettiviDeliveryRow>> {
-    const parsedPage = Math.max(1, Number(page) || 1);
-    const parsedSize = Math.min(100, Math.max(1, Number(pageSize) || 20));
-    return this.corrispettivi.listDeliveries(tenantId, parsedPage, parsedSize);
-  }
-
-  @Patch('orders/:id/fiscal-status')
-  @RequireAllPermissionGroups([
-    ...ONLINE_SALES_VIEW_GROUPS,
-    [TenantPermission.ReportsFiscalRegister],
-  ])
-  updateFiscalStatus(
-    @CurrentTenant() tenantId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateFiscalStatusDto,
-  ): Promise<CorrispettiviOrderRow> {
-    return this.corrispettivi.updateFiscalStatus(tenantId, id, dto);
   }
 }

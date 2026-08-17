@@ -5,20 +5,16 @@ import {
   DestroyRef,
   effect,
   inject,
-  model,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
-import {
-  canExportOperationalData,
-  canManageFiscalRegister,
-} from '@core/permissions/tenant-permissions.util';
+import { canExportOperationalData } from '@core/permissions/tenant-permissions.util';
 import {
   CORRISPETTIVI_ACCOUNTANT_CSV_EXPORT_ID,
   CORRISPETTIVI_ACCOUNTANT_PDF_EXPORT_ID,
@@ -40,13 +36,11 @@ import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { CorrispettiviDeliveriesComponent } from '../../components/corrispettivi-deliveries/corrispettivi-deliveries.component';
 import { CorrispettiviOrdersTableComponent } from '../../components/corrispettivi-orders-table/corrispettivi-orders-table.component';
 import { CorrispettiviSummaryComponent } from '../../components/corrispettivi-summary/corrispettivi-summary.component';
 import { ReportCorrispettiviExportComponent } from '@domain/reports/components/report-corrispettivi-export/report-corrispettivi-export.component';
 import {
-  SalesOrderFiscalStatus,
-  type CorrispettiviDelivery,
+  type CorrispettiviListQuery,
   type CorrispettiviRegisterRow,
   type CorrispettiviSummary,
 } from '../../models/corrispettivi.model';
@@ -65,7 +59,6 @@ const ROW_TYPE_FILTERS: readonly string[] = ['all', 'sales', 'returns', 'refunds
 interface CorrispettiviPageData {
   readonly orders: readonly CorrispettiviRegisterRow[];
   readonly summary: CorrispettiviSummary;
-  readonly deliveries: readonly CorrispettiviDelivery[];
   readonly totalOrders: number;
 }
 
@@ -81,7 +74,6 @@ type CorrispettiviState =
     BackButtonComponent,
     ButtonComponent,
     ConfirmDialogComponent,
-    CorrispettiviDeliveriesComponent,
     CorrispettiviOrdersTableComponent,
     CorrispettiviSummaryComponent,
     EmptyStateComponent,
@@ -105,8 +97,6 @@ export class CorrispettiviReportComponent {
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   private readonly uiPeriod = signal<ReportPeriodPreset | null>(null);
 
-  protected readonly markDeliveredOpen = model(false);
-  protected readonly markDeliveredBusy = signal(false);
   protected readonly exporting = computed(() =>
     this.blobExport.isActive(CORRISPETTIVI_ACCOUNTANT_CSV_EXPORT_ID),
   );
@@ -116,7 +106,6 @@ export class CorrispettiviReportComponent {
   protected readonly exportingPdf = computed(() =>
     this.blobExport.isActive(CORRISPETTIVI_ACCOUNTANT_PDF_EXPORT_ID),
   );
-  protected readonly deliveryNote = signal('');
 
   constructor() {
     effect(() => {
@@ -130,15 +119,6 @@ export class CorrispettiviReportComponent {
   protected readonly periodLabel = computed(() =>
     formatReportPeriodLabel({ ...this.query(), period: this.displayPeriod() }),
   );
-
-  protected readonly fiscalStatusFilter = computed(() => {
-    const value = this.queryParams().get('fiscalStatus') ?? '';
-    return Object.values(SalesOrderFiscalStatus).includes(value as SalesOrderFiscalStatus)
-      ? (value as SalesOrderFiscalStatus)
-      : undefined;
-  });
-
-  protected readonly pendingOnly = computed(() => this.queryParams().get('pendingOnly') === '1');
 
   /**
    * Canale, con **«Tutti» come predefinito**.
@@ -158,14 +138,22 @@ export class CorrispettiviReportComponent {
    * la decisione aperta sull'`excluded_invoiced` (`04` §8), e non si risolve
    * nascondendoli.
    */
-  protected readonly channelFilter = computed(() => {
-    const value = this.queryParams().get('channel');
-    return value === 'online' || value === 'pos' ? value : 'all';
+  /**
+   * **Ambito** e **Canale** sono due assi, non uno.
+   *
+   * Fino al 16/08/2026 ce n'era uno solo, `channel`, che li mescolava e non
+   * sapeva rispondere a «tutto Shopify, online e POS insieme» — perché quella
+   * domanda tiene fermo il canale e libero l'ambito.
+   */
+  protected readonly ambitoFilter = computed<NonNullable<CorrispettiviListQuery['ambito']>>(() => {
+    const value = this.queryParams().get('ambito');
+    return value === 'online' || value === 'fisico_pos' ? value : 'all';
   });
 
-  protected readonly onlineOnly = computed(() => this.channelFilter() === 'online');
-
-  protected readonly posOnly = computed(() => this.channelFilter() === 'pos');
+  protected readonly canaleFilter = computed<NonNullable<CorrispettiviListQuery['canale']>>(() => {
+    const value = this.queryParams().get('canale');
+    return value === 'shopify' || value === 'vestiflow' ? value : 'all';
+  });
 
   /** Tipo di riga: filtra l'elenco, mai il riepilogo. */
   protected readonly rowTypeFilter = computed(() => {
@@ -175,11 +163,6 @@ export class CorrispettiviReportComponent {
 
   protected readonly canExport = computed(() =>
     canExportOperationalData(this.authService.currentUser()),
-  );
-
-  /** «Segna consegnato» scrive nel registro fiscale: chiave propria. */
-  protected readonly canManageFiscalRegister = computed(() =>
-    canManageFiscalRegister(this.authService.currentUser()),
   );
 
   private readonly tenantProfile = computed(
@@ -211,10 +194,27 @@ export class CorrispettiviReportComponent {
     return this.query().dateTo ?? todayIsoDate();
   });
 
-  protected readonly channelOptions: readonly SelectMenuOption[] = [
+  /**
+   * **Ambito**, non canale — riscritto il 16/08/2026 con due etichette che
+   * dicevano il falso: «Shopify» comprendeva le sole vendite online (anche il
+   * POS è Shopify), e «Negozio» indicava lo **Shopify POS**, non la cassa di
+   * VestiFlow.
+   *
+   * L'ambito si legge dall'ORIGINE della vendita, che è un fatto: Shopify
+   * ecommerce → Online, Shopify POS → Fisico/POS. Nessuno stato da aggiornare.
+   */
+  /** Ambito: come è arrivata la vendita — da un canale online, oppure no. */
+  protected readonly ambitoOptions: readonly SelectMenuOption[] = [
+    { value: 'all', label: 'Tutti gli ambiti' },
+    { value: 'online', label: 'Online' },
+    { value: 'fisico_pos', label: 'Fisico/POS' },
+  ];
+
+  /** Canale: chi ha raccolto la vendita. */
+  protected readonly canaleOptions: readonly SelectMenuOption[] = [
     { value: 'all', label: 'Tutti i canali' },
-    { value: 'online', label: 'Shopify' },
-    { value: 'pos', label: 'Negozio' },
+    { value: 'shopify', label: 'Shopify' },
+    { value: 'vestiflow', label: 'VestiFlow' },
   ];
 
   protected readonly rowTypeOptions: readonly SelectMenuOption[] = [
@@ -224,27 +224,13 @@ export class CorrispettiviReportComponent {
     { value: 'refunds', label: 'Solo rimborsi' },
   ];
 
-  protected readonly fiscalStatusOptions: readonly SelectMenuOption[] = [
-    { value: '', label: 'Tutti gli stati fiscali' },
-    { value: SalesOrderFiscalStatus.PendingRegistration, label: 'Da registrare' },
-    {
-      value: SalesOrderFiscalStatus.DeliveredToAccountant,
-      label: 'Consegnato al commercialista',
-    },
-    { value: SalesOrderFiscalStatus.ExternallyRegistered, label: 'Registrato esternamente' },
-    { value: SalesOrderFiscalStatus.ExcludedPosRegister, label: 'Escluso (cassa/POS)' },
-    { value: SalesOrderFiscalStatus.Invoiced, label: 'Fatturato' },
-  ];
-
   private readonly listQuery = computed(() => ({
     tick: this.refreshTick(),
     placedFrom: this.dateRange().placedFrom,
     placedTo: this.dateRange().placedTo,
-    fiscalStatus: this.fiscalStatusFilter(),
-    pendingDeliveryOnly: this.pendingOnly() || undefined,
     rowType: this.rowTypeFilter() === 'all' ? undefined : this.rowTypeFilter(),
-    onlineOnly: this.onlineOnly() || undefined,
-    posOnly: this.posOnly() || undefined,
+    ambito: this.ambitoFilter(),
+    canale: this.canaleFilter(),
     page: 1,
     pageSize: 100,
   }));
@@ -255,14 +241,12 @@ export class CorrispettiviReportComponent {
         combineLatest([
           this.corrispettiviService.listOrders(query),
           this.corrispettiviService.getSummary(query),
-          this.corrispettiviService.listDeliveries(1, 10),
         ]).pipe(
-          map(([ordersPage, summary, deliveriesPage]): CorrispettiviState => ({
+          map(([ordersPage, summary]): CorrispettiviState => ({
             status: 'success',
             data: {
               orders: ordersPage.data,
               summary,
-              deliveries: deliveriesPage.data,
               totalOrders: ordersPage.meta.total,
             },
           })),
@@ -289,17 +273,7 @@ export class CorrispettiviReportComponent {
 
   protected readonly orders = computed(() => this.data()?.orders ?? []);
   protected readonly summary = computed(() => this.data()?.summary ?? null);
-  protected readonly deliveries = computed(() => this.data()?.deliveries ?? []);
   protected readonly totalOrders = computed(() => this.data()?.totalOrders ?? 0);
-
-  protected readonly markDeliveredMessage = computed(() => {
-    const summary = this.summary();
-    const range = this.dateRange();
-    if (!summary) {
-      return '';
-    }
-    return `Segnerai come consegnati al commercialista ${summary.pendingDeliveryCount} ordini online del periodo ${range.placedFrom} – ${range.placedTo}.`;
-  });
 
   protected onPeriodChange(period: ReportPeriodPreset): void {
     this.uiPeriod.set(period);
@@ -352,17 +326,13 @@ export class CorrispettiviReportComponent {
     this.updateParams({ to: value || null, period: ReportPeriodPreset.Custom });
   }
 
-  protected onFiscalStatusChange(value: string | null): void {
-    this.updateParams({ fiscalStatus: value || null });
+  // «all» è il predefinito: non lo si scrive nell'indirizzo.
+  protected onAmbitoChange(value: string | null): void {
+    this.updateParams({ ambito: !value || value === 'all' ? null : value });
   }
 
-  protected togglePendingOnly(): void {
-    this.updateParams({ pendingOnly: this.pendingOnly() ? null : '1' });
-  }
-
-  protected onChannelChange(value: string | null): void {
-    // «all» è il predefinito: non lo si scrive nell'indirizzo.
-    this.updateParams({ channel: !value || value === 'all' ? null : value });
+  protected onCanaleChange(value: string | null): void {
+    this.updateParams({ canale: !value || value === 'all' ? null : value });
   }
 
   protected onRowTypeChange(value: string | null): void {
@@ -429,42 +399,11 @@ export class CorrispettiviReportComponent {
         year: this.query().year ?? null,
         month: this.query().month ?? null,
         quarter: this.query().quarter ?? null,
-        channel: this.channelFilter() === 'all' ? null : this.channelFilter(),
+        ambito: this.ambitoFilter() === 'all' ? null : this.ambitoFilter(),
+        canale: this.canaleFilter() === 'all' ? null : this.canaleFilter(),
         rowType: this.rowTypeFilter() === 'all' ? null : this.rowTypeFilter(),
       },
     });
-  }
-
-  protected openMarkDelivered(): void {
-    this.deliveryNote.set('');
-    this.markDeliveredOpen.set(true);
-  }
-
-  protected confirmMarkDelivered(): void {
-    if (this.markDeliveredBusy()) {
-      return;
-    }
-    this.markDeliveredBusy.set(true);
-
-    const range = this.dateRange();
-    this.corrispettiviService
-      .markDelivered({
-        placedFrom: range.placedFrom,
-        placedTo: range.placedTo,
-        channel: 'online',
-        note: this.deliveryNote().trim() || undefined,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.markDeliveredBusy.set(false);
-          this.markDeliveredOpen.set(false);
-          this.reload();
-        },
-        error: () => {
-          this.markDeliveredBusy.set(false);
-        },
-      });
   }
 
   /**
@@ -478,11 +417,9 @@ export class CorrispettiviReportComponent {
     return {
       placedFrom: this.dateRange().placedFrom,
       placedTo: this.dateRange().placedTo,
-      fiscalStatus: this.fiscalStatusFilter(),
-      pendingDeliveryOnly: this.pendingOnly() || undefined,
       rowType: this.rowTypeFilter() === 'all' ? undefined : this.rowTypeFilter(),
-      onlineOnly: this.onlineOnly() || undefined,
-      posOnly: this.posOnly() || undefined,
+      ambito: this.ambitoFilter(),
+      canale: this.canaleFilter(),
     };
   }
 

@@ -31,6 +31,8 @@ export interface CustomerOrderLineCardControls {
   readonly discount: FormControl<string>;
   readonly serialNumbersText: FormControl<string>;
   readonly commitsStock: FormControl<boolean>;
+  /** Riga descrittiva di riferimento (`07` §12): niente quantità sulla card. */
+  readonly isReference: FormControl<boolean>;
 }
 
 export interface CustomerOrderLineCardGroup {

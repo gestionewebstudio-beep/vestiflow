@@ -33,6 +33,13 @@ export const DocumentType = {
    * Condivide elenco, numeratore e form base con InvoiceDraft.
    */
   InvoiceAccompanying: 'invoice_accompanying',
+  /**
+   * Nota di credito di vendita: terzo tipo della famiglia Fattura. Stesso
+   * registro, stessa maschera, stessi permessi e UN SOLO progressivo con gli
+   * altri due. Quantità e importi restano positivi: il verso economico
+   * negativo lo dà il tipo.
+   */
+  CreditNote: 'credit_note',
   // Fase 3: creati solo dal flusso cassa (mai dai form documenti generici).
   StoreSale: 'store_sale',
   StoreReturn: 'store_return',
@@ -56,7 +63,6 @@ export const DocumentStatus = {
   Confirmed: 'confirmed',
   Printed: 'printed',
   Sent: 'sent',
-  ExternallyRegistered: 'externally_registered',
   Cancelled: 'cancelled',
 } as const;
 export type DocumentStatus = (typeof DocumentStatus)[keyof typeof DocumentStatus];

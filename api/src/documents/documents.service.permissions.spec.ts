@@ -49,7 +49,8 @@ describe('DocumentsService — matrice permessi documenti', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
+      // priceModePreference: dal 16/08 il create chiede la convenzione aziendale.
+      { resolveCompanyDefault: async () => false } as never,
       {} as never,
     );
   });
@@ -309,7 +310,8 @@ describe('DocumentsService — ordini cliente agganciati al documento', () => {
       settings as never,
       {} as never,
       {} as never,
-      {} as never,
+      // priceModePreference: dal 16/08 il create chiede la convenzione aziendale.
+      { resolveCompanyDefault: async () => false } as never,
       {} as never,
     );
     return { service, prisma };
@@ -549,7 +551,8 @@ describe('DocumentsService — ordini cliente agganciati al documento', () => {
         settings as never,
         {} as never,
         {} as never,
-        {} as never,
+        // priceModePreference: dal 16/08 il create chiede la convenzione aziendale.
+        { resolveCompanyDefault: async () => false } as never,
         {} as never,
       );
       return { service, tx };
@@ -618,7 +621,8 @@ describe('DocumentsService — anteprima numero: il tipo arriva dal client', () 
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
+      // priceModePreference: dal 16/08 il create chiede la convenzione aziendale.
+      { resolveCompanyDefault: async () => false } as never,
       {} as never,
     );
 

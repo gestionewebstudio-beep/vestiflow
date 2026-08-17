@@ -1,11 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
-  SalesOrderFiscalStatus as PrismaFiscal,
   SalesOrderFulfillmentStatus as PrismaFulfillment,
   SalesOrderRefundKind as PrismaRefundKind,
+  SalesOrderSource as PrismaSource,
   type SalesOrder,
   type SalesOrderFinancialStatus,
-  type SalesOrderFiscalStatus,
   type SalesOrderRefundKind,
   type SalesOrderSource,
 } from '@prisma/client';
@@ -16,10 +15,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { buildPlacedAtFilter } from '../sales-orders/sales-order-query.util';
 import { API_SOURCE_ONLINE, API_SOURCE_POS } from '../sales-orders/sales-order.enum-mapper';
 import { isRefundFinancialStatus } from './corrispettivi-fiscal.enum-mapper';
-import { buildCorrispettiviRefundWhere, buildCorrispettiviWhere } from './corrispettivi-query.util';
+import {
+  buildCorrispettiviRefundWhere,
+  buildCorrispettiviStoreSaleWhere,
+  buildCorrispettiviWhere,
+} from './corrispettivi-query.util';
 import type { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
-import type { MarkCorrispettiviDeliveredDto } from './dto/mark-corrispettivi-delivered.dto';
-import type { UpdateFiscalStatusDto } from './dto/update-fiscal-status.dto';
 
 export interface CorrispettiviSummaryDto {
   readonly orderCount: number;
@@ -32,7 +33,6 @@ export interface CorrispettiviSummaryDto {
   readonly discountMinor: number;
   readonly totalMinor: number;
   readonly taxableMinor: number;
-  readonly pendingDeliveryCount: number;
   // ── Rettifiche del periodo (specifica 08 §4) ────────────────────────────
   /** Quante rettifiche, annullamenti esclusi. */
   readonly refundCount: number;
@@ -45,22 +45,6 @@ export interface CorrispettiviSummaryDto {
   readonly netTotalMinor: number;
   readonly netTaxMinor: number;
   readonly netTaxableMinor: number;
-}
-
-export interface CorrispettiviDeliveryRow {
-  readonly id: string;
-  readonly periodFrom: Date;
-  readonly periodTo: Date;
-  readonly channelFilter: string;
-  readonly orderCount: number;
-  readonly subtotalMinor: number;
-  readonly taxMinor: number;
-  readonly shippingMinor: number;
-  readonly totalMinor: number;
-  readonly refundsCount: number;
-  readonly note: string | null;
-  readonly createdByName: string;
-  readonly createdAt: Date;
 }
 
 export type CorrispettiviOrderRow = SalesOrder & {
@@ -84,8 +68,16 @@ export interface CorrispettiviRegisterRow {
   /** Identità della riga nella lista (`sale:<id>` / `refund:<id>`). */
   readonly rowId: string;
   readonly kind: CorrispettiviRowKind;
-  /** Sempre valorizzato: da qui si apre l'ordine, anche da una rettifica. */
-  readonly salesOrderId: string;
+  /**
+   * L'ordine da cui si apre la riga. **`null` sulla Vendita al banco**, che non
+   * nasce da un ordine ma da un documento: la sua sorgente canonica è
+   * `Document.type = store_sale` (`11` §3), e il Registro la LEGGE — non le
+   * costruisce un ordine addosso per farla entrare, che sarebbe una seconda
+   * rappresentazione della stessa transazione.
+   */
+  readonly salesOrderId: string | null;
+  /** Il documento da cui la riga viene, quando non è un ordine. */
+  readonly documentId: string | null;
   readonly orderNumber: string;
   /** Data con cui la riga entra nel registro: evasione, o data della rettifica. */
   readonly occurredAt: Date;
@@ -98,9 +90,6 @@ export interface CorrispettiviRegisterRow {
   readonly totalMinor: number;
   /** Solo sulle vendite: una rettifica non ha stato di pagamento né fiscale. */
   readonly financialStatus: SalesOrderFinancialStatus | null;
-  readonly fiscalStatus: SalesOrderFiscalStatus | null;
-  readonly fiscalDeliveredAt: Date | null;
-  readonly fiscalNote: string | null;
   /** Solo sulle rettifiche: che gesto è stato. */
   readonly refundKind: SalesOrderRefundKind | null;
   readonly note: string | null;
@@ -167,20 +156,29 @@ export class CorrispettiviService {
     const wantsSales = rowType === 'all' || rowType === 'sales';
     const wantsRefunds = rowType !== 'sales';
 
-    const [saleCount, refundCount] = await Promise.all([
+    // La Vendita al banco è la TERZA sorgente del registro, e passa da qui
+    // perché qui la fusione esiste già: due sorgenti unite in memoria e
+    // ordinate per data, con un tetto dichiarato. Aggiungerne una non cambia
+    // la forma — è il motivo per cui non serviva né una UNION scritta a mano
+    // né una tabella nuova.
+    const storeWhere = buildCorrispettiviStoreSaleWhere(tenantId, query);
+
+    const [saleCount, refundCount, storeCount] = await Promise.all([
       wantsSales ? this.prisma.salesOrder.count({ where }) : Promise.resolve(0),
       wantsRefunds
         ? this.prisma.salesOrderRefund.count({ where: refundWhere })
         : Promise.resolve(0),
+      storeWhere && wantsSales ? this.prisma.document.count({ where: storeWhere }) : 0,
     ]);
 
-    if (saleCount + refundCount > REGISTER_MERGE_CEILING) {
+    const rowCount = saleCount + refundCount + storeCount;
+    if (rowCount > REGISTER_MERGE_CEILING) {
       throw new BadRequestException(
-        `Il periodo selezionato contiene ${saleCount + refundCount} righe: restringi le date per consultarlo.`,
+        `Il periodo selezionato contiene ${rowCount} righe: restringi le date per consultarlo.`,
       );
     }
 
-    const [orders, refunds] = await Promise.all([
+    const [orders, refunds, storeSales] = await Promise.all([
       wantsSales
         ? this.prisma.salesOrder.findMany({
             where,
@@ -202,6 +200,21 @@ export class CorrispettiviService {
             },
           })
         : Promise.resolve([]),
+      storeWhere && wantsSales
+        ? this.prisma.document.findMany({
+            where: storeWhere,
+            select: {
+              id: true,
+              number: true,
+              reference: true,
+              documentDate: true,
+              customerName: true,
+              currency: true,
+              taxMinor: true,
+              totalMinor: true,
+            },
+          })
+        : Promise.resolve([]),
     ]);
 
     const rows: CorrispettiviRegisterRow[] = [
@@ -209,6 +222,7 @@ export class CorrispettiviService {
         rowId: `sale:${order.id}`,
         kind: 'sale' as const,
         salesOrderId: order.id,
+        documentId: null,
         orderNumber: order.orderNumber,
         // Non nullo per costruzione: il filtro esclude i mai evasi.
         occurredAt: order.fulfilledAt ?? order.placedAt,
@@ -220,9 +234,6 @@ export class CorrispettiviService {
         taxMinor: order.taxMinor,
         totalMinor: order.totalMinor,
         financialStatus: order.financialStatus,
-        fiscalStatus: order.fiscalStatus,
-        fiscalDeliveredAt: order.fiscalDeliveredAt,
-        fiscalNote: order.fiscalNote,
         refundKind: null,
         note: null,
       })),
@@ -230,6 +241,7 @@ export class CorrispettiviService {
         rowId: `refund:${refund.id}`,
         kind: 'refund' as const,
         salesOrderId: refund.salesOrderId,
+        documentId: null,
         orderNumber: refund.order.orderNumber,
         occurredAt: refund.occurredAt,
         source: refund.order.source,
@@ -241,11 +253,31 @@ export class CorrispettiviService {
         taxMinor: -refund.taxMinor,
         totalMinor: -refund.totalMinor,
         financialStatus: null,
-        fiscalStatus: null,
-        fiscalDeliveredAt: null,
-        fiscalNote: null,
         refundKind: refund.kind,
         note: refund.note,
+      })),
+      ...storeSales.map((sale) => ({
+        rowId: `store:${sale.id}`,
+        kind: 'sale' as const,
+        salesOrderId: null,
+        documentId: sale.id,
+        orderNumber: sale.reference ?? (sale.number != null ? String(sale.number) : ''),
+        occurredAt: sale.documentDate,
+        // `store` esiste già in SalesOrderSource, ed è la cassa di VestiFlow:
+        // la riga si classifica con la stessa mappa delle altre (Fisico/POS ·
+        // VestiFlow) senza inventare una dimensione parallela.
+        source: PrismaSource.store,
+        customerName: sale.customerName ?? '',
+        customerEmail: null,
+        currency: sale.currency,
+        taxableMinor: Math.max(0, sale.totalMinor - sale.taxMinor),
+        taxMinor: sale.taxMinor,
+        totalMinor: sale.totalMinor,
+        // Una Vendita al banco è incassata al banco: non ha un ciclo di
+        // pagamento da mostrare, e inventarne uno direbbe una cosa non vera.
+        financialStatus: null,
+        refundKind: null,
+        note: null,
       })),
     ].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
 
@@ -257,6 +289,16 @@ export class CorrispettiviService {
     query: ListCorrispettiviQueryDto,
   ): Promise<CorrispettiviSummaryDto> {
     const where = buildCorrispettiviWhere(tenantId, query);
+    // Il riepilogo legge le STESSE tre sorgenti dell’elenco. Se ne leggesse
+    // due, la somma della colonna non farebbe il totale in fondo — il difetto
+    // che questa schermata ha già avuto una volta con le rettifiche.
+    const storeWhere = buildCorrispettiviStoreSaleWhere(tenantId, query);
+    const storeSales = storeWhere
+      ? await this.prisma.document.findMany({
+          where: storeWhere,
+          select: { taxMinor: true, totalMinor: true },
+        })
+      : [];
     const orders = await this.prisma.salesOrder.findMany({
       where,
       select: {
@@ -266,7 +308,6 @@ export class CorrispettiviService {
         discountMinor: true,
         totalMinor: true,
         financialStatus: true,
-        fiscalStatus: true,
         source: true,
       },
     });
@@ -277,7 +318,6 @@ export class CorrispettiviService {
     let shippingMinor = 0;
     let discountMinor = 0;
     let totalMinor = 0;
-    let pendingDeliveryCount = 0;
 
     for (const order of orders) {
       subtotalMinor += order.subtotalMinor;
@@ -288,12 +328,16 @@ export class CorrispettiviService {
       if (isRefundFinancialStatus(order.financialStatus)) {
         refundsCount += 1;
       }
-      if (
-        order.fiscalStatus === PrismaFiscal.pending_registration &&
-        order.source === 'shopify_online'
-      ) {
-        pendingDeliveryCount += 1;
-      }
+    }
+
+    // Le Vendite al banco entrano nei totali come le altre vendite. Lo
+    // `shipping` non le riguarda — al banco non si spedisce — e lo sconto è già
+    // dentro il totale del documento: sommarli produrrebbe due volte lo stesso
+    // sconto.
+    for (const sale of storeSales) {
+      subtotalMinor += Math.max(0, sale.totalMinor - sale.taxMinor);
+      taxMinor += sale.taxMinor;
+      totalMinor += sale.totalMinor;
     }
 
     // `subtotalMinor` arriva dal canale GIÀ al netto degli sconti di riga
@@ -335,7 +379,7 @@ export class CorrispettiviService {
     });
 
     return {
-      orderCount: orders.length,
+      orderCount: orders.length + storeSales.length,
       undatedFulfilmentCount,
       refundsCount,
       subtotalMinor,
@@ -344,7 +388,6 @@ export class CorrispettiviService {
       discountMinor,
       totalMinor,
       taxableMinor,
-      pendingDeliveryCount,
       refundCount: refunds.length,
       refundTotalMinor,
       refundTaxMinor,
@@ -354,125 +397,7 @@ export class CorrispettiviService {
       netTaxMinor: taxMinor - refundTaxMinor,
       netTaxableMinor: Math.max(0, totalMinor - refundTotalMinor - (taxMinor - refundTaxMinor)),
     };
-  }
 
-  async markDelivered(
-    tenantId: string,
-    user: UserProfileDto,
-    dto: MarkCorrispettiviDeliveredDto,
-  ): Promise<CorrispettiviDeliveryRow> {
-    const placedAt = buildPlacedAtFilter(dto.placedFrom, dto.placedTo);
-    if (!placedAt?.gte || !placedAt?.lte) {
-      throw new BadRequestException('Periodo non valido');
-    }
-
-    const channel = dto.channel ?? API_SOURCE_ONLINE;
-    const where = buildCorrispettiviWhere(tenantId, {
-      placedFrom: dto.placedFrom,
-      placedTo: dto.placedTo,
-      ...(channel === API_SOURCE_ONLINE ? { onlineOnly: true } : {}),
-      ...(channel === API_SOURCE_POS ? { posOnly: true } : {}),
-      fiscalStatus: 'pending_registration',
-    });
-
-    const orders = await this.prisma.salesOrder.findMany({
-      where,
-      select: {
-        id: true,
-        subtotalMinor: true,
-        taxMinor: true,
-        shippingMinor: true,
-        totalMinor: true,
-        financialStatus: true,
-      },
-    });
-
-    if (orders.length === 0) {
-      throw new BadRequestException('Nessun ordine da consegnare nel periodo selezionato');
-    }
-
-    const summary = this.aggregateOrders(orders);
-    const now = new Date();
-
-    const periodFrom = placedAt.gte!;
-    const periodTo = placedAt.lte!;
-
-    const delivery = await this.prisma.$transaction(async (tx) => {
-      await tx.salesOrder.updateMany({
-        where: { id: { in: orders.map((o) => o.id) } },
-        data: {
-          fiscalStatus: PrismaFiscal.delivered_to_accountant,
-          fiscalDeliveredAt: now,
-        },
-      });
-
-      return tx.corrispettiviDelivery.create({
-        data: {
-          tenantId,
-          periodFrom,
-          periodTo,
-          channelFilter: channel,
-          orderCount: orders.length,
-          subtotalMinor: summary.subtotalMinor,
-          taxMinor: summary.taxMinor,
-          shippingMinor: summary.shippingMinor,
-          totalMinor: summary.totalMinor,
-          refundsCount: summary.refundsCount,
-          note: dto.note?.trim() || null,
-          createdById: user.id,
-          createdByName: user.displayName,
-        },
-      });
-    });
-
-    return delivery;
-  }
-
-  async listDeliveries(
-    tenantId: string,
-    page = 1,
-    pageSize = 20,
-  ): Promise<Paginated<CorrispettiviDeliveryRow>> {
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.corrispettiviDelivery.findMany({
-        where: { tenantId },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.corrispettiviDelivery.count({ where: { tenantId } }),
-    ]);
-
-    return { items, total, page, pageSize };
-  }
-
-  async updateFiscalStatus(
-    tenantId: string,
-    orderId: string,
-    dto: UpdateFiscalStatusDto,
-  ): Promise<CorrispettiviOrderRow> {
-    const existing = await this.prisma.salesOrder.findFirst({
-      where: { id: orderId, tenantId },
-    });
-    if (!existing) {
-      throw new NotFoundException('Vendita non trovata');
-    }
-
-    const fiscalStatus = dto.fiscalStatus as PrismaFiscal;
-
-    const updated = await this.prisma.salesOrder.update({
-      where: { id: orderId },
-      data: {
-        fiscalStatus,
-        fiscalNote: dto.fiscalNote?.trim() || null,
-        ...(fiscalStatus === PrismaFiscal.delivered_to_accountant
-          ? { fiscalDeliveredAt: new Date() }
-          : {}),
-      },
-      include: { customer: { select: { party: { select: { email: true } } } } },
-    });
-    const { customer, ...rest } = updated;
-    return { ...rest, customer: customer ? { email: customer.party.email } : null };
   }
 
   private aggregateOrders(

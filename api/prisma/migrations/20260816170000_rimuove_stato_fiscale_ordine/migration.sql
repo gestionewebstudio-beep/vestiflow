@@ -1,0 +1,52 @@
+-- Rimozione di `sales_orders.fiscal_status` e del tipo `SalesOrderFiscalStatus`.
+--
+-- Decisione funzionale del 16/08/2026 (nota «Struttura Vendite e Registro
+-- Corrispettivi»): il Registro Corrispettivi è il quadro economico generale
+-- derivato, e le classificazioni derivano da **dati canonici** — origine,
+-- canale, ambito, tipo evento — non da uno stato fiscale parallelo sulla
+-- vendita che qualcuno deve ricordarsi di aggiornare.
+--
+-- ── PERCHÉ NON SERVE PIÙ, valore per valore ───────────────────────────────
+--
+--   delivered_to_accountant · externally_registered
+--     Il flusso «consegna al commercialista», già ritirato con la migration
+--     20260816150000. Zero righe.
+--
+--   pending_registration
+--     Era il «non ancora consegnato» di quel flusso. Lo portano tutte e 37 le
+--     vendite, e non governa niente: senza il flusso è un default che non
+--     cambia mai.
+--
+--   excluded_pos_register
+--     Serviva a far SPARIRE le vendite Shopify POS dal Registro. La decisione
+--     corrente è l'opposta: **Shopify POS compare nel Registro**, classificato
+--     come vendita fisica/POS. Che la cassa o un RT esterno la certifichi non
+--     la fa uscire dal quadro economico interno di VestiFlow — la classifica.
+--     L'ambito si legge da `sales_orders.source`, che è già scritto da sempre
+--     ed è un fatto, non uno stato. In pratica il valore non è mai stato
+--     scritto: di ordini `shopify_pos` non ne esiste nessuno.
+--
+--   invoiced
+--     Nessun producer, mai. L'esclusione di una vendita fatturata da un
+--     riepilogo, quando servirà, va determinata dalla relazione reale col
+--     documento fiscale, non da un'etichetta sulla vendita.
+--
+-- ── MISURATO PRIMA ────────────────────────────────────────────────────────
+--   sales_orders ................................. 37 (24 manual, 13 online)
+--   distribuzione fiscal_status .................. 37 su 37 pending_registration
+--   altre colonne che usano il tipo .............. nessuna
+--   indici che lo citano ......................... 1 (rimosso qui sotto)
+--   migration incomplete ......................... nessuna
+--
+-- Nessun dato utente si perde: la colonna porta un solo valore, il default.
+--
+-- ⚠️ Qui il tipo si può DROPPARE davvero, a differenza dei valori morti
+-- lasciati in `DocumentStatus`: togliere un VALORE da un enum PostgreSQL non
+-- si può, togliere un TIPO che non ha più colonne sì. Dopo il DROP COLUMN
+-- nessuna colonna lo usa.
+
+-- L'indice cade da sé col DROP COLUMN, ma lo si nomina per lasciarne traccia:
+-- era `sales_orders_tenant_id_fiscal_status_placed_at_idx`.
+ALTER TABLE "sales_orders" DROP COLUMN IF EXISTS "fiscal_status";
+
+DROP TYPE IF EXISTS "SalesOrderFiscalStatus";

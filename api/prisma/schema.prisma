@@ -185,15 +185,6 @@ enum SalesOrderSource {
   store
 }
 
-/// Stato fiscale corrispettivi per il commercialista (§8 piano funzionale).
-enum SalesOrderFiscalStatus {
-  pending_registration
-  delivered_to_accountant
-  externally_registered
-  excluded_pos_register
-  invoiced
-}
-
 /// Stato magazzino della Vendita online (fase 2 §3): scarico completo,
 /// parziale (righe senza impegno, richiede verifica) o non applicato
 /// (ordini storici importati già evasi: nessun impegno da consumare).
@@ -245,6 +236,14 @@ enum DocumentType {
   /// `documentNumberingType`), si differenzia per sezioni trasporto e
   /// destinazione e per lo scarico di magazzino quando non aggancia un DDT.
   invoice_accompanying
+  /// Nota di credito di vendita (TD04): terzo tipo della famiglia Fattura.
+  /// Condivide registro, maschera, permessi e — soprattutto — UN SOLO
+  /// progressivo con gli altri due (`documentNumberingType`, e il CASE
+  /// dell'indice unico che ne è la seconda faccia). Quantità e importi restano
+  /// POSITIVI: il verso economico negativo lo dà il tipo, mai il segno nella
+  /// quantità. Il magazzino lo muove solo se l'operatore spunta «Carica
+  /// magazzino» sulle righe movimentabili, e la spunta nasce spenta.
+  credit_note
   online_sale // Vendita online (documento interno generato dall'evasione, fase 2)
   corrispettivo // Corrispettivo collegato alla Vendita online (registro interno, fase 2)
   customer_order // Ordine cliente manuale (numeratore dedicato; l'ordine vive in SalesOrder)
@@ -287,7 +286,10 @@ enum DocumentStatus {
   confirmed // Confermato: numero assegnato, movimenti generati
   printed // Stampato
   sent // Inviato
-  externally_registered // Registrato esternamente (fattura/commercialista)
+  /// ⚠️ `externally_registered` sta nel tipo PostgreSQL e non qui: l'azione
+  /// «Inviata al commercialista» è stata rimossa il 16/08/2026 e i due arrivi
+  /// merce che lo portavano sono tornati `confirmed`. Stesso motivo dell'enum
+  /// SalesOrderFiscalStatus: il valore fisico resta, il client non lo espone.
   cancelled // Annullato
 }
 
@@ -356,7 +358,6 @@ model Tenant {
   stockReservations       StockReservation[]
   stockReservationEvents  StockReservationEvent[]
   onlineOrderEvents       OnlineOrderEvent[]
-  corrispettiviDeliveries CorrispettiviDelivery[]
   onlineSales             OnlineSale[]
   onlineSaleLines         OnlineSaleLine[]
   corrispettivoEntries    CorrispettivoEntry[]
@@ -371,7 +372,6 @@ model Tenant {
   userTableViewPreferences UserTableViewPreference[]
   userDocumentPriceModePreferences UserDocumentPriceModePreference[]
   userDocumentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
-  userProductPriceModePreferences  UserProductPriceModePreference[]
   documentSequences       DocumentSequence[]
   documentTypeSettings    DocumentTypeSetting[]
   documentCounters        DocumentCounter[]
@@ -429,7 +429,6 @@ model User {
   tableViewPreferences      UserTableViewPreference[]
   documentPriceModePreferences UserDocumentPriceModePreference[]
   documentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
-  productPriceModePreferences  UserProductPriceModePreference[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -663,7 +662,7 @@ model Product {
   /// sempre NETTI come ogni prezzo del gestionale. Rinominabili/attivabili nelle
   /// impostazioni tenant. Mai sincronizzati.
   /// La modalità netto/ivato con cui si compilano NON sta qui: è una preferenza
-  /// dell'operatore (`UserProductPriceModePreference`), non dell'articolo.
+  /// aziendale (`TenantFeatureSettings.salesPricesIncludeVat`), non dell'articolo.
   listino1PriceMinor              Decimal?                @map("listino1_price_minor") @db.Decimal(16, 6)
   listino2PriceMinor              Decimal?                @map("listino2_price_minor") @db.Decimal(16, 6)
   listino3PriceMinor              Decimal?                @map("listino3_price_minor") @db.Decimal(16, 6)
@@ -1253,9 +1252,6 @@ model SalesOrder {
   taxMinor          Int                         @default(0) @map("tax_minor")
   shippingMinor     Int                         @default(0) @map("shipping_minor")
   discountMinor     Int                         @default(0) @map("discount_minor")
-  fiscalStatus      SalesOrderFiscalStatus      @default(pending_registration) @map("fiscal_status")
-  fiscalDeliveredAt DateTime?                   @map("fiscal_delivered_at")
-  fiscalNote        String?                     @map("fiscal_note")
   placedAt          DateTime                    @map("placed_at")
   shopifyOrderId    String?                     @map("shopify_order_id")
   /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8);
@@ -1287,6 +1283,12 @@ model SalesOrder {
   /// Sconto extra percentuale sull'intero documento, dopo gli sconti riga
   /// (stesso pattern di Document.documentDiscountPercent in Arrivo merce).
   documentDiscountPercent Decimal               @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
+  /// Modalità con cui i prezzi sono stati DIGITATI su questo ordine: netti o
+  /// ivati. È una proprietà dell'ORDINE, come `Document.pricesIncludeVat` lo è
+  /// del documento — non una preferenza di chi lo apre: due operatori devono
+  /// vedere lo stesso ordine nello stesso modo, e riaprendolo si deve sapere
+  /// come era stato compilato. Il prezzo memorizzato resta comunque il NETTO.
+  pricesIncludeVat  Boolean                     @default(false) @map("prices_include_vat")
   /// Annullamento comunicato dal canale (impegni rilasciati, ordine in storico).
   cancelledAt       DateTime?                   @map("cancelled_at")
   /// Evasione completa registrata dal canale (evento canonico fulfilled).
@@ -1317,35 +1319,11 @@ model SalesOrder {
 
   @@unique([tenantId, shopifyOrderId])
   @@index([tenantId, placedAt(sort: Desc)])
-  @@index([tenantId, fiscalStatus, placedAt(sort: Desc)])
   @@index([documentId])
   @@map("sales_orders")
 }
 
 /// Storico consegne corrispettivi al commercialista (batch per periodo).
-model CorrispettiviDelivery {
-  id            String   @id @default(uuid()) @db.Uuid
-  tenantId      String   @map("tenant_id") @db.Uuid
-  periodFrom    DateTime @map("period_from")
-  periodTo      DateTime @map("period_to")
-  channelFilter String   @map("channel_filter")
-  orderCount    Int      @map("order_count")
-  subtotalMinor Int      @map("subtotal_minor")
-  taxMinor      Int      @map("tax_minor")
-  shippingMinor Int      @map("shipping_minor")
-  totalMinor    Int      @map("total_minor")
-  refundsCount  Int      @default(0) @map("refunds_count")
-  note          String?
-  createdById   String?  @map("created_by_id") @db.Uuid
-  createdByName String   @map("created_by_name")
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-
-  @@index([tenantId, createdAt(sort: Desc)])
-  @@map("corrispettivi_deliveries")
-}
-
 model SalesOrderLine {
   id             String  @id @default(uuid()) @db.Uuid
   orderId        String  @map("order_id") @db.Uuid
@@ -1358,7 +1336,13 @@ model SalesOrderLine {
   sku            String
   title          String
   quantity       Int
-  unitPriceMinor Int     @map("unit_price_minor")
+  /// Prezzo unitario NETTO in unità minori, con coda decimale: 25,00 ivati al
+  /// 22% valgono 2049,180328 centesimi netti, ed è quella coda a farli tornare
+  /// 25,00 quando il prezzo viene rimostrato ivato (regole-gestionale, «La
+  /// colonna è una, i comportamenti sono tanti»: ogni prezzo UNITARIO è
+  /// numeric(16,6), perché può nascere da uno scorporo).
+  unitPriceMinor Decimal @map("unit_price_minor") @db.Decimal(16, 6)
+  /// Totale riga già arrotondato: resta intero.
   totalMinor     Int     @map("total_minor")
   // ── Righe Ordine cliente manuale (source = manual) ──
   /// Ordinamento visuale delle righe nella maschera.
@@ -1927,8 +1911,6 @@ model DocumentTypeSetting {
   numberPrefix      String?      @map("number_prefix")
   /// Serie predefinita per distinguere sedi/sezioni (es. 'A', 'MI').
   defaultSeries     String       @default("A") @map("default_series")
-  /// Gestione prezzi ivati vs imponibili.
-  pricesIncludeVat  Boolean      @default(false) @map("prices_include_vat")
   /// Testo automatico in fondo al documento.
   defaultNotes      String?      @map("default_notes")
   createdAt         DateTime     @default(now()) @map("created_at")
@@ -2009,6 +1991,19 @@ model TenantFeatureSettings {
   defaultUnitOfMeasure          String                    @default("pz") @map("default_unit_of_measure")
   /// Codice IVA predefinito aziendale.
   defaultVatCodeId              String?                   @map("default_vat_code_id") @db.Uuid
+  /// Convenzione aziendale sui PREZZI DI VENDITA: netti o ivati.
+  ///
+  /// Non è solo il default dei documenti nuovi — è come questa azienda guarda i
+  /// prezzi: al dettaglio si ragiona ivato, all'ingrosso netto. Governa quindi
+  /// anche le viste che non appartengono a un documento (anagrafica, listini, e
+  /// in futuro i report). `true` = ivato, che è ciò con cui il sistema partiva
+  /// prima che questa impostazione esistesse.
+  ///
+  /// ⚠️ NON esiste la gemella per i COSTI, ed è una scelta: i costi partono
+  /// sempre netti. Per un'azienda che detrae l'IVA il costo *è* il netto, e
+  /// l'inserimento ivato resta una comodità del singolo documento — non una
+  /// convenzione aziendale.
+  salesPricesIncludeVat         Boolean                   @default(true) @map("sales_prices_include_vat")
   /// Listini aggiuntivi (fissi 3): nome rinominabile e attivazione. Il primo è
   /// attivo di default, gli altri due si attivano quando servono.
   listino1Name                  String?                   @map("listino1_name")
@@ -2714,24 +2709,4 @@ model UserDocumentPriceModePreference {
   @@unique([tenantId, userId, documentType], map: "user_doc_price_mode_pref_tenant_user_type_key")
   @@index([tenantId, userId], map: "user_doc_price_mode_pref_tenant_user_idx")
   @@map("user_document_price_mode_preferences")
-}
-
-/// Preferenza operatore della modalità prezzo (netto/ivato) della sezione Listini
-/// in anagrafica articolo. Stessa logica di UserDocumentPriceModePreference:
-/// ricordata al salvataggio di un articolo, riproposta alla creazione del
-/// successivo, per (tenant, utente). Primo utilizzo: ivato. La modifica di un
-/// articolo esistente NON aggiorna la preferenza: solo la creazione lo fa.
-model UserProductPriceModePreference {
-  id               String   @id @default(uuid()) @db.Uuid
-  tenantId         String   @map("tenant_id") @db.Uuid
-  userId           String   @map("user_id") @db.Uuid
-  pricesIncludeVat Boolean  @map("prices_include_vat")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, userId], map: "user_product_price_mode_pref_tenant_user_key")
-  @@index([tenantId, userId], map: "user_product_price_mode_pref_tenant_user_idx")
-  @@map("user_product_price_mode_preferences")
 }

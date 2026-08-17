@@ -27,6 +27,8 @@ export interface SalesDocumentLineCardControls {
   readonly discountPercent: FormControl<string>;
   readonly vatCodeId: FormControl<string>;
   readonly loadsStock: FormControl<boolean>;
+  /** Riga descrittiva di riferimento (`07` §12): niente quantità sulla card. */
+  readonly isReference: FormControl<boolean>;
 }
 
 export interface SalesDocumentLineCardGroup {

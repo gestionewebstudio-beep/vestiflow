@@ -130,7 +130,7 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
       {
         id: 'store-sale-register',
         gate: 'retail-register',
-        label: 'Vendita negozio',
+        label: 'Vendita al banco',
         description: 'Cassa a carrello per vendite immediate in negozio.',
         route: ['/app/sales/register'],
         icon: 'pi-shopping-bag',
@@ -168,27 +168,20 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
         icon: 'pi-truck',
         available: true,
       },
-      // Fattura e Fattura accompagnatoria: voci separate ma stesso elenco e
-      // stesso numeratore. Il `type` in query preimposta il filtro Tipo della
-      // lista condivisa, che resta comunque modificabile dall'operatore.
+      // UNA sola scorciatoia per la famiglia Fattura (deciso 16/08). Erano tre
+      // voci che portavano allo stesso elenco con il filtro preimpostato, e
+      // quel filtro era anche — per un difetto — il selettore di cosa si
+      // creava. Sciolto quel legame, tre porte per una stanza sola dicevano
+      // all'operatore che le stanze fossero tre.
+      // Il tipo si sceglie dentro: dal menu «Nuovo» per crearlo, dal filtro
+      // «Tipo» per guardarlo.
       {
         id: 'invoice',
         family: 'invoice',
-        label: 'Fattura',
-        description: 'Fattura fiscale da inviare al commercialista.',
+        label: 'Fatture',
+        description: 'Fatture, accompagnatorie e note di credito, in un unico progressivo.',
         route: ['/app/documents/fattura'],
-        queryParams: { type: 'invoice_draft' },
         icon: 'pi-receipt',
-        available: true,
-      },
-      {
-        id: 'invoice-accompanying',
-        family: 'invoice',
-        label: 'Fattura accompagnatoria',
-        description: 'Fattura fiscale con trasporto merce incluso.',
-        route: ['/app/documents/fattura'],
-        queryParams: { type: 'invoice_accompanying' },
-        icon: 'pi-truck',
         available: true,
       },
       {

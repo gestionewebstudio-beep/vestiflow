@@ -6,6 +6,24 @@
 
 ---
 
+## ⚠️ Leggere prima: la specifica del Registro è cambiata il 16/08/2026
+
+Esiste ora **`10-specifica-registro-corrispettivi.md`**, ed è la fonte corrente. Tre cose
+che questo file dava per assodate non lo sono più:
+
+1. **Nessun flusso «commercialista».** Consegne, invii e registrazioni sono stati
+   rimossi — codice, UI e persistenza. Periodo → filtri → stampa/export → fine.
+2. **Shopify POS compare nel Registro** come vendita fisica/POS. Non si esclude: si
+   classifica, e la classificazione viene da `source`.
+3. **`SalesOrderFiscalStatus` non esiste più**, colonna e tipo PostgreSQL. Non è stato
+   sostituito.
+
+E una che era scritta qui e altrove ed era falsa: **`CorrispettivoEntry` non è la sorgente
+del Registro** — quella tabella non viene più scritta dall'11/08, e le sue righe residue
+sono storia. Non ci si deduce la logica nuova (`10` §7).
+
+---
+
 ## Prima di toccare qualsiasi cosa: tre fatti che cambiano come si legge tutto
 
 ### 1. I webhook di Shopify vanno in PRODUZIONE, non sulla macchina di sviluppo
@@ -84,6 +102,233 @@ Il passaggio 1 è fatto: nessuna UI la legge, nessuna scrittura la alimenta dal 
 - `DocumentType.corrispettivo` **solo se** un censimento conferma zero consumer: oggi resta nella configurazione (prefisso `COR`, etichetta, famiglia permessi), ed è solo la **numerazione** a non essere più consumata.
 
 ⚠️ **Prima del DROP**: `main` in produzione **scrive ancora** quelle tabelle a ogni evasione. Finché non è rilasciato questo ramo, eliminarle romperebbe la produzione.
+
+---
+
+## Anagrafica articolo — deciso il 17/08, in parte fatto
+
+### ✅ Fatto: il campo si chiama «Prezzo di vendita», ovunque
+
+Lo stesso dato (`sellingPrice`) si chiamava in **cinque** modi: «Prezzo al pubblico» in Arrivo
+merce e Ordine fornitore, «Prezzo articolo» in anagrafica e dettaglio, «Prezzo vendita» nel
+passo varianti e nel riepilogo, «Prezzo» nelle tabelle strette, «Prezzo unitario» nei movimenti.
+
+**29 sostituzioni in 15 file** più le prove e i documenti. Scelto **«Prezzo di vendita»** e non
+«Prezzo al pubblico» — che pure era già il nome in due maschere — perché «al pubblico»
+presuppone il dettaglio, e la convenzione aziendale netto/ivato appena introdotta ammette
+esplicitamente che l’azienda possa ragionare all’ingrosso.
+
+**Restano fuori di proposito:**
+
+| Cosa                                                  | Perché                                                                |
+| ----------------------------------------------------- | --------------------------------------------------------------------- |
+| «Prezzo netto» / «Prezzo ivato» nelle righe documento | è la **modalità**, la scrive `priceModeRowLabel` e cambia da sola     |
+| «Prezzo» secco nelle colonne strette                  | il contesto è già la riga, e allargare la colonna non aggiunge niente |
+| «Prezzo unitario» nei movimenti                       | è il valore dell’**evento**, non il prezzo di catalogo                |
+| «Prezzo barrato», «Prezzo Shopify»                    | sono altri prezzi, e si chiamano già bene                             |
+
+### ⬜ Da fare: separare «Prezzi di vendita» da «Listini»
+
+> **Un listino non è un altro prezzo: è una regola commerciale alternativa** che assegna un
+> prezzo diverso allo stesso articolo — Ingrosso, Rivenditori, VIP. È la distinzione che
+> permetterà domani di dire «il cliente X compra a listino Ingrosso» e farla ereditare al
+> documento.
+
+Oggi la sezione si intitola **«Listini»** e contiene cinque campi, di cui tre lo sono davvero:
+
+```text
+Listini            Prezzo di vendita ⛔ · Prezzo Shopify ⛔ · Listino 1 · 2 · 3 ✅
+(fuori sezione)    Prezzo barrato · Costo di riferimento
+```
+
+⚠️ **E le due schermate non si capiscono fra loro:** in Impostazioni i tre si chiamano
+«Listini aggiuntivi»; in anagrafica «Listini» ne indica cinque. La stessa parola per due insiemi
+diversi a due schermate di distanza — è il difetto vero, non una preferenza di gusto. Il
+criterio per escludere lo dà già il codice, in un commento di quella sezione: _«Barrato e costo
+di riferimento restano fuori: non sono listini»_ — applicato agli altri due, esclude anche loro.
+
+**L’assetto deciso:**
+
+```text
+Prezzi di vendita   Prezzo di vendita · Prezzo barrato · Prezzo Shopify
+Listini             Listino 1 · 2 · 3        (nomi dati in Impostazioni)
+(fuori da entrambi) Costo di riferimento     — è un costo, non un prezzo
+```
+
+⚠️ **Non è solo un’etichetta: sposta «Prezzo barrato»**, che oggi sta fuori sezione accanto al
+costo. È un cambio di impaginato, e per questo non è stato fatto insieme alla rinomina.
+
+### ⬜ Da decidere: le frecce dei campi numerici
+
+Tutti i prezzi in anagrafica sono `<input type="number">`. **Nei form documento la regola è già
+un’altra e giusta:** `number` per quantità e colli, `text` + `inputmode="decimal"` +
+`parseMoneyInput` per il prezzo. L’anagrafica è l’unico posto che la rompe.
+
+E dentro la stessa sezione le frecce fanno cose diverse:
+
+| Campo                                | `step`    | Un clic vale    |
+| ------------------------------------ | --------- | --------------- |
+| Prezzo di vendita, Prezzo Shopify    | _assente_ | **1 euro**      |
+| Prezzo barrato, Costo di riferimento | `0.01`    | **1 centesimo** |
+
+**Tre difetti, non uno:**
+
+1. **la rotella del mouse cambia il valore** quando il campo ha il fuoco — scorrendo una scheda
+   lunga il prezzo cambia da solo, senza un clic e senza un avviso;
+2. le frecce sono inutili su un prezzo, e incoerenti fra loro (cento volte di differenza);
+3. ⚠️ **il separatore decimale lo decide il browser, non l’app.** Con `type="number"` la virgola
+   funziona perché il sistema è italiano: su una macchina in inglese l’operatore non riesce a
+   digitare i decimali. `parseMoneyInput` invece accetta **entrambi** e regge anche il
+   separatore delle migliaia (`1.234,50` e `1,234.50` danno lo stesso importo).
+
+**Due lavori, e NON sono alternative:**
+
+|       | Cosa                                                                        | Taglia                                                                                                |
+| ----- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **A** | togliere le frecce e neutralizzare la rotella su **tutti** i campi numerici | un frammento SCSS in un punto solo, zero TypeScript                                                   |
+| **B** | i prezzi in anagrafica diventano `text` + `parseMoneyInput`                 | 5 controlli, ~40 riferimenti nel componente, 14 usi della catena del netto, 16 file, 11 file di prova |
+
+**A serve comunque**, anche facendo B: le **quantità** restano giustamente `type="number"`, e la
+rotella le corrompe allo stesso modo. Tre componenti card se lo sono già risolto per conto
+proprio (`sales-document-line-card`, `stock-movement-line-card`, `goods-receipt-line-card`) —
+qualcuno c’era già arrivato, ma sulle proprie card e non come regola.
+
+**B chiude il terzo difetto**, che è l’unico invisibile: oggi l’app non decide come si digita un
+prezzo. Conviene farlo insieme al raggruppamento qui sopra, perché tocca gli stessi template.
+
+#### Deciso il 17/08: le frecce restano, la rotella no
+
+> **Frecce dove sono utili — quantità, colli. Rotella spenta OVUNQUE.**
+
+Sono due cose separabili e hanno segno opposto: **la rotella è la metà pericolosa, le frecce
+sono la metà utile.** Su una quantità la rotella fa lo stesso danno che su un prezzo — si
+scorre la pagina col cursore fermo sul campo e il valore cambia, senza un clic e senza avviso.
+
+⚠️ **Non è tutto CSS**, ed è la parte che si sottovaluta:
+
+|                | Come si toglie                                                               |
+| -------------- | ---------------------------------------------------------------------------- |
+| le **frecce**  | ✅ solo SCSS — `appearance: textfield` più i due pseudo-elementi WebKit      |
+| la **rotella** | ⛔ **il CSS non può niente**: serve intercettare `wheel` sul campo col fuoco |
+
+La rotella è una **direttiva** in `shared/directives/`, dove il pattern esiste già
+(`first-click-selects`, `table-column-resize`).
+
+**E c’è del codice da pulire**: tre componenti card si sono già nascoste le frecce per conto
+proprio (`sales-document-line-card`, `stock-movement-line-card`, `goods-receipt-line-card`).
+Quelle regole locali vanno tolte e sostituite dal punto unico, o restano tre copie della stessa
+decisione — che è come nascono questi problemi.
+
+#### E i sei decimali, con B?
+
+Restano intatti, perché **la coda non nasce dal parse**:
+
+```text
+"25,00"  →  parseMoneyInput   →  2500          il valore MOSTRATO, due decimali
+         →  netFromGrossExact →  2049,180328   la coda nasce QUI
+         →  toStorableMinor   →  2049,1803     e qui si taglia a 4 cifre di centesimo
+```
+
+L’anagrafica **fa già esattamente questo** in `toNet`. B cambia solo da dove arriva il numero
+digitato — da «me lo dà il browser come `number`» a «lo leggo io dalla stringa». Il calcolo del
+netto, la coda e il taglio non si toccano.
+
+✅ Anzi, B **toglie** un rischio che oggi c’è: con `type="number"` incollare `1.234,50` fa
+rifiutare il valore al browser e il campo si svuota. `parseMoneyInput` lo legge correttamente.
+
+---
+
+## Prima sincronizzazione Shopify — deciso il 17/08/2026, da progettare
+
+### 1 · `catalogOrigin` diventa provenienza, non permesso
+
+> **Dopo che import e sincronizzazione sono completati, un articolo è di VestiFlow _e_ di
+> Shopify: si distingue per come funziona e da dove nasce, ma si gestisce come tutti gli altri.**
+
+Oggi non è così: `catalogOrigin = shopify` mette l’articolo in sola lettura. Misurato il
+17/08: **87 articoli su 250, il 35% del catalogo.**
+
+Il blocco vive in **17 punti**:
+
+```text
+API        catalog-origin.util · products.service · product-media.service
+           shopify-product-push.service
+FRONTEND   product-form + i tre step (general/options/variants) + detail
+           i model, i mapper, catalog-origin.util
+```
+
+⚠️ **Il push NON è il problema, ed è bene saperlo prima di progettare.** Misurato: la guardia
+del push (`evaluatePushGuard`) controlla connessione, scope `write_products`, prodotto non
+archiviato e spunta `shopifySyncEnabled` — **non guarda `catalogOrigin`**, e il commento nel
+codice lo dice: _«Gate per-prodotto: in AND col gating per origine»_. Se una modifica riesce a
+salvarsi, viene spinta. Quindi togliere il blocco **non** lascerebbe le modifiche a metà strada.
+
+Quello che serve progettare è l’altra metà: **cosa succede quando i due lati cambiano lo stesso
+campo**. «Ultimo che scrive vince» è la direzione decisa, ma va reso vero — e riguarda i campi
+che il canale possiede davvero (nome, descrizione, categoria, tassonomia, identità delle
+varianti), non i prezzi.
+
+✅ **Il prezzo di vendita è già uscito da qui il 17/08**, perché non è un campo del canale: a
+Shopify va `shopifyPrice`, un’altra colonna. Sbloccarlo non anticipava nessuna decisione.
+
+### 2 · Prezzo interno a zero all’import — idea da valutare
+
+Il problema è già misurato e sta nella `PREZZI-SHOPIFY-SPEC`:
+
+> `shopifyDecimalToMinor` restituisce **0** su valore malformato o assente, e il chiamante passa
+> `variant.price ?? '0'`. Un prezzo mancante su Shopify diventa un prezzo di vendita **zero** in
+> VestiFlow, senza errore.
+
+E resta zero **per sempre**, perché il meccanismo è asimmetrico per costruzione:
+
+| Momento                    | `sellingPrice`                        | `shopifyPrice` |
+| -------------------------- | ------------------------------------- | -------------- |
+| **nascita** (primo import) | scritto                               | scritto        |
+| **ri-sync**                | ⛔ **mai toccato** — è dell’operatore | aggiornato     |
+
+Quindi: articolo importato quando Shopify non aveva prezzo → interno a 0. Shopify poi il prezzo
+ce l’ha → il ri-sync aggiorna solo il suo → **l’interno resta 0 e nessuno lo rialza**.
+
+**L’idea:** quando il prezzo interno manca o è zero, si compila con il prezzo Shopify.
+
+**Da determinare:**
+
+- vale **solo alla prima volta**, o ogni volta che l’interno è zero? La seconda forma è più
+  utile ma è una scrittura automatica su un campo dichiarato dell’operatore: va detto
+  esplicitamente che «zero» conta come «non ancora deciso» e non come «deciso zero»;
+- e il caso opposto — l’operatore che **vuole** un articolo a zero — come si distingue?
+
+**Più un comando esplicito**, che è la parte senza ambiguità: nell’elenco prodotti, dopo aver
+filtrato e selezionato, un pulsante **«Copia il prezzo Shopify nel prezzo interno»**. Copre lo
+storico già andato storto, e non indovina niente: lo decide l’operatore su ciò che ha scelto.
+
+⚠️ La forma automatica e il pulsante **non sono alternative**: il pulsante serve comunque per
+gli articoli già a zero oggi, qualunque cosa si decida per l’import futuro.
+
+### 3 · «Listini» in anagrafica: il nome vale per un sottoinsieme
+
+La sezione prezzi dell’anagrafica si intitola **«Listini»** e contiene cinque campi:
+
+| Campo               | È un listino?                  |
+| ------------------- | ------------------------------ |
+| **Prezzo articolo** | ⛔ no — è _il_ prezzo          |
+| **Prezzo Shopify**  | ⛔ no — è il prezzo del canale |
+| Listino 1 · 2 · 3   | ✅ sì                          |
+
+**Il criterio per escludere lo dà già il codice**, in un commento di quella stessa sezione:
+_«Barrato e costo di riferimento restano fuori: non sono listini»_. Applicato agli altri due,
+esclude anche loro.
+
+⚠️ **E le due schermate già non si capiscono fra loro:** in Impostazioni i tre si chiamano
+**«Listini aggiuntivi»**; in anagrafica «Listini» ne indica cinque. La stessa parola vale per
+due insiemi diversi a due schermate di distanza — che è il difetto vero, non la preferenza di
+gusto.
+
+**Proposta:** la sezione si intitola **«Prezzi»**, e i tre restano raggruppati dentro come
+**«Listini aggiuntivi»** — lo stesso nome che hanno già in Impostazioni. Le due schermate
+tornano a dire la stessa cosa con la stessa parola.
+
+_Costo:_ due etichette e i test che le nominano. Nessuna colonna, nessuna migration.
 
 ---
 

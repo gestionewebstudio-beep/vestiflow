@@ -1,0 +1,12 @@
+// L'aspetto di `doc-form__th-menu*` vive in `styles/_document-form.scss`, che è
+// l'anatomia condivisa dalle maschere documento: qui non si ridichiara, o si
+// creerebbe la seconda fonte di verità che l'estrazione voleva togliere.
+//
+// L'host deve però partecipare al posizionamento della tendina, che è assoluta
+// rispetto al contenitore: senza questo si aggancerebbe alla cella, e in una
+// tabella con `overflow` finirebbe tagliata.
+:host {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}

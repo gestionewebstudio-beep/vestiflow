@@ -44,6 +44,7 @@ import { ListSalesOrdersQueryDto } from './dto/list-sales-orders.query.dto';
 import { SaveManualSalesOrderDto } from './dto/save-manual-sales-order.dto';
 import {
   ManualSalesOrdersService,
+  type ConcludePrefillDto,
   type ManualOrderReservationRow,
   type ManualSalesOrderMeta,
   type ManualSalesOrderSaveResult,
@@ -142,7 +143,7 @@ export class SalesOrdersController {
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ConcludeManualSalesOrderDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConcludePrefillDto> {
     return this.manualOrders.concludePrefill(tenantId, id, dto.documentType, user);
   }
 

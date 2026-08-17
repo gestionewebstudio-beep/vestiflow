@@ -25,35 +25,40 @@
   <!-- I tre valori sempre visibili: si modificano senza aprire la card. -->
   <ng-container cardControls>
     <app-document-line-card-control label="Quantità">
-      <div class="co-card__qty">
-        <button
-          type="button"
-          class="co-card__qty-btn"
-          [disabled]="v.readOnly"
-          aria-label="Diminuisci quantità"
-          (click)="quantityStepped.emit(-1)"
-        >
-          <i class="pi pi-minus" aria-hidden="true"></i>
-        </button>
-        <input
-          class="co-card__qty-input tabular-nums"
-          type="number"
-          min="1"
-          step="1"
-          inputmode="numeric"
-          [formControl]="l.quantity"
-          aria-label="Quantità"
-        />
-        <button
-          type="button"
-          class="co-card__qty-btn"
-          [disabled]="v.readOnly"
-          aria-label="Aumenta quantità"
-          (click)="quantityStepped.emit(1)"
-        >
-          <i class="pi pi-plus" aria-hidden="true"></i>
-        </button>
-      </div>
+      <!-- Riga di riferimento: nessuna quantità, come già fa la tabella desktop
+           di questa stessa maschera. Qui la condizione mancava, quindi su mobile
+           la reference mostrava i pulsanti +/− su un valore che non ha senso. -->
+      @if (!l.isReference.value) {
+        <div class="co-card__qty">
+          <button
+            type="button"
+            class="co-card__qty-btn"
+            [disabled]="v.readOnly"
+            aria-label="Diminuisci quantità"
+            (click)="quantityStepped.emit(-1)"
+          >
+            <i class="pi pi-minus" aria-hidden="true"></i>
+          </button>
+          <input
+            class="co-card__qty-input tabular-nums"
+            type="number"
+            min="1"
+            step="1"
+            inputmode="numeric"
+            [formControl]="l.quantity"
+            aria-label="Quantità"
+          />
+          <button
+            type="button"
+            class="co-card__qty-btn"
+            [disabled]="v.readOnly"
+            aria-label="Aumenta quantità"
+            (click)="quantityStepped.emit(1)"
+          >
+            <i class="pi pi-plus" aria-hidden="true"></i>
+          </button>
+        </div>
+      }
     </app-document-line-card-control>
 
     <app-document-line-card-control [label]="v.priceLabel">

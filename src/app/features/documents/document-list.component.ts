@@ -77,7 +77,7 @@ import {
   documentStatusLabel,
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
-import { documentDuplicateFormRoute } from './models/document-routing.util';
+import { documentDuplicateFormRoute, salesFormRouteSegment } from './models/document-routing.util';
 import {
   DOCUMENT_LIST_COLUMN_DEFS,
   DOCUMENT_LIST_COLUMN_PRESETS,
@@ -128,7 +128,9 @@ const EMPTY_META: PageMeta = {
  * decorativo: è quello che permette di chiedere il permesso della famiglia
  * corrispondente senza riscrivere qui la mappa tipo → famiglia.
  */
-const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & { readonly type: DocumentType })[] = [
+export const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & {
+  readonly type: DocumentType;
+})[] = [
   {
     value: 'purchase-invoice',
     label: 'Registrazione fattura fornitore',
@@ -146,6 +148,9 @@ const SECONDARY_CREATE_ENTRIES: readonly (SelectMenuOption & { readonly type: Do
     label: 'Fattura accompagnatoria',
     type: DocumentType.InvoiceAccompanying,
   },
+  // Il terzo tipo della famiglia sta qui come gli altri due: un menu che ne
+  // elenca due su tre suggerisce che il terzo si crei da un'altra parte.
+  { value: 'credit-note', label: 'Nota di credito', type: DocumentType.CreditNote },
 ];
 
 type DocumentListState =
@@ -285,23 +290,27 @@ export class DocumentListComponent {
   });
 
   /**
-   * Variante di creazione attiva: segue il filtro «Tipo» così che «Nuovo …»
-   * crei il documento che l'operatore sta guardando. Su «Tutti» resta la
-   * variante predefinita del profilo (la Fattura semplice).
+   * Le voci del menu «Nuovo»: **una per tipo, sempre tutte**, qualunque sia il
+   * filtro attivo.
+   *
+   * Qui c'era `activeCreateVariant`, che sceglieva la variante **seguendo il
+   * filtro «Tipo»**: con il filtro su Nota di credito il pulsante diventava
+   * «Nuova nota di credito» e ci mandava. Sembrava una comodità ed era un
+   * difetto — il filtro è un modo di **guardare** l'elenco, non di **dichiarare
+   * cosa si sta per creare**, e usarlo per entrambi toglieva all'operatore la
+   * possibilità di creare una Fattura mentre guarda le note di credito. Il
+   * meccanismo veniva dal modulo a due tipi (`17de1f68`) e con il terzo è
+   * diventato visibile.
    */
-  private readonly activeCreateVariant = computed(() => {
-    const sales = this.salesRegister();
-    const variants = sales?.createVariants;
-    if (!sales || !variants) {
-      return null;
-    }
-    const selected = this.sharedTypeFilter();
-    return variants.find((v) => v.type === selected) ?? variants.find((v) => v.type === sales.type);
-  });
-
-  protected readonly salesCreateLabel = computed(
-    () => this.activeCreateVariant()?.label ?? this.salesRegister()?.createLabel,
+  protected readonly createVariantOptions = computed<readonly SelectMenuOption[]>(() =>
+    (this.salesRegister()?.createVariants ?? []).map((variant) => ({
+      value: variant.type,
+      label: variant.label,
+    })),
   );
+
+  /** Elenchi a tipo singolo: l'etichetta del bottone, che non ha varianti. */
+  protected readonly salesCreateLabel = computed(() => this.salesRegister()?.createLabel);
 
   /** Pagine di sola consultazione (Vendita/Reso negozio): nessun «Nuovo …». */
   protected readonly showCreateAction = computed(
@@ -310,6 +319,12 @@ export class DocumentListComponent {
 
   protected readonly emptyStateCtaLabel = computed(() => {
     if (!this.showCreateAction()) {
+      return undefined;
+    }
+    // Elenchi condivisi: nessuna CTA a bottone singolo, perché sceglierebbe un
+    // tipo al posto dell'operatore. Lo stato vuoto riceve il menu a tre voci
+    // per proiezione (vedi template) — è lo stesso comando della testata.
+    if (this.createVariantOptions().length > 0) {
       return undefined;
     }
     const salesLabel = this.salesCreateLabel();
@@ -588,7 +603,6 @@ export class DocumentListComponent {
         linkStatus: undefined,
         externalDocumentTypeId: undefined,
         locationId: undefined,
-        accountant: undefined,
         pendingInvoice: sales.showPendingInvoiceFilter ? q.pendingInvoice : undefined,
       };
     }
@@ -597,7 +611,6 @@ export class DocumentListComponent {
         ...q,
         types: [...GOODS_RECEIPT_DOCUMENT_TYPES],
         type: undefined,
-        accountant: undefined,
         pendingInvoice: undefined,
         customerId: undefined,
       };
@@ -724,10 +737,9 @@ export class DocumentListComponent {
         q.paymentMethod,
       );
     }
-    // accountant/pendingInvoice sono boolean (mai nullish): vanno in OR esplicito.
+    // pendingInvoice è boolean (mai nullish): va in OR esplicito.
     return (
       Boolean(q.search ?? q.type ?? q.status ?? q.dateFrom ?? q.dateTo ?? q.customerId) ||
-      q.accountant === true ||
       q.pendingInvoice === true
     );
   });
@@ -767,12 +779,10 @@ export class DocumentListComponent {
     if (q.type) count++;
     if (q.status) count++;
     if (q.customerId) count++;
-    if (q.accountant === true) count++;
     if (q.pendingInvoice === true) count++;
     return count;
   });
 
-  protected readonly isAccountantView = computed(() => Boolean(this.query().accountant));
   protected readonly isPendingInvoiceView = computed(() => Boolean(this.query().pendingInvoice));
 
   // takeUntilDestroyed() gestisce l'unsubscribe; i campi evitano subscription "ignorate".
@@ -988,6 +998,9 @@ export class DocumentListComponent {
       case 'invoice-accompanying':
         this.openNewInvoice(DocumentType.InvoiceAccompanying);
         break;
+      case 'credit-note':
+        this.openNewInvoice(DocumentType.CreditNote);
+        break;
       default:
         break;
     }
@@ -1017,7 +1030,6 @@ export class DocumentListComponent {
         settlement: null,
         paymentMethod: null,
         createdById: null,
-        accountant: null,
         pendingInvoice: null,
         page: null,
       },
@@ -1422,20 +1434,37 @@ export class DocumentListComponent {
     void this.router.navigate(['/app/documents/quote/new']);
   }
 
-  /** Nuova fattura del tipo scelto: le due varianti condividono il form. */
+  /**
+   * Nuovo documento della famiglia Fattura, del tipo scelto: i tre tipi
+   * condividono il form e si distinguono per l'indirizzo.
+   *
+   * Il percorso viene dalla mappa dei segmenti, non da un confronto: qui c'era
+   * un ternario a due rami, e con l'arrivo della Nota di credito avrebbe
+   * mandato il terzo tipo sulla rotta della Fattura semplice — senza errori,
+   * creando un documento del tipo sbagliato.
+   */
   protected openNewInvoice(type: DocumentType): void {
-    const path =
-      type === DocumentType.InvoiceAccompanying
-        ? '/app/documents/fattura-accompagnatoria/new'
-        : '/app/documents/fattura/new';
-    void this.router.navigate([path]);
+    const segment = salesFormRouteSegment(type);
+    void this.router.navigate([`/app/documents/${segment ?? 'fattura'}/new`]);
   }
 
   /** «Nuovo …» della pagina dedicata (Preventivi, Proforma, DDT, Fatture). */
   protected openNewSalesDocument(): void {
     const sales = this.salesRegister();
     if (sales) {
-      void this.router.navigateByUrl(this.activeCreateVariant()?.path ?? sales.createPath);
+      void this.router.navigateByUrl(sales.createPath);
+    }
+  }
+
+  /**
+   * Voce scelta nel menu «Nuovo» degli elenchi condivisi: porta alla rotta
+   * dichiarata dalla variante, **senza toccare il filtro**. Scegliere cosa
+   * creare e scegliere cosa guardare restano due gesti distinti.
+   */
+  protected onCreateVariant(type: string | null): void {
+    const variant = this.salesRegister()?.createVariants?.find((v) => v.type === type);
+    if (variant) {
+      void this.router.navigateByUrl(variant.path);
     }
   }
 

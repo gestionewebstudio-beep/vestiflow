@@ -42,6 +42,7 @@ import {
   enrichReceiptLinesWithSupplierOrderLineIds,
   reconcileSupplierOrderReceipt,
 } from './document-supplier-order.util';
+import { applyArticlePriceUpdates } from './document-article-price.util';
 import { applySupplierPriceUpdates } from './document-supplier-price.util';
 import {
   buildDocumentNumberConflict,
@@ -57,7 +58,6 @@ import {
 } from './goods-receipt-vat.util';
 import { DocumentSettingsService } from './document-settings.service';
 import { DocumentPriceModePreferenceService } from './document-price-mode-preference.service';
-import { costEntryModeToPricesIncludeVat } from './document-price-mode.util';
 import { ExternalDocumentTypesService } from './external-document-types.service';
 import {
   buildPurchaseInvoiceVatSummary,
@@ -171,18 +171,14 @@ export class GoodsReceiptWorkflowService {
     this.assertNewProductsManageable(dto, user);
     try {
       const result = await this.saveGoodsReceiptInner(tenantId, dto, user);
-      // Ricorda la modalità costo (netto/ivato) scelta per questo tipo, solo
-      // alla creazione: la creazione successiva la ripropone.
-      if (!dto.id && user?.id && dto.purchaseCostEntryMode !== undefined) {
-        await this.priceModePreference
-          .remember(
-            tenantId,
-            user.id,
-            dto.type,
-            costEntryModeToPricesIncludeVat(dto.purchaseCostEntryMode),
-          )
-          .catch(() => undefined);
-      }
+      // ⚠️ Qui la modalità COSTO veniva ricordata come preferenza
+      // dell'operatore, infilandola nella tabella dei PREZZI attraverso un
+      // ponte costo↔prezzo. Rimosso il 16/08/2026: i costi partono sempre
+      // netti. Non era solo un nome fuorviante — era l'unica ragione per cui
+      // `user_document_price_mode_preferences` conteneva anche modalità di
+      // acquisto, e reggeva soltanto perché i tipi delle due famiglie non si
+      // sovrappongono. Il primo tipo buono per entrambe l'avrebbe rotta in
+      // silenzio.
       return result;
     } catch (error) {
       await this.throwNumberConflict(
@@ -589,7 +585,11 @@ export class GoodsReceiptWorkflowService {
         paymentMethod: dto.paymentMethod?.trim() || null,
         supplierOrderId: dto.supplierOrderId ?? existing?.supplierOrderId ?? null,
         currency: dto.currency ?? existing?.currency ?? 'EUR',
-        pricesIncludeVat: setting.pricesIncludeVat,
+        // Documento di ACQUISTO: il prezzo di vendita non c’entra, e la
+        // modalità che conta è quella del costo, qui sotto. Prima veniva dal
+        // default per tipo documento, che per questi tipi valeva comunque
+        // sempre `false`.
+        pricesIncludeVat: false,
         purchaseCostEntryMode: costEntryMode,
         documentDiscountPercent: dto.documentDiscountPercent ?? 0,
         subtotalMinor: totals.subtotalMinor,
@@ -783,6 +783,23 @@ export class GoodsReceiptWorkflowService {
         savedLines,
         dto.updateArticleReferenceCost === true,
       );
+
+      // Prezzi di anagrafica (fetta 2). Spunta accesa di default: senza, i
+      // campi sono in sola lettura in maschera e qui non arriva niente.
+      // La politica Shopify è quella dell'anagrafica prodotti, riusata.
+      const updateArticlePrices = dto.updateArticlePrices !== false;
+      if (updateArticlePrices) {
+        await applyArticlePriceUpdates(
+          tx,
+          tenantId,
+          (dto.lines ?? []).map((line) => ({
+            variantId: line.variantId ?? null,
+            sellingPriceMinor: line.sellingPriceMinor,
+            shopifyPriceMinor: line.shopifyPriceMinor,
+          })),
+          { updateArticlePrices },
+        );
+      }
 
       if (existing && sync.deltas.length > 0) {
         await this.recordRevision(tx, tenantId, documentId, sync.deltas, actor);
@@ -1151,7 +1168,8 @@ export class GoodsReceiptWorkflowService {
           existing?.recipientAddress,
         ),
         currency: dto.currency ?? existing?.currency ?? 'EUR',
-        pricesIncludeVat: setting.pricesIncludeVat,
+        // Fattura fornitore: documento di acquisto, come sopra.
+        pricesIncludeVat: false,
         subtotalMinor,
         taxMinor,
         totalMinor,

@@ -4,6 +4,8 @@
 **Destinatario:** chi riprende `feature/fattura-elettronica` (o Claude Code al momento del merge)
 **Stato del documento:** piano, non consuntivo. Ogni voce porta il proprio stato. Nessuna voce va letta come già fatta se non lo dice.
 
+⚠️ **Aggiornamento 15/08/2026: il ramo `feature/fattura-elettronica` è stato cancellato.** Questo documento presuppone ancora un merge fra due implementazioni — non è più lo scenario reale. Il suo commit è archiviato nel tag locale `archivio/fattura-elettronica`, e il contenuto tecnico da riportare è estratto in **`docs/06b-estrazione-fattura-elettronica.md`** — quello è il documento da leggere per scrivere la Nota di credito e l'irrobustimento XML su `develop`. Questo file resta per la parte ancora valida: il piano di numerazione unica del §1, e il vincolo sul checksum della migration dell'enum (§2).
+
 Fonte di verità del modello: `docs/07-specifica-famiglia-fattura.md` (deciso 14/08, da implementare).
 
 ---

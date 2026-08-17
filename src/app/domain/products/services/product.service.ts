@@ -65,6 +65,7 @@ interface VariantSummaryApiRow {
   readonly title: string;
   readonly barcode?: string | null;
   readonly sellingPrice: { readonly amountMinor: number; readonly currencyCode: string };
+  readonly shopifyPrice?: { readonly amountMinor: number; readonly currencyCode: string } | null;
   readonly purchasePrice?: {
     readonly amountMinor: number;
     readonly currencyCode: string;
@@ -451,6 +452,12 @@ export class ProductService {
         amountMinor: row.sellingPrice.amountMinor,
         currencyCode: row.sellingPrice.currencyCode,
       },
+      shopifyPrice: row.shopifyPrice
+        ? {
+            amountMinor: row.shopifyPrice.amountMinor,
+            currencyCode: row.shopifyPrice.currencyCode,
+          }
+        : undefined,
       purchasePrice: row.purchasePrice
         ? {
             amountMinor: row.purchasePrice.amountMinor,

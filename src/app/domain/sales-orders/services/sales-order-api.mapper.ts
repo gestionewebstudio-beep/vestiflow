@@ -20,7 +20,13 @@ export interface SalesOrderLineApiRow {
   readonly sku?: string;
   readonly title: string;
   readonly quantity: number;
-  readonly unitPriceMinor?: number;
+  /**
+   * Prezzo unitario NETTO. Dal 16/08/2026 la colonna è `numeric(16,6)`, e
+   * Prisma serializza i Decimal come STRINGA: va accettata, o il prezzo
+   * arriverebbe come `'2049.180328'` e `?? 0` non se ne accorgerebbe.
+   * Stessa forma già usata dalla mappatura delle righe documento.
+   */
+  readonly unitPriceMinor?: number | string;
   readonly totalMinor?: number;
   // Righe Ordine cliente manuale.
   readonly barcode?: string | null;
@@ -75,6 +81,8 @@ export interface SalesOrderApiRow {
   readonly notes?: string | null;
   readonly paymentTerms?: string | null;
   readonly documentDiscountPercent?: number;
+  /** Modalità con cui i prezzi sono stati digitati su questo ordine. */
+  readonly pricesIncludeVat?: boolean;
   readonly document?: {
     readonly id: EntityId;
     readonly reference?: string | null;
@@ -188,7 +196,7 @@ function mapLine(row: SalesOrderLineApiRow, currency: CurrencyCode): SalesOrderL
     sku: row.sku ?? '',
     title: row.title,
     quantity: row.quantity,
-    unitPrice: { amountMinor: row.unitPriceMinor ?? 0, currencyCode: currency },
+    unitPrice: { amountMinor: Number(row.unitPriceMinor ?? 0), currencyCode: currency },
     lineTotal: { amountMinor: row.totalMinor ?? 0, currencyCode: currency },
     barcode: row.barcode ?? undefined,
     unitOfMeasure: row.unitOfMeasure ?? undefined,
@@ -246,6 +254,10 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     notes: row.notes ?? undefined,
     paymentTerms: row.paymentTerms ?? undefined,
     documentDiscountPercent: row.documentDiscountPercent ?? 0,
+    // Assente sugli ordini di canale (e sui vecchi): netto, come il default
+    // della colonna. Non è una supposizione — la maschera manuale non ha mai
+    // potuto essere messa in ivato prima di oggi.
+    pricesIncludeVat: row.pricesIncludeVat === true,
     linkedDocument: row.document
       ? {
           id: row.document.id,

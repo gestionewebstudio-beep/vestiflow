@@ -61,7 +61,33 @@ const COUNTER: DocumentCounterView = {
   documentCount: 41,
 };
 
-const NON_STOCK_SUMMARY = {
+/**
+ * Forma di una summary articolo nelle prove: larga quanto la maschera legge.
+ *
+ * Prima il tipo delle fixture era `typeof NON_STOCK_SUMMARY`, cioè quella
+ * costante e nient'altro — con `as const` ogni campo diventa un letterale, e
+ * una fixture nuova con un altro `variantId` non compilava. Un'impalcatura che
+ * ammette un solo articolo impedisce di provare tutto ciò che riguarda il
+ * SECONDO: la sostituzione, per esempio.
+ */
+interface VariantSummaryFixture {
+  readonly variantId: string;
+  readonly productId: string;
+  readonly sku: string;
+  readonly articleCode: string;
+  readonly productName: string;
+  readonly title: string;
+  readonly barcode?: string;
+  readonly sellingPrice: { readonly amountMinor: number; readonly currencyCode: string };
+  readonly compareAtPrice?: { readonly amountMinor: number; readonly currencyCode: string };
+  readonly purchasePrice?: { readonly amountMinor: number; readonly currencyCode: string };
+  readonly stockOnHand: number | null;
+  readonly managesStock: boolean;
+  readonly defaultVatCodeId?: string;
+  readonly unitOfMeasure?: string;
+}
+
+const NON_STOCK_SUMMARY: VariantSummaryFixture = {
   variantId: 'var-nostock',
   productId: 'prod-nostock',
   sku: 'SRV-1',
@@ -79,7 +105,7 @@ const NON_STOCK_SUMMARY = {
 interface GoodsReceiptSetupOptions {
   readonly writeLocations?: readonly { id: string; name: string }[];
   readonly defaultLocation?: { id: string; name: string } | null;
-  readonly variantSummaries?: readonly (typeof NON_STOCK_SUMMARY)[];
+  readonly variantSummaries?: readonly VariantSummaryFixture[];
   readonly vatCodes?: readonly unknown[];
   /** Operatore corrente: decide quali comandi la maschera può mostrare. */
   readonly currentUser?: unknown;
@@ -150,7 +176,18 @@ function goodsReceiptProviders(options?: GoodsReceiptSetupOptions) {
     {
       provide: ProductService,
       useValue: {
-        searchVariantSummaries: () => of(options?.variantSummaries ?? []),
+        // Il filtro per `variantId` va rispettato come nel servizio vero: la
+        // maschera cerca per id quando la variante non è ancora fra le pinned,
+        // e un catalogo che risponde sempre con tutto le farebbe agganciare il
+        // primo articolo qualunque cosa abbia chiesto.
+        searchVariantSummaries: (params?: { readonly variantId?: string }) => {
+          const catalogo = options?.variantSummaries ?? [];
+          return of(
+            params?.variantId
+              ? catalogo.filter((row) => row.variantId === params.variantId)
+              : catalogo,
+          );
+        },
         getSupplierVariantLinks: () => of([]),
       },
     },
@@ -355,6 +392,46 @@ describe('GoodsReceiptFormComponent', () => {
     const line = component['lines'].at(0);
     expect(line.controls.loadsStock.value).toBe(false);
     expect(line.controls.loadsStock.disabled).toBe(true);
+  });
+
+  /**
+   * Sostituzione d'articolo sulla stessa riga (difetto trovato il 15/08/2026).
+   *
+   * Costo e prezzi si scrivevano solo se il campo era vuoto — una precauzione
+   * giusta per la riga che arriva da un ordine fornitore, sbagliata quando è
+   * l'operatore a cambiare articolo: restavano i valori del precedente, e da
+   * qui sarebbero finiti in giacenza e su Shopify.
+   */
+  it('sostituendo l’articolo sulla riga, costo e prezzo seguono il nuovo', async () => {
+    const primo = {
+      ...NON_STOCK_SUMMARY,
+      variantId: 'var-1',
+      sku: 'ART-1',
+      managesStock: true,
+      purchasePrice: { amountMinor: 1000, currencyCode: 'EUR' },
+      sellingPrice: { amountMinor: 2000, currencyCode: 'EUR' },
+    };
+    const secondo = {
+      ...primo,
+      variantId: 'var-2',
+      sku: 'ART-2',
+      purchasePrice: { amountMinor: 3000, currencyCode: 'EUR' },
+      sellingPrice: { amountMinor: 6000, currencyCode: 'EUR' },
+    };
+    const { fixture } = await setup({ variantSummaries: [primo, secondo] });
+    const component = fixture.componentInstance;
+
+    component['onVariantSelect'](0, 'var-1');
+    await fixture.whenStable();
+    const line = component['lines'].at(0);
+    expect(line.controls.unitCost.value).toBe('10,00');
+
+    component['onVariantSelect'](0, 'var-2');
+    await fixture.whenStable();
+
+    expect(line.controls.variantId.value).toBe('var-2');
+    expect(line.controls.unitCost.value).toBe('30,00');
+    expect(line.controls.sellingPrice.value).toBe('60,00');
   });
 
   // ── Il numero proposto non torna al server come imposizione ─────────────

@@ -924,58 +924,16 @@
                                   ></i>
                                 }
                               </button>
-                              <button
-                                type="button"
-                                class="doc-form__th-menu-trigger"
-                                aria-haspopup="menu"
-                                [attr.aria-expanded]="costModeMenuOpen()"
-                                aria-label="Modalità costi del documento"
-                                (click)="toggleCostModeMenu()"
-                              >
-                                <i class="pi pi-chevron-down" aria-hidden="true"></i>
-                              </button>
-                              @if (costModeMenuOpen()) {
-                                <div
-                                  class="doc-form__th-menu"
-                                  role="menu"
-                                  aria-label="Modalità costi"
-                                >
-                                  <button
-                                    type="button"
-                                    class="doc-form__th-menu-item"
-                                    role="menuitemradio"
-                                    [attr.aria-checked]="costEntryMode() === 'vat_excluded'"
-                                    (click)="selectCostMode('vat_excluded')"
-                                  >
-                                    @if (costEntryMode() === 'vat_excluded') {
-                                      <i class="pi pi-check" aria-hidden="true"></i>
-                                    } @else {
-                                      <span
-                                        class="doc-form__th-menu-check"
-                                        aria-hidden="true"
-                                      ></span>
-                                    }
-                                    Usa costi netti
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="doc-form__th-menu-item"
-                                    role="menuitemradio"
-                                    [attr.aria-checked]="costEntryMode() === 'vat_included'"
-                                    (click)="selectCostMode('vat_included')"
-                                  >
-                                    @if (costEntryMode() === 'vat_included') {
-                                      <i class="pi pi-check" aria-hidden="true"></i>
-                                    } @else {
-                                      <span
-                                        class="doc-form__th-menu-check"
-                                        aria-hidden="true"
-                                      ></span>
-                                    }
-                                    Usa costi ivati
-                                  </button>
-                                </div>
-                              }
+                              <app-price-mode-menu
+                                [pricesIncludeVat]="costEntryMode() === 'vat_included'"
+                                netLabel="Usa costi netti"
+                                grossLabel="Usa costi ivati"
+                                ariaLabel="Modalità costi del documento"
+                                [disabled]="formReadOnly()"
+                                (modeChange)="
+                                  selectCostMode($event ? 'vat_included' : 'vat_excluded')
+                                "
+                              />
                             </span>
                             <span
                               appTableColumnResize
@@ -1004,11 +962,25 @@
                             class="doc-form__num"
                             [style.width]="lineColumnWidth('sellingPrice')"
                           >
-                            Prezzo al pubblico
+                            Prezzo di vendita
                             <span
                               appTableColumnResize
                               [minWidthPx]="lineColumnMinWidth('sellingPrice')"
                               (resized)="onLineColumnResize('sellingPrice', $event)"
+                            ></span>
+                          </th>
+                        }
+                        @if (showShopifyPrice() && isLineColumnVisible('shopifyPrice')) {
+                          <th
+                            scope="col"
+                            class="doc-form__num"
+                            [style.width]="lineColumnWidth('shopifyPrice')"
+                          >
+                            Prezzo Shopify
+                            <span
+                              appTableColumnResize
+                              [minWidthPx]="lineColumnMinWidth('shopifyPrice')"
+                              (resized)="onLineColumnResize('shopifyPrice', $event)"
                             ></span>
                           </th>
                         }
@@ -1463,6 +1435,9 @@
                           }
                           @if (isLineColumnVisible('sellingPrice')) {
                             <td class="doc-form__cell doc-form__num">
+                              <!-- Sola lettura senza la spunta «Aggiorna prezzi
+                                   articolo»: il prezzo non è un dato della riga, e un
+                                   campo scrivibile senza destinazione sarebbe una bugia. -->
                               <input
                                 [id]="'gr-selling-' + i"
                                 class="doc-form__input doc-form__input--table doc-form__input--num"
@@ -1470,8 +1445,24 @@
                                 inputmode="decimal"
                                 formControlName="sellingPrice"
                                 placeholder="0,00"
+                                [readonly]="articlePricesReadOnly()"
                                 (blur)="onLineOperationalBlur(i)"
                                 (keydown)="onLineFieldKeydown(i, 'sellingPrice', $event)"
+                              />
+                            </td>
+                          }
+                          @if (showShopifyPrice() && isLineColumnVisible('shopifyPrice')) {
+                            <td class="doc-form__cell doc-form__num">
+                              <input
+                                [id]="'gr-shopify-' + i"
+                                class="doc-form__input doc-form__input--table doc-form__input--num"
+                                type="text"
+                                inputmode="decimal"
+                                formControlName="shopifyPrice"
+                                placeholder="0,00"
+                                [readonly]="articlePricesReadOnly()"
+                                (blur)="onLineOperationalBlur(i)"
+                                (keydown)="onLineFieldKeydown(i, 'shopifyPrice', $event)"
                               />
                             </td>
                           }
@@ -1634,6 +1625,7 @@
                       [value]="costEntryMode()"
                       ariaLabel="Modalità costo netto o ivato"
                       placeholder="Netto"
+                      [includeEmptyOption]="false"
                       [compact]="true"
                       [fullWidth]="true"
                       (valueChange)="
@@ -1807,6 +1799,20 @@
                   (change)="setUpdateArticleReferenceCost($any($event.target).checked)"
                 />
                 Aggiorna anche il costo di riferimento in anagrafica
+              </label>
+
+              <!-- A differenza del costo, qui non c’è un effetto «sempre»: il
+                   prezzo non è un dato del documento. Spenta la spunta, i campi
+                   prezzo tornano in sola lettura invece di accettare un valore
+                   che non avrebbe dove andare. -->
+              <label class="doc-form__check">
+                <input
+                  type="checkbox"
+                  [checked]="updateArticlePrices()"
+                  [disabled]="formReadOnly()"
+                  (change)="setUpdateArticlePrices($any($event.target).checked)"
+                />
+                Aggiorna prezzi articolo
               </label>
             </div>
           </div>

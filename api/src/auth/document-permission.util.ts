@@ -27,7 +27,15 @@ const FAMILY_TO_TYPES: Readonly<Record<DocumentPermissionFamily, readonly Docume
   quote: [DocumentType.quote],
   proforma: [DocumentType.proforma],
   sales_ddt: [DocumentType.sales_ddt],
-  invoice: [DocumentType.invoice_draft, DocumentType.invoice_accompanying],
+  // I tre tipi della famiglia Fattura condividono UNA sola famiglia di
+  // permessi: chi può gestire le fatture gestisce anche le note di credito.
+  // Un permesso separato per la nota renderebbe possibile emettere fatture
+  // senza poterle stornare — cioè metà di un mestiere.
+  invoice: [
+    DocumentType.invoice_draft,
+    DocumentType.invoice_accompanying,
+    DocumentType.credit_note,
+  ],
   store_sale: [DocumentType.store_sale, DocumentType.store_return],
   online_sale: [DocumentType.online_sale, DocumentType.corrispettivo],
   transfer: [DocumentType.transfer],

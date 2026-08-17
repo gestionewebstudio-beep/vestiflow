@@ -55,14 +55,4 @@ export const reportsRoutes: Routes = [
   // sul vecchio finisce sul canonico invece di vedere una pagina gemella.
   { path: 'corrispettivi/print', redirectTo: '/app/sales/corrispettivi/print' },
   { path: 'corrispettivi', redirectTo: '/app/sales/corrispettivi' },
-  {
-    path: 'accountant-register',
-    title: 'Registro commercialista',
-    loadComponent: () =>
-      import('./pages/accountant-register/accountant-register.component').then(
-        (m) => m.AccountantRegisterComponent,
-      ),
-    canActivate: [tenantPermissionGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.SectionReports, reuse: true },
-  },
 ];

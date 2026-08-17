@@ -83,35 +83,38 @@ Con il profilo Solo gestionale:
 Voci visibili nel profilo Solo gestionale (ognuna compare solo se l'utente ha i permessi indicati in [§21](#21-appendice--mappa-route-e-permessi)):
 
 **Sezione principale**
-| Voce | Route | Contenuto |
-| --- | --- | --- |
-| Dashboard | `/app/dashboard` | Panoramica commerciale e magazzino |
-| Prodotti | `/app/products` | Catalogo |
-| Magazzino | `/app/inventory/lookup` | Apre «Cerca giacenza»; tab interne per le altre viste |
-| Fornitori | `/app/suppliers` | Anagrafica fornitori |
-| Ordini Fornitori | `/app/orders` | Acquisti |
-| Documenti | `/app/documents` | Hub tipologie documento |
+
+| Voce             | Route                   | Contenuto                                             |
+| ---------------- | ----------------------- | ----------------------------------------------------- |
+| Dashboard        | `/app/dashboard`        | Panoramica commerciale e magazzino                    |
+| Prodotti         | `/app/products`         | Catalogo                                              |
+| Magazzino        | `/app/inventory/lookup` | Apre «Cerca giacenza»; tab interne per le altre viste |
+| Fornitori        | `/app/suppliers`        | Anagrafica fornitori                                  |
+| Ordini Fornitori | `/app/orders`           | Acquisti                                              |
+| Documenti        | `/app/documents`        | Hub tipologie documento                               |
 
 **Sezione «Vendite»**
-| Voce | Route | Contenuto |
-| --- | --- | --- |
-| Vendita negozio | `/app/sales/register` | Cassa a carrello (vendite e resi al banco) |
-| Ordini cliente | `/app/sales` | Registro ordini cliente (in questo profilo: solo ordini manuali) |
-| Preventivi | `/app/documents/registro?type=quote` | Registro preventivi (sotto Ordini cliente; maschera identica all'Ordine cliente, numerazione PRE) |
-| Vendite online | `/app/sales/online` | Registro vendite online (read-only) |
-| Corrispettivi | `/app/sales/corrispettivi` | Registro corrispettivi |
-| Proforma | `/app/documents/registro?type=proforma` | Registro documenti filtrato |
-| DDT vendita | `/app/documents/registro?type=sales_ddt` | Registro documenti filtrato |
-| Bozze fattura | `/app/documents/registro?type=invoice_draft` | Registro documenti filtrato |
+
+| Voce            | Route                                        | Contenuto                                                                                         |
+| --------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Vendita negozio | `/app/sales/register`                        | Cassa a carrello (vendite e resi al banco)                                                        |
+| Ordini cliente  | `/app/sales`                                 | Registro ordini cliente (in questo profilo: solo ordini manuali)                                  |
+| Preventivi      | `/app/documents/registro?type=quote`         | Registro preventivi (sotto Ordini cliente; maschera identica all'Ordine cliente, numerazione PRE) |
+| Vendite online  | `/app/sales/online`                          | Registro vendite online (read-only)                                                               |
+| Corrispettivi   | `/app/sales/corrispettivi`                   | Registro corrispettivi                                                                            |
+| Proforma        | `/app/documents/registro?type=proforma`      | Registro documenti filtrato                                                                       |
+| DDT vendita     | `/app/documents/registro?type=sales_ddt`     | Registro documenti filtrato                                                                       |
+| Bozze fattura   | `/app/documents/registro?type=invoice_draft` | Registro documenti filtrato                                                                       |
 
 **Sezione gestione**
-| Voce | Route |
-| --- | --- |
-| Clienti | `/app/customers` |
-| Report | `/app/reports` |
+
+| Voce                    | Route                              |
+| ----------------------- | ---------------------------------- |
+| Clienti                 | `/app/customers`                   |
+| Report                  | `/app/reports`                     |
 | Registro commercialista | `/app/reports/accountant-register` |
-| Impostazioni | `/app/settings` |
-| Guida | `/app/guide` |
+| Impostazioni            | `/app/settings`                    |
+| Guida                   | `/app/guide`                       |
 
 In fondo alla sidebar: **Esci** (con conferma). Non esiste la sezione «Canali online» (solo profilo Shopify).
 
@@ -206,7 +209,7 @@ Route principali: lista `/app/products`, nuovo `/app/products/new`, dettaglio `/
 
 **Inserimento rapido** (modalità predefinita, un'unica schermata):
 
-- Campi: **Nome** (obbligatorio), **SKU** (obbligatorio, suggerito dal nome), **EAN** (opzionale, pulsante **Genera** EAN-13), **Prezzo vendita** (obbligatorio), Brand e Categoria (opzionali).
+- Campi: **Nome** (obbligatorio), **SKU** (obbligatorio, suggerito dal nome), **EAN** (opzionale, pulsante **Genera** EAN-13), **Prezzo di vendita** (obbligatorio), Brand e Categoria (opzionali).
 - Sezione espandibile **Altri dati catalogo**: stagione, stato, IVA, unità di misura, tag, descrizione, immagini.
 - **Crea prodotto** in fondo.
 
@@ -296,7 +299,7 @@ Route: lista `/app/orders`, nuovo `/app/orders/new`, dettaglio `/app/orders/:id`
 ### 9.1 Flusso tipico (aggiornato — prompt 2026-07)
 
 1. **Nuovo ordine** — testata: **Fornitore**, **Data**, **Consegna prevista**, **Rif. ordine fornitore**. Numerazione propria dal numeratore `supplier_order` (**Numeratori**); nessun listino fornitore per ora; nessuna sezione Trasporto o Indirizzi; nessuna sede (l'ordine non tocca il magazzino). «Nuovo fornitore» inline.
-2. **Righe** — colonne visibili di default: Cod. articolo, SKU, EAN, Cod. fornitore, Nome prodotto, Q.tà, U.m., **Costo netto/ivato** (switch nell'intestazione colonna, come Arrivo merce), Sconto, IVA, Totale. Attivabili dal selettore colonne: Prezzo al pubblico, Prezzo barrato, Q.tà giacenza, Q.tà disponibile. **Nessuna colonna «Mag.»**: l'ordine fornitore non incide sulle giacenze.
+2. **Righe** — colonne visibili di default: Cod. articolo, SKU, EAN, Cod. fornitore, Nome prodotto, Q.tà, U.m., **Costo netto/ivato** (switch nell'intestazione colonna, come Arrivo merce), Sconto, IVA, Totale. Attivabili dal selettore colonne: Prezzo di vendita, Prezzo barrato, Q.tà giacenza, Q.tà disponibile. **Nessuna colonna «Mag.»**: l'ordine fornitore non incide sulle giacenze.
 3. **Verso l'Arrivo merce** — tre modalità: (a) arrivo merce creato da zero, indipendente; (b) arrivo merce che **include** l'ordine dal pannello «Includi ordine»; (c) **«Crea arrivo merce»** direttamente dal dettaglio ordine. In tutti i casi, quando l'ordine viene agganciato a un arrivo merce diventa **Concluso** e il collegamento è visibile in entrambi i documenti.
 
 ### 9.2 Stati e azioni

@@ -17,6 +17,7 @@ function makeLine(overrides: Partial<Record<string, unknown>> = {}) {
     discount: new FormControl('', { nonNullable: true }),
     serialNumbersText: new FormControl('', { nonNullable: true }),
     commitsStock: new FormControl(true, { nonNullable: true }),
+    isReference: new FormControl(false, { nonNullable: true }),
     ...overrides,
   });
 }
