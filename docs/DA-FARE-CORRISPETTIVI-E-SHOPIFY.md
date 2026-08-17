@@ -520,3 +520,18 @@ controlli editabili della riga.
 
 È la stessa distinzione che il resto della maschera già fa — importo si digita, imponibile e
 imposta si leggono — e qui non la fa: la freccina del menu è l'unico indizio, e non basta.
+
+### 3. Debito annotato: `page` e `pageSize` accettati e ignorati
+
+Tolto il limite delle cento righe, `listOrders` restituisce l'insieme intero e i due
+parametri **non decidono più niente**. Restano nel contratto perché `Paginated` è una forma
+condivisa con mezzo backend, e rifattorizzarla per una schermata sarebbe sproporzionato.
+
+⚠️ **Ma un parametro accettato e ignorato è esattamente il difetto di `onlineOnly`**, che
+questa stessa area ha già pagato: qualcuno lo manda, l'API lo prende, non succede niente, e
+nessuno se ne accorge finché non conta. Qui il presidio è un test — con `pageSize: 10` le
+righe restituite restano 150 — non un commento.
+
+Da riprendere quando si toccherà `Paginated` per altre ragioni, **non prima**: aprire quel
+refactor adesso significherebbe muovere un tipo condiviso per un problema che oggi un test
+tiene fermo.

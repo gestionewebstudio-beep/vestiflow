@@ -2,6 +2,23 @@
   @if (loadError(); as failed) {
     <app-inline-banner tone="error" [message]="failed.message" />
   }
+  <!--
+    ⚠️ **Il rifiuto del salvataggio si VEDE.**
+
+    `submitError` esisteva già, `protected`, calcolato correttamente — e non lo
+    leggeva nessuno: l'unico banner della maschera era agganciato a
+    `loadError()`, cioè agli errori di CARICAMENTO. Ogni rifiuto del salvataggio
+    finiva quindi in un signal che non arrivava a schermo: «Aggiungi almeno una
+    riga», «Riga N: scegli il Codice IVA», e anche gli errori dell'API.
+
+    Il pulsante sembrava rotto. Digitando lettere nell'importo — che `type="text"
+    inputmode="decimal"` accetta, e deve accettare, perché con i separatori
+    decimali italiani `type="number"` non va — la riga veniva scartata come
+    vuota e il salvataggio si fermava in silenzio.
+  -->
+  @if (submitError(); as rifiuto) {
+    <app-inline-banner tone="error" [message]="rifiuto.message" />
+  }
 
   <div class="doc-form__head-row">
     <app-back-button />
