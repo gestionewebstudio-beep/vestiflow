@@ -23,6 +23,7 @@ import type { Paginated } from '../common/dto/pagination.dto';
 import { CorrispettiviExportService } from './corrispettivi-export.service';
 import {
   CorrispettiviService,
+  type CorrispettiviLocationDto,
   type CorrispettiviOrderRow,
   type CorrispettiviRegisterRow,
   type CorrispettiviSummaryDto,
@@ -44,6 +45,16 @@ export class CorrispettiviController {
     @Query() query: ListCorrispettiviQueryDto,
   ): Promise<Paginated<CorrispettiviRegisterRow>> {
     return this.corrispettivi.listOrders(tenantId, query);
+  }
+
+  /** Le sedi del filtro: chi può consultare il Registro può filtrarlo per sede. */
+  @Get('locations')
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
+  listLocations(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+  ): Promise<CorrispettiviLocationDto[]> {
+    return this.corrispettivi.listRegisterLocations(tenantId, user);
   }
 
   @Get('summary')

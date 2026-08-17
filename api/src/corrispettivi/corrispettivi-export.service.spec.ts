@@ -34,7 +34,10 @@ describe('export corrispettivi — colonne del file', () => {
       'Data',
       'Tipo',
       'Numero ordine',
-      'Canale',
+      // «Canale» fino al 17/08/2026, quando le origini erano tre e venivano
+      // tutte da un ordine. Il Corrispettivo manuale ordine non è e canale non
+      // ne ha: l'ha digitato un operatore.
+      'Origine',
       'Imponibile',
       'IVA',
       'Totale',
@@ -42,6 +45,34 @@ describe('export corrispettivi — colonne del file', () => {
     ]) {
       expect(CORRISPETTIVI_ACCOUNTANT_HEADERS).toContain(attesa);
     }
+  });
+
+  it('non porta più «Canale», che con la quarta origine direbbe il falso', () => {
+    expect(CORRISPETTIVI_ACCOUNTANT_HEADERS).not.toContain('Canale');
+  });
+
+  /**
+   * Le due colonne entrate col Corrispettivo manuale stanno **in coda**, ed è la
+   * proprietà che le rende innocue: chi ha un foglio di calcolo agganciato alle
+   * dodici precedenti continua a leggere le stesse colonne agli stessi posti.
+   * Infilarne una in mezzo sposterebbe tutto ciò che le sta a destra.
+   */
+  it('le colonne nuove sono in coda: le dodici precedenti non si spostano', () => {
+    expect([...CORRISPETTIVI_ACCOUNTANT_HEADERS].slice(0, 12)).toEqual([
+      'Data',
+      'Tipo',
+      'Numero ordine',
+      'Origine',
+      'Cliente',
+      'Email cliente',
+      'Imponibile',
+      'IVA',
+      'Totale',
+      'Stato pagamento',
+      'Nota',
+      'Valuta',
+    ]);
+    expect([...CORRISPETTIVI_ACCOUNTANT_HEADERS].slice(12)).toEqual(['Sede', 'Dettaglio IVA']);
   });
 
   it('nessuna intestazione nomina consegne, invii o registrazioni', () => {
@@ -62,7 +93,14 @@ describe('export corrispettivi — colonne del file', () => {
  * significato economico di un tipo che esiste**.
  */
 describe('export corrispettivi — etichetta della colonna «Tipo»', () => {
-  /** Un valore che il catalogo non conosce: il Corrispettivo manuale è in arrivo. */
+  /**
+   * Un valore che il catalogo non conosce. Il caso che questa guardia aspettava
+   * — il Corrispettivo manuale — è **arrivato il 17/08/2026 e ha preso il suo
+   * nome**: `manual_receipt` → «Registrazione». Il test resta perché il caso
+   * successivo non è ancora arrivato, e perché il database è condiviso fra rami
+   * (un valore d'enum aggiunto altrove entra nei dati prima del codice che lo sa
+   * nominare).
+   */
   const tipoNonPrevisto = { kind: 'sale', refundKind: 'nuovo_tipo' } as unknown as Parameters<
     typeof corrispettivoRowTypeLabel
   >[0];
@@ -93,6 +131,26 @@ describe('export corrispettivi — etichetta della colonna «Tipo»', () => {
     expect(
       corrispettivoRowTypeLabel({ kind: 'refund', refundKind: SalesOrderRefundKind.cancellation }),
     ).toBe('Annullamento');
+  });
+
+  /**
+   * ⚠️ **Il Corrispettivo manuale esce come «Vendita», ed è stata una
+   * correzione.**
+   *
+   * Per un momento ha avuto un `kind` proprio, «Registrazione». È stato tolto il
+   * 17/08/2026: economicamente rappresenta una vendita avvenuta, e
+   * «Registrazione» era una distinzione TECNICA travestita da tipo evento —
+   * caricava la colonna «Tipo» di ciò che appartiene all'**Origine**, che è
+   * un'altra dimensione e ha la sua colonna.
+   *
+   * Il test resta perché la regola da presidiare è quella: Tipo dice *cosa è
+   * successo*, Origine *da dove viene la riga*.
+   */
+  it('il Corrispettivo manuale esce come «Vendita»: a distinguerlo è l’Origine', () => {
+    expect(corrispettivoRowTypeLabel({ kind: 'sale', refundKind: null })).toBe('Vendita');
+    // E `CorrispettiviRowKind` non ha più un terzo valore: il tipo evento sono
+    // due, vendita e rettifica.
+    expect(Object.keys(ROW_TYPE_LABELS)).not.toContain('manual_receipt');
   });
 
   it('ogni gesto di rettifica del database ha la sua etichetta', () => {

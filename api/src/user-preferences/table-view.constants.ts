@@ -32,6 +32,7 @@ export const TABLE_VIEW_IDS = [
   'customers_list',
   'sales_orders_list',
   'shopify_orders_list',
+  'corrispettivi_register',
 ] as const;
 
 export type TableViewId = (typeof TABLE_VIEW_IDS)[number];

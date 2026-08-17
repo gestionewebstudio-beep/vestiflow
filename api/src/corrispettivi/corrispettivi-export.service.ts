@@ -17,12 +17,12 @@ import {
   type PdfTableColumn,
 } from '../common/pdf/pdf-layout.util';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  financialStatusDisplayLabel,
-  sourceDisplayLabel,
-} from '../sales-orders/sales-order.enum-mapper';
+import { financialStatusDisplayLabel } from '../sales-orders/sales-order.enum-mapper';
+import { originDisplayLabel } from './corrispettivi-classification.util';
+import { compareCorrispettiviRowsAsc } from './corrispettivi-sort.util';
 import {
   CorrispettiviService,
+  type CorrispettivoVatBreakdownRow,
   type CorrispettiviRegisterRow,
   type CorrispettiviRowKind,
 } from './corrispettivi.service';
@@ -43,7 +43,11 @@ export const CORRISPETTIVI_ACCOUNTANT_HEADERS = [
   'Data',
   'Tipo',
   'Numero ordine',
-  'Canale',
+  // «Canale» fino al 17/08/2026, quando le origini erano tre e venivano tutte
+  // da un ordine. Con la quarta — il Corrispettivo manuale, che ordine non è —
+  // «canale» diventa falso: nessun canale l'ha raccolto, l'ha digitata un
+  // operatore. La colonna dice **Origine**, che era già ciò che conteneva.
+  'Origine',
   'Cliente',
   'Email cliente',
   'Imponibile',
@@ -52,6 +56,18 @@ export const CORRISPETTIVI_ACCOUNTANT_HEADERS = [
   'Stato pagamento',
   'Nota',
   'Valuta',
+  // ── Le due in coda: additive, nessuna delle dodici sopra si sposta ────────
+  //
+  // **Sede**: il Registro da oggi la mostra e ci si filtra sopra. Un file che
+  // non la nomina, prodotto con quel filtro attivo, non direbbe di quale sede
+  // sia — e «ciò che il Registro mostra è ciò che esce» (`10` §12).
+  'Sede',
+  // **Dettaglio IVA**: la registrazione manuale conserva le sue righe per
+  // aliquota, e questo è il modo di farle uscire senza rifare l'export. Le
+  // altre tre sorgenti la lasciano vuota: il dato esiste nel database ma il
+  // Registro non lo legge, e riempirla per corrispondenza inversa direbbe una
+  // cosa non verificata su un file che va fuori dall'azienda.
+  'Dettaglio IVA',
 ] as const;
 
 /**
@@ -202,13 +218,18 @@ export class CorrispettiviExportService {
     const rows = await this.corrispettivi.buildRegisterRows(tenantId, query);
 
     return [...rows]
-      .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime())
+      // ⚠️ **Lo stesso comparatore dell'elenco**, nel verso crescente: giorno
+      // economico, poi istante reale, poi `rowId`. Qui c'era un ordinamento per
+      // la sola data — e con due sorgenti che portano un `DATE` (mezzanotte)
+      // significava che le loro righe uscivano nell'ordine in cui il database
+      // le aveva rese, diverso da quello a schermo e diverso a ogni export.
+      .sort(compareCorrispettiviRowsAsc)
       .map((row) => ({
         // «Data» e non «data vendita»: su una rettifica è la data del reso.
         Data: ROME_DATETIME_FORMAT.format(row.occurredAt),
         Tipo: corrispettivoRowTypeLabel(row),
         'Numero ordine': row.orderNumber,
-        Canale: sourceDisplayLabel(row.source),
+        Origine: originDisplayLabel(row.source),
         Cliente: row.customerName,
         'Email cliente': row.customerEmail ?? '',
         // Gli importi arrivano già col segno: le righe sommano al totale
@@ -224,6 +245,11 @@ export class CorrispettiviExportService {
         // registra nulla.
         Nota: row.note ?? '',
         Valuta: row.currency,
+        // «Non determinata» per esteso, non una cella vuota: una cella vuota si
+        // legge come un dato dimenticato, questa dice che il dato non c'è — ed
+        // è un'anomalia temporanea delle righe Shopify, non uno stato.
+        Sede: row.locationName ?? 'Non determinata',
+        'Dettaglio IVA': formatVatBreakdown(row.vatBreakdown),
       }));
   }
 
@@ -300,7 +326,7 @@ export class CorrispettiviExportService {
       { header: 'Tipo', width: contentWidth * 0.11 },
       { header: 'Ordine', width: contentWidth * 0.13 },
       { header: 'Cliente', width: contentWidth * 0.19 },
-      { header: 'Canale', width: contentWidth * 0.1 },
+      { header: 'Origine', width: contentWidth * 0.1 },
       { header: 'Imponibile', width: contentWidth * 0.11, align: 'right' },
       { header: 'IVA', width: contentWidth * 0.1, align: 'right' },
       { header: 'Totale', width: contentWidth * 0.13, align: 'right' },
@@ -311,7 +337,7 @@ export class CorrispettiviExportService {
       row.Tipo,
       row['Numero ordine'],
       row.Cliente,
-      row.Canale,
+      row.Origine,
       row.Imponibile,
       row.IVA,
       row.Totale,
@@ -326,6 +352,29 @@ export class CorrispettiviExportService {
       rows: tableRows,
     });
   }
+}
+
+/**
+ * Il dettaglio per aliquota di una riga, in una cella sola.
+ *
+ * Vuoto — non «0%» né «—» — dove la sorgente non lo espone: una cella vuota è
+ * l'assenza di un'informazione, un valore è un'affermazione. Su un file che va
+ * al commercialista la differenza conta.
+ */
+function formatVatBreakdown(
+  breakdown: readonly CorrispettivoVatBreakdownRow[] | null,
+): string {
+  if (!breakdown || breakdown.length === 0) {
+    return '';
+  }
+  return breakdown
+    .map(
+      (row) =>
+        `${row.ratePercent}%: imponibile ${EUR_AMOUNT_FORMAT.format(
+          row.netMinor / 100,
+        )}, IVA ${EUR_AMOUNT_FORMAT.format(row.vatMinor / 100)}`,
+    )
+    .join(' · ');
 }
 
 function formatCorrispettiviPeriodLabel(query: ListCorrispettiviQueryDto): string {

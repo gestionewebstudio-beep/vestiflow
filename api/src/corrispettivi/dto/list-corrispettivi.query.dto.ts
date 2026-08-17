@@ -1,20 +1,26 @@
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
 
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import {
   CORRISPETTIVI_AMBITO,
   CORRISPETTIVI_CANALE,
+  CORRISPETTIVI_ORIGINE_VALUES,
   type CorrispettiviAmbito,
   type CorrispettiviCanale,
 } from '../corrispettivi-classification.util';
-import {
-  API_FINANCIAL_VALUES,
-  API_SOURCE_ONLINE,
-  API_SOURCE_POS,
-} from '../../sales-orders/sales-order.enum-mapper';
+import { API_FINANCIAL_VALUES } from '../../sales-orders/sales-order.enum-mapper';
 
-const SOURCE_VALUES = [API_SOURCE_ONLINE, API_SOURCE_POS] as const;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Tipi di riga selezionabili nel registro. `all` è il default implicito. */
@@ -46,9 +52,24 @@ export class ListCorrispettiviQueryDto extends PaginationQueryDto {
   @IsIn([...API_FINANCIAL_VALUES])
   financialStatus?: string;
 
+  /**
+   * **Origine**: da cosa nasce la riga del Registro.
+   *
+   * ⚠️ **Sostituisce `source`, che era parziale e non lo mandava nessuno.**
+   * Quel filtro ammetteva due soli valori — `online` e `pos`, cioè le due
+   * origini Shopify — e non contemplava né la Vendita al banco né il
+   * Corrispettivo manuale. Nessuna UI lo esponeva.
+   *
+   * La conseguenza misurata il 17/08/2026: **il Corrispettivo manuale non era
+   * isolabile**. Condivide con la Vendita al banco la coppia Fisico/POS ·
+   * VestiFlow, quindi l'unica strada — ambito + canale — le prendeva entrambe.
+   *
+   * I valori sono quelli che esistono davvero, derivati dalla mappa delle
+   * origini: `shopify_online` · `shopify_pos` · `store` · `manual_receipt`.
+   */
   @IsOptional()
-  @IsIn([...SOURCE_VALUES])
-  source?: string;
+  @IsIn([...CORRISPETTIVI_ORIGINE_VALUES])
+  origine?: string;
 
 
   @IsOptional()
@@ -68,6 +89,19 @@ export class ListCorrispettiviQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsIn([...CORRISPETTIVI_CANALE])
   canale?: CorrispettiviCanale;
+
+  /**
+   * Sede di cui si vuole il corrispettivo.
+   *
+   * ⚠️ **Le righe senza sede escono dal risultato, e la schermata lo dichiara.**
+   * Non possono essere attribuite alla sede scelta, ma un Registro che perde
+   * righe appena si sceglie una sede mostrerebbe un totale più basso del vero —
+   * che in un registro fiscale è il difetto peggiore possibile. Il riepilogo
+   * porta quindi `locationUndeterminedExcludedCount` (`10` §12).
+   */
+  @IsOptional()
+  @IsUUID()
+  locationId?: string;
 
   @IsOptional()
   @Transform(({ value }) => toOptionalBoolean(value))

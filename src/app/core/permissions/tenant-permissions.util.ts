@@ -110,6 +110,18 @@ export const ONLINE_SALES_VIEW_GROUPS: readonly (readonly TenantPermissionKey[])
   [docViewPermission('online_sale')],
 ];
 
+/**
+ * **Scrivere** nel Registro Corrispettivi: la maschera del Corrispettivo
+ * manuale (`docs/10` §12). Specchio di `MANUAL_RECEIPT_WRITE_GROUPS` dell'API.
+ *
+ * Si chiede anche la VISTA del Registro, non solo la scrittura: chi registra un
+ * corrispettivo deve poter vedere quello che sta modificando.
+ */
+export const MANUAL_RECEIPT_WRITE_GROUPS: readonly (readonly TenantPermissionKey[])[] = [
+  ...ONLINE_SALES_VIEW_GROUPS,
+  [TenantPermission.ReportsFiscalRegister],
+];
+
 export const REQUIRED_TENANT_PERMISSIONS_KEY = 'requiredTenantPermissions';
 
 /**

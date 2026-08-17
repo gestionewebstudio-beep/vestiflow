@@ -32,6 +32,9 @@ export const TableViewId = {
   CustomersList: 'customers_list',
   SalesOrdersList: 'sales_orders_list',
   ShopifyOrdersList: 'shopify_orders_list',
+  // Registro Corrispettivi: Cliente, Email, Pagamento e Nota vivono qui, spente
+  // di serie. Non sono state rimosse — si riaccendono dal selettore Colonne.
+  CorrispettiviRegister: 'corrispettivi_register',
 } as const;
 export type TableViewId = (typeof TableViewId)[keyof typeof TableViewId];
 

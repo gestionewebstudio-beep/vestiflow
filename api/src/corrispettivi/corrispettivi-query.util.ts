@@ -13,6 +13,7 @@ import {
 } from '../sales-orders/sales-order-query.util';
 import { prismaFinancialFilter, toPrismaSource } from '../sales-orders/sales-order.enum-mapper';
 import {
+  includesManualReceipts,
   sourcesFor,
   type CorrispettiviAmbito,
   type CorrispettiviCanale,
@@ -26,9 +27,43 @@ export interface CorrispettiviListFilters extends SalesOrderListFilters {
    */
   readonly ambito?: CorrispettiviAmbito;
   readonly canale?: CorrispettiviCanale;
+  /**
+   * **Origine**: da cosa nasce la riga. La terza dimensione, e non un sinonimo
+   * delle prime due — senza, il Corrispettivo manuale non è isolabile, perché
+   * condivide con la Vendita al banco la coppia Fisico/POS · VestiFlow.
+   */
+  readonly origine?: string;
   readonly refundsOnly?: boolean;
   /** `all` · `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
   readonly rowType?: string;
+  /**
+   * Sede. Le righe che una sede non ce l'hanno **escono**, perché a quella sede
+   * non sono attribuibili — ma il riepilogo dice quante sono (`10` §12).
+   */
+  readonly locationId?: string;
+  /**
+   * Il verso opposto: le sole righe **senza sede**.
+   *
+   * Serve a contare ciò che il filtro Sede lascia fuori, ed esiste come flag
+   * invece che come «`locationId: null`» perché il conteggio deve passare dagli
+   * **stessi** builder dell'elenco: una seconda catena di filtri, scritta a
+   * mano accanto a questa, conterebbe righe diverse da quelle che spariscono —
+   * ed è esattamente il difetto che il numero dichiarato deve smentire.
+   */
+  readonly undeterminedLocationOnly?: boolean;
+}
+
+/**
+ * Il filtro sede, nelle sue tre forme: nessuna, una sede, «senza sede».
+ *
+ * `locationId: null` in Prisma è un valore, non «qualunque»: è ciò che aggancia
+ * le righe che una sede non ce l'hanno.
+ */
+function locationFilter(query: CorrispettiviListFilters): { locationId?: string | null } {
+  if (query.undeterminedLocationOnly) {
+    return { locationId: null };
+  }
+  return query.locationId ? { locationId: query.locationId } : {};
 }
 
 /**
@@ -73,7 +108,6 @@ export function buildCorrispettiviWhere(
   query: CorrispettiviListFilters,
 ): Prisma.SalesOrderWhereInput {
   const financialFilter = prismaFinancialFilter(query.financialStatus);
-  const prismaSource = toPrismaSource(query.source);
   const fulfilledAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
 
   // Il filtro per origine c’è SEMPRE, e non è una restrizione dei filtri: è la
@@ -81,12 +115,11 @@ export function buildCorrispettiviWhere(
   // cliente manuale non lo è (impegno commerciale, non vendita), e senza questa
   // riga entrava: misurati due ordini per 229,36 €.
   //
-  // Ambito e canale restringono poi fra le origini ammesse, e la loro
+  // Ambito, canale e ORIGINE restringono poi fra le origini ammesse, e la loro
   // intersezione può essere VUOTA (es. Online + VestiFlow): la lista resta
   // vuota — `{ in: [] }` — invece di mostrare tutto.
-  const classified = sourcesFor(query.ambito, query.canale);
   const sourceFilter: Prisma.EnumSalesOrderSourceFilter = {
-    in: prismaSource ? classified.filter((source) => source === prismaSource) : classified,
+    in: sourcesFor(query.ambito, query.canale, query.origine),
   };
 
   const where: Prisma.SalesOrderWhereInput = {
@@ -95,6 +128,10 @@ export function buildCorrispettiviWhere(
     fulfilledAt: fulfilledAt ? { ...fulfilledAt, not: null } : { not: null },
     ...(financialFilter ? { financialStatus: { in: financialFilter } } : {}),
     source: sourceFilter,
+    // Sede: uguaglianza secca, quindi gli ordini senza sede escono da sé. È il
+    // comportamento voluto — non si attribuisce a una sede una vendita che non
+    // dice da dove è partita — ed è dichiarato nel riepilogo, non subìto.
+    ...locationFilter(query),
     ...(query.refundsOnly
       ? {
           financialStatus: {
@@ -138,13 +175,11 @@ export function buildCorrispettiviRefundWhere(
   query: CorrispettiviListFilters,
 ): Prisma.SalesOrderRefundWhereInput {
   const occurredAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
-  const prismaSource = toPrismaSource(query.source);
 
   // Stessa prima domanda delle vendite: una rettifica su un ordine che non è un
   // corrispettivo non è un corrispettivo negativo.
-  const classified = sourcesFor(query.ambito, query.canale);
   const sourceFilter: Prisma.EnumSalesOrderSourceFilter = {
-    in: prismaSource ? classified.filter((source) => source === prismaSource) : classified,
+    in: sourcesFor(query.ambito, query.canale, query.origine),
   };
 
   // «Resi» e «Rimborsi» sono due voci diverse perché sono due gesti diversi:
@@ -161,7 +196,12 @@ export function buildCorrispettiviRefundWhere(
     tenantId,
     kind,
     ...(occurredAt ? { occurredAt } : {}),
-    order: { source: sourceFilter },
+    // La sede di una rettifica è quella dell'ordine che rettifica: non ne ha una
+    // propria, e inventargliela sarebbe dire che la merce è tornata altrove.
+    order: {
+      source: sourceFilter,
+      ...locationFilter(query),
+    },
   };
 }
 
@@ -184,13 +224,10 @@ export function buildCorrispettiviStoreSaleWhere(
   tenantId: string,
   query: CorrispettiviListFilters,
 ): Prisma.DocumentWhereInput | null {
-  if (!sourcesFor(query.ambito, query.canale).includes(PrismaSource.store)) {
-    return null;
-  }
-  // Il filtro per origine dell'elenco ordini vale anche qui: chiedere
-  // `source=manual` non deve far comparire le vendite al banco.
-  const prismaSource = toPrismaSource(query.source);
-  if (prismaSource && prismaSource !== PrismaSource.store) {
+  // Ambito, canale e ORIGINE decidono insieme: chiedere «Origine = Corrispettivo
+  // manuale» spegne la Vendita al banco, che fino al 17/08 non si poteva
+  // distinguere da lei — condividono la coppia Fisico/POS · VestiFlow.
+  if (!sourcesFor(query.ambito, query.canale, query.origine).includes(PrismaSource.store)) {
     return null;
   }
   // Uno stato di pagamento descrive un ORDINE: chiederlo esclude una sorgente
@@ -207,11 +244,68 @@ export function buildCorrispettiviStoreSaleWhere(
     type: DocumentType.store_sale,
     status: { not: DocumentStatus.cancelled },
     ...(documentDate ? { documentDate } : {}),
+    ...locationFilter(query),
     ...(query.search
       ? {
           OR: [
             { reference: { contains: query.search, mode: 'insensitive' } },
             { customerName: { contains: query.search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+}
+
+/**
+ * I **Corrispettivi manuali** del periodo: la quarta sorgente del Registro
+ * (`10` §12). Gemella di quella della Vendita al banco, e con lo stesso
+ * `return null`.
+ *
+ * `null` significa «questa sorgente non c'entra con la domanda», non «non ci
+ * sono righe» — ed è il meccanismo con cui una domanda che riguarda **solo gli
+ * ordini** spegne una sorgente che ordine non è:
+ *
+ * - **stato di pagamento** e **«solo resi»** descrivono un ordine: una
+ *   registrazione economica non ha un ciclo di pagamento da interrogare, e
+ *   mostrarla senza risponderebbe a una domanda diversa da quella posta;
+ * - il filtro **origine** dell'elenco ordini (`source=online|pos`) nomina
+ *   origini di `sales_orders`: nessuna di quelle è questa;
+ * - **ambito e canale** la spengono per la via normale, `includesManualReceipts`.
+ *
+ * ⚠️ **La data del Registro è `documentDate`**, che qui è l'unica che esiste: è
+ * la data economica che l'operatore ha digitato, non quella in cui ha salvato.
+ * Una chiusura di cassa recuperata il giorno dopo resta del giorno prima.
+ *
+ * Non c'è nessuno stato da filtrare, e non è una svista: la registrazione non
+ * ne ha uno — esiste o è stata eliminata (`10` §12).
+ */
+export function buildCorrispettiviManualWhere(
+  tenantId: string,
+  query: CorrispettiviListFilters,
+): Prisma.ManualReceiptWhereInput | null {
+  if (!includesManualReceipts(query.ambito, query.canale, query.origine)) {
+    return null;
+  }
+  if (query.financialStatus || query.refundsOnly) {
+    return null;
+  }
+  // La sede è obbligatoria per costruzione: nessuna registrazione manuale può
+  // essere «senza sede», quindi la domanda non la riguarda affatto.
+  if (query.undeterminedLocationOnly) {
+    return null;
+  }
+
+  const documentDate = buildPlacedAtFilter(query.placedFrom, query.placedTo);
+
+  return {
+    tenantId,
+    ...(documentDate ? { documentDate } : {}),
+    ...(query.locationId ? { locationId: query.locationId } : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { notes: { contains: query.search, mode: 'insensitive' } },
+            { lines: { some: { description: { contains: query.search, mode: 'insensitive' } } } },
           ],
         }
       : {}),
