@@ -424,8 +424,10 @@ export class CorrispettiviReportComponent {
     placedFrom: this.dateRange().placedFrom,
     placedTo: this.dateRange().placedTo,
     ...corrispettiviFiltersToQuery(this.filters()),
-    page: 1,
-    pageSize: 100,
+    // ⚠️ **Nessun `pageSize`**: il Registro è delimitato dal periodo e dai
+    // filtri, non da un numero di righe. Qui c'erano `page: 1` fisso e cento
+    // righe, senza paginatore in pagina: su un periodo da 850 la schermata
+    // scriveva «850 righe nel periodo» e ne mostrava cento.
   }));
 
   private readonly state = toSignal(

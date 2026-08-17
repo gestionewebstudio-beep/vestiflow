@@ -208,13 +208,35 @@ export class CorrispettiviService {
     query: ListCorrispettiviQueryDto,
   ): Promise<Paginated<CorrispettiviRegisterRow>> {
     const rows = await this.buildRegisterRows(tenantId, query);
-    const skip = (query.page - 1) * query.pageSize;
 
+    /*
+      ⚠️ **Nessun taglio: il Registro è delimitato dal PERIODO e dai FILTRI, non
+      da un numero di righe.**
+
+      C'era uno `slice(skip, skip + pageSize)`, e la schermata chiedeva cento
+      righe con `page: 1` fisso e nessun paginatore: su un periodo da 850 righe
+      l'operatore leggeva «850 righe nel periodo» e ne poteva consultare cento.
+      Un registro contabile che ne mostra una parte senza dirlo è peggio di uno
+      che rifiuta il periodo.
+
+      **E quel taglio non proteggeva niente.** Il costo — quattro
+      interrogazioni, fusione e ordinamento globale in memoria — è già stato
+      pagato per intero quando si arriva qui: affettare dopo limitava solo il
+      peso della risposta, mai il lavoro del server.
+
+      A delimitare resta `REGISTER_MERGE_CEILING`, che è il tetto vero e lo
+      dichiara rifiutando il periodo.
+
+      ⚠️ `page` e `pageSize` restano nel tipo perché la forma `Paginated` è
+      condivisa, ma **qui non decidono più niente** e non vanno reintrodotti di
+      straforo: un parametro accettato e ignorato è il difetto di `onlineOnly`,
+      che questa stessa area ha già pagato una volta.
+    */
     return {
-      items: rows.slice(skip, skip + query.pageSize),
+      items: rows,
       total: rows.length,
-      page: query.page,
-      pageSize: query.pageSize,
+      page: 1,
+      pageSize: rows.length,
     };
   }
 
