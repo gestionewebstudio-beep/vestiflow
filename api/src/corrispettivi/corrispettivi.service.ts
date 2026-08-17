@@ -15,6 +15,7 @@ import {
   INVENTORY_VIEW_SCOPE_MODE,
   listLocationsInScope,
 } from '../inventory/licensed-location-scope.util';
+import { accumulaCorrispettivi } from './corrispettivi-totals.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildPlacedAtFilter } from '../sales-orders/sales-order-query.util';
 import { API_SOURCE_ONLINE, API_SOURCE_POS } from '../sales-orders/sales-order.enum-mapper';
@@ -517,48 +518,6 @@ export class CorrispettiviService {
       },
     });
 
-    let refundsCount = 0;
-    let subtotalMinor = 0;
-    let taxMinor = 0;
-    let shippingMinor = 0;
-    let discountMinor = 0;
-    let totalMinor = 0;
-
-    for (const order of orders) {
-      subtotalMinor += order.subtotalMinor;
-      taxMinor += order.taxMinor;
-      shippingMinor += order.shippingMinor;
-      discountMinor += order.discountMinor;
-      totalMinor += order.totalMinor;
-      if (isRefundFinancialStatus(order.financialStatus)) {
-        refundsCount += 1;
-      }
-    }
-
-    // Le Vendite al banco entrano nei totali come le altre vendite. Lo
-    // `shipping` non le riguarda — al banco non si spedisce — e lo sconto è già
-    // dentro il totale del documento: sommarli produrrebbe due volte lo stesso
-    // sconto.
-    for (const sale of storeSales) {
-      subtotalMinor += Math.max(0, sale.totalMinor - sale.taxMinor);
-      taxMinor += sale.taxMinor;
-      totalMinor += sale.totalMinor;
-    }
-
-    // I Corrispettivi manuali entrano come le altre vendite. L'imponibile qui è
-    // LETTO e non ricavato per differenza: la registrazione lo conserva già,
-    // sommato dalle sue righe per aliquota — è l'unica sorgente che lo sa dire.
-    for (const receipt of manualReceipts) {
-      subtotalMinor += receipt.subtotalMinor;
-      taxMinor += receipt.taxMinor;
-      totalMinor += receipt.totalMinor;
-    }
-
-    // `subtotalMinor` arriva dal canale GIÀ al netto degli sconti di riga
-    // (misurato: righe 120,00 − sconti 16,00 = subtotale 104,00). Sottrarli di
-    // nuovo produceva un imponibile che non esiste — 88,00 su quell'ordine.
-    const taxableMinor = Math.max(0, totalMinor - taxMinor);
-
     // Le rettifiche del periodo, alla LORO data e senza gli annullamenti.
     //
     // ⚠️ Il filtro per TIPO di riga si toglie di proposito: serve a guardare
@@ -569,9 +528,6 @@ export class CorrispettiviService {
       where: buildCorrispettiviRefundWhere(tenantId, { ...query, rowType: undefined }),
       select: { totalMinor: true, taxMinor: true },
     });
-    const refundTotalMinor = refunds.reduce((sum, refund) => sum + refund.totalMinor, 0);
-    const refundTaxMinor = refunds.reduce((sum, refund) => sum + refund.taxMinor, 0);
-
     // Gli annullamenti si contano e non si sottraggono: la vendita che
     // annullano non è mai entrata nel registro (specifica 08 §4).
     const cancellations = await this.prisma.salesOrderRefund.findMany({
@@ -592,27 +548,34 @@ export class CorrispettiviService {
       },
     });
 
+    // ⚠️ **Una sola matematica**, e da qui in poi vale anche per i subtotali
+    // giornalieri del blocco B: due implementazioni che «si assomigliano» non
+    // possono garantire che la somma delle parti faccia il totale.
+    const totali = accumulaCorrispettivi({
+      ordini: orders,
+      venditeBanco: storeSales,
+      corrispettiviManuali: manualReceipts,
+      rettifiche: refunds,
+      annullamenti: cancellations,
+    });
+
     return {
-      orderCount: orders.length + storeSales.length + manualReceipts.length,
+      ...totali,
       undatedFulfilmentCount,
       locationUndeterminedExcludedCount: await this.countUndeterminedLocationRows(tenantId, query),
-      refundsCount,
-      subtotalMinor,
-      taxMinor,
-      shippingMinor,
-      discountMinor,
-      totalMinor,
-      taxableMinor,
-      refundCount: refunds.length,
-      refundTotalMinor,
-      refundTaxMinor,
-      cancellationCount: cancellations.length,
-      cancellationTotalMinor: cancellations.reduce((sum, row) => sum + row.totalMinor, 0),
-      netTotalMinor: totalMinor - refundTotalMinor,
-      netTaxMinor: taxMinor - refundTaxMinor,
-      netTaxableMinor: Math.max(0, totalMinor - refundTotalMinor - (taxMinor - refundTaxMinor)),
-    };
+      /*
+        ⚠️ **Il clamp sta QUI, fuori dall'accumulatore, e ci sta per poco.**
 
+        `Math.max(0, …)` non distribuisce sulla somma, quindi dentro la
+        matematica romperebbe l'additività — che è tutto ciò per cui
+        l'accumulatore è stato estratto. Applicandolo alla composizione della
+        risposta, il comportamento visibile resta **identico al centesimo** in
+        questo passo, e nel passo 4 si toglie da due righe invece che
+        rincorrerlo dentro i cicli.
+      */
+      taxableMinor: Math.max(0, totali.taxableMinor),
+      netTaxableMinor: Math.max(0, totali.netTaxableMinor),
+    };
   }
 
   /**

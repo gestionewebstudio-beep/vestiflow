@@ -475,3 +475,48 @@ Il registro usa la **data di evasione**, che è la regola ordinaria per le cessi
 2. **Il percorso dell'evento no**: evasione, rimborso e reso li elabora la produzione. Provarli richiede i webhook puntati a un tunnel.
 3. **Il caso di prova deve essere quello scomodo.** Il difetto dell'IVA è vissuto per mesi perché con **una sola aliquota** la ripartizione proporzionale coincide col vero: qualunque verifica sarebbe passata. È emerso con un ordine costruito con 4% e 22% insieme.
 4. **Si fotografa il database prima e dopo**, e si aspetta che il pulsante torni premibile: misurare a passata in corso è già capitato due volte.
+
+---
+
+## Corrispettivo manuale — due difetti trovati usandolo (17/08/2026)
+
+Trovati dal proprietario del progetto sulla maschera appena consegnata, **non da un
+test**: è il tipo di difetto che nessuna prova verde intercetta.
+
+### 1. ⛔ Il salvataggio rifiutato è MUTO — priorità alta
+
+```ts
+178:  private readonly _submitState = signal<SubmitState>({ status: 'idle' });
+```
+
+`_submitState` è **privato e non arriva al template**. `save()` calcola diligentemente i
+suoi messaggi — «Aggiungi almeno una riga con descrizione e importo», «Riga N: scegli il
+Codice IVA della riga» — li scrive lì dentro, e **nessuno li legge**: l'unico
+`app-inline-banner` della maschera è agganciato a `loadError()`, cioè agli errori di
+_caricamento_.
+
+Quindi **ogni** rifiuto del salvataggio è silenzioso, compresi gli errori dell'API. Il
+pulsante sembra rotto.
+
+Il percorso misurato: lettere digitate nel campo importo → `parseMoneyInput` rende `null`
+→ il netto canonico resta `null` → `buildLinesBody` scarta la riga come vuota →
+`lines.length === 0` → messaggio corretto, scritto in un signal che non arriva a schermo.
+
+**La correzione**: esporre lo stato, legarlo al banner, e un test che provi che un rifiuto
+**si vede**. Il campo importo resta `type="text" inputmode="decimal"` — con i separatori
+decimali italiani `type="number"` non va — ma senza errore visibile l'operatore non ha modo
+di sapere che «abc» non è un importo.
+
+⚠️ **E poi la guardia.** `check:form-errors` dice «22 form rifiutano l'invio, e tutti dicono
+perché»: questa maschera evidentemente non rientra nel suo censimento. Una guardia che non
+copre l'ultimo form aggiunto non proteggerà nemmeno il prossimo — va capito **perché** l'ha
+saltata, non aggiunto un caso a mano.
+
+### 2. Il Codice IVA di riga non sembra editabile
+
+Nella tabella righe la cella IVA ha lo stesso fondo grigio delle celle calcolate, mentre è
+un valore **che si sceglie**. Va vestita come un campo: **fondo bianco**, come gli altri
+controlli editabili della riga.
+
+È la stessa distinzione che il resto della maschera già fa — importo si digita, imponibile e
+imposta si leggono — e qui non la fa: la freccina del menu è l'unico indizio, e non basta.
