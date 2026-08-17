@@ -109,4 +109,24 @@ export interface CorrispettiviListQuery {
   /** `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
   readonly rowType?: string;
   readonly refundsOnly?: boolean;
+
+  // ── I filtri a INSIEME (`docs/10` §16) ──────────────────────────────────
+  //
+  // Sono ciò che la schermata manda oggi. I singolari qui sopra restano perché
+  // l'API continua ad accettarli — è così che i vecchi indirizzi salvati
+  // funzionano — ma non è più questa schermata a produrli.
+  //
+  // ⚠️ **Vuoto o assente = nessuna restrizione = Tutti**, e il parametro non
+  // parte affatto: un `in: []` in Prisma non è «tutti», è nessuna riga.
+
+  readonly origini?: readonly string[];
+  readonly tipi?: readonly string[];
+  readonly sedi?: readonly string[];
+  /**
+   * ⚠️ **«Nessun risultato», che NON è «nessuna restrizione».** Solo da un
+   * vecchio indirizzo contraddittorio, che rendeva zero righe e deve
+   * continuare a renderne zero. Ha un campo suo perché l'insieme vuoto
+   * significa già «tutti».
+   */
+  readonly nessunRisultato?: boolean;
 }

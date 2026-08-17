@@ -102,10 +102,10 @@ function domandaAllApi(query: CorrispettiviListQuery) {
   return {
     placedFrom: query.placedFrom,
     placedTo: query.placedTo,
-    ambito: query.ambito,
-    canale: query.canale,
-    rowType: query.rowType,
-    locationId: query.locationId,
+    origini: query.origini,
+    tipi: query.tipi,
+    sedi: query.sedi,
+    nessunRisultato: query.nessunRisultato,
   };
 }
 
@@ -170,10 +170,13 @@ describe('Anteprima stampa — gli stessi filtri del Registro', () => {
     expect(domandaAllApi(service.listOrders.mock.calls[0]![0])).toEqual({
       placedFrom: '2026-04-01',
       placedTo: '2026-06-30',
-      ambito: 'fisico_pos',
-      canale: 'vestiflow',
-      rowType: 'returns',
-      locationId: 'loc-nord',
+      // ⚠️ I vecchi parametri dell'indirizzo si intersecano in UN insieme: la
+      // coppia Fisico/POS · VestiFlow dà Vendita al banco e Corrispettivo
+      // manuale — non le quattro origini che l'unione avrebbe prodotto.
+      origini: ['store', 'manual_receipt'],
+      tipi: ['returns'],
+      sedi: ['loc-nord'],
+      nessunRisultato: undefined,
     });
   });
 

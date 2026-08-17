@@ -96,11 +96,12 @@ describe('compatibilità con i vecchi indirizzi', () => {
     const filtri = parseCorrispettiviFilters(indirizzo({ ambito: 'online', origine: 'store' }));
 
     expect(filtri.nessunRisultato).toBe(true);
-    // E la domanda che parte porta due vincoli che si negano: l'intersezione
-    // che l'API già calcola resta vuota, com'era.
+    // ⚠️ Verso l'API viaggia il FLAG, non un insieme vuoto: sono i due stati
+    // opposti, e l'array vuoto significa già «tutti». A tradurlo in «nessuna
+    // riga» è l'API, all'ultimo passo prima del database.
     const query = corrispettiviFiltersToQuery(filtri);
-    expect(query.ambito).toBe('online');
-    expect(query.origine).toBe('store');
+    expect(query.nessunRisultato).toBe(true);
+    expect(query.origini).toBeUndefined();
   });
 
   it('contraddizione fra ambito e canale: anche quella è zero righe', () => {
@@ -152,57 +153,56 @@ describe('la domanda che parte verso l’API', () => {
     expect(
       corrispettiviFiltersToQuery({ origini: [], tipi: [], sedi: [], nessunRisultato: false }),
     ).toEqual({
-      ambito: 'all',
-      canale: 'all',
-      origine: undefined,
-      rowType: undefined,
-      locationId: undefined,
+      origini: undefined,
+      tipi: undefined,
+      sedi: undefined,
+      nessunRisultato: undefined,
     });
   });
 
-  it('un insieme di uno viaggia come il vecchio parametro singolo', () => {
+  it('gli insiemi pieni viaggiano tali e quali', () => {
     expect(
       corrispettiviFiltersToQuery({
-        origini: ['store'],
-        tipi: ['returns'],
-        sedi: ['loc-1'],
+        origini: ['store', 'manual_receipt'],
+        tipi: ['returns', 'refunds'],
+        sedi: ['loc-1', 'loc-2'],
         nessunRisultato: false,
       }),
     ).toEqual({
-      ambito: 'fisico_pos',
-      canale: 'vestiflow',
-      origine: 'store',
-      rowType: 'returns',
-      locationId: 'loc-1',
+      origini: ['store', 'manual_receipt'],
+      tipi: ['returns', 'refunds'],
+      sedi: ['loc-1', 'loc-2'],
+      nessunRisultato: undefined,
     });
   });
 
   /**
-   * L'unico insieme a due elementi raggiungibile oggi, e la ragione per cui la
-   * traduzione all'indietro regge: si riscrive esattamente com'era.
+   * ⚠️ Il difetto che la traduzione all'indietro avrebbe prodotto, e che ora è
+   * impossibile: `{shopify_pos, store}` non condivide un canale, quindi coi
+   * vecchi parametri singolari sarebbe uscito «canale: all» — cioè un registro
+   * che mostra anche il Corrispettivo manuale, in silenzio.
    */
-  it('{resi, rimborsi} non si spaccia per un tipo solo', () => {
+  it('un insieme che i vecchi parametri non sapevano dire viaggia intero', () => {
     expect(
       corrispettiviFiltersToQuery({
-        origini: [],
-        tipi: ['returns', 'refunds'],
+        origini: ['shopify_pos', 'store'],
+        tipi: [],
         sedi: [],
         nessunRisultato: false,
-      }).rowType,
-    ).toBeUndefined();
+      }).origini,
+    ).toEqual(['shopify_pos', 'store']);
   });
 
-  it('andata e ritorno: un vecchio indirizzo torna la stessa domanda di prima', () => {
+  it('un vecchio indirizzo arriva all’API come l’insieme che descriveva', () => {
     const query = corrispettiviFiltersToQuery(
       parseCorrispettiviFilters(indirizzo({ ambito: 'fisico_pos', canale: 'shopify' })),
     );
 
     expect(query).toEqual({
-      ambito: 'fisico_pos',
-      canale: 'shopify',
-      origine: 'shopify_pos',
-      rowType: undefined,
-      locationId: undefined,
+      origini: ['shopify_pos'],
+      tipi: undefined,
+      sedi: undefined,
+      nessunRisultato: undefined,
     });
   });
 });

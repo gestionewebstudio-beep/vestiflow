@@ -609,10 +609,14 @@ export class CorrispettiviReportComponent {
         year: this.query().year ?? null,
         month: this.query().month ?? null,
         quarter: this.query().quarter ?? null,
-        ambito: this.ambitoFilter() === 'all' ? null : this.ambitoFilter(),
-        canale: this.canaleFilter() === 'all' ? null : this.canaleFilter(),
-        rowType: this.rowTypeFilter() === 'all' ? null : this.rowTypeFilter(),
-        locationId: this.locationFilter() === 'all' ? null : this.locationFilter(),
+        // ⚠️ **I filtri viaggiano al PLURALE** (`docs/10` §16): la stampa deve
+        // ricevere l'insieme, non una sua approssimazione a un valore solo —
+        // che è come la divergenza precedente era nata. Insieme vuoto = nessuna
+        // restrizione, quindi il parametro non parte.
+        origini: this.filters().origini.length ? this.filters().origini.join(',') : null,
+        tipi: this.filters().tipi.length ? this.filters().tipi.join(',') : null,
+        sedi: this.filters().sedi.length ? this.filters().sedi.join(',') : null,
+        nessunRisultato: this.filters().nessunRisultato ? 'true' : null,
       },
     });
   }

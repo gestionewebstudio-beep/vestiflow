@@ -174,6 +174,25 @@ export class CorrispettiviService {
       params = params.set('rowType', query.rowType);
     }
 
+    // ── I filtri a INSIEME (`docs/10` §16) ──────────────────────────────
+    //
+    // ⚠️ **Un insieme vuoto NON parte.** Non è un'ottimizzazione: «vuoto» qui
+    // significa «nessuna restrizione», e mandarlo lo farebbe diventare un
+    // `in: []` lato Prisma — che non è «tutti», è nessuna riga.
+    if (query.origini?.length) {
+      params = params.set('origini', query.origini.join(','));
+    }
+    if (query.tipi?.length) {
+      params = params.set('tipi', query.tipi.join(','));
+    }
+    if (query.sedi?.length) {
+      params = params.set('sedi', query.sedi.join(','));
+    }
+    // Lo stato opposto, e per questo un parametro suo: zero righe, non tutte.
+    if (query.nessunRisultato) {
+      params = params.set('nessunRisultato', 'true');
+    }
+
     return params;
   }
 

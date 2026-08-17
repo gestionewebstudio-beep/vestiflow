@@ -261,44 +261,32 @@ export function parseCorrispettiviFilters(params: ParamMap): CorrispettiviFilter
  */
 export function corrispettiviFiltersToQuery(
   filters: CorrispettiviFilters,
-): Pick<CorrispettiviListQuery, 'ambito' | 'canale' | 'origine' | 'rowType' | 'locationId'> {
+): Pick<CorrispettiviListQuery, 'origini' | 'tipi' | 'sedi' | 'nessunRisultato'> {
   /*
-    ⚠️ **La contraddizione si RIPRODUCE, non si risolve.**
+    ⚠️ **Insieme vuoto = parametro OMESSO**, mai passato vuoto: `in: []` in
+    Prisma non è «tutti», è nessuna riga.
 
-    Zero righe è ciò che quell'indirizzo rendeva, e ciò che deve continuare a
-    rendere: si rimandano all'API due vincoli che si negano, e l'intersezione
-    che già calcola resta vuota. Non è un espediente — è esattamente il
-    percorso di prima, lasciato intatto.
-
-    ⚠️ **Quando l'API parlerà il plurale, questo NON diventa un `origini`
-    vuoto.** Sarebbe caricare l'array vuoto di due significati opposti — «tutti»
-    e «niente» — cioè ricreare sul filo esattamente l'ambiguità che questo
-    booleano esiste per sciogliere, e nel punto in cui è più difficile
-    accorgersene. La regola resta una sola, ovunque:
+    ⚠️ **E `nessunRisultato` non si traveste da insieme vuoto.** È lo stato
+    opposto — zero righe, non tutte — e ha un parametro suo per questo:
 
         insieme vuoto o parametro assente  →  nessuna restrizione  →  TUTTI
         nessunRisultato                    →  contraddizione       →  ZERO
 
-    Il flag sopravvive quindi fino a dove il dataset si può interrompere: o un
-    parametro esplicito suo sull'API, o un corto circuito nel service prima
-    della richiesta. Mai travestito da insieme.
-  */
-  if (filters.nessunRisultato) {
-    return {
-      ambito: 'online',
-      canale: 'all',
-      origine: 'store',
-      rowType: undefined,
-      locationId: undefined,
-    };
-  }
+    A tradurlo nell'unica forma che il database capisce come «nessuna riga» è
+    l'API, all'ultimo passo, dove il significato è già esplicito e non si
+    confonde con «Tutti».
 
+    Qui c'era una traduzione **all'indietro** verso i parametri singolari, viva
+    il tempo di un commit: serviva finché l'API il plurale non lo capiva. Era
+    esatta solo per gli insiemi che i vecchi parametri sapevano descrivere —
+    `{shopify_pos, store}` no, e col giorno delle spunte sarebbe degradata in
+    silenzio. È sparita col passo che l'ha resa inutile, come previsto.
+  */
   return {
-    ambito: ambitoEsprimibile(filters.origini),
-    canale: canaleEsprimibile(filters.origini),
-    origine: filters.origini.length === 1 ? filters.origini[0] : undefined,
-    rowType: filters.tipi.length === 1 ? filters.tipi[0] : undefined,
-    locationId: filters.sedi.length === 1 ? filters.sedi[0] : undefined,
+    origini: filters.origini.length > 0 ? filters.origini : undefined,
+    tipi: filters.tipi.length > 0 ? filters.tipi : undefined,
+    sedi: filters.sedi.length > 0 ? filters.sedi : undefined,
+    nessunRisultato: filters.nessunRisultato ? true : undefined,
   };
 }
 
