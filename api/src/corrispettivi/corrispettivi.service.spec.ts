@@ -137,3 +137,100 @@ describe('l’elenco del Registro non si ferma a cento righe', () => {
     expect(pagina.items).toHaveLength(RIGHE);
   });
 });
+
+/**
+ * Il riepilogo segue il filtro Tipo, e i sottoinsiemi si riconciliano
+ * (`docs/10` §16, passo 4 del blocco A).
+ *
+ * ⚠️ **Fino al 17/08/2026 il riepilogo IGNORAVA il filtro Tipo**: leggeva
+ * sempre tutte le vendite e chiedeva le rettifiche con `rowType: undefined`
+ * esplicito. Era deliberato, ma rende impossibile la proprietà che il Registro
+ * deve garantire — somma dei sottoinsiemi = totale del periodo — e i subtotali
+ * giornalieri del blocco B sono esattamente dei sottoinsiemi.
+ */
+
+function prismaConEconomia(opzioni: {
+  vendite?: readonly unknown[];
+  rettifiche?: readonly { totalMinor: number; taxMinor: number }[];
+}) {
+  const vendite = opzioni.vendite ?? [];
+  const rettifiche = opzioni.rettifiche ?? [];
+  return {
+    salesOrder: {
+      count: vi.fn().mockResolvedValue(vendite.length),
+      findMany: vi.fn().mockResolvedValue(vendite),
+    },
+    salesOrderRefund: {
+      count: vi.fn().mockResolvedValue(rettifiche.length),
+      findMany: vi.fn().mockImplementation(({ where }: { where: { kind?: unknown } }) =>
+        // Gli annullamenti sono un'interrogazione a parte: qui non ce ne sono.
+        Promise.resolve(where?.kind === 'cancellation' ? [] : rettifiche),
+      ),
+    },
+    document: { count: vi.fn().mockResolvedValue(0), findMany: vi.fn().mockResolvedValue([]) },
+    manualReceipt: {
+      count: vi.fn().mockResolvedValue(0),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+  } as unknown as PrismaService;
+}
+
+const VENDITE = [venditaFinta(0), venditaFinta(1)];
+const RETTIFICHE = [{ totalMinor: 8000, taxMinor: 1440 }];
+
+function conTipi(tipi: string[]): ListCorrispettiviQueryDto {
+  return { page: 1, pageSize: 25, tipi } as unknown as ListCorrispettiviQueryDto;
+}
+
+describe('il riepilogo segue il filtro Tipo', () => {
+  it('con i soli Resi le vendite non entrano nel totale', async () => {
+    const service = new CorrispettiviService(
+      prismaConEconomia({ vendite: VENDITE, rettifiche: RETTIFICHE }),
+    );
+
+    const riepilogo = await service.getSummary('t', conTipi(['returns']));
+
+    expect(riepilogo.totalMinor).toBe(0);
+    expect(riepilogo.orderCount).toBe(0);
+    expect(riepilogo.refundTotalMinor).toBe(8000);
+    // ⚠️ Il netto è NEGATIVO, e adesso lo dice: prima usciva schiacciato a
+    // zero dal clamp, contraddicendo le righe sopra — dove un reso mostra −80,00.
+    expect(riepilogo.netTotalMinor).toBe(-8000);
+    expect(riepilogo.netTaxableMinor).toBe(-6560);
+  });
+
+  it('con le sole Vendite le rettifiche non entrano', async () => {
+    const service = new CorrispettiviService(
+      prismaConEconomia({ vendite: VENDITE, rettifiche: RETTIFICHE }),
+    );
+
+    const riepilogo = await service.getSummary('t', conTipi(['sales']));
+
+    expect(riepilogo.totalMinor).toBe(24400);
+    expect(riepilogo.refundTotalMinor).toBe(0);
+    expect(riepilogo.netTotalMinor).toBe(24400);
+  });
+
+  /** La prova che tiene insieme il passo 3 e il passo 4. */
+  it('somma dei sottoinsiemi = riepilogo del periodo', async () => {
+    const prisma = prismaConEconomia({ vendite: VENDITE, rettifiche: RETTIFICHE });
+    const service = new CorrispettiviService(prisma);
+
+    const soloVendite = await service.getSummary('t', conTipi(['sales']));
+    const soloRettifiche = await service.getSummary('t', conTipi(['returns', 'refunds']));
+    const tutto = await service.getSummary('t', conTipi([]));
+
+    expect(soloVendite.totalMinor + soloRettifiche.totalMinor).toBe(tutto.totalMinor);
+    expect(soloVendite.taxMinor + soloRettifiche.taxMinor).toBe(tutto.taxMinor);
+    expect(soloVendite.refundTotalMinor + soloRettifiche.refundTotalMinor).toBe(
+      tutto.refundTotalMinor,
+    );
+    expect(soloVendite.netTotalMinor + soloRettifiche.netTotalMinor).toBe(tutto.netTotalMinor);
+    // ⚠️ È l'uguaglianza che il clamp rompeva: il sottoinsieme in perdita
+    // usciva 0, e la somma delle parti superava il tutto.
+    expect(soloVendite.netTaxableMinor + soloRettifiche.netTaxableMinor).toBe(
+      tutto.netTaxableMinor,
+    );
+    expect(soloVendite.taxableMinor + soloRettifiche.taxableMinor).toBe(tutto.taxableMinor);
+  });
+});
