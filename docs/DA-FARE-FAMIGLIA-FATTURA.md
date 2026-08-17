@@ -956,7 +956,7 @@ a mano · precisione e formato · regressioni.
 | --- | ---------------------------------- | --------------------------------------- |
 | 1   | **Unità di misura**                | ✅ **fatta il 16/08**                   |
 | 2   | **Prezzo di vendita**              | ✅ **fatta il 16/08**                   |
-| 3   | Prezzo e netto/ivato               | ⏸️ **censita, decisione aperta**        |
+| 3   | Prezzo e netto/ivato               | ✅ **chiusa il 16/08**                  |
 | 4   | Sconti                             | ⚪                                      |
 | 5   | Nome e descrizione                 | ⚪ ⚠️ attenzione alla sincronia Shopify |
 | 6   | SKU · codice articolo · EAN        | ⚪                                      |

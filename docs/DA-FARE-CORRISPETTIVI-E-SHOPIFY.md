@@ -205,85 +205,37 @@ non di parole.
 Tre prove tengono la struttura: le due testate esistono, il barrato e il prezzo Shopify stanno
 con il prezzo di vendita, e il costo dichiara la sua base.
 
-### ⬜ Da decidere: le frecce dei campi numerici
+### ✅ Fatto il 17/08: frecce e rotella dei campi numerici
 
-Tutti i prezzi in anagrafica sono `<input type="number">`. **Nei form documento la regola è già
-un’altra e giusta:** `number` per quantità e colli, `text` + `inputmode="decimal"` +
-`parseMoneyInput` per il prezzo. L’anagrafica è l’unico posto che la rompe.
-
-E dentro la stessa sezione le frecce fanno cose diverse:
-
-| Campo                                | `step`    | Un clic vale    |
-| ------------------------------------ | --------- | --------------- |
-| Prezzo di vendita, Prezzo Shopify    | _assente_ | **1 euro**      |
-| Prezzo barrato, Costo di riferimento | `0.01`    | **1 centesimo** |
-
-**Tre difetti, non uno:**
-
-1. **la rotella del mouse cambia il valore** quando il campo ha il fuoco — scorrendo una scheda
-   lunga il prezzo cambia da solo, senza un clic e senza un avviso;
-2. le frecce sono inutili su un prezzo, e incoerenti fra loro (cento volte di differenza);
-3. ⚠️ **il separatore decimale lo decide il browser, non l’app.** Con `type="number"` la virgola
-   funziona perché il sistema è italiano: su una macchina in inglese l’operatore non riesce a
-   digitare i decimali. `parseMoneyInput` invece accetta **entrambi** e regge anche il
-   separatore delle migliaia (`1.234,50` e `1,234.50` danno lo stesso importo).
-
-**Due lavori, e NON sono alternative:**
-
-|       | Cosa                                                                        | Taglia                                                                                                |
-| ----- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **A** | togliere le frecce e neutralizzare la rotella su **tutti** i campi numerici | un frammento SCSS in un punto solo, zero TypeScript                                                   |
-| **B** | i prezzi in anagrafica diventano `text` + `parseMoneyInput`                 | 5 controlli, ~40 riferimenti nel componente, 14 usi della catena del netto, 16 file, 11 file di prova |
-
-**A serve comunque**, anche facendo B: le **quantità** restano giustamente `type="number"`, e la
-rotella le corrompe allo stesso modo. Tre componenti card se lo sono già risolto per conto
-proprio (`sales-document-line-card`, `stock-movement-line-card`, `goods-receipt-line-card`) —
-qualcuno c’era già arrivato, ma sulle proprie card e non come regola.
-
-**B chiude il terzo difetto**, che è l’unico invisibile: oggi l’app non decide come si digita un
-prezzo. Conviene farlo insieme al raggruppamento qui sopra, perché tocca gli stessi template.
-
-#### Deciso il 17/08: le frecce restano, la rotella no
-
-> **Frecce dove sono utili — quantità, colli. Rotella spenta OVUNQUE.**
-
-Sono due cose separabili e hanno segno opposto: **la rotella è la metà pericolosa, le frecce
-sono la metà utile.** Su una quantità la rotella fa lo stesso danno che su un prezzo — si
-scorre la pagina col cursore fermo sul campo e il valore cambia, senza un clic e senza avviso.
-
-⚠️ **Non è tutto CSS**, ed è la parte che si sottovaluta:
-
-|                | Come si toglie                                                               |
-| -------------- | ---------------------------------------------------------------------------- |
-| le **frecce**  | ✅ solo SCSS — `appearance: textfield` più i due pseudo-elementi WebKit      |
-| la **rotella** | ⛔ **il CSS non può niente**: serve intercettare `wheel` sul campo col fuoco |
-
-La rotella è una **direttiva** in `shared/directives/`, dove il pattern esiste già
-(`first-click-selects`, `table-column-resize`).
-
-**E c’è del codice da pulire**: tre componenti card si sono già nascoste le frecce per conto
-proprio (`sales-document-line-card`, `stock-movement-line-card`, `goods-receipt-line-card`).
-Quelle regole locali vanno tolte e sostituite dal punto unico, o restano tre copie della stessa
-decisione — che è come nascono questi problemi.
-
-#### E i sei decimali, con B?
-
-Restano intatti, perché **la coda non nasce dal parse**:
+**Frecce tolte solo dai campi di DENARO**, con una regola globale e **zero template toccati**.
+La discriminante non è una classe da ricordare: è `inputmode`, che il codice già dichiara per
+la tastiera del telefono.
 
 ```text
-"25,00"  →  parseMoneyInput   →  2500          il valore MOSTRATO, due decimali
-         →  netFromGrossExact →  2049,180328   la coda nasce QUI
-         →  toStorableMinor   →  2049,1803     e qui si taglia a 4 cifre di centesimo
+inputmode="decimal"    8 campi  →  tutti e soli i prezzi   ← la regola prende questi
+inputmode="numeric"   12 campi  →  conteggi, frecce restano
+inputmode assente     12 campi  →  conteggi, frecce restano
 ```
 
-L’anagrafica **fa già esattamente questo** in `toNet`. B cambia solo da dove arriva il numero
-digitato — da «me lo dà il browser come `number`» a «lo leggo io dalla stringa». Il calcolo del
-netto, la coda e il taglio non si toccano.
+**Rotella spenta ovunque**, e il CSS non poteva farlo: `appearance: textfield` toglie le frecce,
+la rotella resta. Un ascoltatore solo in cattura sul documento
+(`core/services/number-input-wheel-guard.ts`), non una direttiva — una direttiva su
+`input[type=number]` andrebbe importata in venti componenti standalone, e nel ventunesimo
+dimenticata. Toglie il **fuoco** invece di annullare l’evento: `preventDefault` fermerebbe anche
+lo scorrimento della pagina.
 
-✅ Anzi, B **toglie** un rischio che oggi c’è: con `type="number"` incollare `1.234,50` fa
-rifiutare il valore al browser e il campo si svuota. `parseMoneyInput` lo legge correttamente.
+⬜ **Resta una sola cosa, piccola:** le **cinque** card di riga nascondono le frecce per conto
+proprio, 6 righe SCSS ciascuna. Deciso il 17/08 che la regola giusta **non** è «nelle card
+mobili si nascondono» ma:
 
----
+> **Quando la quantità ha uno stepper esplicito − / valore / +, le frecce native si nascondono.**
+
+⚠️ E non vanno consacrate «approvate mobile» le altre quattro maschere: **solo l’Ordine cliente**
+è stato progettato e validato per mobile. L’estrazione deve centralizzare **soltanto** le regole
+degli spinner, senza toccare bordi, radius o larghezze delle cinque card.
+
+_In futuro − / input / + dovrebbe diventare un piccolo componente condiviso: quello sì è un
+elemento ricorrente e funzionale._
 
 ## Prima sincronizzazione Shopify — deciso il 17/08/2026, da progettare
 
