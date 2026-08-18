@@ -24,15 +24,15 @@ non tratta, sta in B e va **sottoposto a decisione** — non promosso a regola p
 Elenco unico **perché due volte una domanda aperta è rimasta senza casa** e si è persa fra le
 sezioni. Ogni voce vive dove è nata; qui ci sono i rimandi.
 
-| Aperta                                                                                                                                   | Dove    |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| che cosa si può fare su una **vendita già conclusa** — modificarla, eliminarla                                                           | **A2**  |
-| **prezzo** e **sconto** del reso                                                                                                         | **A11** |
-| **causale** del reso: obbligatoria per scelta, o per caso                                                                                | **A11** |
-| **rimborso**: informazione o collegamento futuro ai Pagamenti                                                                            | **A11** |
-| **correggere un Reso già concluso**                                                                                                      | **A11** |
-| **quali destinazioni** per la Vendita al banco nella mappatura documentale, e se debba essere anche sorgente o destinazione di _Includi_ | **A7**  |
-| **riga manuale** senza articolo in anagrafica                                                                                            | **A21** |
+| Aperta                                                                         | Dove    |
+| ------------------------------------------------------------------------------ | ------- |
+| che cosa si può fare su una **vendita già conclusa** — modificarla, eliminarla | **A2**  |
+| **prezzo** e **sconto** del reso                                               | **A11** |
+| **causale** del reso: obbligatoria per scelta, o per caso                      | **A11** |
+| **rimborso**: informazione o collegamento futuro ai Pagamenti                  | **A11** |
+| **correggere un Reso già concluso**                                            | **A11** |
+| la **Proforma** nella matrice documentale: da censire                          | **A7**  |
+| **riga manuale** senza articolo in anagrafica                                  | **A21** |
 
 ⛔ **Nessuna di queste si chiude scrivendo codice che funziona.** Si chiudono decidendo, e
 solo dopo si scrive. È la regola che questo documento ha già violato una volta.
@@ -77,25 +77,53 @@ Vendita al banco non integrata   → Origine: Vendita al banco
 Vendita al banco integrata a RT  → Origine: Vendita al banco
 ```
 
-## A2. Navigazione: elenco → Nuovo → documento
+## A2. Navigazione: elenco → due pulsanti diretti → documento
 
-**Deciso il 18/08/2026.** La Vendita al banco segue la grammatica di tutti gli altri
-documenti:
+**Deciso il 18/08/2026.** Si passa dall'elenco, come per tutti gli altri documenti, ma la
+creazione ha **due pulsanti diretti**:
 
 ```text
 Vendita al banco
-  → elenco delle vendite
-    → Nuovo
-      → Nuova vendita   |   Nuovo reso
+  → elenco
+    → [ Nuova vendita al banco ]   [ Nuovo reso al banco ]
+      → documento
 ```
 
-Non è una preferenza grafica: un ingresso diverso da tutti gli altri documenti costringe
-l'operatore a imparare due grammatiche per la stessa cosa. La schermata operativa resta
-rapidissima — cambia solo il percorso d'ingresso.
+**I pulsanti nominano il tipo per esteso** _(deciso il 18/08)_. Troncarli a «Nuova vendita /
+Nuovo reso» non porta nessun vantaggio reale, e va nella direzione opposta a quella presa:
+stiamo **togliendo** la terminologia generica e legacy (**A6**), non aggiungendone.
 
-**I nomi tecnici delle rotte non si fissano qui.** Vanno prima censiti tutti i consumatori
-delle rotte esistenti, poi riallineati alla convenzione già in uso, senza rompere link,
-redirect o navigazione.
+⛔ **Non un pulsante «Nuovo» che apre un menu con Vendita e Reso.** Il motivo è operativo:
+al banco un passaggio in meno è utile, e un menu da aprire più una voce da scegliere sono due
+gesti dove ne basta uno. Vale su desktop e su mobile (vedi **A3**).
+
+Passare dall'elenco resta giusto: un ingresso diverso da tutti gli altri documenti
+costringerebbe l'operatore a imparare due grammatiche per la stessa cosa. La schermata
+operativa resta rapidissima — cambia solo il percorso d'ingresso.
+
+**Creato il documento, non esiste un selettore** che permetta di trasformare una Vendita in
+Reso o viceversa.
+
+### Le rotte e i titoli — decisi il 18/08/2026
+
+```text
+/app/vendita-al-banco                          → elenco Vendite e Resi al banco
+/app/vendita-al-banco/nuova-vendita-al-banco   → creazione Vendita al banco
+/app/vendita-al-banco/nuovo-reso-al-banco      → creazione Reso al banco
+```
+
+E i titoli di pagina, coerenti con le rotte e coi pulsanti:
+
+```text
+Vendita al banco — elenco
+Nuova vendita al banco
+Nuovo reso al banco
+```
+
+⚠️ **Il censimento delle rotte esistenti resta obbligatorio, ma serve ad altro.** Non a
+decidere i nomi — quelli sono qui sopra — ma a **trovare tutti i consumatori** prima di
+rinominare: link, redirect, voci di menu, permessi, guardie, test. La rinomina si fa dopo il
+censimento, non al posto suo.
 
 ⏸️ **Aperto: che cosa si può fare su una vendita già conclusa.** Oggi il dettaglio è in sola
 consultazione — non si modifica e non si elimina (**B2**) — ma è **un comportamento che si
@@ -109,7 +137,7 @@ esplicitamente.
 selettore dentro:
 
 ```text
-[ Nuova vendita ]   [ Nuovo reso ]
+[ Nuova vendita al banco ]   [ Nuovo reso al banco ]
 ```
 
 **Due tasti perché al banco un passaggio in meno conta**: un menu da aprire e una voce da
@@ -123,10 +151,10 @@ compila.
 **Il motivo è di dominio, non di ergonomia.** I due condividono l'impianto UI ma non il
 comportamento:
 
-|                      | effetto alla conclusione                                               |
-| -------------------- | ---------------------------------------------------------------------- |
-| **Vendita al banco** | scarico fisico · vendita economica positiva · pagamento                |
-| **Reso al banco**    | rientro fisico · **rettifica** economica negativa · eventuale rimborso |
+|                      | effetto alla conclusione                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Vendita al banco** | scarico fisico · vendita economica positiva · pagamento                                                                         |
+| **Reso al banco**    | **eventuale** rientro fisico, secondo la spunta di carico (**A11-ter**) · **rettifica** economica negativa · eventuale rimborso |
 
 Una maschera che li scambia a metà compilazione nasconde questa differenza proprio dove
 conta. Vedi **B4** per che cosa fa oggi l'interruttore esistente, e **A11** per il Reso.
@@ -140,10 +168,17 @@ Vendita e Reso al banco usano **il contratto comune** netto/ivato del gestionale
 eccezione, nessun default dedicato, nessuna logica parallela, **nessun forcing «sempre
 ivato»**.
 
-- il selettore è disponibile in testata come negli altri documenti;
+- il selettore è quello **già previsto dagli altri documenti, nella testata della colonna
+  Prezzo**;
 - la modalità iniziale segue la regola generale: memoria dell'operatore per il tipo, poi
   convenzione aziendale;
 - la modalità scelta resta persistita nel documento e resta modificabile.
+
+⚠️ **Correzione del 18/08: qui c'era scritto «in testata», ed era sbagliato.** Il selettore vive
+nella **testata della colonna Prezzo** — misurato, e c'è un test che lo dice per nome
+(«permette lo switch costi netto/ivato dall'intestazione colonna»). Ne discende una
+conseguenza pratica: **il netto/ivato è parte della costruzione della tabella righe**, non un
+lavoro autonomo che si possa fare prima.
 
 **Chi lavora al netto deve poter vedere e inserire netto.** Un grossista che vende al banco
 non è un caso limite da normare a parte: è la ragione per cui non si scrive una regola
@@ -203,36 +238,79 @@ particolare sono rilevanti le generazioni verso **Fattura** e **Fattura accompag
 ⚠️ **Non deve nascere un secondo motore Fatture dentro la Vendita al banco.** Se genera una
 Fattura, usa il dominio Fattura comune.
 
-### La mappatura che esiste oggi — recuperata dal progetto, non ricostruita
+### La posizione documentale della Vendita al banco — decisa il 18/08/2026
 
-Misurata il 18/08/2026. Serve perché la decisione qui sopra dice **dove si deve arrivare**, e
-questa dice **da dove si parte**.
+**La matrice completa vive in `12-specifica-collegamenti-documentali.md`**, che dal 18/08 è la
+casa unica dei collegamenti fra documenti.
 
-| **Includi** — chi può includere cosa |                                      |
-| ------------------------------------ | ------------------------------------ |
-| Ordine cliente                       | ← Preventivo                         |
-| DDT vendita                          | ← Preventivo · Ordine cliente        |
-| Arrivo merce                         | ← Ordine fornitore (solo confermati) |
-| Preventivo                           | ← niente: si crea sempre da zero     |
+> ⚠️ **Quello che segue è un ESTRATTO relativo alla Vendita al banco. In caso di divergenza
+> prevale la matrice canonica di `12`.**
 
-| **Genera** — chi può generare cosa |                                                                                         |
-| ---------------------------------- | --------------------------------------------------------------------------------------- |
-| Proforma                           | → DDT vendita · Bozza fattura                                                           |
-| DDT vendita                        | → Bozza fattura · Proforma                                                              |
-| ogni altro tipo                    | ⛔ rifiutato: «solo proforme e DDT vendita possono essere convertiti con questa azione» |
+Due copie ci sono davvero — dire «qui stanno le righe per non tenerne allineate due» era
+paradossale. La copia parziale serve a chi legge questa specifica e non deve saltare altrove
+per capire dove sta la Vendita al banco; il prezzo è che può invecchiare, e la riga qui sopra
+dice chi vince quando succede.
 
-⚠️ **La Vendita al banco non compare in nessuna delle due, in nessuna direzione.** E la
-**Fattura accompagnatoria non è destinazione di nessuno**: oggi non la genera nessun tipo.
+```text
+Preventivo ──────────┐
+Ordine cliente ──────┼──→  VENDITA AL BANCO  ──→ Fattura
+DDT vendita ─────────┘                       └─→ Fattura accompagnatoria
+```
 
-⏸️ **Quindi la decisione richiede di ESTENDERE la mappatura, e come non è stabilito.** Da
-verificare con chi governa il sistema documentale, non da decidere qui: quali destinazioni
-esatte per la Vendita al banco, e se debba essere anche sorgente o destinazione di _Includi_
-oltre che di _Genera_.
+|                         |                                           |
+| ----------------------- | ----------------------------------------- |
+| **Includi**             | Preventivo · Ordine cliente · DDT vendita |
+| **Genera**              | Fattura · Fattura accompagnatoria         |
+| **ed è includibile da** | Fattura · Fattura accompagnatoria         |
+
+⚠️ **Le due direzioni non si contraddicono**, ed è il principio già deciso per «Includi
+documento»: non è una catena cablata, è **un elenco di documenti a monte** filtrato per
+cliente, tipo e stato. L'operatore non è costretto a partire sempre dal predecessore — può
+aprire una Fattura e tirarci dentro una Vendita al banco.
+
+⚠️ **L'accompagnatoria include la Vendita al banco ma continua a NON includere il DDT.** La
+regola «mai DDT» resta intatta: l'accompagnatoria **sostituisce** il DDT per la stessa
+uscita. La Vendita al banco non la viola — può aver già realizzato l'uscita, e
+l'accompagnatoria eredita quel fatto invece di ripeterlo.
+
+### Come si costruiscono: col sistema comune, mai con un motore locale
+
+⚠️ **Correzione del 18/08: qui c'era scritto che «i due pulsanti non devono funzionare in
+questa fase». Quella decisione non è mai stata presa**, ed è ritirata.
+
+**La Vendita al banco usa davvero «Includi» e «Genera»** quando le relative relazioni sono
+implementate. Che la matrice sia un lavoro trasversale **non significa** che qui i comandi
+debbano esserci e restare volutamente inattivi: un pulsante che non fa niente è peggio di un
+pulsante che non c'è.
+
+⛔ **E non significa nemmeno due pulsanti nuovi con logica propria dentro la Vendita al
+banco.** Significa **agganciarla allo stesso sistema Includi/Genera che VestiFlow già usa**,
+estendendo dove serve il contratto delle coppie origine → destinazione. Vale identico per
+tutti gli altri documenti.
+
+⛔ **Ma l'implementazione passa dal sistema documentale comune**, mai da un motore locale
+dentro la Vendita al banco. Il contratto è in `12`; il divario col codice attuale è quasi
+tutta la matrice (**B8**), non solo le righe di questo tipo, e si colma lì — punto 10 di
+`DA-FARE.md`.
+
+### ⛔ Due nomi soli: «Includi» e «Genera»
+
+La terminologia della matrice documentale è **soltanto** questa. **Non** si introducono
+categorie parallele — `Converti`, `Concludi`, `Deriva` e simili — e se una schermata usa
+un'etichetta particolare, quella resta un'etichetta: **non genera un motore funzionale
+distinto.**
+
+⏸️ **Resta da censire** la posizione della **Proforma** nella matrice: non si aggiungono
+collegamenti non verificati.
 
 ### Un solo effetto fisico per una sola uscita — regola comune, non eccezione locale
 
-> **Il primo documento che registra realmente l'effetto fisico movimenta; i documenti
-> successivi collegati non duplicano quell'effetto.**
+> **Un collegamento documentale non autorizza mai a duplicare un movimento già avvenuto.**
+> Il primo documento che produce realmente l'effetto fisico movimenta; quelli successivi
+> conservano il collegamento ma **non ripetono lo stesso effetto**.
+
+È una **regola del sistema documentale**, non della Vendita al banco: sta in `12`, sopra la
+matrice, con le catene di esempio. Qui vale la sua applicazione a questo tipo.
 
 ```text
 Vendita al banco conclusa        → scarico fisico già avvenuto
@@ -244,6 +322,14 @@ Vendita al banco → Fattura acc.  → nessun secondo scarico per la stessa usci
 accompagnatoria generata da una Vendita al banco che ha già prodotto lo scarico **non deve
 produrre un secondo movimento per la stessa merce** — e questo perché vale la regola comune,
 non perché si scriva un caso particolare per la accompagnatoria.
+
+⚠️ **E il rovescio conta quanto il dritto:** se la Fattura accompagnatoria è **il primo**
+documento che produce davvero l'uscita fisica, il suo normale comportamento di scarico **è
+corretto** e non va toccato.
+
+**Quindi la condizione non è «che tipo di documento sei», è «l'effetto fisico di questa catena
+è già avvenuto?».** Il sistema deve saperlo rispondere; il nome del documento non entra nella
+condizione.
 
 _(Cosa faccia oggi la Fattura accompagnatoria quando è lei il primo documento fisico è
 misurato in **B11**. È un fatto, non la fonte di questa regola.)_
@@ -278,9 +364,15 @@ rappresentare una vendita pagata con più strumenti, si può valutare una voce i
 
 ## A9. Corrispettivi: come si classifica
 
-**Deciso il 18/08/2026.** All'operatore non si mostra la parola «Ambito», che non dice niente.
-Ma **non nasce una dimensione nuova al suo posto**: Online e Fisico/POS diventano
-**raggruppamenti dentro Origine**.
+**Il Registro è già organizzato così, e la regola corrente è questa** — non «bisogna cambiare
+nome ad Ambito», che è una formulazione superata:
+
+```text
+Origine              →  la dimensione esposta all'operatore
+Online / Fisico-POS  →  raggruppamenti e scorciatoie DELLE origini, non una seconda dimensione
+```
+
+⚠️ **Il comportamento esistente va verificato e preservato**, non rifatto (**B10**).
 
 ```text
 Origine
@@ -304,9 +396,10 @@ Origine    da dove nasce:    Vendita al banco · Shopify online · Shopify POS �
 Due filtri adiacenti chiamati «Tipo» e «Tipo vendita» sono la confusione peggiore di quella
 che si voleva togliere.
 
-⚠️ **Cambia il nome, non il comportamento.** Chi legge «Ambito non deve più comparire» e
-cancella il filtro ha tolto una funzione, non un'etichetta: le due domande — da dove nasce
-la vendita, e se è online o fisica — restano entrambe.
+⛔ **Non eliminare il comportamento esistente:** Origine resta la dimensione esposta, e
+Online / Fisico-POS restano **raggruppamenti e scorciatoie delle origini**. Chi legge
+«Ambito non deve più comparire» e cancella il filtro ha tolto una funzione, non un'etichetta:
+le due domande — da dove nasce la vendita, e se è online o fisica — restano entrambe.
 
 _(Quanto di questo il Registro faccia già è misurato in **B10**. La decisione qui sopra non
 dipende da quella misura: varrebbe uguale se il Registro non ne avesse niente.)_
@@ -423,7 +516,7 @@ normale **regola di snapshot**: si scrive nella riga del documento e non cambia 
 domani si modifica il Codice IVA dell'articolo, un Reso di ieri **non deve cambiare
 retroattivamente** — è il principio documentale già in uso nella famiglia Fattura.
 
-⚠️ **Che oggi sia così NON è stato verificato**, ed è in **C5**. Senza lo snapshot la regola
+⚠️ **Che oggi sia così NON è stato verificato**, ed è in **C6**. Senza lo snapshot la regola
 «IVA dall'articolo» sarebbe un'altra cosa da quella decisa: sarebbe «IVA dell'articolo com'è
 adesso», cioè un documento che si riscrive da solo.
 
@@ -443,9 +536,12 @@ determinare il verso economico negativo.
 
 ```text
 Q.tà 1 · Prezzo 50 € · Tipo = Reso al banco
-  → effetto economico  −50 €
-  → movimento fisico   +1
+  → effetto economico              −50 €
+  → con Carica giacenze ATTIVO     movimento fisico +1
+  → con Carica giacenze DISATTIVO  nessun movimento fisico
 ```
+
+⚠️ **Il verso economico non dipende dalla spunta, il movimento sì** (**A11-ter**, **A18**).
 
 ⚠️ **Ma non se ne copia il dominio.** Serve da riferimento per verso economico, quantità
 positive, riepiloghi e coerenza documentale — **non per i vincoli fiscali**.
@@ -467,13 +563,13 @@ Erano elencate fra le aperte, e non lo sono: due sezioni le avevano già decise.
 
 ### Cosa resta davvero aperto
 
-| Domanda                                                                                                                                         | Stato                                                                                          |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **prezzo del reso**: proposto dal prezzo corrente dell'articolo, digitato liberamente, ripreso da un riferimento quando c'è, o una combinazione | **da decidere** — e non si assume nulla finché non si guarda come si comporta la maschera oggi |
-| sconto da usare                                                                                                                                 | **da decidere**                                                                                |
-| **causale obbligatoria**: oggi il codice la pretende, ma è una regola che nessuno ha preso                                                      | **da decidere** — confermarla o toglierla, non lasciarla accadere                              |
-| rimborso: informazione semplice o collegamento futuro ai Pagamenti                                                                              | **da decidere**                                                                                |
-| **correggere un Reso già concluso**: cosa succede al movimento e alla riga di Registro                                                          | **da decidere**, ed è la parte che pesa: sono movimenti già scritti e valori già contati       |
+| Domanda                                                                                                   | Stato                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **prezzo del reso**: proposto dal prezzo corrente dell'articolo, digitato liberamente, o una combinazione | **da decidere** — e non si assume nulla finché non si guarda come si comporta la maschera oggi. ⛔ **Non** «ripreso da una vendita precedente»: quel riferimento non esiste nel contratto |
+| sconto da usare                                                                                           | **da decidere**                                                                                                                                                                           |
+| **causale obbligatoria**: oggi il codice la pretende, ma è una regola che nessuno ha preso                | **da decidere** — confermarla o toglierla, non lasciarla accadere                                                                                                                         |
+| rimborso: informazione semplice o collegamento futuro ai Pagamenti                                        | **da decidere**                                                                                                                                                                           |
+| **correggere un Reso già concluso**: cosa succede al movimento e alla riga di Registro                    | **da decidere**, ed è la parte che pesa: sono movimenti già scritti e valori già contati                                                                                                  |
 
 ## A11-ter. Merce resa: la spunta di riga, e nient'altro
 
@@ -545,7 +641,11 @@ oggi oggetto di `03`.
 ## A13. Testata
 
 Come l'Ordine cliente, con i soli campi necessari: **Location**, **Cliente** (facoltativo),
-selettore **netto/ivato** (A4), e il numero secondo il sistema comune (A5).
+e il numero secondo il sistema comune (**A5**).
+
+⛔ **Il netto/ivato NON sta qui.** Il suo selettore è nella **testata della colonna Prezzo**,
+com'è già negli altri documenti (**A4**): non si introduce un controllo dedicato nella testata
+del documento.
 
 **Location.** Determina il magazzino movimentato, quindi:
 
@@ -633,15 +733,48 @@ subordinati, quantità con stepper, prezzo e sconto rapidamente editabili, total
 
 ## A16. Sconti
 
-**Di riga:** modificabile direttamente, secondo il contratto sconti comune.
+### Deciso
 
-**Extra a piè documento:** la UI prevede **sia percentuale sia importo**. Il calcolo lo fa il
-motore economico comune, mai una logica ad hoc.
+> **Il documento ha lo Sconto extra a piè documento, con un campo PERCENTUALE e un campo
+> IMPORTO, coerente con gli altri documenti VestiFlow.**
 
-Da definire nel blocco Sconti: se percentuale e importo sono cumulabili o alternativi, ordine
-di applicazione, arrotondamenti, comportamento con più aliquote, rapporto con castelletto e
-totali. **Più aliquote non sono un motivo per togliere l'importo:** vanno gestite nel modello
-economico.
+E lo **sconto di riga**, modificabile direttamente sulla riga, secondo il contratto sconti
+comune.
+
+⚠️ **Due campi, non uno**: il fatto che ci siano più aliquote **non è un motivo per togliere
+l'importo** — è un caso che il modello economico deve saper gestire, non una funzione da
+sacrificare.
+
+⛔ **Si riusa il comportamento comune già presente negli altri documenti**, quanto più
+possibile. Il calcolo lo fa il motore economico comune, mai una logica ad hoc di questa
+maschera.
+
+### ⛔ Se il contratto comune non basta, lo si SEGNALA
+
+> **Se durante l'implementazione emerge che il contratto comune è incompleto o incoerente, lo
+> si segnala. Non si inventa una logica locale.**
+
+⚠️ **E non è un caso ipotetico: è già così, misurato il 18/08.** Il contratto comune oggi ha
+**solo la percentuale** — esiste `documentDiscountPercent` come campo d'ingresso e il
+risultato calcolato, ma **un campo IMPORTO non esiste da nessuna parte** (**B12**).
+
+Quindi la decisione qui sopra — due campi — **richiede di estendere il contratto comune**, e
+quella estensione va fatta **dove il contratto vive**, non aggiungendo un campo locale alla
+Vendita al banco. Un importo che esiste in una maschera sola è esattamente la logica locale
+che questa regola vieta.
+
+### Fuori da questa specifica
+
+Le **regole di calcolo** dello sconto extra — se percentuale e importo siano cumulabili o
+alternativi, in che ordine si applicano, come si arrotondano, come si comportano con più
+aliquote e col castelletto — **non sono decisioni della Vendita al banco**. Sono del motore
+economico comune, e la risposta deve valere **identica su ogni documento** che ha uno sconto
+extra: deciderle qui produrrebbe una regola valida per una maschera sola.
+
+⚠️ **Non esiste ancora una specifica che le ospiti** — verificato il 18/08: nessun file in
+`docs/` le governa. Stanno quindi in `DA-FARE.md` come lavoro trasversale, ed è lì che vanno
+cercate. **Per questo non compaiono nell'elenco delle aperte in testa a questo documento**:
+quello elenca le decisioni **della Vendita al banco**, e queste non lo sono.
 
 ## A17. Riepilogo e conclusione
 
@@ -652,6 +785,11 @@ dev'essere chiaramente leggibile.
 L'azione principale dice **«Concludi vendita»** o **«Concludi reso»**, e il suo significato
 dev'essere inequivocabile: è il momento in cui nasce l'effetto fisico ed economico.
 
+⚠️ **Questo non contraddice «solo Includi e Genera» (A7).** «Concludi vendita» è l'**azione
+finale interna** del documento — quella che lo chiude e produce i suoi effetti — non una terza
+categoria della matrice documentale. Le due cose vivono su piani diversi e non vanno
+uniformate.
+
 ## A18. Stock e movimenti
 
 **Scansione, ricerca, aggiunta e modifica non creano movimenti.** Lo scarico avviene solo alla
@@ -661,9 +799,20 @@ Alla conclusione della **vendita**: una riga movimentabile → un movimento nega
 documento e riga con identità stabile, tenant e Location rispettati, retry e doppio clic
 idempotenti, e nessun secondo scarico generato da Corrispettivi o report.
 
-Alla conclusione del **reso**: la quantità realmente rientrata genera il movimento di rientro,
-collegato a documento e riga; retry e doppio clic non duplicano il carico; l'effetto economico
-è una **rettifica**, non una vendita positiva.
+Alla conclusione del **reso**: il carico segue la **spunta di riga**, non la quantità in sé —
+ed è la logica documentale comune, la stessa di tutti gli altri documenti.
+
+```text
+Reso concluso + riga con Carica giacenze ATTIVO      → movimento positivo
+Reso concluso + riga con Carica giacenze DISATTIVO   → nessun movimento di carico per quella riga
+```
+
+Il movimento è collegato a documento e riga; retry e doppio clic non duplicano il carico;
+l'effetto economico è una **rettifica**, non una vendita positiva.
+
+⛔ **Nel Reso non esiste una classificazione «vendibile / non vendibile»** (vedi **A11-ter**).
+Merce danneggiata, da scartare o da isolare appartiene a **un altro documento o processo**, e
+quale non si inventa qui.
 
 **Stock insufficiente:** la vendita oltre la disponibilità è consentita. Warning visibile, **non
 bloccante**; Giacenza e Disponibile possono diventare negative.
@@ -753,12 +902,13 @@ sostituisce con due tasti alla creazione. **Non svuota il carrello**, mentre il 
 Location lo svuota e il codice spiega perché: i due percorsi usano stati diversi, quindi il
 carrello resta lì mentre si compila un reso.
 
-⛔ **Entrando in modalità reso il codice carica le vendite recenti.** Serve al collegamento
-dell'origine, che **A11** ha escluso dal contratto: va **censito e presumibilmente rimosso** se
-non ha altro scopo.
-reso carica le vendite recenti; tornando a vendita rimette il fuoco sulla ricerca. **Non
-svuota il carrello** — mentre il cambio di Location lo svuota, e il codice spiega perché. I due
-percorsi usano stati diversi, quindi il carrello resta lì mentre si compila un reso.
+⛔ **Entrando in modalità reso il codice carica le vendite recenti**, e tornando a vendita
+rimette il fuoco sulla ricerca. Il caricamento serve al collegamento dell'origine, che **A11**
+ha **escluso dal contratto**: va **censito per individuare tutti i consumer, e quindi rimosso
+o riallineato**.
+
+⚠️ **Il censimento non serve a decidere se tenerlo** — quella decisione è presa. Serve a non
+rompere altro togliendolo.
 
 **Percorso reso, misurato:**
 
@@ -771,16 +921,6 @@ percorsi usano stati diversi, quindi il carrello resta lì mentre si compila un 
 | causale                   | **obbligatoria**                                                 | ⏸️ **nessuno l'ha decisa**: portata in A11 fra le aperte                                                                                                                        |
 | movimento                 | nasce solo per le righe con la spunta di carico attiva           | ✅ è la logica documentale comune (**A11-ter**) — ⛔ ma la distinzione «vendibile / non vendibile» con cui il codice la pilota è **legacy e non pertinente** al contratto nuovo |
 | numerazione               | sistema canonico comune, prefisso dalle impostazioni             | **già conforme ad A5**                                                                                                                                                          |
-
-## B11. La Fattura accompagnatoria scarica alla conferma
-
-Misurato: la funzione che decide se un tipo scarica il magazzino alla conferma risponde **sì**
-per la Fattura accompagnatoria, e c'è un test che lo inchioda.
-
-⚠️ **È un fatto, non la fonte della regola.** La regola di **A7** — un solo effetto fisico per
-una sola uscita — vale per il sistema documentale comune, e questa misura dice soltanto che
-quando la accompagnatoria è **il primo** documento fisico il suo scarico è quello giusto. Il
-caso da governare è quando **non** è il primo.
 
 ## B5. Numerazione: già comune
 
@@ -806,11 +946,45 @@ Il venduto si costruisce sui **movimenti**, non sugli ordini: un movimento di ve
 il riferimento al documento porta con sé il ricavo della propria riga. Quindi la Vendita al
 banco entra nel venduto **da sempre**, e non va introdotto un secondo percorso.
 
-## B8. Con le Fatture non esiste nessuna relazione
+## B8. La Vendita al banco non è in nessuna delle due mappature — misurato
 
-La relazione strutturata che lega Fattura e DDT vendita **non copre** la Vendita al banco, e le
-azioni di inclusione e conversione non la contemplano fra le origini. Il piano A7 non descrive
-quindi una catena da correggere: descrive una catena **da disegnare**.
+Quello che il **codice** implementa oggi, che è molto meno della matrice.
+
+⚠️ **Questa non è la matrice**, è la misura di ciò che esiste. La matrice canonica sta in
+`12` e ne esiste **una sola**: qui non se ne tiene una copia.
+
+| **Includi**    |                                      |
+| -------------- | ------------------------------------ |
+| Ordine cliente | ← Preventivo                         |
+| DDT vendita    | ← Preventivo · Ordine cliente        |
+| Arrivo merce   | ← Ordine fornitore (solo confermati) |
+| Preventivo     | ← niente                             |
+
+| **Genera** (conversione) |                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| Proforma                 | → DDT vendita · Fattura                                                                          |
+| DDT vendita              | → Fattura · Proforma                                                                             |
+| ogni altro tipo          | ⛔ rifiutato dall'API: «solo proforme e DDT vendita possono essere convertiti con questa azione» |
+
+⚠️ **La Vendita al banco non compare in nessuna delle due, in nessuna direzione**, e la
+relazione strutturata che lega Fattura e DDT non la copre. La **Fattura accompagnatoria non è
+destinazione di nessuno**: oggi non la genera nessun tipo.
+
+⛔ **Ma «da costruire» sarebbe la parola sbagliata**, e il proprietario l'ha corretta il
+18/08:
+
+> «Il sistema Includi/Genera **esiste già** ed è operativo su una parte delle relazioni
+> documentali. La Vendita al banco **non è attualmente collegata** a tale sistema. Il lavoro
+> consiste nel **completare la copertura** della matrice comune, **estendendo il motore
+> esistente senza duplicarlo**.»
+
+Quindi il divario non è un motore mancante: è una copertura incompleta.
+
+⛔ **Ciò che il codice fa oggi non si cancella per far posto alla matrice.** Le conversioni
+`Proforma → DDT vendita · Fattura` e `DDT vendita → Fattura · Proforma` sono in uso: la
+matrice dice dove si deve arrivare, non che l'esistente sia sbagliato.
+
+⚠️ E `DDT vendita → Fattura` **coincide già** con la matrice: quella riga non è da costruire.
 
 ## B9. La schermata non condivide nulla con lo scheletro documentale
 
@@ -831,28 +1005,65 @@ vecchio continuano a filtrare come prima. Si è semplificata la UI, non il model
 utilizzo» dei Codici IVA in Impostazioni — che dice se un codice vale in acquisto, in vendita
 o in entrambi — e i commenti nel codice che spiegano perché la dimensione è stata ritirata.
 
+## B11. La Fattura accompagnatoria scarica alla conferma
+
+Misurato: la funzione che decide se un tipo scarica il magazzino alla conferma risponde **sì**
+per la Fattura accompagnatoria, e c'è un test che lo inchioda.
+
+⚠️ **È un fatto, non la fonte della regola.** La regola di **A7** — un solo effetto fisico per
+una sola uscita — vale per il sistema documentale comune, e questa misura dice soltanto che
+quando la accompagnatoria è **il primo** documento fisico il suo scarico è quello giusto. Il
+caso da governare è quando **non** è il primo.
+
+## B12. Lo sconto documento oggi è solo una percentuale
+
+Misurato il 18/08: il campo d'ingresso è `documentDiscountPercent`, e il risultato calcolato è
+un importo derivato. **Un campo importo in ingresso non esiste**, in nessun documento e in
+nessuno strato — modello, mapper, schema.
+
+⚠️ **A16 decide due campi**, percentuale e importo. Il contratto comune quindi **non basta**,
+ed è il caso che A16 stessa prevede: si segnala e si estende dove il contratto vive, non si
+aggiunge un campo alla sola Vendita al banco.
+
 ---
 
 # C · INTERVENTI CONSEGUENTI
 
 In ordine di dipendenza, non di importanza. Ogni voce nasce da A confrontato con B.
 
-| #   | Intervento                                                                                                                                                                               | Da       | Perché                                                                                                           |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| 1   | Censire la terminologia legacy e correggere l'etichetta esposta rimasta indietro                                                                                                         | A6 · B6  | la rinomina precedente è incompleta e le due diciture convivono                                                  |
-| 2   | Togliere il forcing netto/ivato e far entrare i due tipi nel contratto comune, memorie comprese                                                                                          | A4 · B3  | oggi è una costante nel codice, non una convenzione                                                              |
-| 3   | Riallineare le rotte a elenco → Nuovo → documento, dopo il censimento dei consumatori                                                                                                    | A2 · B2  | grammatica diversa da tutti gli altri documenti                                                                  |
-| 4   | Separare Vendita e Reso alla creazione, al posto dell'interruttore                                                                                                                       | A3 · B4  | l'interruttore attuale non svuota nemmeno il carrello                                                            |
-| 5   | **Censire e rimuovere la logica di collegamento del Reso a una vendita origine** — percorso, campi, caricamento delle vendite recenti                                                    | A11 · B4 | A11 stabilisce che il Reso **non ha** documento origine: quello che c'è oggi è legacy                            |
-| 6   | Verificare che l'IVA del Reso sia scritta come **snapshot di riga** e non riletta dall'anagrafica                                                                                        | A11 · B4 | senza snapshot la regola decisa diventa un'altra: un documento che si riscrive da solo                           |
-| 7   | Chiudere le decisioni aperte del Reso: **prezzo, sconto, causale, rimborso, correzione di un Reso concluso**                                                                             | A11      | il nucleo è deciso, queste cinque no — e la correzione è la più pesante                                          |
-| 8   | Portare il metodo di pagamento fino alla **riga del Registro**, al dettaglio della registrazione e all'export; poi valutare il filtro                                                    | A8       | oggi si ferma nella schermata della vendita                                                                      |
-| 9   | Verificare che «Ambito» non compaia più, e che i raggruppamenti stiano dentro Origine                                                                                                    | A9 · B10 | **in buona parte già fatto**: resta una verifica, non un lavoro                                                  |
-| 10  | Ristrutturare la schermata riusando l'Ordine cliente, senza forcare le aree di `03`                                                                                                      | A12 · B9 | oggi non condivide nulla con la grammatica documentale                                                           |
-| 11  | Censire e applicare **sia «Includi documento» sia «Genera documento»** per la Vendita al banco, secondo la mappatura documentale comune — che oggi non la contempla in nessuna direzione | A7 · B8  | sono due operazioni distinte, e la mappatura va **estesa**, non aggirata                                         |
-| 12  | Far valere la **regola comune** del solo effetto fisico lungo la catena                                                                                                                  | A7 · B11 | non un caso speciale per la accompagnatoria: il primo documento che registra il fatto movimenta, i successivi no |
+### ⛔ Da dove si comincia — deciso il 18/08/2026
 
-⚠️ **L'11 non si inizia prima del 12**: una catena che si apre prima che la regola del solo effetto fisico sia applicata è una catena che scarica due volte.
+```text
+1º  ingresso e struttura   elenco → [Nuova vendita al banco] / [Nuovo reso al banco]
+2º  separare davvero       via il toggle interno Vendita/Reso
+3º  la maschera            ristrutturarla partendo dall'Ordine cliente e dai componenti comuni
+```
+
+⚠️ **Il netto/ivato NON è una prima fase autonoma**, e proporlo come tale era un mio errore di
+criterio: lo suggerivo perché è **piccolo e circoscritto**, non perché serva a costruire
+qualcosa. Il suo selettore sta nella **testata della colonna Prezzo** (**A4**), quindi è **una
+parte della costruzione della tabella righe** — arriva col 3º, non prima.
+
+> **Una fetta si sceglie per quello che sblocca, non per quanto è comoda.**
+
+| #   | Intervento                                                                                                                                                | Da       | Perché                                                                                                           |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1   | Censire la terminologia legacy e correggere l'etichetta esposta rimasta indietro                                                                          | A6 · B6  | la rinomina precedente è incompleta e le due diciture convivono                                                  |
+| 2   | Togliere il forcing netto/ivato e far entrare i due tipi nel contratto comune, memorie comprese                                                           | A4 · B3  | oggi è una costante nel codice, non una convenzione                                                              |
+| 3   | Riallineare le rotte a `elenco → [Nuova vendita al banco] / [Nuovo reso al banco] → documento`, con i nomi fissati in A2, dopo il censimento dei consumer | A2 · B2  | grammatica diversa da tutti gli altri documenti, e il «Nuovo» a menu non è quello deciso                         |
+| 4   | Separare Vendita e Reso alla creazione, al posto dell'interruttore                                                                                        | A3 · B4  | l'interruttore attuale non svuota nemmeno il carrello                                                            |
+| 5   | **Censire e rimuovere la logica di collegamento del Reso a una vendita origine** — percorso, campi, caricamento delle vendite recenti                     | A11 · B4 | A11 stabilisce che il Reso **non ha** documento origine: quello che c'è oggi è legacy                            |
+| 6   | Verificare che l'IVA del Reso sia scritta come **snapshot di riga** e non riletta dall'anagrafica                                                         | A11 · B4 | senza snapshot la regola decisa diventa un'altra: un documento che si riscrive da solo                           |
+| 7   | Chiudere le decisioni aperte del Reso: **prezzo, sconto, causale, rimborso, correzione di un Reso concluso**                                              | A11      | il nucleo è deciso, queste cinque no — e la correzione è la più pesante                                          |
+| 8   | Portare il metodo di pagamento fino alla **riga del Registro**, al dettaglio della registrazione e all'export; poi valutare il filtro                     | A8       | oggi si ferma nella schermata della vendita                                                                      |
+| 9   | Verificare e **preservare** il comportamento esistente: Origine esposta, Online/Fisico-POS come suoi raggruppamenti                                       | A9 · B10 | **in buona parte già fatto**: resta una verifica, non un lavoro                                                  |
+| 10  | Ristrutturare la schermata riusando l'Ordine cliente, senza forcare le aree di `03`                                                                       | A12 · B9 | oggi non condivide nulla con la grammatica documentale                                                           |
+| 11  | Far valere la **regola comune** del solo effetto fisico lungo la catena                                                                                   | A7 · B11 | non un caso speciale per la accompagnatoria: il primo documento che registra il fatto movimenta, i successivi no |
+| 12  | **Collegare** la Vendita al banco al sistema Includi/Genera esistente, estendendo il contratto delle coppie secondo la matrice di `12`                    | A7 · B8  | il motore **esiste già** ed è operativo su una parte delle relazioni: si completa la copertura, non si duplica   |
+
+⚠️ **Il 12 non si inizia prima dell'11**: una catena che si apre prima che la regola del solo
+effetto fisico sia applicata è una catena che scarica due volte. Ora la tabella lo rispetta
+anche nell'ordine, come dichiara di fare.
 
 ---
 
