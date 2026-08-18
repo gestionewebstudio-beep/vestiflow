@@ -151,7 +151,7 @@ describe('l’elenco del Registro non si ferma a cento righe', () => {
 
 function prismaConEconomia(opzioni: {
   vendite?: readonly unknown[];
-  rettifiche?: readonly { totalMinor: number; taxMinor: number }[];
+  rettifiche?: readonly { totalMinor: number; taxMinor: number; occurredAt: Date }[];
 }) {
   const vendite = opzioni.vendite ?? [];
   const rettifiche = opzioni.rettifiche ?? [];
@@ -176,7 +176,7 @@ function prismaConEconomia(opzioni: {
 }
 
 const VENDITE = [venditaFinta(0), venditaFinta(1)];
-const RETTIFICHE = [{ totalMinor: 8000, taxMinor: 1440 }];
+const RETTIFICHE = [{ totalMinor: 8000, taxMinor: 1440, occurredAt: giorno(0) }];
 
 function conTipi(tipi: string[]): ListCorrispettiviQueryDto {
   return { page: 1, pageSize: 25, tipi } as unknown as ListCorrispettiviQueryDto;

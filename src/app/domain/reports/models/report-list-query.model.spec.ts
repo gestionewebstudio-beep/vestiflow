@@ -140,3 +140,54 @@ describe('report-list-query.model', () => {
     });
   });
 });
+
+/**
+ * La giornata singola (`docs/10` §16).
+ *
+ * ⚠️ **Non introduce una seconda semantica della data**: sono intervalli con
+ * inizio e fine sullo stesso giorno, risolti dalle stesse funzioni UTC di tutti
+ * gli altri preset. Un secondo modo di intendere «giorno» sarebbe la premessa
+ * di un Registro che mostra righe diverse a seconda di come si è scelta la data.
+ */
+describe('i preset di giornata singola', () => {
+  const riferimento = new Date('2026-08-17T09:30:00.000Z');
+
+  it('«Oggi» è un intervallo che comincia e finisce oggi', () => {
+    expect(resolveReportDateRange({ period: ReportPeriodPreset.Today }, riferimento)).toEqual({
+      placedFrom: '2026-08-17',
+      placedTo: '2026-08-17',
+    });
+  });
+
+  it('«Ieri» scala di un giorno solo, e non tocca oggi', () => {
+    expect(resolveReportDateRange({ period: ReportPeriodPreset.Yesterday }, riferimento)).toEqual({
+      placedFrom: '2026-08-16',
+      placedTo: '2026-08-16',
+    });
+  });
+
+  /** ⚠️ `to` ricopia `from`, o l'intervallo sarebbe «da quel giorno in poi». */
+  it('«Giorno specifico» usa la data scelta per entrambi gli estremi', () => {
+    expect(
+      resolveReportDateRange(
+        { period: ReportPeriodPreset.SpecificDay, dateFrom: '2026-03-04' },
+        riferimento,
+      ),
+    ).toEqual({ placedFrom: '2026-03-04', placedTo: '2026-03-04' });
+  });
+
+  it('«Giorno specifico» senza data ricade su oggi, non su un intervallo aperto', () => {
+    expect(resolveReportDateRange({ period: ReportPeriodPreset.SpecificDay }, riferimento)).toEqual(
+      {
+        placedFrom: '2026-08-17',
+        placedTo: '2026-08-17',
+      },
+    );
+  });
+
+  it('l’etichetta di una giornata è una data sola, non un intervallo', () => {
+    expect(
+      formatReportPeriodLabel({ period: ReportPeriodPreset.Today }, riferimento),
+    ).not.toContain('–');
+  });
+});

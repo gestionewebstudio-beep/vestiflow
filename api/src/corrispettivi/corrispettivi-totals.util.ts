@@ -205,3 +205,104 @@ export function sommaTotali(
     netTaxableMinor: a.netTaxableMinor + b.netTaxableMinor,
   };
 }
+
+/**
+ * Il **giorno economico** di una data, in forma ISO (`AAAA-MM-GG`).
+ *
+ * ⚠️ Deve essere la STESSA definizione che usano l'ordinamento
+ * (`corrispettivi-sort.util.ts`) e i filtri di periodo: due letture di «giorno»
+ * produrrebbero un raggruppamento che non combacia con l'ordine delle righe —
+ * una giornata spezzata in due blocchi, o una riga sotto l'intestazione
+ * sbagliata. Sono entrambe UTC, e restano tali.
+ */
+export function giornoEconomico(data: Date): string {
+  return data.toISOString().slice(0, 10);
+}
+
+/** Una riga qualsiasi, con la data con cui entra nel registro. */
+interface ConGiorno {
+  readonly occurredAt: Date;
+}
+
+function perGiorno<T extends ConGiorno>(righe: readonly T[]): Map<string, T[]> {
+  const gruppi = new Map<string, T[]>();
+  for (const riga of righe) {
+    const giorno = giornoEconomico(riga.occurredAt);
+    const gruppo = gruppi.get(giorno);
+    if (gruppo) gruppo.push(riga);
+    else gruppi.set(giorno, [riga]);
+  }
+  return gruppi;
+}
+
+export interface TotaliGiornata {
+  readonly giorno: string;
+  readonly totali: TotaliCorrispettivi;
+}
+
+/** Le stesse righe dell'accumulatore, ognuna con la sua data economica. */
+export interface RigheDaSommarePerGiorno {
+  readonly ordini: readonly (OrdineAccumulabile & ConGiorno)[];
+  readonly venditeBanco: readonly (VenditaBancoAccumulabile & ConGiorno)[];
+  readonly corrispettiviManuali: readonly (CorrispettivoManualeAccumulabile & ConGiorno)[];
+  readonly rettifiche: readonly (RettificaAccumulabile & ConGiorno)[];
+  readonly annullamenti: readonly ({ readonly totalMinor: number } & ConGiorno)[];
+}
+
+/**
+ * I totali **giorno per giorno**, in ordine decrescente.
+ *
+ * ⚠️ **Non è una seconda matematica**: ogni giornata passa dallo stesso
+ * `accumulaCorrispettivi` del periodo. È la condizione perché valga
+ *
+ *     somma dei giorni = totale del periodo
+ *
+ * e con `totaleDaiGiorni` sotto quell'uguaglianza smette di essere una
+ * proprietà da verificare a mano: il totale del periodo **è** la somma dei
+ * giorni, per costruzione.
+ *
+ * L'ordine è giorno economico DESC, lo stesso delle righe: il raggruppamento
+ * è una piegatura di un elenco già ordinato, non un secondo criterio che
+ * potrebbe divergere dal primo.
+ */
+export function accumulaPerGiorno(righe: RigheDaSommarePerGiorno): TotaliGiornata[] {
+  const ordini = perGiorno(righe.ordini);
+  const banco = perGiorno(righe.venditeBanco);
+  const manuali = perGiorno(righe.corrispettiviManuali);
+  const rettifiche = perGiorno(righe.rettifiche);
+  const annullamenti = perGiorno(righe.annullamenti);
+
+  const giorni = new Set<string>([
+    ...ordini.keys(),
+    ...banco.keys(),
+    ...manuali.keys(),
+    ...rettifiche.keys(),
+    ...annullamenti.keys(),
+  ]);
+
+  return [...giorni]
+    .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+    .map((giorno) => ({
+      giorno,
+      totali: accumulaCorrispettivi({
+        ordini: ordini.get(giorno) ?? [],
+        venditeBanco: banco.get(giorno) ?? [],
+        corrispettiviManuali: manuali.get(giorno) ?? [],
+        rettifiche: rettifiche.get(giorno) ?? [],
+        annullamenti: annullamenti.get(giorno) ?? [],
+      }),
+    }));
+}
+
+/** Il totale del periodo come somma delle giornate: riconciliato per costruzione. */
+export function totaleDaiGiorni(giorni: readonly TotaliGiornata[]): TotaliCorrispettivi {
+  return giorni
+    .map((g) => g.totali)
+    .reduce(sommaTotali, accumulaCorrispettivi({
+      ordini: [],
+      venditeBanco: [],
+      corrispettiviManuali: [],
+      rettifiche: [],
+      annullamenti: [],
+    }));
+}

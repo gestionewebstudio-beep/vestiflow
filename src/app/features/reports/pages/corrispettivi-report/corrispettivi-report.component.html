@@ -125,6 +125,16 @@
         (valueChange)="onYearSelect($event)"
       />
     }
+    @if (showSingleDate()) {
+      <!-- La giornata singola: un campo solo, perché la domanda è una sola. -->
+      <app-date-input
+        inputId="corr-date-day"
+        ariaLabel="Giorno"
+        [value]="singleDateDraft()"
+        [compact]="true"
+        (valueChange)="onSingleDateChange($event)"
+      />
+    }
     @if (showCustomDates()) {
       <app-date-input
         inputId="corr-date-from"

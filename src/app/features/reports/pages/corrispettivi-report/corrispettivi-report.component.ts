@@ -296,6 +296,9 @@ export class CorrispettiviReportComponent {
   // in cima a una schermata che si consulta a colpo d'occhio. Il periodo È un
   // filtro: sta con gli altri.
   protected readonly periodOptions: readonly SelectMenuOption[] = [
+    { value: ReportPeriodPreset.Today, label: 'Oggi' },
+    { value: ReportPeriodPreset.Yesterday, label: 'Ieri' },
+    { value: ReportPeriodPreset.SpecificDay, label: 'Giorno specifico…' },
     { value: ReportPeriodPreset.Last7Days, label: 'Ultimi 7 giorni' },
     { value: ReportPeriodPreset.Last30Days, label: 'Ultimi 30 giorni' },
     { value: ReportPeriodPreset.ThisMonth, label: 'Mese corrente' },
@@ -353,6 +356,33 @@ export class CorrispettiviReportComponent {
     () => this.displayPeriod() === ReportPeriodPreset.Custom,
   );
 
+  /**
+   * Il selettore della **giornata singola**.
+   *
+   * Ha un campo suo e non riusa quello «da»: sono due domande diverse — «da che
+   * giorno a che giorno» e «quale giorno» — e un campo che cambia significato a
+   * seconda del preset è il modo in cui si finisce per chiedere «dal 17» e
+   * ottenere «il 17 e basta», o viceversa.
+   */
+  protected readonly showSingleDate = computed(
+    () => this.displayPeriod() === ReportPeriodPreset.SpecificDay,
+  );
+
+  protected readonly singleDateDraft = computed(() =>
+    this.displayPeriod() === ReportPeriodPreset.SpecificDay
+      ? (this.query().dateFrom ?? todayIsoDate())
+      : '',
+  );
+
+  /** La giornata sta in `from`; `to` la ricopia, o sarebbe «da lì in poi». */
+  protected onSingleDateChange(value: string): void {
+    const giorno = value || todayIsoDate();
+    this.updateParams({
+      from: giorno,
+      to: giorno,
+      period: ReportPeriodPreset.SpecificDay,
+    });
+  }
   protected readonly monthValue = computed(() =>
     this.query().month ? String(this.query().month) : '',
   );

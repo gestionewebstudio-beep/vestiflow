@@ -15,7 +15,11 @@ import {
   INVENTORY_VIEW_SCOPE_MODE,
   listLocationsInScope,
 } from '../inventory/licensed-location-scope.util';
-import { accumulaCorrispettivi } from './corrispettivi-totals.util';
+import {
+  accumulaPerGiorno,
+  totaleDaiGiorni,
+  type TotaliGiornata,
+} from './corrispettivi-totals.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildPlacedAtFilter } from '../sales-orders/sales-order-query.util';
 import { API_SOURCE_ONLINE, API_SOURCE_POS } from '../sales-orders/sales-order.enum-mapper';
@@ -69,6 +73,17 @@ export interface CorrispettiviSummaryDto {
    * totale più basso del vero (`10` §12).
    */
   readonly locationUndeterminedExcludedCount: number;
+
+  /**
+   * I totali **giornata per giornata**, in ordine decrescente.
+   *
+   * ⚠️ Non sono un secondo calcolo: il totale del periodo qui sopra È la loro
+   * somma, quindi la riconciliazione non è una proprietà da verificare — è la
+   * definizione. Viaggiano sempre, anche a raggruppamento spento: costano
+   * quanto un raggruppamento in memoria di righe già lette, e averli pronti
+   * evita una seconda richiesta quando l'operatore accende la vista.
+   */
+  readonly perGiornata: readonly TotaliGiornata[];
 }
 
 export type CorrispettiviOrderRow = SalesOrder & {
@@ -540,7 +555,7 @@ export class CorrispettiviService {
       storeWhere && vuoleVendite
         ? await this.prisma.document.findMany({
             where: storeWhere,
-            select: { taxMinor: true, totalMinor: true },
+            select: { taxMinor: true, totalMinor: true, documentDate: true },
           })
         : [];
     const manualWhere = buildCorrispettiviManualWhere(tenantId, query);
@@ -548,7 +563,7 @@ export class CorrispettiviService {
       manualWhere && vuoleVendite
         ? await this.prisma.manualReceipt.findMany({
             where: manualWhere,
-            select: { subtotalMinor: true, taxMinor: true, totalMinor: true },
+            select: { subtotalMinor: true, taxMinor: true, totalMinor: true, documentDate: true },
           })
         : [];
     const orders = vuoleVendite
@@ -562,6 +577,8 @@ export class CorrispettiviService {
             totalMinor: true,
             financialStatus: true,
             source: true,
+            fulfilledAt: true,
+            placedAt: true,
           },
         })
       : [];
@@ -573,7 +590,7 @@ export class CorrispettiviService {
     const refunds = vuoleRettifiche
       ? await this.prisma.salesOrderRefund.findMany({
           where: buildCorrispettiviRefundWhere(tenantId, query),
-          select: { totalMinor: true, taxMinor: true },
+          select: { totalMinor: true, taxMinor: true, occurredAt: true },
         })
       : [];
 
@@ -592,7 +609,7 @@ export class CorrispettiviService {
         ...buildCorrispettiviRefundWhere(tenantId, { ...query, rowType: undefined, tipi: undefined }),
         kind: PrismaRefundKind.cancellation,
       },
-      select: { totalMinor: true },
+      select: { totalMinor: true, occurredAt: true },
     });
 
     // Evasi senza data: fuori dal conteggio perché non databili, ma dichiarati.
@@ -608,16 +625,36 @@ export class CorrispettiviService {
     // ⚠️ **Una sola matematica**, e da qui in poi vale anche per i subtotali
     // giornalieri del blocco B: due implementazioni che «si assomigliano» non
     // possono garantire che la somma delle parti faccia il totale.
-    const totali = accumulaCorrispettivi({
-      ordini: orders,
-      venditeBanco: storeSales,
-      corrispettiviManuali: manualReceipts,
+    /*
+      ⚠️ **Il totale del periodo È la somma delle giornate, non un calcolo
+      parallelo** (`docs/10` §17).
+
+      Le righe si raggruppano per giorno economico, ogni giornata passa dallo
+      stesso `accumulaCorrispettivi`, e il periodo si ricava sommandole. Così la
+      proprietà che il Registro deve garantire —
+
+          somma dei giorni = totale del periodo
+
+      — smette di essere qualcosa da verificare e diventa **vera per
+      costruzione**: non esistono due percorsi che potrebbero divergere, ne
+      esiste uno solo letto a due granularità.
+
+      Funziona perché l'accumulatore è fatto di sole somme e differenze. Se un
+      giorno qualcuno ci rimettesse dentro un `Math.max(0, …)`, questa riga
+      comincerebbe a mentire — ed è il motivo per cui il clamp è stato tolto.
+    */
+    const perGiornata = accumulaPerGiorno({
+      ordini: orders.map((o) => ({ ...o, occurredAt: o.fulfilledAt ?? o.placedAt })),
+      venditeBanco: storeSales.map((s) => ({ ...s, occurredAt: s.documentDate })),
+      corrispettiviManuali: manualReceipts.map((m) => ({ ...m, occurredAt: m.documentDate })),
       rettifiche: refunds,
       annullamenti: cancellations,
     });
+    const totali = totaleDaiGiorni(perGiornata);
 
     return {
       ...totali,
+      perGiornata,
       undatedFulfilmentCount,
       locationUndeterminedExcludedCount: await this.countUndeterminedLocationRows(tenantId, query),
       /*
