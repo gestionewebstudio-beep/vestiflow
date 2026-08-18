@@ -30,8 +30,11 @@ import {
   corrispettiviReportFilterSubtitle,
   corrispettiviReportSubtitle,
 } from '@core/models/tenant-channel-profile.model';
+import { ActionMenuComponent } from '@shared/components/action-menu/action-menu.component';
+import type { ActionMenuItem } from '@shared/components/action-menu/action-menu.component';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
@@ -90,6 +93,7 @@ type CorrispettiviState =
   selector: 'app-corrispettivi-report',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ActionMenuComponent,
     BackButtonComponent,
     ButtonComponent,
     CorrispettiviOrdersTableComponent,
@@ -100,6 +104,7 @@ type CorrispettiviState =
     InlineBannerComponent,
     SegmentedComponent,
     SelectMenuComponent,
+    SlidePanelComponent,
     TableColumnPickerComponent,
     TableSkeletonComponent,
   ],
@@ -716,6 +721,59 @@ export class CorrispettiviReportComponent {
       successMessage: 'Export PDF completato: download avviato.',
       errorMessage: 'Export PDF non riuscito. Riprova tra qualche istante.',
     });
+  }
+
+  /**
+   * Pannello filtri mobile: sotto `lg` i chip spariscono e il loro posto lo
+   * prende un solo pulsante «Filtri (n)». Stesso pattern delle quattro pagine
+   * registro (`_list-page.scss`, mixin `list-page-mobile-filters`): apertura
+   * UI pura, i filtri dentro il pannello scrivono sugli stessi signal dei
+   * gemelli desktop, quindi non esiste uno stato «del pannello» da allineare.
+   */
+  protected readonly mobileFiltersOpen = signal(false);
+
+  /**
+   * Quanti filtri restringono l'insieme, per il badge del pulsante. Periodo e
+   * Raggruppa NON contano: il primo ha sempre un valore (non è mai «spento»),
+   * il secondo non filtra niente — cambia solo come si leggono le stesse righe.
+   */
+  protected readonly activeFilterCount = computed(() => {
+    const f = this.filters();
+    let count = 0;
+    if (f.origini.length) count++;
+    if (f.tipi.length) count++;
+    if (f.sedi.length) count++;
+    return count;
+  });
+
+  /**
+   * Le quattro azioni di export dietro un comando solo. Su mobile cinque
+   * pulsanti in testata prendevano due file prima che si vedesse un dato:
+   * l'operatore che consulta il registro dal telefono esporta di rado, e un
+   * comando raccolto costa un tocco in più solo a chi lo usa davvero.
+   */
+  protected readonly exportMenuItems: readonly ActionMenuItem[] = [
+    { id: 'print', label: 'Stampa', icon: 'pi-print' },
+    { id: 'pdf', label: 'PDF', icon: 'pi-file-pdf' },
+    { id: 'spreadsheet', label: 'Excel', icon: 'pi-file-excel' },
+    { id: 'csv', label: 'CSV', icon: 'pi-download' },
+  ];
+
+  protected onExportAction(id: string): void {
+    switch (id) {
+      case 'print':
+        this.printReport();
+        return;
+      case 'pdf':
+        this.exportPdf();
+        return;
+      case 'spreadsheet':
+        this.exportSpreadsheet();
+        return;
+      case 'csv':
+        this.exportAccountantCsv();
+        return;
+    }
   }
 
   protected printReport(): void {
