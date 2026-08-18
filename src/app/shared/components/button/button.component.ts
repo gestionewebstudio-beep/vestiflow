@@ -29,4 +29,13 @@ export class ButtonComponent {
   readonly fullWidth = input<boolean>(false);
   /** ID form esterno per submit (attributo HTML `form` sul bottone). */
   readonly formId = input<string | undefined>();
+
+  /**
+   * Nome accessibile, quando l'etichetta visibile è abbreviata per ragioni di
+   * spazio e da sola non basterebbe fuori contesto: «Nuovo» si capisce sotto
+   * il titolo «Corrispettivi», ma un lettore di schermo che elenca i comandi
+   * della pagina leggerebbe soltanto la parola. Vuoto = il nome accessibile è
+   * il testo del pulsante, che è il caso normale e va lasciato tale.
+   */
+  readonly ariaLabel = input<string | undefined>();
 }

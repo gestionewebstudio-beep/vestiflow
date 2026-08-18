@@ -1,13 +1,23 @@
 <div class="action-menu" [class.action-menu--open]="open()">
+  <!--
+    Con `triggerLabel` il pulsante porta il nome del comando e si veste come un
+    bottone secondario; senza, resta il quadrato «···» delle righe di tabella.
+    `aria-label` copre comunque il caso a sola icona.
+  -->
   <button
     type="button"
     class="action-menu__trigger"
-    [attr.aria-label]="ariaLabel()"
+    [class.action-menu__trigger--labelled]="triggerLabel()"
+    [attr.aria-label]="triggerLabel() ? null : ariaLabel()"
     [attr.aria-expanded]="open()"
     aria-haspopup="menu"
     (click)="toggle($event)"
   >
-    <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+    <i class="pi {{ triggerIcon() }}" aria-hidden="true"></i>
+    @if (triggerLabel(); as label) {
+      <span class="action-menu__trigger-label">{{ label }}</span>
+      <i class="pi pi-chevron-down action-menu__trigger-caret" aria-hidden="true"></i>
+    }
   </button>
 
   @if (open()) {
