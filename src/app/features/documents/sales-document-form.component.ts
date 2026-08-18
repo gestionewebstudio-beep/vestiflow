@@ -55,6 +55,7 @@ import {
   vatCodeSelectOption,
   vatOptionsIncludingSelected,
 } from '@domain/documents/utils/document-vat-options.util';
+import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
 import { bindBreadcrumbEntityLabel } from '@core/services/breadcrumb-label.service';
 import { ToastService } from '@core/services/toast.service';
 import { VatCodeService } from '@core/services/vat-code.service';
@@ -1925,6 +1926,7 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
           discountPercent: line.discount,
           isReference: line.isReference === true,
           vatCodeId: line.vatCodeId ?? '',
+          persistedVatCodeId: line.vatCodeId ?? null,
           vatRatePercent: '',
         },
         { emitEvent: false },
@@ -2235,7 +2237,11 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
             // Al server va il netto: se il campo mostrava l'ivato, si scorpora qui.
             unitPriceMinor: this.netFromDisplayed(price?.amountMinor ?? 0, ratePercent),
             vatRatePercent: line.vatRatePercent ? Number(line.vatRatePercent) : undefined,
-            vatCodeId: line.vatCodeId || undefined,
+            vatCodeId: vatCodeIdForLinePayload({
+              currentVatCodeId: line.vatCodeId,
+              persistedVatCodeId: line.persistedVatCodeId,
+              isExistingLine: Boolean(line.id),
+            }),
             discountPercent: parseEffectiveDiscountPercent(line.discountPercent),
             // Proforma e Fattura non movimentano mai il magazzino. La Fattura
             // accompagnatoria lo fa solo senza DDT agganciato: con un DDT le
@@ -2787,6 +2793,17 @@ export class SalesDocumentFormComponent implements CanComponentDeactivate {
       unitPrice: this.fb.control(''),
       vatRatePercent: this.fb.control('22'),
       vatCodeId: this.fb.control(''),
+      /**
+       * Il Codice IVA COM'ERA quando il documento e' stato caricato. Non e' un
+       * campo dell'operatore: serve a dichiarare al server se l'assegnazione IVA
+       * e' cambiata (contratto binario, `document-line-vat-payload.util`).
+       *
+       * ⛔ Non si aggiorna durante le modifiche locali: si riallinea solo dopo un
+       * salvataggio riuscito o un nuovo caricamento. Confrontarlo col valore
+       * PRECEDENTE invece che con quello persistito farebbe annullare due
+       * modifiche di fila.
+       */
+      persistedVatCodeId: this.fb.control<string | null>(null),
       discountPercent: this.fb.control(''),
       // Riga di RIFERIMENTO (§12): descrittiva, non economica e non fisica.
       // Non e' editabile dall'operatore — la valorizzano inclusione e

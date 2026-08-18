@@ -1593,6 +1593,126 @@ describe('DocumentsService', () => {
     // maschera che non espone la colonna — oggi DDT, Fattura, Proforma e Nota
     // di credito non ce l'hanno.
 
+    // ── Snapshot IVA: la riga di un documento è una FOTOGRAFIA ────────────
+    //
+    // `regole-gestionale` → «La riga di un documento è una fotografia, e non si
+    // riscatta da sola». Il contratto è BINARIO: su una riga esistente il
+    // `vatCodeId` assente significa «non modificata», e il server conserva
+    // codice e snapshot persistiti invece di rileggerli dall'anagrafica.
+    //
+    // Senza questa regola, cambiare l'aliquota di un Codice IVA ri-prezza ogni
+    // documento che venga risalvato — basta riaprirne uno e correggere una nota.
+
+    /** Snapshot come lo scrive `buildVatCodeSnapshot`, con l'aliquota di allora. */
+    function snapshotStorico(ratePercent: number) {
+      return { code: 'IVA22', ratePercent, natureKey: null, officialCode: null };
+    }
+
+    /** Il Codice IVA come è OGGI in anagrafica: aliquota già cambiata. */
+    function vatCodeCorrente(id: string, ratePercent: number) {
+      return {
+        id,
+        tenantId,
+        code: 'IVA' + ratePercent,
+        ratePercent: new Prisma.Decimal(ratePercent),
+        isActive: true,
+        calculationMode: 'standard',
+        scope: 'both',
+        deletedAt: null,
+        description: null,
+        notes: null,
+        nonDeductiblePercent: new Prisma.Decimal(0),
+        vatAffectsSupplierTotal: true,
+        // `buildVatCodeSnapshot` legge la natura: e' una relazione, non un campo.
+        nature: { key: null, label: null, officialCode: null },
+      };
+    }
+
+    it('documento storico risalvato senza toccare l’IVA: lo snapshot resta quello di allora', async () => {
+      const service = arrange([
+        savedLine('line-1', { vatCodeId: 'vat-1', vatSnapshot: snapshotStorico(22) }),
+      ]);
+      // In anagrafica l'aliquota nel frattempo è diventata 24.
+      prisma.vatCode.findMany.mockResolvedValue([vatCodeCorrente('vat-1', 24)]);
+
+      await service.update(tenantId, 'doc-q', { lines: [inputLine({ id: 'line-1' })] });
+
+      const scritto = prisma.documentLine.updateMany.mock.calls[0]![0] as {
+        data: { vatCodeId: string | null; vatSnapshot: { ratePercent: number } };
+      };
+      expect(scritto.data.vatCodeId).toBe('vat-1');
+      expect(scritto.data.vatSnapshot.ratePercent).toBe(22);
+    });
+
+    it('modifica di ALTRI campi: lo snapshot IVA non si muove', async () => {
+      const service = arrange([
+        savedLine('line-1', { vatCodeId: 'vat-1', vatSnapshot: snapshotStorico(22) }),
+      ]);
+      prisma.vatCode.findMany.mockResolvedValue([vatCodeCorrente('vat-1', 24)]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [inputLine({ id: 'line-1', quantity: 9, description: 'Descrizione corretta' })],
+      });
+
+      const scritto = prisma.documentLine.updateMany.mock.calls[0]![0] as {
+        data: { quantity: number; vatSnapshot: { ratePercent: number } };
+      };
+      expect(scritto.data.quantity).toBe(9);
+      expect(scritto.data.vatSnapshot.ratePercent).toBe(22);
+    });
+
+    it('scelta esplicita di un altro Codice IVA: snapshot NUOVO, preso dall’anagrafica', async () => {
+      const service = arrange([
+        savedLine('line-1', { vatCodeId: 'vat-1', vatSnapshot: snapshotStorico(22) }),
+      ]);
+      prisma.vatCode.findMany.mockResolvedValue([
+        vatCodeCorrente('vat-1', 22),
+        vatCodeCorrente('vat-2', 10),
+      ]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [inputLine({ id: 'line-1', vatCodeId: 'vat-2' })],
+      });
+
+      const scritto = prisma.documentLine.updateMany.mock.calls[0]![0] as {
+        data: { vatCodeId: string | null; vatSnapshot: { ratePercent: number } };
+      };
+      expect(scritto.data.vatCodeId).toBe('vat-2');
+      expect(scritto.data.vatSnapshot.ratePercent).toBe(10);
+    });
+
+    it('aliquota cambiata in anagrafica e documento risalvato: il documento storico non si ri-prezza', async () => {
+      // È il caso che rende la regola necessaria, non un caso limite: senza di
+      // essa una fattura di marzo diventerebbe al 24% aprendola ad agosto.
+      const service = arrange([
+        savedLine('line-1', { vatCodeId: 'vat-1', vatSnapshot: snapshotStorico(22) }),
+      ]);
+      prisma.vatCode.findMany.mockResolvedValue([vatCodeCorrente('vat-1', 24)]);
+
+      await service.update(tenantId, 'doc-q', { lines: [inputLine({ id: 'line-1' })] });
+
+      const scritto = prisma.documentLine.updateMany.mock.calls[0]![0] as {
+        data: { vatSnapshot: { ratePercent: number } };
+      };
+      expect(scritto.data.vatSnapshot.ratePercent).toBe(22);
+      expect(scritto.data.vatSnapshot.ratePercent).not.toBe(24);
+    });
+
+    it('riga NUOVA: acquisisce normalmente il Codice IVA corrente e lo congela', async () => {
+      const service = arrange([savedLine('line-1', { vatCodeId: 'vat-1' })]);
+      prisma.vatCode.findMany.mockResolvedValue([vatCodeCorrente('vat-2', 10)]);
+
+      await service.update(tenantId, 'doc-q', {
+        lines: [inputLine({ id: 'line-1' }), inputLine({ vatCodeId: 'vat-2' })],
+      });
+
+      const creata = prisma.documentLine.create.mock.calls[0]![0] as {
+        data: { vatCodeId: string | null; vatSnapshot: { ratePercent: number } };
+      };
+      expect(creata.data.vatCodeId).toBe('vat-2');
+      expect(creata.data.vatSnapshot.ratePercent).toBe(10);
+    });
+
     it('non cancella l’unità di misura quando la maschera non la manda', async () => {
       const service = arrange([savedLine('line-1', { unitOfMeasure: 'kg' })]);
 

@@ -252,6 +252,12 @@ const EMPTY_LINE_VAT_FIELDS = {
   nonDeductibleVatMinor: 0,
 } as const;
 
+/** Cio' che di una riga persistita serve a NON rifotografarne lo snapshot IVA. */
+interface PersistedLineVat {
+  readonly vatCodeId: string | null;
+  readonly vatSnapshot: Prisma.JsonValue;
+}
+
 interface ComputedLine {
   /**
    * Id della riga già salvata, dichiarato dal client in modifica. `null` = riga
@@ -1479,6 +1485,12 @@ export class DocumentsService {
             dto.lines,
             doc.type,
             await this.buildLineVatContext(tenantId, effectiveSupplierIdForVat, dto.lines),
+            new Map(
+              doc.lines.map((line) => [
+                line.id,
+                { vatCodeId: line.vatCodeId, vatSnapshot: line.vatSnapshot },
+              ]),
+            ),
           )
         : null;
 
@@ -3386,6 +3398,12 @@ export class DocumentsService {
     input: readonly DocumentLineInputDto[],
     documentType: DocumentType,
     vatContext?: LineVatContext,
+    /**
+     * Righe gia' persistite, per id. Serve a una regola sola, ma di dominio:
+     * **una riga esistente conserva il proprio snapshot IVA** finche' il client
+     * non dichiara una modifica esplicita.
+     */
+    persistedLinesById?: ReadonlyMap<string, PersistedLineVat>,
   ): ComputedLine[] {
     const defaultLoadsStock = documentTypeDefaultLoadsStock(documentType);
     return input.map((line, index) => {
@@ -3413,7 +3431,25 @@ export class DocumentsService {
       let vatCodeId: string | null = null;
       let vatSnapshot: Prisma.InputJsonObject | null = null;
       let vatRatePercent = line.vatRatePercent ?? null;
-      if (vatContext) {
+
+      // ⛔ Riga GIA' ESISTENTE senza `vatCodeId` nel payload: lo snapshot NON si
+      // rifotografa. E' una regola di dominio, non una scorciatoia — lo snapshot
+      // e' il fatto fiscale di quel documento, e rileggerlo dall'anagrafica a
+      // ogni salvataggio significherebbe che modificare l'aliquota di un Codice
+      // IVA ri-prezza i documenti gia' emessi: basta riaprirne uno e correggere
+      // una nota.
+      //
+      // Il contratto e' BINARIO e sta sul client: la chiave arriva solo quando
+      // l'assegnazione IVA e' davvero cambiata (`document-line-vat-payload.util`
+      // lato frontend). Assente = non modificata; presente = scelta nuova, e
+      // allora si risolve il codice e si scrive uno snapshot nuovo.
+      const persistedVat = line.id ? persistedLinesById?.get(line.id) : undefined;
+
+      if (persistedVat && line.vatCodeId === undefined) {
+        vatCodeId = persistedVat.vatCodeId;
+        vatSnapshot = (persistedVat.vatSnapshot ?? null) as Prisma.InputJsonObject | null;
+        vatRatePercent = vatSnapshotRatePercent(persistedVat.vatSnapshot) ?? vatRatePercent;
+      } else if (vatContext) {
         const explicitId = line.vatCodeId ?? null;
         const productDefaultId = line.variantId
           ? (vatContext.productDefaultByVariantId.get(line.variantId) ?? null)

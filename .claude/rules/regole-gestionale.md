@@ -117,6 +117,69 @@ _Stato al 15/08:_ la regola è rispettata da **tutti** i documenti che movimenta
 
 I documenti storici si convertono **da sé al primo salvataggio**: il sync somma l'effetto netto dei movimenti aggregati, lo annulla, li cancella e riscrive un movimento per riga. La giacenza non si muove di un pezzo. Non esiste uno script di conversione, e non deve esistere.
 
+### La riga di un documento è una fotografia, e non si riscatta da sola _(18/08/2026)_
+
+La regola qui sopra dice cosa succede ai **movimenti** quando un documento si risalva. Questa
+dice cosa succede ai **valori della riga**, ed è la stessa disciplina un piano più sotto.
+
+> **Su una RIGA GIÀ ESISTENTE, un valore non modificato esplicitamente conserva quello
+> persistito nel documento: non si rilegge e non si ricalcola dall'anagrafica corrente.**
+> Modificato esplicitamente, il nuovo valore si salva e da lì diventa il valore persistito.
+> Una **riga nuova** acquisisce i valori correnti previsti dal contratto del documento, e da
+> quel momento li congela.
+
+**Il criterio è cosa il documento è.** Un documento registra un'operazione avvenuta: rinominare
+un prodotto in anagrafica non cambia cosa c'era scritto sul DDT di marzo, e cambiare l'aliquota
+di un Codice IVA non ri-prezza le fatture già emesse.
+
+#### ⚠️ Prima si CLASSIFICA il campo, poi si applica la regola
+
+⛔ **Non vale per ogni campo del gestionale**, e prenderla come regola universale sarebbe
+sbagliato quanto non averla. Vale per i dati che appartengono al documento **come fotografia
+dell'operazione**. Ciò che è dichiaratamente **live** resta live — la disponibilità di magazzino
+mostrata accanto a una riga, per esempio, è una lettura di adesso e deve esserlo.
+
+| Dove si applica, dove è applicabile                   |                                                                                          |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **nome e descrizione** della riga                     | se il documento diceva «Maglia cotone», rinominare il prodotto domani non lo cambia      |
+| **prezzo unitario**                                   | non torna al prezzo corrente dell'articolo                                               |
+| **costo**                                             | una riga già movimentata conserva il costo congelato, e non si rivaluta al costo di oggi |
+| **Codice IVA e snapshot IVA**                         | il semplice risalvataggio conserva quelli persistiti                                     |
+| **sconto di riga**                                    | resta quello del documento                                                               |
+| **quantità**                                          | resta quella persistita, salvo modifica esplicita                                        |
+| **unità di misura**, se salvata come dato documentale | non si rifotografa dall'anagrafica                                                       |
+| altri valori economici o snapshot di riga             | stessa disciplina                                                                        |
+
+#### ⚠️ Il rimedio NON è lo stesso per tutti, e confonderlo costa
+
+I campi si dividono in due, e la differenza sta in **chi potrebbe riscriverli**:
+
+```text
+campi che il client MANDA SEMPRE          quantità · prezzo · sconto · descrizione
+  → il valore che manda è già quello del DOCUMENTO, letto all'apertura
+  → il rischio è che QUALCUNO li riderivi dall'anagrafica: server o client
+  → il rimedio è non riderivarli
+
+campi che il server RISOLVE quando mancano      Codice IVA
+  → il rischio è che il client li rimandi sempre e il server li rifotografi
+  → il rimedio è un contratto binario: assente = non modificato
+```
+
+⛔ **Applicare il contratto binario a un campo del primo gruppo sarebbe inutile**, e applicare
+«basta non riderivare» a un campo del secondo lascerebbe il difetto dov'è.
+
+#### Il primo consumer, e una violazione già misurata
+
+Il **Codice IVA** è il primo caso applicato: `computeLines` del percorso generico rifotografava
+lo snapshot a ogni salvataggio, e ora conserva quello persistito quando il client non dichiara
+una modifica (`document-line-vat-payload.util` lato client).
+
+⚠️ **E una violazione del primo gruppo è già misurata**: `store-sales.service.ts` riscrive `sku`
+e `description` **dalla variante a ogni salvataggio** (`:147-148`, `:318`). Oggi non fa danno
+perché la vendita non si risalva; **con la modifica aperta, risalvare una vendita di marzo ne
+riscriverebbe la descrizione con quella dell'anagrafica di oggi**. Va corretto quando quel
+percorso si tocca.
+
 ## Multi-tenant
 
 - Tutte le entità di business DEVONO essere tenant-aware.
