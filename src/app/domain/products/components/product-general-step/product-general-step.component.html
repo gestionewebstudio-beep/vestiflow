@@ -10,7 +10,11 @@
                 [inline]="true"
                 text="Se lasciato vuoto viene generato automaticamente (progressivo numerico)."
               >
-                <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+                <i
+                  class="pi pi-info-circle general-step__info"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></i>
               </app-hover-tooltip>
             }
           </label>
@@ -64,7 +68,7 @@
           <label class="general-step__label" for="product-brand">
             Venditore/Brand
             <app-hover-tooltip [inline]="true" text="Campo opzionale.">
-              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              <i class="pi pi-info-circle general-step__info" tabindex="-1" aria-hidden="true"></i>
             </app-hover-tooltip>
           </label>
           <input
@@ -86,7 +90,11 @@
                 [inline]="true"
                 text="Campo opzionale. Con “Gestisci” organizzi l'elenco delle categorie."
               >
-                <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+                <i
+                  class="pi pi-info-circle general-step__info"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></i>
               </app-hover-tooltip>
             </span>
             @if (!catalogReadOnly()) {
@@ -134,7 +142,11 @@
                 [inline]="true"
                 text="Campo opzionale: le voci proposte dipendono dalla categoria selezionata."
               >
-                <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+                <i
+                  class="pi pi-info-circle general-step__info"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></i>
               </app-hover-tooltip>
             </span>
             @if (!catalogReadOnly()) {
@@ -219,7 +231,7 @@
               [inline]="true"
               text="Vuoto = usa il Codice IVA predefinito aziendale."
             >
-              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              <i class="pi pi-info-circle general-step__info" tabindex="-1" aria-hidden="true"></i>
             </app-hover-tooltip>
           </span>
           <!--
@@ -264,7 +276,7 @@
               [inline]="true"
               text="Un Servizio non movimenta il magazzino e non conta in giacenza. Proprietà interna VestiFlow: non viene mai inviata a Shopify."
             >
-              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              <i class="pi pi-info-circle general-step__info" tabindex="-1" aria-hidden="true"></i>
             </app-hover-tooltip>
           </span>
           <app-select-menu
@@ -286,7 +298,7 @@
               [inline]="true"
               text="Campo opzionale. Al salvataggio l'articolo viene collegato al fornitore in anagrafica; codici e costi per variante restano gestibili dalla scheda fornitore."
             >
-              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              <i class="pi pi-info-circle general-step__info" tabindex="-1" aria-hidden="true"></i>
             </app-hover-tooltip>
           </span>
           <app-select-menu
@@ -372,7 +384,7 @@
                   >
                     <i
                       class="pi pi-info-circle general-step__info"
-                      tabindex="0"
+                      tabindex="-1"
                       aria-hidden="true"
                     ></i>
                   </app-hover-tooltip>
@@ -409,7 +421,7 @@
                 >
                   <i
                     class="pi pi-info-circle general-step__info"
-                    tabindex="0"
+                    tabindex="-1"
                     aria-hidden="true"
                   ></i>
                 </app-hover-tooltip>
@@ -473,7 +485,11 @@
                 [inline]="true"
                 text="Campo opzionale: costo d'acquisto dell'articolo, sempre al netto d'IVA. Fa da valore iniziale per le nuove varianti; il costo effettivo di ogni variante è aggiornato dai carichi di magazzino."
               >
-                <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+                <i
+                  class="pi pi-info-circle general-step__info"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></i>
               </app-hover-tooltip>
             </label>
             <input
@@ -525,7 +541,7 @@
               [inline]="true"
               text="Consigliata per la sincronizzazione. Stessa tassonomia usata in Shopify Admin; puoi completarla anche dopo la creazione."
             >
-              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              <i class="pi pi-info-circle general-step__info" tabindex="-1" aria-hidden="true"></i>
             </app-hover-tooltip>
           </span>
           <app-shopify-taxonomy-picker
@@ -555,7 +571,7 @@
               [inline]="true"
               text="Campo opzionale: codice collezione (es. SS26, FW25)."
             >
-              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              <i class="pi pi-info-circle general-step__info" tabindex="-1" aria-hidden="true"></i>
             </app-hover-tooltip>
           </span>
           <app-select-menu
@@ -575,7 +591,7 @@
               [inline]="true"
               text="Campo opzionale: codice collezione (es. SS26, FW25)."
             >
-              <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+              <i class="pi pi-info-circle general-step__info" tabindex="-1" aria-hidden="true"></i>
             </app-hover-tooltip>
           </label>
           <input
@@ -617,7 +633,7 @@
             [inline]="true"
             text="Campo opzionale: più tag separati da virgola (es. estate, donna, saldi)."
           >
-            <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+            <i class="pi pi-info-circle general-step__info" tabindex="-1" aria-hidden="true"></i>
           </app-hover-tooltip>
         </label>
         <input
@@ -634,7 +650,7 @@
         <label class="general-step__label" for="product-description">
           Descrizione
           <app-hover-tooltip [inline]="true" text="Campo opzionale.">
-            <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+            <i class="pi pi-info-circle general-step__info" tabindex="-1" aria-hidden="true"></i>
           </app-hover-tooltip>
         </label>
         <textarea
@@ -652,7 +668,7 @@
             [inline]="true"
             text="Solo gestionale: mai sincronizzate con Shopify o altri canali."
           >
-            <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+            <i class="pi pi-info-circle general-step__info" tabindex="-1" aria-hidden="true"></i>
           </app-hover-tooltip>
         </label>
         <textarea
