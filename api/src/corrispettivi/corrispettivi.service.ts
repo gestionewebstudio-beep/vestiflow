@@ -136,7 +136,7 @@ export interface CorrispettiviRegisterRow {
   /**
    * L'ordine da cui si apre la riga. **`null` sulla Vendita al banco**, che non
    * nasce da un ordine ma da un documento: la sua sorgente canonica è
-   * `Document.type = store_sale` (`11` §3), e il Registro la LEGGE — non le
+   * `Document.type = store_sale` (`11` B1), e il Registro la LEGGE — non le
    * costruisce un ordine addosso per farla entrare, che sarebbe una seconda
    * rappresentazione della stessa transazione.
    */

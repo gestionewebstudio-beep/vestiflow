@@ -127,7 +127,7 @@ export function sourceDisplayLabel(source: PrismaSource): string {
       return 'Manuale';
     // «Negozio» e «Cassa» dicevano il falso e si scambiavano di posto: la
     // prima indicava lo Shopify POS, non il negozio di VestiFlow. Ora ogni
-    // etichetta nomina la sorgente vera (`11` §1, `10` §4).
+    // etichetta nomina la sorgente vera (`11` A6, `10` §4).
     case PrismaSource.shopify_pos:
       return 'Shopify POS';
     case PrismaSource.store:

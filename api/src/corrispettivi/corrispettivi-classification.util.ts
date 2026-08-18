@@ -3,7 +3,7 @@ import { SalesOrderSource as PrismaSource } from '@prisma/client';
 import { sourceDisplayLabel } from '../sales-orders/sales-order.enum-mapper';
 
 /**
- * Chi entra nel Registro Corrispettivi, e come si classifica (`11` §5, `10` §3).
+ * Chi entra nel Registro Corrispettivi, e come si classifica (`11` A9, `10` §3).
  *
  * **Due domande in quest'ordine, e non una sola.**
  *

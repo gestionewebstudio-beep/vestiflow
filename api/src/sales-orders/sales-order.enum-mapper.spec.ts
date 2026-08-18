@@ -46,7 +46,7 @@ describe('sales-order.enum-mapper', () => {
     it('sourceDisplayLabel', () => {
       // ⚠️ «Online» e «Negozio» erano ambigue e si scambiavano il posto:
       // «Negozio» era il negozio di SHOPIFY, non quello di VestiFlow. Ora ogni
-      // etichetta nomina la sorgente vera (`11` §1).
+      // etichetta nomina la sorgente vera (`11` A6).
       expect(sourceDisplayLabel(PrismaSource.shopify_online)).toBe('Online');
       expect(sourceDisplayLabel(PrismaSource.shopify_pos)).toBe('Shopify POS');
     });

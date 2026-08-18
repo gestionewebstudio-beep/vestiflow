@@ -43,7 +43,7 @@ describe('buildCorrispettiviWhere', () => {
     expect(source.in).toContain(PrismaSource.store);
   });
 
-  // ── La Vendita al banco: terza sorgente del Registro (`11` §5) ─────────
+  // ── La Vendita al banco: terza sorgente del Registro (`11` A9) ─────────
 
   it('la Vendita al banco entra nel Registro quando i filtri non la escludono', () => {
     const where = buildCorrispettiviStoreSaleWhere(tenantId, {});

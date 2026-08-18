@@ -275,7 +275,7 @@ export function buildCorrispettiviRefundWhere(
 }
 
 /**
- * Le **Vendite al banco** del periodo: la terza sorgente del Registro (`11` §5).
+ * Le **Vendite al banco** del periodo: la terza sorgente del Registro (`11` A9).
  *
  * Restituisce `null` quando i filtri escludono già il canale VestiFlow o
  * l'ambito online — così chi chiama non interroga una tabella per scartarne il

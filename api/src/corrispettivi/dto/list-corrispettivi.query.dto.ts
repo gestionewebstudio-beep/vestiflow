@@ -95,7 +95,7 @@ export class ListCorrispettiviQueryDto extends PaginationQueryDto {
   @Matches(ISO_DATE)
   placedTo?: string;
 
-  /** Ambito: come è arrivata la vendita — online oppure no (`11` §5). */
+  /** Ambito: come è arrivata la vendita — online oppure no (`11` A9). */
   @IsOptional()
   @IsIn([...CORRISPETTIVI_AMBITO])
   ambito?: CorrispettiviAmbito;
