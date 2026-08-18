@@ -35,6 +35,8 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { InlineBannerComponent } from '@shared/components/inline-banner/inline-banner.component';
+import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
+import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
@@ -56,7 +58,6 @@ import {
   type CorrispettiviSummary,
 } from '../../models/corrispettivi.model';
 import {
-  ambitoEsprimibile,
   corrispettiviFiltersToQuery,
   parseCorrispettiviFilters,
   originiPerAmbito,
@@ -97,6 +98,7 @@ type CorrispettiviState =
     EmptyStateComponent,
     ErrorStateComponent,
     InlineBannerComponent,
+    SegmentedComponent,
     SelectMenuComponent,
     TableColumnPickerComponent,
     TableSkeletonComponent,
@@ -194,7 +196,48 @@ export class CorrispettiviReportComponent {
    * nessun ambito, il chip torna a «Tutti» — perché la verità è l'insieme, e
    * Ambito ha solo aiutato a comporlo.
    */
-  protected readonly ambitoFilter = computed(() => ambitoEsprimibile(this.filters().origini));
+
+  /*
+    ⚠️ **Le scorciatoie sulle Origini** (`docs/10` §16) — non un filtro.
+
+    «Ambito» è sparito dall'interfaccia: era un residuo del tempo in cui era una
+    dimensione autonoma, e mostrarlo come select accanto a Origine faceva
+    credere che fossero due domande.
+
+    Sono tre comandi che compongono l'insieme più usato in un colpo, e finisce
+    lì: da quel momento l'operatore affina liberamente dal menu Origine.
+  */
+  protected readonly scorciatoieOrigine: readonly SegmentedOption[] = [
+    { value: 'all', label: 'Tutte' },
+    { value: 'online', label: 'Online' },
+    { value: 'fisico_pos', label: 'Fisico/POS' },
+  ];
+
+  /**
+   * Quale scorciatoia è accesa — **derivata dall'insieme, mai conservata**.
+   *
+   * Si accende solo se le origini selezionate coincidono **esattamente** col
+   * preset. Togliendo una spunta si spegne da sé, e non compare nessun
+   * «Personalizzato»: non c'è uno stato in più da spiegare, c'è solo l'insieme.
+   *
+   * ⚠️ È la ragione per cui la contraddizione non può tornare. Un valore
+   * conservato accanto all'insieme sarebbe una seconda verità, e due verità che
+   * possono divergere sono esattamente il difetto per cui Ambito è stato
+   * ritirato da filtro.
+   */
+  protected readonly scorciatoiaAttiva = computed<string | null>(() => {
+    const scelte = this.filters().origini;
+    if (scelte.length === 0) {
+      return 'all';
+    }
+    for (const ambito of ['online', 'fisico_pos'] as const) {
+      const preset = originiPerAmbito(ambito);
+      if (preset.length === scelte.length && preset.every((id) => scelte.includes(id))) {
+        return ambito;
+      }
+    }
+    return null;
+  });
   /** Tipo di riga: filtra l'elenco, mai il riepilogo. */
 
   protected readonly canExport = computed(() =>
@@ -380,37 +423,6 @@ export class CorrispettiviReportComponent {
    * ecommerce → Online, Shopify POS → Fisico/POS. Nessuno stato da aggiornare.
    */
   /**
-   * ⚠️ **Le opzioni NON contengono la voce «Tutti», ed è la convenzione di
-   * `app-select-menu`**: il filtro spento è la **stringa vuota**, e a dire
-   * «Tutti» è il `placeholder`.
-   *
-   * Qui c'era una voce `value: 'all'`, e il difetto si vedeva a schermo: per il
-   * componente `'all'` è un valore come un altro, quindi il chip si credeva
-   * sempre attivo — la chevron spariva, compariva la **×** che azzera un filtro
-   * che non c'era, e il testo finiva tagliato sotto di lei («Tutti gli ambi✕»).
-   */
-  protected readonly ambitoOptions: readonly SelectMenuOption[] = [
-    { value: 'online', label: 'Online' },
-    { value: 'fisico_pos', label: 'Fisico/POS' },
-  ];
-
-  /** Canale: chi ha raccolto la vendita. */
-  protected readonly canaleOptions: readonly SelectMenuOption[] = [
-    { value: 'shopify', label: 'Shopify' },
-    { value: 'vestiflow', label: 'VestiFlow' },
-  ];
-
-  /**
-   * Il valore che il chip deve vedere: `''` quando il filtro è spento.
-   *
-   * La catena interna resta su `'all'` — è il valore che l'API accetta e che
-   * l'indirizzo omette — e questa è la sola traduzione verso il componente.
-   */
-  protected chipValue(value: string): string {
-    return value === 'all' ? '' : value;
-  }
-
-  /**
    * **Origine**: la terza dimensione, e la sola che isola il Corrispettivo
    * manuale. Ambito e canale non bastano — condivide con la Vendita al banco la
    * coppia Fisico/POS · VestiFlow, quindi chiedendo quella coppia si ottengono
@@ -573,7 +585,12 @@ export class CorrispettiviReportComponent {
    * Non viaggia più nell'indirizzo, quindi non può più contraddire l'insieme
    * che ha inizializzato — che era il difetto per cui è stato ritirato.
    */
-  protected onAmbitoChange(value: string | null): void {
+  /**
+   * La scorciatoia tocca SOLO l'insieme delle origini, e non lascia traccia di
+   * sé: non esiste un parametro «ambito» nella nuova interfaccia, quindi non
+   * c'è niente che possa contraddire l'insieme che ha appena composto.
+   */
+  protected onScorciatoiaOrigine(value: string): void {
     const ambito = value === 'online' || value === 'fisico_pos' ? value : 'all';
     this.updateFiltri({ origini: this.valoreInsieme(originiPerAmbito(ambito)) });
   }

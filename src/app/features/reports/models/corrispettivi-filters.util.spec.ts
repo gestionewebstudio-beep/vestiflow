@@ -314,3 +314,68 @@ describe('la nuova interfaccia non può produrre «nessun risultato»', () => {
     ).toBe(true);
   });
 });
+
+/**
+ * Le scorciatoie sulle Origini (`docs/10` §16).
+ *
+ * ⚠️ **Non sono un filtro**, e questi test presidiano proprio quello: compongono
+ * un insieme e finiscono lì. Lo stato attivo si RICAVA dall'insieme — se fosse
+ * conservato accanto ad esso sarebbe una seconda verità, e due verità che
+ * possono divergere sono il difetto per cui «Ambito» è stato ritirato.
+ */
+
+/** La stessa derivazione della schermata: attiva solo su coincidenza esatta. */
+function scorciatoiaAttiva(origini: readonly string[]): string | null {
+  if (origini.length === 0) return 'all';
+  for (const ambito of ['online', 'fisico_pos'] as const) {
+    const preset = originiPerAmbito(ambito);
+    if (preset.length === origini.length && preset.every((id) => origini.includes(id))) {
+      return ambito;
+    }
+  }
+  return null;
+}
+
+describe('scorciatoie: compongono un insieme, non aggiungono un filtro', () => {
+  it('«Fisico/POS» spunta le tre origini fisiche, e risulta attiva', () => {
+    const composto = originiPerAmbito('fisico_pos');
+
+    expect(composto).toEqual(['shopify_pos', 'store', 'manual_receipt']);
+    expect(composto).not.toContain('shopify_online');
+    expect(scorciatoiaAttiva(composto)).toBe('fisico_pos');
+  });
+
+  /** ⚠️ Il criterio di accettazione: togliendo una spunta si spegne da sé. */
+  it('togliendo Shopify POS la scorciatoia si spegne, senza «Personalizzato»', () => {
+    const affinato = originiPerAmbito('fisico_pos').filter((id) => id !== 'shopify_pos');
+
+    expect(affinato).toEqual(['store', 'manual_receipt']);
+    // `null` = nessuna scorciatoia accesa. Non uno stato in più da spiegare:
+    // la verità è l'insieme, e la scorciatoia ha solo aiutato a comporlo.
+    expect(scorciatoiaAttiva(affinato)).toBeNull();
+  });
+
+  it('«Online» spunta esattamente le origini online', () => {
+    expect(originiPerAmbito('online')).toEqual(['shopify_online']);
+    expect(scorciatoiaAttiva(['shopify_online'])).toBe('online');
+  });
+
+  it('«Tutte» riporta a nessuna restrizione', () => {
+    expect(originiPerAmbito('all')).toEqual([]);
+    expect(scorciatoiaAttiva([])).toBe('all');
+  });
+
+  /**
+   * ⚠️ Nemmeno passando da una scorciatoia si può produrre lo stato
+   * contraddittorio: quello nasce da vincoli che si negano, e qui c'è un
+   * insieme solo.
+   */
+  it('nessuna scorciatoia genera «nessun risultato»', () => {
+    for (const ambito of ['all', 'online', 'fisico_pos'] as const) {
+      const origini = originiPerAmbito(ambito);
+      const params: Record<string, string> =
+        origini.length > 0 ? { origini: origini.join(',') } : {};
+      expect(parseCorrispettiviFilters(indirizzo(params)).nessunRisultato).toBe(false);
+    }
+  });
+});

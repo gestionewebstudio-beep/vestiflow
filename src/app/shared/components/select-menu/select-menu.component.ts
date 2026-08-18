@@ -50,6 +50,27 @@ export class SelectMenuComponent {
   readonly multiple = input<boolean>(false);
   /** Valori selezionati in modalità multipla. */
   readonly values = input<readonly string[]>([]);
+
+  /*
+    ⚠️ **Il trigger chiuso non concatena i nomi selezionati.**
+
+    Il predefinito lo fa fino a due voci, e su una barra filtri è instabile: la
+    larghezza del pulsante cambia con la lunghezza dei nomi selezionati, quindi
+    a ogni spunta gli altri filtri si spostano di lato. Con nomi lunghi il
+    pulsante si prende mezza barra per dire una cosa che il menu aperto dice
+    meglio.
+
+    Con `compactSummary` il trigger dice sempre **quante**: la larghezza resta
+    la stessa qualunque cosa si spunti. Il menu aperto continua a mostrare nomi
+    e spunte per intero — è lì che si legge cosa è selezionato.
+  */
+  readonly compactSummary = input<boolean>(false);
+  /**
+   * Il sostantivo del riepilogo compatto: «2 **selezionate**» per Origine e
+   * Sede, «2 **selezionati**» per Tipo. È una parola sola perché l'italiano ha
+   * il genere e un'etichetta neutra suonerebbe sbagliata in metà dei casi.
+   */
+  readonly summaryNoun = input<string>('selezionati');
   readonly ariaLabel = input.required<string>();
   /** Etichetta mostrata quando value e' null o vuoto. */
   readonly placeholder = input.required<string>();
@@ -137,6 +158,10 @@ export class SelectMenuComponent {
       });
       if (labels.length === 0) {
         return this.placeholder();
+      }
+      // Riepilogo compatto: la larghezza del trigger non dipende dai nomi.
+      if (this.compactSummary()) {
+        return `${labels.length} ${this.summaryNoun()}`;
       }
       if (labels.length <= 2) {
         return labels.join(', ');
