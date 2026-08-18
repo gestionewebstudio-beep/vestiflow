@@ -59,6 +59,10 @@ import { lineVatFromNetExact } from '../vat/vat-line-calculation.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 
 import { persistDocumentLinesByIdTx } from './document-line-upsert.util';
+import {
+  preservedLineVat,
+  type PersistedLineVat,
+} from './document-line-vat-snapshot.util';
 import { ExternalDocumentTypesService } from './external-document-types.service';
 import { receiptVatBreakdown, type VatBreakdownEntry } from './purchase-invoice-vat-summary.util';
 import { syncGoodsReceiptLineMovements } from './document-goods-receipt-sync.util';
@@ -251,12 +255,6 @@ const EMPTY_LINE_VAT_FIELDS = {
   reverseChargeVatMinor: 0,
   nonDeductibleVatMinor: 0,
 } as const;
-
-/** Cio' che di una riga persistita serve a NON rifotografarne lo snapshot IVA. */
-interface PersistedLineVat {
-  readonly vatCodeId: string | null;
-  readonly vatSnapshot: Prisma.JsonValue;
-}
 
 interface ComputedLine {
   /**
@@ -3443,12 +3441,12 @@ export class DocumentsService {
       // l'assegnazione IVA e' davvero cambiata (`document-line-vat-payload.util`
       // lato frontend). Assente = non modificata; presente = scelta nuova, e
       // allora si risolve il codice e si scrive uno snapshot nuovo.
-      const persistedVat = line.id ? persistedLinesById?.get(line.id) : undefined;
+      const preservato = preservedLineVat(line.id, line.vatCodeId, persistedLinesById);
 
-      if (persistedVat && line.vatCodeId === undefined) {
-        vatCodeId = persistedVat.vatCodeId;
-        vatSnapshot = (persistedVat.vatSnapshot ?? null) as Prisma.InputJsonObject | null;
-        vatRatePercent = vatSnapshotRatePercent(persistedVat.vatSnapshot) ?? vatRatePercent;
+      if (preservato) {
+        vatCodeId = preservato.vatCodeId;
+        vatSnapshot = preservato.vatSnapshot;
+        vatRatePercent = vatSnapshotRatePercent(preservato.vatSnapshot) ?? vatRatePercent;
       } else if (vatContext) {
         const explicitId = line.vatCodeId ?? null;
         const productDefaultId = line.variantId

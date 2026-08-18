@@ -74,6 +74,8 @@ interface FakeDocument {
 }
 
 interface FakeMovement {
+  /** La riconciliazione aggiorna ed elimina PER ID: senza, il finto non regge. */
+  id: string;
   tenantId: string;
   type: StockMovementType;
   origin: MovementOrigin;
@@ -86,6 +88,28 @@ interface FakeMovement {
   sourceDocumentId: string | null;
   sourceLineId: string | null;
   createdByName: string;
+  externalRef?: string | null;
+  unitCostMinor?: number | null;
+  totalCostMinor?: number | null;
+  createdAt?: Date;
+}
+
+/** I soli filtri che il codice sotto test usa sui movimenti. */
+function matchMovement(m: FakeMovement, where: Record<string, unknown>): boolean {
+  for (const [chiave, atteso] of Object.entries(where)) {
+    const valore = (m as unknown as Record<string, unknown>)[chiave];
+    if (atteso === null) {
+      if (valore != null) return false;
+      continue;
+    }
+    if (atteso && typeof atteso === 'object' && 'in' in atteso) {
+      const ammessi = (atteso as { in: unknown[] }).in;
+      if (!ammessi.includes(valore)) return false;
+      continue;
+    }
+    if (valore !== atteso) return false;
+  }
+  return true;
 }
 
 interface FakeDb {
@@ -333,7 +357,22 @@ function createFakePrisma(db: FakeDb): PrismaService {
           (doc) =>
             doc.id === where.id && doc.tenantId === where.tenantId && doc.type === where.type,
         );
-        return Promise.resolve(found ? { reference: found.reference } : null);
+        // Il documento INTERO: il risalvataggio legge numero, serie, data e le
+        // righe persistite per conservarle.
+        return Promise.resolve(
+          found ? { ...found, lines: found.lines.map((line) => ({ ...line })) } : null,
+        );
+      },
+      update: ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        const doc = db.documents.find((d) => d.id === where.id)!;
+        Object.assign(doc, data);
+        return Promise.resolve({ ...doc, lines: doc.lines.map((line) => ({ ...line })) });
       },
       findMany: ({
         where,
@@ -359,14 +398,76 @@ function createFakePrisma(db: FakeDb): PrismaService {
           }),
         ),
     },
+    // L'upsert righe per id (`persistDocumentLinesByIdTx`) aggiorna, crea ed
+    // elimina una riga per volta: il finto deve saperlo fare.
+    documentLine: {
+      updateMany: ({
+        where,
+        data,
+      }: {
+        where: { id: string; documentId: string; tenantId: string };
+        data: Record<string, unknown>;
+      }) => {
+        const doc = db.documents.find((d) => d.id === where.documentId);
+        const riga = doc?.lines.find((l) => l.id === where.id && l.tenantId === where.tenantId);
+        if (!riga) {
+          return Promise.resolve({ count: 0 });
+        }
+        Object.assign(riga, data);
+        return Promise.resolve({ count: 1 });
+      },
+      create: ({ data }: { data: Record<string, unknown> }) => {
+        const doc = db.documents.find((d) => d.id === data['documentId'])!;
+        db.idCounter += 1;
+        const riga = { ...data, id: `line-${db.idCounter}` } as unknown as FakeDocumentLine;
+        doc.lines.push(riga);
+        return Promise.resolve({ ...riga });
+      },
+      deleteMany: ({
+        where,
+      }: {
+        where: { documentId: string; tenantId: string; id: { in: string[] } };
+      }) => {
+        const doc = db.documents.find((d) => d.id === where.documentId)!;
+        const restano = doc.lines.filter((l) => !where.id.in.includes(l.id));
+        const tolte = doc.lines.length - restano.length;
+        doc.lines.splice(0, doc.lines.length, ...restano);
+        return Promise.resolve({ count: tolte });
+      },
+    },
     stockMovement: {
       create: ({ data }: { data: FakeMovement }) => {
         if (db.failNextMovementCreate) {
           db.failNextMovementCreate = false;
           return Promise.reject(new Error('Errore simulato in stockMovement.create'));
         }
-        db.movements.push({ ...data });
-        return Promise.resolve({ ...data });
+        const riga = { ...data, id: data.id ?? `mov-${db.movements.length + 1}` };
+        db.movements.push(riga);
+        return Promise.resolve({ ...riga });
+      },
+      // I tre metodi che la riconciliazione per differenza usa: legge i
+      // movimenti gia' collegati, aggiorna in posto quello della riga cambiata,
+      // elimina quello della riga sparita.
+      findMany: ({ where }: { where: Record<string, unknown> }) =>
+        Promise.resolve(db.movements.filter((m) => matchMovement(m, where)).map((m) => ({ ...m }))),
+      update: ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const riga = db.movements.find((m) => m.id === where.id);
+        if (!riga) {
+          return Promise.reject(new Error('movimento inesistente: ' + where.id));
+        }
+        Object.assign(riga, data);
+        return Promise.resolve({ ...riga });
+      },
+      delete: ({ where }: { where: { id: string } }) => {
+        const i = db.movements.findIndex((m) => m.id === where.id);
+        const [tolto] = db.movements.splice(i, 1);
+        return Promise.resolve(tolto);
+      },
+      deleteMany: ({ where }: { where: Record<string, unknown> }) => {
+        const restano = db.movements.filter((m) => !matchMovement(m, where));
+        const tolti = db.movements.length - restano.length;
+        db.movements.splice(0, db.movements.length, ...restano);
+        return Promise.resolve({ count: tolti });
       },
       // Usato dal reso per leggere il costo congelato sulla vendita originale.
       findFirst: ({ where }: { where: Record<string, unknown> }) => {
@@ -799,5 +900,153 @@ describe('StoreSalesService (fase 3 §12)', () => {
     };
     const asClerkScoped = await service.listRecentSales(TENANT, undefined, clerkWithLocation);
     expect(asClerkScoped).toHaveLength(1);
+  });
+
+  // ── Vendita conclusa che si RIAPRE e si risalva (`11` A2) ─────────────────
+  //
+  // La modifica aggiorna PER DIFFERENZA: da 2 pezzi a 1 il movimento diventa
+  // −1, e NON compare una rettifica. E' la regola di `regole-gestionale`
+  // applicata a un tipo che ne era fuori, non una logica della cassa.
+
+  async function vendita(db: FakeDb, righe: unknown[], id?: string) {
+    const { service } = createService(db);
+    return service.createSale(
+      TENANT,
+      { ...(id ? { id } : {}), locationId: LOCATION, paymentMethod: 'cash', lines: righe } as never,
+      user,
+    );
+  }
+
+  it('risalvataggio da 2 a 1: UN solo movimento, aggiornato in posto, e la giacenza torna di 1', async () => {
+    const db = createDb();
+    await vendita(db, [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+    const movimentoPrima = db.movements[0]!;
+    expect(levelOf(db, VARIANT_A).onHand).toBe(8);
+
+    await vendita(
+      db,
+      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      doc.id,
+    );
+
+    // ⛔ Un movimento solo: nessuna rettifica accodata.
+    expect(db.movements).toHaveLength(1);
+    const movimentoDopo = db.movements[0]!;
+    expect(movimentoDopo.id).toBe(movimentoPrima.id);
+    expect(movimentoDopo.quantity).toBe(1);
+    // La giacenza si muove SOLO della differenza: 8 → 9, non 8 → 10 → 9.
+    expect(levelOf(db, VARIANT_A).onHand).toBe(9);
+    expect(db.documents).toHaveLength(1);
+  });
+
+  it('risalvataggio: numero, serie e data del documento restano quelli', async () => {
+    const db = createDb();
+    const primo = await vendita(db, [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+    const dataPrima = doc.documentDate;
+
+    const secondo = await vendita(
+      db,
+      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      doc.id,
+    );
+
+    expect(secondo.reference).toBe(primo.reference);
+    expect(db.documents[0]!.number).toBe(doc.number);
+    expect(db.documents[0]!.series).toBe(doc.series);
+    expect(db.documents[0]!.documentDate).toEqual(dataPrima);
+  });
+
+  it('riga eliminata dal documento: il movimento sparisce e la giacenza torna per intero', async () => {
+    const db = createDb();
+    await vendita(db, [
+      { variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 },
+      { variantId: VARIANT_B, quantity: 1, unitPriceMinor: 1000 },
+    ]);
+    const doc = db.documents[0]!;
+    expect(db.movements).toHaveLength(2);
+
+    await vendita(
+      db,
+      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+      doc.id,
+    );
+
+    expect(db.movements).toHaveLength(1);
+    expect(db.movements[0]!.variantId).toBe(VARIANT_A);
+    // Tornata per intero: il fixture parte da 3, l'uscita di 1 e' stata annullata.
+    expect(levelOf(db, VARIANT_B).onHand).toBe(3);
+  });
+
+  it('riga AGGIUNTA in modifica: movimento nuovo, con la data del DOCUMENTO', async () => {
+    const db = createDb();
+    await vendita(db, [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+
+    await vendita(
+      db,
+      [
+        { id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 },
+        { variantId: VARIANT_B, quantity: 3, unitPriceMinor: 1000 },
+      ],
+      doc.id,
+    );
+
+    expect(db.movements).toHaveLength(2);
+    const aggiunto = db.movements.find((m) => m.variantId === VARIANT_B)!;
+    expect(aggiunto.quantity).toBe(3);
+    // Non la data della correzione: quella del documento, o il venduto di marzo
+    // si sposterebbe ad agosto.
+    expect(aggiunto.createdAt).toEqual(doc.documentDate);
+    // 3 di partenza meno i 3 venduti dalla riga aggiunta.
+    expect(levelOf(db, VARIANT_B).onHand).toBe(0);
+  });
+
+  it('doppio salvataggio identico: nessun movimento in piu e nessuna variazione di giacenza', async () => {
+    const db = createDb();
+    await vendita(db, [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+    const giacenza = levelOf(db, VARIANT_A).onHand;
+
+    await vendita(
+      db,
+      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
+      doc.id,
+    );
+
+    expect(db.movements).toHaveLength(1);
+    expect(levelOf(db, VARIANT_A).onHand).toBe(giacenza);
+  });
+
+  it('descrizione e SKU sono la FOTOGRAFIA: risalvare non li riscrive dall’anagrafica', async () => {
+    const db = createDb();
+    await vendita(db, [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+    const descrizioneAllora = doc.lines[0]!.description;
+    // Il prodotto viene rinominato in anagrafica dopo la vendita.
+    const nomeOriginale = VARIANTS[VARIANT_A]!.productName;
+    VARIANTS[VARIANT_A]!.productName = 'Nome cambiato in anagrafica';
+
+    await vendita(
+      db,
+      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
+      doc.id,
+    );
+
+    expect(db.documents[0]!.lines[0]!.description).toBe(descrizioneAllora);
+    expect(db.documents[0]!.lines[0]!.description).not.toContain('cambiato');
+    VARIANTS[VARIANT_A]!.productName = nomeOriginale;
+  });
+
+  it('id di un altro tipo documento: rifiutato, non aggiorna niente', async () => {
+    const db = createDb();
+    await vendita(db, [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+    doc.type = DocumentType.sales_ddt;
+
+    await expect(
+      vendita(db, [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }], doc.id),
+    ).rejects.toThrow(/non trovato/i);
   });
 });
