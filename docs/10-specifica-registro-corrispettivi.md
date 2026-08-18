@@ -65,21 +65,26 @@ VestiFlow.** La certificazione esterna non è una seconda rappresentazione.
 
 Il Registro non crea archivi separati per canale. I sottoinsiemi si ottengono con:
 
-| Filtro           | Valori                                                      |
-| ---------------- | ----------------------------------------------------------- |
-| **Periodo**      | preset + intervallo personalizzato                          |
-| **Ambito**       | Tutti · Online · Fisico/POS                                 |
-| **Canale**       | Tutti · Shopify · VestiFlow · canali futuri                 |
-| **Tipo evento**  | Vendita · Reso · Rimborso/rettifica                         |
-| **Fatturazione** | fatturato / non fatturato — **mai** come flusso di consegna |
+| Filtro           | Forma          | Valori                                                                            |
+| ---------------- | -------------- | --------------------------------------------------------------------------------- |
+| **Periodo**      | scelta singola | preset, giornata singola, intervallo personalizzato                               |
+| **Origine**      | **insieme**    | Shopify online · Shopify POS · Vendita al banco · Corrispettivo manuale           |
+| **Tipo evento**  | **insieme**    | Vendite · Resi · Rimborsi                                                         |
+| **Sede**         | **insieme**    | le sedi consultabili                                                              |
+| **Raggruppa**    | scelta singola | Nessuno · Giorno                                                                  |
+| **Fatturazione** | —              | fatturato / non fatturato — **mai** come flusso di consegna. Resta fuori, vedi §7 |
 
 L'operatore inesperto entra e vede il quadro generale. Chi sa cosa cerca sceglie periodo e
 filtri, poi stampa o esporta **quel** sottoinsieme.
 
-**Stato al 16/08, sera:** Periodo, **Ambito**, **Canale** e Tipo evento ci sono — ambito e
-canale come **dimensioni distinte derivate dall’origine** (`11` §21). Resta fuori la sola
-**Fatturazione** —
-vedi §7.
+⚠️ **Qui c'erano «Ambito» e «Canale» come dimensioni autonome, e non lo sono più.** La
+descrizione è superata dal §16: con Origine a insieme le due erano ridondanti — e potevano
+**contraddirsi**, producendo zero righe senza spiegare perché. «Canale» è uscito dalla barra il
+17/08; «Ambito» il 18/08, e vive ora come **scorciatoia** dentro il menu Origine.
+
+Restano nel modello e nell'API — un collegamento salvato con `ambito=online` continua a
+funzionare — ma **la nuova interfaccia non li scrive più**: l'unica verità del filtro è
+l'insieme `origini[]`.
 
 ---
 
@@ -99,6 +104,10 @@ scritto alla creazione, non uno stato da ricordarsi di aggiornare:
 | `shopify_pos`    | Fisico/POS |
 | `store`          | Fisico/POS |
 | `manual`         | —          |
+
+⚠️ **Questa è una CLASSIFICAZIONE, non un filtro.** «Ambito» resta un modo di descrivere
+un'origine — utile a raggrupparle e a nominare le scorciatoie — ma dal 18/08/2026 non è più una
+dimensione autonoma della barra filtri: l'unica verità è l'insieme delle origini (§17).
 
 ### La duplicazione: verificata il 16/08, non c'è
 
@@ -1189,3 +1198,110 @@ contati a parte nel riepilogo, perché la vendita che annullano non è mai entra
 (specifica `08` §4). Renderli selezionabili significherebbe mostrare righe **con un importo che non
 deve entrare in nessun totale** — una riga che si legge diversamente da tutte le altre. Restano dove
 sono: dichiarati nel riepilogo, fuori dall'elenco.
+
+---
+
+## §17 · Come si legge il Registro — 18/08/2026
+
+_Consuntivo di ciò che è **realmente implementato**, non un disegno. Aggiorna il §3 e chiude il §16: ciò che lì era deciso, qui è misurato._
+
+### La barra filtri
+
+```text
+Periodo: Ultimi 30 giorni   Origine   Tipo   Sede   Raggruppa: Nessuno
+```
+
+**Solo Periodo e Raggruppa mostrano il valore.** Origine, Tipo e Sede dicono **soltanto il proprio nome**, sempre, qualunque cosa sia spuntato.
+
+⚠️ **Non è minimalismo: è che i controlli non devono ballare.** Il trigger predefinito mostra la selezione, e «Tutte» è largo un terzo di «Vendita al banco, Corrispettivo manuale»: a ogni spunta il filtro accanto si spostava di lato. Su una schermata che si consulta con la coda dell'occhio è rumore continuo, e a barra chiusa quel dettaglio non serve — chi vuole sapere cosa è selezionato apre il menu.
+
+Che un filtro stia **restringendo** si vede dallo **stato premuto**: stesso testo, stessa larghezza, stesso padding, stessa posizione. `labelOnly` su `app-select-menu`, spento per default — le altre 178 istanze non cambiano.
+
+⚠️ Lo stato premuto predefinito faceva posto alla **×** che azzera il filtro, e quel padding sposta il testo. In questa modalità la × non c'è e la chevron resta al suo posto: il punto è che **niente si muova**. Il filtro si azzera dal menu, che è dove si è appena stati.
+
+### Le scorciatoie stanno dentro il menu Origine
+
+| Scorciatoia    | Spunta                                                     |
+| -------------- | ---------------------------------------------------------- |
+| **Tutte**      | nessuna restrizione — insieme vuoto                        |
+| **Online**     | Shopify online                                             |
+| **Fisico/POS** | Shopify POS · Vendita al banco · **Corrispettivo manuale** |
+
+⚠️ **Lo stato attivo si DERIVA dall'insieme, non si conserva.** Una scorciatoia è accesa solo se le origini coincidono **esattamente** col suo preset: cliccando «Fisico/POS» e togliendo poi Shopify POS, la scorciatoia si spegne da sé. Non compare nessun «Personalizzato» — non c'è uno stato in più da spiegare, c'è solo l'insieme.
+
+Un valore conservato accanto all'insieme sarebbe una **seconda verità**, e due verità che possono divergere sono precisamente il difetto per cui «Ambito» è stato ritirato da filtro.
+
+**Nessuna casella «Tutti» dentro i menu**: assenza di restrizione **è** «tutti», e una casella con quel nome accanto alle voci crea lo stato contraddittorio «Tutti spuntato insieme ad alcune».
+
+### Il periodo comprende la giornata singola
+
+Oggi · Ieri · Giorno specifico, oltre ai preset esistenti.
+
+⚠️ **Non introducono una seconda semantica della data**: sono intervalli con inizio e fine sullo stesso giorno, risolti dalle stesse funzioni UTC di tutti gli altri preset. Un secondo modo di intendere «giorno» sarebbe la premessa di un Registro che mostra righe diverse a seconda di come si è scelta la data.
+
+«Giorno specifico» ha un **campo suo** e non riusa quello «da»: sono due domande diverse, e un campo che cambia significato col preset è il modo in cui si chiede «dal 17» e si ottiene «il 17 e basta».
+
+> **Periodo e raggruppamento sono due cose diverse**: il primo decide QUALI dati appartengono all'insieme, il secondo COME si legge un intervallo che ne contiene più d'uno.
+
+### La vista per giornata
+
+```text
+Data: 18/08/2026
+  Vendita   Corrispettivo manuale 3   …
+  Vendita   Corrispettivo manuale 2   …
+  Reso      #1008                     …
+  Totale giornata            293,44 €   64,56 €   358,00 €
+
+Data: 17/08/2026
+  …
+```
+
+**Una riga di subtotale, non una card.** Cade nelle **stesse colonne economiche** delle righe che chiude, ed è metà del suo valore: su un registro contabile un numero si verifica incolonnandolo sopra quelli che lo compongono, non affiancandolo in un riquadro.
+
+Il raggruppamento è una **piegatura** dell'elenco, non un secondo elenco: stesse righe, stesso ordine canonico — giorno economico DESC, istante reale DESC, `rowId` come terzo livello — e le righe di una giornata sono già contigue per costruzione. Il markup della riga sta in un `ng-template` e si riusa nei due rami: due copie divergerebbero alla prima colonna aggiunta.
+
+### ⚠️ La matematica: il totale del periodo È la somma delle giornate
+
+```ts
+perGiornata = accumulaPerGiorno(...); // stesso accumulatore, per bucket
+totale = totaleDaiGiorni(perGiornata);
+```
+
+La proprietà richiesta —
+
+```text
+somma Imponibile dei giorni = Imponibile periodo
+somma IVA dei giorni        = IVA periodo
+somma Totale dei giorni     = Totale periodo
+```
+
+— **non è verificata: è costruita.** Non esistono due percorsi che potrebbero divergere; ne esiste uno solo, letto a due granularità.
+
+⚠️ **Funziona solo perché l'accumulatore è fatto di sole somme e differenze.** Se qualcuno ci rimettesse dentro un clamp, quella riga comincerebbe a mentire — ed è il motivo per cui è stato tolto, non un ripensamento estetico. Una giornata con rettifiche superiori alle vendite ha un totale **negativo**, e lo mostra col suo segno.
+
+`giornoEconomico` è **una** definizione, la stessa di ordinamento e filtri: due letture di «giorno» darebbero un raggruppamento che non combacia con l'ordine delle righe — una giornata spezzata in due blocchi, o una riga sotto l'intestazione sbagliata.
+
+Il **riepilogo del periodo non cambia** accendendo il raggruppamento: cambia solo la lettura delle stesse registrazioni.
+
+### Due famiglie di export
+
+| Uscita     | Cos'è                 | Rispetta                                                                 |
+| ---------- | --------------------- | ------------------------------------------------------------------------ |
+| **PDF**    | la **vista corrente** | periodo · filtri · ordinamento · **raggruppamento** · **colonne accese** |
+| **Excel**  | la **vista corrente** | le stesse cinque cose                                                    |
+| **CSV**    | export **dati**       | il sottoinsieme filtrato, e basta                                        |
+| **Stampa** | funzione **separata** | da progettare a parte — non è il PDF su carta                            |
+
+⚠️ **Il CSV ignora raggruppamento e colonne di proposito.** Una riga per evento, nessuna riga artificiale di subtotale, e le **dodici colonne storiche nella stessa posizione**: qualcuno ci ha agganciato un foglio, e spostargliele sotto i piedi romperebbe il suo lavoro senza che da questa parte se ne accorga nessuno. Un test gli passa i parametri di presentazione e verifica che non cambi niente.
+
+⚠️ **Il subtotale nei file non si ricalcola dalle righe**: arriva dallo stesso accumulatore del totale del periodo, di cui è un addendo. Sommare le righe del foglio sarebbe la seconda matematica, e il piede di una giornata potrebbe non fare più il totale in fondo.
+
+Le colonne del PDF erano **otto, scritte a mano** nel renderer: chi spegneva Cliente dal selettore se lo ritrovava nel file, chi accendeva Sede no. Ora derivano dalla vista, e la traduzione fra i due vocabolari — id di colonna contro intestazioni del file — sta in **una** tabella esplicita.
+
+### Il limite delle cento righe non torna
+
+Il Registro è delimitato dal **periodo e dai filtri**, non da un numero di righe. Se il sottoinsieme ne contiene 850, si consultano 850.
+
+Non si reintroducono paginazione funzionale, «Carica altre», scroll infinito, tagli silenziosi né un `pageSize` che tagli. `page` e `pageSize` restano nel contratto ma **non decidono più niente**, e un test lo presidia — un parametro accettato e ignorato è il difetto di `onlineOnly`, che quest'area ha già pagato una volta.
+
+Il tetto tecnico di fusione resta **fuori da questo lavoro**.
