@@ -62,6 +62,16 @@ interface CorrispettiviSummaryApi {
   readonly netTaxMinor: number;
   readonly netTaxableMinor: number;
   readonly locationUndeterminedExcludedCount?: number;
+  readonly perGiornata?: readonly {
+    readonly giorno: string;
+    readonly totali: {
+      readonly netTaxableMinor: number;
+      readonly netTaxMinor: number;
+      readonly netTotalMinor: number;
+      readonly orderCount: number;
+      readonly refundCount: number;
+    };
+  }[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -247,6 +257,17 @@ function mapSummary(row: CorrispettiviSummaryApi): CorrispettiviSummary {
     netTax: money(row.netTaxMinor),
     netTaxable: money(row.netTaxableMinor),
     locationUndeterminedExcludedCount: row.locationUndeterminedExcludedCount ?? 0,
+    // ⚠️ Il subtotale di giornata NON si ricalcola qui dalle righe: arriva
+    // dallo stesso accumulatore che ha prodotto il totale del periodo, di cui
+    // è un addendo. Sommarlo a parte sarebbe la seconda matematica.
+    perGiornata: (row.perGiornata ?? []).map((g) => ({
+      giorno: g.giorno,
+      taxable: money(g.totali.netTaxableMinor),
+      tax: money(g.totali.netTaxMinor),
+      total: money(g.totali.netTotalMinor),
+      orderCount: g.totali.orderCount,
+      refundCount: g.totali.refundCount,
+    })),
   };
 }
 

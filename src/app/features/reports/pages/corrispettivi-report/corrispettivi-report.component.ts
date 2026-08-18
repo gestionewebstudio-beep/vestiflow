@@ -207,6 +207,29 @@ export class CorrispettiviReportComponent {
     Sono tre comandi che compongono l'insieme più usato in un colpo, e finisce
     lì: da quel momento l'operatore affina liberamente dal menu Origine.
   */
+
+  /*
+    ⚠️ **Raggruppa è PRESENTAZIONE, non un filtro** (`docs/10` §17).
+
+    Non entra in `corrispettiviFiltersToQuery` e non tocca l'insieme dei dati:
+    le righe restano le stesse, nello stesso ordine, e cambia solo come si
+    leggono. Tenerlo in un tipo suo è ciò che impedisce che qualcuno, un giorno,
+    lo passi a un costruttore di query.
+  */
+  protected readonly raggruppaOptions: readonly SelectMenuOption[] = [
+    { value: 'none', label: 'Nessuno' },
+    { value: 'day', label: 'Giorno' },
+  ];
+
+  protected readonly raggruppa = computed(() =>
+    this.queryParams().get('raggruppa') === 'day' ? 'day' : 'none',
+  );
+
+  protected readonly raggruppaPerGiorno = computed(() => this.raggruppa() === 'day');
+
+  protected onRaggruppaChange(value: string | null): void {
+    this.updateParams({ raggruppa: value === 'day' ? 'day' : null });
+  }
   protected readonly scorciatoieOrigine: readonly SegmentedOption[] = [
     { value: 'all', label: 'Tutte' },
     { value: 'online', label: 'Online' },

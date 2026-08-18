@@ -56,6 +56,7 @@ function titolare(): User {
 const zero = { amountMinor: 0, currencyCode: 'EUR' };
 
 const riepilogoVuoto: CorrispettiviSummary = {
+  perGiornata: [],
   orderCount: 0,
   undatedFulfilmentCount: 0,
   refundsCount: 0,

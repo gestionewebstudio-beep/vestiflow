@@ -191,3 +191,28 @@
     font-weight: var(--font-weight-medium);
   }
 }
+
+/*
+  ⚠️ **La giornata è un separatore, non una card.**
+
+  Intestazione e subtotale sono due RIGHE della stessa tabella: il subtotale
+  cade nelle stesse colonne economiche delle righe che chiude, e questo è metà
+  del suo valore — su un registro contabile un numero si verifica incolonnandolo
+  sopra quelli che lo compongono, non affiancandolo in un riquadro.
+*/
+.corrispettivi-table__day-head {
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+}
+
+.corrispettivi-table__day-total td {
+  padding: var(--space-1) var(--space-3);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  background-color: var(--color-surface-soft);
+  border-block-end: var(--border-width) solid var(--color-border-strong);
+}

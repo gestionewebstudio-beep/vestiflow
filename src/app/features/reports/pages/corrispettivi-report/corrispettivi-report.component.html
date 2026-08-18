@@ -9,6 +9,22 @@
         schermo, e la guida lo spiega per esteso.
       -->
       <span class="sr-only">{{ pageSubtitle() }}</span>
+      <!--
+      Il raggruppamento sta con i filtri perché è lì che l'occhio lo cerca, ma
+      NON è un filtro: non cambia quali righe si vedono, solo come si leggono.
+      Mostra il valore, come Periodo, perché «Nessuno» e «Giorno» danno due
+      schermate diverse e saperlo a colpo d'occhio serve.
+    -->
+      <app-select-menu
+        chipLabel="Raggruppa"
+        [options]="raggruppaOptions"
+        ariaLabel="Raggruppa le righe"
+        [value]="raggruppa()"
+        placeholder="Nessuno"
+        [compact]="true"
+        [includeEmptyOption]="false"
+        (valueChange)="onRaggruppaChange($event)"
+      />
     </div>
     <div class="corrispettivi__header-actions">
       @if (canManageRegister()) {
@@ -158,29 +174,6 @@
       riepilogo — vedi la nota accanto al totale.
     -->
     <!--
-      ⚠️ **Non è un filtro: è una scorciatoia sulle Origini** (`docs/10` §16).
-
-      La parola «Ambito» è sparita dall'interfaccia, e con lei la select. Restava
-      un residuo del tempo in cui era una dimensione autonoma, e mostrarla come
-      un filtro accanto a Origine faceva credere che fossero due domande — che è
-      esattamente la confusione per cui è stata ritirata.
-
-      `app-segmented` invece di un menu: tre possibilità sempre visibili, un
-      colpo solo per comporre l'insieme più comune.
-
-      **Il valore attivo si DERIVA dalle origini**, non si conserva: una
-      scorciatoia si accende solo se l'insieme coincide esattamente col suo
-      preset. Togliendo una spunta si spegne da sé, e non compare nessun
-      «Personalizzato» — non c'è uno stato in più da spiegare, c'è solo
-      l'insieme, che resta l'unica verità.
-    -->
-    <app-segmented
-      [options]="scorciatoieOrigine"
-      [value]="scorciatoiaAttiva()"
-      ariaLabel="Scorciatoie sulle origini"
-      (valueChange)="onScorciatoiaOrigine($event)"
-    />
-    <!--
       ⚠️ **Il chip «Canale» non c'è più, ma il filtro sì.**
 
       Nel Registro di oggi è ridondante: l'Origine lo determina per intero —
@@ -216,13 +209,32 @@
       [multiple]="true"
       [values]="filtriOrigini()"
       placeholder="Tutte"
-      [compactSummary]="true"
-      summaryNoun="selezionate"
+      [labelOnly]="true"
       [compact]="true"
       [includeEmptyOption]="false"
       (valuesChange)="onOrigineValues($event)"
       [filterChip]="true"
-    />
+    >
+      <!--
+        ⚠️ **Le scorciatoie stanno DENTRO il menu che governano.**
+
+        Erano un controllo a sé nella barra, e da lì continuavano a sembrare una
+        seconda dimensione accanto a Origine — la stessa lettura per cui
+        «Ambito» è stato ritirato da filtro. Qui sopra l'elenco è evidente cosa
+        fanno: spuntano un gruppo di queste voci, e finisce lì.
+
+        Nessun «Personalizzato»: se la selezione non coincide con un preset,
+        semplicemente nessuna scorciatoia è accesa. La verità è l'insieme.
+      -->
+      <app-segmented
+        panelLead
+        [flat]="true"
+        [options]="scorciatoieOrigine"
+        [value]="scorciatoiaAttiva()"
+        ariaLabel="Scorciatoie sulle origini"
+        (valueChange)="onScorciatoiaOrigine($event)"
+      />
+    </app-select-menu>
     <app-select-menu
       chipLabel="Tipo"
       [options]="rowTypeOptions"
@@ -230,8 +242,7 @@
       [multiple]="true"
       [values]="filtriTipi()"
       placeholder="Vendite e rettifiche"
-      [compactSummary]="true"
-      summaryNoun="selezionati"
+      [labelOnly]="true"
       [compact]="true"
       [includeEmptyOption]="false"
       (valuesChange)="onTipiValues($event)"
@@ -244,8 +255,7 @@
       [multiple]="true"
       [values]="filtriSedi()"
       placeholder="Tutte"
-      [compactSummary]="true"
-      summaryNoun="selezionate"
+      [labelOnly]="true"
       [compact]="true"
       [includeEmptyOption]="false"
       (valuesChange)="onSediValues($event)"
@@ -308,6 +318,8 @@
             [rows]="orders()"
             [visibleColumns]="visibleColumns()"
             [canEditManual]="canManageRegister()"
+            [raggruppaPerGiorno]="raggruppaPerGiorno()"
+            [perGiornata]="pageSummary.perGiornata"
             (manualReceiptOpened)="openManualReceipt($event)"
           />
         }

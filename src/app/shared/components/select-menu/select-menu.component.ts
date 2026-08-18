@@ -52,25 +52,21 @@ export class SelectMenuComponent {
   readonly values = input<readonly string[]>([]);
 
   /*
-    ⚠️ **Il trigger chiuso non concatena i nomi selezionati.**
+    ⚠️ **Il trigger dice solo il NOME del filtro, mai la selezione.**
 
-    Il predefinito lo fa fino a due voci, e su una barra filtri è instabile: la
-    larghezza del pulsante cambia con la lunghezza dei nomi selezionati, quindi
-    a ogni spunta gli altri filtri si spostano di lato. Con nomi lunghi il
-    pulsante si prende mezza barra per dire una cosa che il menu aperto dice
-    meglio.
+    Il predefinito mostra il valore, e su una barra filtri è la ragione per cui
+    i controlli ballano: «Tutte» è largo un terzo di «Vendita al banco,
+    Corrispettivo manuale», quindi a ogni spunta il filtro accanto si sposta.
+    Su un gestionale che si usa con la coda dell'occhio è rumore continuo, e a
+    barra chiusa quel dettaglio non serve a nessuno: chi vuole sapere cosa è
+    selezionato apre il menu, dove nomi e spunte si leggono per intero.
 
-    Con `compactSummary` il trigger dice sempre **quante**: la larghezza resta
-    la stessa qualunque cosa si spunti. Il menu aperto continua a mostrare nomi
-    e spunte per intero — è lì che si legge cosa è selezionato.
+    Con `labelOnly` il pulsante è largo quanto la sua etichetta e non cambia
+    mai. Che il filtro stia restringendo qualcosa si vede dallo **stato
+    premuto** — stesso testo, stessa larghezza, stesso padding — come i comandi
+    di una barra strumenti desktop.
   */
-  readonly compactSummary = input<boolean>(false);
-  /**
-   * Il sostantivo del riepilogo compatto: «2 **selezionate**» per Origine e
-   * Sede, «2 **selezionati**» per Tipo. È una parola sola perché l'italiano ha
-   * il genere e un'etichetta neutra suonerebbe sbagliata in metà dei casi.
-   */
-  readonly summaryNoun = input<string>('selezionati');
+  readonly labelOnly = input<boolean>(false);
   readonly ariaLabel = input.required<string>();
   /** Etichetta mostrata quando value e' null o vuoto. */
   readonly placeholder = input.required<string>();
@@ -158,10 +154,6 @@ export class SelectMenuComponent {
       });
       if (labels.length === 0) {
         return this.placeholder();
-      }
-      // Riepilogo compatto: la larghezza del trigger non dipende dai nomi.
-      if (this.compactSummary()) {
-        return `${labels.length} ${this.summaryNoun()}`;
       }
       if (labels.length <= 2) {
         return labels.join(', ');

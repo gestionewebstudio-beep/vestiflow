@@ -42,6 +42,7 @@ import { CorrispettiviPrintComponent } from './corrispettivi-print.component';
 const zero = { amountMinor: 0, currencyCode: 'EUR' };
 
 const riepilogo: CorrispettiviSummary = {
+  perGiornata: [],
   orderCount: 0,
   undatedFulfilmentCount: 0,
   refundsCount: 0,

@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
@@ -7,6 +8,7 @@ import type { BadgeTone } from '@shared/components/badge/badge.component';
 import {
   type CorrispettiviRefundKind,
   type CorrispettiviRegisterRow,
+  type CorrispettiviTotaliGiornata,
 } from '../../models/corrispettivi.model';
 
 const FINANCIAL_LABELS: Record<string, string> = {
@@ -66,7 +68,7 @@ const REFUND_KIND_LABELS: Record<CorrispettiviRefundKind, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Nessuna pill: tipo e pagamento si leggono dal colore del testo. Il tono
   // resta il vocabolario condiviso (`BadgeTone`), è il riquadro che se ne va.
-  imports: [],
+  imports: [NgTemplateOutlet],
   templateUrl: './corrispettivi-orders-table.component.html',
   styleUrl: './corrispettivi-orders-table.component.scss',
 })
@@ -89,6 +91,83 @@ export class CorrispettiviOrdersTableComponent {
 
   /** Apertura di una registrazione manuale in modifica. */
   readonly manualReceiptOpened = output<string>();
+
+  /**
+   * I subtotali per giornata, **quando il raggruppamento è acceso**.
+   *
+   * ⚠️ Arrivano dall'API e non si ricalcolano qui: sono addendi del totale del
+   * periodo, prodotti dallo stesso accumulatore. Sommare le righe a schermo per
+   * ottenerli sarebbe la seconda matematica che la specifica vieta — e
+   * basterebbe un arrotondamento diverso perché il piede della giornata non
+   * facesse più il totale in fondo alla pagina.
+   */
+  readonly perGiornata = input<readonly CorrispettiviTotaliGiornata[]>([]);
+
+  /** Vista raggruppata per giornata economica. */
+  readonly raggruppaPerGiorno = input(false);
+
+  /**
+   * Le righe divise per giornata, **senza riordinarle**.
+   *
+   * È una piegatura dell'elenco già ordinato: le righe arrivano in ordine
+   * canonico e quelle di una stessa giornata sono già contigue, quindi qui si
+   * taglia soltanto. Riordinare sarebbe un secondo criterio che potrebbe
+   * divergere dal primo — una riga sotto l'intestazione sbagliata.
+   */
+  protected readonly giornate = computed(() => {
+    const totaliPerGiorno = new Map(this.perGiornata().map((g) => [g.giorno, g]));
+    const gruppi: {
+      giorno: string;
+      righe: CorrispettiviRegisterRow[];
+      totali?: CorrispettiviTotaliGiornata;
+    }[] = [];
+
+    for (const riga of this.rows()) {
+      const giorno = riga.occurredAt.slice(0, 10);
+      const ultimo = gruppi.at(-1);
+      if (ultimo && ultimo.giorno === giorno) {
+        ultimo.righe.push(riga);
+      } else {
+        gruppi.push({ giorno, righe: [riga], totali: totaliPerGiorno.get(giorno) });
+      }
+    }
+    return gruppi;
+  });
+
+  /** Tutte le colonne accese: il `colspan` dell'intestazione di giornata. */
+  protected readonly colonneTotali = computed(
+    () =>
+      [
+        'occurredAt',
+        'kind',
+        'orderNumber',
+        'customerName',
+        'source',
+        'location',
+        'financialStatus',
+        'taxable',
+        'tax',
+        'total',
+      ].filter((id) => this.isVisible(id)).length,
+  );
+
+  /** Quante colonne stanno a sinistra di «Imponibile»: serve al `colspan`. */
+  protected readonly colonneDescrittive = computed(
+    () =>
+      [
+        'occurredAt',
+        'kind',
+        'orderNumber',
+        'customerName',
+        'source',
+        'location',
+        'financialStatus',
+      ].filter((id) => this.isVisible(id)).length,
+  );
+
+  protected giornoEsteso(giorno: string): string {
+    return formatDate(giorno);
+  }
 
   protected readonly formatMoney = formatMoney;
   protected readonly formatDate = formatDate;

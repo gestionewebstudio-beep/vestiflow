@@ -82,6 +82,28 @@ export interface CorrispettiviSummary {
    * basso del vero (`docs/10` §12).
    */
   readonly locationUndeterminedExcludedCount: number;
+
+  /**
+   * I totali **giornata per giornata**, in ordine decrescente.
+   *
+   * ⚠️ Non sono un secondo calcolo: il totale del periodo qui sopra È la loro
+   * somma. Arrivano sempre, anche a raggruppamento spento — accenderlo non
+   * richiede una seconda richiesta, e i numeri non possono differire da quelli
+   * già a schermo.
+   */
+  readonly perGiornata: readonly CorrispettiviTotaliGiornata[];
+}
+
+/** Il subtotale di una giornata economica. */
+export interface CorrispettiviTotaliGiornata {
+  /** Giorno economico ISO (`AAAA-MM-GG`). */
+  readonly giorno: string;
+  readonly taxable: Money;
+  readonly tax: Money;
+  readonly total: Money;
+  /** Quante registrazioni e quante rettifiche compongono la giornata. */
+  readonly orderCount: number;
+  readonly refundCount: number;
 }
 
 /** Una sede selezionabile nel filtro del Registro. */
