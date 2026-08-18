@@ -418,18 +418,35 @@ _Costo:_ due etichette e i test che le nominano. Nessuna colonna, nessuna migrat
 
 ## Difetti aperti, misurati e non ancora corretti
 
-| Rif.       | Difetto                                                                          | Stato                                                                          |
-| ---------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `01` §3.9  | Le righe importate ignoravano lo sconto: 120,00 di righe su un ordine da 104,00  | ✅ **chiuso e provato** su `#1010`/`#1011` (15/08)                             |
-| `01` §3.13 | Il Codice IVA della vendita online lo sceglieva l'imposta incassata, mai lo zero | ✅ **chiuso** — non ancora eseguito in produzione (scatta all'evasione)        |
-| `01` §3.14 | La sync sedi partiva da sola, da tre punti, e creava/rinominava/cancellava       | ✅ **inneschi spenti** — il servizio (nome, creazione automatica) resta aperto |
-| `01` §3.15 | Le righe di canale scrivono importi IVATI in colonne lette come NETTE            | aperto — scelta di modello, non ancora presa                                   |
-| sotto      | Ordine cliente: sconto a importo, sconto extra a importo, spedizione sui manuali | aperto — disegno deciso, non implementato                                      |
-| `01` §3.12 | **Le righe della Vendita online** portano ancora l'aliquota media inventata      | l'import è corretto, lo **snapshot** no                                        |
-| `01` §3.11 | Vendita con una riga non scaricata dichiara «scarico completo»                   | aperto                                                                         |
-| `01` §3.8  | L'**impegno** usa ancora il ripiego alfabetico sulla sede                        | chiuso solo lo scarico, e mai eseguito                                         |
-| `01` §2.1  | `orders/cancelled` non registrato sul negozio                                    | da fare **dall'ambiente pubblicato**                                           |
-| `01` §2.14 | Il reso dichiarato e non ancora elaborato non esiste per VestiFlow               | aperto, da decidere se coprirlo                                                |
+| Rif.       | Difetto                                                                                                | Stato                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `01` §3.9  | Le righe importate ignoravano lo sconto: 120,00 di righe su un ordine da 104,00                        | ✅ **chiuso e provato** su `#1010`/`#1011` (15/08)                             |
+| `01` §3.13 | Il Codice IVA della vendita online lo sceglieva l'imposta incassata, mai lo zero                       | ✅ **chiuso** — non ancora eseguito in produzione (scatta all'evasione)        |
+| `01` §3.14 | La sync sedi partiva da sola, da tre punti, e creava/rinominava/cancellava                             | ✅ **inneschi spenti** — il servizio (nome, creazione automatica) resta aperto |
+| `01` §3.15 | Le righe di canale scrivono importi IVATI in colonne lette come NETTE                                  | aperto — scelta di modello, non ancora presa                                   |
+| sotto      | Ordine cliente: sconto a importo, sconto extra a importo, spedizione sui manuali                       | aperto — disegno deciso, non implementato                                      |
+| `01` §3.12 | **Le righe della Vendita online** portano ancora l'aliquota media inventata                            | l'import è corretto, lo **snapshot** no                                        |
+| `01` §3.11 | Vendita con una riga non scaricata dichiara «scarico completo»                                         | aperto                                                                         |
+| `01` §3.8  | L'**impegno** usa ancora il ripiego alfabetico sulla sede                                              | chiuso solo lo scarico, e mai eseguito                                         |
+| `01` §2.1  | `orders/cancelled` non registrato sul negozio                                                          | da fare **dall'ambiente pubblicato**                                           |
+| `01` §2.14 | Il reso dichiarato e non ancora elaborato non esiste per VestiFlow                                     | aperto, da decidere se coprirlo                                                |
+| `GM` §20   | **Il legame fra documenti non verifica il tenant** — misurato; sfruttabilità dedotta                   | aperto — **si chiude da solo**, non aspetta Includi/Genera                     |
+| `CASSA`    | **Il ramo Cassa aggancia `documents` con `ON DELETE CASCADE`** — pagamenti, ricevute fiscali, sessione | da censire **dopo** C 0 — ⛔ non limita la Vendita al banco (`11` C)           |
+
+### `GM` §20 — il difetto di sicurezza trovato il 18/08/2026
+
+> **Fonte canonica: `docs/GUARDIE-MANCANTI.md` voce 20.** Lì stanno la misura per esteso, i tre
+> gradi di certezza e i passi della prova cross-tenant. Qui c'è solo il rimando, perché questa è
+> la lista che si legge per prima.
+
+In una riga: `sourceDocumentId` è accettato **senza verifica di esistenza, tenant e compatibilità
+origine→destinazione**, e in lettura le due relazioni non sono filtrate per tenant. ⚠️ **La
+sfruttabilità è dedotta, non provata**: non va chiamata una fuga di dati finché la prova dinamica
+non la conferma.
+
+⛔ **Non si corregge dentro il lavoro su Includi/Genera**: si chiude autonomamente.
+
+---
 
 ## Novità della notte del 15/08 — da leggere prima di riprendere
 
@@ -843,16 +860,16 @@ documento non dipende dalla larghezza ma dal **tipo di puntatore** — col mouse
 sotto 820px, col dito sotto 1400px — **più una scelta manuale** che il dispositivo si
 ricorda, per «il monitor touch grande, chi sul portatile preferisce le card».
 
-il 18/08. ⚠️ **Questa NON è la matrice** — è il divario: la matrice sta in `12`, e ne esiste
-una sola.
+⚠️ **Le due soglie vanno RIVISTE quando la scelta manuale esiste** _(deciso dal proprietario
+il 18/08/2026)_, e la ragione è che le due decisioni si sono prese in ordine inverso.
 
-del dito sono tarati per non sbagliare **mai** su un tablet, perché oggi la soglia è
-l’unico rimedio: deve coprire anche il caso più largo, e per farlo manda alle card anche
-schermi dove la tabella starebbe benissimo. Con la valvola manuale quel compito cambia —
-la soglia deve essere giusta per la **maggioranza**, non per tutti, e le eccezioni le
-prende l’impostazione. Una soglia prudente senza valvola è cautela; **la stessa soglia con
-la valvola è un default che sbaglia più spesso del necessario**, e ogni volta costa
-all’operatore un giro nelle Impostazioni.
+**I 1400px** del dito sono tarati per non sbagliare **mai** su un tablet, perché oggi la soglia
+è l’unico rimedio: deve coprire anche il caso più largo, e per farlo manda alle card anche
+schermi dove la tabella starebbe benissimo. Con la valvola manuale quel compito cambia — la
+soglia deve essere giusta per la **maggioranza**, non per tutti, e le eccezioni le prende
+l’impostazione. Una soglia prudente senza valvola è cautela; **la stessa soglia con la valvola
+è un default che sbaglia più spesso del necessario**, e ogni volta costa all’operatore un giro
+nelle Impostazioni.
 
 **Vincoli di esecuzione già scritti** (`regole-stile-ui` §9, da rileggere prima di
 toccare): le due condizioni si scrivono **una volta sola** in un mixin di
@@ -866,94 +883,74 @@ tocco, e le due cose non si sostituiscono a vicenda.
 
 ---
 
-### 9. ⭐ Vendita e Reso al banco — specifica riscritta il 18/08/2026
+### 9. ⭐ Vendita e Reso al banco — la specifica è `docs/11`
 
-**La lista degli interventi non sta qui: sta in `11-specifica-vendita-al-banco.md`, sezione
-C**, dove ognuno è agganciato alla decisione che lo genera e alla misura che lo motiva.
-Duplicarla qui vorrebbe dire tenerne allineate due.
+⛔ **Qui non si riassumono le decisioni, e non si riassumono gli interventi.** La fonte è
+`11-specifica-vendita-al-banco.md`: le **decisioni** in sezione A, la **misura** del codice in
+B, gli **interventi** in C, ognuno agganciato alla decisione che lo genera.
 
-Cosa è cambiato il 18/08, in breve: il documento è stato **riscritto da capo** su indicazione
-del proprietario ed è ora l’**unica specifica attiva** del modulo — si aggiorna lì, non
-nascono file paralleli, e non si recuperano decisioni dalla stesura precedente.
+⚠️ **Questa sezione conteneva un riassunto delle decisioni del 18/08, ed era già smentito dalla
+specifica in tre punti** — diceva «origine facoltativa» dove A11 stabilisce **nessun documento
+origine**, teneva aperto il prezzo del Reso che A11 ha chiuso, e motivava le regole col fatto
+che «il codice le applicava», che è il metodo che `11` dichiara **non valido**. È stato tolto il
+18/08: un riassunto di decisioni è una seconda fonte, e invecchia alla prima decisione.
 
-Le decisioni prese quel giorno: navigazione **elenco → due pulsanti diretti** («Nuova vendita al banco», «Nuovo reso al banco»); Vendita e Reso separati
-**alla creazione**; netto/ivato **come tutti gli altri documenti**, senza forcing;
-numerazione comune e **nessuna sigla fissata**; «Vendita negozio» dichiarata legacy;
-rapporti documentali verso Fattura col dominio comune; il pagamento che arriva fino
-all’export dei Corrispettivi; «Ambito» rinominato **«Tipo vendita»** nella sola interfaccia;
-e l’eliminazione della «futura Cassa VestiFlow», che non esiste.
+**Cosa sapere da qui, senza aprire `11`:**
 
-**Il Reso è stato chiuso quasi del tutto, lo stesso giorno.** Le tre regole che il codice
-applicava senza che nessuno le avesse decise — origine facoltativa, nessun tetto sulla
-quantità, IVA presa dall’articolo — sono state **confermate come regole**, e per una ragione
-sola: **il Reso al banco non è il reso fiscale dello scontrino**. La vendita di partenza può
-essere stata battuta su una cassa esterna e non esistere affatto in VestiFlow, quindi non c’è
-niente da cui derivare un tetto né un’aliquota incassata.
-
-⏸️ **Resta aperto il prezzo del reso** — proposto dall’articolo, digitato, ripreso da un
-riferimento quando c’è — e non si assume nulla finché non si guarda la maschera. Più una
-verifica: che l’aliquota presa dall’articolo venga **scritta nella riga come snapshot** e non
-cambi retroattivamente se domani si modifica il Codice IVA.
+- il documento è stato riscritto da capo il 18/08 ed è l'**unica specifica attiva** del modulo —
+  si aggiorna lì, non nascono file paralleli;
+- il **contratto del Reso al banco è chiuso** (nessun documento origine, prezzo dall'anagrafica
+  secondo il contratto prezzi comune, causale facoltativa, rimborso informativo, correzione come
+  la Vendita);
+- una **Vendita o un Reso conclusi si riaprono, si modificano e si eliminano**, con
+  riconciliazione per differenza — è l'intervento più grande, ed è il primo;
+- l'ordine di esecuzione è in `11` sezione C: prima il prerequisito tecnico, poi le tre fasi di
+  interfaccia.
 
 ---
 
 ### 10. ⭐ La matrice documentale Includi/Genera — da verificare e applicare a TUTTI i documenti
 
-> **Non è un seguito della Vendita al banco.** È il contratto di come i documenti si
-> agganciano fra loro, e riguarda l'intera famiglia.
+> **Non è un seguito della Vendita al banco.** È il contratto di come i documenti si agganciano
+> fra loro, e riguarda l'intera famiglia.
 
-La matrice completa sta in **`12-specifica-collegamenti-documentali.md`**, estratta il 18/08 da
-`07`, dove la metà approvata viveva dal 15/08 e dove ormai era introvabile: una matrice di
-tutto il sistema documentale dentro la specifica delle fatture non la cerca nessuno.
+⛔ **La fonte canonica è `12-specifica-collegamenti-documentali.md`**, e ha due metà che vanno
+tenute distinte: **la matrice e le regole** (il contratto: dove si deve arrivare) e **la sezione
+B** (la misura del codice attuale, riverificata da un secondo lettore). ⛔ **Qui non si tiene né
+una copia della matrice né conteggi propri del divario**: invecchiano alla prima rimisura, ed è
+già successo.
 
-⛔ **La formulazione giusta del lavoro** _(proprietario, 18/08)_:
-
-> «Il sistema Includi/Genera **esiste già** ed è operativo su una parte delle relazioni
-> documentali. La Vendita al banco **non è attualmente collegata** a tale sistema. Il lavoro
-> consiste nel **completare la copertura** della matrice comune, **estendendo il motore
-> esistente senza duplicarlo**.»
-
-Non «costruire il motore»: **censirlo, verificarne il contratto, estenderlo** ai documenti e
-alle relazioni mancanti. ⛔ **Nessun secondo motore parallelo**, in nessun modulo.
-
-⚠️ **Il divario col codice è grande, e va saputo prima di stimare qualsiasi cosa.** Misurato
-il 18/08:
-
-|                                           | matrice                              | codice oggi                                                                         |
-| ----------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------- |
-| **Includi**                               | 5 documenti con le loro sorgenti     | 3 — Ordine ← Preventivo · DDT ← Preventivo/Ordine · Arrivo merce ← Ordine fornitore |
-| **Genera**                                | 6 documenti con le loro destinazioni | 2 sole origini ammesse — Proforma e DDT vendita                                     |
-| Fattura accompagnatoria come destinazione | prevista                             | **non esiste**: oggi non la genera nessuno                                          |
-| Vendita al banco                          | presente in entrambe le direzioni    | **assente in entrambe**                                                             |
-
-⛔ **Quello che il codice fa oggi non si cancella per far posto alla matrice.** Le conversioni
-Proforma → DDT/Fattura e DDT → Fattura/Proforma sono in uso: la matrice dice dove si deve
+**Il lavoro, in una riga:** completare la copertura della matrice comune **estendendo i
+meccanismi esistenti senza duplicarli**, ⛔ senza costruire un secondo motore parallelo in
+nessun modulo, e ⛔ senza cancellare le conversioni oggi in uso — la matrice dice dove si deve
 arrivare, non che l'esistente sia sbagliato.
 
-**Le due regole che stanno sopra la matrice**, e che vanno rispettate prima di collegare
-qualunque coppia:
+⚠️ **Il divario col codice è grande, e va letto in `12` §B prima di stimare qualsiasi cosa.**
+La misura del 18/08 non conta «un motore da estendere»: conta **più meccanismi parziali e
+indipendenti**, alcuni dei quali non passano nemmeno dal backend.
 
-1. **Un collegamento non autorizza mai a duplicare un movimento già avvenuto.** Il primo
-   documento che produce davvero l'effetto fisico movimenta; i successivi conservano il
-   collegamento e non lo ripetono. **Senza trattamenti speciali per nome di documento.**
-2. **Il comando si chiama «Genera documento» ovunque** — «Concludi ordine» è stato ritirato il
-   18/08: due parole per lo stesso gesto confondono operatore e cliente. ⚠️ **Sparisce il nome,
-   non il comportamento**: generare da un Ordine cliente un documento che realizza l'uscita
-   deve comunque consumare l'Impegnata, e la matrice marca con ✔ le destinazioni che chiudono
-   l'ordine.
-   l'Impegnata e concludere significa trasformare un impegno in uscita reale — non copiare
-   righe.
+**Le due regole che stanno sopra la matrice** — testo in `12`, qui solo i nomi:
 
-⏸️ **Aperto:** la posizione della **Proforma** nella matrice, da censire senza aggiungere
-collegamenti non verificati. ⚠️ «Bozza fattura» **non è il nome di niente**: quel documento
-all'operatore si chiama **Fattura**, e il termine era filtrato da un messaggio d'errore
-dell'API.
+1. **Un collegamento non autorizza mai a duplicare un movimento già avvenuto**, e senza
+   trattamenti speciali per nome di documento.
+2. **Il comando si chiama «Genera documento» ovunque** — «Concludi ordine» ritirato il 18/08;
+   sparisce il nome, non il comportamento.
+
+⏸️ **Aperto:** la posizione della **Proforma** nella matrice, da censire in `12` senza
 aggiungere collegamenti non verificati.
 
-⏸️ **Aperto, e di natura diversa:** la matrice ora copre **tutti** i documenti, ma vive dentro
-la specifica della _famiglia fattura_. Chi cerca «come si aggancia un Preventivo a un Ordine»
-non la troverà lì. Se vada estratta in una specifica sua è una decisione da prendere — non
-l'ho presa io per non creare due case per la stessa tabella.
+---
+
+### 10b. Comando documento per la spunta di movimentazione su tutte le righe
+
+**Requisito trasversale emerso in `docs/11` A11-ter**, che è la sua fonte: nei documenti che
+hanno la spunta di movimentazione **per riga** deve esistere un comando **a livello documento**
+per impostarla in blocco. Con molte righe non è accettabile obbligare l'operatore a toccarla
+articolo per articolo.
+
+⚠️ **Sta qui perché è trasversale**, non del Reso né della Vendita al banco: se restasse solo in
+`11` si perderebbe quando si lavora agli altri documenti. **Da coordinare con il lavoro di
+unificazione righe (`03`).**
 
 ---
 
@@ -1091,17 +1088,27 @@ occupati, che l’indice unico boccia. C’è una migration dell’11/08 che chi
 | migration               | **7 file** già applicati                                                                                     |
 | in tutto                | **131 occorrenze**, 72 fuori dai test, su **46 file**                                                        |
 
-#### I tre lavori, di natura diversa
+#### I tre lavori, di natura diversa — e con case diverse
 
-|       | Cosa                                                                                           | Rischio                                       |
-| ----- | ---------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| **1** | il **termine esposto** → «Fattura»: guida utente, documento funzionale, messaggio d’errore API | nessuno, e risolve il problema dell’operatore |
-| **2** | una **guardia** che impedisca il rientro, sul modello di `check:registro`                      | quasi nessuno                                 |
-| **3** | il **tipo**: disfare uno stato modellato come tipo                                             | ⛔ alto — vedi sopra                          |
+⚠️ **Qui c'era scritto che i primi due «stanno in `11` C1». È sbagliato**, e va corretto per
+natura del lavoro invece che spostando il rimando: `docs/11` non è la casa di `invoice_draft`,
+e **C1 riguarda la terminologia «Vendita negozio»** — in tutto `11` non esiste una sola
+occorrenza di `invoice_draft` né di «Bozza fattura».
 
-⛔ **Il 3 non è una rinomina.** È disfare un tipo su cui poggia il numeratore di tre documenti.
-Toccarlo male significa **numeri duplicati sulle fatture**, che è il danno peggiore possibile
-qui. Se si farà, la partizione del numeratore è il **primo** vincolo da affrontare, non una
-scoperta a metà strada. E il database è condiviso col collega.
+**La divisione che conta è fra terminologia esposta e identificatore tecnico**, ed è la stessa
+distinzione che `11` A6 fa per «Vendita negozio»: sono due lavori con rischi diversi, e vanno
+tenuti separati.
 
-⏸️ **Il 3 non è deciso.** I primi due sì, e stanno in `11` C1.
+|       | Cosa                                                                      | Casa                                                                                               | Rischio                                       |
+| ----- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| **1** | il **termine esposto** → «Fattura»: guida, documento funzionale, messaggi | **`docs/12`**, sezione «Bozza fattura non è un tipo documentale» — è lì che la regola è dichiarata | nessuno, e risolve il problema dell'operatore |
+| **2** | una **guardia** che impedisca il rientro del termine, su `check:registro` | **`docs/12`**, insieme alla regola che deve far rispettare                                         | quasi nessuno                                 |
+| **3** | l'**enum tecnico** `invoice_draft`: mapping, rotte, numerazione, rinomina | **la Famiglia Fattura (`docs/07`)** — non `11`, non la matrice                                     | ⛔ alto — vedi sopra                          |
+
+⛔ **Il 3 non è una rinomina, e non si fa automaticamente perché il nome tecnico è storico.** È
+disfare un tipo su cui poggia il numeratore di tre documenti: toccarlo male significa **numeri
+duplicati sulle fatture**, il danno peggiore possibile qui. Se si farà, la partizione del
+numeratore è il **primo** vincolo da affrontare, non una scoperta a metà strada. E il database è
+condiviso col collega.
+
+⏸️ **Il 3 non è deciso.** I primi due sì.

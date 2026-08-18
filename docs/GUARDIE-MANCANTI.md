@@ -13,9 +13,12 @@ Ogni voce porta uno **stato di verifica**, e va preso sul serio:
 | ✅ **VERIFICATO**    | riaperto e ricontrollato a mano sul codice, con le prove qui sotto          |
 | ◻️ **DA VERIFICARE** | risultato dell'analisi, non ricontrollato: **da confermare prima di agire** |
 
-Quindici voci, di cui **sette verificate a mano** — quelle che hanno conseguenze più serie. Le
-altre otto sono attendibili ma non confermate: valgono come punti di partenza, non come
-fatti.
+**Ventuno voci.** Lo stato di verifica sta accanto al titolo di ognuna, e va letto: ciò che non
+è ✅ è attendibile ma non confermato, e vale come punto di partenza, non come fatto.
+
+⚠️ **La legenda qui sopra è incompleta**: due marcatori usati nelle voci — 🔴 e 🟡 — sono stati
+introdotti dopo e non sono mai stati definiti. Da sistemare, non l'ho fatto perché richiede di
+decidere cosa significano.
 
 **Questo è il registro dichiarato dei difetti generali.** Ci finisce ciò che si trova
 lavorando ad altro e che non riguarda il lavoro in corso — altrimenti resta in una chat e
@@ -33,6 +36,9 @@ _Aggiunta il 15/08/2026, trovata lavorando alla famiglia Fattura: la voce 14._
 _Aggiunta il 16/08/2026, trovata chiedendosi perché lo stesso selettore c'è sul DDT e non
 sull'Ordine cliente: la voce **15**. Nello stesso giro la voce 8 è risultata **già risolta** —
 la nota era rimasta indietro rispetto al codice, ed è segnalata come tale._
+
+_Aggiunte il 18/08/2026, trovate misurando il motore Includi/Genera per `docs/12`: le voci
+**20** e **21**._
 
 > **Il criterio di accettazione che ne esce**, e vale come regola di revisione:
 >
@@ -848,3 +854,167 @@ avvolge l'icona decorativa.
 critical») e questa è una violazione che axe segnala di suo. Sedici occorrenze vive significano
 che quel controllo **non gira** su queste schermate — trovare il perché vale più che correggere
 le sedici.
+
+---
+
+---
+
+## 20. ✅ Il legame fra documenti si scrive senza chiedere di chi sia — e si legge senza chiederlo
+
+**VERIFICATO** su entrambi i lati, scrittura e lettura, il 18/08/2026. Trovato misurando il
+motore Includi/Genera per `docs/12`; non riguarda quel lavoro e per questo sta qui.
+
+L'invariante dichiarato è quello di tutto il progetto — _«Tutte le entità di business DEVONO
+essere tenant-aware»_, `regole-gestionale.md` — e su `Document` è fatto rispettare ovunque
+tranne che sulla relazione che un documento ha **con un altro documento**.
+
+### La scrittura
+
+`sourceDocumentId` — l'id del documento da cui un documento nasce — arriva dal corpo della
+richiesta e finisce in colonna così com'è (`api/src/documents/documents.service.ts:1079`):
+
+```ts
+sourceDocumentId: dto.sourceDocumentId ?? null,
+```
+
+L'unica validazione è la forma (`api/src/documents/dto/create-document.dto.ts:197-199`):
+
+```ts
+@IsOptional()
+@IsUUID()
+sourceDocumentId?: string;
+```
+
+Non si verifica che quel documento **esista**, che sia di un **tipo ammesso** come predecessore,
+né che appartenga al **tenant** di chi sta scrivendo.
+
+⚠️ **Nessuna delle tre verifiche è recuperata più a valle**: `assertCounterparties`
+(`:3707-3738`) controlla fornitore, cliente e sedi — non l'origine.
+
+### La lettura
+
+`getById` filtra il documento per tenant, ma **la relazione no**: la segue e basta
+(`api/src/documents/documents.service.ts:735-763`).
+
+```ts
+const doc = await this.prisma.document.findFirst({
+  where: { id, tenantId },              // ← il documento è filtrato
+  include: {
+    sourceDocument: { select: { id, type, reference, series, number, status } },
+    //  ↑ nessun tenantId qui
+    derivedDocuments: { where: { status: { not: cancelled } }, select: { ... } },
+    //  ↑ né qui: filtra lo stato, non il tenant
+```
+
+### Cosa ne discende — _dedotto, non eseguito_
+
+|                  |                                                                                                                                                                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **in lettura**   | un documento il cui `sourceDocumentId` punta al documento di un altro tenant ne mostrerebbe **tipo, serie, numero, riferimento e stato** nel riquadro «Nato da»                                                              |
+| **in scrittura** | `derivedDocuments` è la relazione inversa: un tenant che punti un proprio documento a un documento altrui **comparirebbe nella lista «Ha generato» di quel documento** — cioè scriverebbe dentro una schermata che non è sua |
+
+⚠️ **Il freno pratico è che serve conoscere l'UUID** del documento altrui, e gli UUID non si
+indovinano. Non è una porta aperta: è una porta senza serratura in una stanza di cui bisogna
+già conoscere l'indirizzo. Un id può però uscire da uno screenshot, da un incollaggio di URL,
+da un log, o da una sessione di supporto.
+
+⛔ **E la RLS non copre nulla di tutto questo**: l'API si connette al database come owner e la
+scavalca per costruzione (`regole-sicurezza.md`, sezione RLS). Qui la RLS non è una seconda
+rete — non c'è.
+
+### Come si prova
+
+Serve un secondo tenant e l'id di un suo documento.
+
+1. Da un tenant A, `POST /documents` con `sourceDocumentId` = l'id di un documento del tenant B.
+2. Aprire il dettaglio del documento appena creato di A → se la misura è giusta, il riquadro
+   «Nato da» mostra numero e riferimento del documento di B.
+3. Aprire il dettaglio del documento di B → se la misura è giusta, il documento di A compare
+   nel suo «Ha generato».
+
+### La correzione, e la guardia che deve restare
+
+La correzione è una verifica di esistenza e tenant nel `create`, e un `tenantId` sui due
+`include` della lettura. **Non dipende da nessuna delle decisioni aperte sul motore
+Includi/Genera** — per questo non è stata legata a quel lavoro.
+
+⚠️ **La guardia non è il controllo: è il test che parla della regola.** «`sourceDocumentId` di
+un altro tenant viene rifiutato» è l'istanza; la regola è **«nessuna relazione fra entità di
+business attraversa il confine del tenant»**, e vale anche per le due tabelle ponte esistenti
+(`PurchaseInvoiceGoodsReceiptLink`, `InvoiceSalesDdtLink`) e per quelle che la matrice
+documentale aggiungerà.
+
+⚠️ **Ed è il momento giusto per metterla**, perché `docs/12` prevede di aggiungere altre
+relazioni fra documenti: una regola scritta ora vale per quelle che verranno, una scritta dopo
+va applicata a mano su ognuna.
+
+⚠️ **Questa è la fonte canonica del difetto.** Altrove solo rimandi: `docs/12` §B3 (contesto della
+misura) e `docs/DA-FARE.md` (elenco dei difetti aperti). ⛔ **Non sta in `SICUREZZA-PENDENTE.md`**,
+che è riservato alle attività esterne e configurative.
+
+⚠️ **Non chiamarla una fuga di dati** finché la prova dinamica cross-tenant non la conferma: i tre
+gradi — misurato · dedotto · da verificare — sono separati apposta qui sopra.
+
+---
+
+## 21. ◻️ `DDT → Proforma`: il menu lo offre, l'API lo rifiuta
+
+**Trovato il 18/08/2026** misurando il motore Includi/Genera per `docs/12`. È un difetto di
+codice — **interfaccia e API espongono contratti divergenti** — e per questo sta qui.
+
+### La causa
+
+Il frontend offre la voce, la mappa su una rotta e chiede il precompilato:
+
+```text
+customer-order-form.component.ts:5062-5065   la voce «Proforma» nel menu Genera del DDT
+customer-order-form.component.ts:5087-5093   la mappa su /app/documents/proforma/new
+sales-document-form.component.ts:2494        convertPrefill(fromDocument, 'proforma')
+```
+
+Il DTO d'ingresso ammette **due soli** valori, e `proforma` non è fra questi:
+
+```ts
+// api/src/documents/dto/convert-document.dto.ts:4-8
+const CONVERT_TARGET_TYPES = [sales_ddt, invoice_draft];
+@IsEnum(CONVERT_TARGET_TYPES)
+targetType!: DocumentType;
+```
+
+La `ValidationPipe` è globale (`api/src/main.ts:50`), quindi il rifiuto avviene **prima** che il
+servizio veda la richiesta, e l'errore finisce nel precompilato fallito. — _letto_
+
+⚠️ **E l'elenco è invertito rispetto alla realtà**, il che rende il difetto più difficile da
+vedere: il DTO **ammette `sales_ddt`, che nessun client invia mai** (l'unico a inviarlo è un
+test), e **rifiuta `proforma`, che viene inviato davvero**. Nel dominio esiste una terza lista,
+`SALES_DDT_CONVERT_TARGET_TYPES`, che contiene `proforma` — quindi le due liste server
+**già oggi non concordano fra loro**. — _letto_
+
+### La prova dinamica attesa
+
+Aprire un DDT salvato → **Genera documento** → **Proforma**, guardando la rete.
+
+|                                  |                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| **atteso se la misura è giusta** | `400` sulla chiamata `convert-prefill`, e a schermo un precompilato fallito |
+| **smentirebbe**                  | la chiamata passa e la Proforma si apre compilata                           |
+
+⚠️ Finché la prova non gira, il difetto resta **dedotto**: il percorso nel codice è univoco, ma
+non è stato eseguito.
+
+### ⛔ La guardia che manca, ed è la parte che conta
+
+Il progetto ha già il modello giusto **per un problema identico**: la mappa famiglia→tipi dei
+permessi è tenuta in due file specchio e **`npm run lint` fallisce se divergono**
+(`scripts/check-permissions.mjs`). Il commento dichiara il difetto che quella guardia evita:
+_«la UI mostra un'azione che l'API poi rifiuta»_ — **cioè esattamente questo difetto, già
+accaduto altrove e già presidiato lì**.
+
+> **La correzione non è invertire l'enum: è che le coppie ammesse smettano di essere liste
+> cablate in tre posti e diventino una mappa esaustiva sorvegliata**, sul modello di
+> `check-permissions.mjs`. Senza quella, la prossima coppia diverge di nuovo e nessun test lo
+> segnala — non essendoci nulla che rompa la compilazione.
+
+⛔ **Non dipende dalle decisioni aperte sul motore Includi/Genera**: si chiude da sé.
+
+_Contesto della misura: `docs/12-specifica-collegamenti-documentali.md` §B7._
