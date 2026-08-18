@@ -203,6 +203,15 @@ export class CorrispettiviService {
       params = params.set('nessunRisultato', 'true');
     }
 
+    // Presentazione: la mandano solo PDF ed Excel. «Nessun raggruppamento» non
+    // parte, come ogni altro valore che significa «niente restrizione».
+    if (query.raggruppa && query.raggruppa !== 'none') {
+      params = params.set('raggruppa', query.raggruppa);
+    }
+    if (query.colonne?.length) {
+      params = params.set('colonne', query.colonne.join(','));
+    }
+
     return params;
   }
 

@@ -151,4 +151,13 @@ export interface CorrispettiviListQuery {
    * significa già «tutti».
    */
   readonly nessunRisultato?: boolean;
+
+  // ── Presentazione (`docs/10` §17) ──────────────────────────────────────
+  //
+  // ⚠️ **Non sono filtri**: non cambiano quali righe l'insieme contiene, solo
+  // come si leggono. Li mandano PDF ed Excel, che riproducono la vista; il CSV
+  // li ignora perché è l'export dati.
+
+  readonly raggruppa?: string;
+  readonly colonne?: readonly string[];
 }

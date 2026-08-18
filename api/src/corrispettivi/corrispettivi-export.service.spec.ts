@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CORRISPETTIVI_ACCOUNTANT_HEADERS,
+  CorrispettiviExportService,
   ROW_TYPE_LABELS,
   corrispettivoRowTypeLabel,
 } from './corrispettivi-export.service';
@@ -159,5 +160,134 @@ describe('export corrispettivi — etichetta della colonna «Tipo»', () => {
     for (const kind of Object.values(SalesOrderRefundKind)) {
       expect(ROW_TYPE_LABELS[kind]).toBeTruthy();
     }
+  });
+});
+
+/**
+ * PDF ed Excel sono la famiglia «esporta ciò che sto guardando»; il CSV no
+ * (`docs/10` §17).
+ *
+ * ⚠️ **La differenza è deliberata, e questi test la inchiodano.** Il CSV è
+ * l'export DATI per il commercialista: una riga per evento e le dodici colonne
+ * storiche nella stessa posizione, perché qualcuno ci ha agganciato un foglio.
+ * Farlo somigliare alla schermata romperebbe quel foglio senza che da questa
+ * parte se ne accorga nessuno.
+ */
+
+const G18 = new Date('2026-08-18T10:00:00.000Z');
+const G17 = new Date('2026-08-17T09:00:00.000Z');
+
+function rigaFinta(id: string, quando: Date, totale: number) {
+  return {
+    rowId: `sale:${id}`,
+    kind: 'sale' as const,
+    salesOrderId: id,
+    documentId: null,
+    manualReceiptId: null,
+    orderNumber: `#${id}`,
+    occurredAt: quando,
+    eventAt: quando,
+    source: 'shopify_online' as const,
+    customerName: 'Cliente prova',
+    customerEmail: null,
+    locationId: null,
+    locationName: null,
+    currency: 'EUR',
+    taxableMinor: totale - 1800,
+    taxMinor: 1800,
+    totalMinor: totale,
+    financialStatus: null,
+    refundKind: null,
+    note: null,
+    vatBreakdown: [],
+  };
+}
+
+function servizioExport(righe: readonly ReturnType<typeof rigaFinta>[]) {
+  const corrispettivi = {
+    buildRegisterRows: async () => righe,
+    getSummary: async () => ({
+      perGiornata: [
+        {
+          giorno: '2026-08-18',
+          totali: { netTaxableMinor: 20400, netTaxMinor: 3600, netTotalMinor: 24000 },
+        },
+        {
+          giorno: '2026-08-17',
+          totali: { netTaxableMinor: 8200, netTaxMinor: 1800, netTotalMinor: 10000 },
+        },
+      ],
+    }),
+  };
+  return new CorrispettiviExportService(
+    {} as never,
+    corrispettivi as never,
+  );
+}
+
+describe('Excel segue la vista; il CSV resta piatto', () => {
+  const righe = [rigaFinta('a', G17, 10000), rigaFinta('b', G18, 12000), rigaFinta('c', G18, 12000)];
+
+  it('raggruppato: compaiono la data e la riga «Totale giornata»', async () => {
+    const xml = await servizioExport(righe).exportAccountantSpreadsheet('t', {
+      raggruppa: 'day',
+    } as never);
+
+    expect(xml).toContain('Data: 18/08/2026');
+    expect(xml).toContain('Data: 17/08/2026');
+    expect(xml).toContain('Totale giornata');
+  });
+
+  it('non raggruppato: nessuna riga artificiale', async () => {
+    const xml = await servizioExport(righe).exportAccountantSpreadsheet('t', {} as never);
+
+    expect(xml).not.toContain('Totale giornata');
+    expect(xml).not.toContain('Data: 18/08/2026');
+  });
+
+  /** «Esporta ciò che sto guardando» vale anche per QUALI colonne si guardano. */
+  it('le colonne spente non escono, e le accese restano nell’ordine del file', async () => {
+    const xml = await servizioExport(righe).exportAccountantSpreadsheet('t', {
+      colonne: ['occurredAt', 'taxable', 'tax', 'total'],
+    } as never);
+
+    expect(xml).toContain('>Data<');
+    expect(xml).toContain('>Imponibile<');
+    // Cliente è spenta nella vista: non deve comparire nel foglio.
+    expect(xml).not.toContain('>Cliente<');
+    expect(xml).not.toContain('>Email cliente<');
+  });
+
+  /**
+   * ⚠️ Il CSV IGNORA raggruppamento e colonne: gli si passano gli stessi
+   * parametri e non cambia niente. È la garanzia che protegge i fogli esterni.
+   */
+  it('il CSV ignora presentazione: dodici colonne storiche, nessun subtotale', async () => {
+    const csv = await servizioExport(righe).exportAccountantCsv('t', {
+      raggruppa: 'day',
+      colonne: ['occurredAt'],
+    } as never);
+
+    const intestazione = csv.split('\r\n')[0] ?? '';
+    expect(intestazione).toContain('Cliente');
+    expect(intestazione).toContain('Valuta');
+    expect(csv).not.toContain('Totale giornata');
+
+    // Le dodici storiche, nello stesso ordine e negli stessi posti.
+    const colonne = intestazione.replace(/^\uFEFF/, '').split(';');
+    expect(colonne.slice(0, 12)).toEqual([
+      'Data',
+      'Tipo',
+      'Numero ordine',
+      'Origine',
+      'Cliente',
+      'Email cliente',
+      'Imponibile',
+      'IVA',
+      'Totale',
+      'Stato pagamento',
+      'Nota',
+      'Valuta',
+    ]);
   });
 });

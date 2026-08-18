@@ -20,6 +20,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { financialStatusDisplayLabel } from '../sales-orders/sales-order.enum-mapper';
 import { originDisplayLabel } from './corrispettivi-classification.util';
 import { compareCorrispettiviRowsAsc } from './corrispettivi-sort.util';
+import { giornoEconomico } from './corrispettivi-totals.util';
 import {
   CorrispettiviService,
   type CorrispettivoVatBreakdownRow,
@@ -146,8 +147,63 @@ const EUR_AMOUNT_FORMAT = new Intl.NumberFormat('it-IT', {
   maximumFractionDigits: 2,
 });
 
+type AccountantHeader = (typeof CORRISPETTIVI_ACCOUNTANT_HEADERS)[number];
 type AccountantRow = Record<(typeof CORRISPETTIVI_ACCOUNTANT_HEADERS)[number], string>;
 
+/**
+ * La stessa riga, con il giorno economico ISO a fianco.
+ *
+ * ⚠️ **Non è un dato in più che esce nel file**: nessuna intestazione lo
+ * nomina. Serve SOLO a `buildViewRows` per sapere dove finisce una giornata e
+ * comincia la successiva — è la stessa definizione di `corrispettivi-sort.util`
+ * e di `giornoEconomico`, non una terza lettura di «giorno».
+ */
+type AccountantRowConGiorno = AccountantRow & { readonly __giorno: string };
+
+
+/**
+ * Le colonne della **vista** tradotte nelle intestazioni dell'export
+ * (`docs/10` §17).
+ *
+ * ⚠️ **Una tabella esplicita e non un secondo elenco di colonne.** Il Registro
+ * nomina le sue colonne con id propri (`occurredAt`, `taxable`), l'export con
+ * le intestazioni che finiscono nel file: sono due vocabolari, e questa è la
+ * sola traduzione fra i due. Costruire per PDF ed Excel un elenco parallelo
+ * significherebbe che il giorno in cui si aggiunge una colonna al Registro ne
+ * mancherebbe una nel file, senza che niente lo segnali.
+ */
+const COLONNA_VISTA_A_INTESTAZIONE: Readonly<Record<string, AccountantHeader>> = {
+  occurredAt: 'Data',
+  kind: 'Tipo',
+  orderNumber: 'Numero ordine',
+  source: 'Origine',
+  customerName: 'Cliente',
+  customerEmail: 'Email cliente',
+  location: 'Sede',
+  financialStatus: 'Stato pagamento',
+  taxable: 'Imponibile',
+  tax: 'IVA',
+  total: 'Totale',
+};
+
+/**
+ * Le intestazioni da usare per una vista, **nell'ordine dell'export**.
+ *
+ * Elenco assente o vuoto = tutte, che è la stessa convenzione dei filtri:
+ * niente restrizione significa niente restrizione, non «nessuna colonna».
+ */
+function intestazioniDellaVista(colonne: readonly string[] | undefined): AccountantHeader[] {
+  if (!colonne || colonne.length === 0) {
+    return [...CORRISPETTIVI_ACCOUNTANT_HEADERS];
+  }
+  const volute = new Set(
+    colonne.map((id) => COLONNA_VISTA_A_INTESTAZIONE[id]).filter((h): h is AccountantHeader => !!h),
+  );
+  const scelte = CORRISPETTIVI_ACCOUNTANT_HEADERS.filter((h) => volute.has(h));
+  // Una vista senza nessuna colonna riconosciuta non produce un file vuoto:
+  // un export che non si spiega è peggio di uno con qualche colonna in più.
+  return scelte.length > 0 ? scelte : [...CORRISPETTIVI_ACCOUNTANT_HEADERS];
+}
 @Injectable()
 export class CorrispettiviExportService {
   constructor(
@@ -165,21 +221,24 @@ export class CorrispettiviExportService {
     tenantId: string,
     query: ListCorrispettiviQueryDto,
   ): Promise<string> {
-    const rows = await this.buildAccountantRows(tenantId, query);
-    return serializeExcel2003Xml(CORRISPETTIVI_ACCOUNTANT_HEADERS, rows);
+    // ⚠️ Excel è della famiglia «esporta ciò che sto guardando»: colonne
+    // configurate e raggruppamento compresi. Il CSV, subito sopra, no — è
+    // l'export DATI, e le sue dodici colonne storiche non si spostano.
+    const { headers, righe } = await this.buildViewRows(tenantId, query);
+    return serializeExcel2003Xml(headers, righe);
   }
 
   async exportAccountantPdf(
     tenantId: string,
     query: ListCorrispettiviQueryDto,
   ): Promise<{ buffer: Buffer; filename: string }> {
-    const [tenant, summary, rows] = await Promise.all([
+    const [tenant, summary, vista] = await Promise.all([
       this.prisma.tenant.findUniqueOrThrow({
         where: { id: tenantId },
         select: ISSUER_TENANT_SELECT,
       }),
       this.corrispettivi.getSummary(tenantId, query),
-      this.buildAccountantRows(tenantId, query),
+      this.buildViewRows(tenantId, query),
     ]);
 
     // Il registro va al commercialista: in testa ci va l'azienda gestita, la
@@ -192,7 +251,8 @@ export class CorrispettiviExportService {
         vatNumber: issuer.vatNumber,
         periodLabel,
         summary,
-        rows,
+        headers: vista.headers,
+        righe: vista.righe,
       });
     });
 
@@ -214,7 +274,7 @@ export class CorrispettiviExportService {
   private async buildAccountantRows(
     tenantId: string,
     query: ListCorrispettiviQueryDto,
-  ): Promise<AccountantRow[]> {
+  ): Promise<AccountantRowConGiorno[]> {
     const rows = await this.corrispettivi.buildRegisterRows(tenantId, query);
 
     return [...rows]
@@ -250,9 +310,75 @@ export class CorrispettiviExportService {
         // è un'anomalia temporanea delle righe Shopify, non uno stato.
         Sede: row.locationName ?? 'Non determinata',
         'Dettaglio IVA': formatVatBreakdown(row.vatBreakdown),
+        __giorno: giornoEconomico(row.occurredAt),
       }));
   }
 
+
+  /**
+   * Le righe della **vista corrente**: stesse righe del CSV, ma con le colonne
+   * accese e — se il raggruppamento è attivo — l'intestazione di giornata e la
+   * riga «Totale giornata» al posto giusto (`docs/10` §17).
+   *
+   * ⚠️ **Il subtotale NON si ricalcola qui**: arriva da `getSummary`, cioè
+   * dall'accumulatore che ha prodotto anche il totale del periodo, di cui è un
+   * addendo. Sommare le righe del file sarebbe la seconda matematica — e il
+   * piede di una giornata potrebbe non fare più il totale in fondo al foglio.
+   *
+   * ⚠️ **Il CSV non passa da qui**, ed è voluto: resta l'export dati, una riga
+   * per evento, con le dodici colonne storiche al loro posto perché qualcuno ci
+   * ha agganciato un foglio.
+   */
+  private async buildViewRows(
+    tenantId: string,
+    query: ListCorrispettiviQueryDto,
+  ): Promise<{ headers: AccountantHeader[]; righe: Record<string, string>[] }> {
+    const headers = intestazioniDellaVista(query.colonne);
+    const piatte = await this.buildAccountantRows(tenantId, query);
+    const soloColonne = (row: AccountantRow): Record<string, string> =>
+      Object.fromEntries(headers.map((h) => [h, row[h]]));
+
+    if (query.raggruppa !== 'day') {
+      return { headers, righe: piatte.map(soloColonne) };
+    }
+
+    const summary = await this.corrispettivi.getSummary(tenantId, query);
+    const totaliPerGiorno = new Map(summary.perGiornata.map((g) => [g.giorno, g.totali]));
+    const vuota = (): Record<string, string> =>
+      Object.fromEntries(headers.map((h) => [h, '']));
+
+    const righe: Record<string, string>[] = [];
+    let giornoCorrente: string | null = null;
+
+    for (const riga of piatte) {
+      const giorno = riga.__giorno;
+      if (giorno !== giornoCorrente) {
+        if (giornoCorrente) righe.push(this.rigaTotaleGiornata(headers, totaliPerGiorno, giornoCorrente, vuota));
+        giornoCorrente = giorno;
+        righe.push({ ...vuota(), [headers[0]!]: `Data: ${ROME_DATE_FORMAT.format(new Date(`${giorno}T12:00:00.000Z`))}` });
+      }
+      righe.push(soloColonne(riga));
+    }
+    if (giornoCorrente) righe.push(this.rigaTotaleGiornata(headers, totaliPerGiorno, giornoCorrente, vuota));
+
+    return { headers, righe };
+  }
+
+  /** La riga di chiusura di una giornata, allineata alle colonne economiche. */
+  private rigaTotaleGiornata(
+    headers: AccountantHeader[],
+    totali: Map<string, { netTaxableMinor: number; netTaxMinor: number; netTotalMinor: number }>,
+    giorno: string,
+    vuota: () => Record<string, string>,
+  ): Record<string, string> {
+    const t = totali.get(giorno);
+    const riga = { ...vuota(), [headers[0]!]: 'Totale giornata' };
+    if (!t) return riga;
+    if (headers.includes('Imponibile')) riga.Imponibile = this.formatMinor(t.netTaxableMinor);
+    if (headers.includes('IVA')) riga.IVA = this.formatMinor(t.netTaxMinor);
+    if (headers.includes('Totale')) riga.Totale = this.formatMinor(t.netTotalMinor);
+    return riga;
+  }
   private formatMinor(minor: number): string {
     return EUR_AMOUNT_FORMAT.format(minor / 100);
   }
@@ -264,10 +390,11 @@ export class CorrispettiviExportService {
       readonly vatNumber: string | null;
       readonly periodLabel: string;
       readonly summary: Awaited<ReturnType<CorrispettiviService['getSummary']>>;
-      readonly rows: AccountantRow[];
+      readonly headers: AccountantHeader[];
+      readonly righe: Record<string, string>[];
     },
   ): void {
-    const { tenantName, vatNumber, periodLabel, summary, rows } = params;
+    const { tenantName, vatNumber, periodLabel, summary, headers, righe } = params;
     const left = doc.page.margins.left;
     const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     let y = doc.page.margins.top;
@@ -321,27 +448,44 @@ export class CorrispettiviExportService {
 
     y = drawPdfSectionTitle(doc, 'Elenco vendite', y);
 
-    const columns: PdfTableColumn[] = [
-      { header: 'Data', width: contentWidth * 0.13 },
-      { header: 'Tipo', width: contentWidth * 0.11 },
-      { header: 'Ordine', width: contentWidth * 0.13 },
-      { header: 'Cliente', width: contentWidth * 0.19 },
-      { header: 'Origine', width: contentWidth * 0.1 },
-      { header: 'Imponibile', width: contentWidth * 0.11, align: 'right' },
-      { header: 'IVA', width: contentWidth * 0.1, align: 'right' },
-      { header: 'Totale', width: contentWidth * 0.13, align: 'right' },
-    ];
+    /*
+      ⚠️ **Le colonne sono quelle della VISTA, non otto fisse.**
 
-    const tableRows = rows.map((row) => [
-      row.Data,
-      row.Tipo,
-      row['Numero ordine'],
-      row.Cliente,
-      row.Origine,
-      row.Imponibile,
-      row.IVA,
-      row.Totale,
-    ]);
+      Erano scritte a mano qui dentro: chi spegneva Cliente dal selettore
+      Colonne se lo ritrovava nel PDF, e chi accendeva Sede no. «Esporta ciò che
+      sto guardando» vale anche per quali colonne si guardano.
+
+      La larghezza si distribuisce per PESO — le colonne di testo prendono più
+      spazio dei numeri — e i pesi si normalizzano sulle colonne effettivamente
+      presenti: togliendone una, lo spazio va alle altre invece di lasciare un
+      vuoto a destra.
+    */
+    const pesi: Readonly<Record<string, number>> = {
+      Data: 13,
+      Tipo: 11,
+      'Numero ordine': 13,
+      Cliente: 19,
+      'Email cliente': 19,
+      Origine: 12,
+      Sede: 14,
+      'Stato pagamento': 12,
+      Nota: 16,
+      Valuta: 7,
+      'Dettaglio IVA': 18,
+      Imponibile: 11,
+      IVA: 10,
+      Totale: 13,
+    };
+    const numeriche = new Set(['Imponibile', 'IVA', 'Totale']);
+    const pesoTotale = headers.reduce((somma, h) => somma + (pesi[h] ?? 12), 0);
+
+    const columns: PdfTableColumn[] = headers.map((h) => ({
+      header: h,
+      width: (contentWidth * (pesi[h] ?? 12)) / pesoTotale,
+      ...(numeriche.has(h) ? { align: 'right' as const } : {}),
+    }));
+
+    const tableRows = righe.map((row) => headers.map((h) => row[h] ?? ''));
 
     drawPdfTable({
       doc,

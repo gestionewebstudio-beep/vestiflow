@@ -184,4 +184,28 @@ export class ListCorrispettiviQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => toOptionalBoolean(value))
   @IsBoolean()
   nessunRisultato?: boolean;
+
+  // ── Presentazione (`docs/10` §17) ────────────────────────────────────────
+  //
+  // ⚠️ **Questi NON sono filtri, e non devono diventarlo.** Non cambiano quali
+  // righe l'insieme contiene: cambiano come si leggono. Stanno nel DTO perché
+  // PDF ed Excel devono riprodurre la vista corrente — «esporta ciò che sto
+  // guardando» — e la vista comprende anche il raggruppamento e le colonne.
+  //
+  // Il CSV li IGNORA di proposito: è l'export dati per il commercialista, una
+  // riga per evento e le colonne storiche al loro posto.
+
+  /** `none` · `day`. Assente = nessun raggruppamento. */
+  @IsOptional()
+  @IsIn(['none', 'day'])
+  raggruppa?: string;
+
+  /**
+   * Le colonne accese nella vista, per id (`occurredAt`, `taxable`, …).
+   * Assente = tutte quelle previste.
+   */
+  @IsOptional()
+  @Transform(({ value }) => toStringSet(value))
+  @IsString({ each: true })
+  colonne?: string[];
 }

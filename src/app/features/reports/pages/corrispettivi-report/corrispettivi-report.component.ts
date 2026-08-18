@@ -695,7 +695,7 @@ export class CorrispettiviReportComponent {
 
     this.blobExport.start({
       exportId: CORRISPETTIVI_ACCOUNTANT_XLS_EXPORT_ID,
-      request: this.corrispettiviService.exportSpreadsheet(this.exportQuery()),
+      request: this.corrispettiviService.exportSpreadsheet(this.exportVistaQuery()),
       filename: vestiflowExportFilename('corrispettivi-commercialista', 'xls'),
       inProgressMessage: 'Export foglio commercialista in corso. Puoi continuare a navigare.',
       successMessage: 'Export foglio completato: download avviato.',
@@ -710,7 +710,7 @@ export class CorrispettiviReportComponent {
 
     this.blobExport.start({
       exportId: CORRISPETTIVI_ACCOUNTANT_PDF_EXPORT_ID,
-      request: this.corrispettiviService.exportPdf(this.exportQuery()),
+      request: this.corrispettiviService.exportPdf(this.exportVistaQuery()),
       filename: vestiflowExportFilename('corrispettivi-commercialista', 'pdf'),
       inProgressMessage: 'Export PDF commercialista in corso. Puoi continuare a navigare.',
       successMessage: 'Export PDF completato: download avviato.',
@@ -753,6 +753,26 @@ export class CorrispettiviReportComponent {
       placedFrom: this.dateRange().placedFrom,
       placedTo: this.dateRange().placedTo,
       ...corrispettiviFiltersToQuery(this.filters()),
+    };
+  }
+
+  /*
+    ⚠️ **Due famiglie di export, e la differenza è deliberata** (`docs/10` §17).
+
+    PDF ed Excel sono «esporta ciò che sto guardando»: oltre ai filtri portano
+    anche la PRESENTAZIONE — raggruppamento e colonne accese.
+
+    Il CSV no, e non è una dimenticanza: è l'export DATI per il commercialista.
+    Una riga per evento, nessuna riga artificiale di subtotale, e le dodici
+    colonne storiche nella stessa posizione — perché qualcuno ci ha agganciato
+    un foglio, e spostargliele sotto i piedi romperebbe il suo lavoro senza che
+    nessuno se ne accorga da questa parte.
+  */
+  private exportVistaQuery() {
+    return {
+      ...this.exportQuery(),
+      raggruppa: this.raggruppa(),
+      colonne: this.visibleColumns(),
     };
   }
 
