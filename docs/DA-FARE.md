@@ -861,3 +861,34 @@ documento**, non le sole righe; la **sidebar resta sulla larghezza**.
 **Collegato, e da non dimenticare**: su tablet **il Tab non esiste**. Tutto il lavoro sulla
 tabulazione (punto 7) vale per chi ha una tastiera; la vista del dito deve reggersi sul
 tocco, e le due cose non si sostituiscono a vicenda.
+
+---
+
+### 9. ⭐ Vendita e Reso al banco — specifica riscritta il 18/08/2026
+
+**La lista degli interventi non sta qui: sta in `11-specifica-vendita-al-banco.md`, sezione
+C**, dove ognuno è agganciato alla decisione che lo genera e alla misura che lo motiva.
+Duplicarla qui vorrebbe dire tenerne allineate due.
+
+Cosa è cambiato il 18/08, in breve: il documento è stato **riscritto da capo** su indicazione
+del proprietario ed è ora l’**unica specifica attiva** del modulo — si aggiorna lì, non
+nascono file paralleli, e non si recuperano decisioni dalla stesura precedente.
+
+Le decisioni prese quel giorno: navigazione **elenco → Nuovo**; Vendita e Reso separati
+**alla creazione**; netto/ivato **come tutti gli altri documenti**, senza forcing;
+numerazione comune e **nessuna sigla fissata**; «Vendita negozio» dichiarata legacy;
+rapporti documentali verso Fattura col dominio comune; il pagamento che arriva fino
+all’export dei Corrispettivi; «Ambito» rinominato **«Tipo vendita»** nella sola interfaccia;
+e l’eliminazione della «futura Cassa VestiFlow», che non esiste.
+
+**Il Reso è stato chiuso quasi del tutto, lo stesso giorno.** Le tre regole che il codice
+applicava senza che nessuno le avesse decise — origine facoltativa, nessun tetto sulla
+quantità, IVA presa dall’articolo — sono state **confermate come regole**, e per una ragione
+sola: **il Reso al banco non è il reso fiscale dello scontrino**. La vendita di partenza può
+essere stata battuta su una cassa esterna e non esistere affatto in VestiFlow, quindi non c’è
+niente da cui derivare un tetto né un’aliquota incassata.
+
+⏸️ **Resta aperto il prezzo del reso** — proposto dall’articolo, digitato, ripreso da un
+riferimento quando c’è — e non si assume nulla finché non si guarda la maschera. Più una
+verifica: che l’aliquota presa dall’articolo venga **scritta nella riga come snapshot** e non
+cambi retroattivamente se domani si modifica il Codice IVA.
