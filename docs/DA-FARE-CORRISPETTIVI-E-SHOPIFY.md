@@ -569,3 +569,68 @@ Tre strade, e nessuna è gratis:
 
 Da decidere quando si riprenderà l'anagrafica, **non di straforo dentro un lavoro sui
 Corrispettivi**: qualunque delle tre tocca componenti condivisi da mezza applicazione.
+
+### 5. Restyle mobile del Registro — FATTO il 18/08/2026
+
+Sessione di rifinitura visiva guidata dagli screenshot, tutta sul Registro
+Corrispettivi. **I pattern che ne sono usciti sono scritti in
+`regole-stile-ui.md`** e valgono per le altre schermate che verranno riviste:
+non vanno riscoperti leggendo questo codice.
+
+| Area           | Prima                                   | Dopo                                                           |
+| -------------- | --------------------------------------- | -------------------------------------------------------------- |
+| Testata mobile | 5 fasce di comandi prima del primo dato | 2 — «Nuovo» accanto al titolo, poi Esporta · Filtri · Colonne  |
+| Filtri mobile  | 6 chip a 44px                           | 1 pulsante «Filtri (n)» + pannello (mixin condiviso)           |
+| Export mobile  | 4 pulsanti                              | menu «Esporta» (`app-action-menu` con `triggerLabel`)          |
+| Righe mobile   | ripiego `data-label`, 8 righe per card  | card progettata a 3 fasce, accento laterale per tipo           |
+| Elenco lungo   | tutto, il riepilogo irraggiungibile     | 25 righe + «Mostra le altre N righe», solo su schermo compatto |
+| Riepilogo      | banda piatta, 3 blocchi responsive      | riquadro unico con fili, 2 fasce, **zero** media query         |
+| Scroll mobile  | elenco in una finestrella di ~330px     | scorre la pagina, il riepilogo è la coda                       |
+
+**Componenti condivisi estesi** (sempre con `input()` o custom property, mai
+`::ng-deep`): `app-button` (`ariaLabel`), `app-action-menu` (`triggerLabel`,
+`triggerIcon`, punti di regolazione), più l'estrazione del mixin
+`list-page-mobile-filters` da `list-page`, che ora serve anche a chi ha un
+layout proprio.
+
+**Token nuovi**: `--border-width-accent` (l'accento laterale, prima scritto
+come `--space-1` — un token di spaziatura prestato a un bordo) e
+`--summary-item-min-w` (misurato sull'etichetta più lunga della banda totali).
+
+⚠️ **Quello che resta da verificare**: tutto è stato provato ridimensionando la
+finestra su PC, **mai su un telefono vero**. La larghezza e le media query sono
+fedeli; il tocco no. Da controllare su dispositivo: bersagli da 44px raggiungibili
+col pollice, pannello filtri, menu Esporta, e lo scorrimento dell'elenco lungo.
+
+### 6. Pulsante di collasso sidebar a icone — confermato, non ancora costruito
+
+⚠️ **Fuori tema** (shell applicativa, non Corrispettivi): segnato qui solo perché è emerso
+durante il restyle di questo Registro (larghezza sidebar, densità filtri), ed è questo il
+file da cui si riprende quella sessione.
+
+Deciso il 18/08/2026: dopo aver ridotto `--sidebar-width` da 232px a 196px per prova visiva
+passo per passo, resta l'idea di un pulsante che colassi la sidebar a sola icona sulle
+finestre strette — confermata dal proprietario del progetto («tasto per ridurla mi piace
+l'idea»), mai costruita.
+
+Misurato, per chi riprende:
+
+- Pattern di riferimento: `core/services/theme.service.ts` — `providedIn: 'root'`, `signal` +
+  `localStorage` con fallback try/catch. Lo stesso schema serve per lo stato
+  collassato/espanso.
+- Wiring: `ShellLayoutComponent` (smart, tiene lo stato) → `AppSidebarComponent` (resta dumb:
+  riceve via `input()`, emette il toggle via `output()`).
+- Il toggle va nella riga del brand (`.app-sidebar__brand`), e solo da `lg` in su: sotto quella
+  soglia la sidebar è già un cassetto mobile, il collasso a icone è un problema di larghezza
+  _desktop_, non di quello.
+- Il token della larghezza collassata **esiste già e non è mai usato**:
+  `--sidebar-width-collapsed: 3.5rem` in `_design-tokens.scss` — verificato via grep, nessun
+  selettore lo referenzia.
+- In collassato, `.app-sidebar__label` / `.app-sidebar__section-title` / `.app-sidebar__brand-copy`
+  si nascondono VISIVAMENTE (stile `.sr-only`: clip, non `display:none`), non si tolgono dal DOM
+  — il nome della voce deve restare annunciato dallo screen reader anche a sidebar collassata.
+
+Pattern nuovi da riusare, documentati in `regole-stile-ui.md` §5 durante lo stesso lavoro
+(barre filtri dense, modalità `select-menu`, variante `flat` di `segmented`, riepilogo di fondo
+pagina, riga di subtotale in tabella): utili anche per gli altri riepiloghi/elenchi da
+sistemare dopo, non solo per la sidebar.
