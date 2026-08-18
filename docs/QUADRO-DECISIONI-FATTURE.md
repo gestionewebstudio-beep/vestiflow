@@ -13,7 +13,7 @@ Le voci qui sotto **non si leggono più da questo documento**: sono state promos
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | A.1.6 · A.1.12 · A.1.13 — casella magazzino della Nota di credito, default, etichetta | `07` §6, «Il magazzino — regola in vigore». Il paragrafo del §5-bis che diceva l'opposto è **ritirato dichiarandolo** |
 | Righe miste della Nota di credito                                                     | `07` §6                                                                                                               |
-| A.1.14 · A.6 — inclusione documenti, tre filtri, matrice, «Seguirà doc. di vendita»   | `07` §11                                                                                                              |
+| A.1.14 · A.6 — inclusione documenti, tre filtri, matrice, «Seguirà doc. di vendita»   | `12` (estratto da `07` §11 il 18/08/2026)                                                                             |
 | A.7 — righe di riferimento per accumulo                                               | `07` §12                                                                                                              |
 | A.1.15 · A.8 — Nota di credito senza legame interno, più note sulla stessa fattura    | `07` §13                                                                                                              |
 | A.11 — campi trasporto, liste gestite, seed, avvisi non bloccanti                     | `07` §14                                                                                                              |
@@ -268,14 +268,16 @@ Ciò che compare in «Includi documento» è determinato, nell'ordine:
 
 Si include **solo ciò che sta a monte**. Non per mancanza di funzione: includere un documento a valle vorrebbe dire tornare indietro nel flusso.
 
-| Documento               | Può includere                            | Fonte                                                                                                                                     |
-| ----------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Ordine cliente          | Preventivi                               | **dichiarato 15/08**                                                                                                                      |
-| DDT vendita             | Preventivi, Ordini cliente               | **dichiarato 15/08**                                                                                                                      |
-| Fattura                 | Preventivi, Ordini cliente, DDT          | **dichiarato 15/08**                                                                                                                      |
-| Fattura accompagnatoria | Preventivi, Ordini cliente — **mai DDT** | **dichiarato 15/08**: sostituisce il DDT nella stessa uscita, includerne uno sarebbe la stessa contraddizione della Fattura dentro un DDT |
+⚠️ **La tabella che stava qui è stata tolta il 18/08/2026.** La matrice canonica — completa,
+con la colonna **Genera** e tutti i tipi — vive in
+**`12-specifica-collegamenti-documentali.md`**, e ne esiste **una sola**.
 
-**La matrice è chiusa: nessuna riga dedotta.**
+Qui restava una copia delle quattro righe dichiarate il 15/08. Due copie della stessa tabella
+divergono: la prima volta che una riga cambia, questa resta indietro e nessuno se ne accorge —
+è un registro di decisioni, non una specifica, e non lo si rilegge per verificarlo.
+
+**Quello che resta qui è il suo mestiere:** come ci si è arrivati, e le prove — gli screenshot
+Danea qui sopra e la misura su VestiFlow qui sotto.
 
 **La Nota di credito non è in questa tabella: non include nulla** (dichiarato 15/08). Nasce vuota dal menù «Nuovo», oppure viene **generata** da una fattura. Sono due gesti diversi e non vanno confusi:
 

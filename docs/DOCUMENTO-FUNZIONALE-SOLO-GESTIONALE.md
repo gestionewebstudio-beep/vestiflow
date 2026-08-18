@@ -402,6 +402,11 @@ Dove presente il pulsante **«Includi documento»**, al click compare la lista d
 | DDT vendita    | Preventivo · Ordine cliente |
 | Preventivo     | — (si crea sempre da zero)  |
 
+⚠️ **Questa è la mappa ATTUALE, cioè cosa il codice fa oggi.** La matrice **di destinazione** —
+completa, con la colonna «Genera» e tutti i tipi — sta in
+**`12-specifica-collegamenti-documentali.md`**, ed è molto più larga di così. Quando sarà
+implementata, questa tabella va aggiornata o tolta: descrive uno stato, non un contratto.
+
 ---
 
 ## 11. Vendita negozio (cassa a carrello)

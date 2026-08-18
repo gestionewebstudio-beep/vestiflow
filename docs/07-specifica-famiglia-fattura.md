@@ -339,55 +339,22 @@ _Misurato 14/08._ I 422 osservati provengono da `assertStockUnloadDocument`, che
 
 ---
 
-## §11 · Inclusione documenti — un elenco filtrato, non una catena
+## §11 · Inclusione e generazione → **spostate in `12`**
 
-**Deciso 15/08.**
+⚠️ **Il contenuto di questo paragrafo è stato estratto il 18/08/2026** in
+**`12-specifica-collegamenti-documentali.md`**, e qui non ne resta copia: la matrice ha una
+casa sola.
 
-⚠️ **Correzione a materiale precedente.** Le verifiche del 14/08 scrivono «catena attesa: Ordine cliente → DDT → Fattura» come se il percorso fosse cablato. **Non lo è.** Il documento non nasce dal suo predecessore designato: l'operatore apre un documento e sceglie cosa includerci, col pulsante «Includi documento». Chi implementa leggendo «catena attesa» costruisce un binario dove serve un elenco.
+Il motivo: era nato qui il 15/08 coprendo quattro documenti della famiglia fattura, ed è stato
+completato su **tutti** i tipi. Una matrice di tutto il sistema documentale dentro la
+specifica delle fatture è introvabile per chi non cerca una fattura.
 
-### I tre filtri
+In `12` stanno: le due operazioni e la loro differenza · i tre filtri · la matrice **Includi**
+· la matrice **Genera** · la regola fisica del solo effetto per una sola uscita · «Concludi
+ordine» dell'Ordine cliente · il filtro «non ancora consumato».
 
-Ciò che compare in «Includi documento» è determinato, nell'ordine:
-
-1. **Cliente** — solo i documenti di quel cliente. Finché il cliente non è scelto non c'è nulla da includere.
-2. **Tipo** — solo i tipi che stanno a monte (tabella sotto).
-3. **Stato** — solo i documenti non ancora consumati.
-
-### Matrice dei tipi includibili — chiusa, nessuna riga dedotta
-
-| Documento               | Può includere                            |
-| ----------------------- | ---------------------------------------- |
-| Ordine cliente          | Preventivi                               |
-| DDT vendita             | Preventivi, Ordini cliente               |
-| Fattura                 | Preventivi, Ordini cliente, DDT          |
-| Fattura accompagnatoria | Preventivi, Ordini cliente — **mai DDT** |
-
-L'accompagnatoria sostituisce il DDT nella stessa uscita: includerne uno sarebbe la stessa contraddizione di una Fattura dentro un DDT.
-
-**La Nota di credito non è in questa tabella: non include nulla.** Nasce vuota dal menù «Nuovo», oppure viene **generata** da una fattura. Sono due gesti diversi e non vanno confusi — _includere_ = tiro dentro qualcosa che esiste già; _generare_ = da un documento aperto ne creo un altro. Danea li tiene distinti anche nell'interfaccia, con due pulsanti separati a piè di documento.
-
-**Cardinalità: molti-a-uno.** In una fattura si possono includere più DDT.
-
-### Il terzo filtro, «non ancora consumato»
-
-Un documento incluso in un altro deve **sparire dall'elenco** per i successivi, o si fattura due volte la stessa merce.
-
-_Misurato 15/08:_ sul DDT vendita esiste la casella **«Seguirà doc. di vendita»**. È una **dichiarazione d'intenzione**, spuntata dall'operatore _prima_ che la fattura esista; la fattura mostra solo i DDT così marcati. È un filtro diverso dagli altri due: la matrice dice quali _tipi_ sono ammessi, questa casella dice quali _documenti concreti_ compaiono.
-
-**Default: non spuntata** (deciso 15/08). Criterio: chi non fa nulla finisce nel caso meno dannoso — un DDT interno non spuntato non sporca l'elenco degli includibili, mentre un DDT da fatturare non spuntato si scopre quando serve.
-
-**Aperto:** se serva un avviso. Un DDT uscito senza spunta è invisibile alla fattura: la merce è consegnata, non risulta da fatturare, e ci si accorge quando il cliente non riceve la fattura.
-
-### Due verifiche prima di scrivere
-
-| #    | Domanda                                                                                                    | Perché conta                      |
-| ---- | ---------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| 11.1 | Il legame regge **tipi misti**? Due preventivi _e_ tre DDT nello stesso documento                          | decide se qui serve una migration |
-| 11.2 | Come è modellato lo **stato di consumo**? Campo sul documento incluso, o dedotto dall'esistenza del legame | decide se serve una colonna       |
-
-⚠️ _Misurato, e cambia il piano:_ `includeSourceKindsForDocumentType(type)` restituisce oggi `[]` per tutto tranne il DDT vendita (`06b` §D.15). Per la Fattura l'inclusione **non esiste ancora**: la strada è la conversione, non l'inclusione. Va letto prima di stimare questo punto.
-
----
+**Resta qui** ciò che è della famiglia fattura: da quali tipi nasce una Nota di credito e
+perché (§6), il precompilato totale, e il blocco over-credit.
 
 ## §12 · Righe di riferimento fra documenti collegati
 
