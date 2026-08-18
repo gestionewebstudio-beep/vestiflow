@@ -57,6 +57,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { lineVatFromNetExact } from '../vat/vat-line-calculation.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
+
+import { persistDocumentLinesByIdTx } from './document-line-upsert.util';
 import { ExternalDocumentTypesService } from './external-document-types.service';
 import { receiptVatBreakdown, type VatBreakdownEntry } from './purchase-invoice-vat-summary.util';
 import { syncGoodsReceiptLineMovements } from './document-goods-receipt-sync.util';
@@ -3569,60 +3571,10 @@ export class DocumentsService {
       readonly lines: readonly ComputedLine[];
     },
   ): Promise<void> {
-    const { tenantId, documentId, lines } = params;
-    const existing = new Set(params.existingLineIds);
-    const claimed = new Set<string>();
-
-    // ── Validazione di appartenenza, prima di scrivere qualunque cosa ──
-    // `existingLineIds` viene dal documento già letto per tenant: un id che non
-    // sta lì o non è di questo documento, o è di un altro tenant, o è già stato
-    // eliminato da qualcun altro. In tutti e tre i casi non si tira a indovinare.
-    for (const line of lines) {
-      if (line.id == null) {
-        continue;
-      }
-      if (!existing.has(line.id)) {
-        throw new UnprocessableEntityException(
-          'Una riga fa riferimento a un identificativo che non appartiene a questo documento. Ricarica il documento e riprova.',
-        );
-      }
-      if (claimed.has(line.id)) {
-        throw new UnprocessableEntityException(
-          'La stessa riga è stata inviata due volte nello stesso salvataggio.',
-        );
-      }
-      claimed.add(line.id);
-    }
-
-    // ── 3. Le righe sparite dal documento ──
-    const removedIds = params.existingLineIds.filter((lineId) => !claimed.has(lineId));
-    if (removedIds.length > 0) {
-      await tx.documentLine.deleteMany({
-        where: { documentId, tenantId, id: { in: removedIds } },
-      });
-    }
-
-    // ── 1 e 2. Aggiornamento in posto, oppure creazione ──
-    for (const line of lines) {
-      const data = this.toLineCreateData(line, tenantId);
-      if (line.id == null) {
-        await tx.documentLine.create({ data: { ...data, tenantId, documentId } });
-        continue;
-      }
-      // `updateMany` e non `update`: il `where` porta anche documento e tenant,
-      // quindi l'appartenenza è imposta dal database e non solo dal controllo
-      // qui sopra. Se la riga è sparita sotto i piedi (modifica concorrente) il
-      // conteggio è zero e la transazione si ferma, invece di scrivere altrove.
-      const { count } = await tx.documentLine.updateMany({
-        where: { id: line.id, documentId, tenantId },
-        data,
-      });
-      if (count === 0) {
-        throw new ConflictException(
-          'Una riga di questo documento è stata modificata o eliminata da un altro salvataggio. Ricarica il documento e riprova.',
-        );
-      }
-    }
+    await persistDocumentLinesByIdTx(tx, {
+      ...params,
+      toData: (line) => this.toLineCreateData(line, params.tenantId),
+    });
   }
 
   private toLineCreateData(
