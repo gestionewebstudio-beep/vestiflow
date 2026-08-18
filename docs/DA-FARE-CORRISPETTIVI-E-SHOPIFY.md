@@ -483,7 +483,26 @@ Il registro usa la **data di evasione**, che è la regola ordinaria per le cessi
 Trovati dal proprietario del progetto sulla maschera appena consegnata, **non da un
 test**: è il tipo di difetto che nessuna prova verde intercetta.
 
-### 1. ⛔ Il salvataggio rifiutato è MUTO — priorità alta
+> ### ✅ Stato al 18/08/2026: 1, 2 e 3 sono chiusi. Resta aperto solo il 4.
+>
+> Verificato nel codice, non dedotto da questo file — che era rimasto indietro e li
+> dava tutti e tre per aperti. **È il difetto di questo documento, non del codice**, ed
+> è esattamente il modo in cui si fa ricominciare qualcuno da un lavoro già fatto.
+>
+> | #   | Dove si vede che è chiuso                                                                                                             |
+> | --- | ------------------------------------------------------------------------------------------------------------------------------------- |
+> | 1   | `manual-receipt-form.component.html`: un `app-inline-banner` legato al rifiuto, col commento «Il rifiuto del salvataggio si VEDE»     |
+> | 2   | `_document-form.scss` → `td.doc-form__col--tax .doc-select-cell`: fondo `--color-input-bg` e bordo dentro la cella del gruppo calcoli |
+> | 3   | `api/src/corrispettivi/corrispettivi.service.spec.ts` → «un pageSize piccolo non taglia più niente»                                   |
+>
+> E la **guardia** che il §1 chiedeva è stata capita alla radice invece che rattoppata:
+> `check-form-errors.mjs` porta ora due commenti che citano proprio questa maschera —
+> «aveva un banner che parlava d'altro».
+>
+> Il testo originale resta qui sotto: dice **come** i tre difetti erano stati misurati,
+> e quel metodo serve ancora.
+
+### 1. ✅ CHIUSO — Il salvataggio rifiutato era MUTO
 
 ```ts
 178:  private readonly _submitState = signal<SubmitState>({ status: 'idle' });
@@ -512,7 +531,7 @@ perché»: questa maschera evidentemente non rientra nel suo censimento. Una gua
 copre l'ultimo form aggiunto non proteggerà nemmeno il prossimo — va capito **perché** l'ha
 saltata, non aggiunto un caso a mano.
 
-### 2. Il Codice IVA di riga non sembra editabile
+### 2. ✅ CHIUSO — Il Codice IVA di riga non sembrava editabile
 
 Nella tabella righe la cella IVA ha lo stesso fondo grigio delle celle calcolate, mentre è
 un valore **che si sceglie**. Va vestita come un campo: **fondo bianco**, come gli altri
@@ -521,7 +540,7 @@ controlli editabili della riga.
 È la stessa distinzione che il resto della maschera già fa — importo si digita, imponibile e
 imposta si leggono — e qui non la fa: la freccina del menu è l'unico indizio, e non basta.
 
-### 3. Debito annotato: `page` e `pageSize` accettati e ignorati
+### 3. ✅ PRESIDIATO — `page` e `pageSize` accettati e ignorati
 
 Tolto il limite delle cento righe, `listOrders` restituisce l'insieme intero e i due
 parametri **non decidono più niente**. Restano nel contratto perché `Paginated` è una forma
