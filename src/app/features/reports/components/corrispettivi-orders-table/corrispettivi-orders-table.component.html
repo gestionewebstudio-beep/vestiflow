@@ -88,19 +88,40 @@
               contabile è metà del suo valore.
             -->
             <tr class="corrispettivi-table__day-total">
-              <td [attr.colspan]="colonneDescrittive()">Totale giornata</td>
+              <!--
+                `data-label` sulle tre celle economiche serve SOLO alla vista
+                a card (sotto lg): sul desktop l'etichetta resta la colonna
+                stessa, come dice il commento sopra — nessuna riga aggiunta,
+                nessuna card.
+              -->
+              <td
+                [attr.colspan]="colonneDescrittive()"
+                class="corrispettivi-table__day-total-label"
+              >
+                Totale giornata
+              </td>
               @if (isVisible('taxable')) {
-                <td class="corrispettivi-table__cell--num tabular-nums">
+                <td class="corrispettivi-table__cell--num tabular-nums" data-label="Imponibile">
                   {{ formatMoney(totali.taxable) }}
                 </td>
               }
               @if (isVisible('tax')) {
-                <td class="corrispettivi-table__cell--num tabular-nums">
+                <td class="corrispettivi-table__cell--num tabular-nums" data-label="IVA">
                   {{ formatMoney(totali.tax) }}
                 </td>
               }
               @if (isVisible('total')) {
-                <td class="corrispettivi-table__cell--num tabular-nums">
+                <!--
+                  ⚠️ **Solo questa cella si distingue dalle altre due.**
+                  Imponibile e IVA sono il calcolo che porta al Totale, non «la
+                  risposta» — stessa gerarchia già applicata al riepilogo di
+                  fondo pagina: un solo numero risalta, gli altri restano
+                  supporto. Prima le tre celle pesavano allo stesso modo.
+                -->
+                <td
+                  class="corrispettivi-table__cell--num corrispettivi-table__day-total-final tabular-nums"
+                  data-label="Totale"
+                >
                   {{ formatMoney(totali.total) }}
                 </td>
               }
@@ -108,7 +129,7 @@
           }
         }
       } @else {
-        @for (row of rows(); track row.rowId) {
+        @for (row of righeVisibili(); track row.rowId) {
           <ng-container
             [ngTemplateOutlet]="rigaRegistro"
             [ngTemplateOutletContext]="{ $implicit: row }"
@@ -118,6 +139,21 @@
     </tbody>
   </table>
 </div>
+
+<!--
+  ⚠️ **Troncamento di VISUALIZZAZIONE.** Compare solo su schermo compatto e
+  solo oltre le 25 righe. Il pulsante dice QUANTE ne restano invece di
+  alludervi: «Mostra altre righe» non fa capire se ne mancano tre o trecento.
+
+  I totali qui sotto non cambiano premendolo — arrivano dall'API e valgono
+  l'intero periodo, sempre.
+-->
+@if (troncato()) {
+  <button type="button" class="corrispettivi-table__more" (click)="mostraTutte()">
+    Mostra le altre {{ righeNascoste() }} righe
+    <i class="pi pi-chevron-down" aria-hidden="true"></i>
+  </button>
+}
 
 <ng-template #rigaRegistro let-row>
   <!--
@@ -240,5 +276,150 @@
         {{ formatMoney(row.total) }}
       </td>
     }
+
+    <!--
+      ⚠️ **La card mobile è PROGETTATA, non è la tabella impilata.**
+
+      Il ripiego generico — ogni cella diventa una riga «etichetta … valore» —
+      dava otto righe tutte dello stesso peso: nessun valore primario, e la
+      card più alta dello schermo. È il contrario di §6, che vuole i valori
+      primari leggibili a card chiusa e il resto in secondo piano.
+
+      Due fasce, non otto righe:
+        1. ● tipo · origine · numero .......... TOTALE
+        2. sede · data · imponibile · IVA  — contorno muted e più minuto
+
+      Il pallino colorato porta il tipo prima che si legga la parola: verde
+      una vendita, rosso una rettifica. Il totale è l'unico valore a piena
+      taglia — è la risposta della riga; imponibile e IVA sono il calcolo che
+      ci porta, e stanno con il contorno.
+
+      Questa cella esiste SOLO sotto `lg`; sopra è spenta e comandano le
+      colonne vere. Rispetta `isVisible` come le altre: una colonna spenta dal
+      selettore Colonne sparisce anche da qui.
+    -->
+    <!--
+      ⚠️ **`aria-hidden`: questa cella è una VESTE, non un dato.**
+
+      Ogni valore che mostra esiste già nelle celle vere qui sopra, che sotto
+      `lg` restano nel DOM e leggibili dai lettori di schermo (nascoste
+      all'occhio, non rimosse). Senza questo attributo un lettore di schermo
+      annuncerebbe ogni riga due volte.
+    -->
+    <td class="corrispettivi-table__card" [attr.colspan]="colonneTotali()" aria-hidden="true">
+      <div class="corrispettivi-table__card-head">
+        <!--
+          ⚠️ **L'identità sta in un gruppo suo.** Senza, il chevron era un
+          fratello del totale in una riga che va a capo: quando i nomi erano
+          lunghi finiva su una riga tutta sua, sotto a sinistra. Ora a capo va
+          solo ciò che sta QUI dentro; totale e chevron restano ancorati a
+          destra, sempre sulla prima riga.
+        -->
+        <!--
+          ⚠️ **Solo l'IDENTITÀ qui: cosa è e quale.** Due parole brevi, quindi
+          questa riga non va mai a capo — prima ospitava anche l'origine
+          («Corrispettivo manuale»), e su nomi lunghi il numero finiva orfano
+          su una riga tutta sua, che alzava la card senza dire niente.
+          L'origine è descrizione: è scesa nella fascia sotto, con le altre.
+        -->
+        <span class="corrispettivi-table__card-ident">
+          @if (isVisible('occurredAt')) {
+            <span class="corrispettivi-table__card-date tabular-nums">
+              {{ formatDate(row.occurredAt) }}
+            </span>
+          }
+          @if (isVisible('kind')) {
+            <span
+              class="corrispettivi-table__card-kind"
+              [class.corrispettivi-table__card-kind--refund]="row.kind === 'refund'"
+            >
+              {{ row.kind === 'refund' ? refundLabel(row.refundKind) : 'Vendita' }}
+            </span>
+          }
+        </span>
+        <!--
+          ⚠️ **Il numero è un'ANCORA a destra**, fuori dal gruppo che va a
+          capo: scorrendo l'elenco sta sempre nello stesso punto, e l'occhio lo
+          trova senza cercarlo. Dentro il gruppo seguiva la lunghezza del tipo
+          e ballava da una card all'altra.
+        -->
+        @if (isVisible('orderNumber')) {
+          <span class="corrispettivi-table__card-num tabular-nums">N. {{ row.orderNumber }}</span>
+        }
+      </div>
+
+      <!--
+        Fascia 2 — SOLO parole: da dove viene, dove, per chi, quando. Nessun
+        importo qui dentro: mescolare «Magazzino test 3» e «Imp. 20,49 €» nello
+        stesso rigo grigio è ciò che toglieva ogni criterio alla card.
+      -->
+      <div class="corrispettivi-table__card-meta">
+        @if (isVisible('source')) {
+          <span>{{ sourceLabel(row.source) }}</span>
+        }
+        @if (isVisible('location')) {
+          <span>
+            @if (row.locationName) {
+              {{ row.locationName }}
+            } @else {
+              <span class="corrispettivi-table__undetermined">
+                {{ locationUndeterminedLabel }}
+              </span>
+            }
+          </span>
+        }
+        @if (isVisible('customerName') && row.customerName) {
+          <span>{{ row.customerName }}</span>
+        }
+        @if (isVisible('financialStatus') && row.financialStatus) {
+          <span [class]="'corrispettivi-table__payment--' + financialTone(row.financialStatus)">
+            {{ financialLabel(row.financialStatus) }}
+          </span>
+        }
+      </div>
+
+      <!--
+        Fascia 3 — SOLO numeri, e il totale sta QUI, non in cima.
+
+        Imponibile, IVA e totale sono lo stesso discorso: il calcolo e il suo
+        risultato. Tenerli sulla stessa riga, in fondo, li fa leggere insieme —
+        e libera la prima fascia, che torna a dire soltanto «quando, cosa,
+        quale». Il totale resta l'unico in grassetto: si distingue per peso,
+        non per posizione.
+      -->
+      @if (isVisible('taxable') || isVisible('tax') || isVisible('total')) {
+        <div class="corrispettivi-table__card-amounts">
+          @if (isVisible('taxable')) {
+            <span class="tabular-nums">Imp. {{ formatMoney(row.taxable) }}</span>
+          }
+          @if (isVisible('tax')) {
+            <span class="tabular-nums">IVA {{ formatMoney(row.tax) }}</span>
+          }
+          @if (isVisible('total')) {
+            <span
+              class="corrispettivi-table__card-total tabular-nums"
+              [class.corrispettivi-table__card-total--refund]="row.kind === 'refund'"
+            >
+              {{ formatMoney(row.total) }}
+            </span>
+          }
+          <!--
+            ⚠️ **Il posto della freccia c'è sempre, la freccia no.**
+
+            Le righe che non si aprono non hanno chevron, ma se sparisse anche
+            il suo ingombro il totale di quelle card slitterebbe a destra e non
+            si incolonnerebbe con gli altri — in un registro gli importi si
+            leggono confrontandoli in verticale, ed è la ragione per cui la
+            colonna esiste. Resta quindi occupato con `visibility: hidden`, che
+            toglie il segno e conserva lo spazio.
+          -->
+          <i
+            class="pi pi-chevron-right corrispettivi-table__card-caret"
+            [class.corrispettivi-table__card-caret--empty]="!isOpenable(row)"
+            aria-hidden="true"
+          ></i>
+        </div>
+      }
+    </td>
   </tr>
 </ng-template>

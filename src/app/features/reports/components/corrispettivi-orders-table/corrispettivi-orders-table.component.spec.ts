@@ -90,7 +90,9 @@ describe('riga cliccabile del Registro', () => {
     // Nessuna etichetta di apertura: non c'è niente da aprire.
     expect(screen.queryByLabelText(/Apri il corrispettivo manuale/)).toBeNull();
 
-    const cella = screen.getByText('#1009');
+    // `selector: 'td'` mira alla CELLA, non alla card mobile che ripete lo
+    // stesso numero: sotto lg la riga ha due vesti, e i dati sono le colonne.
+    const cella = screen.getByText('#1009', { selector: 'td' });
     const tr = cella.closest('tr')!;
     expect(tr.getAttribute('tabindex')).toBeNull();
 
@@ -107,7 +109,45 @@ describe('riga cliccabile del Registro', () => {
 
     expect(screen.queryByLabelText(/Apri il corrispettivo manuale/)).toBeNull();
 
-    await userEvent.click(screen.getByText('2'));
+    await userEvent.click(screen.getByText('2', { selector: 'td' }));
     expect(aperta).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ Il troncamento a 25 righe è una scelta di VISUALIZZAZIONE su schermo
+   * compatto. In un registro fiscale il rischio è che diventi un troncamento
+   * dei dati: questo test inchioda il confine — su schermo normale non si
+   * tronca niente, e le righe consegnate restano tutte a schermo.
+   */
+  it("su schermo non compatto l'elenco non si tronca mai", async () => {
+    const molte = Array.from({ length: 60 }, (_, i) => ({
+      ...riga(),
+      rowId: `r-${i}`,
+      orderNumber: String(i + 1),
+    }));
+    await montaTabella(molte);
+
+    // Nessun invito ad aprire il resto: non c'è un resto.
+    expect(screen.queryByText(/Mostra le altre/)).toBeNull();
+    // E le righe disegnate sono tutte quelle ricevute.
+    expect(document.querySelectorAll('.corrispettivi-table__row').length).toBe(60);
+  });
+
+  /**
+   * ⚠️ La riga ha DUE vesti — le colonne (desktop) e la cella card (mobile) —
+   * e mostrano gli stessi valori. Senza `aria-hidden` sulla card, un lettore
+   * di schermo annuncerebbe ogni riga due volte: il difetto è invisibile a
+   * chi guarda, e nessun test di layout lo trova.
+   */
+  it('la veste a card non viene annunciata: i dati sono le colonne', async () => {
+    await montaTabella([riga()]);
+
+    const card = document.querySelector('.corrispettivi-table__card');
+    expect(card).not.toBeNull();
+    expect(card!.getAttribute('aria-hidden')).toBe('true');
+
+    // La cella vera NON è aria-hidden: è lei a portare il dato.
+    const cella = screen.getByText('2', { selector: 'td' });
+    expect(cella.getAttribute('aria-hidden')).toBeNull();
   });
 });

@@ -1,6 +1,15 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 
+import { ViewportService } from '@core/services/viewport.service';
 import { formatDate } from '@core/utils/date.util';
 import { formatMoney } from '@core/utils/money.util';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
@@ -106,6 +115,58 @@ export class CorrispettiviOrdersTableComponent {
   /** Vista raggruppata per giornata economica. */
   readonly raggruppaPerGiorno = input(false);
 
+  private readonly viewport = inject(ViewportService);
+
+  /**
+   * Quante righe si mostrano su schermo compatto prima di fermarsi.
+   *
+   * ⚠️ **È un limite di VISUALIZZAZIONE, non di dati.** I totali — riepilogo
+   * del periodo, subtotali di giornata, conteggio righe — arrivano tutti
+   * dall'API e non si ricalcolano da ciò che è a schermo: troncare l'elenco
+   * non può spostarli di un centesimo. È la ragione per cui questo taglio è
+   * ammissibile in un registro fiscale, dove nascondere un dato dal conteggio
+   * sarebbe il difetto peggiore possibile.
+   *
+   * Il motivo del taglio è che il riepilogo sta in FONDO: con un mese di
+   * vendite su un telefono, arrivarci significa scorrere centinaia di card.
+   */
+  private static readonly RIGHE_INIZIALI_COMPATTO = 25;
+
+  private readonly _tutteLeRighe = signal(false);
+
+  /**
+   * L'elenco è troncato? Solo su schermo compatto, solo finché non lo si apre,
+   * e solo se le righe superano davvero la soglia.
+   */
+  protected readonly troncato = computed(
+    () =>
+      this.viewport.compact() &&
+      !this._tutteLeRighe() &&
+      this.rows().length > CorrispettiviOrdersTableComponent.RIGHE_INIZIALI_COMPATTO,
+  );
+
+  /** Quante righe restano fuori: il pulsante le dichiara invece di alludervi. */
+  protected readonly righeNascoste = computed(() =>
+    this.troncato()
+      ? this.rows().length - CorrispettiviOrdersTableComponent.RIGHE_INIZIALI_COMPATTO
+      : 0,
+  );
+
+  /**
+   * Le righe effettivamente disegnate. Su desktop è sempre l'elenco intero: lì
+   * la tabella è densa e scorrere trecento righe costa un gesto, non un
+   * minuto.
+   */
+  protected readonly righeVisibili = computed(() =>
+    this.troncato()
+      ? this.rows().slice(0, CorrispettiviOrdersTableComponent.RIGHE_INIZIALI_COMPATTO)
+      : this.rows(),
+  );
+
+  protected mostraTutte(): void {
+    this._tutteLeRighe.set(true);
+  }
+
   /**
    * Le righe divise per giornata, **senza riordinarle**.
    *
@@ -122,7 +183,10 @@ export class CorrispettiviOrdersTableComponent {
       totali?: CorrispettiviTotaliGiornata;
     }[] = [];
 
-    for (const riga of this.rows()) {
+    // Le righe già troncate: raggruppato o no, a schermo ne compaiono le
+    // stesse. I subtotali di giornata restano quelli dell'API — sono addendi
+    // del totale del periodo, non somme di ciò che si vede.
+    for (const riga of this.righeVisibili()) {
       const giorno = riga.occurredAt.slice(0, 10);
       const ultimo = gruppi.at(-1);
       if (ultimo && ultimo.giorno === giorno) {
