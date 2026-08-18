@@ -183,11 +183,17 @@ né origine né documenti fiscali. Le due che serviranno:
 
 1. **fatturato** — una vendita già fatturata non deve rientrare nei totali dove produrrebbe
    doppio conteggio: va determinata dalla **relazione reale col documento**;
-2. **le vendite negozio VestiFlow** oggi **non entrano affatto** nel Registro — specifica
-   dedicata in **`11-specifica-vendita-al-banco.md`**, che decide il risultato (`Fisico/POS ·
-VestiFlow`) e lascia aperto il meccanismo. Sono `Document`
-   di tipo `store_sale`, non `SalesOrder`, e il Registro aggrega solo i secondi. Il §2 dice che
-   devono esserci.
+2. ⚠️ **CORRETTO il 18/08/2026, misurato.** Qui c’era scritto che le vendite al banco «non
+   entrano affatto» nel Registro e che «il Registro aggrega solo» gli ordini. **Erano vere
+   fino al 16/08 e oggi sono false:** il Registro ha una terza sorgente dedicata che
+   seleziona i `Document` di tipo `store_sale`, usata in tre punti del servizio — elenco,
+   riepilogo e ripartizione per sede.
+
+   Cade con esse anche la biforcazione che questo punto lasciava aperta («decide il
+   risultato e lascia aperto il meccanismo»): la Vendita al banco **è già un `Document`**,
+   creato in transazione con i propri movimenti. Non c’è nessuna scelta fra crearle un
+   ordine e fare del Registro un’unione, e la domanda non va riaperta — vedi
+   **`11-specifica-vendita-al-banco.md`, B1 e A9**.
 
 Entrambe cambiano **cosa il Registro mostra**: sono lavoro proprio, non rifinitura.
 
