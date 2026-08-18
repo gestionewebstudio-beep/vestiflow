@@ -1,8 +1,28 @@
-# Cosa resta da fare — corrispettivi, resi e sincronizzazione Shopify
+# Cosa resta da fare — VestiFlow
 
-**Aggiornato:** 15/08/2026, notte
-**Ramo:** `numerazione-documento-2` (si continua su questo; contiene tutto `develop` + 33 commit — non `main`, che è 205 commit più indietro e gira la produzione)
-**A che serve:** riprendere il lavoro in un'altra sessione **senza ricostruire niente**. Ogni voce dice cosa è già misurato, cosa è deciso e cosa no.
+**Aggiornato:** 18/08/2026
+**A che serve:** riprendere il lavoro in un'altra sessione **senza ricostruire niente**.
+Ogni voce dice cosa è già misurato, cosa è deciso e cosa no.
+
+⚠️ **Questo file era `DA-FARE-CORRISPETTIVI-E-SHOPIFY.md`.** Rinominato il 18/08/2026 su
+indicazione del proprietario: le cose in sospeso non stavano più solo lì dentro — la
+tabulazione delle anagrafiche, le soglie della vista a card, il netto/ivato in cassa non
+hanno niente a che vedere coi corrispettivi, e tenerle sotto quel titolo voleva dire o
+aprire un file per argomento, o scriverle sotto un nome che le nasconde. **Qui dentro sta
+tutto ciò che è in sospeso**, qualunque sia l'area.
+
+**Cosa NON va qui.** Le **specifiche** restano nei loro file numerati (`03` righe
+documento, `04` numerazione, `10` Registro…) e le **regole** in `.claude/rules/`: quelli
+dicono come una cosa deve funzionare, questo dice cosa manca. Quando una voce di qui
+diventa una decisione stabile, si sposta lì e qui resta il rimando.
+
+**Le aree, in ordine di comparsa:** prima sincronizzazione Shopify · sedi · anagrafica
+articolo · difetti aperti · Corrispettivo manuale · **tabulazione da tastiera** (punto 7,
+il lavoro grosso aperto).
+
+⚠️ **Il ramo indicato qui sopra era `numerazione-documento-2` e non lo è più**: al
+18/08/2026 si lavora su `feature/pagamenti-documenti`. Chi riprende verifichi con `git
+branch --show-current` invece di fidarsi di questa riga, che invecchia da sola.
 
 ---
 
@@ -720,15 +740,124 @@ predefinito **propone**, non determina. Un articolo nuovo nasce col predefinito
 **scritto nel campo**; se l'operatore lo svuota resta vuoto e nessuno glielo rimette —
 un articolo senza Codice IVA è legittimo. A campo vuoto **non c'è scritto nulla**.
 
-⚠️ **APERTO, e non diagnosticato**: «ho controllato IVA in ordine fornitore e non va
-bene». Il pannello «Nuovo fornitore» dell'Ordine fornitore monta `supplier-form-fields`,
-quindi ha ereditato il campo nuovo. Durante la verifica è emerso e **è stato corretto** un
-id duplicato (il Codice IVA aveva preso `-vat`, già del campo «P. IVA»), ma **non è
-confermato che fosse quello il difetto visto**. Serve uno screenshot prima di toccare
-altro: le ipotesi aperte sono l'aspetto del campo dentro il riquadro del pannello, e il
-Codice IVA delle **righe** dell'ordine (non toccato, ma che condivide le opzioni).
+#### «IVA in ordine fornitore non va bene» — misurato il 18/08/2026
+
+La domanda posta dal proprietario era la sola che contasse: **è cambiato qualcosa, o già
+prima non funzionava?** In Ordine cliente lo stesso campo sembrava a posto.
+
+**Risposta: non è cambiato niente il 18/08.** I due commit di quel giorno hanno toccato il
+componente cella (in modo additivo), la scheda articolo e la scheda fornitore — **nessuna
+delle due maschere d'ordine**. Il `git blame` sulle celle IVA di riga dice `11/08/2026` per
+entrambe (`57ad10c4`, `1ee64a50`, `b5a292c4`), e la voce vuota del fornitore risale al
+`18/07/2026`.
+
+**La divergenza però era reale.** Confrontando **quattro** maschere e non due, l'Ordine
+fornitore risultava l'unico fuori riga:
+
+|                                       | Ordine cliente    | Arrivo merce      | Corrisp. manuale | **Ordine fornitore**   |
+| ------------------------------------- | ----------------- | ----------------- | ---------------- | ---------------------- |
+| voce vuota `—` in cima all'elenco IVA | no                | no                | no               | **sì**                 |
+| `[value]` legato a                    | `lineVatValue(i)` | `lineVatValue(i)` | —                | **il control diretto** |
+
+**✅ CORRETTO — la voce vuota.** `vatCodeOptionsBase` anteponeva `{ value: '', label: '—' }`
+alle opzioni: eredità di quando la colonna era un `select-menu`, dove una tendina senza
+scelta è normale. Sulla cella a ricerca-e-selezione quella voce è la **prima evidenziata**:
+aprire e battere Invio senza guardare azzerava il Codice IVA della riga, e il salvataggio
+poi la rifiutava. È il vicolo cieco che `document-line-select-cell` descrive da sé su
+`includeEmptyOption`. Guardia: `l'elenco del Codice IVA di riga non offre la voce vuota`,
+**provata rossa** rimettendo il codice di prima.
+
+⚠️ **DUE ERRORI DI ANALISI, registrati perché non si rincorrano di nuovo.**
+
+1. **«`onLineVatSelect` non chiama `markFormDirty()`, quindi la modifica si perde» — FALSO.**
+   Il gestore davvero non lo chiama mentre i suoi fratelli di riga sì, e `dirtySinceLastSave`
+   davvero si accende solo dentro `markFormDirty`. Ma **una delle chiamate a `markFormDirty`
+   è una sottoscrizione unica su `form.valueChanges`** (costruttore, dal 19/07/2026), e il
+   `setValue` di quel gestore emette: la protezione c'era già. L'errore è stato cercare chi
+   **scrive** la variabile senza mai elencare chi **chiama** la funzione che la scrive.
+2. **La guardia di sola lettura aggiunta al gestore contraddiceva una scelta dichiarata**:
+   due righe sotto quella sottoscrizione il codice dice «Sola lettura = form disabilitato.
+   Un solo punto invece di una guardia in ogni gestore». Entrambe le modifiche sono state
+   **ritirate**.
+
+⚠️ **E la correzione dell'id duplicato del 18/08 quasi certamente non c'entra.** Stava nel
+pannello «Nuovo fornitore»; ma il pannello «Nuovo cliente» dell'Ordine cliente **non ha
+affatto un campo Codice IVA** — è stato verificato. Un confronto «cliente contro fornitore»
+può quindi riguardare solo le **righe**, non i pannelli.
+
+**Resta aperto**: se dopo questa correzione l'operatore vede ancora qualcosa che non va,
+serve uno screenshot. La divergenza `[value]` della tabella qui sopra è **una fragilità, non
+un guasto misurato** — altri binding dello stesso template leggono `formValue()`, quindi il
+giro di rilevamento parte lo stesso — e va allineata col lavoro grosso, non di straforo.
+
+#### La tabulazione dell’anagrafica — primo passo fatto il 18/08/2026
+
+Indicazione del proprietario: _«in anagrafica possiamo iniziare a proporre questo
+comportamento di tabulazione provvisorio che abbiamo già per le righe, poi la progettiamo e
+definiamo e mettiamo nei documenti»_. Quindi **primo passo, non il lavoro**.
+
+⚠️ **Due difetti misurati, non ipotizzati** — con una prova usa-e-getta sulla scheda
+articolo, poi cancellata:
+
+1. **Sedici icone informative erano fermate del Tab**, e portavano insieme `tabindex="0"` e
+   `aria-hidden="true"`. Le due cose si contraddicono: l’elemento riceve il fuoco ma è
+   tolto dall’albero accessibile — ed è la coppia che fa comparire l’avviso in console
+   quando il fuoco ci finisce dentro. Misurato: uscendo col Tab dal Codice IVA il fuoco
+   andava su un `<i>`, non sul campo dopo.
+2. **Il Tab entrava nell’elenco aperto e poi perdeva il fuoco.** Causa nel pannello
+   condiviso dei suggerimenti — dettaglio in `03-specifica…` §4.3. Misurato: digitando `1`
+   e premendo Tab il valore si risolveva in `10` (giusto) e poi il fuoco finiva sul
+   `<body>` (da nessuna parte).
+
+**Correzioni**: `tabindex="-1"` in entrambi i casi.
+
+⚠️ **Perché `-1` e non togliere l’attributo**, che sembrerebbe più pulito: il tooltip si
+apre anche col **fuoco**, e su schermo touch quello è l’**unico** modo — la regola CSS è
+`@media (hover: none) { .hover-tooltip:focus-within … }`. Togliendo del tutto il
+`tabindex` il suggerimento diventerebbe irraggiungibile da tablet. Con `-1` l’icona esce
+dal giro del Tab (che su tablet non esiste, come ha fatto notare il proprietario) ma resta
+raggiungibile col tocco.
+
+**Misura dopo**: Tab dal Codice IVA → il controllo successivo; digita e Tab → valore
+risolto **e** fuoco sul campo dopo. Sedici fermate in tutto nella scheda.
+
+**Cosa NON è stato fatto, ed è il lavoro vero**: la tabulazione della scheda non è
+progettata — l’ordine è quello del DOM, nessuno l’ha deciso. Restano fuori anche fornitore,
+cliente e Impostazioni. E resta aperta la domanda del §4.3 su cosa il Tab debba portarsi
+dietro quando l’elenco è aperto ma l’operatore non ha scelto niente.
 
 **Non fatto, e volutamente**: il rinominare la cella. Si chiama ancora
 `document-line-select-cell` mentre ora vive anche in due anagrafiche — è l'anti-pattern
 che `regole-architettura` nomina («i nomi dichiarano l'appartenenza»). Tocca 18 istanze e
 va fatto col lavoro grosso, non di straforo. **Debito dichiarato.**
+
+---
+
+### 8. ⭐ Vista tablet / vista PC nelle Impostazioni — deciso, da costruire
+
+> **Le due soglie automatiche e la scelta manuale si progettano INSIEME, non una dopo
+> l'altra.** _(deciso dal proprietario il 18/08/2026)_
+
+La decisione di base è in `regole-stile-ui` §9, presa l’11/08: la vista a card di un
+documento non dipende dalla larghezza ma dal **tipo di puntatore** — col mouse le card
+sotto 820px, col dito sotto 1400px — **più una scelta manuale** che il dispositivo si
+ricorda, per «il monitor touch grande, chi sul portatile preferisce le card».
+
+⚠️ **Quello che si è aggiunto il 18/08: i numeri non sono un dato acquisito.** I 1400px
+del dito sono tarati per non sbagliare **mai** su un tablet, perché oggi la soglia è
+l’unico rimedio: deve coprire anche il caso più largo, e per farlo manda alle card anche
+schermi dove la tabella starebbe benissimo. Con la valvola manuale quel compito cambia —
+la soglia deve essere giusta per la **maggioranza**, non per tutti, e le eccezioni le
+prende l’impostazione. Una soglia prudente senza valvola è cautela; **la stessa soglia con
+la valvola è un default che sbaglia più spesso del necessario**, e ogni volta costa
+all’operatore un giro nelle Impostazioni.
+
+**Vincoli di esecuzione già scritti** (`regole-stile-ui` §9, da rileggere prima di
+toccare): le due condizioni si scrivono **una volta sola** in un mixin di
+`styles/_breakpoints.scss`; si muovono **entrambe le direzioni insieme** (~14 fogli), o
+nella fascia di mezzo si accendono **tutte e due le viste**; si muove **tutta la vista
+documento**, non le sole righe; la **sidebar resta sulla larghezza**.
+
+**Collegato, e da non dimenticare**: su tablet **il Tab non esiste**. Tutto il lavoro sulla
+tabulazione (punto 7) vale per chi ha una tastiera; la vista del dito deve reggersi sul
+tocco, e le due cose non si sostituiscono a vicenda.

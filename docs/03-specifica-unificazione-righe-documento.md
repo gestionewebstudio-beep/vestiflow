@@ -231,6 +231,37 @@ Funzionamento (uguale a vista per IVA e U.M.):
 - **U.M.** → testo libero **ammesso** (insieme aperto: pz, conf, paio, mazzo…). La tabella suggerisce, non obbliga. Vedi §4.3-ter.
 - **IVA** → testo libero **non ammesso**: un valore inventato non ha aliquota/natura, non è calcolabile né confermabile. Insieme chiuso, normato.
 
+#### Le voci dell’elenco NON sono fermate del Tab _(misurato e corretto il 18/08/2026)_
+
+> **Il Tab sposta di CELLA. Dentro un elenco ci si muove con le FRECCE.** Sono due
+> gesti con due mestieri diversi, e nessuno dei due fa il lavoro dell’altro.
+
+Detto dal proprietario del progetto e già implicito in §4.1 e §4.3, ma **non era vero nel
+codice**: nel pannello condiviso dei suggerimenti ogni voce portava `tabindex="0"`, quindi
+ogni voce era una fermata del Tab. Il pannello è quello di **tutte** le celle di riga —
+codice, nome prodotto, IVA, U.M.
+
+**Il danno non era solo l’ordine di attraversamento.** Con l’elenco aperto, il Tab entrava
+sulla prima voce; lo sfocamento dell’input chiudeva il pannello; la voce appena raggiunta
+spariva dal DOM e **il fuoco finiva sul `<body>`** — cioè da nessuna parte. Misurato sulla
+scheda articolo: si digita `1`, si preme Tab, il valore si risolve in `10` correttamente e
+poi non si è più in nessun campo. Da lì si riparte solo col mouse, che è esattamente ciò che
+il punto «si compila da tastiera dall’inizio alla fine» vuole evitare.
+
+`tabindex="-1"` sulle voci. Il fuoco resta sull’**input**: le frecce muovono
+l'evidenziazione, Invio sceglie, Tab cambia campo. È il modello ARIA della listbox, ed è
+quello che la macchina dei tasti (`classifyLineCellKey`) già faceva — il `tabindex` la
+scavalcava dall’HTML.
+
+⚠️ **Resta una domanda aperta, e va decisa prima di considerare chiuso il §4.3:** con
+l'elenco aperto, il Tab **prende la voce evidenziata**. Se l'operatore ha digitato, è
+giusto — è «Tab risolve quello che si è digitato», ed è registrato. Ma se ha solo **aperto**
+l'elenco col chevron senza scegliere, l'evidenziata è la prima per default, e il Tab le
+scrive un valore che nessuno ha scelto. Misurato il 18/08: su una cella IVA vuota, aperta col
+chevron, Tab scrive il primo codice della lista. **Non è stato corretto**: distinguere «ha
+digitato» da «ha solo aperto» è una decisione di comportamento, non un dettaglio, e va presa
+col lavoro di progettazione della tabulazione, non di straforo.
+
 Frecce ←/→ su queste celle: **cambiano cella al primo colpo, senza il secondo tempo** del §4.2 (su una cella a selezione il cursore di scrittura non ha senso — per l'IVA; per l'U.M. il testo libero c'è ma la navigazione tra celle resta prioritaria). Da scrivere esplicitamente: è il tipo di regola che chi implementa altrimenti inventa.
 
 ### 4.3-bis Blocco `app-select-menu`: sostituzione locale, preceduta da estrazione

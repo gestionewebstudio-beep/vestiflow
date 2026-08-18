@@ -560,7 +560,7 @@ una sede mostrerebbe un totale più basso del vero, che in un registro fiscale �
 peggiore possibile. **Senza filtro Location restano normalmente nel Registro e nei totali.**
 
 **Fuori da questo lavoro**: rendere affidabile la location Shopify. Non si tocca la sync qui —
-è tracciato come lacuna del blocco sincronizzazione (`02` e `DA-FARE-CORRISPETTIVI-E-SHOPIFY`).
+è tracciato come lacuna del blocco sincronizzazione (`02` e `DA-FARE`).
 
 ⚠️ **Stampa ed export non scrivono nulla**: nessuno stato, nessun «inviato al commercialista»,
 ripetibili quante volte si vuole. È la stessa decisione del §5, e non si riapre.

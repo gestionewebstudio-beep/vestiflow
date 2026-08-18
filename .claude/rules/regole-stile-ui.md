@@ -1013,6 +1013,23 @@ soglia prende — il monitor touch grande, chi sul portatile preferisce le card.
 Il predefinito deve restare giusto per il dispositivo: un comando manuale rimedia
 alle eccezioni, non a un default che sbaglia di sistema.
 
+⚠️ **Le due soglie vanno RIVISTE quando la scelta manuale esiste** _(deciso dal
+proprietario il 18/08/2026)_, e la ragione è che le due decisioni si sono prese in
+ordine inverso.
+
+I 1400px del dito sono tarati per **non sbagliare mai** su un tablet: la soglia è
+l'unico rimedio, quindi deve coprire anche il caso più largo, e per farlo manda alle
+card anche schermi dove la tabella starebbe benissimo. **Con una valvola manuale quel
+compito cambia**: la soglia non deve più essere l’unica risposta giusta per tutti, deve
+essere quella giusta per **la maggioranza**, e le eccezioni le prende l’impostazione.
+
+Una soglia prudente senza valvola è cautela; **la stessa soglia con la valvola è un
+default che sbaglia più spesso del necessario**, e ogni volta costa all’operatore un giro
+nelle Impostazioni.
+
+**Quindi le due cose si progettano insieme, non una dopo l’altra**, e i numeri qui sopra
+restano da confermare — non sono un dato acquisito.
+
 **Vincoli per chi esegue:**
 
 - le due condizioni si scrivono **una volta sola**, in un mixin di
