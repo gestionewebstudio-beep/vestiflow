@@ -5,7 +5,7 @@
   fuoco: `tabindex="-1"` lo tiene fuori dal giro delle colonne, il
   `mousedown` trattenuto evita che il click spenga il campo.
 -->
-<div class="doc-select-cell">
+<div class="doc-select-cell" [class.doc-select-cell--boxed]="boxed()">
   <input
     class="doc-select-cell__input"
     appFirstClickSelects
@@ -19,7 +19,7 @@
     [attr.aria-controls]="listboxId()"
     autocomplete="off"
     (input)="onInput($any($event.target).value)"
-    (focus)="onFocus()"
+    (focus)="onFocus($event)"
     (blur)="onBlur()"
     (keydown)="onKeydown($event)"
   />

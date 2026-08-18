@@ -238,3 +238,94 @@ describe('DocumentLineSelectCellComponent', () => {
     expect(manageRequested).toHaveBeenCalled();
   });
 });
+
+/**
+ * ⚠️ Le tre aggiunte del 18/08/2026 che portano la cella fuori dalle righe —
+ * nella scheda articolo e nella scheda fornitore. Sono qui perché **tutte e
+ * tre sono nate da un difetto visto a schermo**, non da un requisito: la voce
+ * vuota che ripeteva il segnaposto, il campo che mostrava quell'etichetta come
+ * se fosse un valore, e la cella senza bordo accanto a campi che il bordo ce
+ * l'hanno.
+ */
+describe('la cella fuori da una riga', () => {
+  it('la voce vuota sta in cima e dice cosa significa il vuoto', async () => {
+    const user = userEvent.setup();
+    await render(DocumentLineSelectCellComponent, {
+      inputs: {
+        inputId: 'vat',
+        ariaLabel: 'Codice IVA',
+        options: IVA,
+        value: 'id-22',
+        includeEmptyOption: true,
+        emptyOptionLabel: 'Predefinito aziendale',
+        inColumnCycle: false,
+      },
+    });
+
+    await user.click(screen.getByRole('button', { name: /apri|elenco/i }));
+
+    const voci = screen.getAllByRole('option').map((el) => el.textContent?.trim() ?? '');
+    // In cima, e con parole sue: ripetere il segnaposto («22%») metteva
+    // all'inizio una voce indistinguibile dall'aliquota vera due righe sotto.
+    expect(voci[0]).toContain('Predefinito aziendale');
+  });
+
+  it('a valore vuoto il campo resta VUOTO, così si vede il segnaposto', async () => {
+    await render(DocumentLineSelectCellComponent, {
+      inputs: {
+        inputId: 'vat',
+        ariaLabel: 'Codice IVA',
+        options: IVA,
+        value: '',
+        placeholder: '22%',
+        includeEmptyOption: true,
+        emptyOptionLabel: 'Predefinito aziendale',
+        inColumnCycle: false,
+      },
+    });
+
+    const campo = screen.getByLabelText<HTMLInputElement>('Codice IVA');
+    // Scrivendoci l'etichetta della voce vuota, il campo mostrava un testo nero
+    // che sembrava una scelta fatta — mentre nessuna scelta è stata fatta.
+    expect(campo.value).toBe('');
+    expect(campo.placeholder).toBe('22%');
+  });
+
+  it('con `boxed` la cella si veste da campo', async () => {
+    await render(DocumentLineSelectCellComponent, {
+      inputs: {
+        inputId: 'vat',
+        ariaLabel: 'Codice IVA',
+        options: IVA,
+        value: 'id-22',
+        boxed: true,
+        inColumnCycle: false,
+      },
+    });
+
+    expect(document.querySelector('.doc-select-cell--boxed')).not.toBeNull();
+  });
+
+  it('senza lineIndex la cella funziona lo stesso: fuori da una riga non c e', async () => {
+    const user = userEvent.setup();
+    const valueChange = vi.fn();
+    await render(DocumentLineSelectCellComponent, {
+      inputs: {
+        inputId: 'vat',
+        ariaLabel: 'Codice IVA',
+        options: IVA,
+        value: '',
+        inColumnCycle: false,
+      },
+      on: { valueChange },
+    });
+
+    const campo = screen.getByLabelText<HTMLInputElement>('Codice IVA');
+    campo.focus();
+    await user.keyboard('1{Enter}');
+
+    // Digitando «1» la prima voce è quella che COMINCIA per 1, non una che lo
+    // contiene da qualche parte: è il filtro per prefisso del codice.
+    expect(valueChange).toHaveBeenCalledWith('id-10');
+  });
+});

@@ -83,7 +83,18 @@ import type { DocumentLineSuggestionItem } from '../document-line-suggestions/do
   styleUrl: './document-line-select-cell.component.scss',
 })
 export class DocumentLineSelectCellComponent {
-  readonly lineIndex = input.required<number>();
+  /**
+   * L'indice della riga che ospita la cella, e che ogni uscita riporta indietro
+   * perché la maschera sappia da dove viene.
+   *
+   * ⚠️ **Facoltativo dal 18/08/2026**, con `0` come valore di comodo: fuori da
+   * una tabella — la scheda articolo — una riga non c'è, e obbligarlo
+   * costringeva a passare un numero inventato. Non cambia niente per le sedici
+   * istanze che stanno in una riga: lo passano come prima. Chi non lo passa sta
+   * fuori da una griglia, e insieme all'indice non usa nemmeno le uscite che lo
+   * riportano.
+   */
+  readonly lineIndex = input(0);
   /** Id dell'`<input>`: è così che il giro del fuoco raggiunge questa cella. */
   readonly inputId = input('');
   readonly ariaLabel = input.required<string>();
@@ -115,6 +126,48 @@ export class DocumentLineSelectCellComponent {
    * (specifica §1, §4.10).
    */
   readonly inColumnCycle = input(true);
+
+  /**
+   * All'ingresso il valore si evidenzia, pronto da sovrascrivere.
+   *
+   * ⚠️ **Dentro una riga documento resta `false`, e non è una svista**: lì
+   * l'evidenziazione la dà `DocumentLineFocusStore` da fuori, perché il fuoco
+   * fra le celle è governato da un punto unico e due mani sullo stesso gesto si
+   * pestano i piedi. Fuori da una riga quel punto unico non esiste — nella
+   * scheda articolo il Tab è del browser — e senza questo la cella si
+   * raggiungerebbe col Tab ma il valore resterebbe lì da cancellare a mano.
+   */
+  readonly selectOnFocus = input(false);
+
+  /**
+   * Una voce vuota in cima all'elenco, per tornare a «nessuna scelta».
+   *
+   * Serve dove il campo è **facoltativo** e il vuoto ha un significato suo — in
+   * anagrafica «Predefinito aziendale», cioè «non decido qui». Nelle righe
+   * documento non c'è: una riga senza Codice IVA non si salva, quindi offrire
+   * il vuoto sarebbe offrire un vicolo cieco.
+   */
+  readonly includeEmptyOption = input(false);
+  /**
+   * Testo della voce vuota **nell'elenco**.
+   *
+   * ⚠️ Deve dire cosa SIGNIFICA il vuoto, non ripetere il segnaposto: in
+   * anagrafica il segnaposto è l'aliquota predefinita («22%»), e usarlo qui
+   * metteva in cima all'elenco una voce «22%» indistinguibile dall'aliquota
+   * vera due righe sotto. Si scrive «Predefinito aziendale», che è la scelta
+   * che si sta facendo.
+   */
+  readonly emptyOptionLabel = input('Nessuna scelta');
+
+  /**
+   * La cella si veste da campo: bordo, sfondo, altezza di un controllo.
+   *
+   * Dentro una riga documento resta `false` — lì il riquadro lo dà la cella
+   * della tabella, e un bordo proprio sarebbe una doppia parete. Serve dove la
+   * cella sta in una **scheda**, accanto a campi che il bordo ce l'hanno: senza,
+   * il campo non sembra nemmeno compilabile.
+   */
+  readonly boxed = input(false);
 
   readonly valueChange = output<string>();
   readonly focused = output<number>();
@@ -155,9 +208,22 @@ export class DocumentLineSelectCellComponent {
     });
   }
 
+  /**
+   * L'elenco su cui si lavora: le voci ricevute, precedute — dove il campo è
+   * facoltativo — dalla voce vuota. Sta in cima perché «togliere la scelta» è
+   * un ritorno all'inizio, non una voce in mezzo alle altre.
+   */
+  private readonly allOptions = computed<readonly SelectMenuOption[]>(() => {
+    if (!this.includeEmptyOption()) {
+      return this.options();
+    }
+    const label = this.emptyOptionLabel() || this.placeholder();
+    return [{ value: '', label, detail: '' }, ...this.options()];
+  });
+
   /** Le voci che sopravvivono a ciò che si è digitato (§4.3: prima il codice). */
   protected readonly filtered = computed(() =>
-    this.editing() ? filterLineSelectOptions(this.options(), this.text()) : this.options(),
+    this.editing() ? filterLineSelectOptions(this.allOptions(), this.text()) : this.allOptions(),
   );
 
   protected readonly items = computed<readonly DocumentLineSuggestionItem[]>(() =>
@@ -188,8 +254,17 @@ export class DocumentLineSelectCellComponent {
     this.open.set(true);
   }
 
-  protected onFocus(): void {
+  protected onFocus(event: FocusEvent): void {
     this.focused.emit(this.lineIndex());
+    if (!this.selectOnFocus()) {
+      return;
+    }
+    // Fuori da una riga non c'è il punto unico del fuoco a farlo: se lo si
+    // omette, arrivando col Tab il valore resta da cancellare a mano.
+    const target = event.target;
+    if (target instanceof HTMLInputElement) {
+      target.select();
+    }
   }
 
   /**
@@ -336,7 +411,7 @@ export class DocumentLineSelectCellComponent {
       }
     }
     const digitato = this.text().trim();
-    const esatta = this.options().find(
+    const esatta = this.allOptions().find(
       (option) => option.label.toLocaleLowerCase('it-IT') === digitato.toLocaleLowerCase('it-IT'),
     );
     if (esatta) {
@@ -367,7 +442,7 @@ export class DocumentLineSelectCellComponent {
   }
 
   private indexOfValue(): number {
-    return this.options().findIndex((option) => option.value === this.value());
+    return this.allOptions().findIndex((option) => option.value === this.value());
   }
 
   /**
@@ -376,7 +451,13 @@ export class DocumentLineSelectCellComponent {
    * sarebbe peggio del vuoto.
    */
   private labelOf(value: string): string {
-    const option = this.options().find((entry) => entry.value === value);
+    // ⚠️ Il vuoto lascia il campo VUOTO, così si vede il segnaposto in grigio.
+    // Scrivendoci l'etichetta della voce vuota, il campo mostrerebbe un testo
+    // nero che sembra un valore scelto — mentre nessuna scelta è stata fatta.
+    if (!value) {
+      return '';
+    }
+    const option = this.allOptions().find((entry) => entry.value === value);
     if (option) {
       return option.label;
     }
