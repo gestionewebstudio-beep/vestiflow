@@ -653,3 +653,82 @@ Pattern nuovi da riusare, documentati in `regole-stile-ui.md` §5 durante lo ste
 (barre filtri dense, modalità `select-menu`, variante `flat` di `segmented`, riepilogo di fondo
 pagina, riga di subtotale in tabella): utili anche per gli altri riepiloghi/elenchi da
 sistemare dopo, non solo per la sidebar.
+
+### 7. ⭐ L'inserimento da TASTIERA nelle anagrafiche — deciso il 18/08/2026, da fare
+
+> **In un gestionale una scheda si compila da tastiera, dall'inizio alla fine. Se un solo
+> campo costringe al mouse, l'operatore ha perso il ritmo su tutti gli altri.**
+
+**Come è emerso.** Cercando perché il Codice IVA si comportasse in due modi. La risposta è
+che il problema non è il campo IVA: **nelle anagrafiche la tabulazione non è mai stata
+progettata**. L'IVA è solo il punto in cui si è visto.
+
+⚠️ **Il criterio con cui questo lavoro va giudicato è di prodotto, non di codice.** La prima
+proposta fatta in sessione — «rendere la cella indipendente dalla riga», «togliere un input
+obbligatorio» — è stata respinta dal proprietario del progetto con la motivazione giusta:
+_«le soluzioni non devono essere solo risolutive, ma coerenti col gestionale, non solo
+semplificare il processo di codice»_. Vale per chiunque riprenda questo punto.
+
+**Il requisito**, detto una volta:
+
+- lo stesso dato si sceglie **nello stesso modo** in ogni schermata — riga documento o scheda;
+- il giro del Tab **arriva a ogni campo e riparte**, nell'ordine logico della maschera;
+- si digita per cercare, l'elenco filtra **per prefisso del codice**, Invio conferma e resta.
+
+**Perimetro da verificare** (non solo l'articolo): scheda articolo, fornitore, cliente,
+Impostazioni. Per ognuna: ordine del Tab nel DOM, campi che lo interrompono, controlli che
+non si operano da tastiera.
+
+**Cosa NON basta**, e va detto perché è la tentazione: sistemare il solo campo IVA. Sposta il
+problema invece di chiuderlo — gli altri diciannove campi della scheda restano come sono.
+
+**Misure già in mano** (18/08, due indagini):
+
+- `app-select-menu` è un `<button>`: il Tab ci arriva, ma poi non si digita. L'unico
+  `keydown` di tutto il componente è Escape — niente frecce, niente type-ahead. **È più
+  povero di un `<select>` nativo**, e le linee guida ARIA per `role="listbox"` chiedono
+  entrambe le cose. Vale per tutte le sue istanze, non solo l'IVA.
+- Le istanze sono **186** (erano 179 il 17/08: sette in più in due giorni), e sono **due
+  popolazioni**: ~97 filtri e barre strumenti, dove il trigger a bottone è la scelta
+  **giusta**, e ~89 campi di form, dove sta il difetto. Il numero che ha bloccato la
+  decisione due volte contava le prime insieme ai secondi.
+- La cella di riga **non è specifica delle righe**: su 16 istanze solo 7 stanno nel giro
+  delle colonne.
+- ⚠️ `select-menu` ha 23 input, 186 istanze e **nessuno spec**. Qualunque modifica al suo
+  comportamento di tastiera oggi non ha nulla che la fermi: la rete va messa prima.
+- ⚠️ La destinazione **non** è `shared/`: ESLint vieta a `shared/**` di importare `@domain/*`,
+  e si trascinerebbe dietro un grappolo di 34 file. I punti di chiamata stanno in `domain/`,
+  e `domain → domain` è consentito.
+- **Riferimento esterno utile** (dal proprietario): Danea tiene **due** comportamenti — nella
+  scheda articolo un elenco con type-ahead, nelle righe una cella che si digita. Quindi due
+  comportamenti non sono di per sé un difetto; VestiFlow però ha scelto di **unificarli sul
+  modello delle righe**, che è più coerente.
+
+#### Stato al 18/08/2026 sera — cosa è già fatto del punto 7
+
+Due commit sul ramo, albero verde (build, lint con 9 guardie, 504 test di componente):
+
+- `d8da0d3f` — la cella `document-line-select-cell` esce dalle righe: `lineIndex`
+  facoltativo, più `selectOnFocus`, `includeEmptyOption`/`emptyOptionLabel` e `boxed`.
+  Tutte additive: le sedici istanze dentro una riga non cambiano.
+- `965ca4c1` — scheda **articolo** e scheda **fornitore** usano quella cella per il
+  Codice IVA. Opzioni da `vatCodeSelectOption` (label = codice), che è la condizione
+  perché il filtro per prefisso funzioni.
+
+**Decisione di dominio registrata** (proprietario del progetto): il Codice IVA
+predefinito **propone**, non determina. Un articolo nuovo nasce col predefinito
+**scritto nel campo**; se l'operatore lo svuota resta vuoto e nessuno glielo rimette —
+un articolo senza Codice IVA è legittimo. A campo vuoto **non c'è scritto nulla**.
+
+⚠️ **APERTO, e non diagnosticato**: «ho controllato IVA in ordine fornitore e non va
+bene». Il pannello «Nuovo fornitore» dell'Ordine fornitore monta `supplier-form-fields`,
+quindi ha ereditato il campo nuovo. Durante la verifica è emerso e **è stato corretto** un
+id duplicato (il Codice IVA aveva preso `-vat`, già del campo «P. IVA»), ma **non è
+confermato che fosse quello il difetto visto**. Serve uno screenshot prima di toccare
+altro: le ipotesi aperte sono l'aspetto del campo dentro il riquadro del pannello, e il
+Codice IVA delle **righe** dell'ordine (non toccato, ma che condivide le opzioni).
+
+**Non fatto, e volutamente**: il rinominare la cella. Si chiama ancora
+`document-line-select-cell` mentre ora vive anche in due anagrafiche — è l'anti-pattern
+che `regole-architettura` nomina («i nomi dichiarano l'appartenenza»). Tocca 18 istanze e
+va fatto col lavoro grosso, non di straforo. **Debito dichiarato.**
