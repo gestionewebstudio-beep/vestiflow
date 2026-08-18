@@ -2,7 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { ReactiveFormsModule } from '@angular/forms';
 
 import type { PaymentOption } from '@core/models/payment-option.model';
-import { isPurchaseVatCode, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { isPurchaseVatCode, type VatCode } from '@core/models/vat-code.model';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
+import { vatCodeSelectOption } from '@domain/documents/utils/document-vat-options.util';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 
@@ -11,7 +13,7 @@ import type { SupplierFormGroup } from '@domain/suppliers/utils/supplier-form.ut
 @Component({
   selector: 'app-supplier-form-fields',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, SelectMenuComponent],
+  imports: [ReactiveFormsModule, DocumentLineSelectCellComponent, SelectMenuComponent],
   templateUrl: './supplier-form-fields.component.html',
   styleUrl: './supplier-form-fields.component.scss',
 })
@@ -26,11 +28,19 @@ export class SupplierFormFieldsComponent {
   /** Voci pagamento del tenant (dal parent smart): modalità e condizioni. */
   readonly paymentOptions = input<readonly PaymentOption[]>([]);
 
+  /**
+   * ⚠️ **Le stesse opzioni delle righe documento** (18/08/2026), da
+   * `vatCodeSelectOption`: `label` è **il codice**, `detail` la spiegazione.
+   *
+   * Prima l'etichetta era la specifica intera, e su quella il filtro per
+   * prefisso del codice non può funzionare — qui poi non c'era nemmeno un
+   * filtro, perché il campo non aveva la ricerca: si scorreva l'elenco e basta.
+   */
   protected readonly vatSelectOptions = computed((): readonly SelectMenuOption[] => {
     const currentId = this.formGroup().controls.defaultVatCodeId.value;
     return this.vatCodes()
       .filter((entry) => isPurchaseVatCode(entry) && (entry.isActive || entry.id === currentId))
-      .map((entry) => ({ value: entry.id, label: vatCodeOptionLabel(entry) }));
+      .map((entry) => vatCodeSelectOption(entry));
   });
 
   protected readonly paymentMethodOptions = computed((): readonly SelectMenuOption[] =>

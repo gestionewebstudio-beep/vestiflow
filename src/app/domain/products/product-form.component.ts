@@ -14,6 +14,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
   debounceTime,
+  filter,
   distinctUntilChanged,
   forkJoin,
   map,
@@ -407,6 +408,42 @@ export class ProductFormComponent implements CanComponentDeactivate {
           }
         },
         error: () => undefined,
+      });
+
+    /*
+      ⚠️ **Il Codice IVA di un articolo NUOVO nasce col predefinito aziendale**
+      (18/08/2026) — come valore vero, che si vede scritto nel campo.
+
+      Il predefinito **propone**, non determina: se l'operatore lo svuota,
+      l'articolo resta senza Codice IVA e nessuno glielo rimette. Un articolo
+      senza IVA è legittimo, e questa è la ragione per cui la proposta si fa
+      **una volta sola** — `take(1)` più la guardia sul campo già compilato —
+      invece che con un effetto che sorveglia il campo e lo ripristinerebbe a
+      ogni svuotamento.
+
+      Solo in creazione: in modifica il valore è quello dell'articolo, anche
+      quando è vuoto perché così è stato salvato.
+
+      `pristine` si allinea insieme al draft: la proposta non è una modifica
+      dell'operatore, e se restasse fuori un articolo appena aperto risulterebbe
+      «da salvare» senza che nessuno abbia toccato niente.
+    */
+    toObservable(this.tenantDefaultVatCodeId)
+      .pipe(
+        filter((id): id is string => Boolean(id)),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((predefinito) => {
+        if (this.productId() || this.draft().general.defaultVatCodeId) {
+          return;
+        }
+        const conIva: ProductFormDraft = {
+          ...this.draft(),
+          general: { ...this.draft().general, defaultVatCodeId: predefinito },
+        };
+        this.draft.set(conIva);
+        this.pristine.set(this.serialize(conIva));
       });
   }
 

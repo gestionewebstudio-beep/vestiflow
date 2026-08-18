@@ -222,15 +222,37 @@
               <i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
             </app-hover-tooltip>
           </span>
-          <app-select-menu
+          <!--
+            ⚠️ **Lo stesso campo delle righe documento** (18/08/2026).
+
+            Era `app-select-menu`: il Tab ci arrivava ma poi non si poteva
+            digitare — il trigger è un `<button>` — e per scegliere si apriva il
+            pannello e si cercava lì dentro, con un filtro che cerca ovunque nel
+            testo invece che sul codice. In un gestionale una scheda si compila
+            da tastiera dall'inizio alla fine: un solo campo che costringe al
+            mouse fa perdere il ritmo su tutti gli altri.
+
+            Ora si comporta come nelle righe, e come Danea: si arriva col Tab,
+            il valore è evidenziato, si digita `1` e l'elenco filtra sui codici
+            che cominciano per 1, Invio conferma e si resta, Tab va al campo
+            dopo.
+
+            `inColumnCycle` è `false` perché qui le colonne non ci sono: il Tab
+            resta al browser, che è ciò che serve in una scheda. `selectOnFocus`
+            è `true` perché fuori da una riga non c'è il punto unico del fuoco a
+            evidenziare il valore.
+          -->
+          <app-document-line-select-cell
+            inputId="product-vat"
+            ariaLabel="Codice IVA del prodotto"
             [options]="vatSelectOptions()"
             [value]="vatSelectValue()"
-            ariaLabel="Codice IVA del prodotto"
-            [placeholder]="vatPlaceholder()"
-            [compact]="true"
-            [fitContent]="true"
+            [placeholder]="vatPlaceholder"
             [includeEmptyOption]="true"
-            [searchable]="true"
+            emptyOptionLabel="Nessuno"
+            [boxed]="true"
+            [inColumnCycle]="false"
+            [selectOnFocus]="true"
             (valueChange)="onVatSelect($event)"
           />
         </div>

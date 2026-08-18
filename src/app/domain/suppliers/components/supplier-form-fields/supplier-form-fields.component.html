@@ -219,13 +219,23 @@
       <label class="supplier-fields__label" [for]="idPrefix() + '-default-vat'"
         >Codice IVA predefinito</label
       >
-      <app-select-menu
+      <!--
+        Stesso campo delle righe documento e della scheda articolo: si arriva
+        col Tab, si digita il codice, l'elenco filtra per prefisso, Invio
+        conferma. Qui la ricerca non c'era proprio — il campo era un `<button>`
+        senza `searchable`, quindi si scorreva l'elenco e basta.
+      -->
+      <app-document-line-select-cell
+        [inputId]="idPrefix() + '-default-vat'"
+        ariaLabel="Codice IVA predefinito"
         [options]="vatSelectOptions()"
         [value]="formGroup().controls.defaultVatCodeId.value"
-        ariaLabel="Codice IVA predefinito"
         placeholder="Predefinito aziendale…"
-        [fullWidth]="true"
         [includeEmptyOption]="true"
+        emptyOptionLabel="Predefinito aziendale"
+        [boxed]="true"
+        [inColumnCycle]="false"
+        [selectOnFocus]="true"
         (valueChange)="onVatSelect($event)"
       />
     </div>

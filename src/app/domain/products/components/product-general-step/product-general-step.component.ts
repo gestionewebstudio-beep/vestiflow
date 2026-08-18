@@ -18,7 +18,7 @@ import type { Subscription } from 'rxjs';
 
 import { PRODUCT_KIND_LABELS, ProductKind, ProductStatus } from '@core/models/product.model';
 import type { ShopifyCategoryMetafieldValue } from '@core/models/shopify-category-metafield.model';
-import { formatVatRate, vatCodeOptionLabel, type VatCode } from '@core/models/vat-code.model';
+import { type VatCode } from '@core/models/vat-code.model';
 import {
   DEFAULT_CURRENCY,
   moneyFromMajorExact,
@@ -28,6 +28,8 @@ import {
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
 import type { SegmentedOption } from '@shared/components/segmented/segmented.component';
+import { vatCodeSelectOption } from '@domain/documents/utils/document-vat-options.util';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 // Aritmetica IVA: una sola implementazione in tutta l'app (stesse formule e
@@ -140,6 +142,7 @@ function minorToMajor(minor: number): number {
     ReactiveFormsModule,
     HoverTooltipComponent,
     SegmentedComponent,
+    DocumentLineSelectCellComponent,
     SelectMenuComponent,
     ShopifyTaxonomyPickerComponent,
     ShopifyCategoryAttributesComponent,
@@ -226,17 +229,25 @@ export class ProductGeneralStepComponent implements OnInit {
     (value) => ({ value, label: value }),
   );
 
+  /**
+   * ⚠️ **Le stesse opzioni delle righe documento** (18/08/2026), costruite da
+   * `vatCodeSelectOption`: `label` è **il codice**, `detail` la spiegazione.
+   *
+   * Prima l'etichetta era la specifica intera (`22 · 22% · Imponibile 22%`) e
+   * il valore scelto si mostrava con `triggerLabel` (`22%`). Quella forma non
+   * si può cercare per codice: il filtro dà la precedenza a chi *comincia* con
+   * ciò che si digita, e digitando `1` nessuna voce comincia per 1 — cominciano
+   * tutte col proprio codice, sì, ma preceduto da nient'altro solo in questa
+   * forma. Con `label` = codice, `1` porta a `10` come in Danea e come nelle
+   * righe.
+   *
+   * L'aliquota non si perde: sta in `detail`, accanto alla voce nell'elenco.
+   */
   protected readonly vatSelectOptions = computed((): readonly SelectMenuOption[] => {
     const currentId = this.value().defaultVatCodeId;
     return this.vatCodes()
       .filter((entry) => entry.isActive || entry.id === currentId)
-      .map((entry) => ({
-        value: entry.id,
-        // Specifica completa solo nella tendina; a selezione avvenuta il
-        // trigger mostra la sola aliquota (es. "22%").
-        label: vatCodeOptionLabel(entry),
-        triggerLabel: formatVatRate(entry.ratePercent),
-      }));
+      .map((entry) => vatCodeSelectOption(entry));
   });
 
   /**
@@ -260,10 +271,23 @@ export class ProductGeneralStepComponent implements OnInit {
    * congelerebbe — è la stessa distinzione fra convenzione e memoria di
    * `regole-gestionale`. A cambiare è ciò che si LEGGE, non ciò che si salva.
    */
-  protected readonly vatPlaceholder = computed(() => {
-    const predefinito = this.vatCodes().find((entry) => entry.isDefault);
-    return predefinito ? formatVatRate(predefinito.ratePercent) : 'Predefinito aziendale';
-  });
+  /**
+   * ⚠️ **A campo vuoto non c'è scritto NIENTE** (18/08/2026, decisione del
+   * proprietario del progetto).
+   *
+   * Il predefinito aziendale serve a **precompilare** un articolo nuovo con un
+   * valore vero — se l'azienda lavora al 22%, l'articolo nasce al 22% e lo si
+   * vede scritto. Non serve a riempire il vuoto di un articolo che l'IVA non
+   * ce l'ha: **un articolo senza Codice IVA è legittimo**, e il predefinito non
+   * lo tocca.
+   *
+   * Da cui: niente segnaposto. Ci sono passate due diciture sbagliate, e
+   * dicevano entrambe la stessa cosa falsa — che il vuoto «vale» il
+   * predefinito: prima l'aliquota nuda («22%»), che faceva sembrare l'articolo
+   * al 22%; poi «Nessuno (propone 22%)», che spiegava un meccanismo di cui in
+   * questa schermata non si deve sapere niente. Vuoto è vuoto.
+   */
+  protected readonly vatPlaceholder = '';
 
   protected readonly trackingSelectOptions: readonly SelectMenuOption[] = (
     Object.values(InventoryTrackingMode) as InventoryTrackingMode[]

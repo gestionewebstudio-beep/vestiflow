@@ -9,6 +9,7 @@ import { InventoryTrackingMode } from '@core/models/product-catalog.model';
 import type { VatCode } from '@core/models/vat-code.model';
 import { HoverTooltipComponent } from '@shared/components/hover-tooltip/hover-tooltip.component';
 import { SegmentedComponent } from '@shared/components/segmented/segmented.component';
+import { DocumentLineSelectCellComponent } from '@domain/documents/components/document-line-select-cell/document-line-select-cell.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 
 import { ProductGeneralStepComponent } from './product-general-step.component';
@@ -94,6 +95,7 @@ function renderStep(componentInputs: Record<string, unknown>) {
             NgTemplateOutlet,
             ReactiveFormsModule,
             SelectMenuComponent,
+            DocumentLineSelectCellComponent,
             SegmentedComponent,
             HoverTooltipComponent,
           ],
