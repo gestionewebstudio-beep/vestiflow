@@ -1,575 +1,873 @@
-# 11 · Specifica Vendita al banco
+# 11 · Vendita e Reso al banco — specifica funzionale
 
-**Stato:** specifica funzionale corrente · **16/08/2026**
-**Prevalenza:** le decisioni più recenti confermate dall'owner prevalgono su codice, test, audit
-e documenti storici incompatibili.
+**Stato:** specifica corrente e **unica attiva** · aggiornata il 18/08/2026
+**Modulo:** Vendita al banco · Reso al banco
 
-> **Nota di verifica.** Il testo è stato **controllato contro il codice e i dati** prima di
-> entrare in `docs/`. Le sezioni marcate ✅ sono state misurate e confermate; quelle marcate ⚠️
-> contengono una correzione rispetto alla stesura originale; §20 raccoglie le **due decisioni
-> aperte** che il documento non prende.
+> **Questo documento sostituisce integralmente la stesura precedente.** Non se ne recuperano
+> decisioni funzionali: la cronologia git conserva lo storico, e questo file è l'unica fonte
+> di ciò che VestiFlow deve fare. Si aggiorna **qui**, mano a mano che le decisioni si
+> confermano; non nascono specifiche parallele.
 
----
+## Come si legge — tre piani, tenuti separati
 
-## 0. Scopo
+| Piano                           | Cos'è                                                     | Da dove viene                |
+| ------------------------------- | --------------------------------------------------------- | ---------------------------- |
+| **A · Decisioni funzionali**    | ciò che VestiFlow **deve** fare                           | il proprietario del progetto |
+| **B · Comportamento osservato** | ciò che il codice **fa oggi**, verificato nel repository  | la misura, non il ricordo    |
+| **C · Interventi conseguenti**  | ciò che va cambiato perché il codice si adegui al piano A | A confrontato con B          |
 
-Definisce il significato funzionale della **Vendita al banco** e il suo rapporto con magazzino,
-movimenti, Corrispettivi, report del venduto, Shopify POS, registratore telematico ed eventuali
-sviluppi futuri.
+⚠️ **Un comportamento osservato non è un requisito.** Se il codice fa qualcosa che il piano A
+non tratta, sta in B e va **sottoposto a decisione** — non promosso a regola perché esiste.
 
-Serve a tenere separati tre concetti che nel progetto si erano già confusi:
+## ⏸️ Le decisioni aperte, in un posto solo
 
-> **vendita gestionale**, **registrazione economica nei Corrispettivi** e **certificazione
-> fiscale tramite registratore telematico** sono cose distinte.
+Elenco unico **perché due volte una domanda aperta è rimasta senza casa** e si è persa fra le
+sezioni. Ogni voce vive dove è nata; qui ci sono i rimandi.
 
-Il riferimento osservato è Danea Easyfatt, ma VestiFlow **non ne copia workflow, stati o modello
-contabile** solo perché ci sono.
+| Aperta                                                                                                                                   | Dove    |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| che cosa si può fare su una **vendita già conclusa** — modificarla, eliminarla                                                           | **A2**  |
+| **prezzo** e **sconto** del reso                                                                                                         | **A11** |
+| **causale** del reso: obbligatoria per scelta, o per caso                                                                                | **A11** |
+| **rimborso**: informazione o collegamento futuro ai Pagamenti                                                                            | **A11** |
+| **correggere un Reso già concluso**                                                                                                      | **A11** |
+| **quali destinazioni** per la Vendita al banco nella mappatura documentale, e se debba essere anche sorgente o destinazione di _Includi_ | **A7**  |
+| **riga manuale** senza articolo in anagrafica                                                                                            | **A21** |
 
----
-
-## 1. Nome della funzione — ✅ **deciso e applicato il 16/08**
-
-La denominazione esposta all’operatore è **«Vendita al banco»**, più precisa di «Vendita
-negozio» perché descrive il caso d’uso: la registrazione gestionale di **una singola vendita
-fisica al banco**.
-
-Il tipo tecnico resta **`store_sale`**. Nessuna migration, nessuna rinomina di enum, rotte,
-tabelle o valori DB per adeguare un’etichetta.
-
-**Applicata dove indica davvero il documento `store_sale`:** etichette dei tipi documento e
-del reso, voce di hub, voce di sidebar, briciola, etichetta dell’origine movimento, i due
-messaggi d’errore che la nominano, e le **causali dei movimenti nuovi**.
-
-⚠️ **Non** è stata toccata la parola «negozio» dove indica altro: ambito fisico, sede,
-vendite fisiche in generale.
-
-⚠️ **Le causali già scritte restano come sono** — `Vendita negozio VN-2026-0001` —, e nessun
-backfill le riscrive. Nello storico movimenti convivranno le due diciture: è il prezzo di non
-toccare un registro che l’operatore ha già letto, e va saputo invece che scoperto.
+⛔ **Nessuna di queste si chiude scrivendo codice che funziona.** Si chiudono decidendo, e
+solo dopo si scrive. È la regola che questo documento ha già violato una volta.
 
 ---
 
-## 2. Cos'è
+# A · DECISIONI FUNZIONALI
 
-La **rappresentazione gestionale della singola vendita fisica** conosciuta da VestiFlow.
+## A1. Che cos'è
+
+È la rappresentazione gestionale della **singola vendita fisica** conosciuta da VestiFlow. Il
+modulo gestisce anche il **Reso al banco**.
 
 ```text
-Cliente al banco → scansione/ricerca articoli → quantità e prezzi
-→ eventuale cliente → pagamento → conclusione
+Cliente al banco
+→ scansione o ricerca articoli
+→ quantità / prezzo / sconto
+→ eventuale cliente
+→ pagamento come informazione interna
+→ conclusione
+→ scarico fisico
+→ effetto economico e Corrispettivi interni
 ```
 
-Alla conclusione VestiFlow sa che: la vendita è avvenuta, gli articoli sono usciti, esiste un
-effetto economico, la vendita è analizzabile nel venduto e compare nei Corrispettivi interni
-con la classificazione corretta.
+Non è il registratore telematico, non certifica da sola l'emissione del documento
+commerciale, e deve funzionare **anche con cassa esterna separata**. Deve essere molto più
+rapida di un normale documento, pur mantenendo la grammatica visiva di VestiFlow.
 
-**Non è un registratore telematico**, e la sua esistenza non prova che sia stato emesso un
-documento commerciale.
+### ⚠️ Non esiste nessuna «futura Cassa VestiFlow»
 
----
+**Deciso il 18/08/2026; la formulazione precedente è ritirata.** La Vendita al banco non è una
+mini-cassa, non è provvisoria, non è la versione 1 di qualcos'altro, non è destinata a essere
+sostituita.
 
-## 3. Cosa NON è
+In futuro potrà **agganciarsi** a una cassa o a un RT compatibile — inviare la vendita, o
+riceverne informazioni — ma la vendita gestionale resta la stessa Vendita al banco.
 
-**3.1 Registratore telematico.** VestiFlow deve funzionare anche con cassa non collegabile,
-separata dal PC, o battuta a mano dopo.
-
-**3.2 Il Corrispettivo non causa lo scarico.** Lo scarico nasce dalla Vendita al banco. Il
-Corrispettivo non deve generare un secondo movimento.
-
-**3.3 Shopify POS** è un'altra sorgente di vendita fisica. Non si fondono solo perché
-condividono l'ambito.
-
-**3.4 Documento commerciale emesso.** La presenza in VestiFlow non equivale a «il documento
-commerciale è stato emesso». È un piano separato.
-
----
-
-## 4. Magazzino — ✅ **già conforme, misurato**
-
-**4.1** La scansione **non** crea movimenti: il movimento nasce alla conclusione.
-
-**4.2 Un movimento per riga**, con collegamento stabile a documento e riga.
-
-✅ _Verificato in `store-sales.service.ts`:_ un movimento `sale` per riga, `origin`
-`vestiflow_pos`, `sourceDocumentType: store_sale`, `sourceDocumentId`, **`sourceLineId`**, e il
-vincolo `UNIQUE (sourceDocumentType, sourceLineId)` che impedisce i doppi. Costo congelato sul
-movimento. **Il retry non duplica** per costruzione.
-
-Regole confermate: tenant e location obbligatori; insufficienza stock = **warning non
-bloccante**; Giacenza e Disponibile **possono diventare negative**.
-
-✅ _Verificato:_ il codice lo dice per iscritto — «Nessuna guardia: la vendita si registra anche
-oltre la disponibile».
-
-**4.3 Corrispettivi e report non movimentano stock.** L'inclusione è un effetto
-economico/analitico, mai fisico.
-
----
-
-## 5. Rapporto con il Registro Corrispettivi — ✅ **implementato il 16/08**
-
-**5.1** Una Vendita al banco conclusa **esiste economicamente** per VestiFlow e compare nel
-Registro:
+**Conseguenza diretta sui Corrispettivi:** non nasce mai un'origine nuova.
 
 ```text
-Origine: Vendita al banco · Ambito: Fisico/POS · Canale: VestiFlow
+Vendita al banco non integrata   → Origine: Vendita al banco
+Vendita al banco integrata a RT  → Origine: Vendita al banco
 ```
 
-### Come, e perché così
+## A2. Navigazione: elenco → Nuovo → documento
 
-**La sorgente canonica resta `Document.type = store_sale`. Il Registro la LEGGE.**
-
-Non si crea un `SalesOrder` per farla entrare: sarebbe una **seconda rappresentazione
-persistita** della stessa transazione, cioè esattamente ciò che il §2 della `10` vieta.
-
-Il Registro aveva già una giuntura fatta apposta — `buildRegisterRows` **fondeva due sorgenti
-in memoria** (vendite e rettifiche) ordinandole per data, con un tetto dichiarato oltre il
-quale chiede di restringere il periodo. La Vendita al banco è la **terza** sorgente e passa di
-lì: nessuna UNION scritta a mano, nessuna tabella nuova, nessuna vista.
-
-Conseguenze registrate nel tipo di riga:
-
-- `salesOrderId` è **nullable** e `documentId` è nuovo: una riga del registro può venire da un
-  ordine **o** da un documento;
-- `financialStatus` è `null` sulla Vendita al banco: si incassa al banco, non ha un ciclo di
-  pagamento, e inventarne uno direbbe una cosa non vera;
-- la data del registro è **`documentDate`**, non `createdAt`: una vendita registrata il giorno
-  dopo resta del giorno prima;
-- i documenti **annullati** restano fuori.
-
-**Il riepilogo legge le stesse tre sorgenti dell’elenco.** Se ne leggesse due, la somma della
-colonna non farebbe il totale in fondo — il difetto che questa schermata ha già avuto una
-volta con le rettifiche.
-
-**5.2 Vendita senza RT collegato.** Vendita da 19,99 € + battitura manuale sulla cassa → nel
-Registro **una sola vendita da 19,99 €**.
-
-**5.3 Vendita non certificata.** La vendita gestionale **non sparisce**: il prodotto è uscito,
-il magazzino è sceso, il ricavo esiste. La presenza nel Registro **non certifica** l’emissione.
-
-Nessuno stato tipo `scontrinato`, `fiscal_status`, `excluded_pos_register`.
-
-## 6. Registratore telematico
-
-**6.1** VestiFlow deve essere usabile con **cassa esterna non integrata**:
+**Deciso il 18/08/2026.** La Vendita al banco segue la grammatica di tutti gli altri
+documenti:
 
 ```text
-Vendita al banco → conclusione → scarico → Corrispettivo interno
-→ eventuale battitura manuale sulla cassa
+Vendita al banco
+  → elenco delle vendite
+    → Nuovo
+      → Nuova vendita   |   Nuovo reso
 ```
 
-**6.2** Una futura azione **«Emetti documento commerciale»** verso un RT supportato **non è
-parte di questa specifica**, non va simulata, non deve essere necessaria, e non cambia
-retroattivamente il significato gestionale della vendita.
+Non è una preferenza grafica: un ingresso diverso da tutti gli altri documenti costringe
+l'operatore a imparare due grammatiche per la stessa cosa. La schermata operativa resta
+rapidissima — cambia solo il percorso d'ingresso.
 
----
+**I nomi tecnici delle rotte non si fissano qui.** Vanno prima censiti tutti i consumatori
+delle rotte esistenti, poi riallineati alla convenzione già in uso, senza rompere link,
+redirect o navigazione.
 
-## 7. Chiusura giornaliera
+⏸️ **Aperto: che cosa si può fare su una vendita già conclusa.** Oggi il dettaglio è in sola
+consultazione — non si modifica e non si elimina (**B2**) — ma è **un comportamento che si
+osserva, non una decisione presa**. Modificare o eliminare una vendita conclusa tocca
+movimenti già scritti e Corrispettivi già contati, quindi la risposta non è ovvia e va data
+esplicitamente.
 
-Non si assume che la somma delle Vendite al banco **sia** il totale fiscale del registratore:
+## A3. Vendita e Reso: due tasti separati alla creazione
+
+**Deciso il 18/08/2026.** Nell'elenco ci sono **due tasti**, non un tasto «Nuovo» con un
+selettore dentro:
+
+```text
+[ Nuova vendita ]   [ Nuovo reso ]
+```
+
+**Due tasti perché al banco un passaggio in meno conta**: un menu da aprire e una voce da
+scegliere sono due gesti dove ne basta uno, e la fretta è la condizione normale di quella
+schermata — non un caso limite. Vale **su desktop e su mobile**, con la stessa forma.
+
+Scelto il tasto, la maschera è configurata per quel tipo. **Non** c'è un interruttore dentro
+il documento che consenta di trasformare liberamente vendita → reso → vendita mentre si
+compila.
+
+**Il motivo è di dominio, non di ergonomia.** I due condividono l'impianto UI ma non il
+comportamento:
+
+|                      | effetto alla conclusione                                               |
+| -------------------- | ---------------------------------------------------------------------- |
+| **Vendita al banco** | scarico fisico · vendita economica positiva · pagamento                |
+| **Reso al banco**    | rientro fisico · **rettifica** economica negativa · eventuale rimborso |
+
+Una maschera che li scambia a metà compilazione nasconde questa differenza proprio dove
+conta. Vedi **B4** per che cosa fa oggi l'interruttore esistente, e **A11** per il Reso.
+
+## A4. Netto/ivato: la stessa logica di tutti gli altri documenti
+
+**Deciso il 18/08/2026, dopo due formulazioni intermedie scartate** — prima «sempre ivati»,
+poi una regola articolata con memoria e default propri. Entrambe sono ritirate.
+
+Vendita e Reso al banco usano **il contratto comune** netto/ivato del gestionale. Nessuna
+eccezione, nessun default dedicato, nessuna logica parallela, **nessun forcing «sempre
+ivato»**.
+
+- il selettore è disponibile in testata come negli altri documenti;
+- la modalità iniziale segue la regola generale: memoria dell'operatore per il tipo, poi
+  convenzione aziendale;
+- la modalità scelta resta persistita nel documento e resta modificabile.
+
+**Chi lavora al netto deve poter vedere e inserire netto.** Un grossista che vende al banco
+non è un caso limite da normare a parte: è la ragione per cui non si scrive una regola
+speciale.
+
+⚠️ **Entrare nel contratto comune significa ereditarlo tutto**, non solo il selettore che fa
+comodo. Se cambiare la convenzione aziendale azzera le memorie dei tipi che appartengono a
+quel contratto, Vendita e Reso al banco si comportano allo stesso modo. Non è una regola nuova
+per questo modulo: è la conseguenza di «la stessa logica degli altri».
+
+## A5. Numerazione: quella comune, e nessuna sigla fissata qui
+
+**Deciso il 18/08/2026.** Vendita e Reso al banco usano il **sistema di numerazione e prefissi
+comune** agli altri documenti. Non si inventa una numerazione dedicata, e **questa specifica
+non fissa nessuna sigla**.
+
+⚠️ Fissarne una sarebbe scrivere una regola già condannata: `docs/04` §11 ha deciso di
+**togliere sigla e zeri dal numero visibile di TUTTI i documenti**. Quando sarà eseguita, la
+Vendita al banco deve cadere insieme agli altri, non restare indietro con una regola sua.
+
+**Ma questo non è un motivo per anticipare quel lavoro qui** _(deciso il 18/08/2026)_: se
+costruire la Vendita al banco **senza** sigla è più scomodo che costruirla con quella che il
+sistema comune già le assegna, **si fa con la sigla**. Togliere le sigle è un lavoro
+trasversale a tutti i documenti, e si fa come tale — non di straforo dentro un modulo, dove
+produrrebbe un documento diverso da tutti gli altri per il tempo che passa in mezzo.
+
+## A6. Terminologia: «Vendita negozio» è legacy
+
+**Deciso il 18/08/2026.** «Vendita al banco» è l'**unica denominazione funzionale corrente**.
+«Vendita negozio» e «Vendita in negozio» vanno censite e rimosse, non lasciate convivere.
+
+Il censimento copre: interfaccia, menu, titoli, rotte, etichette, messaggi, causali dei
+movimenti, stampe ed export, documentazione, test, e nomi tecnici di componenti, servizi e
+metodi.
+
+Ma **si classifica prima di rinominare**, perché i tre livelli hanno esiti diversi:
+
+| Livello                                           | Esito                                                                                                                                |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **esposto all'operatore**                         | si rinomina in «Vendita al banco»                                                                                                    |
+| **identificatore tecnico stabile o contrattuale** | **non** si rinomina per estetica: prima si valuta il rischio di migrazione e regressione                                             |
+| **stringhe storiche già persistite**              | si censiscono prima di scegliere fra correggere la rappresentazione e migrare i dati. Nessun backfill di massa senza un motivo reale |
+
+## A7. Rapporti con gli altri documenti
+
+**Deciso il 18/08/2026.** «Può avere rapporti documentali» era troppo generico: il progetto
+ha **due operazioni distinte**, e non sono sinonimi.
+
+| Operazione            | Che cosa fa                                                                     |
+| --------------------- | ------------------------------------------------------------------------------- |
+| **Includi documento** | un documento precedente compatibile viene agganciato **dentro** quello corrente |
+| **Genera documento**  | dal documento corrente **nasce** un documento successivo compatibile            |
+
+La Vendita al banco entra nel **sistema documentale comune** e non ha un motore parallelo. In
+particolare sono rilevanti le generazioni verso **Fattura** e **Fattura accompagnatoria**.
+
+⚠️ **Non deve nascere un secondo motore Fatture dentro la Vendita al banco.** Se genera una
+Fattura, usa il dominio Fattura comune.
+
+### La mappatura che esiste oggi — recuperata dal progetto, non ricostruita
+
+Misurata il 18/08/2026. Serve perché la decisione qui sopra dice **dove si deve arrivare**, e
+questa dice **da dove si parte**.
+
+| **Includi** — chi può includere cosa |                                      |
+| ------------------------------------ | ------------------------------------ |
+| Ordine cliente                       | ← Preventivo                         |
+| DDT vendita                          | ← Preventivo · Ordine cliente        |
+| Arrivo merce                         | ← Ordine fornitore (solo confermati) |
+| Preventivo                           | ← niente: si crea sempre da zero     |
+
+| **Genera** — chi può generare cosa |                                                                                         |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| Proforma                           | → DDT vendita · Bozza fattura                                                           |
+| DDT vendita                        | → Bozza fattura · Proforma                                                              |
+| ogni altro tipo                    | ⛔ rifiutato: «solo proforme e DDT vendita possono essere convertiti con questa azione» |
+
+⚠️ **La Vendita al banco non compare in nessuna delle due, in nessuna direzione.** E la
+**Fattura accompagnatoria non è destinazione di nessuno**: oggi non la genera nessun tipo.
+
+⏸️ **Quindi la decisione richiede di ESTENDERE la mappatura, e come non è stabilito.** Da
+verificare con chi governa il sistema documentale, non da decidere qui: quali destinazioni
+esatte per la Vendita al banco, e se debba essere anche sorgente o destinazione di _Includi_
+oltre che di _Genera_.
+
+### Un solo effetto fisico per una sola uscita — regola comune, non eccezione locale
+
+> **Il primo documento che registra realmente l'effetto fisico movimenta; i documenti
+> successivi collegati non duplicano quell'effetto.**
+
+```text
+Vendita al banco conclusa        → scarico fisico già avvenuto
+Vendita al banco → Fattura       → nessun nuovo scarico per la stessa uscita
+Vendita al banco → Fattura acc.  → nessun secondo scarico per la stessa uscita
+```
+
+⛔ **Non si costruisce un trattamento speciale basato sul nome del documento.** Una Fattura
+accompagnatoria generata da una Vendita al banco che ha già prodotto lo scarico **non deve
+produrre un secondo movimento per la stessa merce** — e questo perché vale la regola comune,
+non perché si scriva un caso particolare per la accompagnatoria.
+
+_(Cosa faccia oggi la Fattura accompagnatoria quando è lei il primo documento fisico è
+misurato in **B11**. È un fatto, non la fonte di questa regola.)_
+
+## A8. Pagamento
+
+In questa fase il pagamento è **un'informazione interna**: serve a distinguere e filtrare le
+vendite nei riepiloghi e nei report. Non è ancora movimento di Tesoreria, registrazione
+finanziaria, saldo, allocazione, integrazione POS né sessione di cassa.
+
+**Obbligatorio:** il metodo di pagamento **non si ferma nella schermata della vendita**. Va
+preservato fino alla **relativa riga del Registro Corrispettivi**, al **dettaglio della
+registrazione del Corrispettivo** e all'**export**.
+
+⚠️ **«Riga» qui significa la riga del REGISTRO**, quella che corrisponde alla Vendita al
+banco — **non** le righe articolo del documento. Il pagamento resta un'informazione della
+vendita nel suo insieme, **non** un pagamento allocato sulle singole righe prodotto.
+
+**Desiderabile:** un filtro «Pagamento» nel Registro, sui soli metodi realmente configurati.
+Se una selezione multipla o un'esclusione («tutto tranne Contanti») è semplice
+nell'architettura filtri esistente, tanto meglio; se richiedesse un motore sproporzionato non
+è prioritario — si esporta e si filtra fuori.
+
+⚠️ **Quello che non si fa in nessun caso** è un flag `escluso dai Corrispettivi` sulla vendita.
+La vendita resta nel Registro; sono filtro ed export a determinare il sottoinsieme che si
+vuole analizzare.
+
+**Pagamento misto:** fuori perimetro. Dividere una vendita in più pagamenti strutturati prima
+che esista il motore Pagamenti/Tesoreria creerebbe un modello parallelo da rifare. Se serve
+rappresentare una vendita pagata con più strumenti, si può valutare una voce informativa
+«Misto», senza inventare allocazioni economiche.
+
+## A9. Corrispettivi: come si classifica
+
+**Deciso il 18/08/2026.** All'operatore non si mostra la parola «Ambito», che non dice niente.
+Ma **non nasce una dimensione nuova al suo posto**: Online e Fisico/POS diventano
+**raggruppamenti dentro Origine**.
+
+```text
+Origine
+  Tutte
+  Online
+      Shopify online
+  Fisico/POS
+      Vendita al banco
+      Shopify POS
+      Corrispettivo manuale
+```
+
+⚠️ **«Tipo vendita» è stato valutato e scartato**, ed è la scelta che regge tutto il resto:
+**«Tipo» nel Registro è già preso**, e vuol dire un'altra cosa —
+
+```text
+Tipo       cosa è successo:  Vendita · Reso · Rimborso
+Origine    da dove nasce:    Vendita al banco · Shopify online · Shopify POS · Corrispettivo manuale
+```
+
+Due filtri adiacenti chiamati «Tipo» e «Tipo vendita» sono la confusione peggiore di quella
+che si voleva togliere.
+
+⚠️ **Cambia il nome, non il comportamento.** Chi legge «Ambito non deve più comparire» e
+cancella il filtro ha tolto una funzione, non un'etichetta: le due domande — da dove nasce
+la vendita, e se è online o fisica — restano entrambe.
+
+_(Quanto di questo il Registro faccia già è misurato in **B10**. La decisione qui sopra non
+dipende da quella misura: varrebbe uguale se il Registro non ne avesse niente.)_
+
+⚠️ **Il campo tecnico non si rinomina dentro questo lavoro.** Se internamente funziona, resta
+un dettaglio tecnico da riallineare con un intervento suo, dichiarato — non di nascosto dentro
+la ristrutturazione della schermata.
+
+⛔ **E non si tocca l'«Ambito di utilizzo» dei Codici IVA**, in Impostazioni: è una parola
+uguale per un concetto diverso — dice se un codice vale in acquisto, in vendita o in
+entrambi. Rinominarlo perché somiglia sarebbe rompere un'etichetta corretta.
+
+**Una Vendita al banco conclusa** è una vendita reale, entra nel venduto e compare **una sola
+volta** nel Registro. **Un Reso al banco concluso** è una rettifica: compare una sola volta,
+con segno coerente, e non va letto come nuova vendita positiva.
+
+## A10. Cassa esterna e registratore telematico
+
+```text
+Vendita al banco → conclusione → scarico → Corrispettivi interni
+→ l'operatore batte la vendita sulla propria cassa esterna
+```
+
+VestiFlow deve funzionare anche se il registratore non è collegabile, se la cassa è su un
+altro dispositivo, o se alcune vendite vengono battute sul registratore senza passare da
+VestiFlow.
+
+**La chiusura giornaliera non è la chiusura fiscale, e VestiFlow non la dichiara tale.**
 
 ```text
 Vendite registrate in VestiFlow ....... 50 €
-Battute solo sul RT ................... 15 €
-VestiFlow conosce 50 · il RT può conoscere 65
+Battute solo sul registratore ......... 15 €
+VestiFlow conosce 50 · il registratore può conoscere 65
 ```
 
-VestiFlow mostra correttamente i 50 che conosce, **non dichiara** che siano la chiusura fiscale
-completa, e **non inventa** i 15 che non conosce. Questo non impedisce alla vendita di entrare
-nei Corrispettivi interni.
+VestiFlow mostra i 50 che conosce, **non afferma** che siano la chiusura completa e **non
+inventa** i 15 che non conosce.
 
----
+Fuori perimetro: stato «scontrinato/non scontrinato», emissione RT simulata, lettura della
+chiusura fiscale, riconciliazione automatica.
 
-## 8. Report del venduto — ⚠️ **già incluso, correzione**
+### Il principio, che è tutto quello che serve al modulo
 
-> **Il Registro conserva il fatto economico; i report e i filtri determinano il perimetro.**
+> **VestiFlow non presume di conoscere il documento commerciale emesso dalla cassa esterna.**
+> Il Reso al banco non dipende quindi oggi da un riferimento fiscale. Eventuali future
+> integrazioni con cassa o RT sono **fuori dal perimetro corrente** e non devono essere
+> precluse dall'architettura.
 
-⚠️ **La stesura lasciava intendere che la Vendita al banco potesse essere fuori dal venduto.
-Non lo è: c'è già.**
+_(Qui c'era una pagina su matricole RT, annulli e livelli di integrazione: era un
+approfondimento di contesto, non materia di specifica, e non serve a chi implementa.)_
 
-_Misurato:_ il **venduto è costruito sui MOVIMENTI**, non sugli ordini. Un movimento `sale` con
-`sourceDocumentType: store_sale` porta il ricavo della propria `DocumentLine`
-(`movement-sales-revenue.util.ts`). La Vendita al banco entra quindi nei report **da sempre**.
+## A11. Reso al banco
 
-**È la scoperta che ridimensiona il lavoro, e va detta chiaro:** VestiFlow ha **due motori di
-aggregazione**, e solo uno dei due manca.
+> **Il Reso al banco non è il reso fiscale dello scontrino.** È un documento **gestionale
+> interno** che registra il rientro fisico e la rettifica economica conosciuta da VestiFlow.
 
-| Motore                     | Costruito su                           | Vendita al banco  |
-| -------------------------- | -------------------------------------- | ----------------- |
-| **Report del venduto**     | `stock_movements`                      | ✅ **già dentro** |
-| **Registro Corrispettivi** | `sales_orders` + `sales_order_refunds` | ⛔ **fuori**      |
-
-**8.2 Nessun flag persistente «escluso dai report».** Le dimensioni sono canoniche: **Ambito**
-(Tutti · Online · Fisico/POS), **Canale** (Tutti · Shopify · VestiFlow · altri realmente
-presenti), **Tipo evento** (Vendita · Reso · Rimborso/rettifica), **Fatturazione** (quando ci
-sarà una relazione documentale vera).
-
-**8.3 Esempi**
+**Deciso il 18/08/2026.** La chiave è che la vendita di partenza **può non esistere in
+VestiFlow**: se è stata battuta su una cassa esterna, il gestionale non ne sa nulla, e il
+cliente torna comunque con la merce.
 
 ```text
-Fisico/POS + VestiFlow  → Vendite al banco
-Fisico/POS + Shopify    → Shopify POS
-Online     + Shopify    → Shopify ecommerce
-Tutti                   → quadro complessivo
+vendita battuta su cassa esterna
+→ vendita non necessariamente registrata in VestiFlow
+→ il cliente torna con la merce
+→ l'operatore registra un Reso al banco
+→ rientro in magazzino
+→ rettifica economica interna
 ```
 
-L'operatore esclude le Vendite al banco da un report **con un filtro**, non cancellandole dal
-venduto o dal Registro.
+### La regola che governa tutto: nessun documento origine
 
----
+> **Il Reso al banco non ha un documento origine, e il suo contratto non dipende da una
+> vendita precedente.**
 
-## 9. Shopify POS — ✅ verificato
-
-**9.1** Resta una vendita fisica **visibile**: `Ambito: Fisico/POS · Canale: Shopify`. Non si
-esclude con vecchi stati fiscali (`10` §4).
-
-**9.2 Duplicazione: non c'è.** ✅ _Verificato:_ la sync Shopify crea un `SalesOrder`; una
-Vendita al banco nasce **solo** da `POST /store-sales`; un ordine POS importato **non** crea
-anche una Vendita al banco. **Una transazione, una rappresentazione.**
-
-Se un giorno i due flussi si collegheranno, idempotenza e identità della vendita vanno
-progettate esplicitamente.
-
----
-
-## 10. Corrispettivi: classificazione, non workflow
-
-Non si reintroduce l'architettura eliminata: nessuno stato «da inviare / inviato / consegnato /
-registrato esternamente». Stampa, CSV ed export sono **manuali, ripetibili, senza effetti**
-(`10` §5). La guardia `scripts/check-registro-legacy.mjs` lo fa rispettare.
-
----
-
-## 11. Rapporto con le Fatture
-
-> Una vendita fatturata non deve produrre doppio conteggio nel riepilogo, **ma deve restare
-> consultabile**.
-
-Solo tramite una **relazione documentale strutturata e realmente esistente**. Mai testo delle
-righe, descrizioni, vecchi `fiscal_status`, flag legacy o euristiche.
-
-✅ _Verificato: oggi quella relazione **non esiste** per la Vendita al banco._ `InvoiceSalesDdtLink`
-lega Fattura ↔ DDT vendita, nient'altro. **Non si inventa qui:** la decisione va nel blocco
-Famiglia Fattura.
-
-Che Danea generi una Fattura da una Vendita al banco **non rende la funzione approvata**.
-
----
-
-## 12. Pagamento e Tesoreria
-
-**Metodo di pagamento ≠ movimento finanziario reale ≠ risorsa finanziaria.**
-
-Non si duplica qui il futuro motore Pagamenti/Tesoreria: si preservano i dati della vendita e
-l'eventuale pagamento già previsto. Cassa come risorsa, incassi, saldo, giroconti e allocazioni
-appartengono a quel modulo e ne riuseranno il motore comune.
-
----
-
-## 13. Fotografia del codice — ✅ misurata il 16/08
-
-Non sostituisce la regola funzionale; dice **da dove si parte**.
-
-- tipo tecnico corrente: `store_sale`; il reso è `store_return`;
-- nasce da `POST /store-sales`, **non** dalla sync Shopify POS;
-- Shopify POS genera un `SalesOrder`, non uno `store_sale`;
-- movimenti: uno per riga, `origin` `vestiflow_pos`, con `sourceLineId` e vincolo unico;
-- il Registro Corrispettivi è derivato da sorgenti vive; **non** si ricostruisce sulla
-  `CorrispettivoEntry` storica (`10` §7);
-- `sales_orders.fiscal_status` è stato **rimosso**, colonna e tipo: non si ricrea;
-- il workflow «commercialista» è stato ritirato.
-
-_Dati al 16/08:_ **1** vendita al banco, **0** resi, **1** movimento con riga collegata. I 16
-movimenti `vestiflow_pos` **senza documento** sono storici, di un percorso precedente.
-
-⚠️ Prima di toccare `store_sale`, **rimisurare i consumer**: il codice può essere andato avanti
-rispetto a questa fotografia.
-
----
-
-## 14. Requisiti per l'inclusione nei Corrispettivi
-
-1. una Vendita al banco conclusa compare **una sola volta**;
-2. `Ambito = Fisico/POS`;
-3. `Canale = VestiFlow`;
-4. conserva la propria **data economica**;
-5. imponibile, IVA e totale coerenti col documento sorgente;
-6. tenant rispettato;
-7. location rispettata;
-8. **nessun secondo movimento** di magazzino;
-9. nessuna duplicazione con Shopify POS;
-10. nessun `fiscal_status`;
-11. **nessuna scrittura** nella struttura storica `CorrispettivoEntry`;
-12. export e stampa non modificano la vendita;
-13. gli stessi filtri danno risultati coerenti fra **elenco, riepilogo, export e stampa**.
-
----
-
-## 15. Test di accettazione minimi
-
-**15.1 Vendita** — 1 articolo, q.tà 1, 19,99 €, Location A → documento una volta, riga una
-volta, **un solo** movimento, Giacenza −1, **nessun** movimento dal Registro, **una sola** voce
-economica, `Fisico/POS · VestiFlow`, imponibile/IVA/totale riconciliati.
-
-**15.2 Retry** — ripetendo l'azione finale: nessuna seconda vendita, nessun secondo movimento,
-nessun secondo Corrispettivo.
-
-**15.3 Stock insufficiente** — warning non bloccante, vendita conclusa, movimento registrato,
-Giacenza/Disponibile possono andare in negativo. ✅ _già conforme._
-
-**15.4 Filtri** — con Vendita al banco + Shopify POS + Shopify ecommerce, le quattro
-combinazioni di §8.3 danno ciascuna vendita **una volta sola**.
-
-**15.5 Export** — righe = attese, somme = riepilogo UI, nessuna modifica dopo l'export, nessuna
-colonna legacy.
-
-**15.6 Tenant/location** — una vendita del tenant A non compare in B e non altera le quantità
-della location B.
-
----
-
-## 16. Rischi di regressione
-
-Doppio scarico fra Vendita al banco e Corrispettivo · doppia rappresentazione economica ·
-reintroduzione indiretta di `SalesOrderFiscalStatus` · uso di `CorrispettivoEntry` come nuova
-sorgente · **confusione fra Ambito e Canale** · contaminazione Shopify su tenant senza il modulo
-· aggregazioni che sommano due volte · report che **escludono in assoluto** invece di filtrare ·
-dedurre la certificazione fiscale dall'esistenza della vendita · dipendenze dal RT che rendano
-il modulo inutilizzabile senza.
-
----
-
-## 17. Fuori perimetro
-
-Collegamento reale con RT · emissione del documento commerciale · lettura della chiusura
-giornaliera · riconciliazione VestiFlow ↔ RT · stato «scontrinato» · gestione fiscale completa
-della cassa · registrazione manuale della chiusura · nuova struttura `fiscal_status` ·
-Fatturazione elettronica · motore Pagamenti/Tesoreria · trasformazione Vendita al banco →
-Fattura · workflow copiati da Danea solo perché esistono lì.
-
----
-
-## 18. Regola sintetica
-
-> **Vendita al banco = singola vendita fisica gestionale conosciuta da VestiFlow.**
->
-> Alla conclusione produce lo scarico e il relativo effetto economico, **senza duplicazioni**.
->
-> Compare nel Registro Corrispettivi come `Fisico/POS · VestiFlow` **anche quando il
-> registratore non è collegato**.
->
-> La presenza nel Registro **non certifica** l'emissione del documento commerciale.
->
-> Corrispettivi e report **non movimentano** il magazzino.
->
-> Il dato generale resta completo; i sottoinsiemi si ottengono **con i filtri**, non con stati
-> fiscali o esclusioni persistenti.
->
-> Registratore telematico, certificazione fiscale e riconciliazione sono **domini separati**.
-
----
-
-## 19. Come si esegue
-
-1. ispezionare prima UI, API, DB, movimenti, Corrispettivi, report e test;
-2. distinguere **regola richiesta**, **comportamento osservato**, **causa radice** e **modifica**;
-3. non assumere che `store_sale` sia corretto solo perché esiste;
-4. nessun nuovo stato o workflow senza decisione funzionale;
-5. procedere fino a implementazione e test quando le regole bastano;
-6. fermarsi solo su una **nuova decisione funzionale reale** o una modifica DB rischiosa;
-7. verificare regressioni su tenant, location, quantità, movimenti, Corrispettivi e gating
-   Shopify;
-8. test backend e frontend, lint, type-check e **compilazione Angular reale**;
-9. nessun push, merge o deploy senza decisione esplicita.
-
----
-
-## 20. ⏸️ Le due decisioni che questa specifica NON prende
-
-### 20.1 Con quale meccanismo la Vendita al banco entra nel Registro
-
-La specifica decide **il risultato** (§5.1) ma non **come**. E il come non è un dettaglio,
-perché il Registro e la Vendita al banco vivono su due tabelle diverse: `SalesOrder` contro
-`Document`.
-
-| Strada                                                                      | Costo                                                                | Rischio                                                                                                       |
-| --------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **A · la Vendita al banco crea anche un `SalesOrder`** con `source = store` | piccolo: il valore `store` esiste già                                | ⛔ crea una **seconda rappresentazione** della stessa transazione dentro VestiFlow — proprio ciò che §2 vieta |
-| **B · il Registro diventa l'unione** di ordini e documenti `store_sale`     | grande: elenco, riepilogo, export, stampa, paginazione, filtri, test | nessuna duplicazione; è la lettura onesta di «registro derivato»                                              |
-
-**B è coerente con la specifica, A la contraddice** — ma A è quello che qualcuno sceglierà se
-la domanda non viene posta, perché costa dieci minuti.
-
-⚠️ Con B servono anche le due dimensioni **Ambito** e **Canale**, che oggi **non esistono come
-concetti**: c'è un solo filtro che mescola i due (`10` §3), e la Vendita al banco non ha un
-`source` perché non è un ordine.
-
-### 20.2 Se rinominare «Vendita negozio» in «Vendita al banco»
-
-**26 punti** di codice non-test su 13 file. Nessuno rischioso di per sé, ma due meritano una
-riga:
-
-- la **causale dei movimenti** (`Vendita negozio VN-2026-0001`) finisce **nello storico**: i
-  movimenti già scritti resteranno con la dicitura vecchia, e non si riscrivono. Convivranno
-  due diciture nello stesso registro;
-- il tipo tecnico `store_sale` **non si tocca** (§1), quindi resterà una distanza fra nome
-  tecnico e nome esposto — cosa già vera oggi, e accettabile, ma da sapere.
-
-**Non è una decisione tecnica: è come si chiama una cosa davanti all'operatore.**
-
----
-
-## 21. Chi entra nel Registro, e poi Ambito e Canale — ✅ implementati
-
-**Sono due domande, in quest’ordine.** Prima _questo evento è un corrispettivo?_, e solo per
-le righe ammesse _che ambito e che canale?_
-
-| Origine (`source`) | Corrispettivo? | Ambito     | Canale    |
-| ------------------ | -------------- | ---------- | --------- |
-| `shopify_online`   | ✅             | Online     | Shopify   |
-| `shopify_pos`      | ✅             | Fisico/POS | Shopify   |
-| `store`            | ✅             | Fisico/POS | VestiFlow |
-| `manual`           | ⛔ **no**      | —          | —         |
-
-### ⚠️ `manual` non entra, e invertire le due domande produce un errore concettuale
-
-**Corretto il 16/08, poche ore dopo averlo sbagliato io.** Avevo classificato `manual` come
-Fisico/POS ragionando _«non è online, quindi è fisico»_. È falso, e il progetto ha sempre
-separato le due cose:
-
-> **Fisico/POS non significa «tutto ciò che non è online»: significa una vendita fisica
-> effettiva.**
-
-Un **Ordine cliente manuale** è un **impegno commerciale**. Si prende al telefono, in ufficio,
-per email; non è una Vendita al banco, non è una vendita online, non modifica di per sé la
-giacenza, e **non dice niente su come avverrà la vendita** — si concluderà con un DDT, una
-fattura, o con niente.
-
-`source = manual` dice **come è nato l’ordine**, non l’ambito della vendita finale.
-
-L’effetto economico arriva dal **documento che lo conclude**, secondo le relazioni documentali
-previste. Non si inventa qui.
-
-**Misurato prima della correzione: due Ordini cliente manuali evasi entravano nel Registro,
-per 229,36 €.** Ora non entrano.
-
-### La matematica del filtro torna sull’insieme giusto
-
-`Tutti = Online + Fisico/POS` deve essere vero **sul dataset dei Corrispettivi**, non su tutti
-i valori possibili di `SalesOrderSource`. È ciò che permette a `manual` di restare fuori senza
-rompere l’asse — e ha un test suo.
-
-### La guardia di esaustività resta, e ora chiede di più
-
-`Record<SalesOrderSource, Classificazione | null>` **esaustivo**: un’origine nuova non compila
-finché qualcuno non dichiara **se entra nel Registro** e con quale classificazione, **oppure**
-che non è una sorgente di corrispettivi. `null` è una decisione, non una dimenticanza.
-
-### Nessuna colonna persistente
-
-Ammissione e classificazione si derivano dall’**origine**, che è un fatto scritto alla
-creazione. Due colonne in più sarebbero due dati da tenere allineati a uno che c’è già.
-
-### L’intersezione vuota è un risultato, non un errore
-
-`Online + VestiFlow` oggi non esiste: la lista resta **vuota**, non mostra tutto. Ha un test
-suo, perché è il caso che si sbaglia scrivendo `if (!sources) return {}` — ed è esattamente la
-forma che faceva entrare gli ordini manuali.
-
-### Etichette corrette per strada
-
-«Negozio» indicava lo **Shopify POS** e «Cassa» la Vendita al banco: due nomi che si
-scambiavano il posto. Ora ogni origine nomina la sorgente vera — **Shopify online**,
-**Shopify POS**, **Vendita al banco**, **Manuale**.
-
-## 22. Cosa resta fuori, misurato
-
-- **Il filtro Fatturazione** non c’è: per la Vendita al banco **non esiste** una relazione
-  documentale con la Fattura (§11), e non si inventa qui. Blocco Famiglia Fattura.
-- **I resi al banco** (`store_return`) **non entrano** ancora nel Registro come rettifiche: la
-  specifica §5 parla della vendita, e trattarli richiede di decidere se sono una riga negativa
-  a sé — come le rettifiche di canale — o altro. **Oggi nel database non ce n’è nessuno.**
-- **Il Report del venduto non è stato toccato**: la Vendita al banco c’era già, perché quel
-  motore legge i **movimenti** (§8).
-
----
-
-## 23. ⏸️ Da fare — Vendita al banco → documenti (censimento, non correzione)
-
-**In sospeso.** Prima va rifatta la schermata e le funzioni della Vendita al banco; questo
-blocco viene dopo, e comincia **misurando**.
-
-### ⚠️ Verificato il 16/08: le tre azioni oggi NON esistono
-
-Il censimento nasceva dalla domanda «che catena documentale stanno costruendo?». La risposta
-misurata è: **nessuna, perché non ci sono.**
-
-| Azione                             | Stato oggi                                                                                                                                                                                       |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Includi documento**              | `includeSourceKindsForDocumentType` torna `[]` per tutto tranne il DDT vendita, e le sorgenti includibili sono Preventivo e Ordine cliente. La Vendita al banco **non si include e non include** |
-| **Genera Fattura**                 | le uniche origini di conversione sono **Proforma** e **DDT vendita** (`buildConversionDto`): `store_sale` non è fra queste                                                                       |
-| **Genera Fattura accompagnatoria** | idem                                                                                                                                                                                             |
-
-**Cambia la natura del lavoro:** non è una correzione di una catena sbagliata, è il **disegno**
-di una catena che non c’è. Metà delle domande del censimento — retry, eliminazione, modifica,
-`sourceLineId`, doppio movimento — non hanno un comportamento da osservare: hanno una regola da
-decidere.
-
-**Resta però un censimento**, e non si salta: le domande vanno girate dal passato al futuro,
-e la risposta va cercata **nei percorsi analoghi che esistono già** — DDT → Fattura, e
-l’inclusione Preventivo/Ordine → DDT. Quelli sì che hanno un comportamento osservabile, e
-sono il precedente da cui la Vendita al banco erediterebbe.
-
-### Il rischio che il censimento deve chiudere per primo
-
-> **La Fattura accompagnatoria, presa da sola, è un documento che può avere effetto fisico.**
-
-Se nasce da una Vendita al banco conclusa, **l’uscita è già avvenuta**:
+⚠️ **Non si scrive «origine facoltativa»**, e la formulazione precedente di questa sezione lo
+faceva: è sbagliata perché suggerisce un modello in cui il collegamento c'è e cambia le
+regole quando si usa. Il Reso **non è modellato** in nessuna di queste tre forme:
 
 ```text
-Vendita al banco  →  −1 fisico
-Fattura accomp.   →  −1 di nuovo   ⛔ mai
+⛔ Reso collegato facoltativamente a una Vendita al banco
+⛔ Reso collegato obbligatoriamente a una Vendita al banco
+⛔ Reso che, se trova una vendita, cambia comportamento
 ```
 
-Quindi la domanda vera non è «funziona il pulsante», è: **come fa la Fattura accompagnatoria a
-sapere che non deve scaricare?** Oggi lo scarico è governato da `loadsStock` per riga, e la
-conversione lo imposta guardando il **tipo di destinazione**, non l’origine — che è
-esattamente il punto in cui la regola andrebbe scritta.
+**La ragione è strutturale, non di comodo:** la vendita reale può essere stata eseguita su una
+cassa esterna e non essere mai esistita in VestiFlow. Un contratto che presuppone un
+documento che può non esserci è un contratto che non regge.
 
-### La domanda da non dare per risposta
+Escono quindi dal piano A, tutte insieme: collegamento alla vendita precedente · tetto sulla
+quantità venduta · avviso sulla quantità venduta · quantità già resa su quella vendita ·
+recupero del prezzo dalla vendita originaria · **qualunque** confronto venduto/reso.
 
-⚠️ **Non si dà per scontato che le tre azioni debbano avere lo stesso significato.**
-«Includi documento» è **inclusione** (molti-a-uno, righe fuse); «Genera» è **conversione**
-(uno-a-uno, `sourceDocumentId`). Sono due relazioni diverse e non si sostituiscono (`07` §12).
-Prima si guarda cosa sono nel codice e quali relazioni condividono, poi si separano
-**comportamento osservato**, **regola corretta** e **causa radice**.
+### Il metodo con cui le regole sono state prese
 
-### Le domande, per ciascuna azione
+⛔ **Il metodo conta quanto la decisione, e va scritto.** Il codice applicava già alcune di
+queste regole senza che nessuno le avesse decise (**B4**). Sono state decise **guardando il
+merito** — cioè partendo dal fatto che la vendita d'origine può non esistere — e la
+coincidenza col codice è **un fatto registrato in B, non la ragione** per cui la decisione è
+stata presa.
 
-| Punto                  | Cosa dobbiamo sapere                                                              |
-| ---------------------- | --------------------------------------------------------------------------------- |
-| Documento origine      | è davvero lo `store_sale` **concluso**?                                           |
-| Documento destinazione | quale `DocumentType` crea, apre o importa?                                        |
-| Relazione              | FK/tabella strutturata, oppure solo copia righe / reference / testo?              |
-| Righe                  | vengono copiate? conservano un’origine riga **strutturata**?                      |
-| Giacenza               | viene modificata **ancora**?                                                      |
-| Movimento              | nasce un **secondo** `stock_movement`?                                            |
-| `sourceLineId`         | punta alla riga Vendita al banco o alla nuova riga fattura?                       |
-| Impegnata              | viene toccata senza motivo?                                                       |
-| Location               | ereditata, bloccata, coerente con lo scarico già avvenuto?                        |
-| Fattura normale        | è **puramente economica** quando deriva da una vendita già scaricata?             |
-| Accompagnatoria        | capisce che **non deve scaricare di nuovo**?                                      |
-| Corrispettivi          | la relazione permette di dirla **fatturata** senza duplicare il valore economico? |
-| Retry                  | il doppio clic può creare due fatture o due relazioni?                            |
-| Eliminazione           | eliminando la fattura, che succede alla vendita e allo scarico originale?         |
-| Modifica               | cambiare la quantità in fattura può alterare il magazzino **già scaricato**?      |
+> **«Il codice già lo fa e sembra sensato, quindi lo confermiamo» non è un metodo.**
+> Un comportamento accidentale che nessuno contraddice diventa una regola per stanchezza.
+> Ogni voce che sale da B ad A deve avere una ragione propria, scritta, che reggerebbe
+> **anche se il codice facesse il contrario**.
 
-### Metodo
+| Regola                           | Perché è la regola giusta                                                                                                                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **nessun documento origine**     | la vendita reale può non essere mai esistita in VestiFlow: un contratto che la presuppone non regge                                                                                           |
+| **IVA dall'anagrafica articolo** | è l'unica fonte disponibile quando non c'è una vendita collegata. ⚠️ Qui è stato confermato **il principio**, non il comportamento: la condizione qui sotto il codice deve ancora soddisfarla |
 
-Censimento di **rotte, componenti, API, database e relazioni**, e verifica **separata** di
-quantità e movimenti **prima** di qualunque correzione. Nessuna modifica nel primo passaggio.
+⚠️ **La condizione sull'IVA, che è parte della decisione e non un dettaglio.** L'aliquota si
+prende dall'anagrafica **quando l'articolo entra nella riga**, e da quel momento vale la
+normale **regola di snapshot**: si scrive nella riga del documento e non cambia più. Se
+domani si modifica il Codice IVA dell'articolo, un Reso di ieri **non deve cambiare
+retroattivamente** — è il principio documentale già in uso nella famiglia Fattura.
 
-⚠️ Si lega al gap del `10` §7: **il filtro «fatturato»** dei Corrispettivi ha bisogno proprio
-di questa relazione. È lo stesso lavoro visto da due lati.
+⚠️ **Che oggi sia così NON è stato verificato**, ed è in **C5**. Senza lo snapshot la regola
+«IVA dall'articolo» sarebbe un'altra cosa da quella decisa: sarebbe «IVA dell'articolo com'è
+adesso», cioè un documento che si riscrive da solo.
 
-**Da dove si ricomincia:** dalla schermata e dalle funzioni della Vendita al banco, che vengono
-prima. Poi da qui, misurando i due percorsi analoghi che esistono.
+⛔ **Nessun confronto «quantità venduta contro quantità resa», e non è più una questione
+aperta.** Non perché sia scomodo: perché senza documento origine **non esiste un venduto con
+cui confrontare**. Discende dalla regola qui sopra, non è una scelta a sé.
+
+⛔ **Non si inventano controlli fiscali nel gestionale.** Come il documento commerciale di
+reso venga gestito sulla cassa o sul registratore **non si decide qui**. Se un giorno una
+cassa compatibile verrà collegata si potrà valutare riconciliazione o emissione collegata;
+oggi il Reso al banco è **autonomo**.
+
+### La Nota di credito è il parente più vicino, ma non è la stessa cosa
+
+Se ne riusa il **principio**: quantità e importi restano positivi, ed è il tipo documento a
+determinare il verso economico negativo.
+
+```text
+Q.tà 1 · Prezzo 50 € · Tipo = Reso al banco
+  → effetto economico  −50 €
+  → movimento fisico   +1
+```
+
+⚠️ **Ma non se ne copia il dominio.** Serve da riferimento per verso economico, quantità
+positive, riepiloghi e coerenza documentale — **non per i vincoli fiscali**.
+
+| Nota di credito                        | Reso al banco                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------------------- |
+| documento economico/fiscale            | documento gestionale di rettifica della vendita fisica                                |
+| può essere collegata a una Fattura     | **non ha** un documento origine                                                       |
+| il rientro fisico può essere opzionale | il rientro è il senso del documento, e la spunta di riga decide se quella riga carica |
+
+### Già chiuso altrove — non si riapre qui
+
+Erano elencate fra le aperte, e non lo sono: due sezioni le avevano già decise.
+
+| Domanda                                                                                                    | Dove è decisa |
+| ---------------------------------------------------------------------------------------------------------- | ------------- |
+| effetto **base** sui Corrispettivi: il Reso compare **una sola volta**, come rettifica, con segno coerente | **A9**        |
+| **idempotenza della conclusione**: retry e doppio clic non duplicano il carico                             | **A18**       |
+
+### Cosa resta davvero aperto
+
+| Domanda                                                                                                                                         | Stato                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **prezzo del reso**: proposto dal prezzo corrente dell'articolo, digitato liberamente, ripreso da un riferimento quando c'è, o una combinazione | **da decidere** — e non si assume nulla finché non si guarda come si comporta la maschera oggi |
+| sconto da usare                                                                                                                                 | **da decidere**                                                                                |
+| **causale obbligatoria**: oggi il codice la pretende, ma è una regola che nessuno ha preso                                                      | **da decidere** — confermarla o toglierla, non lasciarla accadere                              |
+| rimborso: informazione semplice o collegamento futuro ai Pagamenti                                                                              | **da decidere**                                                                                |
+| **correggere un Reso già concluso**: cosa succede al movimento e alla riga di Registro                                                          | **da decidere**, ed è la parte che pesa: sono movimenti già scritti e valori già contati       |
+
+## A11-ter. Merce resa: la spunta di riga, e nient'altro
+
+⚠️ **Qui c'era una sezione «merce non vendibile» con tre strade di modellazione — giacenza non
+disponibile, location dedicate, nuovi stati inventariali. **Eliminata il 18/08/2026**: nel
+Reso al banco **non esiste** una classificazione vendibile/non vendibile della merce resa, e
+non è un problema che questo modulo deve risolvere.
+
+Vale la logica documentale **già comune** a tutti i documenti:
+
+- la riga ha la normale **spunta di carico giacenze**, con l'etichetta del proprio tipo;
+- spunta **attiva** → la conclusione del Reso genera il movimento positivo;
+- spunta **disattiva** → quella riga non genera il carico.
+
+Merce danneggiata, da scartare o da isolare appartiene a **un altro documento o processo**.
+⛔ **Quale, non si inventa ora**, e non è il Reso al banco.
+
+### Direzione trasversale, da annotare e non da implementare qui
+
+Nei documenti che usano la spunta di riga servirà anche un **comando a livello documento** che
+la attivi o disattivi **in blocco su tutte le righe**: con molte righe non è accettabile
+obbligare l'operatore a toccarla articolo per articolo.
+
+⚠️ È un **requisito trasversale dei documenti**, non una logica inventariale della Vendita al
+banco. Sta scritto qui perché è emerso qui, non perché appartenga a questo modulo.
+
+## A12. Interfaccia: si parte da Ordine cliente, senza ereditarne il dominio
+
+**Deciso il 18/08/2026, e la formulazione precedente era troppo vaga.** Non «stessa famiglia
+visiva»: **Ordine cliente è l'implementazione concreta di riferimento da cui partire.**
+
+```text
+NO   guardo Ordine cliente → progetto una nuova schermata simile
+SÌ   ispeziono Ordine cliente → individuo i pezzi già risolti → li riuso o li estraggo
+     → costruisco la Vendita al banco sopra quella base
+```
+
+- struttura, testata, tabella e piede: fonte concreta è l'Ordine cliente **desktop**;
+- card e comportamento responsive: fonte concreta è l'Ordine cliente **mobile**;
+- se un pezzo utile non è ancora un componente condiviso, si valuta di **estrarlo**, non di
+  rifarlo in proprio;
+- si toglie ciò che appartiene al dominio Ordine cliente; si aggiunge ciò che è specifico
+  della Vendita al banco.
+
+### ⚠️ Riuso sì, dominio assolutamente no
+
+L'Ordine cliente rappresenta un **impegno commerciale**: muove l'Impegnata e **non** diminuisce
+subito la Giacenza. La Vendita al banco fa l'opposto.
+
+```text
+Ordine cliente     → impegna, non scarica subito
+Vendita al banco   → non impegna, alla conclusione scarica davvero
+Reso al banco      → non impegna, alla conclusione genera il rientro reale
+```
+
+Non si trascinano: impegni, conclusione dell'ordine, stati dell'ordine, documenti specifici
+dell'ordine. Si riusano struttura, componenti e primitive comuni.
+
+### ⚠️ Non si forcano le aree che il lavoro `03` sta unificando
+
+`03` sta unificando le righe documento, e non è finito. Estrarre oggi una parte che domani
+viene sostituita produrrebbe due strade — quella della Vendita al banco e quella unificata —
+cioè esattamente la divergenza che `03` esiste per togliere.
+
+**Regola:** riutilizzare direttamente i componenti comuni **già stabilizzati** e quelli che
+risultano dal lavoro di unificazione. **Non creare componenti paralleli** per aree che sono
+oggi oggetto di `03`.
+
+## A13. Testata
+
+Come l'Ordine cliente, con i soli campi necessari: **Location**, **Cliente** (facoltativo),
+selettore **netto/ivato** (A4), e il numero secondo il sistema comune (A5).
+
+**Location.** Determina il magazzino movimentato, quindi:
+
+- se esiste una Location predefinita valida, viene proposta;
+- se ne esiste una sola utilizzabile, può essere precompilata;
+- se non è selezionata e ce ne sono più possibili, **non si prosegue** finché non se ne
+  sceglie una;
+- il default precompila ma resta modificabile.
+
+Non si creano righe movimentabili senza una Location valida.
+
+## A14. Inserimento articolo, ricerca e scansione
+
+**Una sola porta d'ingresso** per pistola e tastiera, sul modello dell'area di ricerca
+dell'Ordine cliente. Non una card gigante dedicata.
+
+> Scansiona EAN, inserisci codice/SKU o cerca articolo…
+
+Gestisce EAN, SKU, codice articolo, nome prodotto e ricerca testuale.
+
+**Ricerca manuale.** Si digita; se non c'è corrispondenza esatta compaiono risultati
+contestuali, navigabili da tastiera; **solo la selezione reale crea la riga** — la query
+digitata non è una riga. Dopo l'aggiunta il campo si pulisce ed è di nuovo pronto. Nessuna
+creazione implicita di articoli, nessun movimento di magazzino durante la ricerca.
+
+### Scansione — due livelli
+
+**Standard (scanner HID / keyboard wedge).** Molti lettori si presentano come tastiera, e a
+livello browser non si può dare per certo che una sequenza venga dallo scanner.
+
+```text
+scanner → codice + terminatore → ricerca esatta → aggiunta o incremento
+→ pulizia input → di nuovo pronto
+```
+
+Requisiti minimi: il campo torna attivo subito; una scansione completa non produce effetti
+carattere per carattere; l'azione avviene solo a sequenza conclusa; un EAN non trovato non
+crea righe; la scansione non genera movimenti; salvataggi e aggiornamenti UI **non rubano il
+fuoco**.
+
+⚠️ **Il rischio da gestire:** se l'operatore sta modificando Prezzo, Quantità, Sconto o Nome e
+usa subito lo scanner, il barcode **non deve finire nel campo attivo**. La soluzione si decide
+dopo il censimento del motore scanner e del fuoco.
+
+**Avanzata (lettori configurabili).** Per i lettori che permettono prefisso/suffisso:
+
+```text
+PREFISSO_SCANNER + CODICE + SUFFISSO/ENTER
+```
+
+VestiFlow riconosce la firma, intercetta la sequenza, evita che finisca in un campo, la manda
+alla ricerca e torna pronto. **Non è obbligatoria:** chi non ha un lettore configurabile usa
+la modalità standard. Un'impostazione «Configura lettore barcode» potrà seguire.
+
+### Comportamento EAN
+
+| Caso                           | Effetto                                                                                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| **trovato**                    | articolo aggiunto                                                                                                           |
+| **già presente nella vendita** | **incremento della quantità** sulla stessa riga, non una riga nuova                                                         |
+| **non trovato**                | **segnale acustico** · nessuna riga · nessun popup · nessuna creazione automatica · subito pronto alla scansione successiva |
+
+Le scansioni consecutive veloci non devono perdere codici, duplicare per retry, contaminare il
+campo precedente, perdere il fuoco o creare movimenti anticipati.
+
+## A15. Righe
+
+Desktop: tabella con la densità dell'Ordine cliente, senza le informazioni che alla Vendita al
+banco non servono.
+
+| Articolo | Q.tà | Prezzo | Sconto | IVA | Totale | Azioni |
+| -------- | ---: | -----: | -----: | --: | -----: | ------ |
+
+L'articolo ha lo spazio maggiore. Informazioni secondarie possibili: variante, SKU, EAN,
+disponibilità. È previsto il pulsante **Colonne**, coerente con gli altri documenti: la vista
+base resta essenziale, l'operatore aggiunge ciò che gli serve.
+
+**Modificabili direttamente dalla riga:** nome/descrizione, quantità, prezzo, sconto di riga.
+Il totale di riga è calcolato. La quantità supporta digitazione diretta e stepper − / valore /
+
+- dove adatto. La modifica del nome riguarda il testo della riga, non l'anagrafica.
+
+Mobile: card sul modello dell'Ordine cliente — nome leggibile subito, codici e disponibilità
+subordinati, quantità con stepper, prezzo e sconto rapidamente editabili, totale ben leggibile.
+
+## A16. Sconti
+
+**Di riga:** modificabile direttamente, secondo il contratto sconti comune.
+
+**Extra a piè documento:** la UI prevede **sia percentuale sia importo**. Il calcolo lo fa il
+motore economico comune, mai una logica ad hoc.
+
+Da definire nel blocco Sconti: se percentuale e importo sono cumulabili o alternativi, ordine
+di applicazione, arrotondamenti, comportamento con più aliquote, rapporto con castelletto e
+totali. **Più aliquote non sono un motivo per togliere l'importo:** vanno gestite nel modello
+economico.
+
+## A17. Riepilogo e conclusione
+
+Piede come gli altri documenti, con le sole informazioni necessarie: totali dal motore
+economico comune, sconto extra, IVA, totale, pagamento informativo, azione finale. Il totale
+dev'essere chiaramente leggibile.
+
+L'azione principale dice **«Concludi vendita»** o **«Concludi reso»**, e il suo significato
+dev'essere inequivocabile: è il momento in cui nasce l'effetto fisico ed economico.
+
+## A18. Stock e movimenti
+
+**Scansione, ricerca, aggiunta e modifica non creano movimenti.** Lo scarico avviene solo alla
+conclusione.
+
+Alla conclusione della **vendita**: una riga movimentabile → un movimento negativo, collegato a
+documento e riga con identità stabile, tenant e Location rispettati, retry e doppio clic
+idempotenti, e nessun secondo scarico generato da Corrispettivi o report.
+
+Alla conclusione del **reso**: la quantità realmente rientrata genera il movimento di rientro,
+collegato a documento e riga; retry e doppio clic non duplicano il carico; l'effetto economico
+è una **rettifica**, non una vendita positiva.
+
+**Stock insufficiente:** la vendita oltre la disponibilità è consentita. Warning visibile, **non
+bloccante**; Giacenza e Disponibile possono diventare negative.
+
+## A19. Fuoco e tastiera
+
+È un requisito funzionale, non una rifinitura. Va verificato dopo: scansione riuscita,
+selezione da ricerca, modifica di quantità, prezzo, sconto e nome, eliminazione riga,
+salvataggi e aggiornamenti asincroni, EAN non trovato.
+
+L'operatore non deve riposizionare il cursore per continuare una sequenza di scansioni.
+
+## A20. Aspetto visivo
+
+Colori, token, componenti e regole visive sono quelli già definiti per VestiFlow: questa
+specifica **non introduce una palette autonoma**. Per densità e spaziatura il riferimento è
+l'Ordine cliente.
+
+## A21. Da valutare, non ancora approvato — riga manuale senza articolo
+
+Una modalità che non blocchi la vendita quando l'articolo non esiste ancora:
+
+```text
+Nome manuale + Prezzo + Quantità
+```
+
+Non si implementa prima di aver deciso: se è una riga libera non collegata a Product/Variant;
+se movimenta stock; come è identificata nel movimento; come entra nei Corrispettivi; IVA e
+codice IVA; se può poi creare o agganciare un prodotto; come si evitano righe ambigue.
+
+## A22. Criteri di accettazione
+
+Erano nel testo consegnato e in una stesura precedente di questo file **erano stati persi**.
+Non sono test: sono il modo in cui si riconosce che una fetta è finita.
+
+| Scenario                                                                   | Atteso                                                                                                                                             |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **scansione rapida** — EAN A · EAN B · EAN C                               | tre articoli inseriti · nessun movimento prima della conclusione · nessuna perdita di fuoco · nessuna duplicazione tecnica                         |
+| **ricerca + scanner** — scanner A · digito il nome · seleziono · scanner B | le due modalità convivono · la query si pulisce dopo la selezione · lo scanner è subito operativo                                                  |
+| **modifica + scanner** — scanner A · modifico il prezzo · scanner B        | prezzo di A corretto · il barcode di B **non** contamina il campo prezzo · B passa dal percorso scanner                                            |
+| **EAN ripetuto** — EAN A · EAN A                                           | stessa riga · quantità incrementata · nessun doppio effetto fisico prima della conclusione                                                         |
+| **EAN non trovato**                                                        | segnale acustico · nessuna riga · nessun popup · subito pronto alla scansione successiva                                                           |
+| **Location mancante** — più location, nessuna predefinita                  | non si prosegue finché non se ne scegle una · nessuna riga movimentabile confermata senza Location valida                                          |
+| **stock insufficiente**                                                    | warning non bloccante · vendita concludibile · **un solo** movimento per riga alla conclusione · Giacenza e Disponibile possono diventare negative |
+| **retry sulla conclusione**                                                | una sola vendita o reso · un solo effetto fisico per riga · una sola presenza economica nei Corrispettivi                                          |
+| **tenant senza Shopify**                                                   | modulo completamente utilizzabile · nessun campo, banner, errore o indicatore Shopify non pertinente                                               |
+
+---
+
+# B · COMPORTAMENTO OSSERVATO
+
+Misurato nel repository il **18/08/2026**. Descrive ciò che il codice fa oggi, non ciò che
+deve fare. Dove diverge dal piano A, l'intervento è in **C**.
+
+## B1. La Vendita al banco è già un documento
+
+Il servizio della cassa crea `document` e `stockMovement` **nella stessa transazione**, con due
+percorsi distinti: vendita e reso. Non passa da `SalesOrder`.
+
+⚠️ **Questo chiude una biforcazione che i documenti precedenti tenevano aperta** — «creare un
+ordine» contro «far diventare il Registro un'unione». Nessuna delle due: è già un documento, e
+la domanda non va riaperta.
+
+## B2. Esistono due rotte, e non sono un doppione
+
+| Rotta                        | Cosa fa                                                    |
+| ---------------------------- | ---------------------------------------------------------- |
+| la schermata operativa       | dove si esegue la vendita o il reso                        |
+| l'elenco/dettaglio documenti | archivio delle vendite prodotte, **in sola consultazione** |
+
+Il commento nel codice dichiara che i documenti «nascono in transazione con i movimenti e non
+si modificano né si eliminano da qui». **Resta un comportamento osservato**: che sia anche la
+regola giusta non lo ha deciso nessuno, ed è aperto in **A2**.
+
+## B3. Netto/ivato: oggi è forzato, e in due modi
+
+- i due tipi **non appartengono** all'elenco dei tipi che rispondono alla modalità prezzo;
+- il servizio scrive il flag «prezzi ivati» **come costante**, sia sulla vendita sia sul reso;
+- il calcolo del reso usa una modalità costo fissata nel codice.
+
+Non è una convenzione implicita: è un forcing scritto. Il piano A4 lo rimuove.
+
+## B4. Il Reso al banco esiste già — e su due punti NON è conforme
+
+**Interfaccia.** Un interruttore commuta vendita/reso **in qualsiasi momento** — e **A3** lo
+sostituisce con due tasti alla creazione. **Non svuota il carrello**, mentre il cambio di
+Location lo svuota e il codice spiega perché: i due percorsi usano stati diversi, quindi il
+carrello resta lì mentre si compila un reso.
+
+⛔ **Entrando in modalità reso il codice carica le vendite recenti.** Serve al collegamento
+dell'origine, che **A11** ha escluso dal contratto: va **censito e presumibilmente rimosso** se
+non ha altro scopo.
+reso carica le vendite recenti; tornando a vendita rimette il fuoco sulla ricerca. **Non
+svuota il carrello** — mentre il cambio di Location lo svuota, e il codice spiega perché. I due
+percorsi usano stati diversi, quindi il carrello resta lì mentre si compila un reso.
+
+**Percorso reso, misurato:**
+
+| Aspetto                   | Comportamento oggi                                               | Rispetto ad A11                                                                                                                                                                 |
+| ------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| collegamento alla vendita | **facoltativo**; se indicato, è validato                         | ⛔ **da riallineare**: A11 stabilisce che il Reso **non ha** documento origine. Questo percorso è legacy, non il contratto                                                      |
+| tetto sulla quantità      | **nessuno**                                                      | ✅ non è più materia: **l'origine esce dal contratto**, quindi non c'è nulla da cui derivare un tetto                                                                           |
+| IVA                       | **non quella incassata**: prende quella corrente dell'articolo   | ◐ **coincide solo in parte**: A11 conferma la fonte, ma pretende lo **snapshot di riga**, e che oggi ci sia **non è verificato** (C5)                                           |
+| prezzo                    | dalla riga, con l'intento dichiarato di rendere quanto incassato | ⏸️ **aperto** (A11): la fonte del prezzo non è decisa                                                                                                                           |
+| causale                   | **obbligatoria**                                                 | ⏸️ **nessuno l'ha decisa**: portata in A11 fra le aperte                                                                                                                        |
+| movimento                 | nasce solo per le righe con la spunta di carico attiva           | ✅ è la logica documentale comune (**A11-ter**) — ⛔ ma la distinzione «vendibile / non vendibile» con cui il codice la pilota è **legacy e non pertinente** al contratto nuovo |
+| numerazione               | sistema canonico comune, prefisso dalle impostazioni             | **già conforme ad A5**                                                                                                                                                          |
+
+## B11. La Fattura accompagnatoria scarica alla conferma
+
+Misurato: la funzione che decide se un tipo scarica il magazzino alla conferma risponde **sì**
+per la Fattura accompagnatoria, e c'è un test che lo inchioda.
+
+⚠️ **È un fatto, non la fonte della regola.** La regola di **A7** — un solo effetto fisico per
+una sola uscita — vale per il sistema documentale comune, e questa misura dice soltanto che
+quando la accompagnatoria è **il primo** documento fisico il suo scarico è quello giusto. Il
+caso da governare è quando **non** è il primo.
+
+## B5. Numerazione: già comune
+
+Prefisso e titolo di stampa dei due tipi stanno nella **stessa tabella di tutti gli altri
+documenti**, e il servizio usa serie, lock del contatore e formattazione canonici. Non c'è
+nulla di dedicato da smontare.
+
+⚠️ Nella stessa tabella è annotato che `docs/04` §11 toglierà sigla e zeri dal numero visibile
+di tutti i documenti: la riga dei due tipi cadrà insieme alle altre.
+
+## B6. Terminologia: la rinomina precedente è incompleta
+
+Il titolo di stampa dei due tipi è oggi **«Vendita in negozio»** e «Reso vendita al banco»: una
+rinomina passata ha preso il reso e ha mancato la vendita. Restano una trentina di occorrenze
+di terminologia legacy nel codice non-test.
+
+Le **causali dei movimenti nuovi** dicono già «Vendita al banco». Solo le righe storiche
+riportano la dicitura vecchia.
+
+## B7. La Vendita al banco è già nel report del venduto
+
+Il venduto si costruisce sui **movimenti**, non sugli ordini: un movimento di vendita che porta
+il riferimento al documento porta con sé il ricavo della propria riga. Quindi la Vendita al
+banco entra nel venduto **da sempre**, e non va introdotto un secondo percorso.
+
+## B8. Con le Fatture non esiste nessuna relazione
+
+La relazione strutturata che lega Fattura e DDT vendita **non copre** la Vendita al banco, e le
+azioni di inclusione e conversione non la contemplano fra le origini. Il piano A7 non descrive
+quindi una catena da correggere: descrive una catena **da disegnare**.
+
+## B9. La schermata non condivide nulla con lo scheletro documentale
+
+Circa 2900 righe fra logica, template e stile, con un foglio di stile proprio e **zero** classi
+della grammatica documentale. Il piano A12 è quindi una ristrutturazione, non una rifinitura.
+
+## B10. «Ambito» è già stato ritirato dal Registro
+
+Nel Registro Corrispettivi la parola **non è più un filtro**, e il template lo dichiara. Il
+controllo Online/Fisico-POS vive **dentro il pannello di Origine** come scorciatoia sulle
+origini — non come dimensione a sé. È già la forma decisa in **A9**.
+
+Anche il chip «Canale» è stato tolto perché ridondante: **il dato resta nel modello, nell'API
+e nella lettura dell'indirizzo**, così un collegamento salvato o una stampa aperta da un URL
+vecchio continuano a filtrare come prima. Si è semplificata la UI, non il modello.
+
+⛔ **Restano invece due «Ambito» che NON sono questo**, e non vanno toccati: l'«Ambito di
+utilizzo» dei Codici IVA in Impostazioni — che dice se un codice vale in acquisto, in vendita
+o in entrambi — e i commenti nel codice che spiegano perché la dimensione è stata ritirata.
+
+---
+
+# C · INTERVENTI CONSEGUENTI
+
+In ordine di dipendenza, non di importanza. Ogni voce nasce da A confrontato con B.
+
+| #   | Intervento                                                                                                                                                                               | Da       | Perché                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1   | Censire la terminologia legacy e correggere l'etichetta esposta rimasta indietro                                                                                                         | A6 · B6  | la rinomina precedente è incompleta e le due diciture convivono                                                  |
+| 2   | Togliere il forcing netto/ivato e far entrare i due tipi nel contratto comune, memorie comprese                                                                                          | A4 · B3  | oggi è una costante nel codice, non una convenzione                                                              |
+| 3   | Riallineare le rotte a elenco → Nuovo → documento, dopo il censimento dei consumatori                                                                                                    | A2 · B2  | grammatica diversa da tutti gli altri documenti                                                                  |
+| 4   | Separare Vendita e Reso alla creazione, al posto dell'interruttore                                                                                                                       | A3 · B4  | l'interruttore attuale non svuota nemmeno il carrello                                                            |
+| 5   | **Censire e rimuovere la logica di collegamento del Reso a una vendita origine** — percorso, campi, caricamento delle vendite recenti                                                    | A11 · B4 | A11 stabilisce che il Reso **non ha** documento origine: quello che c'è oggi è legacy                            |
+| 6   | Verificare che l'IVA del Reso sia scritta come **snapshot di riga** e non riletta dall'anagrafica                                                                                        | A11 · B4 | senza snapshot la regola decisa diventa un'altra: un documento che si riscrive da solo                           |
+| 7   | Chiudere le decisioni aperte del Reso: **prezzo, sconto, causale, rimborso, correzione di un Reso concluso**                                                                             | A11      | il nucleo è deciso, queste cinque no — e la correzione è la più pesante                                          |
+| 8   | Portare il metodo di pagamento fino alla **riga del Registro**, al dettaglio della registrazione e all'export; poi valutare il filtro                                                    | A8       | oggi si ferma nella schermata della vendita                                                                      |
+| 9   | Verificare che «Ambito» non compaia più, e che i raggruppamenti stiano dentro Origine                                                                                                    | A9 · B10 | **in buona parte già fatto**: resta una verifica, non un lavoro                                                  |
+| 10  | Ristrutturare la schermata riusando l'Ordine cliente, senza forcare le aree di `03`                                                                                                      | A12 · B9 | oggi non condivide nulla con la grammatica documentale                                                           |
+| 11  | Censire e applicare **sia «Includi documento» sia «Genera documento»** per la Vendita al banco, secondo la mappatura documentale comune — che oggi non la contempla in nessuna direzione | A7 · B8  | sono due operazioni distinte, e la mappatura va **estesa**, non aggirata                                         |
+| 12  | Far valere la **regola comune** del solo effetto fisico lungo la catena                                                                                                                  | A7 · B11 | non un caso speciale per la accompagnatoria: il primo documento che registra il fatto movimenta, i successivi no |
+
+⚠️ **L'11 non si inizia prima del 12**: una catena che si apre prima che la regola del solo effetto fisico sia applicata è una catena che scarica due volte.
+
+---
+
+# Metodo, prima di toccare il codice
+
+1. Ispezionare il codice corrente prima di ogni fetta, e misurare invece di ricordare.
+2. Censire i componenti dell'Ordine cliente realmente riusabili, distinguendo quelli
+   stabilizzati da quelli che `03` sta muovendo.
+3. Censire ricerca prodotto, barcode ed EAN condivisi, e la gestione del fuoco.
+4. Verificare API, database, righe, quantità, movimenti, tenant e Location.
+5. Verificare l'idempotenza di vendita e reso.
+6. Non considerare il prototipo o l'HTML corrente come prova del comportamento.
+7. Procedere per fette, con il rischio di regressione dichiarato ogni volta.
+
+# Principio sintetico
+
+> **La Vendita al banco deve sembrare un documento VestiFlow, ma deve potersi compilare alla
+> velocità del banco.**
