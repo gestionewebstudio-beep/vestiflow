@@ -843,7 +843,9 @@ documento non dipende dalla larghezza ma dal **tipo di puntatore** — col mouse
 sotto 820px, col dito sotto 1400px — **più una scelta manuale** che il dispositivo si
 ricorda, per «il monitor touch grande, chi sul portatile preferisce le card».
 
-⚠️ **Quello che si è aggiunto il 18/08: i numeri non sono un dato acquisito.** I 1400px
+il 18/08. ⚠️ **Questa NON è la matrice** — è il divario: la matrice sta in `12`, e ne esiste
+una sola.
+
 del dito sono tarati per non sbagliare **mai** su un tablet, perché oggi la soglia è
 l’unico rimedio: deve coprire anche il caso più largo, e per farlo manda alle card anche
 schermi dove la tabella starebbe benissimo. Con la valvola manuale quel compito cambia —
@@ -874,7 +876,7 @@ Cosa è cambiato il 18/08, in breve: il documento è stato **riscritto da capo**
 del proprietario ed è ora l’**unica specifica attiva** del modulo — si aggiorna lì, non
 nascono file paralleli, e non si recuperano decisioni dalla stesura precedente.
 
-Le decisioni prese quel giorno: navigazione **elenco → Nuovo**; Vendita e Reso separati
+Le decisioni prese quel giorno: navigazione **elenco → due pulsanti diretti** («Nuova vendita al banco», «Nuovo reso al banco»); Vendita e Reso separati
 **alla creazione**; netto/ivato **come tutti gli altri documenti**, senza forcing;
 numerazione comune e **nessuna sigla fissata**; «Vendita negozio» dichiarata legacy;
 rapporti documentali verso Fattura col dominio comune; il pagamento che arriva fino
@@ -892,3 +894,214 @@ niente da cui derivare un tetto né un’aliquota incassata.
 riferimento quando c’è — e non si assume nulla finché non si guarda la maschera. Più una
 verifica: che l’aliquota presa dall’articolo venga **scritta nella riga come snapshot** e non
 cambi retroattivamente se domani si modifica il Codice IVA.
+
+---
+
+### 10. ⭐ La matrice documentale Includi/Genera — da verificare e applicare a TUTTI i documenti
+
+> **Non è un seguito della Vendita al banco.** È il contratto di come i documenti si
+> agganciano fra loro, e riguarda l'intera famiglia.
+
+La matrice completa sta in **`12-specifica-collegamenti-documentali.md`**, estratta il 18/08 da
+`07`, dove la metà approvata viveva dal 15/08 e dove ormai era introvabile: una matrice di
+tutto il sistema documentale dentro la specifica delle fatture non la cerca nessuno.
+
+⛔ **La formulazione giusta del lavoro** _(proprietario, 18/08)_:
+
+> «Il sistema Includi/Genera **esiste già** ed è operativo su una parte delle relazioni
+> documentali. La Vendita al banco **non è attualmente collegata** a tale sistema. Il lavoro
+> consiste nel **completare la copertura** della matrice comune, **estendendo il motore
+> esistente senza duplicarlo**.»
+
+Non «costruire il motore»: **censirlo, verificarne il contratto, estenderlo** ai documenti e
+alle relazioni mancanti. ⛔ **Nessun secondo motore parallelo**, in nessun modulo.
+
+⚠️ **Il divario col codice è grande, e va saputo prima di stimare qualsiasi cosa.** Misurato
+il 18/08:
+
+|                                           | matrice                              | codice oggi                                                                         |
+| ----------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------- |
+| **Includi**                               | 5 documenti con le loro sorgenti     | 3 — Ordine ← Preventivo · DDT ← Preventivo/Ordine · Arrivo merce ← Ordine fornitore |
+| **Genera**                                | 6 documenti con le loro destinazioni | 2 sole origini ammesse — Proforma e DDT vendita                                     |
+| Fattura accompagnatoria come destinazione | prevista                             | **non esiste**: oggi non la genera nessuno                                          |
+| Vendita al banco                          | presente in entrambe le direzioni    | **assente in entrambe**                                                             |
+
+⛔ **Quello che il codice fa oggi non si cancella per far posto alla matrice.** Le conversioni
+Proforma → DDT/Fattura e DDT → Fattura/Proforma sono in uso: la matrice dice dove si deve
+arrivare, non che l'esistente sia sbagliato.
+
+**Le due regole che stanno sopra la matrice**, e che vanno rispettate prima di collegare
+qualunque coppia:
+
+1. **Un collegamento non autorizza mai a duplicare un movimento già avvenuto.** Il primo
+   documento che produce davvero l'effetto fisico movimenta; i successivi conservano il
+   collegamento e non lo ripetono. **Senza trattamenti speciali per nome di documento.**
+2. **Il comando si chiama «Genera documento» ovunque** — «Concludi ordine» è stato ritirato il
+   18/08: due parole per lo stesso gesto confondono operatore e cliente. ⚠️ **Sparisce il nome,
+   non il comportamento**: generare da un Ordine cliente un documento che realizza l'uscita
+   deve comunque consumare l'Impegnata, e la matrice marca con ✔ le destinazioni che chiudono
+   l'ordine.
+   l'Impegnata e concludere significa trasformare un impegno in uscita reale — non copiare
+   righe.
+
+⏸️ **Aperto:** la posizione della **Proforma** nella matrice, da censire senza aggiungere
+collegamenti non verificati. ⚠️ «Bozza fattura» **non è il nome di niente**: quel documento
+all'operatore si chiama **Fattura**, e il termine era filtrato da un messaggio d'errore
+dell'API.
+aggiungere collegamenti non verificati.
+
+⏸️ **Aperto, e di natura diversa:** la matrice ora copre **tutti** i documenti, ma vive dentro
+la specifica della _famiglia fattura_. Chi cerca «come si aggancia un Preventivo a un Ordine»
+non la troverà lì. Se vada estratta in una specifica sua è una decisione da prendere — non
+l'ho presa io per non creare due case per la stessa tabella.
+
+---
+
+### 11. ⭐ Gli stati di DDT e Fatture non sono un ciclo — misurato il 18/08/2026
+
+> **L’elenco offre cinque stati, la maschera non ne espone nessuno, il codice ne sa scrivere
+> tre, e il metodo che gestirebbe i passaggi non lo chiama nessuno.**
+
+Emerso da una domanda del proprietario — «gli stati in DDT e fatture sono funzionanti?» — e
+misurato subito dopo.
+
+| Stato                   | Chi lo scrive                            |                                               |
+| ----------------------- | ---------------------------------------- | --------------------------------------------- |
+| `draft`                 | 1 punto, alla creazione                  | vivo                                          |
+| `confirmed`             | 5 punti                                  | vivo                                          |
+| `printed`               | **nessuno**                              | ⛔ morto                                      |
+| `sent`                  | **nessuno**                              | ⛔ morto                                      |
+| `cancelled`             | 1 punto, via `POST :id/cancel`           | vivo                                          |
+| `externally_registered` | **nessuno**, tolto dallo schema il 16/08 | ⛔ morto, resta il valore nel tipo PostgreSQL |
+
+⛔ **`transition(tenantId, id, next, allowedFrom)` esiste e fa la cosa giusta** — rifiuta i
+passaggi non ammessi con «Transizione di stato non consentita» — **ma non lo chiama nessuno.**
+Nel controller l’unico endpoint di stato è `POST :id/cancel`: non esiste «segna come
+stampato», né «segna come inviato», né un cambio di stato generico.
+
+**Quindi il ciclo non esiste**: un documento nasce, si conferma, e da lì l’unica transizione è
+annullare.
+
+⚠️ **Cosa vede l’operatore, ed è la parte che fa danno.** Nella maschera del DDT **non c’è
+nessun campo Stato** — non esiste neanche il form control. Ma l’elenco offre i filtri:
+
+```text
+DDT vendita   Bozza · Confermato · STAMPATO · INVIATO · Annullato
+Fattura       Bozza · Da emettere · INVIATA AL COMMERCIALISTA · Annullata
+```
+
+Gli stati in maiuscolo **nessun documento nuovo può assumerli**: quei filtri, salvo storici,
+tornano sempre vuoti. E l’operatore non ha modo di marcare un documento come stampato nemmeno
+volendo.
+
+⚠️ E i tre `CONFIRMED_EDITABLE_STATUSES` includono `printed` e `sent`: gate che contemplano
+stati irraggiungibili. Non fanno danno, ma raccontano un ciclo che non c’è.
+
+⏸️ **Tre strade, e nessuna è stata scelta:** togliere dai filtri gli stati che nessuno assegna
+· implementare le transizioni mancanti · lasciare com’è e dichiararlo. La prima è l’unica delle
+tre che l’operatore vede.
+
+---
+
+### 12. Sconto extra: le REGOLE DI CALCOLO sono del motore economico, non di una maschera
+
+⚠️ **Attenzione a cosa è aperto: non il campo, il calcolo.**
+
+|            |                                                                                                                                                                 |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deciso** | il documento ha lo **Sconto extra a piè documento**, con un campo **percentuale** e un campo **importo**, coerente con gli altri documenti VestiFlow (`11` A16) |
+| **Aperto** | le **regole di calcolo** di quello sconto                                                                                                                       |
+
+Restano da definire: se **percentuale e importo** siano cumulabili o alternativi, l’**ordine di
+applicazione**, gli **arrotondamenti**, il comportamento con **più aliquote**, il rapporto con
+**castelletto e totali**.
+
+⚠️ **Non sono decisioni della Vendita al banco**, e non stanno nella sua specifica: la risposta
+deve valere identica su ogni documento che ha uno sconto extra. Deciderle dentro una maschera
+produrrebbe una regola valida per quella sola.
+
+⚠️ **Non esiste una specifica che le ospiti** — verificato il 18/08: nessun file in `docs/` le
+governa. Stanno qui finché non ne nasce una, o finché non si decide che la loro casa è il
+documento del motore economico.
+
+⚠️ **E più aliquote non sono un motivo per togliere l’importo**: è un caso che il modello
+economico deve saper gestire, non una funzione da sacrificare.
+
+⛔ **Ma il campo importo OGGI NON ESISTE**, e va saputo prima di stimare. Misurato il 18/08: il
+contratto comune ha **solo la percentuale** — `documentDiscountPercent` in ingresso e un
+importo come risultato calcolato. **Nessun campo importo in ingresso**, in nessun documento e
+in nessuno strato.
+
+Quindi la decisione «percentuale e importo» **richiede di estendere il contratto comune**, e
+quella estensione va fatta **dove il contratto vive**. ⛔ **Non** aggiungendo un campo locale a
+una maschera: un importo che esiste in un documento solo è la logica locale che si sta
+evitando.
+
+**La regola generale**, che vale oltre gli sconti: se durante l’implementazione il contratto
+comune risulta **incompleto o incoerente**, lo si **segnala** — non lo si aggira in locale. È
+la stessa disciplina del motore Includi/Genera al punto 10.
+
+---
+
+### 13. ⭐⭐ `invoice_draft`: uno STATO modellato come TIPO — censimento del 18/08/2026
+
+> **«Bozza fattura» doveva essere uno stato della fattura non ancora confermata. È nato come
+> tipo di documento a sé, e da lì viene il disordine.**
+
+Diagnosi del proprietario, e il codice la conferma da solo. Nello schema, sulla tabella
+`documents`:
+
+```text
+«le BOZZE (number NULL) non collidono ma i confermati sì»
+```
+
+Il concetto di bozza **è già uno stato**: un documento senza numero. E `DocumentStatus.draft`
+esiste. Quindi «bozza» è modellata **due volte** — una volta bene come stato, una volta male
+come nome di tipo.
+
+⚠️ **E non esiste nessun tipo fattura «non bozza»**: `invoice_draft` è l’unica fattura di
+vendita. Il commento del suo enum lo dice: `invoice_draft // Fattura (fiscale…)`. Il nome
+promette una distinzione che nel modello non c’è.
+
+#### ⛔ Chi è appoggiato su quel tipo — la parte che rende pericoloso toccarlo
+
+**Due altri documenti ci numerano dentro:**
+
+```text
+invoice_accompanying  ─┐
+credit_note           ─┴──→  numerano sotto  invoice_draft
+```
+
+Fattura, Fattura accompagnatoria e Nota di credito **condividono un solo progressivo**, e chi
+lo possiede è `invoice_draft`. Il codice avverte che usarlo come filtro di uguaglianza su
+`type` è **«un errore silenzioso»**: si vedrebbe metà partizione e si proporrebbero numeri già
+occupati, che l’indice unico boccia. C’è una migration dell’11/08 che chiude proprio quello.
+
+**Gli altri appoggi, misurati:**
+
+| Dove                    | Cosa                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `document-type.util.ts` | **10 punti**: numerazione, conversione, insiemi                                                              |
+| conversione             | è **destinazione** sia da Proforma sia da DDT vendita                                                        |
+| permessi                | famiglia `invoice`                                                                                           |
+| modalità prezzo         | è in `SALES_PRICE_MODE_TYPES`                                                                                |
+| Nota di credito         | ci si genera sopra (`07` §6)                                                                                 |
+| viste tabella           | chiave **persistita** `invoice_draft_documents_list` — rinominarla orfana le colonne salvate dagli operatori |
+| API                     | parametro `?type=invoice_draft` — collegamenti salvati e integrazioni                                        |
+| migration               | **7 file** già applicati                                                                                     |
+| in tutto                | **131 occorrenze**, 72 fuori dai test, su **46 file**                                                        |
+
+#### I tre lavori, di natura diversa
+
+|       | Cosa                                                                                           | Rischio                                       |
+| ----- | ---------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| **1** | il **termine esposto** → «Fattura»: guida utente, documento funzionale, messaggio d’errore API | nessuno, e risolve il problema dell’operatore |
+| **2** | una **guardia** che impedisca il rientro, sul modello di `check:registro`                      | quasi nessuno                                 |
+| **3** | il **tipo**: disfare uno stato modellato come tipo                                             | ⛔ alto — vedi sopra                          |
+
+⛔ **Il 3 non è una rinomina.** È disfare un tipo su cui poggia il numeratore di tre documenti.
+Toccarlo male significa **numeri duplicati sulle fatture**, che è il danno peggiore possibile
+qui. Se si farà, la partizione del numeratore è il **primo** vincolo da affrontare, non una
+scoperta a metà strada. E il database è condiviso col collega.
+
+⏸️ **Il 3 non è deciso.** I primi due sì, e stanno in `11` C1.
