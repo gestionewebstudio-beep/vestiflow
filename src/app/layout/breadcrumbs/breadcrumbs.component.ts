@@ -38,7 +38,7 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   corrispettivi: 'Corrispettivi',
   shopify: 'Ordini Shopify',
   registro: 'Registro documenti',
-  'vendite-negozio': 'Vendita/Reso in negozio',
+  'vendite-negozio': 'Vendita al banco — elenco',
   'arrivi-merce': 'Arrivi merce',
   'goods-receipt': 'Arrivo merce',
   'registrazione-fattura': 'Registrazioni fattura',

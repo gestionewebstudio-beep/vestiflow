@@ -327,16 +327,14 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     type: DocumentType.StoreSale,
     types: [DocumentType.StoreSale, DocumentType.StoreReturn],
     typeFilterOptions: STORE_SALE_TYPE_FILTER_OPTIONS,
-    pageTitle: 'Vendita/Reso in negozio',
-    pageSubtitle:
-      'Vendite e resi registrati dalla cassa negozio, con i movimenti di magazzino già applicati.',
-    createLabel: 'Nuova vendita in negozio',
+    pageTitle: 'Vendita al banco — elenco',
+    pageSubtitle: 'Vendite e resi al banco, con i movimenti di magazzino già applicati.',
+    createLabel: 'Nuova vendita al banco',
     createPath: '/app/sales/register',
     hideCreateAction: true,
     listPath: '/app/documents/vendite-negozio',
-    emptyTitle: 'Nessuna vendita o reso in negozio',
-    emptyDescription:
-      'Non ci sono vendite o resi che corrispondono ai filtri. Vendite e resi si registrano dalla cassa negozio.',
+    emptyTitle: 'Nessuna vendita o reso al banco',
+    emptyDescription: 'Non ci sono vendite o resi che corrispondono ai filtri.',
     emptyIcon: 'pi-shopping-bag',
     searchPlaceholder: 'Cerca per numero o cliente…',
     // Nascono già confermati alla conclusione della vendita: nessun ciclo stati.

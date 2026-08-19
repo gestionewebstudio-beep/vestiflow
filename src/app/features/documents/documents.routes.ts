@@ -172,7 +172,7 @@ export const documentsRoutes: Routes = [
     // cassa. Sola consultazione — i documenti nascono in transazione con i
     // movimenti di magazzino e non si modificano né si eliminano da qui.
     path: 'vendite-negozio',
-    title: 'Vendita/Reso in negozio',
+    title: 'Vendita al banco — elenco',
     loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
@@ -183,7 +183,7 @@ export const documentsRoutes: Routes = [
   },
   {
     path: 'vendite-negozio/:id',
-    title: 'Dettaglio vendita in negozio',
+    title: 'Dettaglio vendita al banco',
     loadComponent: () =>
       import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
     canActivate: [tenantPermissionGuard],

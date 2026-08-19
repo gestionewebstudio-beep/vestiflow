@@ -8,7 +8,7 @@ import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 export const storeSalesRegisterRoutes: Routes = [
   {
     path: '',
-    title: 'Vendita/Reso in negozio',
+    title: 'Vendita al banco',
     canActivate: [retailSalesRegisterGuard],
     // Uscita con carrello/reso in corso: conferma a tre scelte (salva, esci,
     // annulla) delegata al componente tramite CanComponentDeactivate.

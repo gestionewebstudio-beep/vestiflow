@@ -141,8 +141,8 @@ export const DOCUMENT_HUB_GROUPS: readonly DocumentHubGroup[] = [
       {
         id: 'store-sales',
         family: 'store_sale',
-        label: 'Vendita/Reso in negozio',
-        description: 'Elenco di vendite e resi registrati dalla cassa negozio.',
+        label: 'Vendita al banco — elenco',
+        description: 'Vendite e resi al banco registrati: da qui si consultano e si creano.',
         route: ['/app/documents/vendite-negozio'],
         icon: 'pi-shopping-cart',
         available: true,
