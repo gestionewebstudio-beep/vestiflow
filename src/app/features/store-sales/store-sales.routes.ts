@@ -4,6 +4,7 @@ import { retailSalesRegisterGuard } from '@core/guards/retail-sales.guard';
 import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 
 import {
+  STORE_SALE_EDIT_SEGMENT,
   STORE_SALE_MODE_ROUTE_DATA_KEY,
   STORE_SALE_ROUTE_SEGMENT,
 } from '@domain/store-sales/models/store-sale-routing.util';
@@ -42,6 +43,33 @@ export const storeSalesRegisterRoutes: Routes = [
   {
     path: STORE_SALE_ROUTE_SEGMENT.return,
     title: 'Nuovo reso al banco',
+    canActivate: [retailSalesRegisterGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'return' },
+    loadComponent: () =>
+      import('./store-sale-register.component').then((m) => m.StoreSaleRegisterComponent),
+  },
+  // ── Modifica di un documento esistente (`11` C 3b) ──────────────────────
+  //
+  // ⛔ STESSO componente e STESSE guardie della creazione: la maschera è una,
+  // e ciò che cambia è che parte da un documento invece che da zero.
+  //
+  // ⚠️ Il tipo sta nei `data` anche qui, e NON si deduce dal documento
+  // caricato: è la regola comune, nata dal difetto misurato in `07` §18 —
+  // finché la rotta di modifica era una sola e senza tipo, la maschera si
+  // comportava da proforma fino alla risposta della lettura.
+  {
+    path: `${STORE_SALE_EDIT_SEGMENT.sale}/:id/edit`,
+    title: 'Modifica vendita al banco',
+    canActivate: [retailSalesRegisterGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'sale' },
+    loadComponent: () =>
+      import('./store-sale-register.component').then((m) => m.StoreSaleRegisterComponent),
+  },
+  {
+    path: `${STORE_SALE_EDIT_SEGMENT.return}/:id/edit`,
+    title: 'Modifica reso al banco',
     canActivate: [retailSalesRegisterGuard],
     canDeactivate: [unsavedChangesGuard],
     data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'return' },

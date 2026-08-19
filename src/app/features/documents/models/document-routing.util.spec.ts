@@ -40,8 +40,16 @@ describe('documentOpenPath', () => {
     expect(documentOpenPath(doc(DocumentType.InvoiceAccompanying))).toBe(
       '/app/documents/fattura/doc-1',
     );
-    expect(documentOpenPath(doc(DocumentType.StoreSale))).toBe('/app/vendita-al-banco/doc-1');
-    expect(documentOpenPath(doc(DocumentType.StoreReturn))).toBe('/app/vendita-al-banco/doc-1');
+    // ⛔ Le Vendite al banco si aprono nella MODIFICA, non nell'anteprima
+    // (`11` C 3b, 19/08/2026): e' la regola generale, e vale anche per la
+    // ricerca globale, che passa da qui. Un indirizzo per TIPO, come la
+    // maschera vendita.
+    expect(documentOpenPath(doc(DocumentType.StoreSale))).toBe(
+      '/app/vendita-al-banco/vendita/doc-1/edit',
+    );
+    expect(documentOpenPath(doc(DocumentType.StoreReturn))).toBe(
+      '/app/vendita-al-banco/reso/doc-1/edit',
+    );
     expect(documentOpenPath(doc(DocumentType.ManualUnload))).toBe(
       '/app/documents/manual-unload/doc-1',
     );

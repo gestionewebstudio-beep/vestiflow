@@ -372,6 +372,9 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     ],
     createVariantsLayout: 'buttons',
     createRequiresRetailRegister: true,
+    // ⛔ La riga apre la MODIFICA, non l'anteprima (`11` C 3b, e la regola
+    // generale di `regole-gestionale`). L'anteprima resta, come flusso separato.
+    rowOpensForm: true,
     listPath: '/app/vendita-al-banco',
     emptyTitle: 'Nessuna vendita o reso al banco',
     emptyDescription: 'Non ci sono vendite o resi che corrispondono ai filtri.',

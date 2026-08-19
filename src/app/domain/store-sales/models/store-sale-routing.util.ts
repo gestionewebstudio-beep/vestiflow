@@ -32,6 +32,24 @@ export const STORE_SALE_ROUTE_SEGMENT: Readonly<Record<StoreSaleMode, string>> =
   return: 'nuovo-reso-al-banco',
 };
 
+/**
+ * Segmento di MODIFICA, per modo.
+ *
+ * ⚠️ **Distinto da quello di creazione, e non è un doppione**: «Nuova vendita al
+ * banco» descrive un'azione, e `nuova-vendita-al-banco/:id/edit` direbbe «nuova»
+ * di un documento che nuovo non è. Qui il segmento nomina il **tipo**, che è ciò
+ * che serve a chi legge l'indirizzo di un documento esistente.
+ *
+ * ⛔ Il tipo resta nella ROTTA anche in modifica, e non si deduce dal documento
+ * caricato: è la regola comune, nata da un difetto misurato — finché la rotta di
+ * modifica era una sola e senza tipo, la maschera vendita si comportava da
+ * proforma fino alla risposta della lettura (`07` §18).
+ */
+export const STORE_SALE_EDIT_SEGMENT: Readonly<Record<StoreSaleMode, string>> = {
+  sale: 'vendita',
+  return: 'reso',
+};
+
 /** La radice del modulo: elenco, dettaglio e le due creazioni stanno qui sotto. */
 export const STORE_SALE_ROOT_PATH = '/app/vendita-al-banco';
 
@@ -45,6 +63,18 @@ export const STORE_SALE_MODE_DOCUMENT_TYPE: Readonly<Record<StoreSaleMode, Store
 /** Percorso di creazione per modo, costruito dalla fonte unica. */
 export function storeSaleCreatePath(mode: StoreSaleMode): string {
   return `${STORE_SALE_ROOT_PATH}/${STORE_SALE_ROUTE_SEGMENT[mode]}`;
+}
+
+/** Percorso di modifica di un documento del banco, per modo. */
+export function storeSaleEditPath(mode: StoreSaleMode, id: string): string {
+  return `${STORE_SALE_ROOT_PATH}/${STORE_SALE_EDIT_SEGMENT[mode]}/${id}/edit`;
+}
+
+/** Il modo che corrisponde a un tipo documento, o `null` se non è del banco. */
+export function storeSaleModeOfDocumentType(type: string): StoreSaleMode | null {
+  if (type === DocumentType.StoreSale) return 'sale';
+  if (type === DocumentType.StoreReturn) return 'return';
+  return null;
 }
 
 /** Chiave con cui la rotta dichiara il modo iniziale nei propri `data`. */

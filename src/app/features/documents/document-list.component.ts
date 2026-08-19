@@ -81,7 +81,11 @@ import {
   documentStatusLabel,
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
-import { documentDuplicateFormRoute, salesFormRouteSegment } from './models/document-routing.util';
+import {
+  documentDuplicateFormRoute,
+  documentEditPath,
+  salesFormRouteSegment,
+} from './models/document-routing.util';
 import {
   DOCUMENT_LIST_COLUMN_DEFS,
   DOCUMENT_LIST_COLUMN_PRESETS,
@@ -1096,7 +1100,11 @@ export class DocumentListComponent {
     // tranne gli annullati che non sono modificabili → anteprima dettaglio.
     if (sales) {
       if (sales.rowOpensForm && doc.status !== DocumentStatus.Cancelled) {
-        void this.router.navigate([sales.listPath, doc.id, 'edit']);
+        // ⛔ Dalla FONTE UNICA, non composto a mano: per i profili a un tipo
+        // solo il risultato coincide con `[listPath, id, 'edit']`, ma dove i
+        // tipi sono due — le Vendite al banco — l'indirizzo dipende dal tipo,
+        // e comporlo qui darebbe una rotta che non esiste.
+        void this.router.navigateByUrl(documentEditPath(doc));
         return;
       }
       void this.router.navigate([sales.listPath, doc.id]);

@@ -11,11 +11,11 @@ import {
   viewChild,
   type Signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
 
-import { catchError, map, of, switchMap, take } from 'rxjs';
+import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
@@ -47,6 +47,9 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 // Stesse formule e stessi arrotondamenti del server: l'aritmetica IVA è una sola.
@@ -72,8 +75,15 @@ import type {
 import { StoreSalesService } from './services/store-sales.service';
 import {
   requireStoreSaleMode,
+  STORE_SALE_ROOT_PATH,
+  storeSaleModeOfDocumentType,
   type StoreSaleMode,
 } from '@domain/store-sales/models/store-sale-routing.util';
+import { DocumentService } from '@domain/documents/services/document.service';
+import type { DocumentRecord } from '@core/models/document.model';
+
+/** I quattro stati del caricamento, come nelle altre sei maschere. */
+type LoadState = 'ready' | 'loading' | 'not-found' | 'error';
 
 /**
  * Identità di una riga NUOVA, generata dal client.
@@ -187,6 +197,9 @@ function looksLikeBarcode(code: string): boolean {
     ConfirmDialogComponent,
     SelectMenuComponent,
     SlidePanelComponent,
+    TableSkeletonComponent,
+    ErrorStateComponent,
+    EmptyStateComponent,
     ProductFormComponent,
     DocumentProductSearchPanelComponent,
   ],
@@ -205,6 +218,8 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
   private readonly route = inject(ActivatedRoute);
+  private readonly documents = inject(DocumentService);
+  private readonly router = inject(Router);
 
   // ── Cosa può fare chi sta al banco ───────────────────────────────────────
 
@@ -288,6 +303,96 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
       ? 'Alla conclusione la giacenza e la disponibilità vengono scaricate; l’impegnata resta invariata. Non è un documento fiscale.'
       : 'Alla conclusione la merce resa rientra in giacenza, riga per riga secondo la spunta «Carica giacenze». Non è un documento fiscale.',
   );
+
+  // ── Caricamento di un documento esistente (`11` C 3b) ────────────────────
+  //
+  // ⛔ È il pattern comune, non una variante: sei maschere lo ripetono identico
+  // — `paramMap` (mai `snapshot`: il router riusa l'istanza passando da un
+  // documento all'altro), un solo `loadTick`/`loadState` a quattro stati, e in
+  // template la catena scheletro → errore → non modificabile → form.
+
+  private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
+
+  /** L'id del documento da modificare, o `null` se se ne sta creando uno. */
+  protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
+  protected readonly isEditMode = computed(() => Boolean(this.editDocumentId()));
+
+  private readonly loadTick = signal(0);
+
+  private readonly loadState = toSignal(
+    toObservable(computed(() => ({ id: this.editDocumentId(), tick: this.loadTick() }))).pipe(
+      switchMap(({ id }) => {
+        if (!id) {
+          return of<LoadState>('ready');
+        }
+        return this.documents.getDocumentById(id).pipe(
+          map((doc): LoadState => {
+            // ⚠️ Il tipo lo dice la ROTTA, non il documento: se non coincidono
+            // l'indirizzo è sbagliato, e mostrarlo comunque farebbe compilare
+            // un reso su una maschera che dice vendita.
+            if (storeSaleModeOfDocumentType(doc.type) !== this.mode()) {
+              return 'not-found';
+            }
+            this.patchFromDocument(doc);
+            return 'ready';
+          }),
+          startWith<LoadState>('loading'),
+          catchError(() => of<LoadState>('error')),
+        );
+      }),
+    ),
+    { initialValue: this.editDocumentId() ? 'loading' : 'ready' },
+  );
+
+  protected readonly loading = computed(() => this.loadState() === 'loading');
+  protected readonly loadError = computed(() => this.loadState() === 'error');
+  protected readonly notEditable = computed(() => this.loadState() === 'not-found');
+
+  protected reload(): void {
+    this.loadTick.update((tick) => tick + 1);
+  }
+
+  /** Ritorno all'elenco dallo stato «non disponibile». */
+  protected goToList(): void {
+    void this.router.navigateByUrl(STORE_SALE_ROOT_PATH);
+  }
+
+  /**
+   * Riempie la maschera da un documento salvato.
+   *
+   * ⛔ Le righe conservano l'**id del server**: è quello che fa AGGIORNARE il
+   * movimento collegato invece di cancellarlo e riscriverlo — e riscriverlo
+   * ricongelerebbe il costo di oggi su una vendita di marzo (`11` A2).
+   *
+   * ⚠️ I valori si prendono dal DOCUMENTO, non dall'anagrafica: è la regola «la
+   * riga di un documento è una fotografia». Solo la disponibilità è un dato
+   * live, e resta a zero finché non la si rilegge — al banco non serve a
+   * decidere, serve a avvisare, e su un documento già salvato la merce è già
+   * stata scaricata.
+   */
+  private patchFromDocument(doc: DocumentRecord): void {
+    this.loadedDocument.set(doc);
+    this.selectedLocationId.set(doc.locationId ?? null);
+    this.cart.set(
+      (doc.lines ?? []).map((line) => ({
+        id: line.id,
+        variantId: line.variantId ?? '',
+        sku: line.sku ?? '',
+        description: line.description,
+        unitPriceMinor: line.unitPrice.amountMinor,
+        quantity: line.quantity,
+        discountPercent: line.discountPercent,
+        vatRatePercent: line.vatSnapshot?.ratePercent ?? null,
+        vatCodeId: line.vatCodeId ?? null,
+        onHand: 0,
+        committed: 0,
+        available: 0,
+      })),
+    );
+  }
+
+  /** Il documento caricato, per i valori di testata che non si ricalcolano. */
+  protected readonly loadedDocument = signal<DocumentRecord | null>(null);
 
   // ── Location ────────────────────────────────────────────────────────────
 

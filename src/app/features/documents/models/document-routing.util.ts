@@ -14,6 +14,10 @@ import {
   type SalesFormDocumentType,
 } from '@domain/documents/models/document-sales.util';
 import { isTransferDocumentType } from './document-transfer.util';
+import {
+  storeSaleEditPath,
+  storeSaleModeOfDocumentType,
+} from '@domain/store-sales/models/store-sale-routing.util';
 
 /**
  * Segmento di indirizzo della maschera vendita, per tipo. **Fonte unica**: da
@@ -73,6 +77,11 @@ export function documentEditPath(doc: {
   if (doc.type === DocumentType.SupplierInvoice) {
     return `/app/documents/registrazione-fattura/${doc.id}/edit`;
   }
+  // Vendita e Reso al banco: un indirizzo per tipo, come la maschera vendita.
+  const bancoMode = storeSaleModeOfDocumentType(doc.type);
+  if (bancoMode) {
+    return storeSaleEditPath(bancoMode, doc.id);
+  }
   return `/app/documents/${doc.id}/edit`;
 }
 
@@ -109,9 +118,12 @@ export function documentOpenPath(doc: {
     case DocumentType.InvoiceAccompanying:
     case DocumentType.CreditNote:
       return `/app/documents/fattura/${doc.id}`;
+    // ⛔ Alla MODIFICA, non all'anteprima: e' la regola generale
+    // (`regole-gestionale` → «il clic di riga su un documento apre la
+    // modifica»), e vale anche per la ricerca globale e i link trasversali.
     case DocumentType.StoreSale:
     case DocumentType.StoreReturn:
-      return `/app/vendita-al-banco/${doc.id}`;
+      return documentEditPath(doc);
     case DocumentType.ManualUnload:
       return `/app/documents/manual-unload/${doc.id}`;
     default:

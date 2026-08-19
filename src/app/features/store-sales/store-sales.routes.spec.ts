@@ -11,9 +11,11 @@ import { documentsRoutes, storeSaleDocumentRoutes } from '../documents/documents
 import { salesDocumentRegisterConfig } from '../documents/models/document-sales-register.config';
 import { storeSalesRegisterRoutes } from './store-sales.routes';
 import {
+  STORE_SALE_EDIT_SEGMENT,
   STORE_SALE_ROOT_PATH,
   STORE_SALE_ROUTE_SEGMENT,
   requireStoreSaleMode,
+  storeSaleEditPath,
 } from '@domain/store-sales/models/store-sale-routing.util';
 
 /**
@@ -56,11 +58,24 @@ describe('le due creazioni', () => {
   const perSegmento = (segmento: string) =>
     storeSalesRegisterRoutes.find((r) => r.path === segmento);
 
-  it('una rotta per ogni segmento del registro, e nessuna in più', () => {
-    expect(storeSalesRegisterRoutes).toHaveLength(Object.keys(STORE_SALE_ROUTE_SEGMENT).length);
+  it('una rotta di creazione per ogni segmento del registro', () => {
     for (const segmento of Object.values(STORE_SALE_ROUTE_SEGMENT)) {
       expect(perSegmento(segmento), `manca la rotta ${segmento}`).toBeDefined();
     }
+  });
+
+  it('e una di MODIFICA per ognuno, con lo stesso tipo nei data', () => {
+    for (const modo of ['sale', 'return'] as const) {
+      const rotta = storeSalesRegisterRoutes.find(
+        (r) => r.path === `${STORE_SALE_EDIT_SEGMENT[modo]}/:id/edit`,
+      );
+      expect(rotta, `manca la modifica per ${modo}`).toBeDefined();
+      expect(requireStoreSaleMode(rotta?.data ?? {})).toBe(modo);
+    }
+  });
+
+  it('quattro rotte in tutto: due creazioni e due modifiche', () => {
+    expect(storeSalesRegisterRoutes).toHaveLength(4);
   });
 
   /**
@@ -280,8 +295,84 @@ describe('FASE UI 1 — i due comandi di creazione sull’elenco', () => {
     expect(etichette.some((e) => e.includes('elimin'))).toBe(false);
   });
 
-  /** ⚠️ La riga apre ancora l'anteprima: `C 3b` è dichiarato APERTO, non fatto. */
-  it('⚠️ la riga NON apre ancora la modifica: requisito aperto, non silenzioso', () => {
-    expect(config?.rowOpensForm).toBeUndefined();
+  /**
+   * ⛔ Qui c'era il contrario, e inchiodava lo stato aperto: «la riga NON apre
+   * ancora la modifica». C 3b è chiuso il 19/08/2026, e la guardia si capovolge
+   * con lui — l'anteprima resta, come flusso separato.
+   */
+  it('⛔ la riga apre la MODIFICA, non l’anteprima', () => {
+    expect(config?.rowOpensForm).toBe(true);
+  });
+});
+
+describe('C 3b — la riga apre la modifica, e la maschera sa caricare', () => {
+  const config = salesDocumentRegisterConfig('store-sale');
+
+  it('⭐ le due rotte di modifica esistono, una per tipo', () => {
+    for (const modo of ['sale', 'return'] as const) {
+      const rotta = storeSalesRegisterRoutes.find(
+        (r) => r.path === `${STORE_SALE_EDIT_SEGMENT[modo]}/:id/edit`,
+      );
+      expect(rotta, `manca la modifica per ${modo}`).toBeDefined();
+    }
+  });
+
+  /**
+   * ⛔ Stesse guardie della creazione: se una rotta di modifica perdesse
+   * `retailSalesRegisterGuard` si aprirebbe a chi non ha `retail.register`, e
+   * senza `unsavedChangesGuard` si uscirebbe da un documento in corso senza
+   * conferma.
+   */
+  it('⛔ le modifiche portano ENTRAMBE le guardie, come le creazioni', () => {
+    const modifiche = storeSalesRegisterRoutes.filter((r) => String(r.path).endsWith('/:id/edit'));
+    expect(modifiche).toHaveLength(2);
+    for (const rotta of modifiche) {
+      expect(rotta.canActivate, `${rotta.path}`).toContain(retailSalesRegisterGuard);
+      expect(rotta.canDeactivate, `${rotta.path}`).toContain(unsavedChangesGuard);
+    }
+  });
+
+  /**
+   * ⛔ Il tipo sta nei `data` anche in modifica, e NON si deduce dal documento
+   * caricato: è la regola comune, nata dal difetto misurato in `07` §18 —
+   * finché la rotta di modifica era una sola e senza tipo, la maschera si
+   * comportava da proforma fino alla risposta della lettura.
+   */
+  it('⛔ anche in modifica il tipo viene dalla rotta, non dal documento', () => {
+    for (const modo of ['sale', 'return'] as const) {
+      const rotta = storeSalesRegisterRoutes.find(
+        (r) => r.path === `${STORE_SALE_EDIT_SEGMENT[modo]}/:id/edit`,
+      );
+      expect(requireStoreSaleMode(rotta?.data ?? {})).toBe(modo);
+    }
+  });
+
+  it('l’indirizzo di modifica si compone dalla fonte unica', () => {
+    expect(storeSaleEditPath('sale', 'doc-1')).toBe('/app/vendita-al-banco/vendita/doc-1/edit');
+    expect(storeSaleEditPath('return', 'doc-1')).toBe('/app/vendita-al-banco/reso/doc-1/edit');
+  });
+
+  it('⛔ i due indirizzi di modifica sono DIVERSI: un refuso li farebbe coincidere', () => {
+    expect(storeSaleEditPath('sale', 'x')).not.toBe(storeSaleEditPath('return', 'x'));
+  });
+
+  it('⭐ ogni indirizzo composto corrisponde a una rotta dichiarata', () => {
+    for (const modo of ['sale', 'return'] as const) {
+      const composto = storeSaleEditPath(modo, ':id');
+      const dichiarate = storeSalesRegisterRoutes.map((r) => `${STORE_SALE_ROOT_PATH}/${r.path}`);
+      expect(dichiarate, `${composto} non ha una rotta`).toContain(composto);
+    }
+  });
+
+  it('⛔ i segmenti di modifica non collidono con quelli di creazione', () => {
+    const tutti = [
+      ...Object.values(STORE_SALE_ROUTE_SEGMENT),
+      ...Object.values(STORE_SALE_EDIT_SEGMENT),
+    ];
+    expect(new Set(tutti).size).toBe(tutti.length);
+  });
+
+  it('la riga dell’elenco apre la maschera', () => {
+    expect(config?.rowOpensForm).toBe(true);
   });
 });
