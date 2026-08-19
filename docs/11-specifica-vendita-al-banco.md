@@ -1444,6 +1444,21 @@ configurazioni di riga (`goods-receipt-line-columns.config`,
 `stock-movement-line-columns.config`) ed è già ordinabile nell'Ordine cliente. È un
 altro pezzo che si monta, non si scrive.
 
+### ⛔ Poche colonne attive, e il COSTO non esiste — deciso il 19/08/2026
+
+È un documento di **vendita al banco**: le colonne attive sono poche ed essenziali, quelle
+elencate qui sopra.
+
+> ⛔ **La colonna costo non va prevista, nemmeno disattivata.**
+
+Non è «spenta per default»: **non deve esistere nel selettore colonne**. Una colonna
+disattivata è una colonna che qualcuno accende, e il costo d'acquisto al banco non ha
+ragione di comparire davanti a chi batte gli scontrini — spesso davanti al cliente.
+
+⚠️ **Ne discende un vincolo per chi monta la tabella**: la configurazione colonne del
+banco è **propria**, non ereditata da una maschera che il costo ce l'ha (Arrivo merce,
+Ordine cliente). Ereditarla e poi spegnere il costo lo lascerebbe raggiungibile.
+
 ### ✅ FASE UI 1 e UI 2 — fatte il 19/08/2026
 
 **UI 1 — i due comandi sull'elenco.** L'elenco è quello che **esisteva già** nell'area

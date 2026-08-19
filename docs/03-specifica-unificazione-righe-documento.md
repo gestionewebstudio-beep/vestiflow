@@ -142,8 +142,17 @@ Tutte le funzioni decise qui si applicano a **queste maschere insieme** (princip
 - **Fatture (Proforma, Fattura, Fattura accompagnatoria)** — **rientrano nello standard**: nessuna regola di questo documento fa eccezione per loro. Ciò che resta da concordare non è _se_, ma _quando_: la maschera è contesa col lavoro sulla fattura elettronica, e le regole si applicano **quando quel ramo rientra**. Fino ad allora quanto scritto qui vale per loro come specifica, non come lavoro fatto.
 - **Registrazione fattura fornitore — fuori DOMINIO, non rimandata** _(11/08/2026)_. Le sue righe sono **contabili**, non articoli: non hanno SKU, EAN, codice fornitore ne' costo unitario. Le colonne su cui si ordinerebbe **non esistono**, e la navigazione fra celle articolo non ha niente da attraversare.
   La distinzione conta: le Fatture sono un'esclusione **temporanea** (stesse regole, momento diverso), questa e' un'esclusione **definitiva** — e chi rilegge l'elenco fra sei mesi non deve chiedersi quando tocchera' a lei.
-- **Vendita e reso al banco — fuori perimetro, per natura.** Non è una maschera documento con righe da compilare: è un **carrello**, dove si aggiungono articoli scansionando e si incassa. La tastiera, l'ordinamento righe, il pannello suggerimenti e le celle condivise sono risposte a un problema che lì non si pone.
-  È un'**esclusione dichiarata, non un pezzo mancante**: chi rileggerà l'elenco delle maschere allineate non deve concludere che una sia stata dimenticata.
+- **Vendita e reso al banco — ⚠️ NON PIÙ «fuori perimetro per natura»** _(corretto il 19/08/2026)_.
+  Qui c'era scritto che non è una maschera documento ma **un carrello**, e che le celle
+  condivise rispondono a un problema che lì non si pone. **Era vero, e non lo è più**: la
+  decisione del 19/08 (`11`) manda via il carrello — `CartLine[]` è legacy della vecchia
+  impostazione a mini-cassa — e fa della Vendita al banco un **documento VestiFlow**, con
+  testata, righe documento e piede.
+  ⛔ **Non ne discende però che il banco entri ORA nel perimetro di questo documento**, e
+  la distinzione va tenuta: la sua ricostruzione (FASE UI 3) adotterà l'anatomia comune e
+  le celle di riga condivise **quando quel lavoro si farà**, senza forzare né appropriarsi
+  delle aree che questa specifica sta ancora muovendo. Fino ad allora resta fuori
+  dall'elenco delle maschere allineate — **per stato, non per natura**.
 
 Le Fatture sono anche l'unica maschera del perimetro che **non** usa ancora le celle condivise: lì l'allineamento è prima "adottare le celle condivise", poi la tastiera.
 
