@@ -1810,17 +1810,23 @@
                 ></textarea>
               </div>
 
-              <!-- Il costo effettivo della variante è comunque SEMPRE aggiornato
-                   dal carico. Questa spunta (default acceso) decide solo se
-                   propagare anche al costo di riferimento dell'articolo. -->
+              <!-- ⛔ Riscritta il 19/08/2026 (03b): prima il costo della variante
+                   si scriveva SEMPRE e la spunta governava un costo sul Product.
+                   Chi la toglieva credeva di registrare un costo solo
+                   documentale, e stava riscrivendo il costo effettivo di ogni
+                   variante caricata. Ora comanda quello che dice, riga per riga:
+                   spuntata, il costo digitato diventa il costo dell'articolo;
+                   spenta, resta un costo del DOCUMENTO per report e contabilità.
+                   L'ultimo prezzo pagato al fornitore si aggiorna comunque: è un
+                   fatto del rapporto col fornitore, non dell'anagrafica. -->
               <label class="doc-form__check">
                 <input
                   type="checkbox"
-                  [checked]="updateArticleReferenceCost()"
+                  [checked]="updateArticleCost()"
                   [disabled]="formReadOnly()"
-                  (change)="setUpdateArticleReferenceCost($any($event.target).checked)"
+                  (change)="setUpdateArticleCost($any($event.target).checked)"
                 />
-                Aggiorna anche il costo di riferimento in anagrafica
+                Aggiorna il costo in anagrafica con quello inserito
               </label>
 
               <!-- A differenza del costo, qui non c’è un effetto «sempre»: il

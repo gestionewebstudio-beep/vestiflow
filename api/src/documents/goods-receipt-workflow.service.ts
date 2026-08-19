@@ -781,7 +781,7 @@ export class GoodsReceiptWorkflowService {
         tenantId,
         dto.supplierId ?? null,
         savedLines,
-        dto.updateArticleReferenceCost === true,
+        dto.updateArticleCost === true,
       );
 
       // Prezzi di anagrafica (fetta 2). Spunta accesa di default: senza, i

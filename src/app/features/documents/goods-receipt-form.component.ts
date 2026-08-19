@@ -592,13 +592,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly lineSort = new DocumentLineSortStore<GoodsReceiptLineSortColumn>();
   /**
    * Spunta per-documento «Aggiorna anche il costo di riferimento in anagrafica».
-   * Il costo EFFETTIVO della variante è comunque SEMPRE aggiornato dal carico
-   * (è un fatto della taglia); questa spunta decide solo se propagare anche al
-   * costo di RIFERIMENTO dell'articolo in anagrafica. Default ACCESO: di norma
-   * l'anagrafica segue l'ultimo costo pagato, chi non lo vuole la spegne su
-   * quel documento (§Punto A).
+   * Spuntata, il costo digitato su ogni riga diventa il costo dell'articolo in
+   * anagrafica — **riga per riga**: richiamare tre taglie significa richiamare
+   * tre righe, e ognuna governa la propria. Spenta, in anagrafica non va nulla e
+   * il costo resta un dato del DOCUMENTO, per report e contabilità.
+   *
+   * Default ACCESO: di norma l'anagrafica segue l'ultimo costo pagato, chi non
+   * lo vuole la spegne su quel documento (§Punto A).
+   *
+   * ⛔ **Fino al 19/08/2026 comandava un'altra cosa**: il costo della variante si
+   * scriveva sempre e la spunta governava un costo sul `Product`. Chi la toglieva
+   * credeva di registrare un costo solo documentale, e stava riscrivendo il costo
+   * effettivo di ogni variante caricata (`03b`).
    */
-  protected readonly updateArticleReferenceCost = signal(true);
+  protected readonly updateArticleCost = signal(true);
 
   /**
    * Spunta per-documento «Aggiorna prezzi articolo». Default ACCESO.
@@ -3453,13 +3460,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // blocco — da lì si salva comunque. La regola vive nella guardia condivisa.
     this.chronology.run(() =>
       // Nessun dialog: la scelta è la spunta per-documento (default acceso).
-      this.executeExplicitSave(this.updateArticleReferenceCost()),
+      this.executeExplicitSave(this.updateArticleCost()),
     );
   }
 
-  /** Spunta «Aggiorna anche il costo di riferimento in anagrafica». */
-  protected setUpdateArticleReferenceCost(checked: boolean): void {
-    this.updateArticleReferenceCost.set(checked);
+  /** Spunta «Aggiorna il costo in anagrafica con quello inserito». */
+  protected setUpdateArticleCost(checked: boolean): void {
+    this.updateArticleCost.set(checked);
   }
 
   /** Spunta «Aggiorna prezzi articolo»: spegnendola i prezzi tornano in sola lettura. */
@@ -4466,7 +4473,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return null;
   }
 
-  private executeExplicitSave(updateArticleReferenceCost: boolean): void {
+  private executeExplicitSave(updateArticleCost: boolean): void {
     if (this.saving()) {
       return;
     }
@@ -4485,7 +4492,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = this.linkAllLineCodes$()
       .pipe(
-        switchMap(() => this.saveDocument$({ updateArticleReferenceCost })),
+        switchMap(() => this.saveDocument$({ updateArticleCost })),
         take(1),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -4742,11 +4749,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * server vengono riadottati per aggiornare i movimenti ai salvataggi futuri.
    */
   private saveDocument$(options?: {
-    readonly updateArticleReferenceCost?: boolean;
+    readonly updateArticleCost?: boolean;
   }): Observable<DocumentRecord> {
     const body = {
       ...this.buildSaveGoodsReceiptBody(),
-      updateArticleReferenceCost: options?.updateArticleReferenceCost,
+      updateArticleCost: options?.updateArticleCost,
       updateArticlePrices: this.updateArticlePrices(),
     };
     return this.documentService.saveGoodsReceipt(body).pipe(

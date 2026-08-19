@@ -1688,18 +1688,32 @@ e vale la pena saperlo:</p>
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>Aggiorna anche il costo di riferimento in anagrafica</strong></td>
-<td>se il costo pagato aggiorna anche il costo dell’<strong>articolo</strong></td>
+<td><strong>Aggiorna il costo in anagrafica con quello inserito</strong></td>
+<td>se il costo che digiti diventa il costo dell&#39;<strong>articolo</strong></td>
 </tr>
 <tr>
 <td><strong>Aggiorna prezzi articolo</strong></td>
-<td>se i prezzi che scrivi sulle righe aggiornano l’anagrafica</td>
+<td>se i prezzi che scrivi sulle righe aggiornano l&#39;anagrafica</td>
 </tr>
 </tbody></table>
-<p>⚠️ <strong>Non funzionano allo stesso modo, e la differenza si vede.</strong></p>
-<p>Il <strong>costo</strong> che paghi è un dato del carico: il costo della singola taglia si aggiorna
-<strong>sempre</strong>, e la prima spunta decide solo se propagarlo anche al costo di riferimento
-dell&#39;articolo.</p>
+<p>Il <strong>costo</strong> funziona <strong>riga per riga</strong>: se richiami tre taglie dello stesso articolo hai
+tre righe, e ognuna porta in anagrafica il proprio costo. Nessuna «vince» sulle altre.</p>
+<ul>
+<li><strong>spunta accesa</strong> → il costo che digiti diventa il costo di quella taglia in anagrafica;</li>
+<li><strong>spunta spenta</strong> → resta un <strong>costo del documento</strong>, buono per report e contabilità, e in
+anagrafica non va nulla.</li>
+</ul>
+<p>⚠️ <strong>Fino al 19/08/2026 faceva un&#39;altra cosa</strong>, e vale la pena saperlo se hai caricato merce
+prima di quella data: il costo della taglia si aggiornava <strong>sempre</strong>, spunta o no. Chi la
+toglieva credeva di registrare un costo solo documentale e stava riscrivendo il costo
+effettivo di ogni taglia caricata — quello che alimenta valorizzazione e margini.</p>
+<p><strong>L&#39;ultimo prezzo pagato al fornitore si aggiorna comunque</strong>, con o senza spunta: non è
+anagrafica, è la memoria di quanto ti costa da quel fornitore. È il dato che fa comparire
+l&#39;avviso «lo pagavi X, ora paghi Y» al carico successivo.</p>
+<p>⚠️ <strong>Un articolo NUOVO creato dal carico è un altro caso</strong>: nasce con i dati che stai
+inserendo in quel momento, spunta o no. Alla nascita non c&#39;è nessun valore da sovrascrivere —
+quei dati <strong>sono</strong> i dati dell&#39;articolo.</p>
+<p>⚠️ <strong>Costo e prezzo non funzionano allo stesso modo, e la differenza si vede.</strong></p>
 <p>Il <strong>prezzo di vendita</strong> invece <strong>non è un dato del documento</strong>: è il prezzo di listino
 dell&#39;articolo, e il carico è solo il momento comodo per cambiarlo. Perciò:</p>
 <ul>

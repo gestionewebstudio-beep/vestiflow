@@ -835,16 +835,32 @@ Alla **conferma** dell'arrivo merce (o carico manuale/iniziale) VestiFlow regist
 In fondo alla testata trovi **due spunte**, tutte e due accese di default. Fanno cose diverse,
 e vale la pena saperlo:
 
-| Spunta                                                   | Cosa decide                                                  |
-| -------------------------------------------------------- | ------------------------------------------------------------ |
-| **Aggiorna anche il costo di riferimento in anagrafica** | se il costo pagato aggiorna anche il costo dell’**articolo** |
-| **Aggiorna prezzi articolo**                             | se i prezzi che scrivi sulle righe aggiornano l’anagrafica   |
+| Spunta                                                  | Cosa decide                                                |
+| ------------------------------------------------------- | ---------------------------------------------------------- |
+| **Aggiorna il costo in anagrafica con quello inserito** | se il costo che digiti diventa il costo dell'**articolo**  |
+| **Aggiorna prezzi articolo**                            | se i prezzi che scrivi sulle righe aggiornano l'anagrafica |
 
-⚠️ **Non funzionano allo stesso modo, e la differenza si vede.**
+Il **costo** funziona **riga per riga**: se richiami tre taglie dello stesso articolo hai
+tre righe, e ognuna porta in anagrafica il proprio costo. Nessuna «vince» sulle altre.
 
-Il **costo** che paghi è un dato del carico: il costo della singola taglia si aggiorna
-**sempre**, e la prima spunta decide solo se propagarlo anche al costo di riferimento
-dell'articolo.
+- **spunta accesa** → il costo che digiti diventa il costo di quella taglia in anagrafica;
+- **spunta spenta** → resta un **costo del documento**, buono per report e contabilità, e in
+  anagrafica non va nulla.
+
+⚠️ **Fino al 19/08/2026 faceva un'altra cosa**, e vale la pena saperlo se hai caricato merce
+prima di quella data: il costo della taglia si aggiornava **sempre**, spunta o no. Chi la
+toglieva credeva di registrare un costo solo documentale e stava riscrivendo il costo
+effettivo di ogni taglia caricata — quello che alimenta valorizzazione e margini.
+
+**L'ultimo prezzo pagato al fornitore si aggiorna comunque**, con o senza spunta: non è
+anagrafica, è la memoria di quanto ti costa da quel fornitore. È il dato che fa comparire
+l'avviso «lo pagavi X, ora paghi Y» al carico successivo.
+
+⚠️ **Un articolo NUOVO creato dal carico è un altro caso**: nasce con i dati che stai
+inserendo in quel momento, spunta o no. Alla nascita non c'è nessun valore da sovrascrivere —
+quei dati **sono** i dati dell'articolo.
+
+⚠️ **Costo e prezzo non funzionano allo stesso modo, e la differenza si vede.**
 
 Il **prezzo di vendita** invece **non è un dato del documento**: è il prezzo di listino
 dell'articolo, e il carico è solo il momento comodo per cambiarlo. Perciò:
