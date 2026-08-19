@@ -1146,3 +1146,141 @@ describe('StoreSalesService (fase 3 §12)', () => {
     expect(db.documents).toHaveLength(1);
   });
 });
+
+describe('i tre contratti adottati dal comune — prerequisiti di UI 3', () => {
+  const db2 = () => createDb();
+
+  /**
+   * ⛔ `11` A11: il Reso ha lo sconto IDENTICO alla Vendita. Il servizio lo
+   * forzava a zero in due punti, e il DTO non lo accettava proprio — chi aveva
+   * venduto un capo scontato del 20% e lo riprendeva rendeva il prezzo pieno.
+   */
+  it('⛔ il Reso applica lo sconto di riga: non lo forza piu a zero', async () => {
+    const db = db2();
+    const { service } = createService(db);
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        causale: 'Taglia errata',
+        lines: [
+          { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 10000, discountPercent: 20 },
+        ],
+      } as never,
+      user,
+    );
+
+    const riga = db.documents[0]!.lines[0]!;
+    expect(riga.discountPercent).toBe(20);
+    // 100,00 scontato del 20% = 80,00 netto.
+    expect(riga.lineTotalMinor).toBe(8000);
+  });
+
+  it('senza sconto dichiarato resta zero: il default non cambia', async () => {
+    const db = db2();
+    const { service } = createService(db);
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        causale: 'x',
+        lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 10000 }],
+      } as never,
+      user,
+    );
+    expect(db.documents[0]!.lines[0]!.discountPercent).toBe(0);
+  });
+
+  /**
+   * ⛔ La causale vive in `causalText`, la colonna generica del documento — non
+   * in `internalComment` col prefisso `Causale reso: `, che per rileggerla
+   * obbligava ad analizzare una stringa.
+   */
+  it('⛔ la causale sta in causalText, non in un prefisso dentro il commento', async () => {
+    const db = db2();
+    const { service } = createService(db);
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        causale: 'Capo difettoso',
+        lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000 }],
+      } as never,
+      user,
+    );
+
+    const doc = db.documents[0]!;
+    expect(doc.causalText).toBe('Capo difettoso');
+    expect(doc.causalGenerationMode).toBe('manual');
+    // Il prefisso non deve ricomparire da nessuna parte.
+    expect(JSON.stringify(doc)).not.toContain('Causale reso:');
+  });
+
+  it('⛔ la causale e FACOLTATIVA: senza, il reso si registra lo stesso', async () => {
+    const db = db2();
+    const { service } = createService(db);
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000 }],
+      } as never,
+      user,
+    );
+
+    const doc = db.documents[0]!;
+    expect(doc.causalText).toBeNull();
+    expect(doc.causalGenerationMode).toBeNull();
+    // E il movimento porta comunque il riferimento, che basta a ritrovarlo.
+    expect(db.movements[0]!.reason).toContain(doc.reference);
+  });
+
+  /**
+   * ⚠️ Contratto binario, come il Codice IVA: assente = non modificata.
+   * Rileggere dall'anagrafica a ogni salvataggio riscriverebbe un documento di
+   * marzo col nome di oggi.
+   */
+  it('descrizione DICHIARATA: si salva quella', async () => {
+    const db = db2();
+    const { service } = createService(db);
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        lines: [
+          { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000, description: 'Maglia cotone — seconda scelta' },
+        ],
+      } as never,
+      user,
+    );
+    expect(db.documents[0]!.lines[0]!.description).toBe('Maglia cotone — seconda scelta');
+  });
+
+  it('⛔ descrizione ASSENTE su riga esistente: resta quella persistita', async () => {
+    const db = db2();
+    const { service } = createService(db);
+    await service.createReturn(
+      TENANT,
+      {
+        locationId: LOCATION,
+        lines: [
+          { variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 1000, description: 'Nome di allora' },
+        ],
+      } as never,
+      user,
+    );
+    const doc = db.documents[0]!;
+
+    await service.createReturn(
+      TENANT,
+      {
+        id: doc.id,
+        locationId: LOCATION,
+        lines: [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 1000 }],
+      } as never,
+      user,
+    );
+
+    expect(db.documents[0]!.lines[0]!.description).toBe('Nome di allora');
+  });
+});

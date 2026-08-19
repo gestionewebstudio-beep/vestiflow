@@ -61,6 +61,20 @@ export class StoreSaleLineInputDto {
   @Max(100)
   discountPercent?: number;
 
+  /**
+   * Descrizione della riga, quando l'operatore la cambia.
+   *
+   * ⚠️ **Assente = non modificata**, e il servizio conserva quella persistita
+   * (o la fotografa dall'articolo se la riga è nuova). È lo stesso contratto
+   * binario del Codice IVA, e per la stessa ragione: la descrizione è la
+   * **fotografia** dell'operazione, e rileggerla dall'anagrafica a ogni
+   * salvataggio riscriverebbe una vendita di marzo col nome di oggi.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
   /** Codice IVA della riga. Se assente, risolto da articolo/predefinito aziendale. */
   @IsOptional()
   @IsUUID()

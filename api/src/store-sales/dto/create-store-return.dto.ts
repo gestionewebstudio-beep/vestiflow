@@ -5,6 +5,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  Max,
   IsISO8601,
   IsNumber,
   IsOptional,
@@ -47,6 +48,36 @@ export class StoreReturnLineInputDto {
   restockable!: boolean;
 
   /**
+   * Sconto di riga, **come sulla Vendita**.
+   *
+   * ⛔ Qui non c'era, e il servizio forzava `discountPercent: 0` in due punti.
+   * `11` A11 dice invece che il Reso ha lo sconto **identico alla Vendita**: chi
+   * ha venduto un capo scontato del 20% e lo riprende deve poter rendere quello
+   * che ha incassato, non il prezzo pieno.
+   *
+   * Stesso contratto della Vendita, alla lettera: facoltativo, intero, 0-100.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  discountPercent?: number;
+
+  /**
+   * Descrizione della riga, quando l'operatore la cambia.
+   *
+   * ⚠️ **Assente = non modificata**, e il servizio conserva quella persistita
+   * (o la fotografa dall'articolo se la riga è nuova). È lo stesso contratto
+   * binario del Codice IVA, e per la stessa ragione: la descrizione è la
+   * **fotografia** dell'operazione, e rileggerla dall'anagrafica a ogni
+   * salvataggio riscriverebbe un documento di marzo con il nome di oggi.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
+  /**
    * Prezzo unitario reso, in unità minori. Netto, e con la coda decimale
    * ammessa (§sei decimali).
    *
@@ -76,9 +107,38 @@ export class CreateStoreReturnDto {
   locationId!: string;
 
   /** Causale del reso (obbligatoria: nessun carico silenzioso). */
+  /**
+   * ⚠️ Il campo è rimasto per compatibilità di chiamata ma **non è più
+   * obbligatorio** (`11` A11: la causale del Reso è facoltativa). La sua casa
+   * è ora `causalText` sul documento — vedi `causale` qui sotto.
+   *
+   * @deprecated usa `causale`.
+   */
+  @IsOptional()
   @IsString()
-  @Length(1, 500)
-  reason!: string;
+  @Length(0, 500)
+  reason?: string;
+
+  /**
+   * La causale del reso, **facoltativa**.
+   *
+   * ⛔ Vive in `documents.causalText`, che è la colonna generica del documento
+   * per «perché questo documento esiste» — la stessa che l'Arrivo merce usa per
+   * «DDT 145 del 08/05/2026», con `causalGenerationMode` a dire se è generata o
+   * digitata.
+   *
+   * ⚠️ Prima finiva in `internalComment` col prefisso `Causale reso: `, e
+   * rileggerla voleva dire **analizzare una stringa**. Un prefisso testuale non
+   * è un contratto: il primo che scrive «Causale reso: causale reso» lo rompe,
+   * e nessuno se ne accorge.
+   *
+   * ⛔ Il REGISTRO dei modelli (`GoodsReceiptCausal`) resta fuori: è legato ai
+   * tipi documento del FORNITORE, e adottarlo qui sarebbe forzarlo.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  causale?: string;
 
   /**
    * La data economica del reso, scelta da chi registra.

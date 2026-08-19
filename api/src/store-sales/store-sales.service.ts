@@ -207,7 +207,10 @@ export class StoreSalesService {
           // già esistente restano quelli scritti allora. Rinominare il prodotto
           // in anagrafica non riscrive una vendita di marzo.
           sku: previous?.sku ?? variant.sku,
-          description: previous?.description ?? this.lineDescription(variant),
+          // ⚠️ Contratto binario, come il Codice IVA: descrizione ASSENTE = non
+          // modificata, e resta quella persistita. Presente = l'operatore l'ha
+          // cambiata. Su una riga nuova si fotografa dall'articolo.
+          description: line.description ?? previous?.description ?? this.lineDescription(variant),
           quantity: line.quantity,
           unitPriceMinor: line.unitPriceMinor,
           discountPercent,
@@ -487,11 +490,15 @@ export class StoreSalesService {
           preservedLineVat(previous?.id, undefined, existingVatById) ??
           this.resolveLineVatCode(null, variant, vatContext);
 
+        // Lo sconto è quello della riga, come sulla Vendita (`11` A11): chi ha
+        // venduto scontato e riprende il capo rende quello che ha incassato.
+        const discountPercent = line.discountPercent ?? 0;
+
         const amounts = computeVatLineAmounts({
           enteredUnitCostMinor: unitPriceMinor,
           costEntryMode: 'vat_excluded',
           quantity: line.quantity,
-          discountPercent: 0,
+          discountPercent,
           vat: resolvedVat.vat,
         });
         return {
@@ -501,10 +508,13 @@ export class StoreSalesService {
           // Fotografia dell'operazione: su una riga già esistente restano quelli
           // scritti allora, anche se il prodotto è stato rinominato dopo.
           sku: previous?.sku ?? variant.sku,
-          description: previous?.description ?? this.lineDescription(variant),
+          // ⚠️ Contratto binario, come il Codice IVA: descrizione ASSENTE =
+          // non modificata, e resta quella persistita. Presente = l'operatore
+          // l'ha cambiata. Su una riga nuova si fotografa dall'articolo.
+          description: line.description ?? previous?.description ?? this.lineDescription(variant),
           quantity: line.quantity,
           unitPriceMinor,
-          discountPercent: 0,
+          discountPercent,
           vatCodeId: resolvedVat.vatCodeId,
           vatSnapshot: resolvedVat.vatSnapshot,
           lineTotalMinor: amounts.lineNetMinor,
@@ -522,9 +532,18 @@ export class StoreSalesService {
       const taxMinor = computedLines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
       const totalMinor = computedLines.reduce((sum, line) => sum + line.lineGrossTotalMinor, 0);
 
+      // ⛔ La causale vive in `causalText`, la colonna generica del documento —
+      // non in `internalComment` col prefisso `Causale reso: `, che per
+      // rileggerla obbligava ad analizzare una stringa. `reason` resta accettato
+      // per compatibilità di chiamata, ma `causale` è il campo.
+      const causale = (dto.causale ?? dto.reason)?.trim() || null;
+
       const header = {
         notes: dto.notes?.trim() || null,
-        internalComment: `Causale reso: ${dto.reason.trim()}`,
+        causalText: causale,
+        // Digitata dall'operatore, non generata da un modello: è la stessa
+        // distinzione che l'Arrivo merce fa con le sue causali.
+        causalGenerationMode: causale ? 'manual' : null,
         locationId: dto.locationId,
         subtotalMinor,
         taxMinor,
@@ -601,7 +620,9 @@ export class StoreSalesService {
         documentId: doc.id,
         documentType: DocumentType.store_return,
         locationId: dto.locationId,
-        reason: `Reso vendita al banco ${reference}: ${dto.reason.trim()}`,
+        // La causale entra nella descrizione del movimento solo se c'è: senza,
+        // resta il riferimento del documento, che basta a ritrovarlo.
+        reason: causale ? `Reso vendita al banco ${reference}: ${causale}` : `Reso vendita al banco ${reference}`,
         movementDate: documentDate,
         movementType: StockMovementType.return,
         origin: MovementOrigin.vestiflow_pos,
