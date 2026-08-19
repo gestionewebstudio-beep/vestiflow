@@ -13,7 +13,7 @@ Ogni voce porta uno **stato di verifica**, e va preso sul serio:
 | ✅ **VERIFICATO**    | riaperto e ricontrollato a mano sul codice, con le prove qui sotto          |
 | ◻️ **DA VERIFICARE** | risultato dell'analisi, non ricontrollato: **da confermare prima di agire** |
 
-**Ventuno voci.** Lo stato di verifica sta accanto al titolo di ognuna, e va letto: ciò che non
+**Ventidue voci.** Lo stato di verifica sta accanto al titolo di ognuna, e va letto: ciò che non
 è ✅ è attendibile ma non confermato, e vale come punto di partenza, non come fatto.
 
 ⚠️ **La legenda qui sopra è incompleta**: due marcatori usati nelle voci — 🔴 e 🟡 — sono stati
@@ -1018,3 +1018,64 @@ accaduto altrove e già presidiato lì**.
 ⛔ **Non dipende dalle decisioni aperte sul motore Includi/Genera**: si chiude da sé.
 
 _Contesto della misura: `docs/12-specifica-collegamenti-documentali.md` §B7._
+
+---
+
+### 22. L'autosalvataggio progressivo delle righe dell'Arrivo merce NON esiste — ✅ VERIFICATO il 19/08/2026
+
+> **Il comportamento previsto è il salvataggio PROGRESSIVO delle righe. Oggi il documento
+> si salva solo col pulsante.**
+
+⚠️ **È un divario, non una funzione da togliere**, e la distinzione conta perché il codice
+oggi afferma il contrario.
+
+#### Come è stato trovato
+
+Cercando «il salvataggio automatico da rimuovere», e non trovandolo. La misura:
+
+```text
+documentService.saveGoodsReceipt   1 sola invocazione   ← il pulsante Salva
+documentService.getDocumentById    1 sola invocazione   ← il caricamento
+```
+
+Nessun altro punto della maschera scrive sul server. `linkLineCodes$` parte a ogni Invio,
+scansione e sfocamento di riga, ma **collega il codice alla variante**: è una lettura, non
+una scrittura, e parte solo se la riga ha un codice non ancora collegato.
+
+#### ⛔ Due commenti nel codice affermano il contrario, e NON sono fonte funzionale
+
+`goods-receipt-form.component.ts` dichiara in due punti:
+
+- _«Nessun salvataggio automatico: il documento si salva SOLO con "Salva documento".»_
+- _«Si chiamava `commitLineAndSave`, e il nome mentiva: nessun salvataggio è mai partito da
+  qui.»_
+
+Raccontano una **rimozione avvenuta**, e la descrivono come se fosse la regola. **Non lo è.**
+Chi li legge conclude che il comportamento attuale sia quello voluto, e il divario si chiude
+da sé nella testa di chi passa — che è il modo in cui un pezzo mancante smette di essere
+cercato.
+
+⚠️ Un terzo commento (`codesNotFound`) nomina ancora _«a ogni autosave/salvataggio»_: è il
+residuo che tradisce che l'autosave c'era.
+
+#### ⛔ Perché NON si ripristina adesso
+
+Il salvataggio dell'Arrivo merce è oggi **il percorso più caro del gestionale** — misurato il
+19/08: un documento da 10 righe costa ~28,7 secondi, di cui 112 statement SQL e 50 query di
+push canale. Un autosalvataggio progressivo **moltiplicherebbe quel costo per il numero di
+righe compilate**.
+
+> **Prima si riduce il costo del percorso di salvataggio, poi si ripristina il progressivo.**
+
+L'ordine non è negoziabile: ripristinarlo prima significherebbe rendere insopportabile
+proprio la maschera che si voleva rendere più comoda.
+
+#### Cosa serve prima
+
+Le cause misurate stanno nell'indagine del 19/08. La prima è `applyInventoryDelta`, che
+emette 4 statement dove ne basta 1 — misurato: 621 ms contro 270 ms per chiamata, ed è il
+mattone di **ogni** documento che muove magazzino.
+
+⚠️ **Nessuna guardia va aggiunta contro l'autosave**: inchioderebbe il comportamento
+sbagliato, e renderebbe più difficile ripristinare quello giusto. È stata scritta e poi
+tolta il 19/08, proprio per questo.
