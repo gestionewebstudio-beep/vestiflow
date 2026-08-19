@@ -1,5 +1,6 @@
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import { STORE_SALE_PAYMENT_METHOD_OPTIONS } from '@domain/store-sales/models/store-sale-payment.util';
+import { storeSaleCreatePath } from '@domain/store-sales/models/store-sale-routing.util';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 
@@ -73,6 +74,30 @@ export interface SalesDocumentRegisterConfig {
    * l'elenco è condiviso: il bottone «Nuovo …» segue il filtro «Tipo» attivo.
    */
   readonly createVariants?: readonly SalesDocumentCreateVariant[];
+  /**
+   * Come si RENDONO le varianti: un menu «Nuovo» a tendina, o pulsanti
+   * affiancati. Default `'menu'`.
+   *
+   * ⚠️ È una differenza di PRESENTAZIONE, non di dominio: le varianti restano
+   * le stesse e il comando che eseguono pure. Per questo è un campo tipizzato e
+   * non una seconda struttura gemella (`regole-architettura`).
+   *
+   * Il menu conviene da **tre tipi in su** — le Fatture ne hanno tre, e tre
+   * pulsanti larghi occuperebbero la testata. Con **due** i pulsanti sono più
+   * veloci e dicono da soli cosa si può creare: è il caso delle Vendite al
+   * banco, dove `11` A2 esclude esplicitamente il menu.
+   */
+  readonly createVariantsLayout?: 'menu' | 'buttons';
+  /**
+   * Chi può creare da questa pagina, quando NON basta «gestisci documenti».
+   *
+   * ⛔ Serve alle Vendite al banco: le sue rotte sono protette da
+   * `retailSalesRegisterGuard`, quindi un utente con la gestione documenti ma
+   * senza `retail.register` vedrebbe i pulsanti e verrebbe rimbalzato in
+   * dashboard. Un comando che porta a un rimbalzo è peggio di un comando
+   * assente.
+   */
+  readonly createRequiresRetailRegister?: boolean;
   /**
    * Nasconde il bottone di creazione: la pagina è di sola consultazione perché
    * i documenti nascono altrove (Vendita/Reso in negozio → cassa).
@@ -329,9 +354,24 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     typeFilterOptions: STORE_SALE_TYPE_FILTER_OPTIONS,
     pageTitle: 'Vendite al banco',
     pageSubtitle: 'Vendite e resi al banco, con i movimenti di magazzino già applicati.',
+    // Due pulsanti diretti, non il menu: `11` A2 lo esclude, e con due tipi
+    // l'elenco dice da sé cosa si può creare.
     createLabel: 'Nuova vendita al banco',
-    createPath: '/app/vendita-al-banco/nuova-vendita-al-banco',
-    hideCreateAction: true,
+    createPath: storeSaleCreatePath('sale'),
+    createVariants: [
+      {
+        type: DocumentType.StoreSale,
+        label: 'Nuova vendita al banco',
+        path: storeSaleCreatePath('sale'),
+      },
+      {
+        type: DocumentType.StoreReturn,
+        label: 'Nuovo reso al banco',
+        path: storeSaleCreatePath('return'),
+      },
+    ],
+    createVariantsLayout: 'buttons',
+    createRequiresRetailRegister: true,
     listPath: '/app/vendita-al-banco',
     emptyTitle: 'Nessuna vendita o reso al banco',
     emptyDescription: 'Non ci sono vendite o resi che corrispondono ai filtri.',

@@ -6,7 +6,7 @@ import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import {
   STORE_SALE_MODE_ROUTE_DATA_KEY,
   STORE_SALE_ROUTE_SEGMENT,
-} from './models/store-sale-routing.util';
+} from '@domain/store-sales/models/store-sale-routing.util';
 
 /**
  * Le due creazioni della Vendita al banco, montate dal composition root

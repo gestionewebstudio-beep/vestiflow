@@ -37,7 +37,11 @@ import {
   documentTypesOfFamily,
   manageableDocumentFamilies,
 } from '@core/permissions/document-permission.util';
-import { canManageDocFamily, canManageDocuments } from '@core/permissions/tenant-permissions.util';
+import {
+  canManageDocFamily,
+  canManageDocuments,
+  canOpenRetailRegister,
+} from '@core/permissions/tenant-permissions.util';
 import type { PaymentOption } from '@core/models/payment-option.model';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
@@ -309,6 +313,17 @@ export class DocumentListComponent {
     })),
   );
 
+  /**
+   * Le varianti da rendere come PULSANTI affiancati invece che a menu.
+   *
+   * Vuoto quando la pagina usa il menu: il template sceglie il ramo da qui,
+   * senza sapere niente del profilo.
+   */
+  protected readonly createVariantButtons = computed(() => {
+    const sales = this.salesRegister();
+    return sales?.createVariantsLayout === 'buttons' ? (sales.createVariants ?? []) : [];
+  });
+
   /** Elenchi a tipo singolo: l'etichetta del bottone, che non ha varianti. */
   protected readonly salesCreateLabel = computed(() => this.salesRegister()?.createLabel);
 
@@ -552,7 +567,19 @@ export class DocumentListComponent {
    * una voce del menu. Senza nulla da offrire la barra azioni non compare.
    */
   protected readonly showCreateActions = computed(() => {
-    if (this.salesRegister()) {
+    const sales = this.salesRegister();
+    if (sales) {
+      // ⛔ Le Vendite al banco chiedono `retail.register`, non «gestisci
+      // documenti»: le loro rotte sono protette da `retailSalesRegisterGuard`,
+      // e senza questo controllo chi ha solo la gestione documenti vedrebbe i
+      // pulsanti e verrebbe rimbalzato in dashboard. Un comando che porta a un
+      // rimbalzo e' peggio di un comando assente.
+      if (
+        sales.createRequiresRetailRegister &&
+        !canOpenRetailRegister(this.authService.currentUser())
+      ) {
+        return false;
+      }
       return this.canManageDocuments() && this.showCreateAction();
     }
     if (this.isGoodsReceiptList()) {

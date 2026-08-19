@@ -1,5 +1,5 @@
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { STORE_SALE_MODE_ROUTE_DATA_KEY } from './models/store-sale-routing.util';
+import { STORE_SALE_MODE_ROUTE_DATA_KEY } from '@domain/store-sales/models/store-sale-routing.util';
 import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';

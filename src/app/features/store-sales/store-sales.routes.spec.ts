@@ -14,7 +14,7 @@ import {
   STORE_SALE_ROOT_PATH,
   STORE_SALE_ROUTE_SEGMENT,
   requireStoreSaleMode,
-} from './models/store-sale-routing.util';
+} from '@domain/store-sales/models/store-sale-routing.util';
 
 /**
  * Le rotte del modulo **Vendite al banco** — presidio di `11` C 3.
@@ -220,5 +220,68 @@ describe('la config dell’elenco non può divergere dalla rotta', () => {
     expect(
       storeSalesRegisterRoutes.some((r) => `${STORE_SALE_ROOT_PATH}/${r.path}` === atteso),
     ).toBe(true);
+  });
+});
+
+describe('FASE UI 1 — i due comandi di creazione sull’elenco', () => {
+  const config = salesDocumentRegisterConfig('store-sale');
+
+  it('l’elenco non è più di sola consultazione', () => {
+    expect(config?.hideCreateAction).toBeUndefined();
+  });
+
+  /**
+   * ⛔ `11` A2 esclude il menu «Nuovo» a tendina: con due tipi i pulsanti
+   * dicono da soli cosa si può creare, il menu costerebbe un clic per
+   * scoprirlo. Le Fatture restano a menu perché i tipi sono tre.
+   */
+  it('⛔ due PULSANTI, non il menu a tendina', () => {
+    expect(config?.createVariantsLayout).toBe('buttons');
+    expect(config?.createVariants).toHaveLength(2);
+  });
+
+  it('le etichette sono quelle decise, per esteso', () => {
+    expect(config?.createVariants?.map((v) => v.label)).toEqual([
+      'Nuova vendita al banco',
+      'Nuovo reso al banco',
+    ]);
+  });
+
+  /**
+   * ⛔ Ogni comando deve portare a una rotta che ESISTE. Il censimento aveva
+   * misurato che niente legava la config alle rotte: un pulsante verso un
+   * indirizzo inesistente sarebbe rimasto verde.
+   */
+  it('⛔ ogni pulsante porta a una rotta dichiarata', () => {
+    const indirizziReali = storeSalesRegisterRoutes.map((r) => `${STORE_SALE_ROOT_PATH}/${r.path}`);
+    for (const variante of config?.createVariants ?? []) {
+      expect(indirizziReali, `${variante.label} punta a ${variante.path}`).toContain(variante.path);
+    }
+  });
+
+  it('i due comandi portano a rotte DIVERSE: un refuso li farebbe coincidere', () => {
+    const percorsi = (config?.createVariants ?? []).map((v) => v.path);
+    expect(new Set(percorsi).size).toBe(percorsi.length);
+  });
+
+  /**
+   * ⛔ Le rotte sono protette da `retailSalesRegisterGuard`: senza questo
+   * flag chi ha «gestisci documenti» ma non `retail.register` vedrebbe i
+   * pulsanti e verrebbe rimbalzato in dashboard. Un comando che porta a un
+   * rimbalzo è peggio di un comando assente.
+   */
+  it('⛔ la creazione chiede retail.register, non «gestisci documenti»', () => {
+    expect(config?.createRequiresRetailRegister).toBe(true);
+  });
+
+  /** ⛔ FASE UI 1 nasce senza «Elimina»: C 0 è parziale, l'API risponde 409. */
+  it('⛔ nessun comando di eliminazione è stato introdotto', () => {
+    const etichette = (config?.createVariants ?? []).map((v) => v.label.toLowerCase());
+    expect(etichette.some((e) => e.includes('elimin'))).toBe(false);
+  });
+
+  /** ⚠️ La riga apre ancora l'anteprima: `C 3b` è dichiarato APERTO, non fatto. */
+  it('⚠️ la riga NON apre ancora la modifica: requisito aperto, non silenzioso', () => {
+    expect(config?.rowOpensForm).toBeUndefined();
   });
 });

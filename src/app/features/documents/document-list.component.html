@@ -26,7 +26,24 @@
             Elenchi a tipo singolo: il bottone diretto, che non ha da scegliere.
             Vendita/Reso negozio: nessun bottone — si registrano dalla cassa.
           -->
-          @if (createVariantOptions().length > 0) {
+          @if (createVariantButtons().length > 0) {
+            <!--
+              Due tipi, due pulsanti diretti: `11` A2 esclude il menu, e con
+              due sole voci i pulsanti dicono da soli cosa si puo' creare —
+              il menu costerebbe un clic per scoprirlo.
+              Le etichette restano per esteso: il «Nuovo» corto del Registro
+              Corrispettivi funziona perche' li' il comando e' UNO SOLO.
+            -->
+            @for (variante of createVariantButtons(); track variante.type) {
+              <app-button
+                [variant]="$first ? 'primary' : 'secondary'"
+                (click)="onCreateVariant(variante.type)"
+              >
+                <i class="pi pi-plus" aria-hidden="true"></i>
+                {{ variante.label }}
+              </app-button>
+            }
+          } @else if (createVariantOptions().length > 0) {
             <app-select-menu
               class="doc-list__create-menu"
               [options]="createVariantOptions()"

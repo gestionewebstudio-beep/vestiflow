@@ -69,7 +69,10 @@ import type {
   StoreSaleResult,
 } from '@domain/store-sales/models/store-sale.model';
 import { StoreSalesService } from './services/store-sales.service';
-import { requireStoreSaleMode, type StoreSaleMode } from './models/store-sale-routing.util';
+import {
+  requireStoreSaleMode,
+  type StoreSaleMode,
+} from '@domain/store-sales/models/store-sale-routing.util';
 
 /** Alias locale: il modo della maschera vive nel registro delle rotte. */
 type RegisterMode = StoreSaleMode;
