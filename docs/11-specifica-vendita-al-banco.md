@@ -110,15 +110,49 @@ Reso o viceversa.
 E i titoli di pagina, coerenti con le rotte e coi pulsanti:
 
 ```text
-Vendita al banco — elenco
-Nuova vendita al banco
-Nuovo reso al banco
+Vendite al banco          ← menu e pagina elenco
+Nuova vendita al banco    ← pulsante e titolo della creazione
+Nuovo reso al banco       ← pulsante e titolo della creazione
 ```
+
+### ⛔ «Vendite al banco» al plurale — deciso il 19/08/2026, sostituisce «Vendita al banco — elenco»
+
+> **Il contenitore è plurale, la singola operazione è singolare.**
+
+| Cosa                            | Come si chiama                               |
+| ------------------------------- | -------------------------------------------- |
+| il **modulo** e la voce di menu | **Vendite al banco**                         |
+| la **pagina elenco**            | **Vendite al banco**                         |
+| i **tipi documento**            | Vendita al banco · Reso al banco             |
+| i **pulsanti** di creazione     | Nuova vendita al banco · Nuovo reso al banco |
+
+⚠️ **Cade «Vendita al banco — elenco»**, che era la formulazione del 18/08. Il plurale
+distingue da solo il contenitore dalla singola operazione, e rende inutile il suffisso: un
+titolo che deve spiegare cos'è con un trattino sta dicendo che il nome non basta.
+
+⛔ **Non è una variante tollerata: è il nome.** La stringa vecchia vive oggi in cinque punti
+(rotta elenco, config del profilo, card dell'hub, briciole, titolo di pagina) e vanno
+allineati tutti nello stesso passaggio, o l'operatore legge due nomi per la stessa pagina.
+
+### Il dialogo delle modifiche non salvate resta fra le due creazioni — deciso il 19/08/2026
+
+> **`unsavedChangesGuard` sta su ENTRAMBE le rotte di creazione. Passando da Nuova vendita a
+> Nuovo reso — o viceversa — con modifiche non salvate, il dialogo compare.**
+
+Senza modifiche, la navigazione è normale. ⛔ **Nessun bypass fra le due rotte**: sarebbe
+l'unica strada per uscire da un carrello aperto senza che nessuno lo chieda, e la si
+scoprirebbe per caso.
+
+⚠️ **È un cambio di comportamento, ed è voluto.** Oggi l'interruttore interno cambia modo
+**senza nemmeno svuotare il carrello** — è la lagnanza che motiva **C4**. Due rotte distinte
+ricreano il componente (`TabRouteReuseStrategy.shouldReuseRoute` confronta `routeConfig`), e
+la guardia di uscita torna a fare il suo mestiere.
 
 ⚠️ **Il censimento delle rotte esistenti resta obbligatorio, ma serve ad altro.** Non a
 decidere i nomi — quelli sono qui sopra — ma a **trovare tutti i consumatori** prima di
 rinominare: link, redirect, voci di menu, permessi, guardie, test. La rinomina si fa dopo il
-censimento, non al posto suo.
+censimento, non al posto suo. ✅ **Eseguito il 19/08/2026**: otto piani, 198 ritrovamenti; le
+trappole silenziose che ne sono uscite stanno in **C 3** qui sotto.
 
 ### Una vendita conclusa si riapre, si modifica e si elimina — deciso il 18/08/2026
 
@@ -1426,6 +1460,74 @@ C 0.
 | 10  | Ristrutturare la schermata riusando l'Ordine cliente, senza forcare le aree di `03`                                                                                                                                 | A12 · B9 | oggi non condivide nulla con la grammatica documentale                                                                                                                                                |
 | 11  | Far valere la **regola comune** del solo effetto fisico lungo la catena                                                                                                                                             | A7 · B11 | non un caso speciale per la accompagnatoria: il primo documento che registra il fatto movimenta, i successivi no                                                                                      |
 | 12  | **Collegare** la Vendita al banco ai meccanismi Includi/Genera esistenti, estendendo il contratto delle coppie secondo la matrice di `12`                                                                           | A7 · B8  | ⚠️ non è UN motore: la misura canonica (`12` §B) ne conta **sei parziali che non si conoscono**. Si dimensiona lì                                                                                     |
+
+## C 3 — le cinque trappole del censimento _(19/08/2026)_
+
+Otto piani, 198 ritrovamenti, 29 verifiche confermate su 30. ⛔ **Nessuna di queste dà un
+errore**: sono i modi in cui una migrazione di URL fallisce in silenzio.
+
+**1. `tenantWorkspaceGuard` è sul PADRE, non sulla rotta.** Cassa ed elenco lo ereditano da
+`path: 'sales'` e `path: 'documents'` (`app.routes.ts:96` e `:84`). Un nuovo
+`/app/vendita-al-banco` in cima ad `/app` **non eredita niente**: un operatore di
+piattaforma entrerebbe nel gestionale di un cliente. È il più grave, ed è di sicurezza.
+
+**2. I vecchi indirizzi non danno 404: vengono catturati.**
+
+```text
+/app/sales/register             → cade nel :id di sales-orders   → maschera Ordine cliente, id «register»
+/app/documents/vendite-negozio  → cade nel :id di documents:525   → «Dettaglio documento», id inesistente
+```
+
+I redirect vanno dichiarati **prima** di quei catch-all. Il meccanismo esiste già in due
+forme da imitare: `invoice-draft → fattura` (relativa, `pathMatch: 'full'`) e i due
+`corrispettivi` (assoluta). ⚠️ Un `redirectTo` **senza** `pathMatch: 'full'` non trascina i
+segmenti: `vendite-negozio/:id` vuole una riga sua.
+
+**3. ⛔ `SectionDocuments` NON diventa `SectionSales`.** I gruppi di permesso dell'elenco
+sono lo **specchio del gate di classe dell'API** (`documents.controller.ts`), che non cambia
+con l'URL. Rinominare la rotta _invita_ a cambiare la sezione, e il risultato è una pagina
+che si apre e poi fallisce ogni chiamata con **403**.
+
+**4. I `data:` vanno trasportati identici, e i due non sono uguali.** L'elenco ha
+`reuse: true`, il **dettaglio no**: uniformarli per simmetria cambia comportamento. E senza
+`documentListProfile: 'store-sale'` il componente ricade su `'generic'` e mostra **il
+registro generale col filtro Tipo** — non un errore, una pagina diversa che sembra funzionare.
+
+**5. Il wildcard nasconde lo sbaglio.** `app.routes.ts:174` manda alla dashboard qualunque
+URL non risolto: un mount scritto male non produce nessun sintomo, solo un rimbalzo.
+
+### I confronti, che smettono di essere veri senza rumore
+
+Evidenza in sidebar (`activeRoutePrefix`) · briciole · **ricerca globale ⌘K**, che non
+confronta URL interi ma fa `startsWith` sulle radici di navigazione — spostare la voce
+cambia _cosa la palette offre al cassiere_ · il gate `/app/documents` della palette · la
+freccia «Indietro» dell'elenco, che **non ha `fallbackLink`** e deduce il padre dall'URL: da
+`/app/vendita-al-banco` il padre non esiste e si finisce in Dashboard invece che nell'hub.
+
+### Lo stato dei test, che è peggio di come sembrava
+
+|                                         |                                                                                                                                                                                                                  |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `document-routing.util.spec.ts`         | ⭐ **l'unico che diventa rosso**: è il segnale di conferma della migrazione                                                                                                                                      |
+| `e2e/permissions.spec.ts`               | ⛔ **già inerte OGGI** — cerca un link «Registra vendita», la sidebar dice «Vendita al banco»: prende il ramo `else` e passa da sempre. **Va sistemato prima**, o dopo sembrerà che le rotte nuove siano coperte |
+| `nav-link-active.util.spec.ts`          | resta verde: costruisce un router finto proprio con `app/sales/register`                                                                                                                                         |
+| `store-sale-register.component.spec.ts` | dà `provideRouter([])` senza `data`: col contratto **senza fallback** tutti i suoi test lanciano, e vanno aggiornati nello stesso passaggio                                                                      |
+
+⛔ **Nessuno script di CI lega rotte e permessi**, né `listPath` a una rotta esistente. Sono
+**due guardie da aggiungere con la migrazione**, non dopo: senza, config e rotte possono
+divergere restando verdi.
+
+### Cosa NON va toccato — verificato
+
+`parent-route.util.ts` funziona già coi nomi nuovi · l'API non conosce queste rotte ·
+`TableViewId.StoreSaleDocumentsList` è una chiave di preferenze colonne, non un URL.
+
+⛔ E soprattutto: **`/online-sales/register/entries`** contiene la sottostringa
+`sales/register` ma è un endpoint legacy **diverso**. Vive in `online-sales.service.ts` e in
+`scripts/check-registro-legacy.mjs`. La migrazione si fa per **riferimenti esatti**, mai per
+sottostringa.
+
+---
 
 ⚠️ **Il 12 non si inizia prima dell'11**: una catena che si apre prima che la regola del solo
 effetto fisico sia applicata è una catena che scarica due volte. Ora la tabella lo rispetta
