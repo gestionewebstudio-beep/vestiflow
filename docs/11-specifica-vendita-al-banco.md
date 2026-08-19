@@ -1345,9 +1345,10 @@ PREREQUISITO TECNICO — C 0
 
   poi, e solo dopo:
 
-FASE UI 1   elenco → [ Nuova vendita al banco ]  [ Nuovo reso al banco ]
-FASE UI 2   via il toggle interno: Vendita e Reso separati davvero alla creazione
-FASE UI 3   la maschera, ricostruita sull'Ordine cliente e sui componenti comuni
+FASE UI 1   ✅ FATTA 19/08   elenco → [ Nuova vendita al banco ]  [ Nuovo reso al banco ]
+FASE UI 2   ✅ FATTA 19/08   via il toggle interno: il tipo lo decide la ROTTA
+FASE UI 3   ⛔ APERTA        la maschera, ricostruita sull'Ordine cliente
+                             ↳ si chiude INSIEME a C 3b (apertura in modifica)
 ```
 
 ### ⚠️ Il prerequisito è soddisfatto A META', e la conseguenza cade sulla FASE UI 1
@@ -1396,6 +1397,48 @@ la maschera sappia caricare un documento esistente, ed è la **FASE UI 3**.
 ⚠️ **Prima di implementarlo**: censire come funziona apertura e modifica negli **altri**
 documenti e riusare il pattern comune. ⛔ Nessuna convenzione speciale per la Vendita al
 banco — se si aprisse diversamente dagli altri, l'operatore dovrebbe ricordarsi quale.
+
+### ✅ FASE UI 1 e UI 2 — fatte il 19/08/2026
+
+**UI 1 — i due comandi sull'elenco.** L'elenco è quello che **esisteva già** nell'area
+Documenti: filtri, colonne, ricerca, export, stati e permessi restano i suoi, e include già
+`list-page` — lo stesso impianto di cui il Registro Corrispettivi prende la sola parte
+mobile. Non è stato importato nessun pattern nuovo: un ramo nel template e un campo
+tipizzato `createVariantsLayout: 'menu' | 'buttons'` nella config.
+
+⛔ **Non il menu «Nuovo» a tendina**: con due tipi i pulsanti dicono da soli cosa si può
+creare. Le Fatture restano a menu, perché i tipi sono tre.
+
+⚠️ **Il permesso è `retail.register`, non «gestisci documenti»**: le rotte di creazione
+sono protette da `retailSalesRegisterGuard`, e senza questo controllo chi ha la gestione
+documenti ma non il permesso di cassa avrebbe visto i pulsanti e sarebbe stato rimbalzato
+in dashboard. Il gate usa la **stessa funzione** della guardia, non una condizione parallela.
+
+### ⛔ UI 2 — il tipo lo decide la ROTTA, e la maschera non lo cambia
+
+> **L'interruttore Vendita / Reso non esiste più.**
+
+```text
+/nuova-vendita-al-banco  →  mode = sale     non modificabile dalla maschera
+/nuovo-reso-al-banco     →  mode = return   non modificabile dalla maschera
+```
+
+Era l'unica strada per trovarsi a compilare un **reso** su una pagina che dice «Nuova
+vendita». Per cambiare tipo si cambia pagina, e le due sono a un clic dall'elenco.
+
+Rimossi: il `role="tablist"` coi due `role="tab"`, il metodo `setMode` (unico chiamante
+era quel blocco) e i quattro selettori SCSS rimasti suoi. Il signal è in **sola lettura**:
+non esiste più un modo in cui la UI possa contraddire l'indirizzo.
+
+⛔ **Le diramazioni funzionali restano tutte**: Vendita e Reso fanno cose opposte in
+magazzino, e le nove condizioni su `mode()` leggono ora lo stesso valore, che viene dalla
+rotta.
+
+⚠️ **Un difetto trovato strada facendo.** Titolo e sottotestata erano **fissi sulla
+vendita**: finché il tipo si cambiava da dentro non si notava, ma con due indirizzi
+distinti aprire «Nuovo reso al banco» avrebbe mostrato «Vendita al banco» e una
+sottotestata che dichiara lo **scarico** della giacenza — il contrario di quello che un
+reso fa. Ora seguono il modo.
 
 ### ✅ Deciso il 19/08/2026 — la FASE UI 1 nasce senza «Elimina»
 
@@ -1482,14 +1525,14 @@ C 0.
 | 2   | Togliere il forcing netto/ivato e far entrare i due tipi nel contratto comune, memorie comprese                                                                                                                     | A4 · B3                  | oggi è una costante nel codice, non una convenzione                                                                                                                                                   |
 | 3   | ✅ **FATTO** 19/08/2026 — Riallineare le rotte a `elenco → [Nuova vendita al banco] / [Nuovo reso al banco] → documento`, con i nomi fissati in A2, dopo il censimento dei consumer                                 | A2 · B2                  | grammatica diversa da tutti gli altri documenti, e il «Nuovo» a menu non è quello deciso                                                                                                              |
 | 3b  | ⛔ **APERTO** — **La riga dell’elenco apre la MODIFICA**, non l’anteprima. Si chiude INSIEME alla capacità della maschera di caricare un documento per id                                                           | A2 · `regole-gestionale` | regola generale VestiFlow: per gli altri documenti è una riga di config (`rowOpensForm`), qui serve prima la maschera in modifica (**FASE UI 3**). Censire il pattern comune prima di implementare    |
-| 4   | Separare Vendita e Reso alla creazione, al posto dell'interruttore                                                                                                                                                  | A3 · B4                  | l'interruttore attuale non svuota nemmeno il carrello                                                                                                                                                 |
+| 4   | ✅ **FATTO** 19/08/2026 — Separare Vendita e Reso alla creazione, al posto dell'interruttore                                                                                                                        | A3 · B4                  | l'interruttore attuale non svuota nemmeno il carrello                                                                                                                                                 |
 | 5   | ✅ **FATTO** 18/08/2026 — **Censire e rimuovere la logica di collegamento del Reso a una vendita origine** — percorso, campi, caricamento delle vendite recenti                                                     | A11 · B4                 | A11 stabilisce che il Reso **non ha** documento origine: quello che c'è oggi è legacy                                                                                                                 |
 | 6   | Verificare che l'IVA del Reso sia scritta come **snapshot di riga** e non riletta dall'anagrafica                                                                                                                   | A11 · B4                 | senza snapshot la regola decisa diventa un'altra: un documento che si riscrive da solo                                                                                                                |
 | 7   | **Applicare** il contratto del Reso ora chiuso: causale **facoltativa** (oggi obbligatoria), prezzo dall'anagrafica, sconti come la Vendita, rimborso informativo, correzione come **A2**                           | A11 · B4                 | le cinque decisioni sono chiuse il 18/08: qui resta l'esecuzione, non la scelta                                                                                                                       |
 | 8   | Portare il metodo di pagamento fino alla **riga del Registro**, al dettaglio della registrazione e all'export; poi valutare il filtro                                                                               | A8                       | oggi si ferma nella schermata della vendita                                                                                                                                                           |
 | 8b  | ✅ **FATTO il 19/08/2026** — il Reso al banco entra nel Registro come rettifica negativa, una sola volta: quinta sorgente documentale, `kind: refund`, `refundKind: return_with_restock`. Contratto in **`10` §18** | A9 · A11                 | era misurato: il filtro era `type: store_sale` secco, e **nessun reso di cassa diminuiva l'incasso lordo**. Verificato sul database reale                                                             |
 | 9   | Verificare e **preservare** il comportamento esistente: Origine esposta, Online/Fisico-POS come suoi raggruppamenti                                                                                                 | A9 · B10                 | **in buona parte già fatto**: resta una verifica, non un lavoro                                                                                                                                       |
-| 10  | Ristrutturare la schermata riusando l'Ordine cliente, senza forcare le aree di `03`                                                                                                                                 | A12 · B9                 | oggi non condivide nulla con la grammatica documentale                                                                                                                                                |
+| 10  | ⛔ **APERTA** (FASE UI 3) — Ristrutturare la schermata riusando l'Ordine cliente, senza forcare le aree di `03`                                                                                                     | A12 · B9                 | oggi non condivide nulla con la grammatica documentale                                                                                                                                                |
 | 11  | Far valere la **regola comune** del solo effetto fisico lungo la catena                                                                                                                                             | A7 · B11                 | non un caso speciale per la accompagnatoria: il primo documento che registra il fatto movimenta, i successivi no                                                                                      |
 | 12  | **Collegare** la Vendita al banco ai meccanismi Includi/Genera esistenti, estendendo il contratto delle coppie secondo la matrice di `12`                                                                           | A7 · B8                  | ⚠️ non è UN motore: la misura canonica (`12` §B) ne conta **sei parziali che non si conoscono**. Si dimensiona lì                                                                                     |
 
