@@ -1302,11 +1302,11 @@ modificare una vendita conclusa non era in programma.
 ```text
 PREREQUISITO TECNICO — C 0
   Vendita e Reso conclusi:
-    → riapertura
-    → modifica
-    → salvataggio
-    → eliminazione
-    → riconciliazione PER DIFFERENZA
+    → riapertura                              ✅ fatto
+    → modifica                                ✅ fatto
+    → salvataggio                             ✅ fatto
+    → eliminazione                            ❌ NON fatto — flow-only rifiuta
+    → riconciliazione PER DIFFERENZA          ✅ fatto
     → riallineamento di tutti gli effetti derivati
 
   poi, e solo dopo:
@@ -1315,6 +1315,22 @@ FASE UI 1   elenco → [ Nuova vendita al banco ]  [ Nuovo reso al banco ]
 FASE UI 2   via il toggle interno: Vendita e Reso separati davvero alla creazione
 FASE UI 3   la maschera, ricostruita sull'Ordine cliente e sui componenti comuni
 ```
+
+### ⚠️ Il prerequisito è soddisfatto A META', e la conseguenza cade sulla FASE UI 1
+
+Il paragrafo qui sotto avvertiva di un caso preciso — «costruire un elenco con azioni che l'API
+rifiuta» — e quel caso **è esattamente lo stato di oggi**, non più un'ipotesi:
+
+> **Un elenco con il comando «Elimina» sarebbe un comando che l'API rifiuta con 409.**
+
+Modifica e riapertura invece reggono: un elenco che apre un documento concluso e lo lascia
+correggere è già costruibile sulla base definitiva.
+
+⛔ **La scelta non si fa di straforo mentre si scrive l'elenco.** O si completa `C 0` togliendo i
+due tipi da `FLOW_ONLY_DOCUMENT_TYPES` con la neutralizzazione degli effetti, oppure la
+**FASE UI 1 nasce senza il comando di eliminazione** — e va detto, non lasciato scoprire a chi lo
+cerca. Le due strade non si equivalgono: la seconda è un rinvio dichiarato, non una riduzione
+del requisito.
 
 **Perché il tecnico viene prima, e non è una preferenza di chi implementa.** Le rotte e l'elenco
 non sono bloccati in sé. Ma il modulo va costruito **sulla base definitiva**: fare prima
@@ -1374,27 +1390,65 @@ Il censimento e l'eventuale bonifica di quel ramo e delle sue migration sul data
 sono un **lavoro separato e successivo**, registrato in `DA-FARE.md`. Non è una precondizione di
 C 0.
 
-| #   | Intervento                                                                                                                                                                                                          | Da       | Perché                                                                                                                                    |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 0   | **Rendere Vendita e Reso conclusi riapribili, modificabili ed eliminabili**, con riconciliazione per differenza e neutralizzazione in eliminazione                                                                  | A2 · B2  | deciso il 18/08. È il divario più grande: oggi i due tipi sono in `FLOW_ONLY_DOCUMENT_TYPES` e i cinque percorsi generici li rifiutano    |
-| 0b  | **Conservare numero, serie e data al risalvataggio**, e aggiungere il campo data al DTO del Reso                                                                                                                    | A2 · B5  | oggi la creazione rinumera senza condizioni, e il DTO del Reso non ha `documentDate`: la data e sempre oggi                               |
-| 1   | Censire la terminologia legacy e correggere l'etichetta esposta rimasta indietro                                                                                                                                    | A6 · B6  | la rinomina precedente è incompleta e le due diciture convivono                                                                           |
-| 2   | Togliere il forcing netto/ivato e far entrare i due tipi nel contratto comune, memorie comprese                                                                                                                     | A4 · B3  | oggi è una costante nel codice, non una convenzione                                                                                       |
-| 3   | Riallineare le rotte a `elenco → [Nuova vendita al banco] / [Nuovo reso al banco] → documento`, con i nomi fissati in A2, dopo il censimento dei consumer                                                           | A2 · B2  | grammatica diversa da tutti gli altri documenti, e il «Nuovo» a menu non è quello deciso                                                  |
-| 4   | Separare Vendita e Reso alla creazione, al posto dell'interruttore                                                                                                                                                  | A3 · B4  | l'interruttore attuale non svuota nemmeno il carrello                                                                                     |
-| 5   | **Censire e rimuovere la logica di collegamento del Reso a una vendita origine** — percorso, campi, caricamento delle vendite recenti                                                                               | A11 · B4 | A11 stabilisce che il Reso **non ha** documento origine: quello che c'è oggi è legacy                                                     |
-| 6   | Verificare che l'IVA del Reso sia scritta come **snapshot di riga** e non riletta dall'anagrafica                                                                                                                   | A11 · B4 | senza snapshot la regola decisa diventa un'altra: un documento che si riscrive da solo                                                    |
-| 7   | **Applicare** il contratto del Reso ora chiuso: causale **facoltativa** (oggi obbligatoria), prezzo dall'anagrafica, sconti come la Vendita, rimborso informativo, correzione come **A2**                           | A11 · B4 | le cinque decisioni sono chiuse il 18/08: qui resta l'esecuzione, non la scelta                                                           |
-| 8   | Portare il metodo di pagamento fino alla **riga del Registro**, al dettaglio della registrazione e all'export; poi valutare il filtro                                                                               | A8       | oggi si ferma nella schermata della vendita                                                                                               |
-| 8b  | ✅ **FATTO il 19/08/2026** — il Reso al banco entra nel Registro come rettifica negativa, una sola volta: quinta sorgente documentale, `kind: refund`, `refundKind: return_with_restock`. Contratto in **`10` §18** | A9 · A11 | era misurato: il filtro era `type: store_sale` secco, e **nessun reso di cassa diminuiva l'incasso lordo**. Verificato sul database reale |
-| 9   | Verificare e **preservare** il comportamento esistente: Origine esposta, Online/Fisico-POS come suoi raggruppamenti                                                                                                 | A9 · B10 | **in buona parte già fatto**: resta una verifica, non un lavoro                                                                           |
-| 10  | Ristrutturare la schermata riusando l'Ordine cliente, senza forcare le aree di `03`                                                                                                                                 | A12 · B9 | oggi non condivide nulla con la grammatica documentale                                                                                    |
-| 11  | Far valere la **regola comune** del solo effetto fisico lungo la catena                                                                                                                                             | A7 · B11 | non un caso speciale per la accompagnatoria: il primo documento che registra il fatto movimenta, i successivi no                          |
-| 12  | **Collegare** la Vendita al banco ai meccanismi Includi/Genera esistenti, estendendo il contratto delle coppie secondo la matrice di `12`                                                                           | A7 · B8  | ⚠️ non è UN motore: la misura canonica (`12` §B) ne conta **sei parziali che non si conoscono**. Si dimensiona lì                         |
+| #   | Intervento                                                                                                                                                                                                          | Da       | Perché                                                                                                                                                                                                |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | ⚠️ **PARZIALE** — **Rendere Vendita e Reso conclusi riapribili, modificabili ed eliminabili**, con riconciliazione per differenza e neutralizzazione in eliminazione                                                | A2 · B2  | deciso il 18/08. È il divario più grande: oggi i due tipi sono in `FLOW_ONLY_DOCUMENT_TYPES` e i cinque percorsi generici li rifiutano ⚠️ **Manca l’eliminazione** — vedi il quadro sotto la tabella. |
+| 0b  | ⚠️ **PARZIALE** — **Conservare numero, serie e data al risalvataggio**, e aggiungere il campo data al DTO del Reso                                                                                                  | A2 · B5  | oggi la creazione rinumera senza condizioni, e il DTO del Reso non ha `documentDate`: la data e sempre oggi ⚠️ **Il campo data non è stato aggiunto** — vedi il quadro sotto la tabella.              |
+| 1   | ✅ **FATTO** 18/08/2026 — Censire la terminologia legacy e correggere l'etichetta esposta rimasta indietro                                                                                                          | A6 · B6  | la rinomina precedente è incompleta e le due diciture convivono                                                                                                                                       |
+| 2   | Togliere il forcing netto/ivato e far entrare i due tipi nel contratto comune, memorie comprese                                                                                                                     | A4 · B3  | oggi è una costante nel codice, non una convenzione                                                                                                                                                   |
+| 3   | Riallineare le rotte a `elenco → [Nuova vendita al banco] / [Nuovo reso al banco] → documento`, con i nomi fissati in A2, dopo il censimento dei consumer                                                           | A2 · B2  | grammatica diversa da tutti gli altri documenti, e il «Nuovo» a menu non è quello deciso                                                                                                              |
+| 4   | Separare Vendita e Reso alla creazione, al posto dell'interruttore                                                                                                                                                  | A3 · B4  | l'interruttore attuale non svuota nemmeno il carrello                                                                                                                                                 |
+| 5   | ✅ **FATTO** 18/08/2026 — **Censire e rimuovere la logica di collegamento del Reso a una vendita origine** — percorso, campi, caricamento delle vendite recenti                                                     | A11 · B4 | A11 stabilisce che il Reso **non ha** documento origine: quello che c'è oggi è legacy                                                                                                                 |
+| 6   | Verificare che l'IVA del Reso sia scritta come **snapshot di riga** e non riletta dall'anagrafica                                                                                                                   | A11 · B4 | senza snapshot la regola decisa diventa un'altra: un documento che si riscrive da solo                                                                                                                |
+| 7   | **Applicare** il contratto del Reso ora chiuso: causale **facoltativa** (oggi obbligatoria), prezzo dall'anagrafica, sconti come la Vendita, rimborso informativo, correzione come **A2**                           | A11 · B4 | le cinque decisioni sono chiuse il 18/08: qui resta l'esecuzione, non la scelta                                                                                                                       |
+| 8   | Portare il metodo di pagamento fino alla **riga del Registro**, al dettaglio della registrazione e all'export; poi valutare il filtro                                                                               | A8       | oggi si ferma nella schermata della vendita                                                                                                                                                           |
+| 8b  | ✅ **FATTO il 19/08/2026** — il Reso al banco entra nel Registro come rettifica negativa, una sola volta: quinta sorgente documentale, `kind: refund`, `refundKind: return_with_restock`. Contratto in **`10` §18** | A9 · A11 | era misurato: il filtro era `type: store_sale` secco, e **nessun reso di cassa diminuiva l'incasso lordo**. Verificato sul database reale                                                             |
+| 9   | Verificare e **preservare** il comportamento esistente: Origine esposta, Online/Fisico-POS come suoi raggruppamenti                                                                                                 | A9 · B10 | **in buona parte già fatto**: resta una verifica, non un lavoro                                                                                                                                       |
+| 10  | Ristrutturare la schermata riusando l'Ordine cliente, senza forcare le aree di `03`                                                                                                                                 | A12 · B9 | oggi non condivide nulla con la grammatica documentale                                                                                                                                                |
+| 11  | Far valere la **regola comune** del solo effetto fisico lungo la catena                                                                                                                                             | A7 · B11 | non un caso speciale per la accompagnatoria: il primo documento che registra il fatto movimenta, i successivi no                                                                                      |
+| 12  | **Collegare** la Vendita al banco ai meccanismi Includi/Genera esistenti, estendendo il contratto delle coppie secondo la matrice di `12`                                                                           | A7 · B8  | ⚠️ non è UN motore: la misura canonica (`12` §B) ne conta **sei parziali che non si conoscono**. Si dimensiona lì                                                                                     |
 
 ⚠️ **Il 12 non si inizia prima dell'11**: una catena che si apre prima che la regola del solo
 effetto fisico sia applicata è una catena che scarica due volte. Ora la tabella lo rispetta
 anche nell'ordine, come dichiara di fare.
+
+## ⚠️ C0 e C0b sono PARZIALI — cosa è fatto e cosa resta _(riallineato il 19/08/2026)_
+
+⛔ **Il requisito non è stato ridotto per farlo coincidere col codice.** Restano quelli scritti
+nelle due voci: qui si dichiara solo quanta parte è conclusa.
+
+### C 0 — riapribili, modificabili ed eliminabili
+
+| Requisito                               | Stato                                                                                                     |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **riapribili**                          | ✅ `DocumentsService.getById` risponde su entrambi i tipi, **con gli id di riga** che servono a risalvare |
+| **modificabili**                        | ✅ per `dto.id` su `POST /store-sales` e `/store-sales/returns`                                           |
+| **riconciliazione per differenza**      | ✅ un movimento per riga, aggiornato in posto; nessuna rettifica accodata                                 |
+| ⛔ **eliminabili**                      | ❌ **NON fatto**: `FLOW_ONLY_DOCUMENT_TYPES` contiene ancora `store_sale` e `store_return`                |
+| ⛔ **neutralizzazione in eliminazione** | ❌ **NON fatto**, e non è una dimenticanza separata: non esiste l'eliminazione da neutralizzare           |
+
+**Misurato, non dedotto.** `DocumentsService.delete` rifiuta con _«Le vendite e i resi negozio
+non si eliminano: fanno parte dello storico movimenti»_ — provato su un Reso vero.
+
+⚠️ **La modifica passa dal flusso dedicato, non dal percorso generico**, ed è la forma giusta —
+ma il messaggio del percorso generico (`documents.service.ts`) dice ancora _«Vendite e resi
+negozio non sono modificabili»_, che dopo **A2** è una frase invecchiata.
+
+⚠️ **La modifica è verificata a livelli diversi sui due tipi**: il **Reso** end-to-end sul
+database reale, la **Vendita** dalle sole prove unitarie. Vale come fatto, ma la differenza va
+saputa.
+
+### C 0b — conservare numero, serie e data
+
+| Requisito                           | Stato                                                          |
+| ----------------------------------- | -------------------------------------------------------------- |
+| **conservare numero, serie e data** | ✅ verificato sul database reale al risalvataggio              |
+| ⛔ **campo data nel DTO del Reso**  | ❌ **NON fatto**: `CreateStoreReturnDto` non ha `documentDate` |
+
+⚠️ **La Vendita ce l'ha e il Reso no**, e l'asimmetria è misurata: `CreateStoreSaleDto` dichiara
+`documentDate?: string`, il DTO del Reso no. Ne discende che **un Reso nuovo porta sempre la data
+di oggi**, e non si può registrarne uno di ieri — che è esattamente ciò che la voce chiedeva di
+correggere.
 
 ---
 
