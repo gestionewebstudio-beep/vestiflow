@@ -1332,6 +1332,25 @@ due tipi da `FLOW_ONLY_DOCUMENT_TYPES` con la neutralizzazione degli effetti, op
 cerca. Le due strade non si equivalgono: la seconda è un rinvio dichiarato, non una riduzione
 del requisito.
 
+### ✅ Deciso il 19/08/2026 — la FASE UI 1 nasce senza «Elimina»
+
+> **L'azione Elimina NON compare.** Non un pulsante disabilitato, non un comando che restituisce
+> 409: semplicemente non c'è ancora.
+
+⛔ **E non si inventa una cancellazione locale** per far quadrare l'elenco. La cancellazione
+arriverà quando sarà **definito o riusato il comportamento comune di neutralizzazione**, che è
+un contratto del dominio documenti e non una funzione di questa maschera.
+
+⚠️ **Il caso che quel comportamento comune deve saper trattare**, e che va tenuto in vista
+perché è quello che lo rende non banale:
+
+> una **sorgente con un documento successivo** che **non aveva prodotto il proprio effetto
+> fisico**.
+
+Neutralizzare la prima senza sapere cosa ha fatto la seconda significa o lasciare in giro un
+effetto che nessuno rivendica, o toglierne uno che non c'era mai stato. È la ragione per cui
+`C 0` resta ⚠️ **parziale** e non si chiude di fretta.
+
 **Perché il tecnico viene prima, e non è una preferenza di chi implementa.** Le rotte e l'elenco
 non sono bloccati in sé. Ma il modulo va costruito **sulla base definitiva**: fare prima
 un'interfaccia che espone documenti ancora trattati dall'API come `flow-only` — cioè non
@@ -1393,7 +1412,7 @@ C 0.
 | #   | Intervento                                                                                                                                                                                                          | Da       | Perché                                                                                                                                                                                                |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0   | ⚠️ **PARZIALE** — **Rendere Vendita e Reso conclusi riapribili, modificabili ed eliminabili**, con riconciliazione per differenza e neutralizzazione in eliminazione                                                | A2 · B2  | deciso il 18/08. È il divario più grande: oggi i due tipi sono in `FLOW_ONLY_DOCUMENT_TYPES` e i cinque percorsi generici li rifiutano ⚠️ **Manca l’eliminazione** — vedi il quadro sotto la tabella. |
-| 0b  | ⚠️ **PARZIALE** — **Conservare numero, serie e data al risalvataggio**, e aggiungere il campo data al DTO del Reso                                                                                                  | A2 · B5  | oggi la creazione rinumera senza condizioni, e il DTO del Reso non ha `documentDate`: la data e sempre oggi ⚠️ **Il campo data non è stato aggiunto** — vedi il quadro sotto la tabella.              |
+| 0b  | ✅ **FATTO** 19/08/2026 — **Conservare numero, serie e data al risalvataggio**, e aggiungere il campo data al DTO del Reso                                                                                          | A2 · B5  | oggi la creazione rinumera senza condizioni, e il DTO del Reso non ha `documentDate`: la data e sempre oggi Chiuso: il campo c’è, col pattern della Vendita.                                          |
 | 1   | ✅ **FATTO** 18/08/2026 — Censire la terminologia legacy e correggere l'etichetta esposta rimasta indietro                                                                                                          | A6 · B6  | la rinomina precedente è incompleta e le due diciture convivono                                                                                                                                       |
 | 2   | Togliere il forcing netto/ivato e far entrare i due tipi nel contratto comune, memorie comprese                                                                                                                     | A4 · B3  | oggi è una costante nel codice, non una convenzione                                                                                                                                                   |
 | 3   | Riallineare le rotte a `elenco → [Nuova vendita al banco] / [Nuovo reso al banco] → documento`, con i nomi fissati in A2, dopo il censimento dei consumer                                                           | A2 · B2  | grammatica diversa da tutti gli altri documenti, e il «Nuovo» a menu non è quello deciso                                                                                                              |
@@ -1430,25 +1449,43 @@ nelle due voci: qui si dichiara solo quanta parte è conclusa.
 **Misurato, non dedotto.** `DocumentsService.delete` rifiuta con _«Le vendite e i resi negozio
 non si eliminano: fanno parte dello storico movimenti»_ — provato su un Reso vero.
 
-⚠️ **La modifica passa dal flusso dedicato, non dal percorso generico**, ed è la forma giusta —
-ma il messaggio del percorso generico (`documents.service.ts`) dice ancora _«Vendite e resi
-negozio non sono modificabili»_, che dopo **A2** è una frase invecchiata.
+⚠️ **La modifica passa dal flusso dedicato, non dal percorso generico**, ed è la forma giusta: di
+là si scavalcherebbe la riconciliazione della maschera.
+
+✅ **Il messaggio è stato corretto il 19/08.** Diceva _«Vendite e resi negozio non sono
+modificabili»_, che dopo **A2** è falso — si riaprono e si correggono. Ora dice **dove** si
+modificano. ⛔ **Il gate non è stato toccato**: il percorso generico deve continuare a
+rifiutarli, e cambiare la frase non cambia la regola.
 
 ⚠️ **La modifica è verificata a livelli diversi sui due tipi**: il **Reso** end-to-end sul
 database reale, la **Vendita** dalle sole prove unitarie. Vale come fatto, ma la differenza va
 saputa.
 
-### C 0b — conservare numero, serie e data
+### C 0b — ✅ conservare numero, serie e data — CHIUSO il 19/08/2026
 
-| Requisito                           | Stato                                                          |
-| ----------------------------------- | -------------------------------------------------------------- |
-| **conservare numero, serie e data** | ✅ verificato sul database reale al risalvataggio              |
-| ⛔ **campo data nel DTO del Reso**  | ❌ **NON fatto**: `CreateStoreReturnDto` non ha `documentDate` |
+| Requisito                           | Stato                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------ |
+| **conservare numero, serie e data** | ✅ verificato sul database reale al risalvataggio                              |
+| **campo data nel DTO del Reso**     | ✅ `documentDate` aggiunto, **col pattern della Vendita riusato alla lettera** |
 
-⚠️ **La Vendita ce l'ha e il Reso no**, e l'asimmetria è misurata: `CreateStoreSaleDto` dichiara
-`documentDate?: string`, il DTO del Reso no. Ne discende che **un Reso nuovo porta sempre la data
-di oggi**, e non si può registrarne uno di ieri — che è esattamente ciò che la voce chiedeva di
-correggere.
+⛔ **Nessuna logica dedicata**, ed era la condizione posta: campo facoltativo `@IsISO8601`,
+letto **solo alla creazione**, e in modifica si tiene quella persistita.
+
+```ts
+const documentDate = existing
+  ? existing.documentDate
+  : dto.documentDate
+    ? new Date(dto.documentDate)
+    : new Date();
+```
+
+⭐ **La data arriva anche al MOVIMENTO**, non solo al documento: senza, un rientro di luglio
+comparirebbe nello storico movimenti in un giorno diverso da quello del suo documento.
+
+**Verificato sul database reale** con un reso datato **15 luglio registrato il 19 agosto**:
+documento, data di registrazione, movimento, riga del Registro e subtotale di giornata cadono
+tutti sul 15 luglio, e **nessuno di essi compare fra le righe di oggi**. In modifica la data non
+si sposta nemmeno mandandone un'altra.
 
 ---
 
