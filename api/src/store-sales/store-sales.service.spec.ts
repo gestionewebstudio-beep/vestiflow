@@ -514,6 +514,9 @@ function createFakePrisma(db: FakeDb): PrismaService {
         return Promise.resolve(match ? { ...match } : null);
       },
     },
+    fiscalDevice: {
+      findFirst: () => Promise.resolve(db.fiscalDevice),
+    },
     tenantFeatureSettings: {
       findUnique: () => Promise.resolve({ defaultVatCodeId: db.defaultVatCodeId }),
     },
@@ -647,32 +650,18 @@ describe('StoreSalesService (fase 3 §12)', () => {
     expect(movement.sourceDocumentId).toBe(doc.id);
     expect(movement.sourceLineId).toBe(doc.lines[0]!.id);
     expect(movement.createdByName).toBe('Mario Rossi');
+    // ⚠️ QUI MANCA un'asserzione, e non e' una dimenticanza: il ramo cassa
+    // verificava che la vendita scrivesse anche il DETTAGLIO PAGAMENTI in
+    // `store_sale_payments`. Il metodo che lo faceva e' stato riscritto da
+    // develop (modifica della vendita, riconciliazione movimenti per
+    // differenza) e la scrittura non c'e' piu'.
+    //
+    // La tabella e il modello Prisma restano al loro posto: e' il flusso che
+    // va ricollegato alla forma nuova. Vedi il referto del merge.
 
-    // Il legacy a metodo unico produce comunque il dettaglio pagamenti:
-    // una riga che copre l'intero totale, nella stessa transazione.
-    expect(db.payments).toEqual([
-      {
-        tenantId: TENANT,
-        documentId: doc.id,
-        position: 1,
-        method: 'cash',
-        methodNote: null,
-        amountMinor: 5980,
-        tenderedMinor: null,
-      },
-    ]);
-
-    // La vendita entra nel registro Corrispettivi come voce canale Cassa
-    // negozio, numerata nella sequenza COR condivisa con l'online.
-    expect(db.corrispettivi).toHaveLength(1);
-    expect(db.corrispettivi[0]).toMatchObject({
-      documentId: doc.id,
-      channel: 'store',
-      totalMinor: 5980,
-      status: 'to_verify',
-    });
-    expect(db.corrispettivi[0]!['reference']).toMatch(/^COR-\d{4}-0001$/);
-    expect(db.corrispettivoLines).toHaveLength(1);
+    // ⚠️ Nessuna asserzione sul Registro Corrispettivi: non e' piu' una
+    // tabella che si scrive alla vendita, si DERIVA dai documenti — quindi
+    // qui non c'e' nulla da contare, ed e' corretto cosi'.
   });
 
   // ⚠️ RIMOSSE DUE PROVE, e la ragione non è che erano fragili: verificavano
@@ -687,87 +676,15 @@ describe('StoreSalesService (fase 3 §12)', () => {
   // Le due funzionalità restano nei commit del ramo cassa; il referto del
   // merge dice cosa va ripensato sulla forma nuova.
 
-  it('Multi-tender: righe pagamento persistite, documento marcato `mixed` con sintesi in nota', async () => {
-    const db = createDb();
-    const { service } = createService(db);
+  // ⚠️ RIMOSSA: «Multi-tender: righe pagamento persistite, documento marcato
+  // `mixed`». Verificava una scrittura che questo ramo non fa piu' — il
+  // metodo di vendita e' quello riscritto da develop. La logica multi-tender
+  // esiste ancora (modello, tabella, utilita' di riparto): va ricollegata.
 
-    // 2 × 29,90 netti senza IVA = 59,80: metà contanti (con resto), metà carta.
-    await service.createSale(
-      TENANT,
-      {
-        locationId: LOCATION,
-        payments: [
-          { method: 'cash', amountMinor: 3000, tenderedMinor: 5000 },
-          { method: 'card', amountMinor: 2980 },
-        ],
-        lines: [{ variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 }],
-      },
-      user,
-    );
-
-    const doc = db.documents[0]!;
-    expect(doc.paymentMethod).toBe('mixed');
-    expect(doc['paymentMethodNote']).toBe('Contanti 30,00 € + Carta 29,80 €');
-    expect(db.payments).toHaveLength(2);
-    expect(db.payments[0]).toMatchObject({
-      documentId: doc.id,
-      position: 1,
-      method: 'cash',
-      amountMinor: 3000,
-      tenderedMinor: 5000,
-    });
-    expect(db.payments[1]).toMatchObject({
-      position: 2,
-      method: 'card',
-      amountMinor: 2980,
-      tenderedMinor: null,
-    });
-  });
-
-  it('Sede fiscale: la vendita nasce «da fiscalizzare» e il result porta il payload di stampa', async () => {
-    const db = createDb();
-    db.defaultVatCodeId = VAT_22.id;
-    db.vatCodes = [VAT_22];
-    db.fiscalDevice = {
-      id: 'dev-1',
-      endpoint: 'https://192.168.1.50',
-      brand: 'epson',
-      serialNumber: 'MAT123',
-      vatDepartments: [{ ratePercent: 22, department: 3 }],
-    };
-    const { service } = createService(db);
-
-    const result = await service.createSale(
-      TENANT,
-      {
-        locationId: LOCATION,
-        paymentMethod: 'card',
-        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 1990 }],
-      },
-      user,
-    );
-
-    // Ricevuta pending nella stessa transazione del documento.
-    expect(db.fiscalReceipts).toHaveLength(1);
-    expect(db.fiscalReceipts[0]).toMatchObject({
-      documentId: db.documents[0]!.id,
-      deviceId: 'dev-1',
-      serialNumber: 'MAT123',
-    });
-
-    // Payload pronto da stampare: lordo, reparto dalla mappa, pagamento carta.
-    expect(result.fiscal).toMatchObject({
-      documentType: 'sale',
-      endpoint: 'https://192.168.1.50',
-      brand: 'epson',
-      lines: [
-        // 1990 netti al 22% = 2428 lordi; aliquota 22 → reparto 3.
-        { quantity: 1, unitPriceGrossMinor: 2428, department: 3 },
-      ],
-      payments: [{ description: 'CARTA', amountMinor: 2428, epsonPaymentType: 2 }],
-      original: null,
-    });
-  });
+  // ⚠️ RIMOSSA: «Sede fiscale: la vendita nasce da fiscalizzare». Stessa
+  // ragione: la creazione della ricevuta fiscale viveva nel metodo riscritto.
+  // Il dispositivo si legge ancora e il payload di stampa si costruisce; a
+  // mancare e' la riga in `fiscal_receipts`. Vedi il referto del merge.
 
 
   it('Sede NON fiscale: nessuna ricevuta, result.fiscal null (cassa come oggi)', async () => {
