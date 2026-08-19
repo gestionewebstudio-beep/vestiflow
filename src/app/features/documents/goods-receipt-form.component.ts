@@ -4870,8 +4870,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   /**
    * Codici già cercati e assenti a catalogo: evita di ripetere la stessa
-   * lookup (404) a ogni autosave/salvataggio. Si svuota quando l'utente
+   * lookup (404) a ogni tentativo di collegamento. Si svuota quando l'utente
    * modifica un codice riga.
+   *
+   * ⚠️ Diceva «a ogni autosave/salvataggio»: era il residuo di un autosave
+   * rimosso a luglio. Il salvataggio progressivo è stato **ritirato come
+   * requisito** il 19/08/2026 — il documento si salva solo col pulsante — e
+   * quel nome non descriveva più niente (`GUARDIE-MANCANTI` voce 22).
    */
   private readonly codesNotFound = new Set<string>();
 

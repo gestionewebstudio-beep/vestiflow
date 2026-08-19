@@ -1021,61 +1021,65 @@ _Contesto della misura: `docs/12-specifica-collegamenti-documentali.md` §B7._
 
 ---
 
-### 22. L'autosalvataggio progressivo delle righe dell'Arrivo merce NON esiste — ✅ VERIFICATO il 19/08/2026
+### 22. Il salvataggio progressivo delle righe è RITIRATO — ⛔ requisito annullato il 19/08/2026
 
-> **Il comportamento previsto è il salvataggio PROGRESSIVO delle righe. Oggi il documento
-> si salva solo col pulsante.**
+> **Decisione del proprietario: il salvataggio progressivo non si fa. Tutto si muove solo
+> al salvataggio del documento.**
 
-⚠️ **È un divario, non una funzione da togliere**, e la distinzione conta perché il codice
-oggi afferma il contrario.
+⚠️ **Questa voce diceva l'opposto**, ed è stata riscritta il giorno stesso in cui era stata
+aperta. Diceva: _«è un divario, non una funzione da togliere»_, e _«prima si riduce il costo
+del percorso di salvataggio, poi si ripristina il progressivo — l'ordine non è negoziabile»_.
+Il proprietario ha ritirato il requisito: non c'è più un progressivo da ripristinare, né
+prima né dopo.
 
-#### Come è stato trovato
+#### Il codice era già allineato, e i suoi commenti pure
 
-Cercando «il salvataggio automatico da rimuovere», e non trovandolo. La misura:
+La misura del 19/08 resta valida e ora descrive il comportamento **voluto**:
 
 ```text
 documentService.saveGoodsReceipt   1 sola invocazione   ← il pulsante Salva
 documentService.getDocumentById    1 sola invocazione   ← il caricamento
 ```
 
-Nessun altro punto della maschera scrive sul server. `linkLineCodes$` parte a ogni Invio,
-scansione e sfocamento di riga, ma **collega il codice alla variante**: è una lettura, non
-una scrittura, e parte solo se la riga ha un codice non ancora collegato.
+Nessun altro punto della maschera scrive sul server. `linkLineCodesThen` parte a ogni Invio,
+scansione e sfocamento di riga, ma **collega il codice alla variante**: è una lettura, non una
+scrittura.
 
-#### ⛔ Due commenti nel codice affermano il contrario, e NON sono fonte funzionale
-
-`goods-receipt-form.component.ts` dichiara in due punti:
+⛔ **I due commenti in `goods-receipt-form.component.ts` NON sono più da correggere.** Questa
+voce li aveva condannati come «non fonte funzionale» perché affermavano una regola che allora
+non era stata decisa. Ora lo è, e dicono il vero:
 
 - _«Nessun salvataggio automatico: il documento si salva SOLO con "Salva documento".»_
-- _«Si chiamava `commitLineAndSave`, e il nome mentiva: nessun salvataggio è mai partito da
-  qui.»_
+- _«Si chiamava `commitLineAndSave`, e il nome mentiva: nessun salvataggio è mai partito da qui.»_
 
-Raccontano una **rimozione avvenuta**, e la descrivono come se fosse la regola. **Non lo è.**
-Chi li legge conclude che il comportamento attuale sia quello voluto, e il divario si chiude
-da sé nella testa di chi passa — che è il modo in cui un pezzo mancante smette di essere
-cercato.
+#### `commitLineIfSignificant` resta, e non è un salvataggio
 
-⚠️ Un terzo commento (`codesNotFound`) nomina ancora _«a ogni autosave/salvataggio»_: è il
-residuo che tradisce che l'autosave c'era.
+Il concetto di «riga significativa» esiste ancora nel codice
+(`goods-receipt-form.component.ts:1606`) ed è **corretto tenerlo**: decide se una riga merita
+il collegamento codice→variante, cioè una **lettura**. Non scrive niente sul server, e non
+deve cominciare a farlo.
 
-#### ⛔ Perché NON si ripristina adesso
+#### ⚠️ La conseguenza da non perdere di vista
 
-Il salvataggio dell'Arrivo merce è oggi **il percorso più caro del gestionale** — misurato il
-19/08: un documento da 10 righe costa ~28,7 secondi, di cui 112 statement SQL e 50 query di
-push canale. Un autosalvataggio progressivo **moltiplicherebbe quel costo per il numero di
-righe compilate**.
+Il requisito ritirato prometteva che si perdesse **al massimo la riga non ancora
+sincronizzata**. Senza progressivo, **un salvataggio che fallisce perde il documento intero**.
 
-> **Prima si riduce il costo del percorso di salvataggio, poi si ripristina il progressivo.**
+Questo alza il peso di due cose che stavano in coda:
 
-L'ordine non è negoziabile: ripristinarlo prima significherebbe rendere insopportabile
-proprio la maschera che si voleva rendere più comoda.
+1. **Il timeout del client a 15 s** (`document.service.ts:33`), che oggi si rompe a ~14 righe
+   senza canale e ~5 con Shopify collegato: era già un difetto, ora è l'unica linea di
+   difesa. Non esiste più un ripiego parziale sotto.
+2. **L'idempotenza della creazione**: se il commit riesce e la risposta si perde, l'operatore
+   ripreme Salva e nasce un secondo documento. Non c'è oggi alcuna chiave che lo impedisca —
+   il DTO ha `id?` opzionale e il client non ritenta da sé.
 
-#### Cosa serve prima
+⛔ **Nessuna guardia va aggiunta contro un autosave**: non ce n'è uno da impedire, e una
+guardia contro qualcosa che non esiste è rumore. Ne era stata scritta una il 19/08 ed è stata
+tolta lo stesso giorno.
 
-Le cause misurate stanno nell'indagine del 19/08. La prima è `applyInventoryDelta`, che
-emette 4 statement dove ne basta 1 — misurato: 621 ms contro 270 ms per chiamata, ed è il
-mattone di **ogni** documento che muove magazzino.
+#### Fuori dal repository
 
-⚠️ **Nessuna guardia va aggiunta contro l'autosave**: inchioderebbe il comportamento
-sbagliato, e renderebbe più difficile ripristinare quello giusto. È stata scritta e poi
-tolta il 19/08, proprio per questo.
+Il **Piano Master** e la **specifica Arrivo merce** che portavano il requisito **non sono in
+questo repository**: sono `.docx` esterni, citati in `docs/QUADRO-DECISIONI-FATTURE.md:931`
+con la nota che «l'esistenza dei `.docx` non è verificata». Questa voce ritira il requisito
+**dai documenti del repo**; chi tiene quei file deve allinearli a mano.

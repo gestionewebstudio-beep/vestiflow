@@ -157,7 +157,7 @@ Tre conseguenze per chi lo tocca:
 
 1. **È raggiunto da tre gesti, non uno** — freccia giù, Invio su quantità con articolo collegato, e il fallthrough di `focusNextLineField`, cioè **Tab dall'ultimo campo**. Toglierlo dal corpo di `advanceToNextLine` lo toglie a tutti e tre.
 2. **La sua asincronia è ciò che oggi fa funzionare il fuoco, per caso.** Quando non c'è nulla da collegare il percorso è già sincrono; quando c'è, il callback gira un tick dopo, a DOM pronto. Reso sincrono sempre, la freccia giù sull'ultima riga smette di dare fuoco alla riga creata. Ordine cliente e Ordine fornitore hanno il `setTimeout` esplicito con il commento che spiega esattamente questo.
-3. **Restano due commenti obsoleti** su un autosave rimosso a luglio. Chi valuta la modifica crederà che si stia togliendo una persistenza.
+3. **Restano due commenti su un autosave rimosso a luglio.** Erano registrati qui come obsoleti; **dal 19/08/2026 non lo sono più**: il proprietario ha ritirato il requisito del salvataggio progressivo, e quei commenti descrivono ora il comportamento voluto. Vedi `GUARDIE-MANCANTI` voce 22. Chi valuta una modifica in questa zona non sta togliendo una persistenza: non ce n’è mai stata una da togliere.
 
 Altri chiamanti: `commitLineIfSignificant` (bersaglio di tutti i blur di riga), `addLine`, `applyScannedVariant`, `applyUnknownBarcodeScan`.
 
