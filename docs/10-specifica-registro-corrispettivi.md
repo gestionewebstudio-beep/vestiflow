@@ -69,7 +69,7 @@ Il Registro non crea archivi separati per canale. I sottoinsiemi si ottengono co
 | ---------------- | -------------- | --------------------------------------------------------------------------------- |
 | **Periodo**      | scelta singola | preset, giornata singola, intervallo personalizzato                               |
 | **Origine**      | **insieme**    | Shopify online · Shopify POS · Vendita al banco · Corrispettivo manuale           |
-| **Tipo evento**  | **insieme**    | Vendite · Resi · Rimborsi                                                         |
+| **Tipo evento**  | **insieme**    | Vendite · Resi · Rimborsi — ⚠️ **Resi e Rimborsi restano disgiunti**, vedi §18    |
 | **Sede**         | **insieme**    | le sedi consultabili                                                              |
 | **Raggruppa**    | scelta singola | Nessuno · Giorno                                                                  |
 | **Fatturazione** | —              | fatturato / non fatturato — **mai** come flusso di consegna. Resta fuori, vedi §7 |
@@ -188,6 +188,9 @@ né origine né documenti fiscali. Le due che serviranno:
    fino al 16/08 e oggi sono false:** il Registro ha una terza sorgente dedicata che
    seleziona i `Document` di tipo `store_sale`, usata in tre punti del servizio — elenco,
    riepilogo e ripartizione per sede.
+
+   ⚠️ **E dal 19/08 le sorgenti documentali sono DUE**: `store_return` è entrata come
+   quinta sorgente del Registro, autonoma e col verso opposto. Vedi **§18**.
 
    Cade con esse anche la biforcazione che questo punto lasciava aperta («decide il
    risultato e lascia aperto il meccanismo»): la Vendita al banco **è già un `Document`**,
@@ -1311,3 +1314,130 @@ Il Registro è delimitato dal **periodo e dai filtri**, non da un numero di righ
 Non si reintroducono paginazione funzionale, «Carica altre», scroll infinito, tagli silenziosi né un `pageSize` che tagli. `page` e `pageSize` restano nel contratto ma **non decidono più niente**, e un test lo presidia — un parametro accettato e ignorato è il difetto di `onlineOnly`, che quest'area ha già pagato una volta.
 
 Il tetto tecnico di fusione resta **fuori da questo lavoro**.
+
+---
+
+## §18 · Il Reso al banco entra nel Registro — 19/08/2026, fatto e verificato
+
+> **`store_return` è la QUINTA sorgente del Registro: una sorgente documentale
+> autonoma, non un allargamento del ramo `store_sale`.**
+
+Fino al 18/08 il Registro leggeva un tipo documento solo, e la conseguenza era misurata
+in `11` B13: **nessun reso di cassa diminuiva l'incasso lordo**. Ora lo diminuisce.
+
+### ⛔ Perché non si allarga il filtro esistente
+
+`type: { in: [store_sale, store_return] }` è una riga sola, sembra la modifica ovvia, e
+produce un errore di **segno**. Il reso entrerebbe dal ramo che mappa `kind: 'sale'` con
+importi positivi e lo conta in `orderCount`:
+
+```text
+un reso da 100 €   ALZEREBBE il registro di 100 invece di abbassarlo
+                   200 € di scarto, e comparirebbe filtrando «Solo vendite»
+```
+
+È la stessa regola che l'enum `DocumentType` dichiara per la **Nota di credito**:
+_«quantità e importi restano POSITIVI: il verso economico negativo lo dà il TIPO, mai il
+segno nella quantità»_. Qui il tipo lo dichiara una sorgente separata.
+
+### Il contratto, per intero
+
+|                         | `store_sale`                              | `store_return`                                                  |
+| ----------------------- | ----------------------------------------- | --------------------------------------------------------------- |
+| `kind`                  | `sale`                                    | **`refund`**                                                    |
+| `refundKind`            | —                                         | **`return_with_restock`** → etichetta **«Reso»**, già esistente |
+| importi **nella vista** | positivi                                  | **negativi**                                                    |
+| conteggio               | `orderCount`                              | **`refundCount`**                                               |
+| interruttore            | `wantsSales`                              | **`wantsReturns`**                                              |
+| Origine                 | Vendita al banco · Fisico/POS · VestiFlow | **la stessa**                                                   |
+
+⚠️ **Due convenzioni di segno, e vanno tenute distinte.** Nelle RIGHE gli importi sono
+negativi — è ciò che rende la colonna sommabile a occhio. Al RIEPILOGO arrivano
+**positivi**, perché lì c'è una sottrazione:
+
+```text
+netTotal = total − refundTotal          refundTotal resta POSITIVO
+```
+
+Passarli negativi anche là li farebbe **sommare**, e il netto salirebbe invece di scendere.
+
+### ⚠️ `wantsReturns`, non `wantsRefunds`: un reso non è un rimborso
+
+`wantsRefunds` è la disgiunzione «resi O rimborsi», e serve ad accendere la sorgente delle
+rettifiche Shopify; dentro quella sorgente il genere si distingue poi nella clausola `kind`
+(`returns` → `return_with_restock`, `refunds` → `refund_only`).
+
+Il Reso al banco è una sorgente **intera di un genere solo**: la distinzione che là avviene
+nella clausola, qui deve avvenire **nell'interruttore**.
+
+> **«Solo rimborsi» NON include il Reso al banco.**
+
+⛔ Sull'interruttore sbagliato lo stesso reso cadeva in due sottoinsiemi che la maschera
+presenta come distinti, e la proprietà dichiarata dal modulo — _somma dei sottoinsiemi =
+riepilogo del periodo_ — cadeva sulla partizione a tre.
+
+| filtro                                            | il Reso     |
+| ------------------------------------------------- | ----------- |
+| Tutti · Solo resi · resi+rimborsi · `refundsOnly` | **c'è**     |
+| Solo vendite · **Solo rimborsi**                  | **non c'è** |
+
+### ⚠️ «Carica giacenze» non decide la presenza economica
+
+> **Un Reso con la spunta magazzino spenta su TUTTE le righe non genera alcun movimento,
+> e nel Registro entra lo stesso, come rettifica negativa.**
+
+La spunta decide se la merce **rientra in giacenza**; il Registro registra che il cliente
+**ha reso**, e quanto gli si è reso. Un capo difettoso torna, si rimborsa, in magazzino non
+ci va — e il corrispettivo va abbattuto lo stesso, perché il denaro è uscito.
+
+Il Registro quella spunta **non la filtra e non la legge affatto**: nessuna clausola su
+`lines`, nessun `loadsStock` nel `select`. Tre prove lo inchiodano.
+
+### Il Registro non tocca il magazzino, e ora è presidiato
+
+Sei endpoint, tutti `GET`; nessuna scrittura Prisma nel modulo. Era un fatto **misurato ma
+non presidiato**: la guardia ora esercita elenco, riepilogo, sedi e i **tre** export su
+dieci combinazioni di filtri, e verifica ogni spia di `stockMovement` e `inventoryLevel`
+più `$transaction` e `$executeRaw`.
+
+⚠️ **Provata rossa**, iniettando una lettura di movimenti: due prove falliscono. Morde
+anche su una lettura, non solo su una scrittura.
+
+### Cosa NON è servito, e perché è la conferma che la forma era giusta
+
+- **Nessuna Origine nuova.** Il Reso ha la stessa origine della vendita che rettifica:
+  dargliene una propria farebbe vedere, a chi filtra «Vendita al banco», le vendite al
+  **lordo** delle rettifiche che le abbattono — su un registro fiscale.
+- **Nessun valore nuovo nel filtro Tipo.** `returns` esiste e significa già «la merce è
+  tornata». Non mancava un valore: mancava una **sorgente**.
+- **Niente lato client.** Non filtra né classifica per tipo documento — non conosce il
+  concetto. `return_with_restock` è già etichettato «Reso», lo stile del negativo è già
+  agganciato a `kind === 'refund'`, e la colonna Tipo è già accesa in tre preset su sei.
+- **Nessuna riga in `sales_order_refunds`.** Quella tabella ha un solo produttore in tutto
+  il backend, la sincronizzazione Shopify, e pretende un `salesOrderId` che un reso al
+  banco non ha. È ciò che esclude il doppio conteggio alla radice.
+
+### Il commento interno non esce
+
+La riga porta `notes`, la nota **pubblica**, come fa la rettifica Shopify. La causale del
+reso vive in `internalComment` e lì resta: è un campo che si chiama interno, e finirebbe nel
+file che va al commercialista mentre le note pubbliche dello stesso documento non ci vanno.
+Una guardia verifica che «Causale reso» non compaia né nella riga né nel CSV.
+
+_Mostrare anche la causale è una decisione separata, e riguarda tutti i documenti._
+
+### Verificato sul database reale
+
+Non solo a prove unitarie. Vendita 100,00 e Reso 30,00 su un tenant di prova, letti dal
+servizio vero:
+
+```text
+riepilogo   vendite 100,00   rettifiche 30,00   netto 70,00   (vendite 1 · resi 1)
+
+Tutti · Solo vendite · Solo resi · Solo rimborsi · refundsOnly · Origine · export
+elenco, tetto di fusione, riepilogo, subtotali per giorno, righe senza sede: coerenti
+somma delle righe esportate = netto del riepilogo
+zero movimenti di magazzino creati dal Registro
+```
+
+Più il caso della spunta spenta, con giacenze invariate prima e dopo tutte le letture.
