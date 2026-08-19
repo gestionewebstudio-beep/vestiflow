@@ -123,6 +123,26 @@ export function wantsRefunds(query: CorrispettiviListFilters): boolean {
 }
 
 /**
+ * Vuole i **resi** — la merce che torna — e non i rimborsi senza rientro?
+ *
+ * ⚠️ **Non è `wantsRefunds`, e la differenza è quella che l'operatore vede.**
+ * `wantsRefunds` è la disgiunzione «resi O rimborsi», e serve a decidere se
+ * accendere la sorgente delle rettifiche; dentro quella sorgente il genere si
+ * distingue poi per `kind` (vedi `buildCorrispettiviRefundWhere`, che per
+ * `refunds` tiene il solo `refund_only`).
+ *
+ * Il Reso al banco è una sorgente INTERA di un genere solo — porta sempre
+ * `return_with_restock` — quindi la distinzione che là avviene nella clausola
+ * `kind`, qui deve avvenire nell'interruttore. Accenderlo su `wantsRefunds`
+ * farebbe comparire un **Reso** sotto il filtro «Solo rimborsi», dove le
+ * rettifiche Shopify sanno già non farsi vedere.
+ */
+export function wantsReturns(query: CorrispettiviListFilters): boolean {
+  const tipi = tipiRichiesti(query);
+  return tipi.length === 0 || tipi.includes('returns');
+}
+
+/**
  * Filtri Prisma condivisi tra lista corrispettivi, summary ed export.
  *
  * ⚠️ **Il periodo si misura sulla data di EVASIONE, non su quella dell'ordine**,
@@ -321,6 +341,66 @@ export function buildCorrispettiviStoreSaleWhere(
             { customerName: { contains: query.search, mode: 'insensitive' } },
           ],
         }
+      : {}),
+  };
+}
+
+/**
+ * I **Resi al banco** del periodo: la QUINTA sorgente del Registro (`11` C8b).
+ *
+ * ⛔ **Non è l'allargamento del filtro qui sopra, ed è la decisione centrale.**
+ * Scrivere `type: { in: [store_sale, store_return] }` in
+ * `buildCorrispettiviStoreSaleWhere` sembra la modifica giusta e produce un
+ * errore di **segno**: il Reso entrerebbe dal ramo che mappa `kind: 'sale'` con
+ * importi positivi e lo conta in `orderCount`. Un reso da 100 € **alzerebbe**
+ * il registro di 100 invece di abbassarlo — 200 € di scarto — e comparirebbe
+ * filtrando «Solo vendite».
+ *
+ * È la stessa regola che l'enum `DocumentType` dichiara per la Nota di credito:
+ * _«quantità e importi restano POSITIVI: il verso economico negativo lo dà il
+ * TIPO, mai il segno nella quantità»_. Qui il tipo lo dichiara una sorgente
+ * separata, agganciata a `wantsRefunds` invece che a `wantsSales`.
+ *
+ * ⚠️ **`refundsOnly` NON spegne questa sorgente**, al contrario delle altre due
+ * documentali. Là il ritorno anticipato è giusto — una Vendita al banco non è
+ * una rettifica — ma qui lo stesso `return null` farebbe sparire il Reso
+ * proprio sotto il filtro che deve mostrarlo. `financialStatus` invece resta:
+ * descrive il ciclo di pagamento di un ORDINE, che un documento non ha.
+ *
+ * ⚠️ **L'origine resta quella della Vendita al banco** (`store` → Fisico/POS ·
+ * VestiFlow): è la stessa cassa. Dargliene una propria farebbe sì che chi
+ * filtra «Vendita al banco» veda le vendite al LORDO, senza le rettifiche che
+ * le abbattono — su un registro fiscale.
+ *
+ * La data è `documentDate`, gli annullati restano fuori, le bozze non esistono:
+ * tutto come la gemella sopra.
+ */
+export function buildCorrispettiviStoreReturnWhere(
+  tenantId: string,
+  query: CorrispettiviListFilters,
+): Prisma.DocumentWhereInput | null {
+  if (!effectiveOrigins(query).includes(PrismaSource.store)) {
+    return null;
+  }
+  if (query.financialStatus) {
+    return null;
+  }
+
+  const documentDate = buildPlacedAtFilter(query.placedFrom, query.placedTo);
+
+  return {
+    tenantId,
+    type: DocumentType.store_return,
+    status: { not: DocumentStatus.cancelled },
+    ...(documentDate ? { documentDate } : {}),
+    ...locationFilter(query),
+    // ⚠️ Solo il riferimento, a differenza della gemella che cerca anche nel
+    // cliente: su un Reso al banco `customerName` è NULL **per costruzione** —
+    // `CreateStoreReturnDto` non ha il campo e `createReturn` non lo scrive.
+    // Una clausola che non può mai combaciare non allarga la ricerca: fa
+    // credere a chi legge il codice che ci sia un cliente da cercare.
+    ...(query.search
+      ? { reference: { contains: query.search, mode: 'insensitive' as const } }
       : {}),
   };
 }

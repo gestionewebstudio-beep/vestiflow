@@ -3,7 +3,7 @@
  *
  * ## Perché esiste un file per un `sort`
  *
- * Il Registro fonde **quattro sorgenti** in memoria, e fino al 17/08/2026 le
+ * Il Registro fonde **cinque sorgenti** in memoria, e fino al 17/08/2026 le
  * ordinava per la sola data economica. Sembrava sufficiente e non lo era:
  *
  * | Sorgente             | Data economica          | Tipo        |

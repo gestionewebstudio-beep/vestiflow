@@ -33,9 +33,11 @@ import { compareCorrispettiviRowsDesc } from './corrispettivi-sort.util';
 import {
   buildCorrispettiviManualWhere,
   buildCorrispettiviRefundWhere,
+  buildCorrispettiviStoreReturnWhere,
   buildCorrispettiviStoreSaleWhere,
   buildCorrispettiviWhere,
   wantsRefunds,
+  wantsReturns,
   wantsSales,
 } from './corrispettivi-query.util';
 import type { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
@@ -130,7 +132,10 @@ export interface CorrispettivoVatBreakdownRow {
 }
 
 export interface CorrispettiviRegisterRow {
-  /** Identità della riga nella lista (`sale:` / `refund:` / `store:` / `manual:`). */
+  /**
+   * Identità della riga nella lista: `sale:` · `refund:` · `store:` ·
+   * `manual:` · `storeReturn:`.
+   */
   readonly rowId: string;
   readonly kind: CorrispettiviRowKind;
   /**
@@ -316,8 +321,16 @@ export class CorrispettiviService {
     // La QUARTA sorgente: stesso percorso della terza, e per la stessa ragione —
     // la fusione in memoria esiste già, aggiungerne una non cambia la forma.
     const manualWhere = buildCorrispettiviManualWhere(tenantId, query);
+    // La QUINTA: il Reso al banco. Stessa tabella della terza, tipo diverso e
+    // — soprattutto — appesa a `vuoleResi`, non a `vuoleVendite` né a
+    // `vuoleRettifiche`: è una sorgente di UN genere solo (`return_with_restock`),
+    // quindi la distinzione resi/rimborsi che le rettifiche Shopify fanno nella
+    // clausola `kind` qui deve stare nell'interruttore. Su `vuoleRettifiche` un
+    // Reso comparirebbe sotto «Solo rimborsi».
+    const vuoleResi = wantsReturns(query);
+    const storeReturnWhere = buildCorrispettiviStoreReturnWhere(tenantId, query);
 
-    const [saleCount, refundCount, storeCount, manualCount] = await Promise.all([
+    const [saleCount, refundCount, storeCount, manualCount, storeReturnCount] = await Promise.all([
       vuoleVendite ? this.prisma.salesOrder.count({ where }) : Promise.resolve(0),
       vuoleRettifiche
         ? this.prisma.salesOrderRefund.count({ where: refundWhere })
@@ -327,16 +340,17 @@ export class CorrispettiviService {
       // lista poi elenca, e la protezione che dichiara «restringi il periodo»
       // lascerebbe passare proprio i casi che deve fermare.
       manualWhere && vuoleVendite ? this.prisma.manualReceipt.count({ where: manualWhere }) : 0,
+      storeReturnWhere && vuoleResi ? this.prisma.document.count({ where: storeReturnWhere }) : 0,
     ]);
 
-    const rowCount = saleCount + refundCount + storeCount + manualCount;
+    const rowCount = saleCount + refundCount + storeCount + manualCount + storeReturnCount;
     if (rowCount > REGISTER_MERGE_CEILING) {
       throw new BadRequestException(
         `Il periodo selezionato contiene ${rowCount} righe: restringi le date per consultarlo.`,
       );
     }
 
-    const [orders, refunds, storeSales, manualReceipts] = await Promise.all([
+    const [orders, refunds, storeSales, manualReceipts, storeReturns] = await Promise.all([
       vuoleVendite
         ? this.prisma.salesOrder.findMany({
             where,
@@ -399,6 +413,30 @@ export class CorrispettiviService {
               // totali della riga di Registro arrivano dalla testata, che li
               // porta già arrotondati.
               lines: { select: { vatSnapshot: true, netMinor: true, vatMinor: true } },
+            },
+          })
+        : Promise.resolve([]),
+      storeReturnWhere && vuoleResi
+        ? this.prisma.document.findMany({
+            where: storeReturnWhere,
+            select: {
+              id: true,
+              number: true,
+              reference: true,
+              documentDate: true,
+              customerName: true,
+              currency: true,
+              taxMinor: true,
+              totalMinor: true,
+              createdAt: true,
+              // ⛔ NON `internalComment`. La causale del reso vive lì, ed è
+              // allettante mostrarla — ma è un campo INTERNO, e uscirebbe nel
+              // file che va al commercialista mentre le note pubbliche dello
+              // stesso documento non ci vanno. Si legge `notes`, come fa la
+              // riga di rettifica Shopify. Mostrare anche la causale è una
+              // decisione separata, e riguarda tutti i documenti.
+              notes: true,
+              location: { select: { id: true, name: true } },
             },
           })
         : Promise.resolve([]),
@@ -515,6 +553,43 @@ export class CorrispettiviService {
         note: receipt.notes,
         vatBreakdown: buildVatBreakdown(receipt.lines),
       })),
+      ...storeReturns.map((reso) => ({
+        rowId: `storeReturn:${reso.id}`,
+        // ⛔ `refund`, MAI `sale`. È l'intera ragione per cui questa sorgente
+        // esiste separata invece di essere un `in` sul filtro tipo: da qui
+        // discendono il segno degli importi, il secchio dei totali, il
+        // conteggio in cui cade e la tinta con cui il client la disegna.
+        kind: 'refund' as const,
+        salesOrderId: null,
+        documentId: reso.id,
+        manualReceiptId: null,
+        orderNumber: reso.reference ?? (reso.number != null ? String(reso.number) : ''),
+        occurredAt: reso.documentDate,
+        // `documentDate` è un giorno: l'istante che ordina è la registrazione.
+        eventAt: reso.createdAt,
+        // ⚠️ La STESSA origine della Vendita al banco: è la stessa cassa.
+        source: PrismaSource.store,
+        customerName: reso.customerName ?? '',
+        customerEmail: null,
+        locationId: reso.location?.id ?? null,
+        locationName: reso.location?.name ?? null,
+        currency: reso.currency,
+        // ⚠️ Negativi **solo nella vista**. Il documento li conserva positivi
+        // (`store-sales.service.ts`), e il riepilogo li riceve positivi perché
+        // lì c'è una sottrazione: passarli negativi anche là li farebbe
+        // sommare. Due convenzioni diverse, e vanno tenute distinte.
+        taxableMinor: -Math.max(0, reso.totalMinor - reso.taxMinor),
+        taxMinor: -reso.taxMinor,
+        totalMinor: -reso.totalMinor,
+        // Un documento non ha ciclo di pagamento: come la vendita al banco.
+        financialStatus: null,
+        // Il vocabolario esiste già ed è etichettato «Reso»: non se ne inventa
+        // uno nuovo. La spunta magazzino non lo cambia — decide se la merce
+        // rientra in giacenza, non se l'evento è un reso (`11` A11-ter).
+        refundKind: PrismaRefundKind.return_with_restock,
+        note: reso.notes,
+        vatBreakdown: null,
+      })),
     ].sort(compareCorrispettiviRowsDesc);
 
     return rows;
@@ -594,6 +669,23 @@ export class CorrispettiviService {
         })
       : [];
 
+    // I Resi al banco, quinta sorgente, con lo STESSO interruttore delle altre
+    // rettifiche — è la metà mancante della riconciliazione: un reso che
+    // comparisse nell'elenco e non qui farebbe divergere le due letture.
+    //
+    // ⚠️ Gli importi entrano POSITIVI, come quelli di `salesOrderRefund`:
+    // `accumulaCorrispettivi` li SOTTRAE (`netTotal = total − refundTotal`).
+    // Passarli col segno che hanno nelle righe li farebbe sommare, e il netto
+    // salirebbe invece di scendere.
+    const storeReturnSummaryWhere = buildCorrispettiviStoreReturnWhere(tenantId, query);
+    const storeReturns =
+      storeReturnSummaryWhere && wantsReturns(query)
+        ? await this.prisma.document.findMany({
+            where: storeReturnSummaryWhere,
+            select: { taxMinor: true, totalMinor: true, documentDate: true },
+          })
+        : [];
+
     /*
       Gli annullamenti si contano e non si sottraggono: la vendita che annullano
       non è mai entrata nel registro (specifica `08` §4).
@@ -647,7 +739,17 @@ export class CorrispettiviService {
       ordini: orders.map((o) => ({ ...o, occurredAt: o.fulfilledAt ?? o.placedAt })),
       venditeBanco: storeSales.map((s) => ({ ...s, occurredAt: s.documentDate })),
       corrispettiviManuali: manualReceipts.map((m) => ({ ...m, occurredAt: m.documentDate })),
-      rettifiche: refunds,
+      // Le due specie di rettifica nello stesso secchio: quelle di Shopify e i
+      // Resi al banco. `refundCount` è la lunghezza di questo elenco, quindi
+      // un Reso conta come UNA rettifica e non tocca `orderCount`.
+      rettifiche: [
+        ...refunds,
+        ...storeReturns.map((r) => ({
+          totalMinor: r.totalMinor,
+          taxMinor: r.taxMinor,
+          occurredAt: r.documentDate,
+        })),
+      ],
       annullamenti: cancellations,
     });
     const totali = totaleDaiGiorni(perGiornata);
@@ -714,8 +816,9 @@ export class CorrispettiviService {
     const vuoleRettifiche = wantsRefunds(query);
 
     const storeWhere = buildCorrispettiviStoreSaleWhere(tenantId, senzaSede);
+    const storeReturnWhere = buildCorrispettiviStoreReturnWhere(tenantId, senzaSede);
 
-    const [saleCount, refundCount, storeCount] = await Promise.all([
+    const [saleCount, refundCount, storeCount, storeReturnCount] = await Promise.all([
       vuoleVendite
         ? this.prisma.salesOrder.count({ where: buildCorrispettiviWhere(tenantId, senzaSede) })
         : Promise.resolve(0),
@@ -727,9 +830,12 @@ export class CorrispettiviService {
       storeWhere && vuoleVendite
         ? this.prisma.document.count({ where: storeWhere })
         : Promise.resolve(0),
+      storeReturnWhere && wantsReturns(query)
+        ? this.prisma.document.count({ where: storeReturnWhere })
+        : Promise.resolve(0),
     ]);
 
-    return saleCount + refundCount + storeCount;
+    return saleCount + refundCount + storeCount + storeReturnCount;
   }
 
   private aggregateOrders(
