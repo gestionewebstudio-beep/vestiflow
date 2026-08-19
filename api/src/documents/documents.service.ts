@@ -1445,8 +1445,13 @@ export class DocumentsService {
     );
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
+      // ⚠️ Il blocco resta, il MESSAGGIO no: diceva «non sono modificabili», e
+      // dopo la decisione A2 (`11`) è falso — Vendita e Reso al banco si
+      // riaprono e si correggono. Quello che non li modifica è QUESTO percorso:
+      // la maschera dedicata li salva con la propria riconciliazione, e passare
+      // di qui la scavalcherebbe.
       throw new ConflictException(
-        'Vendite e resi negozio non sono modificabili: registra un reso o una nuova vendita dalla cassa.',
+        'Vendite e resi al banco si modificano dalla loro maschera, non dal registro documenti.',
       );
     }
     // Percorso unico Arrivo merce: la famiglia carico si modifica SOLO con

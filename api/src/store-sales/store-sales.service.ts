@@ -427,8 +427,15 @@ export class StoreSalesService {
     // È l'unica fonte disponibile, non essendoci una vendita da cui ereditarla.
     const vatContext = await this.resolveVatContext(tenantId, [], variants);
 
-    // Come la vendita: la data si fissa alla creazione e non si muove più.
-    const documentDate = existing ? existing.documentDate : new Date();
+    // Come la vendita, alla lettera: la data si fissa alla CREAZIONE e non si
+    // muove più — il Registro Corrispettivi filtra e raggruppa su di essa, e un
+    // reso di marzo corretto ad agosto cambierebbe due periodi invece di
+    // correggerne uno. In creazione la sceglie chi registra, o è oggi.
+    const documentDate = existing
+      ? existing.documentDate
+      : dto.documentDate
+        ? new Date(dto.documentDate)
+        : new Date();
     const setting = await this.settings.getResolved(tenantId, DocumentType.store_return);
     const actor = {
       createdById: user.id,

@@ -5,6 +5,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsISO8601,
   IsNumber,
   IsOptional,
   IsString,
@@ -78,6 +79,22 @@ export class CreateStoreReturnDto {
   @IsString()
   @Length(1, 500)
   reason!: string;
+
+  /**
+   * La data economica del reso, scelta da chi registra.
+   *
+   * ⚠️ **Stesso contratto della Vendita al banco**, e non un campo con regole
+   * proprie: facoltativo, ISO 8601, letto **solo alla creazione**. In modifica
+   * il servizio tiene quella persistita — il Registro Corrispettivi filtra e
+   * raggruppa su di essa, e correggere un reso di marzo ad agosto cambierebbe
+   * due periodi invece di correggerne uno.
+   *
+   * Senza questo campo un Reso nasceva sempre con la data di oggi, e un rientro
+   * di ieri registrato stamattina finiva nel giorno sbagliato.
+   */
+  @IsOptional()
+  @IsISO8601()
+  documentDate?: string;
 
   @IsOptional()
   @IsString()

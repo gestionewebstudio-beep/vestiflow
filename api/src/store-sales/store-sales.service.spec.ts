@@ -987,14 +987,76 @@ describe('StoreSalesService (fase 3 §12)', () => {
   // Stesso impianto della Vendita, verso opposto: il motore e' quello di
   // CARICO. E la spunta di riga resta l'unica a decidere il movimento.
 
-  async function reso(db: FakeDb, righe: unknown[], id?: string) {
+  async function reso(db: FakeDb, righe: unknown[], id?: string, documentDate?: string) {
     const { service } = createService(db);
     return service.createReturn(
       TENANT,
-      { ...(id ? { id } : {}), locationId: LOCATION, reason: 'Taglia errata', lines: righe } as never,
+      {
+        ...(id ? { id } : {}),
+        ...(documentDate ? { documentDate } : {}),
+        locationId: LOCATION,
+        reason: 'Taglia errata',
+        lines: righe,
+      } as never,
       user,
     );
   }
+
+  describe('la data del Reso — stesso contratto della Vendita', () => {
+    const IERI = '2026-08-18T00:00:00.000Z';
+
+    it('la data scelta in creazione finisce sul documento', async () => {
+      const db = createDb();
+      await reso(
+        db,
+        [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }],
+        undefined,
+        IERI,
+      );
+
+      expect(db.documents[0]!.documentDate).toEqual(new Date(IERI));
+    });
+
+    it('⭐ e anche sul MOVIMENTO: il carico porta la data del reso, non quella di oggi', async () => {
+      const db = createDb();
+      await reso(
+        db,
+        [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }],
+        undefined,
+        IERI,
+      );
+
+      // Se il movimento restasse a oggi, un rientro di ieri comparirebbe nello
+      // storico movimenti in un giorno diverso da quello del suo documento.
+      expect(db.movements[0]!.createdAt).toEqual(new Date(IERI));
+    });
+
+    it('senza data: è oggi, come prima', async () => {
+      const db = createDb();
+      const prima = Date.now();
+      await reso(db, [{ variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }]);
+
+      const scritta = new Date(db.documents[0]!.documentDate).getTime();
+      expect(scritta).toBeGreaterThanOrEqual(prima - 1000);
+    });
+
+    it('⛔ in MODIFICA la data si conserva, anche se il client ne manda un’altra', async () => {
+      const db = createDb();
+      await reso(db, [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }], undefined, IERI);
+      const doc = db.documents[0]!;
+
+      await reso(
+        db,
+        [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }],
+        doc.id,
+        '2026-01-01T00:00:00.000Z',
+      );
+
+      // La data è un fatto del documento: correggere un reso non lo sposta di
+      // periodo, e il Registro Corrispettivi raggruppa proprio su di essa.
+      expect(db.documents[0]!.documentDate).toEqual(new Date(IERI));
+    });
+  });
 
   it('reso risalvato da 2 a 1: UN solo movimento, aggiornato in posto', async () => {
     const db = createDb();
