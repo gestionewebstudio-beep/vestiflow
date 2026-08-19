@@ -11,7 +11,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
 
 import { catchError, map, of, switchMap, take } from 'rxjs';
@@ -69,8 +69,10 @@ import type {
   StoreSaleResult,
 } from '@domain/store-sales/models/store-sale.model';
 import { StoreSalesService } from './services/store-sales.service';
+import { requireStoreSaleMode, type StoreSaleMode } from './models/store-sale-routing.util';
 
-type RegisterMode = 'sale' | 'return';
+/** Alias locale: il modo della maschera vive nel registro delle rotte. */
+type RegisterMode = StoreSaleMode;
 
 /** Riga del carrello cassa: quantità, prezzo modificabile e sconto (§7). */
 interface CartLine {
@@ -167,6 +169,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
+  private readonly route = inject(ActivatedRoute);
 
   // ── Cosa può fare chi sta al banco ───────────────────────────────────────
 
@@ -212,7 +215,23 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected readonly paymentOptions = PAYMENT_OPTIONS;
   protected readonly formatDate = formatDate;
 
-  protected readonly mode = signal<RegisterMode>('sale');
+  /**
+   * Vendita o Reso, e lo decide la ROTTA.
+   *
+   * ⛔ Nessun valore predefinito: `requireStoreSaleMode` lancia se la rotta non
+   * lo dichiara. I due modi hanno effetti di magazzino OPPOSTI — uno scarica,
+   * l'altro carica — e un fallback su `sale` farebbe compilare una vendita a
+   * chi ha aperto «Nuovo reso al banco», senza che niente lo segnali.
+   *
+   * ⚠️ Si legge dallo `snapshot` e non dal flusso: le due rotte di creazione
+   * sono voci distinte, quindi il componente viene DISTRUTTO e ricreato
+   * passando dall'una all'altra (`TabRouteReuseStrategy.shouldReuseRoute`
+   * confronta `routeConfig`). Non esiste il caso «stessa istanza, dato nuovo».
+   *
+   * Resta un `signal` scrivibile perché l'interruttore interno lo cambia
+   * ancora: sparirà con **C4**, la rotta no.
+   */
+  protected readonly mode = signal<RegisterMode>(requireStoreSaleMode(this.route.snapshot.data));
 
   // ── Location ────────────────────────────────────────────────────────────
 

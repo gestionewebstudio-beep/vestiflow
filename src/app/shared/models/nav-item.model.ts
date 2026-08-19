@@ -14,7 +14,15 @@ export interface NavItem {
    * (es. '/app/inventory' quando `route` punta a '/app/inventory/lookup').
    */
   readonly activeRoutePrefix?: string;
-  /** Route escluse dall'evidenza (es. '/app/sales/register' per la voce Vendite). */
+  /**
+   * Route escluse dall'evidenza, quando una voce ne contiene un'altra.
+   *
+   * ⚠️ **Nessuna voce reale lo usa oggi.** L'esempio citato qui era
+   * '/app/sales/register' escluso dalla voce Vendite: quel percorso e' uscito da
+   * /app/sales il 19/08/2026 (`11` C3) e ora e' un modulo fratello, quindi non
+   * c'e' piu' niente da escludere. La capacita' resta perche' il caso puo'
+   * tornare — non perche' sia in uso.
+   */
   readonly activeRouteExclude?: readonly string[];
   /** Voce non ancora attiva (feature in preparazione): mostrata ma non navigabile. */
   readonly disabled?: boolean;

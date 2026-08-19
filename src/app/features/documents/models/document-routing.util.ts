@@ -111,7 +111,7 @@ export function documentOpenPath(doc: {
       return `/app/documents/fattura/${doc.id}`;
     case DocumentType.StoreSale:
     case DocumentType.StoreReturn:
-      return `/app/documents/vendite-negozio/${doc.id}`;
+      return `/app/vendita-al-banco/${doc.id}`;
     case DocumentType.ManualUnload:
       return `/app/documents/manual-unload/${doc.id}`;
     default:

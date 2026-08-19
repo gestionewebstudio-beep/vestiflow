@@ -40,12 +40,8 @@ describe('documentOpenPath', () => {
     expect(documentOpenPath(doc(DocumentType.InvoiceAccompanying))).toBe(
       '/app/documents/fattura/doc-1',
     );
-    expect(documentOpenPath(doc(DocumentType.StoreSale))).toBe(
-      '/app/documents/vendite-negozio/doc-1',
-    );
-    expect(documentOpenPath(doc(DocumentType.StoreReturn))).toBe(
-      '/app/documents/vendite-negozio/doc-1',
-    );
+    expect(documentOpenPath(doc(DocumentType.StoreSale))).toBe('/app/vendita-al-banco/doc-1');
+    expect(documentOpenPath(doc(DocumentType.StoreReturn))).toBe('/app/vendita-al-banco/doc-1');
     expect(documentOpenPath(doc(DocumentType.ManualUnload))).toBe(
       '/app/documents/manual-unload/doc-1',
     );

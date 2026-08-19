@@ -1,4 +1,5 @@
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { STORE_SALE_MODE_ROUTE_DATA_KEY } from './models/store-sale-routing.util';
 import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
@@ -155,6 +156,33 @@ describe('StoreSaleRegisterComponent', () => {
     const rendered = await render(StoreSaleRegisterComponent, {
       providers: [
         provideRouter([]),
+        // ⛔ La maschera pretende il modo dai `data` della rotta e LANCIA se
+        // manca: i due modi hanno effetti di magazzino opposti, e un fallback
+        // silenzioso farebbe compilare una vendita a chi ha aperto un reso.
+        // Questi test rendono il componente fuori da una rotta vera, quindi il
+        // dato va fornito qui — ed è giusto che senza non partano.
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            // ⚠️ Doppio COMPLETO, non solo lo `snapshot`: il pannello di
+            // creazione rapida monta `ProductFormComponent`, che legge
+            // `route.data` come flusso e `paramMap` dallo snapshot. Un finto
+            // parziale non fallisce dove manca — esplode dentro un altro
+            // componente, con uno stack che non nomina questo file.
+            snapshot: {
+              data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'sale' },
+              paramMap: convertToParamMap({}),
+              queryParamMap: convertToParamMap({}),
+              params: {},
+              queryParams: {},
+            },
+            data: of({ [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'sale' }),
+            paramMap: of(convertToParamMap({})),
+            queryParamMap: of(convertToParamMap({})),
+            params: of({}),
+            queryParams: of({}),
+          },
+        },
         {
           provide: APP_CONFIG,
           useValue: {
