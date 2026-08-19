@@ -552,7 +552,7 @@ npm run serve:pwa
 <tr>
 <td><code>retail.register</code></td>
 <td>orders</td>
-<td><code>POST /inventory/retail-scans</code>, pagina Registra vendita</td>
+<td>endpoint <code>store-sales</code> (lookup, vendita, reso), schermate <code>/app/vendita-al-banco</code></td>
 </tr>
 <tr>
 <td><code>reports.view</code></td>
@@ -889,7 +889,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <li><strong>403</strong> se il cliente tenta di salvare con selezione bloccata e senza concessione.</li>
 <li><strong>Auto-licenza singola sede Shopify:</strong> se piano = 1 e Shopify espone 1 sola location attiva, <code>tryAutoLicenseSingleShopifyLocation()</code> pre-seleziona senza bloccare (<code>lockAfterSave: false</code>, <code>bypassSelectionLock: true</code>); il blocco scatta al primo salvataggio esplicito del cliente quando applicabile.</li>
 <li><strong>Trim admin:</strong> abbassare <code>licensedLocationCount</code> disattiva le sedi in eccesso (FIFO per <code>createdAt</code>), <strong>senza</strong> sbloccare la selezione.</li>
-<li><strong>Scope inventario:</strong> <code>licensed-location-scope.util.ts</code> filtra query movimenti, giacenze, inventario fisico, retail-scans su sedi licenziate.</li>
+<li><strong>Scope inventario:</strong> <code>licensed-location-scope.util.ts</code> filtra query movimenti, giacenze e inventario fisico su sedi licenziate.</li>
 </ul>
 <p>FE tenant: <code>location-licensing-panel</code> in Impostazioni (Shopify); messaggi blocco/concessione in fondo al pannello.</p>
 <p>FE admin: <code>edit-client</code> — elenco <code>activeLocations</code> read-only + <strong>Concedi cambio sede</strong>.</p>
@@ -1571,8 +1571,20 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </thead>
 <tbody><tr>
 <td>POST</td>
-<td><code>/inventory/retail-scans</code></td>
-<td><code>{ code, locationId, action: &#39;sale&#39; | &#39;return&#39; }</code> — qty fissa 1 per scansione</td>
+<td><code>/store-sales</code></td>
+<td>vendita al banco: carrello completo (righe, pagamento, sede) → documento <code>store_sale</code> + movimenti in transazione</td>
+<td><code>retail.register</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/store-sales/returns</code></td>
+<td>reso al banco → documento <code>store_return</code>; il carico segue la spunta di riga</td>
+<td><code>retail.register</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/store-sales/lookup</code></td>
+<td>ricerca articolo per codice o EAN dalla cassa</td>
 <td><code>retail.register</code></td>
 </tr>
 </tbody></table>
@@ -1585,7 +1597,7 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 <li>Post-scan: <code>ChannelSyncFacade.pushInventoryLevels()</code> (Shopify/TikTok se connessi)</li>
 <li>Migration enum: <code>0019_vestiflow_pos_movement_origin</code> → <code>MovementOrigin.vestiflow_pos</code></li>
 </ul>
-<p>I tipi <code>sale</code> e <code>return</code> <strong>non</strong> sono selezionabili nel form manuale <strong>Registra movimento</strong> (solo via retail-scans).</p>
+<p>I tipi <code>sale</code> e <code>return</code> <strong>non</strong> sono selezionabili nel form manuale <strong>Registra movimento</strong> — <code>MANUAL_TYPES</code> espone solo Carico, Scarico, Rettifica, Trasferimento. Li scrive la Vendita al banco, dai propri endpoint.</p>
 <p><strong>Frontend:</strong></p>
 <table>
 <thead>
@@ -1596,16 +1608,24 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </tr>
 </thead>
 <tbody><tr>
-<td><code>/app/sales/register</code></td>
-<td><code>RetailSaleRegisterComponent</code></td>
-<td><code>retailSalesRegisterGuard</code> — tutti i profili canale</td>
+<td><code>/app/vendita-al-banco/nuova-vendita-al-banco</code></td>
+<td><code>StoreSaleRegisterComponent</code></td>
+<td><code>retailSalesRegisterGuard</code> + <code>unsavedChangesGuard</code></td>
 </tr>
 <tr>
-<td><code>/app/sales</code></td>
-<td>lista ordini Shopify</td>
-<td><code>salesHistoryGuard</code> — redirect gestionale → register</td>
+<td><code>/app/vendita-al-banco/nuovo-reso-al-banco</code></td>
+<td><code>StoreSaleRegisterComponent</code> (stesso, modo dai <code>data</code>)</td>
+<td>idem</td>
+</tr>
+<tr>
+<td><code>/app/vendita-al-banco</code></td>
+<td><code>DocumentListComponent</code>, profilo <code>store-sale</code></td>
+<td><code>tenantPermissionGuard</code></td>
 </tr>
 </tbody></table>
+<p>⚠️ <strong>Il resto di questo blocco è vecchio e non è stato riscritto qui</strong>: verificato il
+19/08/2026 che <code>salesHistoryGuard</code> e <code>InventoryService.registerRetailScan()</code> <strong>non
+esistono più</strong> in <code>src/app</code>. Vanno rifatti quando si tocca questa sezione.</p>
 <p><strong>Navigazione shell</strong> (<code>shell-layout.component.ts</code>):</p>
 <ul>
 <li><p><code>showRetailSalesRegister(profile)</code> — Registra vendita per gestionale, Shopify, TikTok</p>
@@ -1614,7 +1634,10 @@ cd api &amp;&amp; npm run backfill:catalog-origin:apply  # scrive su DB
 </li>
 <li><p><code>canViewDocuments</code> / <code>canManageDocuments</code> — voci <strong>Documenti</strong> e azioni create</p>
 </li>
-<li><p>Profilo Shopify: entrambe le voci in sidebar; <code>activeRouteExclude</code> evita doppia evidenziazione su <code>/app/sales/register</code></p>
+<li><p>⚠️ Qui c&#39;era: «<code>activeRouteExclude</code> evita doppia evidenziazione su <code>/app/sales/register</code>».
+<strong>Non è più vero dal 19/08/2026</strong>: le Vendite al banco sono uscite da <code>/app/sales</code> e sono
+un modulo fratello, quindi non c&#39;è più niente da escludere. Nessuna voce reale usa
+<code>activeRouteExclude</code> oggi</p>
 </li>
 <li><p>Service HTTP: <code>InventoryService.registerRetailScan()</code> (<code>src/app/features/inventory/services/inventory.service.ts</code>)</p>
 </li>
@@ -1745,8 +1768,8 @@ cd api &amp;&amp; npm run test
 <td><code>src/app/features/sales-orders/retail-sale-register.component.spec.ts</code></td>
 </tr>
 <tr>
-<td>HTTP client retail-scans</td>
-<td><code>src/app/features/inventory/services/inventory.service.spec.ts</code></td>
+<td>HTTP client inventario</td>
+<td><code>src/app/domain/inventory/services/inventory.service.spec.ts</code></td>
 </tr>
 <tr>
 <td>Profilo canale / label origine movimento</td>
@@ -1876,9 +1899,9 @@ cd api &amp;&amp; npm run test
 <li><input disabled="" type="checkbox"> OAuth TikTok Shop su tenant test (se abilitato)</li>
 <li><input disabled="" type="checkbox"> Upload foto profilo + avatar topbar</li>
 <li><input disabled="" type="checkbox"> Import catalogo + webhook</li>
-<li><input disabled="" type="checkbox"> Tenant <strong>Solo gestionale</strong>: POST retail-scans vendita + storno su variante test</li>
-<li><input disabled="" type="checkbox"> Tenant <strong>Shopify</strong>: Registra vendita + lista Vendite in sidebar; retail-scans + sync giacenze</li>
-<li><input disabled="" type="checkbox"> Tenant <strong>TikTok</strong> (se abilitato): retail-scans + push inventario</li>
+<li><input disabled="" type="checkbox"> Tenant <strong>Solo gestionale</strong>: vendita al banco + reso su variante test</li>
+<li><input disabled="" type="checkbox"> Tenant <strong>Shopify</strong>: Vendita al banco + lista Vendite in sidebar; sync giacenze</li>
+<li><input disabled="" type="checkbox"> Tenant <strong>TikTok</strong> (se abilitato): vendita al banco + push inventario</li>
 <li><input disabled="" type="checkbox"> Upload immagine prodotto</li>
 <li><input disabled="" type="checkbox"> Guida utente + guida tecnica admin</li>
 </ul>
@@ -2037,11 +2060,15 @@ cd api &amp;&amp; npm run test
 </tr>
 <tr>
 <td>Cassa / corrispettivi IT nativi</td>
-<td>Non previsti — integrazione esterna; VF registra stock (retail-scans tutti i profili)</td>
+<td>Non previsti — integrazione esterna; VF registra stock (Vendita al banco, tutti i profili)</td>
 </tr>
 <tr>
-<td>Vendita al banco</td>
-<td>Implementata — <code>POST /inventory/retail-scans</code>, UI <code>/app/sales/register</code>, tutti i profili</td>
+<td>Vendite al banco</td>
+<td>Implementata — endpoint <code>store-sales</code>, UI <code>/app/vendita-al-banco</code>, tutti i profili</td>
+</tr>
+<tr>
+<td>Collegamenti documentali (Includi / Genera)</td>
+<td>Parziale — motore operativo su alcune coppie; matrice completa e divergenze misurate in <code>docs/12</code></td>
 </tr>
 <tr>
 <td>Report server-side avanzati</td>

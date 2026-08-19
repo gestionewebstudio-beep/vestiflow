@@ -330,23 +330,23 @@ Il **titolare** (`owner`) ha sempre accesso completo (`hasFullTenantAccess`); i 
 
 Per `admin`, `manager`, `clerk` valgono chiavi `TenantPermission` (FE: `tenant-permission.model.ts`, BE: `tenant-permission.constants.ts`). Preset per ruolo: `ROLE_DEFAULT_PERMISSIONS`. Normalizzazione e filtro chiavi legacy: `user-permissions.util.ts` (FE + BE).
 
-| Chiave                                | Gruppo    | Uso principale                                                                           |
-| ------------------------------------- | --------- | ---------------------------------------------------------------------------------------- |
-| `inventory.view_all_locations`        | inventory | Filtri giacenze/movimenti su tutte le sedi (azioni restano su sede operativa)            |
-| `inventory.manage`                    | inventory | Carichi, scarichi, trasferimenti, rettifiche, inventario fisico                          |
-| `inventory.import_export`             | inventory | CSV giacenze + sync giacenze Shopify                                                     |
-| `catalog.manage`                      | catalog   | CRUD prodotti                                                                            |
-| `catalog.import_export`               | catalog   | CSV catalogo + sync/import catalogo Shopify                                              |
-| `catalog.delete`                      | catalog   | Delete prodotto                                                                          |
-| `supplier_orders.manage`              | orders    | CRUD ordini fornitore                                                                    |
-| `supplier_orders.receive`             | orders    | Ricezione merce                                                                          |
-| `documents.view`                      | documents | Lista/dettaglio/stampa documenti                                                         |
-| `documents.manage`                    | documents | CRUD documenti, transizioni stato, impostazioni numerazione                              |
-| `retail.register`                     | orders    | endpoint `store-sales` (lookup, recenti, vendita, reso), schermata `/app/sales/register` |
-| `reports.view`                        | reports   | Dashboard e Report                                                                       |
-| `reports.export`                      | reports   | Export CSV + sync vendite/clienti Shopify                                                |
-| `settings.company`                    | settings  | `GET /tenant/company`, pannello Sede fisica                                              |
-| `customers.view` / `customers.manage` | customers | Lista clienti / gestione (se prevista)                                                   |
+| Chiave                                | Gruppo    | Uso principale                                                                    |
+| ------------------------------------- | --------- | --------------------------------------------------------------------------------- |
+| `inventory.view_all_locations`        | inventory | Filtri giacenze/movimenti su tutte le sedi (azioni restano su sede operativa)     |
+| `inventory.manage`                    | inventory | Carichi, scarichi, trasferimenti, rettifiche, inventario fisico                   |
+| `inventory.import_export`             | inventory | CSV giacenze + sync giacenze Shopify                                              |
+| `catalog.manage`                      | catalog   | CRUD prodotti                                                                     |
+| `catalog.import_export`               | catalog   | CSV catalogo + sync/import catalogo Shopify                                       |
+| `catalog.delete`                      | catalog   | Delete prodotto                                                                   |
+| `supplier_orders.manage`              | orders    | CRUD ordini fornitore                                                             |
+| `supplier_orders.receive`             | orders    | Ricezione merce                                                                   |
+| `documents.view`                      | documents | Lista/dettaglio/stampa documenti                                                  |
+| `documents.manage`                    | documents | CRUD documenti, transizioni stato, impostazioni numerazione                       |
+| `retail.register`                     | orders    | endpoint `store-sales` (lookup, vendita, reso), schermate `/app/vendita-al-banco` |
+| `reports.view`                        | reports   | Dashboard e Report                                                                |
+| `reports.export`                      | reports   | Export CSV + sync vendite/clienti Shopify                                         |
+| `settings.company`                    | settings  | `GET /tenant/company`, pannello Sede fisica                                       |
+| `customers.view` / `customers.manage` | customers | Lista clienti / gestione (se prevista)                                            |
 
 **Rimosso:** `settings.integrations` — filtrato al save admin e in normalizzazione profilo.
 
@@ -876,17 +876,25 @@ I tipi `sale` e `return` **non** sono selezionabili nel form manuale **Registra 
 
 **Frontend:**
 
-| Rotta                 | Componente                    | Guard / note                                         |
-| --------------------- | ----------------------------- | ---------------------------------------------------- |
-| `/app/sales/register` | `RetailSaleRegisterComponent` | `retailSalesRegisterGuard` — tutti i profili canale  |
-| `/app/sales`          | lista ordini Shopify          | `salesHistoryGuard` — redirect gestionale → register |
+| Rotta                                          | Componente                                             | Guard / note                                       |
+| ---------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------- |
+| `/app/vendita-al-banco/nuova-vendita-al-banco` | `StoreSaleRegisterComponent`                           | `retailSalesRegisterGuard` + `unsavedChangesGuard` |
+| `/app/vendita-al-banco/nuovo-reso-al-banco`    | `StoreSaleRegisterComponent` (stesso, modo dai `data`) | idem                                               |
+| `/app/vendita-al-banco`                        | `DocumentListComponent`, profilo `store-sale`          | `tenantPermissionGuard`                            |
+
+⚠️ **Il resto di questo blocco è vecchio e non è stato riscritto qui**: verificato il
+19/08/2026 che `salesHistoryGuard` e `InventoryService.registerRetailScan()` **non
+esistono più** in `src/app`. Vanno rifatti quando si tocca questa sezione.
 
 **Navigazione shell** (`shell-layout.component.ts`):
 
 - `showRetailSalesRegister(profile)` — Registra vendita per gestionale, Shopify, TikTok
 - `showSalesOrderHistory(profile)` — **Vendite** solo Shopify
 - `canViewDocuments` / `canManageDocuments` — voci **Documenti** e azioni create
-- Profilo Shopify: entrambe le voci in sidebar; `activeRouteExclude` evita doppia evidenziazione su `/app/sales/register`
+- ⚠️ Qui c'era: «`activeRouteExclude` evita doppia evidenziazione su `/app/sales/register`».
+  **Non è più vero dal 19/08/2026**: le Vendite al banco sono uscite da `/app/sales` e sono
+  un modulo fratello, quindi non c'è più niente da escludere. Nessuna voce reale usa
+  `activeRouteExclude` oggi
 
 - Service HTTP: `InventoryService.registerRetailScan()` (`src/app/features/inventory/services/inventory.service.ts`)
 - Label origine movimento: **Vendita al banco** (`inventory-labels.util.ts` → `MovementOrigin.VestiflowPos`)
@@ -1101,7 +1109,7 @@ Estendere pipeline con lint + test + build su PR (best practice repo rules).
 | Rotazione sedi attive oltre limite piano      | Bloccata lato API — solo **Concedi cambio sede** + salvataggio cliente entro `licensedLocationCount` |
 | Location manuale senza Shopify                | Parziale (location onboarding); sync Shopify consigliato; licensing via `licensedInVf`               |
 | Cassa / corrispettivi IT nativi               | Non previsti — integrazione esterna; VF registra stock (Vendita al banco, tutti i profili)           |
-| Vendita al banco                              | Implementata — endpoint `store-sales`, UI `/app/sales/register`, tutti i profili                     |
+| Vendite al banco                              | Implementata — endpoint `store-sales`, UI `/app/vendita-al-banco`, tutti i profili                   |
 | Collegamenti documentali (Includi / Genera)   | Parziale — motore operativo su alcune coppie; matrice completa e divergenze misurate in `docs/12`    |
 | Report server-side avanzati                   | In evoluzione                                                                                        |
 | Coda bulk Shopify persistente (multi-tenant)  | Non implementata — operazioni massicce sincrone HTTP                                                 |

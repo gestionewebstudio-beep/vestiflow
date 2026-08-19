@@ -95,16 +95,16 @@ Voci visibili nel profilo Solo gestionale (ognuna compare solo se l'utente ha i 
 
 **Sezione «Vendite»**
 
-| Voce            | Route                                        | Contenuto                                                                                         |
-| --------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Vendita negozio | `/app/sales/register`                        | Cassa a carrello (vendite e resi al banco)                                                        |
-| Ordini cliente  | `/app/sales`                                 | Registro ordini cliente (in questo profilo: solo ordini manuali)                                  |
-| Preventivi      | `/app/documents/registro?type=quote`         | Registro preventivi (sotto Ordini cliente; maschera identica all'Ordine cliente, numerazione PRE) |
-| Vendite online  | `/app/sales/online`                          | Registro vendite online (read-only)                                                               |
-| Corrispettivi   | `/app/sales/corrispettivi`                   | Registro corrispettivi                                                                            |
-| Proforma        | `/app/documents/registro?type=proforma`      | Registro documenti filtrato                                                                       |
-| DDT vendita     | `/app/documents/registro?type=sales_ddt`     | Registro documenti filtrato                                                                       |
-| Bozze fattura   | `/app/documents/registro?type=invoice_draft` | Registro documenti filtrato                                                                       |
+| Voce             | Route                                        | Contenuto                                                                                         |
+| ---------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Vendite al banco | `/app/vendita-al-banco`                      | Elenco, e da lì le due creazioni (vendite e resi al banco)                                        |
+| Ordini cliente   | `/app/sales`                                 | Registro ordini cliente (in questo profilo: solo ordini manuali)                                  |
+| Preventivi       | `/app/documents/registro?type=quote`         | Registro preventivi (sotto Ordini cliente; maschera identica all'Ordine cliente, numerazione PRE) |
+| Vendite online   | `/app/sales/online`                          | Registro vendite online (read-only)                                                               |
+| Corrispettivi    | `/app/sales/corrispettivi`                   | Registro corrispettivi                                                                            |
+| Proforma         | `/app/documents/registro?type=proforma`      | Registro documenti filtrato                                                                       |
+| DDT vendita      | `/app/documents/registro?type=sales_ddt`     | Registro documenti filtrato                                                                       |
+| Bozze fattura    | `/app/documents/registro?type=invoice_draft` | Registro documenti filtrato                                                                       |
 
 **Sezione gestione**
 
@@ -322,7 +322,7 @@ Route `/app/documents`: scelta della tipologia, organizzata per flusso:
 
 - **Acquisti e fornitori:** Ordini fornitore (→ `/app/orders`) · Arrivi merce (`/app/documents/arrivi-merce`) · Registrazione fattura (registro filtrato `supplier_invoice`).
 - **Magazzino:** Trasferimenti · Rettifiche (registri filtrati) · Scarichi manuali (pagina dedicata `/app/documents/manual-unload`) · Inventario (registro filtrato).
-- **Vendite:** Vendita negozio (→ cassa) · Vendita/Reso in negozio (pagina dedicata `/app/documents/vendite-negozio`, elenco condiviso `store_sale` + `store_return` con filtro «Tipo») · Proforma · DDT vendita · Bozze fattura · Preventivi (registro filtrato `quote`).
+- **Vendite:** Vendite al banco (elenco dedicato `/app/vendita-al-banco`, condiviso `store_sale` + `store_return` con filtro «Tipo», e da lì le due creazioni) · Proforma · DDT vendita · Bozze fattura · Preventivi (registro filtrato `quote`).
 - **Registro:** Tutti i documenti (`/app/documents/registro`).
 
 ### 10.2 Tipi di documento
@@ -411,7 +411,7 @@ implementata, questa tabella va aggiornata o tolta: descrive uno stato, non un c
 
 ## 11. Vendita negozio (cassa a carrello)
 
-Route `/app/sales/register` (permesso **Registrare vendite al banco**). Cassa **non fiscale**: l'incasso avviene sulla cassa/POS esterni; VestiFlow registra documento e movimenti.
+Route `/app/vendita-al-banco/nuova-vendita-al-banco` (permesso **Registrare vendite al banco**). Cassa **non fiscale**: l'incasso avviene sulla cassa/POS esterni; VestiFlow registra documento e movimenti.
 
 ### 11.1 Vendita
 
@@ -434,7 +434,7 @@ Pannello **Reso** nella stessa schermata:
 
 ### 11.3 Tracciabilità
 
-Ogni vendita/reso è consultabile in **Documenti → Vendita/Reso in negozio** (`/app/documents/vendite-negozio`) e in **Magazzino → Movimenti** (tipo Vendita/Reso, origine vendita negozio). Il pannello «Storico movimenti» della cassa linka le operazioni recenti.
+Ogni vendita/reso è consultabile in **Vendite al banco** (`/app/vendita-al-banco`) e in **Magazzino → Movimenti** (tipo Vendita/Reso, origine vendita negozio). Il pannello «Storico movimenti» della cassa linka le operazioni recenti.
 
 L'elenco mostra Data, Numero, Tipo, Cliente, Totale, Metodo pagamento e Righe, con filtri per periodo, tipo, cliente, metodo di pagamento e operatore; la riga apre l'anteprima di dettaglio. Elenco e dettaglio sono di **sola consultazione**: vendite e resi nascono in un'unica transazione con i movimenti di magazzino, quindi non si modificano né si eliminano da qui — una merce che rientra si registra come **Reso** dalla cassa.
 
@@ -632,7 +632,7 @@ Regole sempre vere, utili come oracoli nei test end-to-end:
 | `/app/sales`                                                                                | Ordini cliente (lista)              | Consultare report                                                               |
 | `/app/sales/new`, `/app/sales/:id/edit`                                                     | Ordine cliente (form)               | Gestire documenti                                                               |
 | `/app/sales/:id`                                                                            | Dettaglio ordine                    | Consultare report                                                               |
-| `/app/sales/register`                                                                       | Vendita negozio                     | Registrare vendite al banco                                                     |
+| `/app/vendita-al-banco/nuova-vendita-al-banco`                                              | Vendite al banco                    | Registrare vendite al banco                                                     |
 | `/app/sales/online`, `/app/sales/online/:id`                                                | Vendite online                      | Consultare report                                                               |
 | `/app/sales/corrispettivi`                                                                  | Corrispettivi                       | Consultare report                                                               |
 | `/app/customers` (+`/:id`)                                                                  | Clienti                             | Visualizzare o Gestire clienti                                                  |
