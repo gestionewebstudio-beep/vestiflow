@@ -196,6 +196,16 @@ const VARIANTS: Record<string, { sku: string; productName: string }> = {
   [VARIANT_B]: { sku: 'SKU-B', productName: 'Felpa' },
 };
 
+/**
+ * Costo d'acquisto della variante, DIVERSO dal prezzo di vendita usato nei
+ * test: e' cio' che rende visibile se un costo viene derivato dal prezzo di
+ * riga invece che congelato dall'anagrafica.
+ */
+const VARIANT_COSTS: Record<string, number> = {
+  [VARIANT_A]: 1200,
+  [VARIANT_B]: 400,
+};
+
 function createFakePrisma(db: FakeDb): PrismaService {
   const client = {
     location: {
@@ -213,6 +223,7 @@ function createFakePrisma(db: FakeDb): PrismaService {
               sku: VARIANTS[id]!.sku,
               barcode: null,
               optionValues: [],
+              purchasePriceMinor: VARIANT_COSTS[id] ?? null,
               product: {
                 name: VARIANTS[id]!.productName,
                 defaultVatCodeId: null,
@@ -742,30 +753,15 @@ describe('StoreSalesService (fase 3 §12)', () => {
     expect(db.movements).toHaveLength(1);
   });
 
-  it('Reso collegato: carico solo per le righe vendibili, merce non vendibile documentata senza movimento', async () => {
+  it('Reso: carico solo per le righe con la spunta attiva, le altre documentate senza movimento', async () => {
     const db = createDb();
     const { service } = createService(db);
-
-    const sale = await service.createSale(
-      TENANT,
-      {
-        locationId: LOCATION,
-        paymentMethod: 'cash',
-        lines: [
-          { variantId: VARIANT_A, quantity: 2, unitPriceMinor: 2990 },
-          { variantId: VARIANT_B, quantity: 0, unitPriceMinor: 0 },
-        ].filter((line) => line.quantity > 0),
-      },
-      user,
-    );
-    expect(levelOf(db, VARIANT_A).onHand).toBe(8);
-    const movementsAfterSale = db.movements.length;
+    const movimentiPrima = db.movements.length;
 
     const returnResult = await service.createReturn(
       TENANT,
       {
         locationId: LOCATION,
-        saleDocumentId: sale.id,
         reason: 'Taglia errata',
         lines: [
           { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 },
@@ -777,47 +773,21 @@ describe('StoreSalesService (fase 3 §12)', () => {
 
     expect(returnResult.reference).toBe('RN-0001');
 
-    // Solo il pezzo vendibile rientra in Giacenza/Disponibile.
+    // Solo la riga con la spunta attiva rientra in Giacenza/Disponibile.
     const level = levelOf(db, VARIANT_A);
-    expect(level.onHand).toBe(9);
+    expect(level.onHand).toBe(11);
     expect(level.committed).toBe(2);
-    expect(level.available).toBe(7);
+    expect(level.available).toBe(9);
 
-    const returnMovements = db.movements.slice(movementsAfterSale);
+    const returnMovements = db.movements.slice(movimentiPrima);
     expect(returnMovements).toHaveLength(1);
     expect(returnMovements[0]!.type).toBe(StockMovementType.return);
     expect(returnMovements[0]!.quantity).toBe(1);
-    expect(returnMovements[0]!.reason).toContain(sale.reference);
-    expect(returnMovements[0]!.reason).toContain('Taglia errata');
-
-    const returnDoc = db.documents.find((doc) => doc.type === DocumentType.store_return)!;
-    expect(returnDoc.sourceDocumentId).toBe(sale.id);
-    expect(returnDoc.status).toBe(DocumentStatus.confirmed);
-    // La riga non vendibile resta documentata (con descrizione dedicata).
-    expect(returnDoc.lines).toHaveLength(2);
-    expect(returnDoc.lines.some((line) => line.description.includes('non vendibile'))).toBe(true);
-  });
-
-  it('Reso con vendita origine inesistente: NotFoundException e nessun effetto', async () => {
-    const db = createDb();
-    const { service } = createService(db);
-
-    await expect(
-      service.createReturn(
-        TENANT,
-        {
-          locationId: LOCATION,
-          saleDocumentId: 'doc-mancante',
-          reason: 'Difettoso',
-          lines: [{ variantId: VARIANT_A, quantity: 1, restockable: true }],
-        },
-        user,
-      ),
-    ).rejects.toThrowError(NotFoundException);
-
-    expect(db.documents).toHaveLength(0);
-    expect(db.movements).toHaveLength(0);
-    expect(levelOf(db, VARIANT_A).onHand).toBe(10);
+    expect(returnMovements[0]!.origin).toBe(MovementOrigin.vestiflow_pos);
+    // ⛔ Nessun riferimento a una vendita origine: il Reso e' autonomo (`11` A11).
+    expect(returnMovements[0]!.reason).not.toMatch(/vendita VN-/);
+    // Il documento porta comunque DUE righe: la seconda e' documentata, non movimentata.
+    expect(db.documents.at(-1)!.lines).toHaveLength(2);
   });
 
   it('Fallimento transazionale: errore sul movimento ⇒ rollback completo, nessun saldo parziale né documento', async () => {
@@ -862,44 +832,6 @@ describe('StoreSalesService (fase 3 §12)', () => {
     // Push asincrono: attende il microtask successivo.
     await Promise.resolve();
     expect(pushed).toEqual([VARIANT_A]);
-  });
-
-  it('listRecentSales rispetta lo scope location dell’utente (gap chiuso: niente più bypass manuale)', async () => {
-    const db = createDb();
-    const { service } = createService(db);
-
-    await service.createSale(
-      TENANT,
-      {
-        locationId: LOCATION,
-        paymentMethod: 'other',
-        lines: [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }],
-      },
-      user,
-    );
-
-    // Titolare: vede la vendita registrata (scope illimitato).
-    const asOwner = await service.listRecentSales(TENANT, undefined, user);
-    expect(asOwner).toHaveLength(1);
-
-    // Commesso senza sede assegnata: nessuna sede in scope ⇒ lista vuota, non 500/errore.
-    const clerkWithoutLocation: UserProfileDto = {
-      ...user,
-      role: UserRole.clerk,
-      hasAllLocationsAccess: false,
-      assignedLocationIds: [],
-      permissions: [],
-    };
-    const asClerkNoScope = await service.listRecentSales(TENANT, undefined, clerkWithoutLocation);
-    expect(asClerkNoScope).toEqual([]);
-
-    // Commesso con la sede corretta assegnata: vede la vendita.
-    const clerkWithLocation: UserProfileDto = {
-      ...clerkWithoutLocation,
-      assignedLocationIds: [LOCATION],
-    };
-    const asClerkScoped = await service.listRecentSales(TENANT, undefined, clerkWithLocation);
-    expect(asClerkScoped).toHaveLength(1);
   });
 
   // ── Vendita conclusa che si RIAPRE e si risalva (`11` A2) ─────────────────
@@ -1048,5 +980,107 @@ describe('StoreSalesService (fase 3 §12)', () => {
     await expect(
       vendita(db, [{ variantId: VARIANT_A, quantity: 1, unitPriceMinor: 2990 }], doc.id),
     ).rejects.toThrow(/non trovato/i);
+  });
+
+  // ── Reso concluso che si RIAPRE e si risalva ─────────────────────────────
+  //
+  // Stesso impianto della Vendita, verso opposto: il motore e' quello di
+  // CARICO. E la spunta di riga resta l'unica a decidere il movimento.
+
+  async function reso(db: FakeDb, righe: unknown[], id?: string) {
+    const { service } = createService(db);
+    return service.createReturn(
+      TENANT,
+      { ...(id ? { id } : {}), locationId: LOCATION, reason: 'Taglia errata', lines: righe } as never,
+      user,
+    );
+  }
+
+  it('reso risalvato da 2 a 1: UN solo movimento, aggiornato in posto', async () => {
+    const db = createDb();
+    await reso(db, [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+    const movimentoPrima = db.movements[0]!;
+    expect(levelOf(db, VARIANT_A).onHand).toBe(12);
+
+    await reso(
+      db,
+      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 }],
+      doc.id,
+    );
+
+    expect(db.movements).toHaveLength(1);
+    expect(db.movements[0]!.id).toBe(movimentoPrima.id);
+    expect(db.movements[0]!.quantity).toBe(1);
+    // La giacenza si muove SOLO della differenza: 12 → 11.
+    expect(levelOf(db, VARIANT_A).onHand).toBe(11);
+  });
+
+  it('⛔ il costo del reso NON e il prezzo di vendita: si congela quello della variante', async () => {
+    // E' la trappola del sync di carico, che deriva il costo dalla riga: sul
+    // Reso quel prezzo e' il RICAVO, e scriverlo come costo falserebbe il
+    // margine di ogni reso.
+    const db = createDb();
+    await reso(db, [
+      { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 },
+    ]);
+
+    const movimento = db.movements[0]!;
+    expect(movimento.unitCostMinor).toBe(VARIANT_COSTS[VARIANT_A]);
+    expect(movimento.unitCostMinor).not.toBe(2990);
+    expect(movimento.totalCostMinor).toBe(VARIANT_COSTS[VARIANT_A]);
+  });
+
+  it('reso risalvato: il costo unitario congelato non si rivaluta, il totale segue la quantita', async () => {
+    const db = createDb();
+    await reso(db, [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+    const costoAllora = db.movements[0]!.unitCostMinor!;
+
+    await reso(
+      db,
+      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 5000 }],
+      doc.id,
+    );
+
+    expect(db.movements[0]!.unitCostMinor).toBe(costoAllora);
+    expect(db.movements[0]!.totalCostMinor).toBe(costoAllora);
+  });
+
+  it('spunta tolta in modifica: il movimento sparisce e la giacenza torna indietro', async () => {
+    const db = createDb();
+    await reso(db, [{ variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }]);
+    const doc = db.documents[0]!;
+    expect(levelOf(db, VARIANT_A).onHand).toBe(12);
+
+    await reso(
+      db,
+      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 2, restockable: false, unitPriceMinor: 2990 }],
+      doc.id,
+    );
+
+    // La riga resta nel documento, il movimento no.
+    expect(db.movements).toHaveLength(0);
+    expect(db.documents[0]!.lines).toHaveLength(1);
+    expect(levelOf(db, VARIANT_A).onHand).toBe(10);
+  });
+
+  it('numero, serie e data del reso restano quelli al risalvataggio', async () => {
+    const db = createDb();
+    const primo = await reso(db, [
+      { variantId: VARIANT_A, quantity: 1, restockable: true, unitPriceMinor: 2990 },
+    ]);
+    const doc = db.documents[0]!;
+
+    const secondo = await reso(
+      db,
+      [{ id: doc.lines[0]!.id, variantId: VARIANT_A, quantity: 2, restockable: true, unitPriceMinor: 2990 }],
+      doc.id,
+    );
+
+    expect(secondo.reference).toBe(primo.reference);
+    expect(db.documents[0]!.number).toBe(doc.number);
+    expect(db.documents[0]!.documentDate).toEqual(doc.documentDate);
+    expect(db.documents).toHaveLength(1);
   });
 });

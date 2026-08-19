@@ -9,7 +9,6 @@ import type { EntityId } from '@core/models/common.model';
 import type {
   CreateStoreReturnPayload,
   CreateStoreSalePayload,
-  RecentStoreSale,
   StoreSaleLookupItem,
   StoreSaleResult,
 } from '@domain/store-sales/models/store-sale.model';
@@ -30,17 +29,6 @@ export class StoreSalesService {
     const params = new HttpParams().set('code', code).set('locationId', locationId);
     return this.http
       .get<readonly StoreSaleLookupItem[]>(this.url('/store-sales/lookup'), { params })
-      .pipe(timeout(HTTP_TIMEOUT_MS));
-  }
-
-  /** Vendite negozio recenti per collegare un reso alla vendita origine. */
-  getRecentSales(search?: string): Observable<readonly RecentStoreSale[]> {
-    let params = new HttpParams();
-    if (search) {
-      params = params.set('search', search);
-    }
-    return this.http
-      .get<readonly RecentStoreSale[]>(this.url('/store-sales/recent'), { params })
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 

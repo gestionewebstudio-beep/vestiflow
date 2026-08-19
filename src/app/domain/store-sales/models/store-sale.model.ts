@@ -49,9 +49,14 @@ export interface StoreReturnLineInput {
   readonly unitPriceMinor?: number;
 }
 
+/**
+ * ⛔ Nessun documento origine (`11` A11): la vendita reale puo' essere stata
+ * battuta su una cassa esterna e non esistere in VestiFlow. Il Reso e' autonomo
+ * — niente collegamento, niente tetto sulla quantita' venduta, niente prezzo o
+ * costo ripresi da una vendita precedente.
+ */
 export interface CreateStoreReturnPayload {
   readonly locationId: EntityId;
-  readonly saleDocumentId?: EntityId;
   /** Causale obbligatoria: nessun carico silenzioso (§9). */
   readonly reason: string;
   readonly notes?: string;
@@ -70,24 +75,5 @@ export interface StoreSaleResult {
     readonly description: string;
     readonly quantity: number;
     readonly remainingAvailable: number;
-  }[];
-}
-
-/** Vendita negozio recente, per collegare un reso alla vendita origine. */
-export interface RecentStoreSale {
-  readonly id: EntityId;
-  readonly reference: string | null;
-  readonly documentDate: IsoDateString;
-  readonly totalMinor: number;
-  readonly customerName: string | null;
-  readonly lines: readonly {
-    readonly variantId: EntityId | null;
-    readonly sku: string | null;
-    readonly description: string;
-    readonly quantity: number;
-    /** Prezzo unitario NETTO della riga venduta. */
-    readonly unitPriceMinor: number;
-    /** Aliquota della riga (dallo snapshot): per mostrare il prezzo ivato. */
-    readonly vatRatePercent: number | null;
   }[];
 }

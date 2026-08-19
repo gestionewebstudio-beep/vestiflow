@@ -17,17 +17,10 @@ import {
   nextDocumentNumber,
 } from '../documents/document-numbering.util';
 import { persistDocumentLinesByIdTx } from '../documents/document-line-upsert.util';
+import { syncGoodsReceiptLineMovements } from '../documents/document-goods-receipt-sync.util';
 import { syncUnloadLineMovements } from '../documents/document-stock-unload-sync.util';
 import { preservedLineVat } from '../documents/document-line-vat-snapshot.util';
-import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
-import {
-  frozenTotalCostMinor,
-  originalSaleUnitCostMinor,
-} from '../inventory/movement-cost.util';
-import {
-  INVENTORY_VIEW_SCOPE_MODE,
-  resolveOperationalLocationScope,
-} from '../inventory/licensed-location-scope.util';
+
 import { assertUserCanAccessLocation } from '../inventory/user-location-scope.util';
 import { partyDisplayName } from '../common/party/party.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -400,6 +393,20 @@ export class StoreSalesService {
     return doc;
   }
 
+  /**
+   * Registra un reso al banco, o ne RISALVA uno esistente (`dto.id`).
+   *
+   * ⛔ **Il Reso non ha documento origine** (`11` A11). Non è una semplificazione:
+   * la vendita reale può essere stata battuta su una cassa esterna e non essere
+   * mai esistita in VestiFlow, quindi un contratto che la presuppone non regge.
+   * Ne discende che non esistono tetto sulla quantità venduta, quantità già
+   * resa, né recupero del prezzo o del costo da una vendita precedente.
+   *
+   * Come la vendita, è un ADATTATORE: struttura, righe e movimenti passano dai
+   * pezzi comuni del dominio documenti. La differenza è il verso — la merce
+   * rientra, quindi il motore è quello di carico — e la spunta di riga, che
+   * decide se quella riga genera davvero il movimento.
+   */
   async createReturn(
     tenantId: string,
     dto: CreateStoreReturnDto,
@@ -408,26 +415,20 @@ export class StoreSalesService {
     assertUserCanAccessLocation(user, dto.locationId);
     await this.assertLocationExists(tenantId, dto.locationId);
 
+    const existing = dto.id
+      ? await this.loadEditableStoreDocument(tenantId, dto.id, DocumentType.store_return)
+      : null;
+
     const variants = await this.resolveVariants(
       tenantId,
       dto.lines.map((line) => line.variantId),
     );
     // Righe di reso senza Codice IVA proprio: la risoluzione parte dall'articolo.
+    // È l'unica fonte disponibile, non essendoci una vendita da cui ereditarla.
     const vatContext = await this.resolveVatContext(tenantId, [], variants);
 
-    let saleReference: string | null = null;
-    if (dto.saleDocumentId) {
-      const sale = await this.prisma.document.findFirst({
-        where: { id: dto.saleDocumentId, tenantId, type: DocumentType.store_sale },
-        select: { reference: true },
-      });
-      if (!sale) {
-        throw new NotFoundException('Vendita al banco origine non trovata.');
-      }
-      saleReference = sale.reference;
-    }
-
-    const documentDate = new Date();
+    // Come la vendita: la data si fissa alla creazione e non si muove più.
+    const documentDate = existing ? existing.documentDate : new Date();
     const setting = await this.settings.getResolved(tenantId, DocumentType.store_return);
     const actor = {
       createdById: user.id,
@@ -436,48 +437,76 @@ export class StoreSalesService {
 
     const created = await this.prisma.$transaction(async (tx) => {
       const year = documentDate.getFullYear();
-      const series = await defaultCounterSeries(tx, tenantId, DocumentType.store_return);
-      // Come la vendita: il contatore dei resi è condiviso fra le casse, e il
-      // lock transazionale serializza chi lo legge. Prima della lettura.
-      await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_return, series });
-      const number = await nextDocumentNumber({
-        tx,
-        tenantId,
-        type: DocumentType.store_return,
-        series,
-        source: 'document',
-      });
-      const reference = formatDocumentReference(setting.numberPrefix, series, number);
+      let nuovaNumerazione: { series: string | null; number: number } | null = null;
+      if (!existing) {
+        const series = await defaultCounterSeries(tx, tenantId, DocumentType.store_return);
+        // Come la vendita: il contatore dei resi è condiviso fra le casse, e il
+        // lock transazionale serializza chi lo legge. Prima della lettura.
+        await lockDocumentCounter(tx, { tenantId, type: DocumentType.store_return, series });
+        const number = await nextDocumentNumber({
+          tx,
+          tenantId,
+          type: DocumentType.store_return,
+          series,
+          source: 'document',
+        });
+        nuovaNumerazione = { series, number };
+      }
+      const reference =
+        existing?.reference ??
+        formatDocumentReference(
+          setting.numberPrefix,
+          nuovaNumerazione!.series,
+          nuovaNumerazione!.number,
+        );
 
-      // Il reso rende quello che la vendita ha incassato: stesso prezzo netto,
-      // stessa IVA calcolata allo stesso modo. Prima l'imposta non veniva
-      // scorporata affatto (`taxMinor: 0`) e il reso non tornava con la vendita.
+      const existingLinesById = new Map((existing?.lines ?? []).map((line) => [line.id, line]));
+      const existingVatById = new Map(
+        (existing?.lines ?? []).map((line) => [
+          line.id,
+          { vatCodeId: line.vatCodeId, vatSnapshot: line.vatSnapshot },
+        ]),
+      );
+
       const computedLines = dto.lines.map((line, index) => {
         const variant = variants.get(line.variantId)!;
         const unitPriceMinor = line.unitPriceMinor ?? 0;
-        // Il reso non sceglie un Codice IVA: prende quello dell'articolo.
-        const resolved = this.resolveLineVatCode(null, variant, vatContext);
+        const previous = line.id ? existingLinesById.get(line.id) : undefined;
+
+        // Riga già esistente: lo snapshot IVA non si rifotografa, come su ogni
+        // documento. Gli importi si rifanno, perché quantità e prezzo possono
+        // essere cambiati.
+        const resolvedVat =
+          preservedLineVat(previous?.id, undefined, existingVatById) ??
+          this.resolveLineVatCode(null, variant, vatContext);
+
         const amounts = computeVatLineAmounts({
           enteredUnitCostMinor: unitPriceMinor,
           costEntryMode: 'vat_excluded',
           quantity: line.quantity,
           discountPercent: 0,
-          vat: resolved.vat,
+          vat: resolvedVat.vat,
         });
         return {
+          id: previous?.id,
           lineNumber: index + 1,
           variantId: variant.id,
-          sku: variant.sku,
-          description: `${this.lineDescription(variant)}${line.restockable ? '' : ' — non vendibile'}`,
+          // Fotografia dell'operazione: su una riga già esistente restano quelli
+          // scritti allora, anche se il prodotto è stato rinominato dopo.
+          sku: previous?.sku ?? variant.sku,
+          description: previous?.description ?? this.lineDescription(variant),
           quantity: line.quantity,
           unitPriceMinor,
-          vatCodeId: resolved.vatCodeId,
-          vatSnapshot: resolved.vatSnapshot,
+          discountPercent: 0,
+          vatCodeId: resolvedVat.vatCodeId,
+          vatSnapshot: resolvedVat.vatSnapshot,
           lineTotalMinor: amounts.lineNetMinor,
           lineVatTotalMinor: amounts.lineVatMinor,
           lineGrossTotalMinor: amounts.lineGrossMinor,
-          // loadsStock traccia lo stato vendibile: solo la merce che rientra
-          // realmente tra le quantità disponibili genera il movimento (§9).
+          // ⚠️ È la SPUNTA DI RIGA a decidere il movimento, non la quantità
+          // (`11` A11-ter): spunta attiva → carico positivo; disattiva → nessun
+          // movimento per quella riga. La logica documentale comune, non una
+          // classificazione «vendibile / non vendibile», che nel Reso non esiste.
           loadsStock: line.restockable,
         };
       });
@@ -486,180 +515,108 @@ export class StoreSalesService {
       const taxMinor = computedLines.reduce((sum, line) => sum + line.lineVatTotalMinor, 0);
       const totalMinor = computedLines.reduce((sum, line) => sum + line.lineGrossTotalMinor, 0);
 
-      const doc = await tx.document.create({
-        data: {
-          tenantId,
-          type: DocumentType.store_return,
-          status: DocumentStatus.confirmed,
-          series,
-          number,
-          year,
-          reference,
-          documentDate,
-          registrationDate: documentDate,
-          printTitle: setting.printTitle,
-          notes: dto.notes?.trim() || null,
-          internalComment: `Causale reso: ${dto.reason.trim()}`,
-          locationId: dto.locationId,
-          sourceDocumentId: dto.saleDocumentId ?? null,
-          currency: 'EUR',
-          subtotalMinor,
-          taxMinor,
-          totalMinor,
-          // Come la vendita: nota di come si leggono i prezzi al banco, non un
-          // parametro di calcolo.
-          pricesIncludeVat: true,
-          confirmedAt: new Date(),
-          createdById: actor.createdById,
-          createdByName: actor.createdByName,
-          lines: {
-            create: computedLines.map((line) => ({
-              ...line,
-              tenantId,
-              vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
-            })),
-          },
-        },
-        include: { lines: { orderBy: { lineNumber: 'asc' } } },
-      });
+      const header = {
+        notes: dto.notes?.trim() || null,
+        internalComment: `Causale reso: ${dto.reason.trim()}`,
+        locationId: dto.locationId,
+        subtotalMinor,
+        taxMinor,
+        totalMinor,
+      };
 
-      const saleSuffix = saleReference ? ` — vendita ${saleReference}` : '';
-      for (const line of doc.lines) {
-        if (!line.loadsStock) {
-          // Merce non vendibile: documentata ma NESSUN carico (§9).
-          continue;
-        }
-        await applyInventoryDelta(tx, tenantId, line.variantId!, dto.locationId, line.quantity);
-        // Il reso inverte la vendita: usa il costo congelato sulla vendita
-        // originale (§③), non quello corrente. Fallback: costo variante.
-        const unitCostMinor = await originalSaleUnitCostMinor(
-          tx,
+      let doc;
+      if (existing) {
+        await persistDocumentLinesByIdTx(tx, {
           tenantId,
-          dto.saleDocumentId ?? null,
-          line.variantId!,
-          [StockMovementType.sale],
-          variants.get(line.variantId!)?.purchasePriceMinor ?? null,
-        );
-        await tx.stockMovement.create({
+          documentId: existing.id,
+          existingLineIds: existing.lines.map((line) => line.id),
+          lines: computedLines,
+          toData: (line) => ({
+            lineNumber: line.lineNumber,
+            variantId: line.variantId,
+            sku: line.sku,
+            description: line.description,
+            quantity: line.quantity,
+            unitPriceMinor: line.unitPriceMinor,
+            discountPercent: line.discountPercent,
+            vatCodeId: line.vatCodeId,
+            vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+            lineTotalMinor: line.lineTotalMinor,
+            lineVatTotalMinor: line.lineVatTotalMinor,
+            lineGrossTotalMinor: line.lineGrossTotalMinor,
+            loadsStock: line.loadsStock,
+          }),
+        });
+        doc = await tx.document.update({
+          where: { id: existing.id },
+          data: header,
+          include: { lines: { orderBy: { lineNumber: 'asc' } } },
+        });
+      } else {
+        doc = await tx.document.create({
           data: {
             tenantId,
-            type: StockMovementType.return,
-            origin: MovementOrigin.vestiflow_pos,
-            variantId: line.variantId!,
-            sku: line.sku ?? '',
-            locationId: dto.locationId,
-            quantity: line.quantity,
-            reason: `Reso vendita al banco ${reference}${saleSuffix}: ${dto.reason.trim()}`,
-            externalRef: doc.id,
-            sourceDocumentType: DocumentType.store_return,
-            sourceDocumentId: doc.id,
-            sourceLineId: line.id,
-            unitCostMinor,
-            totalCostMinor: frozenTotalCostMinor(unitCostMinor, line.quantity),
+            type: DocumentType.store_return,
+            status: DocumentStatus.confirmed,
+            series: nuovaNumerazione!.series,
+            number: nuovaNumerazione!.number,
+            year,
+            reference,
+            documentDate,
+            registrationDate: documentDate,
+            printTitle: setting.printTitle,
+            currency: 'EUR',
+            // Come la vendita: nota di come si leggono i prezzi al banco, non un
+            // parametro di calcolo.
+            pricesIncludeVat: true,
+            confirmedAt: new Date(),
             createdById: actor.createdById,
             createdByName: actor.createdByName,
+            ...header,
+            lines: {
+              create: computedLines.map(({ id: _id, ...line }) => ({
+                ...line,
+                tenantId,
+                vatSnapshot: line.vatSnapshot ?? Prisma.DbNull,
+              })),
+            },
           },
+          include: { lines: { orderBy: { lineNumber: 'asc' } } },
         });
       }
+
+      // Il verso è opposto alla vendita — la merce rientra — quindi il motore è
+      // quello di CARICO, con lo stesso contratto: un movimento per riga,
+      // aggiornato in posto, mai accodato. Le righe senza spunta cadono fuori da
+      // sé: il filtro del sync è `loadsStock`.
+      await syncGoodsReceiptLineMovements(tx, {
+        tenantId,
+        documentId: doc.id,
+        documentType: DocumentType.store_return,
+        locationId: dto.locationId,
+        reason: `Reso vendita al banco ${reference}: ${dto.reason.trim()}`,
+        movementDate: documentDate,
+        movementType: StockMovementType.return,
+        origin: MovementOrigin.vestiflow_pos,
+        // ⛔ Il costo NON si deriva dalla riga: lì c'è il prezzo di VENDITA, e
+        // derivarlo scriverebbe il ricavo al posto del costo d'acquisto. Si
+        // congela il costo corrente della variante, e solo sulle righe nuove.
+        unitCostForNewLine: (line) => variants.get(line.variantId)?.purchasePriceMinor ?? null,
+        lines: doc.lines,
+        actor,
+      });
 
       return doc;
     });
 
     this.pushInventoryAsync(
       tenantId,
-      created.lines.filter((line) => line.loadsStock).map((line) => line.variantId!),
+      created.lines.map((line) => line.variantId!),
       dto.locationId,
     );
 
     return this.toResult(tenantId, dto.locationId, created);
   }
-
-  /** Vendite negozio recenti per collegare un reso (ricerca per riferimento). */
-  async listRecentSales(
-    tenantId: string,
-    search: string | undefined,
-    user: UserProfileDto,
-  ): Promise<
-    readonly {
-      id: string;
-      reference: string | null;
-      documentDate: Date;
-      totalMinor: number;
-      customerName: string | null;
-      lines: readonly {
-        variantId: string | null;
-        sku: string | null;
-        description: string;
-        quantity: number;
-        /** Prezzo unitario NETTO della riga venduta. */
-        unitPriceMinor: number;
-        /** Aliquota della riga: serve alla cassa per mostrare il prezzo ivato. */
-        vatRatePercent: number | null;
-      }[];
-    }[]
-  > {
-    const scope = await resolveOperationalLocationScope(
-      this.prisma,
-      tenantId,
-      user,
-      undefined,
-      INVENTORY_VIEW_SCOPE_MODE,
-    );
-    if (!scope) {
-      return [];
-    }
-
-    const docs = await this.prisma.document.findMany({
-      where: {
-        tenantId,
-        type: DocumentType.store_sale,
-        locationId: scope.length === 1 ? scope[0] : { in: [...scope] },
-        ...(search
-          ? {
-              OR: [
-                { reference: { contains: search, mode: 'insensitive' } },
-                { customerName: { contains: search, mode: 'insensitive' } },
-                { lines: { some: { sku: { contains: search, mode: 'insensitive' } } } },
-              ],
-            }
-          : {}),
-      },
-      select: {
-        id: true,
-        reference: true,
-        documentDate: true,
-        totalMinor: true,
-        customerName: true,
-        lines: {
-          select: {
-            variantId: true,
-            sku: true,
-            description: true,
-            quantity: true,
-            unitPriceMinor: true,
-            vatSnapshot: true,
-          },
-          orderBy: { lineNumber: 'asc' },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    });
-    // L'aliquota si legge dallo snapshot salvato sulla riga, non dal Codice IVA
-    // di oggi: un reso deve tornare con la vendita anche se l'aliquota è
-    // cambiata nel frattempo.
-    return docs.map((doc) => ({
-      ...doc,
-      lines: doc.lines.map(({ vatSnapshot, ...line }) => ({
-        ...line,
-        // Prezzo netto a sei decimali verso la cassa (che mostra il lordo).
-        unitPriceMinor: Number(line.unitPriceMinor),
-        vatRatePercent: vatSnapshotRatePercent(vatSnapshot),
-      })),
-    }));
-  }
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
 
   private async assertLocationExists(tenantId: string, locationId: string): Promise<void> {
     const location = await this.prisma.location.findFirst({

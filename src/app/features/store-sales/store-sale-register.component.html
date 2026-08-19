@@ -8,10 +8,10 @@
       <!-- Con carrello o reso in corso l'uscita passa comunque dalla guard di
            route: il dialogo a tre scelte intercetta anche questa freccia. -->
       <app-back-button />
-      <h1 class="pos__title">Vendita/Reso in negozio</h1>
+      <h1 class="pos__title">Vendita al banco</h1>
       <p class="pos__subtitle">
-        Cassa interna non fiscale: lo scontrino viene emesso sulla cassa esterna. Alla conclusione
-        la giacenza e la disponibilità vengono scaricate; l'impegnata resta invariata.
+        Alla conclusione la giacenza e la disponibilità vengono scaricate; l'impegnata resta
+        invariata. Non è un documento fiscale.
       </p>
     </div>
     <!-- Senza la sezione Magazzino questo collegamento porterebbe solo a un
@@ -58,7 +58,7 @@
       </div>
     </div>
 
-    <div class="pos__tabs" role="tablist" aria-label="Operazione di cassa">
+    <div class="pos__tabs" role="tablist" aria-label="Tipo di documento">
       <button
         type="button"
         class="pos__tab pos__tab--sale"
@@ -403,144 +403,79 @@
     <section class="pos__panel" aria-labelledby="pos-return-title">
       <h2 id="pos-return-title" class="pos__panel-title">Vendita origine</h2>
       <p class="pos__hint">
-        Il reso è collegato alla vendita origine. Solo la merce rientrata vendibile genera un carico
-        di magazzino; la merce non vendibile viene documentata senza carico.
+        Scansiona o cerca gli articoli resi. La spunta «Carica giacenze» decide, riga per riga, se
+        la merce rientra davvero in magazzino.
       </p>
 
-      @if (selectedSale(); as sale) {
-        <div class="pos__selected-sale">
-          <div>
-            <p class="pos__selected-sale-ref tabular-nums">{{ sale.reference }}</p>
-            <p class="pos__selected-sale-meta tabular-nums">
-              {{ formatDate(sale.documentDate) }} · {{ money(sale.totalMinor) }}
-              @if (sale.customerName) {
-                · {{ sale.customerName }}
-              }
-            </p>
-          </div>
-          <app-button variant="secondary" (click)="clearSelectedSale()">Cambia vendita</app-button>
-        </div>
-
-        <div class="pos__cart-scroll">
-          <table class="pos-cart">
-            <thead>
+      <div class="pos__cart-scroll">
+        <table class="pos-cart">
+          <thead>
+            <tr>
+              <th scope="col">Articolo</th>
+              <th scope="col" class="pos-cart__cell--num">Da rendere</th>
+              <th scope="col">Carica giacenze</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of returnLines(); track $index) {
               <tr>
-                <th scope="col">Articolo</th>
-                <th scope="col" class="pos-cart__cell--num">Venduta</th>
-                <th scope="col" class="pos-cart__cell--num">Da rendere</th>
-                <th scope="col">Vendibile</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (line of returnLines(); track $index) {
-                <tr>
-                  <td data-label="Articolo">
-                    <span class="pos-cart__name">{{ line.description }}</span>
-                    <span class="pos-cart__meta tabular-nums">{{ line.sku }}</span>
-                  </td>
-                  <td class="pos-cart__cell--num tabular-nums" data-label="Venduta">
-                    {{ line.soldQuantity }}
-                  </td>
-                  <td class="pos-cart__cell--num" data-label="Da rendere">
+                <td data-label="Articolo">
+                  <span class="pos-cart__name">{{ line.description }}</span>
+                  <span class="pos-cart__meta tabular-nums">{{ line.sku }}</span>
+                </td>
+                <td class="pos-cart__cell--num" data-label="Da rendere">
+                  <input
+                    class="pos-cart__qty-input tabular-nums"
+                    type="number"
+                    min="0"
+                    inputmode="numeric"
+                    [value]="line.returnQuantity"
+                    [attr.aria-label]="'Quantità da rendere ' + line.sku"
+                    (change)="onReturnQuantityInput($index, $event)"
+                  />
+                </td>
+                <td data-label="Carica giacenze">
+                  <label class="pos__toggle">
                     <input
-                      class="pos-cart__qty-input tabular-nums"
-                      type="number"
-                      min="0"
-                      [max]="line.soldQuantity"
-                      inputmode="numeric"
-                      [value]="line.returnQuantity"
-                      [attr.aria-label]="'Quantità da rendere ' + line.sku"
-                      (change)="onReturnQuantityInput($index, $event)"
+                      type="checkbox"
+                      [checked]="line.restockable"
+                      (change)="onRestockableToggle($index, $event)"
                     />
-                  </td>
-                  <td data-label="Vendibile">
-                    <label class="pos__toggle">
-                      <input
-                        type="checkbox"
-                        [checked]="line.restockable"
-                        (change)="onRestockableToggle($index, $event)"
-                      />
-                      {{ line.restockable ? 'Vendibile (rientra)' : 'Non vendibile' }}
-                    </label>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+                    {{ line.restockable ? 'Carica giacenze' : 'Non carica' }}
+                  </label>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
 
-        <div class="pos__checkout">
-          <div class="pos__checkout-fields">
-            <label class="pos__field pos__field--grow" for="pos-return-reason">
-              <span class="pos__label">Causale reso (obbligatoria)</span>
-              <input
-                id="pos-return-reason"
-                class="pos__input"
-                type="text"
-                maxlength="500"
-                placeholder="Es. taglia errata, capo difettoso…"
-                [value]="returnReason()"
-                (input)="onReturnReasonInput($event)"
-              />
-            </label>
-            <label class="pos__field pos__field--grow" for="pos-return-notes">
-              <span class="pos__label">Note (facoltative)</span>
-              <textarea
-                id="pos-return-notes"
-                class="pos__textarea"
-                rows="2"
-                [value]="returnNotes()"
-                (input)="onReturnNotesInput($event)"
-              ></textarea>
-            </label>
-          </div>
-        </div>
-      } @else {
-        <form class="pos__search-form" (submit)="onRecentSearchSubmit($event)">
-          <label class="pos__field" for="pos-recent-search">
-            <span class="pos__label">Cerca per numero vendita, cliente o SKU</span>
+      <div class="pos__checkout">
+        <div class="pos__checkout-fields">
+          <label class="pos__field pos__field--grow" for="pos-return-reason">
+            <span class="pos__label">Causale reso (obbligatoria)</span>
             <input
-              id="pos-recent-search"
+              id="pos-return-reason"
               class="pos__input"
               type="text"
-              autocomplete="off"
-              placeholder="Es. VN-2026-0001"
-              [value]="recentSearchDraft()"
-              (input)="onRecentSearchInput($event)"
+              maxlength="500"
+              placeholder="Es. taglia errata, capo difettoso…"
+              [value]="returnReason()"
+              (input)="onReturnReasonInput($event)"
             />
           </label>
-          <div class="pos__search-actions">
-            <app-button type="submit" [loading]="recentPending()" [disabled]="recentPending()">
-              Cerca
-            </app-button>
-          </div>
-        </form>
-
-        @if (recentError(); as message) {
-          <p class="pos__feedback pos__feedback--error" role="alert">{{ message }}</p>
-        }
-
-        @if (recentSales().length === 0 && !recentPending()) {
-          <p class="pos__empty">Nessuna vendita negozio recente trovata.</p>
-        } @else {
-          <ul class="pos__results" aria-label="Vendite al banco recenti">
-            @for (sale of recentSales(); track sale.id) {
-              <li>
-                <button type="button" class="pos__result" (click)="selectSale(sale)">
-                  <span class="pos__result-name tabular-nums">{{ sale.reference }}</span>
-                  <span class="pos__result-meta tabular-nums">
-                    {{ formatDate(sale.documentDate) }} · {{ money(sale.totalMinor) }} ·
-                    {{ sale.lines.length }} righe
-                    @if (sale.customerName) {
-                      · {{ sale.customerName }}
-                    }
-                  </span>
-                </button>
-              </li>
-            }
-          </ul>
-        }
-      }
+          <label class="pos__field pos__field--grow" for="pos-return-notes">
+            <span class="pos__label">Note (facoltative)</span>
+            <textarea
+              id="pos-return-notes"
+              class="pos__textarea"
+              rows="2"
+              [value]="returnNotes()"
+              (input)="onReturnNotesInput($event)"
+            ></textarea>
+          </label>
+        </div>
+      </div>
 
       @if (returnError(); as message) {
         <p class="pos__feedback pos__feedback--error" role="alert">{{ message }}</p>
@@ -561,7 +496,7 @@
       }
     </section>
 
-    @if (selectedSale() && returnableQuantity() > 0) {
+    @if (returnableQuantity() > 0) {
       <div class="pos__sticky-bar">
         <div class="pos__total-row">
           <span class="pos__total-label">Articoli da rendere</span>

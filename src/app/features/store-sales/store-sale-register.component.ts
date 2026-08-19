@@ -64,7 +64,6 @@ import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 
 import type {
-  RecentStoreSale,
   StoreSaleLookupItem,
   StoreSalePaymentMethod,
   StoreSaleResult,
@@ -95,17 +94,24 @@ interface CartLine {
   readonly available: number;
 }
 
-/** Riga del reso: quantità da rientrare e stato vendibile (§9). */
+/**
+ * Riga del reso.
+ *
+ * ⛔ Nessun `soldQuantity`: il Reso **non ha documento origine** (`11` A11), e
+ * senza un venduto non esiste un tetto da cui derivare un massimo. La vendita
+ * reale puo' essere stata battuta su una cassa esterna e non esistere affatto
+ * in VestiFlow.
+ */
 interface ReturnLine {
   readonly variantId: EntityId | null;
   readonly sku: string;
   readonly description: string;
-  readonly soldQuantity: number;
-  /** Prezzo unitario NETTO della vendita originale. */
+  /** Prezzo unitario NETTO reso, dall'anagrafica secondo il contratto comune. */
   readonly unitPriceMinor: number;
-  /** Aliquota della riga venduta: per mostrare quanto si restituisce davvero. */
+  /** Aliquota del Codice IVA risolto dall'articolo: per mostrare l'ivato. */
   readonly vatRatePercent: number | null;
   readonly returnQuantity: number;
+  /** Spunta «Carica giacenze» della riga (`11` A11-ter). */
   readonly restockable: boolean;
 }
 
@@ -312,12 +318,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   // ── Reso: vendita origine e righe di rientro ────────────────────────────
 
-  protected readonly recentSearchDraft = signal('');
-  protected readonly recentPending = signal(false);
-  protected readonly recentSales = signal<readonly RecentStoreSale[]>([]);
-  protected readonly recentError = signal<string | null>(null);
-
-  protected readonly selectedSale = signal<RecentStoreSale | null>(null);
   protected readonly returnLines = signal<readonly ReturnLine[]>([]);
   protected readonly returnReason = signal('');
   protected readonly returnNotes = signal('');
@@ -363,7 +363,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   private lookupSubscription: Subscription | null = null;
   private quickAddSubscription: Subscription | null = null;
   private saleSubscription: Subscription | null = null;
-  private recentSubscription: Subscription | null = null;
   private returnSubscription: Subscription | null = null;
 
   constructor() {
@@ -383,9 +382,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
       return;
     }
     this.mode.set(mode);
-    if (mode === 'return' && this.recentSales().length === 0) {
-      this.loadRecentSales();
-    }
     if (mode === 'sale') {
       this.focusSearchInput();
     }
@@ -425,7 +421,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   }
 
   protected addResultToCart(item: StoreSaleLookupItem): void {
-    this.addToCart(item);
+    this.addResolvedItem(item);
     this.lookupResults.set(null);
     this.searchDraft.set('');
     this.focusSearchInput();
@@ -466,7 +462,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     }
     const locationId = this.selectedLocationId();
     if (!locationId) {
-      this.lookupMessage.set('Seleziona la location del negozio.');
+      this.lookupMessage.set('Seleziona la location.');
       return;
     }
     this.lookupPending.set(true);
@@ -491,7 +487,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         next: ({ exact, items }) => {
           this.lookupPending.set(false);
           if (exact) {
-            this.addToCart(exact, quantity);
+            this.addResolvedItem(exact, quantity);
             this.lookupResults.set(null);
             this.searchDraft.set('');
             this.focusSearchInput();
@@ -519,6 +515,55 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.unresolvedCode.set({ code, kind: looksLikeBarcode(code) ? 'barcode' : 'text' });
     this.playErrorBeep();
     this.focusSearchInput(true);
+  }
+
+  /**
+   * La porta d'ingresso e' UNA SOLA per pistola e tastiera (`11` A14): la
+   * ricerca e la risoluzione dell'articolo sono le stesse, e qui si decide
+   * soltanto su quale documento finisce la riga.
+   *
+   * ⛔ Il Reso non dipende dal carrello della Vendita: ha le proprie righe. In
+   * comune c'e' l'articolo risolto, non lo stato.
+   */
+  private addResolvedItem(item: StoreSaleLookupItem, quantity = 1): void {
+    if (this.mode() === 'return') {
+      this.addToReturn(item, quantity);
+      return;
+    }
+    this.addToCart(item, quantity);
+  }
+
+  /** Stessa forma di `addToCart`, sull'altro documento. */
+  private addToReturn(item: StoreSaleLookupItem, quantity = 1): void {
+    this.returnError.set(null);
+    this.lastReturnResult.set(null);
+    this.lookupMessage.set(null);
+    this.unresolvedCode.set(null);
+    this.returnLines.update((lines) => {
+      const existing = lines.find((line) => line.variantId === item.variantId);
+      if (existing) {
+        return lines.map((line) =>
+          line.variantId === item.variantId
+            ? { ...line, returnQuantity: line.returnQuantity + quantity }
+            : line,
+        );
+      }
+      const next: ReturnLine = {
+        variantId: item.variantId,
+        sku: item.sku,
+        description: item.optionSummary
+          ? `${item.productName} — ${item.optionSummary}`
+          : item.productName,
+        // ⛔ Mai da una vendita precedente (`11` A11): l'unica fonte disponibile
+        // e' l'anagrafica, secondo il contratto prezzi comune. Resta modificabile.
+        unitPriceMinor: item.sellingPriceMinor,
+        vatRatePercent: item.vatRatePercent,
+        returnQuantity: quantity,
+        restockable: true,
+      };
+      return [...lines, next];
+    });
+    this.playSuccessBeep();
   }
 
   private addToCart(item: StoreSaleLookupItem, quantity = 1): void {
@@ -633,7 +678,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         next: (item) => {
           this.quickAddPending.set(false);
           if (item) {
-            this.addToCart(item);
+            this.addResolvedItem(item);
             this.searchDraft.set('');
           } else {
             this.lookupMessage.set(
@@ -694,7 +739,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.playBeep({ type: 'sine', frequency: 880, gain: 0.06, durationSec: 0.09 });
   }
 
-  /** Genera un tono via Web Audio API; l'audio mancante non blocca la cassa. */
+  /** Genera un tono via Web Audio API; l'audio mancante non blocca la vendita. */
   private playBeep(options: {
     type: OscillatorType;
     frequency: number;
@@ -811,7 +856,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   // ── Netto memorizzato, ivato al banco ─────────────────────────────────────
   //
-  // Il prezzo dell'articolo è netto, come ogni prezzo del gestionale. Alla cassa
+  // Il prezzo dell'articolo è netto, come ogni prezzo del gestionale. Al banco
   // però si ragiona su quello che il cliente paga: i campi mostrano il lordo e
   // l'operatore digita il lordo. La conversione avviene qui, all'aliquota della
   // riga; al server va sempre il netto.
@@ -946,56 +991,8 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   // ── Reso vendita negozio ─────────────────────────────────────────────────
 
-  protected onRecentSearchInput(event: Event): void {
-    this.recentSearchDraft.set((event.target as HTMLInputElement).value);
-  }
-
-  protected onRecentSearchSubmit(event: Event): void {
-    event.preventDefault();
-    this.loadRecentSales();
-  }
-
-  protected loadRecentSales(): void {
-    if (this.recentPending()) {
-      return;
-    }
-    this.recentPending.set(true);
-    this.recentError.set(null);
-    this.recentSubscription = this.service
-      .getRecentSales(this.recentSearchDraft().trim() || undefined)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (sales) => {
-          this.recentPending.set(false);
-          this.recentSales.set(sales);
-        },
-        error: (err: unknown) => {
-          this.recentPending.set(false);
-          this.recentError.set(this.errorMessage(err));
-        },
-      });
-  }
-
-  protected selectSale(sale: RecentStoreSale): void {
-    this.selectedSale.set(sale);
-    this.lastReturnResult.set(null);
-    this.returnError.set(null);
-    this.returnLines.set(
-      sale.lines.map((line): ReturnLine => ({
-        variantId: line.variantId,
-        sku: line.sku ?? '',
-        description: line.description,
-        soldQuantity: line.quantity,
-        unitPriceMinor: line.unitPriceMinor,
-        vatRatePercent: line.vatRatePercent,
-        returnQuantity: 0,
-        restockable: true,
-      })),
-    );
-  }
-
-  protected clearSelectedSale(): void {
-    this.selectedSale.set(null);
+  /** Svuota il reso in corso: righe, causale e note. */
+  protected clearReturn(): void {
     this.returnLines.set([]);
     this.returnReason.set('');
     this.returnNotes.set('');
@@ -1006,7 +1003,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.returnLines.update((lines) =>
       lines.map((line, i) =>
         i === index && Number.isInteger(value) && value >= 0
-          ? { ...line, returnQuantity: Math.min(value, line.soldQuantity) }
+          ? { ...line, returnQuantity: value }
           : line,
       ),
     );
@@ -1048,7 +1045,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   protected concludeReturn(onDone?: () => void): void {
     const locationId = this.selectedLocationId();
-    const sale = this.selectedSale();
     if (!locationId || this.returnPending()) {
       return;
     }
@@ -1063,7 +1059,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.returnSubscription = this.service
       .createReturn({
         locationId,
-        saleDocumentId: sale?.id,
         reason: this.returnReason().trim(),
         notes: this.returnNotes().trim() || undefined,
         lines: lines.map((line) => ({
@@ -1079,8 +1074,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.returnPending.set(false);
           this.returnConfirmOpen.set(false);
           this.lastReturnResult.set(result);
-          this.clearSelectedSale();
-          this.loadRecentSales();
+          this.clearReturn();
           onDone?.();
         },
         error: (err: unknown) => {
@@ -1118,7 +1112,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected confirmExitWithoutSaving(): void {
     this.exitDialogOpen.set(false);
     this.cart.set([]);
-    this.clearSelectedSale();
+    this.clearReturn();
     this.pendingDeactivate?.(true);
     this.pendingDeactivate = null;
   }

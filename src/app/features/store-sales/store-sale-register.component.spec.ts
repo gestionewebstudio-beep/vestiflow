@@ -170,7 +170,6 @@ describe('StoreSaleRegisterComponent', () => {
             lookupItems,
             createSale: options?.createSale ?? vi.fn(),
             createReturn: vi.fn(),
-            getRecentSales: vi.fn(() => of([])),
           },
         },
         {
