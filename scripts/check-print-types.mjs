@@ -28,10 +28,20 @@ const FE_UTIL = join(ROOT, 'src/app/features/documents/models/document-print.uti
 const FE_MODEL = join(ROOT, 'src/app/core/models/document.model.ts');
 
 /**
- * Tipi che esistono solo lato API. Sono i registri interni della fase 2: non
- * hanno righe in `documents` e l'enum frontend non li dichiara affatto.
+ * Tipi che esistono solo lato API: non hanno righe in `documents` e l'enum
+ * frontend non li dichiara affatto.
+ *
+ * - `online_sale` — registro interno della fase 2, generato dall'evasione.
+ * - `manual_receipt` — Corrispettivo manuale (specifica 10 §12): vive in
+ *   `manual_receipts` ed è una CHIAVE DI SOLO NUMERATORE. Non si stampa come
+ *   documento; compare nella stampa del REGISTRO come una riga fra le altre.
+ *   La sua maschera non è una maschera documento e non passa da questi profili.
+ *
+ * ⚠️ `corrispettivo` stava qui e non c'è più: ritirato il 17/08/2026 con tutta
+ * la sua verticale. Non è stato sostituito da `manual_receipt` — sono due cose
+ * diverse, e il censimento in `10` §11 dice perché.
  */
-const API_ONLY_TYPES = new Set(['online_sale', 'corrispettivo']);
+const API_ONLY_TYPES = new Set(['online_sale', 'manual_receipt']);
 
 const errors = [];
 

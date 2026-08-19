@@ -168,8 +168,26 @@
   background-color: var(--color-backdrop);
 }
 
+/*
+  ⚠️ **Colonna flessibile, non blocco**, e la ragione è una sola: qui dentro il
+  contenuto routato NON è solo. Sopra di lui ci sono le briciole di pane, quindi
+  una pagina che voglia occupare l'area disponibile non può chiedere
+  `block-size: 100%` — otterrebbe il 100% di un'area di cui una parte è già
+  presa, e ne uscirebbe più alta della finestra: barra di scorrimento
+  sull'intera pagina, e l'ultima fascia tagliata sotto il bordo.
+
+  Con la colonna, quella pagina dichiara `flex: 1` e riceve **ciò che resta**,
+  qualunque sia l'ingombro delle briciole.
+
+  Per ogni altra pagina non cambia nulla: un figlio a blocco in una colonna
+  flessibile occupa la stessa larghezza e la stessa altezza di prima, e il
+  minimo automatico dei flex item gli impedisce di essere schiacciato quando è
+  più alto dell'area — continua a farla scorrere, come oggi.
+*/
 .shell__content {
   grid-area: content;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   min-inline-size: 0;

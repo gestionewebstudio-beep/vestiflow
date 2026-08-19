@@ -671,7 +671,10 @@
   --brand-gradient: linear-gradient(135deg, #3a3a40, #17171a);
   --brand-mark-shadow: 0 7px 18px rgb(24 24 27 / 0.25);
 
-  --sidebar-width: 14.5rem; // 232px — nav desktop
+  // Ridotto da 14.5rem (232px) a 12.25rem (196px), 18/08/2026: decisione del
+  // proprietario del progetto dopo prova visiva passo per passo
+  // (232→208→184→196px). Il valore è ora anche in `regole-stile-ui.md` §8.
+  --sidebar-width: 12.25rem; // 196px — nav desktop (era 232px)
   --sidebar-width-drawer: 17.5rem; // 280px — drawer mobile
   --sidebar-width-collapsed: 3.5rem;
   --sidebar-icon-size: 1.25rem; // colonna icone nav
@@ -712,8 +715,25 @@
   --doc-suggestions-max-width: 28rem;
   --container-pad-inline: var(--space-4);
 
+  // Larghezza minima di una voce nella banda di riepilogo di fondo pagina.
+  // È la misura che decide quante colonne ci stanno: sotto questa soglia
+  // un'etichetta come «TOTALE VENDITE» andrebbe a capo, e una banda di numeri
+  // con le etichette spezzate smette di leggersi a colpo d'occhio.
+  //
+  // ⚠️ Misurata sull'etichetta più lunga, non scelta a occhio: «TOTALE VENDITE»
+  // sono 14 caratteri maiuscoli a 11px con tracking .045em (~108px), più il
+  // padding orizzontale della voce (2 × --space-3 = 24px). A 5,5rem le colonne
+  // erano tre anche su un telefono da 390px, e quell'etichetta si spezzava in
+  // due righe alzando l'intera fascia.
+  --summary-item-min-w: 8.25rem; // 132px
+
   --border-width: 1px;
   --border-width-strong: 2px;
+  // Accento laterale che qualifica un'intera riga o card (tipo di movimento,
+  // documento collegato): deve leggersi a colpo d'occhio scorrendo un elenco,
+  // quindi è più spesso di un bordo. Prima veniva scritto come `--space-1`,
+  // che è un token di SPAZIATURA: stesso valore, significato sbagliato.
+  --border-width-accent: 4px;
 
   --focus-ring-width: 2px;
   --focus-ring-offset: 1px;

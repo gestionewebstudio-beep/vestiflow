@@ -21,8 +21,8 @@ import { StockReservationService } from './stock-reservation.service';
 
 /**
  * Test obbligatori fase 1 (§11) + fase 2 (§11): ordine ricevuto, duplicati,
- * annullamento, evasione completa con Vendita online + Corrispettivo,
- * rimborso senza carico, restock reale, fallimento transazionale.
+ * annullamento, evasione completa con Vendita online, rimborso senza carico,
+ * restock reale, fallimento transazionale.
  *
  * Fake Prisma in-memory: mantiene i saldi InventoryLevel e tutte le tabelle
  * di fase 2, così i test verificano i saldi finali (Giacenza, Impegnata,
@@ -150,8 +150,6 @@ function createFakeDb() {
   }> = [];
   const onlineSales: FakeOnlineSale[] = [];
   const onlineSaleLines: Array<Record<string, unknown> & { id: string }> = [];
-  const corrispettivi: Array<Record<string, unknown> & { id: string; onlineSaleId: string }> = [];
-  const corrispettivoLines: Array<Record<string, unknown>> = [];
   const movements: FakeMovement[] = [];
   const sequences = new Map<string, number>();
 
@@ -433,35 +431,10 @@ function createFakeDb() {
         return Promise.resolve({ ...line });
       },
     },
-    corrispettivoEntry: {
-      create: ({ data }: { data: Record<string, unknown> }) => {
-        const entry = { ...data, id: nextId('cor') } as (typeof corrispettivi)[number];
-        corrispettivi.push(entry);
-        return Promise.resolve({ ...entry });
-      },
-      updateMany: ({
-        where,
-        data,
-      }: {
-        where: Record<string, unknown>;
-        data: Record<string, unknown>;
-      }) => {
-        let count = 0;
-        for (const entry of corrispettivi) {
-          if (matches(entry, where)) {
-            Object.assign(entry, data);
-            count += 1;
-          }
-        }
-        return Promise.resolve({ count });
-      },
-    },
-    corrispettivoEntryLine: {
-      createMany: ({ data }: { data: Array<Record<string, unknown>> }) => {
-        corrispettivoLines.push(...data.map((row) => ({ ...row })));
-        return Promise.resolve({ count: data.length });
-      },
-    },
+    // Il finto Prisma NON espone `corrispettivoEntry`: le tabelle sono state
+    // ritirate il 17/08/2026 (migration `ritira_corrispettivo_legacy`). Un
+    // ritorno della scrittura non compilerebbe nemmeno — il delegate non
+    // esiste sul client vero — ed è la guardia migliore di un array vuoto.
     vatCode: {
       // Nessun Codice IVA attivo nei test: la corrispondenza inversa resta
       // null e lo snapshot conserva solo l'aliquota derivata dal canale.
@@ -477,8 +450,6 @@ function createFakeDb() {
     orderEvents: structuredClone(orderEvents),
     onlineSales: structuredClone(onlineSales),
     onlineSaleLines: structuredClone(onlineSaleLines),
-    corrispettivi: structuredClone(corrispettivi),
-    corrispettivoLines: structuredClone(corrispettivoLines),
     movements: structuredClone(movements),
     sequences: structuredClone([...sequences.entries()]),
   });
@@ -497,8 +468,6 @@ function createFakeDb() {
     orderEvents.splice(0, orderEvents.length, ...snap.orderEvents);
     onlineSales.splice(0, onlineSales.length, ...snap.onlineSales);
     onlineSaleLines.splice(0, onlineSaleLines.length, ...snap.onlineSaleLines);
-    corrispettivi.splice(0, corrispettivi.length, ...snap.corrispettivi);
-    corrispettivoLines.splice(0, corrispettivoLines.length, ...snap.corrispettivoLines);
     movements.splice(0, movements.length, ...snap.movements);
     sequences.clear();
     for (const [key, value] of snap.sequences) {
@@ -532,8 +501,6 @@ function createFakeDb() {
     orderEvents,
     onlineSales,
     onlineSaleLines,
-    corrispettivi,
-    corrispettivoLines,
     movements,
   };
 }
@@ -823,7 +790,6 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 1 §11)', () => {
     expect(db.reservations[0]?.status).toBe(ReservationStatus.active);
     expect(db.movements).toHaveLength(0);
     expect(db.onlineSales).toHaveLength(0);
-    expect(db.corrispettivi).toHaveLength(0);
   });
 
   it('concorrenza: eventi identici ravvicinati non producono saldi incoerenti', async () => {
@@ -906,7 +872,7 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(db.onlineSales[0]).toMatchObject({ locationId: 'location-2' });
   });
 
-  it('evasione completa: Vendita online + un movimento per riga + impegno consumato + Corrispettivo, Disponibile invariata', async () => {
+  it('evasione completa: Vendita online + un movimento per riga + impegno consumato, Disponibile invariata', async () => {
     const db = createFakeDb();
     seedOrder(db);
     seedLevel(db, 10);
@@ -966,15 +932,13 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
       expect.objectContaining({ type: ReservationEventType.consumed, quantityDelta: -2 }),
     );
 
-    // NESSUNA voce di corrispettivo: il registro è derivato dalle vendite e
-    // dalle rettifiche (specifica 08 §10). Qui prima nasceva un COR-2026-0001
-    // con la sua data fiscale, e una tabella parallela che nessuno legge può
-    // solo divergere dalle vendite che dovrebbe rispecchiare.
-    expect(db.corrispettivi).toHaveLength(0);
-    expect(db.corrispettivoLines).toHaveLength(0);
+    // Qui prima nasceva anche un COR-2026-0001 con la sua data fiscale. Il
+    // registro è derivato dalle vendite e dalle rettifiche (specifica 08 §10),
+    // e una tabella parallela che nessuno legge può solo divergere da ciò che
+    // dovrebbe rispecchiare: le sue tabelle sono state ritirate il 17/08/2026.
   });
 
-  it('evento duplicato: nessuna seconda Vendita, nessun secondo movimento, consumo o Corrispettivo', async () => {
+  it('evento duplicato: nessuna seconda Vendita, nessun secondo movimento né consumo', async () => {
     const db = createFakeDb();
     seedOrder(db);
     seedLevel(db, 10);
@@ -988,14 +952,13 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(second).toBe('duplicate');
     expect(db.onlineSales).toHaveLength(1);
     expect(db.movements).toHaveLength(1);
-    expect(db.corrispettivi).toHaveLength(0);
     expect(level(db)).toMatchObject({ onHand: 8, committed: 0, available: 8 });
     expect(
       db.reservationEvents.filter((event) => event.type === ReservationEventType.consumed),
     ).toHaveLength(1);
   });
 
-  it('rimborso dopo la vendita: nessun carico automatico, stato economico aggiornato, rettifica Corrispettivo predisposta', async () => {
+  it('rimborso dopo la vendita: nessun carico automatico, stato economico aggiornato, rettifica predisposta', async () => {
     const db = createFakeDb();
     seedOrder(db);
     seedLevel(db, 10);
@@ -1017,11 +980,10 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(db.movements).toHaveLength(1);
     expect(db.onlineSales).toHaveLength(1);
     expect(db.onlineSales[0]?.refundedAt).toEqual(new Date('2026-07-13T10:00:00Z'));
-    // Nessuna voce di corrispettivo da marcare `refunded`: la rettifica
+    // Non c'è nessuna voce di registro da marcare `refunded`: la rettifica
     // economica vive in `sales_order_refunds` e il registro la sottrae alla
     // sua data. Qui resta ciò che è vero e utile — la vendita sa di aver
     // avuto un rimborso, e l'ordine chiede di verificare la rettifica.
-    expect(db.corrispettivi).toHaveLength(0);
     expect(db.orders.get('order-1')).toMatchObject({ requiresReview: true });
   });
 
@@ -1091,11 +1053,11 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
 
     await service.handle(createdEvent());
 
-    // Un passo interno alla transazione fallisce. Era il Corrispettivo, che
-    // non viene più scritto: si inietta l'errore sul movimento di magazzino,
-    // che sta nello stesso punto del flusso — dopo la Vendita, prima della
-    // chiusura. Ciò che il test dimostra non cambia: se un passo cade, cade
-    // tutto, e non resta nessun oggetto orfano.
+    // Un passo interno alla transazione fallisce. Era la scrittura del
+    // Corrispettivo, che non esiste più: si inietta l'errore sul movimento di
+    // magazzino, che sta nello stesso punto del flusso — dopo la Vendita,
+    // prima della chiusura. Ciò che il test dimostra non cambia: se un passo
+    // cade, cade tutto, e non resta nessun oggetto orfano.
     const originalCreate = db.tx.stockMovement.create;
     db.tx.stockMovement.create = () => Promise.reject(new Error('DB error simulato sul movimento'));
 
@@ -1105,7 +1067,6 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(level(db)).toMatchObject({ onHand: 10, committed: 2, available: 8 });
     expect(db.onlineSales).toHaveLength(0);
     expect(db.onlineSaleLines).toHaveLength(0);
-    expect(db.corrispettivi).toHaveLength(0);
     expect(db.movements).toHaveLength(0);
     expect(db.reservations[0]?.status).toBe(ReservationStatus.active);
     expect(db.reservations[0]?.remainingQuantity).toBe(2);
@@ -1120,10 +1081,9 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(retry).toBe('applied');
     expect(level(db)).toMatchObject({ onHand: 8, committed: 0, available: 8 });
     expect(db.onlineSales).toHaveLength(1);
-    expect(db.corrispettivi).toHaveLength(0);
   });
 
-  it('ordine storico senza impegni attivi: Vendita registrata, nessun effetto magazzino e nessun Corrispettivo', async () => {
+  it('ordine storico senza impegni attivi: Vendita registrata, nessun effetto magazzino', async () => {
     const db = createFakeDb();
     seedOrder(db);
     const order = db.orders.get('order-1');
@@ -1141,7 +1101,6 @@ describe('OnlineOrderLifecycleService (test obbligatori fase 2 §11)', () => {
     expect(db.onlineSales[0]?.inventoryStatus).toBe(OnlineSaleInventoryStatus.not_applied);
     expect(db.movements).toHaveLength(0);
     expect(level(db)).toMatchObject({ onHand: 10, committed: 0, available: 10 });
-    expect(db.corrispettivi).toHaveLength(0);
   });
 
   describe('IVA di riga (registro difetti 3.12)', () => {

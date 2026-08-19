@@ -20,6 +20,7 @@ import { validateEnv } from './config/env.validation';
 import { PlatformAdminModule } from './common/platform-admin/platform-admin.module';
 import { HealthModule } from './health/health.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { ManualReceiptsModule } from './manual-receipts/manual-receipts.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { PaymentOptionsModule } from './payment-options/payment-options.module';
@@ -56,6 +57,9 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     OnlineSalesModule,
     StoreSalesModule,
     CorrispettiviModule,
+    // La quarta sorgente del Registro: registrazione economica autonoma, senza
+    // documento, senza ordine e senza magazzino (`10` §12).
+    ManualReceiptsModule,
     ShopifyModule,
     TikTokModule,
     AnalyticsModule,

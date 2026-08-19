@@ -243,7 +243,7 @@ diventa un prezzo di vendita **zero** in VestiFlow, senza errore.
 ri-sync non tocca più il prezzo articolo, quindi quando Shopify il prezzo ce l'avrà,
 l'interno non si rialzerà da solo. Idea registrata il 17/08 — compilarlo dal prezzo
 Shopify quando è zero, più un comando esplicito «Copia il prezzo Shopify nel prezzo
-interno» sull'elenco filtrato — in `DA-FARE-CORRISPETTIVI-E-SHOPIFY.md`, §«Prima
+interno» sull'elenco filtrato — in `DA-FARE.md`, §«Prima
 sincronizzazione Shopify». Da progettare lì, non qui.
 
 ## Il prezzo articolo è dell'operatore anche in scrittura _(17/08/2026)_

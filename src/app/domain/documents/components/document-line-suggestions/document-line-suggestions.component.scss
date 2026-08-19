@@ -2,6 +2,8 @@
 // `position: relative`, il pannello si stende in assoluto sotto (o sopra).
 // L'host è `display: contents` così è la <ul> a stare nel flusso del padre,
 // come per app-button (regole-stile-ui §5).
+@use 'breakpoints' as bp;
+
 :host {
   display: contents;
 }
@@ -23,7 +25,12 @@
   inset-inline: var(--doc-suggestions-inset, 0 auto);
   inline-size: max-content;
   min-inline-size: 100%;
-  max-inline-size: var(--doc-suggestions-max-width);
+  // ⚠️ **Un tetto c'è sempre.** Il token era senza valore predefinito, quindi
+  // dove nessuno lo impostava il pannello cresceva quanto la descrizione più
+  // lunga: su una colonna IVA larga settanta pixel arrivava a coprire
+  // Imponibile e Imposta. Oltre il tetto è l'ellissi della descrizione a
+  // lavorare — il valore resta sempre leggibile per intero.
+  max-inline-size: var(--doc-suggestions-max-width, calc(var(--space-8) * 9));
   inset-block-start: calc(100% + var(--doc-suggestions-offset, var(--space-1)));
   z-index: var(--doc-suggestions-z, var(--z-dropdown));
   padding: var(--space-1);
@@ -51,11 +58,26 @@
   inset-block-end: calc(100% + var(--doc-suggestions-offset, var(--space-1)));
 }
 
+/*
+  ⚠️ **Una voce sta su UNA riga: valore, poi descrizione** (17/08/2026).
+
+      22 — Imponibile 22%          PZ — Pezzi
+
+  Stavano incolonnate, e il conto era doppio: ogni voce alta due righe, quindi
+  metà dei risultati visibili prima di dover scorrere, e il pannello largo
+  quanto la descrizione più lunga — su una colonna IVA larga settanta pixel
+  significava coprire Imponibile e Imposta per dire «Imponibile 22%».
+
+  **Il vincolo che rende la forma sicura per tutti e otto i consumer** — codice
+  articolo, nome prodotto, IVA, unità di misura — è che a stringersi sia sempre
+  e solo la descrizione: il valore principale non si accorcia mai, perché è
+  quello che si sta scegliendo. Un elenco che tronca la chiave non è un elenco.
+*/
 .doc-suggestions__item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-2);
   // Default touch fisso (non --btn-min-height): le card view che ospitano il
   // pannello restano attive fino a lg, dove il token responsive tornerebbe
   // alla densità desktop e il target scenderebbe sotto il minimo tappabile.
@@ -78,16 +100,39 @@
   }
 }
 
+/* Il valore che si sta scegliendo: non si accorcia MAI. */
 .doc-suggestions__title {
+  flex: 0 0 auto;
   font-size: var(--doc-suggestions-title-size, var(--text-sm));
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
+/*
+  La descrizione: è lei a cedere. Prende lo spazio che resta e, quando non
+  basta, si tronca — `min-inline-size: 0` è ciò che glielo permette dentro un
+  flex, che altrimenti non stringe un figlio sotto la larghezza minima del suo
+  contenuto. Senza quella riga l'ellissi non scatterebbe mai e il pannello
+  tornerebbe largo quanto la descrizione più lunga.
+
+  Il trattino sta qui e non nel markup: è punteggiatura fra due dati, non un
+  testo da tradurre, e nel DOM aggiungerebbe fra i due `<span>` un nodo che gli
+  screen reader leggerebbero.
+*/
 .doc-suggestions__detail {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--text-xs);
   font-variant-numeric: var(--numeric-tabular);
   color: var(--color-text-muted);
+}
+
+.doc-suggestions__detail::before {
+  content: '— ';
+  color: var(--color-text-subtle);
 }
 
 // La coda si stacca dalle voci con un filo: è un comando, non un valore, e a
@@ -121,5 +166,21 @@
   &--active,
   &:focus-visible {
     background-color: var(--color-interactive-subtle);
+  }
+}
+
+/*
+  ⚠️ **Su desktop la voce si stringe, e più risultati stanno a schermo.**
+
+  `--control-h-touch` è il minimo TAPPABILE, e sotto `lg` va lasciato: lì il
+  pannello vive dentro le card e il dito è il puntatore. Su desktop però quel
+  minimo è la ragione per cui, anche a voce su una riga sola, se ne vedevano
+  cinque prima di dover scorrere: 44 px per una riga di testo alta la metà.
+
+  Il tetto dell'elenco resta quello di prima — cambia quanto ci sta dentro.
+*/
+@include bp.media-up('lg') {
+  .doc-suggestions__item {
+    min-block-size: var(--doc-suggestions-item-min-h, var(--control-h-button));
   }
 }

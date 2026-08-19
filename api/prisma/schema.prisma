@@ -194,15 +194,6 @@ enum OnlineSaleInventoryStatus {
   not_applied
 }
 
-/// Stato del Corrispettivo interno collegato alla Vendita online (fase 2 §4).
-enum CorrispettivoStatus {
-  to_verify
-  included
-  excluded_invoiced
-  adjusted
-  refunded
-}
-
 /// Stato di una sessione di inventario fisico (conteggio annuale/spot).
 enum InventoryCountStatus {
   in_progress
@@ -245,11 +236,26 @@ enum DocumentType {
   /// magazzino» sulle righe movimentabili, e la spunta nasce spenta.
   credit_note
   online_sale // Vendita online (documento interno generato dall'evasione, fase 2)
-  corrispettivo // Corrispettivo collegato alla Vendita online (registro interno, fase 2)
   customer_order // Ordine cliente manuale (numeratore dedicato; l'ordine vive in SalesOrder)
   store_sale // Vendita in negozio (cassa interna non fiscale, fase 3 §7)
   store_return // Reso vendita negozio (rientro fisico documentato, fase 3 §9)
   quote // Preventivo cliente (numerazione PRE dedicata, mai effetti magazzino)
+  /// ⚠️ CHIAVE TECNICA DEL NUMERATORE, non un tipo documento.
+  ///
+  /// Il Corrispettivo manuale (`ManualReceipt`, specifica `10` §12) non ha e non
+  /// avrà mai una riga in `documents`: è una registrazione ECONOMICA che vive in
+  /// tabella propria. Il valore sta qui SOLO perché il motore di numerazione
+  /// comune è tipizzato su questo enum a ogni livello — la firma di
+  /// `nextDocumentNumber`, `lockDocumentCounter`, `document_counters.type`.
+  ///
+  /// È la stessa convenzione di `customer_order` e `supplier_order`, che pure
+  /// vivono in tabelle proprie: questo enum è **le chiavi dei numeratori**, non
+  /// «l'elenco dei documenti».
+  ///
+  /// Nelle mappe esaustive riceve il minimo per compilare: **niente prefisso,
+  /// non stampabile, fuori dai contatori configurabili, mai creabile come
+  /// documento**. Non deve comparire in nessuna UI documentale.
+  manual_receipt
 }
 
 /// Ambito di utilizzo di un Codice IVA: acquisti, vendite o entrambi.
@@ -360,8 +366,6 @@ model Tenant {
   onlineOrderEvents       OnlineOrderEvent[]
   onlineSales             OnlineSale[]
   onlineSaleLines         OnlineSaleLine[]
-  corrispettivoEntries    CorrispettivoEntry[]
-  corrispettivoEntryLines CorrispettivoEntryLine[]
   documents               Document[]
   documentRevisions       DocumentRevision[]
   documentAttachments     DocumentAttachment[]
@@ -389,6 +393,7 @@ model Tenant {
   tiktokOAuthStates       TikTokOAuthState[]
   supportSessionsAsTarget SupportSession[]        @relation("SupportSessionTarget")
   tenantUserAuditLogs     TenantUserAuditLog[]
+  manualReceipts          ManualReceipt[]
 
   @@map("tenants")
 }
@@ -429,6 +434,7 @@ model User {
   tableViewPreferences      UserTableViewPreference[]
   documentPriceModePreferences UserDocumentPriceModePreference[]
   documentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
+  manualReceipts                      ManualReceipt[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -573,6 +579,7 @@ model Location {
   salesOrders       SalesOrder[]
   shopifyInventorySyncStates ShopifyInventorySyncState[]
   documentCounters  DocumentCounter[]
+  manualReceipts    ManualReceipt[]
 
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
@@ -649,7 +656,16 @@ model Product {
   /// varianti e prezzo quando la variante è la sola default anonima (rispecchiata).
   sellingPriceMinor               Decimal                 @default(0) @map("selling_price_minor") @db.Decimal(16, 6)
   /// Prezzo barrato: dato SOLO dell'articolo (nessuna dimensione per-variante).
-  compareAtPriceMinor             Int?                    @map("compare_at_price_minor")
+  ///
+  /// NETTO canonico come ogni altro prezzo di vendita, con la coda decimale:
+  /// dal 17/08/2026 segue la modalità netto/ivato insieme a prezzo di vendita,
+  /// prezzo Shopify e listini. Prima era «come digitato» ed era l'unico dei sei
+  /// a ignorare il selettore — sulla stessa riga variante Shopify riceveva un
+  /// barrato ivato accanto a un prezzo netto.
+  ///
+  /// `null` = nessun prezzo barrato. NON è zero: zero direbbe «esiste e vale
+  /// zero», e `isValidCompareAt` lo scarterebbe comunque.
+  compareAtPriceMinor             Decimal?                @map("compare_at_price_minor") @db.Decimal(16, 6)
   /// Costo d'acquisto di RIFERIMENTO: seeda le nuove varianti. Il costo effettivo
   /// per taglia vive sulla variante (aggiornato dai carichi).
   purchasePriceMinor              Int?                    @map("purchase_price_minor")
@@ -1606,7 +1622,6 @@ model OnlineSale {
   customer      Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
   location      Location?           @relation(fields: [locationId], references: [id], onDelete: SetNull)
   lines         OnlineSaleLine[]
-  corrispettivo CorrispettivoEntry?
   documents     Document[]
 
   @@unique([tenantId, dedupeKey])
@@ -1658,89 +1673,6 @@ model OnlineSaleLine {
   @@index([onlineSaleId])
   @@index([tenantId])
   @@map("online_sale_lines")
-}
-
-/// Registrazione interna nel Registro Corrispettivi (fase 2 §4), creata nella
-/// stessa transazione della Vendita online. NON è la causa tecnica dello
-/// scarico e NON è una trasmissione fiscale automatica: è un registro interno
-/// con data fiscale distinta e modificabile dagli utenti autorizzati.
-model CorrispettivoEntry {
-  id                  String              @id @default(uuid()) @db.Uuid
-  tenantId            String              @map("tenant_id") @db.Uuid
-  series              String              @default("A")
-  number              Int
-  year                Int
-  /// Riferimento leggibile (es. 'COR-2026-0001').
-  reference           String
-  /// Opzionali perche' un corrispettivo puo' nascere dalla CASSA, e uno scontrino non ha
-  /// ne' una vendita online ne' un ordine cliente: e' il caso normale di quel canale, non
-  /// un'eccezione. Il database le ha nullabili dal 06/08 (migration del ramo cassa) — qui
-  /// la dichiarazione si allinea a cio' che il database gia' e', quindi NON serve nessuna
-  /// migration. Vedi registro difetti 1.8.
-  onlineSaleId        String?             @unique @map("online_sale_id") @db.Uuid
-  salesOrderId        String?             @map("sales_order_id") @db.Uuid
-  channel             SalesOrderSource
-  /// Data operativa (evasione).
-  operationalDate     DateTime            @map("operational_date")
-  /// Data fiscale DISTINTA (§5): proposta dalla data evasione, modificabile.
-  fiscalDate          DateTime            @map("fiscal_date") @db.Date
-  subtotalMinor       Int                 @default(0) @map("subtotal_minor")
-  taxMinor            Int                 @default(0) @map("tax_minor")
-  totalMinor          Int                 @default(0) @map("total_minor")
-  discountMinor       Int                 @default(0) @map("discount_minor")
-  shippingMinor       Int                 @default(0) @map("shipping_minor")
-  status              CorrispettivoStatus @default(to_verify)
-  /// Fattura emessa per questa operazione (allora esclusa dal riepilogo).
-  invoiceIssued       Boolean             @default(false) @map("invoice_issued")
-  excludedFromSummary Boolean             @default(false) @map("excluded_from_summary")
-  exclusionReason     String?             @map("exclusion_reason")
-  /// Nota di rettifica/rimborso predisposta (mai automatismi fiscali).
-  adjustmentNote      String?             @map("adjustment_note")
-  refundedAt          DateTime?           @map("refunded_at")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
-
-  tenant     Tenant                   @relation(fields: [tenantId], references: [id])
-  onlineSale OnlineSale?              @relation(fields: [onlineSaleId], references: [id], onDelete: Restrict)
-  lines      CorrispettivoEntryLine[]
-
-  @@unique([tenantId, series, year, number])
-  @@index([tenantId, fiscalDate(sort: Desc)])
-  @@index([tenantId, channel, fiscalDate(sort: Desc)])
-  @@index([tenantId, salesOrderId])
-  @@map("corrispettivo_entries")
-}
-
-/// Riga Corrispettivo: prodotto o voce (es. spedizione) con imponibile,
-/// aliquota, imposta e totale — base per i riepiloghi per aliquota IVA.
-model CorrispettivoEntryLine {
-  id             String   @id @default(uuid()) @db.Uuid
-  tenantId       String   @map("tenant_id") @db.Uuid
-  entryId        String   @map("entry_id") @db.Uuid
-  lineNumber     Int      @map("line_number")
-  /// Voce non-prodotto (spedizione): true. Prodotti: false.
-  isShipping     Boolean  @default(false) @map("is_shipping")
-  description    String
-  quantity       Int      @default(1)
-  discountMinor  Int      @default(0) @map("discount_minor")
-  subtotalMinor  Int      @default(0) @map("subtotal_minor")
-  taxMinor       Int      @default(0) @map("tax_minor")
-  totalMinor     Int      @default(0) @map("total_minor")
-  /// Codice IVA riconosciuto per corrispondenza inversa con l'aliquota
-  /// derivata dal canale. Null se nessuna corrispondenza attiva per il tenant.
-  vatCodeId      String?  @map("vat_code_id") @db.Uuid
-  /// Snapshot IVA al momento della registrazione: Codice IVA se riconosciuto,
-  /// altrimenti solo l'aliquota derivata dal canale (§7).
-  vatSnapshot    Json?    @map("vat_snapshot")
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  tenant Tenant             @relation(fields: [tenantId], references: [id])
-  entry  CorrispettivoEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  vatCode VatCode?          @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
-
-  @@index([entryId])
-  @@index([tenantId])
-  @@map("corrispettivo_entry_lines")
 }
 
 // ── Integrazione Shopify (stato connessione, MAI token nel modello API) ─────
@@ -2442,10 +2374,10 @@ model VatCode {
   nature        VatNature              @relation(fields: [natureId], references: [id])
   products      Product[]
   documentLines DocumentLine[]
+  manualReceiptLines ManualReceiptLine[]
   featureSettingsDefault TenantFeatureSettings[]
   suppliers                Supplier[]
   onlineSaleLines          OnlineSaleLine[]
-  corrispettivoEntryLines  CorrispettivoEntryLine[]
   salesOrderLines          SalesOrderLine[]
   supplierOrderLines       SupplierOrderLine[]
 
@@ -2709,4 +2641,122 @@ model UserDocumentPriceModePreference {
   @@unique([tenantId, userId, documentType], map: "user_doc_price_mode_pref_tenant_user_type_key")
   @@index([tenantId, userId], map: "user_doc_price_mode_pref_tenant_user_idx")
   @@map("user_document_price_mode_preferences")
+}
+
+/// Corrispettivo manuale: una registrazione ECONOMICA autonoma del Registro
+/// Corrispettivi (specifica `docs/10-specifica-registro-corrispettivi.md` §12).
+///
+/// Serve quando VestiFlow conosce l'importo ma NON la vendita analitica che
+/// l'ha prodotto: la cassa esterna ha battuto mentre VestiFlow non era
+/// disponibile, una chiusura di cassa da recuperare, importi storici di cui si
+/// sanno importo e IVA ma non gli articoli.
+///
+/// ⚠️ Righe SENZA articolo, e non è una semplificazione: è la definizione. Una
+/// registrazione che non conosce gli articoli non può muovere quantità — se lo
+/// facesse starebbe inventando merce. Nessun `StockMovement`, nessun
+/// `Document`, nessun `SalesOrder`, nessun pagamento.
+///
+/// Niente stato, niente soft-delete: creare, modificare, eliminare. I buchi di
+/// numerazione sono ammessi e non si rinumera mai.
+model ManualReceipt {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// Sempre NULL, e non compare in nessuna maschera: esiste solo perché il
+  /// motore di numerazione comune partiziona per (tenant, tipo, serie), e
+  /// «senza serie» È `NULL`. Non stiamo introducendo una gestione serie.
+  series String?
+  /// Progressivo dal motore comune, chiave `DocumentType.manual_receipt`.
+  /// Si mostra nudo: 1, 2, 3 — nessun prefisso, nessuno zero di riempimento.
+  number Int
+
+  /// UNA sola data, economica: è quella che determina il periodo del Registro.
+  /// Il legacy ne aveva due perché una nasceva dal canale e l'altra la
+  /// correggeva l'operatore. Qui la digita l'operatore, ed è una.
+  documentDate DateTime @map("document_date") @db.Date
+
+  /// Obbligatoria, ed è una regola del MODELLO, non una convalida di maschera:
+  /// non esiste un Corrispettivo manuale con location non determinata. Il «Non
+  /// determinata» del Registro riguarda le righe Shopify, dove il dato oggi può
+  /// mancare — anomalia temporanea, tracciata nel blocco sincronizzazione.
+  locationId String @map("location_id") @db.Uuid
+
+  /// Nasce IVATO, al contrario di `Document` e `SalesOrder` che nascono netti:
+  /// il caso operativo è riportare i valori di una chiusura di cassa, che sono
+  /// ivati. Il selettore resta modificabile.
+  pricesIncludeVat Boolean @default(true) @map("prices_include_vat")
+
+  notes    String?
+  currency String  @default("EUR")
+
+  /// Totali già arrotondati: sono i tre numeri che il Registro consuma.
+  subtotalMinor Int @default(0) @map("subtotal_minor")
+  taxMinor      Int @default(0) @map("tax_minor")
+  totalMinor    Int @default(0) @map("total_minor")
+
+  createdById String? @map("created_by_id") @db.Uuid
+  /// Snapshot del nome: l'audit regge anche se l'utente cambia nome o sparisce.
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id])
+  location  Location            @relation(fields: [locationId], references: [id])
+  createdBy User?               @relation(fields: [createdById], references: [id])
+  lines     ManualReceiptLine[]
+
+  /// L'unicità vera è scritta a mano nella migration con NULLS NOT DISTINCT:
+  /// due «senza serie» sono la STESSA serie, e Prisma non sa esprimerlo.
+  @@unique([tenantId, series, number], map: "manual_receipts_number_unique")
+  @@index([tenantId, documentDate], map: "manual_receipts_tenant_date_idx")
+  @@index([tenantId, locationId], map: "manual_receipts_tenant_location_idx")
+  @@map("manual_receipts")
+}
+
+/// Riga economica di un Corrispettivo manuale: `Descrizione | Importo | IVA`.
+///
+/// Nessun articolo, nessuno SKU, nessuna variante, nessuna quantità: è la
+/// forma che il gestionale ha già in produzione da luglio con la voce
+/// «Spedizione» delle vendite online.
+///
+/// Non porta `tenantId`: si raggiunge solo dalla testata, cade in cascata con
+/// essa, e la RLS copre la tabella. È il pattern di `SupplierOrderLine`.
+model ManualReceiptLine {
+  id         String @id @default(uuid()) @db.Uuid
+  receiptId  String @map("receipt_id") @db.Uuid
+  lineNumber Int    @map("line_number")
+
+  description String
+
+  /// L'importo COME DIGITATO, nella modalità della testata (ivato o netto).
+  enteredAmountMinor Decimal @map("entered_amount_minor") @db.Decimal(16, 6)
+  /// Il netto CANONICO con la coda decimale: è questo che fa tornare 70,00
+  /// identico alla riapertura in modalità ivata. Con un intero si leggerebbe
+  /// 69,99. La coppia digitato+canonico è già in uso su `SupplierOrderLine`.
+  netAmountMinor Decimal @map("net_amount_minor") @db.Decimal(16, 6)
+
+  vatCodeId String? @map("vat_code_id") @db.Uuid
+  /// Obbligatorio, a differenza di `DocumentLine` dove è facoltativo: una riga
+  /// senza IVA in un corrispettivo non ha senso. Anche i codici non imponibili
+  /// ed esenti passano di qui, mai una riga fiscalmente indefinita.
+  ///
+  /// È lo snapshot congelato: se il Codice IVA cambia domani, la registrazione
+  /// di ieri non cambia — ed è per questo che la sua FK è `SetNull` e non
+  /// `Restrict`.
+  vatSnapshot Json @map("vat_snapshot")
+
+  /// I tre esiti ARROTONDATI della riga: si arrotonda una volta sola, sul
+  /// totale di riga, mai sull'importo unitario.
+  netMinor   Int @default(0) @map("net_minor")
+  vatMinor   Int @default(0) @map("vat_minor")
+  grossMinor Int @default(0) @map("gross_minor")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  receipt ManualReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  vatCode VatCode?      @relation(fields: [vatCodeId], references: [id])
+
+  @@index([receiptId, lineNumber], map: "manual_receipt_lines_receipt_idx")
+  @@map("manual_receipt_lines")
 }

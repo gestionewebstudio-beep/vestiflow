@@ -317,7 +317,7 @@ Ideale: almeno un tenant **Shopify** (sync completo) e uno **Solo gestionale** (
 2. Se profilo **Shopify**: verifica anche **Vendite** e **Clienti** (e opz. **Registro commercialista**).
 3. Clicca ogni voce visibile una alla volta.
 
-**Risultato atteso:** ogni voce apre la pagina corretta. Titolo pagina e URL coerenti (`/app/dashboard`, `/app/products`, `/app/suppliers`, `/app/documents`, `/app/sales/register`, ecc.). Voci assenti per profilo/permesso non devono comparire.
+**Risultato atteso:** ogni voce apre la pagina corretta. Titolo pagina e URL coerenti (`/app/dashboard`, `/app/products`, `/app/suppliers`, `/app/documents`, `/app/vendita-al-banco`, ecc.). Voci assenti per profilo/permesso non devono comparire.
 
 | Esito           | Tester | Data | Note |
 | --------------- | ------ | ---- | ---- |
@@ -2452,7 +2452,7 @@ cosa sbagliata.
 
 **Passaggi:**
 
-1. Apri **Registra vendita** (`/app/sales/register`).
+1. Apri **Vendite al banco** (`/app/vendita-al-banco`), poi **Nuova vendita al banco**.
 2. Verifica sede operativa in topbar (deve essere quella corretta).
 3. Scansiona barcode o inserisci SKU manualmente.
 4. Conferma **Registra vendita** (qty 1 per scan).

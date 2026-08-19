@@ -365,6 +365,7 @@ ol {
 <h4 id="magazzino-e-documenti-impostazioni-operative">Magazzino e documenti (impostazioni operative)</h4>
 <p>Pannello visibile a <strong>Titolare</strong> e <strong>Amministratore</strong> (accesso completo al tenant). Consente di attivare:</p>
 <ul>
+<li><strong>Prezzi di vendita: Netti o Ivati</strong> — come la tua azienda ragiona sui prezzi (vedi sotto)</li>
 <li><strong>Gestione lotti e scadenze</strong> — colonne lotto/scadenza in arrivo merce</li>
 <li><strong>Gestione numeri seriali</strong> — colonna seriali in arrivo merce</li>
 <li><strong>Policy aggiornamento prezzo fornitore</strong> in carico: sempre / chiedi conferma / mai</li>
@@ -372,6 +373,51 @@ ol {
 <li>Avvisi e blocco su <strong>giacenze negative</strong></li>
 </ul>
 <p>Le modifiche si applicano a tutti gli utenti del negozio.</p>
+<h5 id="prezzi-di-vendita-netti-o-ivati-dal-16-agosto-2026">Prezzi di vendita: Netti o Ivati <em>(dal 16 agosto 2026)</em></h5>
+<p>Dice come la tua azienda <strong>normalmente</strong> esprime i prezzi di vendita. Non è una regola rigida:
+è il punto di partenza.</p>
+<table>
+<thead>
+<tr>
+<th>Se vendi…</th>
+<th>Scegli</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>al <strong>dettaglio</strong>, al pubblico</td>
+<td><strong>Ivati</strong> — il prezzo che il cliente paga</td>
+</tr>
+<tr>
+<td>all&#39;<strong>ingrosso</strong>, ad altre aziende</td>
+<td><strong>Netti</strong> — imponibile, l&#39;IVA si aggiunge</td>
+</tr>
+</tbody></table>
+<p><strong>Dove si vede:</strong></p>
+<ul>
+<li>ogni <strong>documento di vendita nuovo</strong> (preventivo, ordine cliente, DDT, fattura) parte da qui;</li>
+<li>l&#39;<strong>anagrafica articoli</strong> mostra i prezzi di listino nello stesso modo.</li>
+</ul>
+<p><strong>Cosa NON cambia:</strong></p>
+<ul>
+<li>i <strong>documenti già salvati</strong> restano come sono. Ognuno si ricorda la modalità con cui è stato
+compilato, e riaprendolo la ritrovi — anche se nel frattempo l&#39;impostazione è cambiata, e
+anche se lo apre un tuo collega;</li>
+<li>il <strong>valore</strong> dei documenti non si tocca mai: cambia solo come il prezzo si scrive e si legge.</li>
+</ul>
+<p><strong>Sul singolo documento puoi sempre cambiare modalità</strong>, con il menu sull&#39;intestazione della
+colonna Prezzo. VestiFlow <strong>si ricorda la tua ultima scelta per quel tipo di documento</strong>: se fai
+sempre le fatture in netto, le tue fatture nuove partiranno nette anche se l&#39;azienda è impostata
+su ivato.</p>
+<p>⚠️ <strong>Se cambi l&#39;impostazione aziendale, quelle memorie si azzerano</strong> e tutti ripartono dalla
+scelta nuova. È voluto: altrimenti cambieresti l&#39;impostazione e non succederebbe niente a chi ha
+già lavorato.</p>
+<p><strong>E i costi di acquisto?</strong> Partono <strong>sempre netti</strong> — arrivo merce e ordine fornitore. Puoi
+passare alla vista ivata sul singolo documento quando ti conviene (per esempio per confrontare
+con la fattura del fornitore), e quel documento se la ricorda; ma il documento successivo
+riparte netto. Non c&#39;è un&#39;impostazione aziendale per i costi, perché per un&#39;azienda che detrae
+l&#39;IVA il costo <strong>è</strong> l&#39;imponibile.</p>
+<p><strong>La cassa (vendita al banco)</strong> resta sempre ivata: al banco il prezzo esposto è quello che il
+cliente paga.</p>
 <h4 id="sede-fisica-anagrafica-cliente">Sede fisica (anagrafica cliente)</h4>
 <p>Pannello <strong>Sede fisica</strong> in Impostazioni: mostra i dati commerciali registrati da VestiFlow all’attivazione (ragione sociale, negozio, P.IVA, indirizzo, contatti). È <strong>indipendente</strong> dalle sedi operative Shopify elencate sotto <strong>Integrazione Shopify → Location</strong>. I dettagli fiscali e di contatti opzionali sono in un riquadro espandibile <strong>Dati fiscali e contatti</strong>. Il pannello è visibile se il tuo account ha il permesso <strong>Impostazioni azienda</strong> (tipico per Titolare e Amministratore).</p>
 <h3 id="messaggi-comuni">Messaggi comuni</h3>
@@ -1123,7 +1169,7 @@ ol {
 <td>Opzionale; pulsante <strong>Genera</strong> per codice EAN-13</td>
 </tr>
 <tr>
-<td><strong>Prezzo vendita</strong></td>
+<td><strong>Prezzo di vendita</strong></td>
 <td>Sì</td>
 <td></td>
 </tr>
@@ -1642,19 +1688,33 @@ e vale la pena saperlo:</p>
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>Aggiorna anche il costo di riferimento in anagrafica</strong></td>
-<td>se il costo pagato aggiorna anche il costo dell’<strong>articolo</strong></td>
+<td><strong>Aggiorna il costo in anagrafica con quello inserito</strong></td>
+<td>se il costo che digiti diventa il costo dell&#39;<strong>articolo</strong></td>
 </tr>
 <tr>
 <td><strong>Aggiorna prezzi articolo</strong></td>
-<td>se i prezzi che scrivi sulle righe aggiornano l’anagrafica</td>
+<td>se i prezzi che scrivi sulle righe aggiornano l&#39;anagrafica</td>
 </tr>
 </tbody></table>
-<p>⚠️ <strong>Non funzionano allo stesso modo, e la differenza si vede.</strong></p>
-<p>Il <strong>costo</strong> che paghi è un dato del carico: il costo della singola taglia si aggiorna
-<strong>sempre</strong>, e la prima spunta decide solo se propagarlo anche al costo di riferimento
-dell&#39;articolo.</p>
-<p>Il <strong>prezzo al pubblico</strong> invece <strong>non è un dato del documento</strong>: è il prezzo di listino
+<p>Il <strong>costo</strong> funziona <strong>riga per riga</strong>: se richiami tre taglie dello stesso articolo hai
+tre righe, e ognuna porta in anagrafica il proprio costo. Nessuna «vince» sulle altre.</p>
+<ul>
+<li><strong>spunta accesa</strong> → il costo che digiti diventa il costo di quella taglia in anagrafica;</li>
+<li><strong>spunta spenta</strong> → resta un <strong>costo del documento</strong>, buono per report e contabilità, e in
+anagrafica non va nulla.</li>
+</ul>
+<p>⚠️ <strong>Fino al 19/08/2026 faceva un&#39;altra cosa</strong>, e vale la pena saperlo se hai caricato merce
+prima di quella data: il costo della taglia si aggiornava <strong>sempre</strong>, spunta o no. Chi la
+toglieva credeva di registrare un costo solo documentale e stava riscrivendo il costo
+effettivo di ogni taglia caricata — quello che alimenta valorizzazione e margini.</p>
+<p><strong>L&#39;ultimo prezzo pagato al fornitore si aggiorna comunque</strong>, con o senza spunta: non è
+anagrafica, è la memoria di quanto ti costa da quel fornitore. È il dato che fa comparire
+l&#39;avviso «lo pagavi X, ora paghi Y» al carico successivo.</p>
+<p>⚠️ <strong>Un articolo NUOVO creato dal carico è un altro caso</strong>: nasce con i dati che stai
+inserendo in quel momento, spunta o no. Alla nascita non c&#39;è nessun valore da sovrascrivere —
+quei dati <strong>sono</strong> i dati dell&#39;articolo.</p>
+<p>⚠️ <strong>Costo e prezzo non funzionano allo stesso modo, e la differenza si vede.</strong></p>
+<p>Il <strong>prezzo di vendita</strong> invece <strong>non è un dato del documento</strong>: è il prezzo di listino
 dell&#39;articolo, e il carico è solo il momento comodo per cambiarlo. Perciò:</p>
 <ul>
 <li><strong>spunta accesa</strong> → il campo si scrive, e quello che scrivi aggiorna il prezzo della taglia
@@ -1667,7 +1727,7 @@ chiaramente «adesso non si tocca» di uno che accetta un numero e lo butta via.
 <p><strong>Se hai Shopify collegato</strong> compare anche la colonna <strong>Prezzo Shopify</strong>, che puoi accendere
 o spegnere dal menu <strong>Colonne</strong> (di default è spenta). Segue la stessa spunta: si scrive solo
 a spunta accesa.</p>
-<p>⚠️ <strong>Prezzo al pubblico e Prezzo Shopify restano due prezzi distinti</strong>, ed è voluto: quello
+<p>⚠️ <strong>Prezzo di vendita e Prezzo Shopify restano due prezzi distinti</strong>, ed è voluto: quello
 che pubblichi online può essere diverso da quello del tuo listino. Con Shopify collegato,
 cambiare uno <strong>non</strong> cambia l’altro. Senza Shopify collegato la colonna non c’è, e il prezzo
 del canale segue quello di listino solo quando questo cambia davvero.</p>
@@ -1916,6 +1976,34 @@ serie chiamata come l&#39;anno.</p>
 <p><strong>Gli annullamenti non tolgono niente al totale.</strong> Li vedi contati nel riepilogo, ma valgono zero: annullano una vendita che non era mai stata registrata.</p>
 <p>Se qualche vendita risulta <strong>evasa senza data</strong>, il riepilogo te lo dice: non è conteggiata in nessun periodo, e va sistemata. Non sparisce in silenzio.</p>
 <p><strong>Il file che esporti contiene le stesse righe che vedi.</strong> CSV, Excel e PDF portano vendite e rettifiche con una colonna <strong>Tipo</strong>, in ordine di data, e la somma delle righe fa esattamente il totale stampato in testa. È il modo per cui il commercialista può rifare il conto senza chiederti niente.</p>
+<h4 id="aggiungere-un-corrispettivo-a-mano-dal-17-agosto-2026">Aggiungere un corrispettivo a mano <em>(dal 17 agosto 2026)</em></h4>
+<p>A volte il dato economico è certo ma la vendita analitica non c&#39;è e non è ricostruibile: la cassa esterna ha battuto mentre il gestionale non era disponibile, hai una chiusura di cassa da recuperare, o stai riportando importi vecchi di cui sai quanto e con che IVA, ma non cosa è stato venduto.</p>
+<p>Per questi casi c&#39;è il pulsante <strong>«+ Aggiungi corrispettivo»</strong>, in alto nella pagina Corrispettivi.</p>
+<blockquote>
+<p>⚠️ <strong>È una registrazione solo economica.</strong> Non crea prodotti, non crea clienti, e <strong>non tocca il magazzino</strong>: giacenza, impegnata e disponibile restano come sono. Non poteva essere altrimenti — una registrazione che non sa quali articoli sono usciti non può togliere pezzi da nessuna parte, e se lo facesse starebbe inventando merce.</p>
+</blockquote>
+<p><strong>Cosa si compila:</strong></p>
+<ul>
+<li>la <strong>data</strong> — è quella economica, e decide in che periodo la registrazione entra;</li>
+<li>la <strong>sede</strong> — obbligatoria: un corrispettivo appartiene sempre a un punto vendita o a un magazzino;</li>
+<li>gli <strong>importi ivati o netti</strong> — un solo selettore per tutta la registrazione, che parte da <strong>Ivati</strong> perché è il verso in cui arrivano i numeri di una chiusura di cassa;</li>
+<li>le <strong>righe</strong>: descrizione, importo e <strong>Codice IVA</strong>. Più righe, anche con aliquote diverse:</li>
+</ul>
+<pre><code class="language-text">70,00   IVA 22%   Vendite cassa esterna
+30,00   IVA 10%   Vendite cassa esterna
+</code></pre>
+<p><strong>Il selettore Ivati/Netti converte, non reinterpreta.</strong> Passando da Ivati a Netti i 70,00 diventano 57,38 e il totale resta 70,00: stai guardando lo stesso importo da un&#39;altra parte. Puoi passare avanti e indietro quante volte vuoi senza perdere un centesimo.</p>
+<p><strong>Il numero lo assegna VestiFlow al salvataggio</strong>, e si vede nudo: 1, 2, 3. Non è un numero fiscale — il documento commerciale lo emette il registratore di cassa, che è un&#39;altra cosa — serve solo a ritrovare la registrazione.</p>
+<p><strong>Si corregge e si elimina.</strong> Una registrazione digitata a mano si può sbagliare: aprila dal suo numero nell&#39;elenco e modificala, oppure eliminala. ⚠️ <strong>Eliminando resta un buco nella numerazione</strong> — dopo il 12 eliminato si passa da 11 a 13 — ed è normale: i numeri successivi non si rinumerano. E un export di questo mese, ristampato fra un mese, non conterrà più la registrazione eliminata.</p>
+<p><strong>Nel Registro si riconosce dall&#39;origine</strong>, che dice «Corrispettivo manuale». Senza filtri entra nell&#39;elenco e nei totali come tutte le altre righe.</p>
+<p>⚠️ <strong>Chi può farlo.</strong> Serve il permesso <strong>«Registrare corrispettivi manuali»</strong> (gruppo Report), oltre a quelli che già servono per vedere i Corrispettivi. Senza, il pulsante non compare.</p>
+<h4 id="la-colonna-sede-e-non-determinata-dal-17-agosto-2026">La colonna Sede, e «Non determinata» <em>(dal 17 agosto 2026)</em></h4>
+<p>L&#39;elenco ha una colonna <strong>Sede</strong> e un filtro per sceglierla.</p>
+<p>Su alcune righe che arrivano da Shopify leggerai <strong>«Non determinata»</strong>, in corsivo. Vuol dire quello che dice: quella vendita non porta con sé da quale sede è partita, e VestiFlow <strong>non se la inventa</strong>. È una cosa che va sistemata nella sincronizzazione, non uno stato normale.</p>
+<p>⚠️ <strong>Filtrando per una sede quelle righe escono</strong> — a una sede precisa non sono attribuibili — <strong>ma la pagina te lo dice</strong>:</p>
+<pre><code class="language-text">3 registrazioni con Location non determinata non incluse nel filtro
+</code></pre>
+<p>È l&#39;avviso che conta: senza, il totale scenderebbe scegliendo una sede e nessuno saprebbe perché. <strong>Togli il filtro Sede e tornano dentro</strong>, nell&#39;elenco e nel totale.</p>
 <h4 id="canale-e-tipo">Canale e tipo</h4>
 <p>Accanto al periodo trovi altri due filtri, indipendenti fra loro e dal periodo:</p>
 <ul>

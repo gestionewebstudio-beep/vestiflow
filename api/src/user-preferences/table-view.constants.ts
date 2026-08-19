@@ -28,10 +28,12 @@ export const TABLE_VIEW_IDS = [
   'transfer_lines',
   'stock_adjustment_lines',
   'sales_document_lines',
+  'store_sale_lines',
   'products_list',
   'customers_list',
   'sales_orders_list',
   'shopify_orders_list',
+  'corrispettivi_register',
 ] as const;
 
 export type TableViewId = (typeof TABLE_VIEW_IDS)[number];

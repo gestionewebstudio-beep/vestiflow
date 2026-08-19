@@ -11,6 +11,7 @@
   [attr.form]="formId() ?? null"
   [disabled]="disabled() || loading()"
   [attr.aria-busy]="loading() ? true : null"
+  [attr.aria-label]="ariaLabel() ?? null"
 >
   @if (loading()) {
     @if (loadingIndicator() === 'spinner') {

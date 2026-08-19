@@ -5,6 +5,7 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildCorrispettiviManualWhere,
   buildCorrispettiviRefundWhere,
   buildCorrispettiviStoreSaleWhere,
   buildCorrispettiviWhere,
@@ -42,7 +43,7 @@ describe('buildCorrispettiviWhere', () => {
     expect(source.in).toContain(PrismaSource.store);
   });
 
-  // ── La Vendita al banco: terza sorgente del Registro (`11` §5) ─────────
+  // ── La Vendita al banco: terza sorgente del Registro (`11` A9) ─────────
 
   it('la Vendita al banco entra nel Registro quando i filtri non la escludono', () => {
     const where = buildCorrispettiviStoreSaleWhere(tenantId, {});
@@ -156,5 +157,127 @@ describe('buildCorrispettiviRefundWhere', () => {
     // Lo stato di pagamento e la ricerca descrivono un ORDINE: qui non entrano.
     expect(where).not.toHaveProperty('financialStatus');
     expect(where).not.toHaveProperty('OR');
+  });
+});
+
+/**
+ * La **quarta sorgente** del Registro (`10` §12–§13).
+ *
+ * Gemella di quella della Vendita al banco, e con lo stesso `return null`: è
+ * così che una domanda che riguarda solo gli ordini — stato di pagamento, «solo
+ * resi» — spegne una sorgente che ordine non è, invece di mostrarla senza.
+ */
+describe('buildCorrispettiviManualWhere', () => {
+  const tenantId = 'tenant-1';
+
+  it('entra nel Registro quando i filtri non la escludono', () => {
+    const where = buildCorrispettiviManualWhere(tenantId, {});
+    expect(where).not.toBeNull();
+    expect(where?.tenantId).toBe(tenantId);
+    // Nessuno stato da filtrare: la registrazione non ne ha uno — esiste, o è
+    // stata eliminata. Niente `status`, niente soft-delete (`10` §12).
+    expect(where).not.toHaveProperty('status');
+    expect(where).not.toHaveProperty('deletedAt');
+  });
+
+  it('il periodo si misura sulla data economica digitata, non sul salvataggio', () => {
+    const where = buildCorrispettiviManualWhere(tenantId, {
+      placedFrom: '2026-08-01',
+      placedTo: '2026-08-31',
+    });
+    expect(where?.documentDate).toEqual({
+      gte: new Date('2026-08-01T00:00:00.000Z'),
+      lte: new Date('2026-08-31T23:59:59.999Z'),
+    });
+    // Una chiusura di cassa recuperata il giorno dopo resta del giorno prima.
+    expect(where).not.toHaveProperty('createdAt');
+  });
+
+  it('i filtri che escludono Fisico/POS · VestiFlow la lasciano fuori', () => {
+    expect(buildCorrispettiviManualWhere(tenantId, { ambito: 'online' })).toBeNull();
+    expect(buildCorrispettiviManualWhere(tenantId, { canale: 'shopify' })).toBeNull();
+    expect(
+      buildCorrispettiviManualWhere(tenantId, { ambito: 'fisico_pos', canale: 'vestiflow' }),
+    ).not.toBeNull();
+  });
+
+  it('una domanda che riguarda gli ordini la spegne', () => {
+    // Non ha un ciclo di pagamento: mostrarla senza risponderebbe a una domanda
+    // diversa da quella posta.
+    expect(buildCorrispettiviManualWhere(tenantId, { financialStatus: 'paid' })).toBeNull();
+    expect(buildCorrispettiviManualWhere(tenantId, { refundsOnly: true })).toBeNull();
+  });
+
+  /**
+   * ⚠️ **Il filtro Origine è la sola dimensione che la isola.**
+   *
+   * Fino al 17/08/2026 non esisteva: c'era un `source` che ammetteva due soli
+   * valori (`online`, `pos`) e che nessuna UI mandava. Ambito e canale non
+   * bastano — il Corrispettivo manuale condivide con la Vendita al banco la
+   * coppia Fisico/POS · VestiFlow, quindi chiedendo quella coppia si ottenevano
+   * entrambe.
+   */
+  it('l’Origine isola davvero il Corrispettivo manuale', () => {
+    expect(buildCorrispettiviManualWhere(tenantId, { origine: 'manual_receipt' })).not.toBeNull();
+    // Chiedendo il manuale, la Vendita al banco si spegne — ed è il difetto che
+    // il filtro esiste per correggere.
+    expect(buildCorrispettiviStoreSaleWhere(tenantId, { origine: 'manual_receipt' })).toBeNull();
+    // E viceversa.
+    expect(buildCorrispettiviManualWhere(tenantId, { origine: 'store' })).toBeNull();
+    expect(buildCorrispettiviStoreSaleWhere(tenantId, { origine: 'store' })).not.toBeNull();
+    // Un'origine Shopify le spegne entrambe.
+    expect(buildCorrispettiviManualWhere(tenantId, { origine: 'shopify_online' })).toBeNull();
+    expect(buildCorrispettiviStoreSaleWhere(tenantId, { origine: 'shopify_online' })).toBeNull();
+  });
+
+  it('la sede filtra, e «senza sede» non la riguarda mai', () => {
+    expect(buildCorrispettiviManualWhere(tenantId, { locationId: 'loc-1' })?.locationId).toBe(
+      'loc-1',
+    );
+    // La sede è obbligatoria per costruzione: nessuna registrazione manuale può
+    // finire fra le «non determinate», quindi la domanda non la tocca.
+    expect(buildCorrispettiviManualWhere(tenantId, { undeterminedLocationOnly: true })).toBeNull();
+  });
+});
+
+/**
+ * Il filtro **Sede**, entrato col Corrispettivo manuale (`10` §12).
+ *
+ * Le righe senza sede escono dal risultato — a quella sede non sono
+ * attribuibili — ma la schermata dichiara quante sono: un Registro che perde
+ * righe appena si sceglie una sede mostrerebbe un totale più basso del vero.
+ */
+describe('filtro Sede sulle tre sorgenti che possono non averla', () => {
+  const tenantId = 'tenant-1';
+
+  it('la sede scelta filtra vendite, rettifiche e vendite al banco', () => {
+    expect(buildCorrispettiviWhere(tenantId, { locationId: 'loc-1' }).locationId).toBe('loc-1');
+    expect(buildCorrispettiviRefundWhere(tenantId, { locationId: 'loc-1' }).order).toMatchObject({
+      locationId: 'loc-1',
+    });
+    expect(buildCorrispettiviStoreSaleWhere(tenantId, { locationId: 'loc-1' })?.locationId).toBe(
+      'loc-1',
+    );
+  });
+
+  it('«senza sede» è un VALORE, non «qualunque»', () => {
+    // `locationId: null` aggancia le righe che una sede non ce l'hanno. Scritto
+    // come assenza del filtro conterebbe tutto, e il numero dichiarato in
+    // schermata direbbe una cifra senza rapporto con le righe sparite.
+    expect(
+      buildCorrispettiviWhere(tenantId, { undeterminedLocationOnly: true }).locationId,
+    ).toBeNull();
+    expect(
+      buildCorrispettiviRefundWhere(tenantId, { undeterminedLocationOnly: true }).order,
+    ).toMatchObject({ locationId: null });
+    expect(
+      buildCorrispettiviStoreSaleWhere(tenantId, { undeterminedLocationOnly: true })?.locationId,
+    ).toBeNull();
+  });
+
+  it('senza filtro Sede nessuna delle tre porta un vincolo di sede', () => {
+    expect(buildCorrispettiviWhere(tenantId, {})).not.toHaveProperty('locationId');
+    expect(buildCorrispettiviRefundWhere(tenantId, {}).order).not.toHaveProperty('locationId');
+    expect(buildCorrispettiviStoreSaleWhere(tenantId, {})).not.toHaveProperty('locationId');
   });
 });

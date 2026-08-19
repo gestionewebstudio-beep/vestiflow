@@ -74,6 +74,44 @@ export async function resolveOperationalLocationScope(
     : applyReadLocationScope(licensed, user);
 }
 
+/** Una sede proponibile in una tendina: l'identità e il nome, niente altro. */
+export interface ScopedLocationDto {
+  readonly id: string;
+  readonly name: string;
+}
+
+/**
+ * Le sedi che l'utente può **consultare** o su cui può **operare**, con i nomi.
+ *
+ * Esiste perché ogni tendina Sede faceva da sé la stessa cosa in modo un po'
+ * diverso — chi filtrava per licenza e chi no, chi passava dallo scope centrale
+ * e chi rifaceva il controllo a mano con un `try/catch` attorno a un `assert`.
+ * Il risultato erano elenchi che differivano per motivi che il modello centrale
+ * non conosceva.
+ *
+ * ⚠️ **Il `mode` è l'unica differenza ammessa fra un elenco e l'altro**, e non
+ * è una differenza di questa funzione: è quella del modello centrale, dove la
+ * lettura ammette anche `inventory.view_all_locations` e la scrittura no.
+ * Chi ha bisogno di un insieme diverso da questi due sta introducendo una
+ * policy nuova, e va discussa prima di scriverla.
+ */
+export async function listLocationsInScope(
+  db: LocationReader,
+  tenantId: string,
+  user: UserProfileDto | undefined,
+  mode: LocationScopeMode,
+): Promise<ScopedLocationDto[]> {
+  const scope = await resolveOperationalLocationScope(db, tenantId, user, undefined, mode);
+  if (!scope || scope.length === 0) {
+    return [];
+  }
+  return db.location.findMany({
+    where: { tenantId, id: { in: [...scope] } },
+    select: { id: true, name: true },
+    orderBy: { name: 'asc' },
+  });
+}
+
 /**
  * Scope location per le LISTE di risorse legate a una sede (documenti, ordini
  * fornitore): 'unrestricted' = nessun filtro da applicare (nessun utente,

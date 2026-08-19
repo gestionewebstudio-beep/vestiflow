@@ -114,14 +114,47 @@ for (const family of apiFamilies) {
 }
 
 // 4. Ogni DocumentType dello schema ha una famiglia: un tipo orfano fa 500.
+//
+// ⚠️ Tranne le CHIAVI DI SOLO NUMERATORE. `DocumentType` non è «l'elenco dei
+// documenti»: è anche «le chiavi dei numeratori», perché il motore comune di
+// numerazione è tipizzato su questo enum a ogni livello. Un'entità che ha un
+// progressivo ma NON è un documento deve comparire nell'enum per poterlo
+// chiedere, e non ha — né deve avere — una famiglia di permessi documentali.
+//
+// Dare loro una famiglia sarebbe peggio del vuoto: legherebbe una registrazione
+// che documento non è al permesso di un documento con cui non c'entra, e
+// nessuno se ne accorgerebbe finché qualcuno non vede ciò che non deve.
+//
+// `documentFamilyOf` continua giustamente a TIRARE su questi valori: se una di
+// queste chiavi arrivasse ai permessi documentali, sarebbe un difetto — e va
+// scoperto rumorosamente, non assorbito da una mappatura di comodo.
+const CHIAVI_SOLO_NUMERATORE = new Set([
+  // Corrispettivo manuale (specifica 10 §12): registrazione ECONOMICA del
+  // Registro Corrispettivi, vive in `manual_receipts` e non avrà mai una riga
+  // in `documents`. Il suo permesso è `reports.fiscal_register`, che è del
+  // Registro e non della matrice documenti.
+  'manual_receipt',
+]);
+
 const schemaTypes = [
   ...(read(join(ROOT, 'api/prisma/schema.prisma')).match(/enum DocumentType \{([\s\S]*?)\n\}/)?.[1] ?? '')
     .matchAll(/^\s{2}(\w+)/gm),
 ].map((m) => m[1]);
 const mapped = new Set(Object.values(apiTypeMap).flat().map((t) => apiDocTypes[t] ?? t));
-const orphans = schemaTypes.filter((t) => !mapped.has(t));
+const orphans = schemaTypes.filter((t) => !mapped.has(t) && !CHIAVI_SOLO_NUMERATORE.has(t));
 if (orphans.length) {
   errors.push(`DocumentType senza famiglia permessi (errore a runtime): ${orphans.join(', ')}`);
+}
+
+// La deroga non deve diventare una scorciatoia: una chiave esentata che POI
+// riceve una famiglia è un ripensamento, e va tolta da qui invece di restare a
+// coprire due verità insieme.
+const esentiMappati = [...CHIAVI_SOLO_NUMERATORE].filter((t) => mapped.has(t));
+if (esentiMappati.length) {
+  errors.push(
+    `chiavi di solo numeratore che ora HANNO una famiglia: ${esentiMappati.join(', ')}. ` +
+      'Se sono diventate documenti veri, toglile da CHIAVI_SOLO_NUMERATORE in questo file.',
+  );
 }
 
 // 5. I preset di ruolo: se divergono, l'editor propone qualcosa di diverso da

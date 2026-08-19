@@ -28,10 +28,16 @@ export const TableViewId = {
   // sono la stessa maschera con le stesse colonne, e l'unica che cambia
   // («Scarica mag.») è già condizionata al tipo nel template.
   SalesDocumentLines: 'sales_document_lines',
+  // Vendita e Reso al banco condividono la vista: sono la stessa maschera, e
+  // le poche colonne essenziali sono le stesse per entrambi.
+  StoreSaleLines: 'store_sale_lines',
   ProductsList: 'products_list',
   CustomersList: 'customers_list',
   SalesOrdersList: 'sales_orders_list',
   ShopifyOrdersList: 'shopify_orders_list',
+  // Registro Corrispettivi: Cliente, Email, Pagamento e Nota vivono qui, spente
+  // di serie. Non sono state rimosse — si riaccendono dal selettore Colonne.
+  CorrispettiviRegister: 'corrispettivi_register',
 } as const;
 export type TableViewId = (typeof TableViewId)[keyof typeof TableViewId];
 

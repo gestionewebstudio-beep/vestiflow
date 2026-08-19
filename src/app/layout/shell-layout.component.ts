@@ -372,10 +372,13 @@ export class ShellLayoutComponent {
 
     if (canOpenRetailRegister(user)) {
       salesItems.push({
-        label: 'Vendita al banco',
+        // Il MODULO e' plurale, la singola operazione singolare (`11`).
+        label: 'Vendite al banco',
         icon: 'pi-shopping-bag',
-        route: '/app/sales/register',
-        activeRoutePrefix: '/app/sales/register',
+        route: '/app/vendita-al-banco',
+        // ⚠️ E' un CONFRONTO: sbagliandolo la voce smette di illuminarsi
+        // senza nessun errore e senza nessun test rosso.
+        activeRoutePrefix: '/app/vendita-al-banco',
       });
     }
 

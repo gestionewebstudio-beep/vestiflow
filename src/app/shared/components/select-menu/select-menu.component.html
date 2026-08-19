@@ -4,6 +4,7 @@
   [class.select-menu--open]="open()"
   [class.select-menu--invalid]="invalid()"
   [class.select-menu--chip-active]="chipActive()"
+  [class.select-menu--label-only]="labelOnly()"
 >
   <button
     type="button"
@@ -27,10 +28,14 @@
       ></span>
     }
     @if (chipLabel(); as chipPrefix) {
-      <span class="select-menu__chip-label">{{ chipPrefix }}:</span>
+      <!-- Senza i due punti quando il valore non segue: sarebbe una frase
+           interrotta, e a schermo si legge come un errore. -->
+      <span class="select-menu__chip-label">{{ labelOnly() ? chipPrefix : chipPrefix + ':' }}</span>
     }
     <span class="select-menu__trigger-label">
-      {{ selectedLabel() }}
+      @if (!labelOnly()) {
+        {{ selectedLabel() }}
+      }
       @if (fitContent()) {
         <span class="select-menu__sizer" aria-hidden="true">
           @for (sizerLabel of sizerLabels(); track $index) {
@@ -39,12 +44,15 @@
         </span>
       }
     </span>
-    @if (!chipActive()) {
+    <!-- ⚠️ La chevron resta anche a filtro attivo quando il trigger dice solo
+         il nome: sostituirla con la × sposterebbe il padding, e il punto dello
+         stato premuto è che NIENTE si muova. -->
+    @if (!chipActive() || labelOnly()) {
       <i class="select-menu__chevron pi pi-chevron-down" aria-hidden="true"></i>
     }
   </button>
 
-  @if (chipActive()) {
+  @if (chipActive() && !labelOnly()) {
     <button
       type="button"
       class="select-menu__clear"
@@ -62,6 +70,20 @@
       [attr.aria-label]="ariaLabel()"
       [attr.aria-multiselectable]="multiple() ? true : null"
     >
+      <!--
+        ⚠️ **Testa del pannello**: ci si proietta un controllo che agisce sulle
+        stesse opzioni — nei Corrispettivi le scorciatoie sulle Origini.
+
+        Sta QUI e non nella barra perché non è un filtro in più: compone la
+        selezione di questo menu, e messo fuori tornerebbe a sembrare una
+        seconda dimensione — che è il difetto per cui «Ambito» è stato ritirato.
+
+        `role="presentation"` perché non è un'opzione della listbox: è un
+        comando che ne spunta diverse.
+      -->
+      <li class="select-menu__lead" role="presentation">
+        <ng-content select="[panelLead]" />
+      </li>
       @if (searchable()) {
         <li class="select-menu__search-item" role="presentation">
           <label class="sr-only" [attr.for]="searchInputId">{{ searchAriaLabel() }}</label>

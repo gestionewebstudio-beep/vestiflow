@@ -601,10 +601,14 @@ export interface SaveGoodsReceiptBody {
   readonly purchaseCostEntryMode?: PurchaseCostEntryMode;
   readonly lines?: readonly SaveGoodsReceiptLineBody[];
   /**
-   * Spunta per-documento: propaga il costo pagato anche al costo di riferimento
-   * dell'articolo. Il costo effettivo della variante è aggiornato comunque.
+   * Spunta per-documento: il costo digitato sulla riga diventa il costo
+   * dell'articolo in anagrafica, **riga per riga**.
+   *
+   * ⛔ Spenta, in anagrafica non va nulla: il costo resta un dato del DOCUMENTO,
+   * per report e contabilità. L'ultimo prezzo pagato al fornitore si aggiorna
+   * comunque — non è anagrafica, è il rapporto col fornitore (03b).
    */
-  readonly updateArticleReferenceCost?: boolean;
+  readonly updateArticleCost?: boolean;
 }
 
 /**

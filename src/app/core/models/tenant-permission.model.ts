@@ -242,8 +242,17 @@ export const TENANT_PERMISSION_DEFINITIONS: readonly TenantPermissionDefinition[
   },
   {
     key: TenantPermission.ReportsFiscalRegister,
-    label: 'Gestire il registro fiscale',
-    hint: 'Marca le consegne al commercialista, cambia lo stato fiscale di un ordine e corregge le righe del registro corrispettivi.',
+    label: 'Registrare corrispettivi manuali',
+    // Riscritta il 17/08/2026 con la prima applicazione vera del permesso. Qui
+    // c'era «Marca le consegne al commercialista, cambia lo stato fiscale di un
+    // ordine e corregge le righe del registro corrispettivi»: tre cose che non
+    // esistono più — il flusso commercialista è ritirato (10 §5), lo stato
+    // fiscale della vendita è stato eliminato (10 §6), e il Registro non si
+    // corregge riga per riga (10 §1).
+    hint:
+      'Aggiunge al Registro Corrispettivi le registrazioni economiche che nessuna vendita ' +
+      'produce (cassa esterna, chiusure da recuperare), e le corregge o elimina. Solo importi ' +
+      'e IVA: non tocca il magazzino.',
     group: 'reports',
   },
   {

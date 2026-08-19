@@ -17,8 +17,20 @@ import { formatDocumentReference } from './document-totals.util';
  * Le tre fonti hanno tracciati diversi: i documenti di registro hanno una
  * colonna numerica, ordini fornitore e ordini cliente conservano solo il
  * riferimento testuale (es. «OF-2026-0042»), da cui il numero va estratto.
+ *
+ * ⚠️ **La quarta non è un documento, ed è il motivo per cui sta qui.** Il
+ * Corrispettivo manuale (`10` §12) vive in `manual_receipts` e non avrà mai una
+ * riga in `documents`: `DocumentType.manual_receipt` è una **chiave di
+ * numeratore**, non un tipo documento. Senza questa voce ricadrebbe nel ramo
+ * predefinito `'document'`, che interroga una tabella dove quel tipo non
+ * compare — il massimo sarebbe **sempre 0**, ogni registrazione nascerebbe col
+ * numero 1, e a fermarle sarebbe il vincolo unico, dopo il lavoro.
  */
-export type DocumentNumberSource = 'document' | 'supplier_order' | 'sales_order';
+export type DocumentNumberSource =
+  | 'document'
+  | 'supplier_order'
+  | 'sales_order'
+  | 'manual_receipt';
 
 /** Tabella che possiede il numero del tipo: ordini a parte, il resto documenti. */
 export function numberSourceForType(type: DocumentType): DocumentNumberSource {
@@ -27,6 +39,9 @@ export function numberSourceForType(type: DocumentType): DocumentNumberSource {
   }
   if (type === DocumentType.supplier_order) {
     return 'supplier_order';
+  }
+  if (type === DocumentType.manual_receipt) {
+    return 'manual_receipt';
   }
   return 'document';
 }
@@ -116,6 +131,17 @@ export async function lastAssignedNumber(input: NextNumberInput): Promise<number
     return result._max?.number ?? 0;
   }
 
+  if (source === 'manual_receipt') {
+    // Nessun filtro per tipo: la tabella ospita un solo tipo di registrazione,
+    // e la partizione è (tenant, serie) — la serie qui è sempre `null`, ma il
+    // filtro resta perché la partizione del motore è quella per tutti.
+    const result = await tx.manualReceipt.aggregate({
+      _max: { number: true },
+      where: { tenantId, series, documentDate: { lt: primaDi } },
+    });
+    return result._max?.number ?? 0;
+  }
+
   const result = await tx.document.aggregate({
     _max: { number: true },
     // `in` e non uguaglianza: la colonna porta il tipo GREZZO, e i tipi che
@@ -168,7 +194,9 @@ async function primoNumeroLibero(input: NextNumberInput, m: number): Promise<num
       ? Prisma.raw(`sales_orders ${alias}`)
       : source === 'supplier_order'
         ? Prisma.raw(`supplier_orders ${alias}`)
-        : Prisma.raw(`documents ${alias}`);
+        : source === 'manual_receipt'
+          ? Prisma.raw(`manual_receipts ${alias}`)
+          : Prisma.raw(`documents ${alias}`);
 
   /**
    * La partizione del contatore. `series` null è un VALORE — la serie vuota, che
@@ -435,7 +463,7 @@ export async function buildDocumentNumberConflict(
  * I modelli che portano un numero documento, e le cui violazioni di unicità
  * sono quindi conflitti di numerazione. Sono i nomi Prisma, non quelli SQL.
  */
-const MODELLI_NUMERATI = ['Document', 'SalesOrder', 'SupplierOrder'] as const;
+const MODELLI_NUMERATI = ['Document', 'SalesOrder', 'SupplierOrder', 'ManualReceipt'] as const;
 
 export function isDocumentNumberConflict(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) {
@@ -478,6 +506,10 @@ export function isDocumentNumberConflict(error: unknown): boolean {
   //                      conflitto di numero visto da un'altra angolazione: il
   //                      riferimento si compone da prefisso, serie e numero,
   //                      quindi collide esattamente quando collide il numero.
+  //   manual_receipts  → SOLO `manual_receipts_number_unique` (tenant, serie,
+  //                      numero, NULLS NOT DISTINCT). Nessun altro candidato:
+  //                      la tabella non ha riferimenti testuali né chiavi di
+  //                      canale (migration `20260817160100_manual_receipts`).
   //
   // Il filtro sul modello serve proprio a tenere fuori il resto: il salvataggio
   // di un Arrivo merce può creare articoli nella stessa transazione, e uno SKU

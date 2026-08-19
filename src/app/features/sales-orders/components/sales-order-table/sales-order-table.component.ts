@@ -15,7 +15,6 @@ import type { BadgeTone } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
 import {
-  corrispettivoStatusTone,
   financialStatusLabel,
   financialStatusTone,
   fulfillmentStatusLabel,
@@ -43,7 +42,7 @@ export interface SalesOrderTableSelectionEvent {
 /**
  * Tabella ordini cliente (dumb puro). Row click verso il dettaglio; importi a
  * destra in tabular-nums; mobile come card impilate. Il profilo «shopify-orders»
- * aggiunge Corrispettivo, DDT, ultimo aggiornamento e stato sync.
+ * aggiunge DDT, ultimo aggiornamento e stato sync.
  */
 @Component({
   selector: 'app-sales-order-table',
@@ -86,7 +85,6 @@ export class SalesOrderTableComponent {
   protected readonly fulfillmentLabel = fulfillmentStatusLabel;
   protected readonly fulfillmentTone = fulfillmentStatusTone;
   protected readonly sourceLabel = sourceLabel;
-  protected readonly corrispettivoTone = corrispettivoStatusTone;
   protected readonly formatDate = formatDate;
   protected readonly formatMoney = formatMoney;
 

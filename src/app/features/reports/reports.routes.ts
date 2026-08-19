@@ -1,8 +1,10 @@
 import { Routes } from '@angular/router';
 
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
+import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
 import { TenantPermission } from '@core/models/tenant-permission.model';
 import {
+  MANUAL_RECEIPT_WRITE_GROUPS,
   ONLINE_SALES_VIEW_GROUPS,
   REQUIRED_TENANT_PERMISSION_GROUPS_KEY,
   REQUIRED_TENANT_PERMISSIONS_KEY,
@@ -40,6 +42,37 @@ export const corrispettiviRegisterRoutes: Routes = [
       ),
     canActivate: [tenantPermissionGuard],
     data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: ONLINE_SALES_VIEW_GROUPS },
+  },
+  // ── Il Corrispettivo manuale (`docs/10` §12) ──────────────────────────────
+  //
+  // Sta SOTTO il Registro e non in una sezione sua: la schermata Corrispettivi
+  // resta unica, e dentro convivono le sorgenti derivate e le registrazioni
+  // manuali. Non ha un elenco proprio — si arriva qui dalla CTA della pagina o
+  // dal numero di una riga.
+  //
+  // I permessi sono quelli della SCRITTURA sul Registro: la vista non basta,
+  // perché questa maschera crea e corregge righe che entrano nei totali.
+  {
+    path: 'nuovo',
+    title: 'Nuovo corrispettivo manuale',
+    loadComponent: () =>
+      import('./pages/manual-receipt-form/manual-receipt-form.component').then(
+        (m) => m.ManualReceiptFormComponent,
+      ),
+    canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: MANUAL_RECEIPT_WRITE_GROUPS },
+  },
+  {
+    path: ':id/modifica',
+    title: 'Modifica corrispettivo manuale',
+    loadComponent: () =>
+      import('./pages/manual-receipt-form/manual-receipt-form.component').then(
+        (m) => m.ManualReceiptFormComponent,
+      ),
+    canActivate: [tenantPermissionGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: MANUAL_RECEIPT_WRITE_GROUPS },
   },
 ];
 

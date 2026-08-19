@@ -47,8 +47,42 @@ const SEGNALI = [
   /field-error/, // il nome BEM usato in tutto il progetto
   /--invalid/, // modificatore di classe (es. doc-form__input--invalid)
   /\[invalid\]/, // input di un componente di campo condiviso
-  /__error/, // banner d'errore di blocco
+  // Un messaggio legato allo stato di un CONTROLLO (`@if (form.controls.x.invalid …)`):
+  // è la forma classica del messaggio sotto il campo.
+  /\.invalid\b/,
+  // Oppure uno stato d'errore del SALVATAGGIO, letto dal template.
+  /\b(submitError|saveError|submitState|saveState)\b/,
 ];
+
+/**
+ * ⚠️ **Perché `__error` non è più un segnale valido** (17/08/2026).
+ *
+ * C'era, e questa guardia ci è passata attraverso: la maschera del Corrispettivo
+ * manuale calcolava correttamente i suoi messaggi di rifiuto — «Aggiungi almeno
+ * una riga», «Riga N: scegli il Codice IVA» — li scriveva in un signal
+ * **privato**, e nessuno li leggeva. L'unico banner del template era agganciato
+ * agli errori di CARICAMENTO, e la sua classe conteneva `__error`.
+ *
+ * La guardia ha visto «c'è un segnale d'errore da qualche parte nel markup» e
+ * ha concluso che il form parla. Il difetto che deve fermare — il pulsante che
+ * sembra rotto — era esattamente lì sotto.
+ *
+ * La correzione non è aggiungere un nome all'elenco delle eccezioni: è che un
+ * banner generico **non prova niente sul percorso del rifiuto**. Un errore di
+ * fetch e un rifiuto di salvataggio sono due cose diverse, e la seconda deve
+ * essere nominata — o da un segnale legato al CAMPO, o da uno stato di
+ * salvataggio che il template legge davvero.
+ *
+ * ⚠️ **E il discrimine non è il nome della classe.** Tolto `__error`, la
+ * guardia ha subito accusato `vat-codes-page`, che invece parla benissimo: ha
+ * un messaggio sotto ogni campo, in `<span class="vat-form__error">`, dentro un
+ * `@if (form.controls.x.invalid && …)`. Era un falso allarme, ed è il tipo di
+ * rumore che insegna a ignorare una guardia.
+ *
+ * Quel che distingue i due casi non è come si chiama la classe: è **se
+ * l'errore è agganciato a qualcosa**. `vat-codes` lega i suoi allo stato dei
+ * controlli; il Corrispettivo manuale aveva un banner che parlava d'altro.
+ */
 
 /**
  * Il componente delega i campi a un componente condiviso, che i messaggi li

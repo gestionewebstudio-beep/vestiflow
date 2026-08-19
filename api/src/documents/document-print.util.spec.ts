@@ -19,7 +19,6 @@ const NON_PRINTABLE: ReadonlyArray<readonly [DocumentType, string]> = [
   [DocumentType.supplier_order, 'vive in supplier_orders, con PDF proprio'],
   [DocumentType.customer_order, 'vive in sales_orders, con PDF proprio'],
   [DocumentType.online_sale, 'registro interno: nessuna riga in documents'],
-  [DocumentType.corrispettivo, 'registro interno: nessuna riga in documents'],
 ];
 
 describe('document-print.util', () => {

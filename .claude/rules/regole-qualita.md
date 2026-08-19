@@ -430,39 +430,57 @@ eseguite dicono poco. Misurarli qui rimetterebbe il gate a 14%.
 
 # LIGHTHOUSE CI
 
-- `@lhci/cli` come devDependency. Script in `package.json`:
+## ⚠️ Qui c'era una configurazione che il progetto aveva già smentito _(corretto 19/08/2026)_
+
+Questa sezione prescriveva soglie e un `.lighthouserc.json` che **non sono quelli reali**.
+È lo scarto più insidioso fra tutti: la regola sembra autorevole, il file la contraddice,
+e nessun controllo automatico se ne accorge.
+
+|                | la regola diceva | `.lighthouserc.json` reale |
+| -------------- | ---------------- | -------------------------- |
+| performance    | **error** 0.85   | **warn** 0.75              |
+| accessibility  | error 0.95       | error **0.9**              |
+| best-practices | error 0.95       | **warn** 0.9               |
+| seo            | «non si misura»  | `"off"` ✅ concordava      |
+
+⛔ **Le soglie qui sotto sono ora quelle vere.** Non sono state abbassate: sono state
+_lette_. Alzarle è lavoro dichiarato, come per la copertura — non un ritocco al numero.
+
+## ⭐ Il pezzo che la regola non nominava, e che è ciò che lo fa funzionare
+
+L'app è **interamente dietro login**: Lighthouse puntato su `/app/dashboard` misurerebbe
+la pagina di redirect al login. Il file reale lo risolve così, e chi tocca questa
+configurazione deve saperlo:
 
 ```json
-"audit:lhci": "lhci autorun"
+"startServerCommand": "npm run build -- --configuration=e2e && npx http-server dist/vestiflow/browser -p 4210 -c-1",
+"puppeteerScript": "./scripts/lhci-mock-auth.cjs",
+"url": ["…/login", "…/app/dashboard", "…/app/products"],
+"numberOfRuns": 1
 ```
 
-- File `.lighthouserc.json` in root:
+Il `puppeteerScript` autentica con l'auth mock prima della misura; la build `e2e` è
+quella che quell'auth mock la contiene. **Senza uno dei due, i numeri sono di un'altra
+pagina** — e sarebbero pure buoni, il che è il difetto peggiore.
+
+## Le soglie
 
 ```json
-{
-  "ci": {
-    "collect": {
-      "url": ["http://localhost:4200/app/dashboard", "http://localhost:4200/app/products"],
-      "numberOfRuns": 3,
-      "settings": { "preset": "desktop" }
-    },
-    "assert": {
-      "assertions": {
-        "categories:performance": ["error", { "minScore": 0.85 }],
-        "categories:accessibility": ["error", { "minScore": 0.95 }],
-        "categories:best-practices": ["error", { "minScore": 0.95 }]
-      }
-    },
-    "upload": { "target": "filesystem", "outputDir": "./lighthouse-reports" }
-  }
-}
+"categories:performance":    ["warn",  { "minScore": 0.75 }],
+"categories:accessibility":  ["error", { "minScore": 0.9  }],
+"categories:best-practices": ["warn",  { "minScore": 0.9  }],
+"categories:seo": "off"
 ```
 
-- Aggiungi `lighthouse-reports/` a `.gitignore`.
-- Esegui in CI su PR (con build di staging) e blocca merge se sotto soglia.
-- La categoria **SEO non si misura**: l'app è dietro login, non è indicizzabile e non ha traffico organico. Contano performance, accessibility e best-practices.
+- **Accessibility è l'unica `error`**, ed è la scelta giusta per un gestionale usato tutto
+  il giorno da chi ci lavora: le altre due avvisano, questa ferma.
+- **SEO è `off`**: l'app è dietro login, non è indicizzabile, non ha traffico organico.
+- `@lhci/cli` è devDependency, lo script è `npm run audit:lhci`, e `lighthouse-reports/`
+  sta in `.gitignore`.
 
----
+⚠️ **Se cambi le soglie, cambiale nel FILE**: questa sezione le rispecchia, non le
+comanda. Una regola che diverge dalla configurazione insegna a non fidarsi di nessuna
+delle due.
 
 # PERFORMANCE BUDGETS — Build Time
 

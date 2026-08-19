@@ -404,17 +404,26 @@ export class SupplierOrderFormComponent implements CanComponentDeactivate {
     this.vatCodes().filter((vatCode) => vatCode.isActive && isPurchaseVatCode(vatCode)),
   );
   /**
-   * Le voci della cella IVA, composte come nelle altre due maschere: **il codice
+   * Le voci della cella IVA, composte come nelle altre tre maschere: **il codice
    * è l'etichetta**, aliquota e descrizione stanno nel dettaglio.
    *
    * Qui l'etichetta era la riga intera («22 · 22% · Imponibile 22%»), che sulla
    * cella a ricerca-e-selezione toglie senso al filtro: la precedenza è sul
    * codice, e un codice che comincia con «22 · 22%…» non comincia con niente.
+   *
+   * ⚠️ **Niente voce vuota in testa**, e non è una svista. C'era — un `—` in
+   * cima all'elenco — da quando la colonna era un `select-menu`, dove una
+   * tendina senza scelta è normale. Sulla cella a ricerca-e-selezione quella
+   * voce è la **prima evidenziata**: aprire e battere Invio senza guardare
+   * azzerava il Codice IVA della riga, e il salvataggio poi la rifiutava. È il
+   * vicolo cieco che `document-line-select-cell` descrive su
+   * `includeEmptyOption`: nelle righe documento il vuoto non è una scelta,
+   * perché una riga senza Codice IVA non si salva. Ordine cliente, Arrivo merce
+   * e Corrispettivo manuale non l'hanno mai avuta: questa maschera era l'unica.
    */
-  private readonly vatCodeOptionsBase = computed<readonly SelectMenuOption[]>(() => [
-    { value: '', label: '—' },
-    ...this.purchaseVatCodes().map(vatCodeSelectOption),
-  ]);
+  private readonly vatCodeOptionsBase = computed<readonly SelectMenuOption[]>(() =>
+    this.purchaseVatCodes().map(vatCodeSelectOption),
+  );
   private readonly vatCodesById = computed(
     () => new Map(this.vatCodes().map((vatCode) => [vatCode.id, vatCode])),
   );

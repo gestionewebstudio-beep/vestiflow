@@ -13,6 +13,9 @@ import {
 } from '../sales-orders/sales-order-query.util';
 import { prismaFinancialFilter, toPrismaSource } from '../sales-orders/sales-order.enum-mapper';
 import {
+  effectiveOrigins,
+  MANUAL_RECEIPT_ORIGIN,
+  salesOrderSourcesOf,
   sourcesFor,
   type CorrispettiviAmbito,
   type CorrispettiviCanale,
@@ -26,9 +29,117 @@ export interface CorrispettiviListFilters extends SalesOrderListFilters {
    */
   readonly ambito?: CorrispettiviAmbito;
   readonly canale?: CorrispettiviCanale;
+  /**
+   * **Origine**: da cosa nasce la riga. La terza dimensione, e non un sinonimo
+   * delle prime due — senza, il Corrispettivo manuale non è isolabile, perché
+   * condivide con la Vendita al banco la coppia Fisico/POS · VestiFlow.
+   */
+  readonly origine?: string;
   readonly refundsOnly?: boolean;
   /** `all` · `sales` · `returns` · `refunds` — filtra l'elenco, non il riepilogo. */
   readonly rowType?: string;
+  /**
+   * Sede. Le righe che una sede non ce l'hanno **escono**, perché a quella sede
+   * non sono attribuibili — ma il riepilogo dice quante sono (`10` §12).
+   */
+  readonly locationId?: string;
+  /**
+   * Il verso opposto: le sole righe **senza sede**.
+   *
+   * Serve a contare ciò che il filtro Sede lascia fuori, ed esiste come flag
+   * invece che come «`locationId: null`» perché il conteggio deve passare dagli
+   * **stessi** builder dell'elenco: una seconda catena di filtri, scritta a
+   * mano accanto a questa, conterebbe righe diverse da quelle che spariscono —
+   * ed è esattamente il difetto che il numero dichiarato deve smentire.
+   */
+  readonly undeterminedLocationOnly?: boolean;
+
+  // ── I filtri a INSIEME (`docs/10` §16) ────────────────────────────────
+  /** Origini selezionate. **Vuoto o assente = tutte.** */
+  readonly origini?: readonly string[];
+  /** Tipi di evento selezionati. **Vuoto o assente = tutti.** */
+  readonly tipi?: readonly string[];
+  /** Sedi selezionate. **Vuoto o assente = tutte.** */
+  readonly sedi?: readonly string[];
+  /**
+   * ⚠️ **«Nessun risultato», che NON è «nessuna restrizione».** Un vecchio
+   * indirizzo poteva contraddirsi e rendere zero righe: deve continuare a
+   * renderne zero. Ha un campo suo perché l'insieme vuoto significa già
+   * «tutti», e caricarlo del significato opposto lo renderebbe illeggibile.
+   */
+  readonly nessunRisultato?: boolean;
+}
+
+/**
+ * Il filtro sede, nelle sue tre forme: nessuna, una sede, «senza sede».
+ *
+ * `locationId: null` in Prisma è un valore, non «qualunque»: è ciò che aggancia
+ * le righe che una sede non ce l'hanno.
+ */
+function locationFilter(query: CorrispettiviListFilters): {
+  locationId?: string | null | { in: string[] };
+} {
+  if (query.undeterminedLocationOnly) {
+    return { locationId: null };
+  }
+  // ⚠️ Insieme vuoto = nessuna restrizione: il filtro si OMETTE, non si passa
+  // vuoto. `{ in: [] }` in Prisma non è «tutte le sedi», è nessuna riga.
+  if (query.sedi && query.sedi.length > 0) {
+    return { locationId: { in: [...query.sedi] } };
+  }
+  return query.locationId ? { locationId: query.locationId } : {};
+}
+
+/**
+ * I tipi di evento chiesti (`docs/10` §16). **Vuoto o assente = tutti.**
+ *
+ * Il singolare `rowType` resta per gli indirizzi salvati, e `refundsOnly` era
+ * già una congiunzione travestita da booleano — «resi **e** rimborsi» — che qui
+ * torna a essere ciò che è sempre stata.
+ */
+export function tipiRichiesti(query: CorrispettiviListFilters): readonly string[] {
+  if (query.tipi && query.tipi.length > 0) {
+    return query.tipi.filter((t) => t !== 'all');
+  }
+  if (query.rowType && query.rowType !== 'all') {
+    return [query.rowType];
+  }
+  if (query.refundsOnly) {
+    return ['returns', 'refunds'];
+  }
+  return [];
+}
+
+/** Vuole le vendite? Insieme vuoto = tutti, quindi sì. */
+export function wantsSales(query: CorrispettiviListFilters): boolean {
+  const tipi = tipiRichiesti(query);
+  return tipi.length === 0 || tipi.includes('sales');
+}
+
+/** Vuole le rettifiche? Idem. */
+export function wantsRefunds(query: CorrispettiviListFilters): boolean {
+  const tipi = tipiRichiesti(query);
+  return tipi.length === 0 || tipi.includes('returns') || tipi.includes('refunds');
+}
+
+/**
+ * Vuole i **resi** — la merce che torna — e non i rimborsi senza rientro?
+ *
+ * ⚠️ **Non è `wantsRefunds`, e la differenza è quella che l'operatore vede.**
+ * `wantsRefunds` è la disgiunzione «resi O rimborsi», e serve a decidere se
+ * accendere la sorgente delle rettifiche; dentro quella sorgente il genere si
+ * distingue poi per `kind` (vedi `buildCorrispettiviRefundWhere`, che per
+ * `refunds` tiene il solo `refund_only`).
+ *
+ * Il Reso al banco è una sorgente INTERA di un genere solo — porta sempre
+ * `return_with_restock` — quindi la distinzione che là avviene nella clausola
+ * `kind`, qui deve avvenire nell'interruttore. Accenderlo su `wantsRefunds`
+ * farebbe comparire un **Reso** sotto il filtro «Solo rimborsi», dove le
+ * rettifiche Shopify sanno già non farsi vedere.
+ */
+export function wantsReturns(query: CorrispettiviListFilters): boolean {
+  const tipi = tipiRichiesti(query);
+  return tipi.length === 0 || tipi.includes('returns');
 }
 
 /**
@@ -73,7 +184,6 @@ export function buildCorrispettiviWhere(
   query: CorrispettiviListFilters,
 ): Prisma.SalesOrderWhereInput {
   const financialFilter = prismaFinancialFilter(query.financialStatus);
-  const prismaSource = toPrismaSource(query.source);
   const fulfilledAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
 
   // Il filtro per origine c’è SEMPRE, e non è una restrizione dei filtri: è la
@@ -81,12 +191,11 @@ export function buildCorrispettiviWhere(
   // cliente manuale non lo è (impegno commerciale, non vendita), e senza questa
   // riga entrava: misurati due ordini per 229,36 €.
   //
-  // Ambito e canale restringono poi fra le origini ammesse, e la loro
+  // Ambito, canale e ORIGINE restringono poi fra le origini ammesse, e la loro
   // intersezione può essere VUOTA (es. Online + VestiFlow): la lista resta
   // vuota — `{ in: [] }` — invece di mostrare tutto.
-  const classified = sourcesFor(query.ambito, query.canale);
   const sourceFilter: Prisma.EnumSalesOrderSourceFilter = {
-    in: prismaSource ? classified.filter((source) => source === prismaSource) : classified,
+    in: salesOrderSourcesOf(effectiveOrigins(query)),
   };
 
   const where: Prisma.SalesOrderWhereInput = {
@@ -95,6 +204,10 @@ export function buildCorrispettiviWhere(
     fulfilledAt: fulfilledAt ? { ...fulfilledAt, not: null } : { not: null },
     ...(financialFilter ? { financialStatus: { in: financialFilter } } : {}),
     source: sourceFilter,
+    // Sede: uguaglianza secca, quindi gli ordini senza sede escono da sé. È il
+    // comportamento voluto — non si attribuisce a una sede una vendita che non
+    // dice da dove è partita — ed è dichiarato nel riepilogo, non subìto.
+    ...locationFilter(query),
     ...(query.refundsOnly
       ? {
           financialStatus: {
@@ -138,35 +251,51 @@ export function buildCorrispettiviRefundWhere(
   query: CorrispettiviListFilters,
 ): Prisma.SalesOrderRefundWhereInput {
   const occurredAt = buildPlacedAtFilter(query.placedFrom, query.placedTo);
-  const prismaSource = toPrismaSource(query.source);
 
   // Stessa prima domanda delle vendite: una rettifica su un ordine che non è un
   // corrispettivo non è un corrispettivo negativo.
-  const classified = sourcesFor(query.ambito, query.canale);
   const sourceFilter: Prisma.EnumSalesOrderSourceFilter = {
-    in: prismaSource ? classified.filter((source) => source === prismaSource) : classified,
+    in: salesOrderSourcesOf(effectiveOrigins(query)),
   };
 
   // «Resi» e «Rimborsi» sono due voci diverse perché sono due gesti diversi:
   // nel primo la merce è tornata, nel secondo solo il denaro. Gli annullamenti
   // restano fuori in ogni caso — non rettificano niente.
+  /*
+    ⚠️ **Un INSIEME di generi, non una catena di ternari.**
+
+    Era la forma che non sapeva dire «resi + rimborsi» e per la quale il
+    servizio aveva dovuto inventare la stringa `refunds_and_returns` (`docs/10`
+    §16): un enum che contiene una congiunzione sta chiedendo di essere un
+    insieme.
+
+    Insieme vuoto = nessuna restrizione, e quindi `not: cancellation`: gli
+    annullamenti restano fuori in ogni caso, perché non rettificano niente.
+  */
+  const generi: PrismaRefundKind[] = [];
+  for (const tipo of tipiRichiesti(query)) {
+    if (tipo === 'returns') generi.push(PrismaRefundKind.return_with_restock);
+    if (tipo === 'refunds') generi.push(PrismaRefundKind.refund_only);
+  }
+
   const kind =
-    query.rowType === 'returns'
-      ? { equals: PrismaRefundKind.return_with_restock }
-      : query.rowType === 'refunds'
-        ? { equals: PrismaRefundKind.refund_only }
-        : { not: PrismaRefundKind.cancellation };
+    generi.length > 0 ? { in: generi } : { not: PrismaRefundKind.cancellation };
 
   return {
     tenantId,
     kind,
     ...(occurredAt ? { occurredAt } : {}),
-    order: { source: sourceFilter },
+    // La sede di una rettifica è quella dell'ordine che rettifica: non ne ha una
+    // propria, e inventargliela sarebbe dire che la merce è tornata altrove.
+    order: {
+      source: sourceFilter,
+      ...locationFilter(query),
+    },
   };
 }
 
 /**
- * Le **Vendite al banco** del periodo: la terza sorgente del Registro (`11` §5).
+ * Le **Vendite al banco** del periodo: la terza sorgente del Registro (`11` A9).
  *
  * Restituisce `null` quando i filtri escludono già il canale VestiFlow o
  * l'ambito online — così chi chiama non interroga una tabella per scartarne il
@@ -184,13 +313,10 @@ export function buildCorrispettiviStoreSaleWhere(
   tenantId: string,
   query: CorrispettiviListFilters,
 ): Prisma.DocumentWhereInput | null {
-  if (!sourcesFor(query.ambito, query.canale).includes(PrismaSource.store)) {
-    return null;
-  }
-  // Il filtro per origine dell'elenco ordini vale anche qui: chiedere
-  // `source=manual` non deve far comparire le vendite al banco.
-  const prismaSource = toPrismaSource(query.source);
-  if (prismaSource && prismaSource !== PrismaSource.store) {
+  // Ambito, canale e ORIGINE decidono insieme: chiedere «Origine = Corrispettivo
+  // manuale» spegne la Vendita al banco, che fino al 17/08 non si poteva
+  // distinguere da lei — condividono la coppia Fisico/POS · VestiFlow.
+  if (!effectiveOrigins(query).includes(PrismaSource.store)) {
     return null;
   }
   // Uno stato di pagamento descrive un ORDINE: chiederlo esclude una sorgente
@@ -207,11 +333,128 @@ export function buildCorrispettiviStoreSaleWhere(
     type: DocumentType.store_sale,
     status: { not: DocumentStatus.cancelled },
     ...(documentDate ? { documentDate } : {}),
+    ...locationFilter(query),
     ...(query.search
       ? {
           OR: [
             { reference: { contains: query.search, mode: 'insensitive' } },
             { customerName: { contains: query.search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+}
+
+/**
+ * I **Resi al banco** del periodo: la QUINTA sorgente del Registro (`11` C8b).
+ *
+ * ⛔ **Non è l'allargamento del filtro qui sopra, ed è la decisione centrale.**
+ * Scrivere `type: { in: [store_sale, store_return] }` in
+ * `buildCorrispettiviStoreSaleWhere` sembra la modifica giusta e produce un
+ * errore di **segno**: il Reso entrerebbe dal ramo che mappa `kind: 'sale'` con
+ * importi positivi e lo conta in `orderCount`. Un reso da 100 € **alzerebbe**
+ * il registro di 100 invece di abbassarlo — 200 € di scarto — e comparirebbe
+ * filtrando «Solo vendite».
+ *
+ * È la stessa regola che l'enum `DocumentType` dichiara per la Nota di credito:
+ * _«quantità e importi restano POSITIVI: il verso economico negativo lo dà il
+ * TIPO, mai il segno nella quantità»_. Qui il tipo lo dichiara una sorgente
+ * separata, agganciata a `wantsRefunds` invece che a `wantsSales`.
+ *
+ * ⚠️ **`refundsOnly` NON spegne questa sorgente**, al contrario delle altre due
+ * documentali. Là il ritorno anticipato è giusto — una Vendita al banco non è
+ * una rettifica — ma qui lo stesso `return null` farebbe sparire il Reso
+ * proprio sotto il filtro che deve mostrarlo. `financialStatus` invece resta:
+ * descrive il ciclo di pagamento di un ORDINE, che un documento non ha.
+ *
+ * ⚠️ **L'origine resta quella della Vendita al banco** (`store` → Fisico/POS ·
+ * VestiFlow): è la stessa cassa. Dargliene una propria farebbe sì che chi
+ * filtra «Vendita al banco» veda le vendite al LORDO, senza le rettifiche che
+ * le abbattono — su un registro fiscale.
+ *
+ * La data è `documentDate`, gli annullati restano fuori, le bozze non esistono:
+ * tutto come la gemella sopra.
+ */
+export function buildCorrispettiviStoreReturnWhere(
+  tenantId: string,
+  query: CorrispettiviListFilters,
+): Prisma.DocumentWhereInput | null {
+  if (!effectiveOrigins(query).includes(PrismaSource.store)) {
+    return null;
+  }
+  if (query.financialStatus) {
+    return null;
+  }
+
+  const documentDate = buildPlacedAtFilter(query.placedFrom, query.placedTo);
+
+  return {
+    tenantId,
+    type: DocumentType.store_return,
+    status: { not: DocumentStatus.cancelled },
+    ...(documentDate ? { documentDate } : {}),
+    ...locationFilter(query),
+    // ⚠️ Solo il riferimento, a differenza della gemella che cerca anche nel
+    // cliente: su un Reso al banco `customerName` è NULL **per costruzione** —
+    // `CreateStoreReturnDto` non ha il campo e `createReturn` non lo scrive.
+    // Una clausola che non può mai combaciare non allarga la ricerca: fa
+    // credere a chi legge il codice che ci sia un cliente da cercare.
+    ...(query.search
+      ? { reference: { contains: query.search, mode: 'insensitive' as const } }
+      : {}),
+  };
+}
+
+/**
+ * I **Corrispettivi manuali** del periodo: la quarta sorgente del Registro
+ * (`10` §12). Gemella di quella della Vendita al banco, e con lo stesso
+ * `return null`.
+ *
+ * `null` significa «questa sorgente non c'entra con la domanda», non «non ci
+ * sono righe» — ed è il meccanismo con cui una domanda che riguarda **solo gli
+ * ordini** spegne una sorgente che ordine non è:
+ *
+ * - **stato di pagamento** e **«solo resi»** descrivono un ordine: una
+ *   registrazione economica non ha un ciclo di pagamento da interrogare, e
+ *   mostrarla senza risponderebbe a una domanda diversa da quella posta;
+ * - il filtro **origine** dell'elenco ordini (`source=online|pos`) nomina
+ *   origini di `sales_orders`: nessuna di quelle è questa;
+ * - **ambito e canale** la spengono per la via normale, `includesManualReceipts`.
+ *
+ * ⚠️ **La data del Registro è `documentDate`**, che qui è l'unica che esiste: è
+ * la data economica che l'operatore ha digitato, non quella in cui ha salvato.
+ * Una chiusura di cassa recuperata il giorno dopo resta del giorno prima.
+ *
+ * Non c'è nessuno stato da filtrare, e non è una svista: la registrazione non
+ * ne ha uno — esiste o è stata eliminata (`10` §12).
+ */
+export function buildCorrispettiviManualWhere(
+  tenantId: string,
+  query: CorrispettiviListFilters,
+): Prisma.ManualReceiptWhereInput | null {
+  if (!effectiveOrigins(query).includes(MANUAL_RECEIPT_ORIGIN)) {
+    return null;
+  }
+  if (query.financialStatus || query.refundsOnly) {
+    return null;
+  }
+  // La sede è obbligatoria per costruzione: nessuna registrazione manuale può
+  // essere «senza sede», quindi la domanda non la riguarda affatto.
+  if (query.undeterminedLocationOnly) {
+    return null;
+  }
+
+  const documentDate = buildPlacedAtFilter(query.placedFrom, query.placedTo);
+
+  return {
+    tenantId,
+    ...(documentDate ? { documentDate } : {}),
+    ...(query.locationId ? { locationId: query.locationId } : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { notes: { contains: query.search, mode: 'insensitive' } },
+            { lines: { some: { description: { contains: query.search, mode: 'insensitive' } } } },
           ],
         }
       : {}),

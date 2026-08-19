@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 
 import { applyInventoryDelta } from '../inventory/inventory-level-delta.util';
+import { frozenTotalCostMinor } from '../inventory/movement-cost.util';
 import type { StockMovementActor } from '../inventory/inventory-movement.util';
 
 /**
@@ -55,6 +56,24 @@ interface SyncParams {
    * oggi li sposterebbe in cima al registro, e quell'uscita è di allora.
    */
   readonly movementDate?: Date | null;
+  /**
+   * Origine dei movimenti CREATI. Assente = `manual`, che e' il comportamento
+   * storico dello scarico documentale. La Vendita al banco passa
+   * `vestiflow_pos`: l'origine e' un fatto della transazione, e i report la
+   * usano per la ripartizione per canale.
+   */
+  readonly origin?: MovementOrigin;
+  /**
+   * Costo unitario da congelare su un movimento NUOVO. Assente = nessun costo,
+   * che e' il comportamento storico dello scarico documentale.
+   *
+   * ⚠️ Vale SOLO per le righe nuove. Una riga gia' presente **mantiene il costo
+   * gia' congelato sul proprio movimento** (`11` A2): rivalutarlo al costo di
+   * oggi cambierebbe il margine di una vendita vecchia senza che nessuno abbia
+   * venduto niente di diverso. Il TOTALE si ricalcola, perche' la quantita' e'
+   * cambiata.
+   */
+  readonly unitCostForNewLine?: (line: DocumentLine & { variantId: string }) => number | null;
   /** Righe documento SALVATE (id definitivi). Vuoto = rimuovi tutti i movimenti. */
   readonly lines: readonly DocumentLine[];
   readonly actor: StockMovementActor;
@@ -173,13 +192,14 @@ export async function syncUnloadLineMovements(
     const movement = byLineId.get(line.id);
 
     if (!movement) {
-      // Riga nuova → un movimento nuovo collegato alla riga.
+      // Riga nuova → un movimento nuovo collegato alla riga, col costo di ORA.
+      const newLineUnitCost = params.unitCostForNewLine?.(line) ?? null;
       await applyInventoryDelta(tx, params.tenantId, line.variantId, locationId, -line.quantity);
       await tx.stockMovement.create({
         data: {
           tenantId: params.tenantId,
           type: StockMovementType.sale,
-          origin: MovementOrigin.manual,
+          origin: params.origin ?? MovementOrigin.manual,
           variantId: line.variantId,
           sku,
           locationId,
@@ -190,6 +210,8 @@ export async function syncUnloadLineMovements(
           sourceDocumentId: params.documentId,
           sourceLineId: line.id,
           ...(createdAt ? { createdAt } : {}),
+          unitCostMinor: newLineUnitCost,
+          totalCostMinor: frozenTotalCostMinor(newLineUnitCost, line.quantity),
           createdById: params.actor.createdById ?? null,
           createdByName: params.actor.createdByName,
         },
@@ -227,11 +249,20 @@ export async function syncUnloadLineMovements(
       deltas.push({ sku, delta: -quantityDelta });
     }
 
+    // Il costo UNITARIO congelato resta quello di quando la merce e' uscita; si
+    // rifa' solo il TOTALE sulla quantita' nuova, o una riga portata da 2 a 1
+    // continuerebbe a pesare per due nel margine.
+    const nextTotalCostMinor = frozenTotalCostMinor(movement.unitCostMinor, line.quantity);
+
     const needsUpdate =
       targetChanged ||
       quantityDelta !== 0 ||
       movement.sku !== sku ||
-      movement.reason !== params.reason;
+      movement.reason !== params.reason ||
+      // Normalizzato: un movimento senza costo porta null, e null e undefined
+      // sono la stessa assenza — confrontarli grezzi farebbe scattare una
+      // scrittura su un salvataggio identico.
+      (movement.totalCostMinor ?? null) !== nextTotalCostMinor;
 
     if (needsUpdate) {
       await tx.stockMovement.update({
@@ -242,6 +273,7 @@ export async function syncUnloadLineMovements(
           locationId,
           quantity: line.quantity,
           reason: params.reason,
+          totalCostMinor: nextTotalCostMinor,
         },
       });
     }

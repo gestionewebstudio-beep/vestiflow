@@ -1,4 +1,4 @@
-import { DocumentType, StockMovementType } from '@prisma/client';
+import { DocumentType, MovementOrigin, StockMovementType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -339,5 +339,72 @@ describe('syncUnloadLineMovements', () => {
     expect(update.where.id).toBe('mov-1');
     expect(update.data.quantity).toBe(2);
     expect(update.data.reason).toBe('DDT vendita DDT-0005');
+  });
+
+  // ── Origine e costo: i due parametri che aprono il sync alla Vendita al banco ──
+  // Il tipo, la data, la causale e il filtro di riga c'erano gia'. Questi due no,
+  // ed erano l'unica ragione per cui la cassa scriveva i movimenti per conto suo.
+
+  it('16 · senza parametri: origine manual e nessun costo — i chiamanti storici non cambiano', async () => {
+    const tx = createTxMock();
+
+    await run(tx, [line()]);
+
+    const created = tx.stockMovement.create.mock.calls[0]![0] as {
+      data: { origin: string; unitCostMinor: number | null; totalCostMinor: number | null };
+    };
+    expect(created.data.origin).toBe(MovementOrigin.manual);
+    expect(created.data.unitCostMinor).toBeNull();
+    expect(created.data.totalCostMinor).toBeNull();
+  });
+
+  it('17 · con origin e costo: il movimento nuovo nasce vestiflow_pos col costo congelato', async () => {
+    const tx = createTxMock();
+
+    await syncUnloadLineMovements(tx as never, {
+      tenantId,
+      documentId,
+      documentType: DocumentType.store_sale,
+      locationId: 'loc-1',
+      reason: 'Vendita al banco VB-0001',
+      origin: MovementOrigin.vestiflow_pos,
+      unitCostForNewLine: () => 500,
+      lines: [line({ quantity: 3 })] as never,
+      actor,
+    });
+
+    const created = tx.stockMovement.create.mock.calls[0]![0] as {
+      data: { origin: string; unitCostMinor: number; totalCostMinor: number };
+    };
+    expect(created.data.origin).toBe(MovementOrigin.vestiflow_pos);
+    expect(created.data.unitCostMinor).toBe(500);
+    expect(created.data.totalCostMinor).toBe(1500);
+  });
+
+  it('18 · riga GIA presente: il costo unitario congelato non si rivaluta, il totale si rifa', async () => {
+    // La distinzione decisa in `11` A2: rivalutare il costo di una riga vecchia
+    // cambierebbe il margine di una vendita di marzo col costo di agosto.
+    const tx = createTxMock([existingMovement({ quantity: 3, unitCostMinor: 500, totalCostMinor: 1500 })]);
+
+    await syncUnloadLineMovements(tx as never, {
+      tenantId,
+      documentId,
+      documentType: DocumentType.store_sale,
+      locationId: 'loc-1',
+      reason,
+      origin: MovementOrigin.vestiflow_pos,
+      // il costo corrente e' cambiato: NON deve entrare su una riga gia' presente
+      unitCostForNewLine: () => 900,
+      lines: [line({ quantity: 1 })] as never,
+      actor,
+    });
+
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    const update = tx.stockMovement.update.mock.calls[0]![0] as {
+      data: { quantity: number; totalCostMinor: number; unitCostMinor?: number };
+    };
+    expect(update.data.quantity).toBe(1);
+    expect(update.data.totalCostMinor).toBe(500);
+    expect(update.data).not.toHaveProperty('unitCostMinor');
   });
 });

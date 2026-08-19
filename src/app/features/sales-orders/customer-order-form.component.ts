@@ -94,6 +94,7 @@ import {
   mapCustomerFormToInput,
 } from '@domain/customers/utils/customer-form.util';
 import { DocumentIncludePanelComponent } from '@domain/documents/components/document-include-panel/document-include-panel.component';
+import { vatCodeIdForLinePayload } from '@domain/documents/utils/document-line-vat-payload.util';
 import { DocumentMobilePanelComponent } from '@domain/documents/components/document-mobile-panel/document-mobile-panel.component';
 import { DocumentLineCodeCellComponent } from '@domain/documents/components/document-line-code-cell/document-line-code-cell.component';
 import { DocumentLineProductCellComponent } from '@domain/documents/components/document-line-product-cell/document-line-product-cell.component';
@@ -2203,6 +2204,15 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
       unitPrice: this.fb.control(''),
       discount: this.fb.control(''),
       vatCodeId: this.fb.control(''),
+      /**
+       * Il Codice IVA COM'ERA al caricamento del documento. Non e' un campo
+       * dell'operatore: dichiara al server se l'assegnazione IVA e' cambiata
+       * (contratto binario, `document-line-vat-payload.util`).
+       *
+       * ⛔ Non si aggiorna durante le modifiche locali: si riallinea solo dopo un
+       * salvataggio riuscito o un nuovo caricamento.
+       */
+      persistedVatCodeId: this.fb.control<string | null>(null),
       commitsStock: this.fb.control(true),
       unitOfMeasure: this.fb.control(''),
       // Seriali consumati dallo scarico (solo DDT, testo "SN001, SN002").
@@ -4198,6 +4208,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
                 : '',
             discount: line.discount ?? '',
             vatCodeId: line.vatCodeId ?? '',
+            persistedVatCodeId: line.vatCodeId ?? null,
             commitsStock: line.commitsStock ?? true,
             unitOfMeasure: line.unitOfMeasure ?? '',
             serialNumbersText: '',
@@ -4498,7 +4509,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         // dal momento in cui si può scegliere l'ivato lo farebbe.
         unitPriceMinor: this.lineNetMinor(line, index),
         discount: raw.discount.trim() || undefined,
-        vatCodeId: raw.vatCodeId || undefined,
+        vatCodeId: vatCodeIdForLinePayload({
+          currentVatCodeId: raw.vatCodeId,
+          persistedVatCodeId: raw.persistedVatCodeId,
+          isExistingLine: Boolean(raw.id),
+        }),
         commitsStock: raw.commitsStock,
         unitOfMeasure: this.lineUnitOfMeasureRaw(raw.unitOfMeasure),
         isReference: raw.isReference,
@@ -4616,7 +4631,11 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
         // Le righe documento persistono la percentuale effettiva intera
         // (cascata "4+10%" → 14): stessa resa dei totali in anteprima.
         discountPercent: parseEffectiveDiscountPercent(raw.discount),
-        vatCodeId: raw.vatCodeId || undefined,
+        vatCodeId: vatCodeIdForLinePayload({
+          currentVatCodeId: raw.vatCodeId,
+          persistedVatCodeId: raw.persistedVatCodeId,
+          isExistingLine: Boolean(raw.id),
+        }),
         // Preventivo: mai effetti magazzino. DDT vendita e Scarico manuale:
         // la spunta «Scarica mag.» decide se la riga scarica la giacenza.
         loadsStock:
@@ -4899,6 +4918,7 @@ export class CustomerOrderFormComponent implements CanComponentDeactivate {
                 ? formatDiscountPercent(Number(line.discountPercent))
                 : '',
             vatCodeId: line.vatCodeId ?? '',
+            persistedVatCodeId: line.vatCodeId ?? null,
             commitsStock: this.isSalesDdt || this.isManualUnload ? line.loadsStock : false,
             unitOfMeasure: '',
             serialNumbersText: (line.serialNumbers ?? []).join(', '),

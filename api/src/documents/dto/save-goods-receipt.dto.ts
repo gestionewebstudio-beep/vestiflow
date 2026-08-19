@@ -308,13 +308,16 @@ export class SaveGoodsReceiptDto {
   lines?: SaveGoodsReceiptLineDto[];
 
   /**
-   * Spunta di documento: se true, il costo pagato aggiorna ANCHE il costo di
-   * riferimento dell'articolo. Il costo effettivo della variante viene comunque
-   * aggiornato dal carico, a prescindere da questo flag.
+   * Spunta di documento: se true, il costo digitato su ogni riga diventa il
+   * costo dell'articolo in anagrafica — riga per riga.
+   *
+   * ⛔ Se false, in anagrafica non va nulla: il costo resta un dato del
+   * DOCUMENTO, per report e contabilità. L'ultimo prezzo pagato al fornitore si
+   * aggiorna comunque, spunta o no (`03b`, 19/08/2026).
    */
   @IsOptional()
   @IsBoolean()
-  updateArticleReferenceCost?: boolean;
+  updateArticleCost?: boolean;
 
   /**
    * Spunta di documento «Aggiorna prezzi articolo», accesa di default.

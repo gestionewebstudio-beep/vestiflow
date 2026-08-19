@@ -28,10 +28,14 @@ const FAMILY_TO_TYPES: Readonly<Record<DocumentPermissionFamily, readonly string
   // mappa API (`api/src/auth/document-permission.util.ts`).
   invoice: [DocumentType.InvoiceDraft, DocumentType.InvoiceAccompanying, DocumentType.CreditNote],
   store_sale: [DocumentType.StoreSale, DocumentType.StoreReturn],
-  // Documenti interni generati dall'evasione online: esistono nell'enum API ma
-  // non nel modello frontend, che non li crea mai — qui servono solo a mappare
+  // Documento interno generato dall'evasione online: esiste nell'enum API ma
+  // non nel modello frontend, che non lo crea mai — qui serve solo a mappare
   // la famiglia di un tipo che arriva dal server.
-  online_sale: ['online_sale', 'corrispettivo'],
+  //
+  // ⚠️ `corrispettivo` stava qui accanto: ritirato il 17/08/2026, resta solo
+  // come valore morto nell'enum PostgreSQL. Un tipo senza famiglia è negato
+  // a chiunque, che è la risposta giusta se una riga vecchia lo nominasse.
+  online_sale: ['online_sale'],
   transfer: [DocumentType.Transfer],
   adjustment: [
     DocumentType.Adjustment,

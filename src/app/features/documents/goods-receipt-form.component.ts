@@ -11,7 +11,13 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { FormArray, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormArray,
+  NonNullableFormBuilder,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ViewportService } from '@core/services/viewport.service';
 import {
@@ -66,6 +72,7 @@ import {
   formatMoney,
   moneyToDecimalString,
   parseMoneyInput,
+  toStorableMinor,
 } from '@core/utils/money.util';
 import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import { documentNumberConflictOf } from '@core/models/document-number-conflict.util';
@@ -172,6 +179,7 @@ import {
   computeVatLineAmounts,
   entryIncludesVat,
   grossFromNetMinor,
+  netFromGrossExact,
   netFromGrossMinor,
   vatInputFromLegacyRate,
   vatInputFromVatCode,
@@ -246,6 +254,19 @@ type GoodsReceiptLineFocusField =
  * Form operativo arrivo merce / carico fornitore (§3). Righe editabili, creazione
  * rapida articolo dalla riga, conferma con carico magazzino server-side.
  */
+/**
+ * I tre valori commerciali dell'ARTICOLO scrivibili da una riga di arrivo
+ * merce. Seguono tutti la stessa modalità netto/ivato, che è un'altra da
+ * quella del COSTO — il costo concorre al totale del documento, questi no.
+ */
+type SalesPriceField = 'sellingPrice' | 'shopifyPrice' | 'compareAtPrice';
+
+const SALES_PRICE_FIELDS: readonly SalesPriceField[] = [
+  'sellingPrice',
+  'shopifyPrice',
+  'compareAtPrice',
+];
+
 @Component({
   selector: 'app-goods-receipt-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -571,13 +592,20 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   protected readonly lineSort = new DocumentLineSortStore<GoodsReceiptLineSortColumn>();
   /**
    * Spunta per-documento «Aggiorna anche il costo di riferimento in anagrafica».
-   * Il costo EFFETTIVO della variante è comunque SEMPRE aggiornato dal carico
-   * (è un fatto della taglia); questa spunta decide solo se propagare anche al
-   * costo di RIFERIMENTO dell'articolo in anagrafica. Default ACCESO: di norma
-   * l'anagrafica segue l'ultimo costo pagato, chi non lo vuole la spegne su
-   * quel documento (§Punto A).
+   * Spuntata, il costo digitato su ogni riga diventa il costo dell'articolo in
+   * anagrafica — **riga per riga**: richiamare tre taglie significa richiamare
+   * tre righe, e ognuna governa la propria. Spenta, in anagrafica non va nulla e
+   * il costo resta un dato del DOCUMENTO, per report e contabilità.
+   *
+   * Default ACCESO: di norma l'anagrafica segue l'ultimo costo pagato, chi non
+   * lo vuole la spegne su quel documento (§Punto A).
+   *
+   * ⛔ **Fino al 19/08/2026 comandava un'altra cosa**: il costo della variante si
+   * scriveva sempre e la spunta governava un costo sul `Product`. Chi la toglieva
+   * credeva di registrare un costo solo documentale, e stava riscrivendo il costo
+   * effettivo di ogni variante caricata (`03b`).
    */
-  protected readonly updateArticleReferenceCost = signal(true);
+  protected readonly updateArticleCost = signal(true);
 
   /**
    * Spunta per-documento «Aggiorna prezzi articolo». Default ACCESO.
@@ -684,6 +712,168 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     { value: 'vat_excluded', label: 'Netto' },
     { value: 'vat_included', label: 'Ivato' },
   ];
+
+  // ── Modalità dei PREZZI DI VENDITA di riga (§17/08/2026) ───────────────────
+  //
+  // Un solo stato per i tre valori commerciali dell'articolo che si possono
+  // scrivere da qui: Prezzo di vendita, Prezzo barrato, Prezzo Shopify. Il
+  // COSTO ha la sua modalità, sopra, e le due non si toccano — sono due domini
+  // diversi, e il costo concorre al totale del documento mentre questi no.
+  //
+  // ⚠️ È uno stato DI SESSIONE, inizializzato dalla convenzione aziendale e mai
+  // persistito: il selettore serve a guardare, non a dichiarare qualcosa sul
+  // documento. Nessuna memoria dell'operatore, per la stessa ragione per cui
+  // non ce l'ha l'anagrafica — il prezzo dell'ARTICOLO è un dato di catalogo, e
+  // due colleghi devono leggerlo uguale.
+  //
+  // ⚠️ E NON si legge `resolvePricesIncludeVat`: l'Arrivo merce è un documento
+  // di ACQUISTO, quindi quella catena gli risponde `false` per costruzione. La
+  // convenzione va presa dal tenant, che questo componente ha già.
+  protected readonly salesPricesIncludeVat = signal(false);
+  protected readonly salesPriceModeMenuOpen = signal(false);
+  private salesPriceModeTouched = false;
+
+  /**
+   * Seme dalla convenzione aziendale.
+   *
+   * Le impostazioni del tenant arrivano dal server, quindi dopo il primo
+   * render: l'effect le aspetta. Se nel frattempo l'operatore ha già mosso il
+   * selettore, la sua scelta vince — è il motivo per cui `salesPriceModeTouched`
+   * esiste e non basta un `??`.
+   */
+  private readonly seedSalesPriceMode = effect(() => {
+    const convenzione = this.tenantSettings()?.salesPricesIncludeVat;
+    if (convenzione == null || this.salesPriceModeTouched) {
+      return;
+    }
+    if (this.salesPricesIncludeVat() !== convenzione) {
+      this.applySalesPriceMode(convenzione);
+    }
+  });
+
+  /**
+   * Cambio modalità: cambia SOLO come i tre prezzi si vedono.
+   *
+   * I campi si riscrivono dal netto canonico ricordato, non riconvertendo il
+   * valore mostrato: quello ha due decimali, e un giro netto → ivato → netto ne
+   * limerebbe la coda. È la stessa regola dell'Ordine cliente e dell'anagrafica.
+   */
+  protected selectSalesPriceMode(pricesIncludeVat: boolean): void {
+    this.salesPriceModeMenuOpen.set(false);
+    if (pricesIncludeVat === this.salesPricesIncludeVat() || this.formReadOnly()) {
+      return;
+    }
+    this.salesPriceModeTouched = true;
+    this.applySalesPriceMode(pricesIncludeVat);
+  }
+
+  /**
+   * Cambia modalità conservando il valore economico.
+   *
+   * ⚠️ I netti si leggono PRIMA di cambiare modalità, e si riscrivono dopo.
+   * Leggerli dopo sarebbe un'identità: `lineSalesNetMinor` interpreterebbe il
+   * valore mostrato con la modalità NUOVA, e `salesPriceFieldValue` lo
+   * rimostrerebbe con la stessa — il campo non si muoverebbe di un centesimo,
+   * e la modalità cambierebbe solo di nome. Lo hanno trovato le prove.
+   */
+  private applySalesPriceMode(pricesIncludeVat: boolean): void {
+    const prima = this.lines.controls.map((line) =>
+      SALES_PRICE_FIELDS.map((field) => this.lineSalesNetMinor(line, field)),
+    );
+    this.salesPricesIncludeVat.set(pricesIncludeVat);
+    this.lines.controls.forEach((line, i) => {
+      SALES_PRICE_FIELDS.forEach((field, j) => {
+        const netMinor = prima[i]?.[j];
+        if (netMinor == null) {
+          return;
+        }
+        const control = line.controls[field];
+        const shown = this.salesPriceFieldValue(netMinor, line);
+        control.setValue(shown, { emitEvent: false });
+        this.rememberSalesNet(control, netMinor, shown);
+      });
+    });
+  }
+
+  // ── Il netto canonico dei tre campi ────────────────────────────────────────
+  //
+  // Il campo mostra due decimali; il netto memorizzato può avere la coda (70,00
+  // ivati al 22% valgono 5737,704918 centesimi netti). Il netto caricato resta
+  // quindi il buono FINCHÉ il campo mostra ancora quello che ci era stato
+  // scritto: appena l'operatore ridigita, il valore vero è il suo.
+  private readonly salesNetCanonical = new WeakMap<
+    AbstractControl,
+    { readonly net: number; readonly shown: string }
+  >();
+
+  private rememberSalesNet(control: AbstractControl, netMinor: number, shown: string): void {
+    this.salesNetCanonical.set(control, { net: netMinor, shown });
+  }
+
+  /**
+   * Scrive un prezzo di vendita NETTO nel campo, mostrandolo nella modalità
+   * corrente e ricordandone la forma canonica.
+   *
+   * `null` svuota il campo: un prezzo assente resta assente, e non diventa zero.
+   */
+  private setSalesPrice(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+    field: SalesPriceField,
+    netMinor: number | null,
+  ): void {
+    const control = line.controls[field];
+    if (netMinor == null) {
+      control.setValue('');
+      this.salesNetCanonical.delete(control);
+      return;
+    }
+    const shown = this.salesPriceFieldValue(netMinor, line);
+    control.setValue(shown);
+    this.rememberSalesNet(control, netMinor, shown);
+  }
+
+  /** Netto memorizzato → stringa da mettere nel campo, nella modalità corrente. */
+  private salesPriceFieldValue(
+    netMinor: number,
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+  ): string {
+    const vat = this.lineVatInput(line);
+    const displayed =
+      this.salesPricesIncludeVat() && vat.ratePercent > 0
+        ? grossFromNetMinor(netMinor, vat.ratePercent)
+        : netMinor;
+    return moneyToDecimalString({ amountMinor: displayed, currencyCode: this.currency }).replace(
+      '.',
+      ',',
+    );
+  }
+
+  /**
+   * Netto canonico da salvare per un campo di vendita, o `null` se vuoto.
+   *
+   * `null` non è zero: un prezzo barrato assente resta assente, e verso Shopify
+   * la chiave non deve nemmeno comparire.
+   */
+  private lineSalesNetMinor(
+    line: ReturnType<GoodsReceiptFormComponent['createLine']>,
+    field: SalesPriceField,
+  ): number | null {
+    const control = line.controls[field];
+    const ricordato = this.salesNetCanonical.get(control);
+    if (ricordato && ricordato.shown === control.value) {
+      return ricordato.net;
+    }
+    const digitato = parseMoneyInput(control.value, this.currency);
+    if (!digitato) {
+      return null;
+    }
+    const vat = this.lineVatInput(line);
+    // Scorporo ESATTO: è il valore da MEMORIZZARE. Arrotondarlo qui farebbe
+    // tornare 69,99 al posto di 70,00 alla riapertura (§sei decimali).
+    return this.salesPricesIncludeVat() && vat.ratePercent > 0
+      ? toStorableMinor(netFromGrossExact(digitato.amountMinor, vat.ratePercent))
+      : digitato.amountMinor;
+  }
 
   /**
    * ⚠️ Qui la modalità costo partiva dalla preferenza ricordata
@@ -3014,38 +3204,22 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
       // Sostituzione: i prezzi seguono il nuovo articolo, e se non ne ha
       // si svuotano. Tenere quelli di prima farebbe pubblicare su Shopify
       // il prezzo di un articolo diverso.
-      line.controls.sellingPrice.setValue(
-        summary.sellingPrice.amountMinor > 0
-          ? moneyToDecimalString(summary.sellingPrice).replace('.', ',')
-          : '',
-      );
-      line.controls.compareAtPrice.setValue(
-        summary.compareAtPrice?.amountMinor
-          ? moneyToDecimalString(summary.compareAtPrice).replace('.', ',')
-          : '',
-      );
+      // I prezzi dell'anagrafica sono NETTI: si mostrano nella modalità di
+      // riga, e il netto si ricorda per non limarne la coda al primo giro.
+      this.setSalesPrice(line, 'sellingPrice', summary.sellingPrice.amountMinor || null);
+      this.setSalesPrice(line, 'compareAtPrice', summary.compareAtPrice?.amountMinor ?? null);
       // Il prezzo del canale segue lo stesso criterio: tenere quello di prima
       // pubblicherebbe su Shopify il prezzo di un articolo diverso.
-      line.controls.shopifyPrice.setValue(
-        summary.shopifyPrice?.amountMinor
-          ? moneyToDecimalString(summary.shopifyPrice).replace('.', ',')
-          : '',
-      );
+      this.setSalesPrice(line, 'shopifyPrice', summary.shopifyPrice?.amountMinor ?? null);
     } else {
       if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
-        line.controls.sellingPrice.setValue(
-          moneyToDecimalString(summary.sellingPrice).replace('.', ','),
-        );
+        this.setSalesPrice(line, 'sellingPrice', summary.sellingPrice.amountMinor);
       }
       if (!line.controls.shopifyPrice.value.trim() && summary.shopifyPrice?.amountMinor) {
-        line.controls.shopifyPrice.setValue(
-          moneyToDecimalString(summary.shopifyPrice).replace('.', ','),
-        );
+        this.setSalesPrice(line, 'shopifyPrice', summary.shopifyPrice.amountMinor);
       }
       if (!line.controls.compareAtPrice.value.trim() && summary.compareAtPrice?.amountMinor) {
-        line.controls.compareAtPrice.setValue(
-          moneyToDecimalString(summary.compareAtPrice).replace('.', ','),
-        );
+        this.setSalesPrice(line, 'compareAtPrice', summary.compareAtPrice.amountMinor);
       }
     }
     // Precedenza Codice IVA (§9.1, Fase IVA §7): articolo → Codice IVA
@@ -3132,16 +3306,18 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     }
     const name = line.controls.productName.value.trim();
     const cost = parseMoneyInput(line.controls.unitCost.value, this.currency);
-    const selling = parseMoneyInput(line.controls.sellingPrice.value, this.currency);
-    const compareAt = parseMoneyInput(line.controls.compareAtPrice.value, this.currency);
+    // NETTI canonici: se la riga mostra gli ivati, qui si scorpora — l'anagrafica
+    // memorizza sempre il netto, e questa è una delle due porte che la scrivono.
+    const sellingNet = this.lineSalesNetMinor(line, 'sellingPrice');
+    const compareAtNet = this.lineSalesNetMinor(line, 'compareAtPrice');
     return {
       name,
       description: line.controls.description.value.trim() || undefined,
       sku: line.controls.sku.value.trim() || undefined,
       barcode: line.controls.barcode.value.trim() || undefined,
       purchasePriceMajor: cost ? cost.amountMinor / 100 : null,
-      sellingPriceMajor: selling ? selling.amountMinor / 100 : null,
-      compareAtPriceMajor: compareAt ? compareAt.amountMinor / 100 : null,
+      sellingPriceMajor: sellingNet != null ? sellingNet / 100 : null,
+      compareAtPriceMajor: compareAtNet != null ? compareAtNet / 100 : null,
       defaultVatCodeId: line.controls.vatCodeId.value.trim() || null,
     };
   });
@@ -3284,13 +3460,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     // blocco — da lì si salva comunque. La regola vive nella guardia condivisa.
     this.chronology.run(() =>
       // Nessun dialog: la scelta è la spunta per-documento (default acceso).
-      this.executeExplicitSave(this.updateArticleReferenceCost()),
+      this.executeExplicitSave(this.updateArticleCost()),
     );
   }
 
-  /** Spunta «Aggiorna anche il costo di riferimento in anagrafica». */
-  protected setUpdateArticleReferenceCost(checked: boolean): void {
-    this.updateArticleReferenceCost.set(checked);
+  /** Spunta «Aggiorna il costo in anagrafica con quello inserito». */
+  protected setUpdateArticleCost(checked: boolean): void {
+    this.updateArticleCost.set(checked);
   }
 
   /** Spunta «Aggiorna prezzi articolo»: spegnendola i prezzi tornano in sola lettura. */
@@ -3924,16 +4100,10 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           const label = summary.productName || summary.title;
           line.controls.productName.setValue(label, { emitEvent: false });
           if (!line.controls.sellingPrice.value.trim() && summary.sellingPrice.amountMinor > 0) {
-            line.controls.sellingPrice.setValue(
-              moneyToDecimalString(summary.sellingPrice).replace('.', ','),
-              { emitEvent: false },
-            );
+            this.setSalesPrice(line, 'sellingPrice', summary.sellingPrice.amountMinor);
           }
           if (!line.controls.compareAtPrice.value.trim() && summary.compareAtPrice?.amountMinor) {
-            line.controls.compareAtPrice.setValue(
-              moneyToDecimalString(summary.compareAtPrice).replace('.', ','),
-              { emitEvent: false },
-            );
+            this.setSalesPrice(line, 'compareAtPrice', summary.compareAtPrice.amountMinor);
           }
           this.syncLineFieldAccess();
           this.markFormDirty();
@@ -4303,7 +4473,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     return null;
   }
 
-  private executeExplicitSave(updateArticleReferenceCost: boolean): void {
+  private executeExplicitSave(updateArticleCost: boolean): void {
     if (this.saving()) {
       return;
     }
@@ -4322,7 +4492,7 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = this.linkAllLineCodes$()
       .pipe(
-        switchMap(() => this.saveDocument$({ updateArticleReferenceCost })),
+        switchMap(() => this.saveDocument$({ updateArticleCost })),
         take(1),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -4532,9 +4702,9 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
           // l’operatore non ha potuto scegliere.
           ...(this.updateArticlePrices()
             ? {
-                sellingPriceMinor: parseMoneyInput(line.sellingPrice, this.currency)?.amountMinor,
+                sellingPriceMinor: this.lineSalesNetMinor(control, 'sellingPrice') ?? undefined,
                 shopifyPriceMinor: this.showShopifyPrice()
-                  ? parseMoneyInput(line.shopifyPrice, this.currency)?.amountMinor
+                  ? (this.lineSalesNetMinor(control, 'shopifyPrice') ?? undefined)
                   : undefined,
               }
             : {}),
@@ -4556,14 +4726,17 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
   ): SaveGoodsReceiptNewProductBody {
     const line = control.getRawValue();
     const purchase = parseMoneyInput(line.unitCost, this.currency);
-    const selling = parseMoneyInput(line.sellingPrice, this.currency);
-    const compareAt = parseMoneyInput(line.compareAtPrice, this.currency);
+    // NETTI canonici, come per l'anteprima: la riga può mostrare gli ivati.
+    const sellingNet = this.lineSalesNetMinor(control, 'sellingPrice');
+    const compareAtNet = this.lineSalesNetMinor(control, 'compareAtPrice');
     return {
       name: line.productName.trim(),
       sku: line.sku.trim() || undefined,
       barcode: line.barcode.trim() || undefined,
-      sellingPriceMinor: selling?.amountMinor ?? undefined,
-      compareAtPriceMinor: compareAt?.amountMinor || undefined,
+      sellingPriceMinor: sellingNet ?? undefined,
+      // `?? undefined` e non `|| undefined`: uno zero e' una scelta, non
+      // un'assenza — e un barrato assente non deve diventare zero.
+      compareAtPriceMinor: compareAtNet ?? undefined,
       purchasePriceMinor: purchase?.amountMinor || undefined,
       vatCodeId: line.vatCodeId || undefined,
       unitOfMeasure: line.unitOfMeasure?.trim() || undefined,
@@ -4576,11 +4749,11 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
    * server vengono riadottati per aggiornare i movimenti ai salvataggi futuri.
    */
   private saveDocument$(options?: {
-    readonly updateArticleReferenceCost?: boolean;
+    readonly updateArticleCost?: boolean;
   }): Observable<DocumentRecord> {
     const body = {
       ...this.buildSaveGoodsReceiptBody(),
-      updateArticleReferenceCost: options?.updateArticleReferenceCost,
+      updateArticleCost: options?.updateArticleCost,
       updateArticlePrices: this.updateArticlePrices(),
     };
     return this.documentService.saveGoodsReceipt(body).pipe(
@@ -4697,8 +4870,13 @@ export class GoodsReceiptFormComponent implements CanComponentDeactivate {
 
   /**
    * Codici già cercati e assenti a catalogo: evita di ripetere la stessa
-   * lookup (404) a ogni autosave/salvataggio. Si svuota quando l'utente
+   * lookup (404) a ogni tentativo di collegamento. Si svuota quando l'utente
    * modifica un codice riga.
+   *
+   * ⚠️ Diceva «a ogni autosave/salvataggio»: era il residuo di un autosave
+   * rimosso a luglio. Il salvataggio progressivo è stato **ritirato come
+   * requisito** il 19/08/2026 — il documento si salva solo col pulsante — e
+   * quel nome non descriveva più niente (`GUARDIE-MANCANTI` voce 22).
    */
   private readonly codesNotFound = new Set<string>();
 

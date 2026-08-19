@@ -57,6 +57,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { VatCodeWithNature } from '../vat/vat-codes.service';
 import { lineVatFromNetExact } from '../vat/vat-line-calculation.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
+
+import { persistDocumentLinesByIdTx } from './document-line-upsert.util';
+import {
+  preservedLineVat,
+  type PersistedLineVat,
+} from './document-line-vat-snapshot.util';
 import { ExternalDocumentTypesService } from './external-document-types.service';
 import { receiptVatBreakdown, type VatBreakdownEntry } from './purchase-invoice-vat-summary.util';
 import { syncGoodsReceiptLineMovements } from './document-goods-receipt-sync.util';
@@ -1439,8 +1445,13 @@ export class DocumentsService {
     );
     this.assertDocumentLocationWritable(user, doc);
     if (isFlowOnlyDocumentType(doc.type)) {
+      // ⚠️ Il blocco resta, il MESSAGGIO no: diceva «non sono modificabili», e
+      // dopo la decisione A2 (`11`) è falso — Vendita e Reso al banco si
+      // riaprono e si correggono. Quello che non li modifica è QUESTO percorso:
+      // la maschera dedicata li salva con la propria riconciliazione, e passare
+      // di qui la scavalcherebbe.
       throw new ConflictException(
-        'Vendite e resi negozio non sono modificabili: registra un reso o una nuova vendita dalla cassa.',
+        'Vendite e resi al banco si modificano dalla loro maschera, non dal registro documenti.',
       );
     }
     // Percorso unico Arrivo merce: la famiglia carico si modifica SOLO con
@@ -1477,6 +1488,12 @@ export class DocumentsService {
             dto.lines,
             doc.type,
             await this.buildLineVatContext(tenantId, effectiveSupplierIdForVat, dto.lines),
+            new Map(
+              doc.lines.map((line) => [
+                line.id,
+                { vatCodeId: line.vatCodeId, vatSnapshot: line.vatSnapshot },
+              ]),
+            ),
           )
         : null;
 
@@ -3384,6 +3401,12 @@ export class DocumentsService {
     input: readonly DocumentLineInputDto[],
     documentType: DocumentType,
     vatContext?: LineVatContext,
+    /**
+     * Righe gia' persistite, per id. Serve a una regola sola, ma di dominio:
+     * **una riga esistente conserva il proprio snapshot IVA** finche' il client
+     * non dichiara una modifica esplicita.
+     */
+    persistedLinesById?: ReadonlyMap<string, PersistedLineVat>,
   ): ComputedLine[] {
     const defaultLoadsStock = documentTypeDefaultLoadsStock(documentType);
     return input.map((line, index) => {
@@ -3411,7 +3434,25 @@ export class DocumentsService {
       let vatCodeId: string | null = null;
       let vatSnapshot: Prisma.InputJsonObject | null = null;
       let vatRatePercent = line.vatRatePercent ?? null;
-      if (vatContext) {
+
+      // ⛔ Riga GIA' ESISTENTE senza `vatCodeId` nel payload: lo snapshot NON si
+      // rifotografa. E' una regola di dominio, non una scorciatoia — lo snapshot
+      // e' il fatto fiscale di quel documento, e rileggerlo dall'anagrafica a
+      // ogni salvataggio significherebbe che modificare l'aliquota di un Codice
+      // IVA ri-prezza i documenti gia' emessi: basta riaprirne uno e correggere
+      // una nota.
+      //
+      // Il contratto e' BINARIO e sta sul client: la chiave arriva solo quando
+      // l'assegnazione IVA e' davvero cambiata (`document-line-vat-payload.util`
+      // lato frontend). Assente = non modificata; presente = scelta nuova, e
+      // allora si risolve il codice e si scrive uno snapshot nuovo.
+      const preservato = preservedLineVat(line.id, line.vatCodeId, persistedLinesById);
+
+      if (preservato) {
+        vatCodeId = preservato.vatCodeId;
+        vatSnapshot = preservato.vatSnapshot;
+        vatRatePercent = vatSnapshotRatePercent(preservato.vatSnapshot) ?? vatRatePercent;
+      } else if (vatContext) {
         const explicitId = line.vatCodeId ?? null;
         const productDefaultId = line.variantId
           ? (vatContext.productDefaultByVariantId.get(line.variantId) ?? null)
@@ -3569,60 +3610,10 @@ export class DocumentsService {
       readonly lines: readonly ComputedLine[];
     },
   ): Promise<void> {
-    const { tenantId, documentId, lines } = params;
-    const existing = new Set(params.existingLineIds);
-    const claimed = new Set<string>();
-
-    // ── Validazione di appartenenza, prima di scrivere qualunque cosa ──
-    // `existingLineIds` viene dal documento già letto per tenant: un id che non
-    // sta lì o non è di questo documento, o è di un altro tenant, o è già stato
-    // eliminato da qualcun altro. In tutti e tre i casi non si tira a indovinare.
-    for (const line of lines) {
-      if (line.id == null) {
-        continue;
-      }
-      if (!existing.has(line.id)) {
-        throw new UnprocessableEntityException(
-          'Una riga fa riferimento a un identificativo che non appartiene a questo documento. Ricarica il documento e riprova.',
-        );
-      }
-      if (claimed.has(line.id)) {
-        throw new UnprocessableEntityException(
-          'La stessa riga è stata inviata due volte nello stesso salvataggio.',
-        );
-      }
-      claimed.add(line.id);
-    }
-
-    // ── 3. Le righe sparite dal documento ──
-    const removedIds = params.existingLineIds.filter((lineId) => !claimed.has(lineId));
-    if (removedIds.length > 0) {
-      await tx.documentLine.deleteMany({
-        where: { documentId, tenantId, id: { in: removedIds } },
-      });
-    }
-
-    // ── 1 e 2. Aggiornamento in posto, oppure creazione ──
-    for (const line of lines) {
-      const data = this.toLineCreateData(line, tenantId);
-      if (line.id == null) {
-        await tx.documentLine.create({ data: { ...data, tenantId, documentId } });
-        continue;
-      }
-      // `updateMany` e non `update`: il `where` porta anche documento e tenant,
-      // quindi l'appartenenza è imposta dal database e non solo dal controllo
-      // qui sopra. Se la riga è sparita sotto i piedi (modifica concorrente) il
-      // conteggio è zero e la transazione si ferma, invece di scrivere altrove.
-      const { count } = await tx.documentLine.updateMany({
-        where: { id: line.id, documentId, tenantId },
-        data,
-      });
-      if (count === 0) {
-        throw new ConflictException(
-          'Una riga di questo documento è stata modificata o eliminata da un altro salvataggio. Ricarica il documento e riprova.',
-        );
-      }
-    }
+    await persistDocumentLinesByIdTx(tx, {
+      ...params,
+      toData: (line) => this.toLineCreateData(line, params.tenantId),
+    });
   }
 
   private toLineCreateData(

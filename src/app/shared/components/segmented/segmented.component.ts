@@ -22,6 +22,13 @@ export class SegmentedComponent {
   readonly value = input<string | null>(null);
   readonly ariaLabel = input.required<string>();
 
+  /**
+   * Senza la traccia bordata: serve quando il controllo vive GIÀ dentro un
+   * contenitore con bordo — un pannello, una card — dove il riquadro attorno
+   * ai pulsanti diventa un secondo livello che non separa niente.
+   */
+  readonly flat = input<boolean>(false);
+
   readonly valueChange = output<string>();
 
   protected isActive(option: SegmentedOption): boolean {

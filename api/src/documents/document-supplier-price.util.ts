@@ -69,51 +69,90 @@ export async function findSupplierPriceDiffs(
 }
 
 /**
- * Aggiornamento costi dal carico:
- * - il costo EFFETTIVO della variante (`purchasePriceMinor`) è **sempre**
- *   aggiornato al costo pagato: è un fatto della taglia, alimenta valorizzazione
- *   e margini;
- * - l'ultimo prezzo fornitore (`SupplierVariantLink`) è aggiornato quando c'è un
- *   fornitore collegato;
- * - il costo di RIFERIMENTO dell'articolo (`Product.purchasePriceMinor`) è
- *   aggiornato SOLO se l'operatore ha spuntato l'opzione sul documento
- *   (`updateArticleReferenceCost`). Con più varianti dello stesso articolo nello
- *   stesso carico vale l'ultima riga (è un riferimento, non alimenta i conti).
+ * Aggiornamento costi dal carico — **riscritto il 19/08/2026** (`03b`).
+ *
+ * ```text
+ * ProductVariant.purchasePriceMinor   solo con la spunta, riga per riga
+ * SupplierVariantLink                 sempre, se c'è un fornitore collegato
+ * Product.purchasePriceMinor          ⛔ MAI
+ * ```
+ *
+ * ⛔ **La spunta comandava la cosa sbagliata.** Prima il costo della variante si
+ * scriveva **sempre** e la spunta governava il costo dell'articolo. L'etichetta
+ * dice «Aggiorna **anche** il costo di riferimento in anagrafica», e
+ * quell'«anche» dichiarava che qualcos'altro in anagrafica ci andava comunque:
+ * **chi la toglieva credeva di registrare un costo solo documentale, e stava
+ * riscrivendo il costo effettivo di ogni variante caricata** — quello che
+ * alimenta valorizzazione e margini.
+ *
+ * > **Spuntata**: il costo della riga diventa il costo di quella variante.
+ * > **Non spuntata**: resta un costo del DOCUMENTO, per report e contabilità.
+ *
+ * ⛔ **Riga per riga, e singolarmente.** Richiamando un articolo con tre varianti
+ * si richiamano TRE righe, e ognuna governa la propria variante: la spunta non è
+ * una propagazione «all'articolo».
+ *
+ * ⛔ **`Product.purchasePriceMinor` non si scrive più.** È il seed di NASCITA di
+ * una variante — lo dice lo schema — non un costo aggiornabile. Derivarlo
+ * dall'ultima riga di un carico è arbitrario: con dodici taglie a 18,00 e una a
+ * 22,00 la tredicesima nascerebbe a 22,00, e nessuno saprebbe perché. `02` §4.5
+ * lo vietava già per la sincronizzazione, e l'ultima riga è più arbitraria di
+ * una media.
+ *
+ * ⚠️ **L'articolo NUOVO è un'altra cosa**: nasce con i dati che si stanno
+ * inserendo, spunta o no, perché alla nascita non c'è niente da sovrascrivere.
+ * Quel percorso vive in `goods-receipt-workflow` ed è gated dal solo permesso di
+ * vedere i costi.
  */
 export async function applySupplierPriceUpdates(
   tx: Prisma.TransactionClient,
   tenantId: string,
   supplierId: string | null,
   lines: readonly ReceiptLine[],
-  updateArticleReferenceCost: boolean,
+  updateArticleCost: boolean,
 ): Promise<void> {
   const eligible = lines.filter(isCostBearing);
+  if (eligible.length === 0) {
+    return;
+  }
 
-  // Mappa variante → articolo letta in un colpo solo: serve solo con la spunta
-  // di documento, e in ciclo era un round-trip per riga.
-  const productIdByVariant = new Map<string, string>();
-  if (updateArticleReferenceCost && eligible.length > 0) {
-    const variants = await tx.productVariant.findMany({
-      where: {
-        tenantId,
-        id: { in: uniqueVariantIds(eligible) },
-      },
-      select: { id: true, productId: true },
-    });
-    for (const variant of variants) {
-      productIdByVariant.set(variant.id, variant.productId);
+  const costoDi = (line: ReceiptLine): number => Math.round(Number(line.unitPriceMinor));
+
+  // ── Costo della variante: SOLO con la spunta ────────────────────────────
+  //
+  // ⛔ Prima si scriveva sempre, e la spunta governava il costo dell'articolo:
+  // chi la toglieva credeva di registrare un costo solo documentale e stava
+  // riscrivendo il costo effettivo di ogni variante caricata.
+  //
+  // Le righe si raggruppano per COSTO: ogni variante compare una volta sola,
+  // quindi non esiste un «chi vince» — si accorpa solo per emettere una
+  // `updateMany` per valore invece di una per riga.
+  if (updateArticleCost) {
+    const perCosto = new Map<number, string[]>();
+    for (const line of eligible) {
+      const costo = costoDi(line);
+      const gruppo = perCosto.get(costo);
+      if (gruppo) {
+        gruppo.push(line.variantId);
+      } else {
+        perCosto.set(costo, [line.variantId]);
+      }
+    }
+    for (const [costo, variantIds] of perCosto) {
+      await tx.productVariant.updateMany({
+        where: { id: { in: variantIds }, tenantId },
+        data: { purchasePriceMinor: costo },
+      });
     }
   }
 
-  for (const line of eligible) {
-    // Costo effettivo della taglia: sempre.
-    await tx.productVariant.updateMany({
-      where: { id: line.variantId, tenantId },
-      data: { purchasePriceMinor: Math.round(Number(line.unitPriceMinor)) },
-    });
-
-    // Ultimo prezzo per (fornitore, variante): solo con fornitore.
-    if (supplierId) {
+  // ── Ultimo prezzo pagato a quel fornitore: sempre, se c'è ───────────────
+  //
+  // ⚠️ NON governato dalla spunta: è un fatto del rapporto col fornitore, non
+  // un costo dell'anagrafica. «Quanto l'ho pagato l'ultima volta» resta vero
+  // anche scegliendo di non aggiornare il costo dell'articolo.
+  if (supplierId) {
+    for (const line of eligible) {
       await tx.supplierVariantLink.upsert({
         where: {
           tenantId_supplierId_variantId: { tenantId, supplierId, variantId: line.variantId },
@@ -122,23 +161,13 @@ export async function applySupplierPriceUpdates(
           tenantId,
           supplierId,
           variantId: line.variantId,
-          lastPurchasePriceMinor: Math.round(Number(line.unitPriceMinor)),
+          lastPurchasePriceMinor: costoDi(line),
         },
-        update: { lastPurchasePriceMinor: Math.round(Number(line.unitPriceMinor)) },
+        update: { lastPurchasePriceMinor: costoDi(line) },
       });
     }
-
-    // Costo di riferimento dell'articolo: solo su spunta di documento.
-    // Con più varianti dello stesso articolo vince l'ultima riga: l'update
-    // resta per riga, è solo la lettura ad essere stata accorpata sopra.
-    if (updateArticleReferenceCost) {
-      const productId = productIdByVariant.get(line.variantId);
-      if (productId) {
-        await tx.product.updateMany({
-          where: { id: productId, tenantId },
-          data: { purchasePriceMinor: Math.round(Number(line.unitPriceMinor)) },
-        });
-      }
-    }
   }
+
+  // ⛔ Nessuna scrittura su `Product.purchasePriceMinor`: è il seed di NASCITA
+  // di una variante, non un costo aggiornabile dai carichi. Vedi il docblock.
 }

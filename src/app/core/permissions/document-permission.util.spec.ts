@@ -65,7 +65,6 @@ const FAMIGLIA_ATTESA: Readonly<Record<string, DocumentPermissionFamily>> = {
   // fatture deve poterle stornare.
   credit_note: 'invoice',
   online_sale: 'online_sale',
-  corrispettivo: 'online_sale',
   customer_order: 'sales_order',
   store_sale: 'store_sale',
   store_return: 'store_sale',
@@ -198,6 +197,9 @@ describe('document-permission.util (FE) — ramo negato', () => {
 
     expect(canViewDocumentType(banco, DocumentType.StoreReturn)).toBe(true);
     expect(canViewDocumentType(banco, 'online_sale')).toBe(false);
+    // `corrispettivo` è stato ritirato il 17/08/2026 e resta solo come valore
+    // morto nell'enum PostgreSQL: senza famiglia è negato a chiunque — che è
+    // la risposta giusta se una riga vecchia lo nominasse.
     expect(canViewDocumentType(banco, 'corrispettivo')).toBe(false);
   });
 

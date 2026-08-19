@@ -247,6 +247,7 @@ dal più corretto al più invasivo:
    | `select-menu`       | `--field-*` (sotto) piu' `--select-menu-width`, `--select-menu-max-width`, `--select-menu-panel-inset`                                                                |
    | campi (`--field-*`) | `--field-h`, `--field-gap`, `--field-font-size`, `--field-pad-inline`, `--field-radius`, `--field-fg`, `--field-bg`, `--field-bg-hover`, `--field-border-color`       |
    | `back-button`       | `--back-button-h`, `--back-button-gap`, `--back-button-pad-inline`, `--back-button-radius`, `--back-button-font-size`, `--back-button-font-weight`                    |
+   | `action-menu`       | `--action-menu-pad-inline`, `--action-menu-inline-size` (solo sul trigger nominato); l'altezza segue `--field-height`                                                 |
    | `attachments-panel` | `--attachments-gap`, `--attachments-title-size`, `--attachments-item-pad`                                                                                             |
    | `barcode-scanner`   | `--barcode-scanner-w`                                                                                                                                                 |
    | `hover-tooltip`     | `--hover-tooltip-inset`                                                                                                                                               |
@@ -263,6 +264,124 @@ dal più corretto al più invasivo:
    nulla: si cambia il componente. Se una maschera ridefinisce un componente
    condiviso in 15 regole, non sta personalizzando — sta dicendo che il default
    è sbagliato.
+
+### Filtri e barre strumenti dense — configurazione di contenitore
+
+Una riga di filtri o di azioni non è un campo isolato in mezzo alla pagina: è
+un ruolo diverso da un controllo autonomo, e si dichiara con la tecnica del
+punto 2 sopra — custom property sul CONTENITORE, mai sul singolo `select-menu`
+o `app-button` dentro.
+
+```scss
+.mia-toolbar {
+  --field-height: var(--control-h-field); // 32px — select, date, campi
+  --field-font-size: var(--text-xs); // 12px
+  --button-font-size: var(--text-xs); // stesso passo per i bottoni dentro
+}
+```
+
+`_document-form.scss` lo applica a `.doc-form__header`; `corrispettivi-report`
+allo stesso modo su `.corrispettivi__filters`. Per una barra di sole azioni
+(niente filtri) la coppia è `--control-h-button` (31px) invece di
+`--control-h-field` — vedi `.doc-form__actions` / `.corrispettivi__header-actions`.
+
+**Due proprietà, non una.** `select-menu` legge `--field-font-size`;
+`app-button` legge `--button-font-size` — due nomi diversi per lo stesso
+ruolo. Dichiararne una sola lascia la famiglia di controlli dell'altra alla
+taglia vecchia mentre il resto della riga è già sceso: misurato su
+`app-table-column-picker` (un `app-button` dentro una riga filtri con solo
+`--field-font-size` impostata), restava a 13px da solo mentre i `select-menu`
+accanto erano già a 12px.
+
+### Su mobile si riduce il NUMERO dei comandi, non la loro taglia _(18/08/2026)_
+
+Il minimo tappabile di 44px non si tocca: i token lo impongono da soli sotto
+`md`, e stringere i controlli per far entrare tutto è la strada sbagliata.
+Quello che si riduce è **quanti comandi stanno a vista**.
+
+Misurato sul Registro Corrispettivi: cinque pulsanti di testata più sei chip
+filtro occupavano **cinque fasce da 44px** prima del primo dato, su uno schermo
+da 390px. Ridotte a due, senza togliere una sola funzione.
+
+| Cosa                              | Sotto `lg`                                                                | Come                                                  |
+| --------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **Filtri** (più di due)           | un pulsante **«Filtri (n)»** col conteggio, che apre un `app-slide-panel` | mixin `list-page-mobile-filters` in `_list-page.scss` |
+| **Azioni di export / secondarie** | un menu **nominato** («Esporta»)                                          | `app-action-menu` con `triggerLabel`                  |
+| **CTA primaria**                  | sale nella riga del titolo, con etichetta corta                           | il nome per esteso resta in `ariaLabel`               |
+
+**Le due vesti chiamano gli stessi metodi.** Non esiste un comportamento «del
+menu» separato da quello dei pulsanti, né uno stato «del pannello filtri» da
+riallineare: i controlli dentro il pannello scrivono sugli stessi signal dei
+gemelli in barra.
+
+⚠️ **La soglia è UNA e vale per tutte le coppie.** Se la veste compatta e
+quella estesa commutassero a larghezze diverse, in mezzo comparirebbero
+entrambe — è il difetto che §9 chiama «la stessa riga non esiste due volte».
+
+**Un comando mobile-only sta nel DOM dove serve a lui.** «Esporta» è spento
+sopra `lg`, quindi la sua posizione nel markup conta solo dove si vede: sta
+nella fila di Filtri e Colonne, non nella testata insieme ai pulsanti che
+sostituisce.
+
+**L'etichetta corta si accorcia solo se il contesto la completa.** «Nuovo»
+funziona sotto un titolo «Corrispettivi»; da solo, in un elenco di comandi
+letto da uno screen reader, no — per questo `app-button` ha `ariaLabel`.
+
+### Elenco troncato: si limita la VISTA, mai il dato _(18/08/2026)_
+
+Su schermo compatto un elenco lungo rende irraggiungibile ciò che gli sta
+sotto — in un report, il riepilogo. Si mostra un primo blocco di righe e si
+offre un comando per il resto.
+
+- **Solo su schermo compatto** (`ViewportService.compact()`), mai su desktop:
+  lì la tabella è densa e scorrere costa un gesto, non un minuto.
+- **Il comando dice QUANTE righe restano** — «Mostra le altre 47 righe» — non
+  «Mostra altre righe»: senza il numero non si capisce se ne mancano tre o
+  trecento.
+- ⚠️ **Totali, subtotali e conteggi NON si ricalcolano da ciò che è a schermo.**
+  Arrivano dall'API e valgono l'intero periodo. È la condizione che rende il
+  troncamento ammissibile in un registro fiscale — e va **verificata**, non
+  data per scontata: se un totale fosse una somma delle righe renderizzate,
+  troncare l'elenco falserebbe il registro.
+- **Serve un test che inchiodi il confine**: su schermo non compatto nessun
+  troncamento, e tutte le righe consegnate restano a schermo.
+
+### `select-menu` — tre modalità di larghezza, e non sono intercambiabili
+
+Il trigger di `select-menu` di default ha larghezza fissa
+(`--select-menu-width`, 224px). Tre `input()` la cambiano, e ognuno porta una
+semantica diversa oltre alla misura — scegliere quello sbagliato aggiunge un
+comportamento che quel campo non deve avere, non solo una larghezza diversa.
+
+| Modalità              | Larghezza                                                | Porta anche                                                     | Quando                                                                                                             |
+| --------------------- | -------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| _(default)_           | fissa                                                    | —                                                               | il valore può essere lungo e imprevedibile, o la griglia deve restare stabile                                      |
+| `[filterChip]="true"` | a contenuto, variabile                                   | stato attivo/cancellabile (×)                                   | un filtro genuinamente OPZIONALE, assente di default — l'utente lo accende                                         |
+| `[fitContent]="true"` | a contenuto ma STABILE (pre-misurata su `sizerLabels()`) | —                                                               | un controllo che ha SEMPRE un valore (Periodo, Raggruppa): non deve «saltare» larghezza cambiando opzione          |
+| `[labelOnly]="true"`  | a contenuto                                              | il trigger mostra SOLO il nome del filtro, mai il valore scelto | la stabilità della barra conta più che vedere il valore nel trigger (Origine, Tipo, Sede in una riga filtri densa) |
+
+`filterChip` su un controllo che ha sempre un valore aggiunge una × che
+cancella un filtro che non può restare vuoto: è l'errore che sembra innocuo
+finché qualcuno non la preme.
+
+### `segmented` — variante `flat` e slot `panelLead`
+
+`[flat]="true"` toglie sfondo e bordo della pista e usa le altezze/font della
+barra densa (`--control-h-button` / `--text-xs`): la scorciatoia smette di
+sembrare un controllo a sé e si legge come parte del filtro che la ospita.
+
+Per una scorciatoia legata a UN filtro solo (non a tutta la barra),
+`select-menu` espone lo slot proiettato `panelLead` dentro il proprio pannello
+a tendina — vuoto per default, non occupa spazio se nessuno lo riempie:
+
+```html
+<app-select-menu ...>
+  <app-segmented panelLead [flat]="true" ...></app-segmented>
+</app-select-menu>
+```
+
+Riferimento: Ambito (Fisico/Online/Manuale) dentro il pannello di Origine, in
+`corrispettivi-report`.
 
 ### `::ng-deep` — quando è ammesso
 
@@ -316,6 +435,13 @@ un componente, o che verrebbe compilato più volte se ci stesse.
 | `_shared-directives.scss`                                                                | l'aspetto delle classi applicate dalle direttive di `shared/directives/` |
 | `_breakpoints.scss` · `_responsive-table.scss` · `_list-page.scss` · `_detail-page.scss` | librerie di mixin: non emettono CSS finché qualcuno non le include       |
 
+⚠️ **Un mixin che serve a chi non vuole tutto il resto va estratto.**
+`list-page-mobile-filters` (il pulsante «Filtri (n)», il suo contatore e il
+pannello) stava dentro `list-page`, e chi aveva un layout proprio — il Registro
+Corrispettivi — per usarlo si sarebbe tirato dietro header, toolbar, ricerca e
+campi che non gli servono. Estrarlo non ha cambiato una riga per le quattro
+pagine che già lo usavano: `list-page` continua a includerlo.
+
 Le due ragioni per promuovere al livello globale, e non ce ne sono altre:
 
 1. **Una direttiva non può avere un `styleUrl`.** La classe che applica all'host
@@ -335,6 +461,77 @@ markup e stile restano insieme.
 - Radius `--radius-lg`
 - Ombra `--shadow-card`
 - Padding interno: `--space-16` mobile, `--space-12` a `--space-14` desktop denso
+
+### Riepilogo di fondo pagina (report / elenchi) — _rivisto 18/08/2026_
+
+Distinto dal «Riepilogo totali» di un documento (§7): quello chiude un
+documento che si sta scrivendo, questo riassume un elenco filtrato che si sta
+consultando (es. Corrispettivi). Riferimento: `corrispettivi-summary`.
+
+⚠️ **Questa sezione è stata riscritta**: la prima stesura (mattina del 18/08)
+prescriveva «niente card, un solo filo sopra» e le voci allineate a sinistra.
+Provata a schermo, non reggeva — la cronaca sta sotto, perché le alternative
+scartate sono la parte utile.
+
+**La struttura**
+
+- **UN riquadro**, non uno per voce: `--color-surface`, bordo `--color-border`,
+  `--radius-lg`. Un riepilogo è una riconciliazione — numeri che stanno insieme
+  e si sommano — e va dichiarato un blocco solo.
+- **Le voci si separano con un filo verticale** (`border-inline-end`, tolto
+  sull'ultima), mai con un riquadro ciascuna. Il `gap` orizzontale resta `0`:
+  lo spazio lo dà il padding della voce, o il filo cade in mezzo a un vuoto
+  doppio.
+- **Due fasce, divise da un filo orizzontale**: sopra i **conteggi** (quante
+  rettifiche, quanti annullamenti, quante vendite), sotto gli **importi**
+  (imponibile, IVA, totale vendite, e per ultimo il totale che risponde alla
+  domanda della pagina). Un conteggio e un importo rispondono a domande
+  diverse: nella stessa fila si leggono come se fossero la stessa grandezza.
+- **Le colonne se le conta la griglia**: `repeat(auto-fit, minmax(var(--summary-item-min-w), 1fr))`
+  su ogni fascia. Con le fasce separate una da tre voci occupa tre colonne e
+  una da quattro ne occupa quattro, **a qualunque larghezza e senza una sola
+  media query**. Il componente di riferimento aveva tre blocchi responsive: ora
+  ne ha zero.
+- **`--summary-item-min-w` si misura sull'etichetta più lunga**, non si sceglie
+  a occhio: larghezza del testo a `--text-2xs` uppercase con tracking `.045em`,
+  più il padding orizzontale della voce. Le `dt` portano `white-space: nowrap`
+  apposta — se un'etichetta più lunga non ci stesse, il difetto deve vedersi
+  subito invece di nascondersi in un a capo silenzioso.
+
+**La tipografia** (invariata, e verificata)
+
+- **La label (`dt`) riusa la ricetta dell'intestazione tabella**: `--text-2xs`,
+  weight `--font-weight-bold`, `--color-table-header-fg`, uppercase,
+  `letter-spacing: .045em`. Un'etichetta che riassume una tabella e un'etichetta
+  di colonna della stessa tabella sono lo stesso ruolo — pesano uguale.
+- **Il valore (`dd`) pesa un gradino SOTTO il corpo tabella**: `--text-xs`,
+  weight `--font-weight-regular`. Riassume un dato già leggibile riga per riga
+  sopra, non è un dato nuovo.
+- **Un solo valore evidenziato**: `--text-lg`, `--font-weight-bold`,
+  `--color-primary`, e **nessuna tinta di fondo** — una cella colorata dentro
+  il riquadro sarebbe il riquadro nel riquadro. A distinguerlo bastano taglia
+  e peso, che restano unici in tutta la banda.
+- **Il negativo si legge dal colore, non dal peso**: `--color-danger` sul solo
+  `dd`, come le righe di reso in tabella.
+
+**Allineamento: a destra, etichetta compresa, alle due larghezze**
+
+È la convenzione contabile — cifre a destra, unità sotto unità, somma
+verificabile a occhio.
+
+⚠️ **Funziona solo grazie al riquadro unico**, e la ragione va ricordata: nella
+variante a scatole separate le etichette di lunghezza diversa lasciavano un
+bordo sinistro frastagliato e la banda sembrava sfilacciata. Con i fili interni
+la linea verticale c'è comunque, quindi il testo può andare a destra senza che
+niente si sfilacci. Chi tornasse alle scatole separate si riporterebbe dietro
+il difetto.
+
+**Le due strade scartate, e perché**
+
+| Provata                                 | Perché non regge                                                                                                                                                                                                                                   |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Lista verticale** (una riga per voce) | ~190px su un telefono, cioè un quarto di schermo — e in fondo a una pagina lunga, dove ci si arriva dopo aver scorso tutto. La regola §7 la prescrive per i **documenti**, che hanno quattro voci: applicarla a un report da otto è stato l'errore |
+| **Un riquadro per voce** (otto scatole) | isola troppo: otto scatole affiancate si leggono come otto dati indipendenti, mentre un riepilogo è fatto di numeri che si sommano fra loro                                                                                                        |
 
 ### Bottoni
 
@@ -379,6 +576,10 @@ Il pattern di "salvataggio e uscita da un documento in edit" cambia con la largh
 - Sequenza pulsanti (destra a sinistra): **Chiudi** (ghost) · **Salva bozza** o simile (secondary) · **Salva/Concludi** (primary)
 
 **Le etichette sono le stesse in ogni documento** _(08/2026)_. Il salvataggio dice **«Salva documento»** ovunque — non «Salva ordine», non «Salva registrazione», non «Salva»: chi passa da una maschera all'altra cerca lo stesso pulsante, e il tipo di documento è già scritto nel titolo della pagina. L'uscita dice **«Chiudi»** su desktop e **«Annulla»** nella coppia mobile.
+
+⚠️ **L'unica eccezione, e la regola che la governa** _(17/08/2026)_. La frase dice «in ogni **documento**»: vale per ciò che un documento è. Il **Corrispettivo manuale** non lo è — non ha una riga in `documents`, non si stampa come documento, non entra nella matrice dei permessi documentali, e la specifica `10` §12 lo dichiara «registrazione economica autonoma». Lì il pulsante dice **«Salva corrispettivo»**.
+
+> **Il criterio non è il gusto: è se l'entità sta in `documents`.** Chiamare «documento» una cosa che il modello non tratta come tale insegna all'operatore una parola che poi non ritrova da nessun'altra parte — né nel Registro, né nei permessi, né in guida. Una maschera che non è documentale nomina la propria entità; tutte le altre dicono «Salva documento», e questa eccezione non le riapre.
 
 **Mobile e tablet (≤ 1024px)** — Azioni in fondo al documento:
 
@@ -512,6 +713,25 @@ mai una tinta propria per maschera.
 Hover di riga per gruppo: `--table-row-hover-stock`, `--table-row-hover-calc`;
 totale di riga `--table-cell-total`.
 
+### Riga di subtotale / gruppo in tabella
+
+Riferimento: `corrispettivi-orders-table` (raggruppamento per giorno).
+
+- **È una riga della tabella, non una card fuori da essa**: cade nelle stesse
+  colonne economiche delle righe che chiude — un subtotale si verifica
+  incolonnandolo sopra ciò che lo compone, non affiancandolo in un riquadro.
+- **Sfondo di STRUTTURA**: `--color-table-header-bg` (lo stesso
+  dell'intestazione), mai `--color-surface-soft` — quel tono è già preso da
+  righe di transazione singola (es. un reso). Un subtotale e una transazione
+  non condividono la stessa tinta, o il primo si legge come un'altra riga di
+  evento invece che come struttura.
+- **Tre livelli di peso, non due**: la riga intera parte da
+  `--font-weight-semibold` (si distingue dal dettaglio sopra, a peso normale);
+  il SOLO valore che risponde alla domanda del gruppo (es. il Totale) sale a
+  `--font-weight-bold` + `--color-primary`. Pesare tutte le celle del
+  subtotale allo stesso modo confonde «chiude il gruppo» con «è la risposta
+  del gruppo».
+
 ### Card view mobile (tabella su schermi ≤1024px)
 
 Su schermi stretti la tabella si trasforma. Ogni riga diventa una card con:
@@ -536,6 +756,81 @@ Su schermi stretti la tabella si trasforma. Ogni riga diventa una card con:
 - Ogni campo: label uppercase 9px + input h35–38 font 12.5px (nel body espanso il font può scendere sotto 16px perché non è la vista primaria, mentre nelle azioni sempre visibili resta ≥16px)
 
 **Regola importante:** i valori primari (nome, codice, quantità, prezzo, totale) restano leggibili sulla card chiusa. Espandere serve solo per informazioni secondarie o edit di campi meno frequenti.
+
+### La card di un ELENCO si progetta, non si impila _(18/08/2026)_
+
+Quanto sopra vale per le righe di un documento. Per un **elenco di
+registrazioni** (report, registro) il ripiego `data-label` — ogni cella diventa
+una riga «etichetta … valore» — non basta: con otto colonne dà otto righe tutte
+dello stesso peso, dove niente è primario e la card è più alta dello schermo.
+
+Riferimento: `corrispettivi-orders-table`.
+
+**Il criterio, e va dichiarato: a sinistra le parole, a destra i numeri.**
+
+```text
+17 ago 2026  Vendita                              N. 3     ← quando · cosa · quale
+Corrispettivo manuale · Magazzino test 3                   ← solo parole
+                   Imp. 20,49 €  IVA 4,51 €  25,00 €  ›    ← solo numeri
+```
+
+- **Fascia 1 — identità**: due voci brevi, e **non va mai a capo**. Ciò che è
+  descrizione (l'origine, la sede) sta sotto: tenerlo qui fa scaricare il
+  numero su una riga sua, che alza la card senza dire niente.
+- **Un'ancora a destra per fascia**: il numero in alto, il totale in basso.
+  Fuori dal gruppo che va a capo, così scorrendo l'elenco stanno sempre nello
+  stesso punto e l'occhio li trova senza cercarli.
+- **Fascia 3 allineata a destra**: gli importi si incolonnano sotto il totale
+  che compongono, come nella tabella desktop. La card non inventa un ordine suo.
+- **Il tipo si legge dall'accento laterale** (`border-inline-start`,
+  `--border-width-accent`, tinta smorzata con `color-mix`), non da un pallino:
+  è il vocabolario già in uso per la riga «Documento collegato» (§7) e per la
+  voce attiva in sidebar. **Tinta smorzata** perché qui ogni riga ha un tipo —
+  il colore accompagna, non segnala un'eccezione.
+- **Segnali ridondanti si tolgono**: se una rettifica è già dichiarata
+  dall'accento rosso, dalla parola rossa e dagli importi rossi, lo sfondo tenue
+  della riga desktop non aggiunge nulla e disegna un riquadro dentro il riquadro.
+- **Lo spazio di un elemento condizionale si riserva sempre.** Il chevron manca
+  sulle righe che non si aprono: se sparisse anche il suo ingombro, i totali di
+  quelle card slitterebbero e la colonna degli importi non sarebbe più dritta.
+  `visibility: hidden`, non `display: none`.
+
+⚠️ **Due vesti significano gli stessi dati due volte nel DOM**, e questo è un
+difetto di accessibilità che non si vede: uno screen reader annuncerebbe ogni
+riga due volte. La divisione dei ruoli è obbligatoria —
+
+- la **cella card** è una veste: porta `aria-hidden="true"`;
+- le **celle vere** sono i dati: sotto `lg` si nascondono all'occhio con la
+  ricetta `.sr-only` (`clip-path`), **mai con `display: none`**, che le
+  toglierebbe anche all'albero accessibile.
+
+Serve un test che lo tenga fermo: è invisibile a chi guarda, e nessun controllo
+di layout lo trova.
+
+### Due trappole tecniche che costano un giro di correzioni _(18/08/2026)_
+
+**1. La specificità batte l'ordine.** In un blocco mobile, `.mio-blocco__card`
+(una classe) **perde** contro `.mio-blocco__row td` (classe + elemento) scritto
+sopra per il desktop: `padding: 0` e `border: 0` non vengono applicati, e nella
+card compaiono un padding di troppo e un filo in basso che sembrano un riquadro
+interno. Il selettore mobile deve portare anche l'elemento:
+`.mio-blocco__row td.mio-blocco__card`.
+
+**2. `margin-inline-start: auto` su un `app-button` non fa niente.** L'host ha
+`display: contents` (vedi §5): nel flusso ci sta il `<button>` interno, non
+l'host, quindi un margine dichiarato lì non esiste. Per spingere un pulsante a
+destra si allarga il fratello (`flex: 1` sul titolo), o si usa
+`--button-flex` / `--button-grid-column`.
+
+**La soglia è il mixin `bp.media-down('lg')`** (1024px), non `md` (768px):
+sbagliare lascia scoperta la fascia 768–1024px, dove una tabella desktop
+stretta forza `overflow-wrap: anywhere` a spezzare le parole a metà pur di non
+mostrare la barra orizzontale — misurato su `corrispettivi-orders-table`
+(«Rimbors-o», «Non-determinata»). Per le tabelle di RIGHE DOCUMENTO vale invece
+il piano a due soglie di §9 («la vista a card di un documento…», deciso ma non
+ancora eseguito): le due cose non vanno confuse — un elenco/report usa la
+soglia singola qui sopra, una maschera documento userà le due soglie legate al
+tipo di puntatore quando quel lavoro sarà fatto.
 
 ---
 
@@ -629,7 +924,7 @@ Vedi §5 "Azioni documento (per device)": desktop usa footer sticky in basso; mo
 
 ### Sidebar
 
-- Larghezza 232px su desktop
+- Larghezza 196px su desktop (`--sidebar-width`; ridotta da 232px il 18/08/2026 dopo prova visiva)
 - Background `--color-nav-bg` (verde-scuro, dedicata alla shell)
 - Bordo destro sottile `1px solid rgba(255,255,255,.06)`
 - Padding contenuto: `16px 12px`
@@ -717,6 +1012,23 @@ imporre la vista e quel dispositivo se la ricorda. Serve ai casi che nessuna
 soglia prende — il monitor touch grande, chi sul portatile preferisce le card.
 Il predefinito deve restare giusto per il dispositivo: un comando manuale rimedia
 alle eccezioni, non a un default che sbaglia di sistema.
+
+⚠️ **Le due soglie vanno RIVISTE quando la scelta manuale esiste** _(deciso dal
+proprietario il 18/08/2026)_, e la ragione è che le due decisioni si sono prese in
+ordine inverso.
+
+I 1400px del dito sono tarati per **non sbagliare mai** su un tablet: la soglia è
+l'unico rimedio, quindi deve coprire anche il caso più largo, e per farlo manda alle
+card anche schermi dove la tabella starebbe benissimo. **Con una valvola manuale quel
+compito cambia**: la soglia non deve più essere l’unica risposta giusta per tutti, deve
+essere quella giusta per **la maggioranza**, e le eccezioni le prende l’impostazione.
+
+Una soglia prudente senza valvola è cautela; **la stessa soglia con la valvola è un
+default che sbaglia più spesso del necessario**, e ogni volta costa all’operatore un giro
+nelle Impostazioni.
+
+**Quindi le due cose si progettano insieme, non una dopo l’altra**, e i numeri qui sopra
+restano da confermare — non sono un dato acquisito.
 
 **Vincoli per chi esegue:**
 

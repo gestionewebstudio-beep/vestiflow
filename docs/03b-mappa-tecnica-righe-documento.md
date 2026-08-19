@@ -157,7 +157,7 @@ Tre conseguenze per chi lo tocca:
 
 1. **È raggiunto da tre gesti, non uno** — freccia giù, Invio su quantità con articolo collegato, e il fallthrough di `focusNextLineField`, cioè **Tab dall'ultimo campo**. Toglierlo dal corpo di `advanceToNextLine` lo toglie a tutti e tre.
 2. **La sua asincronia è ciò che oggi fa funzionare il fuoco, per caso.** Quando non c'è nulla da collegare il percorso è già sincrono; quando c'è, il callback gira un tick dopo, a DOM pronto. Reso sincrono sempre, la freccia giù sull'ultima riga smette di dare fuoco alla riga creata. Ordine cliente e Ordine fornitore hanno il `setTimeout` esplicito con il commento che spiega esattamente questo.
-3. **Restano due commenti obsoleti** su un autosave rimosso a luglio. Chi valuta la modifica crederà che si stia togliendo una persistenza.
+3. **Restano due commenti su un autosave rimosso a luglio.** Erano registrati qui come obsoleti; **dal 19/08/2026 non lo sono più**: il proprietario ha ritirato il requisito del salvataggio progressivo, e quei commenti descrivono ora il comportamento voluto. Vedi `GUARDIE-MANCANTI` voce 22. Chi valuta una modifica in questa zona non sta togliendo una persistenza: non ce n’è mai stata una da togliere.
 
 Altri chiamanti: `commitLineIfSignificant` (bersaglio di tutti i blur di riga), `addLine`, `applyScannedVariant`, `applyUnknownBarcodeScan`.
 
@@ -278,11 +278,58 @@ Tre cose che ne discendono, tutte annotate nel codice:
 
 Emerso verificando cosa dipendesse dal filtro per fornitore. Confonderli è facile, e le conseguenze non sono visibili subito.
 
-| Dove vive                                    | Cosa rappresenta                                     | Aggiornato al carico                                                                                   |
-| -------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `SupplierVariantLink.lastPurchasePriceMinor` | l'ultimo prezzo pagato **a quel fornitore**          | **sempre**                                                                                             |
-| `ProductVariant.purchasePriceMinor`          | il costo effettivo **della variante** (della taglia) | **sempre**                                                                                             |
-| `Product.purchasePriceMinor`                 | il costo di **riferimento dell'articolo**            | solo se la spunta «Aggiorna anche il costo di riferimento in anagrafica» è accesa — **default acceso** |
+| Dove vive                                    | Cosa rappresenta                                     | Aggiornato al carico       |
+| -------------------------------------------- | ---------------------------------------------------- | -------------------------- |
+| `SupplierVariantLink.lastPurchasePriceMinor` | l'ultimo prezzo pagato **a quel fornitore**          | **sempre**                 |
+| `ProductVariant.purchasePriceMinor`          | il costo effettivo **della variante** (della taglia) | **sempre**                 |
+| `Product.purchasePriceMinor`                 | il costo di **riferimento dell'articolo**            | ⛔ **MAI**, dal 19/08/2026 |
+
+### ⛔ Che cosa governa la spunta «costo in anagrafica» — deciso il 19/08/2026
+
+La tabella qui sopra descriveva un altro comportamento, e **la spunta comandava la cosa
+sbagliata**.
+
+|                                     | prima                                  | ⛔ ora                                                                    |
+| ----------------------------------- | -------------------------------------- | ------------------------------------------------------------------------- |
+| `ProductVariant.purchasePriceMinor` | **sempre**, la spunta non lo governava | **solo con la spunta**, riga per riga                                     |
+| `Product.purchasePriceMinor`        | solo con la spunta                     | **mai** — è il seed di NASCITA di una variante, non un costo aggiornabile |
+| `SupplierVariantLink`               | sempre, col fornitore                  | invariato                                                                 |
+
+⚠️ **Il difetto era che la spunta prometteva una cosa e ne faceva un'altra.** L'etichetta
+diceva «Aggiorna **anche** il costo di riferimento in anagrafica», e quell'«anche» dichiarava
+che qualcos'altro in anagrafica ci andava comunque: chi la toglieva credeva di registrare un
+costo solo documentale, e stava riscrivendo il **costo effettivo di ogni variante caricata**
+— quello che alimenta valorizzazione e margini.
+
+**Etichetta e nome del flag sono stati corretti insieme al comportamento**, perché erano
+parte del difetto e non un contorno: l'etichetta dice ora «**Aggiorna il costo in anagrafica
+con quello inserito**», e il flag di richiesta si chiama `updateArticleCost` —
+`…ReferenceCost` nominava il `Product`, cioè l'unica cosa che questa spunta non tocca più.
+Non è una colonna: è un flag per-richiesta, quindi rinominarlo non ha richiesto migration.
+
+> **Spuntata**: il costo della riga entra in anagrafica e diventa il costo di quella
+> variante. **Non spuntata**: resta un costo del DOCUMENTO, per report e contabilità.
+
+⛔ **Riga per riga, e singolarmente.** Richiamando un articolo con tre varianti si
+richiamano **tre righe**, e ognuna governa la propria variante. La spunta non è una
+propagazione «all'articolo»: è la stessa scelta applicata a ogni riga.
+
+### ⚠️ L'articolo NUOVO è un'altra cosa, e la spunta non lo riguarda
+
+Un articolo creato dall'arrivo merce **nasce con i dati che si stanno inserendo in quel
+momento**, spunta o no: al momento della nascita non c'è nessun valore da sovrascrivere —
+quei dati **sono** i dati dell'articolo.
+
+È anche l'unico momento in cui `Product.purchasePriceMinor` si scrive, ed è coerente col suo
+mestiere: **seedare le varianti future**. Alla creazione il seme e il costo coincidono perché
+sono lo stesso dato.
+
+⚠️ Verificato il 19/08: quel percorso già si comporta così — è gated dal solo permesso di
+vedere i costi (`canViewPurchaseCosts`), non dalla spunta.
+
+**E `docs/02` §4.5 lo diceva già per un'altra sorgente**: _«il costo di riferimento
+dell'articolo non si inventa da medie o dalla prima variante»_. L'arrivo merce lo derivava
+dall'ultima riga, che è più arbitrario di una media.
 
 Il ciclo si chiude su sé stesso: l'arrivo merce li scrive, e `findSupplierPriceDiffs` rilegge il primo alla conferma del documento successivo per segnalare gli scostamenti («lo pagavi X, ora paghi Y»).
 

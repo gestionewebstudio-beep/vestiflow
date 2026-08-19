@@ -50,6 +50,23 @@ export class SelectMenuComponent {
   readonly multiple = input<boolean>(false);
   /** Valori selezionati in modalità multipla. */
   readonly values = input<readonly string[]>([]);
+
+  /*
+    ⚠️ **Il trigger dice solo il NOME del filtro, mai la selezione.**
+
+    Il predefinito mostra il valore, e su una barra filtri è la ragione per cui
+    i controlli ballano: «Tutte» è largo un terzo di «Vendita al banco,
+    Corrispettivo manuale», quindi a ogni spunta il filtro accanto si sposta.
+    Su un gestionale che si usa con la coda dell'occhio è rumore continuo, e a
+    barra chiusa quel dettaglio non serve a nessuno: chi vuole sapere cosa è
+    selezionato apre il menu, dove nomi e spunte si leggono per intero.
+
+    Con `labelOnly` il pulsante è largo quanto la sua etichetta e non cambia
+    mai. Che il filtro stia restringendo qualcosa si vede dallo **stato
+    premuto** — stesso testo, stessa larghezza, stesso padding — come i comandi
+    di una barra strumenti desktop.
+  */
+  readonly labelOnly = input<boolean>(false);
   readonly ariaLabel = input.required<string>();
   /** Etichetta mostrata quando value e' null o vuoto. */
   readonly placeholder = input.required<string>();

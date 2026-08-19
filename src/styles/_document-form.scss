@@ -1980,6 +1980,32 @@ app-customer-order-form {
   background-color: var(--table-cell-calc);
 }
 
+/*
+  ⚠️ **Il Codice IVA si SCEGLIE: deve sembrare un campo, non un risultato.**
+
+  La cella porta la tinta del gruppo «calcoli» — ed è giusto, perché quel
+  gruppo è dove sta l'imposta (`regole-stile-ui` §6) — ma il controllo dentro
+  ereditava lo stesso fondo, e finiva indistinguibile da Imponibile e Imposta,
+  che invece si leggono soltanto. L'unico indizio restava il chevron, che è
+  poco: nella stessa riga l'importo si digita ed è bianco, e la differenza fra
+  «lo compilo io» e «lo calcola il gestionale» è la prima cosa che l'occhio
+  cerca in una riga documento.
+
+  Sotto `lg` questo vestito la cella ce l'aveva già, per la stessa ragione
+  scritta nel suo componente: dentro una card, accanto a campi che il bordo ce
+  l'hanno, un testo nudo non sembra scrivibile. Su desktop mancava.
+*/
+.doc-form .doc-form__table tbody td.doc-form__col--tax .doc-select-cell {
+  background-color: var(--color-input-bg);
+  border: var(--border-width) solid var(--color-input-border);
+  border-radius: var(--radius-sm);
+}
+
+.doc-form .doc-form__table tbody td.doc-form__col--tax .doc-select-cell:focus-within {
+  border-color: var(--color-interactive);
+  box-shadow: var(--field-focus-ring);
+}
+
 .doc-form .doc-form__table tbody td.doc-form__col--total {
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);

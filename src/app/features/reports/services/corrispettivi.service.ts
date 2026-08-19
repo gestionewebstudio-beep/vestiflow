@@ -12,6 +12,7 @@ import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
 import type {
   CorrispettiviListQuery,
+  CorrispettiviLocation,
   CorrispettiviRefundKind,
   CorrispettiviRegisterRow,
   CorrispettiviRowKind,
@@ -24,12 +25,15 @@ const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 interface CorrispettiviRegisterApiRow {
   readonly rowId: string;
   readonly kind: CorrispettiviRowKind;
-  readonly salesOrderId: EntityId;
+  readonly salesOrderId: EntityId | null;
+  readonly manualReceiptId?: EntityId | null;
   readonly orderNumber: string;
   readonly occurredAt: string;
   readonly source: string;
   readonly customerName: string;
   readonly customerEmail?: string | null;
+  readonly locationId?: EntityId | null;
+  readonly locationName?: string | null;
   readonly currency: string;
   readonly taxableMinor: number;
   readonly taxMinor: number;
@@ -57,6 +61,17 @@ interface CorrispettiviSummaryApi {
   readonly netTotalMinor: number;
   readonly netTaxMinor: number;
   readonly netTaxableMinor: number;
+  readonly locationUndeterminedExcludedCount?: number;
+  readonly perGiornata?: readonly {
+    readonly giorno: string;
+    readonly totali: {
+      readonly netTaxableMinor: number;
+      readonly netTaxMinor: number;
+      readonly netTotalMinor: number;
+      readonly orderCount: number;
+      readonly refundCount: number;
+    };
+  }[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -81,6 +96,16 @@ export class CorrispettiviService {
           };
         }),
       );
+  }
+
+  /**
+   * Le sedi del filtro. Chiede la CONSULTAZIONE del Registro, non il diritto di
+   * registrare: chi può solo leggere deve poter comunque filtrare per sede.
+   */
+  listLocations(): Observable<readonly CorrispettiviLocation[]> {
+    return this.http
+      .get<readonly CorrispettiviLocation[]>(this.url('/corrispettivi/locations'))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   getSummary(query: CorrispettiviListQuery = {}): Observable<CorrispettiviSummary> {
@@ -145,12 +170,46 @@ export class CorrispettiviService {
     if (query.canale && query.canale !== 'all') {
       params = params.set('canale', query.canale);
     }
+    if (query.origine && query.origine !== 'all') {
+      params = params.set('origine', query.origine);
+    }
+    if (query.locationId) {
+      params = params.set('locationId', query.locationId);
+    }
 
     if (query.refundsOnly) {
       params = params.set('refundsOnly', 'true');
     }
     if (query.rowType) {
       params = params.set('rowType', query.rowType);
+    }
+
+    // ── I filtri a INSIEME (`docs/10` §16) ──────────────────────────────
+    //
+    // ⚠️ **Un insieme vuoto NON parte.** Non è un'ottimizzazione: «vuoto» qui
+    // significa «nessuna restrizione», e mandarlo lo farebbe diventare un
+    // `in: []` lato Prisma — che non è «tutti», è nessuna riga.
+    if (query.origini?.length) {
+      params = params.set('origini', query.origini.join(','));
+    }
+    if (query.tipi?.length) {
+      params = params.set('tipi', query.tipi.join(','));
+    }
+    if (query.sedi?.length) {
+      params = params.set('sedi', query.sedi.join(','));
+    }
+    // Lo stato opposto, e per questo un parametro suo: zero righe, non tutte.
+    if (query.nessunRisultato) {
+      params = params.set('nessunRisultato', 'true');
+    }
+
+    // Presentazione: la mandano solo PDF ed Excel. «Nessun raggruppamento» non
+    // parte, come ogni altro valore che significa «niente restrizione».
+    if (query.raggruppa && query.raggruppa !== 'none') {
+      params = params.set('raggruppa', query.raggruppa);
+    }
+    if (query.colonne?.length) {
+      params = params.set('colonne', query.colonne.join(','));
     }
 
     return params;
@@ -166,12 +225,15 @@ function mapRegisterRow(row: CorrispettiviRegisterApiRow): CorrispettiviRegister
   return {
     rowId: row.rowId,
     kind: row.kind,
-    salesOrderId: row.salesOrderId,
+    salesOrderId: row.salesOrderId ?? undefined,
+    manualReceiptId: row.manualReceiptId ?? undefined,
     orderNumber: row.orderNumber,
     occurredAt: row.occurredAt,
     source: row.source,
     customerName: row.customerName,
     customerEmail: row.customerEmail ?? undefined,
+    locationId: row.locationId ?? undefined,
+    locationName: row.locationName ?? undefined,
     currency,
     // Gli importi arrivano già col segno: sulle rettifiche sono negativi, ed è
     // quel segno che rende la colonna sommabile a occhio.
@@ -203,6 +265,18 @@ function mapSummary(row: CorrispettiviSummaryApi): CorrispettiviSummary {
     netTotal: money(row.netTotalMinor),
     netTax: money(row.netTaxMinor),
     netTaxable: money(row.netTaxableMinor),
+    locationUndeterminedExcludedCount: row.locationUndeterminedExcludedCount ?? 0,
+    // ⚠️ Il subtotale di giornata NON si ricalcola qui dalle righe: arriva
+    // dallo stesso accumulatore che ha prodotto il totale del periodo, di cui
+    // è un addendo. Sommarlo a parte sarebbe la seconda matematica.
+    perGiornata: (row.perGiornata ?? []).map((g) => ({
+      giorno: g.giorno,
+      taxable: money(g.totali.netTaxableMinor),
+      tax: money(g.totali.netTaxMinor),
+      total: money(g.totali.netTotalMinor),
+      orderCount: g.totali.orderCount,
+      refundCount: g.totali.refundCount,
+    })),
   };
 }
 

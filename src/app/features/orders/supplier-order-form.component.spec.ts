@@ -113,6 +113,19 @@ function tableColumnPreferenceMock() {
   };
 }
 
+const VAT_10 = {
+  id: 'vat-10',
+  code: '10',
+  description: 'Aliquota ridotta',
+  ratePercent: 10,
+  nonDeductiblePercent: 0,
+  calculationMode: 'standard',
+  vatAffectsSupplierTotal: true,
+  isActive: true,
+  isDefault: false,
+  usageScope: 'both',
+};
+
 const VAT_22 = {
   id: 'vat-22',
   code: '22',
@@ -531,6 +544,66 @@ describe('SupplierOrderFormComponent', () => {
     await user.click(screen.getByRole('button', { name: 'Indietro' }));
 
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  // ⛔ Difetto misurato il 18/08/2026 confrontando questa maschera con Ordine
+  // cliente, Arrivo merce e Corrispettivo manuale: era l'unica delle quattro a
+  // mettere una voce vuota in cima all'elenco IVA di riga. Sulla cella a
+  // ricerca-e-selezione quella voce è la PRIMA evidenziata — aprire e battere
+  // Invio senza guardare azzerava il Codice IVA, e il salvataggio poi rifiutava
+  // la riga. Il vuoto non è una scelta dove una riga senza IVA non si salva.
+  it('l’elenco del Codice IVA di riga non offre la voce vuota', async () => {
+    const user = userEvent.setup();
+    await setup({ vatCodes: [VAT_22, VAT_10] });
+
+    await scegliFornitore(user);
+
+    await user.click(screen.getAllByRole('button', { name: 'Apri elenco — Codice IVA riga' })[0]!);
+
+    const voci = screen.getAllByRole('option').map((o) => o.textContent?.trim() ?? '');
+    expect(voci.length).toBeGreaterThan(0);
+    expect(voci).not.toContain('—');
+    expect(voci.every((voce) => voce.length > 0)).toBe(true);
+  });
+
+  // Non guarda un difetto: il 18/08/2026 è stato sospettato che cambiare il
+  // solo Codice IVA non sporcasse il documento, perché `onLineVatSelect` non
+  // chiama `markFormDirty()` mentre i suoi fratelli di riga sì. La misura ha
+  // detto il contrario — c'è una sottoscrizione unica su `form.valueChanges`
+  // che marca tutto (costruttore, «`this.form.valueChanges…markFormDirty`»), e
+  // il `setValue` di quel gestore emette. La protezione c'era già.
+  //
+  // Resta come guardia di ciò che si è misurato, perché è regredibile in un
+  // modo preciso e silenzioso: basta che qualcuno passi quel `setValue` a
+  // `{ emitEvent: false }` — come fa `applyFromSummary` due schermate più giù
+  // con `quiet` — e l'uscita smette di proteggere senza che nulla diventi
+  // rosso.
+  //
+  // ⚠️ PARTE DA UN ORDINE SALVATO, e non è un giro di scena: scegliere il
+  // fornitore sporca già il documento, quindi su un ordine nuovo il dialogo
+  // comparirebbe comunque e la prova non misurerebbe l'IVA. Il salvataggio
+  // riporta `dirtySinceLastSave` a false, ed è l'unico punto da cui il cambio
+  // d'IVA resta l'unica modifica. È anche lo scenario vero: si salva, ci si
+  // accorge che l'aliquota è sbagliata, si cambia. (Su un ordine già
+  // registrato non si può: quello si apre bloccato, e il dialogo di sblocco
+  // non si pilota in jsdom — vedi il TODO sul blocco documenti più sotto.)
+  it('dopo il salvataggio, cambiare il solo Codice IVA riprotegge l’uscita', async () => {
+    const user = userEvent.setup();
+    await setup({ vatCodes: [VAT_22, VAT_10] });
+
+    await scegliFornitore(user);
+    await scegliArticoloSullaRiga(user);
+    await user.click(salvaDocumento());
+
+    // Salvato: da qui il documento è pulito. Tutto ciò che sporca dopo è il
+    // cambio d'IVA, e nient'altro.
+    await user.click(screen.getAllByRole('button', { name: 'Apri elenco — Codice IVA riga' })[0]!);
+    await user.click(screen.getByRole('option', { name: /^10/ }));
+
+    await user.click(screen.getByRole('button', { name: 'Indietro' }));
+
+    expect(await screen.findByRole('dialog')).toBeVisible();
+    expect(screen.getByText('Modifiche non salvate')).toBeVisible();
   });
 
   it('mostra errore inline quando il salvataggio fallisce', async () => {

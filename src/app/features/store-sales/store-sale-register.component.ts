@@ -9,12 +9,13 @@ import {
   inject,
   signal,
   viewChild,
+  type Signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
 
-import { catchError, map, of, switchMap, take } from 'rxjs';
+import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
@@ -46,6 +47,9 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
+import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
+import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { CustomerService } from '@domain/customers/services/customer.service';
 import { DocumentProductSearchPanelComponent } from '@domain/documents/components/document-product-search-panel/document-product-search-panel.component';
 // Stesse formule e stessi arrotondamenti del server: l'aritmetica IVA è una sola.
@@ -64,17 +68,59 @@ import { ProductFormComponent } from '@domain/products/product-form.component';
 import { ProductService } from '@domain/products/services/product.service';
 
 import type {
-  RecentStoreSale,
   StoreSaleLookupItem,
   StoreSalePaymentMethod,
   StoreSaleResult,
 } from '@domain/store-sales/models/store-sale.model';
 import { StoreSalesService } from './services/store-sales.service';
+import {
+  requireStoreSaleMode,
+  STORE_SALE_ROOT_PATH,
+  storeSaleModeOfDocumentType,
+  type StoreSaleMode,
+} from '@domain/store-sales/models/store-sale-routing.util';
+import { DocumentService } from '@domain/documents/services/document.service';
+import type { DocumentRecord } from '@core/models/document.model';
 
-type RegisterMode = 'sale' | 'return';
+/** I quattro stati del caricamento, come nelle altre sei maschere. */
+type LoadState = 'ready' | 'loading' | 'not-found' | 'error';
 
-/** Riga del carrello cassa: quantità, prezzo modificabile e sconto (§7). */
-interface CartLine {
+/**
+ * Identità di una riga NUOVA, generata dal client.
+ *
+ * ⚠️ Il prefisso la distingue da un id del server: una riga caricata da un
+ * documento esistente porta il proprio, ed è quello che fa AGGIORNARE il
+ * movimento collegato invece di ricrearlo. Al salvataggio le righe nuove
+ * mandano `id` assente — questo serve solo dentro la maschera, per dare a ogni
+ * riga un'identità stabile mentre la si compila.
+ */
+let contatoreRighe = 0;
+function nuovoIdRiga(): string {
+  contatoreRighe += 1;
+  return `nuova-${contatoreRighe}`;
+}
+
+/** Alias locale: il modo della maschera vive nel registro delle rotte. */
+type RegisterMode = StoreSaleMode;
+
+/**
+ * Una **riga documento** del banco: quantità, prezzo, sconto.
+ *
+ * ⛔ Si chiamava `CartLine` ed era il carrello della vecchia mini-cassa. La
+ * Vendita al banco è un documento VestiFlow (`11`), e le sue righe hanno
+ * un'**identità propria** come quelle di ogni altro documento.
+ *
+ * ⚠️ **`id` non è `variantId`**, ed è la differenza che conta: due righe dello
+ * stesso articolo sono due righe — caso legittimo, e `regole-gestionale` dice
+ * che restano due movimenti distinti. Indirizzando per variante collassavano in
+ * una, e al salvataggio la seconda spariva col suo movimento.
+ *
+ * Sulle righe nuove l'id lo genera il client; su quelle caricate da un
+ * documento esistente è quello del server, ed è ciò che fa aggiornare il
+ * movimento collegato invece di ricrearlo.
+ */
+interface DocumentLineDraft {
+  readonly id: string;
   readonly variantId: EntityId;
   readonly sku: string;
   readonly description: string;
@@ -95,17 +141,24 @@ interface CartLine {
   readonly available: number;
 }
 
-/** Riga del reso: quantità da rientrare e stato vendibile (§9). */
+/**
+ * Riga del reso.
+ *
+ * ⛔ Nessun `soldQuantity`: il Reso **non ha documento origine** (`11` A11), e
+ * senza un venduto non esiste un tetto da cui derivare un massimo. La vendita
+ * reale puo' essere stata battuta su una cassa esterna e non esistere affatto
+ * in VestiFlow.
+ */
 interface ReturnLine {
   readonly variantId: EntityId | null;
   readonly sku: string;
   readonly description: string;
-  readonly soldQuantity: number;
-  /** Prezzo unitario NETTO della vendita originale. */
+  /** Prezzo unitario NETTO reso, dall'anagrafica secondo il contratto comune. */
   readonly unitPriceMinor: number;
-  /** Aliquota della riga venduta: per mostrare quanto si restituisce davvero. */
+  /** Aliquota del Codice IVA risolto dall'articolo: per mostrare l'ivato. */
   readonly vatRatePercent: number | null;
   readonly returnQuantity: number;
+  /** Spunta «Carica giacenze» della riga (`11` A11-ter). */
   readonly restockable: boolean;
 }
 
@@ -144,6 +197,9 @@ function looksLikeBarcode(code: string): boolean {
     ConfirmDialogComponent,
     SelectMenuComponent,
     SlidePanelComponent,
+    TableSkeletonComponent,
+    ErrorStateComponent,
+    EmptyStateComponent,
     ProductFormComponent,
     DocumentProductSearchPanelComponent,
   ],
@@ -161,6 +217,9 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(APP_CONFIG);
+  private readonly route = inject(ActivatedRoute);
+  private readonly documents = inject(DocumentService);
+  private readonly router = inject(Router);
 
   // ── Cosa può fare chi sta al banco ───────────────────────────────────────
 
@@ -206,7 +265,134 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected readonly paymentOptions = PAYMENT_OPTIONS;
   protected readonly formatDate = formatDate;
 
-  protected readonly mode = signal<RegisterMode>('sale');
+  /**
+   * Vendita o Reso, e lo decide la ROTTA.
+   *
+   * ⛔ Nessun valore predefinito: `requireStoreSaleMode` lancia se la rotta non
+   * lo dichiara. I due modi hanno effetti di magazzino OPPOSTI — uno scarica,
+   * l'altro carica — e un fallback su `sale` farebbe compilare una vendita a
+   * chi ha aperto «Nuovo reso al banco», senza che niente lo segnali.
+   *
+   * ⚠️ Si legge dallo `snapshot` e non dal flusso: le due rotte di creazione
+   * sono voci distinte, quindi il componente viene DISTRUTTO e ricreato
+   * passando dall'una all'altra (`TabRouteReuseStrategy.shouldReuseRoute`
+   * confronta `routeConfig`). Non esiste il caso «stessa istanza, dato nuovo».
+   *
+   * ⛔ **In sola lettura dal 19/08/2026** (`11` C4): l'interruttore interno
+   * non c'è più, e con lui l'unico modo che la maschera aveva di contraddire
+   * l'indirizzo da cui si è entrati. Per cambiare tipo si cambia pagina.
+   */
+  protected readonly mode: Signal<RegisterMode> = signal(
+    requireStoreSaleMode(this.route.snapshot.data),
+  ).asReadonly();
+
+  /**
+   * Titolo e sottotestata SEGUONO il tipo della rotta.
+   *
+   * ⚠️ Erano fissi sulla vendita, e finché il tipo si cambiava da dentro non
+   * si notava. Con due indirizzi distinti aprire «Nuovo reso al banco» avrebbe
+   * mostrato «Vendita al banco» e una sottotestata che dichiara lo SCARICO
+   * della giacenza — il contrario di quello che un reso fa.
+   */
+  protected readonly pageTitle = computed(() =>
+    this.mode() === 'sale' ? 'Nuova vendita al banco' : 'Nuovo reso al banco',
+  );
+
+  protected readonly pageSubtitle = computed(() =>
+    this.mode() === 'sale'
+      ? 'Alla conclusione la giacenza e la disponibilità vengono scaricate; l’impegnata resta invariata. Non è un documento fiscale.'
+      : 'Alla conclusione la merce resa rientra in giacenza, riga per riga secondo la spunta «Carica giacenze». Non è un documento fiscale.',
+  );
+
+  // ── Caricamento di un documento esistente (`11` C 3b) ────────────────────
+  //
+  // ⛔ È il pattern comune, non una variante: sei maschere lo ripetono identico
+  // — `paramMap` (mai `snapshot`: il router riusa l'istanza passando da un
+  // documento all'altro), un solo `loadTick`/`loadState` a quattro stati, e in
+  // template la catena scheletro → errore → non modificabile → form.
+
+  private readonly paramMap = toSignal(this.route.paramMap, { requireSync: true });
+
+  /** L'id del documento da modificare, o `null` se se ne sta creando uno. */
+  protected readonly editDocumentId = computed(() => this.paramMap().get('id'));
+  protected readonly isEditMode = computed(() => Boolean(this.editDocumentId()));
+
+  private readonly loadTick = signal(0);
+
+  private readonly loadState = toSignal(
+    toObservable(computed(() => ({ id: this.editDocumentId(), tick: this.loadTick() }))).pipe(
+      switchMap(({ id }) => {
+        if (!id) {
+          return of<LoadState>('ready');
+        }
+        return this.documents.getDocumentById(id).pipe(
+          map((doc): LoadState => {
+            // ⚠️ Il tipo lo dice la ROTTA, non il documento: se non coincidono
+            // l'indirizzo è sbagliato, e mostrarlo comunque farebbe compilare
+            // un reso su una maschera che dice vendita.
+            if (storeSaleModeOfDocumentType(doc.type) !== this.mode()) {
+              return 'not-found';
+            }
+            this.patchFromDocument(doc);
+            return 'ready';
+          }),
+          startWith<LoadState>('loading'),
+          catchError(() => of<LoadState>('error')),
+        );
+      }),
+    ),
+    { initialValue: this.editDocumentId() ? 'loading' : 'ready' },
+  );
+
+  protected readonly loading = computed(() => this.loadState() === 'loading');
+  protected readonly loadError = computed(() => this.loadState() === 'error');
+  protected readonly notEditable = computed(() => this.loadState() === 'not-found');
+
+  protected reload(): void {
+    this.loadTick.update((tick) => tick + 1);
+  }
+
+  /** Ritorno all'elenco dallo stato «non disponibile». */
+  protected goToList(): void {
+    void this.router.navigateByUrl(STORE_SALE_ROOT_PATH);
+  }
+
+  /**
+   * Riempie la maschera da un documento salvato.
+   *
+   * ⛔ Le righe conservano l'**id del server**: è quello che fa AGGIORNARE il
+   * movimento collegato invece di cancellarlo e riscriverlo — e riscriverlo
+   * ricongelerebbe il costo di oggi su una vendita di marzo (`11` A2).
+   *
+   * ⚠️ I valori si prendono dal DOCUMENTO, non dall'anagrafica: è la regola «la
+   * riga di un documento è una fotografia». Solo la disponibilità è un dato
+   * live, e resta a zero finché non la si rilegge — al banco non serve a
+   * decidere, serve a avvisare, e su un documento già salvato la merce è già
+   * stata scaricata.
+   */
+  private patchFromDocument(doc: DocumentRecord): void {
+    this.loadedDocument.set(doc);
+    this.selectedLocationId.set(doc.locationId ?? null);
+    this.cart.set(
+      (doc.lines ?? []).map((line) => ({
+        id: line.id,
+        variantId: line.variantId ?? '',
+        sku: line.sku ?? '',
+        description: line.description,
+        unitPriceMinor: line.unitPrice.amountMinor,
+        quantity: line.quantity,
+        discountPercent: line.discountPercent,
+        vatRatePercent: line.vatSnapshot?.ratePercent ?? null,
+        vatCodeId: line.vatCodeId ?? null,
+        onHand: 0,
+        committed: 0,
+        available: 0,
+      })),
+    );
+  }
+
+  /** Il documento caricato, per i valori di testata che non si ricalcolano. */
+  protected readonly loadedDocument = signal<DocumentRecord | null>(null);
 
   // ── Location ────────────────────────────────────────────────────────────
 
@@ -280,7 +466,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   /** Incrementato a ogni apertura: reinizializza la query del pannello. */
   protected readonly searchPanelLaunchSeq = signal(0);
 
-  protected readonly cart = signal<readonly CartLine[]>([]);
+  protected readonly cart = signal<readonly DocumentLineDraft[]>([]);
   protected readonly paymentMethod = signal<StoreSalePaymentMethod>('cash');
   /** Testo libero quando il metodo è «Altro» (es. «Assegno», «Bonifico»). */
   protected readonly paymentOtherText = signal('');
@@ -312,12 +498,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   // ── Reso: vendita origine e righe di rientro ────────────────────────────
 
-  protected readonly recentSearchDraft = signal('');
-  protected readonly recentPending = signal(false);
-  protected readonly recentSales = signal<readonly RecentStoreSale[]>([]);
-  protected readonly recentError = signal<string | null>(null);
-
-  protected readonly selectedSale = signal<RecentStoreSale | null>(null);
   protected readonly returnLines = signal<readonly ReturnLine[]>([]);
   protected readonly returnReason = signal('');
   protected readonly returnNotes = signal('');
@@ -363,7 +543,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   private lookupSubscription: Subscription | null = null;
   private quickAddSubscription: Subscription | null = null;
   private saleSubscription: Subscription | null = null;
-  private recentSubscription: Subscription | null = null;
   private returnSubscription: Subscription | null = null;
 
   constructor() {
@@ -374,21 +553,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
       void this.audioContext?.close().catch(() => undefined);
       this.audioContext = null;
     });
-  }
-
-  // ── Mode ─────────────────────────────────────────────────────────────────
-
-  protected setMode(mode: RegisterMode): void {
-    if (this.mode() === mode) {
-      return;
-    }
-    this.mode.set(mode);
-    if (mode === 'return' && this.recentSales().length === 0) {
-      this.loadRecentSales();
-    }
-    if (mode === 'sale') {
-      this.focusSearchInput();
-    }
   }
 
   protected onLocationChange(value: string | null): void {
@@ -425,7 +589,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   }
 
   protected addResultToCart(item: StoreSaleLookupItem): void {
-    this.addToCart(item);
+    this.addResolvedItem(item);
     this.lookupResults.set(null);
     this.searchDraft.set('');
     this.focusSearchInput();
@@ -466,7 +630,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     }
     const locationId = this.selectedLocationId();
     if (!locationId) {
-      this.lookupMessage.set('Seleziona la location del negozio.');
+      this.lookupMessage.set('Seleziona la location.');
       return;
     }
     this.lookupPending.set(true);
@@ -491,7 +655,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         next: ({ exact, items }) => {
           this.lookupPending.set(false);
           if (exact) {
-            this.addToCart(exact, quantity);
+            this.addResolvedItem(exact, quantity);
             this.lookupResults.set(null);
             this.searchDraft.set('');
             this.focusSearchInput();
@@ -521,21 +685,74 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.focusSearchInput(true);
   }
 
+  /**
+   * La porta d'ingresso e' UNA SOLA per pistola e tastiera (`11` A14): la
+   * ricerca e la risoluzione dell'articolo sono le stesse, e qui si decide
+   * soltanto su quale documento finisce la riga.
+   *
+   * ⛔ Il Reso non dipende dal carrello della Vendita: ha le proprie righe. In
+   * comune c'e' l'articolo risolto, non lo stato.
+   */
+  private addResolvedItem(item: StoreSaleLookupItem, quantity = 1): void {
+    if (this.mode() === 'return') {
+      this.addToReturn(item, quantity);
+      return;
+    }
+    this.addToCart(item, quantity);
+  }
+
+  /** Stessa forma di `addToCart`, sull'altro documento. */
+  private addToReturn(item: StoreSaleLookupItem, quantity = 1): void {
+    this.returnError.set(null);
+    this.lastReturnResult.set(null);
+    this.lookupMessage.set(null);
+    this.unresolvedCode.set(null);
+    this.returnLines.update((lines) => {
+      const existing = lines.find((line) => line.variantId === item.variantId);
+      if (existing) {
+        return lines.map((line) =>
+          line.variantId === item.variantId
+            ? { ...line, returnQuantity: line.returnQuantity + quantity }
+            : line,
+        );
+      }
+      const next: ReturnLine = {
+        variantId: item.variantId,
+        sku: item.sku,
+        description: item.optionSummary
+          ? `${item.productName} — ${item.optionSummary}`
+          : item.productName,
+        // ⛔ Mai da una vendita precedente (`11` A11): l'unica fonte disponibile
+        // e' l'anagrafica, secondo il contratto prezzi comune. Resta modificabile.
+        unitPriceMinor: item.sellingPriceMinor,
+        vatRatePercent: item.vatRatePercent,
+        returnQuantity: quantity,
+        restockable: true,
+      };
+      return [...lines, next];
+    });
+    this.playSuccessBeep();
+  }
+
   private addToCart(item: StoreSaleLookupItem, quantity = 1): void {
     this.saleError.set(null);
     this.lastSaleResult.set(null);
     this.lookupMessage.set(null);
     this.unresolvedCode.set(null);
     this.cart.update((lines) => {
+      // ⚠️ **La fusione per variante vive SOLO qui**, ed è una comodità della
+      // scansione: passare due volte lo stesso capo sul lettore deve fare «2»,
+      // non due righe. Fuori da questo punto le righe hanno identità propria e
+      // due righe dello stesso articolo restano due — caso legittimo, e
+      // `regole-gestionale` dice che sono due movimenti distinti.
       const existing = lines.find((line) => line.variantId === item.variantId);
       if (existing) {
         return lines.map((line) =>
-          line.variantId === item.variantId
-            ? { ...line, quantity: line.quantity + quantity }
-            : line,
+          line.id === existing.id ? { ...line, quantity: line.quantity + quantity } : line,
         );
       }
-      const next: CartLine = {
+      const next: DocumentLineDraft = {
+        id: nuovoIdRiga(),
         variantId: item.variantId,
         sku: item.sku,
         description: item.optionSummary
@@ -633,7 +850,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
         next: (item) => {
           this.quickAddPending.set(false);
           if (item) {
-            this.addToCart(item);
+            this.addResolvedItem(item);
             this.searchDraft.set('');
           } else {
             this.lookupMessage.set(
@@ -694,7 +911,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.playBeep({ type: 'sine', frequency: 880, gain: 0.06, durationSec: 0.09 });
   }
 
-  /** Genera un tono via Web Audio API; l'audio mancante non blocca la cassa. */
+  /** Genera un tono via Web Audio API; l'audio mancante non blocca la vendita. */
   private playBeep(options: {
     type: OscillatorType;
     frequency: number;
@@ -730,35 +947,33 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   // ── Vendita: carrello ────────────────────────────────────────────────────
 
-  protected changeQuantity(variantId: EntityId, delta: number): void {
+  protected changeQuantity(lineId: string, delta: number): void {
     this.cart.update((lines) =>
       lines.map((line) =>
-        line.variantId === variantId
-          ? { ...line, quantity: Math.max(1, line.quantity + delta) }
-          : line,
+        line.id === lineId ? { ...line, quantity: Math.max(1, line.quantity + delta) } : line,
       ),
     );
   }
 
-  protected onQuantityInput(variantId: EntityId, event: Event): void {
+  protected onQuantityInput(lineId: string, event: Event): void {
     const value = Number((event.target as HTMLInputElement).value);
     if (!Number.isInteger(value) || value < 1) {
       return;
     }
     this.cart.update((lines) =>
-      lines.map((line) => (line.variantId === variantId ? { ...line, quantity: value } : line)),
+      lines.map((line) => (line.id === lineId ? { ...line, quantity: value } : line)),
     );
   }
 
   /** Il prezzo si digita lordo e si memorizza netto: la vista non è il dato. */
-  protected onPriceInput(variantId: EntityId, event: Event): void {
+  protected onPriceInput(lineId: string, event: Event): void {
     const parsed = parseMoneyInput((event.target as HTMLInputElement).value);
     if (!parsed || parsed.amountMinor < 0) {
       return;
     }
     this.cart.update((lines) =>
       lines.map((line) =>
-        line.variantId === variantId
+        line.id === lineId
           ? {
               ...line,
               // Scorporo ESATTO: il netto memorizzato porta la coda decimale, ed
@@ -773,31 +988,29 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     );
   }
 
-  protected onDiscountInput(variantId: EntityId, event: Event): void {
+  protected onDiscountInput(lineId: string, event: Event): void {
     const value = Number((event.target as HTMLInputElement).value);
     if (!Number.isInteger(value) || value < 0 || value > 100) {
       return;
     }
     this.cart.update((lines) =>
-      lines.map((line) =>
-        line.variantId === variantId ? { ...line, discountPercent: value } : line,
-      ),
+      lines.map((line) => (line.id === lineId ? { ...line, discountPercent: value } : line)),
     );
   }
 
-  protected removeLine(variantId: EntityId): void {
-    this.cart.update((lines) => lines.filter((line) => line.variantId !== variantId));
+  protected removeLine(lineId: string): void {
+    this.cart.update((lines) => lines.filter((line) => line.id !== lineId));
   }
 
   /** Override manuale del Codice IVA riga (compatto: la risoluzione di default resta silenziosa). */
-  protected onLineVatSelect(variantId: EntityId, value: string | null): void {
+  protected onLineVatSelect(lineId: string, value: string | null): void {
     this.cart.update((lines) =>
-      lines.map((line) => (line.variantId === variantId ? { ...line, vatCodeId: value } : line)),
+      lines.map((line) => (line.id === lineId ? { ...line, vatCodeId: value } : line)),
     );
   }
 
   /** Opzioni riga: codici attivi + eventuale codice risolto ora disattivato. */
-  protected lineVatOptions(line: CartLine): readonly SelectMenuOption[] {
+  protected lineVatOptions(line: DocumentLineDraft): readonly SelectMenuOption[] {
     const options = this.vatSelectOptions();
     if (!line.vatCodeId || options.some((option) => option.value === line.vatCodeId)) {
       return options;
@@ -811,25 +1024,25 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   // ── Netto memorizzato, ivato al banco ─────────────────────────────────────
   //
-  // Il prezzo dell'articolo è netto, come ogni prezzo del gestionale. Alla cassa
+  // Il prezzo dell'articolo è netto, come ogni prezzo del gestionale. Al banco
   // però si ragiona su quello che il cliente paga: i campi mostrano il lordo e
   // l'operatore digita il lordo. La conversione avviene qui, all'aliquota della
   // riga; al server va sempre il netto.
 
   /** Dati IVA della riga: dal Codice IVA scelto, o dall'aliquota già risolta. */
-  private lineVat(line: CartLine): VatComputationInput {
+  private lineVat(line: DocumentLineDraft): VatComputationInput {
     const vatCode = line.vatCodeId ? this.vatCodeById().get(line.vatCodeId) : undefined;
     return vatCode ? vatInputFromVatCode(vatCode) : vatInputFromLegacyRate(line.vatRatePercent);
   }
 
   /** Aliquota effettiva per la conversione (0 = niente da aggiungere). */
-  private lineRate(line: CartLine): number {
+  private lineRate(line: DocumentLineDraft): number {
     const vat = this.lineVat(line);
     return entryIncludesVat('vat_included', vat) ? vat.ratePercent : 0;
   }
 
   /** Importi di riga con le stesse formule del server (una sola aritmetica). */
-  private lineAmounts(line: CartLine) {
+  private lineAmounts(line: DocumentLineDraft) {
     return computeVatLineAmounts({
       enteredUnitCostMinor: line.unitPriceMinor,
       costEntryMode: 'vat_excluded',
@@ -839,12 +1052,12 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     });
   }
 
-  protected lineTotal(line: CartLine): string {
+  protected lineTotal(line: DocumentLineDraft): string {
     return this.money(this.lineAmounts(line).lineGrossMinor);
   }
 
   /** Nel campo prezzo si vede il lordo: è il prezzo che il cliente paga. */
-  protected priceInputValue(line: CartLine): string {
+  protected priceInputValue(line: DocumentLineDraft): string {
     const grossMinor = grossFromNetMinor(line.unitPriceMinor, this.lineRate(line));
     return moneyToDecimalString({ amountMinor: grossMinor, currencyCode: 'EUR' }).replace('.', ',');
   }
@@ -860,7 +1073,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   }
 
   /** Messaggio §8 con i tre valori, mostrato inline sulla riga eccedente (avviso). */
-  protected availabilityMessage(line: CartLine): string {
+  protected availabilityMessage(line: DocumentLineDraft): string {
     return `Quantità superiore alla disponibilità. Giacenza ${line.onHand}, impegnata ${line.committed}, disponibile ${line.available}. La vendita procederà comunque.`;
   }
 
@@ -946,56 +1159,8 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   // ── Reso vendita negozio ─────────────────────────────────────────────────
 
-  protected onRecentSearchInput(event: Event): void {
-    this.recentSearchDraft.set((event.target as HTMLInputElement).value);
-  }
-
-  protected onRecentSearchSubmit(event: Event): void {
-    event.preventDefault();
-    this.loadRecentSales();
-  }
-
-  protected loadRecentSales(): void {
-    if (this.recentPending()) {
-      return;
-    }
-    this.recentPending.set(true);
-    this.recentError.set(null);
-    this.recentSubscription = this.service
-      .getRecentSales(this.recentSearchDraft().trim() || undefined)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (sales) => {
-          this.recentPending.set(false);
-          this.recentSales.set(sales);
-        },
-        error: (err: unknown) => {
-          this.recentPending.set(false);
-          this.recentError.set(this.errorMessage(err));
-        },
-      });
-  }
-
-  protected selectSale(sale: RecentStoreSale): void {
-    this.selectedSale.set(sale);
-    this.lastReturnResult.set(null);
-    this.returnError.set(null);
-    this.returnLines.set(
-      sale.lines.map((line): ReturnLine => ({
-        variantId: line.variantId,
-        sku: line.sku ?? '',
-        description: line.description,
-        soldQuantity: line.quantity,
-        unitPriceMinor: line.unitPriceMinor,
-        vatRatePercent: line.vatRatePercent,
-        returnQuantity: 0,
-        restockable: true,
-      })),
-    );
-  }
-
-  protected clearSelectedSale(): void {
-    this.selectedSale.set(null);
+  /** Svuota il reso in corso: righe, causale e note. */
+  protected clearReturn(): void {
     this.returnLines.set([]);
     this.returnReason.set('');
     this.returnNotes.set('');
@@ -1006,7 +1171,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.returnLines.update((lines) =>
       lines.map((line, i) =>
         i === index && Number.isInteger(value) && value >= 0
-          ? { ...line, returnQuantity: Math.min(value, line.soldQuantity) }
+          ? { ...line, returnQuantity: value }
           : line,
       ),
     );
@@ -1048,7 +1213,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
 
   protected concludeReturn(onDone?: () => void): void {
     const locationId = this.selectedLocationId();
-    const sale = this.selectedSale();
     if (!locationId || this.returnPending()) {
       return;
     }
@@ -1063,7 +1227,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
     this.returnSubscription = this.service
       .createReturn({
         locationId,
-        saleDocumentId: sale?.id,
         reason: this.returnReason().trim(),
         notes: this.returnNotes().trim() || undefined,
         lines: lines.map((line) => ({
@@ -1079,8 +1242,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
           this.returnPending.set(false);
           this.returnConfirmOpen.set(false);
           this.lastReturnResult.set(result);
-          this.clearSelectedSale();
-          this.loadRecentSales();
+          this.clearReturn();
           onDone?.();
         },
         error: (err: unknown) => {
@@ -1118,7 +1280,7 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
   protected confirmExitWithoutSaving(): void {
     this.exitDialogOpen.set(false);
     this.cart.set([]);
-    this.clearSelectedSale();
+    this.clearReturn();
     this.pendingDeactivate?.(true);
     this.pendingDeactivate = null;
   }

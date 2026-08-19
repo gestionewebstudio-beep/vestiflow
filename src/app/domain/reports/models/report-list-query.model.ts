@@ -22,6 +22,13 @@ import { SalesOrderFinancialStatus, SalesOrderSource } from '@core/models/sales-
  * «2° trimestre 2026» e le date scritte a mano non possono divergere.
  */
 export const ReportPeriodPreset = {
+  // La GIORNATA singola (`docs/10` §16). Non introduce semantica nuova: sono
+  // intervalli con inizio e fine sullo stesso giorno, risolti dalle stesse
+  // funzioni UTC di tutti gli altri preset.
+  Today: 'today',
+  Yesterday: 'yesterday',
+  /** Una data scelta a mano: `from` la porta, e `to` la ricopia. */
+  SpecificDay: 'day',
   Last7Days: '7d',
   Last30Days: '30d',
   ThisMonth: 'month',
@@ -106,6 +113,32 @@ export function resolveReportDateRange(
   query: ReportListQuery,
   referenceDate: Date = new Date(),
 ): ReportDateRange {
+  /*
+    ⚠️ **La giornata singola è un intervallo, non un caso a parte.**
+
+    Inizio e fine sullo stesso giorno, con le stesse funzioni UTC degli altri
+    preset: un secondo modo di intendere «giorno» sarebbe la premessa di un
+    Registro che mostra righe diverse a seconda di come si è scelta la data.
+
+    Restano due cose diverse, e vanno tenute distinte: il periodo decide QUALI
+    dati appartengono all'insieme, il raggruppamento decide COME si legge un
+    intervallo che ne contiene più d'uno.
+  */
+  if (query.period === ReportPeriodPreset.Today) {
+    const oggi = toIsoDate(referenceDate);
+    return { placedFrom: oggi, placedTo: oggi };
+  }
+  if (query.period === ReportPeriodPreset.Yesterday) {
+    const ieri = shiftIsoDate(referenceDate, -1);
+    return { placedFrom: ieri, placedTo: ieri };
+  }
+  if (query.period === ReportPeriodPreset.SpecificDay) {
+    // La data scelta sta in `from`; `to` la ricopia, così l'intervallo è la
+    // giornata e non «da quel giorno in poi».
+    const giorno = query.dateFrom ?? toIsoDate(referenceDate);
+    return { placedFrom: giorno, placedTo: giorno };
+  }
+
   if (query.period === ReportPeriodPreset.Custom) {
     const placedFrom = query.dateFrom ?? toIsoDate(referenceDate);
     const placedTo = query.dateTo ?? placedFrom;

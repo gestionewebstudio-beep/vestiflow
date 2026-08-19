@@ -523,6 +523,131 @@ La prima nasce dal ciclo di riconciliazione osservato in produzione, che riprova
 
 ---
 
+### 6.5 — Cosa ha misurato l'indagine del 19/08/2026
+
+Il §6.2 dice **che** serve una coda in uscita. Questa sezione dice **di che forma**, perché
+tre censimenti a ventaglio hanno rovesciato quattro premesse su cui il disegno si sarebbe
+appoggiato. Le misure per esteso stanno in `13-specifica-prestazioni-salvataggio`.
+
+#### ⛔ La coda accoda lo STATO da raggiungere, non gli eventi da riprodurre
+
+Un documento da 200 righe non deve diventare 200 righe di coda, 200 job, 200 letture di stato
+e 200 chiamate. Sarebbe spostare il collo di bottiglia dall'operatore al worker: con molti
+tenant la coda accumula e non rientra più.
+
+> **Si accoda il desired state per (tenant, canale, variante, sede); il worker RILEGGE la
+> giacenza corrente al momento dell'esecuzione e pubblica quella.**
+
+La rilettura è già così oggi ed è **confermata**: `pushLevel` riceve
+`(tenantId, variantId, locationId)` senza quantità e legge `InventoryLevel` al momento
+dell'esecuzione. Nessun percorso porta uno snapshot. Quindi se una variante si muove cinque
+volte in pochi secondi, Shopify va portata **allo stato finale**, non fatta passare per i
+quattro intermedi.
+
+#### ⛔ Ma coalescere oggi ROMPE l'autoriparazione, e va risolto prima
+
+Il gate che evita i push ridondanti (`shopify-inventory-push.service.ts:105-107`) confronta
+con `lastPushedAvailable` — **quanto VestiFlow ha spedito** — non con
+`lastObservedShopifyAvailable`, che è quanto Shopify **ha davvero**. Quella colonna esiste
+già, è scritta, e **non la legge nessuno**.
+
+**Controesempio in numeri.** Pubblicabile VF = 5, `lastPushed` = 5, Shopify reale = 3 per una
+deriva già avvenuta. L'operatore scarica 1 pezzo (5→4) e poi annulla (4→5):
+
+|                          | esito su Shopify                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| **oggi, due push**       | 4≠5 → SET 4; poi 5≠4 → SET 5. **Shopify finisce a 5: la deriva si ripara** per effetto collaterale |
+| **coalescendo, un push** | legge 5, `lastPushed` è ancora 5 → `unchanged` → **zero HTTP. Shopify resta a 3**                  |
+
+> **Coalescere è lecito SOLO SE il gate diventa di stato.** Altrimenti «coalescere» significa
+> «smettere di autoripararsi», in silenzio e senza errore.
+
+⚠️ **Il difetto è già misurabile oggi**, non ipotetico: `pushLevel` non lancia su
+`unchanged`, quindi `retryPending` lo conta come **riuscita**, `remaining` va a 0, e
+l'operatore legge «Ripubblicata su Shopify 1 giacenza disallineata» **con tono success**
+mentre il flag resta acceso e Shopify resta divergente. All'infinito.
+
+#### ⛔ `ShopifyInventorySyncState` non è riusabile come coda: serve una tabella nuova
+
+Ha la chiave giusta — `@@unique([tenantId, variantId, locationId])`, l'unica terna del genere
+nello schema — ma il riuso è stato **refutato su sei fronti**. Il decisivo:
+
+> **La deduplica del lavoro e la memoria del push sono LA STESSA COLONNA.**
+
+Il mestiere di un worker desired-state è «rileggi e pubblica»; il gate `unchanged` glielo
+**vieta esattamente** nel caso in cui qualcuno ha modificato a mano su Shopify — che è il
+caso per cui la ripubblicazione esiste.
+
+Le altre cinque: il fallimento non ha dove andare (nessun `attempts`/`lastError`); la
+chiusura del lavoro non può essere una DELETE senza perdere l'anti-loop dell'eco webhook;
+`updatedAt` non può fare da `pendingSince` perché lo muove anche l'osservazione del webhook —
+**la FIFO di `retryPending` è già invertita oggi**; `mismatchDetected` ha due lettori e una
+superficie utente; l'indice serve a **contare**, non a prelevare un lotto.
+
+⚠️ **E la tabella non ha chiavi esterne nel database** — zero `FOREIGN KEY` nella migration,
+mentre lo schema ne dichiara tre. `tenant-delete.util.ts` cancella tenant e varianti senza
+mai toccarla. Come memoria le righe orfane sono innocue; **come coda diventano lavoro fantasma
+che nessun worker potrà mai completare.** Va risolto prima, o la coda nasce già sporca.
+
+#### Il lotto: 250 coppie in una chiamata, non 250 chiamate
+
+`inventorySetQuantities` della GraphQL Admin API accetta un array `quantities` di
+(inventoryItemId, locationId, quantity) fino a **250 elementi**, scrive il campo `available`
+— **esattamente quello che VestiFlow pubblica oggi** — costa **10 punti piatti** (non scala
+con l'array) e richiede `write_inventory`, **già concesso**.
+
+Il trasporto **esiste già**: il client GraphQL gestisce 429/Retry-After e passa il costo al
+limiter, e il precedente di una mutation con array di input è nello **stesso file**
+(`metafieldsSet`). `ChannelSyncFacade` è davvero la porta unica: nessun service di dominio
+inietta i push service.
+
+⛔ **Quattro requisiti che REST non chiedeva**, tutti da decidere prima di migrare:
+
+1. **`ITEM_NOT_STOCKED_AT_LOCATION`.** REST «actually succeeds in this scenario, _silently_
+   activating the location» — parola di staff Shopify sul forum ufficiale. **In VestiFlow
+   `inventoryActivate` non compare da nessuna parte**: oggi il push funziona su coppie non
+   attive e non lo sa nessuno. Migrando, quel caso **smette di riuscire** — su sedi nuove e
+   varianti appena collegate, cioè **in produzione e a campione**. Va provato su un negozio di
+   collaudo **prima**.
+2. **`reason` obbligatorio**, enum chiuso di 17 valori, che finisce nello **storico
+   inventario che il cliente vede nell'admin Shopify**. È una decisione di prodotto.
+3. **`compareQuantity`**: o si passa, o si dichiara `ignoreCompareQuantity`. Il desired-state
+   **è** l'opt-out, ma Shopify avverte sulle quantità inaccurate in concorrenza.
+4. **`NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR`**: la deduplica del lotto è un **vincolo
+   dell'API**. Due righe dello stesso articolo sulla stessa sede — caso normale — fanno
+   rifiutare l'**intero lotto**.
+
+⚠️ **L'atomicità non è documentata da Shopify.** Oggi un fallimento costa **una coppia**; a
+250 per chiamata, se atomica, ne costa **250**. È l'unica cosa che può rendere il
+raggruppamento **peggio** dello stato attuale.
+
+#### ⛔ La versione API in configurazione è già ritirata
+
+`SHOPIFY_API_VERSION=2025-01`: **non è fra le versioni accessibili ad agosto 2026** — la più
+vecchia è 2025-10. Shopify «falls forward» e risponde con la più vecchia accessibile.
+
+> **La stringa in configurazione non descrive più la versione che serve le chiamate.** Nessun
+> errore, nessun log: deriva muta.
+
+⚠️ La costante governa **REST e GraphQL insieme**: alzarla muove in un colpo tutte le chiamate
+REST in esercizio. **È un prerequisito con perimetro proprio, non un contorno.** E si lega a
+`@idempotent`, che dalla 2026-04 è **obbligatoria** per `inventorySetQuantities` ma esiste
+solo **da 2026-01**: scriverla ora = direttiva sconosciuta; non scriverla = **la chiamata si
+rompe da sola** il giorno in cui il fall-forward arriva a 2026-04, senza che nessuno tocchi
+niente. ⚠️ Ed è una **direttiva GraphQL**, non un campo dell'input: chi la cercasse fra i campi
+concluderebbe che non serve.
+
+#### Il vincolo che nessun numero di prestazioni cambia
+
+`.env.example` dichiara «App custom in Shopify Partners», che si installa su **un** negozio.
+**Molti tenant = molti merchant distinti = distribuzione pubblica obbligatoria.** E dal
+1 aprile 2025 «all new public apps must be built exclusively with the GraphQL Admin API».
+
+> ⛔ **Lo scenario che motiva questo lavoro vieta l'API che il push usa oggi.** La migrazione a
+> GraphQL non è un'ottimizzazione: è una scadenza.
+
+---
+
 ## 7. La sezione dedicata nelle Impostazioni
 
 ### 7.1 — Il criterio: frequenza, non argomento
@@ -580,7 +705,23 @@ Le **operazioni ricorrenti nelle rispettive schermate**, con un vocabolario unic
 
 **Cosa pubblica VestiFlow per un articolo con Codice IVA da definire.** Su un negozio a prezzi comprensivi il lordo si calcola solo conoscendo l'aliquota. L'articolo è già su Shopify con il suo prezzo, quindi non manca nulla al negozio; la domanda riguarda cosa succede quando VestiFlow dovrebbe ripubblicare quel prezzo. Non decisa: va affrontata insieme alla gestione complessiva degli articoli senza aliquota, e non prima.
 
-**Il lucchetto sui processi periodici.** Se l'ambiente pubblicato gira su più di un'istanza, un processo periodico parte più volte in parallelo. In sola lettura è innocuo; sulla coda in uscita no. Da decidere quando si implementa il §6, non prima.
+**~~Il lucchetto sui processi periodici.~~ — ⛔ NON È PIÙ APERTO, ed era peggio di come lo si era posto** _(misurato 19/08/2026)_.
+
+Diceva: «**se** l’ambiente pubblicato gira su più di un’istanza… da decidere quando si implementa il §6, non prima». Quel «se» è stato **refutato su due gambe indipendenti**, e la seconda non dipende dalle repliche:
+
+1. **Il numero di istanze non è verificabile dal repository.** `railway.toml` non contiene direttive di repliche; su Railway lo scaling è **manuale dal pannello**, si cambia con un clic **senza commit e senza traccia**. Il codice lo sa già: «su più istanze Railway ogni replica ha il proprio stato».
+2. ⛔ **Anche a UNA replica i processi concorrenti ci sono già oggi.** Railway gira `main` **sullo stesso database dello sviluppo** (§4.10 e `DA-FARE`), quindi ai processi contro quel database si sommano tutti gli sviluppatori che lanciano l’API in locale. E **la CI avvia `node dist/main.js` a ogni push e ogni PR**: è «innocuo per costruzione» solo perché oggi non scrive. **Un worker in-process comincerebbe a pubblicare giacenze su Shopify a ogni PR.**
+
+**La decisione che ne discende**, e non è più rimandabile al §6: il lucchetto **serve**, e serve **per shop**.
+
+- ⛔ **L’advisory lock di SESSIONE è inutilizzabile** con questo pooler: PgBouncer in transaction mode lo dichiara «Never».
+- ✅ **Quello TRANSAZIONALE (`pg_advisory_xact_lock`) è già in produzione attraverso questo stesso pooler**, in due punti — la numerazione documenti e il codice articolo. Non è una scommessa.
+- ⚠️ **Ma per un worker serve la variante non bloccante** (`pg_try_advisory_xact_lock`): quella bloccante si accoda **tenendo occupata una delle 5 connessioni del pool**, e il costo lo pagherebbero gli operatori con `Unable to start a transaction`. Non bloccante vuol dire «qualcun altro sta già lavorando questo shop, passo al prossimo».
+- ⚠️ **E il lock non può restare aperto attraverso le chiamate HTTP a Shopify**: va tenuto sul solo tratto database.
+
+**Il pattern per la partizione per shop è già scritto e già commentato** nella numerazione documenti: «due operatori su tipi diversi **non si aspettano a vicenda**». Sostituendo la chiave con lo `shopDomain` si ottiene esattamente ciò che serve — chiavi diverse: nessuna attesa; stesso shop: serializzazione. Ed è la forma giusta anche verso Shopify, il cui limite è **per combinazione app+negozio**: shop diversi non si ostacolano.
+
+**Resta da decidere DOVE gira il worker** — in-process o servizio Railway separato. Cambia il pool di connessioni, lo stato in memoria e i meccanismi di ricorrenza disponibili: **va deciso prima di scrivere lo schema, non dopo.** Il deploy offre già il cron nativo Railway (che **salta l’esecuzione nuova se la precedente è ancora attiva** — anti-sovrapposizione incluso; minimo 5 minuti) e il pattern della GitHub Action schedulata, già usato due volte.
 
 **Il riallineamento dopo la pausa** — vedi §4.10, ultimo paragrafo.
 

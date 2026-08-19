@@ -17,8 +17,6 @@ import { ErrorStateComponent } from '@shared/components/error-state/error-state.
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import {
-  corrispettivoStatusLabel,
-  corrispettivoStatusTone,
   onlineSaleInventoryStatusLabel,
   onlineSaleInventoryStatusTone,
 } from '@domain/sales-orders/models/sales-order-labels.util';
@@ -34,8 +32,8 @@ type DetailState =
 
 /**
  * Dettaglio Vendita online (fase 3 §4): righe con quantità/prezzi/IVA,
- * movimenti collegati (impegni consumati inclusi), Corrispettivo, ordine
- * origine, dati canale ed eventuale DDT. Snapshot read-only.
+ * movimenti collegati (impegni consumati inclusi), ordine origine, dati
+ * canale ed eventuale DDT. Snapshot read-only.
  */
 @Component({
   selector: 'app-online-sale-detail',
@@ -61,8 +59,6 @@ export class OnlineSaleDetailComponent {
 
   protected readonly inventoryLabel = onlineSaleInventoryStatusLabel;
   protected readonly inventoryTone = onlineSaleInventoryStatusTone;
-  protected readonly corrispettivoLabel = corrispettivoStatusLabel;
-  protected readonly corrispettivoTone = corrispettivoStatusTone;
   protected readonly formatDate = formatDate;
 
   private readonly refreshTick = signal(0);
@@ -127,16 +123,6 @@ export class OnlineSaleDetailComponent {
         value: sale.externalFulfillmentId,
         numeric: true,
       });
-    }
-    if (sale.corrispettivo) {
-      facts.push(
-        { label: 'Corrispettivo', value: sale.corrispettivo.reference, numeric: true },
-        {
-          label: 'Data fiscale corrispettivo',
-          value: formatDate(sale.corrispettivo.fiscalDate),
-          numeric: true,
-        },
-      );
     }
     for (const doc of sale.linkedDocuments) {
       facts.push({

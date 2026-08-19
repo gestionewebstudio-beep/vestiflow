@@ -956,7 +956,7 @@ a mano · precisione e formato · regressioni.
 | --- | ---------------------------------- | --------------------------------------- |
 | 1   | **Unità di misura**                | ✅ **fatta il 16/08**                   |
 | 2   | **Prezzo di vendita**              | ✅ **fatta il 16/08**                   |
-| 3   | Prezzo e netto/ivato               | ⏸️ **censita, decisione aperta**        |
+| 3   | Prezzo e netto/ivato               | ✅ **chiusa il 16/08**                  |
 | 4   | Sconti                             | ⚪                                      |
 | 5   | Nome e descrizione                 | ⚪ ⚠️ attenzione alla sincronia Shopify |
 | 6   | SKU · codice articolo · EAN        | ⚪                                      |
@@ -1783,7 +1783,7 @@ si sa già è che qualunque cosa esporti oggi eredita le due basi diverse di cui
 #### ⛔ Perimetro: i report restano fuori da questa fetta
 
 **I Report del venduto derivano dai MOVIMENTI**, secondo l’architettura corrente già
-verificata (fetta 1 della `11`, §8 della `11-specifica-vendita-al-banco`).
+verificata (fetta 1 della `11`, B7 di `11-specifica-vendita-al-banco`).
 
 In questa fase: **non** si modifica il Report del venduto · **non** si cambia la sorgente dei
 report · **non** si introducono conversioni storiche nei movimenti · **non** si usa l’IVA

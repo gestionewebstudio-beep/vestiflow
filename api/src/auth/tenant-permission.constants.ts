@@ -239,8 +239,17 @@ export const TENANT_PERMISSION_DEFINITIONS: readonly TenantPermissionDefinition[
   },
   {
     key: TenantPermission.ReportsFiscalRegister,
-    label: 'Gestire il registro fiscale',
-    hint: 'Marca le consegne al commercialista, cambia lo stato fiscale di un ordine e corregge le righe del registro corrispettivi.',
+    label: 'Registrare corrispettivi manuali',
+    // Riscritta il 17/08/2026 con la prima applicazione vera del permesso. Qui
+    // c'era «Marca le consegne al commercialista, cambia lo stato fiscale di un
+    // ordine e corregge le righe del registro corrispettivi»: tre cose che non
+    // esistono più — il flusso commercialista è ritirato (10 §5), lo stato
+    // fiscale della vendita è stato eliminato (10 §6), e il Registro non si
+    // corregge riga per riga (10 §1).
+    hint:
+      'Aggiunge al Registro Corrispettivi le registrazioni economiche che nessuna vendita ' +
+      'produce (cassa esterna, chiusure da recuperare), e le corregge o elimina. Solo importi ' +
+      'e IVA: non tocca il magazzino.',
     group: 'reports',
   },
   {
@@ -436,6 +445,35 @@ export const ONLINE_SALES_VIEW_PERMISSIONS = [
 export const ONLINE_SALES_VIEW_GROUPS = [
   ONLINE_SALES_VIEW_PERMISSIONS,
   [docViewPermission('online_sale')],
+] as const;
+
+/**
+ * Il **Corrispettivo manuale** (`10` §12): leggerlo è vedere il Registro.
+ *
+ * Non ha un permesso di lettura proprio perché non ha un elenco proprio: si
+ * apre da una riga del Registro Corrispettivi, e chi quella riga la vede può
+ * anche aprirla. Un permesso in più qui creerebbe uno stato in cui l'operatore
+ * legge il totale ma non la registrazione che lo compone.
+ */
+export const MANUAL_RECEIPT_READ_GROUPS = ONLINE_SALES_VIEW_GROUPS;
+
+/**
+ * **Scrivere** nel Registro: creare, correggere ed eliminare una registrazione
+ * manuale.
+ *
+ * ⚠️ È la **prima applicazione** di `reports.fiscal_register`: il permesso
+ * esisteva dal piano permessi ma nessuna rotta, guard o template lo usava, e la
+ * sua descrizione parlava ancora di «marcare le consegne al commercialista» —
+ * flusso ritirato il 16/08/2026 (`10` §5). La descrizione è stata riscritta
+ * insieme a questo uso.
+ *
+ * Si chiede **anche** la vista del Registro, non solo la scrittura: chi può
+ * registrare un corrispettivo deve poter vedere quello che sta modificando. È
+ * la stessa forma dell'export, che pretende la vista più `reports.export`.
+ */
+export const MANUAL_RECEIPT_WRITE_GROUPS = [
+  ...ONLINE_SALES_VIEW_GROUPS,
+  [TenantPermission.ReportsFiscalRegister],
 ] as const;
 
 /** Sync catalogo Shopify (CSV prodotti). */

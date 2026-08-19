@@ -835,16 +835,32 @@ Alla **conferma** dell'arrivo merce (o carico manuale/iniziale) VestiFlow regist
 In fondo alla testata trovi **due spunte**, tutte e due accese di default. Fanno cose diverse,
 e vale la pena saperlo:
 
-| Spunta                                                   | Cosa decide                                                  |
-| -------------------------------------------------------- | ------------------------------------------------------------ |
-| **Aggiorna anche il costo di riferimento in anagrafica** | se il costo pagato aggiorna anche il costo dell’**articolo** |
-| **Aggiorna prezzi articolo**                             | se i prezzi che scrivi sulle righe aggiornano l’anagrafica   |
+| Spunta                                                  | Cosa decide                                                |
+| ------------------------------------------------------- | ---------------------------------------------------------- |
+| **Aggiorna il costo in anagrafica con quello inserito** | se il costo che digiti diventa il costo dell'**articolo**  |
+| **Aggiorna prezzi articolo**                            | se i prezzi che scrivi sulle righe aggiornano l'anagrafica |
 
-⚠️ **Non funzionano allo stesso modo, e la differenza si vede.**
+Il **costo** funziona **riga per riga**: se richiami tre taglie dello stesso articolo hai
+tre righe, e ognuna porta in anagrafica il proprio costo. Nessuna «vince» sulle altre.
 
-Il **costo** che paghi è un dato del carico: il costo della singola taglia si aggiorna
-**sempre**, e la prima spunta decide solo se propagarlo anche al costo di riferimento
-dell'articolo.
+- **spunta accesa** → il costo che digiti diventa il costo di quella taglia in anagrafica;
+- **spunta spenta** → resta un **costo del documento**, buono per report e contabilità, e in
+  anagrafica non va nulla.
+
+⚠️ **Fino al 19/08/2026 faceva un'altra cosa**, e vale la pena saperlo se hai caricato merce
+prima di quella data: il costo della taglia si aggiornava **sempre**, spunta o no. Chi la
+toglieva credeva di registrare un costo solo documentale e stava riscrivendo il costo
+effettivo di ogni taglia caricata — quello che alimenta valorizzazione e margini.
+
+**L'ultimo prezzo pagato al fornitore si aggiorna comunque**, con o senza spunta: non è
+anagrafica, è la memoria di quanto ti costa da quel fornitore. È il dato che fa comparire
+l'avviso «lo pagavi X, ora paghi Y» al carico successivo.
+
+⚠️ **Un articolo NUOVO creato dal carico è un altro caso**: nasce con i dati che stai
+inserendo in quel momento, spunta o no. Alla nascita non c'è nessun valore da sovrascrivere —
+quei dati **sono** i dati dell'articolo.
+
+⚠️ **Costo e prezzo non funzionano allo stesso modo, e la differenza si vede.**
 
 Il **prezzo di vendita** invece **non è un dato del documento**: è il prezzo di listino
 dell'articolo, e il carico è solo il momento comodo per cambiarlo. Perciò:
@@ -1079,6 +1095,50 @@ I selettori compaiono **solo** dove hanno senso: «mese corrente» non chiede l'
 Se qualche vendita risulta **evasa senza data**, il riepilogo te lo dice: non è conteggiata in nessun periodo, e va sistemata. Non sparisce in silenzio.
 
 **Il file che esporti contiene le stesse righe che vedi.** CSV, Excel e PDF portano vendite e rettifiche con una colonna **Tipo**, in ordine di data, e la somma delle righe fa esattamente il totale stampato in testa. È il modo per cui il commercialista può rifare il conto senza chiederti niente.
+
+#### Aggiungere un corrispettivo a mano _(dal 17 agosto 2026)_
+
+A volte il dato economico è certo ma la vendita analitica non c'è e non è ricostruibile: la cassa esterna ha battuto mentre il gestionale non era disponibile, hai una chiusura di cassa da recuperare, o stai riportando importi vecchi di cui sai quanto e con che IVA, ma non cosa è stato venduto.
+
+Per questi casi c'è il pulsante **«+ Aggiungi corrispettivo»**, in alto nella pagina Corrispettivi.
+
+> ⚠️ **È una registrazione solo economica.** Non crea prodotti, non crea clienti, e **non tocca il magazzino**: giacenza, impegnata e disponibile restano come sono. Non poteva essere altrimenti — una registrazione che non sa quali articoli sono usciti non può togliere pezzi da nessuna parte, e se lo facesse starebbe inventando merce.
+
+**Cosa si compila:**
+
+- la **data** — è quella economica, e decide in che periodo la registrazione entra;
+- la **sede** — obbligatoria: un corrispettivo appartiene sempre a un punto vendita o a un magazzino;
+- gli **importi ivati o netti** — un solo selettore per tutta la registrazione, che parte da **Ivati** perché è il verso in cui arrivano i numeri di una chiusura di cassa;
+- le **righe**: descrizione, importo e **Codice IVA**. Più righe, anche con aliquote diverse:
+
+```text
+70,00   IVA 22%   Vendite cassa esterna
+30,00   IVA 10%   Vendite cassa esterna
+```
+
+**Il selettore Ivati/Netti converte, non reinterpreta.** Passando da Ivati a Netti i 70,00 diventano 57,38 e il totale resta 70,00: stai guardando lo stesso importo da un'altra parte. Puoi passare avanti e indietro quante volte vuoi senza perdere un centesimo.
+
+**Il numero lo assegna VestiFlow al salvataggio**, e si vede nudo: 1, 2, 3. Non è un numero fiscale — il documento commerciale lo emette il registratore di cassa, che è un'altra cosa — serve solo a ritrovare la registrazione.
+
+**Si corregge e si elimina.** Una registrazione digitata a mano si può sbagliare: aprila dal suo numero nell'elenco e modificala, oppure eliminala. ⚠️ **Eliminando resta un buco nella numerazione** — dopo il 12 eliminato si passa da 11 a 13 — ed è normale: i numeri successivi non si rinumerano. E un export di questo mese, ristampato fra un mese, non conterrà più la registrazione eliminata.
+
+**Nel Registro si riconosce dall'origine**, che dice «Corrispettivo manuale». Senza filtri entra nell'elenco e nei totali come tutte le altre righe.
+
+⚠️ **Chi può farlo.** Serve il permesso **«Registrare corrispettivi manuali»** (gruppo Report), oltre a quelli che già servono per vedere i Corrispettivi. Senza, il pulsante non compare.
+
+#### La colonna Sede, e «Non determinata» _(dal 17 agosto 2026)_
+
+L'elenco ha una colonna **Sede** e un filtro per sceglierla.
+
+Su alcune righe che arrivano da Shopify leggerai **«Non determinata»**, in corsivo. Vuol dire quello che dice: quella vendita non porta con sé da quale sede è partita, e VestiFlow **non se la inventa**. È una cosa che va sistemata nella sincronizzazione, non uno stato normale.
+
+⚠️ **Filtrando per una sede quelle righe escono** — a una sede precisa non sono attribuibili — **ma la pagina te lo dice**:
+
+```text
+3 registrazioni con Location non determinata non incluse nel filtro
+```
+
+È l'avviso che conta: senza, il totale scenderebbe scegliendo una sede e nessuno saprebbe perché. **Togli il filtro Sede e tornano dentro**, nell'elenco e nel totale.
 
 #### Canale e tipo
 

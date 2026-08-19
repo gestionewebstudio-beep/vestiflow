@@ -142,8 +142,17 @@ Tutte le funzioni decise qui si applicano a **queste maschere insieme** (princip
 - **Fatture (Proforma, Fattura, Fattura accompagnatoria)** — **rientrano nello standard**: nessuna regola di questo documento fa eccezione per loro. Ciò che resta da concordare non è _se_, ma _quando_: la maschera è contesa col lavoro sulla fattura elettronica, e le regole si applicano **quando quel ramo rientra**. Fino ad allora quanto scritto qui vale per loro come specifica, non come lavoro fatto.
 - **Registrazione fattura fornitore — fuori DOMINIO, non rimandata** _(11/08/2026)_. Le sue righe sono **contabili**, non articoli: non hanno SKU, EAN, codice fornitore ne' costo unitario. Le colonne su cui si ordinerebbe **non esistono**, e la navigazione fra celle articolo non ha niente da attraversare.
   La distinzione conta: le Fatture sono un'esclusione **temporanea** (stesse regole, momento diverso), questa e' un'esclusione **definitiva** — e chi rilegge l'elenco fra sei mesi non deve chiedersi quando tocchera' a lei.
-- **Vendita e reso al banco — fuori perimetro, per natura.** Non è una maschera documento con righe da compilare: è un **carrello**, dove si aggiungono articoli scansionando e si incassa. La tastiera, l'ordinamento righe, il pannello suggerimenti e le celle condivise sono risposte a un problema che lì non si pone.
-  È un'**esclusione dichiarata, non un pezzo mancante**: chi rileggerà l'elenco delle maschere allineate non deve concludere che una sia stata dimenticata.
+- **Vendita e reso al banco — ⚠️ NON PIÙ «fuori perimetro per natura»** _(corretto il 19/08/2026)_.
+  Qui c'era scritto che non è una maschera documento ma **un carrello**, e che le celle
+  condivise rispondono a un problema che lì non si pone. **Era vero, e non lo è più**: la
+  decisione del 19/08 (`11`) manda via il carrello — `CartLine[]` è legacy della vecchia
+  impostazione a mini-cassa — e fa della Vendita al banco un **documento VestiFlow**, con
+  testata, righe documento e piede.
+  ⛔ **Non ne discende però che il banco entri ORA nel perimetro di questo documento**, e
+  la distinzione va tenuta: la sua ricostruzione (FASE UI 3) adotterà l'anatomia comune e
+  le celle di riga condivise **quando quel lavoro si farà**, senza forzare né appropriarsi
+  delle aree che questa specifica sta ancora muovendo. Fino ad allora resta fuori
+  dall'elenco delle maschere allineate — **per stato, non per natura**.
 
 Le Fatture sono anche l'unica maschera del perimetro che **non** usa ancora le celle condivise: lì l'allineamento è prima "adottare le celle condivise", poi la tastiera.
 
@@ -230,6 +239,37 @@ Funzionamento (uguale a vista per IVA e U.M.):
 
 - **U.M.** → testo libero **ammesso** (insieme aperto: pz, conf, paio, mazzo…). La tabella suggerisce, non obbliga. Vedi §4.3-ter.
 - **IVA** → testo libero **non ammesso**: un valore inventato non ha aliquota/natura, non è calcolabile né confermabile. Insieme chiuso, normato.
+
+#### Le voci dell’elenco NON sono fermate del Tab _(misurato e corretto il 18/08/2026)_
+
+> **Il Tab sposta di CELLA. Dentro un elenco ci si muove con le FRECCE.** Sono due
+> gesti con due mestieri diversi, e nessuno dei due fa il lavoro dell’altro.
+
+Detto dal proprietario del progetto e già implicito in §4.1 e §4.3, ma **non era vero nel
+codice**: nel pannello condiviso dei suggerimenti ogni voce portava `tabindex="0"`, quindi
+ogni voce era una fermata del Tab. Il pannello è quello di **tutte** le celle di riga —
+codice, nome prodotto, IVA, U.M.
+
+**Il danno non era solo l’ordine di attraversamento.** Con l’elenco aperto, il Tab entrava
+sulla prima voce; lo sfocamento dell’input chiudeva il pannello; la voce appena raggiunta
+spariva dal DOM e **il fuoco finiva sul `<body>`** — cioè da nessuna parte. Misurato sulla
+scheda articolo: si digita `1`, si preme Tab, il valore si risolve in `10` correttamente e
+poi non si è più in nessun campo. Da lì si riparte solo col mouse, che è esattamente ciò che
+il punto «si compila da tastiera dall’inizio alla fine» vuole evitare.
+
+`tabindex="-1"` sulle voci. Il fuoco resta sull’**input**: le frecce muovono
+l'evidenziazione, Invio sceglie, Tab cambia campo. È il modello ARIA della listbox, ed è
+quello che la macchina dei tasti (`classifyLineCellKey`) già faceva — il `tabindex` la
+scavalcava dall’HTML.
+
+⚠️ **Resta una domanda aperta, e va decisa prima di considerare chiuso il §4.3:** con
+l'elenco aperto, il Tab **prende la voce evidenziata**. Se l'operatore ha digitato, è
+giusto — è «Tab risolve quello che si è digitato», ed è registrato. Ma se ha solo **aperto**
+l'elenco col chevron senza scegliere, l'evidenziata è la prima per default, e il Tab le
+scrive un valore che nessuno ha scelto. Misurato il 18/08: su una cella IVA vuota, aperta col
+chevron, Tab scrive il primo codice della lista. **Non è stato corretto**: distinguere «ha
+digitato» da «ha solo aperto» è una decisione di comportamento, non un dettaglio, e va presa
+col lavoro di progettazione della tabulazione, non di straforo.
 
 Frecce ←/→ su queste celle: **cambiano cella al primo colpo, senza il secondo tempo** del §4.2 (su una cella a selezione il cursore di scrittura non ha senso — per l'IVA; per l'U.M. il testo libero c'è ma la navigazione tra celle resta prioritaria). Da scrivere esplicitamente: è il tipo di regola che chi implementa altrimenti inventa.
 

@@ -1,6 +1,5 @@
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
 import {
-  CorrispettivoEntryStatus,
   OnlineSaleInventoryStatus,
   SalesOrderFinancialStatus,
   SalesOrderFulfillmentStatus,
@@ -100,12 +99,6 @@ export interface SalesOrderApiRow {
     readonly fulfilledAt: IsoDateString;
     readonly inventoryStatus: string;
     readonly refundedAt?: IsoDateString | null;
-    readonly corrispettivo?: {
-      readonly id: EntityId;
-      readonly reference: string;
-      readonly fiscalDate: IsoDateString;
-      readonly status: string;
-    } | null;
   } | null;
 }
 
@@ -156,21 +149,6 @@ export function mapInventoryStatus(status: string): OnlineSaleInventoryStatus {
   }
 }
 
-export function mapCorrispettivoStatus(status: string): CorrispettivoEntryStatus {
-  switch (status) {
-    case 'included':
-      return CorrispettivoEntryStatus.Included;
-    case 'excluded_invoiced':
-      return CorrispettivoEntryStatus.ExcludedInvoiced;
-    case 'adjusted':
-      return CorrispettivoEntryStatus.Adjusted;
-    case 'refunded':
-      return CorrispettivoEntryStatus.Refunded;
-    default:
-      return CorrispettivoEntryStatus.ToVerify;
-  }
-}
-
 function mapOnlineSale(row: NonNullable<SalesOrderApiRow['onlineSale']>): SalesOrderOnlineSaleLink {
   return {
     id: row.id,
@@ -178,14 +156,6 @@ function mapOnlineSale(row: NonNullable<SalesOrderApiRow['onlineSale']>): SalesO
     fulfilledAt: row.fulfilledAt,
     inventoryStatus: mapInventoryStatus(row.inventoryStatus),
     refundedAt: row.refundedAt ?? undefined,
-    corrispettivo: row.corrispettivo
-      ? {
-          id: row.corrispettivo.id,
-          reference: row.corrispettivo.reference,
-          fiscalDate: row.corrispettivo.fiscalDate,
-          status: mapCorrispettivoStatus(row.corrispettivo.status),
-        }
-      : undefined,
   };
 }
 

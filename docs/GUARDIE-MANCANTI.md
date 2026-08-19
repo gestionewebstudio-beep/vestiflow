@@ -13,9 +13,12 @@ Ogni voce porta uno **stato di verifica**, e va preso sul serio:
 | ✅ **VERIFICATO**    | riaperto e ricontrollato a mano sul codice, con le prove qui sotto          |
 | ◻️ **DA VERIFICARE** | risultato dell'analisi, non ricontrollato: **da confermare prima di agire** |
 
-Quindici voci, di cui **sette verificate a mano** — quelle che hanno conseguenze più serie. Le
-altre otto sono attendibili ma non confermate: valgono come punti di partenza, non come
-fatti.
+**Ventidue voci.** Lo stato di verifica sta accanto al titolo di ognuna, e va letto: ciò che non
+è ✅ è attendibile ma non confermato, e vale come punto di partenza, non come fatto.
+
+⚠️ **La legenda qui sopra è incompleta**: due marcatori usati nelle voci — 🔴 e 🟡 — sono stati
+introdotti dopo e non sono mai stati definiti. Da sistemare, non l'ho fatto perché richiede di
+decidere cosa significano.
 
 **Questo è il registro dichiarato dei difetti generali.** Ci finisce ciò che si trova
 lavorando ad altro e che non riguarda il lavoro in corso — altrimenti resta in una chat e
@@ -33,6 +36,9 @@ _Aggiunta il 15/08/2026, trovata lavorando alla famiglia Fattura: la voce 14._
 _Aggiunta il 16/08/2026, trovata chiedendosi perché lo stesso selettore c'è sul DDT e non
 sull'Ordine cliente: la voce **15**. Nello stesso giro la voce 8 è risultata **già risolta** —
 la nota era rimasta indietro rispetto al codice, ed è segnalata come tale._
+
+_Aggiunte il 18/08/2026, trovate misurando il motore Includi/Genera per `docs/12`: le voci
+**20** e **21**._
 
 > **Il criterio di accettazione che ne esce**, e vale come regola di revisione:
 >
@@ -737,3 +743,343 @@ riga di SQL.
 **Non si sta proponendo di rimuoverla.** `sourceDocumentId` serve, ed è il punto di partenza del
 blocco «Collegamenti Fattura ↔ Nota di credito» — dove ora si sa che va **collegato a una coppia
 origine→destinazione nuova**, non costruito da zero.
+
+---
+
+## 17. 🟡 «In attesa» è il ripiego di uno stato di pagamento sconosciuto (17/08/2026)
+
+**Trovato lavorando al Corrispettivo manuale**, ed è il **gemello a due funzioni di distanza**
+del difetto corretto lo stesso giorno sull'export dei corrispettivi.
+
+`financialStatusDisplayLabel` (`api/src/sales-orders/sales-order.enum-mapper.ts`) chiude con un
+ramo predefinito:
+
+```ts
+    case PrismaFinancial.authorized:
+    case PrismaFinancial.pending:
+    default:
+      return 'In attesa';
+```
+
+Uno stato di pagamento **non previsto** esce quindi come «In attesa» — nella colonna «Stato
+pagamento» dello **stesso CSV** che va al commercialista, accanto alla colonna «Tipo» dove il
+ripiego identico è stato appena tolto perché faceva uscire una riga ignota come «Rettifica».
+
+**Perché non è stato corretto insieme all'altro.** È una decisione del proprietario del progetto,
+presa il 17/08: `financialStatusDisplayLabel` è **esclusivamente** lo stato finanziario di
+pagamento, non lo stato di invio al commercialista — quel flusso è ritirato (`10` §5) e non
+torna. Il Corrispettivo manuale non gestisce pagamenti né Tesoreria, e correggerlo qui avrebbe
+riaperto un perimetro dichiarato chiuso.
+
+> **Va verificato quando si riprendono Pagamenti, Tesoreria ed export finanziari**, insieme al
+> resto di quel dominio.
+
+**La differenza con l'altro caso, per chi lo riprenderà.** Sull'export la correzione era
+strutturale: la mappa è stata **tipizzata**, quindi un tipo nuovo non compila finché non ha un
+nome, e un fallback runtime neutro copre il caso — reale, su un database condiviso fra rami — in
+cui un valore d'enum arriva nei dati prima del codice che lo sa nominare. Qui servirebbe la
+stessa forma: `switch` esaustivo **senza `default`**, più un'etichetta neutra («Non classificato»)
+per il valore che il codice ancora non conosce.
+
+⚠️ **E c'è un secondo posto, sul frontend.** `FINANCIAL_LABELS` in
+`src/app/features/reports/components/corrispettivi-orders-table/corrispettivi-orders-table.component.ts`
+è un `Record<string, string>` con `?? status` in coda: lì lo sconosciuto esce come chiave grezza
+(`authorized_partial`), che è **meno dannoso** — non finge un significato — ma è comunque un
+secondo posto dove la stessa decisione va presa una volta sola.
+
+---
+
+## 18. 🟡 Nella catena dei controlli niente accende l'API (17/08/2026)
+
+**Misurato il 17/08**, ed è il difetto di quel giorno a dimostrarlo: `tsc` pulito, 1645 prove
+verdi, dieci guardie verdi — **e il backend non partiva**.
+
+| Controllo                    | Cosa prova                                                |
+| ---------------------------- | --------------------------------------------------------- |
+| `npm run build --prefix api` | che i tipi tornano — è l'**unico** type-check del backend |
+| `npm run test:api`           | i moduli **uno per uno**, istanziati con `new`            |
+| le nove guardie `.mjs`       | testo e coerenza fra file: nessuna avvia un processo      |
+
+**Il buco è nel mezzo.** I test API non usano `Test.createTestingModule` — `@nestjs/testing` non
+è nemmeno fra le dipendenze: i service si costruiscono a mano con le dipendenze castate. Quindi
+un **grafo di moduli Nest che non si risolve** — un provider mancante, una dipendenza circolare,
+un `@Module` non importato in `AppModule` — compila, passa i test, e muore al primo avvio.
+
+**Lo strumento c'è ed è verificato**: `scripts/check-api-boot.mjs`, `npm run check:api-boot`.
+Avvia `node dist/main.js` su una porta effimera, attende `GET /api/v1/health`, e chiude il
+processo in un `finally` — riuscita, fallimento, timeout o Ctrl-C. Provato in entrambi i versi il
+17/08: verde su database raggiungibile, rosso con l'output del processo su database morto,
+uscita 1, **nessun processo Node rimasto**.
+
+⚠️ **Non è agganciato a nessun gate, ed è deliberato**: dove metterlo è una decisione, non un
+contorno. Le tre misure che la decisione richiede:
+
+1. **`npm run lint` è escluso.** Il lint deve girare senza database; questo controllo un database
+   lo pretende — `PrismaService.onModuleInit` fa `$connect()`, quindi senza DB il boot muore.
+2. **Il posto naturale è `.husky/pre-push`**, subito dopo `npm run build --prefix api`: quel
+   passo produce `dist/main.js`, e questo lo accende. Costa pochi secondi.
+3. **In CI può stare solo nel job `e2e`.** Il job `lint-and-test` **non ha `DATABASE_URL`** —
+   i segreti del database sono solo sul job Playwright. Metterlo in `lint-and-test` lo farebbe
+   fallire a ogni esecuzione, e un gate sempre rosso è un gate spento.
+
+## 19. `tabindex="0"` insieme ad `aria-hidden="true"` — sedici occorrenze
+
+Segnalato dalla console del browser il 17/08/2026, sull'anagrafica prodotto:
+
+```html
+<i class="pi pi-info-circle general-step__info" tabindex="0" aria-hidden="true"></i>
+```
+
+> _aria-hidden on an element because its descendant retained focus. The focus must not be
+> hidden from assistive technology users._
+
+È una **contraddizione**: l'elemento entra nel giro del Tab — quindi chi naviga da tastiera ci
+si ferma sopra — ed è al tempo stesso dichiarato invisibile alle tecnologie assistive. Chi usa
+uno screen reader arriva su un elemento di cui il lettore non sa dire nulla: il fuoco sparisce
+nel vuoto.
+
+Sono le icone informative accanto alle etichette dei campi, che aprono `app-hover-tooltip`. Il
+`tabindex` c'è perché il suggerimento si deve poter aprire **anche da tastiera** — giusto — e
+l'`aria-hidden` perché un'icona decorativa non va letta. Prese una alla volta hanno senso
+entrambe; insieme no.
+
+**Misurate: 16 occorrenze in `src/app`**, quindi non è un caso isolato di una maschera.
+
+La correzione non è togliere il `tabindex` — perderebbe l'accesso da tastiera al suggerimento —
+ma dare all'elemento un ruolo e un nome (`role="button"`, `aria-label` con il testo del
+tooltip, senza `aria-hidden`), oppure spostare il `tabindex` su un `<button>` vero che
+avvolge l'icona decorativa.
+
+⚠️ **E poi la guardia**: `axe-core` è previsto da `regole-qualita` («zero violazioni serious o
+critical») e questa è una violazione che axe segnala di suo. Sedici occorrenze vive significano
+che quel controllo **non gira** su queste schermate — trovare il perché vale più che correggere
+le sedici.
+
+---
+
+---
+
+## 20. ✅ Il legame fra documenti si scrive senza chiedere di chi sia — e si legge senza chiederlo
+
+**VERIFICATO** su entrambi i lati, scrittura e lettura, il 18/08/2026. Trovato misurando il
+motore Includi/Genera per `docs/12`; non riguarda quel lavoro e per questo sta qui.
+
+L'invariante dichiarato è quello di tutto il progetto — _«Tutte le entità di business DEVONO
+essere tenant-aware»_, `regole-gestionale.md` — e su `Document` è fatto rispettare ovunque
+tranne che sulla relazione che un documento ha **con un altro documento**.
+
+### La scrittura
+
+`sourceDocumentId` — l'id del documento da cui un documento nasce — arriva dal corpo della
+richiesta e finisce in colonna così com'è (`api/src/documents/documents.service.ts:1079`):
+
+```ts
+sourceDocumentId: dto.sourceDocumentId ?? null,
+```
+
+L'unica validazione è la forma (`api/src/documents/dto/create-document.dto.ts:197-199`):
+
+```ts
+@IsOptional()
+@IsUUID()
+sourceDocumentId?: string;
+```
+
+Non si verifica che quel documento **esista**, che sia di un **tipo ammesso** come predecessore,
+né che appartenga al **tenant** di chi sta scrivendo.
+
+⚠️ **Nessuna delle tre verifiche è recuperata più a valle**: `assertCounterparties`
+(`:3707-3738`) controlla fornitore, cliente e sedi — non l'origine.
+
+### La lettura
+
+`getById` filtra il documento per tenant, ma **la relazione no**: la segue e basta
+(`api/src/documents/documents.service.ts:735-763`).
+
+```ts
+const doc = await this.prisma.document.findFirst({
+  where: { id, tenantId },              // ← il documento è filtrato
+  include: {
+    sourceDocument: { select: { id, type, reference, series, number, status } },
+    //  ↑ nessun tenantId qui
+    derivedDocuments: { where: { status: { not: cancelled } }, select: { ... } },
+    //  ↑ né qui: filtra lo stato, non il tenant
+```
+
+### Cosa ne discende — _dedotto, non eseguito_
+
+|                  |                                                                                                                                                                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **in lettura**   | un documento il cui `sourceDocumentId` punta al documento di un altro tenant ne mostrerebbe **tipo, serie, numero, riferimento e stato** nel riquadro «Nato da»                                                              |
+| **in scrittura** | `derivedDocuments` è la relazione inversa: un tenant che punti un proprio documento a un documento altrui **comparirebbe nella lista «Ha generato» di quel documento** — cioè scriverebbe dentro una schermata che non è sua |
+
+⚠️ **Il freno pratico è che serve conoscere l'UUID** del documento altrui, e gli UUID non si
+indovinano. Non è una porta aperta: è una porta senza serratura in una stanza di cui bisogna
+già conoscere l'indirizzo. Un id può però uscire da uno screenshot, da un incollaggio di URL,
+da un log, o da una sessione di supporto.
+
+⛔ **E la RLS non copre nulla di tutto questo**: l'API si connette al database come owner e la
+scavalca per costruzione (`regole-sicurezza.md`, sezione RLS). Qui la RLS non è una seconda
+rete — non c'è.
+
+### Come si prova
+
+Serve un secondo tenant e l'id di un suo documento.
+
+1. Da un tenant A, `POST /documents` con `sourceDocumentId` = l'id di un documento del tenant B.
+2. Aprire il dettaglio del documento appena creato di A → se la misura è giusta, il riquadro
+   «Nato da» mostra numero e riferimento del documento di B.
+3. Aprire il dettaglio del documento di B → se la misura è giusta, il documento di A compare
+   nel suo «Ha generato».
+
+### La correzione, e la guardia che deve restare
+
+La correzione è una verifica di esistenza e tenant nel `create`, e un `tenantId` sui due
+`include` della lettura. **Non dipende da nessuna delle decisioni aperte sul motore
+Includi/Genera** — per questo non è stata legata a quel lavoro.
+
+⚠️ **La guardia non è il controllo: è il test che parla della regola.** «`sourceDocumentId` di
+un altro tenant viene rifiutato» è l'istanza; la regola è **«nessuna relazione fra entità di
+business attraversa il confine del tenant»**, e vale anche per le due tabelle ponte esistenti
+(`PurchaseInvoiceGoodsReceiptLink`, `InvoiceSalesDdtLink`) e per quelle che la matrice
+documentale aggiungerà.
+
+⚠️ **Ed è il momento giusto per metterla**, perché `docs/12` prevede di aggiungere altre
+relazioni fra documenti: una regola scritta ora vale per quelle che verranno, una scritta dopo
+va applicata a mano su ognuna.
+
+⚠️ **Questa è la fonte canonica del difetto.** Altrove solo rimandi: `docs/12` §B3 (contesto della
+misura) e `docs/DA-FARE.md` (elenco dei difetti aperti). ⛔ **Non sta in `SICUREZZA-PENDENTE.md`**,
+che è riservato alle attività esterne e configurative.
+
+⚠️ **Non chiamarla una fuga di dati** finché la prova dinamica cross-tenant non la conferma: i tre
+gradi — misurato · dedotto · da verificare — sono separati apposta qui sopra.
+
+---
+
+## 21. ◻️ `DDT → Proforma`: il menu lo offre, l'API lo rifiuta
+
+**Trovato il 18/08/2026** misurando il motore Includi/Genera per `docs/12`. È un difetto di
+codice — **interfaccia e API espongono contratti divergenti** — e per questo sta qui.
+
+### La causa
+
+Il frontend offre la voce, la mappa su una rotta e chiede il precompilato:
+
+```text
+customer-order-form.component.ts:5062-5065   la voce «Proforma» nel menu Genera del DDT
+customer-order-form.component.ts:5087-5093   la mappa su /app/documents/proforma/new
+sales-document-form.component.ts:2494        convertPrefill(fromDocument, 'proforma')
+```
+
+Il DTO d'ingresso ammette **due soli** valori, e `proforma` non è fra questi:
+
+```ts
+// api/src/documents/dto/convert-document.dto.ts:4-8
+const CONVERT_TARGET_TYPES = [sales_ddt, invoice_draft];
+@IsEnum(CONVERT_TARGET_TYPES)
+targetType!: DocumentType;
+```
+
+La `ValidationPipe` è globale (`api/src/main.ts:50`), quindi il rifiuto avviene **prima** che il
+servizio veda la richiesta, e l'errore finisce nel precompilato fallito. — _letto_
+
+⚠️ **E l'elenco è invertito rispetto alla realtà**, il che rende il difetto più difficile da
+vedere: il DTO **ammette `sales_ddt`, che nessun client invia mai** (l'unico a inviarlo è un
+test), e **rifiuta `proforma`, che viene inviato davvero**. Nel dominio esiste una terza lista,
+`SALES_DDT_CONVERT_TARGET_TYPES`, che contiene `proforma` — quindi le due liste server
+**già oggi non concordano fra loro**. — _letto_
+
+### La prova dinamica attesa
+
+Aprire un DDT salvato → **Genera documento** → **Proforma**, guardando la rete.
+
+|                                  |                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| **atteso se la misura è giusta** | `400` sulla chiamata `convert-prefill`, e a schermo un precompilato fallito |
+| **smentirebbe**                  | la chiamata passa e la Proforma si apre compilata                           |
+
+⚠️ Finché la prova non gira, il difetto resta **dedotto**: il percorso nel codice è univoco, ma
+non è stato eseguito.
+
+### ⛔ La guardia che manca, ed è la parte che conta
+
+Il progetto ha già il modello giusto **per un problema identico**: la mappa famiglia→tipi dei
+permessi è tenuta in due file specchio e **`npm run lint` fallisce se divergono**
+(`scripts/check-permissions.mjs`). Il commento dichiara il difetto che quella guardia evita:
+_«la UI mostra un'azione che l'API poi rifiuta»_ — **cioè esattamente questo difetto, già
+accaduto altrove e già presidiato lì**.
+
+> **La correzione non è invertire l'enum: è che le coppie ammesse smettano di essere liste
+> cablate in tre posti e diventino una mappa esaustiva sorvegliata**, sul modello di
+> `check-permissions.mjs`. Senza quella, la prossima coppia diverge di nuovo e nessun test lo
+> segnala — non essendoci nulla che rompa la compilazione.
+
+⛔ **Non dipende dalle decisioni aperte sul motore Includi/Genera**: si chiude da sé.
+
+_Contesto della misura: `docs/12-specifica-collegamenti-documentali.md` §B7._
+
+---
+
+### 22. Il salvataggio progressivo delle righe è RITIRATO — ⛔ requisito annullato il 19/08/2026
+
+> **Decisione del proprietario: il salvataggio progressivo non si fa. Tutto si muove solo
+> al salvataggio del documento.**
+
+⚠️ **Questa voce diceva l'opposto**, ed è stata riscritta il giorno stesso in cui era stata
+aperta. Diceva: _«è un divario, non una funzione da togliere»_, e _«prima si riduce il costo
+del percorso di salvataggio, poi si ripristina il progressivo — l'ordine non è negoziabile»_.
+Il proprietario ha ritirato il requisito: non c'è più un progressivo da ripristinare, né
+prima né dopo.
+
+#### Il codice era già allineato, e i suoi commenti pure
+
+La misura del 19/08 resta valida e ora descrive il comportamento **voluto**:
+
+```text
+documentService.saveGoodsReceipt   1 sola invocazione   ← il pulsante Salva
+documentService.getDocumentById    1 sola invocazione   ← il caricamento
+```
+
+Nessun altro punto della maschera scrive sul server. `linkLineCodesThen` parte a ogni Invio,
+scansione e sfocamento di riga, ma **collega il codice alla variante**: è una lettura, non una
+scrittura.
+
+⛔ **I due commenti in `goods-receipt-form.component.ts` NON sono più da correggere.** Questa
+voce li aveva condannati come «non fonte funzionale» perché affermavano una regola che allora
+non era stata decisa. Ora lo è, e dicono il vero:
+
+- _«Nessun salvataggio automatico: il documento si salva SOLO con "Salva documento".»_
+- _«Si chiamava `commitLineAndSave`, e il nome mentiva: nessun salvataggio è mai partito da qui.»_
+
+#### `commitLineIfSignificant` resta, e non è un salvataggio
+
+Il concetto di «riga significativa» esiste ancora nel codice
+(`goods-receipt-form.component.ts:1606`) ed è **corretto tenerlo**: decide se una riga merita
+il collegamento codice→variante, cioè una **lettura**. Non scrive niente sul server, e non
+deve cominciare a farlo.
+
+#### ⚠️ La conseguenza da non perdere di vista
+
+Il requisito ritirato prometteva che si perdesse **al massimo la riga non ancora
+sincronizzata**. Senza progressivo, **un salvataggio che fallisce perde il documento intero**.
+
+Questo alza il peso di due cose che stavano in coda:
+
+1. **Il timeout del client a 15 s** (`document.service.ts:33`), che oggi si rompe a ~14 righe
+   senza canale e ~5 con Shopify collegato: era già un difetto, ora è l'unica linea di
+   difesa. Non esiste più un ripiego parziale sotto.
+2. **L'idempotenza della creazione**: se il commit riesce e la risposta si perde, l'operatore
+   ripreme Salva e nasce un secondo documento. Non c'è oggi alcuna chiave che lo impedisca —
+   il DTO ha `id?` opzionale e il client non ritenta da sé.
+
+⛔ **Nessuna guardia va aggiunta contro un autosave**: non ce n'è uno da impedire, e una
+guardia contro qualcosa che non esiste è rumore. Ne era stata scritta una il 19/08 ed è stata
+tolta lo stesso giorno.
+
+#### Fuori dal repository
+
+Il **Piano Master** e la **specifica Arrivo merce** che portavano il requisito **non sono in
+questo repository**: sono `.docx` esterni, citati in `docs/QUADRO-DECISIONI-FATTURE.md:931`
+con la nota che «l'esistenza dei `.docx` non è verificata». Questa voce ritira il requisito
+**dai documenti del repo**; chi tiene quei file deve allinearli a mano.

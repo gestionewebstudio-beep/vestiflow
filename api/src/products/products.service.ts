@@ -446,7 +446,7 @@ export class ProductsService {
           purchaseMinor != null ? { amountMinor: purchaseMinor, currencyCode: row.currency } : null,
         compareAtPrice:
           row.product.compareAtPriceMinor != null
-            ? { amountMinor: row.product.compareAtPriceMinor, currencyCode: row.currency }
+            ? { amountMinor: Number(row.product.compareAtPriceMinor), currencyCode: row.currency }
             : null,
         listinoPrices: {
           1: listinoMoney(row.product.listino1PriceMinor, row.currency),

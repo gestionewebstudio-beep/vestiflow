@@ -168,29 +168,21 @@ export const documentsRoutes: Routes = [
     },
   },
   {
-    // Vendita/Reso in negozio: elenco condiviso dai due tipi creati dalla
-    // cassa. Sola consultazione — i documenti nascono in transazione con i
-    // movimenti di magazzino e non si modificano né si eliminano da qui.
+    // Vecchio indirizzo dell'elenco Vendite al banco, uscito da /app/documents
+    // il 19/08/2026 (`11` C3). Preserva i link salvati dagli operatori.
+    //
+    // ⚠️ Deve stare PRIMA del catch-all `:id` piu' sotto: senza, l'URL vecchio
+    // non darebbe 404 — aprirebbe «Dettaglio documento» con id «vendite-negozio».
     path: 'vendite-negozio',
-    title: 'Vendita/Reso in negozio',
-    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
-    canActivate: [tenantPermissionGuard],
-    data: {
-      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('store_sale'),
-      documentListProfile: 'store-sale',
-      reuse: true,
-    },
+    pathMatch: 'full',
+    redirectTo: '/app/vendita-al-banco',
   },
   {
+    // ⚠️ Riga propria per il dettaglio: un `redirectTo` senza `pathMatch: 'full'`
+    // NON trascina i segmenti successivi. E' la stessa ragione per cui i due
+    // redirect dei Corrispettivi sono due righe (`reports.routes.ts`).
     path: 'vendite-negozio/:id',
-    title: 'Dettaglio vendita in negozio',
-    loadComponent: () =>
-      import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
-    canActivate: [tenantPermissionGuard],
-    data: {
-      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('store_sale'),
-      documentListProfile: 'store-sale',
-    },
+    redirectTo: '/app/vendita-al-banco/:id',
   },
   {
     // Scarico manuale giacenze: pagina elenco dedicata (prompt Scarico
@@ -528,5 +520,49 @@ export const documentsRoutes: Routes = [
       import('./document-detail.component').then((m) => m.DocumentDetailComponent),
     canActivate: [tenantPermissionGuard],
     data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: DOCUMENTS_SECTION_GROUPS },
+  },
+];
+
+/**
+ * Elenco e dettaglio della **Vendite al banco**, montati dal composition root
+ * sotto `/app/vendita-al-banco` (`11` C3).
+ *
+ * ⛔ **Vivono qui e non nella feature store-sales** perche' il componente e'
+ * `DocumentListComponent`, che e' di questa feature: una feature non importa
+ * da un'altra feature, la composizione la fa `app.routes.ts`.
+ *
+ * ⚠️ I `data:` vanno tenuti come sono. L'elenco ha `reuse: true` e il dettaglio
+ * NO — uniformarli per simmetria cambierebbe comportamento — e senza
+ * `documentListProfile: 'store-sale'` il componente ricade su `'generic'` e
+ * mostra il registro generale col filtro Tipo: non un errore, una pagina
+ * diversa che sembra funzionare.
+ */
+export const storeSaleDocumentRoutes: Routes = [
+  {
+    // Elenco delle Vendite al banco, condiviso dai due tipi creati dalla
+    // maschera. I documenti nascono in transazione con i propri movimenti;
+    // si modificano dalla loro maschera, non da qui, e non si eliminano.
+    path: '',
+    title: 'Vendite al banco',
+    loadComponent: () => import('./document-list.component').then((m) => m.DocumentListComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('store_sale'),
+      documentListProfile: 'store-sale',
+      reuse: true,
+    },
+  },
+  {
+    // ⚠️ Il dettaglio NON ha `reuse: true`, e non è una svista: ce l'ha solo
+    // l'elenco. Aggiungerlo per simmetria cambierebbe comportamento.
+    path: ':id',
+    title: 'Dettaglio vendita al banco',
+    loadComponent: () =>
+      import('./sales-document-detail.component').then((m) => m.SalesDocumentDetailComponent),
+    canActivate: [tenantPermissionGuard],
+    data: {
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: familyView('store_sale'),
+      documentListProfile: 'store-sale',
+    },
   },
 ];

@@ -21,6 +21,21 @@ export type StoreSalePaymentMethod = (typeof STORE_SALE_PAYMENT_METHODS)[number]
 
 /** Riga carrello Vendita in negozio (fase 3 §7). */
 export class StoreSaleLineInputDto {
+  /**
+   * Id della riga quando si RISALVA una vendita esistente. Assente = riga nuova.
+   *
+   * ⚠️ E' l'identita' su cui si regge la riconciliazione per differenza: il
+   * movimento e' collegato alla riga via `sourceLineId`, e senza id stabile
+   * ogni salvataggio ne accoderebbe uno nuovo invece di aggiornare quello che
+   * c'e' (`regole-gestionale`, «un movimento per riga, aggiornato in posto»).
+   *
+   * ⛔ Non si riconoscono le righe per `variantId`: due righe dello stesso
+   * articolo sono due righe, e restano due movimenti distinti.
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsUUID()
   variantId!: string;
 
@@ -46,6 +61,20 @@ export class StoreSaleLineInputDto {
   @Max(100)
   discountPercent?: number;
 
+  /**
+   * Descrizione della riga, quando l'operatore la cambia.
+   *
+   * ⚠️ **Assente = non modificata**, e il servizio conserva quella persistita
+   * (o la fotografa dall'articolo se la riga è nuova). È lo stesso contratto
+   * binario del Codice IVA, e per la stessa ragione: la descrizione è la
+   * **fotografia** dell'operazione, e rileggerla dall'anagrafica a ogni
+   * salvataggio riscriverebbe una vendita di marzo col nome di oggi.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
   /** Codice IVA della riga. Se assente, risolto da articolo/predefinito aziendale. */
   @IsOptional()
   @IsUUID()
@@ -53,6 +82,17 @@ export class StoreSaleLineInputDto {
 }
 
 export class CreateStoreSaleDto {
+  /**
+   * Id della vendita da RISALVARE. Assente = vendita nuova.
+   *
+   * Creazione e modifica dallo stesso metodo, distinte solo da questo campo:
+   * e' la forma gia' in uso per l'Arrivo merce (`saveGoodsReceipt`), l'unico
+   * altro documento che sta fuori dal percorso generico e si modifica lo stesso.
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsUUID()
   locationId!: string;
 

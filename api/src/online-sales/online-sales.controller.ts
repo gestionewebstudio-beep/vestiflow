@@ -1,29 +1,12 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ONLINE_SALES_VIEW_GROUPS, TenantPermission } from '../auth/tenant-permission.constants';
+import { ONLINE_SALES_VIEW_GROUPS } from '../auth/tenant-permission.constants';
 import { RequireAllPermissionGroups } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
-import {
-  CorrispettivoRegisterService,
-  type CorrispettivoEntryDetail,
-  type CorrispettivoEntryRow,
-  type CorrispettivoRegisterSummary,
-} from './corrispettivo-register.service';
-import { ListCorrispettivoEntriesQueryDto } from './dto/list-corrispettivo-entries.query.dto';
 import { ListOnlineSalesQueryDto } from './dto/list-online-sales.query.dto';
-import { UpdateCorrispettivoEntryDto } from './dto/update-corrispettivo-entry.dto';
 import {
   OnlineSalesService,
   type OnlineSaleDetail,
@@ -41,7 +24,6 @@ import {
 export class OnlineSalesController {
   constructor(
     private readonly onlineSales: OnlineSalesService,
-    private readonly register: CorrispettivoRegisterService,
   ) {}
 
   @Get()
@@ -53,45 +35,13 @@ export class OnlineSalesController {
     return this.onlineSales.list(tenantId, query);
   }
 
-  @Get('register/entries')
-  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
-  listRegisterEntries(
-    @CurrentTenant() tenantId: string,
-    @Query() query: ListCorrispettivoEntriesQueryDto,
-  ): Promise<Paginated<CorrispettivoEntryRow>> {
-    return this.register.list(tenantId, query);
-  }
-
-  @Get('register/summary')
-  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
-  getRegisterSummary(
-    @CurrentTenant() tenantId: string,
-    @Query() query: ListCorrispettivoEntriesQueryDto,
-  ): Promise<CorrispettivoRegisterSummary> {
-    return this.register.getSummary(tenantId, query);
-  }
-
-  @Get('register/entries/:id')
-  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
-  getRegisterEntryDetail(
-    @CurrentTenant() tenantId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<CorrispettivoEntryDetail> {
-    return this.register.getDetail(tenantId, id);
-  }
-
-  @Patch('register/entries/:id')
-  @RequireAllPermissionGroups([
-    ...ONLINE_SALES_VIEW_GROUPS,
-    [TenantPermission.ReportsFiscalRegister],
-  ])
-  updateRegisterEntry(
-    @CurrentTenant() tenantId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateCorrispettivoEntryDto,
-  ): Promise<CorrispettivoEntryRow> {
-    return this.register.update(tenantId, id, dto);
-  }
+  // ⚠️ Qui vivevano i quattro endpoint del registro Corrispettivi LEGACY —
+  // `register/entries`, `register/summary`, il dettaglio e la modifica di una
+  // voce. Ritirati il 17/08/2026 con la tabella che li alimentava.
+  //
+  // Il Registro Corrispettivi ATTUALE è un'altra cosa e resta: è una vista
+  // DERIVATA che aggrega vendite e documenti per periodo, non un registro di
+  // record autonomi con un numero COR-… ciascuno.
 
   @Get('by-order/:salesOrderId')
   @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
