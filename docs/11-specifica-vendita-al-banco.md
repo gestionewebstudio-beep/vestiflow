@@ -1444,6 +1444,34 @@ configurazioni di riga (`goods-receipt-line-columns.config`,
 `stock-movement-line-columns.config`) ed è già ordinabile nell'Ordine cliente. È un
 altro pezzo che si monta, non si scrive.
 
+### ⛔ Su MOBILE la battuta continua viene prima della forma — deciso il 19/08/2026
+
+> **Da telefono deve essere pratico sparare EAN e inserire articoli in modo continuo e
+> veloce.**
+
+È il vincolo che governa la ricostruzione mobile, e va tenuto sopra l'eleganza della
+maschera: al banco si scansiona **uno dietro l'altro**, spesso con una mano sola e il
+cliente davanti.
+
+⚠️ **È esattamente il rischio che il censimento del 19/08 aveva nominato**: i componenti
+comuni sono pensati per un documento compilato **con calma**, e adottarli senza guardia
+farebbe peggiorare proprio la cosa che al banco conta di più.
+
+Quello che non deve succedere, in concreto:
+
+| ⛔ Non deve                                                  | Perché                                                      |
+| ------------------------------------------------------------ | ----------------------------------------------------------- |
+| il campo di scansione perdere il fuoco dopo ogni articolo    | costringe a un tocco fra un capo e l'altro                  |
+| la riga nuova rubare il fuoco per farsi compilare            | al banco i valori arrivano dall'anagrafica, non a mano      |
+| l'elenco righe scorrere via dal campo di scansione           | il campo deve restare raggiungibile con la lista che cresce |
+| un'apertura di pannello o una conferma fra un capo e l'altro | ogni interruzione si moltiplica per il numero di capi       |
+
+**Il fuoco torna al campo di scansione dopo ogni inserimento riuscito**, e la conferma
+resta il beep — che si sente senza guardare.
+
+⚠️ **Da verificare a mano su un telefono vero prima di dire che la fase è chiusa**: è un
+requisito di ergonomia, e nessun test automatico lo misura.
+
 ### ⛔ Poche colonne attive, e il COSTO non esiste — deciso il 19/08/2026
 
 È un documento di **vendita al banco**: le colonne attive sono poche ed essenziali, quelle

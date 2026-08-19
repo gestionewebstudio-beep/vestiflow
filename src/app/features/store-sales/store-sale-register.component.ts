@@ -96,7 +96,7 @@ type RegisterMode = StoreSaleMode;
 /**
  * Una **riga documento** del banco: quantità, prezzo, sconto.
  *
- * ⛔ Si chiamava `DocumentLineDraft` ed era il carrello della vecchia mini-cassa. La
+ * ⛔ Si chiamava `CartLine` ed era il carrello della vecchia mini-cassa. La
  * Vendita al banco è un documento VestiFlow (`11`), e le sue righe hanno
  * un'**identità propria** come quelle di ogni altro documento.
  *
