@@ -1398,6 +1398,52 @@ la maschera sappia caricare un documento esistente, ed è la **FASE UI 3**.
 documenti e riusare il pattern comune. ⛔ Nessuna convenzione speciale per la Vendita al
 banco — se si aprisse diversamente dagli altri, l'operatore dovrebbe ricordarsi quale.
 
+## ⛔ Il «Carrello» non esiste più — deciso il 19/08/2026
+
+> **La Vendita al banco è un DOCUMENTO VestiFlow: testata, righe documento, piede.
+> Non una cassa con un carrello.**
+
+`CartLine[]` è **legacy** della vecchia impostazione a mini-cassa, quando il banco era
+trattato come un registratore e non come un documento. Anche i documenti vecchi lo
+chiamano esplicitamente «carrello».
+
+⛔ **In UI 3 il concetto di Carrello non si preserva**, né come struttura funzionale né
+come elemento di interfaccia. Si prende la **grammatica degli altri documenti** —
+Ordine cliente e fratelli — mantenendo la velocità operativa del banco.
+
+```text
+OGGI      ricerca/scanner → «aggiungi al carrello» → CartLine[] → Concludi vendita
+UI 3      ricerca/scanner → RIGA DOCUMENTO         → righe      → Salva documento
+```
+
+⚠️ **La misura tecnica che sembrava un difetto da correggere era in realtà una prova.**
+Il censimento del 19/08 ha trovato che il carrello è indicizzato per `variantId` e non
+per riga: due righe dello stesso articolo collassano in una, e al salvataggio la seconda
+sparirebbe **col suo movimento**. Non è un difetto da riparare nel carrello: è **un
+motivo in più per cui il carrello va superato**. Le righe documento hanno un'identità
+propria, ed è quella che serve.
+
+La fusione per variante resta **solo nella scansione** — è ciò che fa l'Ordine cliente in
+`applyScannedVariant`, che agisce su righe con id, non sulla struttura dati.
+
+### Lo SKU è un dato VISIBILE della riga — deciso il 19/08/2026
+
+> **`Articolo · SKU · Q.tà · Prezzo · Sconto · IVA · Totale`**
+
+| Dove    | Come                                                                |
+| ------- | ------------------------------------------------------------------- |
+| desktop | **colonna vera**, ordinabile e con larghezza propria                |
+| mobile  | nella **riga compatta sotto il nome prodotto**, senza rubare spazio |
+
+**Il criterio è operativo.** La ricerca del banco lavora già per **barcode, SKU o nome
+prodotto**: mostrare lo SKU sulla riga fa verificare a colpo d'occhio di aver preso la
+**variante giusta** — che al banco, con taglie e colori, è l'errore più facile da fare.
+
+⭐ **Non è una colonna da inventare**: `sku` esiste già come colonna condivisa nelle
+configurazioni di riga (`goods-receipt-line-columns.config`,
+`stock-movement-line-columns.config`) ed è già ordinabile nell'Ordine cliente. È un
+altro pezzo che si monta, non si scrive.
+
 ### ✅ FASE UI 1 e UI 2 — fatte il 19/08/2026
 
 **UI 1 — i due comandi sull'elenco.** L'elenco è quello che **esisteva già** nell'area
