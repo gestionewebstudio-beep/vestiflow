@@ -174,7 +174,7 @@
               </tr>
             </thead>
             <tbody>
-              @for (line of cart(); track line.variantId) {
+              @for (line of cart(); track line.id) {
                 <tr [class.pos-cart__row--warning]="line.quantity > line.available">
                   <td data-label="Articolo">
                     <span class="pos-cart__name">{{ line.description }}</span>
@@ -194,7 +194,7 @@
                         type="button"
                         class="pos-cart__qty-btn"
                         aria-label="Diminuisci quantità"
-                        (click)="changeQuantity(line.variantId, -1)"
+                        (click)="changeQuantity(line.id, -1)"
                       >
                         <i class="pi pi-minus" aria-hidden="true"></i>
                       </button>
@@ -205,13 +205,13 @@
                         inputmode="numeric"
                         [value]="line.quantity"
                         [attr.aria-label]="'Quantità ' + line.sku"
-                        (change)="onQuantityInput(line.variantId, $event)"
+                        (change)="onQuantityInput(line.id, $event)"
                       />
                       <button
                         type="button"
                         class="pos-cart__qty-btn"
                         aria-label="Aumenta quantità"
-                        (click)="changeQuantity(line.variantId, 1)"
+                        (click)="changeQuantity(line.id, 1)"
                       >
                         <i class="pi pi-plus" aria-hidden="true"></i>
                       </button>
@@ -224,7 +224,7 @@
                       inputmode="decimal"
                       [value]="priceInputValue(line)"
                       [attr.aria-label]="'Prezzo unitario ' + line.sku"
-                      (change)="onPriceInput(line.variantId, $event)"
+                      (change)="onPriceInput(line.id, $event)"
                     />
                   </td>
                   <td class="pos-cart__cell--num" data-label="Sconto %">
@@ -236,7 +236,7 @@
                       inputmode="numeric"
                       [value]="line.discountPercent"
                       [attr.aria-label]="'Sconto percentuale ' + line.sku"
-                      (change)="onDiscountInput(line.variantId, $event)"
+                      (change)="onDiscountInput(line.id, $event)"
                     />
                   </td>
                   <td class="pos-cart__cell--num pos-cart__vat" data-label="IVA">
@@ -246,7 +246,7 @@
                       [ariaLabel]="'Codice IVA ' + line.sku"
                       placeholder="Predefinito"
                       [compact]="true"
-                      (valueChange)="onLineVatSelect(line.variantId, $event)"
+                      (valueChange)="onLineVatSelect(line.id, $event)"
                     />
                   </td>
                   <td class="pos-cart__cell--num tabular-nums" data-label="Totale">
@@ -257,7 +257,7 @@
                       type="button"
                       class="pos-cart__remove"
                       [attr.aria-label]="'Rimuovi ' + line.description"
-                      (click)="removeLine(line.variantId)"
+                      (click)="removeLine(line.id)"
                     >
                       <i class="pi pi-trash" aria-hidden="true"></i>
                     </button>

@@ -28,6 +28,9 @@ export const TableViewId = {
   // sono la stessa maschera con le stesse colonne, e l'unica che cambia
   // («Scarica mag.») è già condizionata al tipo nel template.
   SalesDocumentLines: 'sales_document_lines',
+  // Vendita e Reso al banco condividono la vista: sono la stessa maschera, e
+  // le poche colonne essenziali sono le stesse per entrambi.
+  StoreSaleLines: 'store_sale_lines',
   ProductsList: 'products_list',
   CustomersList: 'customers_list',
   SalesOrdersList: 'sales_orders_list',
