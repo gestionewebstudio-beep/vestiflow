@@ -455,6 +455,42 @@ Ogni tabella dati importante DEVE supportare:
 - sticky header se il contesto lo richiede,
 - numeri con `tabular-nums`.
 
+## ⛔ Il clic di riga su un documento apre la MODIFICA _(deciso 19/08/2026)_
+
+> **L'apertura primaria di un documento dal suo elenco va alla maschera di
+> modifica. Sempre, per ogni tipo.**
+
+Il `DetailComponent` **non è la destinazione della riga**: è un'**anteprima** del
+documento, una visualizzazione — e si raggiunge con un'**azione separata**, non
+cliccando la riga.
+
+**Il criterio è cosa fa l'operatore.** Apre un documento per lavorarci: correggere una
+quantità, cambiare una data, aggiungere una riga. Portarlo su una vista in sola lettura
+gli fa fare un secondo clic per arrivare dove voleva andare, e su un elenco che si
+consulta tutto il giorno quel clic si paga a ogni riga.
+
+⛔ **Non si inventa una convenzione per tipo.** Se un documento nuovo si apre
+diversamente dagli altri, l'operatore deve ricordarsi quale: è la stessa ragione per cui
+le etichette dei pulsanti sono uguali su ogni maschera (`regole-stile-ui` §5).
+
+### ⚠️ Stato al 19/08/2026: la regola è rispettata solo in parte
+
+| Apre la **maschera** ✅                              | Apre l'**anteprima** ⛔ da correggere                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| Preventivo · Registrazione fattura · famiglia carico | Proforma · DDT vendita · Scarico manuale · Fatture · **Vendite al banco** |
+
+Il meccanismo esiste già ed è **una riga di configurazione**: `rowOpensForm: true` in
+`document-sales-register.config.ts`, oggi presente sul solo Preventivo. E
+`documentEditPath` ha già un indirizzo di modifica **per ogni tipo**.
+
+⚠️ **Le Vendite al banco sono l'unico caso che non si chiude con quella riga**: la loro
+maschera non sa ancora caricare un documento per id. Vedi `11` — l'apertura in modifica
+è un requisito dichiarato e **non ancora completato**, legato a quella capacità.
+
+⚠️ **Resta aperta una domanda di progetto**: da dove si raggiunge l'anteprima, una volta
+tolta dal clic di riga — un'azione di riga, un comando dentro la maschera, un pannello.
+Va decisa una volta per tutti i documenti, non tipo per tipo.
+
 ## Colonne numeriche
 
 Prezzi, quantità, valori stock, totali:
