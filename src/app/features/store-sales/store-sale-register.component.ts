@@ -9,6 +9,7 @@ import {
   inject,
   signal,
   viewChild,
+  type Signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -231,10 +232,31 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
    * passando dall'una all'altra (`TabRouteReuseStrategy.shouldReuseRoute`
    * confronta `routeConfig`). Non esiste il caso «stessa istanza, dato nuovo».
    *
-   * Resta un `signal` scrivibile perché l'interruttore interno lo cambia
-   * ancora: sparirà con **C4**, la rotta no.
+   * ⛔ **In sola lettura dal 19/08/2026** (`11` C4): l'interruttore interno
+   * non c'è più, e con lui l'unico modo che la maschera aveva di contraddire
+   * l'indirizzo da cui si è entrati. Per cambiare tipo si cambia pagina.
    */
-  protected readonly mode = signal<RegisterMode>(requireStoreSaleMode(this.route.snapshot.data));
+  protected readonly mode: Signal<RegisterMode> = signal(
+    requireStoreSaleMode(this.route.snapshot.data),
+  ).asReadonly();
+
+  /**
+   * Titolo e sottotestata SEGUONO il tipo della rotta.
+   *
+   * ⚠️ Erano fissi sulla vendita, e finché il tipo si cambiava da dentro non
+   * si notava. Con due indirizzi distinti aprire «Nuovo reso al banco» avrebbe
+   * mostrato «Vendita al banco» e una sottotestata che dichiara lo SCARICO
+   * della giacenza — il contrario di quello che un reso fa.
+   */
+  protected readonly pageTitle = computed(() =>
+    this.mode() === 'sale' ? 'Nuova vendita al banco' : 'Nuovo reso al banco',
+  );
+
+  protected readonly pageSubtitle = computed(() =>
+    this.mode() === 'sale'
+      ? 'Alla conclusione la giacenza e la disponibilità vengono scaricate; l’impegnata resta invariata. Non è un documento fiscale.'
+      : 'Alla conclusione la merce resa rientra in giacenza, riga per riga secondo la spunta «Carica giacenze». Non è un documento fiscale.',
+  );
 
   // ── Location ────────────────────────────────────────────────────────────
 
@@ -395,18 +417,6 @@ export class StoreSaleRegisterComponent implements CanComponentDeactivate {
       void this.audioContext?.close().catch(() => undefined);
       this.audioContext = null;
     });
-  }
-
-  // ── Mode ─────────────────────────────────────────────────────────────────
-
-  protected setMode(mode: RegisterMode): void {
-    if (this.mode() === mode) {
-      return;
-    }
-    this.mode.set(mode);
-    if (mode === 'sale') {
-      this.focusSearchInput();
-    }
   }
 
   protected onLocationChange(value: string | null): void {

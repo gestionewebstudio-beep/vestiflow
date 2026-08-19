@@ -8,11 +8,8 @@
       <!-- Con carrello o reso in corso l'uscita passa comunque dalla guard di
            route: il dialogo a tre scelte intercetta anche questa freccia. -->
       <app-back-button />
-      <h1 class="pos__title">Vendita al banco</h1>
-      <p class="pos__subtitle">
-        Alla conclusione la giacenza e la disponibilità vengono scaricate; l'impegnata resta
-        invariata. Non è un documento fiscale.
-      </p>
+      <h1 class="pos__title">{{ pageTitle() }}</h1>
+      <p class="pos__subtitle">{{ pageSubtitle() }}</p>
     </div>
     <!-- Senza la sezione Magazzino questo collegamento porterebbe solo a un
          rimbalzo sulla dashboard, senza spiegare niente. -->
@@ -58,30 +55,14 @@
       </div>
     </div>
 
-    <div class="pos__tabs" role="tablist" aria-label="Tipo di documento">
-      <button
-        type="button"
-        class="pos__tab pos__tab--sale"
-        role="tab"
-        [class.pos__tab--active]="mode() === 'sale'"
-        [attr.aria-selected]="mode() === 'sale'"
-        (click)="setMode('sale')"
-      >
-        <i class="pi pi-shopping-cart" aria-hidden="true"></i>
-        Vendita
-      </button>
-      <button
-        type="button"
-        class="pos__tab pos__tab--return"
-        role="tab"
-        [class.pos__tab--active]="mode() === 'return'"
-        [attr.aria-selected]="mode() === 'return'"
-        (click)="setMode('return')"
-      >
-        <i class="pi pi-replay" aria-hidden="true"></i>
-        Reso
-      </button>
-    </div>
+    <!--
+      ⛔ Qui c'era l'interruttore Vendita / Reso, tolto il 19/08/2026 (`11` C4).
+      Il tipo lo decide la ROTTA — /nuova-vendita-al-banco o /nuovo-reso-al-banco
+      — e la maschera non lo cambia piu': un controllo che contraddice
+      l'indirizzo da cui si e' entrati e' l'unica strada per trovarsi a
+      compilare un reso su una pagina che dice «Nuova vendita».
+      Per cambiare tipo si cambia pagina, e le due sono a un clic dall'elenco.
+    -->
   </div>
 
   @if (mode() === 'sale') {

@@ -126,6 +126,8 @@ describe('StoreSaleRegisterComponent', () => {
     readonly lookupItems?: readonly StoreSaleLookupItem[];
     readonly createSale?: ReturnType<typeof vi.fn>;
     readonly permissions?: readonly string[];
+    /** Il modo che la ROTTA dichiara. Default: vendita. */
+    readonly mode?: 'sale' | 'return';
   }) {
     const variantId = options?.variantIdByCode;
     const findVariantByCode = vi.fn(() =>
@@ -170,13 +172,13 @@ describe('StoreSaleRegisterComponent', () => {
             // parziale non fallisce dove manca — esplode dentro un altro
             // componente, con uno stack che non nomina questo file.
             snapshot: {
-              data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'sale' },
+              data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: options?.mode ?? 'sale' },
               paramMap: convertToParamMap({}),
               queryParamMap: convertToParamMap({}),
               params: {},
               queryParams: {},
             },
-            data: of({ [STORE_SALE_MODE_ROUTE_DATA_KEY]: 'sale' }),
+            data: of({ [STORE_SALE_MODE_ROUTE_DATA_KEY]: options?.mode ?? 'sale' }),
             paramMap: of(convertToParamMap({})),
             queryParamMap: of(convertToParamMap({})),
             params: of({}),
@@ -460,5 +462,67 @@ describe('StoreSaleRegisterComponent', () => {
     component.confirmExitWithoutSaving();
     await expect(pending).resolves.toBe(true);
     expect(component.cart().length).toBe(0);
+  });
+  /**
+   * ⛔ FASE UI 2 — il tipo lo decide la ROTTA, e la maschera non lo cambia.
+   *
+   * L'interruttore Vendita / Reso è caduto il 19/08/2026: era l'unica strada per
+   * trovarsi a compilare un reso su una pagina che dice «Nuova vendita». Le
+   * diramazioni funzionali restano — Vendita e Reso fanno cose opposte in
+   * magazzino — ma leggono tutte lo stesso `mode`, che viene dai `data` della
+   * rotta e non si scrive più.
+   */
+  describe('il tipo viene dalla rotta', () => {
+    it('rotta Vendita → maschera Vendita', async () => {
+      await setup({ mode: 'sale' });
+
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Nuova vendita al banco');
+      // La sezione della vendita c'è, quella del reso no.
+      expect(screen.queryByRole('heading', { name: /aggiungi articoli/i })).not.toBeNull();
+    });
+
+    it('rotta Reso → maschera Reso', async () => {
+      await setup({ mode: 'return' });
+
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Nuovo reso al banco');
+    });
+
+    /**
+     * ⚠️ La sottotestata dichiarava lo SCARICO della giacenza: su un reso è il
+     * contrario di quello che succede. Finché il tipo si cambiava da dentro non
+     * si notava; con due indirizzi distinti sarebbe stata una pagina che mente.
+     */
+    it('⚠️ sulla Vendita la sottotestata dichiara lo SCARICO', async () => {
+      const { fixture } = await setup({ mode: 'sale' });
+      const testo = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(testo).toContain('vengono scaricate');
+    });
+
+    it('⚠️ sul Reso dichiara il RIENTRO, che è il contrario', async () => {
+      const { fixture } = await setup({ mode: 'return' });
+      const testo = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(testo).toContain('rientra in giacenza');
+      // Finché il tipo si cambiava da dentro non si notava; con due indirizzi
+      // distinti sarebbe stata una pagina che dice il falso.
+      expect(testo).not.toContain('vengono scaricate');
+    });
+
+    it('⛔ NESSUN controllo consente di cambiare tipo', async () => {
+      await setup({ mode: 'sale' });
+
+      // L'interruttore era un `role="tablist"` con due `role="tab"`.
+      expect(screen.queryByRole('tablist')).toBeNull();
+      expect(screen.queryAllByRole('tab')).toHaveLength(0);
+      // E nessun comando che si chiami come i due tipi.
+      expect(screen.queryByRole('button', { name: /^vendita$/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^reso$/i })).toBeNull();
+    });
+
+    it('⛔ nemmeno sulla rotta Reso ricompare un modo per tornare a Vendita', async () => {
+      await setup({ mode: 'return' });
+
+      expect(screen.queryByRole('tablist')).toBeNull();
+      expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    });
   });
 });
