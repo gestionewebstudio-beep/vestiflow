@@ -222,13 +222,45 @@ sulla data del documento. Una vendita di marzo corretta ad agosto che si spostas
 uscirebbe dal Registro di marzo ed entrerebbe in quello di agosto — cioè cambierebbe **due**
 periodi invece di correggerne uno.
 
-#### Una riga AGGIUNTA in modifica segue la data del documento — deciso il 18/08/2026
+#### Data e costo in modifica — deciso il 18/08/2026
 
-> **Non il costo di oggi.** Aggiungendo una riga a una vendita di marzo, il costo si congela al
-> costo che l'articolo aveva **alla data del documento**.
+⚠️ **Questa sezione diceva che il costo di una riga aggiunta si congela «al costo che l'articolo
+aveva alla data del documento». Ritirato**: era un'interpretazione troppo larga della decisione,
+e avrebbe richiesto **uno storico dei costi che VestiFlow non possiede** — il costo della
+variante è un campo singolo che vale adesso, e l'unica storia esistente è il costo già congelato
+sui movimenti.
 
-È ciò che tiene il margine dei report coerente con la vendita che lo ha prodotto: una riga
-corretta a mesi di distanza non deve portarsi dentro il costo di oggi.
+**La decisione riguarda la data del documento e del movimento, non il costo.**
+
+```text
+Vendita del 10 marzo  →  la riapro ad agosto  →  aggiungo una riga nuova
+
+Data documento      10 marzo
+Data movimento      10 marzo
+Costo riga nuova    il costo corrente disponibile nel momento in cui la riga si aggiunge,
+                    e da lì congelato sul movimento
+```
+
+#### ⛔ Riga nuova e riga già esistente si comportano in modo DIVERSO, ed è la distinzione che conta
+
+|                       | Costo                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| **riga aggiunta ora** | prende il **costo corrente**, e da quel momento è congelato                         |
+| **riga già presente** | ⛔ **mantiene il costo già congelato sul movimento** — non prende il costo corrente |
+
+⚠️ **Senza questa distinzione la correzione riscriverebbe il margine di una vendita vecchia**:
+cambiare la quantità di una riga di marzo ne rivaluterebbe il costo a quello di agosto, e il
+margine di quella vendita cambierebbe senza che nessuno abbia venduto niente di diverso.
+
+⚠️ **Il totale di costo però si ricalcola**, perché la quantità è cambiata: si tiene il
+**costo unitario** congelato e si rifà il **totale** su quella nuova — altrimenti una riga
+portata da 2 a 1 continuerebbe a pesare per due.
+
+⚠️ **È la regola già scritta** in `api/src/inventory/movement-cost.util.ts`, che è condivisa e ha
+già tre chiamanti: _«il costo di una vendita è quello effettivo della variante nel momento in cui
+la merce esce; congelandolo sul movimento, il margine di quella vendita non cambia più anche se
+il costo della variante cambia dopo»_. Qui non si aggiunge una regola: si evita di violarla in
+modifica.
 
 #### ⛔ La modifica non si costruisce sul carrello attuale
 
@@ -362,6 +394,29 @@ produrrebbe un documento diverso da tutti gli altri per il tempo che passa in me
 Il censimento copre: interfaccia, menu, titoli, rotte, etichette, messaggi, causali dei
 movimenti, stampe ed export, documentazione, test, e nomi tecnici di componenti, servizi e
 metodi.
+
+### ⛔ «Cassa» è del censimento, e la distinzione è tutta nel referente _(18/08/2026)_
+
+⚠️ **La parola mancava da questo elenco**, e per questo è passata: si è trovata nel titolo della
+schermata operativa, nella sua sottotestata («Cassa interna non fiscale»), in un'etichetta
+accessibile e in tre commenti.
+
+> **La nostra schermata NON è «la cassa»: è il documento di Vendita al banco.**
+
+| Uso                                                             | Esito                                                          |
+| --------------------------------------------------------------- | -------------------------------------------------------------- |
+| «la cassa» = la **nostra** schermata, il modulo, il documento   | ⛔ **vietato**: si dice Vendita al banco                       |
+| «cassa esterna» = l'**apparecchio fisico** del negozio, o un RT | ✅ **legittimo**: è un'altra cosa, e A10 ne parla proprio così |
+| «la cassa ferma» = il **banco bloccato** davanti al cliente     | ✅ legittimo: descrive la situazione, non il software          |
+
+⛔ **E non cambia col collegamento a una cassa esterna** _(confermato il 18/08)_: quando la
+Vendita al banco potrà agganciarsi a un RT compatibile **resterà Vendita al banco** — è già la
+decisione di **A1**, e la conseguenza sui Corrispettivi è che non nasce mai un'origine nuova.
+
+⚠️ **Il documento non si definisce rispetto alla cassa.** La sottotestata diceva «Cassa interna
+non fiscale: lo scontrino viene emesso sulla cassa esterna»: due volte la parola, e il documento
+descritto per ciò che **non** è. Ora dice cosa fa — scarica giacenza e disponibilità, non tocca
+l'impegnata — e che non è fiscale.
 
 Ma **si classifica prima di rinominare**, perché i tre livelli hanno esiti diversi:
 

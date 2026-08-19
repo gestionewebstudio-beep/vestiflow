@@ -174,11 +174,17 @@ Il **Codice IVA** è il primo caso applicato: `computeLines` del percorso generi
 lo snapshot a ogni salvataggio, e ora conserva quello persistito quando il client non dichiara
 una modifica (`document-line-vat-payload.util` lato client).
 
-⚠️ **E una violazione del primo gruppo è già misurata**: `store-sales.service.ts` riscrive `sku`
-e `description` **dalla variante a ogni salvataggio** (`:147-148`, `:318`). Oggi non fa danno
-perché la vendita non si risalva; **con la modifica aperta, risalvare una vendita di marzo ne
-riscriverebbe la descrizione con quella dell'anagrafica di oggi**. Va corretto quando quel
-percorso si tocca.
+⚠️ **Una violazione del primo gruppo era misurata, ed è stata corretta il 18/08/2026**:
+`store-sales.service.ts` riscriveva `sku` e `description` **dalla variante a ogni
+salvataggio**. Non faceva danno finché la vendita non si risalvava; aprendo la modifica
+(specifica `11` A2) avrebbe riscritto la descrizione di una vendita di marzo con quella
+dell'anagrafica di oggi. Ora Vendita e Reso tengono `previous?.sku ?? variant.sku`, cioè il
+valore persistito sulla riga esistente e quello corrente solo sulla riga nuova.
+
+⛔ **Il difetto è nato dal fatto che il percorso non si risalvava**, ed è la forma in cui questa
+regola si viola più spesso: finché un documento si crea e basta, riscrivere dall'anagrafica e
+conservare danno lo stesso risultato, e la differenza compare il giorno in cui si apre la
+modifica — cioè quando i documenti sbagliati esistono già.
 
 ## Multi-tenant
 
