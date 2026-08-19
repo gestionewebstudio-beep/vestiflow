@@ -151,12 +151,20 @@ export function ensureQuickModeDraft(
   };
 }
 
-/** Prefill per creazione prodotto da pannello embedded (es. riga arrivo merce). */
+/**
+ * Prefill per creazione prodotto da pannello embedded (es. riga arrivo merce).
+ *
+ * I campi identità della riga non sono informativi: finché l'articolo non
+ * esiste sono il dato che finirà in anagrafica, quindi quello che l'operatore
+ * ha digitato nella riga deve arrivare qui invece di essere ridigitato.
+ */
 export interface ProductEmbeddedCreatePrefill {
   readonly name?: string;
   readonly description?: string;
+  readonly articleCode?: string;
   readonly sku?: string;
   readonly barcode?: string;
+  readonly unitOfMeasure?: string;
   readonly purchasePriceMajor?: number | null;
   readonly sellingPriceMajor?: number | null;
   readonly compareAtPriceMajor?: number | null;
@@ -185,6 +193,8 @@ export function productFormDraftFromEmbeddedPrefill(
         ...base.general,
         name,
         description: prefill.description?.trim() || base.general.description,
+        articleCode: prefill.articleCode?.trim() || base.general.articleCode,
+        unitOfMeasure: prefill.unitOfMeasure?.trim() || base.general.unitOfMeasure,
         defaultVatCodeId: prefill.defaultVatCodeId ?? base.general.defaultVatCodeId,
         sellingPrice,
         // Prezzo Shopify precompilato dal prezzo articolo (§B).
@@ -392,15 +402,11 @@ function articleShopifyMoney(
 /**
  * Draft -> payload di creazione (solo varianti incluse).
  *
- * `listinoPricesIncludeVat` è la modalità con cui l'operatore stava compilando
- * la sezione Listini: viaggia solo alla creazione e solo per farsela ricordare
- * dal backend (preferenza personale). Non è un dato dell'articolo, per questo
- * non sta nel draft.
+ * ⚠️ Fino al 17/08/2026 portava anche la modalità netto/ivato della sezione
+ * Listini, per farsela ricordare dal backend come preferenza personale. Non
+ * viaggia più: l'anagrafica è una vista e segue la convenzione aziendale.
  */
-export function toCreateProductDto(
-  draft: ProductFormDraft,
-  listinoPricesIncludeVat?: boolean,
-): CreateProductDto {
+export function toCreateProductDto(draft: ProductFormDraft): CreateProductDto {
   const simple = isSimpleProductDraft(draft);
   const variants = includedVariants(draft.variants).map((variant) => {
     const base = toVariantBase(variant);
@@ -417,7 +423,6 @@ export function toCreateProductDto(
   });
   return {
     ...generalToDto(draft.general),
-    ...(listinoPricesIncludeVat !== undefined ? { listinoPricesIncludeVat } : {}),
     options: buildOptionDtos(draft.options),
     variants,
   };

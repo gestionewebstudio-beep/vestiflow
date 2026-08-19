@@ -6,15 +6,19 @@ import {
   TenantChannelProfile,
   showRetailSalesRegister,
 } from '@core/models/tenant-channel-profile.model';
-import { canRegisterRetailSales, canViewReports } from '@core/permissions/tenant-permissions.util';
+import {
+  canOpenRetailRegister,
+  canRegisterRetailSales,
+  canViewReports,
+} from '@core/permissions/tenant-permissions.util';
 
-/** Route vendita al banco: profilo canale + permesso retail.register. */
+/** Route vendita al banco: canale + sezione Vendite + permesso retail.register. */
 export const retailSalesRegisterGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
   const user = auth.currentUser();
 
-  if (showRetailSalesRegister(user?.tenantChannelProfile) && canRegisterRetailSales(user)) {
+  if (canOpenRetailRegister(user)) {
     return true;
   }
 

@@ -3,7 +3,7 @@ import { DocumentType } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
-  DOCUMENTS_VIEW_PERMISSIONS,
+  DOCUMENTS_CONFIGURE_READ_PERMISSIONS,
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
@@ -22,13 +22,13 @@ export class DocumentSettingsController {
   constructor(private readonly settings: DocumentSettingsService) {}
 
   @Get()
-  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  @RequireAnyPermissions(DOCUMENTS_CONFIGURE_READ_PERMISSIONS)
   list(@CurrentTenant() tenantId: string): Promise<ResolvedDocumentTypeSetting[]> {
     return this.settings.listResolved(tenantId);
   }
 
   @Patch(':type')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   update(
     @CurrentTenant() tenantId: string,
     @Param('type', new ParseEnumPipe(DocumentType)) type: DocumentType,

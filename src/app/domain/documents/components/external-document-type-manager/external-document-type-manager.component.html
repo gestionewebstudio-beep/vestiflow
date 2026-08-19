@@ -1,0 +1,196 @@
+<div class="edt-manager">
+  <p class="edt-manager__hint">
+    I tipi documento classificano il documento della controparte (DDT, Fattura…).
+    <strong>Disattivare</strong> toglie una voce dalle tendine dei documenti nuovi lasciandola qui,
+    riattivabile. <strong>Eliminare</strong> la toglie anche da qui, e non si torna indietro. In
+    nessuno dei due casi i documenti già salvati cambiano: conservano l'etichetta con cui sono stati
+    compilati.
+  </p>
+
+  @if (loadError(); as message) {
+    <app-inline-banner tone="error" [message]="message" />
+  }
+  @if (actionError(); as message) {
+    <app-inline-banner
+      tone="error"
+      [message]="message"
+      dismissLabel="Chiudi"
+      (dismissed)="actionError.set(null)"
+    />
+  }
+
+  <div class="edt-manager__new">
+    <input
+      class="edt-manager__input"
+      type="text"
+      placeholder="Nome (es. Bolla doganale)"
+      aria-label="Nome nuovo tipo documento"
+      [value]="newName()"
+      [disabled]="busy()"
+      (input)="newName.set($any($event.target).value)"
+      (keydown.enter)="create(); $event.preventDefault()"
+    />
+    <input
+      class="edt-manager__input"
+      type="text"
+      placeholder="Etichetta breve"
+      aria-label="Etichetta breve nuovo tipo documento"
+      [value]="newShortLabel()"
+      [disabled]="busy()"
+      (input)="newShortLabel.set($any($event.target).value)"
+    />
+    <input
+      class="edt-manager__input"
+      type="text"
+      placeholder="Modello causale (es. Bolla doganale &lcub;numero&rcub; del &lcub;data&rcub;)"
+      aria-label="Modello causale nuovo tipo documento"
+      [value]="newTemplate()"
+      [disabled]="busy()"
+      (input)="newTemplate.set($any($event.target).value)"
+    />
+    <app-button type="button" [disabled]="busy() || !newName().trim()" (click)="create()">
+      Aggiungi
+    </app-button>
+  </div>
+
+  <ul class="edt-manager__list">
+    @for (docType of types(); track docType.id; let first = $first; let last = $last) {
+      <li class="edt-manager__item" [class.edt-manager__item--inactive]="!docType.isActive">
+        @if (editingId() === docType.id) {
+          <div class="edt-manager__edit-fields">
+            <input
+              class="edt-manager__input"
+              type="text"
+              aria-label="Nome tipo documento"
+              [value]="editName()"
+              (input)="editName.set($any($event.target).value)"
+              (keydown.escape)="cancelEdit()"
+            />
+            <input
+              class="edt-manager__input"
+              type="text"
+              aria-label="Etichetta breve tipo documento"
+              [value]="editShortLabel()"
+              (input)="editShortLabel.set($any($event.target).value)"
+            />
+            <input
+              class="edt-manager__input"
+              type="text"
+              aria-label="Modello causale tipo documento"
+              [value]="editTemplate()"
+              (input)="editTemplate.set($any($event.target).value)"
+            />
+          </div>
+          <div class="edt-manager__actions">
+            <app-button type="button" variant="secondary" [disabled]="busy()" (click)="saveEdit()">
+              Salva
+            </app-button>
+            <app-button type="button" variant="ghost" (click)="cancelEdit()">Annulla</app-button>
+          </div>
+        } @else {
+          <span class="edt-manager__label">
+            {{ docType.name }}
+            @if (docType.shortLabel && docType.shortLabel !== docType.name) {
+              <span class="edt-manager__short">({{ docType.shortLabel }})</span>
+            }
+            @if (docType.isSystem) {
+              <app-badge tone="info">Sistema</app-badge>
+            }
+            @if (!docType.isActive) {
+              <app-badge tone="warning">Disattivato</app-badge>
+            }
+          </span>
+          <div class="edt-manager__actions">
+            <button
+              type="button"
+              class="edt-manager__icon-btn"
+              aria-label="Sposta su"
+              title="Sposta su"
+              [disabled]="first || busy()"
+              (click)="move(docType, -1)"
+            >
+              <i class="pi pi-arrow-up" aria-hidden="true"></i>
+            </button>
+            <button
+              type="button"
+              class="edt-manager__icon-btn"
+              aria-label="Sposta giù"
+              title="Sposta giù"
+              [disabled]="last || busy()"
+              (click)="move(docType, 1)"
+            >
+              <i class="pi pi-arrow-down" aria-hidden="true"></i>
+            </button>
+            <button
+              type="button"
+              class="edt-manager__icon-btn"
+              [attr.aria-label]="docType.isActive ? 'Disattiva tipo' : 'Riattiva tipo'"
+              [attr.title]="
+                docType.isActive
+                  ? 'Disattiva: esce dalle tendine, resta in questo elenco'
+                  : 'Riattiva: torna disponibile nei documenti nuovi'
+              "
+              [disabled]="busy()"
+              (click)="toggleActive(docType)"
+            >
+              <i
+                class="pi"
+                [class.pi-eye]="docType.isActive"
+                [class.pi-eye-slash]="!docType.isActive"
+                aria-hidden="true"
+              ></i>
+            </button>
+            <button
+              type="button"
+              class="edt-manager__icon-btn"
+              aria-label="Duplica tipo"
+              title="Duplica tipo"
+              [disabled]="busy()"
+              (click)="duplicate(docType)"
+            >
+              <i class="pi pi-copy" aria-hidden="true"></i>
+            </button>
+            <button
+              type="button"
+              class="edt-manager__icon-btn"
+              aria-label="Modifica tipo"
+              title="Modifica tipo"
+              [disabled]="busy()"
+              (click)="startEdit(docType)"
+            >
+              <i class="pi pi-pencil" aria-hidden="true"></i>
+            </button>
+            <button
+              type="button"
+              class="edt-manager__icon-btn edt-manager__icon-btn--danger"
+              aria-label="Elimina tipo"
+              title="Elimina: esce anche da questo elenco, senza ritorno"
+              [disabled]="busy()"
+              (click)="requestDelete(docType)"
+            >
+              <i class="pi pi-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        }
+      </li>
+    } @empty {
+      <li class="edt-manager__empty">
+        @if (loading()) {
+          Caricamento…
+        } @else {
+          Nessun tipo documento configurato.
+        }
+      </li>
+    }
+  </ul>
+</div>
+
+<app-confirm-dialog
+  [(open)]="confirmOpen"
+  [title]="confirmTitle()"
+  [message]="confirmMessage()"
+  confirmLabel="Elimina"
+  [danger]="true"
+  (confirmed)="onConfirmDelete()"
+  (dismissed)="onDismissDelete()"
+/>

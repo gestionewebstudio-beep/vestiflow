@@ -46,7 +46,7 @@ import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { ListVariantSummariesQueryDto } from './dto/list-variant-summaries.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductMediaService } from './product-media.service';
-import { ProductPriceModePreferenceService } from './product-price-mode-preference.service';
+import { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import { ProductsExportService } from './products-export.service';
 import { ProductsImportService } from './products-import.service';
 import { ProductsService, type ProductWithVariants } from './products.service';
@@ -105,16 +105,19 @@ export class ProductsController {
     private readonly productsExport: ProductsExportService,
     private readonly suppliers: SuppliersService,
     private readonly skuGenerator: SkuGeneratorService,
-    private readonly priceModePreference: ProductPriceModePreferenceService,
+    private readonly priceModePreference: DocumentPriceModePreferenceService,
   ) {}
 
+  // L'utente serve al service per il costo d'acquisto (dato sensibile
+  // §permessi): senza permesso il campo non entra nella risposta.
   @Get()
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   list(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListProductsQueryDto,
   ): Promise<Paginated<ProductWithVariants>> {
-    return this.products.list(tenantId, query);
+    return this.products.list(tenantId, query, user);
   }
 
   @Get('facets')
@@ -229,14 +232,18 @@ export class ProductsController {
   @UseInterceptors(FileInterceptor('file', csvUploadMulterOptions))
   importProducts(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @UploadedFile() file: Express.Multer.File,
     @Body() body: ImportProductsBodyDto,
   ) {
     this.assertCsvFile(file);
     const handles = body.handles?.filter((handle) => handle.trim().length > 0);
-    return this.productsImport.importCsv(tenantId, file.buffer.toString('utf-8'), {
-      handles,
-    });
+    return this.productsImport.importCsv(
+      tenantId,
+      file.buffer.toString('utf-8'),
+      { handles },
+      user,
+    );
   }
 
   @Get('export/csv')
@@ -258,26 +265,30 @@ export class ProductsController {
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   listSupplierLinks(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.suppliers.listVariantLinksByProduct(tenantId, id);
+    return this.suppliers.listVariantLinksByProduct(tenantId, id, user);
   }
 
   /**
-   * Modalità prezzo (netto/ivato) della sezione Listini da proporre a un articolo
-   * nuovo: preferenza ricordata dell'operatore ?? primo utilizzo (ivato).
+   * Modalità prezzo (netto/ivato) della sezione Listini: la **convenzione
+   * aziendale** sui prezzi di vendita.
+   *
+   * ⚠️ Dal 16/08/2026 non è più una preferenza dell'operatore. L'anagrafica
+   * non è un documento: è una vista del catalogo, e sta dalla stessa parte di
+   * report, movimenti e liste — dove serve un riferimento comune, o due
+   * colleghi guardano lo stesso listino e ne leggono due. La memoria
+   * personale resta solo dove si CREA qualcosa: i documenti di vendita.
+   *
    * Rotta statica: DEVE precedere `@Get(':id')`, altrimenti `:id` la cattura.
    */
   @Get('price-mode-preference')
   @RequirePermissions(TenantPermission.CatalogManage)
   async getPriceModePreference(
     @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
   ): Promise<{ pricesIncludeVat: boolean }> {
-    const pricesIncludeVat = await this.priceModePreference.resolvePricesIncludeVat(
-      tenantId,
-      user.id,
-    );
+    const pricesIncludeVat = await this.priceModePreference.salesPricesIncludeVat(tenantId);
     return { pricesIncludeVat };
   }
 
@@ -285,9 +296,10 @@ export class ProductsController {
   @RequireAnyPermissions(CATALOG_SECTION_PERMISSIONS)
   getById(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ProductWithVariants> {
-    return this.products.getById(tenantId, id);
+    return this.products.getById(tenantId, id, user);
   }
 
   @Post()
@@ -297,11 +309,9 @@ export class ProductsController {
     @CurrentUser() user: UserProfileDto,
     @Body() dto: CreateProductDto,
   ): Promise<ProductWithVariants> {
-    const product = await this.products.create(tenantId, dto);
-    // Ricorda la modalità Listini scelta (solo alla creazione, come i documenti).
-    if (dto.listinoPricesIncludeVat !== undefined) {
-      await this.priceModePreference.remember(tenantId, user.id, dto.listinoPricesIncludeVat);
-    }
+    const product = await this.products.create(tenantId, dto, user);
+    // ⚠️ Qui la modalità Listini veniva ricordata come preferenza personale.
+    // Rimosso il 16/08/2026: l'anagrafica segue la convenzione aziendale.
     return product;
   }
 
@@ -309,10 +319,11 @@ export class ProductsController {
   @RequirePermissions(TenantPermission.CatalogManage)
   update(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
   ): Promise<ProductWithVariants> {
-    return this.products.update(tenantId, id, dto);
+    return this.products.update(tenantId, id, dto, user);
   }
 
   /** Duplica anagrafica prodotto (audit cliente): nuovo id, SKU/barcode univoci. */
@@ -320,9 +331,10 @@ export class ProductsController {
   @RequirePermissions(TenantPermission.CatalogManage)
   duplicate(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ProductWithVariants> {
-    return this.products.duplicateProduct(tenantId, id);
+    return this.products.duplicateProduct(tenantId, id, user);
   }
 
   @Post(':id/sync-shopify')

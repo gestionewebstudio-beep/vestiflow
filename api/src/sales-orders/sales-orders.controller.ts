@@ -20,8 +20,15 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { TenantPermission } from '../auth/tenant-permission.constants';
-import { RequirePermissions } from '../common/auth/tenant-permissions.decorator';
+import {
+  SALES_ORDERS_MANAGE_PERMISSIONS,
+  SALES_ORDERS_VIEW_PERMISSIONS,
+  TenantPermission,
+} from '../auth/tenant-permission.constants';
+import {
+  RequireAllPermissionGroups,
+  RequireAnyPermissions,
+} from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
@@ -37,6 +44,7 @@ import { ListSalesOrdersQueryDto } from './dto/list-sales-orders.query.dto';
 import { SaveManualSalesOrderDto } from './dto/save-manual-sales-order.dto';
 import {
   ManualSalesOrdersService,
+  type ConcludePrefillDto,
   type ManualOrderReservationRow,
   type ManualSalesOrderMeta,
   type ManualSalesOrderSaveResult,
@@ -51,6 +59,7 @@ import {
 
 @Controller('sales-orders')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
+@RequireAllPermissionGroups([[TenantPermission.SectionSales]])
 export class SalesOrdersController {
   constructor(
     private readonly salesOrders: SalesOrdersService,
@@ -61,16 +70,21 @@ export class SalesOrdersController {
   ) {}
 
   @Get()
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAnyPermissions(SALES_ORDERS_VIEW_PERMISSIONS)
   list(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Query() query: ListSalesOrdersQueryDto,
   ): Promise<Paginated<SalesOrderListRow>> {
-    return this.salesOrders.list(tenantId, query);
+    return this.salesOrders.list(tenantId, query, user);
   }
 
   @Get('export/csv')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([
+    [TenantPermission.SectionSales],
+    SALES_ORDERS_VIEW_PERMISSIONS,
+    [TenantPermission.ReportsExport],
+  ])
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportCsv(
     @CurrentTenant() tenantId: string,
@@ -88,9 +102,9 @@ export class SalesOrdersController {
   // Le rotte letterali precedono ':id' (ordine di dichiarazione Nest).
 
   @Get('manual/meta')
-  @RequirePermissions(TenantPermission.DocumentsManage)
-  getManualMeta(@CurrentTenant() tenantId: string): Promise<ManualSalesOrderMeta> {
-    return this.manualOrders.getMeta(tenantId);
+  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
+  getManualMeta(): ManualSalesOrderMeta {
+    return this.manualOrders.getMeta();
   }
 
   /**
@@ -98,7 +112,7 @@ export class SalesOrdersController {
    * un'unica transazione, con avvisi disponibilità NON bloccanti (§CONTROLLI).
    */
   @Post('manual/save')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   saveManual(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -109,7 +123,7 @@ export class SalesOrdersController {
 
   /** Impegni attivi dell'ordine (calcolo Q.tà disponibile in modifica). */
   @Get('manual/:id/reservations')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   listManualReservations(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -123,19 +137,19 @@ export class SalesOrdersController {
    * destinazione. Nessun documento nasce qui: si crea solo al salvataggio.
    */
   @Post('manual/:id/conclude-prefill')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   concludeManualPrefill(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ConcludeManualSalesOrderDto,
-  ): Promise<CreateDocumentDto> {
+  ): Promise<ConcludePrefillDto> {
     return this.manualOrders.concludePrefill(tenantId, id, dto.documentType, user);
   }
 
   /** Forza a Concluso un ordine Parzialmente concluso (prompt DDT). */
   @Post('manual/:id/force-conclude')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   async forceConcludeManual(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -148,7 +162,7 @@ export class SalesOrdersController {
   /** Elimina un ordine cliente manuale dall'elenco (rilascia gli impegni). */
   @Delete('manual/:id')
   @HttpCode(204)
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   deleteManual(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -159,7 +173,7 @@ export class SalesOrdersController {
 
   /** Duplica un ordine in un nuovo ordine cliente manuale col cliente scelto. */
   @Post('manual/:id/duplicate')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   duplicateManual(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,
@@ -172,13 +186,13 @@ export class SalesOrdersController {
   // ── Allegati (sottosistema generico, entità 'sales_order') ────────────────
 
   @Get(':id/attachments')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAnyPermissions(SALES_ORDERS_VIEW_PERMISSIONS)
   listAttachments(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.attachments.list(tenantId, 'sales_order', id);
   }
 
   @Post(':id/attachments')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   @UseInterceptors(FileInterceptor('file', documentAttachmentUploadMulterOptions))
   uploadAttachment(
     @CurrentTenant() tenantId: string,
@@ -191,14 +205,14 @@ export class SalesOrdersController {
 
   /** Spazio allegati dell'ordine (indicatore nella modale allegati). */
   @Get(':id/attachments/quota')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAnyPermissions(SALES_ORDERS_VIEW_PERMISSIONS)
   attachmentsQuota(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.attachments.quota(tenantId, 'sales_order', id);
   }
 
   /** Download allegato: il bucket è privato, i byte passano dall'API. */
   @Get(':id/attachments/:attachmentId/download')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAnyPermissions(SALES_ORDERS_VIEW_PERMISSIONS)
   async downloadAttachment(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -213,7 +227,7 @@ export class SalesOrdersController {
 
   /** Rinomina allegato: cambia solo il nome mostrato, i byte restano dove sono. */
   @Patch(':id/attachments/:attachmentId')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   renameAttachment(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -225,7 +239,7 @@ export class SalesOrdersController {
 
   @Delete(':id/attachments/:attachmentId')
   @HttpCode(204)
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequireAnyPermissions(SALES_ORDERS_MANAGE_PERMISSIONS)
   deleteAttachment(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -236,13 +250,14 @@ export class SalesOrdersController {
 
   /** Stampa PDF dell'ordine cliente (qualunque origine). */
   @Get(':id/export/pdf')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAnyPermissions(SALES_ORDERS_VIEW_PERMISSIONS)
   @Header('Content-Type', 'application/pdf')
   async exportPdf(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<StreamableFile> {
-    const order = await this.salesOrders.getById(tenantId, id);
+    const order = await this.salesOrders.getById(tenantId, id, user);
     const { buffer, filename } = await this.salesOrderPdf.exportPdf(tenantId, order);
     return new StreamableFile(buffer, {
       type: 'application/pdf',
@@ -251,11 +266,12 @@ export class SalesOrdersController {
   }
 
   @Get(':id')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAnyPermissions(SALES_ORDERS_VIEW_PERMISSIONS)
   getById(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SalesOrderDetailRow> {
-    return this.salesOrders.getById(tenantId, id);
+    return this.salesOrders.getById(tenantId, id, user);
   }
 }

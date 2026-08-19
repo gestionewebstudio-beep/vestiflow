@@ -10,12 +10,16 @@
 
   <div class="confirm-dialog__actions">
     @if (!acknowledge()) {
-      <app-button variant="secondary" [disabled]="busy()" (click)="onCancel()">
+      <app-button
+        [variant]="emphasis() === 'cancel' ? 'primary' : 'secondary'"
+        [disabled]="busy()"
+        (click)="onCancel()"
+      >
         {{ cancelLabel() }}
       </app-button>
     }
     <app-button
-      [variant]="danger() ? 'danger' : 'primary'"
+      [variant]="danger() ? 'danger' : emphasis() === 'cancel' ? 'secondary' : 'primary'"
       [loading]="busy()"
       [disabled]="busy()"
       (click)="onConfirm()"

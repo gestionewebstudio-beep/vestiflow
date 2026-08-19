@@ -19,6 +19,7 @@ export const DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.proforma,
   DocumentType.invoice_draft,
   DocumentType.invoice_accompanying,
+  DocumentType.credit_note,
   DocumentType.store_sale,
   DocumentType.store_return,
 ];
@@ -31,10 +32,15 @@ export const DOCUMENT_TYPES: readonly DocumentType[] = [
  */
 export const INTERNAL_ONLY_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.online_sale,
-  DocumentType.corrispettivo,
   // Ordine cliente manuale: vive in SalesOrder, l'enum serve solo al
   // numeratore dedicato (DocumentSequence) — mai righe in `documents`.
   DocumentType.customer_order,
+  // Corrispettivo manuale: vive in `manual_receipts` (specifica 10 §12). Come
+  // i due sopra, l'enum gli serve SOLO al numeratore comune. Sta qui perche'
+  // questo elenco e' cio' che fa rifiutare `POST /documents` con «generato
+  // automaticamente dal sistema»: senza, si potrebbe creare un documento vuoto
+  // di un tipo che documento non e'.
+  DocumentType.manual_receipt,
 ] as const;
 
 export function isInternalOnlyDocumentType(type: DocumentType): boolean {
@@ -82,7 +88,7 @@ export function isDedicatedWorkflowDocumentType(type: DocumentType): boolean {
  * Esclusi:
  * - `invoice_accompanying`: condivide il numeratore con `invoice_draft`
  *   (vedi documentNumberingType), quindi un solo contatore la copre.
- * - i tipi interni (online_sale, corrispettivo): già fuori da DOCUMENT_TYPES.
+ * - il tipo interno `online_sale`: già fuori da DOCUMENT_TYPES.
  * - gli ordini di canale (Shopify/POS) non hanno contatore: il numero è del
  *   canale; solo gli ordini cliente MANUALI usano il contatore customer_order.
  */
@@ -107,6 +113,10 @@ export const SETTINGS_CARD_DOCUMENT_TYPES: readonly DocumentType[] = [
 
 /** Prefisso numerazione di default per tipo (§2.3). Sovrascrivibile in impostazioni. */
 export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
+  // ⚠️ Vuoto per scelta, non per dimenticanza: il Corrispettivo manuale mostra
+  // il numero NUDO — 1, 2, 3 — senza prefisso ne' zeri di riempimento. Il
+  // vecchio `COR-2026-0001` apparteneva al documento ritirato il 17/08.
+  [DocumentType.manual_receipt]: '',
   [DocumentType.supplier_order]: 'OF',
   [DocumentType.goods_receipt]: 'CAR',
   [DocumentType.supplier_invoice]: 'FF',
@@ -122,8 +132,19 @@ export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
   // Numeratore condiviso con `invoice_draft`: il prefisso qui è solo il
   // fallback usato se il numeratore della Fattura non è personalizzato.
   [DocumentType.invoice_accompanying]: 'FT',
+  // Stesso numeratore, stesso fallback: il progressivo è uno solo per i tre
+  // tipi, e il riferimento si distingue per il tipo scritto in colonna, non
+  // per il prefisso. Un prefisso diverso qui darebbe due serie di riferimenti
+  // sullo stesso progressivo — FT-0005 e NC-0006 — che si leggono come due
+  // numerazioni diverse mentre sono la stessa.
+  //
+  // NON è una decisione sul prefisso della famiglia: quella è aperta, e la
+  // porta `docs/04` §11 («Il riferimento non è il numero»), che ha deciso di
+  // togliere sigla e zeri dal numero visibile di TUTTI i documenti. Finché il
+  // prefisso esiste, la Nota di credito segue la famiglia; quando §11 sarà
+  // eseguita, questa riga cadrà insieme alle altre.
+  [DocumentType.credit_note]: 'FT',
   [DocumentType.online_sale]: 'VO',
-  [DocumentType.corrispettivo]: 'COR',
   [DocumentType.customer_order]: 'OC',
   [DocumentType.store_sale]: 'VN',
   [DocumentType.store_return]: 'RN',
@@ -132,6 +153,10 @@ export const DEFAULT_NUMBER_PREFIX: Readonly<Record<DocumentType, string>> = {
 
 /** Titolo di stampa di default per tipo (§2.2). Sovrascrivibile in impostazioni. */
 export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
+  // Non si stampa come documento (vedi HAS_PRINTED_SHEET): il titolo esiste
+  // solo perche' la mappa e' esaustiva, ed e' quello che l'operatore legge nel
+  // Registro alla colonna origine.
+  [DocumentType.manual_receipt]: 'Corrispettivo manuale',
   [DocumentType.supplier_order]: 'Ordine fornitore',
   [DocumentType.goods_receipt]: 'Arrivo merce',
   [DocumentType.supplier_invoice]: 'Fattura fornitore',
@@ -145,11 +170,11 @@ export const DEFAULT_PRINT_TITLE: Readonly<Record<DocumentType, string>> = {
   [DocumentType.proforma]: 'Proforma - documento non fiscale',
   [DocumentType.invoice_draft]: 'Fattura',
   [DocumentType.invoice_accompanying]: 'Fattura accompagnatoria',
+  [DocumentType.credit_note]: 'Nota di credito',
   [DocumentType.online_sale]: 'Vendita online',
-  [DocumentType.corrispettivo]: 'Corrispettivo',
   [DocumentType.customer_order]: 'Ordine cliente',
   [DocumentType.store_sale]: 'Vendita in negozio',
-  [DocumentType.store_return]: 'Reso vendita negozio',
+  [DocumentType.store_return]: 'Reso vendita al banco',
   [DocumentType.quote]: 'Preventivo',
 };
 
@@ -159,7 +184,6 @@ export interface ResolvedDocumentTypeSetting {
   readonly autoNumbering: boolean;
   readonly numberPrefix: string;
   readonly defaultSeries: string;
-  readonly pricesIncludeVat: boolean;
   readonly defaultNotes: string | null;
 }
 
@@ -171,8 +195,6 @@ export function defaultTypeSetting(type: DocumentType): ResolvedDocumentTypeSett
     autoNumbering: true,
     numberPrefix: DEFAULT_NUMBER_PREFIX[type],
     defaultSeries: 'A',
-    // Cassa negozio: prezzi al pubblico IVA inclusa (scorporo interno).
-    pricesIncludeVat: isFlowOnlyDocumentType(type),
     defaultNotes: type === DocumentType.proforma ? PROFORMA_DEFAULT_NOTES : null,
   };
 }

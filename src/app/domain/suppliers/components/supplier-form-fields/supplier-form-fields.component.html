@@ -19,8 +19,13 @@
         class="supplier-fields__control"
         type="text"
         formControlName="name"
-        [attr.aria-invalid]="formGroup().controls.name.invalid && formGroup().controls.name.touched"
+        [attr.aria-invalid]="showError('name')"
       />
+      @if (showError('name')) {
+        <span class="supplier-fields__field-error"
+          >Inserisci la ragione sociale del fornitore.</span
+        >
+      }
     </div>
     <div class="supplier-fields__field">
       <label class="supplier-fields__label" [for]="idPrefix() + '-vat'">P. IVA</label>
@@ -50,7 +55,13 @@
         type="email"
         formControlName="email"
         autocomplete="email"
+        [attr.aria-invalid]="showError('email')"
       />
+      @if (showError('email')) {
+        <span class="supplier-fields__field-error"
+          >Inserisci un indirizzo email valido, es. ordini&#64;fornitore.it.</span
+        >
+      }
     </div>
     <div class="supplier-fields__field">
       <label class="supplier-fields__label" [for]="idPrefix() + '-pec'">PEC</label>
@@ -60,7 +71,13 @@
         type="email"
         formControlName="pec"
         autocomplete="off"
+        [attr.aria-invalid]="showError('pec')"
       />
+      @if (showError('pec')) {
+        <span class="supplier-fields__field-error"
+          >Inserisci un indirizzo PEC valido, es. fornitore&#64;pec.it.</span
+        >
+      }
     </div>
     <div class="supplier-fields__field">
       <label class="supplier-fields__label" [for]="idPrefix() + '-phone'">Telefono</label>
@@ -202,13 +219,23 @@
       <label class="supplier-fields__label" [for]="idPrefix() + '-default-vat'"
         >Codice IVA predefinito</label
       >
-      <app-select-menu
+      <!--
+        Stesso campo delle righe documento e della scheda articolo: si arriva
+        col Tab, si digita il codice, l'elenco filtra per prefisso, Invio
+        conferma. Qui la ricerca non c'era proprio — il campo era un `<button>`
+        senza `searchable`, quindi si scorreva l'elenco e basta.
+      -->
+      <app-document-line-select-cell
+        [inputId]="idPrefix() + '-default-vat'"
+        ariaLabel="Codice IVA predefinito"
         [options]="vatSelectOptions()"
         [value]="formGroup().controls.defaultVatCodeId.value"
-        ariaLabel="Codice IVA predefinito"
         placeholder="Predefinito aziendale…"
-        [fullWidth]="true"
         [includeEmptyOption]="true"
+        emptyOptionLabel="Predefinito aziendale"
+        [boxed]="true"
+        [inColumnCycle]="false"
+        [selectOnFocus]="true"
         (valueChange)="onVatSelect($event)"
       />
     </div>

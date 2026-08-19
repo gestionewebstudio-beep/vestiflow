@@ -16,7 +16,7 @@ export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
   @Get('summary')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequirePermissions(TenantPermission.SectionReports)
   getSummary(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,

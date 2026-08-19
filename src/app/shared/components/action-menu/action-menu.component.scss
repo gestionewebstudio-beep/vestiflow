@@ -40,6 +40,38 @@
   background-color: var(--color-surface-hover);
 }
 
+/*
+  Trigger NOMINATO: non è più un quadrato da riga di tabella ma un comando di
+  barra strumenti, e si veste come il bottone secondario che sta accanto —
+  stessi token di `app-button` variante secondary, così in una barra mista non
+  si distingue da loro. `inline-size: auto` toglie il quadrato; l'altezza resta
+  quella del sistema (`--field-height`), che su mobile sale già a 44px da sola.
+*/
+.action-menu__trigger--labelled {
+  inline-size: var(--action-menu-inline-size, auto);
+  gap: var(--space-2);
+  padding-inline: var(--action-menu-pad-inline, var(--space-3));
+  color: var(--color-text);
+  font-size: var(--button-font-size, var(--text-sm));
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-surface);
+  border-color: var(--color-border-strong);
+}
+
+.action-menu__trigger--labelled:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.action-menu__trigger-label {
+  white-space: nowrap;
+}
+
+/* Il chevron dice «qui sotto si apre altro», come sui campi a tendina. */
+.action-menu__trigger-caret {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
 .action-menu__panel {
   position: absolute;
   inset-block-start: calc(100% + var(--space-1));

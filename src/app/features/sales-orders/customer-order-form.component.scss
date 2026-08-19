@@ -44,6 +44,17 @@
   // in styles/_document-form.scss, accanto alle altre misure --doc-m-*.
 }
 
+// Il documento della controparte arriva da un componente condiviso: i suoi
+// selettori stanno in un altro foglio incapsulato e da qui non si raggiungono
+// (ne' si devono raggiungere). Si configura dai token, che attraversano il
+// confine per costruzione — regole-stile-ui §5. In testata i controlli portano
+// l'altezza densa di sistema, la stessa degli altri campi della fascia: senza,
+// la tendina resterebbe alta come un input standard accanto a un campo numero
+// piu' basso. Il token vale anche nel pannello mobile, dove diventa 44px.
+.co-form .doc-form__header app-document-counterparty-ref {
+  --field-height: var(--control-h-field);
+}
+
 // Stato di salvataggio, link sotto il campo cliente, meccanica delle fasce di
 // testata, piede tabella, banda footer e avviso disponibilità sono saliti ai
 // fogli globali (_document-form.scss e _document-form-footer.scss, FASE 0):
@@ -65,7 +76,12 @@
     flex-grow: 0.75;
   }
 
-  // Consegna | Pagamento | spazio libero (Preventivo: fascia a tre celle).
+  // Consegna | Pagamento | spazio libero — la fascia del PREVENTIVO, l'unica
+  // che questa maschera disegni ancora da sé. Sull'Ordine cliente la seconda
+  // fascia è quella del documento del cliente e la disegna il componente
+  // condiviso: le sue celle stanno oltre il confine di incapsulamento e da qui
+  // non si raggiungono (né si devono raggiungere — regole-stile-ui §5). Lì le
+  // celle si dividono la fascia in parti uguali, come nelle altre maschere.
   .co-form .doc-form__header-row--secondary > *:nth-child(1) {
     flex-grow: 0.82;
   }
@@ -74,16 +90,6 @@
   }
   .co-form .doc-form__header-row--secondary > *:nth-child(3) {
     flex-grow: 2.13;
-  }
-
-  // Ordine cliente: niente «Consegna prevista», la fascia ha due sole celle.
-  // Il Pagamento tiene la propria quota e lo spazio libero assorbe il resto,
-  // così le proporzioni restano quelle del mockup anche senza la prima cella.
-  .co-form .doc-form__header-row--secondary > *:nth-child(1):nth-last-child(2) {
-    flex-grow: 1.05;
-  }
-  .co-form .doc-form__header-row--secondary > *:nth-child(2):nth-last-child(1) {
-    flex-grow: 2.95;
   }
 }
 
@@ -318,4 +324,22 @@
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+// Il banner «ordine da canale esterno» spiega invece di limitarsi a vietare,
+// quindi porta più frasi: vanno incolonnate, non affiancate come il banner di
+// sblocco che ha testo e bottone sulla stessa riga. E non è cliccabile: qui non
+// c'è niente da sbloccare.
+.co-form__external-notice {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: default;
+}
+
+// Le due azioni sotto la lista righe stanno su una griglia a due colonne. A chi
+// non gestisce il catalogo ne resta una sola: senza questo, «Inserisci riga
+// vuota» resterebbe largo mezza schermata con un vuoto accanto.
+.co-lines__actions.co-lines__actions--single .co-lines__action {
+  grid-column: 1 / -1;
 }

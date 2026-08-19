@@ -1,0 +1,169 @@
+<app-document-line-card
+  [lineIndex]="lineIndex()"
+  [open]="open()"
+  [readOnly]="disabled()"
+  [canRemove]="canRemove()"
+  [title]="line().controls.description.value"
+  [meta]="metaItems()"
+  (toggled)="toggle()"
+  (removeRequested)="removed.emit(lineIndex())"
+  (removed)="removed.emit(lineIndex())"
+  (duplicated)="duplicated.emit(lineIndex())"
+>
+  <!--
+    Un valore solo nella striscia, ed è giusto così: su un movimento la quantità
+    è tutto ciò che si legge senza aprire. Dove gli altri documenti hanno prezzo
+    e totale, qui non c'è niente da mettere — e mettere qualcosa per riempire il
+    posto sarebbe peggio del posto vuoto.
+  -->
+  <ng-container cardControls>
+    <app-document-line-card-control label="Quantità">
+      <input
+        class="mov-card__qty-input tabular-nums"
+        type="number"
+        min="1"
+        step="1"
+        inputmode="numeric"
+        [formControl]="line().controls.quantity"
+        [attr.aria-label]="'Quantità riga ' + (lineIndex() + 1)"
+      />
+    </app-document-line-card-control>
+  </ng-container>
+
+  <ng-container cardBody>
+    <app-document-line-card-group label="Articolo" [first]="true" />
+
+    <!--
+      I tre campi codice ancorano la scelta fra più corrispondenze esatte: uno
+      solo per volta la mostra, quello da cui si è confermato. Su mobile la si
+      prende TOCCANDO — niente frecce. Lo sfocamento conferma, come il Tab sul
+      desktop: perdere il fuoco su un telefono non è un caso.
+    -->
+    <app-document-line-card-field
+      label="Cod. articolo"
+      [controlId]="idPrefix() + '-m-code-' + lineIndex()"
+      [anchor]="true"
+    >
+      <input
+        [id]="idPrefix() + '-m-code-' + lineIndex()"
+        class="doc-form__input"
+        type="text"
+        [formControl]="line().controls.articleCode"
+        placeholder="—"
+        autocomplete="off"
+        [attr.aria-expanded]="codeChoice()?.field === 'articleCode'"
+        [attr.aria-controls]="idPrefix() + '-m-code-choice-' + lineIndex()"
+        (focus)="codeFocused.emit('articleCode')"
+        (blur)="codeBlurred.emit('articleCode')"
+        (keydown.enter)="codeCommitted.emit('articleCode'); $event.preventDefault()"
+      />
+      @if (codeChoice()?.field === 'articleCode') {
+        <app-document-line-suggestions
+          [items]="codeChoice()!.items"
+          [activeIndex]="null"
+          [listboxId]="idPrefix() + '-m-code-choice-' + lineIndex()"
+          ariaLabel="Articoli con questo codice"
+          (picked)="pickCodeSuggestion($event)"
+        />
+      }
+    </app-document-line-card-field>
+
+    <app-document-line-card-field
+      label="SKU"
+      [controlId]="idPrefix() + '-m-sku-' + lineIndex()"
+      [anchor]="true"
+    >
+      <input
+        [id]="idPrefix() + '-m-sku-' + lineIndex()"
+        class="doc-form__input"
+        type="text"
+        [formControl]="line().controls.sku"
+        placeholder="—"
+        autocomplete="off"
+        [attr.aria-expanded]="codeChoice()?.field === 'sku'"
+        [attr.aria-controls]="idPrefix() + '-m-sku-choice-' + lineIndex()"
+        (focus)="codeFocused.emit('sku')"
+        (blur)="codeBlurred.emit('sku')"
+        (keydown.enter)="codeCommitted.emit('sku'); $event.preventDefault()"
+      />
+      @if (codeChoice()?.field === 'sku') {
+        <app-document-line-suggestions
+          [items]="codeChoice()!.items"
+          [activeIndex]="null"
+          [listboxId]="idPrefix() + '-m-sku-choice-' + lineIndex()"
+          ariaLabel="Articoli con questo SKU"
+          (picked)="pickCodeSuggestion($event)"
+        />
+      }
+    </app-document-line-card-field>
+
+    <app-document-line-card-field
+      label="EAN"
+      [controlId]="idPrefix() + '-m-barcode-' + lineIndex()"
+      [full]="true"
+      [anchor]="true"
+    >
+      <input
+        [id]="idPrefix() + '-m-barcode-' + lineIndex()"
+        class="doc-form__input"
+        type="text"
+        [formControl]="line().controls.barcode"
+        placeholder="—"
+        autocomplete="off"
+        [attr.aria-expanded]="codeChoice()?.field === 'barcode'"
+        [attr.aria-controls]="idPrefix() + '-m-barcode-choice-' + lineIndex()"
+        (focus)="codeFocused.emit('barcode')"
+        (blur)="codeBlurred.emit('barcode')"
+        (keydown.enter)="codeCommitted.emit('barcode'); $event.preventDefault()"
+      />
+      @if (codeChoice()?.field === 'barcode') {
+        <app-document-line-suggestions
+          [items]="codeChoice()!.items"
+          [activeIndex]="null"
+          [listboxId]="idPrefix() + '-m-barcode-choice-' + lineIndex()"
+          ariaLabel="Articoli con questo EAN"
+          (picked)="pickCodeSuggestion($event)"
+        />
+      }
+    </app-document-line-card-field>
+
+    <app-document-line-card-field label="Nome prodotto" [full]="true">
+      <!--
+        Stessa cella nome degli altri documenti: si digita e i suggerimenti
+        arrivano sotto, la lente apre la ricerca a tutta pagina.
+      -->
+      <app-document-line-product-cell
+        [lineIndex]="lineIndex()"
+        [value]="line().controls.description.value"
+        [linked]="!!line().controls.variantId.value"
+        [disabled]="disabled()"
+        [invalid]="variantInvalid()"
+        [suggestions]="suggestions()"
+        [suggestionsOpen]="suggestionsOpen()"
+        (valueChange)="nameInput.emit($event)"
+        (focused)="nameFocus.emit($event)"
+        (blurred)="nameBlur.emit($event)"
+        (searchOpen)="searchProduct.emit($event)"
+        (suggestionPick)="suggestionPick.emit($event)"
+      />
+      @if (variantInvalid()) {
+        <p class="doc-form__error">Campo obbligatorio.</p>
+      }
+    </app-document-line-card-field>
+
+    <app-document-line-card-field
+      label="Seriali"
+      [controlId]="idPrefix() + '-m-serials-' + lineIndex()"
+      [full]="true"
+    >
+      <input
+        [id]="idPrefix() + '-m-serials-' + lineIndex()"
+        class="doc-form__input"
+        type="text"
+        [formControl]="line().controls.serialNumbersText"
+        placeholder="SN001, SN002"
+        autocomplete="off"
+      />
+    </app-document-line-card-field>
+  </ng-container>
+</app-document-line-card>

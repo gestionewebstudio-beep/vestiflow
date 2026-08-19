@@ -90,9 +90,42 @@ export class SaveManualSalesOrderLineDto {
  * Non esiste stato Bozza: o Confermato, o non esiste (§STATI).
  */
 export class SaveManualSalesOrderDto {
+  /**
+   * Serie del numeratore. Assente = la serie predefinita del tipo.
+   *
+   * Fino al 12/08/2026 il client non poteva sceglierla: il campo Numero+Serie
+   * era nascosto proprio sull'Ordine cliente (`@if (!isOrder)`), il server
+   * prendeva sempre la predefinita, e l'unico documento di Categoria A a non
+   * mostrare la propria numerazione era quello.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  series?: string;
+
+  /**
+   * Numero imposto dalla testata. Assente = lo assegna il server, primo libero
+   * della serie. Se è già occupato risponde 409 col conflitto, come gli altri
+   * documenti.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  number?: number;
+
   @IsOptional()
   @IsUUID()
   id?: string;
+
+  /**
+   * Modalità con cui i prezzi sono stati DIGITATI su questo ordine: netti
+   * (assente o `false`) o ivati. Il client manda comunque il NETTO in
+   * `unitPriceMinor` — questo campo dice soltanto come quel netto va rimostrato,
+   * ed è una proprietà dell'ordine, non di chi lo apre.
+   */
+  @IsOptional()
+  @IsBoolean()
+  pricesIncludeVat?: boolean;
 
   @IsUUID()
   customerId!: string;
@@ -143,4 +176,11 @@ export class SaveManualSalesOrderDto {
   @ValidateNested({ each: true })
   @Type(() => SaveManualSalesOrderLineDto)
   lines!: SaveManualSalesOrderLineDto[];
+  // ⚠️ Qui stavano i tre campi del «documento della controparte»
+  // (`externalDocNumber`, `externalDocDate`, `externalDocumentTypeId`).
+  // Tolti il 12/08/2026 insieme al blocco in testata: questo documento non ne
+  // ha uno da citare. Chiudere anche l'ingresso serve — finché il DTO li
+  // accetta, un client può scriverli e le colonne tornano a riempirsi di dati
+  // che nessuna maschera mostra. Le colonne restano: toglierle è distruttivo su
+  // database condiviso e aspetta la finestra concordata.
 }

@@ -16,8 +16,13 @@
           }
         </span>
         <span class="counters__sede">{{ counter.locationName ?? 'Tutte le sedi' }}</span>
+        <!-- «a oggi» non è una rifinitura: questo elenco vive anche DENTRO una
+             maschera documento, e lì il numero del contatore è calcolato su
+             oggi mentre la testata propone quello della data del documento. Il
+             valore è giusto — è lo stato del contatore — ma «Prossimo» da solo
+             prometteva il numero che il documento riceverà, che è un'altra cosa. -->
         <span class="counters__next tabular-nums">
-          <span class="counters__next-label">Prossimo</span>{{ counter.nextNumber }}
+          <span class="counters__next-label">Prossimo a oggi</span>{{ counter.nextNumber }}
         </span>
         <span class="counters__actions">
           @if (!counter.isDefault) {
@@ -29,9 +34,23 @@
             <app-button variant="danger" (click)="requestDelete(counter)">Elimina</app-button>
           }
         </span>
+        <!-- Numeri lasciati liberi dai documenti cancellati in mezzo alla serie:
+             nota discreta, non un avviso — non è un errore da correggere. -->
+        @if (counter.freeNumbersLabel; as freeNumbers) {
+          <p class="counters__free tabular-nums">{{ freeNumbers }}</p>
+        }
       </li>
     }
   </ul>
+
+  <!-- Una frase sola: il buco si riempie da sé solo se qualcuno scrive quel
+       numero: il progressivo proposto resta «il più alto + 1». -->
+  @if (hasFreeNumbers()) {
+    <p class="counters__hint">
+      Per riprendere un numero libero, scrivilo a mano nella testata del nuovo documento al posto di
+      quello proposto.
+    </p>
+  }
 
   @if (editorOpen()) {
     <form class="counters__editor" [formGroup]="form" (ngSubmit)="save()">

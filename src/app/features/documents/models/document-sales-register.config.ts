@@ -1,5 +1,6 @@
 import { DocumentStatus, DocumentType } from '@core/models/document.model';
 import { STORE_SALE_PAYMENT_METHOD_OPTIONS } from '@domain/store-sales/models/store-sale-payment.util';
+import { storeSaleCreatePath } from '@domain/store-sales/models/store-sale-routing.util';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 
@@ -56,9 +57,10 @@ export interface SalesDocumentRegisterConfig {
   readonly showPendingInvoiceFilter: boolean;
   /**
    * Tipi mostrati nell'elenco. Quasi tutte le pagine dedicate ne hanno uno solo
-   * (= `type`) e nascondono il filtro «Tipo». Le Fatture fanno eccezione:
-   * Fattura e Fattura accompagnatoria condividono un unico elenco, quindi qui
-   * ci sono entrambi i tipi e la lista mostra colonna e filtro «Tipo».
+   * (= `type`) e nascondono il filtro «Tipo». Le Fatture fanno eccezione: i
+   * **tre** tipi della famiglia (Fattura, Fattura accompagnatoria, Nota di
+   * credito) condividono un unico elenco, quindi qui ci sono tutti e tre e la
+   * lista mostra colonna e filtro «Tipo».
    */
   readonly types?: readonly DocumentType[];
   /**
@@ -72,6 +74,30 @@ export interface SalesDocumentRegisterConfig {
    * l'elenco è condiviso: il bottone «Nuovo …» segue il filtro «Tipo» attivo.
    */
   readonly createVariants?: readonly SalesDocumentCreateVariant[];
+  /**
+   * Come si RENDONO le varianti: un menu «Nuovo» a tendina, o pulsanti
+   * affiancati. Default `'menu'`.
+   *
+   * ⚠️ È una differenza di PRESENTAZIONE, non di dominio: le varianti restano
+   * le stesse e il comando che eseguono pure. Per questo è un campo tipizzato e
+   * non una seconda struttura gemella (`regole-architettura`).
+   *
+   * Il menu conviene da **tre tipi in su** — le Fatture ne hanno tre, e tre
+   * pulsanti larghi occuperebbero la testata. Con **due** i pulsanti sono più
+   * veloci e dicono da soli cosa si può creare: è il caso delle Vendite al
+   * banco, dove `11` A2 esclude esplicitamente il menu.
+   */
+  readonly createVariantsLayout?: 'menu' | 'buttons';
+  /**
+   * Chi può creare da questa pagina, quando NON basta «gestisci documenti».
+   *
+   * ⛔ Serve alle Vendite al banco: le sue rotte sono protette da
+   * `retailSalesRegisterGuard`, quindi un utente con la gestione documenti ma
+   * senza `retail.register` vedrebbe i pulsanti e verrebbe rimbalzato in
+   * dashboard. Un comando che porta a un rimbalzo è peggio di un comando
+   * assente.
+   */
+  readonly createRequiresRetailRegister?: boolean;
   /**
    * Nasconde il bottone di creazione: la pagina è di sola consultazione perché
    * i documenti nascono altrove (Vendita/Reso in negozio → cassa).
@@ -121,7 +147,6 @@ const GENERIC_STATUS_OPTIONS: readonly SelectMenuOption[] = [
   { value: DocumentStatus.Confirmed, label: 'Confermato' },
   { value: DocumentStatus.Printed, label: 'Stampato' },
   { value: DocumentStatus.Sent, label: 'Inviato' },
-  { value: DocumentStatus.ExternallyRegistered, label: 'Registrato esternamente' },
   { value: DocumentStatus.Cancelled, label: 'Annullato' },
 ];
 
@@ -130,15 +155,23 @@ const INVOICE_STATUS_OPTIONS: readonly SelectMenuOption[] = [
   { value: DocumentStatus.Draft, label: 'Bozza' },
   { value: DocumentStatus.Confirmed, label: 'Da emettere' },
   { value: DocumentStatus.Sent, label: 'Inviata al commercialista' },
-  { value: DocumentStatus.ExternallyRegistered, label: 'Registrata esternamente' },
   { value: DocumentStatus.Cancelled, label: 'Annullata' },
 ];
 
-/** Opzioni del filtro «Tipo» dell'elenco fatture (con la voce «Tutti»). */
+/**
+ * Opzioni del filtro «Tipo» dell'elenco fatture (con la voce «Tutti»).
+ *
+ * Le tre voci sono i tre tipi della famiglia, nell'ordine in cui l'operatore se
+ * li aspetta: prima la fattura semplice, poi le due varianti. Vanno tenute
+ * allineate a `SALES_INVOICE_DOCUMENT_TYPES`, che decide quali documenti
+ * l'elenco carica: una voce di filtro senza il tipo corrispondente in `types`
+ * darebbe un elenco sempre vuoto, e il contrario un tipo non filtrabile.
+ */
 export const INVOICE_TYPE_FILTER_OPTIONS: readonly SelectMenuOption[] = [
   { value: '', label: 'Tutti' },
   { value: DocumentType.InvoiceDraft, label: 'Fattura' },
   { value: DocumentType.InvoiceAccompanying, label: 'Fattura accompagnatoria' },
+  { value: DocumentType.CreditNote, label: 'Nota di credito' },
 ];
 
 /** Opzioni del filtro «Tipo» dell'elenco Vendita/Reso in negozio. */
@@ -256,8 +289,11 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     detailPanelTitle: 'Dati registrazione',
     detailNotFoundTitle: 'Registrazione fattura fornitore non trovata',
   },
-  // Elenco condiviso da Fattura e Fattura accompagnatoria: un solo numeratore,
+  // Elenco condiviso dai TRE tipi della famiglia Fattura: un solo numeratore,
   // una sola pagina, filtro «Tipo» preimpostato dalla voce hub di provenienza.
+  // La Nota di credito non ha un elenco proprio, e non deve averlo: sta nella
+  // stessa serie progressiva delle fatture, e un registro separato mostrerebbe
+  // una numerazione con i buchi lasciati dall'altro (`07-…§3`).
   invoice: {
     profile: 'invoice',
     type: DocumentType.InvoiceDraft,
@@ -265,7 +301,10 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     typeFilterOptions: INVOICE_TYPE_FILTER_OPTIONS,
     pageTitle: 'Fatture',
     pageSubtitle:
-      'Fatture fiscali da inviare al commercialista, con o senza trasporto merce incluso.',
+      'Fatture, fatture accompagnatorie e note di credito da inviare al commercialista, in un unico progressivo.',
+    // `createLabel`/`createPath` restano per i chiamanti che chiedono «il
+    // documento predefinito della pagina» (duplicazioni, link diretti). La
+    // TESTATA non li usa: dove ci sono `createVariants` mostra il menu.
     createLabel: 'Nuova fattura',
     createPath: '/app/documents/fattura/new',
     createVariants: [
@@ -279,18 +318,31 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
         label: 'Nuova fattura accompagnatoria',
         path: '/app/documents/fattura-accompagnatoria/new',
       },
+      {
+        type: DocumentType.CreditNote,
+        label: 'Nuova nota di credito',
+        path: '/app/documents/nota-di-credito/new',
+      },
     ],
     listPath: '/app/documents/fattura',
-    emptyTitle: 'Nessuna fattura',
+    // Testi della FAMIGLIA, non della sola Fattura: l'elenco ne mostra tre e il
+    // filtro può essere su uno qualsiasi. Dicevano «Nessuna fattura» e «crea una
+    // nuova fattura» mentre il pulsante accanto diceva «Nuova nota di credito»:
+    // tre stringhe, due semantiche. Restano al plurale e senza tipo, perché il
+    // comando che le accompagna non ne sceglie più uno.
+    emptyTitle: 'Nessun documento',
     emptyDescription:
-      'Non ci sono fatture che corrispondono ai filtri. Crea una nuova fattura per preparare i dati da trasmettere al commercialista.',
+      'Non ci sono fatture, fatture accompagnatorie o note di credito che corrispondono ai filtri. Creane una nuova per preparare i dati da trasmettere al commercialista.',
     emptyIcon: 'pi-receipt',
     searchPlaceholder: 'Cerca per numero o cliente…',
     statusOptions: INVOICE_STATUS_OPTIONS,
     showPendingInvoiceFilter: false,
     viewId: TableViewId.InvoiceDraftDocumentsList,
-    detailPanelTitle: 'Dati fattura',
-    detailNotFoundTitle: 'Fattura non trovata',
+    // Stessa ragione dei testi vuoti: l'anteprima si apre su uno qualsiasi dei
+    // tre tipi, e «Dati fattura» sopra una nota di credito è sbagliato. Il tipo
+    // esatto l'operatore lo legge nella colonna «Tipo» e nella testata.
+    detailPanelTitle: 'Dati documento',
+    detailNotFoundTitle: 'Documento non trovato',
   },
   // Elenco condiviso da Vendita e Reso in negozio: entrambi nascono dalla
   // cassa in un'unica transazione con i movimenti, quindi la pagina è di sola
@@ -300,16 +352,32 @@ const CONFIGS: Record<SalesDocumentRegisterProfile, SalesDocumentRegisterConfig>
     type: DocumentType.StoreSale,
     types: [DocumentType.StoreSale, DocumentType.StoreReturn],
     typeFilterOptions: STORE_SALE_TYPE_FILTER_OPTIONS,
-    pageTitle: 'Vendita/Reso in negozio',
-    pageSubtitle:
-      'Vendite e resi registrati dalla cassa negozio, con i movimenti di magazzino già applicati.',
-    createLabel: 'Nuova vendita in negozio',
-    createPath: '/app/sales/register',
-    hideCreateAction: true,
-    listPath: '/app/documents/vendite-negozio',
-    emptyTitle: 'Nessuna vendita o reso in negozio',
-    emptyDescription:
-      'Non ci sono vendite o resi che corrispondono ai filtri. Vendite e resi si registrano dalla cassa negozio.',
+    pageTitle: 'Vendite al banco',
+    pageSubtitle: 'Vendite e resi al banco, con i movimenti di magazzino già applicati.',
+    // Due pulsanti diretti, non il menu: `11` A2 lo esclude, e con due tipi
+    // l'elenco dice da sé cosa si può creare.
+    createLabel: 'Nuova vendita al banco',
+    createPath: storeSaleCreatePath('sale'),
+    createVariants: [
+      {
+        type: DocumentType.StoreSale,
+        label: 'Nuova vendita al banco',
+        path: storeSaleCreatePath('sale'),
+      },
+      {
+        type: DocumentType.StoreReturn,
+        label: 'Nuovo reso al banco',
+        path: storeSaleCreatePath('return'),
+      },
+    ],
+    createVariantsLayout: 'buttons',
+    createRequiresRetailRegister: true,
+    // ⛔ La riga apre la MODIFICA, non l'anteprima (`11` C 3b, e la regola
+    // generale di `regole-gestionale`). L'anteprima resta, come flusso separato.
+    rowOpensForm: true,
+    listPath: '/app/vendita-al-banco',
+    emptyTitle: 'Nessuna vendita o reso al banco',
+    emptyDescription: 'Non ci sono vendite o resi che corrispondono ai filtri.',
     emptyIcon: 'pi-shopping-bag',
     searchPlaceholder: 'Cerca per numero o cliente…',
     // Nascono già confermati alla conclusione della vendita: nessun ciclo stati.

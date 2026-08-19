@@ -80,6 +80,13 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly id: EntityId;
   /** Numero ordine leggibile (Shopify order name, es. '#1001'). */
   readonly orderNumber: string;
+  /**
+   * Numero interno dal numeratore `customer_order`, e la sua serie. Assenti
+   * sugli ordini che arrivano da un canale: quelli portano il numero del
+   * canale, non uno nostro (specifica numerazione §5).
+   */
+  readonly number?: number | null;
+  readonly series?: string | null;
   readonly financialStatus: SalesOrderFinancialStatus;
   readonly fulfillmentStatus: SalesOrderFulfillmentStatus;
   readonly source: SalesOrderSource;
@@ -96,6 +103,17 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly lines: readonly SalesOrderLine[];
   readonly subtotal: Money;
   readonly total: Money;
+  /**
+   * Componenti economiche della testata, come le manda il canale.
+   *
+   * Su un ordine online non stanno su nessuna riga — la spedizione non è un
+   * articolo e lo sconto nasce sull'intero ordine — quindi senza di esse il
+   * totale del documento non torna con quello che il cliente ha pagato.
+   * Sugli ordini manuali valgono zero: lì i totali si calcolano dalle righe.
+   */
+  readonly tax?: Money;
+  readonly shipping?: Money;
+  readonly discount?: Money;
   /** Data dell'ordine (Shopify processedAt). */
   readonly placedAt: IsoDateString;
   /** Annullamento comunicato dal canale (impegni rilasciati). */
@@ -105,6 +123,13 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   /** Evasione parziale o anomalia: richiede verifica manuale (fase 1 §7). */
   readonly requiresReview?: boolean;
   readonly reviewReason?: string;
+  /**
+   * Da quando la riconciliazione ha visto che l'ordine non risulta più sul
+   * canale (cancellato su Shopify). È un'osservazione, non un'azione: la
+   * rimozione resta una scelta dell'operatore — ed è l'unico caso in cui un
+   * ordine di canale si può rimuovere.
+   */
+  readonly channelMissingSince?: IsoDateString;
   readonly shopify?: ShopifyLink;
   /** Quantità ancora impegnata dagli impegni attivi dell'ordine (fase 3 §2). */
   readonly committedQuantity?: number;
@@ -117,13 +142,28 @@ export interface SalesOrder extends TenantScoped, Timestamped {
     readonly type: string;
     readonly status: string;
   };
-  /** Vendita online generata dall'evasione (fase 2): scarico + Corrispettivo. */
+  /** Vendita online generata dall'evasione (fase 2): lo scarico di magazzino. */
   readonly onlineSale?: SalesOrderOnlineSaleLink;
   // ── Testata Ordine cliente manuale (source = manual) ──
   /** Location/magazzino di origine degli impegni. */
   readonly locationId?: EntityId;
   /** Rif. ordine cliente esterno (testo libero). */
   readonly externalRef?: string;
+  // ── Documento della controparte: l'ordine emesso dal cliente ──
+  // Trio tipo + numero + data, lo stesso di ogni altra maschera documento.
+  // È altra cosa da `externalRef`, che resta un riferimento libero.
+  /** Tipo del documento emesso dal cliente (tabella tipi del tenant). */
+  readonly externalDocumentTypeId?: EntityId;
+  /**
+   * Etichetta del tipo fotografata sul documento. Sola lettura: la scrive il
+   * backend insieme all'id, e sopravvive all'eliminazione del tipo — è quella
+   * che tiene leggibile un ordine vecchio quando la voce non esiste più.
+   */
+  readonly externalDocumentTypeSnapshot?: string;
+  /** Numero del documento emesso dal cliente. */
+  readonly externalDocNumber?: string;
+  /** Data del documento emesso dal cliente (solo giorno). */
+  readonly externalDocDate?: IsoDateString;
   /** Data prevista consegna (solo giorno). */
   readonly expectedDeliveryDate?: IsoDateString;
   /** Note documento. */
@@ -132,6 +172,12 @@ export interface SalesOrder extends TenantScoped, Timestamped {
   readonly paymentTerms?: string;
   /** Sconto extra % sull'intero documento, dopo gli sconti riga. */
   readonly documentDiscountPercent?: number;
+  /**
+   * Modalità con cui i prezzi dell'ordine sono stati DIGITATI: netti o ivati.
+   * È una proprietà dell'ordine, non di chi lo apre — due operatori devono
+   * vederlo nello stesso modo. Il prezzo memorizzato resta comunque il netto.
+   */
+  readonly pricesIncludeVat?: boolean;
 }
 
 /**
@@ -172,17 +218,6 @@ export const OnlineSaleInventoryStatus = {
 export type OnlineSaleInventoryStatus =
   (typeof OnlineSaleInventoryStatus)[keyof typeof OnlineSaleInventoryStatus];
 
-/** Stato della voce Corrispettivo collegata alla Vendita online. */
-export const CorrispettivoEntryStatus = {
-  ToVerify: 'to_verify',
-  Included: 'included',
-  ExcludedInvoiced: 'excluded_invoiced',
-  Adjusted: 'adjusted',
-  Refunded: 'refunded',
-} as const;
-export type CorrispettivoEntryStatus =
-  (typeof CorrispettivoEntryStatus)[keyof typeof CorrispettivoEntryStatus];
-
 /** Riferimento alla Vendita online collegata a un ordine evaso. */
 export interface SalesOrderOnlineSaleLink {
   readonly id: EntityId;
@@ -190,10 +225,4 @@ export interface SalesOrderOnlineSaleLink {
   readonly fulfilledAt: IsoDateString;
   readonly inventoryStatus: OnlineSaleInventoryStatus;
   readonly refundedAt?: IsoDateString;
-  readonly corrispettivo?: {
-    readonly id: EntityId;
-    readonly reference: string;
-    readonly fiscalDate: IsoDateString;
-    readonly status: CorrispettivoEntryStatus;
-  };
 }

@@ -132,8 +132,18 @@ export class OperationalLocationsService {
 
   /**
    * Sede predefinita dell'utente: valorizzata SOLO se è tra le sedi su cui può
-   * agire (writeLocations), altrimenti null. È un SUGGERIMENTO per i form:
-   * mai usarla come fallback automatico "prima location disponibile".
+   * agire (writeLocations), altrimenti null.
+   *
+   * **Le maschere documento la usano per precompilare la testata** (specifica
+   * numerazione §1-bis, 13/08/2026, via `prefillDefaultLocation`). Non è il
+   * «fallback automatico» che questo commento vietava fino a ieri: quel divieto
+   * riguarda l'INVENTARE una sede — la prima disponibile, o l'unica scrivibile
+   * quando l'utente è mono-sede. Qui non si inventa niente, è un dato assegnato
+   * a quell'utente da chi amministra.
+   *
+   * Se è `null` il campo resta vuoto e la sede si sceglie: chi lavora su più
+   * sedi una predefinita non ce l'ha, ed è l'unico caso in cui la scelta è
+   * davvero ambigua.
    */
   readonly defaultLocation = computed<Location | null>(() => {
     const defaultId = this.authService.currentUser()?.defaultLocationId;
@@ -141,20 +151,6 @@ export class OperationalLocationsService {
       return null;
     }
     return this.writeLocations().find((location) => location.id === defaultId) ?? null;
-  });
-
-  /**
-   * Sede suggerita nei form operativi: la predefinita se autorizzata, altrimenti
-   * l'unica sede scrivibile quando l'utente è mono-location. Solo suggerimento,
-   * mai autoselezione.
-   */
-  readonly suggestedWriteLocation = computed<Location | null>(() => {
-    const preferred = this.defaultLocation();
-    if (preferred) {
-      return preferred;
-    }
-    const writable = this.writeLocations();
-    return writable.length === 1 ? (writable[0] ?? null) : null;
   });
 
   readonly isFixedSingleStore = computed(() =>

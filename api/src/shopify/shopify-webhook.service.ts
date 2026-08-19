@@ -7,6 +7,7 @@ import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifySyncService } from './shopify-sync.service';
+import { isExpectedShopifyWebhookTopic } from './shopify-webhook-topics';
 
 @Injectable()
 export class ShopifyWebhookService {
@@ -45,6 +46,17 @@ export class ShopifyWebhookService {
         `Webhook ${topic} ignorato: aggiornamenti automatici disattivati (${tenantId})`,
       );
       return;
+    }
+
+    // Timbrato QUI: dopo il cancello sugli aggiornamenti automatici e dopo aver verificato
+    // che il topic sia dei nostri — cioe' quando l'evento e' davvero ACCOLTO — e prima di
+    // trattarlo, perche' un fallimento nel trattamento non toglie il fatto che sia arrivato.
+    //
+    // Gli eventi scartati (sincronizzazione spenta, topic fuori dallo switch) NON passano di
+    // qui: sono un fatto diverso e avranno una traccia propria, col motivo. Contarli qui
+    // farebbe dire «arrivano eventi» a una connessione che li sta buttando tutti.
+    if (isExpectedShopifyWebhookTopic(topic)) {
+      await this.shopifyConnection.recordWebhookEventReceived(tenantId);
     }
 
     try {

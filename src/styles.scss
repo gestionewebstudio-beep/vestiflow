@@ -71,6 +71,33 @@ select {
   color: inherit;
 }
 
+// Niente frecce sui campi di DENARO.
+//
+// Le frecce di `type="number"` fanno un passo alla volta, e su un prezzo non
+// significa niente: nessuno porta 19,90 a 24,90 a colpi di clic. Sulle
+// QUANTITÀ invece servono, ed è il motivo per cui questa regola non sta su
+// `input[type='number']` e basta.
+//
+// La discriminante non è un nome di classe da ricordare: è `inputmode`, che il
+// codice già dichiara per la tastiera del telefono. `decimal` vuol dire «questo
+// valore ha una virgola» — denaro o percentuale — ed erano esattamente gli otto
+// campi prezzo dell’anagrafica quando questa regola è nata. `numeric` resta ai
+// conteggi, con le sue frecce.
+//
+// ⚠️ Un campo di denaro senza `inputmode="decimal"` non viene preso da qui: la
+// regola vale finché quella dichiarazione resta veritiera. È il patto — chi
+// aggiunge un prezzo dichiara `decimal` e ottiene il comportamento giusto senza
+// dover sapere che questa regola esiste.
+input[type='number'][inputmode='decimal'] {
+  appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+}
+
 // Scrollbar a tema (polish v2): sottili, coerenti col tema attivo.
 * {
   scrollbar-width: thin;

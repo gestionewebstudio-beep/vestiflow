@@ -152,18 +152,11 @@ export const SECONDARY_PAGES: readonly SecondaryPage[] = [
   },
   // Report
   {
-    label: 'Report corrispettivi',
-    sub: 'Export per il commercialista',
+    label: 'Corrispettivi',
+    sub: 'Registro vendite e rettifiche, export per il commercialista',
     icon: 'pi-chart-bar',
-    route: '/app/reports/corrispettivi',
-    parent: '/app/reports',
-  },
-  {
-    label: 'Registro commercialista',
-    sub: 'Registro unificato vendite e storni',
-    icon: 'pi-book',
-    route: '/app/reports/accountant-register',
-    parent: '/app/reports',
+    route: '/app/sales/corrispettivi',
+    parent: '/app/sales',
   },
   // Impostazioni
   {

@@ -92,6 +92,100 @@ L'interfaccia deve privilegiare:
 - **Eccezione sync**: i delta di giacenza che arrivano da Shopify (vendite online, rettifiche fatte nell'admin Shopify) generano movimenti con origine `shopify` (`type: sale` o `adjustment`). Non sono "modifiche silenziose" ma nemmeno azioni utente: l'origine deve essere distinguibile nello storico.
 - **DEROGA Scarico manuale (prompt Scarico manuale, 2026-07 — scelta esplicita del cliente)**: il SOLO tipo documento `manual_unload` aggiorna la giacenza direttamente al salvataggio SENZA creare `StockMovement` (implementazione: `api/src/documents/document-stock-manual-unload.util.ts`). Il documento è l'unica evidenza dello scarico; la sua eliminazione NON ripristina le giacenze. Il push inventario verso i canali (Shopify/TikTok) resta obbligatorio post-commit: la sync legge la giacenza, non i movimenti. Questa deroga NON è un precedente per altri tipi documento.
 
+### Un movimento per riga, aggiornato in posto — non uno per salvataggio _(15/08/2026)_
+
+«Ogni modifica inventariale produce un movimento tracciabile» qui sopra dice **cosa deve esistere**, non **quante volte va scritto**. La distinzione va esplicitata, perché letta male produce un registro che cresce a ogni correzione di battitura.
+
+> **Una riga di documento che movimenta magazzino ha esattamente UN movimento collegato, identificato da `StockMovement.sourceLineId`. Il salvataggio successivo AGGIORNA quel movimento; non ne accoda un altro.**
+
+Non è una scelta nuova: è nello schema, con il vincolo che la fa rispettare — `@@unique([sourceDocumentType, sourceLineId])`, e il commento della colonna dice «al massimo UN movimento per riga (no doppi carichi)».
+
+**Il criterio è cosa è successo davvero.** Correggere un DDT da 3 pezzi a 2 non significa che ne siano usciti 3 e poi ne sia rientrato 1: **è sempre uscita una quantità sola**, e il documento era compilato male. Il movimento rappresenta il **contenuto corrente** del documento, non la storia dei salvataggi. Quindi:
+
+| Evento                                                     | Movimento                                      |
+| ---------------------------------------------------------- | ---------------------------------------------- |
+| modifica di una riga di documento                          | si **aggiorna** quello collegato               |
+| riga eliminata, o spunta magazzino tolta                   | il movimento si **elimina**, la giacenza torna |
+| nuovo evento fisico successivo (merce che rientra davvero) | movimento **nuovo**                            |
+| storno o rettifica esplicita                               | movimento **nuovo**, tracciato come tale       |
+
+**VIETATO** far comparire movimenti di rettifica (`rettifica scarico +1`) come effetto della semplice modifica di un documento: sono rumore in un registro che l'operatore legge, e affermano un evento fisico che non è avvenuto.
+
+Ne discende anche che **due righe dello stesso articolo restano due movimenti distinti**: aggregare per variante perde il legame con la riga, ed è ciò che rende impossibile ritrovare il movimento al salvataggio dopo.
+
+_Stato al 15/08:_ la regola è rispettata da **tutti** i documenti che movimentano — Arrivo merce, Rettifica, Trasferimento e, da oggi, lo **scarico di vendita** (DDT vendita e Fattura accompagnatoria). Misure, cause e correzione in `docs/09-specifica-movimenti-per-riga.md`. La deroga dello Scarico manuale qui sopra resta fuori da tutto questo: non crea movimenti affatto.
+
+I documenti storici si convertono **da sé al primo salvataggio**: il sync somma l'effetto netto dei movimenti aggregati, lo annulla, li cancella e riscrive un movimento per riga. La giacenza non si muove di un pezzo. Non esiste uno script di conversione, e non deve esistere.
+
+### La riga di un documento è una fotografia, e non si riscatta da sola _(18/08/2026)_
+
+La regola qui sopra dice cosa succede ai **movimenti** quando un documento si risalva. Questa
+dice cosa succede ai **valori della riga**, ed è la stessa disciplina un piano più sotto.
+
+> **Su una RIGA GIÀ ESISTENTE, un valore non modificato esplicitamente conserva quello
+> persistito nel documento: non si rilegge e non si ricalcola dall'anagrafica corrente.**
+> Modificato esplicitamente, il nuovo valore si salva e da lì diventa il valore persistito.
+> Una **riga nuova** acquisisce i valori correnti previsti dal contratto del documento, e da
+> quel momento li congela.
+
+**Il criterio è cosa il documento è.** Un documento registra un'operazione avvenuta: rinominare
+un prodotto in anagrafica non cambia cosa c'era scritto sul DDT di marzo, e cambiare l'aliquota
+di un Codice IVA non ri-prezza le fatture già emesse.
+
+#### ⚠️ Prima si CLASSIFICA il campo, poi si applica la regola
+
+⛔ **Non vale per ogni campo del gestionale**, e prenderla come regola universale sarebbe
+sbagliato quanto non averla. Vale per i dati che appartengono al documento **come fotografia
+dell'operazione**. Ciò che è dichiaratamente **live** resta live — la disponibilità di magazzino
+mostrata accanto a una riga, per esempio, è una lettura di adesso e deve esserlo.
+
+| Dove si applica, dove è applicabile                   |                                                                                          |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **nome e descrizione** della riga                     | se il documento diceva «Maglia cotone», rinominare il prodotto domani non lo cambia      |
+| **prezzo unitario**                                   | non torna al prezzo corrente dell'articolo                                               |
+| **costo**                                             | una riga già movimentata conserva il costo congelato, e non si rivaluta al costo di oggi |
+| **Codice IVA e snapshot IVA**                         | il semplice risalvataggio conserva quelli persistiti                                     |
+| **sconto di riga**                                    | resta quello del documento                                                               |
+| **quantità**                                          | resta quella persistita, salvo modifica esplicita                                        |
+| **unità di misura**, se salvata come dato documentale | non si rifotografa dall'anagrafica                                                       |
+| altri valori economici o snapshot di riga             | stessa disciplina                                                                        |
+
+#### ⚠️ Il rimedio NON è lo stesso per tutti, e confonderlo costa
+
+I campi si dividono in due, e la differenza sta in **chi potrebbe riscriverli**:
+
+```text
+campi che il client MANDA SEMPRE          quantità · prezzo · sconto · descrizione
+  → il valore che manda è già quello del DOCUMENTO, letto all'apertura
+  → il rischio è che QUALCUNO li riderivi dall'anagrafica: server o client
+  → il rimedio è non riderivarli
+
+campi che il server RISOLVE quando mancano      Codice IVA
+  → il rischio è che il client li rimandi sempre e il server li rifotografi
+  → il rimedio è un contratto binario: assente = non modificato
+```
+
+⛔ **Applicare il contratto binario a un campo del primo gruppo sarebbe inutile**, e applicare
+«basta non riderivare» a un campo del secondo lascerebbe il difetto dov'è.
+
+#### Il primo consumer, e una violazione già misurata
+
+Il **Codice IVA** è il primo caso applicato: `computeLines` del percorso generico rifotografava
+lo snapshot a ogni salvataggio, e ora conserva quello persistito quando il client non dichiara
+una modifica (`document-line-vat-payload.util` lato client).
+
+⚠️ **Una violazione del primo gruppo era misurata, ed è stata corretta il 18/08/2026**:
+`store-sales.service.ts` riscriveva `sku` e `description` **dalla variante a ogni
+salvataggio**. Non faceva danno finché la vendita non si risalvava; aprendo la modifica
+(specifica `11` A2) avrebbe riscritto la descrizione di una vendita di marzo con quella
+dell'anagrafica di oggi. Ora Vendita e Reso tengono `previous?.sku ?? variant.sku`, cioè il
+valore persistito sulla riga esistente e quello corrente solo sulla riga nuova.
+
+⛔ **Il difetto è nato dal fatto che il percorso non si risalvava**, ed è la forma in cui questa
+regola si viola più spesso: finché un documento si crea e basta, riscrivere dall'anagrafica e
+conservare danno lo stesso risultato, e la differenza compare il giorno in cui si apre la
+modifica — cioè quando i documenti sbagliati esistono già.
+
 ## Multi-tenant
 
 - Tutte le entità di business DEVONO essere tenant-aware.
@@ -115,6 +209,129 @@ L'interfaccia deve privilegiare:
 - La conversione netto↔ivato ha **due forme**, e vanno tenute distinte: `*Exact` per il valore da memorizzare, `*Minor` (arrotondata) per il valore da mostrare.
 - Shopify espone i prezzi come **stringhe decimali** (es. `"29.90"`): la conversione stringa ↔ unità minori avviene in un'unica funzione di mapping testata, mai sparsa nel codice.
 - La formattazione display usa `Intl.NumberFormat` centralizzato, mai concatenazione manuale.
+
+### La colonna è una, i comportamenti sono tanti _(deciso 16/08/2026)_
+
+> **Ogni prezzo o costo UNITARIO è `NUMERIC(16,6)`. I totali e gli importi già arrotondati sono interi.**
+
+La discriminante non è il documento, è **cosa contiene la colonna**:
+
+| Contenuto                                                                | Tipo            | Perché                                                              |
+| ------------------------------------------------------------------------ | --------------- | ------------------------------------------------------------------- |
+| **Prezzo o costo unitario** — quello che si digita, o da cui si scorpora | `Decimal(16,6)` | può nascere da un ivato, e la coda è ciò che lo fa tornare identico |
+| **Totale, imposta, importo pagato** — risultato già arrotondato          | `Int`           | si arrotonda all'uscita, e lì l'uscita è già avvenuta               |
+
+**Il comportamento della colonna non cambia il suo tipo.** La stessa colonna prezzo è in sola lettura sull'Ordine fornitore, si digita su Preventivo, Ordine cliente, DDT e Fatture, e sull'Arrivo merce aggiorna anche l'anagrafica. Sono tre mestieri diversi della **stessa** grandezza: il tipo e la semantica del denaro non hanno ragione di divergere fra un documento e l'altro.
+
+**Dove divergevano, divergevano per storia.** `DocumentLine` è stato portato a sei decimali,
+`SupplierOrderLine` dopo, `SalesOrderLine` **il 16/08/2026** — ed è l'ultima. La conseguenza si
+vedeva a schermo: la stessa maschera offriva il netto/ivato sul DDT e non sull'Ordine cliente,
+perché il numero finiva in due posti diversi. **Il selettore non mancava per scelta: mancava la
+colonna che poteva ospitarne il risultato**, e il template lo diceva — «escluso finché non
+arriva il supporto backend dedicato».
+
+### L'arrotondamento sta sul totale di riga, mai sul prezzo unitario
+
+> **`quantità × prezzo × sconto` si calcola ESATTO e si arrotonda una volta sola, alla fine.**
+
+Arrotondare il prezzo unitario prima di moltiplicarlo è l'arrotondamento prematuro che questa
+regola vieta, e con una colonna a sei decimali smette di essere teorico: 3 pezzi da 33,33 €
+scontati del 7% valgono 92,99 €, ma passando per un unitario arrotondato (30,9969 → 31,00)
+diventano 93,00 — un centesimo che il cliente non deve.
+
+Vale in entrambe le direzioni: il prezzo unitario **non** si tronca in ingresso (`Math.trunc`
+butterebbe via proprio la coda), e la coda oltre le quattro cifre di centesimo si taglia con
+`toStorableMinor`, perché oltre lì non c'è precisione — c'è il rumore del float, e la colonna
+rifiuterebbe la scala.
+
+### Netto/ivato: chi decide, in che ordine _(deciso 16/08/2026)_
+
+> **La modalità netto/ivato ha DUE livelli per i prezzi di vendita e UNO per i costi. Non di
+> più: ogni livello in mezzo è un comando che non comanda.**
+
+```text
+PREZZI DI VENDITA   convenzione aziendale  →  memoria dell’operatore  →  modalità del documento
+COSTI DI ACQUISTO   sempre netti           →  (nessuna memoria)      →  modalità del documento
+```
+
+**La convenzione aziendale** (`TenantFeatureSettings.salesPricesIncludeVat`, in Impostazioni →
+Prezzi) non è solo il default dei documenti nuovi: è **come questa azienda esprime i prezzi**.
+Al dettaglio si ragiona ivato, all’ingrosso netto. Vale quindi anche per le viste che non sono
+documenti — anagrafica e listini oggi, i report quando ci arriveremo.
+
+⚠️ **La convenzione ha due comportamenti diversi, e vanno tenuti distinti:**
+
+|                                         | Quando viene letta        | Cambiarla dopo                |
+| --------------------------------------- | ------------------------- | ----------------------------- |
+| **Documenti**                           | una volta, alla creazione | non tocca niente di esistente |
+| **Viste** (anagrafica, listini, report) | ogni volta che si guarda  | cambia quello che si vede     |
+
+Non è una contraddizione: un documento è un **fatto** e conserva la modalità con cui è stato
+compilato; una vista è una **lettura**, e segue la convenzione corrente.
+
+**La memoria dell’operatore** resta solo dove si CREA qualcosa, cioè sui documenti di vendita:
+è l’ultima scelta di quella persona per quel tipo, scritta alla creazione e mai in modifica.
+
+⚠️ **Cambiare la convenzione AZZERA le memorie dei tipi di vendita**, e non è un dettaglio
+implementativo: senza, il titolare imposta «netto» e ognuno continua a creare ivato per una
+memoria che non sa di avere — l’impostazione sembra rotta, ed è il primo difetto che verrebbe
+segnalato.
+
+**I costi non hanno né convenzione né memoria.** Per un’azienda che detrae l’IVA il costo _è_ il
+netto: Arrivo merce e Ordine fornitore partono sempre netti, e l’inserimento ivato resta una
+comodità del **singolo documento**, dove il selettore c’è e la scelta si persiste.
+
+#### In anagrafica il selettore governa SEI campi, non cinque _(17/08/2026)_
+
+> **Tutti i valori commerciali di vendita dell’articolo seguono la stessa modalità:** prezzo di
+> vendita, **prezzo barrato**, prezzo Shopify, listino 1/2/3.
+
+⚠️ Il **barrato** era l’unica eccezione, e la ignorava **in silenzio**: si inseriva «come va
+mostrato al cliente», il tooltip lo diceva e il codice lo confermava (fuori da `PRICE_FIELDS`),
+ma a schermo i sei campi sembravano governati dallo stesso interruttore.
+
+**La conseguenza usciva dal gestionale.** Verso Shopify la stessa riga variante portava
+`price` NETTO (segue il selettore) e `compare_at_price` IVATO (non lo seguiva): due basi
+affiancate sotto gli occhi del cliente, con lo sconto mostrato gonfiato dell’aliquota.
+
+**Il costo di riferimento resta fuori**, ed è etichettato **«(netto)»**: appartiene al dominio
+costi, che è sempre netto e ha una convenzione sua.
+
+⚠️ **`null` non è zero.** Il barrato è facoltativo: `null` significa «nessun prezzo barrato»,
+e verso Shopify la chiave non entra proprio nella riga — `compare_at_price: "0.00"` là non è
+un’assenza, è **un barrato che vale zero**, cioè uno sconto inventato del 100%.
+
+#### Gli esoneri, e come si scrivono
+
+Chi non risponde alla convenzione sta **fuori da `SALES_PRICE_MODE_TYPES`**, che è l’unico
+elenco: la modalità proposta e le memorie da azzerare leggono lo stesso.
+
+| Chi                                                          | Perché                                                                                                    |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| **cassa negozio** (`store_sale`, `store_return`)             | sempre ivata, deciso in `store-sales.service.ts`. Al banco il prezzo esposto è quello che il cliente paga |
+| **famiglia acquisto**                                        | i costi partono sempre netti                                                                              |
+| **tipi senza prezzi** (trasferimento, rettifica, inventario) | non usano la modalità                                                                                     |
+
+⚠️ **Sulla cassa c’è una revisione in sospeso.** «Fisico/POS» e «netto/ivato» sono **due assi
+diversi** — è la stessa distinzione già fatta sul canale `manual` nel Registro Corrispettivi —
+e un grossista che vende al banco potrebbe volerla netta. Da rivedere col rifacimento della
+Vendita al banco, non di straforo.
+
+#### Due meccanismi ritirati, e perché non torneranno
+
+| Ritirato                                                                   | Perché non funzionava                                                                                                                                                                                             |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DocumentTypeSetting.pricesIncludeVat` — un default per **tipo documento** | nessun pannello lo esponeva. UNA riga in tutto il database, per `supplier_order`, e diciotto ordini netti a smentirla: non ha mai deciso niente, perché la maschera manda sempre un valore e il `??` non scattava |
+| `UserProductPriceModePreference` — memoria personale in **anagrafica**     | l’anagrafica non è un documento: è una vista, e due colleghi devono leggere lo stesso listino allo stesso modo                                                                                                    |
+
+⚠️ **E la memoria dell’operatore non deve tornare a coprire i costi.** Fino al 16/08 la modalità
+costo veniva ricordata dentro `user_document_price_mode_preferences` — la tabella dei **prezzi**
+— tradotta da un ponte costo↔prezzo. Reggeva solo perché i tipi delle due famiglie non si
+sovrappongono: il primo tipo buono per entrambe l’avrebbe rotta in silenzio.
+
+---
+
+**Prima di aggiungere una colonna di denaro**, la domanda è una sola: _questo valore può essere il risultato di uno scorporo?_ Se sì, è `Decimal(16,6)`. Non «è già intero adesso»: **potrà** non esserlo il giorno in cui quella maschera avrà il netto/ivato, e a quel punto la migration costa quanto le righe di codice che leggono quella colonna.
 
 ---
 
@@ -238,6 +455,42 @@ Ogni tabella dati importante DEVE supportare:
 - sticky header se il contesto lo richiede,
 - numeri con `tabular-nums`.
 
+## ⛔ Il clic di riga su un documento apre la MODIFICA _(deciso 19/08/2026)_
+
+> **L'apertura primaria di un documento dal suo elenco va alla maschera di
+> modifica. Sempre, per ogni tipo.**
+
+Il `DetailComponent` **non è la destinazione della riga**: è un'**anteprima** del
+documento, una visualizzazione — e si raggiunge con un'**azione separata**, non
+cliccando la riga.
+
+**Il criterio è cosa fa l'operatore.** Apre un documento per lavorarci: correggere una
+quantità, cambiare una data, aggiungere una riga. Portarlo su una vista in sola lettura
+gli fa fare un secondo clic per arrivare dove voleva andare, e su un elenco che si
+consulta tutto il giorno quel clic si paga a ogni riga.
+
+⛔ **Non si inventa una convenzione per tipo.** Se un documento nuovo si apre
+diversamente dagli altri, l'operatore deve ricordarsi quale: è la stessa ragione per cui
+le etichette dei pulsanti sono uguali su ogni maschera (`regole-stile-ui` §5).
+
+### ⚠️ Stato al 19/08/2026: la regola è rispettata solo in parte
+
+| Apre la **maschera** ✅                              | Apre l'**anteprima** ⛔ da correggere                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| Preventivo · Registrazione fattura · famiglia carico | Proforma · DDT vendita · Scarico manuale · Fatture · **Vendite al banco** |
+
+Il meccanismo esiste già ed è **una riga di configurazione**: `rowOpensForm: true` in
+`document-sales-register.config.ts`, oggi presente sul solo Preventivo. E
+`documentEditPath` ha già un indirizzo di modifica **per ogni tipo**.
+
+⚠️ **Le Vendite al banco sono l'unico caso che non si chiude con quella riga**: la loro
+maschera non sa ancora caricare un documento per id. Vedi `11` — l'apertura in modifica
+è un requisito dichiarato e **non ancora completato**, legato a quella capacità.
+
+⚠️ **Resta aperta una domanda di progetto**: da dove si raggiunge l'anteprima, una volta
+tolta dal clic di riga — un'azione di riga, un comando dentro la maschera, un pannello.
+Va decisa una volta per tutti i documenti, non tipo per tipo.
+
 ## Colonne numeriche
 
 Prezzi, quantità, valori stock, totali:
@@ -342,7 +595,9 @@ Regole per un blocco ben fatto:
 - riferimento al record in conflitto quando disponibile (es. _"SKU 00036 già in uso — prodotto: Maglietta test cotone"_)
 - suggerimento di risoluzione quando possibile (link al prodotto esistente, proposta di suffisso automatico)
 
-Il blocco su codice documento duplicato (es. due Ordini Cliente con numero OC-2026-0005) è gestito diversamente: modal di risoluzione con opzioni "Usa nuovo numero / Mantieni attuale / Annulla", non blocco puro. Vedi pattern esistente nel modulo Documenti.
+Il numero documento duplicato è gestito diversamente da un blocco: il vincolo unico del database rifiuta il salvataggio e la maschera mostra un **avviso a bottone singolo** che nomina il numero rifiutato, **scrive in testata il numero nuovo** e lascia all'operatore la pressione di Salva (specifica numerazione §3).
+
+_Aggiornata il 12/08/2026._ Qui c'era scritto «modal di risoluzione con opzioni Usa nuovo numero / Mantieni attuale / Annulla»: quel modale **non esiste più** — «Mantieni attuale» prometteva una cosa che il vincolo unico non può concedere. La regola descriveva un pattern rimosso, ed è il tipo di scarto che nessun test trova.
 
 ## Barcode
 

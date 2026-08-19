@@ -210,18 +210,11 @@ enum SalesOrderSource {
   shopify_online
   shopify_pos
   manual
-  /// Cassa VestiFlow (vendita al banco): usato SOLO come canale dei
-  /// corrispettivi, mai come sorgente di un SalesOrder.
+  /// Vendita al banco: la cassa di VestiFlow. Il database lo conosce dal 06/08 (ramo
+  /// cassa) e ci sono gia' righe che lo usano; dichiararlo qui allinea il client a cio'
+  /// che il database e' — nessuna migration. Un corrispettivo con questo canale non ha
+  /// vendita online ne' ordine cliente, ed e' normale che sia cosi'. Registro 1.8.
   store
-}
-
-/// Stato fiscale corrispettivi per il commercialista (§8 piano funzionale).
-enum SalesOrderFiscalStatus {
-  pending_registration
-  delivered_to_accountant
-  externally_registered
-  excluded_pos_register
-  invoiced
 }
 
 /// Stato magazzino della Vendita online (fase 2 §3): scarico completo,
@@ -231,15 +224,6 @@ enum OnlineSaleInventoryStatus {
   unloaded
   partially_unloaded
   not_applied
-}
-
-/// Stato del Corrispettivo interno collegato alla Vendita online (fase 2 §4).
-enum CorrispettivoStatus {
-  to_verify
-  included
-  excluded_invoiced
-  adjusted
-  refunded
 }
 
 /// Stato di una sessione di inventario fisico (conteggio annuale/spot).
@@ -275,12 +259,35 @@ enum DocumentType {
   /// `documentNumberingType`), si differenzia per sezioni trasporto e
   /// destinazione e per lo scarico di magazzino quando non aggancia un DDT.
   invoice_accompanying
+  /// Nota di credito di vendita (TD04): terzo tipo della famiglia Fattura.
+  /// Condivide registro, maschera, permessi e — soprattutto — UN SOLO
+  /// progressivo con gli altri due (`documentNumberingType`, e il CASE
+  /// dell'indice unico che ne è la seconda faccia). Quantità e importi restano
+  /// POSITIVI: il verso economico negativo lo dà il tipo, mai il segno nella
+  /// quantità. Il magazzino lo muove solo se l'operatore spunta «Carica
+  /// magazzino» sulle righe movimentabili, e la spunta nasce spenta.
+  credit_note
   online_sale // Vendita online (documento interno generato dall'evasione, fase 2)
-  corrispettivo // Corrispettivo collegato alla Vendita online (registro interno, fase 2)
   customer_order // Ordine cliente manuale (numeratore dedicato; l'ordine vive in SalesOrder)
   store_sale // Vendita in negozio (cassa interna non fiscale, fase 3 §7)
   store_return // Reso vendita negozio (rientro fisico documentato, fase 3 §9)
   quote // Preventivo cliente (numerazione PRE dedicata, mai effetti magazzino)
+  /// ⚠️ CHIAVE TECNICA DEL NUMERATORE, non un tipo documento.
+  ///
+  /// Il Corrispettivo manuale (`ManualReceipt`, specifica `10` §12) non ha e non
+  /// avrà mai una riga in `documents`: è una registrazione ECONOMICA che vive in
+  /// tabella propria. Il valore sta qui SOLO perché il motore di numerazione
+  /// comune è tipizzato su questo enum a ogni livello — la firma di
+  /// `nextDocumentNumber`, `lockDocumentCounter`, `document_counters.type`.
+  ///
+  /// È la stessa convenzione di `customer_order` e `supplier_order`, che pure
+  /// vivono in tabelle proprie: questo enum è **le chiavi dei numeratori**, non
+  /// «l'elenco dei documenti».
+  ///
+  /// Nelle mappe esaustive riceve il minimo per compilare: **niente prefisso,
+  /// non stampabile, fuori dai contatori configurabili, mai creabile come
+  /// documento**. Non deve comparire in nessuna UI documentale.
+  manual_receipt
 }
 
 /// Ambito di utilizzo di un Codice IVA: acquisti, vendite o entrambi.
@@ -317,7 +324,10 @@ enum DocumentStatus {
   confirmed // Confermato: numero assegnato, movimenti generati
   printed // Stampato
   sent // Inviato
-  externally_registered // Registrato esternamente (fattura/commercialista)
+  /// ⚠️ `externally_registered` sta nel tipo PostgreSQL e non qui: l'azione
+  /// «Inviata al commercialista» è stata rimossa il 16/08/2026 e i due arrivi
+  /// merce che lo portavano sono tornati `confirmed`. Stesso motivo dell'enum
+  /// SalesOrderFiscalStatus: il valore fisico resta, il client non lo espone.
   cancelled // Annullato
 }
 
@@ -380,15 +390,14 @@ model Tenant {
   supplierOrders          SupplierOrder[]
   customers               Customer[]
   paymentOptions          PaymentOption[]
+  unitOfMeasureOptions    UnitOfMeasureOption[]
   salesOrders             SalesOrder[]
+  salesOrderRefunds       SalesOrderRefund[]
   stockReservations       StockReservation[]
   stockReservationEvents  StockReservationEvent[]
   onlineOrderEvents       OnlineOrderEvent[]
-  corrispettiviDeliveries CorrispettiviDelivery[]
   onlineSales             OnlineSale[]
   onlineSaleLines         OnlineSaleLine[]
-  corrispettivoEntries    CorrispettivoEntry[]
-  corrispettivoEntryLines CorrispettivoEntryLine[]
   documents               Document[]
   documentRevisions       DocumentRevision[]
   documentAttachments     DocumentAttachment[]
@@ -398,7 +407,7 @@ model Tenant {
   inventorySerials        InventorySerial[]
   userTableViewPreferences UserTableViewPreference[]
   userDocumentPriceModePreferences UserDocumentPriceModePreference[]
-  userProductPriceModePreferences  UserProductPriceModePreference[]
+  userDocumentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
   documentSequences       DocumentSequence[]
   documentTypeSettings    DocumentTypeSetting[]
   documentCounters        DocumentCounter[]
@@ -411,6 +420,7 @@ model Tenant {
   goodsReceiptCausals     GoodsReceiptCausal[]
   externalDocumentTypes   ExternalDocumentType[]
   vatCodes                VatCode[]
+  companyProfile          CompanyProfile?
   featureSettings         TenantFeatureSettings?
   shopifyConnection       ShopifyConnection?
   shopifyCredential       ShopifyCredential?
@@ -420,6 +430,8 @@ model Tenant {
   tiktokCredential        TikTokCredential?
   tiktokOAuthStates       TikTokOAuthState[]
   supportSessionsAsTarget SupportSession[]        @relation("SupportSessionTarget")
+  tenantUserAuditLogs     TenantUserAuditLog[]
+  manualReceipts          ManualReceipt[]
 
   @@map("tenants")
 }
@@ -437,6 +449,10 @@ model User {
   avatarUrl          String?  @map("avatar_url")
   avatarStoragePath  String?  @map("avatar_storage_path")
   isActive           Boolean  @default(true) @map("is_active")
+  /// La password iniziale la imposta chi crea l'account (titolare o admin
+  /// piattaforma): al primo accesso l'app chiede di cambiarla; il flag si
+  /// azzera a cambio avvenuto (POST /auth/password-changed).
+  mustChangePassword Boolean  @default(false) @map("must_change_password")
   /// Accesso a tutte le sedi del tenant indipendentemente dalle righe UserLocation
   /// (titolare ha sempre accesso pieno via hasFullTenantAccess, invariante rispetto a questo flag).
   hasAllLocationsAccess Boolean @default(false) @map("has_all_locations_access")
@@ -455,7 +471,8 @@ model User {
   supportSessionsAsOperator SupportSession[] @relation("SupportSessionOperator")
   tableViewPreferences      UserTableViewPreference[]
   documentPriceModePreferences UserDocumentPriceModePreference[]
-  productPriceModePreferences  UserProductPriceModePreference[]
+  documentChronologyWarningPreferences UserDocumentChronologyWarningPreference[]
+  manualReceipts                      ManualReceipt[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -477,6 +494,36 @@ model SupportSession {
   @@index([operatorUserId, endedAt])
   @@index([targetTenantId])
   @@map("support_sessions")
+}
+
+enum TenantUserAuditAction {
+  created
+  updated
+  deleted
+}
+
+/// Audit del ciclo di vita account utenti tenant (pannello admin piattaforma e
+/// Impostazioni → Utenti del titolare): chi ha agito, su chi, cosa è cambiato.
+/// Attore e bersaglio sono snapshot testuali (niente FK verso users): la riga
+/// resta leggibile anche dopo rinomina o eliminazione degli account coinvolti.
+model TenantUserAuditLog {
+  id                   String                @id @default(uuid()) @db.Uuid
+  tenantId             String                @map("tenant_id") @db.Uuid
+  actorUserId          String?               @map("actor_user_id") @db.Uuid
+  actorEmail           String                @map("actor_email")
+  actorName            String                @map("actor_name")
+  actorIsPlatformAdmin Boolean               @default(false) @map("actor_is_platform_admin")
+  targetUserId         String?               @map("target_user_id") @db.Uuid
+  targetEmail          String                @map("target_email")
+  action               TenantUserAuditAction
+  /// Diff dei campi cambiati: { campo: { prima, dopo } }; per created lo stato iniziale.
+  details              Json                  @default("{}")
+  createdAt            DateTime              @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt], map: "tenant_user_audit_logs_tenant_created_idx")
+  @@map("tenant_user_audit_logs")
 }
 
 model Store {
@@ -573,6 +620,7 @@ model Location {
   fiscalDevice      FiscalDevice?
   cashSessions      CashSession[]
   posTerminals      PosTerminal[]
+  manualReceipts    ManualReceipt[]
 
   @@index([tenantId])
   // Lookup sync Shopify Location per tenant (mapping giacenze).
@@ -649,7 +697,16 @@ model Product {
   /// varianti e prezzo quando la variante è la sola default anonima (rispecchiata).
   sellingPriceMinor               Decimal                 @default(0) @map("selling_price_minor") @db.Decimal(16, 6)
   /// Prezzo barrato: dato SOLO dell'articolo (nessuna dimensione per-variante).
-  compareAtPriceMinor             Int?                    @map("compare_at_price_minor")
+  ///
+  /// NETTO canonico come ogni altro prezzo di vendita, con la coda decimale:
+  /// dal 17/08/2026 segue la modalità netto/ivato insieme a prezzo di vendita,
+  /// prezzo Shopify e listini. Prima era «come digitato» ed era l'unico dei sei
+  /// a ignorare il selettore — sulla stessa riga variante Shopify riceveva un
+  /// barrato ivato accanto a un prezzo netto.
+  ///
+  /// `null` = nessun prezzo barrato. NON è zero: zero direbbe «esiste e vale
+  /// zero», e `isValidCompareAt` lo scarterebbe comunque.
+  compareAtPriceMinor             Decimal?                @map("compare_at_price_minor") @db.Decimal(16, 6)
   /// Costo d'acquisto di RIFERIMENTO: seeda le nuove varianti. Il costo effettivo
   /// per taglia vive sulla variante (aggiornato dai carichi).
   purchasePriceMinor              Int?                    @map("purchase_price_minor")
@@ -662,7 +719,7 @@ model Product {
   /// sempre NETTI come ogni prezzo del gestionale. Rinominabili/attivabili nelle
   /// impostazioni tenant. Mai sincronizzati.
   /// La modalità netto/ivato con cui si compilano NON sta qui: è una preferenza
-  /// dell'operatore (`UserProductPriceModePreference`), non dell'articolo.
+  /// aziendale (`TenantFeatureSettings.salesPricesIncludeVat`), non dell'articolo.
   listino1PriceMinor              Decimal?                @map("listino1_price_minor") @db.Decimal(16, 6)
   listino2PriceMinor              Decimal?                @map("listino2_price_minor") @db.Decimal(16, 6)
   listino3PriceMinor              Decimal?                @map("listino3_price_minor") @db.Decimal(16, 6)
@@ -1057,6 +1114,20 @@ model SupplierOrder {
   orderDate             DateTime            @default(now()) @map("order_date")
   /// "Rif. ordine fornitore": riferimento libero comunicato dal fornitore.
   supplierReference     String?             @map("supplier_reference")
+  // ── Documento della controparte (la conferma d'ordine del fornitore) ──
+  /// Numero del documento della controparte.
+  externalDocNumber     String?             @map("external_doc_number")
+  /// Data del documento della controparte (solo giorno).
+  externalDocDate       DateTime?           @map("external_doc_date") @db.Date
+  /// Tipo documento della controparte (tabella per tenant, estendibile).
+  externalDocumentTypeId String?            @map("external_document_type_id") @db.Uuid
+  /// Snapshot etichetta breve del tipo al salvataggio (storico stabile).
+  externalDocumentTypeSnapshot String?       @map("external_document_type_snapshot")
+  /// Sconto extra di chiusura sull'intero ordine, in percentuale con coda
+  /// decimale (stesso pattern di Document.documentDiscountPercent e
+  /// SalesOrder.documentDiscountPercent). Aggiunto 11/08/2026: era l'unico
+  /// documento a non averlo, e non per scelta.
+  documentDiscountPercent Decimal           @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
   subtotalMinor         Int                 @default(0) @map("subtotal_minor")
   taxMinor              Int                 @default(0) @map("tax_minor")
   totalMinor            Int                 @default(0) @map("total_minor")
@@ -1067,6 +1138,7 @@ model SupplierOrder {
   tenant              Tenant              @relation(fields: [tenantId], references: [id])
   supplier            Supplier            @relation(fields: [supplierId], references: [id])
   destinationLocation Location?           @relation(fields: [destinationLocationId], references: [id])
+  externalDocumentType ExternalDocumentType? @relation(fields: [externalDocumentTypeId], references: [id], onDelete: SetNull)
   lines               SupplierOrderLine[]
   documents           Document[]
 
@@ -1078,6 +1150,18 @@ model SupplierOrder {
 model SupplierOrderLine {
   id               String @id @default(uuid()) @db.Uuid
   orderId          String @map("order_id") @db.Uuid
+  /// Posizione della riga nel documento, 1-based — come `DocumentLine.lineNumber`,
+  /// che gli altri sei tipi documento hanno da sempre.
+  ///
+  /// Serve a due cose. La prima esisteva già ed era muta: le righe si
+  /// rileggevano senza `orderBy`, quindi il loro ordine era quello che
+  /// PostgreSQL restituiva — di norma l'inserimento, ma senza nessuna garanzia,
+  /// e bastava un aggiornamento a cambiarlo. La seconda è l'ordinamento righe
+  /// per contenuto (specifica §7.1): riordinare significa scrivere un ordine
+  /// nuovo, e un ordine si scrive solo se c'è dove metterlo.
+  lineNumber       Int    @default(0) @map("line_number")
+
+  @@index([orderId, lineNumber])
   variantId        String @map("variant_id") @db.Uuid
   /// Snapshot SKU al momento dell'ordine.
   sku              String
@@ -1086,16 +1170,23 @@ model SupplierOrderLine {
   orderedQuantity  Int    @map("ordered_quantity")
   receivedQuantity Int    @default(0) @map("received_quantity")
   /// Costo unitario NETTO canonico in unità minori (riferimento fornitore).
-  unitCostMinor    Int    @map("unit_cost_minor")
+  /// Porta la coda decimale dello scorporo IVA (§sei decimali): è quella a far
+  /// tornare identico il costo ivato digitato quando lo si rimostra ivato.
+  unitCostMinor    Decimal @map("unit_cost_minor") @db.Decimal(16, 6)
   /// Costo digitato dall'utente, nella modalità costEntryMode della testata.
-  enteredUnitCostMinor Int? @map("entered_unit_cost_minor")
-  /// Sconto riga percentuale intero (come DocumentLine.discountPercent).
-  discountPercent  Int    @default(0) @map("discount_percent")
+  enteredUnitCostMinor Decimal? @map("entered_unit_cost_minor") @db.Decimal(16, 6)
+  /// Sconto riga a cascata (come DocumentLine.discountPercent): «4+10%» vale
+  /// 13,6% e non 14 — i decimali servono a non arrotondarlo al salvataggio.
+  discountPercent  Decimal @default(0) @map("discount_percent") @db.Decimal(7, 4)
   vatCodeId        String? @map("vat_code_id") @db.Uuid
   /// Snapshot Codice IVA (stesso formato di DocumentLine.vatSnapshot).
   vatSnapshot      Json?  @map("vat_snapshot")
   /// Totale riga netto (qty × costo netto − sconto), unità minori.
   lineTotalMinor   Int    @default(0) @map("line_total_minor")
+  /// Unità di misura della riga, fotografata all'inserimento (come su
+  /// `DocumentLine`). Il campo esisteva in maschera ma non qui: si modificava,
+  /// si salvava, si riapriva e la modifica era sparita senza un errore.
+  unitOfMeasure    String? @map("unit_of_measure")
 
   order SupplierOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   documentLines DocumentLine[]
@@ -1170,6 +1261,30 @@ model PaymentOption {
   @@map("payment_options")
 }
 
+/// Le unità di misura suggerite al tenant (pz, conf, kg, m…).
+///
+/// **Elenco di suggerimenti, non autorità referenziale.** Righe e anagrafiche
+/// portano la stringa e nient'altro: nessuna chiave esterna punta qui, quindi
+/// eliminare una voce non lascia orfani, non innesca cascate e non richiede la
+/// disattivazione al posto della cancellazione. È la stessa forma di
+/// `PaymentOption`, e per la stessa ragione: si sta salvando una stringa.
+model UnitOfMeasureOption {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  isSystem  Boolean  @default(false) @map("is_system")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId, sortOrder])
+  @@map("unit_of_measure_options")
+}
+
 /// Ordini di vendita: read-model nel gestionale (owner Shopify per online/POS;
 /// `manual` per vendite registrate direttamente, se mai abilitate).
 model SalesOrder {
@@ -1194,9 +1309,6 @@ model SalesOrder {
   taxMinor          Int                         @default(0) @map("tax_minor")
   shippingMinor     Int                         @default(0) @map("shipping_minor")
   discountMinor     Int                         @default(0) @map("discount_minor")
-  fiscalStatus      SalesOrderFiscalStatus      @default(pending_registration) @map("fiscal_status")
-  fiscalDeliveredAt DateTime?                   @map("fiscal_delivered_at")
-  fiscalNote        String?                     @map("fiscal_note")
   placedAt          DateTime                    @map("placed_at")
   shopifyOrderId    String?                     @map("shopify_order_id")
   /// DDT vendita generato automaticamente da sync Shopify (§roadmap step 8);
@@ -1209,6 +1321,16 @@ model SalesOrder {
   locationId        String?                     @map("location_id") @db.Uuid
   /// Rif. ordine cliente esterno (testo libero, es. numero d'ordine del cliente).
   externalRef       String?                     @map("external_ref")
+  // ── Documento della controparte (l'ordine emesso dal cliente) ──
+  /// Numero del documento della controparte.
+  externalDocNumber String?                     @map("external_doc_number")
+  /// Data del documento della controparte (solo giorno).
+  externalDocDate   DateTime?                   @map("external_doc_date") @db.Date
+  /// Tipo documento della controparte (tabella per tenant, estendibile).
+  externalDocumentTypeId String?                @map("external_document_type_id") @db.Uuid
+  /// Snapshot etichetta breve del tipo al salvataggio (storico stabile: il tipo
+  /// puo' essere eliminato, l'etichetta scritta sull'ordine no).
+  externalDocumentTypeSnapshot String?          @map("external_document_type_snapshot")
   /// Data prevista consegna (solo giorno).
   expectedDeliveryDate DateTime?                @map("expected_delivery_date") @db.Date
   /// Note documento.
@@ -1218,6 +1340,12 @@ model SalesOrder {
   /// Sconto extra percentuale sull'intero documento, dopo gli sconti riga
   /// (stesso pattern di Document.documentDiscountPercent in Arrivo merce).
   documentDiscountPercent Decimal               @default(0) @map("document_discount_percent") @db.Decimal(7, 4)
+  /// Modalità con cui i prezzi sono stati DIGITATI su questo ordine: netti o
+  /// ivati. È una proprietà dell'ORDINE, come `Document.pricesIncludeVat` lo è
+  /// del documento — non una preferenza di chi lo apre: due operatori devono
+  /// vedere lo stesso ordine nello stesso modo, e riaprendolo si deve sapere
+  /// come era stato compilato. Il prezzo memorizzato resta comunque il NETTO.
+  pricesIncludeVat  Boolean                     @default(false) @map("prices_include_vat")
   /// Annullamento comunicato dal canale (impegni rilasciati, ordine in storico).
   cancelledAt       DateTime?                   @map("cancelled_at")
   /// Evasione completa registrata dal canale (evento canonico fulfilled).
@@ -1227,6 +1355,11 @@ model SalesOrder {
   /// Evasione parziale o anomalia: fase 1 non la gestisce, richiede verifica (§7).
   requiresReview    Boolean                     @default(false) @map("requires_review")
   reviewReason      String?                     @map("review_reason")
+  /// Quando la riconciliazione ha visto che l'ordine non risulta più sul canale
+  /// (cancellato su Shopify). È un'OSSERVAZIONE, non un'azione: VestiFlow non
+  /// cancella niente da solo, la rimozione resta una scelta dell'operatore.
+  /// Torna null se l'ordine ricompare, perché l'informazione sarebbe scaduta.
+  channelMissingSince DateTime?                 @map("channel_missing_since")
   createdAt         DateTime                    @default(now()) @map("created_at")
   updatedAt         DateTime                    @updatedAt @map("updated_at")
 
@@ -1234,42 +1367,20 @@ model SalesOrder {
   customer     Customer?          @relation(fields: [customerId], references: [id])
   document     Document?          @relation(fields: [documentId], references: [id], onDelete: SetNull)
   location     Location?          @relation(fields: [locationId], references: [id])
+  externalDocumentType ExternalDocumentType? @relation(fields: [externalDocumentTypeId], references: [id], onDelete: SetNull)
   lines        SalesOrderLine[]
   reservations StockReservation[]
   orderEvents  OnlineOrderEvent[]
   onlineSale   OnlineSale?
+  refunds      SalesOrderRefund[]
 
   @@unique([tenantId, shopifyOrderId])
   @@index([tenantId, placedAt(sort: Desc)])
-  @@index([tenantId, fiscalStatus, placedAt(sort: Desc)])
   @@index([documentId])
   @@map("sales_orders")
 }
 
 /// Storico consegne corrispettivi al commercialista (batch per periodo).
-model CorrispettiviDelivery {
-  id            String   @id @default(uuid()) @db.Uuid
-  tenantId      String   @map("tenant_id") @db.Uuid
-  periodFrom    DateTime @map("period_from")
-  periodTo      DateTime @map("period_to")
-  channelFilter String   @map("channel_filter")
-  orderCount    Int      @map("order_count")
-  subtotalMinor Int      @map("subtotal_minor")
-  taxMinor      Int      @map("tax_minor")
-  shippingMinor Int      @map("shipping_minor")
-  totalMinor    Int      @map("total_minor")
-  refundsCount  Int      @default(0) @map("refunds_count")
-  note          String?
-  createdById   String?  @map("created_by_id") @db.Uuid
-  createdByName String   @map("created_by_name")
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-
-  @@index([tenantId, createdAt(sort: Desc)])
-  @@map("corrispettivi_deliveries")
-}
-
 model SalesOrderLine {
   id             String  @id @default(uuid()) @db.Uuid
   orderId        String  @map("order_id") @db.Uuid
@@ -1282,7 +1393,13 @@ model SalesOrderLine {
   sku            String
   title          String
   quantity       Int
-  unitPriceMinor Int     @map("unit_price_minor")
+  /// Prezzo unitario NETTO in unità minori, con coda decimale: 25,00 ivati al
+  /// 22% valgono 2049,180328 centesimi netti, ed è quella coda a farli tornare
+  /// 25,00 quando il prezzo viene rimostrato ivato (regole-gestionale, «La
+  /// colonna è una, i comportamenti sono tanti»: ogni prezzo UNITARIO è
+  /// numeric(16,6), perché può nascere da uno scorporo).
+  unitPriceMinor Decimal @map("unit_price_minor") @db.Decimal(16, 6)
+  /// Totale riga già arrotondato: resta intero.
   totalMinor     Int     @map("total_minor")
   // ── Righe Ordine cliente manuale (source = manual) ──
   /// Ordinamento visuale delle righe nella maschera.
@@ -1314,6 +1431,92 @@ model SalesOrderLine {
   @@unique([orderId, externalLineId])
   @@index([orderId])
   @@map("sales_order_lines")
+}
+
+/// Rettifica economica di un ordine di vendita: quanto è stato reso, e QUANDO.
+///
+/// Serve al registro corrispettivi, che oggi somma i totali dell'ordine e non
+/// sottrae nulla (specifica 08 §4). Non basta rileggere l'ordine: Shopify
+/// espone anche i totali `current_*` già al netto dei rimborsi, ma usarli
+/// ridurrebbe **all'indietro** il corrispettivo del giorno della vendita. Il
+/// registro di quel giorno deve continuare a dire quanto fu incassato; il reso
+/// è una rettifica del giorno in cui avviene (Ris. 274/E/2009). Da qui una
+/// riga datata a sé, non un totale riscritto.
+///
+/// Importi in unità minori con la stessa convenzione di SalesOrder, così il
+/// registro sottrae come somma: su store a prezzi ivati `subtotalMinor` è
+/// lordo e `taxMinor` è l'imposta contenuta.
+/// Natura della rettifica, letta dal `restock_type` delle righe rimborsate.
+/// Si CLASSIFICA, non si scarta: un annullamento è un fatto arrivato dal canale
+/// e va conservato — è il registro a decidere se ha effetto economico, non la
+/// traduzione a decidere se esiste.
+enum SalesOrderRefundKind {
+  /// Reso con rientro fisico dichiarato dal canale (`return`/`legacy_restock`).
+  return_with_restock
+  /// Rimborso senza rientro: capo rovinato, gesto commerciale, importo libero.
+  refund_only
+  /// Annullamento pre-evasione (`cancel`): la vendita non è mai avvenuta.
+  cancellation
+}
+
+model SalesOrderRefund {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  salesOrderId  String   @map("sales_order_id") @db.Uuid
+  /// Id opaco del rimborso sul canale: chiave di idempotenza dei webhook
+  /// (lo stesso ordine torna a ogni aggiornamento, coi rimborsi già visti).
+  externalRefundId String @map("external_refund_id")
+  /// Data della rettifica: `processed_at` del canale, `created_at` se assente.
+  /// È la data con cui il rimborso entra nel registro, non quella dell'ordine.
+  occurredAt    DateTime @map("occurred_at")
+  /// Che gesto è stato. Il registro sottrae le prime due e ignora la terza:
+  /// un annullamento pre-evasione non rettifica una vendita che non c'è stata.
+  kind          SalesOrderRefundKind @default(refund_only)
+  currency      String   @default("EUR")
+  subtotalMinor Int      @default(0) @map("subtotal_minor")
+  taxMinor      Int      @default(0) @map("tax_minor")
+  /// Spese di spedizione rese, **imposta inclusa** (`kind: shipping_refund`).
+  shippingMinor Int      @default(0) @map("shipping_minor")
+  /// Rettifiche fuori riga che NON sono spedizione (`refund_discrepancy`): il
+  /// rimborso di cortesia a importo libero sta qui, non fra le spedizioni.
+  adjustmentMinor Int    @default(0) @map("adjustment_minor")
+  totalMinor    Int      @default(0) @map("total_minor")
+  /// Nota scritta da chi ha emesso il rimborso sul canale: il commercialista
+  /// chiede il perché di una rettifica, ed è l'unico posto in cui esiste.
+  note          String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant                    @relation(fields: [tenantId], references: [id])
+  order    SalesOrder                @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  taxLines SalesOrderRefundTaxLine[]
+
+  @@unique([tenantId, externalRefundId])
+  @@index([tenantId, occurredAt(sort: Desc)])
+  @@index([tenantId, kind, occurredAt(sort: Desc)])
+  @@index([salesOrderId])
+  @@map("sales_order_refunds")
+}
+
+/// Scomposizione per aliquota di una rettifica: il registro fiscale sottrae
+/// nella componente d'imposta giusta, non da un totale generico.
+///
+/// Si riscrive per intero a ogni sincronizzazione del rimborso (cancella e
+/// ricrea), quindi non serve una chiave di unicità: l'idempotenza sta a monte.
+model SalesOrderRefundTaxLine {
+  id           String  @id @default(uuid()) @db.Uuid
+  refundId     String  @map("refund_id") @db.Uuid
+  /// Aliquota in percentuale (22 = 22%). **NULL quando il canale non la
+  /// dichiara**: le rettifiche fuori riga portano l'importo e non l'aliquota,
+  /// e una riga muta è più onesta di un'attribuzione indovinata.
+  ratePercent  Decimal? @map("rate_percent") @db.Decimal(7, 4)
+  taxableMinor Int     @default(0) @map("taxable_minor")
+  taxMinor     Int     @default(0) @map("tax_minor")
+
+  refund SalesOrderRefund @relation(fields: [refundId], references: [id], onDelete: Cascade)
+
+  @@index([refundId])
+  @@map("sales_order_refund_tax_lines")
 }
 
 // ── Impegni merce (Impegnata) e eventi canonici ordini online ────────────────
@@ -1460,7 +1663,6 @@ model OnlineSale {
   customer      Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
   location      Location?           @relation(fields: [locationId], references: [id], onDelete: SetNull)
   lines         OnlineSaleLine[]
-  corrispettivo CorrispettivoEntry?
   documents     Document[]
 
   @@unique([tenantId, dedupeKey])
@@ -1514,89 +1716,6 @@ model OnlineSaleLine {
   @@map("online_sale_lines")
 }
 
-/// Registrazione interna nel Registro Corrispettivi (fase 2 §4), creata nella
-/// stessa transazione della Vendita online. NON è la causa tecnica dello
-/// scarico e NON è una trasmissione fiscale automatica: è un registro interno
-/// con data fiscale distinta e modificabile dagli utenti autorizzati.
-model CorrispettivoEntry {
-  id                  String              @id @default(uuid()) @db.Uuid
-  tenantId            String              @map("tenant_id") @db.Uuid
-  series              String              @default("A")
-  number              Int
-  year                Int
-  /// Riferimento leggibile (es. 'COR-2026-0001').
-  reference           String
-  /// Vendita online origine (canali Shopify). Null per le voci di cassa.
-  onlineSaleId        String?             @unique @map("online_sale_id") @db.Uuid
-  salesOrderId        String?             @map("sales_order_id") @db.Uuid
-  /// Documento origine (vendita/reso negozio, canale `store`). Null per le
-  /// voci online. Una voce ha SEMPRE una e una sola origine.
-  documentId          String?             @unique @map("document_id") @db.Uuid
-  channel             SalesOrderSource
-  /// Data operativa (evasione).
-  operationalDate     DateTime            @map("operational_date")
-  /// Data fiscale DISTINTA (§5): proposta dalla data evasione, modificabile.
-  fiscalDate          DateTime            @map("fiscal_date") @db.Date
-  subtotalMinor       Int                 @default(0) @map("subtotal_minor")
-  taxMinor            Int                 @default(0) @map("tax_minor")
-  totalMinor          Int                 @default(0) @map("total_minor")
-  discountMinor       Int                 @default(0) @map("discount_minor")
-  shippingMinor       Int                 @default(0) @map("shipping_minor")
-  status              CorrispettivoStatus @default(to_verify)
-  /// Fattura emessa per questa operazione (allora esclusa dal riepilogo).
-  invoiceIssued       Boolean             @default(false) @map("invoice_issued")
-  excludedFromSummary Boolean             @default(false) @map("excluded_from_summary")
-  exclusionReason     String?             @map("exclusion_reason")
-  /// Nota di rettifica/rimborso predisposta (mai automatismi fiscali).
-  adjustmentNote      String?             @map("adjustment_note")
-  refundedAt          DateTime?           @map("refunded_at")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
-
-  tenant     Tenant                   @relation(fields: [tenantId], references: [id])
-  onlineSale OnlineSale?              @relation(fields: [onlineSaleId], references: [id], onDelete: Restrict)
-  document   Document?                @relation(fields: [documentId], references: [id], onDelete: Restrict)
-  lines      CorrispettivoEntryLine[]
-
-  @@unique([tenantId, series, year, number])
-  @@index([tenantId, fiscalDate(sort: Desc)])
-  @@index([tenantId, channel, fiscalDate(sort: Desc)])
-  @@index([tenantId, salesOrderId])
-  @@map("corrispettivo_entries")
-}
-
-/// Riga Corrispettivo: prodotto o voce (es. spedizione) con imponibile,
-/// aliquota, imposta e totale — base per i riepiloghi per aliquota IVA.
-model CorrispettivoEntryLine {
-  id             String   @id @default(uuid()) @db.Uuid
-  tenantId       String   @map("tenant_id") @db.Uuid
-  entryId        String   @map("entry_id") @db.Uuid
-  lineNumber     Int      @map("line_number")
-  /// Voce non-prodotto (spedizione): true. Prodotti: false.
-  isShipping     Boolean  @default(false) @map("is_shipping")
-  description    String
-  quantity       Int      @default(1)
-  discountMinor  Int      @default(0) @map("discount_minor")
-  subtotalMinor  Int      @default(0) @map("subtotal_minor")
-  taxMinor       Int      @default(0) @map("tax_minor")
-  totalMinor     Int      @default(0) @map("total_minor")
-  /// Codice IVA riconosciuto per corrispondenza inversa con l'aliquota
-  /// derivata dal canale. Null se nessuna corrispondenza attiva per il tenant.
-  vatCodeId      String?  @map("vat_code_id") @db.Uuid
-  /// Snapshot IVA al momento della registrazione: Codice IVA se riconosciuto,
-  /// altrimenti solo l'aliquota derivata dal canale (§7).
-  vatSnapshot    Json?    @map("vat_snapshot")
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  tenant Tenant             @relation(fields: [tenantId], references: [id])
-  entry  CorrispettivoEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  vatCode VatCode?          @relation(fields: [vatCodeId], references: [id], onDelete: SetNull)
-
-  @@index([entryId])
-  @@index([tenantId])
-  @@map("corrispettivo_entry_lines")
-}
-
 // ── Integrazione Shopify (stato connessione, MAI token nel modello API) ─────
 
 /// Una connessione per tenant. I token OAuth NON vivono qui: stanno cifrati
@@ -1612,7 +1731,23 @@ model ShopifyConnection {
   lastConnectedAt     DateTime?               @map("last_connected_at")
   lastSyncAt          DateTime?               @map("last_sync_at")
   webhooksActivatedAt DateTime?               @map("webhooks_activated_at")
+  /// Derivata da webhookTopics (un solo scrittore). Si elimina dopo l'unione dei rami:
+  /// il database e' condiviso e il client Prisma dell'altro ramo la seleziona ancora.
   webhooksActiveCount Int?                    @map("webhooks_active_count")
+  /// Indirizzo a cui le sottoscrizioni risultano registrate. La deduplica Shopify
+  /// confronta per uguaglianza esatta: un indirizzo diverso da quello configurato
+  /// significa sottoscrizioni che consegnano altrove, e nessuno se ne accorgerebbe.
+  webhookAddress      String?                 @map("webhook_address")
+  /// QUALI topic, non quanti. Vuoto = «non lo sappiamo», MAI «zero attivi»:
+  /// la distinzione deve arrivare fino alla UI.
+  webhookTopics       String[]                @default([]) @map("webhook_topics")
+  /// Quando l'elenco qui sopra e' stato osservato (registrazione o «Verifica ora»).
+  /// Un'osservazione senza data non si sa quando era vera.
+  webhooksCheckedAt   DateTime?               @map("webhooks_checked_at")
+  /// Ultimo evento webhook verificato RICEVUTO da Shopify. Mai su lastSyncAt, che ha
+  /// sette scrittori di cui sei manuali: non potrebbe distinguere un bottone premuto
+  /// dall'operatore da un evento in arrivo.
+  lastWebhookEventAt  DateTime?               @map("last_webhook_event_at")
   /// Webhook Shopify attivi: ordini, clienti, prodotti e giacenze in tempo reale.
   autoSyncEnabled     Boolean                 @default(false) @map("auto_sync_enabled")
   lastErrorMessage    String?                 @map("last_error_message")
@@ -1749,8 +1884,6 @@ model DocumentTypeSetting {
   numberPrefix      String?      @map("number_prefix")
   /// Serie predefinita per distinguere sedi/sezioni (es. 'A', 'MI').
   defaultSeries     String       @default("A") @map("default_series")
-  /// Gestione prezzi ivati vs imponibili.
-  pricesIncludeVat  Boolean      @default(false) @map("prices_include_vat")
   /// Testo automatico in fondo al documento.
   defaultNotes      String?      @map("default_notes")
   createdAt         DateTime     @default(now()) @map("created_at")
@@ -1761,6 +1894,57 @@ model DocumentTypeSetting {
   @@unique([tenantId, type])
   @@index([tenantId])
   @@map("document_type_settings")
+}
+
+/// Anagrafica dell'AZIENDA GESTITA nel gestionale: è questa che intesta
+/// documenti, stampe e XML, e la compila il titolare.
+///
+/// Non va confusa con i campi anagrafici sul `Tenant`, che sono **un altro
+/// dato**: quelli li inserisce l'admin di piattaforma quando attiva il cliente
+/// e identificano il cliente VestiFlow (a chi è intestato il contratto). Il
+/// titolare può cambiare la propria azienda senza toccare quel record, e
+/// viceversa. Tenerli separati è una decisione di prodotto (08/2026), non una
+/// duplicazione da riunificare.
+///
+/// Tutti i campi sono opzionali: il primo giorno l'anagrafica è vuota, e la
+/// maschera offre di precompilarla dai dati di attivazione — con una pressione
+/// esplicita del titolare, mai in automatico.
+model CompanyProfile {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @unique @map("tenant_id") @db.Uuid
+  legalName    String?  @map("legal_name")
+  vatNumber    String?  @map("vat_number")
+  fiscalCode   String?  @map("fiscal_code")
+  phone        String?
+  email        String?
+  website      String?
+  pec          String?
+  sdiCode      String?  @map("sdi_code")
+  /// IBAN di incasso: precompila i dati pagamento in fattura.
+  iban         String?
+  addressLine1 String?  @map("address_line1")
+  addressLine2 String?  @map("address_line2")
+  city         String?
+  province     String?
+  postalCode   String?  @map("postal_code")
+  countryCode  String?  @map("country_code")
+  /// Regime fiscale FatturaPA (RF01 ordinario, RF19 forfettario…). NULL = RF01.
+  taxRegime    String?  @map("tax_regime")
+  // ── Iscrizione al Registro Imprese (art. 2250 c.c. per le società) ──
+  /// Sigla provincia della CCIAA: «NA», «MI».
+  reaOffice    String?  @map("rea_office")
+  reaNumber    String?  @map("rea_number")
+  /// Capitale sociale in centesimi (unità minori, come ogni importo).
+  shareCapitalMinor Int?     @map("share_capital_minor")
+  /// NULL = non dichiarato; true = socio unico; false = più soci.
+  soleShareholder   Boolean? @map("sole_shareholder")
+  inLiquidation     Boolean  @default(false) @map("in_liquidation")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("company_profiles")
 }
 
 /// Impostazioni operative tenant (§16): moduli magazzino, lotti, seriali, prezzi fornitore.
@@ -1780,6 +1964,19 @@ model TenantFeatureSettings {
   defaultUnitOfMeasure          String                    @default("pz") @map("default_unit_of_measure")
   /// Codice IVA predefinito aziendale.
   defaultVatCodeId              String?                   @map("default_vat_code_id") @db.Uuid
+  /// Convenzione aziendale sui PREZZI DI VENDITA: netti o ivati.
+  ///
+  /// Non è solo il default dei documenti nuovi — è come questa azienda guarda i
+  /// prezzi: al dettaglio si ragiona ivato, all'ingrosso netto. Governa quindi
+  /// anche le viste che non appartengono a un documento (anagrafica, listini, e
+  /// in futuro i report). `true` = ivato, che è ciò con cui il sistema partiva
+  /// prima che questa impostazione esistesse.
+  ///
+  /// ⚠️ NON esiste la gemella per i COSTI, ed è una scelta: i costi partono
+  /// sempre netti. Per un'azienda che detrae l'IVA il costo *è* il netto, e
+  /// l'inserimento ivato resta una comodità del singolo documento — non una
+  /// convenzione aziendale.
+  salesPricesIncludeVat         Boolean                   @default(true) @map("sales_prices_include_vat")
   /// Listini aggiuntivi (fissi 3): nome rinominabile e attivazione. Il primo è
   /// attivo di default, gli altri due si attivano quando servono.
   listino1Name                  String?                   @map("listino1_name")
@@ -1872,6 +2069,10 @@ model Document {
   printTitle        String?        @map("print_title")
   notes             String?
   internalComment   String?        @map("internal_comment")
+  /// Intestazione di chi emette, congelata alla creazione: un documento emesso
+  /// si ristampa identico anche se l'anagrafica azienda cambia dopo. NULL sui
+  /// documenti anteriori allo snapshot, che rileggono l'anagrafica corrente.
+  issuerSnapshot    Json?          @map("issuer_snapshot")
   // ── Controparti (snapshot nome per display stabile) ──
   supplierId        String?        @map("supplier_id") @db.Uuid
   supplierName      String?        @map("supplier_name")
@@ -2005,8 +2206,9 @@ model Document {
   /// Esito fiscale della vendita/reso di cassa (documento commerciale).
   fiscalReceipt          FiscalReceipt?
   cashSession            CashSession?   @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
-  /// Voce del registro Corrispettivi generata da questa vendita/reso di cassa.
-  corrispettivoEntry     CorrispettivoEntry?
+  // La voce del registro Corrispettivi non è più una riga collegata: il
+  // Registro si DERIVA dai documenti (develop, 16/08), e la tabella che la
+  // conteneva è caduta con la sua migration. La relazione se ne va con lei.
 
   // Numero univoco per (tenant, tipo, serie): l'unicità reale è un indice
   // parziale `WHERE number IS NOT NULL` con NULLS NOT DISTINCT (serie nulla)
@@ -2069,6 +2271,11 @@ model DocumentLine {
   supplierPayableLineMinor   Int @default(0) @map("supplier_payable_line_minor")
   reverseChargeVatMinor      Int @default(0) @map("reverse_charge_vat_minor")
   nonDeductibleVatMinor      Int @default(0) @map("non_deductible_vat_minor")
+  /// Unità di misura della riga, fotografata all'inserimento. Nullable: sulle
+  /// righe salvate prima che la colonna esistesse l'assenza vale «prendi quella
+  /// dell'anagrafica». Nessuna chiave esterna: è una stringa, e l'elenco delle
+  /// unità (`UnitOfMeasureOption`) suggerisce, non obbliga.
+  unitOfMeasure   String?  @map("unit_of_measure")
   /// Flag "carica magazzino" (§3.2): righe spese/servizi non movimentano stock.
   loadsStock      Boolean  @default(true) @map("loads_stock")
   /// Riga «documento collegato»: separatore informativo del gruppo di righe
@@ -2341,11 +2548,19 @@ model ExternalDocumentType {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  tenant    Tenant               @relation(fields: [tenantId], references: [id])
-  documents Document[]
-  causals   GoodsReceiptCausal[]
+  tenant         Tenant               @relation(fields: [tenantId], references: [id])
+  documents      Document[]
+  causals        GoodsReceiptCausal[]
+  salesOrders    SalesOrder[]
+  supplierOrders SupplierOrder[]
 
-  @@unique([tenantId, name])
+  // Il nome e' univoco per tenant SOLO fra i tipi vivi: un tipo eliminato
+  // (deleted_at valorizzato) resta in tabella per lo storico ma libera il
+  // proprio nome. E' un indice parziale `WHERE deleted_at IS NULL`, che Prisma
+  // non sa esprimere: vive nella migration 20260810120000, in due forme —
+  // esatta e case-insensitive. Niente `@@unique` qui, o il prossimo
+  // `migrate diff` rimetterebbe l'indice totale e il soft-delete smetterebbe
+  // di permettere di ricreare un tipo con lo stesso nome.
   @@index([tenantId, sortOrder])
   @@map("external_document_types")
 }
@@ -2409,10 +2624,10 @@ model VatCode {
   nature        VatNature              @relation(fields: [natureId], references: [id])
   products      Product[]
   documentLines DocumentLine[]
+  manualReceiptLines ManualReceiptLine[]
   featureSettingsDefault TenantFeatureSettings[]
   suppliers                Supplier[]
   onlineSaleLines          OnlineSaleLine[]
-  corrispettivoEntryLines  CorrispettivoEntryLine[]
   salesOrderLines          SalesOrderLine[]
   supplierOrderLines       SupplierOrderLine[]
 
@@ -2638,6 +2853,30 @@ model UserTableViewPreference {
 /// Ricordata alla creazione di un documento nuovo e riproposta al successivo
 /// dello stesso tipo, per (tenant, utente, tipo). Primo utilizzo: vendita ivato,
 /// acquisto netto. Vendita usa pricesIncludeVat, acquisto mappa costEntryMode.
+/// Avviso cronologico spento dall'operatore per un tipo documento (§4).
+///
+/// L'esistenza della riga È la preferenza: non c'è un booleano da leggere,
+/// perché non esiste il caso «riacceso» — una volta spenta resta spenta, senza
+/// pannello nelle Impostazioni. `dismissedAt` serve a sapere QUANDO, visto che
+/// l'unico rimedio a una spunta presa per sbaglio è il database.
+///
+/// Stessa identità di `UserDocumentPriceModePreference`: (tenant, utente, tipo).
+/// Spegnerlo sulle Fatture non rende ciechi sui DDT.
+model UserDocumentChronologyWarningPreference {
+  id           String       @id @default(uuid()) @db.Uuid
+  tenantId     String       @map("tenant_id") @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  documentType DocumentType @map("document_type")
+  dismissedAt  DateTime     @default(now()) @map("dismissed_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, documentType], map: "user_doc_chrono_warn_pref_tenant_user_type_key")
+  @@index([tenantId, userId], map: "user_doc_chrono_warn_pref_tenant_user_idx")
+  @@map("user_document_chronology_warning_preferences")
+}
+
 model UserDocumentPriceModePreference {
   id               String       @id @default(uuid()) @db.Uuid
   tenantId         String       @map("tenant_id") @db.Uuid
@@ -2654,22 +2893,120 @@ model UserDocumentPriceModePreference {
   @@map("user_document_price_mode_preferences")
 }
 
-/// Preferenza operatore della modalità prezzo (netto/ivato) della sezione Listini
-/// in anagrafica articolo. Stessa logica di UserDocumentPriceModePreference:
-/// ricordata al salvataggio di un articolo, riproposta alla creazione del
-/// successivo, per (tenant, utente). Primo utilizzo: ivato. La modifica di un
-/// articolo esistente NON aggiorna la preferenza: solo la creazione lo fa.
-model UserProductPriceModePreference {
-  id               String   @id @default(uuid()) @db.Uuid
-  tenantId         String   @map("tenant_id") @db.Uuid
-  userId           String   @map("user_id") @db.Uuid
-  pricesIncludeVat Boolean  @map("prices_include_vat")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+/// Corrispettivo manuale: una registrazione ECONOMICA autonoma del Registro
+/// Corrispettivi (specifica `docs/10-specifica-registro-corrispettivi.md` §12).
+///
+/// Serve quando VestiFlow conosce l'importo ma NON la vendita analitica che
+/// l'ha prodotto: la cassa esterna ha battuto mentre VestiFlow non era
+/// disponibile, una chiusura di cassa da recuperare, importi storici di cui si
+/// sanno importo e IVA ma non gli articoli.
+///
+/// ⚠️ Righe SENZA articolo, e non è una semplificazione: è la definizione. Una
+/// registrazione che non conosce gli articoli non può muovere quantità — se lo
+/// facesse starebbe inventando merce. Nessun `StockMovement`, nessun
+/// `Document`, nessun `SalesOrder`, nessun pagamento.
+///
+/// Niente stato, niente soft-delete: creare, modificare, eliminare. I buchi di
+/// numerazione sono ammessi e non si rinumera mai.
+model ManualReceipt {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Sempre NULL, e non compare in nessuna maschera: esiste solo perché il
+  /// motore di numerazione comune partiziona per (tenant, tipo, serie), e
+  /// «senza serie» È `NULL`. Non stiamo introducendo una gestione serie.
+  series String?
+  /// Progressivo dal motore comune, chiave `DocumentType.manual_receipt`.
+  /// Si mostra nudo: 1, 2, 3 — nessun prefisso, nessuno zero di riempimento.
+  number Int
 
-  @@unique([tenantId, userId], map: "user_product_price_mode_pref_tenant_user_key")
-  @@index([tenantId, userId], map: "user_product_price_mode_pref_tenant_user_idx")
-  @@map("user_product_price_mode_preferences")
+  /// UNA sola data, economica: è quella che determina il periodo del Registro.
+  /// Il legacy ne aveva due perché una nasceva dal canale e l'altra la
+  /// correggeva l'operatore. Qui la digita l'operatore, ed è una.
+  documentDate DateTime @map("document_date") @db.Date
+
+  /// Obbligatoria, ed è una regola del MODELLO, non una convalida di maschera:
+  /// non esiste un Corrispettivo manuale con location non determinata. Il «Non
+  /// determinata» del Registro riguarda le righe Shopify, dove il dato oggi può
+  /// mancare — anomalia temporanea, tracciata nel blocco sincronizzazione.
+  locationId String @map("location_id") @db.Uuid
+
+  /// Nasce IVATO, al contrario di `Document` e `SalesOrder` che nascono netti:
+  /// il caso operativo è riportare i valori di una chiusura di cassa, che sono
+  /// ivati. Il selettore resta modificabile.
+  pricesIncludeVat Boolean @default(true) @map("prices_include_vat")
+
+  notes    String?
+  currency String  @default("EUR")
+
+  /// Totali già arrotondati: sono i tre numeri che il Registro consuma.
+  subtotalMinor Int @default(0) @map("subtotal_minor")
+  taxMinor      Int @default(0) @map("tax_minor")
+  totalMinor    Int @default(0) @map("total_minor")
+
+  createdById String? @map("created_by_id") @db.Uuid
+  /// Snapshot del nome: l'audit regge anche se l'utente cambia nome o sparisce.
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id])
+  location  Location            @relation(fields: [locationId], references: [id])
+  createdBy User?               @relation(fields: [createdById], references: [id])
+  lines     ManualReceiptLine[]
+
+  /// L'unicità vera è scritta a mano nella migration con NULLS NOT DISTINCT:
+  /// due «senza serie» sono la STESSA serie, e Prisma non sa esprimerlo.
+  @@unique([tenantId, series, number], map: "manual_receipts_number_unique")
+  @@index([tenantId, documentDate], map: "manual_receipts_tenant_date_idx")
+  @@index([tenantId, locationId], map: "manual_receipts_tenant_location_idx")
+  @@map("manual_receipts")
+}
+
+/// Riga economica di un Corrispettivo manuale: `Descrizione | Importo | IVA`.
+///
+/// Nessun articolo, nessuno SKU, nessuna variante, nessuna quantità: è la
+/// forma che il gestionale ha già in produzione da luglio con la voce
+/// «Spedizione» delle vendite online.
+///
+/// Non porta `tenantId`: si raggiunge solo dalla testata, cade in cascata con
+/// essa, e la RLS copre la tabella. È il pattern di `SupplierOrderLine`.
+model ManualReceiptLine {
+  id         String @id @default(uuid()) @db.Uuid
+  receiptId  String @map("receipt_id") @db.Uuid
+  lineNumber Int    @map("line_number")
+
+  description String
+
+  /// L'importo COME DIGITATO, nella modalità della testata (ivato o netto).
+  enteredAmountMinor Decimal @map("entered_amount_minor") @db.Decimal(16, 6)
+  /// Il netto CANONICO con la coda decimale: è questo che fa tornare 70,00
+  /// identico alla riapertura in modalità ivata. Con un intero si leggerebbe
+  /// 69,99. La coppia digitato+canonico è già in uso su `SupplierOrderLine`.
+  netAmountMinor Decimal @map("net_amount_minor") @db.Decimal(16, 6)
+
+  vatCodeId String? @map("vat_code_id") @db.Uuid
+  /// Obbligatorio, a differenza di `DocumentLine` dove è facoltativo: una riga
+  /// senza IVA in un corrispettivo non ha senso. Anche i codici non imponibili
+  /// ed esenti passano di qui, mai una riga fiscalmente indefinita.
+  ///
+  /// È lo snapshot congelato: se il Codice IVA cambia domani, la registrazione
+  /// di ieri non cambia — ed è per questo che la sua FK è `SetNull` e non
+  /// `Restrict`.
+  vatSnapshot Json @map("vat_snapshot")
+
+  /// I tre esiti ARROTONDATI della riga: si arrotonda una volta sola, sul
+  /// totale di riga, mai sull'importo unitario.
+  netMinor   Int @default(0) @map("net_minor")
+  vatMinor   Int @default(0) @map("vat_minor")
+  grossMinor Int @default(0) @map("gross_minor")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  receipt ManualReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  vatCode VatCode?      @relation(fields: [vatCodeId], references: [id])
+
+  @@index([receiptId, lineNumber], map: "manual_receipt_lines_receipt_idx")
+  @@map("manual_receipt_lines")
 }

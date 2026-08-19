@@ -1,6 +1,5 @@
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
 import {
-  CorrispettivoEntryStatus,
   OnlineSaleInventoryStatus,
   SalesOrderFinancialStatus,
   SalesOrderFulfillmentStatus,
@@ -20,7 +19,13 @@ export interface SalesOrderLineApiRow {
   readonly sku?: string;
   readonly title: string;
   readonly quantity: number;
-  readonly unitPriceMinor?: number;
+  /**
+   * Prezzo unitario NETTO. Dal 16/08/2026 la colonna è `numeric(16,6)`, e
+   * Prisma serializza i Decimal come STRINGA: va accettata, o il prezzo
+   * arriverebbe come `'2049.180328'` e `?? 0` non se ne accorgerebbe.
+   * Stessa forma già usata dalla mappatura delle righe documento.
+   */
+  readonly unitPriceMinor?: number | string;
   readonly totalMinor?: number;
   // Righe Ordine cliente manuale.
   readonly barcode?: string | null;
@@ -37,6 +42,8 @@ export interface SalesOrderApiRow {
   readonly id: EntityId;
   readonly tenantId: EntityId;
   readonly orderNumber: string;
+  readonly number?: number | null;
+  readonly series?: string | null;
   readonly source: string;
   readonly financialStatus: string;
   readonly fulfillmentStatus: string;
@@ -45,11 +52,18 @@ export interface SalesOrderApiRow {
   readonly currency: CurrencyCode;
   readonly subtotalMinor: number;
   readonly totalMinor: number;
+  // Componenti economiche della testata: le porta il canale, e sull'ordine
+  // online sono l'unico modo di far tornare il totale (spedizione e sconto
+  // d'ordine non stanno su nessuna riga).
+  readonly taxMinor?: number;
+  readonly shippingMinor?: number;
+  readonly discountMinor?: number;
   readonly placedAt: IsoDateString;
   readonly cancelledAt?: IsoDateString | null;
   readonly fulfilledAt?: IsoDateString | null;
   readonly requiresReview?: boolean;
   readonly reviewReason?: string | null;
+  readonly channelMissingSince?: IsoDateString | null;
   readonly shopifyOrderId?: string | null;
   readonly createdAt: IsoDateString;
   readonly updatedAt: IsoDateString;
@@ -57,10 +71,17 @@ export interface SalesOrderApiRow {
   // Testata Ordine cliente manuale.
   readonly locationId?: EntityId | null;
   readonly externalRef?: string | null;
+  // Documento della controparte: l'ordine emesso dal cliente.
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocumentTypeSnapshot?: string | null;
+  readonly externalDocNumber?: string | null;
+  readonly externalDocDate?: IsoDateString | null;
   readonly expectedDeliveryDate?: IsoDateString | null;
   readonly notes?: string | null;
   readonly paymentTerms?: string | null;
   readonly documentDiscountPercent?: number;
+  /** Modalità con cui i prezzi sono stati digitati su questo ordine. */
+  readonly pricesIncludeVat?: boolean;
   readonly document?: {
     readonly id: EntityId;
     readonly reference?: string | null;
@@ -78,12 +99,6 @@ export interface SalesOrderApiRow {
     readonly fulfilledAt: IsoDateString;
     readonly inventoryStatus: string;
     readonly refundedAt?: IsoDateString | null;
-    readonly corrispettivo?: {
-      readonly id: EntityId;
-      readonly reference: string;
-      readonly fiscalDate: IsoDateString;
-      readonly status: string;
-    } | null;
   } | null;
 }
 
@@ -134,21 +149,6 @@ export function mapInventoryStatus(status: string): OnlineSaleInventoryStatus {
   }
 }
 
-export function mapCorrispettivoStatus(status: string): CorrispettivoEntryStatus {
-  switch (status) {
-    case 'included':
-      return CorrispettivoEntryStatus.Included;
-    case 'excluded_invoiced':
-      return CorrispettivoEntryStatus.ExcludedInvoiced;
-    case 'adjusted':
-      return CorrispettivoEntryStatus.Adjusted;
-    case 'refunded':
-      return CorrispettivoEntryStatus.Refunded;
-    default:
-      return CorrispettivoEntryStatus.ToVerify;
-  }
-}
-
 function mapOnlineSale(row: NonNullable<SalesOrderApiRow['onlineSale']>): SalesOrderOnlineSaleLink {
   return {
     id: row.id,
@@ -156,14 +156,6 @@ function mapOnlineSale(row: NonNullable<SalesOrderApiRow['onlineSale']>): SalesO
     fulfilledAt: row.fulfilledAt,
     inventoryStatus: mapInventoryStatus(row.inventoryStatus),
     refundedAt: row.refundedAt ?? undefined,
-    corrispettivo: row.corrispettivo
-      ? {
-          id: row.corrispettivo.id,
-          reference: row.corrispettivo.reference,
-          fiscalDate: row.corrispettivo.fiscalDate,
-          status: mapCorrispettivoStatus(row.corrispettivo.status),
-        }
-      : undefined,
   };
 }
 
@@ -174,7 +166,7 @@ function mapLine(row: SalesOrderLineApiRow, currency: CurrencyCode): SalesOrderL
     sku: row.sku ?? '',
     title: row.title,
     quantity: row.quantity,
-    unitPrice: { amountMinor: row.unitPriceMinor ?? 0, currencyCode: currency },
+    unitPrice: { amountMinor: Number(row.unitPriceMinor ?? 0), currencyCode: currency },
     lineTotal: { amountMinor: row.totalMinor ?? 0, currencyCode: currency },
     barcode: row.barcode ?? undefined,
     unitOfMeasure: row.unitOfMeasure ?? undefined,
@@ -195,6 +187,8 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     tenantId: row.tenantId,
     id: row.id,
     orderNumber: row.orderNumber,
+    number: row.number ?? undefined,
+    series: row.series ?? undefined,
     financialStatus: mapFinancialStatus(row.financialStatus),
     fulfillmentStatus: mapFulfillmentStatus(row.fulfillmentStatus),
     source: mapSource(row.source),
@@ -206,11 +200,15 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     lines: (row.lines ?? []).map((line) => mapLine(line, currency)),
     subtotal: { amountMinor: row.subtotalMinor, currencyCode: currency },
     total: { amountMinor: row.totalMinor, currencyCode: currency },
+    tax: { amountMinor: row.taxMinor ?? 0, currencyCode: currency },
+    shipping: { amountMinor: row.shippingMinor ?? 0, currencyCode: currency },
+    discount: { amountMinor: row.discountMinor ?? 0, currencyCode: currency },
     placedAt: row.placedAt,
     cancelledAt: row.cancelledAt ?? undefined,
     fulfilledAt: row.fulfilledAt ?? undefined,
     requiresReview: row.requiresReview ?? false,
     reviewReason: row.reviewReason ?? undefined,
+    channelMissingSince: row.channelMissingSince ?? undefined,
     shopify: row.shopifyOrderId
       ? { status: ShopifySyncStatus.Synced, shopifyId: row.shopifyOrderId }
       : undefined,
@@ -218,10 +216,18 @@ export function mapSalesOrderApiRow(row: SalesOrderApiRow): SalesOrder {
     locationName: row.locationName ?? undefined,
     locationId: row.locationId ?? undefined,
     externalRef: row.externalRef ?? undefined,
+    externalDocumentTypeId: row.externalDocumentTypeId ?? undefined,
+    externalDocumentTypeSnapshot: row.externalDocumentTypeSnapshot ?? undefined,
+    externalDocNumber: row.externalDocNumber ?? undefined,
+    externalDocDate: row.externalDocDate ?? undefined,
     expectedDeliveryDate: row.expectedDeliveryDate ?? undefined,
     notes: row.notes ?? undefined,
     paymentTerms: row.paymentTerms ?? undefined,
     documentDiscountPercent: row.documentDiscountPercent ?? 0,
+    // Assente sugli ordini di canale (e sui vecchi): netto, come il default
+    // della colonna. Non è una supposizione — la maschera manuale non ha mai
+    // potuto essere messa in ivato prima di oggi.
+    pricesIncludeVat: row.pricesIncludeVat === true,
     linkedDocument: row.document
       ? {
           id: row.document.id,

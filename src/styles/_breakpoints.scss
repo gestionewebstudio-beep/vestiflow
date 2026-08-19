@@ -30,14 +30,24 @@ $breakpoints: (
   }
 }
 
-// Applica stili solo sotto il breakpoint indicato (escluso).
-// Uso: `@include bp.media-down('lg') { ... }`
-@mixin media-down($name) {
+// La larghezza massima "sotto" un breakpoint, escluso.
+//
+// È una funzione e non un calcolo ripetuto perché quel `- 0.0625rem` deve
+// esistere UNA volta: `media-down` lo usa per il CSS, e il token
+// `--viewport-compact-max` lo usa per dare la stessa soglia al TypeScript. Se
+// l'aritmetica vivesse in due posti, la vista mostrata dal CSS e quella viva
+// nel DOM potrebbero non coincidere — in silenzio.
+@function down-max($name) {
   @if not map.has-key($breakpoints, $name) {
     @error "Breakpoint sconosciuto: #{$name}. Disponibili: #{map.keys($breakpoints)}.";
   }
-  $max-width: map.get($breakpoints, $name) - 0.0625rem;
-  @media (max-width: $max-width) {
+  @return map.get($breakpoints, $name) - 0.0625rem;
+}
+
+// Applica stili solo sotto il breakpoint indicato (escluso).
+// Uso: `@include bp.media-down('lg') { ... }`
+@mixin media-down($name) {
+  @media (max-width: down-max($name)) {
     @content;
   }
 }

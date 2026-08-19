@@ -1,38 +1,105 @@
 @use 'breakpoints' as bp;
+@use 'list-page' as lp;
 
+/*
+  Il pulsante «Filtri (n)», il suo contatore e il pannello che apre: pattern
+  condiviso, non riscritto qui. `list-page-mobile-filters` è la parte di
+  `_list-page.scss` che serve anche a chi — come questo Registro — ha un layout
+  proprio e non vuole l'intero impianto delle pagine-registro.
+*/
+@include lp.list-page-mobile-filters('corrispettivi');
+
+/*
+  ⚠️ **`block-size: 100%` qui non poteva funzionare, e faceva il danno opposto.**
+
+  La pagina non è sola dentro `main.shell__content`: sopra di lei ci stanno le
+  briciole di pane. Chiedere il 100% di quell'area significa chiedere
+  «tutto lo spazio» a chi ne ha già ceduto un pezzo — il blocco valeva 100% PIÙ
+  l'altezza delle briciole, la barra di scorrimento compariva sull'intera
+  pagina e il riepilogo finiva tagliato sotto il bordo. E siccome il pannello
+  prendeva `1fr` di quell'altezza gonfiata, con dodici righe restava mezza
+  schermata bianca dentro la card.
+
+  Il tetto lo mette ora l'elenco su di sé, in unità di viewport — lo stesso
+  modo di `_document-form.scss` (`min(75vh, …)`). Non dipende da nessuna catena
+  di altezze: la pagina è alta quanto il suo contenuto, l'elenco smette di
+  crescere prima di spingere fuori il riepilogo, e da lì in poi scorre dentro
+  di sé. Restano fermi testata, filtri e riepilogo, che è ciò che serviva.
+
+  ⚠️ **Poi il tetto in `dvh` è caduto a sua volta**, ed era il difetto opposto:
+  una misura decisa a occhio, che lasciava vuoto lo spazio buono quando le righe
+  erano poche e smetteva di usarlo quando ce n'era. `main.shell__content` è ora
+  una colonna flessibile: `flex: 1` chiede **ciò che resta** dopo le briciole di
+  pane, qualunque sia la finestra. Niente numeri indovinati, e l'elenco si
+  ferma esattamente dove comincia il riepilogo.
+*/
 :host {
-  display: block;
-}
-
-.corrispettivi {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  flex: 1;
+  min-block-size: 0;
 }
 
+/*
+  ⚠️ **Una sola regione di scroll, ed è l'elenco.**
+
+  Testata, filtri e riepilogo stanno fermi; a scorrere sono le righe del
+  periodo, che è ciò che si consulta. Il `1fr` sul pannello e i `min-block-size:
+  0` sono la coppia che lo rende possibile: senza il secondo, un figlio in
+  overflow allarga il genitore invece di scorrere dentro di sé, e torna la barra
+  sulla pagina intera.
+
+  La densità è da gestionale: il `gap` era `--space-5` fra tutti i blocchi, e su
+  una schermata da consultare significava mezzo schermo di aria.
+*/
+.corrispettivi {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  flex: 1;
+  min-block-size: 0;
+}
+
+/*
+  Testata compatta: il titolo e le azioni su una riga sola, e il ritorno
+  «Indietro» accanto al titolo invece che sopra. Lo spazio guadagnato va
+  all'elenco, che è la cosa che si consulta.
+*/
 .corrispettivi__header {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
 }
 
 .corrispettivi__heading {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-2);
 }
 
-// Nel flex a colonna il pulsante non deve stirarsi a tutta larghezza; col gap
-// del blocco lo stacco dal titolo arriva a --space-2, come nelle altre liste.
-.corrispettivi__heading app-back-button {
-  align-self: flex-start;
-  margin-block-end: var(--space-1);
+.corrispettivi__title-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
 }
 
 .corrispettivi__title {
   margin: 0;
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: var(--font-weight-bold);
+}
+
+/*
+  Lo stesso ruolo di `.doc-list__count`: il numero di righe accanto al
+  titolo, non in una riga sua sopra la tabella. Muted e non-bold, perché non è
+  un dato che deve competere col titolo — lo accompagna.
+*/
+.corrispettivi__count {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
 }
 
 .corrispettivi__subtitle {
@@ -41,49 +108,345 @@
   color: var(--color-text-muted);
 }
 
+/*
+  ⚠️ **Stessa densità delle maschere documento, non quella generica.**
+
+  `app-button` senza indicazioni prende `--field-height` (34px) e `--text-sm`
+  (13px) — la taglia di un controllo AUTONOMO. Ma questa è una barra
+  strumenti, e per quel ruolo il sistema ha già una densità sua:
+  `_document-form.scss` la applica a `.doc-form__actions` esattamente così —
+  `--field-height: var(--control-h-button)` (31px) più `--button-font-size:
+  var(--text-xs)` (12px). Cinque bottoni («Aggiungi corrispettivo», Stampa,
+  PDF, Excel, CSV) restavano alla taglia di un bottone isolato in mezzo a una
+  pagina che nel resto — filtri, tabella, totali — è già densa: la barra
+  spiccava più grande di quanto la sua funzione richiedesse.
+*/
 .corrispettivi__header-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+  --field-height: var(--control-h-button);
+  --button-font-size: var(--text-xs);
 }
 
+/*
+  I filtri stanno su una riga finché ci stanno, e vanno a capo stretti quando
+  non ci stanno: il `gap` era `--space-3` e li mandava a capo prima del
+  necessario, prendendo due fasce di altezza a una barra di chip.
+*/
+/*
+  ⚠️ **Due gruppi, non un margine automatico in fondo a una riga lunga.**
+
+  `.corrispettivi__filters-main` (i filtri veri + Raggruppa) e
+  `.corrispettivi__columns-picker` (il pulsante Colonne) sono ORA due figli
+  diretti, separati da `justify-content: space-between` — lo stesso schema
+  già in uso in `.corrispettivi__header`. Ognuno va a capo per conto proprio
+  quando lo spazio manca; nessuno dei due può finire spinto fuori dal bordo.
+
+  Prima Colonne era l'ultimo di una decina di elementi in un'unica riga
+  `flex-wrap`, tenuto a destra da `margin-inline-start: auto`: quando la riga
+  si riempiva, quel margine lo spingeva oltre il bordo destro del contenitore
+  invece di farlo scendere a capo — spariva, non solo si spostava.
+*/
 .corrispettivi__filters {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  /*
+    ⚠️ **«Controlli di testata», non campi generici** — stessa distinzione di
+    sopra, sul lato dei filtri. `_document-form.scss` ridichiara
+    `--field-height: var(--control-h-field)` (32px) su ogni testata
+    documentale per "input, select, date e campo numerazione": una riga di
+    filtri è esattamente quel ruolo, e il token attraversa la cascata fino a
+    ogni `app-select-menu` dentro (compreso il pulsante Colonne, che senza un
+    `--button-h` proprio ricade sullo stesso `--field-height`) — una sola
+    dichiarazione, l'intera riga scende da 34 a 32px insieme.
+  */
+  --field-height: var(--control-h-field);
+  /*
+    Un passo solo (13→12px), lo stesso della tabella qui sotto: un filtro è
+    «info non primaria» quanto un dato di riga, e i due meritano la stessa
+    densità — non due misure diverse per lo stesso livello di importanza.
+
+    ⚠️ **Due proprietà, non una.** `--field-font-size` la leggono i select-menu
+    (Periodo, Origine, Tipo, Sede, Raggruppa); `app-button` — il pulsante
+    Colonne, che vive in questa stessa riga — legge invece
+    `--button-font-size`. Sono due nomi diversi per lo stesso ruolo: senza
+    entrambi, l'altezza di Colonne scendeva (eredita `--field-height` come
+    fallback) ma il suo testo restava a 13px, l'unico rimasto della riga.
+  */
+  --field-font-size: var(--text-xs);
+  --button-font-size: var(--text-xs);
+}
+
+.corrispettivi__filters-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-inline-size: 0;
+}
+
+/*
+  ⚠️ **Un chip si comprimeva invece di andare a capo.** Misurato su mobile
+  (373px): «Tipo» restava a bordo schermo, tagliato, invece di scendere sulla
+  riga sotto — senza `flex-shrink: 0` un figlio flex si restringe prima che il
+  wrap scatti, e un `select-menu` compresso sotto la sua larghezza a contenuto
+  taglia semplicemente il testo del trigger. Ogni filtro deve andare a capo
+  INTERO, mai stringersi.
+*/
+.corrispettivi__filters-main > * {
+  flex-shrink: 0;
 }
 
 .corrispettivi__filter--active {
   background-color: var(--color-primary-subtle);
 }
 
+/*
+  ⚠️ **Senza riga di testa**: prima era una griglia a due righe (`auto` per il
+  titolo del pannello, `1fr` per lo scroll). Tolto il titolo — saliva accanto
+  a `Corrispettivi`, vedi sopra — il pannello È la sola area di scroll, e basta
+  un flex a colonna: niente più una riga `auto` vuota da mantenere allineata.
+*/
 .corrispettivi__panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-5);
+  min-block-size: 0;
+  padding: var(--space-3);
   background-color: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
 }
 
-.corrispettivi__panel-head {
+/* L'unica cosa che scorre. */
+.corrispettivi__panel-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-block-size: 0;
+}
+
+/*
+  Nessun `margin-inline-start: auto` qui: la posizione a destra la dà
+  `justify-content: space-between` sul genitore `.corrispettivi__filters`,
+  fra questo elemento e `.corrispettivi__filters-main`. `flex-shrink: 0`
+  perché un pulsante con un'icona e una parola non deve mai restringersi.
+*/
+.corrispettivi__columns-picker {
+  flex-shrink: 0;
+}
+
+/*
+  ⚠️ **Le due vesti si escludono a vicenda, sulla stessa soglia.**
+
+  Sopra `lg`: i quattro pulsanti di export in linea, i chip filtro in barra.
+  Sotto `lg`: un solo «Esporta» e un solo «Filtri (n)».
+
+  La soglia è UNA (`lg`) e vale per entrambe le coppie — se divergessero, in
+  mezzo comparirebbero tutte e due le vesti insieme, che è il difetto che
+  `regole-stile-ui` §9 chiama «la stessa riga non esiste due volte».
+
+  `--button-flex: none` perché `app-button` ha l'host `display: contents`: il
+  `<button>` interno sta nel flusso del contenitore, e da fuori si governa solo
+  con le custom property (regole-stile-ui §5).
+*/
+.corrispettivi__export-menu {
+  display: none;
+}
+
+@include bp.media-down('lg') {
+  .corrispettivi__export-menu {
+    display: inline-flex;
+  }
+
+  .corrispettivi__export-inline {
+    display: none;
+  }
+
+  /*
+    I filtri in barra spariscono: il loro posto lo prende il pulsante «Filtri»,
+    che il mixin condiviso accende esattamente su questa soglia.
+  */
+  .corrispettivi__filters-main {
+    display: none;
+  }
+
+  /*
+    ⚠️ **Due comandi affiancati, non due comandi agli antipodi.**
+
+    `justify-content: space-between` serve su desktop, dove a sinistra c'è una
+    barra di filtri lunga e Colonne è l'unica cosa a destra. Su mobile restano
+    solo «Filtri» e «Colonne»: la stessa regola li spara ai due bordi con un
+    vuoto in mezzo, e due pulsanti isolati agli angoli non si leggono come una
+    coppia — sembrano due cose senza rapporto.
+
+    Qui dividono la larghezza in parti uguali, sotto la coppia della testata:
+    quattro comandi in due file ordinate, tutti della stessa taglia.
+  */
+  .corrispettivi__filters {
+    justify-content: flex-start;
+    gap: var(--space-2);
+  }
+
+  /*
+    ⚠️ **Tre comandi «sulla vista» in UNA fila**: Esporta · Filtri · Colonne.
+    Prima Esporta stava nella fascia della testata e questi due qui sotto,
+    quindi due fasce per tre pulsanti dello stesso rango. Parti uguali, così
+    la fila si legge come un gruppo invece che come tre decisioni separate.
+
+    Il padding orizzontale scende di un gradino e il testo va a `--text-xs`:
+    l'ALTEZZA resta 44px — è il minimo tappabile, e quello non si tocca — ma
+    la larghezza sprecata ai lati sì.
+  */
+  .corrispettivi__export-menu,
+  .corrispettivi__mobile-filters,
+  .corrispettivi__columns-picker {
+    flex: 1;
+    justify-content: center;
+    min-inline-size: 0;
+  }
+
+  .corrispettivi__mobile-filters {
+    justify-content: center;
+    padding-inline: var(--space-2);
+    font-size: var(--text-xs);
+  }
+
+  /* Il selettore Colonne è un `app-button`: si governa dalle custom property. */
+  .corrispettivi__columns-picker {
+    --button-inline-size: 100%;
+    --button-pad-inline: var(--space-2);
+  }
+
+  .corrispettivi__export-menu {
+    --action-menu-pad-inline: var(--space-2);
+    --action-menu-inline-size: 100%;
+  }
+
+  /*
+    La testata non ha più una fascia di azioni propria: la CTA è salita nella
+    riga del titolo (dove «Nuovo» sta nello spazio già speso dal titolo) e
+    l'export è sceso con Filtri e Colonne. Restano i soli pulsanti in linea,
+    che qui sono spenti — quindi la fascia sparisce del tutto.
+  */
+  .corrispettivi__header-actions {
+    display: none;
+  }
+
+  /*
+    Riga del titolo: «Indietro», il nome della pagina col conteggio, e la CTA
+    ancorata a destra. Il pulsante «Indietro» stringe i fianchi — a 44px di
+    altezza il suo padding orizzontale predefinito è pensato per una testata
+    desktop, non per dividere una riga in tre.
+  */
+  /*
+    `flex: 1` è ciò che dà al `margin-inline-start: auto` di «Nuovo» lo spazio
+    in cui spingere: senza, il gruppo del titolo è largo quanto il suo
+    contenuto — la fascia delle azioni qui è spenta, quindi resta l'unico
+    figlio e `space-between` sul genitore non ha nulla da distanziare — e il
+    pulsante finiva appiccicato al titolo invece che al bordo destro.
+  */
+  .corrispettivi__heading {
+    flex: 1;
+    flex-wrap: wrap;
+    --back-button-pad-inline: var(--space-2);
+    --back-button-font-size: var(--text-xs);
+  }
+
+  /*
+    ⚠️ **A spingere «Nuovo» a destra è il TITOLO che si allarga**, non un
+    margine automatico sul pulsante: `app-button` ha l'host `display: contents`
+    (regole-stile-ui §5), quindi un `margin-inline-start: auto` dichiarato lì
+    non ha alcun effetto — nel flusso ci sta il `<button>` interno, non l'host.
+    Il titolo prende lo spazio che avanza e il pulsante finisce al bordo.
+  */
+  .corrispettivi__title-row {
+    flex: 1;
+  }
+
+  .corrispettivi__new {
+    --button-pad-inline: var(--space-3);
+    --button-font-size: var(--text-xs);
+  }
+}
+
+/*
+  ⚠️ **Su mobile scorre la PAGINA, non una finestrella dentro la pagina.**
+
+  Sopra `lg` l'elenco è l'unica regione di scroll: testata, filtri e riepilogo
+  restano fermi sott'occhio mentre le righe scorrono, ed è giusto — su un
+  monitor lo spazio per farlo c'è.
+
+  Sotto `lg` la stessa costruzione si ritorce: `1fr` di un'altezza già limitata
+  al viewport riduce l'elenco a uno spioncino di poche card, con la sua barra di
+  scorrimento dentro un'altra barra di scorrimento, e una card tagliata a metà
+  in fondo. Misurato su iPhone 390×844: all'elenco restavano ~330px.
+
+  Qui i vincoli si sciolgono: righe `auto`, nessun `overflow` interno, nessun
+  `flex: 1`. A scorrere torna `.shell__content`, che è la regione di scroll
+  della shell — il riepilogo diventa la coda del documento, esattamente come
+  `regole-stile-ui` §7 prescrive per i totali su mobile.
+*/
+@include bp.media-down('lg') {
+  :host {
+    display: block;
+    flex: none;
+  }
+
+  .corrispettivi {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /*
+    ⚠️ **Il pannello smette di essere una card: le card sono le righe.**
+
+    Su mobile si sommavano tre contenitori — il padding della shell, quello del
+    pannello e quello della card — per 36px prima che cominciasse il testo, su
+    uno schermo che ne ha 390. Un riquadro attorno a un elenco di riquadri non
+    separa niente: qui il pannello è solo il posto dove stanno le card, e a
+    staccarle dal fondo pagina bastano il loro bordo e la loro superficie.
+
+    `regole-stile-ui` §4 «Spaziature mobile» lo dice per le card: su phone il
+    contenuto vale più dell'aria ai lati.
+  */
+  .corrispettivi__panel {
+    min-block-size: 0;
+    padding: 0;
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .corrispettivi__panel-scroll {
+    flex: none;
+    overflow-y: visible;
+  }
+}
+
+/* Conteggio in coda all'elenco: informazione di servizio, non un dato. */
+.corrispettivi__rowcount {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: end;
+}
+
+/* Campo del pannello filtri: etichetta sopra, controllo a piena larghezza. */
+.corrispettivi__field {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
-.corrispettivi__panel-title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.corrispettivi__panel-hint {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
+.corrispettivi__label {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-field-label);
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
 }
 
 @include bp.media-up('md') {

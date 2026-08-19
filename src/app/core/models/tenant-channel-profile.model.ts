@@ -117,12 +117,16 @@ export function reportPageSubtitle(profile: TenantChannelProfile | undefined): s
   return 'Analytics commerciali, corrispettivi manuali e giacenze per location.';
 }
 
-/** Hint pannello Sede fisica in Impostazioni. */
+/**
+ * Hint pannello Dati di attivazione in Impostazioni. Dice due volte da dove
+ * arriva il dato e a cosa NON serve: è l'unico posto dove un titolare può
+ * scambiarlo per l'anagrafica che intesta i documenti.
+ */
 export function tenantCompanyPanelHint(profile: TenantChannelProfile | undefined): string {
-  if (showShopifyIntegration(profile)) {
-    return 'Anagrafica registrata in VestiFlow dall’operatore. Identifica l’azienda del cliente ed è indipendente dalle sedi operative collegate a Shopify.';
-  }
-  return 'Anagrafica registrata in VestiFlow dall’operatore. Identifica l’azienda del cliente ed è indipendente dalle sedi operative del magazzino.';
+  const coda = showShopifyIntegration(profile)
+    ? 'ed è indipendente dalle sedi operative collegate a Shopify.'
+    : 'ed è indipendente dalle sedi operative del magazzino.';
+  return `Registrati all’attivazione dell’account e gestiti dall’assistenza VestiFlow. Documenti e stampe usano i Dati azienda, ${coda}`;
 }
 
 export function productImportIntro(profile: TenantChannelProfile | undefined): string {
@@ -162,19 +166,27 @@ export function inventoryCountCloseHint(profile: TenantChannelProfile | undefine
     : 'tracciate e le giacenze verranno aggiornate nel gestionale.';
 }
 
+/**
+ * Sottotitolo del Registro Corrispettivi.
+ *
+ * ⚠️ Riscritto il 16/08/2026, e diceva tre cose che non sono più vere: «stati
+ * fiscali» e «storico consegne» — entrambi ritirati — e soprattutto «le vendite
+ * POS sono escluse», che era l'intenzione opposta a quella decisa. **Shopify POS
+ * compare nel Registro** come vendita fisica/POS: che la cassa la certifichi non
+ * la fa sparire dal quadro economico interno, la classifica.
+ */
 export function corrispettiviReportSubtitle(profile: TenantChannelProfile | undefined): string {
-  if (showShopifyIntegration(profile)) {
-    return 'Riepilogo vendite online Shopify con stati fiscali, export e storico consegne. Le vendite POS sono escluse (gestite da cassa).';
-  }
-  return 'Riepilogo vendite online registrate nel gestionale, con stati fiscali, export e storico consegne. Le vendite POS sono escluse (gestite da cassa).';
+  return showShopifyIntegration(profile)
+    ? 'Quadro economico delle vendite e delle rettifiche, online e fisiche/POS. Filtra il periodo e stampa o esporta.'
+    : 'Quadro economico delle vendite e delle rettifiche registrate nel gestionale. Filtra il periodo e stampa o esporta.';
 }
 
 export function corrispettiviReportFilterSubtitle(
   profile: TenantChannelProfile | undefined,
 ): string {
   return showShopifyIntegration(profile)
-    ? 'Filtra vendite Shopify per periodo. Di default mostra solo vendite online.'
-    : 'Filtra vendite online per periodo. Di default mostra solo vendite online.';
+    ? 'Filtra per periodo e ambito. Senza filtri il Registro mostra tutto.'
+    : 'Filtra per periodo. Senza filtri il Registro mostra tutto.';
 }
 
 export function corrispettiviReportEmptyHint(profile: TenantChannelProfile | undefined): string {

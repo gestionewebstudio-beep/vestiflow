@@ -200,7 +200,14 @@
                   autocomplete="off"
                   placeholder="mio-negozio.myshopify.com"
                   spellcheck="false"
+                  [attr.aria-invalid]="showConfirmError('confirmShopDomain')"
                 />
+                @if (showConfirmError('confirmShopDomain')) {
+                  <span class="shop-change-wizard__field-error">
+                    Scrivi il dominio del negozio per confermare: senza conferma i dati non vengono
+                    rimossi.
+                  </span>
+                }
               </label>
 
               <label class="shop-change-wizard__option shop-change-wizard__option--ack">
@@ -257,7 +264,13 @@
                     autocomplete="off"
                     placeholder="nuovo-negozio.myshopify.com"
                     spellcheck="false"
+                    [attr.aria-invalid]="showConnectError('shop')"
                   />
+                  @if (showConnectError('shop')) {
+                    <span class="shop-change-wizard__field-error">
+                      Inserisci il dominio del nuovo negozio, es. nuovo-negozio.myshopify.com.
+                    </span>
+                  }
                 </label>
               </form>
             </div>

@@ -38,7 +38,7 @@ export class CashSessionsController {
   constructor(private readonly cashSessions: CashSessionsService) {}
 
   @Get()
-  @RequireAnyPermissions([TenantPermission.ReportsView, TenantPermission.RetailRegister])
+  @RequireAnyPermissions([TenantPermission.SectionReports, TenantPermission.RetailRegister])
   list(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: UserProfileDto,

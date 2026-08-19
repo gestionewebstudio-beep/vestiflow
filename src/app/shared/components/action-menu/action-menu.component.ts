@@ -42,6 +42,18 @@ export class ActionMenuComponent {
   readonly items = input.required<readonly ActionMenuItem[]>();
   readonly ariaLabel = input<string>('Azioni');
 
+  /**
+   * Etichetta visibile sul pulsante che apre il menu. Vuota (default) = il
+   * trigger resta il quadrato «···» delle righe di tabella, dove lo spazio non
+   * c'è e l'icona basta. Valorizzata, il menu diventa un comando NOMINATO da
+   * barra strumenti («Esporta»): raccoglie più azioni dietro un pulsante solo
+   * senza che l'operatore debba indovinare cosa c'è sotto tre puntini.
+   */
+  readonly triggerLabel = input<string>('');
+
+  /** Icona del trigger. Cambia solo quando il menu ha un nome proprio. */
+  readonly triggerIcon = input<string>('pi-ellipsis-h');
+
   readonly actionSelected = output<string>();
 
   protected readonly open = signal(false);

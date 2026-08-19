@@ -6,6 +6,31 @@ import {
   type BarcodeScanInput,
 } from '@core/utils/parse-barcode-scan-input.util';
 import { ProductService } from '@domain/products/services/product.service';
+import type { VariantSummary } from '@domain/products/models/variant-summary.model';
+
+/**
+ * L'unico elemento che soddisfa il criterio, oppure `null`.
+ *
+ * ⚠️ Zero risultati e due risultati portano allo stesso esito — ed è una scelta
+ * **di questo percorso**, non una regola generale. Vale per la scansione: il
+ * lettore spara e va, e fermarlo per far scegliere interromperebbe un gesto che
+ * deve essere immediato; meglio non richiamare nulla e lasciare che l'operatore
+ * guardi la riga.
+ *
+ * Dove l'operatore è già lì che guarda — la conferma di un codice digitato in
+ * una riga documento — vale l'opposto, e gli esiti sono **tre**: nessuna, una,
+ * più d'una. Quel percorso non passa di qui: sta in
+ * `DocumentCodeLookupService`, che ha un tipo capace di dire «eccone tre».
+ * Appiattire i due casi lì farebbe comportare un codice giusto come un codice
+ * inesistente.
+ */
+function onlyMatch(
+  rows: readonly VariantSummary[],
+  predicate: (row: VariantSummary) => boolean,
+): string | null {
+  const matches = rows.filter(predicate);
+  return matches.length === 1 ? matches[0]!.variantId : null;
+}
 
 /** Opzioni di risoluzione: filtri di contesto + fallback locale del modulo. */
 export interface BarcodeResolveOptions {
@@ -64,7 +89,18 @@ export class BarcodeLookupService {
     );
   }
 
-  /** Ricerca libera limitata: accetta SOLO corrispondenze esatte barcode/SKU. */
+  /**
+   * Ricerca libera limitata: accetta SOLO corrispondenze esatte, su tutte e
+   * quattro le chiavi di identità dell'articolo.
+   *
+   * L'ordine non è casuale — è dal più specifico al più condiviso. L'EAN
+   * identifica la variante; lo SKU pure, ma è nostro e riscrivibile; il codice
+   * articolo identifica il PRODOTTO, quindi può valere per più varianti; il
+   * codice fornitore vive sul legame Fornitore↔Variante, e fornitori diversi
+   * possono usare lo stesso codice per articoli diversi. Sugli ultimi due si
+   * accetta solo un risultato non ambiguo: indovinare fra due articoli è peggio
+   * che lasciare la scelta a chi sta ordinando.
+   */
   private searchExactVariantId(
     code: string,
     options: BarcodeResolveOptions,
@@ -84,7 +120,13 @@ export class BarcodeLookupService {
           }
           const normalized = code.toUpperCase();
           const exactSku = rows.find((row) => row.sku.trim().toUpperCase() === normalized);
-          return exactSku?.variantId ?? null;
+          if (exactSku) {
+            return exactSku.variantId;
+          }
+          return (
+            onlyMatch(rows, (row) => row.articleCode?.trim().toUpperCase() === normalized) ??
+            onlyMatch(rows, (row) => row.supplierSku?.trim().toUpperCase() === normalized)
+          );
         }),
         catchError(() => of(null)),
       );

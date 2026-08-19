@@ -39,6 +39,8 @@ export interface User extends TenantScoped, Timestamped {
   /** Permessi granulari (titolare: ignorati, accesso pieno). */
   readonly permissions: readonly string[];
   readonly isActive: boolean;
+  /** Password iniziale impostata da chi ha creato l'account: l'app chiede di cambiarla al primo accesso. */
+  readonly mustChangePassword?: boolean;
   /** Admin Vestiflow: provisioning clienti (da PLATFORM_ADMIN_EMAILS). */
   readonly isPlatformAdmin: boolean;
   /** Sessione assistenza attiva (operatore nel gestionale cliente). */

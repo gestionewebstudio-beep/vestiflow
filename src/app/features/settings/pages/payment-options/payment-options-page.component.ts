@@ -4,8 +4,10 @@ import { DestroyRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { catchError, map, of, startWith, switchMap, take } from 'rxjs';
 
+import { AuthService } from '@core/auth';
 import { isAppError } from '@core/models/app-error.model';
 import type { PaymentOption, PaymentOptionKind } from '@core/models/payment-option.model';
+import { canManageSettingsCompany } from '@core/permissions/tenant-permissions.util';
 import { PaymentOptionsService } from '@core/services/payment-options.service';
 import { ToastService } from '@core/services/toast.service';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
@@ -41,6 +43,16 @@ export class PaymentOptionsPageComponent {
   private readonly service = inject(PaymentOptionsService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly auth = inject(AuthService);
+
+  /**
+   * Chi non lo ha legge i due elenchi, ma non trova il campo «Nuova voce» né i
+   * comandi Rinomina, Disattiva ed Elimina: l'API riserva ogni scrittura sulle
+   * voci pagamento al permesso «Impostazioni azienda».
+   */
+  protected readonly puoGestireImpostazioniAzienda = computed(() =>
+    canManageSettingsCompany(this.auth.currentUser()),
+  );
 
   protected readonly kinds: readonly {
     readonly kind: PaymentOptionKind;

@@ -10,6 +10,9 @@ describe('TenantFeatureSettingsService', () => {
       upsert: vi.fn(),
       update: vi.fn(),
     },
+    userDocumentPriceModePreference: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
   };
 
   let service: TenantFeatureSettingsService;
@@ -111,6 +114,72 @@ describe('TenantFeatureSettingsService', () => {
         serialsEnabled: true,
         defaultUnitOfMeasure: 'kg',
       },
+    });
+  });
+
+  /**
+   * Cambiare la convenzione aziendale azzera le memorie netto/ivato degli
+   * operatori sui tipi di VENDITA.
+   *
+   * Senza, l'impostazione sembrerebbe rotta: il titolare mette «netto» e chi
+   * ha già creato una fattura continua a vedersela nascere ivata, per una
+   * memoria che non sa di avere.
+   */
+  describe('cambio della convenzione aziendale prezzi', () => {
+    beforeEach(() => {
+      prisma.tenantFeatureSettings.upsert.mockResolvedValue({
+        tenantId,
+        salesPricesIncludeVat: true,
+      });
+      prisma.tenantFeatureSettings.update.mockResolvedValue({
+        tenantId,
+        salesPricesIncludeVat: false,
+      });
+    });
+
+    it('cambiandola, azzera le memorie degli operatori sui tipi di vendita', async () => {
+      await service.update(tenantId, { salesPricesIncludeVat: false });
+
+      expect(prisma.userDocumentPriceModePreference.deleteMany).toHaveBeenCalledWith({
+        where: {
+          tenantId,
+          documentType: { in: expect.arrayContaining(['invoice_draft', 'sales_ddt', 'quote']) },
+        },
+      });
+    });
+
+    it('non tocca i tipi di ACQUISTO: i costi non hanno né convenzione né memoria', async () => {
+      await service.update(tenantId, { salesPricesIncludeVat: false });
+
+      const chiamata = prisma.userDocumentPriceModePreference.deleteMany.mock.calls[0]![0] as {
+        where: { documentType: { in: string[] } };
+      };
+      const tipi = chiamata.where.documentType.in;
+      expect(tipi).not.toContain('goods_receipt');
+      expect(tipi).not.toContain('supplier_order');
+    });
+
+    it('non tocca la cassa: store_sale resta fuori dalla convenzione', async () => {
+      await service.update(tenantId, { salesPricesIncludeVat: false });
+
+      const chiamata = prisma.userDocumentPriceModePreference.deleteMany.mock.calls[0]![0] as {
+        where: { documentType: { in: string[] } };
+      };
+      const tipi = chiamata.where.documentType.in;
+      expect(tipi).not.toContain('store_sale');
+      expect(tipi).not.toContain('store_return');
+    });
+
+    it('riscriverla UGUALE non azzera niente: nessuno ha cambiato convenzione', async () => {
+      await service.update(tenantId, { salesPricesIncludeVat: true });
+
+      expect(prisma.userDocumentPriceModePreference.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('cambiare un altro campo non azzera le memorie', async () => {
+      await service.update(tenantId, { lotsEnabled: true });
+
+      expect(prisma.userDocumentPriceModePreference.deleteMany).not.toHaveBeenCalled();
     });
   });
 });

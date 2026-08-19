@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { LookupStoreSaleItemQueryDto } from './dto/lookup-store-sale-item.query.dto';
@@ -31,11 +33,29 @@ export class StoreSaleLookupService {
   /**
    * Match esatto barcode/SKU (scansione) o ricerca libera su SKU/nome prodotto.
    * Restituisce sempre Giacenza/Impegnata/Disponibile alla location (§8).
+   *
+   * Senza utente in contesto (chiamate interne, lavori di sistema) non si
+   * decide nulla qui: l'autorizzazione l'ha già data chi ha avviato
+   * l'operazione — è `assertLocationReadableInUserScope` a lasciar passare.
    */
   async lookupItems(
     tenantId: string,
     query: LookupStoreSaleItemQueryDto,
+    user?: UserProfileDto,
   ): Promise<StoreSaleItemLookupResult[]> {
+    // Il gate della rotta chiede «usa la cassa», ma la sede arriva dalla query
+    // ed è validata solo come UUID: senza questo controllo la cassa di un
+    // negozio leggeva Giacenza/Impegnata/Disponibile di qualunque altra sede
+    // del tenant. Il controllo sta prima della ricerca, non solo prima delle
+    // giacenze: una sede fuori dal proprio ambito non deve costare nemmeno una
+    // query. Chi ha `inventory.view_all_locations`, il titolare e chi ha
+    // accesso a tutte le sedi continuano a vedere tutto.
+    assertLocationReadableInUserScope(
+      user,
+      query.locationId,
+      'Non sei autorizzato a consultare la disponibilità di questo magazzino.',
+    );
+
     const code = query.code.trim();
 
     const exact = await this.prisma.productVariant.findMany({

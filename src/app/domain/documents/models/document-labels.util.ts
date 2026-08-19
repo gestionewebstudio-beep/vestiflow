@@ -1,5 +1,6 @@
 // Etichette e toni display per tipi e stati documento (it-IT).
 
+import type { IsoDateString } from '@core/models/common.model';
 import { DocumentStatus, DocumentType, type DocumentRecord } from '@core/models/document.model';
 import { formatDate } from '@core/utils/date.util';
 import type { BadgeTone } from '@shared/components/badge/badge.component';
@@ -23,8 +24,9 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   [DocumentType.Proforma]: 'Proforma',
   [DocumentType.InvoiceDraft]: 'Fattura',
   [DocumentType.InvoiceAccompanying]: 'Fattura accompagnatoria',
-  [DocumentType.StoreSale]: 'Vendita negozio',
-  [DocumentType.StoreReturn]: 'Reso vendita negozio',
+  [DocumentType.CreditNote]: 'Nota di credito',
+  [DocumentType.StoreSale]: 'Vendita al banco',
+  [DocumentType.StoreReturn]: 'Reso vendita al banco',
   [DocumentType.Quote]: 'Preventivo',
   [DocumentType.CustomerOrder]: 'Ordine cliente',
 };
@@ -34,7 +36,6 @@ const STATUS_LABELS: Record<DocumentStatus, string> = {
   [DocumentStatus.Confirmed]: 'Confermato',
   [DocumentStatus.Printed]: 'Stampato',
   [DocumentStatus.Sent]: 'Inviato',
-  [DocumentStatus.ExternallyRegistered]: 'Registrato esternamente',
   [DocumentStatus.Cancelled]: 'Annullato',
 };
 
@@ -43,7 +44,6 @@ const STATUS_TONES: Record<DocumentStatus, BadgeTone> = {
   [DocumentStatus.Confirmed]: 'success',
   [DocumentStatus.Printed]: 'info',
   [DocumentStatus.Sent]: 'info',
-  [DocumentStatus.ExternallyRegistered]: 'vestiflow',
   [DocumentStatus.Cancelled]: 'error',
 };
 
@@ -61,15 +61,13 @@ export function documentStatusLabelForType(
   status: DocumentStatus,
   doc: Pick<DocumentRecord, 'externallyIssuedAt'>,
 ): string {
-  // Stati fiscali condivisi da Fattura e Fattura accompagnatoria: entrambe
-  // seguono lo stesso ciclo «Da emettere → Inviata al commercialista».
-  // ExternallyRegistered è lo stato impostato dall'azione «Inviata al
-  // commercialista»; Sent non è più raggiungibile e resta mappato solo per i
-  // documenti storici che lo hanno già.
+  // Stati fiscali di Fattura e Fattura accompagnatoria. `Sent` non è più
+  // raggiungibile e resta mappato solo per i documenti storici che lo hanno già.
+  //
+  // ⚠️ `ExternallyRegistered` non esiste più (16/08/2026): l'azione «Inviata
+  // al commercialista» è stata rimossa e i due arrivi merce che lo portavano
+  // sono tornati `confirmed`. Il valore resta nel tipo PostgreSQL, morto.
   if (isSalesInvoiceDocumentType(type)) {
-    if (status === DocumentStatus.ExternallyRegistered) {
-      return 'Inviata al commercialista';
-    }
     if (status === DocumentStatus.Sent && doc.externallyIssuedAt) {
       return 'Emessa esternamente';
     }
@@ -168,6 +166,47 @@ export function goodsReceiptLinkStatusTone(
     default:
       return null;
   }
+}
+
+/**
+ * I tre campi del documento emesso dalla controparte (il DDT del fornitore, la
+ * fattura, l'ordine del cliente). Forma strutturale e non `DocumentRecord`: la
+ * stessa terna vive anche sugli ordini cliente e sugli ordini fornitore, che
+ * non sono `Document`.
+ */
+export interface CounterpartyDocRef {
+  /** Etichetta del tipo fotografata al salvataggio (es. 'DDT', 'Fatt.'). */
+  readonly externalDocumentTypeSnapshot?: string;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
+}
+
+/**
+ * «DDT 145 del 8 mag 2026»: il documento della controparte in una voce sola.
+ *
+ * L'etichetta del tipo viene dallo SNAPSHOT scritto sul documento, mai
+ * dall'elenco dei tipi: un tipo eliminato sparisce dalle tendine ma resta sui
+ * documenti che lo portano, e chi li legge deve continuare a dirlo.
+ *
+ * Restituisce '' quando non c'è nessuno dei tre campi, così chi chiama sa che la
+ * riga non va stampata affatto: l'interfaccia è densa per scelta, e un «—» in
+ * più su ogni documento è rumore.
+ *
+ * Sta in `domain/` e non nelle utility di una feature perché la leggono elenco
+ * documenti, dettagli, anteprima di stampa E il dettaglio dell'ordine fornitore,
+ * che vive in un'altra feature: da lì non potrebbe importarla, e se ne
+ * riscriverebbe una copia — come infatti era successo.
+ */
+export function counterpartyDocLabel(doc: CounterpartyDocRef): string {
+  const head = [doc.externalDocumentTypeSnapshot, doc.externalDocNumber]
+    .map((part) => part?.trim() ?? '')
+    .filter((part) => part.length > 0)
+    .join(' ');
+  if (!doc.externalDocDate) {
+    return head;
+  }
+  const date = formatDate(doc.externalDocDate);
+  return head ? `${head} del ${date}` : date;
 }
 
 /** Etichetta breve del documento in lista. */

@@ -19,10 +19,25 @@ export const TableViewId = {
   QuoteLines: 'quote_lines',
   SalesDdtLines: 'sales_ddt_lines',
   ManualUnloadLines: 'manual_unload_lines',
+  // I due movimenti di magazzino hanno la stessa riga, ma vista propria per
+  // ciascuno: chi allarga una colonna nel Trasferimento non se la ritrova
+  // allargata nella Rettifica, che è un'altra schermata.
+  TransferLines: 'transfer_lines',
+  StockAdjustmentLines: 'stock_adjustment_lines',
+  // Proforma, Fattura e Fattura accompagnatoria condividono una vista sola:
+  // sono la stessa maschera con le stesse colonne, e l'unica che cambia
+  // («Scarica mag.») è già condizionata al tipo nel template.
+  SalesDocumentLines: 'sales_document_lines',
+  // Vendita e Reso al banco condividono la vista: sono la stessa maschera, e
+  // le poche colonne essenziali sono le stesse per entrambi.
+  StoreSaleLines: 'store_sale_lines',
   ProductsList: 'products_list',
   CustomersList: 'customers_list',
   SalesOrdersList: 'sales_orders_list',
   ShopifyOrdersList: 'shopify_orders_list',
+  // Registro Corrispettivi: Cliente, Email, Pagamento e Nota vivono qui, spente
+  // di serie. Non sono state rimosse — si riaccendono dal selettore Colonne.
+  CorrispettiviRegister: 'corrispettivi_register',
 } as const;
 export type TableViewId = (typeof TableViewId)[keyof typeof TableViewId];
 

@@ -133,9 +133,39 @@ export class SaveGoodsReceiptLineDto {
   @Min(0)
   enteredUnitCostMinor?: number;
 
+  /**
+   * Prezzo al pubblico digitato sulla riga (unità minori). **Non è un dato
+   * del documento**: non esiste una colonna sulla riga, ed è di proposito —
+   * il prezzo appartiene all'articolo. Serve solo ad aggiornare l'anagrafica
+   * quando la spunta di documento è accesa. `undefined` = non toccare.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sellingPriceMinor?: number;
+
+  /**
+   * Prezzo Shopify digitato sulla riga (unità minori). Distinto dal prezzo al
+   * pubblico e **mai sincronizzato con esso** oltre alla politica esistente:
+   * «la pubblicazione legge sempre e solo questo».
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  shopifyPriceMinor?: number;
+
   @IsOptional()
   @IsBoolean()
   loadsStock?: boolean;
+
+  /**
+   * Unità di misura della riga, fotografata all'inserimento. Testo libero: la
+   * tabella delle unità suggerisce, non obbliga (specifica §4.3-ter).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  unitOfMeasure?: string;
 
   @IsOptional()
   @IsUUID()
@@ -278,11 +308,26 @@ export class SaveGoodsReceiptDto {
   lines?: SaveGoodsReceiptLineDto[];
 
   /**
-   * Spunta di documento: se true, il costo pagato aggiorna ANCHE il costo di
-   * riferimento dell'articolo. Il costo effettivo della variante viene comunque
-   * aggiornato dal carico, a prescindere da questo flag.
+   * Spunta di documento: se true, il costo digitato su ogni riga diventa il
+   * costo dell'articolo in anagrafica — riga per riga.
+   *
+   * ⛔ Se false, in anagrafica non va nulla: il costo resta un dato del
+   * DOCUMENTO, per report e contabilità. L'ultimo prezzo pagato al fornitore si
+   * aggiorna comunque, spunta o no (`03b`, 19/08/2026).
    */
   @IsOptional()
   @IsBoolean()
-  updateArticleReferenceCost?: boolean;
+  updateArticleCost?: boolean;
+
+  /**
+   * Spunta di documento «Aggiorna prezzi articolo», accesa di default.
+   *
+   * Decide se i prezzi digitati sulle righe aggiornano l'anagrafica. A
+   * differenza del costo **non c'è un effetto “sempre”**: il prezzo non è un
+   * fatto del carico, e senza la spunta i campi restano in sola lettura —
+   * un campo editabile senza destinazione sarebbe una bugia.
+   */
+  @IsOptional()
+  @IsBoolean()
+  updateArticlePrices?: boolean;
 }

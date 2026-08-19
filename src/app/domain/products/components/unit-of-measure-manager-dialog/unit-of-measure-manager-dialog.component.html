@@ -1,0 +1,14 @@
+<!--
+  `narrow`: l'elenco è di sei voci corte, e a larghezza piena il pannello
+  sembrava una pagina intera aperta sopra il documento per gestire due parole.
+  Un pannello è largo quanto il contenuto che ospita (regole-stile-ui §4).
+-->
+<app-slide-panel [open]="open()" size="narrow" title="Unità di misura" (closed)="closed.emit()">
+  @if (open()) {
+    <app-unit-of-measure-manager
+      [active]="open()"
+      (changed)="changed.emit()"
+      (created)="created.emit($event)"
+    />
+  }
+</app-slide-panel>

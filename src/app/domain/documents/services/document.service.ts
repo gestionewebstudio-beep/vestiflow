@@ -9,6 +9,7 @@ import { ApiHttpClient } from '@core/http/api-http.client';
 import type { PaginatedResponse } from '@core/models/api.model';
 import type { EntityId } from '@core/models/common.model';
 import type { DocumentRecord, DocumentRevision } from '@core/models/document.model';
+import type { ChronologyCheck } from '../models/document-chronology.model';
 import type { DocumentAttachment } from '@core/models/document.model';
 import { DocumentType } from '@core/models/document.model';
 
@@ -17,6 +18,7 @@ import type { LinkableGoodsReceipt } from '../models/goods-receipt-causal.model'
 import {
   mapDocumentApiRow,
   mapVatBreakdown,
+  type ConvertPrefillBody,
   type CreateDocumentBody,
   type DocumentApiRow,
   type GoodsReceiptCreatedProductApiRow,
@@ -32,6 +34,17 @@ const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
 /** Operatore che ha creato almeno un documento (filtro elenco). */
+/**
+ * Intestazione emittente di un documento, già composta dal server: ragione
+ * sociale, righe sotto di essa (indirizzo, identificativi fiscali, contatti) e
+ * la riga di piede del Registro Imprese, quando c'è.
+ */
+export interface DocumentPrintHeader {
+  readonly legalName: string;
+  readonly lines: readonly string[];
+  readonly footer: string | null;
+}
+
 export interface DocumentOperator {
   readonly id: EntityId;
   readonly name: string;
@@ -67,7 +80,6 @@ export class DocumentService {
     if (query.settlement) params = params.set('settlement', query.settlement);
     if (query.paymentMethod) params = params.set('paymentMethod', query.paymentMethod);
     if (query.createdById) params = params.set('createdById', query.createdById);
-    if (query.accountant) params = params.set('accountant', '1');
     if (query.pendingInvoice) params = params.set('pendingInvoice', '1');
 
     return this.http.get<ApiPaginated<DocumentApiRow>>(this.url('/documents'), { params }).pipe(
@@ -104,10 +116,21 @@ export class DocumentService {
 
   previewDocumentNumber(
     type: DocumentType,
-    options: { series?: string | null } = {},
+    options: {
+      series?: string | null;
+      locationId?: string | null;
+      documentDate?: string | null;
+    } = {},
   ): Observable<{ reference: string; previewNumber: number; series: string | null }> {
     let params = new HttpParams().set('type', type);
     if (options.series) params = params.set('series', options.series);
+    // Senza serie esplicita è la sede a decidere quale contatore predefinito si
+    // applica (§1-bis): un'anteprima che la ignora mostra una serie diversa da
+    // quella che il salvataggio assegnerà.
+    if (options.locationId) params = params.set('locationId', options.locationId);
+    // E il numero dipende dalla data (§2): senza, l'anteprima dice il primo
+    // libero a oggi anche su un documento datato altrove.
+    if (options.documentDate) params = params.set('documentDate', options.documentDate);
 
     return this.http
       .get<{
@@ -115,6 +138,47 @@ export class DocumentService {
         previewNumber: number;
         series: string | null;
       }>(this.url('/documents/preview-number'), { params })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /**
+   * Controllo cronologico del documento **in salvataggio** (§4): chi, nello
+   * stesso contatore, sta in ordine inverso rispetto alla coppia (numero, data)
+   * che l'operatore ha in testata. Più lo stato della preferenza.
+   *
+   * `series` viaggia sempre, stringa vuota compresa: «Senza serie» è un
+   * contatore vero, non l'assenza di un contatore.
+   *
+   * `number` e `documentDate` sono **obbligatori**: senza di loro il controllo
+   * guarderebbe di nuovo lo stato generale della serie, che è ciò che arrivava
+   * sempre in ritardo di un gesto. Una maschera che non ha un numero in testata
+   * non chiama.
+   */
+  checkChronology(
+    type: DocumentType,
+    series: string | null,
+    number: number,
+    documentDate: string,
+    excludeId?: EntityId | null,
+  ): Observable<ChronologyCheck> {
+    let params = new HttpParams()
+      .set('type', type)
+      .set('series', series ?? '')
+      .set('number', String(number))
+      .set('documentDate', documentDate);
+    if (excludeId) {
+      params = params.set('excludeId', excludeId);
+    }
+    return this.http
+      .get<ChronologyCheck>(this.url('/documents/chronology'), { params })
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
+  /** Spegne l'avviso cronologico per questo tipo documento. Non si riaccende. */
+  dismissChronologyWarning(type: DocumentType): Observable<void> {
+    const params = new HttpParams().set('type', type);
+    return this.http
+      .post<void>(this.url('/documents/chronology/dismiss'), {}, { params })
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
@@ -210,9 +274,9 @@ export class DocumentService {
     if (excludeInvoiceId) params = params.set('excludeInvoiceId', excludeInvoiceId);
 
     return this.http
-      .get<
-        readonly LinkableGoodsReceiptApiRow[]
-      >(this.url('/documents/linkable-goods-receipts'), { params })
+      .get<readonly LinkableGoodsReceiptApiRow[]>(this.url('/documents/linkable-goods-receipts'), {
+        params,
+      })
       .pipe(
         timeout(HTTP_TIMEOUT_MS),
         map((rows) =>
@@ -255,6 +319,20 @@ export class DocumentService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
+  /**
+   * L'intestazione emittente che il documento stamperà, già composta dal
+   * server. Non si ricava dall'anagrafica azienda letta viva: su un documento
+   * già emesso vince lo snapshot congelato all'emissione, ed è il server a
+   * saperlo. Le regole di composizione (il codice fiscale solo se diverso
+   * dalla partita IVA, il REA solo con entrambi i campi) restano di là, dove
+   * le usa anche il PDF.
+   */
+  getPrintHeader(id: EntityId): Observable<DocumentPrintHeader> {
+    return this.http
+      .get<DocumentPrintHeader>(this.url(`/documents/${id}/print-header`))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
+  }
+
   exportPdf(id: EntityId): Observable<Blob> {
     return this.http
       .get(this.url(`/documents/${id}/export/pdf`), { responseType: 'blob' })
@@ -266,16 +344,6 @@ export class DocumentService {
     return this.http
       .get(this.url(`/documents/${id}/export/xml`), { responseType: 'blob' })
       .pipe(timeout(EXPORT_HTTP_TIMEOUT_MS));
-  }
-
-  /** «Inviata al commercialista»: registrazione esterna del documento fiscale. */
-  registerExternal(
-    id: EntityId,
-    body: { externalDocNumber?: string; externalDocDate?: string; note?: string },
-  ): Observable<DocumentRecord> {
-    return this.http
-      .post<DocumentApiRow>(this.url(`/documents/${id}/register-external`), body)
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDocumentApiRow));
   }
 
   listAttachments(id: EntityId): Observable<readonly DocumentAttachment[]> {
@@ -329,9 +397,9 @@ export class DocumentService {
    * `sourceDocumentId`) SENZA crearlo. Il form di destinazione si apre già
    * precompilato e crea il documento solo al salvataggio.
    */
-  convertPrefill(id: EntityId, targetType: DocumentType): Observable<CreateDocumentBody> {
+  convertPrefill(id: EntityId, targetType: DocumentType): Observable<ConvertPrefillBody> {
     return this.http
-      .post<CreateDocumentBody>(this.url(`/documents/${id}/convert-prefill`), { targetType })
+      .post<ConvertPrefillBody>(this.url(`/documents/${id}/convert-prefill`), { targetType })
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
@@ -341,7 +409,7 @@ export class DocumentService {
    */
   getPriceModePreference(type: DocumentType): Observable<boolean> {
     return this.http
-      .get<{ pricesIncludeVat: boolean }>(this.url(`/documents/price-mode-preference/${type}`))
+      .get<{ pricesIncludeVat: boolean }>(this.url(`/users/me/document-price-mode/${type}`))
       .pipe(
         timeout(HTTP_TIMEOUT_MS),
         map((response) => response.pricesIncludeVat),

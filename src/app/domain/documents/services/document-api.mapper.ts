@@ -35,6 +35,7 @@ export interface DocumentLineApiRow {
   /** Costo digitato (Decimal serializzato come stringa dal backend). */
   readonly enteredUnitCost?: string | number | null;
   readonly lineTotalMinor: number;
+  readonly unitOfMeasure?: string | null;
   readonly loadsStock: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId | null;
@@ -215,6 +216,7 @@ function mapLine(row: DocumentLineApiRow, currency: CurrencyCode): DocumentLine 
     enteredUnitCostMinor:
       row.enteredUnitCost != null ? Math.round(Number(row.enteredUnitCost) * 100) : undefined,
     lineTotal: { amountMinor: row.lineTotalMinor, currencyCode: currency },
+    unitOfMeasure: row.unitOfMeasure ?? undefined,
     loadsStock: row.loadsStock,
     isReference: row.isReference === true,
     supplierOrderLineId: row.supplierOrderLineId ?? undefined,
@@ -391,6 +393,13 @@ export function mapDocumentTypeSettingApiRow(row: DocumentTypeSetting): Document
 
 /** Riga documento in creazione/aggiornamento. */
 export interface DocumentLineInputBody {
+  /**
+   * Id della riga già salvata, inviato solo in modifica: dice al server di
+   * aggiornare QUELLA riga invece di cancellarla e ricrearne una nuova.
+   * Assente = riga nuova. Preservare l'id è ciò che tiene agganciati alla riga
+   * il movimento di magazzino e i seriali — `docs/09-specifica-movimenti-per-riga.md`.
+   */
+  readonly id?: EntityId;
   readonly variantId?: EntityId;
   readonly sku?: string;
   readonly description: string;
@@ -402,6 +411,7 @@ export interface DocumentLineInputBody {
   readonly vatCodeId?: EntityId;
   /** Costo unitario digitato (unità minori) nella modalità costo del documento. */
   readonly enteredUnitCostMinor?: number;
+  readonly unitOfMeasure?: string;
   readonly loadsStock?: boolean;
   readonly isReference?: boolean;
   readonly supplierOrderLineId?: EntityId;
@@ -411,6 +421,25 @@ export interface DocumentLineInputBody {
 }
 
 /** Body POST /documents. */
+/**
+ * Risposta del precompilato di conversione: il corpo di creazione **più il tipo
+ * dell'origine**, che serve a comporre la riga di riferimento al predecessore.
+ * Specchio di `ConvertPrefillDto` dell'API — e tipo a sé, perché quel campo non
+ * deve mai diventare accettabile in ingresso.
+ */
+export interface ConvertPrefillBody extends CreateDocumentBody {
+  readonly sourceDocumentType: DocumentType;
+}
+
+/**
+ * Risposta del precompilato «Concludi ordine»: il corpo di creazione più numero
+ * e data dell'ordine, che servono a comporre la riga di riferimento.
+ */
+export interface ConcludePrefillBody extends CreateDocumentBody {
+  readonly sourceSalesOrderNumber: string;
+  readonly sourceSalesOrderPlacedAt: IsoDateString;
+}
+
 export interface CreateDocumentBody {
   readonly type: DocumentType;
   readonly series?: string;
@@ -432,6 +461,12 @@ export interface CreateDocumentBody {
   readonly internalComment?: string;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
+  /**
+   * Tipo del documento della controparte. Omesso lascia il valore invariato,
+   * `null` lo toglie: l'API distingue i due casi apposta, cosi' un salvataggio
+   * che non nomina il campo non puo' cancellare lo snapshot del documento.
+   */
+  readonly externalDocumentTypeId?: EntityId | null;
   readonly sourceDocumentId?: EntityId;
   readonly supplierOrderId?: EntityId;
   readonly billingCause?: string;
@@ -468,6 +503,11 @@ type NullableUpdateHeaderField =
   | 'customerId'
   | 'customerName'
   | 'externalRef'
+  // Documento della controparte: una volta compilato dev'essere anche
+  // cancellabile. Senza `null` il PATCH non ha modo di dire «svuota», e la data
+  // resterebbe appiccicata al documento per sempre.
+  | 'externalDocNumber'
+  | 'externalDocDate'
   | 'paymentTerms'
   | 'paymentMethod'
   | 'expectedDeliveryDate'
@@ -538,7 +578,7 @@ export interface SaveGoodsReceiptBody {
   readonly id?: EntityId;
   readonly type: DocumentType;
   readonly series?: string;
-  /** Protocollo interno imposto: assente = primo libero della serie. */
+  /** Numero interno imposto: assente = primo libero della serie. */
   readonly number?: number;
   readonly documentDate: IsoDateString;
   readonly supplierId?: EntityId;
@@ -561,10 +601,14 @@ export interface SaveGoodsReceiptBody {
   readonly purchaseCostEntryMode?: PurchaseCostEntryMode;
   readonly lines?: readonly SaveGoodsReceiptLineBody[];
   /**
-   * Spunta per-documento: propaga il costo pagato anche al costo di riferimento
-   * dell'articolo. Il costo effettivo della variante è aggiornato comunque.
+   * Spunta per-documento: il costo digitato sulla riga diventa il costo
+   * dell'articolo in anagrafica, **riga per riga**.
+   *
+   * ⛔ Spenta, in anagrafica non va nulla: il costo resta un dato del DOCUMENTO,
+   * per report e contabilità. L'ultimo prezzo pagato al fornitore si aggiorna
+   * comunque — non è anagrafica, è il rapporto col fornitore (03b).
    */
-  readonly updateArticleReferenceCost?: boolean;
+  readonly updateArticleCost?: boolean;
 }
 
 /**
@@ -595,6 +639,10 @@ export interface SaveTransferBody {
   readonly documentDate: IsoDateString;
   readonly locationId: EntityId;
   readonly targetLocationId: EntityId;
+  // ── Documento della controparte ──
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
   readonly notes?: string;
   readonly internalComment?: string;
   readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
@@ -612,6 +660,10 @@ export interface SaveAdjustmentBody {
   readonly documentDate: IsoDateString;
   readonly locationId: EntityId;
   readonly adjustmentDirection: AdjustmentDirection;
+  // ── Documento della controparte ──
+  readonly externalDocumentTypeId?: EntityId | null;
+  readonly externalDocNumber?: string;
+  readonly externalDocDate?: IsoDateString;
   readonly notes?: string;
   readonly internalComment: string;
   readonly lines?: readonly SaveTransferOrAdjustmentLineBody[];
@@ -641,11 +693,13 @@ export interface SavePurchaseInvoiceBody {
   readonly documentDate: IsoDateString;
   /** Data registrazione interna (default oggi, modificabile). */
   readonly registrationDate?: IsoDateString;
-  /** Protocollo interno imposto: assente = primo libero della serie. */
+  /** Numero interno imposto: assente = primo libero della serie. */
   readonly number?: number;
   readonly series?: string;
   readonly externalDocNumber?: string;
   readonly externalDocDate?: IsoDateString;
+  /** Tipo del documento della controparte (proposto: «Fattura»). */
+  readonly externalDocumentTypeId?: EntityId | null;
   readonly notes?: string;
   readonly internalComment?: string;
   /** Tipo pagamento (auto-compilato dall'anagrafica fornitore, modificabile). */

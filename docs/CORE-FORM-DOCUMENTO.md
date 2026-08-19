@@ -49,12 +49,16 @@ valore stale). Un test l'ha fermato prima del commit.
 
 ## Fatto
 
-| Fetta                    | Dove                                                  | Test |
-| ------------------------ | ----------------------------------------------------- | ---- |
-| Caratterizzazione totali | `customer-order-form.component.spec.ts`               | 12   |
-| Caratterizzazione totali | `goods-receipt-form.component.spec.ts`                | 7    |
-| Algoritmo totali         | `domain/documents/utils/document-totals.util.ts`      | 11   |
-| Opzioni Codice IVA riga  | `domain/documents/utils/document-vat-options.util.ts` | 7    |
+| Fetta                                   | Dove                                                                                                | Test |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------- | ---- |
+| Caratterizzazione totali                | `customer-order-form.component.spec.ts`                                                             | 12   |
+| Caratterizzazione totali                | `goods-receipt-form.component.spec.ts`                                                              | 7    |
+| Algoritmo totali                        | `domain/documents/utils/document-totals.util.ts`                                                    | 11   |
+| Opzioni Codice IVA riga                 | `domain/documents/utils/document-vat-options.util.ts`                                               | 7    |
+| Tastiera delle celle di riga            | `domain/documents/utils/document-line-cell-keys.util.ts`                                            | 8    |
+| Cella a ricerca-e-selezione (IVA, U.M.) | `domain/documents/components/document-line-select-cell/`                                            | 13   |
+| Filtro a precedenza-codice              | `domain/documents/utils/document-line-select-filter.util.ts`                                        | 5    |
+| Unità di misura di riga                 | `domain/documents/components/document-line-unit-cell/` + `domain/products/` (elenco, pannello, API) | 3    |
 
 L'algoritmo dei totali era duplicato e divergeva su un solo punto: come
 si decide se l'IVA di una riga concorre al totale. Nell'Ordine cliente
@@ -108,6 +112,28 @@ un contratto stretto (numero proposto, esito).
 
 `focusLastLineField`, `focusNextLineField`, `focusPreviousLineField`,
 `advanceToNextLine`, `onLineFieldKeydown`.
+
+> ⚠️ **Superato: estratto l'11/08/2026.** Questa voce diceva «da NON estrarre
+> così com'è» e rimandava «a quando si decide quale delle due navigazioni è
+> quella giusta». La decisione è stata presa — sta in
+> `docs/03-specifica-unificazione-righe-documento.md` — e il punto unico
+> esiste: `DocumentLineFocusStore` in `domain/documents/state/`, classe-campo
+> generica sul tipo del campo, con un contratto di **dieci voci** che la
+> maschera fornisce.
+>
+> **La stima che reggeva il «no» era vecchia**: parlava di due maschere e ~45
+> righe. Erano **tre** maschere e circa **seicento** righe, e divergevano già —
+> le frecce funzionavano in una sola, la guardia di sola-lettura mancava in
+> un'altra, un identificativo puntava a un elemento inesistente. Il timore
+> dell'astrazione prematura era giusto in linea di principio e sbagliato sui
+> numeri: la scelta non era fra estrarre e non estrarre, ma fra un punto solo e
+> la quarta copia.
+>
+> Ciò che ha evitato «la flag che tiene insieme due comportamenti diversi»: le
+> differenze vere sono passate come **dati** (le dieci voci del contratto), non
+> come condizioni dentro la classe.
+>
+> Il testo qui sotto resta per la storia.
 
 **Da NON estrarre così com'è.** È aritmetica su indici di 5-11 righe,
 accoppiata al DOM, e le due versioni divergono davvero: l'Ordine cliente

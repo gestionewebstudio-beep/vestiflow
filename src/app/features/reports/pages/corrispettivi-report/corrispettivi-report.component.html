@@ -2,100 +2,408 @@
   <header class="corrispettivi__header">
     <div class="corrispettivi__heading">
       <app-back-button />
-      <h1 class="corrispettivi__title">Corrispettivi commercialista</h1>
-      <p class="corrispettivi__subtitle">{{ pageSubtitle() }}</p>
+      <!--
+        ⚠️ **Il conteggio righe non sta più qui** (18/08/2026), ed è passato per
+        tre posti prima di trovare il suo.
+
+        Accanto al titolo — come fa `document-list` — era giusto finché questa
+        riga ospitava solo un nome: da quando ospita anche la CTA, su mobile le
+        toglieva la larghezza, e si leggeva quasi come parte del titolo.
+        Provato poi nella banda dei totali, dove però si confondeva con gli
+        addendi della riconciliazione: quelli sono denaro, questo è quante card
+        hai davanti.
+
+        Vive ora in coda all'elenco, dove risponde alla domanda che ci si fa
+        arrivando in fondo — «le ho viste tutte?» — e sta accanto all'eventuale
+        «Mostra le altre N righe», che è la stessa conversazione.
+      -->
+      <div class="corrispettivi__title-row">
+        <h1 id="corrispettivi-title" class="corrispettivi__title">Corrispettivi</h1>
+      </div>
+      <!--
+        Il sottotitolo descrittivo è caduto: prendeva due righe per dire cosa la
+        schermata è, in una vista che serve a consultare. Resta per i lettori di
+        schermo, e la guida lo spiega per esteso.
+      -->
+      <span class="sr-only">{{ pageSubtitle() }}</span>
+
+      @if (canManageRegister()) {
+        <!--
+          La primary CTA della pagina (`docs/10` §12). Il posto era stato
+          liberato spegnendo il pulsante di export doppione del componente
+          periodo: due primary nella stessa vista sono vietate
+          (regole-stile-ui §5).
+
+          ⚠️ **Sta nella riga del titolo, e dice «Nuovo».** Su mobile occupava
+          da sola una fascia intera sopra il primo dato; qui divide la riga col
+          titolo, che è spazio già speso. L'etichetta si accorcia perché il
+          nome dell'entità è già scritto accanto, a caratteri grandi: «Nuovo»
+          sotto «Corrispettivi» non è ambiguo. Il nome per esteso resta
+          nell'`aria-label`, per chi la pagina non la vede.
+        -->
+        <app-button
+          class="corrispettivi__new"
+          ariaLabel="Aggiungi corrispettivo"
+          (click)="addManualReceipt()"
+        >
+          <i class="pi pi-plus" aria-hidden="true"></i>
+          Nuovo
+        </app-button>
+      }
     </div>
-    @if (canExport()) {
-      <div class="corrispettivi__header-actions">
-        <app-button variant="ghost" (click)="printReport()">
+    <div class="corrispettivi__header-actions">
+      @if (canExport()) {
+        <!--
+          ⚠️ **Le stesse quattro azioni, in due vesti per due larghezze.**
+
+          Sotto `lg` i quattro pulsanti spariscono e restano dietro un solo
+          comando «Esporta» (`app-action-menu` con `triggerLabel`): su un
+          telefono da 375px prendevano due file intere sopra il primo dato,
+          e chi consulta il registro in magazzino esporta di rado.
+
+          Sopra `lg` restano in linea come prima — sul desktop lo spazio c'è e
+          quattro formati a vista sono più veloci di un menu da aprire.
+
+          Le due vesti chiamano gli STESSI metodi: non esiste un
+          comportamento «del menu» separato da quello dei pulsanti.
+        -->
+        <!--
+          ⚠️ **Quattro etichette lunghe, non quattro azioni in più.** «Anteprima
+          stampa», «Scarica PDF», «Export Excel» e «Export per commercialista»
+          prendevano due file di pulsanti larghi in cima alla pagina: il verbo
+          era ripetuto quattro volte, e a distinguerle bastava il formato.
+
+          Restano le stesse quattro azioni, con il nome del formato e l'icona
+          che dice il resto: quattro formati, quattro parole.
+        -->
+        <app-button class="corrispettivi__export-inline" variant="ghost" (click)="printReport()">
           <i class="pi pi-print" aria-hidden="true"></i>
-          Anteprima stampa
+          Stampa
         </app-button>
         <app-button
+          class="corrispettivi__export-inline"
           variant="secondary"
           [loading]="exportingPdf()"
           [disabled]="exportingPdf()"
           (click)="exportPdf()"
         >
           <i class="pi pi-file-pdf" aria-hidden="true"></i>
-          Scarica PDF
+          PDF
         </app-button>
         <app-button
+          class="corrispettivi__export-inline"
           variant="secondary"
           [loading]="exportingSpreadsheet()"
           [disabled]="exportingSpreadsheet()"
           (click)="exportSpreadsheet()"
         >
           <i class="pi pi-file-excel" aria-hidden="true"></i>
-          Export Excel
+          Excel
         </app-button>
         <app-button
+          class="corrispettivi__export-inline"
           variant="secondary"
           [loading]="exporting()"
           [disabled]="exporting()"
           (click)="exportAccountantCsv()"
         >
           <i class="pi pi-download" aria-hidden="true"></i>
-          Export per commercialista
+          CSV
         </app-button>
-        <app-button
-          variant="primary"
-          [disabled]="!summary() || summary()!.pendingDeliveryCount === 0"
-          (click)="openMarkDelivered()"
-        >
-          Segna consegnato
-        </app-button>
-      </div>
-    }
+      }
+    </div>
   </header>
 
-  <app-report-corrispettivi-export
-    title="Periodo corrispettivi"
-    [subtitle]="filterSubtitle()"
-    exportButtonLabel="Esporta CSV periodo"
-    [showChannelFilter]="false"
-    [period]="displayPeriod()"
-    [dateFrom]="dateFromDraft()"
-    [dateTo]="dateToDraft()"
-    [periodLabel]="periodLabel()"
-    [exporting]="exporting()"
-    (periodChange)="onPeriodChange($event)"
-    (dateFromChange)="onDateFromChange($event)"
-    (dateToChange)="onDateToChange($event)"
-    (exportClick)="exportAccountantCsv()"
-  />
+  <!--
+    ⚠️ **Il periodo è un FILTRO, e sta con gli altri.** Occupava una card intera
+    — titolo, sottotitolo e un solo selettore — in cima a una schermata che si
+    consulta a colpo d'occhio. Il componente condiviso resta dov'è: lo montano
+    ancora Report ed elenco Ordini cliente, dove quella card è anche la barra di
+    export.
 
+    I selettori aggiuntivi (mese, trimestre, anno, date) compaiono SOLO dove
+    hanno senso: «mese corrente» non chiede l'anno, perché è il mese di adesso.
+  -->
   <div class="corrispettivi__filters">
-    <app-select-menu
-      [options]="fiscalStatusOptions"
-      [value]="fiscalStatusFilter() ?? ''"
-      ariaLabel="Filtra per stato fiscale"
-      placeholder="Stato fiscale"
-      [compact]="true"
-      (valueChange)="onFiscalStatusChange($event)"
-      [filterChip]="true"
+    <!--
+      ⚠️ **Due gruppi flessibili distinti, non un `margin-inline-start: auto`
+      in coda a una fila lunga.** Con molte voci che vanno a capo, un margine
+      automatico su un solo figlio in fondo a una riga `flex-wrap` è
+      inaffidabile: quando la riga è già piena, l'elemento con margine
+      automatico può finire spinto oltre il bordo destro del contenitore
+      invece di scendere a capo — «Colonne» spariva proprio così, appena i
+      filtri riempivano la riga.
+
+      La struttura che regge è quella già in uso nella testata: due figli
+      diretti del contenitore flex, `justify-content: space-between` fra loro.
+      Ognuno va a capo per conto proprio, e nessuno dei due può scomparire.
+    -->
+    <!--
+      ⚠️ **Sotto `lg` i filtri stanno dietro un pulsante solo.**
+
+      Sei chip a 44px (il minimo tappabile, che su mobile i token impongono da
+      soli) prendevano tre file prima del primo dato. È il pattern già in uso
+      nelle quattro pagine registro — `_list-page.scss`, mixin
+      `list-page-mobile-filters` — non un modo nuovo: pulsante «Filtri (n)» col
+      conteggio di quanti restringono l'insieme, e gli stessi controlli dentro
+      un `app-slide-panel`, a piena larghezza.
+    -->
+    <!--
+      ⚠️ **«Esporta» sta QUI, non nella testata.** È mobile-only (su desktop
+      comandano i quattro pulsanti in linea, e questo è spento), quindi la sua
+      posizione nel DOM conta solo dove si vede: accanto a Filtri e Colonne,
+      dove forma una fila sola di tre comandi «sulla vista» invece di occupare
+      una fascia propria sopra.
+    -->
+    @if (canExport()) {
+      <app-action-menu
+        class="corrispettivi__export-menu"
+        triggerLabel="Esporta"
+        triggerIcon="pi-download"
+        ariaLabel="Esporta il registro"
+        [items]="exportMenuItems"
+        (actionSelected)="onExportAction($event)"
+      />
+    }
+
+    <button
+      type="button"
+      class="corrispettivi__mobile-filters"
+      (click)="mobileFiltersOpen.set(true)"
+    >
+      <i class="pi pi-sliders-h" aria-hidden="true"></i>
+      Filtri
+      @if (activeFilterCount() > 0) {
+        <span class="corrispettivi__filter-badge tabular-nums">{{ activeFilterCount() }}</span>
+      }
+    </button>
+
+    <div class="corrispettivi__filters-main">
+      <!--
+        ⚠️ **`fitContent`, non `filterChip`, su Periodo/Mese/Trimestre/Anno/
+        Raggruppa.** Senza nessuno dei due, il trigger prendeva la larghezza
+        fissa predefinita (`--select-menu-width`, 224px) qualunque fosse il
+        testo — «Raggruppa: Nessuno» teneva lo stesso spazio di «2° trimestre
+        2026», con vuoto visibile prima della chevron.
+
+        `filterChip` risolverebbe la larghezza ma porterebbe anche la ×
+        d'azzeramento e la tinta «filtro attivo» — semantica sbagliata per un
+        campo che ha SEMPRE un valore (Periodo non è mai «spento»). `fitContent`
+        dà la larghezza a contenuto restando STABILE: pre-misura tutte le
+        opzioni possibili, quindi non salta larghezza a ogni cambio di
+        selezione — a differenza di un `auto` puro, che farebbe ballare la riga
+        ogni volta che si sceglie un periodo diverso.
+      -->
+      <app-select-menu
+        chipLabel="Periodo"
+        [options]="periodOptions"
+        ariaLabel="Filtra per periodo"
+        [value]="displayPeriod()"
+        placeholder="Periodo"
+        [compact]="true"
+        [fitContent]="true"
+        [includeEmptyOption]="false"
+        (valueChange)="onPeriodChange($any($event))"
+      />
+      @if (showMonthPicker()) {
+        <app-select-menu
+          chipLabel="Mese"
+          [options]="monthOptions"
+          ariaLabel="Mese"
+          [value]="monthValue()"
+          placeholder="Mese"
+          [compact]="true"
+          [fitContent]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="onMonthSelect($event)"
+        />
+      }
+      @if (showQuarterPicker()) {
+        <app-select-menu
+          chipLabel="Trimestre"
+          [options]="quarterOptions"
+          ariaLabel="Trimestre"
+          [value]="quarterValue()"
+          placeholder="Trimestre"
+          [compact]="true"
+          [fitContent]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="onQuarterSelect($event)"
+        />
+      }
+      @if (showYearPicker()) {
+        <app-select-menu
+          chipLabel="Anno"
+          [options]="yearOptions"
+          ariaLabel="Anno"
+          [value]="yearValue()"
+          placeholder="Anno"
+          [compact]="true"
+          [fitContent]="true"
+          [includeEmptyOption]="false"
+          (valueChange)="onYearSelect($event)"
+        />
+      }
+      @if (showSingleDate()) {
+        <!-- La giornata singola: un campo solo, perché la domanda è una sola. -->
+        <app-date-input
+          inputId="corr-date-day"
+          ariaLabel="Giorno"
+          [value]="singleDateDraft()"
+          [compact]="true"
+          (valueChange)="onSingleDateChange($event)"
+        />
+      }
+      @if (showCustomDates()) {
+        <app-date-input
+          inputId="corr-date-from"
+          ariaLabel="Data inizio"
+          [value]="dateFromDraft()"
+          [compact]="true"
+          (valueChange)="onDateFromChange($event)"
+        />
+        <app-date-input
+          inputId="corr-date-to"
+          ariaLabel="Data fine"
+          [value]="dateToDraft()"
+          [compact]="true"
+          (valueChange)="onDateToChange($event)"
+        />
+      }
+
+      <!--
+      Ambito e tipo sono indipendenti dal periodo e fra loro: si può chiedere
+      «2° trimestre 2026 · Fisico/POS · Resi». Il tipo filtra l'ELENCO, non il
+      riepilogo — vedi la nota accanto al totale.
+    -->
+      <!--
+      ⚠️ **Il chip «Canale» non c'è più, ma il filtro sì.**
+
+      Nel Registro di oggi è ridondante: l'Origine lo determina per intero —
+      Shopify online e Shopify POS sono Shopify, Vendita al banco e Corrispettivo
+      manuale sono VestiFlow. Due chip per la stessa domanda, e quello meno
+      preciso.
+
+      **Il dato NON è stato ridefinito**: `canale` resta nel modello, nell'API e
+      nella lettura dell'indirizzo, quindi un collegamento salvato con
+      `canale=shopify` o una stampa aperta da un URL vecchio continuano a
+      filtrare come prima. Si è semplificata la UI, non il modello.
+    -->
+      <!--
+      **Origine**: la terza dimensione, e la sola che isola il Corrispettivo
+      manuale. Ambito e canale non bastano — condivide con la Vendita al banco
+      la coppia Fisico/POS · VestiFlow.
+    -->
+      <!--
+      ⚠️ **Tre insiemi, non tre scelte singole** (`docs/10` §16).
+
+      `includeEmptyOption="false"`: **nessuna casella «Tutti»**. Assenza di
+      restrizione È «tutti», e una casella con quel nome accanto alle voci crea
+      lo stato contraddittorio «Tutti spuntato insieme ad alcune».
+
+      Il trigger chiuso dice sempre QUANTE, mai i nomi: la sua larghezza non
+      cambia con la selezione, quindi la barra non si sposta sotto le dita. I
+      nomi e le spunte si leggono nel menu aperto, che è il posto giusto.
+    -->
+      <app-select-menu
+        chipLabel="Origine"
+        [options]="origineOptions"
+        ariaLabel="Filtra per origine"
+        [multiple]="true"
+        [values]="filtriOrigini()"
+        placeholder="Tutte"
+        [labelOnly]="true"
+        [compact]="true"
+        [includeEmptyOption]="false"
+        (valuesChange)="onOrigineValues($event)"
+        [filterChip]="true"
+      >
+        <!--
+        ⚠️ **Le scorciatoie stanno DENTRO il menu che governano.**
+
+        Erano un controllo a sé nella barra, e da lì continuavano a sembrare una
+        seconda dimensione accanto a Origine — la stessa lettura per cui
+        «Ambito» è stato ritirato da filtro. Qui sopra l'elenco è evidente cosa
+        fanno: spuntano un gruppo di queste voci, e finisce lì.
+
+        Nessun «Personalizzato»: se la selezione non coincide con un preset,
+        semplicemente nessuna scorciatoia è accesa. La verità è l'insieme.
+      -->
+        <app-segmented
+          panelLead
+          [flat]="true"
+          [options]="scorciatoieOrigine"
+          [value]="scorciatoiaAttiva()"
+          ariaLabel="Scorciatoie sulle origini"
+          (valueChange)="onScorciatoiaOrigine($event)"
+        />
+      </app-select-menu>
+      <app-select-menu
+        chipLabel="Tipo"
+        [options]="rowTypeOptions"
+        ariaLabel="Filtra per tipo di riga"
+        [multiple]="true"
+        [values]="filtriTipi()"
+        placeholder="Vendite e rettifiche"
+        [labelOnly]="true"
+        [compact]="true"
+        [includeEmptyOption]="false"
+        (valuesChange)="onTipiValues($event)"
+        [filterChip]="true"
+      />
+      <app-select-menu
+        chipLabel="Sede"
+        [options]="locationOptions()"
+        ariaLabel="Filtra per sede"
+        [multiple]="true"
+        [values]="filtriSedi()"
+        placeholder="Tutte"
+        [labelOnly]="true"
+        [compact]="true"
+        [includeEmptyOption]="false"
+        (valuesChange)="onSediValues($event)"
+        [filterChip]="true"
+      />
+      <!--
+      Il raggruppamento sta con i filtri perché è lì che l'occhio lo cerca, ma
+      NON è un filtro: non cambia quali righe si vedono, solo come si leggono.
+      Mostra il valore, come Periodo, perché «Nessuno» e «Giorno» danno due
+      schermate diverse e saperlo a colpo d'occhio serve.
+
+      ⚠️ **Qui, e non nella testata.** Ci era finito per un errore di script
+      durante la scrittura, appeso al titolo invece che alla riga dei filtri —
+      esattamente il posto sbagliato secondo questo stesso commento.
+    -->
+      <app-select-menu
+        chipLabel="Raggruppa"
+        [options]="raggruppaOptions"
+        ariaLabel="Raggruppa le righe"
+        [value]="raggruppa()"
+        placeholder="Nessuno"
+        [compact]="true"
+        [fitContent]="true"
+        [includeEmptyOption]="false"
+        (valueChange)="onRaggruppaChange($event)"
+      />
+    </div>
+    <!--
+      ⚠️ **Il selettore Colonne sta qui, non più sopra la tabella.** Stava in una
+      riga sua — «Righe del periodo · N righe» — che esisteva solo per ospitarlo
+      e il conteggio. Il conteggio è salito accanto al titolo; Colonne resta
+      accanto agli altri comandi che decidono COSA si vede, non sparisce.
+
+      Fuori da `@if (summary())`: la riga filtri non deve cambiare larghezza
+      quando i dati arrivano, o i controlli accanto si spostano sotto le dita.
+
+      Fratello del gruppo filtri, non suo figlio: così `justify-content:
+      space-between` sul contenitore lo tiene ancorato a destra su una riga
+      propria, senza il margine automatico che lo faceva sparire.
+    -->
+    <app-table-column-picker
+      class="corrispettivi__columns-picker"
+      [viewId]="columnsView"
+      [reorderable]="false"
     />
-    <app-button
-      variant="ghost"
-      [class.corrispettivi__filter--active]="onlineOnly()"
-      (click)="toggleOnlineOnly()"
-    >
-      Solo online
-    </app-button>
-    <app-button
-      variant="ghost"
-      [class.corrispettivi__filter--active]="pendingOnly()"
-      (click)="togglePendingOnly()"
-    >
-      Solo da consegnare
-    </app-button>
-    <app-button
-      variant="ghost"
-      [class.corrispettivi__filter--active]="refundsOnly()"
-      (click)="toggleRefundsOnly()"
-    >
-      Solo rimborsi
-    </app-button>
   </div>
 
   @if (loading()) {
@@ -103,34 +411,259 @@
   } @else if (error(); as appError) {
     <app-error-state [description]="appError.message" retryLabel="Riprova" (retry)="reload()" />
   } @else if (summary(); as pageSummary) {
-    <app-corrispettivi-summary [summary]="pageSummary" [periodLabel]="periodLabel()" />
+    <!--
+      ⚠️ Le righe senza sede NON spariscono in silenzio. Filtrando per una sede
+      non possono esserle attribuite e restano fuori, ma un registro che perde
+      righe appena si sceglie una sede mostrerebbe un totale più basso del vero
+      — in un registro fiscale è il difetto peggiore possibile (`docs/10` §12).
+    -->
+    @if (pageSummary.locationUndeterminedExcludedCount > 0) {
+      <app-inline-banner tone="warning">
+        {{ pageSummary.locationUndeterminedExcludedCount }} registrazioni con Location non
+        determinata non incluse nel filtro. Togli il filtro Sede per vederle nel totale.
+      </app-inline-banner>
+    }
 
-    <section class="corrispettivi__panel" aria-labelledby="corrispettivi-orders-title">
-      <div class="corrispettivi__panel-head">
-        <h2 id="corrispettivi-orders-title" class="corrispettivi__panel-title">Elenco vendite</h2>
-        <p class="corrispettivi__panel-hint tabular-nums">{{ totalOrders() }} ordini nel periodo</p>
+    <!--
+      ⚠️ **Una sola regione di scroll, ed è l'ELENCO.** La pagina sta ferma —
+      testata, filtri e riepilogo restano dove sono — e a scorrere sono le righe
+      del periodo, che è la cosa che si consulta. È il criterio della shell
+      (`regole-gestionale`: una sola regione principale di scroll) applicato
+      dentro la schermata.
+    -->
+    <!--
+      ⚠️ **Niente più intestazione «Righe del periodo» sopra la tabella.**
+
+      Era una riga intera — titolo, conteggio, pulsante Colonne — che esisteva
+      solo per ospitare due cose già spostate altrove: il conteggio è salito
+      accanto a «Corrispettivi» nella testata, Colonne è sceso nella riga
+      filtri. «Elenco vendite» diceva comunque il falso: la tabella contiene
+      vendite, rettifiche e registrazioni manuali.
+
+      Il pannello etichetta sé stesso puntando all'H1 della pagina — è ancora
+      lui il nome di questa regione, non serviva un secondo titolo identico.
+    -->
+    <section class="corrispettivi__panel" aria-labelledby="corrispettivi-title">
+      <div class="corrispettivi__panel-scroll">
+        @if (orders().length === 0) {
+          <app-empty-state
+            title="Nessuna riga nel periodo"
+            [description]="emptyHint()"
+            icon="pi-shopping-cart"
+          />
+        } @else {
+          <app-corrispettivi-orders-table
+            [rows]="orders()"
+            [visibleColumns]="visibleColumns()"
+            [canEditManual]="canManageRegister()"
+            [raggruppaPerGiorno]="raggruppaPerGiorno()"
+            [perGiornata]="pageSummary.perGiornata"
+            (manualReceiptOpened)="openManualReceipt($event)"
+          />
+        }
       </div>
 
-      @if (orders().length === 0) {
-        <app-empty-state
-          title="Nessuna vendita nel periodo"
-          [description]="emptyHint()"
-          icon="pi-shopping-cart"
-        />
-      } @else {
-        <app-corrispettivi-orders-table [orders]="orders()" />
+      <!--
+        ⚠️ **In coda all'elenco, non in testata né fra i totali.**
+
+        Qui risponde alla domanda che ci si fa arrivando in fondo — «le ho viste
+        tutte?» — e su mobile arriva subito dopo l'eventuale «Mostra le altre N
+        righe», così le due informazioni si leggono insieme. Nella banda dei
+        totali si confondeva con gli addendi della riconciliazione, che è
+        un'altra cosa: quello è denaro, questo è quante card hai davanti.
+      -->
+      @if (orders().length > 0) {
+        <p class="corrispettivi__rowcount tabular-nums">
+          {{ totalOrders() }} {{ totalOrders() === 1 ? 'riga' : 'righe' }}
+        </p>
       }
     </section>
 
-    <app-corrispettivi-deliveries [deliveries]="deliveries()" />
+    <!--
+      Il riepilogo sta in FONDO e resta fisso: sopra la tabella rubava la prima
+      schermata a ciò che si deve consultare, ed è la stessa scelta della banda
+      totali delle maschere documento (`regole-stile-ui` §7).
+    -->
+    <app-corrispettivi-summary [summary]="pageSummary" [periodLabel]="periodLabel()" />
   }
 
-  <app-confirm-dialog
-    title="Consegna al commercialista"
-    [message]="markDeliveredMessage()"
-    confirmLabel="Conferma consegna"
-    [(open)]="markDeliveredOpen"
-    [busy]="markDeliveredBusy()"
-    (confirmed)="confirmMarkDelivered()"
-  />
+  <!--
+    ⚠️ **Gli stessi filtri, non una seconda copia che diverge.**
+
+    I controlli qui dentro scrivono sui medesimi metodi dei gemelli in barra
+    (`onOrigineValues`, `onTipiValues`, `onSediValues`, `onPeriodChange`…):
+    non esiste uno stato «del pannello» da riallineare, e chiudendo il
+    pannello la barra desktop è già d'accordo.
+
+    Differiscono solo nella veste: qui `fullWidth`, perché in un pannello
+    stretto un chip dimensionato al contenuto lascerebbe mezza riga vuota.
+    `ariaLabel` distinti dai gemelli, o un lettore di schermo annuncerebbe due
+    controlli con lo stesso nome.
+  -->
+  <app-slide-panel
+    [open]="mobileFiltersOpen()"
+    title="Filtri"
+    size="narrow"
+    (closed)="mobileFiltersOpen.set(false)"
+  >
+    @if (mobileFiltersOpen()) {
+      <div class="corrispettivi__panel-filters">
+        <div class="corrispettivi__field">
+          <span class="corrispettivi__label">Periodo</span>
+          <app-select-menu
+            [options]="periodOptions"
+            ariaLabel="Filtra per periodo (pannello filtri)"
+            [value]="displayPeriod()"
+            placeholder="Periodo"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onPeriodChange($any($event))"
+          />
+        </div>
+
+        @if (showMonthPicker()) {
+          <div class="corrispettivi__field">
+            <span class="corrispettivi__label">Mese</span>
+            <app-select-menu
+              [options]="monthOptions"
+              ariaLabel="Mese (pannello filtri)"
+              [value]="monthValue()"
+              placeholder="Mese"
+              [compact]="true"
+              [fullWidth]="true"
+              [includeEmptyOption]="false"
+              (valueChange)="onMonthSelect($event)"
+            />
+          </div>
+        }
+        @if (showQuarterPicker()) {
+          <div class="corrispettivi__field">
+            <span class="corrispettivi__label">Trimestre</span>
+            <app-select-menu
+              [options]="quarterOptions"
+              ariaLabel="Trimestre (pannello filtri)"
+              [value]="quarterValue()"
+              placeholder="Trimestre"
+              [compact]="true"
+              [fullWidth]="true"
+              [includeEmptyOption]="false"
+              (valueChange)="onQuarterSelect($event)"
+            />
+          </div>
+        }
+        @if (showYearPicker()) {
+          <div class="corrispettivi__field">
+            <span class="corrispettivi__label">Anno</span>
+            <app-select-menu
+              [options]="yearOptions"
+              ariaLabel="Anno (pannello filtri)"
+              [value]="yearValue()"
+              placeholder="Anno"
+              [compact]="true"
+              [fullWidth]="true"
+              [includeEmptyOption]="false"
+              (valueChange)="onYearSelect($event)"
+            />
+          </div>
+        }
+        @if (showSingleDate()) {
+          <div class="corrispettivi__field">
+            <span class="corrispettivi__label">Giorno</span>
+            <app-date-input
+              inputId="corr-panel-date-day"
+              ariaLabel="Giorno (pannello filtri)"
+              [value]="singleDateDraft()"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onSingleDateChange($event)"
+            />
+          </div>
+        }
+        @if (showCustomDates()) {
+          <div class="corrispettivi__field">
+            <span class="corrispettivi__label">Dal</span>
+            <app-date-input
+              inputId="corr-panel-date-from"
+              ariaLabel="Data inizio (pannello filtri)"
+              [value]="dateFromDraft()"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onDateFromChange($event)"
+            />
+          </div>
+          <div class="corrispettivi__field">
+            <span class="corrispettivi__label">Al</span>
+            <app-date-input
+              inputId="corr-panel-date-to"
+              ariaLabel="Data fine (pannello filtri)"
+              [value]="dateToDraft()"
+              [compact]="true"
+              [fullWidth]="true"
+              (valueChange)="onDateToChange($event)"
+            />
+          </div>
+        }
+
+        <div class="corrispettivi__field">
+          <span class="corrispettivi__label">Origine</span>
+          <app-select-menu
+            [options]="origineOptions"
+            ariaLabel="Filtra per origine (pannello filtri)"
+            [multiple]="true"
+            [values]="filtriOrigini()"
+            placeholder="Tutte"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valuesChange)="onOrigineValues($event)"
+          />
+        </div>
+
+        <div class="corrispettivi__field">
+          <span class="corrispettivi__label">Tipo</span>
+          <app-select-menu
+            [options]="rowTypeOptions"
+            ariaLabel="Filtra per tipo di riga (pannello filtri)"
+            [multiple]="true"
+            [values]="filtriTipi()"
+            placeholder="Vendite e rettifiche"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valuesChange)="onTipiValues($event)"
+          />
+        </div>
+
+        <div class="corrispettivi__field">
+          <span class="corrispettivi__label">Sede</span>
+          <app-select-menu
+            [options]="locationOptions()"
+            ariaLabel="Filtra per sede (pannello filtri)"
+            [multiple]="true"
+            [values]="filtriSedi()"
+            placeholder="Tutte"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valuesChange)="onSediValues($event)"
+          />
+        </div>
+
+        <div class="corrispettivi__field">
+          <span class="corrispettivi__label">Raggruppa</span>
+          <app-select-menu
+            [options]="raggruppaOptions"
+            ariaLabel="Raggruppa le righe (pannello filtri)"
+            [value]="raggruppa()"
+            placeholder="Nessuno"
+            [compact]="true"
+            [fullWidth]="true"
+            [includeEmptyOption]="false"
+            (valueChange)="onRaggruppaChange($event)"
+          />
+        </div>
+      </div>
+    }
+  </app-slide-panel>
 </section>

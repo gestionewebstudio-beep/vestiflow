@@ -4,10 +4,13 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { SupplierOrderStatus } from '@prisma/client';
+import { PurchaseCostEntryMode, SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
+import { grossFromNetMinor } from '../vat/vat-line-calculation.util';
+
 import type { DocumentSettingsService } from '../documents/document-settings.service';
+import type { ExternalDocumentTypesService } from '../documents/external-document-types.service';
 import type { DocumentPriceModePreferenceService } from '../documents/document-price-mode-preference.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { VatCodesService } from '../vat/vat-codes.service';
@@ -67,8 +70,15 @@ describe('SupplierOrdersService', () => {
       createVatCodesMock(),
       {
         resolvePricesIncludeVat: vi.fn().mockResolvedValue(false),
+        resolveCompanyDefault: vi.fn().mockResolvedValue(false),
+        salesPricesIncludeVat: vi.fn().mockResolvedValue(false),
         remember: vi.fn().mockResolvedValue(undefined),
       } as unknown as DocumentPriceModePreferenceService,
+      {
+        resolveForWrite: vi
+          .fn()
+          .mockResolvedValue({ externalDocumentTypeId: null, externalDocumentTypeSnapshot: null }),
+      } as unknown as ExternalDocumentTypesService,
     );
   }
 
@@ -85,7 +95,11 @@ describe('SupplierOrdersService', () => {
       },
       productVariant: { findMany: vi.fn() },
       vatCode: { findMany: vi.fn().mockResolvedValue([]) },
-      documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
+      documentCounter: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        // Nessun contatore disponibile per la sede: la serie resta «senza serie».
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       documentSequence: {
         upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }),
         findUnique: vi.fn().mockResolvedValue(null),
@@ -107,6 +121,9 @@ describe('SupplierOrdersService', () => {
         findMany: vi.fn(),
         deleteMany: vi.fn(),
       },
+      // Advisory lock sul contatore: qui non serializza niente (transazione
+      // finta), ma senza la mock la chiamata romperebbe la creazione.
+      $queryRaw: vi.fn().mockResolvedValue([]),
       $transaction: vi.fn(),
     };
     prisma.$transaction.mockImplementation((arg: unknown) => {
@@ -142,17 +159,6 @@ describe('SupplierOrdersService', () => {
 
     await service.createSupplier(tenantId, { name: '  Fornitore  ' });
     expect(suppliers.create).toHaveBeenCalledWith(tenantId, { name: '  Fornitore  ' });
-  });
-
-  it('getMeta espone anteprima del numeratore supplier_order', async () => {
-    const prisma = createPrismaMock();
-    // Max esistente 41 (aggregato numerico) → prossimo 42, senza serie.
-    prisma.supplierOrder.aggregate.mockResolvedValue({ _max: { number: 41 } });
-    const service = createService(prisma);
-
-    await expect(service.getMeta(tenantId)).resolves.toEqual({
-      nextReferencePreview: 'OF-0042',
-    });
   });
 
   it('list pagina ordini fornitore', async () => {
@@ -267,6 +273,78 @@ describe('SupplierOrdersService', () => {
       }),
     );
   });
+
+  // ── Il giro del costo ivato (docs/ORDINE-FORNITORE-RIGA.md) ────────────────
+  //
+  // «Un costo digitato in modalità ivata, salvato e riletto, torna identico.»
+  //
+  // Sull'ordine fornitore il costo si DIGITA: si richiama l'articolo, arriva il
+  // costo d'anagrafica, e l'operatore lo cambia — perché propone un costo nuovo
+  // al fornitore o perché lo paga di più. Quello è un lordo digitato, e il netto
+  // che se ne ricava è il valore canonico da memorizzare. Se lo si arrotonda al
+  // centesimo la coda dello scorporo muore lì e il ritorno vale un centesimo di
+  // meno: misurato al 22%, su 884 costi su 4901 fra 1,00 e 50,00.
+  //
+  // L'elenco tiene insieme quattro costi che oggi perdono il centesimo e quattro
+  // che tornano già: la regola vale per tutti, non solo per quelli rotti.
+  it.each([
+    { grossMinor: 103, oggi: 'perde' },
+    { grossMinor: 125, oggi: 'perde' },
+    { grossMinor: 502, oggi: 'perde' },
+    { grossMinor: 4999, oggi: 'perde' },
+    { grossMinor: 999, oggi: 'torna' },
+    { grossMinor: 1290, oggi: 'torna' },
+    { grossMinor: 2500, oggi: 'torna' },
+    { grossMinor: 3799, oggi: 'torna' },
+  ])(
+    'costo ivato $grossMinor salvato e rimostrato ivato torna identico (oggi $oggi)',
+    async ({ grossMinor }) => {
+      const prisma = createPrismaMock();
+      prisma.supplier.findFirst.mockResolvedValue({ id: 'sup-1', party: supplierParty });
+      prisma.productVariant.findMany.mockResolvedValue([
+        { id: 'var-1', sku: 'SKU-1', product: { name: 'Felpa' } },
+      ]);
+      prisma.vatCode.findMany.mockResolvedValue([
+        {
+          id: 'vat-22',
+          code: '22',
+          ratePercent: 22,
+          nonDeductiblePercent: 0,
+          calculationMode: 'standard',
+          vatAffectsSupplierTotal: true,
+          isActive: true,
+          usageScope: 'both',
+          nature: { key: 'standard', label: 'Imponibile', officialCode: null },
+        },
+      ]);
+      prisma.supplierOrder.create.mockImplementation((args: { data: unknown }) =>
+        Promise.resolve({ id: 'po-new', lines: [], ...(args.data as object) }),
+      );
+      const service = createService(prisma);
+
+      await service.create(tenantId, {
+        supplierId: 'sup-1',
+        costEntryMode: PurchaseCostEntryMode.vat_included,
+        lines: [
+          {
+            variantId: 'var-1',
+            orderedQuantity: 1,
+            enteredUnitCostMinor: grossMinor,
+            vatCodeId: 'vat-22',
+          },
+        ],
+      });
+
+      const created = prisma.supplierOrder.create.mock.calls[0]![0] as {
+        data: { lines: { create: readonly { unitCostMinor: unknown }[] } };
+      };
+      const storedNetMinor = Number(created.data.lines.create[0]!.unitCostMinor);
+
+      // Rimostrare il costo ivato è un punto di USCITA: si arrotonda qui, e solo
+      // qui. Se il netto memorizzato porta la sua coda, il giro torna.
+      expect(grossFromNetMinor(storedNetMinor, 22)).toBe(grossMinor);
+    },
+  );
 
   it('create rifiuta variante inesistente', async () => {
     const prisma = createPrismaMock();

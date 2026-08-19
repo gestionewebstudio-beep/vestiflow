@@ -21,6 +21,7 @@ import { canViewPurchaseCosts } from '../auth/user-permissions.util';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
 import { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import { buildInventoryVariantSearchWhere } from '../inventory/inventory-variant-search.util';
+import { assertLocationReadableInUserScope } from '../inventory/user-location-scope.util';
 import { buildVariantTitle } from '../inventory/import/inventory-csv.util';
 import { toShopifyUserMessage } from '../shopify/shopify-user-error.util';
 import { normalizeProductDescription } from '../shopify/shopify-html.util';
@@ -64,6 +65,14 @@ const PRODUCT_INCLUDE = {
   variants: true,
   images: { orderBy: { sortOrder: 'asc' as const } },
 } satisfies Prisma.ProductInclude;
+
+/**
+ * Quanti collegamenti fornitore leggere per variante quando NON si filtra per
+ * fornitore: servono a trovare quale codice ha fatto scattare la ricerca. Un
+ * articolo con più di così tanti fornitori diversi non esiste in pratica, e il
+ * limite evita che una variante patologica pesi sull'intera pagina.
+ */
+const SUPPLIER_LINKS_SCANNED = 20;
 
 /** Select leggero per GET /products (lista catalogo): niente varianti né immagini. */
 const PRODUCT_LIST_SELECT = {
@@ -131,7 +140,9 @@ export class ProductsService {
   async list(
     tenantId: string,
     query: ListProductsQueryDto,
+    user?: UserProfileDto,
   ): Promise<Paginated<ProductWithVariants>> {
+    const showPurchaseCosts = canViewPurchaseCosts(user);
     const where: Prisma.ProductWhereInput = {
       tenantId,
       ...(query.status ? { status: query.status } : {}),
@@ -169,15 +180,39 @@ export class ProductsService {
     await this.taxonomyLocalization.prepareProductLocalization();
 
     return {
-      items: items.map((item) =>
-        withReadableShopifyErrors(
+      items: items.map((item) => {
+        const mapped = withReadableShopifyErrors(
           this.taxonomyLocalization.localizeProductForResponseSync(normalizeListProductRow(item)),
-        ),
-      ),
+        );
+        // Costo d'acquisto (dato sensibile §permessi): stessa regola dei
+        // riepiloghi varianti — senza permesso il campo non entra in risposta.
+        return showPurchaseCosts ? mapped : this.stripPurchaseCosts(mapped);
+      }),
       total,
       page: query.page,
       pageSize: query.pageSize,
     };
+  }
+
+  /** Azzera i costi d'acquisto (articolo e varianti) in una risposta prodotto. */
+  private stripPurchaseCosts<
+    T extends {
+      readonly purchasePriceMinor?: unknown;
+      readonly variants?: readonly { readonly purchasePriceMinor?: unknown }[];
+    },
+  >(product: T): T {
+    return {
+      ...product,
+      purchasePriceMinor: null,
+      ...(product.variants
+        ? {
+            variants: product.variants.map((variant) => ({
+              ...variant,
+              purchasePriceMinor: null,
+            })),
+          }
+        : {}),
+    } as T;
   }
 
   /** Facets distinti per filtri lista prodotti (intero catalogo tenant). */
@@ -234,6 +269,22 @@ export class ProductsService {
     query: ListVariantSummariesQueryDto,
     user?: UserProfileDto,
   ): Promise<Paginated<VariantSummaryDto>> {
+    // Il gate della rotta chiede la sola sezione «Prodotti», ma il `locationId`
+    // della query sposta la lettura sulle giacenze di UNA sede: senza questo
+    // controllo un commesso assegnato al solo negozio di Milano leggeva
+    // giacenza e disponibilità di Napoli aggiungendo l'id alla querystring,
+    // dalla stessa maschera documento che ha il diritto di usare. La sede
+    // arriva nel corpo della richiesta, quindi si verifica qui — prima della
+    // query, non dopo aver già letto i numeri.
+    // Titolare, `hasAllLocationsAccess` e `inventory.view_all_locations`
+    // continuano a vedere ogni sede; senza utente (chiamate interne) non si
+    // decide nulla, e senza `locationId` la risposta resta il totale
+    // multi-sede di sempre.
+    assertLocationReadableInUserScope(
+      user,
+      query.locationId,
+      'Non sei autorizzato a consultare le giacenze di questo magazzino.',
+    );
     const showPurchaseCosts = canViewPurchaseCosts(user);
     const search = query.search?.trim();
     const where: Prisma.ProductVariantWhereInput = {
@@ -261,6 +312,7 @@ export class ProductsService {
           optionValues: true,
           currency: true,
           sellingPriceMinor: true,
+          shopifyPriceMinor: true,
           purchasePriceMinor: true,
           product: {
             select: {
@@ -284,18 +336,27 @@ export class ProductsService {
               },
             },
           },
-          ...(query.supplierId
-            ? {
-                supplierLinks: {
-                  where: { supplierId: query.supplierId },
-                  select: {
-                    supplierSku: true,
-                    lastPurchasePriceMinor: true,
-                  },
-                  take: 1,
-                },
-              }
-            : {}),
+          // Codici fornitore: SEMPRE selezionati, non solo quando si filtra per
+          // fornitore. Il campo «Cod. fornitore» della riga documento confronta
+          // il valore digitato col catalogo intero, senza filtri di contesto: se
+          // il codice tornasse solo passando `supplierId`, lo stesso codice
+          // sarebbe riconosciuto in un documento e ignorato in un altro — che è
+          // peggio di non riconoscerlo mai.
+          //
+          // Con `supplierId` si resta al solo collegamento di quel fornitore,
+          // perché `lastPurchasePriceMinor` è il suo prezzo e non quello di un
+          // altro. Senza, si prendono i primi collegamenti in ordine
+          // deterministico (preferito prima, poi il più vecchio) e la scelta di
+          // QUALE codice restituire avviene nel mapper, sotto.
+          supplierLinks: {
+            ...(query.supplierId ? { where: { supplierId: query.supplierId } } : {}),
+            select: {
+              supplierSku: true,
+              lastPurchasePriceMinor: true,
+            },
+            orderBy: [{ isPreferred: 'desc' as const }, { createdAt: 'asc' as const }],
+            take: query.supplierId ? 1 : SUPPLIER_LINKS_SCANNED,
+          },
           // Con locationId: giacenza della sola sede. Senza: tutte le righe,
           // sommate a valle (totale multi-sede invece di nessun dato).
           inventoryLevels: {
@@ -310,8 +371,34 @@ export class ProductsService {
       this.prisma.productVariant.count({ where }),
     ]);
 
+    const searchLower = search?.toLowerCase();
+
     const items: VariantSummaryDto[] = rows.map((row) => {
-      const supplierLink = 'supplierLinks' in row ? row.supplierLinks?.[0] : undefined;
+      // Quando si cerca, il codice fornitore restituito è QUELLO CHE HA FATTO
+      // SCATTARE la corrispondenza. Un articolo può avere più fornitori con
+      // codici diversi: restituirne uno a caso farebbe confrontare al filtro
+      // esatto della riga la stringa sbagliata, e il caso ambiguo non si
+      // aprirebbe quando deve. Senza ricerca vale il primo dell'ordine
+      // deterministico (preferito, poi il più vecchio).
+      const supplierLinks = row.supplierLinks ?? [];
+
+      // Il collegamento da cui leggere il CODICE fornitore: quello che ha fatto
+      // scattare la corrispondenza, così il confronto esatto lato riga è sulla
+      // stringa giusta. Senza ricerca è il primo dell'ordine deterministico —
+      // ATTENZIONE: in quel caso è uno ARBITRARIO fra i fornitori dell'articolo,
+      // non «il» codice fornitore dell'articolo, che non esiste. Non usarlo come
+      // se lo fosse.
+      const codeSupplierLink =
+        (searchLower
+          ? supplierLinks.find((link) => link.supplierSku?.toLowerCase().includes(searchLower))
+          : undefined) ?? supplierLinks[0];
+
+      // Il collegamento da cui leggere il PREZZO, che è un'altra cosa: solo
+      // quando il fornitore è stato chiesto esplicitamente. Senza, il prezzo
+      // resta quello della variante — leggere il «last purchase» di un
+      // fornitore arbitrario significherebbe seminare nella riga il costo
+      // pattuito con qualcun altro.
+      const pricingSupplierLink = query.supplierId ? supplierLinks[0] : undefined;
       const levels = row.inventoryLevels ?? [];
       // Con location: giacenza puntuale della sede. Senza: totale multi-sede;
       // null solo se la variante non ha alcuna riga giacenza (mai movimentata).
@@ -335,7 +422,7 @@ export class ProductsService {
           : null;
       // Senza permesso il costo non entra proprio nella risposta.
       const purchaseMinor = showPurchaseCosts
-        ? (supplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null)
+        ? (pricingSupplierLink?.lastPurchasePriceMinor ?? row.purchasePriceMinor ?? null)
         : null;
       return {
         variantId: row.id,
@@ -351,18 +438,22 @@ export class ProductsService {
           amountMinor: Number(row.sellingPriceMinor),
           currencyCode: row.currency,
         },
+        shopifyPrice: {
+          amountMinor: Number(row.shopifyPriceMinor),
+          currencyCode: row.currency,
+        },
         purchasePrice:
           purchaseMinor != null ? { amountMinor: purchaseMinor, currencyCode: row.currency } : null,
         compareAtPrice:
           row.product.compareAtPriceMinor != null
-            ? { amountMinor: row.product.compareAtPriceMinor, currencyCode: row.currency }
+            ? { amountMinor: Number(row.product.compareAtPriceMinor), currencyCode: row.currency }
             : null,
         listinoPrices: {
           1: listinoMoney(row.product.listino1PriceMinor, row.currency),
           2: listinoMoney(row.product.listino2PriceMinor, row.currency),
           3: listinoMoney(row.product.listino3PriceMinor, row.currency),
         },
-        supplierSku: supplierLink?.supplierSku ?? null,
+        supplierSku: codeSupplierLink?.supplierSku ?? null,
         stockOnHand,
         stockAvailable,
         stockMinThreshold,
@@ -378,7 +469,20 @@ export class ProductsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async getById(tenantId: string, id: string): Promise<ProductWithVariants> {
+  async getById(
+    tenantId: string,
+    id: string,
+    user?: UserProfileDto,
+  ): Promise<ProductWithVariants> {
+    const normalized = await this.loadProductOrThrow(tenantId, id);
+    // Costo d'acquisto (dato sensibile §permessi): mascherato come nella lista.
+    // Si può fare senza perdere dati perché il salvataggio ignora i costi di
+    // chi non li vede (vedi `canWriteCosts` in create/update).
+    return canViewPurchaseCosts(user) ? normalized : this.stripPurchaseCosts(normalized);
+  }
+
+  /** Prodotto completo SENZA mascheramento: uso interno (confronti, mutazioni). */
+  private async loadProductOrThrow(tenantId: string, id: string): Promise<ProductWithVariants> {
     const product = await this.prisma.product.findFirst({
       where: { id, tenantId },
       include: PRODUCT_INCLUDE,
@@ -395,7 +499,15 @@ export class ProductsService {
     return normalized;
   }
 
-  async create(tenantId: string, dto: CreateProductDto): Promise<ProductWithVariants> {
+  async create(
+    tenantId: string,
+    dto: CreateProductDto,
+    user?: UserProfileDto,
+  ): Promise<ProductWithVariants> {
+    // Costo d'acquisto: chi non lo vede non lo scrive. Senza questo, il form
+    // di chi ha il costo mascherato rimanderebbe indietro un valore assente e
+    // azzererebbe il costo salvando l'articolo.
+    const canWriteCosts = canViewPurchaseCosts(user);
     this.assertNoDuplicateSkusInPayload(dto.variants);
     this.assertNoDuplicateBarcodesInPayload(dto.variants);
     await this.assertSkusAvailable(
@@ -445,7 +557,7 @@ export class ProductsService {
           // precompilato dal prezzo articolo.
           shopifyPriceMinor: dto.shopifyPrice?.amountMinor ?? dto.sellingPrice.amountMinor,
           compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
-          purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
+          purchasePriceMinor: canWriteCosts ? (dto.purchasePrice?.amountMinor ?? null) : null,
           // Listini aggiuntivi (§B): netti, valore unico articolo. Assenti = null.
           listino1PriceMinor: dto.listino1Price?.amountMinor ?? null,
           listino2PriceMinor: dto.listino2Price?.amountMinor ?? null,
@@ -455,7 +567,9 @@ export class ProductsService {
           kind: dto.kind ?? undefined,
             options: dto.options as unknown as Prisma.InputJsonValue,
             variants: {
-              create: dto.variants.map((variant) => this.toVariantCreateInput(tenantId, variant)),
+              create: dto.variants.map((variant) =>
+                this.toVariantCreateInput(tenantId, variant, canWriteCosts),
+              ),
             },
           },
           include: PRODUCT_INCLUDE,
@@ -471,7 +585,7 @@ export class ProductsService {
       });
 
     await this.pushProductToShopifySafe(tenantId, created.id);
-    return this.getById(tenantId, created.id);
+    return this.getById(tenantId, created.id, user);
   }
 
   /**
@@ -485,7 +599,11 @@ export class ProductsService {
    * articolo nuovo, mai sincronizzato, e non viene pushata automaticamente
    * per evitare di pubblicare online una scheda ancora da rivedere.
    */
-  async duplicateProduct(tenantId: string, id: string): Promise<ProductWithVariants> {
+  async duplicateProduct(
+    tenantId: string,
+    id: string,
+    user?: UserProfileDto,
+  ): Promise<ProductWithVariants> {
     const original = await this.prisma.product.findFirst({
       where: { id, tenantId },
       include: PRODUCT_INCLUDE,
@@ -566,7 +684,7 @@ export class ProductsService {
       });
     });
 
-    return this.getById(tenantId, created.id);
+    return this.getById(tenantId, created.id, user);
   }
 
   /**
@@ -601,8 +719,17 @@ export class ProductsService {
     throw new ConflictException("Impossibile generare uno SKU univoco per la copia dell'articolo.");
   }
 
-  async update(tenantId: string, id: string, dto: UpdateProductDto): Promise<ProductWithVariants> {
-    const existing = await this.getById(tenantId, id);
+  async update(
+    tenantId: string,
+    id: string,
+    dto: UpdateProductDto,
+    user?: UserProfileDto,
+  ): Promise<ProductWithVariants> {
+    // Vedi create(): senza permesso il costo non si scrive e quello a
+    // database resta quello che è.
+    const canWriteCosts = canViewPurchaseCosts(user);
+    // Confronto interno: serve il costo VERO, non quello mascherato.
+    const existing = await this.loadProductOrThrow(tenantId, id);
     assertShopifyCatalogUpdateAllowed(existing, dto);
 
     // Shopify ATTIVO: prezzo articolo e prezzo Shopify sono indipendenti (il form
@@ -617,7 +744,7 @@ export class ProductsService {
 
     await this.prisma.$transaction(async (tx) => {
       if (dto.variants) {
-        await this.syncVariants(tx, tenantId, id, dto.variants, shopifyActive);
+        await this.syncVariants(tx, tenantId, id, dto.variants, shopifyActive, canWriteCosts);
       }
 
       // Codice articolo: undefined = non toccare; vuoto = bloccato (il campo
@@ -654,7 +781,9 @@ export class ProductsService {
             ? {
                 sellingPriceMinor: dto.sellingPrice.amountMinor,
                 compareAtPriceMinor: dto.compareAtPrice?.amountMinor ?? null,
-                purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null,
+                ...(canWriteCosts
+                  ? { purchasePriceMinor: dto.purchasePrice?.amountMinor ?? null }
+                  : {}),
                 // Prezzo Shopify (§B). Shopify ATTIVO: valore indipendente inviato
                 // dal form, persistito così com'è (assente = non toccare). Shopify
                 // SPENTO: il campo non esiste in UI e segue il prezzo articolo solo
@@ -725,7 +854,7 @@ export class ProductsService {
     });
 
     await this.pushProductToShopifySafe(tenantId, id);
-    return this.getById(tenantId, id);
+    return this.getById(tenantId, id, user);
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
@@ -869,8 +998,14 @@ export class ProductsService {
 
     // Codice articolo come criterio di scan (specifica §DOVE VIENE USATO 4a),
     // dopo SKU/barcode: identifica il prodotto, quindi risolve una variante
-    // solo se il prodotto ne ha una sola (altrimenti la scelta resta alla
-    // ricerca contestuale, che ora include il codice articolo).
+    // solo se il prodotto ne ha una sola. Con più varianti questo endpoint
+    // TACE apposta, perché non gli spetta indovinare quale taglia.
+    //
+    // Chi risolve l'ambiguità (aggiornato 08/2026): non più «la ricerca
+    // contestuale» — quella non esiste più, i campi codice hanno smesso di
+    // cercare mentre si digita. È la riga documento che, alla conferma,
+    // interroga `listVariantSummaries`, filtra per corrispondenza esatta e
+    // apre un pannello «di questo articolo, quale variante».
     if (!variant) {
       const byArticleCode = await this.prisma.productVariant.findMany({
         where: {
@@ -885,8 +1020,37 @@ export class ProductsService {
       }
     }
 
+    // Codice fornitore: quando si ordina, il fornitore manda il suo listino con
+    // i SUOI codici, e quello è il codice che si ha sotto gli occhi mentre si
+    // compila. È una chiave di ricerca come le altre, non un dato da guardare.
+    //
+    // Ultimo della catena e solo se non è ambiguo: lo stesso codice può essere
+    // usato da fornitori diversi per articoli diversi, e in quel caso indovinare
+    // sarebbe peggio che tacere.
+    //
+    // Chi risolve l'ambiguità (aggiornato 08/2026): la riga documento, come per
+    // il codice articolo — con la differenza che qui la scelta è fra ARTICOLI
+    // diversi, non fra varianti dello stesso. Vedi `listVariantSummaries`, che
+    // dal 08/2026 restituisce sempre il codice fornitore, e restituisce quello
+    // che ha fatto scattare la ricerca.
     if (!variant) {
-      throw new NotFoundException('Variante non trovata per SKU, barcode o codice articolo');
+      const bySupplierSku = await this.prisma.productVariant.findMany({
+        where: {
+          tenantId,
+          supplierLinks: { some: { supplierSku: { equals: trimmed, mode: 'insensitive' } } },
+        },
+        include: { product: { select: { id: true, name: true, managesStock: true } } },
+        take: 2,
+      });
+      if (bySupplierSku.length === 1) {
+        variant = bySupplierSku[0]!;
+      }
+    }
+
+    if (!variant) {
+      throw new NotFoundException(
+        'Variante non trovata per SKU, barcode, codice articolo o codice fornitore',
+      );
     }
 
     return {
@@ -906,6 +1070,7 @@ export class ProductsService {
     productId: string,
     variants: readonly UpdateVariantDto[],
     shopifyActive: boolean,
+    canWriteCosts: boolean,
   ): Promise<void> {
     this.assertNoDuplicateSkusInPayload(variants);
     this.assertNoDuplicateBarcodesInPayload(variants);
@@ -927,9 +1092,9 @@ export class ProductsService {
 
     for (const variant of variants) {
       if (variant.id) {
-        await this.updateVariantInTx(tx, tenantId, productId, variant, shopifyActive);
+        await this.updateVariantInTx(tx, tenantId, productId, variant, shopifyActive, canWriteCosts);
       } else {
-        await this.createVariantInTx(tx, tenantId, productId, variant);
+        await this.createVariantInTx(tx, tenantId, productId, variant, canWriteCosts);
       }
     }
   }
@@ -939,11 +1104,12 @@ export class ProductsService {
     tenantId: string,
     productId: string,
     variant: CreateVariantDto,
+    canWriteCosts: boolean,
   ): Promise<void> {
     await assertVariantSkuAvailableInTx(tx, tenantId, variant.sku);
     await assertVariantBarcodeAvailableInTx(tx, tenantId, variant.barcode);
     await tx.productVariant.create({
-      data: this.toVariantCreateData(tenantId, productId, variant),
+      data: this.toVariantCreateData(tenantId, productId, variant, canWriteCosts),
     });
   }
 
@@ -953,6 +1119,7 @@ export class ProductsService {
     productId: string,
     variant: UpdateVariantDto,
     shopifyActive: boolean,
+    canWriteCosts: boolean,
   ): Promise<void> {
     const id = variant.id;
     if (!id) {
@@ -987,7 +1154,9 @@ export class ProductsService {
           : !sameAmountAtCent(variant.sellingPrice.amountMinor, Number(current.sellingPriceMinor))
             ? { shopifyPriceMinor: variant.sellingPrice.amountMinor }
             : {}),
-        purchasePriceMinor: variant.purchasePrice?.amountMinor,
+        // Costo mascherato = costo non scrivibile: il valore a database resta
+        // quello che è, invece di essere azzerato da un form che non lo vede.
+        ...(canWriteCosts ? { purchasePriceMinor: variant.purchasePrice?.amountMinor } : {}),
       },
     });
   }
@@ -1023,6 +1192,9 @@ export class ProductsService {
     tenantId: string,
     productId: string,
     variant: CreateVariantDto,
+    // Obbligatorio: un default silenzioso qui deciderebbe al posto del
+    // chiamante se il costo si scrive, e i due builder avevano default opposti.
+    canWriteCosts: boolean,
   ): Prisma.ProductVariantUncheckedCreateInput {
     return {
       tenantId,
@@ -1035,13 +1207,16 @@ export class ProductsService {
       // Prezzo Shopify: valore proprio (§B). Se il form lo invia si usa quello,
       // altrimenti nasce precompilato dal prezzo variante.
       shopifyPriceMinor: variant.shopifyPrice?.amountMinor ?? variant.sellingPrice.amountMinor,
-      purchasePriceMinor: variant.purchasePrice?.amountMinor,
+      purchasePriceMinor: canWriteCosts ? variant.purchasePrice?.amountMinor : null,
     };
   }
 
   private toVariantCreateInput(
     tenantId: string,
     variant: CreateVariantDto,
+    // Obbligatorio: un default silenzioso qui deciderebbe al posto del
+    // chiamante se il costo si scrive, e i due builder avevano default opposti.
+    canWriteCosts: boolean,
   ): Prisma.ProductVariantCreateWithoutProductInput {
     return {
       tenant: { connect: { id: tenantId } },
@@ -1053,7 +1228,7 @@ export class ProductsService {
       // Prezzo Shopify: valore proprio (§B). Se il form lo invia si usa quello,
       // altrimenti nasce precompilato dal prezzo variante.
       shopifyPriceMinor: variant.shopifyPrice?.amountMinor ?? variant.sellingPrice.amountMinor,
-      purchasePriceMinor: variant.purchasePrice?.amountMinor,
+      purchasePriceMinor: canWriteCosts ? variant.purchasePrice?.amountMinor : null,
     };
   }
 
@@ -1284,7 +1459,9 @@ export class ProductsService {
   }
 
   async syncToShopify(tenantId: string, id: string): Promise<ShopifyProductPushResult> {
-    const product = await this.getById(tenantId, id);
+    // Lettura interna per il solo controllo sull'origine catalogo: senza
+    // mascheramento, così non dipende dai permessi di chi ha premuto il tasto.
+    const product = await this.loadProductOrThrow(tenantId, id);
     assertShopifyCatalogManualSyncAllowed(product.catalogOrigin);
     return this.channelSync.pushProductNow(tenantId, id);
   }

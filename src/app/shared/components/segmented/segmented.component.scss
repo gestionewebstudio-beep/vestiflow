@@ -53,3 +53,30 @@
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
+
+/*
+  ⚠️ **Variante piatta: un solo livello visivo.**
+
+  La traccia ha fondo e bordo per staccarsi da una superficie piana. Dentro un
+  contenitore che il bordo ce l'ha già — il pannello di un menu, una card — quel
+  riquadro non separa niente: è una scatola dentro una scatola, e il segmento
+  attivo con il suo bordo ne aggiunge una terza.
+
+  Qui resta solo ciò che dice quale voce è scelta.
+*/
+.segmented--flat {
+  padding: 0;
+  background-color: transparent;
+  border-color: transparent;
+}
+
+.segmented--flat .segmented__item {
+  min-block-size: var(--control-h-button);
+  font-size: var(--text-xs);
+}
+
+.segmented--flat .segmented__item--active {
+  color: var(--color-primary);
+  background-color: var(--color-primary-subtle);
+  border-color: transparent;
+}

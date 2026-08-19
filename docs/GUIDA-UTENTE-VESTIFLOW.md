@@ -24,7 +24,7 @@
 12. [Anagrafica fornitori](#12-anagrafica-fornitori)
 13. [Documenti fiscali e operativi](#13-documenti-fiscali-e-operativi)
 14. [Vendite e clienti](#14-vendite-e-clienti)
-15. [Report, dashboard e registro commercialista](#15-report-dashboard-e-registro-commercialista)
+15. [Report, dashboard e corrispettivi](#15-report-dashboard-e-corrispettivi)
 16. [Usare VestiFlow da smartphone](#16-usare-vestiflow-da-smartphone)
 17. [Negozio fisico: vendite al banco](#17-negozio-fisico-vendite-al-banco)
 18. [Profilo, foto e sicurezza account](#18-profilo-foto-e-sicurezza-account)
@@ -44,7 +44,7 @@ Con un account puoi:
 - registrare **carichi, scarichi, trasferimenti e rettifiche** con storico;
 - creare e ricevere **ordini fornitori**;
 - gestire **documenti** (arrivi merce, DDT, trasferimenti, rettifiche, proforma e bozze fattura);
-- consultare il **registro commercialista** con i documenti da fatturare o registrare;
+- consultare i **Corrispettivi**, e i **DDT da fatturare** dalla lista Documenti;
 - **registrare vendite e resi al banco** con scansione barcode (profilo **Solo gestionale**);
 - consultare **vendite e clienti** importati da Shopify (profilo Shopify);
 - tenere **catalogo e stock allineati** al canale e-commerce collegato, se presente.
@@ -88,21 +88,21 @@ In alto a destra clicca l'icona **Esci** (freccia verso l'uscita). Compare una *
 
 Su desktop resta sempre visibile; su smartphone si apre con l'icona **menu** in alto.
 
-| Voce                        | A cosa serve                                                                               |
-| --------------------------- | ------------------------------------------------------------------------------------------ |
-| **Dashboard**               | Riepilogo attività                                                                         |
-| **Prodotti**                | Catalogo, creazione, modifica, import/export CSV                                           |
-| **Magazzino**               | Apre **Cerca giacenza** (ricerca rapida, ideale su mobile)                                 |
-| **Fornitori**               | Anagrafica fornitori (nome, contatti, P.IVA)                                               |
-| **Ordini Fornitori**        | Acquisti dai fornitori                                                                     |
-| **Documenti**               | Registro documenti: arrivi merce, DDT, trasferimenti, rettifiche, impostazioni numerazione |
-| **Registra vendita**        | Vendite e storni al banco con barcode (tutti i profili canale)                             |
-| **Vendite**                 | Ordini da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                    |
-| **Clienti**                 | Anagrafica da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                |
-| **Report**                  | Indicatori e riepiloghi                                                                    |
-| **Registro commercialista** | Riepilogo documenti fiscali e corrispettivi per periodo (collegato a **Documenti**)        |
-| **Impostazioni**            | Profilo, foto, tema, sedi, integrazione canale (Shopify o TikTok se prevista), sicurezza   |
-| **Guida**                   | Manuale utente integrato nell'app                                                          |
+| Voce                 | A cosa serve                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| **Dashboard**        | Riepilogo attività                                                                         |
+| **Prodotti**         | Catalogo, creazione, modifica, import/export CSV                                           |
+| **Magazzino**        | Apre **Cerca giacenza** (ricerca rapida, ideale su mobile)                                 |
+| **Fornitori**        | Anagrafica fornitori (nome, contatti, P.IVA)                                               |
+| **Ordini Fornitori** | Acquisti dai fornitori                                                                     |
+| **Documenti**        | Registro documenti: arrivi merce, DDT, trasferimenti, rettifiche, impostazioni numerazione |
+| **Registra vendita** | Vendite e storni al banco con barcode (tutti i profili canale)                             |
+| **Vendite**          | Ordini da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                    |
+| **Clienti**          | Anagrafica da Shopify (sola lettura), export CSV (**solo profilo Shopify**)                |
+| **Report**           | Indicatori e riepiloghi                                                                    |
+| **Corrispettivi**    | Quadro economico di vendite e rettifiche per periodo, con filtri e stampa/export           |
+| **Impostazioni**     | Profilo, foto, tema, sedi, integrazione canale (Shopify o TikTok se prevista), sicurezza   |
+| **Guida**            | Manuale utente integrato nell'app                                                          |
 
 Su mobile, **Esci** è in fondo al menu ☰ (sotto tutte le voci); su desktop resta anche in topbar.
 
@@ -147,6 +147,7 @@ Il contenuto di **Impostazioni** dipende dal **profilo canale** del tuo negozio 
 
 Pannello visibile a **Titolare** e **Amministratore** (accesso completo al tenant). Consente di attivare:
 
+- **Prezzi di vendita: Netti o Ivati** — come la tua azienda ragiona sui prezzi (vedi sotto)
 - **Gestione lotti e scadenze** — colonne lotto/scadenza in arrivo merce
 - **Gestione numeri seriali** — colonna seriali in arrivo merce
 - **Policy aggiornamento prezzo fornitore** in carico: sempre / chiedi conferma / mai
@@ -154,6 +155,46 @@ Pannello visibile a **Titolare** e **Amministratore** (accesso completo al tenan
 - Avvisi e blocco su **giacenze negative**
 
 Le modifiche si applicano a tutti gli utenti del negozio.
+
+##### Prezzi di vendita: Netti o Ivati _(dal 16 agosto 2026)_
+
+Dice come la tua azienda **normalmente** esprime i prezzi di vendita. Non è una regola rigida:
+è il punto di partenza.
+
+| Se vendi…                          | Scegli                                    |
+| ---------------------------------- | ----------------------------------------- |
+| al **dettaglio**, al pubblico      | **Ivati** — il prezzo che il cliente paga |
+| all'**ingrosso**, ad altre aziende | **Netti** — imponibile, l'IVA si aggiunge |
+
+**Dove si vede:**
+
+- ogni **documento di vendita nuovo** (preventivo, ordine cliente, DDT, fattura) parte da qui;
+- l'**anagrafica articoli** mostra i prezzi di listino nello stesso modo.
+
+**Cosa NON cambia:**
+
+- i **documenti già salvati** restano come sono. Ognuno si ricorda la modalità con cui è stato
+  compilato, e riaprendolo la ritrovi — anche se nel frattempo l'impostazione è cambiata, e
+  anche se lo apre un tuo collega;
+- il **valore** dei documenti non si tocca mai: cambia solo come il prezzo si scrive e si legge.
+
+**Sul singolo documento puoi sempre cambiare modalità**, con il menu sull'intestazione della
+colonna Prezzo. VestiFlow **si ricorda la tua ultima scelta per quel tipo di documento**: se fai
+sempre le fatture in netto, le tue fatture nuove partiranno nette anche se l'azienda è impostata
+su ivato.
+
+⚠️ **Se cambi l'impostazione aziendale, quelle memorie si azzerano** e tutti ripartono dalla
+scelta nuova. È voluto: altrimenti cambieresti l'impostazione e non succederebbe niente a chi ha
+già lavorato.
+
+**E i costi di acquisto?** Partono **sempre netti** — arrivo merce e ordine fornitore. Puoi
+passare alla vista ivata sul singolo documento quando ti conviene (per esempio per confrontare
+con la fattura del fornitore), e quel documento se la ricorda; ma il documento successivo
+riparte netto. Non c'è un'impostazione aziendale per i costi, perché per un'azienda che detrae
+l'IVA il costo **è** l'imponibile.
+
+**La cassa (vendita al banco)** resta sempre ivata: al banco il prezzo esposto è quello che il
+cliente paga.
 
 #### Sede fisica (anagrafica cliente)
 
@@ -190,13 +231,13 @@ Per **Amministratore**, **Manager** e **Commesso** il referente VestiFlow assegn
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | **Vedere giacenze di tutte le sedi** | Consulta stock e movimenti oltre la sede assegnata (le **azioni** restano sulla sede operativa in topbar). |
 | **Gestire giacenze**                 | Carichi, scarichi, trasferimenti, rettifiche, inventario fisico, **Registra movimento**.                   |
-| **Import/export e sync giacenze**    | Export/import CSV giacenze e pulsante **Sincronizza giacenze da Shopify**.                                 |
+| **Import/export e sync giacenze**    | Export/import CSV giacenze e pulsante **Riallinea le giacenze su Shopify**.                                |
 | **Gestire catalogo**                 | Crea e modifica prodotti, varianti e prezzi.                                                               |
 | **Import/export e sync prodotti**    | Export/import CSV catalogo, **Importa da Shopify** e **Sincronizza catalogo** dalla lista prodotti.        |
 | **Eliminare prodotti**               | Rimozione prodotti dal catalogo (nei limiti previsti da Fonte/sync).                                       |
 | **Gestire ordini fornitore**         | Crea, modifica, invia e annulla ordini fornitore.                                                          |
 | **Ricevere ordini fornitore**        | Registra merce in arrivo da ordine fornitore (flusso rapido da **Ordini Fornitori**).                      |
-| **Consultare documenti**             | Lista e dettaglio **Documenti**; filtri registro commercialista e DDT da fatturare.                        |
+| **Consultare documenti**             | Lista e dettaglio **Documenti**; filtro **DDT da fatturare**.                                              |
 | **Gestire documenti**                | Crea e modifica documenti (arrivo merce, DDT, trasferimenti, rettifiche, impostazioni numerazione).        |
 | **Registrare vendite al banco**      | Schermata **Registra vendita** (vendite e storni).                                                         |
 | **Consultare report**                | Dashboard e sezione **Report**.                                                                            |
@@ -232,7 +273,7 @@ I valori sotto sono i default **prima** di eventuali personalizzazioni del refer
 | Ordini fornitore (gestione)                     | Sì       | Sì             | Sì               | No                        |
 | Ricezione merce                                 | Sì       | Sì             | Sì               | Sì                        |
 | Documenti (consultazione / gestione)            | Sì       | Sì             | Sì               | Consultazione             |
-| Registro commercialista                         | Sì       | Sì             | Sì               | No                        |
+| Corrispettivi                                   | Sì       | Sì             | Sì               | No                        |
 | Registra vendita al banco                       | Sì       | Sì             | Sì               | Sì                        |
 | Report + export CSV / sync vendite-clienti      | Sì       | Sì             | Sì               | Solo consultazione report |
 | Sede fisica (anagrafica)                        | Sì       | Sì             | No               | No                        |
@@ -337,6 +378,7 @@ Magazzino, movimenti, giacenze e selettore in topbar mostrano **solo le sedi att
 | **Sincronizza location**            | Impostazioni | Importa le sedi da Shopify                                 |
 | **Sedi attive in VestiFlow**        | Impostazioni | Scegli quali sedi usare nel gestionale (entro il piano)    |
 | **Attiva aggiornamenti automatici** | Impostazioni | Riceve prodotti, giacenze, ordini e clienti in tempo reale |
+| **Verifica ora**                    | Impostazioni | Chiede a Shopify quali notifiche sono davvero attive       |
 | **Importa catalogo da Shopify**     | Impostazioni | Scarica i prodotti già presenti online                     |
 
 > Con cataloghi grandi l'import può richiedere **diversi minuti**. Resta sulla pagina finché compare il messaggio di esito. **Non premere più volte** lo stesso pulsante.
@@ -349,6 +391,8 @@ Magazzino, movimenti, giacenze e selettore in topbar mostrano **solo le sedi att
 | **Salva sedi attive**                  | Dopo sync: conferma quali sedi usare in VestiFlow   |
 | **Attiva aggiornamenti automatici**    | Dopo connessione o cambio permessi app              |
 | **Disattiva aggiornamenti automatici** | Pausa sync temporanea                               |
+| **Verifica ora**                       | Per sapere cosa risulta davvero su Shopify adesso   |
+| **Registra le notifiche mancanti**     | Dopo una verifica, se ne manca qualcuna             |
 | **Importa catalogo da Shopify**        | Allineamento completo del catalogo                  |
 | **Ripristina connessione**             | Errore stale ma negozio ancora raggiungibile        |
 | **Cambia negozio**                     | Passare a un **altro dominio** Shopify              |
@@ -435,7 +479,7 @@ Solo il **Titolare** può collegare o scollegare TikTok Shop.
 | **Prodotti importati da Shopify** (`Fonte: Shopify`)  | Solo dati operativi                       | Titolo, prezzi vendita, varianti e immagini in **Shopify Admin**; in VestiFlow: **stagione** e **prezzo di acquisto** |
 | **Giacenze**                                          | Sì (carichi, rettifiche…)                 | Vendite Shopify via webhook; vendite negozio via **Registra vendita** (tutti i profili); push canale dopo scansione   |
 | **Ordini fornitori**                                  | Sì, solo in VestiFlow                     | Non passano da Shopify/TikTok                                                                                         |
-| **Vendite al banco**                                  | Sì — **Registra vendita**                 | Tutti i profili; movimento magazzino (origine **Vendita negozio**), non ordine di vendita                             |
+| **Vendite al banco**                                  | Sì — **Registra vendita**                 | Tutti i profili; movimento magazzino (origine **Vendita al banco**), non ordine di vendita                            |
 | **Vendite (lista ordini)**                            | Sola lettura                              | Da Shopify Online e POS (**solo profilo Shopify**)                                                                    |
 | **Clienti**                                           | Sola lettura                              | Da Shopify (profilo Shopify)                                                                                          |
 | **Sedi (location)**                                   | Sync + **selezione attiva** (entro piano) | Solo sedi attive in magazzino, movimenti e topbar; blocco dopo primo salvataggio                                      |
@@ -486,14 +530,14 @@ All’apertura compare la modalità **Inserimento rapido** (consigliata per aggi
 
 Su **un’unica schermata** compili:
 
-| Campo              | Obbligatorio | Note                                              |
-| ------------------ | ------------ | ------------------------------------------------- |
-| **Nome prodotto**  | Sì           |                                                   |
-| **SKU**            | Sì           | Suggerito automaticamente dal nome (modificabile) |
-| **EAN**            | No           | Opzionale; pulsante **Genera** per codice EAN-13  |
-| **Prezzo vendita** | Sì           |                                                   |
-| **Brand**          | No           |                                                   |
-| **Categoria**      | No           | Completabile anche dopo                           |
+| Campo                 | Obbligatorio | Note                                              |
+| --------------------- | ------------ | ------------------------------------------------- |
+| **Nome prodotto**     | Sì           |                                                   |
+| **SKU**               | Sì           | Suggerito automaticamente dal nome (modificabile) |
+| **EAN**               | No           | Opzionale; pulsante **Genera** per codice EAN-13  |
+| **Prezzo di vendita** | Sì           |                                                   |
+| **Brand**             | No           |                                                   |
+| **Categoria**         | No           | Completabile anche dopo                           |
 
 - **Altri dati catalogo** (sezione espandibile): stagione, stato, IVA, unità di misura, tag, descrizione, immagini…
 - Pulsante **Crea prodotto** in fondo — **non** serve completare brand, categoria o opzioni taglia/colore.
@@ -597,12 +641,12 @@ Nella tabella **Giacenze** la colonna **In arrivo** mostra quantità **attese** 
 
 ### Azioni principali (Giacenze)
 
-| Pulsante                            | Funzione                                   | Permesso richiesto                |
-| ----------------------------------- | ------------------------------------------ | --------------------------------- |
-| **Sincronizza giacenze da Shopify** | Allinea quantità da Shopify                | Import/export e sync **giacenze** |
-| **Esporta CSV**                     | Scarica giacenze (SKU, sede, quantità)     | **Esportare dati**                |
-| **Importa CSV**                     | Carica rettifiche da file                  | Import/export e sync **giacenze** |
-| **Registra movimento**              | Carico, scarico, trasferimento o rettifica | Gestire **giacenze**              |
+| Pulsante                             | Funzione                                         | Permesso richiesto                |
+| ------------------------------------ | ------------------------------------------------ | --------------------------------- |
+| **Riallinea le giacenze su Shopify** | Riporta il negozio online al valore di VestiFlow | Import/export e sync **giacenze** |
+| **Esporta CSV**                      | Scarica giacenze (SKU, sede, quantità)           | **Esportare dati**                |
+| **Importa CSV**                      | Carica rettifiche da file                        | Import/export e sync **giacenze** |
+| **Registra movimento**               | Carico, scarico, trasferimento o rettifica       | Gestire **giacenze**              |
 
 ### Registrare un movimento
 
@@ -622,7 +666,7 @@ Puoi **scansionare il barcode** sotto il campo Variante per selezionare automati
 | **Trasferimento** | Spostamento tra due sedi                  |
 | **Rettifica**     | Correzione quantità (motivo obbligatorio) |
 
-Le **vendite** e i **resi al banco** non si registrano nel form **Registra movimento**: usa **Registra vendita** in sidebar. Nello **storico movimenti** compaiono come tipo **Vendita** o **Reso** con origine **Vendita negozio**.
+Le **vendite** e i **resi al banco** non si registrano nel form **Registra movimento**: usa **Registra vendita** in sidebar. Nello **storico movimenti** compaiono come tipo **Vendita** o **Reso** con origine **Vendita al banco**.
 
 Ogni movimento resta nello **storico** con data, operatore e origine (gestionale, Shopify o vendita negozio).
 
@@ -718,7 +762,7 @@ VestiFlow centralizza i documenti che impattano magazzino e contabilità. **Non 
 ### Dove trovarli
 
 - **Documenti** — registro completo con filtri, colonne personalizzabili e azioni di creazione
-- **Registro commercialista** — riepilogo KPI per periodo con link ai filtri preimpostati (vedi [§15](#15-report-dashboard-e-registro-commercialista))
+- **Corrispettivi** — quadro economico per periodo, con filtri e stampa/export (vedi [§15](#15-report-dashboard-e-corrispettivi))
 
 ### Tipi di documento
 
@@ -751,14 +795,14 @@ Le azioni disponibili nel **dettaglio documento** dipendono da tipo e stato (con
 
 ### Registro documenti — filtri utili
 
-| Filtro / vista           | A cosa serve                                                          |
-| ------------------------ | --------------------------------------------------------------------- |
-| **Tipo** e **Stato**     | Restringe l'elenco (es. solo DDT vendita confermati)                  |
-| **Periodo** (da / a)     | Intervallo date documento                                             |
-| **Cliente**              | Documenti vendita per anagrafica                                      |
-| **Vista commercialista** | Solo tipi rilevanti per contabilità (da link Registro commercialista) |
-| **DDT da fatturare**     | DDT vendita attivi **senza** bozza fattura collegata                  |
-| **Ricerca**              | Numero, riferimento, note                                             |
+| Filtro / vista       | A cosa serve                                                          |
+| -------------------- | --------------------------------------------------------------------- |
+| **Tipo** e **Stato** | Restringe l'elenco (es. solo DDT vendita confermati)                  |
+| **Periodo** (da / a) | Intervallo date documento                                             |
+| **Cliente**          | Documenti vendita per anagrafica                                      |
+| **DDT da fatturare** | DDT con «Seguirà doc. di vendita» che nessuna fattura viva ha incluso |
+| **DDT da fatturare** | DDT vendita attivi **senza** bozza fattura collegata                  |
+| **Ricerca**          | Numero, riferimento, note                                             |
 
 I filtri restano nell'**URL** della pagina: puoi salvare o condividere il link con il commercialista.
 
@@ -780,10 +824,63 @@ Da **Documenti**, pulsante **Nuovo documento** (se hai **Gestire documenti**):
 - **Righe in griglia:** menu **Colonne** (preset, resize intestazioni, **Ripristina colonne**); cerca articolo per **nome, SKU o barcode/EAN**; **Crea articolo rapido** o **Crea anagrafica completa** (pannello laterale senza uscire dal documento). Colonne: descrizione, quantità, costo, IVA, lotto/scadenza/seriali (se attivi in Impostazioni), flag **Carica magazzino**, totale riga.
 - **Ordine fornitore collegato:** se apri l'arrivo da **Registra arrivo merce** sull'ordine, compaiono anche colonne **Ordinato / Già ricevuto / Residuo** per ogni riga.
 - **Conferma:** se il costo differisce dall'ultimo prezzo fornitore e la policy lo prevede, compare un dialog per **aggiornare i prezzi fornitore**.
+- **Prezzi articolo:** due spunte in testata decidono cosa il carico scrive in anagrafica — vedi qui sotto.
 - **Documento già confermato:** dal form restano disponibili **Anteprima stampa** e il download del PDF. L'arrivo merce non ha azioni di ciclo di vita fiscale: la copertura contabile è tracciata dal collegamento alla fattura fornitore.
 - Opzionali per riga: **lotto**, **scadenza lotto**, **numeri seriali** (testo separato da virgola).
 
 Alla **conferma** dell'arrivo merce (o carico manuale/iniziale) VestiFlow registra i **carichi** in magazzino, aggiorna le giacenze e, se collegato, l'ordine fornitore e l'**in arrivo** (e Shopify/TikTok se collegati).
+
+#### Cosa il carico scrive in anagrafica _(dal 16 agosto 2026)_
+
+In fondo alla testata trovi **due spunte**, tutte e due accese di default. Fanno cose diverse,
+e vale la pena saperlo:
+
+| Spunta                                                  | Cosa decide                                                |
+| ------------------------------------------------------- | ---------------------------------------------------------- |
+| **Aggiorna il costo in anagrafica con quello inserito** | se il costo che digiti diventa il costo dell'**articolo**  |
+| **Aggiorna prezzi articolo**                            | se i prezzi che scrivi sulle righe aggiornano l'anagrafica |
+
+Il **costo** funziona **riga per riga**: se richiami tre taglie dello stesso articolo hai
+tre righe, e ognuna porta in anagrafica il proprio costo. Nessuna «vince» sulle altre.
+
+- **spunta accesa** → il costo che digiti diventa il costo di quella taglia in anagrafica;
+- **spunta spenta** → resta un **costo del documento**, buono per report e contabilità, e in
+  anagrafica non va nulla.
+
+⚠️ **Fino al 19/08/2026 faceva un'altra cosa**, e vale la pena saperlo se hai caricato merce
+prima di quella data: il costo della taglia si aggiornava **sempre**, spunta o no. Chi la
+toglieva credeva di registrare un costo solo documentale e stava riscrivendo il costo
+effettivo di ogni taglia caricata — quello che alimenta valorizzazione e margini.
+
+**L'ultimo prezzo pagato al fornitore si aggiorna comunque**, con o senza spunta: non è
+anagrafica, è la memoria di quanto ti costa da quel fornitore. È il dato che fa comparire
+l'avviso «lo pagavi X, ora paghi Y» al carico successivo.
+
+⚠️ **Un articolo NUOVO creato dal carico è un altro caso**: nasce con i dati che stai
+inserendo in quel momento, spunta o no. Alla nascita non c'è nessun valore da sovrascrivere —
+quei dati **sono** i dati dell'articolo.
+
+⚠️ **Costo e prezzo non funzionano allo stesso modo, e la differenza si vede.**
+
+Il **prezzo di vendita** invece **non è un dato del documento**: è il prezzo di listino
+dell'articolo, e il carico è solo il momento comodo per cambiarlo. Perciò:
+
+- **spunta accesa** → il campo si scrive, e quello che scrivi aggiorna il prezzo della taglia
+  in anagrafica;
+- **spunta spenta** → il campo resta **visibile ma non modificabile**.
+
+Non è una limitazione: prima quella casella si poteva scrivere sempre, e per gli articoli già
+esistenti **il valore digitato non andava da nessuna parte**. Meglio un campo che dice
+chiaramente «adesso non si tocca» di uno che accetta un numero e lo butta via.
+
+**Se hai Shopify collegato** compare anche la colonna **Prezzo Shopify**, che puoi accendere
+o spegnere dal menu **Colonne** (di default è spenta). Segue la stessa spunta: si scrive solo
+a spunta accesa.
+
+⚠️ **Prezzo di vendita e Prezzo Shopify restano due prezzi distinti**, ed è voluto: quello
+che pubblichi online può essere diverso da quello del tuo listino. Con Shopify collegato,
+cambiare uno **non** cambia l’altro. Senza Shopify collegato la colonna non c’è, e il prezzo
+del canale segue quello di listino solo quando questo cambia davvero.
 
 **Modifica di un documento già confermato:** apri il documento in modifica, clicca **Sblocca modifica** e conferma l'avviso — VestiFlow aggiorna movimenti e giacenze e salva lo storico revisioni.
 
@@ -797,9 +894,76 @@ Usa **Colonne** sopra le tabelle principali per mostrare/nascondere campi, scegl
 
 Viste con column picker: **Documenti**, **Giacenze**, **Movimenti**, **Fornitori**, **Prodotti**, **Clienti**, righe **Ordine fornitore** e righe **Arrivo merce**. Su mobile molte liste passano a **card** con etichette campo.
 
+### Numerazione dei documenti
+
+**In testata di ogni documento** trovi **Data, Serie e Numero**.
+
+- Il **numero** che vedi aprendo un documento nuovo è una **proposta**: è il primo libero
+  in quel momento, e se lo prende chi salva per primo. Puoi lasciarlo com'è — al
+  salvataggio il sistema assegna il primo libero di allora — oppure **scriverne uno tuo**,
+  per esempio per tappare un buco nella numerazione.
+- Se il numero che hai scritto risulta già preso, un avviso te lo dice, **mette in testata
+  il primo numero libero** e aspetta che tu prema Salva: nessun numero viene cambiato alle
+  tue spalle.
+- La **serie** si sceglie da una tendina, non si scrive. Contiene le serie utilizzabili
+  nella sede del documento (vedi sotto). Se non la tocchi, il documento prende la serie
+  predefinita.
+- L'icona **⚙** accanto alla serie apre la gestione delle numerazioni senza uscire dal
+  documento.
+
+**Duplicando un documento** il numero **non** si eredita: il duplicato prende il primo
+libero e la data di oggi.
+
+**Il numero proposto tiene conto della data.** Se hai preparato un documento datato la
+settimana prossima e gli hai dato un numero alto, quel numero non brucia la numerazione di
+oggi: aprendo un documento con la data di oggi ti viene proposto il primo libero fra i
+documenti che lo precedono. È anche il motivo per cui, a volte, il numero proposto **tappa
+un buco** invece di andare in coda — succede solo quando la data lo consente.
+
+### Se la numerazione va fuori ordine
+
+Dentro la stessa serie, a un numero più alto deve corrispondere una data uguale o
+successiva. Nella stessa giornata l'ordine non conta: numerare 3, poi 1, poi 2 tutti dello
+stesso giorno va benissimo.
+
+Quando l'ordine si rompe — di solito perché un numero è stato scritto a mano, o perché è
+stata cambiata la data di un documento già salvato — al salvataggio compare un avviso con
+**l'elenco dei documenti fuori posto**, non solo quello che stai salvando.
+
+- **Non è un blocco**: «Sì, salva comunque» prosegue.
+- **Continua a comparire** finché la serie resta fuori ordine, anche sui documenti
+  successivi che sono in ordine. È voluto: un buco non giustificato va sistemato, e un
+  avviso che sparisce da solo si dimentica.
+- La casella **«Non mostrare più»** lo spegne **solo per quel tipo di documento**: chi
+  sistema le fatture continua a vederlo sui DDT. Una volta spento **non si riaccende**, e
+  non c'è un pannello per riattivarlo — quindi spuntala solo se sei sicuro.
+
+### La sede in testata
+
+Ogni documento porta la **Sede** — il magazzino o il negozio a cui appartiene.
+
+- Se l'amministratore ti ha assegnato una **sede predefinita**, il campo esce già
+  compilato con quella: non devi confermarla a ogni documento.
+- Se non ce l'hai — è il caso di chi lavora su più sedi — il campo parte **vuoto** e la
+  sede va scelta. È voluto: è l'unico caso in cui la scelta non è ovvia.
+- Nei **Trasferimenti** si precompila solo la sede di **partenza**; la destinazione la
+  scegli tu.
+- Fanno eccezione la **Registrazione fattura fornitore**, che non ha il campo perché la
+  fattura è intestata all'azienda e non a una sede, e la **Vendita al banco**, che prende
+  la sede dal selettore in alto.
+
+**La sede decide quali serie puoi usare**: una serie assegnata a una sede è utilizzabile
+solo lì, una serie senza sede vale ovunque. Cambiando sede la tendina si aggiorna.
+
 ### Impostazioni numerazione
 
-**Documenti → Impostazioni documenti** (solo **Gestire documenti**): prefissi e serie per tipo (es. prefisso DDT vendita, arrivo merce). I numeri progressivi vengono assegnati alla **conferma**.
+**Documenti → Impostazioni documenti** (solo **Gestire documenti**): prefissi per tipo
+documento e gestione delle serie (i **Numeratori**). Qui si crea una serie, le si assegna
+una sede e si sceglie quale è la predefinita del tipo.
+
+Il riferimento di un documento ha la forma `PREFISSO-SERIE-NUMERO` (es. `AM-A-0042`), o
+`PREFISSO-NUMERO` se la serie non c'è. Chi vuole ricominciare da 1 ogni anno crea una
+serie chiamata come l'anno.
 
 ### Permessi
 
@@ -840,7 +1004,7 @@ Schermata **Registra vendita** per aggiornare le giacenze dopo vendita o reso in
 - **Pistola barcode USB** — funziona come tastiera: focus nel campo, scan, Invio o pulsante.
 - **Sessione corrente** — ultime operazioni della sessione (non sostituisce lo storico movimenti).
 
-Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con origine **Vendita negozio**. Se lo stock **disponibile** è insufficiente, la vendita viene rifiutata.
+Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con origine **Vendita al banco**. Se lo stock **disponibile** è insufficiente, la vendita viene rifiutata.
 
 ### Vendite (solo profilo Shopify)
 
@@ -852,6 +1016,18 @@ Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con ori
 | ---------------------------------- | --------------- | ------------------ |
 | **Sincronizza vendite da Shopify** | Vendite (lista) | **Esportare dati** |
 | **Esporta CSV**                    | Vendite (lista) | **Esportare dati** |
+
+#### ⚠️ Resi e rimborsi con più sedi — cosa controllare su Shopify
+
+Se hai **più di una sede**, quando elabori un reso o un rimborso con ricarica di magazzino **controlla la sede proposta da Shopify prima di confermare**: non è quella da cui la merce è partita.
+
+Verificato il 14/08/2026 su ordini reali: un ordine spedito da «Shop location» proponeva il rientro su un'altra sede. Shopify segue la **priorità delle sedi** configurata, non l'evasione — quindi il default è quasi sempre da correggere a mano, e nessuno te lo segnala.
+
+Il posto dove guardare è la tendina **«Restituisci articolo a inventario presso: …»**, nella schermata del rimborso o dell'elaborazione del reso. Cambiala sulla sede da cui la merce era realmente uscita.
+
+Con **una sola sede** questo non ti riguarda: non c'è niente da scegliere.
+
+> Esiste anche un difetto di VestiFlow sullo stesso tema, già registrato e da correggere: la sede da cui il gestionale scarica non è sempre quella che ha spedito. Finché non è chiuso, con più sedi le giacenze per sede vanno lette con prudenza — il totale resta corretto, la ripartizione no.
 
 ### Clienti (profilo Shopify)
 
@@ -866,7 +1042,7 @@ Ogni scansione valida genera un movimento in **Magazzino → Movimenti** con ori
 
 ---
 
-## 15. Report, dashboard e registro commercialista
+## 15. Report, dashboard e corrispettivi
 
 ### Dashboard
 
@@ -874,23 +1050,106 @@ Pagina iniziale dopo il login: vendite recenti, ordini fornitore in attesa e ind
 
 ### Report
 
-Tabelle e KPI su prodotti, giacenze e ordini. I filtri **periodo** (da / a) usano un **selettore data con calendario**, coerente con la data attesa negli ordini fornitori e con il **Registro commercialista**.
+Tabelle e KPI su prodotti, giacenze e ordini. I filtri **periodo** (da / a) usano un **selettore data con calendario**, coerente con la data attesa negli ordini fornitori e con i **Corrispettivi**.
 
-### Registro commercialista
+### Corrispettivi
 
-Voce dedicata in sidebar (**Registro commercialista**, sotto **Report**): riepilogo per **periodo** di documenti fiscali e corrispettivi vendite online.
+Voce dedicata in sidebar, sotto **Vendite**: il **quadro economico** delle vendite e delle rettifiche che VestiFlow conosce, per periodo.
 
-| Tab               | Contenuto                                                                                                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Documenti**     | KPI: totale documenti, bozze fattura da emettere, inviate al commercialista, emesse/registrate esternamente, **DDT vendita in attesa fattura**, documenti fornitore da registrare |
-| **Corrispettivi** | Riepilogo vendite ecommerce nel periodo (profilo Shopify) con link al dettaglio                                                                                                   |
+> ⚠️ **Cambiato il 16 agosto 2026.** Qui c'era il **Registro commercialista**, con dei contatori che dividevano i documenti fra «già inviati» e «da inviare» al commercialista, e un pulsante «Segna consegnato». **Non ci sono più**, e non torneranno: VestiFlow non tiene traccia di cosa hai già mandato.
 
-**Collegamenti rapidi** (tab Documenti):
+**Come si usa, in tre passi:**
 
-- **Apri registro documenti filtrato** — apre **Documenti** con vista commercialista e date del periodo
-- **DDT da fatturare** — elenco DDT vendita confermati senza bozza fattura collegata
+1. scegli il **periodo** — preset rapidi, oppure Mese / Trimestre / Anno, oppure un intervallo tuo;
+2. restringi con i **filtri** se ti serve un sottoinsieme: **ambito** (Tutti · Online · Fisico/POS) e **tipo** (vendite, resi, rimborsi);
+3. **stampa o esporta** quel sottoinsieme — CSV, foglio Excel o PDF.
 
-Usa questi link per preparare il pacchetto mensile per il commercialista senza ricostruire i filtri a mano.
+Fine. **Non c'è un «dopo».** Puoi esportare lo stesso periodo dieci volte: non cambia niente, non resta traccia, nessuna vendita viene marcata. Se il commercialista ti richiede marzo a settembre, rifai marzo.
+
+**Le vendite in negozio con Shopify POS ci sono**, classificate come **Fisico/POS**. Che le abbia già certificate il registratore di cassa non è un motivo per nasconderle: nel quadro economico interno devono comparire, una volta sola e riconoscibili. Se ti serve il solo ecommerce, metti **ambito = Online**.
+
+**Per i DDT ancora da fatturare** non usi questa pagina: vai in **Documenti → DDT vendita** e spunti il filtro **«DDT da fatturare»**. Ti mostra quelli su cui hai messo «Seguirà doc. di vendita» e che nessuna fattura ha ancora incluso — e se una fattura viene annullata, il suo DDT ricompare lì.
+
+#### Come leggere i corrispettivi _(agosto 2026)_
+
+**Il periodo si sceglie per calendario, non a mano.** Oltre ai preset rapidi (ultimi 7 o 30 giorni, mese corrente, mese scorso, anno corrente) trovi **Mese…**, **Trimestre…** e **Anno…**: scegliendoli compaiono i selettori che servono — il mese e l'anno, il trimestre e l'anno, l'anno soltanto. Per il 2° trimestre 2026 non devi scrivere `01/04` e `30/06`: lo scegli.
+
+I selettori compaiono **solo** dove hanno senso: «mese corrente» non chiede l'anno, perché è il mese di adesso. **Personalizzato** resta per i periodi che non sono di calendario, tipo dal 15 marzo al 18 maggio.
+
+**Una vendita entra nel registro quando la merce parte, non quando l'ordine arriva.** Un ordine ricevuto il 30 luglio e spedito il 2 agosto è un corrispettivo di **agosto**. Un ordine mai spedito non compare in nessun periodo, e un ordine annullato prima della spedizione non compare mai — la vendita non è avvenuta.
+
+**I resi e i rimborsi compaiono come righe a sé, con l'importo in negativo**, alla data in cui sono avvenuti — non a quella della vendita. Quindi in un elenco puoi trovare:
+
+| Data  | Tipo     | Ordine | Totale |
+| ----- | -------- | ------ | ------ |
+| 14/08 | Vendita  | #1008  | 130,01 |
+| 14/08 | Reso     | #1008  | −80,01 |
+| 14/08 | Rimborso | #1008  | −5,00  |
+
+**«Reso» e «Rimborso» sono cose diverse**: nel primo caso la merce è tornata in magazzino, nel secondo sono tornati solo i soldi (un capo rovinato, uno sconto concesso dopo la vendita).
+
+**Il totale in fondo si ricostruisce sommando la colonna.** È voluto: se il numero non torna, lo vedi riga per riga senza dover chiedere a nessuno. La vendita originale **non viene mai cancellata né corretta** — resta alla sua data, e il reso la rettifica alla propria. È anche ciò che permette a chi tiene la contabilità di collegare il reso alla vendita da cui viene.
+
+**Gli annullamenti non tolgono niente al totale.** Li vedi contati nel riepilogo, ma valgono zero: annullano una vendita che non era mai stata registrata.
+
+Se qualche vendita risulta **evasa senza data**, il riepilogo te lo dice: non è conteggiata in nessun periodo, e va sistemata. Non sparisce in silenzio.
+
+**Il file che esporti contiene le stesse righe che vedi.** CSV, Excel e PDF portano vendite e rettifiche con una colonna **Tipo**, in ordine di data, e la somma delle righe fa esattamente il totale stampato in testa. È il modo per cui il commercialista può rifare il conto senza chiederti niente.
+
+#### Aggiungere un corrispettivo a mano _(dal 17 agosto 2026)_
+
+A volte il dato economico è certo ma la vendita analitica non c'è e non è ricostruibile: la cassa esterna ha battuto mentre il gestionale non era disponibile, hai una chiusura di cassa da recuperare, o stai riportando importi vecchi di cui sai quanto e con che IVA, ma non cosa è stato venduto.
+
+Per questi casi c'è il pulsante **«+ Aggiungi corrispettivo»**, in alto nella pagina Corrispettivi.
+
+> ⚠️ **È una registrazione solo economica.** Non crea prodotti, non crea clienti, e **non tocca il magazzino**: giacenza, impegnata e disponibile restano come sono. Non poteva essere altrimenti — una registrazione che non sa quali articoli sono usciti non può togliere pezzi da nessuna parte, e se lo facesse starebbe inventando merce.
+
+**Cosa si compila:**
+
+- la **data** — è quella economica, e decide in che periodo la registrazione entra;
+- la **sede** — obbligatoria: un corrispettivo appartiene sempre a un punto vendita o a un magazzino;
+- gli **importi ivati o netti** — un solo selettore per tutta la registrazione, che parte da **Ivati** perché è il verso in cui arrivano i numeri di una chiusura di cassa;
+- le **righe**: descrizione, importo e **Codice IVA**. Più righe, anche con aliquote diverse:
+
+```text
+70,00   IVA 22%   Vendite cassa esterna
+30,00   IVA 10%   Vendite cassa esterna
+```
+
+**Il selettore Ivati/Netti converte, non reinterpreta.** Passando da Ivati a Netti i 70,00 diventano 57,38 e il totale resta 70,00: stai guardando lo stesso importo da un'altra parte. Puoi passare avanti e indietro quante volte vuoi senza perdere un centesimo.
+
+**Il numero lo assegna VestiFlow al salvataggio**, e si vede nudo: 1, 2, 3. Non è un numero fiscale — il documento commerciale lo emette il registratore di cassa, che è un'altra cosa — serve solo a ritrovare la registrazione.
+
+**Si corregge e si elimina.** Una registrazione digitata a mano si può sbagliare: aprila dal suo numero nell'elenco e modificala, oppure eliminala. ⚠️ **Eliminando resta un buco nella numerazione** — dopo il 12 eliminato si passa da 11 a 13 — ed è normale: i numeri successivi non si rinumerano. E un export di questo mese, ristampato fra un mese, non conterrà più la registrazione eliminata.
+
+**Nel Registro si riconosce dall'origine**, che dice «Corrispettivo manuale». Senza filtri entra nell'elenco e nei totali come tutte le altre righe.
+
+⚠️ **Chi può farlo.** Serve il permesso **«Registrare corrispettivi manuali»** (gruppo Report), oltre a quelli che già servono per vedere i Corrispettivi. Senza, il pulsante non compare.
+
+#### La colonna Sede, e «Non determinata» _(dal 17 agosto 2026)_
+
+L'elenco ha una colonna **Sede** e un filtro per sceglierla.
+
+Su alcune righe che arrivano da Shopify leggerai **«Non determinata»**, in corsivo. Vuol dire quello che dice: quella vendita non porta con sé da quale sede è partita, e VestiFlow **non se la inventa**. È una cosa che va sistemata nella sincronizzazione, non uno stato normale.
+
+⚠️ **Filtrando per una sede quelle righe escono** — a una sede precisa non sono attribuibili — **ma la pagina te lo dice**:
+
+```text
+3 registrazioni con Location non determinata non incluse nel filtro
+```
+
+È l'avviso che conta: senza, il totale scenderebbe scegliendo una sede e nessuno saprebbe perché. **Togli il filtro Sede e tornano dentro**, nell'elenco e nel totale.
+
+#### Canale e tipo
+
+Accanto al periodo trovi altri due filtri, indipendenti fra loro e dal periodo:
+
+- **Canale** — tutti, Shopify, oppure Negozio. Di partenza il registro mostra **tutti i canali**: se una parte delle vendite restasse fuori per difetto, nessuno se ne accorgerebbe;
+- **Tipo** — vendite e rettifiche insieme, oppure solo vendite, solo resi, solo rimborsi.
+
+Puoi combinarli: «2° trimestre 2026 · Shopify · Solo resi» per vedere cosa è tornato indietro in quel trimestre.
+
+**Attenzione a una cosa, ed è voluta**: il filtro **Tipo** cambia solo l'elenco, non il totale. Se guardi «Solo resi», in fondo continui a leggere il corrispettivo del periodo — non la somma dei soli resi. Serve a non avere mai sotto gli occhi un numero negativo che sembra un totale e non lo è.
 
 ---
 
@@ -927,7 +1186,7 @@ Per negozi con **cassa fiscale o POS esterno** e VestiFlow solo come gestionale:
 4. Scansiona il barcode (pistola USB o camera) e **Registra vendita**.
 5. Per un reso cliente: **Registra storno** nello stesso schermo.
 
-**Consigli:** mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla **Movimenti** con origine **Vendita negozio** se qualcosa non quadra.
+**Consigli:** mantieni il campo vendita a fuoco; verifica barcode/SKU sulle varianti; controlla **Movimenti** con origine **Vendita al banco** se qualcosa non quadra.
 
 Non compare la lista **Vendite** né **Clienti**: il tracciamento vendite in VestiFlow è il movimento di magazzino.
 
@@ -992,13 +1251,15 @@ In **Impostazioni → Aspetto** (o dalla **topbar**) scegli **Chiaro**, **Scuro*
 2. Dopo una modifica permessi: **esci e rientra** o ricarica con **Ctrl+F5** (Mac: **Cmd+Shift+R**).
 3. Esempi: **Sincronizza catalogo** richiede import/export prodotti; **Registra movimento** richiede gestione giacenze; **Documenti** richiede consultare/gestire documenti; **Collega Shopify** è solo per il **Titolare**.
 
-### Non vedo Documenti o Registro commercialista
+### Non vedo Documenti o Corrispettivi
 
-Verifica i permessi **Consultare documenti** e **Consultare report**. Il **Registro commercialista** richiede accesso ai report. Dopo una modifica permessi: esci e rientra.
+Verifica i permessi **Consultare documenti** e **Consultare report**. I **Corrispettivi** richiedono accesso ai report. Dopo una modifica permessi: esci e rientra.
 
 ### Cosa significa «DDT da fatturare»?
 
-Sono **DDT vendita** già confermati (consegnati al cliente) per i quali non esiste ancora una **bozza fattura** collegata in VestiFlow. Apri l'elenco filtrato da **Registro commercialista** o dal filtro omonimo in **Documenti** per emettere o registrare le fatture esternamente.
+Sono i **DDT vendita** su cui hai spuntato **«Seguirà doc. di vendita»** e che nessuna Fattura viva ha ancora incluso. Li trovi in **Documenti → DDT vendita**, spuntando il filtro **«DDT da fatturare»**.
+
+⚠️ **Corretto il 16 agosto 2026.** Prima diceva «confermati senza bozza fattura collegata», e il filtro faceva davvero così: mostrava **tutti** i DDT confermati, compresi quelli che una fattura non la aspettano. Ora guarda la spunta — e se una fattura viene **annullata**, il DDT che aveva incluso **torna** nell'elenco.
 
 ### Differenza tra Registra arrivo merce (ordine) e Arrivo merce manuale
 
@@ -1016,6 +1277,30 @@ Entrambi usano lo **stesso form Documenti → Arrivo merce**. Da un ordine **Inv
 
 1. **Importa catalogo da Shopify** in Impostazioni (attendi fine operazione)
 2. Verifica che **Aggiornamenti automatici** sia attivo
+3. Premi **Verifica ora**: dice quali notifiche risultano davvero attive su Shopify. Se fra i mancanti compaiono quelle dei prodotti, i cambiamenti fatti online non arrivano — ed è quello il motivo, non l'import
+
+### Capire lo stato delle notifiche
+
+Sotto lo stato della connessione ci sono quattro informazioni. Servono a distinguere **«non è cambiato niente»** da **«non arriva più niente»**, che viste da fuori si assomigliano.
+
+| Cosa leggi                 | Cosa significa                                                         |
+| -------------------------- | ---------------------------------------------------------------------- |
+| **Ultimo evento ricevuto** | quando Shopify ha comunicato qualcosa l'ultima volta                   |
+| **Notifiche registrate**   | quante sono attive sulle attese, **con il nome di quelle che mancano** |
+| **Indirizzo di consegna**  | dove Shopify sta consegnando                                           |
+| **Ultima verifica**        | quando abbiamo chiesto a Shopify come stanno le cose                   |
+
+**«Non verificate» e «Mai» non sono un guasto.** Vogliono dire che non l'abbiamo ancora chiesto a Shopify: è diverso da «non c'è niente». Premi **Verifica ora** e diventano numeri.
+
+**Nessun evento da giorni non è di per sé un problema.** Se non hai ordini online e nessuno tocca le giacenze, non c'è niente da comunicare. Per questo VestiFlow riporta la data e non dà giudizi: l'unico modo di sapere davvero com'è messa la connessione è **Verifica ora**.
+
+### «Manca una notifica» e non trovo il pulsante per registrarla
+
+**Registra le notifiche mancanti** compare solo dopo una verifica, e solo quando c'è qualcosa da registrare. Se non lo vedi, i motivi sono due e portano a cose diverse:
+
+**Non c'è niente da registrare.** «Notifiche registrate» non nomina nessun mancante: è tutto a posto e non serve fare niente.
+
+**Stai guardando da un ambiente che Shopify non può raggiungere.** In questo caso i mancanti sono comunque nominati, ma accanto all'indirizzo leggi **«confronto non possibile da questo ambiente»**. Succede quando si apre il gestionale da un computer di sviluppo invece che dall'indirizzo pubblico. Il pulsante è nascosto **apposta**: registrare da lì creerebbe notifiche verso un indirizzo che non riceverà mai niente, e si sommerebbero a quelle buone invece di sostituirle. La riparazione va fatta dall'indirizzo pubblico del gestionale.
 
 ### L'import catalogo è lento
 
@@ -1124,3 +1409,29 @@ La voce **Guida** compare in sidebar subito sotto **Impostazioni** e apre questo
 La versione in-app è pensata per chi lavora nel negozio: passi operativi, dove cliccare e cosa aspettarsi. Per assistenza su configurazione o problemi di sync, contatta il tuo **referente VestiFlow**.
 
 ---
+
+### Le Vendite al banco nei Corrispettivi _(dal 16 agosto 2026)_
+
+Una **Vendita al banco** conclusa compare nei **Corrispettivi**, classificata come
+**Fisico/POS · VestiFlow**. Prima non ci compariva affatto: il Registro leggeva solo le vendite
+arrivate dai canali, e quello che battevi alla cassa restava fuori dal tuo quadro economico.
+
+**Che il registratore di cassa la certifichi non la fa sparire da qui.** Se registri 19,99 € in
+VestiFlow e poi batti 19,99 € sulla tua cassa, per VestiFlow **c'è una vendita sola**: il
+Registro rappresenta quella vendita, non ne crea una seconda.
+
+⚠️ **Non è il contrario, però:** vedere la vendita nei Corrispettivi **non vuol dire** che
+VestiFlow abbia verificato che lo scontrino sia stato emesso. Sono due cose distinte, e possono
+esistere vendite battute solo sulla cassa che VestiFlow non conosce.
+
+**Due filtri, non uno.** «Ambito» dice **come è arrivata** la vendita — Online oppure
+Fisico/POS — e «Canale» dice **chi l'ha raccolta** — Shopify o VestiFlow. Servono entrambi
+perché rispondono a domande diverse:
+
+| Vuoi vedere                               | Ambito     | Canale    |
+| ----------------------------------------- | ---------- | --------- |
+| le tue vendite al banco                   | Fisico/POS | VestiFlow |
+| il POS di Shopify                         | Fisico/POS | Shopify   |
+| l'ecommerce                               | Online     | Shopify   |
+| **tutto Shopify**, negozio e sito insieme | Tutti      | Shopify   |
+| il quadro completo                        | Tutti      | Tutti     |

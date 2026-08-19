@@ -1,30 +1,38 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  input,
-  output,
-  signal,
-  viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+
+import { classifyLineCellKey } from '@domain/documents/utils/document-line-cell-keys.util';
 
 import type { VariantSummary } from '@domain/products/models/variant-summary.model';
 import { formatMoney } from '@core/utils/money.util';
 
+import { DocumentLineSuggestionsComponent } from '../document-line-suggestions/document-line-suggestions.component';
+import type { DocumentLineSuggestionItem } from '../document-line-suggestions/document-line-suggestions.model';
+import { FirstClickSelectsDirective } from '@shared/directives/first-click-selects.directive';
+
 @Component({
   selector: 'app-document-line-product-cell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FirstClickSelectsDirective, FormsModule, DocumentLineSuggestionsComponent],
   templateUrl: './document-line-product-cell.component.html',
   styleUrl: './document-line-product-cell.component.scss',
 })
 export class DocumentLineProductCellComponent {
+  // Il permesso sul catalogo non si controlla più qui: i due pulsanti che
+  // aprivano l'anagrafica sono passati al pannello di ricerca (11/08/2026), e
+  // il controllo li ha seguiti — `document-product-search-panel`. Un gate su
+  // una superficie che non esiste più non protegge niente e fa credere il
+  // contrario a chi legge.
+
   readonly lineIndex = input.required<number>();
   readonly inputId = input('');
   readonly value = input.required<string>();
+  /**
+   * C'è un articolo di catalogo dietro la riga. **Non** cambia la modificabilità
+   * del nome — quella non dipende più da qui (11/08/2026) — decide solo se
+   * esiste un'anagrafica da aprire e se i suggerimenti devono tacere.
+   */
   readonly linked = input(false);
-  readonly linkedLabel = input('');
   readonly disabled = input(false);
   readonly invalid = input(false);
   readonly suggestions = input<readonly VariantSummary[]>([]);
@@ -35,8 +43,6 @@ export class DocumentLineProductCellComponent {
   readonly focused = output<number>();
   readonly blurred = output<number>();
   readonly searchOpen = output<number>();
-  readonly anagraphicOpen = output<number>();
-  readonly detailOpen = output<number>();
   readonly suggestionPick = output<{ readonly lineIndex: number; readonly variantId: string }>();
   readonly suggestionNavigate = output<'next' | 'prev'>();
   readonly lineAdvance = output<number>();
@@ -44,11 +50,7 @@ export class DocumentLineProductCellComponent {
   readonly lineRetreat = output<number>();
   readonly lineRowAdvance = output<number>();
   readonly lineRowRetreat = output<number>();
-  /** Scollega l'articolo dalla riga: nome e codici tornano modificabili. */
-  readonly unlinkRequest = output<number>();
   readonly escapePressed = output<number>();
-
-  private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('productInput');
 
   protected readonly listboxId = signal(
     `gr-product-list-${Math.random().toString(36).slice(2, 9)}`,
@@ -71,81 +73,80 @@ export class DocumentLineProductCellComponent {
     this.searchOpen.emit(this.lineIndex());
   }
 
-  protected openAnagraphic(event: Event): void {
-    event.stopPropagation();
-    this.anagraphicOpen.emit(this.lineIndex());
-  }
+  /**
+   * Testo già pronto per il pannello condiviso, che non sa cosa sta elencando:
+   * compone qui titolo e dettaglio e tiene per sé l'identità della variante.
+   */
+  protected readonly suggestionItems = computed<readonly DocumentLineSuggestionItem[]>(() =>
+    this.suggestions().map((variant) => ({
+      title: variant.title,
+      detail: this.suggestionDetail(variant),
+    })),
+  );
 
-  protected openDetail(event: Event): void {
-    event.stopPropagation();
-    this.detailOpen.emit(this.lineIndex());
-  }
-
-  protected requestUnlink(event: Event): void {
-    event.stopPropagation();
-    this.unlinkRequest.emit(this.lineIndex());
-  }
-
-  protected pickSuggestion(variantId: string): void {
+  private pickSuggestion(variantId: string): void {
     this.suggestionPick.emit({ lineIndex: this.lineIndex(), variantId });
   }
 
-  protected onSuggestionKeydown(event: KeyboardEvent, variantId: string): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      this.pickSuggestion(variantId);
+  /** Il pannello restituisce l'indice: l'id lo risolve chi possiede la lista. */
+  protected pickAt(index: number): void {
+    const variant = this.suggestions()[index];
+    if (variant) {
+      this.pickSuggestion(variant.variantId);
     }
   }
 
   protected onKeydown(event: KeyboardEvent): void {
     const suggestions = this.suggestions();
-    const open = this.suggestionsOpen() && suggestions.length > 0;
-    const active = this.activeSuggestionIndex();
-
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      this.escapePressed.emit(this.lineIndex());
+    const esito = classifyLineCellKey(event, {
+      suggestionsOpen: this.suggestionsOpen() && suggestions.length > 0,
+      activeSuggestionIndex: this.activeSuggestionIndex(),
+    });
+    if (!esito) {
       return;
     }
-    if (event.key === 'ArrowDown' && !open) {
-      event.preventDefault();
-      this.lineRowAdvance.emit(this.lineIndex());
-      return;
-    }
-    if (event.key === 'ArrowUp' && !open) {
-      event.preventDefault();
-      this.lineRowRetreat.emit(this.lineIndex());
-      return;
-    }
-    if (event.key === 'ArrowDown' && open) {
-      event.preventDefault();
-      this.suggestionNavigate.emit('next');
-      return;
-    }
-    if (event.key === 'ArrowUp' && open) {
-      event.preventDefault();
-      this.suggestionNavigate.emit('prev');
-      return;
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      if (open && suggestions[active]) {
-        this.pickSuggestion(suggestions[active].variantId);
+    event.preventDefault();
+    switch (esito.kind) {
+      case 'escape':
+        event.stopPropagation();
+        this.escapePressed.emit(this.lineIndex());
+        return;
+      case 'row-advance':
+        this.lineRowAdvance.emit(this.lineIndex());
+        return;
+      case 'row-retreat':
+        this.lineRowRetreat.emit(this.lineIndex());
+        return;
+      case 'suggestion-move':
+        this.suggestionNavigate.emit(esito.direction);
+        return;
+      case 'suggestion-pick': {
+        const variant = suggestions[esito.index];
+        if (variant) {
+          this.pickSuggestion(variant.variantId);
+        }
         return;
       }
-      this.lineAdvance.emit(this.lineIndex());
-      return;
-    }
-    if (event.key === 'Tab') {
-      // Tab va SEMPRE al campo dati successivo/precedente: mai sui pulsanti
-      // icona della cella (lente, «Completa anagrafica»…) — velocità inserimento.
-      event.preventDefault();
-      if (event.shiftKey) {
+      case 'field-retreat':
         this.lineRetreat.emit(this.lineIndex());
         return;
-      }
-      this.lineAdvance.emit(this.lineIndex());
+      case 'confirm':
+        // **Invio non naviga, in nessuna cella** (§4.5, deciso 11/08/2026).
+        // Qui il nome non registra niente — non c'è un codice da confrontare
+        // col catalogo — quindi «conferma e resta» vuol dire semplicemente
+        // restare: l'evento è già trattenuto, e il fuoco non si muove. Per
+        // spostarsi ci sono Tab e le frecce.
+        //
+        // Fino a oggi Invio avanzava, e la divergenza con la cella codice era
+        // sepolta in due blocchi di codice uguali.
+        //
+        // Limite noto, già scritto: se scegliendo dall'elenco la riga si
+        // aggancia a un articolo, questa cella diventa testo e «restare» non è
+        // possibile — non c'è più niente su cui restare.
+        if (esito.advance) {
+          this.lineAdvance.emit(this.lineIndex());
+        }
+        return;
     }
   }
 
@@ -170,9 +171,5 @@ export class DocumentLineProductCellComponent {
       parts.push(`Acq. ${formatMoney(variant.purchasePrice)}`);
     }
     return parts.join(' · ');
-  }
-
-  focusInput(): void {
-    this.inputRef()?.nativeElement.focus();
   }
 }

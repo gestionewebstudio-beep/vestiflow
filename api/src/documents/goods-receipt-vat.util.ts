@@ -42,6 +42,8 @@ export interface ComputedGoodsReceiptLine {
   vatAffectsSupplierTotal: boolean;
   effectiveRatePercent: number;
   loadsStock: boolean;
+  /** Fotografia dell'unità di misura: il documento la tiene per sé. */
+  unitOfMeasure: string | null;
   supplierOrderLineId: string | null;
   lotCode: string | null;
   lotExpiryDate: Date | null;
@@ -122,6 +124,7 @@ export function computeGoodsReceiptLines(
       vatAffectsSupplierTotal: vat.vatAffectsSupplierTotal,
       effectiveRatePercent: vat.ratePercent,
       loadsStock: line.loadsStock ?? defaultLoadsStock,
+      unitOfMeasure: line.unitOfMeasure?.trim() || null,
       supplierOrderLineId: line.supplierOrderLineId ?? null,
       lotCode: line.lotCode?.trim() || null,
       lotExpiryDate: line.lotExpiryDate ? new Date(line.lotExpiryDate) : null,

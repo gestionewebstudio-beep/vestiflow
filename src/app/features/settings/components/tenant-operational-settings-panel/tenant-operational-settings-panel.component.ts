@@ -61,6 +61,7 @@ export class TenantOperationalSettingsPanelComponent {
   protected readonly form = this.fb.group({
     lotsEnabled: this.fb.control(false),
     serialsEnabled: this.fb.control(false),
+    salesPricesIncludeVat: this.fb.control('gross'),
     defaultUnitOfMeasure: this.fb.control('pz'),
     defaultVatCodeId: this.fb.control(''),
     warnNegativeInventory: this.fb.control(true),
@@ -111,6 +112,7 @@ export class TenantOperationalSettingsPanelComponent {
         this.form.patchValue({
           lotsEnabled: result.settings.lotsEnabled,
           serialsEnabled: result.settings.serialsEnabled,
+          salesPricesIncludeVat: result.settings.salesPricesIncludeVat ? 'gross' : 'net',
           defaultUnitOfMeasure: result.settings.defaultUnitOfMeasure,
           defaultVatCodeId: result.settings.defaultVatCodeId ?? '',
           warnNegativeInventory: result.settings.warnNegativeInventory,
@@ -137,6 +139,7 @@ export class TenantOperationalSettingsPanelComponent {
       .updateSettings({
         lotsEnabled: raw.lotsEnabled,
         serialsEnabled: raw.serialsEnabled,
+        salesPricesIncludeVat: raw.salesPricesIncludeVat === 'gross',
         defaultUnitOfMeasure: raw.defaultUnitOfMeasure,
         defaultVatCodeId: raw.defaultVatCodeId || null,
         warnNegativeInventory: raw.warnNegativeInventory,

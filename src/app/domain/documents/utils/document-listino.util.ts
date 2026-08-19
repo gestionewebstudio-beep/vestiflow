@@ -11,18 +11,18 @@ import type { VariantSummary } from '@domain/products/models/variant-summary.mod
  */
 export type DocumentListinoChoice = 'article' | 1 | 2 | 3;
 
-/** Valore della tendina quando è selezionato il prezzo articolo. */
+/** Valore della tendina quando è selezionato il prezzo di vendita. */
 export const ARTICLE_LISTINO_VALUE = 'article';
 
 /**
- * Opzioni della tendina: il prezzo articolo più i soli listini che il tenant ha
+ * Opzioni della tendina: il prezzo di vendita più i soli listini che il tenant ha
  * attivato. Un listino spento non compare — per quel tenant non esiste.
  */
 export function listinoSelectOptions(
   settings: TenantFeatureSettings | null,
 ): readonly SelectMenuOption[] {
   return [
-    { value: ARTICLE_LISTINO_VALUE, label: 'Prezzo articolo' },
+    { value: ARTICLE_LISTINO_VALUE, label: 'Prezzo di vendita' },
     ...activeListinoSlots(settings).map((slot) => ({
       value: String(slot.position),
       label: slot.label,
@@ -30,7 +30,7 @@ export function listinoSelectOptions(
   ];
 }
 
-/** Testo della tendina → scelta tipizzata. Valore sconosciuto = prezzo articolo. */
+/** Testo della tendina → scelta tipizzata. Valore sconosciuto = prezzo di vendita. */
 export function parseListinoChoice(value: string | null | undefined): DocumentListinoChoice {
   if (value === '1' || value === '2' || value === '3') {
     return Number(value) as 1 | 2 | 3;

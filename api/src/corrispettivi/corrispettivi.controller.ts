@@ -15,21 +15,20 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfileDto } from '../auth/dto/user-profile.dto';
-import { TenantPermission } from '../auth/tenant-permission.constants';
-import { RequirePermissions } from '../common/auth/tenant-permissions.decorator';
+import { ONLINE_SALES_VIEW_GROUPS, TenantPermission } from '../auth/tenant-permission.constants';
+import { RequireAllPermissionGroups } from '../common/auth/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from '../common/auth/tenant-permissions.guard';
 import { CurrentTenant } from '../common/tenant/tenant.decorator';
 import type { Paginated } from '../common/dto/pagination.dto';
 import { CorrispettiviExportService } from './corrispettivi-export.service';
 import {
   CorrispettiviService,
-  type CorrispettiviDeliveryRow,
+  type CorrispettiviLocationDto,
   type CorrispettiviOrderRow,
+  type CorrispettiviRegisterRow,
   type CorrispettiviSummaryDto,
 } from './corrispettivi.service';
 import { ListCorrispettiviQueryDto } from './dto/list-corrispettivi.query.dto';
-import { MarkCorrispettiviDeliveredDto } from './dto/mark-corrispettivi-delivered.dto';
-import { UpdateFiscalStatusDto } from './dto/update-fiscal-status.dto';
 
 @Controller('corrispettivi')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -40,16 +39,26 @@ export class CorrispettiviController {
   ) {}
 
   @Get('orders')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   listOrders(
     @CurrentTenant() tenantId: string,
     @Query() query: ListCorrispettiviQueryDto,
-  ): Promise<Paginated<CorrispettiviOrderRow>> {
+  ): Promise<Paginated<CorrispettiviRegisterRow>> {
     return this.corrispettivi.listOrders(tenantId, query);
   }
 
+  /** Le sedi del filtro: chi può consultare il Registro può filtrarlo per sede. */
+  @Get('locations')
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
+  listLocations(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: UserProfileDto,
+  ): Promise<CorrispettiviLocationDto[]> {
+    return this.corrispettivi.listRegisterLocations(tenantId, user);
+  }
+
   @Get('summary')
-  @RequirePermissions(TenantPermission.ReportsView)
+  @RequireAllPermissionGroups(ONLINE_SALES_VIEW_GROUPS)
   getSummary(
     @CurrentTenant() tenantId: string,
     @Query() query: ListCorrispettiviQueryDto,
@@ -58,7 +67,7 @@ export class CorrispettiviController {
   }
 
   @Get('export/csv')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([...ONLINE_SALES_VIEW_GROUPS, [TenantPermission.ReportsExport]])
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async exportCsv(
     @CurrentTenant() tenantId: string,
@@ -73,7 +82,7 @@ export class CorrispettiviController {
   }
 
   @Get('export/spreadsheet')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([...ONLINE_SALES_VIEW_GROUPS, [TenantPermission.ReportsExport]])
   @Header('Content-Type', 'application/vnd.ms-excel')
   async exportSpreadsheet(
     @CurrentTenant() tenantId: string,
@@ -88,7 +97,7 @@ export class CorrispettiviController {
   }
 
   @Get('export/pdf')
-  @RequirePermissions(TenantPermission.ReportsExport)
+  @RequireAllPermissionGroups([...ONLINE_SALES_VIEW_GROUPS, [TenantPermission.ReportsExport]])
   @Header('Content-Type', 'application/pdf')
   async exportPdf(
     @CurrentTenant() tenantId: string,
@@ -102,37 +111,6 @@ export class CorrispettiviController {
       type: 'application/pdf',
       disposition: `attachment; filename="${filename}"`,
     });
-  }
 
-  @Post('mark-delivered')
-  @RequirePermissions(TenantPermission.ReportsExport)
-  markDelivered(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Body() dto: MarkCorrispettiviDeliveredDto,
-  ): Promise<CorrispettiviDeliveryRow> {
-    return this.corrispettivi.markDelivered(tenantId, user, dto);
-  }
-
-  @Get('deliveries')
-  @RequirePermissions(TenantPermission.ReportsView)
-  listDeliveries(
-    @CurrentTenant() tenantId: string,
-    @Query('page') page?: string,
-    @Query('pageSize') pageSize?: string,
-  ): Promise<Paginated<CorrispettiviDeliveryRow>> {
-    const parsedPage = Math.max(1, Number(page) || 1);
-    const parsedSize = Math.min(100, Math.max(1, Number(pageSize) || 20));
-    return this.corrispettivi.listDeliveries(tenantId, parsedPage, parsedSize);
-  }
-
-  @Patch('orders/:id/fiscal-status')
-  @RequirePermissions(TenantPermission.ReportsExport)
-  updateFiscalStatus(
-    @CurrentTenant() tenantId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateFiscalStatusDto,
-  ): Promise<CorrispettiviOrderRow> {
-    return this.corrispettivi.updateFiscalStatus(tenantId, id, dto);
   }
 }

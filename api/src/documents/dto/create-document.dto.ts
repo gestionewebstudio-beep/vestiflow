@@ -22,6 +22,22 @@ import { DocumentAddressDto, DocumentTransportFieldsDto } from './document-trans
 
 /** Riga documento in input. La testata calcola i totali server-side. */
 export class DocumentLineInputDto {
+  /**
+   * Id della riga già salvata, presente solo in modifica: è ciò che consente al
+   * salvataggio di AGGIORNARE la riga esistente invece di cancellarla e
+   * ricrearla con un id nuovo. Assente = riga nuova.
+   *
+   * L'identità della riga non è un dettaglio di persistenza: è l'ancora a cui
+   * si appendono gli effetti collegati (movimento di magazzino via
+   * `sourceLineId`, seriali via `InventorySerial.documentLineId`). Ricreare le
+   * righe a ogni salvataggio li stacca tutti — vedi
+   * `docs/09-specifica-movimenti-per-riga.md` §3. Stesso campo, stesso ruolo
+   * che ha già sull'Arrivo merce (`SaveGoodsReceiptLineDto.id`).
+   */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsOptional()
   @IsUUID()
   variantId?: string;
@@ -30,6 +46,15 @@ export class DocumentLineInputDto {
   @IsString()
   @MaxLength(120)
   sku?: string;
+
+  /**
+   * Unità di misura della riga, fotografata all'inserimento. Testo libero: la
+   * tabella delle unità suggerisce, non obbliga (specifica §4.3-ter).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  unitOfMeasure?: string;
 
   @IsString()
   @Length(1, 300)
@@ -170,15 +195,6 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   internalComment?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  externalDocNumber?: string;
-
-  @IsOptional()
-  @IsISO8601()
-  externalDocDate?: string;
-
-  @IsOptional()
   @IsUUID()
   sourceDocumentId?: string;
 
@@ -285,4 +301,11 @@ export class CreateDocumentDto extends DocumentTransportFieldsDto {
   @ValidateNested({ each: true })
   @Type(() => DocumentLineInputDto)
   lines?: DocumentLineInputDto[];
+  // ⚠️ Qui stavano i tre campi del «documento della controparte»
+  // (`externalDocNumber`, `externalDocDate`, `externalDocumentTypeId`).
+  // Tolti il 12/08/2026 insieme al blocco in testata: questo documento non ne
+  // ha uno da citare. Chiudere anche l'ingresso serve — finché il DTO li
+  // accetta, un client può scriverli e le colonne tornano a riempirsi di dati
+  // che nessuna maschera mostra. Le colonne restano: toglierle è distruttivo su
+  // database condiviso e aspetta la finestra concordata.
 }

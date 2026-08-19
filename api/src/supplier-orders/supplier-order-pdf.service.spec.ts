@@ -1,4 +1,4 @@
-import { SupplierOrderStatus } from '@prisma/client';
+import { Prisma, SupplierOrderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SupplierOrderPdfService } from './supplier-order-pdf.service';
@@ -25,6 +25,14 @@ describe('SupplierOrderPdfService', () => {
     costEntryMode: 'vat_excluded',
     orderDate: new Date('2026-07-10T09:00:00.000Z'),
     supplierReference: 'ORD-77/2026',
+    // Documento della controparte: non compilato in questa fixture.
+    externalDocNumber: null,
+    externalDocDate: null,
+    externalDocumentTypeId: null,
+    externalDocumentTypeSnapshot: null,
+    // Nessuno sconto di chiusura in questo dato: il campo esiste dal
+    // 11/08/2026 ed è obbligatorio nel tipo — il compilatore l'ha chiesto.
+    documentDiscountPercent: new Prisma.Decimal(0),
     subtotalMinor: 30000,
     taxMinor: 6600,
     totalMinor: 36600,
@@ -35,14 +43,18 @@ describe('SupplierOrderPdfService', () => {
       {
         id: 'line-1',
         orderId: 'po-1',
+        lineNumber: 1,
+        unitOfMeasure: null,
         variantId: 'var-1',
         sku: 'SKU-001',
         description: 'T-shirt Basic — M / Bianco',
         orderedQuantity: 3,
         receivedQuantity: 0,
-        unitCostMinor: 10000,
-        enteredUnitCostMinor: 10000,
-        discountPercent: 0,
+        // Colonne NUMERIC: la finzione di prova deve portare Decimal come li
+        // porta il database, altrimenti prova un percorso che non esiste.
+        unitCostMinor: new Prisma.Decimal(10000),
+        enteredUnitCostMinor: new Prisma.Decimal(10000),
+        discountPercent: new Prisma.Decimal(0),
         vatCodeId: 'vat-22',
         vatSnapshot: { code: '22', ratePercent: 22 },
         lineTotalMinor: 30000,

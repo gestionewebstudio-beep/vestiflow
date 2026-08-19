@@ -25,6 +25,6 @@ export function catalogOriginTone(origin: CatalogOriginType): BadgeTone {
 }
 
 export const SHOPIFY_CATALOG_READONLY_BANNER =
-  'Il catalogo ecommerce di questo prodotto è gestito in Shopify Admin. In VestiFlow puoi aggiornare solo stagione e prezzo di acquisto.';
+  'Il catalogo ecommerce di questo prodotto è gestito in Shopify Admin: nome, descrizione, categoria e varianti si cambiano da lì. In VestiFlow restano tuoi prezzi, listini, costo, stagione, codice articolo, sottocategoria, fornitore e note interne.';
 
 export const SHOPIFY_CATALOG_EDIT_TITLE = 'Modifica dati operativi';

@@ -9,10 +9,10 @@ export const API_SOURCE_ONLINE = 'online';
 export const API_SOURCE_POS = 'pos';
 /** Ordini creati manualmente nel gestionale (fase 3 §2: registro multicanale). */
 export const API_SOURCE_MANUAL = 'manual';
-/** Cassa VestiFlow (vendita al banco): solo come canale dei corrispettivi. */
-export const API_SOURCE_STORE = 'store';
 /** Tutti i canali Shopify (online + POS), per la schermata Ordini Shopify (fase 3 §3). */
 export const API_SOURCE_SHOPIFY = 'shopify';
+/** Vendita al banco: la cassa di VestiFlow. Distinto da `pos`, che e' il POS di Shopify. */
+export const API_SOURCE_STORE = 'store';
 
 /** Valori pagamento accettati in query (allineati al frontend). */
 export const API_FINANCIAL_VALUES = [
@@ -69,14 +69,25 @@ export function prismaSourceFilter(source?: string): PrismaSource[] | undefined 
   return single ? [single] : undefined;
 }
 
+/**
+ * Uno `switch` senza ramo predefinito, di proposito.
+ *
+ * Prima era una catena di ternari che chiudeva con «altrimenti online»: quando al canale
+ * si e' aggiunto `store`, quel ramo se lo sarebbe preso senza che niente lo segnalasse — e
+ * uno scontrino di cassa sarebbe comparso come vendita online. Non un vuoto: una bugia.
+ * Cosi' invece il prossimo valore nuovo lo dice il compilatore.
+ */
 export function fromPrismaSource(source: PrismaSource): ApiSalesOrderSource {
-  if (source === PrismaSource.manual) {
-    return API_SOURCE_MANUAL;
+  switch (source) {
+    case PrismaSource.manual:
+      return API_SOURCE_MANUAL;
+    case PrismaSource.shopify_pos:
+      return API_SOURCE_POS;
+    case PrismaSource.store:
+      return API_SOURCE_STORE;
+    case PrismaSource.shopify_online:
+      return API_SOURCE_ONLINE;
   }
-  if (source === PrismaSource.store) {
-    return API_SOURCE_STORE;
-  }
-  return source === PrismaSource.shopify_pos ? API_SOURCE_POS : API_SOURCE_ONLINE;
 }
 
 export function prismaFinancialFilter(status?: string): PrismaFinancial[] | undefined {
@@ -109,14 +120,21 @@ export function prismaFulfillmentFilter(status?: string): PrismaFulfillment[] | 
   }
 }
 
+/** Stesso motivo di `fromPrismaSource`: nessun ramo predefinito che assorba i valori nuovi. */
 export function sourceDisplayLabel(source: PrismaSource): string {
-  if (source === PrismaSource.manual) {
-    return 'Manuale';
+  switch (source) {
+    case PrismaSource.manual:
+      return 'Manuale';
+    // «Negozio» e «Cassa» dicevano il falso e si scambiavano di posto: la
+    // prima indicava lo Shopify POS, non il negozio di VestiFlow. Ora ogni
+    // etichetta nomina la sorgente vera (`11` A6, `10` §4).
+    case PrismaSource.shopify_pos:
+      return 'Shopify POS';
+    case PrismaSource.store:
+      return 'Vendita al banco';
+    case PrismaSource.shopify_online:
+      return 'Online';
   }
-  if (source === PrismaSource.store) {
-    return 'Cassa negozio';
-  }
-  return source === PrismaSource.shopify_pos ? 'Negozio' : 'Online';
 }
 
 export function financialStatusDisplayLabel(status: PrismaFinancial): string {

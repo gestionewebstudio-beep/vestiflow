@@ -14,36 +14,50 @@ import { catchError, of } from 'rxjs';
 
 import { UserRole } from '@core/models/user.model';
 import {
-  defaultPermissionsForRole,
-  type TenantPermissionKey,
+  DOCUMENT_FAMILY_LABELS,
+  DOCUMENT_PERMISSION_FAMILIES,
+  TENANT_PERMISSION_DEFINITIONS,
+  TENANT_PERMISSION_GROUP_LABELS,
+  docManagePermission,
+  docViewPermission,
 } from '@core/models/tenant-permission.model';
 import { resolveEffectivePermissions } from '@core/permissions/user-permissions.util';
 import { isAppError } from '@core/models/app-error.model';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { InlineSpinnerComponent } from '@shared/components/inline-spinner/inline-spinner.component';
-import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 
-import { AdminTenantUserPermissionsEditorComponent } from '../admin-tenant-user-permissions-editor/admin-tenant-user-permissions-editor.component';
+import type { TenantUser } from '@domain/users/models/tenant-user.model';
+
 import type { TenantActiveLocation } from '../../models/admin-tenant.model';
-import {
-  tenantUserRequiresAssignedLocation,
-  type TenantUser,
-} from '../../models/admin-tenant-user.model';
 import { TENANT_ROLE_OPTIONS, tenantRoleLabel } from '../../models/admin-tenant-role.util';
 import { AdminTenantsService } from '../../services/admin-tenants.service';
 
+interface PermissionItemView {
+  readonly label: string;
+  /** Solo matrice documenti: livello di accesso alla famiglia. */
+  readonly level?: 'consulta' | 'gestisce';
+}
+
+interface PermissionGroupView {
+  readonly label: string;
+  /** Guida il rendering: le sezioni come chip, il resto come elenco. */
+  readonly kind: 'sections' | 'documents' | 'actions';
+  readonly items: readonly PermissionItemView[];
+}
+
+/**
+ * Pannello utenti del cliente lato admin piattaforma. Decisione di prodotto
+ * (2026-08-11): i DIPENDENTI li gestisce il titolare — qui sono in sola
+ * lettura (diagnosi permessi inclusa); l'admin crea e amministra i soli
+ * account TITOLARE. Per intervenire su un dipendente: sessione assistenza,
+ * dalla pagina Impostazioni → Utenti del cliente. L'API rifiuta comunque le
+ * mutazioni sui dipendenti da questa superficie.
+ */
 @Component({
   selector: 'app-admin-tenant-users-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    ReactiveFormsModule,
-    ButtonComponent,
-    InlineSpinnerComponent,
-    ConfirmDialogComponent,
-    SelectMenuComponent,
-    AdminTenantUserPermissionsEditorComponent,
-  ],
+  imports: [ReactiveFormsModule, ButtonComponent, InlineSpinnerComponent, SelectMenuComponent],
   templateUrl: './admin-tenant-users-panel.component.html',
   styleUrl: './admin-tenant-users-panel.component.scss',
 })
@@ -57,6 +71,7 @@ export class AdminTenantUsersPanelComponent {
 
   protected readonly UserRole = UserRole;
   protected readonly tenantRoleLabel = tenantRoleLabel;
+  /** Ruoli selezionabili sull'account titolare (il declassamento fa parte del passaggio di proprietà). */
   protected readonly roleOptions = TENANT_ROLE_OPTIONS.map((option) => ({
     value: option.value,
     label: option.label,
@@ -69,15 +84,9 @@ export class AdminTenantUsersPanelComponent {
   protected readonly createError = signal<string | null>(null);
   protected readonly createSuccess = signal(false);
   protected readonly rowSavingId = signal<string | null>(null);
-  protected readonly rowDeletingId = signal<string | null>(null);
   protected readonly rowError = signal<string | null>(null);
-  protected readonly deleteDialogOpen = signal(false);
-  protected readonly userPendingDelete = signal<TenantUser | null>(null);
   protected readonly expandedPermissionsUserId = signal<string | null>(null);
   protected readonly createFormOpen = signal(false);
-  protected readonly createPermissions = signal<readonly TenantPermissionKey[]>(
-    defaultPermissionsForRole(UserRole.Clerk),
-  );
 
   protected readonly locationOptions = computed(() =>
     this.activeLocations().map((location) => ({
@@ -86,8 +95,7 @@ export class AdminTenantUsersPanelComponent {
     })),
   );
 
-  protected readonly hasActiveLocations = computed(() => this.activeLocations().length > 0);
-
+  /** Creazione da questa superficie: SOLO account titolare (nome, email, password). */
   protected readonly createForm = this.fb.group({
     displayName: this.fb.control('', {
       validators: [Validators.required, Validators.minLength(2), Validators.maxLength(120)],
@@ -96,10 +104,6 @@ export class AdminTenantUsersPanelComponent {
     password: this.fb.control('', {
       validators: [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
     }),
-    role: this.fb.control<UserRole>(UserRole.Clerk, { validators: [Validators.required] }),
-    hasAllLocationsAccess: this.fb.control(true),
-    assignedLocationIds: this.fb.control<readonly string[]>([]),
-    defaultLocationId: this.fb.control(''),
   });
 
   constructor() {
@@ -112,133 +116,72 @@ export class AdminTenantUsersPanelComponent {
     });
   }
 
-  /** Toggle "tutte le sedi" visibile solo per admin (owner: sempre pieno; manager/clerk: mai). */
-  protected createShowsAllLocationsToggle(): boolean {
-    return this.createForm.controls.role.value === UserRole.Admin;
-  }
-
-  /** Multi-select sedi richiesto: manager/clerk sempre, admin solo se il toggle è disattivato. */
-  protected createRequiresLocation(): boolean {
-    const role = this.createForm.controls.role.value;
-    if (tenantUserRequiresAssignedLocation(role)) {
-      return true;
-    }
-    return role === UserRole.Admin && !this.createForm.controls.hasAllLocationsAccess.value;
-  }
-
-  protected rowShowsAllLocationsToggle(role: UserRole): boolean {
-    return role === UserRole.Admin;
-  }
-
-  protected rowRequiresLocation(user: TenantUser): boolean {
-    if (tenantUserRequiresAssignedLocation(user.role)) {
-      return true;
-    }
-    return user.role === UserRole.Admin && !user.hasAllLocationsAccess;
-  }
-
-  /** Opzioni "Sede predefinita" nel form di creazione: sedi assegnate, o tutte con accesso pieno. */
-  protected createDefaultLocationOptions(): readonly { value: string; label: string }[] {
-    if (this.createUserHasFullLocationAccess()) {
-      return this.locationOptions();
-    }
-    const assigned = new Set(this.createForm.controls.assignedLocationIds.value);
-    return this.locationOptions().filter((option) => assigned.has(option.value));
-  }
-
-  private createUserHasFullLocationAccess(): boolean {
-    const role = this.createForm.controls.role.value;
-    if (role === UserRole.Owner) {
-      return true;
-    }
-    return role === UserRole.Admin && this.createForm.controls.hasAllLocationsAccess.value;
-  }
-
-  /** Se la predefinita scelta non è più tra le opzioni valide, si azzera (mai forzarne un'altra). */
-  private syncCreateDefaultLocation(): void {
-    const current = this.createForm.controls.defaultLocationId.value;
-    if (!current) {
-      return;
-    }
-    const valid = this.createDefaultLocationOptions().some((option) => option.value === current);
-    if (!valid) {
-      this.createForm.controls.defaultLocationId.setValue('');
-    }
-  }
-
-  /** Opzioni "Sede predefinita" per la riga utente: sedi assegnate, o tutte con accesso pieno. */
-  protected rowDefaultLocationOptions(
-    user: TenantUser,
-  ): readonly { value: string; label: string }[] {
-    if (this.rowUserHasFullLocationAccess(user)) {
-      return this.locationOptions();
-    }
-    const assigned = new Set(user.assignedLocationIds);
-    return this.locationOptions().filter((option) => assigned.has(option.value));
-  }
-
-  private rowUserHasFullLocationAccess(user: TenantUser): boolean {
-    return (
-      user.role === UserRole.Owner || (user.role === UserRole.Admin && user.hasAllLocationsAccess)
-    );
-  }
-
   protected isOwnerRole(role: UserRole): boolean {
     return role === UserRole.Owner;
   }
 
-  protected canDeleteUser(user: TenantUser): boolean {
-    return !this.isOwnerRole(user.role);
+  /** Sedi assegnate del dipendente, in chiaro (sola lettura). */
+  protected assignedLocationsLabel(user: TenantUser): string {
+    if (user.hasAllLocationsAccess || this.isOwnerRole(user.role)) {
+      return 'Tutte le sedi';
+    }
+    if (user.assignedLocations.length === 0) {
+      return '—';
+    }
+    return user.assignedLocations.map((location) => location.name).join(', ');
   }
 
-  protected deleteDialogMessage(): string {
-    const user = this.userPendingDelete();
-    if (!user) {
-      return '';
-    }
-    return `Rimuoverai l'account di ${user.displayName} (${user.email}). L'accesso al gestionale verrà revocato e non potrà più accedere.`;
-  }
+  /** Permessi effettivi raggruppati, per la diagnosi in sola lettura. */
+  protected permissionGroupsFor(user: TenantUser): readonly PermissionGroupView[] {
+    const effective = new Set(
+      resolveEffectivePermissions({ role: user.role, permissions: [...user.permissions] }),
+    );
 
-  protected openDeleteDialog(user: TenantUser): void {
-    if (!this.canDeleteUser(user) || this.rowDeletingId()) {
-      return;
-    }
-    this.userPendingDelete.set(user);
-    this.deleteDialogOpen.set(true);
-  }
+    // Sezioni come chip: il titolo del gruppo dice già «Sezioni», il prefisso
+    // ripetuto su ogni voce sarebbe rumore.
+    const sectionItems: PermissionItemView[] = TENANT_PERMISSION_DEFINITIONS.filter(
+      (definition) => definition.group === 'sections' && effective.has(definition.key),
+    ).map((definition) => ({ label: definition.label.replace(/^Sezione\s+/, '') }));
 
-  protected confirmDeleteUser(): void {
-    const user = this.userPendingDelete();
-    const tenantId = this.tenantId();
-    if (!user || !tenantId || this.rowDeletingId()) {
-      return;
-    }
-
-    this.rowDeletingId.set(user.id);
-    this.rowError.set(null);
-
-    this.adminTenants
-      .deleteTenantUser(tenantId, user.id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.rowDeletingId.set(null);
-          this.deleteDialogOpen.set(false);
-          this.userPendingDelete.set(null);
-          if (this.expandedPermissionsUserId() === user.id) {
-            this.expandedPermissionsUserId.set(null);
-          }
-          this.users.update((rows) => rows.filter((row) => row.id !== user.id));
-        },
-        error: (err: unknown) => {
-          this.rowDeletingId.set(null);
-          this.rowError.set(isAppError(err) ? err.message : 'Eliminazione utente non riuscita.');
-        },
+    // Matrice documenti: una voce per famiglia visibile, con il livello a pill.
+    const documentItems: PermissionItemView[] = [];
+    for (const family of DOCUMENT_PERMISSION_FAMILIES) {
+      const manages = effective.has(docManagePermission(family));
+      const views = manages || effective.has(docViewPermission(family));
+      if (!views) {
+        continue;
+      }
+      documentItems.push({
+        label: DOCUMENT_FAMILY_LABELS[family],
+        level: manages ? 'gestisce' : 'consulta',
       });
-  }
+    }
 
-  protected cancelDeleteUser(): void {
-    this.userPendingDelete.set(null);
+    const actionGroups = new Map<string, PermissionItemView[]>();
+    for (const definition of TENANT_PERMISSION_DEFINITIONS) {
+      if (definition.group === 'sections' || !effective.has(definition.key)) {
+        continue;
+      }
+      const label = TENANT_PERMISSION_GROUP_LABELS[definition.group];
+      const bucket = actionGroups.get(label);
+      if (bucket) {
+        bucket.push({ label: definition.label });
+      } else {
+        actionGroups.set(label, [{ label: definition.label }]);
+      }
+    }
+
+    const result: PermissionGroupView[] = [];
+    if (sectionItems.length > 0) {
+      result.push({ label: 'Sezioni', kind: 'sections', items: sectionItems });
+    }
+    if (documentItems.length > 0) {
+      result.push({ label: 'Documenti', kind: 'documents', items: documentItems });
+    }
+    for (const [label, items] of actionGroups) {
+      result.push({ label, kind: 'actions', items });
+    }
+    return result;
   }
 
   protected togglePermissionsPanel(userId: string): void {
@@ -254,9 +197,6 @@ export class AdminTenantUsersPanelComponent {
       this.closeCreateForm();
       return;
     }
-    if (!this.hasActiveLocations()) {
-      return;
-    }
     this.createFormOpen.set(true);
     this.createError.set(null);
     this.createSuccess.set(false);
@@ -267,83 +207,15 @@ export class AdminTenantUsersPanelComponent {
     this.createError.set(null);
   }
 
-  protected effectivePermissions(user: TenantUser): readonly TenantPermissionKey[] {
-    return resolveEffectivePermissions({
-      role: user.role,
-      permissions: [...user.permissions],
-    });
-  }
-
-  protected onCreateRoleSelect(value: string | null): void {
-    if (!value || !this.isUserRole(value)) {
+  /** Cambio ruolo sull'account titolare (declassamento nel passaggio di proprietà). */
+  protected onOwnerRoleSelect(user: TenantUser, value: string | null): void {
+    if (!value || !this.isUserRole(value) || value === user.role) {
       return;
     }
-    this.createForm.controls.role.setValue(value);
-    this.createPermissions.set([...defaultPermissionsForRole(value)]);
-
-    if (value === UserRole.Owner) {
-      // Titolare: sempre tutte le sedi, nessun controllo sedi da mostrare.
-      this.createForm.controls.hasAllLocationsAccess.setValue(true);
-      this.createForm.controls.assignedLocationIds.setValue([]);
-      this.syncCreateDefaultLocation();
-      return;
-    }
-    if (value === UserRole.Admin) {
-      // Admin: se resta su "tutte le sedi" non serve una selezione pendente.
-      if (this.createForm.controls.hasAllLocationsAccess.value) {
-        this.createForm.controls.assignedLocationIds.setValue([]);
-      }
-      this.syncCreateDefaultLocation();
-      return;
-    }
-    // Manager/Clerk: il toggle non si applica, valore irrilevante ma coerente.
-    this.createForm.controls.hasAllLocationsAccess.setValue(true);
-    this.syncCreateDefaultLocation();
+    this.saveUser(user, { role: value });
   }
 
-  protected onCreateAllLocationsAccessToggle(checked: boolean): void {
-    this.createForm.controls.hasAllLocationsAccess.setValue(checked);
-    if (checked) {
-      this.createForm.controls.assignedLocationIds.setValue([]);
-    }
-    this.syncCreateDefaultLocation();
-  }
-
-  protected onCreateLocationsSelect(values: readonly string[]): void {
-    this.createForm.controls.assignedLocationIds.setValue([...values]);
-    this.syncCreateDefaultLocation();
-  }
-
-  protected onCreateDefaultLocationSelect(value: string | null): void {
-    this.createForm.controls.defaultLocationId.setValue(value ?? '');
-  }
-
-  protected onCreatePermissionsChange(permissions: readonly TenantPermissionKey[]): void {
-    this.createPermissions.set(permissions);
-  }
-
-  protected onRowRoleSelect(user: TenantUser, value: string | null): void {
-    if (!value || !this.isUserRole(value)) {
-      return;
-    }
-    this.saveUser(user, {
-      role: value,
-      permissions: [...defaultPermissionsForRole(value)],
-    });
-  }
-
-  protected onRowAllLocationsAccessToggle(user: TenantUser, checked: boolean): void {
-    this.saveUser(user, {
-      hasAllLocationsAccess: checked,
-      assignedLocationIds: checked ? [] : [...user.assignedLocationIds],
-    });
-  }
-
-  protected onRowLocationsSelect(user: TenantUser, values: readonly string[]): void {
-    this.saveUser(user, { assignedLocationIds: [...values] });
-  }
-
-  protected onRowDefaultLocationSelect(user: TenantUser, value: string | null): void {
+  protected onOwnerDefaultLocationSelect(user: TenantUser, value: string | null): void {
     const next = value || null;
     if (next === user.defaultLocationId) {
       return;
@@ -351,11 +223,15 @@ export class AdminTenantUsersPanelComponent {
     this.saveUser(user, { defaultLocationId: next });
   }
 
-  protected onRowPermissionsChange(
-    user: TenantUser,
-    permissions: readonly TenantPermissionKey[],
-  ): void {
-    this.saveUser(user, { permissions: [...permissions] });
+  /**
+   * Un campo mostra il proprio errore solo dopo che l'utente l'ha toccato — o
+   * dopo il primo invio, che li marca tutti. Senza questo, il pulsante «Crea
+   * titolare» non faceva niente e sembrava rotto: la validazione falliva e il
+   * metodo usciva in silenzio.
+   */
+  protected showCreateError(controlName: keyof typeof this.createForm.controls): boolean {
+    const control = this.createForm.controls[controlName];
+    return control.invalid && control.touched;
   }
 
   protected submitCreate(): void {
@@ -365,12 +241,6 @@ export class AdminTenantUsersPanelComponent {
     }
 
     const raw = this.createForm.getRawValue();
-    const requiresLocations = this.createRequiresLocation();
-    if (requiresLocations && raw.assignedLocationIds.length === 0) {
-      this.createError.set('Seleziona almeno una sede operativa.');
-      return;
-    }
-
     this.createLoading.set(true);
     this.createError.set(null);
     this.createSuccess.set(false);
@@ -380,16 +250,7 @@ export class AdminTenantUsersPanelComponent {
         displayName: raw.displayName.trim(),
         email: raw.email.trim(),
         password: raw.password,
-        role: raw.role,
-        ...(raw.defaultLocationId ? { defaultLocationId: raw.defaultLocationId } : {}),
-        ...(raw.role !== UserRole.Owner
-          ? {
-              hasAllLocationsAccess:
-                raw.role === UserRole.Admin ? raw.hasAllLocationsAccess : false,
-              assignedLocationIds: requiresLocations ? [...raw.assignedLocationIds] : [],
-              permissions: [...this.createPermissions()],
-            }
-          : {}),
+        role: UserRole.Owner,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -397,34 +258,19 @@ export class AdminTenantUsersPanelComponent {
           this.createLoading.set(false);
           this.createSuccess.set(true);
           this.createFormOpen.set(false);
-          this.createPermissions.set(defaultPermissionsForRole(UserRole.Clerk));
-          this.createForm.reset({
-            displayName: '',
-            email: '',
-            password: '',
-            role: UserRole.Clerk,
-            hasAllLocationsAccess: true,
-            assignedLocationIds: [],
-            defaultLocationId: '',
-          });
+          this.createForm.reset({ displayName: '', email: '', password: '' });
           this.loadUsers(this.tenantId());
         },
         error: (err: unknown) => {
           this.createLoading.set(false);
-          this.createError.set(isAppError(err) ? err.message : 'Creazione utente non riuscita.');
+          this.createError.set(isAppError(err) ? err.message : 'Creazione titolare non riuscita.');
         },
       });
   }
 
   private saveUser(
     user: TenantUser,
-    patch: {
-      role?: UserRole;
-      hasAllLocationsAccess?: boolean;
-      assignedLocationIds?: readonly string[];
-      defaultLocationId?: string | null;
-      permissions?: readonly TenantPermissionKey[];
-    },
+    patch: { role?: UserRole; defaultLocationId?: string | null },
   ): void {
     if (this.rowSavingId()) {
       return;

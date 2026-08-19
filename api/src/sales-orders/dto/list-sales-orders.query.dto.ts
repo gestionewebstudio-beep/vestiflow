@@ -70,6 +70,12 @@ export class ListSalesOrdersQueryDto extends PaginationQueryDto {
   @IsBoolean()
   includable?: boolean;
 
+  /** Solo ordini che sul canale non risultano più (cancellati su Shopify). */
+  @IsOptional()
+  @Transform(({ value }) => value === '1' || value === 'true' || value === true)
+  @IsBoolean()
+  missingOnChannel?: boolean;
+
   @IsOptional()
   @IsUUID()
   customerId?: string;

@@ -124,7 +124,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
         timeout: 30_000,
       });
 
-      await expectButtonAbsent(page, 'Sincronizza giacenze da Shopify');
+      await expectButtonAbsent(page, 'Riallinea le giacenze su Shopify');
       await expectButtonAbsent(page, 'Esporta CSV');
       await expectButtonAbsent(page, 'Importa CSV');
     });
@@ -215,9 +215,18 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
         timeout: 30_000,
       });
 
+      // ⛔ Questa prova è stata INERTE dalla sua scrittura fino al 19/08/2026.
+      // Cercava un link chiamato «Registra vendita»; la sidebar lo chiama
+      // «Vendita al banco» (`shell-layout.component.ts`). Il locator non
+      // trovava nulla, `isVisible()` era falso, il test prendeva sempre il ramo
+      // `else`, scriveva un'annotazione e passava — e l'unica asserzione vera,
+      // quella sull'URL, non veniva MAI eseguita.
+      //
+      // ⚠️ Il ramo `else` resta legittimo: il preset del commesso può non avere
+      // `retail.register`. Ma ora ci si finisce solo quando è davvero così.
       const registerLink = page
         .locator('nav.app-sidebar')
-        .getByRole('link', { name: 'Registra vendita', exact: true });
+        .getByRole('link', { name: 'Vendita al banco', exact: true });
       if (await registerLink.isVisible()) {
         await registerLink.click();
         await expect(page).toHaveURL(/\/app\/sales\/register/, { timeout: 15_000 });
@@ -254,7 +263,7 @@ test.describe('Permessi commesso (E2E_CLERK_*)', () => {
       });
 
       const syncVisible = await page
-        .getByRole('button', { name: 'Sincronizza giacenze da Shopify' })
+        .getByRole('button', { name: 'Riallinea le giacenze su Shopify' })
         .isVisible();
       const exportVisible = await page.getByRole('button', { name: 'Esporta CSV' }).isVisible();
       const importVisible = await page.getByRole('button', { name: 'Importa CSV' }).isVisible();

@@ -42,7 +42,6 @@ function operationalLocationsMock() {
     actionLocations: () => [LOCATION],
     transferTargetLocations: () => [LOCATION],
     defaultLocation: () => null,
-    suggestedWriteLocation: () => LOCATION,
     isFixedSingleStore: () => true,
     fixedSingleStoreLocationId: () => LOCATION.id,
     fixedSingleStoreLabel: () => LOCATION.name,

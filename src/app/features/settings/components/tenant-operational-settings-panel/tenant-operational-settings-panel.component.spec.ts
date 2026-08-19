@@ -10,6 +10,7 @@ import type { TenantFeatureSettings } from '@domain/tenant/models/tenant-feature
 import { TenantOperationalSettingsPanelComponent } from './tenant-operational-settings-panel.component';
 
 const SETTINGS: TenantFeatureSettings = {
+  salesPricesIncludeVat: true,
   lotsEnabled: false,
   serialsEnabled: false,
   variantsEnabled: true,

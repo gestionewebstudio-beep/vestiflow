@@ -31,6 +31,12 @@ export class CustomerFormFieldsComponent {
     this.buildPaymentOptions('terms', this.formGroup().controls.paymentTerms.value),
   );
 
+  /** Un campo mostra il proprio errore solo dopo che l'utente l'ha toccato. */
+  protected showError(controlName: keyof CustomerFormGroup['controls']): boolean {
+    const control = this.formGroup().controls[controlName];
+    return control.invalid && control.touched;
+  }
+
   protected onPaymentMethodSelect(value: string | null): void {
     this.formGroup().controls.paymentMethod.setValue(value ?? '');
     this.formGroup().controls.paymentMethod.markAsDirty();

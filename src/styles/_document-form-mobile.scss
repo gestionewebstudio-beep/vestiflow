@@ -111,13 +111,6 @@
     display: none;
   }
 
-  // Il banner del gate in tinta warning (forma OC): promosso col nome neutro.
-  .doc-form--m-ref .doc-form__gate-banner--warn {
-    color: var(--status-warning-fg);
-    background-color: var(--status-warning-bg);
-    border: var(--border-width) solid var(--status-warning-border);
-  }
-
   // Le maschere senza dock fisso (niente scanner né selettore prodotti) non
   // devono riservare i 116px del dock: basta un respiro sotto le azioni.
   .doc-form--m-ref:not(:has(.doc-form__sticky-bar, .doc-form__dock)) {
@@ -235,6 +228,16 @@
     justify-content: space-between;
     gap: var(--space-2);
     min-block-size: var(--space-6);
+  }
+
+  // I comandi del campo stanno insieme a destra dell'etichetta. Senza questo
+  // contenitore la riga è `space-between` con tre figli, e il secondo comando
+  // finirebbe in mezzo invece che accanto al primo.
+  .doc-form--m-ref .doc-panel__field-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-inline-size: 0;
   }
 
   .doc-form--m-ref .doc-panel__field-action {

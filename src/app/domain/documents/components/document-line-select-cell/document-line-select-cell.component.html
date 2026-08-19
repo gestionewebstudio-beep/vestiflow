@@ -1,0 +1,50 @@
+<!--
+  Un `<input>` vero — non un `<button>` con l'etichetta dentro — perché il giro
+  del fuoco ci arrivi per `id` e il valore si possa evidenziare all'ingresso
+  (specifica §4.1). Il chevron è l'indizio che il campo si apre, e non ruba il
+  fuoco: `tabindex="-1"` lo tiene fuori dal giro delle colonne, il
+  `mousedown` trattenuto evita che il click spenga il campo.
+-->
+<div class="doc-select-cell" [class.doc-select-cell--boxed]="boxed()">
+  <input
+    class="doc-select-cell__input"
+    appFirstClickSelects
+    type="text"
+    [id]="inputId() || null"
+    [disabled]="disabled()"
+    [value]="text()"
+    [placeholder]="placeholder()"
+    [attr.aria-label]="ariaLabel()"
+    [attr.aria-expanded]="panelLive()"
+    [attr.aria-controls]="listboxId()"
+    autocomplete="off"
+    (input)="onInput($any($event.target).value)"
+    (focus)="onFocus($event)"
+    (blur)="onBlur()"
+    (keydown)="onKeydown($event)"
+  />
+  @if (!disabled()) {
+    <button
+      type="button"
+      class="doc-select-cell__toggle"
+      tabindex="-1"
+      [attr.aria-label]="'Apri elenco — ' + ariaLabel()"
+      (mousedown)="onToggle($event)"
+    >
+      <i class="pi pi-chevron-down" aria-hidden="true"></i>
+    </button>
+  }
+  @if (panelLive()) {
+    <app-document-line-suggestions
+      [items]="items()"
+      [activeIndex]="activeIndex()"
+      [listboxId]="listboxId()"
+      [placement]="panelPlacement()"
+      [ariaLabel]="ariaLabel()"
+      [tailLabel]="manageLabel()"
+      [tailActive]="tailActive()"
+      (picked)="pickAt($event)"
+      (tailPicked)="onManage()"
+    />
+  }
+</div>

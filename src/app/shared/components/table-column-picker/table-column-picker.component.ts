@@ -31,6 +31,27 @@ export class TableColumnPickerComponent {
 
   readonly viewId = input.required<TableViewId>();
 
+  /**
+   * Le frecce ↑↓ che spostano una colonna compaiono solo dove **fanno
+   * qualcosa** (specifica §6.1).
+   *
+   * Il pannello è condiviso da undici schermate. Sui sei elenchi che leggono
+   * l'ordine delle colonne — registro documenti, giacenze, movimenti,
+   * situazione, ordini cliente, fornitori — le frecce funzionano. Su Prodotti,
+   * Clienti e su **tutte le maschere documento** sono **inerti**: quelle tabelle
+   * hanno un ordine fisso, e la freccia si preme senza che accada niente.
+   *
+   * Un comando che finge di funzionare è peggio di un comando che manca: chi lo
+   * preme non conclude «non si può», conclude «non ha funzionato», e ci riprova.
+   * Dove l'ordine non si sposta, le frecce non ci sono; le spunte mostra/nascondi
+   * restano.
+   *
+   * Acceso di default: chi lo spegne è la minoranza, e un valore predefinito
+   * che rompe undici schermate se qualcuno se ne dimentica non è un buon
+   * valore predefinito.
+   */
+  readonly reorderable = input(true);
+
   protected readonly open = signal(false);
 
   protected readonly presetOptions = computed((): readonly SelectMenuOption[] =>

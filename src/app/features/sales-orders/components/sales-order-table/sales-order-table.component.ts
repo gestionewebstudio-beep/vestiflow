@@ -15,7 +15,6 @@ import type { BadgeTone } from '@shared/components/badge/badge.component';
 import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
 
 import {
-  corrispettivoStatusTone,
   financialStatusLabel,
   financialStatusTone,
   fulfillmentStatusLabel,
@@ -43,7 +42,7 @@ export interface SalesOrderTableSelectionEvent {
 /**
  * Tabella ordini cliente (dumb puro). Row click verso il dettaglio; importi a
  * destra in tabular-nums; mobile come card impilate. Il profilo «shopify-orders»
- * aggiunge Corrispettivo, DDT, ultimo aggiornamento e stato sync.
+ * aggiunge DDT, ultimo aggiornamento e stato sync.
  */
 @Component({
   selector: 'app-sales-order-table',
@@ -86,7 +85,6 @@ export class SalesOrderTableComponent {
   protected readonly fulfillmentLabel = fulfillmentStatusLabel;
   protected readonly fulfillmentTone = fulfillmentStatusTone;
   protected readonly sourceLabel = sourceLabel;
-  protected readonly corrispettivoTone = corrispettivoStatusTone;
   protected readonly formatDate = formatDate;
   protected readonly formatMoney = formatMoney;
 
@@ -163,7 +161,15 @@ export class SalesOrderTableComponent {
     return 'info';
   }
 
+  /**
+   * «Non su Shopify» viene prima di tutto il resto: è il fatto più importante
+   * sullo stato di sincronizzazione di quell'ordine, e dire «Sincronizzato» di
+   * un ordine che sul canale non esiste più sarebbe falso.
+   */
   protected syncStateLabel(order: SalesOrder): string {
+    if (order.channelMissingSince) {
+      return 'Non su Shopify';
+    }
     if (order.requiresReview) {
       return 'Da verificare';
     }
@@ -171,10 +177,27 @@ export class SalesOrderTableComponent {
   }
 
   protected syncStateTone(order: SalesOrder): BadgeTone {
+    // `error` e non `warning`: «da verificare» è un dubbio, «non c'è più sul
+    // canale» è un fatto, e le due righe devono distinguersi a colpo d'occhio.
+    if (order.channelMissingSince) {
+      return 'error';
+    }
     if (order.requiresReview) {
       return 'warning';
     }
     return order.shopify ? 'success' : 'neutral';
+  }
+
+  /**
+   * Il testo al passaggio del mouse. Sulla riga «non su Shopify» va letto
+   * insieme alla colonna Stato: annullato e poi sparito è la sequenza normale,
+   * confermato e sparito è quella da guardare — lì c'era merce impegnata.
+   */
+  protected syncStateHint(order: SalesOrder): string | null {
+    if (order.channelMissingSince) {
+      return `Non risulta più su Shopify dal ${formatDate(order.channelMissingSince)}. Gli impegni di magazzino sono stati liberati; la rimozione resta una tua scelta.`;
+    }
+    return order.reviewReason ?? null;
   }
 
   protected rowLabel(order: SalesOrder): string {
@@ -199,7 +222,11 @@ export class SalesOrderTableComponent {
     }
     // Stampa PDF: azione di sola lettura, disponibile per qualunque ordine.
     items.push({ id: 'print', label: 'Stampa PDF', icon: 'pi-print' });
-    if (this.canManage() && isManual) {
+    // Gli ordini di canale non si eliminano — appartengono a Shopify, e il
+    // prossimo scarico li riporterebbe. Tranne quelli che su Shopify non
+    // risultano più: lì non c'è più niente da cui tornare, ed è l'unica azione
+    // prevista dopo la segnalazione.
+    if (this.canManage() && (isManual || order.channelMissingSince)) {
       items.push({ id: 'delete', label: 'Elimina', icon: 'pi-trash', danger: true });
     }
     return items;

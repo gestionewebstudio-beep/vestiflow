@@ -67,12 +67,6 @@ export interface CreateProductDto {
   readonly listino1Price?: Money | null;
   readonly listino2Price?: Money | null;
   readonly listino3Price?: Money | null;
-  /**
-   * Modalità con cui l'operatore ha compilato la sezione Listini. Non finisce
-   * sull'articolo: il backend la usa solo per ricordare la preferenza di chi
-   * salva e riproporgliela alla scheda successiva.
-   */
-  readonly listinoPricesIncludeVat?: boolean;
   readonly description?: string;
   readonly brand?: string;
   readonly category?: string;

@@ -14,6 +14,7 @@ import {
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
+  DOCUMENTS_CONFIGURE_READ_PERMISSIONS,
   DOCUMENTS_VIEW_PERMISSIONS,
   TenantPermission,
 } from '../auth/tenant-permission.constants';
@@ -36,25 +37,36 @@ export class ExternalDocumentTypesController {
   constructor(private readonly types: ExternalDocumentTypesService) {}
 
   @Get()
-  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  @RequireAnyPermissions(DOCUMENTS_CONFIGURE_READ_PERMISSIONS)
   list(@CurrentTenant() tenantId: string) {
     return this.types.list(tenantId);
   }
 
+  /**
+   * Quanti documenti portano il tipo. Sta su un endpoint suo e non dentro
+   * `list()` apposta: la lista si carica all'apertura di ogni maschera, questo
+   * conteggio serve solo quando l'operatore preme il cestino.
+   */
+  @Get(':id/usage')
+  @RequireAnyPermissions(DOCUMENTS_VIEW_PERMISSIONS)
+  usage(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.types.countUsage(tenantId, id);
+  }
+
   @Post()
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   create(@CurrentTenant() tenantId: string, @Body() dto: CreateExternalDocumentTypeDto) {
     return this.types.create(tenantId, dto);
   }
 
   @Post('reorder')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   reorder(@CurrentTenant() tenantId: string, @Body() dto: ReorderExternalDocumentTypesDto) {
     return this.types.reorder(tenantId, dto.orderedIds);
   }
 
   @Patch(':id')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   update(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -64,7 +76,7 @@ export class ExternalDocumentTypesController {
   }
 
   @Delete(':id')
-  @RequirePermissions(TenantPermission.DocumentsManage)
+  @RequirePermissions(TenantPermission.DocumentsConfigure)
   @HttpCode(HttpStatus.NO_CONTENT)
   async delete(
     @CurrentTenant() tenantId: string,

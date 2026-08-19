@@ -26,7 +26,9 @@ export const CUSTOMER_ORDER_LINE_COLUMNS: readonly TableColumnDef[] = [
     defaultWidthPx: 62,
     minWidthPx: 48,
   },
-  { id: 'unitOfMeasure', label: 'U.m.', defaultWidthPx: 44, minWidthPx: 36 },
+  // Larghezza cresciuta con la cella: era una colonna di sola lettura larga
+  // quanto «pz», ora ospita un campo con il suo indizio di apertura.
+  { id: 'unitOfMeasure', label: 'U.m.', defaultWidthPx: 60, minWidthPx: 48 },
   // Costo d'acquisto (§8): colonna sensibile, nascosta di default e visibile
   // SOLO agli operatori con permesso "Visualizza costi d'acquisto" — senza
   // permesso la definizione non viene proprio registrata nel selettore.

@@ -6,7 +6,6 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { CorrispettiviModule } from './corrispettivi/corrispettivi.module';
-import { AccountantRegisterModule } from './accountant-register/accountant-register.module';
 import { CustomersModule } from './customers/customers.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -24,12 +23,15 @@ import { validateEnv } from './config/env.validation';
 import { PlatformAdminModule } from './common/platform-admin/platform-admin.module';
 import { HealthModule } from './health/health.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { ManualReceiptsModule } from './manual-receipts/manual-receipts.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { PaymentOptionsModule } from './payment-options/payment-options.module';
+import { UnitOfMeasureOptionsModule } from './unit-of-measure-options/unit-of-measure-options.module';
 import { SupplierOrdersModule } from './supplier-orders/supplier-orders.module';
 import { VatModule } from './vat/vat.module';
 import { SupportSessionModule } from './support/support-session.module';
+import { TenantUsersModule } from './tenant-users/tenant-users.module';
 import { UserPreferencesModule } from './user-preferences/user-preferences.module';
 
 @Module({
@@ -51,6 +53,7 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     SupplierOrdersModule,
     VatModule,
     PaymentOptionsModule,
+    UnitOfMeasureOptionsModule,
     DocumentsModule,
     CustomersModule,
     SalesOrdersModule,
@@ -60,12 +63,15 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
     CashSessionsModule,
     PosTerminalsModule,
     CorrispettiviModule,
-    AccountantRegisterModule,
+    // La quarta sorgente del Registro: registrazione economica autonoma, senza
+    // documento, senza ordine e senza magazzino (`10` §12).
+    ManualReceiptsModule,
     ShopifyModule,
     TikTokModule,
     AnalyticsModule,
     DashboardModule,
     TenantModule,
+    TenantUsersModule,
     AdminModule,
     UserPreferencesModule,
   ],

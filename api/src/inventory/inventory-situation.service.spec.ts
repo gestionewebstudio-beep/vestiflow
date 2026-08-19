@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { UserProfileDto } from '../auth/dto/user-profile.dto';
+import { TenantPermission } from '../auth/tenant-permission.constants';
 import type { PrismaService } from '../prisma/prisma.service';
-import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
+import { testClerkUser, testOwnerUser } from '../test/fixtures/user-profile.fixture';
 import { InventorySituationService } from './inventory-situation.service';
 import type { ListInventorySituationQueryDto } from './dto/list-inventory-situation.query.dto';
 
@@ -138,5 +140,99 @@ describe('InventorySituationService', () => {
 
     expect(result).toEqual({ items: [], total: 0, page: 1, pageSize: 20 });
     expect(prisma.productVariant.findMany).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Il titolare può negare a un dipendente la vista dei costi d'acquisto
+   * (permesso `catalog.view_purchase_costs`). Il servizio non nasconde la
+   * colonna: toglie il valore dalla RISPOSTA, perché una maschera solo lato UI
+   * lascerebbe il costo leggibile nel traffico di rete.
+   *
+   * Senza questi test quel ramo non è coperto da nulla: una `select` ritoccata,
+   * un campo economico aggiunto alla riga o un `showPurchaseCosts` perso in un
+   * refactor rimetterebbero i costi nel JSON senza far diventare rosso niente —
+   * il permesso smetterebbe di funzionare in silenzio, che è il modo peggiore in
+   * cui può smettere di funzionare.
+   */
+  describe('costi d’acquisto e permesso catalog.view_purchase_costs', () => {
+    // Sedi: senza accesso alle location lo scope svuoterebbe la lista e le
+    // asserzioni sui costi passerebbero su zero righe, cioè su niente.
+    const dipendenteSenzaCosti = testClerkUser({ hasAllLocationsAccess: true });
+    const dipendenteConCosti = testClerkUser({
+      hasAllLocationsAccess: true,
+      permissions: [...dipendenteSenzaCosti.permissions, TenantPermission.CatalogViewPurchaseCosts],
+    });
+
+    /** Costo d'acquisto vero della variante `var-1` nel finto Prisma. */
+    const costoVero = variantWithStock.purchasePriceMinor;
+
+    async function situazione(user?: UserProfileDto) {
+      const prisma = createPrismaMock();
+      const service = new InventorySituationService(prisma as unknown as PrismaService);
+      const result = await service.listSituation(tenantId, query(), user);
+      // Guardia: una lista vuota renderebbe vere per vacuità tutte le
+      // asserzioni sotto. Se questa cade, il test non stava provando nulla.
+      expect(result.items).toHaveLength(2);
+      return result;
+    }
+
+    it('il preset commesso non porta il permesso sui costi: è la fixture del ramo negato', () => {
+      expect(dipendenteSenzaCosti.permissions).not.toContain(
+        TenantPermission.CatalogViewPurchaseCosts,
+      );
+      expect(dipendenteConCosti.permissions).toContain(TenantPermission.CatalogViewPurchaseCosts);
+    });
+
+    it('con il permesso il costo d’acquisto arriva con il valore vero', async () => {
+      const result = await situazione(dipendenteConCosti);
+
+      expect(result.items[0]).toMatchObject({
+        variantId: 'var-1',
+        purchasePriceMinor: costoVero,
+      });
+      // Contraltare della verifica sul JSON nel test successivo: qui il numero
+      // c'è davvero, quindi quel `not.toContain` è un rilevatore che sa
+      // accendersi, non un'asserzione che passerebbe comunque.
+      expect(JSON.stringify(result)).toContain(String(costoVero));
+    });
+
+    it('senza il permesso i costi d’acquisto non entrano nella risposta', async () => {
+      const result = await situazione(dipendenteSenzaCosti);
+      const riga = result.items[0];
+
+      // Il campo resta nella forma della riga, ma svuotato: null, non assente.
+      expect(riga).toHaveProperty('purchasePriceMinor', null);
+      expect(result.items.map((row) => row.purchasePriceMinor)).toEqual([null, null]);
+
+      // La maschera è chirurgica: tutto il resto della riga resta intero.
+      expect(riga).toMatchObject({
+        variantId: 'var-1',
+        sellingPriceMinor: 4900,
+        available: 3,
+        supplierName: 'Manifattura Rossi',
+        stockStatus: 'low',
+      });
+
+      // «Mascherato nella risposta, non solo nella UI»: il numero non deve
+      // comparire da nessuna parte in ciò che l'API serializza.
+      expect(JSON.stringify(result)).not.toContain(String(costoVero));
+    });
+
+    it('il titolare vede i costi anche con l’elenco permessi vuoto', async () => {
+      // hasFullTenantAccess: per il titolare l'array salvato è vuoto per scelta,
+      // non per dimenticanza — non deve valere come «nessun permesso».
+      expect(ownerUser.permissions).toEqual([]);
+
+      const result = await situazione(ownerUser);
+
+      expect(result.items[0]).toMatchObject({ purchasePriceMinor: costoVero });
+    });
+
+    it('senza utente identificato i costi restano fuori (default nega)', async () => {
+      const result = await situazione(undefined);
+
+      expect(result.items[0]).toMatchObject({ purchasePriceMinor: null });
+      expect(JSON.stringify(result)).not.toContain(String(costoVero));
+    });
   });
 });

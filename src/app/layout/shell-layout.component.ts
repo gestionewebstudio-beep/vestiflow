@@ -24,7 +24,6 @@ import {
 import { SupportSessionService } from '@core/support/support-session.service';
 import {
   TenantChannelProfile,
-  showRetailSalesRegister,
   showSalesOrderHistory,
 } from '@core/models/tenant-channel-profile.model';
 import type { EntityId } from '@core/models/common.model';
@@ -44,12 +43,16 @@ import { InventoryService } from '@domain/inventory/services/inventory.service';
 import { isShopifySyncUiActive } from '@domain/channels/shopify/models/shopify-connection-state.util';
 import {
   canAccessCatalogSection,
+  canAccessDocumentsSection,
   canAccessInventorySection,
-  canRegisterRetailSales,
+  canAccessSalesSection,
+  canAccessSettingsSection,
+  canAccessSuppliersSection,
+  canOpenRetailRegister,
   canViewCustomers,
-  canViewDocuments,
   canViewReports,
-  canViewSupplierOrders,
+  canViewDocFamily,
+  canViewSalesOrders,
   canManageShopifyConnection,
 } from '@core/permissions/tenant-permissions.util';
 import {
@@ -188,41 +191,21 @@ export class ShellLayoutComponent {
     }
   });
 
-  /** Allinea le sedi al catalogo Shopify una volta per sessione (rimuove sedi obsolete). */
-  private readonly sessionLocationSync = effect((onCleanup) => {
-    if (this.isPlatformOperator()) {
-      return;
-    }
-    if (this.shopifySyncStatus() !== ShopifyConnectionStatus.Connected) {
-      return;
-    }
-
-    const storageKey = 'vestiflow-session-location-sync-v3';
-    try {
-      if (this.document.defaultView?.sessionStorage.getItem(storageKey)) {
-        return;
-      }
-    } catch {
-      return;
-    }
-
-    const subscription = this.shopifyConnectionService
-      .syncLocations()
-      .pipe(catchError(() => of(null)))
-      .subscribe((result) => {
-        this.inventoryService.invalidateLocationsCache();
-        if (!result) {
-          return;
-        }
-        try {
-          this.document.defaultView?.sessionStorage.setItem(storageKey, '1');
-        } catch {
-          // sessionStorage non disponibile: nessuna persistenza del flag.
-        }
-      });
-
-    onCleanup(() => subscription.unsubscribe());
-  });
+  // ⛔ Qui stava un allineamento delle sedi che partiva DA SOLO, una volta per
+  // sessione del browser, per ogni utente e da qualunque pagina dell'app.
+  //
+  // Non era una lettura: quella sincronizzazione **crea** sedi quando il nome
+  // non coincide, **rinomina** quelle collegate col nome Shopify e ne
+  // **cancella o disattiva** altre. Tre sedi VestiFlow e tre location Shopify
+  // con nomi diversi diventavano sei, e le giacenze si spartivano fra doppioni.
+  //
+  // La regola è che l'abbinamento lo decide l'operatore, e nessuna replica lo
+  // precede (`02` §4.2 e §7.4: «non deve più partire da sola all'apertura della
+  // pagina, e deve dichiarare che cancella»). La funzione resta, col suo
+  // pulsante nel pannello Shopify; quello che se ne va è il «parte da solo».
+  //
+  // Registro difetti 3.14. Gli inneschi erano tre: questo, la prima apertura
+  // delle Impostazioni e il ritorno da OAuth.
 
   /** Connessione Shopify completa per topbar e banner globali. */
   readonly shopifyConnection = toSignal<ShopifyConnection | null>(
@@ -365,7 +348,7 @@ export class ShellLayoutComponent {
       });
     }
 
-    if (canViewSupplierOrders(user)) {
+    if (canAccessSuppliersSection(user)) {
       mainItems.push({
         label: 'Fornitori',
         icon: 'pi-building',
@@ -374,7 +357,7 @@ export class ShellLayoutComponent {
       });
     }
 
-    if (canViewDocuments(user)) {
+    if (canAccessDocumentsSection(user)) {
       mainItems.push({
         label: 'Documenti',
         icon: 'pi-file',
@@ -387,29 +370,22 @@ export class ShellLayoutComponent {
 
     const salesItems: NavItem[] = [];
 
-    if (showRetailSalesRegister(profile) && canRegisterRetailSales(user)) {
+    if (canOpenRetailRegister(user)) {
       salesItems.push({
-        label: 'Vendita negozio',
+        // Il MODULO e' plurale, la singola operazione singolare (`11`).
+        label: 'Vendite al banco',
         icon: 'pi-shopping-bag',
-        route: '/app/sales/register',
-        activeRoutePrefix: '/app/sales/register',
+        route: '/app/vendita-al-banco',
+        // ⚠️ E' un CONFRONTO: sbagliandolo la voce smette di illuminarsi
+        // senza nessun errore e senza nessun test rosso.
+        activeRoutePrefix: '/app/vendita-al-banco',
       });
     }
 
-    // Chiusure di cassa: chi batte in cassa o chi controlla i report.
-    if (
-      showRetailSalesRegister(profile) &&
-      (canRegisterRetailSales(user) || canViewReports(user))
-    ) {
-      salesItems.push({
-        label: 'Chiusure di cassa',
-        icon: 'pi-wallet',
-        route: '/app/sales/chiusure',
-        activeRoutePrefix: '/app/sales/chiusure',
-      });
-    }
-
-    if (canViewReports(user)) {
+    // Entrambe le rotte chiedono la sezione E la famiglia «Vendite online»:
+    // con la sola sezione i due link sarebbero morti, come per Ordini Shopify
+    // qui sotto.
+    if (canAccessSalesSection(user) && canViewDocFamily(user, 'online_sale')) {
       salesItems.push({
         label: 'Vendite online',
         icon: 'pi-send',
@@ -428,7 +404,9 @@ export class ShellLayoutComponent {
       sections.push({ id: 'sales', label: 'Vendite', items: salesItems });
     }
 
-    if (showSalesOrderHistory(profile) && canViewReports(user)) {
+    // La rotta chiede la famiglia «Ordine cliente»: senza, il link sarebbe
+    // morto (il guard rimbalzerebbe alla dashboard).
+    if (showSalesOrderHistory(profile) && canAccessSalesSection(user) && canViewSalesOrders(user)) {
       sections.push({
         id: 'channels',
         label: 'Canali online',
@@ -460,22 +438,17 @@ export class ShellLayoutComponent {
         icon: 'pi-chart-line',
         route: '/app/reports',
         activeRoutePrefix: '/app/reports',
-        activeRouteExclude: ['/app/reports/accountant-register'],
-      });
-      manageItems.push({
-        label: 'Registro commercialista',
-        icon: 'pi-briefcase',
-        route: '/app/reports/accountant-register',
-        activeRoutePrefix: '/app/reports/accountant-register',
       });
     }
 
-    manageItems.push({
-      label: 'Impostazioni',
-      icon: 'pi-cog',
-      route: '/app/settings',
-      activeRoutePrefix: '/app/settings',
-    });
+    if (canAccessSettingsSection(user)) {
+      manageItems.push({
+        label: 'Impostazioni',
+        icon: 'pi-cog',
+        route: '/app/settings',
+        activeRoutePrefix: '/app/settings',
+      });
+    }
 
     manageItems.push(this.guideNavItem);
 

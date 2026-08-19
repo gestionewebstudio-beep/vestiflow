@@ -26,8 +26,6 @@ export interface OnlineSaleRow {
   readonly totalMinor: number;
   readonly paymentStatus: string;
   readonly inventoryStatus: string;
-  readonly corrispettivoReference: string | null;
-  readonly corrispettivoStatus: string | null;
   readonly refundedAt: string | null;
   /** Location di scarico principale (fase 3 §4). */
   readonly locationName: string | null;
@@ -74,12 +72,6 @@ export interface OnlineSaleDetail extends OnlineSaleRow {
   readonly taxMinor: number;
   readonly lines: readonly OnlineSaleLineRow[];
   readonly movements: readonly OnlineSaleMovementRow[];
-  readonly corrispettivo: {
-    readonly id: string;
-    readonly reference: string;
-    readonly fiscalDate: string;
-    readonly status: string;
-  } | null;
   readonly linkedDocuments: readonly {
     readonly id: string;
     readonly type: string;
@@ -103,7 +95,6 @@ export class OnlineSalesService {
       this.prisma.onlineSale.findMany({
         where,
         include: {
-          corrispettivo: { select: { reference: true, status: true } },
           location: { select: { name: true } },
           documents: { select: { type: true, reference: true } },
         },
@@ -126,9 +117,6 @@ export class OnlineSalesService {
       where: { id, tenantId },
       include: {
         lines: { orderBy: { lineNumber: 'asc' } },
-        corrispettivo: {
-          select: { id: true, reference: true, fiscalDate: true, status: true },
-        },
         location: { select: { name: true } },
         documents: {
           select: { id: true, type: true, reference: true, status: true },
@@ -183,14 +171,6 @@ export class OnlineSalesService {
         locationName: movement.location.name,
         createdAt: movement.createdAt.toISOString(),
       })),
-      corrispettivo: sale.corrispettivo
-        ? {
-            id: sale.corrispettivo.id,
-            reference: sale.corrispettivo.reference,
-            fiscalDate: sale.corrispettivo.fiscalDate.toISOString().slice(0, 10),
-            status: sale.corrispettivo.status,
-          }
-        : null,
       linkedDocuments: sale.documents.map((doc) => ({
         id: doc.id,
         type: doc.type,
@@ -243,7 +223,6 @@ export class OnlineSalesService {
   private toRow(
     sale: Prisma.OnlineSaleGetPayload<{
       include: {
-        corrispettivo: { select: { reference: true; status: true } };
         location: { select: { name: true } };
         documents: { select: { type: true; reference: true } };
       };
@@ -266,8 +245,6 @@ export class OnlineSalesService {
       totalMinor: sale.totalMinor,
       paymentStatus: sale.paymentStatus,
       inventoryStatus: sale.inventoryStatus,
-      corrispettivoReference: sale.corrispettivo?.reference ?? null,
-      corrispettivoStatus: sale.corrispettivo?.status ?? null,
       refundedAt: sale.refundedAt?.toISOString() ?? null,
       locationName: sale.location?.name ?? null,
       ddtReference: ddt?.reference ?? null,

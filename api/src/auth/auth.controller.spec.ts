@@ -20,14 +20,31 @@ describe('AuthController', () => {
     uploadAvatar: vi.fn(),
     removeAvatar: vi.fn(),
   };
+  const prisma = { user: { update: vi.fn().mockResolvedValue({}) } };
+  const profileCache = { invalidate: vi.fn() };
 
   const controller = new AuthController(
     supabase as unknown as SupabaseService,
     userAvatar as unknown as UserAvatarService,
+    prisma as never,
+    profileCache as never,
   );
 
   it('getMe ritorna il profilo corrente', () => {
     expect(controller.getMe(user)).toBe(user);
+  });
+
+  it('passwordChanged azzera il flag e invalida il profilo in cache', async () => {
+    const request = { authUserId: 'auth-1', appUser: user } as AuthenticatedRequest;
+
+    await expect(controller.passwordChanged(request)).resolves.toEqual({
+      mustChangePassword: false,
+    });
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { mustChangePassword: false },
+    });
+    expect(profileCache.invalidate).toHaveBeenCalledWith('auth-1');
   });
 
   it('cleanupPendingMfa delega a Supabase', async () => {

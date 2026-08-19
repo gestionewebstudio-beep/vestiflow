@@ -12,7 +12,7 @@ describe('DashboardController', () => {
       TENANT_PERMISSIONS_KEY,
       DashboardController.prototype.getSummary,
     ) as string[];
-    expect(permissions).toContain(TenantPermission.ReportsView);
+    expect(permissions).toContain(TenantPermission.SectionReports);
   });
 
   it('summary delega al service con locationId opzionale', async () => {

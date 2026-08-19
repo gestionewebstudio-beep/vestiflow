@@ -19,12 +19,24 @@ import type { VariantSummary } from '../../models/variant-summary.model';
 })
 export class ProductSearchResultsComponent {
   readonly results = input.required<readonly VariantSummary[]>();
+  /**
+   * L'icona che apre la scheda articolo. Chi ospita la lista decide se
+   * mostrarla: la scheda salva sul catalogo, quindi dove serve il permesso è
+   * chi conosce l'operatore a spegnerla — questa lista resta presentazionale.
+   */
+  readonly canOpenDetail = input(true);
   readonly variantSelected = output<string>();
+  /** Apri la scheda dell'articolo invece di aggiungerlo alla riga. */
+  readonly detailRequested = output<string>();
 
   protected readonly StockStatus = StockStatus;
 
   protected pick(variantId: string): void {
     this.variantSelected.emit(variantId);
+  }
+
+  protected openDetail(productId: string): void {
+    this.detailRequested.emit(productId);
   }
 
   /** Riga codici sotto il nome: codice articolo, SKU e EAN (i presenti). */

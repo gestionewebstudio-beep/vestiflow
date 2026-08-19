@@ -5,29 +5,46 @@ import { DocumentType } from '@core/models/document.model';
  * Il DDT vendita usa la maschera dell'Ordine cliente (prompt DDT §BASE):
  * rotta dedicata /app/documents/sales-ddt.
  */
-export const SALES_FORM_DOCUMENT_TYPES: readonly DocumentType[] = [
+export const SALES_FORM_DOCUMENT_TYPES = [
   DocumentType.Proforma,
   DocumentType.InvoiceDraft,
   DocumentType.InvoiceAccompanying,
+  // La nota di credito usa la stessa base di maschera, con le proprie
+  // differenze di dominio (casella «Carica magazzino», verso economico).
+  DocumentType.CreditNote,
 ] as const;
+
+/**
+ * I tipi che la maschera vendita gestisce, come unione di letterali.
+ *
+ * L'annotazione `readonly DocumentType[]` qui sopra è stata tolta apposta:
+ * allargava il tipo e rendeva impossibile derivare questa unione. Serve a far
+ * pretendere dal compilatore una voce per ogni tipo dove l'elenco non basta —
+ * i segmenti di rotta, per esempio: un tipo aggiunto qui e dimenticato là
+ * darebbe una maschera senza indirizzo, e nessun test lo direbbe.
+ */
+export type SalesFormDocumentType = (typeof SALES_FORM_DOCUMENT_TYPES)[number];
 
 /** Documenti vendita con anteprima stampa dedicata. */
 export const SALES_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.Proforma,
   DocumentType.InvoiceDraft,
   DocumentType.InvoiceAccompanying,
+  DocumentType.CreditNote,
   DocumentType.SalesDdt,
   DocumentType.Quote,
 ] as const;
 
 /**
- * Fatture di vendita: Fattura e Fattura accompagnatoria. Condividono elenco,
- * numeratore, form base e azioni fiscali; si differenziano per le sezioni
- * Trasporto/Destinazione e per lo scarico di magazzino.
+ * La famiglia Fattura: Fattura, Fattura accompagnatoria e Nota di credito.
+ * Condividono elenco, numeratore, form base, permessi e azioni fiscali; si
+ * differenziano per le sezioni Trasporto/Destinazione (accompagnatoria), per il
+ * verso economico e la casella «Carica magazzino» (nota di credito).
  */
 export const SALES_INVOICE_DOCUMENT_TYPES: readonly DocumentType[] = [
   DocumentType.InvoiceDraft,
   DocumentType.InvoiceAccompanying,
+  DocumentType.CreditNote,
 ] as const;
 
 export function isSalesFormDocumentType(type: DocumentType): boolean {

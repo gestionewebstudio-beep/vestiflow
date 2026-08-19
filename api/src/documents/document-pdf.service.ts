@@ -2,7 +2,19 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { DocumentType } from '@prisma/client';
 import type { PdfDocumentInstance } from '../common/pdf/pdf-document.types';
 
+import {
+  ISSUER_TENANT_SELECT,
+  readIssuerSnapshot,
+  resolveDocumentIssuer,
+  type DocumentIssuer,
+} from '../common/company/document-issuer.util';
 import { formatMinorAmount, formatPercent } from '../common/pdf/money-format.util';
+import {
+  drawIssuerFooter,
+  drawIssuerHeader,
+  issuerFooterLine,
+  issuerHeaderLines,
+} from '../common/pdf/issuer-header.util';
 import { renderPdfToBuffer, sanitizePdfFilename } from '../common/pdf/pdf-buffer.util';
 import {
   drawPdfMetaLine,
@@ -13,21 +25,18 @@ import {
   type PdfTableColumn,
 } from '../common/pdf/pdf-layout.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { storeSalePaymentMethodLabelWithNote } from '../store-sales/store-sale-payment-label.util';
 import { vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
-import { PROFORMA_FISCAL_DISCLAIMER, isSalesInvoiceDocumentType } from './document-type.util';
+import { isSalesInvoiceDocumentType } from './document-type.util';
 import { DEFAULT_PRINT_TITLE } from './document-defaults';
 import {
+  documentPrintDisclaimer,
   documentPrintKind,
+  documentPrintShowsValues,
   documentReferenceLabel,
   isPrintableDocumentType,
 } from './document-print.util';
 import type { DocumentDetail } from './documents.service';
-
-interface TenantPdfHeader {
-  readonly legalName: string;
-  readonly addressLine: string | null;
-  readonly vatNumber: string | null;
-}
 
 /** Ora inizio trasporto in fuso Europa/Roma (stampa DDT). */
 const ROME_TIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
@@ -35,6 +44,17 @@ const ROME_TIME_FORMAT = new Intl.DateTimeFormat('it-IT', {
   hour: '2-digit',
   minute: '2-digit',
 });
+
+/**
+ * Documenti di vendita in cui la sede va stampata: lo scarico manuale (dove la
+ * location è il contesto dell'operazione) e la cassa negozio, dove il cliente
+ * può non esserci affatto e la sede resta l'unico riferimento.
+ */
+const SALES_TYPES_WITH_LOCATION: readonly DocumentType[] = [
+  DocumentType.manual_unload,
+  DocumentType.store_sale,
+  DocumentType.store_return,
+] as const;
 
 @Injectable()
 export class DocumentPdfService {
@@ -50,8 +70,8 @@ export class DocumentPdfService {
       );
     }
 
-    const [tenant, locations] = await Promise.all([
-      this.loadTenantHeader(tenantId),
+    const [issuer, locations] = await Promise.all([
+      this.loadIssuer(tenantId, document),
       this.loadLocationNames(tenantId, document),
     ]);
 
@@ -61,7 +81,7 @@ export class DocumentPdfService {
 
     const buffer = await renderPdfToBuffer((doc) => {
       this.renderDocument(doc, {
-        tenant,
+        issuer,
         document,
         locations,
         title,
@@ -76,32 +96,51 @@ export class DocumentPdfService {
     return { buffer, filename: `${filename}.pdf` };
   }
 
-  private async loadTenantHeader(tenantId: string): Promise<TenantPdfHeader> {
+  /**
+   * L'intestazione che QUESTO documento stamperà, già composta in righe.
+   *
+   * La serve l'anteprima a schermo, che prima non mostrava l'emittente affatto:
+   * il foglio scaricato portava ragione sociale, indirizzo e partita IVA,
+   * l'anteprima no — cioè l'anteprima non anticipava la stampa, che è l'unica
+   * cosa per cui esiste.
+   *
+   * Passa da qui e non da un'anagrafica letta viva nel frontend perché deve
+   * valere la stessa regola del PDF: su un documento già emesso vince lo
+   * snapshot congelato all'emissione, non l'azienda com'è oggi.
+   */
+  async issuerHeader(
+    tenantId: string,
+    document: DocumentDetail,
+  ): Promise<{
+    legalName: string;
+    lines: readonly string[];
+    footer: string | null;
+  }> {
+    const issuer = await this.loadIssuer(tenantId, document);
+    return {
+      legalName: issuer.legalName,
+      lines: issuerHeaderLines(issuer),
+      footer: issuerFooterLine(issuer),
+    };
+  }
+
+  /**
+   * L'intestazione congelata all'emissione vince sempre: una fattura già
+   * emessa si ristampa identica anche se l'anagrafica nel frattempo è
+   * cambiata. Solo i documenti anteriori allo snapshot rileggono l'azienda
+   * com'è adesso.
+   */
+  private async loadIssuer(tenantId: string, document: DocumentDetail): Promise<DocumentIssuer> {
+    const snapshot = readIssuerSnapshot(document.issuerSnapshot);
+    if (snapshot) {
+      return snapshot;
+    }
+
     const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: {
-        name: true,
-        legalName: true,
-        vatNumber: true,
-        addressLine1: true,
-        addressLine2: true,
-        postalCode: true,
-        city: true,
-        province: true,
-      },
+      select: ISSUER_TENANT_SELECT,
     });
-
-    const addressParts = [
-      tenant.addressLine1,
-      tenant.addressLine2,
-      [tenant.postalCode, tenant.city, tenant.province].filter(Boolean).join(' '),
-    ].filter((part) => part && part.trim().length > 0);
-
-    return {
-      legalName: tenant.legalName?.trim() || tenant.name,
-      addressLine: addressParts.length > 0 ? addressParts.join(', ') : null,
-      vatNumber: tenant.vatNumber,
-    };
+    return resolveDocumentIssuer(tenant);
   }
 
   private async loadLocationNames(
@@ -126,7 +165,7 @@ export class DocumentPdfService {
   private renderDocument(
     doc: PdfDocumentInstance,
     params: {
-      readonly tenant: TenantPdfHeader;
+      readonly issuer: DocumentIssuer;
       readonly document: DocumentDetail;
       readonly locations: Map<string, string>;
       readonly title: string;
@@ -134,30 +173,18 @@ export class DocumentPdfService {
       readonly currency: string;
     },
   ): void {
-    const { tenant, document, locations, title, reference, currency } = params;
+    const { issuer, document, locations, title, reference, currency } = params;
     const left = doc.page.margins.left;
     const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    let y = doc.page.margins.top;
+    let y = drawIssuerHeader(doc, issuer, doc.page.margins.top);
 
-    doc.font('Helvetica-Bold').fontSize(11).text(tenant.legalName, left, y);
-    y += 14;
-    if (tenant.addressLine) {
-      doc.font('Helvetica').fontSize(9).fillColor('#444444').text(tenant.addressLine, left, y);
-      y += 12;
-    }
-    if (tenant.vatNumber) {
-      doc.text(`P. IVA: ${tenant.vatNumber}`, left, y);
-      y += 12;
-    }
-    doc.fillColor('#000000');
-    y += 8;
-
-    if (document.type === DocumentType.proforma) {
+    const disclaimer = documentPrintDisclaimer(document.type);
+    if (disclaimer) {
       doc
         .font('Helvetica-Bold')
         .fontSize(9)
         .fillColor('#663c00')
-        .text(PROFORMA_FISCAL_DISCLAIMER, left, y, { width: contentWidth });
+        .text(disclaimer, left, y, { width: contentWidth });
       doc.fillColor('#000000');
       y += 24;
     }
@@ -178,6 +205,12 @@ export class DocumentPdfService {
     if (document.lines.length > 0) {
       y = drawPdfSectionTitle(doc, 'Righe documento', y);
       y = this.renderLinesTable(doc, document, currency, y, contentWidth);
+    }
+
+    // Il blocco totali esiste solo dove esistono i valori: su un
+    // trasferimento o una rettifica sarebbe una riga «Totale 0,00 €» sotto una
+    // colonna di zeri (vedi documentPrintShowsValues).
+    if (document.lines.length > 0 && documentPrintShowsValues(document.type)) {
       const totalRows: Array<{ label: string; value: string; bold?: boolean }> = [
         { label: 'Imponibile', value: formatMinorAmount(document.subtotalMinor, currency) },
       ];
@@ -216,13 +249,22 @@ export class DocumentPdfService {
       y = this.renderPaymentSection(doc, document, y);
     }
 
+    if (documentPrintKind(document.type) === 'purchase_invoice') {
+      y = this.renderPurchaseInvoiceSections(doc, document, currency, y);
+    }
+
     if (document.notes?.trim()) {
       y += 12;
       y = drawPdfSectionTitle(doc, 'Note', y);
       doc.font('Helvetica').fontSize(10).text(document.notes.trim(), left, y, {
         width: contentWidth,
       });
+      y += doc.heightOfString(document.notes.trim(), { width: contentWidth });
     }
+
+    // Registro Imprese in coda: obbligatorio per le società, assente per tutti
+    // gli altri (drawIssuerFooter non stampa una riga vuota).
+    drawIssuerFooter(doc, issuer, y + 18);
   }
 
   /**
@@ -265,6 +307,57 @@ export class DocumentPdfService {
     if (document.billingCause?.trim()) {
       next = drawPdfMetaLine(doc, 'Causale', document.billingCause.trim(), next);
     }
+    return next;
+  }
+
+  /**
+   * Registrazione fattura fornitore: quanto resta da pagare e quali arrivi
+   * merce la fattura copre. Sono dati già presenti in `DocumentDetail` e mai
+   * letti finora dalla stampa — nessuna query nuova, nessuna migration — e
+   * senza di loro il foglio non spiega il proprio totale.
+   */
+  private renderPurchaseInvoiceSections(
+    doc: PdfDocumentInstance,
+    document: DocumentDetail,
+    currency: string,
+    y: number,
+  ): number {
+    let next = y;
+
+    if (document.paymentInstallments.length > 0) {
+      next += 12;
+      next = drawPdfSectionTitle(doc, 'Scadenze', next);
+      for (const installment of document.paymentInstallments) {
+        const amount = formatMinorAmount(installment.amountMinor, currency);
+        next = drawPdfMetaLine(
+          doc,
+          formatRomeDate(installment.dueDate),
+          installment.settled ? `${amount} · saldata` : amount,
+          next,
+        );
+      }
+    }
+
+    if (document.outstandingMinor > 0) {
+      next = drawPdfMetaLine(
+        doc,
+        'Ancora da saldare',
+        formatMinorAmount(document.outstandingMinor, currency),
+        next,
+      );
+    }
+
+    // Solo gli arrivi che hanno un riferimento: uno senza numero non aiuta a
+    // ritrovare il documento, ed è l'unica cosa che questa riga serve a fare.
+    const receipts = document.linkedGoodsReceipts
+      .map((receipt) => receipt.reference)
+      .filter((reference): reference is string => Boolean(reference?.trim()));
+    if (receipts.length > 0) {
+      next += 12;
+      next = drawPdfSectionTitle(doc, 'Arrivi merce inclusi', next);
+      next = drawPdfMetaLine(doc, 'Documenti', receipts.join(', '), next);
+    }
+
     return next;
   }
 
@@ -408,6 +501,23 @@ export class DocumentPdfService {
         if (document.locationId) {
           y = drawPdfMetaLine(doc, 'Location', locations.get(document.locationId) ?? '—', y);
         }
+        // Causale di carico: sul carico manuale e su quello iniziale il
+        // fornitore manca spesso, e senza causale il foglio non direbbe nulla
+        // su cosa sia entrato in magazzino.
+        if (document.causalText?.trim()) {
+          y = drawPdfMetaLine(doc, 'Causale', document.causalText.trim(), y);
+        }
+        break;
+      }
+      case 'purchase_invoice': {
+        if (document.supplierName) {
+          y = drawPdfMetaLine(doc, 'Fornitore', document.supplierName, y);
+        }
+        // Il documento è del fornitore: la data che conta per noi è quella in
+        // cui è stato registrato, e sta accanto alla data del documento.
+        if (document.registrationDate) {
+          y = drawPdfMetaLine(doc, 'Registrata il', formatRomeDate(document.registrationDate), y);
+        }
         break;
       }
       case 'sales': {
@@ -417,10 +527,48 @@ export class DocumentPdfService {
         if (document.billingCause) {
           y = drawPdfMetaLine(doc, 'Causale', document.billingCause, y);
         }
-        // Scarico manuale: la location di scarico è il contesto operativo.
-        if (document.type === DocumentType.manual_unload && document.locationId) {
+        // Scarico manuale e cassa negozio: la sede è il contesto operativo, e
+        // sulla vendita al banco è spesso l'unico (il cliente può mancare).
+        if (SALES_TYPES_WITH_LOCATION.includes(document.type) && document.locationId) {
           y = drawPdfMetaLine(doc, 'Location', locations.get(document.locationId) ?? '—', y);
         }
+        // Cassa negozio: il metodo è salvato come codice grezzo, non come
+        // testo — va tradotto o sul foglio finisce «cash». Gli altri documenti
+        // di vendita portano il pagamento nella sezione trasporto.
+        if (document.type === DocumentType.store_sale && document.paymentMethod) {
+          y = drawPdfMetaLine(
+            doc,
+            'Pagamento',
+            storeSalePaymentMethodLabelWithNote(document.paymentMethod, document.paymentMethodNote),
+            y,
+          );
+        }
+        break;
+      }
+      case 'stock': {
+        if (document.locationId) {
+          y = drawPdfMetaLine(doc, 'Location', locations.get(document.locationId) ?? '—', y);
+        }
+        // Senza il verso, la quantità di una rettifica non dice se la giacenza
+        // sale o scende: è il dato che rende leggibile il foglio.
+        // Stesso testo del dettaglio a schermo (document-detail.component.ts):
+        // il foglio e la maschera non devono chiamare le cose in due modi.
+        if (document.adjustmentDirection) {
+          y = drawPdfMetaLine(
+            doc,
+            'Direzione',
+            document.adjustmentDirection === 'increase' ? 'Aumento giacenza' : 'Diminuzione giacenza',
+            y,
+          );
+        }
+        // Il motivo della rettifica NON si stampa, per quanto obbligatorio:
+        // vive in `internalComment`, e quel campo è dichiarato all'operatore
+        // come «Nota interna, mai in stampa» (purchase-invoice-form). Sullo
+        // stesso campo l'inventario scrive un UUID di sessione e la cassa una
+        // frase fissa: stamparlo per un tipo solo romperebbe la promessa e
+        // farebbe uscire l'UUID al primo tipo aggiunto per distrazione.
+        // Ciò che l'operatore vuole sul foglio lo scrive in Note, che il PDF
+        // stampa già in coda per ogni tipo.
         break;
       }
       default: {
@@ -434,6 +582,20 @@ export class DocumentPdfService {
       }
     }
 
+    // Movimenti interni di magazzino: chi li ha eseguiti fa parte del foglio
+    // (regole-gestionale §Auditabilità). Sui documenti diretti all'esterno no:
+    // lì risponde l'azienda che emette, non l'operatore che ha digitato.
+    if ((kind === 'transfer' || kind === 'stock') && document.createdByName) {
+      y = drawPdfMetaLine(doc, 'Eseguito da', document.createdByName, y);
+    }
+
+    // Documento emesso dall'altra parte: sta con gli altri riferimenti di
+    // testata e vale per ogni tipo, non più solo per l'arrivo merce.
+    const counterparty = counterpartyDocLabel(document);
+    if (counterparty) {
+      y = drawPdfMetaLine(doc, 'Documento controparte', counterparty, y);
+    }
+
     return y;
   }
 
@@ -444,15 +606,26 @@ export class DocumentPdfService {
     y: number,
     contentWidth: number,
   ): number {
-    const columns: PdfTableColumn[] = [
-      { header: '#', width: contentWidth * 0.05, align: 'right' },
-      { header: 'Articolo', width: contentWidth * 0.34 },
-      { header: 'Q.tà', width: contentWidth * 0.08, align: 'right' },
-      { header: 'Prezzo', width: contentWidth * 0.13, align: 'right' },
-      { header: 'Sconto', width: contentWidth * 0.08, align: 'right' },
-      { header: 'IVA', width: contentWidth * 0.08, align: 'right' },
-      { header: 'Totale', width: contentWidth * 0.24, align: 'right' },
-    ];
+    // Senza valori la riga è «cosa» e «quanto»: le quattro colonne di prezzo
+    // non si spengono, non ci sono. Lo spazio che liberano va all'articolo e
+    // alla quantità, che su un foglio di magazzino è il dato che si legge.
+    const showsValues = documentPrintShowsValues(document.type);
+
+    const columns: PdfTableColumn[] = showsValues
+      ? [
+          { header: '#', width: contentWidth * 0.05, align: 'right' },
+          { header: 'Articolo', width: contentWidth * 0.34 },
+          { header: 'Q.tà', width: contentWidth * 0.08, align: 'right' },
+          { header: 'Prezzo', width: contentWidth * 0.13, align: 'right' },
+          { header: 'Sconto', width: contentWidth * 0.08, align: 'right' },
+          { header: 'IVA', width: contentWidth * 0.08, align: 'right' },
+          { header: 'Totale', width: contentWidth * 0.24, align: 'right' },
+        ]
+      : [
+          { header: '#', width: contentWidth * 0.06, align: 'right' },
+          { header: 'Articolo', width: contentWidth * 0.72 },
+          { header: 'Q.tà', width: contentWidth * 0.22, align: 'right' },
+        ];
 
     const rows = document.lines.map((line) => {
       const articleParts = [line.description];
@@ -463,12 +636,15 @@ export class DocumentPdfService {
       if (serials.length > 0) {
         articleParts.push(`Seriali: ${serials.join(', ')}`);
       }
+      const head = [String(line.lineNumber), articleParts.join('\n'), String(line.quantity)];
+      if (!showsValues) {
+        return head;
+      }
+
       const vatRatePercent = vatSnapshotRatePercent(line.vatSnapshot);
 
       return [
-        String(line.lineNumber),
-        articleParts.join('\n'),
-        String(line.quantity),
+        ...head,
         // Punto di uscita: due decimali in stampa (§sei decimali).
         formatMinorAmount(Number(line.unitPriceMinor), currency),
         Number(line.discountPercent) > 0 ? formatPercent(Number(line.discountPercent)) : '—',
@@ -532,6 +708,24 @@ function formatPdfAddress(value: unknown): string | null {
     Boolean,
   );
   return parts.length > 0 ? parts.join('\n') : null;
+}
+
+/**
+ * «DDT 145 del 08/05/2026»: il documento della controparte in una riga sola,
+ * '' quando nessuno dei tre campi è compilato — così la riga non si stampa
+ * affatto. Gemella di `counterpartyDocLabel` del frontend: stesso testo, qui
+ * con la data nel fuso Europa/Roma come il resto della stampa.
+ */
+function counterpartyDocLabel(document: DocumentDetail): string {
+  const head = [document.externalDocumentTypeSnapshot, document.externalDocNumber]
+    .map((part) => part?.trim() ?? '')
+    .filter((part) => part.length > 0)
+    .join(' ');
+  if (!document.externalDocDate) {
+    return head;
+  }
+  const date = formatRomeDate(document.externalDocDate);
+  return head ? `${head} del ${date}` : date;
 }
 
 function parseSerialNumbers(value: unknown): string[] {

@@ -9,8 +9,39 @@ import {
   isAdjustmentDocumentType,
   isManualUnloadDocumentType,
 } from './document-stock-operation.util';
-import { isSalesFormDocumentType } from '@domain/documents/models/document-sales.util';
+import {
+  isSalesFormDocumentType,
+  type SalesFormDocumentType,
+} from '@domain/documents/models/document-sales.util';
 import { isTransferDocumentType } from './document-transfer.util';
+import {
+  storeSaleEditPath,
+  storeSaleModeOfDocumentType,
+} from '@domain/store-sales/models/store-sale-routing.util';
+
+/**
+ * Segmento di indirizzo della maschera vendita, per tipo. **Fonte unica**: da
+ * qui nascono la rotta di creazione (`<segmento>/new`), quella di modifica
+ * (`<segmento>/:id/edit`), il percorso di duplicazione e i link dell'elenco.
+ *
+ * È una mappa esaustiva e non un elenco, apposta: aggiungere un tipo alla
+ * maschera vendita senza dargli un indirizzo non compila. Un elenco avrebbe
+ * lasciato passare il tipo senza rotta, e il sintomo sarebbe arrivato molto
+ * dopo — una voce di menu che porta a una pagina che non esiste.
+ */
+export const SALES_FORM_ROUTE_SEGMENT: Readonly<Record<SalesFormDocumentType, string>> = {
+  [DocumentType.Proforma]: 'proforma',
+  [DocumentType.InvoiceDraft]: 'fattura',
+  [DocumentType.InvoiceAccompanying]: 'fattura-accompagnatoria',
+  [DocumentType.CreditNote]: 'nota-di-credito',
+};
+
+/** Il segmento del tipo, o `null` se quel tipo non usa la maschera vendita. */
+export function salesFormRouteSegment(type: DocumentTypeValue): string | null {
+  return isSalesFormDocumentType(type)
+    ? SALES_FORM_ROUTE_SEGMENT[type as SalesFormDocumentType]
+    : null;
+}
 
 /**
  * Percorso di modifica di un documento per tipo (usato da lista, dettaglio e
@@ -28,8 +59,11 @@ export function documentEditPath(doc: {
   if (doc.type === DocumentType.SalesDdt) {
     return `/app/documents/sales-ddt/${doc.id}/edit`;
   }
-  if (isSalesFormDocumentType(doc.type)) {
-    return `/app/documents/sales/${doc.id}/edit`;
+  // Un indirizzo per tipo: il form deve conoscere il tipo PRIMA di leggere il
+  // documento, altrimenti fino alla risposta si comporta da proforma (`07-…§18`).
+  const salesSegment = salesFormRouteSegment(doc.type);
+  if (salesSegment) {
+    return `/app/documents/${salesSegment}/${doc.id}/edit`;
   }
   if (isTransferDocumentType(doc.type)) {
     return `/app/documents/transfer/${doc.id}/edit`;
@@ -42,6 +76,11 @@ export function documentEditPath(doc: {
   }
   if (doc.type === DocumentType.SupplierInvoice) {
     return `/app/documents/registrazione-fattura/${doc.id}/edit`;
+  }
+  // Vendita e Reso al banco: un indirizzo per tipo, come la maschera vendita.
+  const bancoMode = storeSaleModeOfDocumentType(doc.type);
+  if (bancoMode) {
+    return storeSaleEditPath(bancoMode, doc.id);
   }
   return `/app/documents/${doc.id}/edit`;
 }
@@ -73,12 +112,18 @@ export function documentOpenPath(doc: {
       return `/app/documents/proforma/${doc.id}`;
     case DocumentType.SalesDdt:
       return `/app/documents/sales-ddt/${doc.id}`;
+    // I tre tipi della famiglia si aprono sullo STESSO elenco: il progressivo è
+    // uno solo, e un dettaglio su una pagina propria suggerirebbe il contrario.
     case DocumentType.InvoiceDraft:
     case DocumentType.InvoiceAccompanying:
+    case DocumentType.CreditNote:
       return `/app/documents/fattura/${doc.id}`;
+    // ⛔ Alla MODIFICA, non all'anteprima: e' la regola generale
+    // (`regole-gestionale` → «il clic di riga su un documento apre la
+    // modifica»), e vale anche per la ricerca globale e i link trasversali.
     case DocumentType.StoreSale:
     case DocumentType.StoreReturn:
-      return `/app/documents/vendite-negozio/${doc.id}`;
+      return documentEditPath(doc);
     case DocumentType.ManualUnload:
       return `/app/documents/manual-unload/${doc.id}`;
     default:
@@ -99,13 +144,13 @@ export function documentDuplicateFormRoute(type: DocumentTypeValue): string | nu
   if (isGoodsReceiptDocumentType(type)) {
     return '/app/documents/goods-receipt/new';
   }
+  // Maschera vendita: il percorso viene dalla mappa dei segmenti, così un tipo
+  // nuovo lo eredita senza che nessuno debba ricordarsi di aggiungerlo qui.
+  const salesSegment = salesFormRouteSegment(type);
+  if (salesSegment) {
+    return `/app/documents/${salesSegment}/new`;
+  }
   switch (type) {
-    case DocumentType.Proforma:
-      return '/app/documents/proforma/new';
-    case DocumentType.InvoiceDraft:
-      return '/app/documents/fattura/new';
-    case DocumentType.InvoiceAccompanying:
-      return '/app/documents/fattura-accompagnatoria/new';
     case DocumentType.SalesDdt:
       return '/app/documents/sales-ddt/new';
     case DocumentType.Quote:
@@ -121,4 +166,24 @@ export function documentDuplicateFormRoute(type: DocumentTypeValue): string | nu
     default:
       return null;
   }
+}
+
+/**
+ * Il tipo dichiarato dai `data` della rotta, o un errore se manca.
+ *
+ * Non è difensivismo: la maschera vendita serve quattro tipi con regole fiscali
+ * diverse, e senza il tipo dovrebbe indovinarlo. Indovinava — ricadeva su
+ * Proforma — ed è il difetto che le rotte per tipo hanno chiuso (`07-…§18`).
+ * Qui l'assenza smette di essere un caso da gestire e diventa quello che è:
+ * una rotta scritta male, che deve rompersi in modo visibile.
+ */
+export function requireSalesDocumentType(data: Record<string, unknown>): SalesFormDocumentType {
+  const type = data['salesDocumentType'];
+  if (typeof type === 'string' && isSalesFormDocumentType(type as DocumentTypeValue)) {
+    return type as SalesFormDocumentType;
+  }
+  throw new Error(
+    'Rotta senza `salesDocumentType`: la maschera vendita non può dedurre il tipo del ' +
+      'documento. Aggiungilo ai `data` della rotta (vedi documents.routes.ts).',
+  );
 }

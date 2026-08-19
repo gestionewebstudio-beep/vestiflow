@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { authGuard, guestGuard } from '@core/auth';
+import { mustChangePasswordGuard } from '@core/guards/must-change-password.guard';
 import { tenantWorkspaceGuard } from '@core/guards/tenant-workspace.guard';
 import { platformAdminGuard } from '@features/admin/guards/platform-admin.guard';
 
@@ -34,8 +35,17 @@ export const routes: Routes = [
       import('@features/auth/reset-password.component').then((m) => m.ResetPasswordComponent),
   },
   {
-    path: 'app',
+    // Fuori dalla shell (come reset-password): l'utente con password iniziale
+    // da cambiare non deve vedere la navigazione finché non ha concluso.
+    path: 'cambia-password',
+    title: 'Cambia password',
     canActivate: [authGuard],
+    loadComponent: () =>
+      import('@features/auth/change-password.component').then((m) => m.ChangePasswordComponent),
+  },
+  {
+    path: 'app',
+    canActivate: [authGuard, mustChangePasswordGuard],
     loadComponent: () =>
       import('./layout/shell-layout.component').then((m) => m.ShellLayoutComponent),
     children: [
@@ -91,18 +101,30 @@ export const routes: Routes = [
               import('@features/online-sales/online-sales.routes').then((m) => m.onlineSalesRoutes),
           },
           {
+            // «Corrispettivi» della sidebar porta al registro DERIVATO da
+            // vendite e rettifiche. Quello costruito su `corrispettivo_entries`
+            // — che mostrava aliquote inventate sugli ordini multi-aliquota
+            // (registro difetti 3.12) — è caduto il 17/08/2026 con le sue
+            // tabelle: l'indirizzo e la voce di menu non sono mai cambiati.
+            //
+            // Il componente vive sotto `features/reports/` e la rotta si
+            // dichiara qui, alla radice, perché una feature non importa da
+            // un'altra feature.
             path: 'corrispettivi',
             loadChildren: () =>
-              import('@features/online-sales/online-sales.routes').then(
-                (m) => m.corrispettiviRegisterRoutes,
-              ),
+              import('@features/reports/reports.routes').then((m) => m.corrispettiviRegisterRoutes),
           },
           {
+            // Vecchio indirizzo della maschera, uscito da /app/sales il
+            // 19/08/2026 (`11` C3): il modulo ha una radice propria.
+            //
+            // ⚠️ Deve stare PRIMA del figlio '' di sales-orders qui sotto:
+            // senza, /app/sales/register non darebbe 404 — cadrebbe nel suo
+            // `:id` e aprirebbe la maschera Ordine cliente cercando l'ordine
+            // «register».
             path: 'register',
-            loadChildren: () =>
-              import('@features/store-sales/store-sales.routes').then(
-                (m) => m.storeSalesRegisterRoutes,
-              ),
+            pathMatch: 'full',
+            redirectTo: '/app/vendita-al-banco/nuova-vendita-al-banco',
           },
           {
             path: 'chiusure',
@@ -115,6 +137,39 @@ export const routes: Routes = [
               import('@features/sales-orders/sales-orders.routes').then((m) => m.salesOrdersRoutes),
           },
         ],
+      },
+      {
+        // Vendite al banco: modulo proprio, non più un segmento di /app/sales.
+        // Compone due feature — l'elenco e il dettaglio sono
+        // `DocumentListComponent`/`SalesDocumentDetailComponent` di documents,
+        // le due creazioni sono di store-sales — e la composizione la fa questo
+        // file, perché una feature non importa da un'altra feature.
+        //
+        // ⛔ `tenantWorkspaceGuard` è RIPETUTO qui, e non è ridondante: prima
+        // la maschera lo ereditava da `sales` e l'elenco da `documents`. Un
+        // mount nuovo in cima ad /app non eredita niente, e senza questa riga
+        // un operatore di piattaforma entrerebbe nel gestionale di un cliente.
+        //
+        // Ordine: i due segmenti statici PRIMA del `:id` del dettaglio, che
+        // altrimenti li catturerebbe come identificativi di documento.
+        path: 'vendita-al-banco',
+        canActivate: [tenantWorkspaceGuard],
+        // ⛔ UN SOLO `loadChildren` che compone un array PIATTO, non due figli
+        // `path: ''` fratelli: quelli funzionerebbero solo grazie al
+        // backtracking del router, che è un dettaglio su cui non vale la pena
+        // appoggiare l'indirizzo di un modulo.
+        //
+        // ⚠️ L'ORDINE è la cosa che conta: le due creazioni PRIMA di elenco e
+        // dettaglio, perché il `:id` del dettaglio catturerebbe
+        // «nuova-vendita-al-banco» come identificativo di documento.
+        loadChildren: () =>
+          Promise.all([
+            import('@features/store-sales/store-sales.routes'),
+            import('@features/documents/documents.routes'),
+          ]).then(([banco, documenti]) => [
+            ...banco.storeSalesRegisterRoutes,
+            ...documenti.storeSaleDocumentRoutes,
+          ]),
       },
       {
         path: 'customers',

@@ -4,11 +4,15 @@
       <th scope="col" class="doc-lines__cell--num">#</th>
       <th scope="col">Articolo</th>
       <th scope="col" class="doc-lines__cell--qty">Q.tà</th>
-      <th scope="col" class="doc-lines__cell--price">Prezzo</th>
-      <th scope="col" class="doc-lines__cell--discount">Sconto</th>
-      <th scope="col" class="doc-lines__cell--vat">IVA</th>
+      @if (showPrices()) {
+        <th scope="col" class="doc-lines__cell--price">Prezzo</th>
+        <th scope="col" class="doc-lines__cell--discount">Sconto</th>
+        <th scope="col" class="doc-lines__cell--vat">IVA</th>
+      }
       <th scope="col" class="doc-lines__cell--stock">Magazzino</th>
-      <th scope="col" class="doc-lines__cell--total">Totale</th>
+      @if (showPrices()) {
+        <th scope="col" class="doc-lines__cell--total">Totale</th>
+      }
     </tr>
   </thead>
   <tbody>
@@ -25,19 +29,23 @@
           }
         </td>
         <td class="doc-lines__cell--qty tabular-nums" data-label="Q.tà">{{ line.quantity }}</td>
-        <td class="doc-lines__cell--price tabular-nums" data-label="Prezzo">
-          {{ formatMoney(line.unitPrice) }}
-        </td>
-        <td class="doc-lines__cell--discount tabular-nums" data-label="Sconto">
-          {{ discountLabel(line) }}
-        </td>
-        <td class="doc-lines__cell--vat tabular-nums" data-label="IVA">{{ vatLabel(line) }}</td>
+        @if (showPrices()) {
+          <td class="doc-lines__cell--price tabular-nums" data-label="Prezzo">
+            {{ formatMoney(line.unitPrice) }}
+          </td>
+          <td class="doc-lines__cell--discount tabular-nums" data-label="Sconto">
+            {{ discountLabel(line) }}
+          </td>
+          <td class="doc-lines__cell--vat tabular-nums" data-label="IVA">{{ vatLabel(line) }}</td>
+        }
         <td class="doc-lines__cell--stock" data-label="Magazzino">
           {{ line.loadsStock ? 'Sì' : 'No' }}
         </td>
-        <td class="doc-lines__cell--total tabular-nums" data-label="Totale">
-          {{ formatMoney(line.lineTotal) }}
-        </td>
+        @if (showPrices()) {
+          <td class="doc-lines__cell--total tabular-nums" data-label="Totale">
+            {{ formatMoney(line.lineTotal) }}
+          </td>
+        }
       </tr>
     }
   </tbody>

@@ -47,6 +47,7 @@ import type {
   ShopifyDisableWebhooksDto,
   ShopifySyncLocationsDto,
   ShopifySyncWebhooksDto,
+  ShopifyWebhookCheckDto,
 } from '@domain/channels/shopify/models/shopify-sync.dto';
 import { ShopifyConnectionService } from '@domain/channels/shopify/services/shopify-connection.service';
 import { ShopifyConnectionStore } from '@domain/channels/shopify/state/shopify-connection.store';
@@ -54,6 +55,13 @@ import { ShopifyConnectionStore } from '@domain/channels/shopify/state/shopify-c
 import type { SetupStatusItem } from '../../models/setup-status.model';
 
 type ShopifyBanner = 'connected' | 'connected-warn' | 'error' | 'disconnected';
+
+/**
+ * Quante righe di problema puo' contenere una banda prima di smettere di essere un segnale.
+ * Oltre, si dichiara il numero e si rimanda allo stato completo: nessuna lista dentro un
+ * segnale, e nessun troncamento silenzioso.
+ */
+const MAX_PROBLEMS_IN_BANNER = 2;
 
 interface ActionFeedback {
   readonly message: string;
@@ -136,6 +144,8 @@ export class ShopifyIntegrationPanelComponent {
   protected readonly disconnectLoading = signal(false);
   protected readonly syncLocationsLoading = signal(false);
   protected readonly syncWebhooksLoading = signal(false);
+  protected readonly checkWebhooksLoading = signal(false);
+  protected readonly registerMissingLoading = signal(false);
   protected readonly syncProductsLoading = signal(false);
   protected readonly syncInventoryLoading = signal(false);
   protected readonly syncCustomersLoading = signal(false);
@@ -180,6 +190,33 @@ export class ShopifyIntegrationPanelComponent {
     return `${areasLabel} · ${permissionsLabel}`;
   });
 
+  /**
+   * Quanto sappiamo davvero delle notifiche di questo negozio.
+   *
+   * `known` e' la distinzione su cui si gioca tutto: elenco vuoto perche' non abbiamo mai
+   * guardato non e' la stessa cosa di elenco vuoto perche' non c'e' niente. E `addressWrong`
+   * si accende SOLO su un `false` esplicito: un `null` significa «non confrontabile», e
+   * segnalare per ignoranza sarebbe la stessa spia bugiarda con un colore nuovo.
+   */
+  protected readonly webhookTruth = computed(() => {
+    const conn = this.connection();
+    const known = conn?.webhookTopicsKnown === true;
+    const missing = conn?.webhookMissingTopics ?? [];
+    const registered = conn?.webhookTopics ?? [];
+
+    return {
+      known,
+      registeredCount: registered.length,
+      expectedCount: known ? registered.length + missing.length : 0,
+      missingTopics: missing,
+      addressWrong: conn?.webhookAddressMatchesConfigured === false,
+      addressComparable: conn?.webhookAddressComparable !== false,
+      address: conn?.webhookAddress ?? null,
+      checkedAt: conn?.webhooksCheckedAt ?? null,
+      lastEventAt: conn?.lastWebhookEventAt ?? null,
+    };
+  });
+
   protected readonly webhooksSetupStatus = computed((): SetupStatusItem => {
     const conn = this.connection();
     if (!conn?.autoSyncEnabled) {
@@ -191,21 +228,137 @@ export class ShopifyIntegrationPanelComponent {
       };
     }
 
+    const truth = this.webhookTruth();
+
+    // Non aver guardato non e' un allarme e non e' un via libera: e' una terza cosa, e va
+    // detta. Prima di questa versione qui compariva «7 canali attivi» — un numero esatto
+    // che descriveva un insieme che nessuno conosceva.
+    if (!truth.known) {
+      return {
+        active: true,
+        label: 'Aggiornamenti automatici attivi',
+        detail:
+          'Non sappiamo quali notifiche siano davvero registrate su Shopify: premi «Verifica ora».',
+      };
+    }
+
+    // Due problemi veri insieme si dicono insieme. Prima qui c'era una catena di `if` con
+    // uscita anticipata, e il primo ramo nascondeva gli altri: il nome del topic mancante
+    // non compariva da nessuna parte perche' l'indirizzo vinceva sempre la gara.
+    const problems: { readonly label: string; readonly detail: string }[] = [];
+
+    if (truth.addressWrong) {
+      problems.push({
+        label: 'Le notifiche non arrivano qui',
+        detail: `Su Shopify risultano registrate verso ${truth.address}, che non è l'indirizzo di questo ambiente: gli eventi vengono consegnati altrove.`,
+      });
+    }
+
+    if (truth.missingTopics.length > 0) {
+      problems.push({
+        label:
+          truth.missingTopics.length === 1
+            ? 'Manca una notifica su Shopify'
+            : `Mancano ${truth.missingTopics.length} notifiche su Shopify`,
+        detail: `Non registrate: ${truth.missingTopics.join(', ')}. Gli eventi di questo tipo non arrivano e non lasciano traccia.`,
+      });
+    }
+
+    const [firstProblem, ...otherProblems] = problems;
+    if (firstProblem) {
+      if (otherProblems.length === 0) {
+        return {
+          active: true,
+          problem: true,
+          label: firstProblem.label,
+          detail: firstProblem.detail,
+        };
+      }
+
+      // Una banda e' un SEGNALE, dimensionata per un colpo d'occhio: appena contiene un
+      // elenco lungo smette di essere un segnale e diventa un documento che nessuno legge.
+      // Oltre il tetto si dichiara quanti sono e si tronca dicendolo — mai in silenzio.
+      const shown = problems.slice(0, MAX_PROBLEMS_IN_BANNER).map((entry) => entry.detail);
+      const hidden = problems.length - shown.length;
+
+      return {
+        active: true,
+        problem: true,
+        label: `${problems.length} problemi sulle notifiche`,
+        detail: '',
+        problems:
+          hidden > 0 ? [...shown, `e altri ${hidden}: vedi lo stato completo qui sotto.`] : shown,
+      };
+    }
+
     const partial = conn.lastError?.code === 'webhook_partial_registration';
-    const countLabel =
-      conn.webhooksActiveCount === 1
-        ? '1 canale attivo'
-        : `${conn.webhooksActiveCount ?? 0} canali attivi`;
-    const activatedAt = conn.webhooksActivatedAt
-      ? ` · ${this.formatDateTime(conn.webhooksActivatedAt)}`
-      : '';
+    const countLabel = `${truth.registeredCount} notifiche su ${truth.expectedCount}`;
 
     return {
       active: true,
       partial,
       label: partial ? 'Aggiornamenti automatici parziali' : 'Aggiornamenti automatici attivi',
-      detail: `${countLabel}${activatedAt}`,
+      detail: countLabel,
     };
+  });
+
+  /** Dichiarativo: si riporta il fatto, non si dà un giudizio sul tempo passato. */
+  protected readonly lastWebhookEventLabel = computed(() => {
+    const at = this.webhookTruth().lastEventAt;
+    return at ? this.formatDateTime(at) : 'Nessun evento ricevuto finora';
+  });
+
+  /**
+   * Il conteggio **e i nomi**. «7 su 8» manda a cercare quale sia l'ottavo; «manca
+   * orders/cancelled» dice cosa. E sta qui, nei fatti sempre visibili, non dentro una banda
+   * che deve prima vincere una gara di priorita' contro le altre segnalazioni.
+   */
+  protected readonly webhookTopicsLabel = computed(() => {
+    const truth = this.webhookTruth();
+    if (!truth.known) {
+      return 'Non verificate';
+    }
+
+    const counted = `${truth.registeredCount} su ${truth.expectedCount}`;
+    if (truth.missingTopics.length === 0) {
+      return counted;
+    }
+
+    const verb = truth.missingTopics.length === 1 ? 'manca' : 'mancano';
+    return `${counted} — ${verb} ${truth.missingTopics.join(', ')}`;
+  });
+
+  protected readonly webhookAddressLabel = computed(() => {
+    const truth = this.webhookTruth();
+    if (!truth.address) {
+      return 'Non verificato';
+    }
+    // Detto, non taciuto: un confronto spento in silenzio e' peggio del falso allarme
+    // che evita, perche' nessuno si accorge che non sta piu' controllando.
+    return truth.addressComparable
+      ? truth.address
+      : `${truth.address} — confronto non possibile da questo ambiente`;
+  });
+
+  /**
+   * Il pulsante di riparazione compare solo quando ha senso e solo quando e' sicuro.
+   *
+   * - **Mancanti nominati**: prima si verifica, poi si ripara. Nessun «registra» su una
+   *   connessione di cui non sappiamo niente.
+   * - **Indirizzo consegnabile**: da un ambiente locale la registrazione creerebbe
+   *   sottoscrizioni verso `localhost` sul negozio vero, che si sommano alle buone invece
+   *   di sostituirle (registro 1.7). Il server rifiuta comunque — questa e' la seconda
+   *   linea, non l'unica: un pulsante che non si puo' premere e' meglio di uno che porta
+   *   a un errore.
+   */
+  protected readonly canRegisterMissingWebhooks = computed(() => {
+    const truth = this.webhookTruth();
+    return truth.known && truth.missingTopics.length > 0 && truth.addressComparable;
+  });
+
+  protected readonly webhookCheckedAtLabel = computed(() => {
+    const at = this.webhookTruth().checkedAt;
+    return at ? this.formatDateTime(at) : 'Mai';
   });
 
   protected readonly autoSyncEnabled = computed(() => this.connection()?.autoSyncEnabled === true);
@@ -287,17 +440,16 @@ export class ShopifyIntegrationPanelComponent {
   private handleShopifyOAuthReturn(param: Exclude<ShopifyBanner, 'connected-warn'>): void {
     this.reloadConnection();
 
-    if (param === 'connected' || param === 'error') {
-      this.shopifyConnectionService
-        .syncLocations()
-        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: () => this.locationsChanged.emit(),
-          error: () => this.locationsChanged.emit(),
-        });
-    } else {
-      this.locationsChanged.emit();
-    }
+    // ⛔ Al ritorno da OAuth partiva la sincronizzazione delle sedi. Era
+    // l'innesco peggiore dei tre: il primo collegamento è il momento in cui
+    // l'abbinamento automatico per nome fa il danno che la regola esiste per
+    // impedire — tre sedi più tre location diventano sei, e disfarlo dopo è
+    // molto più difficile che non farlo (registro difetti 3.14).
+    //
+    // L'aggancio è una scelta dell'operatore: si fa dal pulsante, quando lo
+    // decide lui. Finché la procedura di prima sincronizzazione non esiste,
+    // questo è il posto dove quella scelta si esercita.
+    this.locationsChanged.emit();
 
     if (param === 'connected') {
       this.shopifyConnectionService
@@ -562,6 +714,67 @@ export class ShopifyIntegrationPanelComponent {
       });
   }
 
+  /**
+   * Chiede a Shopify quali notifiche esistono davvero. Legge e basta: non registra e non
+   * cancella niente sul negozio — a garantirlo e' il servizio lato server, che non ha fra
+   * le dipendenze niente capace di farlo.
+   */
+  protected checkWebhooks(): void {
+    if (this.checkWebhooksLoading()) {
+      return;
+    }
+
+    this.checkWebhooksLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .checkWebhooks()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.checkWebhooksLoading.set(false);
+          this.reloadConnection();
+          this.showActionFeedback(formatWebhookCheckFeedback(result));
+        },
+        error: (err: unknown) => {
+          this.checkWebhooksLoading.set(false);
+          this.connectError.set(extractErrorMessage(err));
+        },
+      });
+  }
+
+  /**
+   * Registra le notifiche mancanti e mostra l'esito **rimisurato**.
+   *
+   * Una sola chiamata: la risposta e' gia' il referto della rilettura, quindi l'operatore
+   * non resta mai davanti allo stesso schermo di prima chiedendosi se ha funzionato.
+   */
+  protected registerMissingWebhooks(): void {
+    if (this.registerMissingLoading()) {
+      return;
+    }
+
+    this.registerMissingLoading.set(true);
+    this.clearActionFeedback();
+    this.connectError.set(null);
+
+    this.shopifyConnectionService
+      .registerMissingWebhooks()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.registerMissingLoading.set(false);
+          this.reloadConnection();
+          this.showActionFeedback(formatWebhookCheckFeedback(result));
+        },
+        error: (err: unknown) => {
+          this.registerMissingLoading.set(false);
+          this.connectError.set(extractErrorMessage(err));
+        },
+      });
+  }
+
   protected disableAutoSync(): void {
     if (this.syncWebhooksLoading()) {
       return;
@@ -721,6 +934,47 @@ function formatDisableWebhooksFeedback(result: ShopifyDisableWebhooksDto): Actio
         ? 'Aggiornamenti automatici disattivati.'
         : `Aggiornamenti automatici disattivati (${result.deletedCount} canali rimossi).`,
   };
+}
+
+/**
+ * L'esito della verifica in una riga. Nomina i mancanti invece di contarli: «ne mancano 1»
+ * manda a cercare, «manca orders/cancelled» dice cosa fare.
+ */
+function formatWebhookCheckFeedback(result: ShopifyWebhookCheckDto): ActionFeedback {
+  // Si raccolgono TUTTI i rilievi e si dicono insieme. La versione precedente usciva al
+  // primo, e il nome del topic mancante spariva ogni volta che c'era anche altro.
+  const findings: string[] = [];
+
+  if (result.addressMatchesConfigured === false) {
+    findings.push(
+      `risultano registrate verso ${result.observedAddress}, non verso questo ambiente`,
+    );
+  }
+
+  if (result.missingTopics.length > 0) {
+    const verb = result.missingTopics.length === 1 ? 'manca' : 'mancano';
+    findings.push(`${verb} ${result.missingTopics.join(', ')}`);
+  }
+
+  if (result.totalSubscriptions === 0) {
+    findings.push('su Shopify non risulta registrata nessuna notifica');
+  }
+
+  const others = result.otherAddresses.length;
+  if (others > 0) {
+    findings.push(
+      `ce ne sono altre verso ${others === 1 ? 'un altro indirizzo' : `${others} altri indirizzi`}, residui che continuano a ricevere eventi`,
+    );
+  }
+
+  if (findings.length === 0) {
+    return {
+      tone: 'success',
+      message: `Verifica completata: ${result.topics.length} notifiche registrate, tutte verso questo ambiente.`,
+    };
+  }
+
+  return { tone: 'warning', message: `Verifica completata: ${findings.join('; ')}.` };
 }
 
 function formatWebhooksFeedback(result: ShopifySyncWebhooksDto): ActionFeedback {

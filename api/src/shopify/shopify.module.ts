@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { LocationLicensingModule } from '../inventory/location-licensing.module';
 import { OrderReservationsModule } from '../order-reservations/order-reservations.module';
 import { ShopifyAdminClient } from './shopify-admin.client';
+import { ShopifyAdminHttpClient } from './shopify-admin-http.client';
 import { ShopifyConfigService } from './shopify-config.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyController } from './shopify.controller';
@@ -12,6 +13,8 @@ import { ShopifyCustomersPullService } from './shopify-customers-pull.service';
 import { ShopifyOrdersPullService } from './shopify-orders-pull.service';
 import { ShopifyInventoryPushService } from './shopify-inventory-push.service';
 import { ShopifyInventoryReconciliationService } from './shopify-inventory-reconciliation.service';
+import { ShopifyInventoryRepublishService } from './shopify-inventory-republish.service';
+import { ShopifyMissingOrdersService } from './shopify-missing-orders.service';
 import { ShopifyLocationSyncService } from './shopify-location-sync.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
 import { ShopifyRateLimiterService } from './shopify-rate-limiter.service';
@@ -23,7 +26,10 @@ import { ShopifyGraphqlClient } from './shopify-graphql.client';
 import { ShopifyTaxonomyService } from './shopify-taxonomy.service';
 import { ShopifyCategoryMetafieldsService } from './shopify-category-metafields.service';
 import { ShopifyTaxonomyLocalizationService } from './shopify-taxonomy-localization.service';
+import { ShopifyWebhookReaderClient } from './shopify-webhook-reader.client';
+import { ShopifyWebhookRepairService } from './shopify-webhook-repair.service';
 import { ShopifyWebhookService } from './shopify-webhook.service';
+import { ShopifyWebhookStatusService } from './shopify-webhook-status.service';
 import { ShopifyWebhooksController } from './shopify-webhooks.controller';
 import { ShopifyShopChangeService } from './shopify-shop-change.service';
 
@@ -33,7 +39,9 @@ import { ShopifyShopChangeService } from './shopify-shop-change.service';
   providers: [
     ShopifyConfigService,
     ShopifyCryptoService,
+    ShopifyAdminHttpClient,
     ShopifyAdminClient,
+    ShopifyWebhookReaderClient,
     ShopifyGraphqlClient,
     ShopifyRateLimiterService,
     ShopifyConnectionService,
@@ -42,6 +50,8 @@ import { ShopifyShopChangeService } from './shopify-shop-change.service';
     ShopifyInventoryPullService,
     ShopifyCustomersPullService,
     ShopifyOrdersPullService,
+    ShopifyMissingOrdersService,
+    ShopifyInventoryRepublishService,
     ShopifyInventoryReconciliationService,
     ShopifyInventoryPushService,
     ShopifyProductPushService,
@@ -52,6 +62,8 @@ import { ShopifyShopChangeService } from './shopify-shop-change.service';
     ShopifyCategoryMetafieldsService,
     ShopifySyncService,
     ShopifyWebhookService,
+    ShopifyWebhookStatusService,
+    ShopifyWebhookRepairService,
     ShopifyShopChangeService,
   ],
   exports: [

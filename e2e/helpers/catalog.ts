@@ -3,7 +3,7 @@ import { expect, type Page } from '@playwright/test';
 import { waitForDashboardReady, waitForProductListReady } from './page-ready';
 
 export async function resolveTestSku(page: Page): Promise<string> {
-  const fromEnv = process.env.E2E_TEST_SKU?.trim();
+  const fromEnv = process.env['E2E_TEST_SKU']?.trim();
   if (fromEnv) {
     return fromEnv;
   }

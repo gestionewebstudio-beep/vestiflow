@@ -25,14 +25,27 @@ export class DocumentCountersService {
       .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
-  /** Contatori proponibili in testata per (tipo, sede) + quale proporre. */
+  /**
+   * Contatori proponibili in testata per (tipo, sede) + quale proporre.
+   *
+   * **`documentDate` non è facoltativa per comodità**: il numero proposto è il
+   * primo libero dopo i documenti di data ANTERIORE (§2). Senza, il server
+   * calcola su oggi, e la testata mostra un numero che il salvataggio non userà
+   * — la divergenza fra numero visto e numero assegnato che il §0 dichiara
+   * inaccettabile. Chi apre una maschera documento la passa sempre; resta
+   * omettibile per la schermata Numeratori, dove una data non esiste.
+   */
   available(
     type: DocumentType,
     locationId: EntityId | null,
+    documentDate?: string | null,
   ): Observable<{ counters: readonly DocumentCounterView[]; proposedCounterId: EntityId | null }> {
     let params = new HttpParams().set('type', type);
     if (locationId) {
       params = params.set('locationId', locationId);
+    }
+    if (documentDate) {
+      params = params.set('documentDate', documentDate);
     }
     return this.http
       .get<{

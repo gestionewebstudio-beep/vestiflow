@@ -40,6 +40,18 @@ export class ConfirmDialogComponent {
    */
   readonly acknowledge = input<boolean>(false);
 
+  /**
+   * Quale dei due bottoni porta l'enfasi visiva. Di norma la conferma, che è
+   * l'azione che l'operatore è venuto a fare.
+   *
+   * `'cancel'` la sposta sull'annulla, e serve agli **allarmi**: quando il
+   * dialogo dice «quello che stai per fare è probabilmente sbagliato», l'opzione
+   * che non scrive deve costare meno di quella che scrive. Il fuoco iniziale è
+   * già sull'annulla — il `<dialog>` nativo prende il primo elemento
+   * raggiungibile — ma il colore diceva il contrario.
+   */
+  readonly emphasis = input<'confirm' | 'cancel'>('confirm');
+
   readonly open = model<boolean>(false);
 
   readonly confirmed = output<void>();

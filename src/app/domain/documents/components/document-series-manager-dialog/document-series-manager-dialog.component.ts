@@ -18,6 +18,7 @@ import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-
 
 import type { DocumentCounterView } from '../../models/document-counter.model';
 import { documentTypeLabel } from '../../models/document-labels.util';
+import { documentNumberingType } from '../../models/document-numbering.util';
 import { DocumentCountersService } from '../../services/document-counters.service';
 import { DocumentCountersComponent } from '../document-counters/document-counters.component';
 
@@ -45,7 +46,18 @@ export class DocumentSeriesManagerDialogComponent {
 
   readonly closed = output<void>();
 
-  protected readonly title = computed(() => `Numerazioni · ${documentTypeLabel(this.type())}`);
+  /**
+   * Il tipo che possiede il numeratore. Il pannello parla di CONTATORI, e un
+   * contatore esiste solo per quel tipo: aperto da una Fattura accompagnatoria
+   * mostrava zero righe (filtro sul tipo grezzo) e un contatore creato lì
+   * sarebbe stato rifiutato con 422. Il titolo segue il numeratore perché è
+   * quello che l'operatore sta davvero configurando.
+   */
+  protected readonly numberingType = computed(() => documentNumberingType(this.type()));
+
+  protected readonly title = computed(
+    () => `Numerazioni · ${documentTypeLabel(this.numberingType())}`,
+  );
 
   private readonly _counters = signal<readonly DocumentCounterView[]>([]);
   protected readonly counters = this._counters.asReadonly();
@@ -65,11 +77,11 @@ export class DocumentSeriesManagerDialogComponent {
   /**
    * Ricarica i contatori del tipo (all'apertura e dopo ogni mutazione). Come le
    * Impostazioni, mostra TUTTE le serie del tipo (ogni sede), non filtrate per
-   * la sede del documento: `list()` + filtro per tipo.
+   * la sede del documento: `list()` + filtro per numeratore.
    */
   protected reload(): void {
     this._loading.set(true);
-    const type = this.type();
+    const type = this.numberingType();
     this.countersService
       .list()
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))

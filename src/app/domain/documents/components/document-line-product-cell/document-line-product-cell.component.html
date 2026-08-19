@@ -1,111 +1,76 @@
-@if (linked()) {
-  <div class="doc-product-cell doc-product-cell--linked">
-    <p class="doc-product-cell__linked-label" [title]="linkedLabel()">
-      {{ linkedLabel() || 'Prodotto collegato' }}
-    </p>
+<!--
+  UN campo solo, agganciato o no (11/08/2026).
+
+  Prima erano due celle diverse a seconda che la riga avesse un articolo: un
+  testo fisso con tre icone, oppure un campo con la lente. Il nome scritto sul
+  documento è la descrizione di QUELLA riga, non dell'anagrafica — come il
+  prezzo di riga non riscrive il listino — quindi resta modificabile anche
+  quando l'articolo c'è, e quello che si scrive non torna indietro sulla scheda
+  articolo. Lo spazio dove finisce esiste già: `description` sull'arrivo merce e
+  sull'ordine fornitore, `title` sull'ordine cliente, dove lo schema lo chiama
+  «snapshot al momento della vendita».
+
+  La **x** che scollegava non c'è più: era nata per svuotare la riga, e la riga
+  si toglie col cestino in fondo. Due gesti per la stessa cosa, di cui uno
+  faceva tre cose diverse nelle tre maschere.
+-->
+<div class="doc-product-cell" [class.doc-product-cell--linked]="linked()">
+  <div class="doc-product-cell__field" [class.doc-product-cell__field--invalid]="invalid()">
+    <input
+      class="doc-product-cell__input"
+      appFirstClickSelects
+      type="text"
+      [id]="inputId() || null"
+      [disabled]="disabled()"
+      [value]="value()"
+      [title]="value()"
+      [attr.aria-invalid]="invalid() ? true : null"
+      [attr.aria-expanded]="suggestionsOpen()"
+      [attr.aria-controls]="listboxId()"
+      aria-label="Nome prodotto"
+      autocomplete="off"
+      placeholder="Cerca o crea un articolo"
+      (input)="onInput($any($event.target).value)"
+      (focus)="onFocus()"
+      (blur)="onBlur()"
+      (keydown)="onKeydown($event)"
+    />
     <button
       type="button"
       class="doc-product-cell__search"
       tabindex="-1"
       [disabled]="disabled()"
-      aria-label="Cerca un altro prodotto"
-      title="Cerca un altro prodotto"
+      [attr.aria-label]="linked() ? 'Cerca un altro prodotto' : 'Cerca prodotto'"
+      [title]="linked() ? 'Cerca un altro prodotto' : 'Cerca prodotto'"
       (mousedown)="$event.preventDefault()"
       (click)="openSearch($event)"
     >
       <i class="pi pi-search" aria-hidden="true"></i>
     </button>
-    <button
-      type="button"
-      class="doc-product-cell__search"
-      tabindex="-1"
-      [disabled]="disabled()"
-      aria-label="Scollega articolo e modifica il testo"
-      title="Scollega articolo e modifica il testo"
-      (mousedown)="$event.preventDefault()"
-      (click)="requestUnlink($event)"
-    >
-      <i class="pi pi-times" aria-hidden="true"></i>
-    </button>
-    <button
-      type="button"
-      class="doc-product-cell__link-action"
-      tabindex="-1"
-      [disabled]="disabled()"
-      (click)="openDetail($event)"
-    >
-      Apri anagrafica
-    </button>
+    <!--
+      «Apri anagrafica» non ha più un'icona sua (11/08/2026). Stava su OGNI riga
+      di OGNI documento, in una colonna che già tronca il nome, per un gesto che
+      si fa di rado. Ci si arriva dalla lente: il pannello si apre col nome della
+      riga, quindi l'articolo collegato è il primo risultato, e da lì l'icona in
+      coda apre la scheda. Un gesto in più in un caso raro, un'icona in meno
+      sempre.
+    -->
   </div>
-} @else {
-  <div class="doc-product-cell">
-    <div class="doc-product-cell__field" [class.doc-product-cell__field--invalid]="invalid()">
-      <input
-        #productInput
-        class="doc-product-cell__input"
-        type="text"
-        [id]="inputId() || null"
-        [disabled]="disabled()"
-        [value]="value()"
-        [attr.aria-invalid]="invalid() ? true : null"
-        [attr.aria-expanded]="suggestionsOpen()"
-        [attr.aria-controls]="listboxId()"
-        aria-label="Nome prodotto"
-        autocomplete="off"
-        placeholder="Cerca o crea un articolo"
-        (input)="onInput($any($event.target).value)"
-        (focus)="onFocus()"
-        (blur)="onBlur()"
-        (keydown)="onKeydown($event)"
-      />
-      <button
-        type="button"
-        class="doc-product-cell__search"
-        tabindex="-1"
-        [disabled]="disabled()"
-        aria-label="Cerca prodotto"
-        (mousedown)="$event.preventDefault()"
-        (click)="openSearch($event)"
-      >
-        <i class="pi pi-search" aria-hidden="true"></i>
-      </button>
-    </div>
-    @if (suggestionsOpen()) {
-      <ul
-        class="doc-product-cell__suggestions"
-        role="listbox"
-        [id]="listboxId()"
-        aria-label="Suggerimenti prodotto"
-      >
-        @for (item of suggestions(); track item.variantId; let i = $index) {
-          <li
-            role="option"
-            tabindex="0"
-            class="doc-product-cell__suggestion"
-            [class.doc-product-cell__suggestion--active]="i === activeSuggestionIndex()"
-            [attr.aria-selected]="i === activeSuggestionIndex()"
-            (mousedown)="$event.preventDefault()"
-            (click)="pickSuggestion(item.variantId)"
-            (keydown)="onSuggestionKeydown($event, item.variantId)"
-          >
-            <span class="doc-product-cell__suggestion-title">{{ item.title }}</span>
-            <span class="doc-product-cell__suggestion-detail">{{ suggestionDetail(item) }}</span>
-          </li>
-        } @empty {
-          <li class="doc-product-cell__suggestion-empty" role="presentation">
-            Nessun articolo trovato a catalogo.
-          </li>
-        }
-      </ul>
-    }
-    <button
-      type="button"
-      class="doc-product-cell__link-action"
-      tabindex="-1"
-      [disabled]="disabled()"
-      (click)="openAnagraphic($event)"
-    >
-      Completa anagrafica
-    </button>
-  </div>
-}
+  <!--
+    Nessun messaggio «nessun articolo trovato»: senza risultati il pannello non
+    si apre. Non trovare nulla non è un errore — si continua a compilare la riga
+    a mano, e la creazione dell'articolo ha le sue vie proprie.
+
+    Su una riga già agganciata il pannello resta muto: è il magazzino di
+    `DocumentProductSuggestStore`, non una regola di questa cella.
+  -->
+  @if (suggestionsOpen() && suggestions().length > 0) {
+    <app-document-line-suggestions
+      [items]="suggestionItems()"
+      [activeIndex]="activeSuggestionIndex()"
+      [listboxId]="listboxId()"
+      ariaLabel="Suggerimenti prodotto"
+      (picked)="pickAt($event)"
+    />
+  }
+</div>

@@ -60,7 +60,7 @@ export async function pickVariantWithSearch(
 }
 
 export function defaultVariantSearchTerm(): string {
-  const fromEnv = process.env.E2E_TEST_SKU?.trim();
+  const fromEnv = process.env['E2E_TEST_SKU']?.trim();
   if (fromEnv && fromEnv.length >= 2) {
     return fromEnv.slice(0, Math.min(fromEnv.length, 6));
   }

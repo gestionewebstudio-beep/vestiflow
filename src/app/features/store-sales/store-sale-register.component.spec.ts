@@ -1,4 +1,5 @@
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { STORE_SALE_MODE_ROUTE_DATA_KEY } from '@domain/store-sales/models/store-sale-routing.util';
 import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { of, throwError } from 'rxjs';
@@ -6,6 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@core/auth';
 import { APP_CONFIG } from '@core/config/app-config.token';
+import { TenantChannelProfile } from '@core/models/tenant-channel-profile.model';
+import { TenantPermission } from '@core/models/tenant-permission.model';
+import { UserRole } from '@core/models/user.model';
 import type { VatCode } from '@core/models/vat-code.model';
 import { LocationContextService } from '@core/services/location-context.service';
 import { OperationalLocationsService } from '@domain/inventory/services/operational-locations.service';
@@ -63,6 +67,29 @@ const VAT_22: VatCode = {
   sortOrder: 1,
 };
 
+/** Chi sta al banco: permessi di cassa più quelli sotto esame. */
+const CASSA_COMPLETA = [
+  TenantPermission.RetailRegister,
+  TenantPermission.SectionSales,
+  TenantPermission.SectionInventory,
+  TenantPermission.CatalogManage,
+] as readonly string[];
+
+/** Commesso puro: batte gli scontrini e basta. */
+const SOLO_CASSA = [
+  TenantPermission.RetailRegister,
+  TenantPermission.SectionSales,
+] as readonly string[];
+
+function operatore(permissions: readonly string[]) {
+  return {
+    id: 'usr-1',
+    role: UserRole.Clerk,
+    permissions,
+    tenantChannelProfile: TenantChannelProfile.Gestionale,
+  };
+}
+
 /** Stub Web Audio API: verifica il beep di errore senza audio reale. */
 function stubAudioContext() {
   const oscillatorStart = vi.fn();
@@ -98,6 +125,9 @@ describe('StoreSaleRegisterComponent', () => {
     readonly variantIdByCode?: string | null;
     readonly lookupItems?: readonly StoreSaleLookupItem[];
     readonly createSale?: ReturnType<typeof vi.fn>;
+    readonly permissions?: readonly string[];
+    /** Il modo che la ROTTA dichiara. Default: vendita. */
+    readonly mode?: 'sale' | 'return';
   }) {
     const variantId = options?.variantIdByCode;
     const findVariantByCode = vi.fn(() =>
@@ -128,6 +158,33 @@ describe('StoreSaleRegisterComponent', () => {
     const rendered = await render(StoreSaleRegisterComponent, {
       providers: [
         provideRouter([]),
+        // ⛔ La maschera pretende il modo dai `data` della rotta e LANCIA se
+        // manca: i due modi hanno effetti di magazzino opposti, e un fallback
+        // silenzioso farebbe compilare una vendita a chi ha aperto un reso.
+        // Questi test rendono il componente fuori da una rotta vera, quindi il
+        // dato va fornito qui — ed è giusto che senza non partano.
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            // ⚠️ Doppio COMPLETO, non solo lo `snapshot`: il pannello di
+            // creazione rapida monta `ProductFormComponent`, che legge
+            // `route.data` come flusso e `paramMap` dallo snapshot. Un finto
+            // parziale non fallisce dove manca — esplode dentro un altro
+            // componente, con uno stack che non nomina questo file.
+            snapshot: {
+              data: { [STORE_SALE_MODE_ROUTE_DATA_KEY]: options?.mode ?? 'sale' },
+              paramMap: convertToParamMap({}),
+              queryParamMap: convertToParamMap({}),
+              params: {},
+              queryParams: {},
+            },
+            data: of({ [STORE_SALE_MODE_ROUTE_DATA_KEY]: options?.mode ?? 'sale' }),
+            paramMap: of(convertToParamMap({})),
+            queryParamMap: of(convertToParamMap({})),
+            params: of({}),
+            queryParams: of({}),
+          },
+        },
         {
           provide: APP_CONFIG,
           useValue: {
@@ -143,7 +200,6 @@ describe('StoreSaleRegisterComponent', () => {
             lookupItems,
             createSale: options?.createSale ?? vi.fn(),
             createReturn: vi.fn(),
-            getRecentSales: vi.fn(() => of([])),
           },
         },
         {
@@ -174,7 +230,10 @@ describe('StoreSaleRegisterComponent', () => {
           useValue: { activeLocationId: () => LOCATION.id, setActiveLocation: vi.fn() },
         },
         { provide: VatCodeService, useValue: { list: () => of([VAT_22]) } },
-        { provide: AuthService, useValue: { currentUser: () => null } },
+        {
+          provide: AuthService,
+          useValue: { currentUser: () => operatore(options?.permissions ?? CASSA_COMPLETA) },
+        },
         { provide: ShopifyConnectionService, useValue: { getConnection: () => of(null) } },
       ],
     });
@@ -239,6 +298,29 @@ describe('StoreSaleRegisterComponent', () => {
     expect(screen.getByRole('button', { name: 'Crea articolo rapido' })).toBeVisible();
     // Focus ancora sul campo scansione, con il codice selezionato per riscansione.
     expect(document.activeElement).toBe(input);
+  });
+
+  it('senza gestione catalogo: niente «Crea articolo rapido», resta scritto a chi chiederlo', async () => {
+    stubAudioContext();
+    await setup({ variantIdByCode: null, lookupItems: [], permissions: SOLO_CASSA });
+
+    await scan(EAN);
+
+    expect(await screen.findByText('Articolo non trovato.')).toBeVisible();
+    // La ricerca resta: è l'unica delle due azioni che il server consente.
+    expect(screen.getByRole('button', { name: 'Cerca articolo' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Crea articolo rapido' })).toBeNull();
+    expect(
+      screen.getByText(
+        'Questo articolo non è ancora a catalogo: chiedi a un responsabile di inserirlo.',
+      ),
+    ).toBeVisible();
+  });
+
+  it('senza la sezione Magazzino il collegamento allo storico movimenti non compare', async () => {
+    await setup({ permissions: SOLO_CASSA });
+
+    expect(screen.queryByRole('link', { name: 'Storico movimenti' })).toBeNull();
   });
 
   it('crea articolo rapido: prefill EAN, variante creata in carrello con quantità 1, pannello chiuso', async () => {
@@ -395,5 +477,67 @@ describe('StoreSaleRegisterComponent', () => {
     component.confirmExitWithoutSaving();
     await expect(pending).resolves.toBe(true);
     expect(component.cart().length).toBe(0);
+  });
+  /**
+   * ⛔ FASE UI 2 — il tipo lo decide la ROTTA, e la maschera non lo cambia.
+   *
+   * L'interruttore Vendita / Reso è caduto il 19/08/2026: era l'unica strada per
+   * trovarsi a compilare un reso su una pagina che dice «Nuova vendita». Le
+   * diramazioni funzionali restano — Vendita e Reso fanno cose opposte in
+   * magazzino — ma leggono tutte lo stesso `mode`, che viene dai `data` della
+   * rotta e non si scrive più.
+   */
+  describe('il tipo viene dalla rotta', () => {
+    it('rotta Vendita → maschera Vendita', async () => {
+      await setup({ mode: 'sale' });
+
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Nuova vendita al banco');
+      // La sezione della vendita c'è, quella del reso no.
+      expect(screen.queryByRole('heading', { name: /aggiungi articoli/i })).not.toBeNull();
+    });
+
+    it('rotta Reso → maschera Reso', async () => {
+      await setup({ mode: 'return' });
+
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Nuovo reso al banco');
+    });
+
+    /**
+     * ⚠️ La sottotestata dichiarava lo SCARICO della giacenza: su un reso è il
+     * contrario di quello che succede. Finché il tipo si cambiava da dentro non
+     * si notava; con due indirizzi distinti sarebbe stata una pagina che mente.
+     */
+    it('⚠️ sulla Vendita la sottotestata dichiara lo SCARICO', async () => {
+      const { fixture } = await setup({ mode: 'sale' });
+      const testo = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(testo).toContain('vengono scaricate');
+    });
+
+    it('⚠️ sul Reso dichiara il RIENTRO, che è il contrario', async () => {
+      const { fixture } = await setup({ mode: 'return' });
+      const testo = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(testo).toContain('rientra in giacenza');
+      // Finché il tipo si cambiava da dentro non si notava; con due indirizzi
+      // distinti sarebbe stata una pagina che dice il falso.
+      expect(testo).not.toContain('vengono scaricate');
+    });
+
+    it('⛔ NESSUN controllo consente di cambiare tipo', async () => {
+      await setup({ mode: 'sale' });
+
+      // L'interruttore era un `role="tablist"` con due `role="tab"`.
+      expect(screen.queryByRole('tablist')).toBeNull();
+      expect(screen.queryAllByRole('tab')).toHaveLength(0);
+      // E nessun comando che si chiami come i due tipi.
+      expect(screen.queryByRole('button', { name: /^vendita$/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^reso$/i })).toBeNull();
+    });
+
+    it('⛔ nemmeno sulla rotta Reso ricompare un modo per tornare a Vendita', async () => {
+      await setup({ mode: 'return' });
+
+      expect(screen.queryByRole('tablist')).toBeNull();
+      expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    });
   });
 });

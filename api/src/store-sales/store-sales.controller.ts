@@ -18,9 +18,12 @@ import {
 import { StoreSalesService, type StoreSaleResult } from './store-sales.service';
 
 /**
- * Cassa negozio (fase 3 §7-§9): vendita immediata non fiscale a carrello e
- * reso collegato. Nessuna schermata modifica quantità direttamente: tutti gli
- * effetti passano da documenti + movimenti creati in transazione dal servizio.
+ * Vendita e Reso al banco: due documenti non fiscali, entrambi AUTONOMI — il
+ * Reso non ha documento origine (`11` A11), perche' la vendita reale puo'
+ * essere stata battuta su una cassa esterna e non esistere in VestiFlow.
+ *
+ * Nessuna schermata modifica quantita' direttamente: tutti gli effetti passano
+ * da documenti + movimenti riconciliati in transazione dal servizio.
  */
 @Controller('store-sales')
 @UseGuards(JwtAuthGuard, TenantPermissionsGuard)
@@ -38,17 +41,6 @@ export class StoreSalesController {
     @Query() query: LookupStoreSaleItemQueryDto,
   ): Promise<StoreSaleItemLookupResult[]> {
     return this.lookup.lookupItems(tenantId, query);
-  }
-
-  /** Vendite negozio recenti (per collegare un reso alla vendita origine). */
-  @Get('recent')
-  @RequirePermissions(TenantPermission.RetailRegister)
-  recentSales(
-    @CurrentTenant() tenantId: string,
-    @CurrentUser() user: UserProfileDto,
-    @Query('search') search?: string,
-  ) {
-    return this.storeSales.listRecentSales(tenantId, search?.trim() || undefined, user);
   }
 
   /** Concludi vendita: documento + movimenti negativi in una transazione. */

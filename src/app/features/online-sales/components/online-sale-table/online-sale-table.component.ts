@@ -6,8 +6,6 @@ import { formatMoney } from '@core/utils/money.util';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
 
 import {
-  corrispettivoStatusLabel,
-  corrispettivoStatusTone,
   onlineSaleInventoryStatusLabel,
   onlineSaleInventoryStatusTone,
 } from '@domain/sales-orders/models/sales-order-labels.util';
@@ -33,8 +31,6 @@ export class OnlineSaleTableComponent {
   protected readonly formatDate = formatDate;
   protected readonly inventoryLabel = onlineSaleInventoryStatusLabel;
   protected readonly inventoryTone = onlineSaleInventoryStatusTone;
-  protected readonly corrispettivoLabel = corrispettivoStatusLabel;
-  protected readonly corrispettivoTone = corrispettivoStatusTone;
 
   protected total(sale: OnlineSaleRow): string {
     const money: Money = { amountMinor: sale.totalMinor, currencyCode: sale.currency };

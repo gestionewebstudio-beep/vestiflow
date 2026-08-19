@@ -436,3 +436,37 @@
   color: var(--color-interactive);
   font-size: var(--text-xs);
 }
+
+/*
+  ⚠️ **Stato premuto a costo zero di spazio.**
+
+  Il chip attivo predefinito fa posto alla × che azzera il filtro, e quel
+  `padding-inline-end` sposta il testo: sulla barra dei Corrispettivi
+  significherebbe controlli che si allargano appena si spunta qualcosa — cioè
+  il difetto che `labelOnly` esiste per togliere.
+
+  Qui resta solo la parte visiva — tinta, bordo, peso — e la chevron al posto
+  suo. Il filtro si azzera dal menu, che è dove si è appena stati.
+*/
+.select-menu--label-only.select-menu--chip-active .select-menu__trigger {
+  padding-inline-end: var(--field-pad-inline, var(--space-3));
+}
+
+/* Il nome del filtro non è un prefisso di niente: non si smorza. */
+.select-menu--label-only .select-menu__chip-label {
+  margin-inline-end: 0;
+}
+
+/*
+  La testa del pannello esiste solo se qualcuno ci proietta qualcosa: senza,
+  `:empty` la toglie di mezzo invece di lasciare un vuoto in cima a 179 menu.
+*/
+.select-menu__lead {
+  display: block;
+  padding: var(--space-1) var(--space-1) var(--space-2);
+  border-block-end: var(--border-width) solid var(--color-border);
+}
+
+.select-menu__lead:empty {
+  display: none;
+}

@@ -1,0 +1,355 @@
+<section class="company-page">
+  <header class="company-page__header">
+    <div class="company-page__heading">
+      <app-back-button />
+      <h1 class="company-page__title">Dati azienda</h1>
+      <p class="company-page__subtitle">
+        L'azienda che gestisci nel gestionale: questi dati intestano documenti, stampe e fatture
+        elettroniche. Sono tuoi e li puoi cambiare quando vuoi — non sono i dati di attivazione
+        registrati all'apertura dell'account.
+      </p>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <app-table-skeleton [columns]="2" [rows]="8" />
+  } @else if (loadError(); as message) {
+    <app-error-state
+      title="Dati azienda non disponibili"
+      [description]="message"
+      retryLabel="Riprova"
+      (retry)="retry()"
+    />
+  } @else {
+    @if (neverFilled()) {
+      <app-inline-banner tone="info">
+        <p class="company-page__banner-text">
+          Non hai ancora compilato i dati della tua azienda. Finché restano vuoti, i documenti
+          escono senza intestazione.
+        </p>
+        @if (canPrefill()) {
+          <app-button variant="secondary" (click)="prefillFromActivation()">
+            Precompila dai dati di attivazione
+          </app-button>
+        }
+      </app-inline-banner>
+    } @else if (missingFieldsMessage(); as message) {
+      <app-inline-banner tone="warning" [message]="message" />
+    }
+
+    <form class="company-page__form" [formGroup]="form" (submit)="$event.preventDefault(); save()">
+      <fieldset class="company-page__panel">
+        <legend class="company-page__panel-title">Azienda</legend>
+
+        <div class="company-page__grid">
+          <label class="company-page__field company-page__field--wide" for="company-legal-name">
+            <span class="company-page__label">Ragione sociale</span>
+            <input
+              id="company-legal-name"
+              class="company-page__input"
+              type="text"
+              formControlName="legalName"
+              autocomplete="organization"
+              placeholder="Come compare sui documenti"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-vat">
+            <span class="company-page__label">Partita IVA</span>
+            <input
+              id="company-vat"
+              class="company-page__input"
+              type="text"
+              formControlName="vatNumber"
+              inputmode="numeric"
+              placeholder="12345678901"
+              [attr.aria-invalid]="showError('vatNumber')"
+              [attr.aria-describedby]="showError('vatNumber') ? 'company-vat-error' : null"
+            />
+            @if (showError('vatNumber')) {
+              <span id="company-vat-error" class="company-page__error">
+                Servono 11 cifre, oppure lascia il campo vuoto.
+              </span>
+            }
+          </label>
+
+          <label class="company-page__field" for="company-fiscal-code">
+            <span class="company-page__label">Codice fiscale</span>
+            <input
+              id="company-fiscal-code"
+              class="company-page__input"
+              type="text"
+              formControlName="fiscalCode"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-tax-regime">
+            <span class="company-page__label">Regime fiscale</span>
+            <select id="company-tax-regime" class="company-page__input" formControlName="taxRegime">
+              <option value="">Ordinario (RF01)</option>
+              @for (option of taxRegimeOptions; track option.code) {
+                <option [value]="option.code">{{ option.label }}</option>
+              }
+            </select>
+            <span class="company-page__hint">
+              Finisce nella fattura elettronica. Se sei in forfettario scegli RF19.
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="company-page__panel">
+        <legend class="company-page__panel-title">Sede</legend>
+
+        <div class="company-page__grid">
+          <label class="company-page__field company-page__field--wide" for="company-address-1">
+            <span class="company-page__label">Indirizzo</span>
+            <input
+              id="company-address-1"
+              class="company-page__input"
+              type="text"
+              formControlName="addressLine1"
+              autocomplete="street-address"
+            />
+          </label>
+
+          <label class="company-page__field company-page__field--wide" for="company-address-2">
+            <span class="company-page__label">Indirizzo (seconda riga)</span>
+            <input
+              id="company-address-2"
+              class="company-page__input"
+              type="text"
+              formControlName="addressLine2"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-postal-code">
+            <span class="company-page__label">CAP</span>
+            <input
+              id="company-postal-code"
+              class="company-page__input"
+              type="text"
+              formControlName="postalCode"
+              inputmode="numeric"
+              autocomplete="postal-code"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-city">
+            <span class="company-page__label">Città</span>
+            <input
+              id="company-city"
+              class="company-page__input"
+              type="text"
+              formControlName="city"
+              autocomplete="address-level2"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-province">
+            <span class="company-page__label">Provincia</span>
+            <input
+              id="company-province"
+              class="company-page__input"
+              type="text"
+              formControlName="province"
+              autocomplete="address-level1"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-country">
+            <span class="company-page__label">Paese</span>
+            <input
+              id="company-country"
+              class="company-page__input"
+              type="text"
+              formControlName="countryCode"
+              maxlength="2"
+              placeholder="IT"
+              autocomplete="country"
+            />
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="company-page__panel">
+        <legend class="company-page__panel-title">Contatti e fatturazione</legend>
+
+        <div class="company-page__grid">
+          <label class="company-page__field" for="company-phone">
+            <span class="company-page__label">Telefono</span>
+            <input
+              id="company-phone"
+              class="company-page__input"
+              type="tel"
+              formControlName="phone"
+              autocomplete="tel"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-email">
+            <span class="company-page__label">Email</span>
+            <input
+              id="company-email"
+              class="company-page__input"
+              type="email"
+              formControlName="email"
+              autocomplete="email"
+              [attr.aria-invalid]="showError('email')"
+              [attr.aria-describedby]="showError('email') ? 'company-email-error' : null"
+            />
+            @if (showError('email')) {
+              <span id="company-email-error" class="company-page__error">
+                Indirizzo email non valido, oppure lascia il campo vuoto.
+              </span>
+            }
+          </label>
+
+          <label class="company-page__field" for="company-website">
+            <span class="company-page__label">Sito web</span>
+            <input
+              id="company-website"
+              class="company-page__input"
+              type="text"
+              formControlName="website"
+              autocomplete="url"
+              placeholder="www.negozio.it"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-pec">
+            <span class="company-page__label">PEC</span>
+            <input
+              id="company-pec"
+              class="company-page__input"
+              type="email"
+              formControlName="pec"
+              autocomplete="off"
+              [attr.aria-invalid]="showError('pec')"
+              [attr.aria-describedby]="showError('pec') ? 'company-pec-error' : null"
+            />
+            @if (showError('pec')) {
+              <span id="company-pec-error" class="company-page__error">
+                Indirizzo PEC non valido, oppure lascia il campo vuoto.
+              </span>
+            }
+          </label>
+
+          <label class="company-page__field" for="company-sdi">
+            <span class="company-page__label">Codice destinatario SDI</span>
+            <input
+              id="company-sdi"
+              class="company-page__input"
+              type="text"
+              formControlName="sdiCode"
+              maxlength="7"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-iban">
+            <span class="company-page__label">IBAN</span>
+            <input
+              id="company-iban"
+              class="company-page__input company-page__input--mono"
+              type="text"
+              formControlName="iban"
+              maxlength="34"
+              placeholder="IT60X0542811101000000123456"
+              autocomplete="off"
+            />
+            <span class="company-page__hint">Precompila i dati pagamento nelle fatture.</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="company-page__panel">
+        <legend class="company-page__panel-title">Registro Imprese</legend>
+        <p class="company-page__panel-hint">
+          Obbligatori sui documenti per le società (art. 2250 c.c.). Se sei una ditta individuale
+          lascia tutto vuoto: non si stampa nulla.
+        </p>
+
+        <div class="company-page__grid">
+          <label class="company-page__field" for="company-rea-office">
+            <span class="company-page__label">Ufficio (provincia CCIAA)</span>
+            <input
+              id="company-rea-office"
+              class="company-page__input"
+              type="text"
+              formControlName="reaOffice"
+              maxlength="2"
+              placeholder="NA"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-rea-number">
+            <span class="company-page__label">Numero REA</span>
+            <input
+              id="company-rea-number"
+              class="company-page__input"
+              type="text"
+              formControlName="reaNumber"
+              maxlength="20"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="company-page__field" for="company-share-capital">
+            <span class="company-page__label">Capitale sociale (€)</span>
+            <input
+              id="company-share-capital"
+              class="company-page__input"
+              type="text"
+              formControlName="shareCapital"
+              inputmode="decimal"
+              placeholder="10.000,00"
+              autocomplete="off"
+              [attr.aria-invalid]="showError('shareCapital')"
+              [attr.aria-describedby]="showError('shareCapital') ? 'company-capital-error' : null"
+            />
+            @if (showError('shareCapital')) {
+              <span id="company-capital-error" class="company-page__error">
+                Importo non valido, oppure lascia il campo vuoto.
+              </span>
+            }
+          </label>
+
+          <label class="company-page__field" for="company-sole-shareholder">
+            <span class="company-page__label">Compagine sociale</span>
+            <select
+              id="company-sole-shareholder"
+              class="company-page__input"
+              formControlName="soleShareholder"
+            >
+              <option value="">Non dichiarata</option>
+              <option value="SU">Socio unico</option>
+              <option value="SM">Più soci</option>
+            </select>
+          </label>
+
+          <label class="company-page__checkbox" for="company-liquidation">
+            <input id="company-liquidation" type="checkbox" formControlName="inLiquidation" />
+            <span>Società in liquidazione</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="company-page__actions">
+        <app-button
+          variant="secondary"
+          [disabled]="!form.dirty || saving()"
+          (click)="undoChanges()"
+        >
+          Annulla modifiche
+        </app-button>
+        <app-button type="submit" [disabled]="!form.dirty" [loading]="saving()">
+          Salva dati azienda
+        </app-button>
+      </div>
+    </form>
+  }
+</section>

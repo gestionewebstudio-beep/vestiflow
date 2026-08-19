@@ -102,6 +102,14 @@ export class SavePurchaseInvoiceDto {
   @IsISO8601()
   externalDocDate?: string;
 
+  /**
+   * Tipo del documento ricevuto dal fornitore: l'etichetta viene fotografata in
+   * testata. Assente ≠ vuoto — vedi `savePurchaseInvoice`.
+   */
+  @IsOptional()
+  @IsUUID()
+  externalDocumentTypeId?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(2000)

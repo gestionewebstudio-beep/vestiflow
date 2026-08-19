@@ -15,13 +15,14 @@ import { AppErrorKind, isAppError } from '@core/models/app-error.model';
 import type { AppError } from '@core/models/app-error.model';
 import { AuthService } from '@core/auth';
 import {
-  canManageDocuments,
+  canManageDocFamily,
   canManageSupplierOrders,
   canReceiveSupplierOrders,
 } from '@core/permissions/tenant-permissions.util';
 import { SupplierOrderStatus } from '@core/models/supplier-order.model';
 import type { SupplierOrder, SupplierOrderLinkedDocument } from '@core/models/supplier-order.model';
 import { formatDate } from '@core/utils/date.util';
+import { counterpartyDocLabel } from '@domain/documents/models/document-labels.util';
 import { formatMoney } from '@core/utils/money.util';
 import { BackButtonComponent } from '@shared/components/back-button/back-button.component';
 import { BadgeComponent } from '@shared/components/badge/badge.component';
@@ -44,6 +45,16 @@ type ActionState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
   | { readonly status: 'error'; readonly error: AppError };
+
+/**
+ * Documento della controparte in una riga sola: «DDT 145 del 25/07/2026».
+ * La compone `counterpartyDocLabel`, la stessa che usano elenco documenti,
+ * dettagli e anteprima di stampa: qui resta solo il ripiego a «—», perché
+ * questa scheda mostra le proprie voci sempre, anche vuote.
+ */
+function counterpartyDocumentText(order: SupplierOrder): string {
+  return counterpartyDocLabel(order) || '—';
+}
 
 type DetailState =
   | { readonly status: 'loading' }
@@ -147,6 +158,7 @@ export class SupplierOrderDetailComponent {
         numeric: true,
       },
       { label: 'Rif. ordine fornitore', value: order.supplierReference || '—' },
+      { label: 'Documento del fornitore', value: counterpartyDocumentText(order) },
       { label: 'Valuta', value: order.currency },
       { label: 'Creato il', value: formatDate(order.createdAt), numeric: true },
       { label: 'Aggiornato il', value: formatDate(order.updatedAt), numeric: true },
@@ -173,7 +185,9 @@ export class SupplierOrderDetailComponent {
     if (!canReceiveSupplierOrders(this.authService.currentUser())) {
       return false;
     }
-    if (!canManageDocuments(this.authService.currentUser())) {
+    // L'arrivo merce si crea con la SUA famiglia: chi gestisce solo l'ordine
+    // fornitore non deve compilare un carico intero per poi prendere 403.
+    if (!canManageDocFamily(this.authService.currentUser(), 'goods_receipt')) {
       return false;
     }
     return this.order()?.status === SupplierOrderStatus.Confirmed;

@@ -24,6 +24,8 @@ export interface SalesOrderListFilters {
   readonly placedTo?: string;
   /** Solo ordini includibili: manuali, non annullati, non ancora collegati. */
   readonly includable?: boolean;
+  /** Solo ordini che sul canale non risultano più (cancellati su Shopify). */
+  readonly missingOnChannel?: boolean;
 }
 
 /** Filtri Prisma condivisi tra lista ed export vendite. */
@@ -81,6 +83,13 @@ export function buildSalesOrderWhere(
       cancelledAt: null,
       documentId: null,
     });
+  }
+
+  // Spariti dal canale: la riconciliazione dello scarico ordini li ha visti
+  // mancare dall'elenco remoto. Serve a raccoglierli per rimuoverli in blocco,
+  // che è l'unica azione prevista — VestiFlow non li cancella da solo.
+  if (query.missingOnChannel) {
+    conditions.push({ channelMissingSince: { not: null } });
   }
 
   if (query.search) {

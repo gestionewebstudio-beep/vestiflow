@@ -145,4 +145,61 @@ describe('catalog-origin.util', () => {
     };
     expect(isVestiflowCatalogOwner(snapshot)).toBe(true);
   });
+
+  /**
+   * Il prezzo di vendita NON è un campo del canale — 17/08/2026.
+   *
+   * A Shopify va `shopifyPriceMinor`, che è un’altra colonna: il push manda
+   * quella e non ha mai mandato questa. Finché il prezzo stava nel confronto,
+   * il gate diceva l’opposto della specifica: Shopify non te lo cambiava (il
+   * ri-sync lo salta apposta) ma nemmeno tu potevi.
+   *
+   * E mordeva per una via storta: su un prodotto SEMPLICE la maschera specchia
+   * il prezzo articolo sulla variante, quindi cambiare il prezzo
+   * dell’ARTICOLO faceva scattare il controllo sulla VARIANTE.
+   */
+  it('consente di cambiare il prezzo di vendita su prodotto Shopify-owned', () => {
+    const dto: UpdateProductDto = {
+      variants: [
+        {
+          id: 'var-1',
+          sku: 'SKU-1',
+          optionValues: [{ name: 'Taglia', value: 'M' }],
+          sellingPrice: { amountMinor: 7900, currency: 'EUR' },
+        },
+      ],
+    };
+
+    expect(() => assertShopifyCatalogUpdateAllowed(existing, dto)).not.toThrow();
+  });
+
+  it('la VALUTA resta un campo del canale: cambiarla è ancora bloccato', () => {
+    const dto: UpdateProductDto = {
+      variants: [
+        {
+          id: 'var-1',
+          sku: 'SKU-1',
+          optionValues: [{ name: 'Taglia', value: 'M' }],
+          sellingPrice: { amountMinor: 5000, currency: 'USD' },
+        },
+      ],
+    };
+
+    expect(() => assertShopifyCatalogUpdateAllowed(existing, dto)).toThrow(ConflictException);
+  });
+
+  it('lo SKU resta un campo del canale: cambiarlo è ancora bloccato', () => {
+    const dto: UpdateProductDto = {
+      variants: [
+        {
+          id: 'var-1',
+          sku: 'SKU-ALTRO',
+          optionValues: [{ name: 'Taglia', value: 'M' }],
+          sellingPrice: { amountMinor: 5000, currency: 'EUR' },
+        },
+      ],
+    };
+
+    expect(() => assertShopifyCatalogUpdateAllowed(existing, dto)).toThrow(ConflictException);
+  });
 });

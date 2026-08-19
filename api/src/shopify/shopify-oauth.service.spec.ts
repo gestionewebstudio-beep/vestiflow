@@ -30,10 +30,21 @@ describe('ShopifyOAuthService', () => {
       },
       shopifyConnection: {
         findFirst: vi.fn(),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       shopifyCredential: {
         findUnique: vi.fn(),
+        deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      location: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      // Spie sul magazzino: la disconnessione non deve toccarle mai.
+      inventoryLevel: { deleteMany: vi.fn() },
+      stockMovement: { deleteMany: vi.fn() },
+      inventoryCountSession: { deleteMany: vi.fn() },
+      supplierOrder: { deleteMany: vi.fn() },
+      $transaction: vi.fn().mockImplementation((ops: unknown) => Promise.resolve(ops)),
     };
 
     const shopifyConfig = {
@@ -45,7 +56,7 @@ describe('ShopifyOAuthService', () => {
       callbackUrl: 'https://api.test/callback',
       frontendUrl: 'http://localhost:4200',
       apiVersion: '2024-10',
-      webhookUrl: null,
+      webhookUrl: null as string | null,
     };
 
     const shopifyCrypto = {
@@ -57,18 +68,92 @@ describe('ShopifyOAuthService', () => {
       assertConfigured: vi.fn(),
     };
 
+    const shopifyConnection = {
+      clearSetupStatus: vi.fn().mockResolvedValue(undefined),
+    };
+
     const service = new ShopifyOAuthService(
       prisma as unknown as PrismaService,
       shopifyConfig as unknown as ShopifyConfigService,
       shopifyCrypto as unknown as ShopifyCryptoService,
       shopifyAdmin as unknown as ShopifyAdminClient,
-      {} as ShopifyConnectionService,
+      shopifyConnection as unknown as ShopifyConnectionService,
       {} as ShopifyLocationSyncService,
-      {} as never,
     );
 
-    return { service, prisma, shopifyConfig, shopifyCrypto, shopifyAdmin };
+    return { service, prisma, shopifyConfig, shopifyCrypto, shopifyAdmin, shopifyConnection };
   }
+
+  // ⚠ GUARDIA — registro difetti 1.7.
+  // La registrazione punta all'indirizzo dell'AMBIENTE da cui parte, non a quello del
+  // negozio. Da una macchina di sviluppo quel valore e' `http://localhost:3000`, e premere
+  // «Attiva aggiornamenti automatici» creerebbe otto sottoscrizioni verso localhost sul
+  // negozio reale — che, per via della deduplica a uguaglianza esatta, si SOMMANO a quelle
+  // buone invece di sostituirle. Il test fallisce se qualcuno toglie il rifiuto.
+  describe('guardia sull indirizzo di registrazione', () => {
+    it.each([
+      ['http://localhost:3000/api/v1/shopify/webhooks', 'il valore del modello .env.example'],
+      ['https://192.168.1.10/api/v1/shopify/webhooks', 'una rete privata'],
+      ['http://vestiflow.example/api/v1/shopify/webhooks', 'senza TLS'],
+    ])('rifiuta di registrare verso %s (%s)', async (webhookUrl) => {
+      const { service, shopifyConfig, prisma, shopifyAdmin } = createService();
+      shopifyConfig.webhookUrl = webhookUrl;
+      prisma.shopifyCredential.findUnique.mockResolvedValue({
+        shopDomain: 'demo.myshopify.com',
+        accessTokenEnc: 'cifrato',
+      });
+      const registerWebhooks = vi.fn();
+      (shopifyAdmin as unknown as { registerWebhooks: unknown }).registerWebhooks =
+        registerWebhooks;
+
+      await expect(service.resyncWebhooks('tenant-1')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      // E soprattutto: non ha nemmeno provato a chiamare Shopify.
+      expect(registerWebhooks).not.toHaveBeenCalled();
+    });
+
+    it('l indirizzo pubblico in HTTPS passa: si esclude cio che non e un riferimento', async () => {
+      const { service, shopifyConfig, prisma, shopifyAdmin, shopifyConnection } = createService();
+      shopifyConfig.webhookUrl = 'https://vestiflow.example/api/v1/shopify/webhooks';
+      prisma.shopifyCredential.findUnique.mockResolvedValue({
+        shopDomain: 'demo.myshopify.com',
+        accessTokenEnc: 'cifrato',
+      });
+      (shopifyAdmin as unknown as { registerWebhooks: unknown }).registerWebhooks = vi
+        .fn()
+        .mockResolvedValue({ registered: ['orders/cancelled'], skipped: [], failed: [] });
+      (shopifyConnection as unknown as { recordWebhooksActivated: unknown })
+        .recordWebhooksActivated = vi.fn();
+      (shopifyConnection as unknown as { healStaleErrorStatus: unknown }).healStaleErrorStatus =
+        vi.fn();
+
+      const result = await service.resyncWebhooks('tenant-1');
+
+      expect(result.registered).toEqual(['orders/cancelled']);
+    });
+  });
+
+  // Registro difetti 1.3: disconnettere sospende, non cancella. Prima dell'
+  // 08/08/2026 questo percorso cancellava sessioni di conteggio, giacenze,
+  // movimenti e ordini fornitore chiusi delle sedi Shopify — e riusciva in
+  // silenzio. Il test fallisce se qualcuno rimette una pulizia qui dentro.
+  it('disconnect non cancella giacenze, movimenti, conteggi né ordini fornitore', async () => {
+    const { service, prisma, shopifyConnection } = createService();
+
+    await service.disconnect('tenant-1');
+
+    expect(prisma.inventoryLevel.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.stockMovement.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.inventoryCountSession.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.supplierOrder.deleteMany).not.toHaveBeenCalled();
+
+    // Quello che deve fare invece: revocare, scollegare, conservare.
+    expect(shopifyConnection.clearSetupStatus).toHaveBeenCalledWith('tenant-1');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.shopifyCredential.deleteMany).toHaveBeenCalled();
+    expect(prisma.location.updateMany).toHaveBeenCalled();
+  });
 
   it('beginAuth genera authorizeUrl e salva stato OAuth', async () => {
     const { service, prisma, shopifyConfig } = createService();

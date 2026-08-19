@@ -1,0 +1,15 @@
+-- Il tipo enum torna al nome che Prisma gli darebbe da sé.
+--
+-- La migration precedente lo aveva creato come `sales_order_refund_kind`, con
+-- un `@@map` sull'enum nello schema. Era l'UNICO enum mappato dei ~40 presenti:
+-- la convenzione qui è lasciare agli enum il nome Prisma e mappare solo le
+-- tabelle.
+--
+-- Non è pignoleria di stile. `scripts/check-rls.mjs` scopre le tabelle
+-- cercando `@@map(...)` nello schema, quindi un enum mappato veniva scambiato
+-- per una tabella e il controllo pretendeva la RLS su un TIPO — che non ha
+-- righe e non può averla. La build falliva su una cosa inesistente.
+--
+-- Corretto in due punti: qui il nome, e nello script la guardia che salta i
+-- blocchi `enum`. La convenzione da sola non basta: si è già rotta una volta.
+ALTER TYPE "sales_order_refund_kind" RENAME TO "SalesOrderRefundKind";

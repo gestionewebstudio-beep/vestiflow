@@ -11,38 +11,41 @@ import type { EntityId } from '@core/models/common.model';
 import { DEFAULT_CURRENCY } from '@core/utils/money.util';
 
 import type {
-  CorrispettiviDelivery,
   CorrispettiviListQuery,
-  CorrispettiviOrder,
+  CorrispettiviLocation,
+  CorrispettiviRefundKind,
+  CorrispettiviRegisterRow,
+  CorrispettiviRowKind,
   CorrispettiviSummary,
-  MarkCorrispettiviDeliveredRequest,
-  SalesOrderFiscalStatus,
 } from '../models/corrispettivi.model';
 
 const HTTP_TIMEOUT_MS = 15000;
 const EXPORT_HTTP_TIMEOUT_MS = 60_000;
 
-interface CorrispettiviOrderApiRow {
-  readonly id: EntityId;
+interface CorrispettiviRegisterApiRow {
+  readonly rowId: string;
+  readonly kind: CorrispettiviRowKind;
+  readonly salesOrderId: EntityId | null;
+  readonly manualReceiptId?: EntityId | null;
   readonly orderNumber: string;
+  readonly occurredAt: string;
   readonly source: string;
-  readonly financialStatus: string;
-  readonly fiscalStatus: SalesOrderFiscalStatus;
   readonly customerName: string;
+  readonly customerEmail?: string | null;
+  readonly locationId?: EntityId | null;
+  readonly locationName?: string | null;
   readonly currency: string;
-  readonly subtotalMinor: number;
+  readonly taxableMinor: number;
   readonly taxMinor: number;
-  readonly shippingMinor: number;
-  readonly discountMinor: number;
   readonly totalMinor: number;
-  readonly placedAt: string;
-  readonly fiscalDeliveredAt?: string | null;
-  readonly fiscalNote?: string | null;
-  readonly customer?: { readonly email?: string | null } | null;
+  readonly financialStatus?: string | null;
+  readonly refundKind?: CorrispettiviRefundKind | null;
+  readonly note?: string | null;
 }
 
 interface CorrispettiviSummaryApi {
   readonly orderCount: number;
+  readonly undatedFulfilmentCount: number;
   readonly refundsCount: number;
   readonly subtotalMinor: number;
   readonly taxMinor: number;
@@ -50,23 +53,25 @@ interface CorrispettiviSummaryApi {
   readonly discountMinor: number;
   readonly totalMinor: number;
   readonly taxableMinor: number;
-  readonly pendingDeliveryCount: number;
-}
-
-interface CorrispettiviDeliveryApi {
-  readonly id: EntityId;
-  readonly periodFrom: string;
-  readonly periodTo: string;
-  readonly channelFilter: string;
-  readonly orderCount: number;
-  readonly subtotalMinor: number;
-  readonly taxMinor: number;
-  readonly shippingMinor: number;
-  readonly totalMinor: number;
-  readonly refundsCount: number;
-  readonly note?: string | null;
-  readonly createdByName: string;
-  readonly createdAt: string;
+  readonly refundCount: number;
+  readonly refundTotalMinor: number;
+  readonly refundTaxMinor: number;
+  readonly cancellationCount: number;
+  readonly cancellationTotalMinor: number;
+  readonly netTotalMinor: number;
+  readonly netTaxMinor: number;
+  readonly netTaxableMinor: number;
+  readonly locationUndeterminedExcludedCount?: number;
+  readonly perGiornata?: readonly {
+    readonly giorno: string;
+    readonly totali: {
+      readonly netTaxableMinor: number;
+      readonly netTaxMinor: number;
+      readonly netTotalMinor: number;
+      readonly orderCount: number;
+      readonly refundCount: number;
+    };
+  }[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -76,9 +81,9 @@ export class CorrispettiviService {
 
   listOrders(
     query: CorrispettiviListQuery = {},
-  ): Observable<PaginatedResponse<CorrispettiviOrder>> {
+  ): Observable<PaginatedResponse<CorrispettiviRegisterRow>> {
     return this.http
-      .get<ApiPaginated<CorrispettiviOrderApiRow>>(this.url('/corrispettivi/orders'), {
+      .get<ApiPaginated<CorrispettiviRegisterApiRow>>(this.url('/corrispettivi/orders'), {
         params: this.buildParams(query),
       })
       .pipe(
@@ -86,11 +91,21 @@ export class CorrispettiviService {
         map((response) => {
           const paginated = toPaginatedResponse(response);
           return {
-            data: paginated.data.map(mapOrder),
+            data: paginated.data.map(mapRegisterRow),
             meta: paginated.meta,
           };
         }),
       );
+  }
+
+  /**
+   * Le sedi del filtro. Chiede la CONSULTAZIONE del Registro, non il diritto di
+   * registrare: chi può solo leggere deve poter comunque filtrare per sede.
+   */
+  listLocations(): Observable<readonly CorrispettiviLocation[]> {
+    return this.http
+      .get<readonly CorrispettiviLocation[]>(this.url('/corrispettivi/locations'))
+      .pipe(timeout(HTTP_TIMEOUT_MS));
   }
 
   getSummary(query: CorrispettiviListQuery = {}): Observable<CorrispettiviSummary> {
@@ -99,31 +114,6 @@ export class CorrispettiviService {
         params: this.buildParams(query),
       })
       .pipe(timeout(HTTP_TIMEOUT_MS), map(mapSummary));
-  }
-
-  listDeliveries(page = 1, pageSize = 10): Observable<PaginatedResponse<CorrispettiviDelivery>> {
-    const params = new HttpParams().set('page', String(page)).set('pageSize', String(pageSize));
-
-    return this.http
-      .get<ApiPaginated<CorrispettiviDeliveryApi>>(this.url('/corrispettivi/deliveries'), {
-        params,
-      })
-      .pipe(
-        timeout(HTTP_TIMEOUT_MS),
-        map((response) => {
-          const paginated = toPaginatedResponse(response);
-          return {
-            data: paginated.data.map(mapDelivery),
-            meta: paginated.meta,
-          };
-        }),
-      );
-  }
-
-  markDelivered(request: MarkCorrispettiviDeliveredRequest): Observable<CorrispettiviDelivery> {
-    return this.http
-      .post<CorrispettiviDeliveryApi>(this.url('/corrispettivi/mark-delivered'), request)
-      .pipe(timeout(HTTP_TIMEOUT_MS), map(mapDelivery));
   }
 
   exportAccountantCsv(query: CorrispettiviListQuery = {}): Observable<Blob> {
@@ -167,26 +157,59 @@ export class CorrispettiviService {
     if (query.source) {
       params = params.set('source', query.source);
     }
-    if (query.fiscalStatus) {
-      params = params.set('fiscalStatus', query.fiscalStatus);
-    }
+
     if (query.placedFrom) {
       params = params.set('placedFrom', query.placedFrom);
     }
     if (query.placedTo) {
       params = params.set('placedTo', query.placedTo);
     }
-    if (query.onlineOnly) {
-      params = params.set('onlineOnly', 'true');
+    if (query.ambito && query.ambito !== 'all') {
+      params = params.set('ambito', query.ambito);
     }
-    if (query.posOnly) {
-      params = params.set('posOnly', 'true');
+    if (query.canale && query.canale !== 'all') {
+      params = params.set('canale', query.canale);
     }
-    if (query.pendingDeliveryOnly) {
-      params = params.set('pendingDeliveryOnly', 'true');
+    if (query.origine && query.origine !== 'all') {
+      params = params.set('origine', query.origine);
     }
+    if (query.locationId) {
+      params = params.set('locationId', query.locationId);
+    }
+
     if (query.refundsOnly) {
       params = params.set('refundsOnly', 'true');
+    }
+    if (query.rowType) {
+      params = params.set('rowType', query.rowType);
+    }
+
+    // ── I filtri a INSIEME (`docs/10` §16) ──────────────────────────────
+    //
+    // ⚠️ **Un insieme vuoto NON parte.** Non è un'ottimizzazione: «vuoto» qui
+    // significa «nessuna restrizione», e mandarlo lo farebbe diventare un
+    // `in: []` lato Prisma — che non è «tutti», è nessuna riga.
+    if (query.origini?.length) {
+      params = params.set('origini', query.origini.join(','));
+    }
+    if (query.tipi?.length) {
+      params = params.set('tipi', query.tipi.join(','));
+    }
+    if (query.sedi?.length) {
+      params = params.set('sedi', query.sedi.join(','));
+    }
+    // Lo stato opposto, e per questo un parametro suo: zero righe, non tutte.
+    if (query.nessunRisultato) {
+      params = params.set('nessunRisultato', 'true');
+    }
+
+    // Presentazione: la mandano solo PDF ed Excel. «Nessun raggruppamento» non
+    // parte, come ogni altro valore che significa «niente restrizione».
+    if (query.raggruppa && query.raggruppa !== 'none') {
+      params = params.set('raggruppa', query.raggruppa);
+    }
+    if (query.colonne?.length) {
+      params = params.set('colonne', query.colonne.join(','));
     }
 
     return params;
@@ -197,27 +220,29 @@ export class CorrispettiviService {
   }
 }
 
-function mapOrder(row: CorrispettiviOrderApiRow): CorrispettiviOrder {
+function mapRegisterRow(row: CorrispettiviRegisterApiRow): CorrispettiviRegisterRow {
   const currency = row.currency || DEFAULT_CURRENCY;
-  const taxableMinor = Math.max(0, row.subtotalMinor - row.discountMinor);
   return {
-    id: row.id,
+    rowId: row.rowId,
+    kind: row.kind,
+    salesOrderId: row.salesOrderId ?? undefined,
+    manualReceiptId: row.manualReceiptId ?? undefined,
     orderNumber: row.orderNumber,
+    occurredAt: row.occurredAt,
     source: row.source,
-    financialStatus: row.financialStatus,
-    fiscalStatus: row.fiscalStatus,
     customerName: row.customerName,
-    customerEmail: row.customer?.email ?? undefined,
+    customerEmail: row.customerEmail ?? undefined,
+    locationId: row.locationId ?? undefined,
+    locationName: row.locationName ?? undefined,
     currency,
-    subtotal: money(row.subtotalMinor, currency),
+    // Gli importi arrivano già col segno: sulle rettifiche sono negativi, ed è
+    // quel segno che rende la colonna sommabile a occhio.
+    taxable: money(row.taxableMinor, currency),
     tax: money(row.taxMinor, currency),
-    shipping: money(row.shippingMinor, currency),
-    discount: money(row.discountMinor, currency),
     total: money(row.totalMinor, currency),
-    taxable: money(taxableMinor, currency),
-    placedAt: row.placedAt,
-    fiscalDeliveredAt: row.fiscalDeliveredAt ?? undefined,
-    fiscalNote: row.fiscalNote ?? undefined,
+    financialStatus: row.financialStatus ?? undefined,
+    refundKind: row.refundKind ?? undefined,
+    note: row.note ?? undefined,
   };
 }
 
@@ -231,25 +256,27 @@ function mapSummary(row: CorrispettiviSummaryApi): CorrispettiviSummary {
     discount: money(row.discountMinor),
     total: money(row.totalMinor),
     taxable: money(row.taxableMinor),
-    pendingDeliveryCount: row.pendingDeliveryCount,
-  };
-}
-
-function mapDelivery(row: CorrispettiviDeliveryApi): CorrispettiviDelivery {
-  return {
-    id: row.id,
-    periodFrom: row.periodFrom,
-    periodTo: row.periodTo,
-    channelFilter: row.channelFilter,
-    orderCount: row.orderCount,
-    subtotal: money(row.subtotalMinor),
-    tax: money(row.taxMinor),
-    shipping: money(row.shippingMinor),
-    total: money(row.totalMinor),
-    refundsCount: row.refundsCount,
-    note: row.note ?? undefined,
-    createdByName: row.createdByName,
-    createdAt: row.createdAt,
+    undatedFulfilmentCount: row.undatedFulfilmentCount,
+    refundCount: row.refundCount,
+    refundTotal: money(row.refundTotalMinor),
+    refundTax: money(row.refundTaxMinor),
+    cancellationCount: row.cancellationCount,
+    cancellationTotal: money(row.cancellationTotalMinor),
+    netTotal: money(row.netTotalMinor),
+    netTax: money(row.netTaxMinor),
+    netTaxable: money(row.netTaxableMinor),
+    locationUndeterminedExcludedCount: row.locationUndeterminedExcludedCount ?? 0,
+    // ⚠️ Il subtotale di giornata NON si ricalcola qui dalle righe: arriva
+    // dallo stesso accumulatore che ha prodotto il totale del periodo, di cui
+    // è un addendo. Sommarlo a parte sarebbe la seconda matematica.
+    perGiornata: (row.perGiornata ?? []).map((g) => ({
+      giorno: g.giorno,
+      taxable: money(g.totali.netTaxableMinor),
+      tax: money(g.totali.netTaxMinor),
+      total: money(g.totali.netTotalMinor),
+      orderCount: g.totali.orderCount,
+      refundCount: g.totali.refundCount,
+    })),
   };
 }
 

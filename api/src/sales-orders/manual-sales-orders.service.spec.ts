@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChannelSyncFacade } from '../channels/channel-sync.facade';
 import type { DocumentSettingsService } from '../documents/document-settings.service';
+import type { ExternalDocumentTypesService } from '../documents/external-document-types.service';
 import type { StockReservationService } from '../order-reservations/stock-reservation.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { testOwnerUser } from '../test/fixtures/user-profile.fixture';
@@ -44,7 +45,10 @@ function createPrismaMock() {
       upsert: vi.fn().mockResolvedValue({ lastNumber: 12 }),
       findUnique: vi.fn().mockResolvedValue({ lastNumber: 11 }),
     },
-    documentCounter: { findFirst: vi.fn().mockResolvedValue(null) },
+    documentCounter: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     salesOrder: {
       // Numerazione «massimo esistente + 1»: aggregato numerico (ultimo 11 → 12).
       aggregate: vi.fn().mockResolvedValue({ _max: { number: 11 } }),
@@ -53,6 +57,7 @@ function createPrismaMock() {
       findUniqueOrThrow: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
     salesOrderLine: {
       create: vi.fn(),
@@ -62,6 +67,9 @@ function createPrismaMock() {
     stockReservation: { findMany: vi.fn().mockResolvedValue([]) },
     inventoryLevel: { findMany: vi.fn().mockResolvedValue([]) },
     document: { create: vi.fn(), findFirst: vi.fn() },
+    // Advisory lock sul contatore: qui non serializza niente (transazione
+    // finta), ma senza la mock la chiamata romperebbe il salvataggio.
+    $queryRaw: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(),
   };
   prisma.$transaction.mockImplementation((arg: unknown) => {
@@ -101,13 +109,19 @@ function createService(prisma: ReturnType<typeof createPrismaMock>) {
     }),
   };
   const channelSync = { pushInventoryLevels: vi.fn().mockResolvedValue(undefined) };
+  const externalTypes = {
+    resolveForWrite: vi
+      .fn()
+      .mockResolvedValue({ externalDocumentTypeId: null, externalDocumentTypeSnapshot: null }),
+  };
   const service = new ManualSalesOrdersService(
     prisma as unknown as PrismaService,
     reservations as unknown as StockReservationService,
     settings as unknown as DocumentSettingsService,
     channelSync as unknown as ChannelSyncFacade,
+    externalTypes as unknown as ExternalDocumentTypesService,
   );
-  return { service, reservations, settings, channelSync };
+  return { service, reservations, settings, channelSync, externalTypes };
 }
 
 const baseDto = {
@@ -283,6 +297,10 @@ describe('ManualSalesOrdersService.conclude', () => {
     prisma.salesOrder.findFirst.mockResolvedValue({
       id: 'order-1',
       orderNumber: 'OC-0012',
+      // Obbligatoria nello schema (`SalesOrder.placedAt`): il finto ordine la
+      // ometteva, e il precompilato che la usa per la riga di riferimento ha
+      // fatto emergere la lacuna del fixture.
+      placedAt: new Date('2026-07-29T00:00:00.000Z'),
       source: 'manual',
       cancelledAt: null,
       fulfilledAt: null,
@@ -347,5 +365,137 @@ describe('ManualSalesOrdersService.conclude', () => {
     await expect(
       service.concludePrefill(tenantId, 'order-1', 'manual_unload', testOwnerUser()),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+/**
+ * Eliminazione: gli ordini di canale non si toccano, con UNA eccezione.
+ *
+ * Cancellarli qui non servirebbe a niente — il prossimo scarico li
+ * riporterebbe, perché il sync fa upsert sull'id Shopify. Il motivo cade solo
+ * quando sul canale non risultano più, ed è l'unica azione prevista dopo la
+ * segnalazione della riconciliazione.
+ */
+describe('ManualSalesOrdersService.delete', () => {
+  let prisma: ReturnType<typeof createPrismaMock>;
+
+  beforeEach(() => {
+    prisma = createPrismaMock();
+  });
+
+  it('un ordine di canale ancora presente su Shopify non è eliminabile', async () => {
+    prisma.salesOrder.findFirst.mockResolvedValue({
+      id: 'order-1',
+      source: 'shopify_online',
+      locationId: null,
+      orderNumber: '#1001',
+      channelMissingSince: null,
+      onlineSale: null,
+    });
+    const { service } = createService(prisma);
+
+    await expect(service.delete(tenantId, 'order-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.salesOrder.delete).not.toHaveBeenCalled();
+  });
+
+  // Il controllo inverso: senza, il test qui sopra passerebbe anche se
+  // l'eliminazione fosse rimasta vietata a tutti gli ordini di canale.
+  it('lo stesso ordine, segnalato come sparito, si può rimuovere', async () => {
+    prisma.salesOrder.findFirst.mockResolvedValue({
+      id: 'order-1',
+      source: 'shopify_online',
+      locationId: null,
+      orderNumber: '#1001',
+      channelMissingSince: new Date('2026-08-08T12:00:00.000Z'),
+      onlineSale: null,
+    });
+    const { service } = createService(prisma);
+
+    await service.delete(tenantId, 'order-1');
+
+    expect(prisma.salesOrder.delete).toHaveBeenCalledWith({ where: { id: 'order-1' } });
+  });
+
+  // L'eccezione non scavalca la Vendita online: la merce è uscita davvero e il
+  // corrispettivo è registrato. Resta la sola segnalazione.
+  it('un ordine sparito ma già evaso resta non eliminabile', async () => {
+    prisma.salesOrder.findFirst.mockResolvedValue({
+      id: 'order-1',
+      source: 'shopify_online',
+      locationId: null,
+      orderNumber: '#1001',
+      channelMissingSince: new Date('2026-08-08T12:00:00.000Z'),
+      onlineSale: { id: 'vo-1' },
+    });
+    const { service } = createService(prisma);
+
+    await expect(service.delete(tenantId, 'order-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.salesOrder.delete).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * «Concludi ordine» è un altro punto d'ingresso della regola `07` §12, non un
+ * flusso a parte: il documento generato eredita le reference dell'ordine e
+ * riceve il riferimento all'ordine stesso.
+ */
+describe('ManualSalesOrdersService.concludePrefill — riferimenti', () => {
+  const prisma = createPrismaMock();
+
+  beforeEach(() => {
+    prisma.salesOrder.findFirst.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'OC-0012',
+      placedAt: new Date('2026-07-29T00:00:00.000Z'),
+      source: 'manual',
+      cancelledAt: null,
+      fulfilledAt: null,
+      documentId: null,
+      locationId: 'loc-1',
+      customerId: 'cust-1',
+      customerName: 'Boutique Rossi',
+      currency: 'EUR',
+      subtotalMinor: 0,
+      taxMinor: 0,
+      totalMinor: 0,
+      notes: null,
+      externalRef: null,
+      documentDiscountPercent: 0,
+      lines: [
+        {
+          // La reference che l'ordine si era portato dietro dal preventivo.
+          variantId: null,
+          sku: null,
+          title: 'Rif. Preventivo PRE-0002 del 31/07/2026',
+          quantity: 0,
+          totalMinor: 0,
+          vatCodeId: null,
+          commitsStock: false,
+          isReference: true,
+        },
+      ],
+    });
+  });
+
+  it('la reference dell ordine resta reference nel documento di scarico', async () => {
+    const { service } = createService(prisma);
+
+    const dto = await service.concludePrefill(tenantId, 'order-1', 'sales_ddt', testOwnerUser());
+
+    expect(dto.lines?.[0]).toMatchObject({
+      description: 'Rif. Preventivo PRE-0002 del 31/07/2026',
+      isReference: true,
+    });
+  });
+
+  it('e il precompilato porta numero e data per la reference all ordine', async () => {
+    const { service } = createService(prisma);
+
+    const dto = await service.concludePrefill(tenantId, 'order-1', 'sales_ddt', testOwnerUser());
+
+    // Il TESTO non si compone qui: il formatter canonico vive nel frontend, e
+    // duplicarlo sarebbe la terza copia della stessa frase (`07` §12).
+    expect(dto.sourceSalesOrderNumber).toBe('OC-0012');
+    expect(dto.sourceSalesOrderPlacedAt).toBe('2026-07-29T00:00:00.000Z');
   });
 });

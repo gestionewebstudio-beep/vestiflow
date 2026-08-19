@@ -1,12 +1,13 @@
-// Read-model frontend delle Vendite online e del registro Corrispettivi
-// (fase 2 §2-§4, fase 3 §4-§5). Le vendite sono snapshot generati dal sistema
-// alla piena evasione dell'ordine: nessuna schermata le crea o le modifica.
+// Read-model frontend delle Vendite online (fase 2 §2-§4, fase 3 §4): snapshot
+// generati dal sistema alla piena evasione dell'ordine, che nessuna schermata
+// crea o modifica.
+//
+// Il registro Corrispettivi NON sta qui: è una vista derivata che aggrega
+// vendite e documenti per periodo (`features/reports`), e le sue voci proprie
+// sono state ritirate il 17/08/2026.
 
 import type { CurrencyCode, EntityId, IsoDateString } from '@core/models/common.model';
-import type {
-  CorrispettivoEntryStatus,
-  OnlineSaleInventoryStatus,
-} from '@core/models/sales-order.model';
+import type { OnlineSaleInventoryStatus } from '@core/models/sales-order.model';
 
 /** Riga lista Vendite online (fase 3 §4). */
 export interface OnlineSaleRow {
@@ -23,8 +24,6 @@ export interface OnlineSaleRow {
   readonly totalMinor: number;
   readonly paymentStatus: string;
   readonly inventoryStatus: OnlineSaleInventoryStatus;
-  readonly corrispettivoReference: string | null;
-  readonly corrispettivoStatus: CorrispettivoEntryStatus | null;
   readonly refundedAt: IsoDateString | null;
   readonly locationName: string | null;
   readonly ddtReference: string | null;
@@ -67,68 +66,12 @@ export interface OnlineSaleDetail extends OnlineSaleRow {
   readonly taxMinor: number;
   readonly lines: readonly OnlineSaleLineRow[];
   readonly movements: readonly OnlineSaleMovementRow[];
-  readonly corrispettivo: {
-    readonly id: EntityId;
-    readonly reference: string;
-    readonly fiscalDate: IsoDateString;
-    readonly status: CorrispettivoEntryStatus;
-  } | null;
   readonly linkedDocuments: readonly {
     readonly id: EntityId;
     readonly type: string;
     readonly reference: string | null;
     readonly status: string;
   }[];
-}
-
-/** Voce registro Corrispettivi (fase 3 §5). */
-export interface CorrispettivoEntryRow {
-  readonly id: EntityId;
-  readonly reference: string;
-  readonly channel: string;
-  readonly channelLabel: string;
-  /** Origine online (canali Shopify); null per le voci di cassa. */
-  readonly onlineSaleId: EntityId | null;
-  readonly onlineSaleReference: string | null;
-  readonly salesOrderId: EntityId | null;
-  readonly orderNumber: string | null;
-  /** Origine cassa (vendita/reso negozio, canale `store`); null per l'online. */
-  readonly documentId: EntityId | null;
-  readonly documentReference: string | null;
-  readonly operationalDate: IsoDateString;
-  readonly fiscalDate: IsoDateString;
-  readonly subtotalMinor: number;
-  readonly taxMinor: number;
-  readonly totalMinor: number;
-  readonly discountMinor: number;
-  readonly shippingMinor: number;
-  readonly status: CorrispettivoEntryStatus;
-  readonly invoiceIssued: boolean;
-  readonly excludedFromSummary: boolean;
-  readonly exclusionReason: string | null;
-  readonly adjustmentNote: string | null;
-  readonly refundedAt: IsoDateString | null;
-}
-
-/** Riga analitica della voce corrispettivo (fase 3 §5). */
-export interface CorrispettivoEntryLineRow {
-  readonly id: EntityId;
-  readonly lineNumber: number;
-  readonly isShipping: boolean;
-  readonly description: string;
-  readonly quantity: number;
-  readonly discountMinor: number;
-  readonly subtotalMinor: number;
-  /** Aliquota % derivata dallo snapshot IVA congelato sulla riga (solo display). */
-  readonly vatRatePercent: number | null;
-  readonly taxMinor: number;
-  readonly totalMinor: number;
-  readonly vatCodeId: EntityId | null;
-  readonly vatCodeLabel: string | null;
-}
-
-export interface CorrispettivoEntryDetail extends CorrispettivoEntryRow {
-  readonly lines: readonly CorrispettivoEntryLineRow[];
 }
 
 /** Filtri lista Vendite online. */
@@ -139,29 +82,4 @@ export interface OnlineSaleListQuery {
   readonly channel?: string;
   readonly fulfilledFrom?: string;
   readonly fulfilledTo?: string;
-}
-
-/** Filtri registro Corrispettivi (fase 3 §5). */
-export interface CorrispettivoEntryListQuery {
-  readonly page?: number;
-  readonly pageSize?: number;
-  /** Ricerca su numero voce, numero ordine, numero Vendita online. */
-  readonly search?: string;
-  readonly channel?: string;
-  readonly status?: CorrispettivoEntryStatus;
-  readonly fiscalFrom?: string;
-  readonly fiscalTo?: string;
-  readonly invoiceIssued?: boolean;
-  readonly excludedFromSummary?: boolean;
-  readonly vatRatePercent?: number;
-}
-
-/** Aggiornamento voce corrispettivo (solo utenti autorizzati). */
-export interface CorrispettivoEntryUpdate {
-  readonly status?: CorrispettivoEntryStatus;
-  readonly fiscalDate?: string;
-  readonly invoiceIssued?: boolean;
-  readonly excludedFromSummary?: boolean;
-  readonly exclusionReason?: string | null;
-  readonly adjustmentNote?: string | null;
 }

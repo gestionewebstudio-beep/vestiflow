@@ -1,5 +1,16 @@
 <!-- doc-form--m-ref: vista mobile di riferimento (styles/_document-form-mobile.scss). -->
 <section class="doc-form doc-form--m-ref">
+  @if (prefillError.message(); as prefillFailed) {
+    <!-- Il precompilato non è arrivato. Senza questo avviso resterebbe una
+         maschera vuota, indistinguibile da un documento nuovo legittimo: chi
+         salvasse creerebbe la cosa sbagliata credendo di aver fatto l'altra. -->
+    <app-inline-banner
+      tone="error"
+      [message]="prefillFailed"
+      dismissLabel="Ho capito"
+      (dismissed)="prefillError.dismiss()"
+    />
+  }
   <!-- Riga del titolo come nell'Ordine cliente: back in linea, titolo, meta. -->
   <div class="doc-form__head-row">
     <app-back-button />
@@ -7,7 +18,7 @@
 
     @if (loadedReference(); as reference) {
       <div class="doc-form__meta">
-        <p class="doc-form__internal-ref tabular-nums">N. interno: {{ reference }}</p>
+        <p class="doc-form__internal-ref tabular-nums">N. documento: {{ reference }}</p>
       </div>
     }
   </div>
@@ -37,8 +48,22 @@
         </p>
       }
 
+      <!-- Stampa: la riga di elenco di una registrazione attiva apre SEMPRE
+           questa maschera, mai il dettaglio. Senza i comandi qui, l'unica
+           stampa comoda restava il menu «···» della lista. -->
+      @if (canExportPdf()) {
+        <div class="doc-form__post-actions" aria-label="Azioni documento salvato">
+          <app-document-print-actions
+            [documentId]="editDocumentId()!"
+            [reference]="loadedReference()"
+            [documentDate]="loadedDocumentDate()"
+            (failed)="onPrintFailed($event)"
+          />
+        </div>
+      }
+
       <!-- Testata a celle unite, due blocchi (categoria B): il numero contabile
-           è quello del fornitore, il protocollo è nostro — separarli evita di
+           è quello del fornitore, il numero è nostro — separarli evita di
            confonderli. -->
       <div class="doc-form__header">
         <!-- Vista mobile (m-ref): testata a due pannelli apribili, come la
@@ -54,8 +79,6 @@
             [statusReady]="supplierPanelReady()"
             [initiallyOpen]="true"
           >
-            <p class="doc-panel__section">Documento fornitore</p>
-
             <div class="doc-panel__fields">
               <div class="doc-panel__field">
                 <span class="doc-panel__label" id="pi-m-supplier-label">Fornitore</span>
@@ -73,33 +96,30 @@
                   (valueChange)="onSupplierSelect($event)"
                 />
                 @if (fieldInvalid('supplierId')) {
-                  <p id="pi-m-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
+                  <p id="pi-m-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
                 }
               </div>
-
-              <div class="doc-panel__fields doc-panel__fields--two">
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="pi-m-doc-date">Data fattura</label>
-                  <app-date-input
-                    inputId="pi-m-doc-date"
-                    formControlName="documentDate"
-                    ariaLabel="Data della fattura del fornitore"
-                    [fullWidth]="true"
-                  />
-                </div>
-
-                <div class="doc-panel__field">
-                  <label class="doc-panel__label" for="pi-m-ext-num">N. fattura</label>
-                  <input
-                    id="pi-m-ext-num"
-                    class="doc-panel__control"
-                    type="text"
-                    formControlName="externalDocNumber"
-                    placeholder="Es. 58/2026"
-                  />
-                </div>
-              </div>
             </div>
+
+            <!-- Stesse tre celle della testata desktop, in colonna. Titolo di
+                 sezione e contenitore dei campi li disegna il componente
+                 condiviso: la maschera passa solo le proprie parole
+                 («Documento fornitore»). L'`idPrefix` cambia perché le due
+                 viste convivono nel DOM e gli id devono restare univoci. -->
+            <app-document-counterparty-ref
+              idPrefix="pi-m"
+              layout="stack"
+              sectionTitle="Documento fornitore"
+              [docNumber]="form.controls.externalDocNumber.value"
+              [docDate]="form.controls.documentDate.value"
+              [showType]="false"
+              [showType]="false"
+              numberLabel="N. fattura"
+              dateLabel="Data fattura"
+              numberPlaceholder="Es. 58/2026"
+              (docNumberChange)="onCounterpartyNumberChange($event)"
+              (docDateChange)="onCounterpartyDateChange($event)"
+            />
           </app-document-mobile-panel>
 
           <!-- I dati interni hanno già default validi: chiuso, si apre per cambiarli. -->
@@ -124,15 +144,15 @@
               </div>
 
               <app-document-number-field
-                numberLabel="Protocollo"
-                numberInputId="pi-m-protocol"
+                numberInputId="pi-m-number"
                 hint="Numero interno di catalogazione, non quello del fornitore."
-                [number]="form.controls.protocolNumber.value"
+                [number]="form.controls.documentNumber.value"
+                [isProposal]="documentNumberIsProposal()"
                 [series]="form.controls.series.value"
-                [seriesOptions]="seriesOptions()"
-                [canManageSeries]="true"
-                (numberChange)="onProtocolNumberChange($event)"
-                (seriesChange)="onSeriesChange($event)"
+                [seriesOptions]="numbering.seriesOptions()"
+                [canManageSeries]="puoConfigurareDocumenti()"
+                (numberChange)="numbering.onNumberChange($event)"
+                (seriesChange)="numbering.onSeriesChange($event)"
                 (manageSeries)="seriesDialogOpen.set(true)"
               />
 
@@ -149,15 +169,16 @@
             </div>
 
             <p class="doc-panel__helper">
-              Protocollo e serie si propongono da soli, restano modificabili.
+              Numero e serie si propongono da soli, restano modificabili.
             </p>
           </app-document-mobile-panel>
         </div>
 
-        <!-- Testata a due fasce (riferimento OC): la prima porta il documento
-             del fornitore, la seconda (fondo soft) la registrazione VestiFlow.
-             Le vecchie etichette di blocco non servono più: la separazione la
-             danno le fasce stesse. -->
+        <!-- Testata a due fasce (riferimento OC): la prima porta la
+             registrazione VestiFlow (fornitore, data, numero, commento), la
+             seconda (fondo soft) il documento del fornitore. Le vecchie
+             etichette di blocco non servono più: la separazione la danno le
+             fasce stesse. -->
         <div
           class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row"
         >
@@ -178,36 +199,10 @@
               (valueChange)="onSupplierSelect($event)"
             />
             @if (fieldInvalid('supplierId')) {
-              <p id="pi-supplier-error" class="doc-form__error">Seleziona un fornitore.</p>
+              <p id="pi-supplier-error" class="doc-form__error">Campo obbligatorio.</p>
             }
           </div>
 
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="pi-doc-date">Data fattura</label>
-            <app-date-input
-              inputId="pi-doc-date"
-              formControlName="documentDate"
-              ariaLabel="Data della fattura del fornitore"
-              [compact]="true"
-              [fullWidth]="true"
-            />
-          </div>
-
-          <div class="doc-form__field">
-            <label class="doc-form__label" for="pi-ext-num">N. fattura</label>
-            <input
-              id="pi-ext-num"
-              class="doc-form__input"
-              type="text"
-              formControlName="externalDocNumber"
-              placeholder="Es. 58/2026"
-            />
-          </div>
-        </div>
-
-        <div
-          class="doc-form__grid doc-form__grid--header doc-form__grid--header-compact doc-form__header-row doc-form__header-row--secondary"
-        >
           <div class="doc-form__field">
             <label class="doc-form__label" for="pi-reg-date">Data registrazione</label>
             <app-date-input
@@ -220,15 +215,15 @@
           </div>
 
           <app-document-number-field
-            numberLabel="Protocollo"
-            numberInputId="pi-protocol"
+            numberInputId="pi-number"
             hint="Numero interno di catalogazione, non quello del fornitore."
-            [number]="form.controls.protocolNumber.value"
+            [number]="form.controls.documentNumber.value"
+            [isProposal]="documentNumberIsProposal()"
             [series]="form.controls.series.value"
-            [seriesOptions]="seriesOptions()"
-            [canManageSeries]="true"
-            (numberChange)="onProtocolNumberChange($event)"
-            (seriesChange)="onSeriesChange($event)"
+            [seriesOptions]="numbering.seriesOptions()"
+            [canManageSeries]="puoConfigurareDocumenti()"
+            (numberChange)="numbering.onNumberChange($event)"
+            (seriesChange)="numbering.onSeriesChange($event)"
             (manageSeries)="seriesDialogOpen.set(true)"
           />
 
@@ -243,6 +238,24 @@
             />
           </div>
         </div>
+
+        <!-- Documento della controparte: la fascia secondaria in fondo alla
+             testata la disegna il componente condiviso, non la maschera — è la
+             stessa in tutte e sette. Le parole restano quelle che l'operatore
+             legge da sempre — «N. fattura» e «Data fattura» — e la data e'
+             `documentDate`: qui la data del documento del fornitore E' la data
+             del documento. -->
+        <app-document-counterparty-ref
+          idPrefix="pi"
+          [docNumber]="form.controls.externalDocNumber.value"
+          [docDate]="form.controls.documentDate.value"
+          [showType]="false"
+          numberLabel="N. fattura"
+          dateLabel="Data fattura"
+          numberPlaceholder="Es. 58/2026"
+          (docNumberChange)="onCounterpartyNumberChange($event)"
+          (docDateChange)="onCounterpartyDateChange($event)"
+        />
       </div>
 
       <!-- ── Arrivi merce inclusi ─────────────────────────────────────────── -->
@@ -626,7 +639,7 @@
               <dd class="tabular-nums">{{ formatMoney(totalVat()) }}</dd>
             </div>
             <div class="doc-form__totals-row doc-form__totals-row--total">
-              <dt>Totale registrazione</dt>
+              <dt>Totale documento</dt>
               <dd class="tabular-nums">
                 <strong>{{ formatMoney(totalGross()) }}</strong>
               </dd>
@@ -657,7 +670,7 @@
           Chiudi
         </app-button>
         <app-button type="submit" [loading]="saving()" [disabled]="saving()">
-          Salva registrazione
+          Salva documento
         </app-button>
       </div>
 
@@ -665,10 +678,10 @@
            documento, scorre col contenuto. Su desktop resta la barra sopra. -->
       <div class="doc-form__mobile-actions">
         <app-button type="button" variant="secondary" [disabled]="saving()" (click)="cancel()">
-          Chiudi
+          Annulla
         </app-button>
         <app-button type="submit" [loading]="saving()" [disabled]="saving()">
-          Salva registrazione
+          Salva documento
         </app-button>
       </div>
     </form>
@@ -746,12 +759,12 @@
   }
 </app-slide-panel>
 
-<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. Il numero
-     è già stato aggiornato al primo libero; il salvataggio resta una
-     pressione esplicita di Salva. -->
+<!-- Numero già assegnato: avviso di presa d'atto, non una scelta. La testata
+     resta com'era e il documento non è salvato; il messaggio nomina il numero
+     rifiutato e il primo libero, la correzione è dell'operatore. -->
 <app-confirm-dialog
   [(open)]="conflictDialogOpen"
-  title="Protocollo già usato"
+  title="Numero già usato"
   [message]="conflictMessage()"
   confirmLabel="OK"
   [acknowledge]="true"
@@ -807,3 +820,17 @@
     </div>
   </div>
 }
+
+<!-- Avviso cronologico (§4): la serie contiene documenti fuori posto. Non
+     blocca — «Sì, salva comunque» prosegue col salvataggio. -->
+<app-document-chronology-warning-dialog
+  [open]="chronology.warning.isOpen()"
+  [conflicts]="chronology.warning.conflicts()"
+  [assigningNumber]="form.controls.documentNumber.value"
+  [assigningDate]="form.controls.documentDate.value"
+  [dontShowAgain]="chronology.warning.dontShowAgain()"
+  [busy]="saving()"
+  (dontShowAgainChange)="chronology.warning.toggleDontShowAgain($event)"
+  (confirmed)="chronology.confirm()"
+  (cancelled)="chronology.cancel()"
+/>

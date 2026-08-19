@@ -16,14 +16,45 @@
         {{ pageSubtitle() }}
       </p>
     </div>
-    @if (canManageDocuments()) {
+    @if (showCreateActions()) {
       <div class="doc-list__actions">
         @if (salesRegister()) {
           <!--
-            Elenchi condivisi (Fatture): l'etichetta segue il filtro «Tipo».
+            Elenchi condivisi da più tipi (Fatture): UN SOLO comando «Nuovo»,
+            con una voce per tipo, sempre le stesse. Il filtro «Tipo» qui non
+            entra: decide cosa si guarda, non cosa si crea.
+            Elenchi a tipo singolo: il bottone diretto, che non ha da scegliere.
             Vendita/Reso negozio: nessun bottone — si registrano dalla cassa.
           -->
-          @if (showCreateAction()) {
+          @if (createVariantButtons().length > 0) {
+            <!--
+              Due tipi, due pulsanti diretti: `11` A2 esclude il menu, e con
+              due sole voci i pulsanti dicono da soli cosa si puo' creare —
+              il menu costerebbe un clic per scoprirlo.
+              Le etichette restano per esteso: il «Nuovo» corto del Registro
+              Corrispettivi funziona perche' li' il comando e' UNO SOLO.
+            -->
+            @for (variante of createVariantButtons(); track variante.type) {
+              <app-button
+                [variant]="$first ? 'primary' : 'secondary'"
+                (click)="onCreateVariant(variante.type)"
+              >
+                <i class="pi pi-plus" aria-hidden="true"></i>
+                {{ variante.label }}
+              </app-button>
+            }
+          } @else if (createVariantOptions().length > 0) {
+            <app-select-menu
+              class="doc-list__create-menu"
+              [options]="createVariantOptions()"
+              value=""
+              ariaLabel="Nuovo documento"
+              placeholder="Nuovo"
+              triggerIcon="pi-plus"
+              [includeEmptyOption]="false"
+              (valueChange)="onCreateVariant($event)"
+            />
+          } @else {
             <app-button (click)="openNewSalesDocument()">
               <i class="pi pi-plus" aria-hidden="true"></i>
               {{ salesCreateLabel() }}
@@ -35,31 +66,33 @@
             Nuovo arrivo merce
           </app-button>
         } @else {
-          <app-button (click)="openNewGoodsReceipt()">
-            <i class="pi pi-plus" aria-hidden="true"></i>
-            Nuovo arrivo merce
-          </app-button>
-          <app-select-menu
-            class="doc-list__create-menu"
-            [options]="secondaryCreateOptions"
-            value=""
-            ariaLabel="Crea altro tipo di documento"
-            placeholder="Altro documento"
-            triggerIcon="pi-file"
-            [compact]="true"
-            [includeEmptyOption]="false"
-            (valueChange)="onCreateDocumentType($event)"
-          />
+          <!-- Chi non gestisce i carichi non vede l'invito a registrarne uno:
+               resta il solo menu con i tipi che può creare. -->
+          @if (canManageGoodsReceipts()) {
+            <app-button (click)="openNewGoodsReceipt()">
+              <i class="pi pi-plus" aria-hidden="true"></i>
+              Nuovo arrivo merce
+            </app-button>
+          }
+          <!-- Se nessuno dei nove tipi è gestibile, sparisce anche la tendina. -->
+          @if (secondaryCreateOptions().length > 0) {
+            <app-select-menu
+              class="doc-list__create-menu"
+              [options]="secondaryCreateOptions()"
+              value=""
+              ariaLabel="Crea altro tipo di documento"
+              placeholder="Altro documento"
+              triggerIcon="pi-file"
+              [compact]="true"
+              [includeEmptyOption]="false"
+              (valueChange)="onCreateDocumentType($event)"
+            />
+          }
         }
       </div>
     }
   </header>
 
-  @if (isAccountantView() && !isSalesRegisterList()) {
-    <p class="doc-list__banner" role="status">
-      Vista registro commercialista: tipi documento rilevanti per contabilità e fatturazione.
-    </p>
-  }
   @if (isPendingInvoiceView()) {
     <p class="doc-list__banner doc-list__banner--highlight" role="status">
       DDT vendita confermati senza bozza fattura collegata.
@@ -437,7 +470,21 @@
       [icon]="emptyStateIcon()"
       [ctaLabel]="emptyStateCtaLabel()"
       (ctaClick)="onEmptyStateCta()"
-    />
+    >
+      <!-- Stesso comando della testata, non una seconda decisione: dove i tipi
+           creabili sono più d'uno, anche qui si sceglie. -->
+      @if (createVariantOptions().length > 0 && canManageDocuments()) {
+        <app-select-menu
+          [options]="createVariantOptions()"
+          value=""
+          ariaLabel="Nuovo documento"
+          placeholder="Nuovo"
+          triggerIcon="pi-plus"
+          [includeEmptyOption]="false"
+          (valueChange)="onCreateVariant($event)"
+        />
+      }
+    </app-empty-state>
   } @else {
     @if (actionError(); as err) {
       <app-error-state [description]="err.message" />
@@ -479,6 +526,7 @@
       [documents]="documents()"
       [columns]="tableColumns()"
       [canManage]="canManageDocuments()"
+      [manageableTypes]="manageableTypes()"
       [selectable]="supportsSelection()"
       [selectedIds]="selectedIds()"
       (rowClick)="openDocument($event)"

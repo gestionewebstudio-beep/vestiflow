@@ -3,8 +3,11 @@ import { Routes } from '@angular/router';
 import { shopifyOrdersGuard } from '@core/guards/retail-sales.guard';
 import { tenantPermissionGuard } from '@core/guards/tenant-permission.guard';
 import { unsavedChangesGuard } from '@core/guards/unsaved-changes.guard';
-import { TenantPermission } from '@core/models/tenant-permission.model';
-import { REQUIRED_TENANT_PERMISSIONS_KEY } from '@core/permissions/tenant-permissions.util';
+import {
+  REQUIRED_TENANT_PERMISSION_GROUPS_KEY,
+  SALES_ORDERS_MANAGE_GROUPS,
+  SALES_ORDERS_VIEW_GROUPS,
+} from '@core/permissions/tenant-permissions.util';
 
 // Le sorelle /app/sales/online, /app/sales/corrispettivi e /app/sales/register
 // appartengono alle feature online-sales e store-sales: le monta il composition
@@ -17,7 +20,7 @@ export const salesOrdersRoutes: Routes = [
       import('./sales-order-list.component').then((m) => m.SalesOrderListComponent),
     canActivate: [tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SALES_ORDERS_VIEW_GROUPS,
       salesListProfile: 'customer-orders',
       reuse: true,
     },
@@ -29,7 +32,7 @@ export const salesOrdersRoutes: Routes = [
       import('./sales-order-list.component').then((m) => m.SalesOrderListComponent),
     canActivate: [shopifyOrdersGuard, tenantPermissionGuard],
     data: {
-      [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView,
+      [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SALES_ORDERS_VIEW_GROUPS,
       salesListProfile: 'shopify-orders',
       reuse: true,
     },
@@ -41,7 +44,7 @@ export const salesOrdersRoutes: Routes = [
       import('./customer-order-form.component').then((m) => m.CustomerOrderFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.DocumentsManage },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SALES_ORDERS_MANAGE_GROUPS },
   },
   {
     path: ':id/edit',
@@ -53,7 +56,7 @@ export const salesOrdersRoutes: Routes = [
     // Vista consentita a chi consulta i report; la modifica è gated nel form
     // (sblocco solo per chi gestisce i documenti). Sostituisce la vecchia
     // schermata Dettaglio: ogni ordine si apre nel form (bloccato).
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SALES_ORDERS_VIEW_GROUPS },
   },
   {
     path: ':id',
@@ -62,6 +65,6 @@ export const salesOrdersRoutes: Routes = [
       import('./customer-order-form.component').then((m) => m.CustomerOrderFormComponent),
     canActivate: [tenantPermissionGuard],
     canDeactivate: [unsavedChangesGuard],
-    data: { [REQUIRED_TENANT_PERMISSIONS_KEY]: TenantPermission.ReportsView },
+    data: { [REQUIRED_TENANT_PERMISSION_GROUPS_KEY]: SALES_ORDERS_VIEW_GROUPS },
   },
 ];

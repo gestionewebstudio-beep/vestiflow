@@ -246,6 +246,20 @@
     text-decoration: underline;
   }
 
+  @include list-page-mobile-filters($block);
+}
+
+/// Filtri raccolti dietro un solo pulsante sotto `lg`.
+///
+/// ⚠️ **Estratto da `list-page` il 18/08/2026** perché serve a pagine che NON
+/// sono registri documento e quindi non vogliono l'intero layout di `list-page`
+/// (header, toolbar, ricerca, campi): il Registro Corrispettivi ha un layout
+/// suo e gli serviva solo questo pezzo. `list-page` continua a includerlo, per
+/// cui le quattro pagine che lo usavano non cambiano di un pixel.
+///
+/// Il chiamante fornisce: un pulsante `__mobile-filters` (con `__filter-badge`
+/// per il conteggio) e un `app-slide-panel` che ospita `__panel-filters`.
+@mixin list-page-mobile-filters($block) {
   // Pulsante «Filtri (n)»: solo mobile, apre il pannello.
   .#{$block}__mobile-filters {
     display: none;

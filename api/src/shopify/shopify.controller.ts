@@ -6,11 +6,13 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   CATALOG_SECTION_PERMISSIONS,
   SHOPIFY_CATALOG_SYNC_PERMISSIONS,
+  SHOPIFY_CUSTOMERS_SYNC_GROUPS,
   SHOPIFY_INVENTORY_SYNC_PERMISSIONS,
-  SHOPIFY_OPERATIONAL_SYNC_PERMISSIONS,
+  SHOPIFY_ORDERS_SYNC_GROUPS,
   TenantPermission,
 } from '../auth/tenant-permission.constants';
 import {
+  RequireAllPermissionGroups,
   RequireAnyPermissions,
   RequirePermissions,
 } from '../common/auth/tenant-permissions.decorator';
@@ -27,6 +29,9 @@ import { ShopifyConfigService } from './shopify-config.service';
 import type { ClearShopifyErrorsResult } from './shopify-connection.service';
 import { ShopifyConnectionService } from './shopify-connection.service';
 import { ShopifyOAuthService } from './shopify-oauth.service';
+import { ShopifyWebhookRepairService } from './shopify-webhook-repair.service';
+import type { ShopifyWebhookStatusResult } from './shopify-webhook-status.service';
+import { ShopifyWebhookStatusService } from './shopify-webhook-status.service';
 import { ShopifyInventoryPullService } from './shopify-inventory-pull.service';
 import type { ShopifyInventoryPullResult } from './shopify-inventory-pull.service';
 import { ShopifyCustomersPullService } from './shopify-customers-pull.service';
@@ -60,6 +65,8 @@ export class ShopifyController {
     private readonly shopifyOrdersPull: ShopifyOrdersPullService,
     private readonly shopifyTaxonomy: ShopifyTaxonomyService,
     private readonly shopifyShopChange: ShopifyShopChangeService,
+    private readonly shopifyWebhookStatus: ShopifyWebhookStatusService,
+    private readonly shopifyWebhookRepair: ShopifyWebhookRepairService,
     private readonly locationLicensing: LocationLicensingService,
   ) {}
 
@@ -144,6 +151,38 @@ export class ShopifyController {
     return { disabled: true as const, ...result };
   }
 
+  /**
+   * «Verifica ora»: chiede a Shopify quali sottoscrizioni esistono e lo registra.
+   *
+   * E' un POST e non un GET perche' lascia una traccia — la data dell'osservazione — e una
+   * scrittura non deve stare dietro un verbo che qualsiasi cosa puo' ripetere da sola.
+   * Verso Shopify pero' e' sola lettura, e a garantirlo non e' questa nota: il servizio che
+   * la esegue non ha fra le mani niente che sappia registrare o cancellare.
+   */
+  @Post('webhooks/check')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
+  checkWebhooks(@CurrentTenant() tenantId: string): Promise<ShopifyWebhookStatusResult> {
+    return this.shopifyWebhookStatus.check(tenantId);
+  }
+
+  /**
+   * Registra le notifiche mancanti e restituisce il referto della **rilettura**, non
+   * l'esito della scrittura: la registrazione dice cosa crede di aver fatto, la verifica
+   * dice cosa c'e', e quando divergono ha ragione la seconda.
+   *
+   * Usa la strada additiva — salta i presenti, aggiunge i mancanti, non cancella niente — e
+   * non passa mai dall'interruttore, che spegnerebbe tutto per poi riaccendere.
+   */
+  @Post('webhooks/register-missing')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.owner)
+  registerMissingWebhooks(
+    @CurrentTenant() tenantId: string,
+  ): Promise<ShopifyWebhookStatusResult> {
+    return this.shopifyWebhookRepair.registerMissingAndRecheck(tenantId);
+  }
+
   @Post('sync/products')
   @RequireAnyPermissions(SHOPIFY_CATALOG_SYNC_PERMISSIONS)
   async syncProducts(
@@ -162,8 +201,13 @@ export class ShopifyController {
     return { synced: true, ...result };
   }
 
+  /**
+   * Non è un export: scrive nell'anagrafica clienti. Con il solo «Esportare
+   * dati» chi poteva scaricare un CSV riscriveva i clienti dal canale — nomi,
+   * recapiti e indirizzi — senza avere «Gestire clienti».
+   */
   @Post('sync/customers')
-  @RequireAnyPermissions(SHOPIFY_OPERATIONAL_SYNC_PERMISSIONS)
+  @RequireAllPermissionGroups(SHOPIFY_CUSTOMERS_SYNC_GROUPS)
   async syncCustomers(
     @CurrentTenant() tenantId: string,
   ): Promise<{ synced: true } & ShopifyCustomersPullResult> {
@@ -171,8 +215,14 @@ export class ShopifyController {
     return { synced: true, ...result };
   }
 
+  /**
+   * Nemmeno questo è un export: importa gli ordini del canale e libera gli
+   * impegni di magazzino di quelli spariti da Shopify. Con il solo «Esportare
+   * dati» quelle vendite entravano nel gestionale per mano di chi non ha il
+   * permesso di consultarle.
+   */
   @Post('sync/orders')
-  @RequireAnyPermissions(SHOPIFY_OPERATIONAL_SYNC_PERMISSIONS)
+  @RequireAllPermissionGroups(SHOPIFY_ORDERS_SYNC_GROUPS)
   async syncOrders(
     @CurrentTenant() tenantId: string,
   ): Promise<{ synced: true } & ShopifyOrdersPullResult> {

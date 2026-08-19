@@ -16,11 +16,10 @@ describe('user-permissions.util (FE)', () => {
     expect(perms).toContain(TenantPermission.InventoryManage);
   });
 
-  it('resolveEffectivePermissions usa preset ruolo se array vuoto', () => {
+  it('resolveEffectivePermissions: array vuoto = nessun permesso (specchio della regola API)', () => {
     const perms = resolveEffectivePermissions({ role: UserRole.Clerk, permissions: [] });
 
-    expect(perms).not.toContain(TenantPermission.InventoryViewAllLocations);
-    expect(perms).toContain(TenantPermission.RetailRegister);
+    expect(perms).toEqual([]);
   });
 
   it('hasTenantPermission rispetta permessi salvati filtrati', () => {
@@ -28,7 +27,7 @@ describe('user-permissions.util (FE)', () => {
       hasTenantPermission(
         {
           role: UserRole.Clerk,
-          permissions: ['settings.integrations', TenantPermission.ReportsView],
+          permissions: ['settings.integrations', TenantPermission.SectionReports],
         },
         TenantPermission.InventoryManage,
       ),
@@ -37,9 +36,9 @@ describe('user-permissions.util (FE)', () => {
       hasTenantPermission(
         {
           role: UserRole.Clerk,
-          permissions: ['settings.integrations', TenantPermission.ReportsView],
+          permissions: ['settings.integrations', TenantPermission.SectionReports],
         },
-        TenantPermission.ReportsView,
+        TenantPermission.SectionReports,
       ),
     ).toBe(true);
   });

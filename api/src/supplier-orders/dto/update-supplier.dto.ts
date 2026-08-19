@@ -1,6 +1,15 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
-export class UpdateSupplierDto {  @IsOptional()
+export class UpdateSupplierDto {
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(50)
