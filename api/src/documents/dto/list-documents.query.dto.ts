@@ -86,6 +86,19 @@ export class ListDocumentsQueryDto extends PaginationQueryDto {
   @IsUUID()
   externalDocumentTypeId?: string;
 
+  /**
+   * Ordinamento dell'elenco: `campo:asc` separati da virgola, più chiavi in
+   * ordine di priorità — es. `documentDate:desc,total:asc`.
+   *
+   * ⚠️ Qui la validazione è solo di FORMA: quali campi siano ordinabili lo sa
+   * `parseDocumentListSort`, che è anche il posto dove si traducono in
+   * `orderBy`. Duplicare la whitelist in un decoratore darebbe due elenchi da
+   * tenere allineati, e il 400 lo direbbe con parole diverse.
+   */
+  @IsOptional()
+  @IsString()
+  sort?: string;
+
   /** DDT vendita confermati senza bozza fattura derivata. */
   @IsOptional()
   @Transform(({ value }) => value === '1' || value === 'true' || value === true)

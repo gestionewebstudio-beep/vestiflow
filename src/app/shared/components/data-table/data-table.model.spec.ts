@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { ariaSortOf, nextSort, sortDirectionOf, sortRankOf } from './data-table.model';
+import {
+  ariaSortOf,
+  nextSort,
+  parseDataTableSort,
+  serializeDataTableSort,
+  sortDirectionOf,
+  sortRankOf,
+} from './data-table.model';
 import type { DataTableSort } from './data-table.model';
 
 const DATA_ASC: DataTableSort = { columnId: 'data', direction: 'asc' };
@@ -87,5 +94,37 @@ describe('sortRankOf e sortDirectionOf', () => {
   it('il verso è noto anche per le chiavi secondarie', () => {
     expect(sortDirectionOf([SKU_ASC, DATA_DESC], 'data')).toBe('desc');
     expect(sortDirectionOf([SKU_ASC], 'data')).toBeNull();
+  });
+});
+
+describe('serializzazione dell’ordinamento', () => {
+  it('⭐ va e torna: è lo stesso descrittore, scritto su una riga', () => {
+    const chiavi: readonly DataTableSort[] = [
+      { columnId: 'documentDate', direction: 'desc' },
+      { columnId: 'total', direction: 'asc' },
+    ];
+
+    const testo = serializeDataTableSort(chiavi);
+
+    expect(testo).toBe('documentDate:desc,total:asc');
+    expect(parseDataTableSort(testo)).toEqual(chiavi);
+  });
+
+  it('l’ordine delle chiavi è la loro priorità, e il giro non lo cambia', () => {
+    const testo = 'total:asc,documentDate:desc';
+
+    expect(parseDataTableSort(testo).map((sort) => sort.columnId)).toEqual([
+      'total',
+      'documentDate',
+    ]);
+  });
+
+  it('⚠️ dall’URL può arrivare qualunque cosa: si scarta il malformato, non si esplode', () => {
+    expect(parseDataTableSort('documentDate:sideways,total:asc')).toEqual([
+      { columnId: 'total', direction: 'asc' },
+    ]);
+    expect(parseDataTableSort('documentDate')).toEqual([]);
+    expect(parseDataTableSort('')).toEqual([]);
+    expect(parseDataTableSort(null)).toEqual([]);
   });
 });

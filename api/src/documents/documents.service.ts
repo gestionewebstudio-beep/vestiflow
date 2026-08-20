@@ -59,10 +59,7 @@ import { lineVatFromNetExact } from '../vat/vat-line-calculation.util';
 import { buildVatCodeSnapshot, vatSnapshotRatePercent } from '../vat/vat-snapshot.util';
 
 import { persistDocumentLinesByIdTx } from './document-line-upsert.util';
-import {
-  preservedLineVat,
-  type PersistedLineVat,
-} from './document-line-vat-snapshot.util';
+import { preservedLineVat, type PersistedLineVat } from './document-line-vat-snapshot.util';
 import { ExternalDocumentTypesService } from './external-document-types.service';
 import { receiptVatBreakdown, type VatBreakdownEntry } from './purchase-invoice-vat-summary.util';
 import { syncGoodsReceiptLineMovements } from './document-goods-receipt-sync.util';
@@ -134,6 +131,7 @@ import type { DocumentAddressDto } from './dto/document-transport.dto';
 import type { ListDocumentOperatorsQueryDto } from './dto/list-document-operators.query.dto';
 import type { ListDocumentsQueryDto } from './dto/list-documents.query.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
+import { parseDocumentListSort } from './documents-sort.util';
 
 export type DocumentWithLines = Document & { lines: DocumentLine[] };
 
@@ -474,7 +472,7 @@ export class DocumentsService {
             take: 1,
           },
         },
-        orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
+        orderBy: parseDocumentListSort(query.sort),
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
       }),

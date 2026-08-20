@@ -4,6 +4,32 @@ import {
   type TableViewPresetMap,
 } from '@shared/table-columns/table-column.model';
 
+/**
+ * ⭐ **Le colonne dell'elenco documenti che il SERVER sa ordinare** (`14` §H15).
+ *
+ * L'elenco è paginato: ordinare le venti righe caricate darebbe la prima pagina
+ * rimescolata e la chiamerebbe «la più recente». L'ordinamento passa quindi
+ * dalla query, e questo insieme è lo **specchio** della whitelist di
+ * `api/src/documents/documents-sort.util.ts`.
+ *
+ * ⛔ **È una lista di ciò che SI PUÒ, non di ciò che non si può**, e la
+ * direzione conta: una colonna nuova nasce **non ordinabile** e resta tale
+ * finché qualcuno non la insegna anche al server. Marcando invece le escluse,
+ * la colonna aggiunta domani prometterebbe un ordinamento che risponde `400`.
+ *
+ * ⚠️ Restano fuori **Tipo**, **Stato** e **Controparte**: le prime due perché a
+ * schermo si leggono in italiano e nel database stanno in inglese — e la
+ * decisione già presa sui Movimenti è di ordinare per ETICHETTA (`14` §H13),
+ * che lato server non è disponibile; la terza perché non è un campo solo
+ * (`customerName` sulle vendite, `supplierName` sugli acquisti).
+ */
+export const DOCUMENT_LIST_SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
+  'documentDate',
+  'reference',
+  'lineCount',
+  'total',
+]);
+
 export const DOCUMENT_LIST_COLUMN_DEFS: readonly TableColumnDef[] = [
   { id: 'documentDate', label: 'Data', pinnable: true, defaultVisible: true, display: 'code' },
   { id: 'type', label: 'Tipo', defaultVisible: true },

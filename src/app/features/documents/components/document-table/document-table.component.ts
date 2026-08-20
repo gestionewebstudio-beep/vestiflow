@@ -27,6 +27,9 @@ import { isManualUnloadDocumentType } from '../../models/document-stock-operatio
 import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
 import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
 import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type { DataTableSort } from '@shared/components/data-table/data-table.model';
+
+import { DOCUMENT_LIST_SORTABLE_COLUMNS } from '../../models/document-table-columns.config';
 import type { DataTableSection } from '@shared/components/data-table/data-table.model';
 import { goodsReceiptExternalDocLabel } from '../../utils/document-list-export.util';
 
@@ -68,6 +71,12 @@ export interface DocumentTableSelectionEvent {
 export class DocumentTableComponent {
   readonly documents = input.required<readonly DocumentRecord[]>();
   readonly columns = input.required<readonly ResolvedTableColumn[]>();
+
+  /**
+   * Le chiavi di ordinamento correnti, in ordine di priorità. Lo **stato sta
+   * nella pagina** (`14` §H4): qui passa e basta.
+   */
+  readonly sort = input<readonly DataTableSort[]>([]);
   /** Azioni di gestione (duplica/elimina) mostrate solo con permesso DocumentsManage. */
   readonly canManage = input<boolean>(false);
   /**
@@ -82,6 +91,9 @@ export class DocumentTableComponent {
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
 
   readonly rowClick = output<DocumentRecord>();
+
+  /** Il motore propone il prossimo ordine; ad applicarlo è la pagina. */
+  readonly sortChange = output<readonly DataTableSort[]>();
   readonly action = output<DocumentTableActionEvent>();
   readonly selectionChange = output<DocumentTableSelectionEvent>();
   readonly selectAllChange = output<boolean>();
@@ -253,6 +265,20 @@ export class DocumentTableComponent {
   }
 
   // ── Il motore comune (`14` parte H) ───────────────────────────────────────
+
+  /**
+   * Le colonne per il motore, con l'ordinabilità già dichiarata.
+   *
+   * ⛔ **Marcare qui e non nelle definizioni** tiene una fonte sola: l'insieme
+   * è lo specchio della whitelist del server, e una colonna nuova nasce non
+   * ordinabile finché il server non la conosce (`14` §H15).
+   */
+  protected readonly engineColumns = computed<readonly ResolvedTableColumn[]>(() =>
+    this.columns().map((column) => ({
+      ...column,
+      sortable: DOCUMENT_LIST_SORTABLE_COLUMNS.has(column.id),
+    })),
+  );
 
   /** Lista piatta: una sezione senza intestazione né piede. */
   protected readonly sections = computed<readonly DataTableSection<DocumentRecord>[]>(() => [

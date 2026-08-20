@@ -1,3 +1,8 @@
+import {
+  parseDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
+
 import type { ParamMap } from '@angular/router';
 
 import { DocumentStatus, DocumentType, GoodsReceiptLinkStatus } from '@core/models/document.model';
@@ -44,6 +49,15 @@ export interface DocumentListQuery {
   /** Operatore che ha creato il documento. */
   readonly createdById?: string;
   readonly pendingInvoice?: boolean;
+  /**
+   * Ordinamento richiesto, **nella grammatica del motore** (`14` §H15): le
+   * chiavi in ordine di priorità.
+   *
+   * ⛔ Non `sortBy` + `sortDir`: quella coppia sa esprimere una chiave sola, e
+   * l'ordinamento è a più chiavi da quando esiste il motore. Il parametro HTTP
+   * è la **serializzazione** di questo array, non un formato suo.
+   */
+  readonly sort?: readonly DataTableSort[];
 }
 
 const TYPE_VALUES = new Set<string>(Object.values(DocumentType));
@@ -68,6 +82,9 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
   const settlement = params.get('settlement') ?? '';
   const paymentMethod = params.get('paymentMethod')?.trim() ?? '';
   const createdById = params.get('createdById') ?? '';
+  // L'ordinamento viaggia nell'URL come gli altri filtri: la pagina si condivide
+  // e il «indietro» del browser ritrova l'ordine di prima.
+  const sort = parseDataTableSort(params.get('sort'));
 
   return {
     page: Number.isInteger(page) && page > 0 ? page : 1,
@@ -91,6 +108,7 @@ export function parseDocumentListQuery(params: ParamMap): DocumentListQuery {
     paymentMethod: paymentMethod || undefined,
     createdById: isUuid(createdById) ? createdById : undefined,
     pendingInvoice: params.get('pendingInvoice') === '1',
+    sort: sort.length > 0 ? sort : undefined,
   };
 }
 

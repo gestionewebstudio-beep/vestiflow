@@ -1,3 +1,4 @@
+import { serializeDataTableSort } from '@shared/components/data-table/data-table.model';
 import { HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, type Observable, timeout } from 'rxjs';
@@ -81,6 +82,11 @@ export class DocumentService {
     if (query.paymentMethod) params = params.set('paymentMethod', query.paymentMethod);
     if (query.createdById) params = params.set('createdById', query.createdById);
     if (query.pendingInvoice) params = params.set('pendingInvoice', '1');
+    // ⛔ La serializzazione NON si scrive qui: è la funzione condivisa del
+    // motore, così il prossimo elenco paginato non inventa un secondo formato
+    // (`14` §H15). Vuoto = nessun parametro, e l'API tiene il suo ordine.
+    const sort = serializeDataTableSort(query.sort ?? []);
+    if (sort) params = params.set('sort', sort);
 
     return this.http.get<ApiPaginated<DocumentApiRow>>(this.url('/documents'), { params }).pipe(
       timeout(HTTP_TIMEOUT_MS),

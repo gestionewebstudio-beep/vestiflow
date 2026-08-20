@@ -118,3 +118,54 @@ export function sortDirectionOf(
 ): DataTableSortDirection | null {
   return current.find((sort) => sort.columnId === columnId)?.direction ?? null;
 }
+
+/**
+ * ⭐ **Il descrittore di ordinamento in forma testuale**, per chi deve mandarlo
+ * fuori dal browser: una query all'API, un parametro nell'URL.
+ *
+ * ```text
+ * [{ columnId: 'documentDate', direction: 'desc' }, { columnId: 'total', direction: 'asc' }]
+ *   ⇄  "documentDate:desc,total:asc"
+ * ```
+ *
+ * ⛔ **Non è un secondo formato di ordinamento, ed è la ragione per cui sta
+ * qui.** È lo STESSO descrittore che il motore già usa — stessi id di colonna,
+ * stesso ordine di priorità — scritto su una riga. Se ogni elenco paginato si
+ * serializzasse le sue chiavi nel proprio service, la seconda grammatica
+ * nascerebbe da sé: uno userebbe `sortBy`+`sortDir`, un altro `order=-data`, e
+ * l'API dovrebbe conoscerle tutte.
+ *
+ * ⚠️ **La whitelist non è qui.** Quali colonne un elenco sappia davvero
+ * ordinare dipende dall'elenco — e dove l'ordinamento lo fa il database, dal
+ * database. Questa coppia traduce e basta.
+ */
+export function serializeDataTableSort(sorts: readonly DataTableSort[]): string {
+  return sorts.map((sort) => `${sort.columnId}:${sort.direction}`).join(',');
+}
+
+/**
+ * L'inverso: dalla forma testuale al descrittore.
+ *
+ * ⚠️ **Scarta in silenzio ciò che non è ben formato**, e non è distrazione: la
+ * stringa arriva dall'URL, cioè da un posto che chiunque può digitare o
+ * troncare. Un ordinamento illeggibile deve dare l'elenco nel suo ordine
+ * predefinito, non una pagina di errore.
+ *
+ * ⛔ Lato server la scelta è l'opposta — `parseDocumentListSort` risponde `400`
+ * su un campo ignoto — e le due non sono in contraddizione: lì la stringa
+ * arriva da un programma, e un campo che non esiste è un difetto da far vedere
+ * subito, non da assorbire.
+ */
+export function parseDataTableSort(raw: string | null | undefined): readonly DataTableSort[] {
+  if (!raw) {
+    return [];
+  }
+  return raw
+    .split(',')
+    .map((entry) => entry.trim().split(':'))
+    .filter(
+      (parti): parti is [string, DataTableSortDirection] =>
+        parti.length === 2 && Boolean(parti[0]) && (parti[1] === 'asc' || parti[1] === 'desc'),
+    )
+    .map(([columnId, direction]) => ({ columnId, direction }));
+}

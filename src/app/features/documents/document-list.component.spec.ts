@@ -74,9 +74,14 @@ async function renderList(
   typeFilter?: string,
   /** Righe che l'API restituisce: servono ai test che hanno bisogno di dati veri. */
   documents: readonly DocumentRecord[] = [],
+  /** Ordinamento già nell'URL, come se si arrivasse da un link condiviso. */
+  sort?: string,
 ) {
   const data = { documentListProfile: profile };
-  const queryParams = typeFilter ? { type: typeFilter } : {};
+  const queryParams = {
+    ...(typeFilter ? { type: typeFilter } : {}),
+    ...(sort ? { sort } : {}),
+  };
   return render(DocumentListComponent, {
     providers: [
       provideRouter([]),
@@ -432,5 +437,71 @@ describe('DocumentListComponent — l’azione Dettaglio', () => {
     dettaglio(view).run?.({ scope: 'filtered' });
 
     expect(navigazione).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ⭐ **L'ordinamento dell'elenco documenti** (`14` §H15).
+ *
+ * L'elenco è paginato lato server: ordinare le righe caricate darebbe la prima
+ * pagina rimescolata e la chiamerebbe «la più recente». Le chiavi viaggiano
+ * quindi nell'URL e da lì nella query — nella grammatica del motore, che è
+ * l'unica.
+ */
+describe('DocumentListComponent — l’ordinamento', () => {
+  const titolare = { role: UserRole.Owner, permissions: [] };
+
+  function pagina(view: { fixture: { componentInstance: unknown } }) {
+    return view.fixture.componentInstance as {
+      onSortChange: (chiavi: readonly { columnId: string; direction: string }[]) => void;
+      apiQuery: () => { sort?: readonly { columnId: string }[] };
+    };
+  }
+
+  it('⛔ cambiare ordine riporta alla PRIMA pagina', async () => {
+    const view = await renderList('generic', titolare, undefined, [DOCUMENTO_DI_PROVA]);
+    const navigazione = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    pagina(view).onSortChange([{ columnId: 'documentDate', direction: 'desc' }]);
+
+    expect(navigazione).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { sort: 'documentDate:desc', page: null },
+      }),
+    );
+  });
+
+  it('⭐ più chiavi restano nell’ordine di priorità, nella grammatica del motore', async () => {
+    const view = await renderList('generic', titolare);
+    const navigazione = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    pagina(view).onSortChange([
+      { columnId: 'total', direction: 'asc' },
+      { columnId: 'documentDate', direction: 'desc' },
+    ]);
+
+    expect(navigazione).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { sort: 'total:asc,documentDate:desc', page: null },
+      }),
+    );
+  });
+
+  it('⚠️ una colonna che il server non ordina, arrivata dall’URL, non gli viene chiesta', async () => {
+    // `type` non è nella whitelist: l'API risponderebbe 400, e un link vecchio
+    // aprirebbe una pagina di errore invece di un elenco.
+    const view = await renderList('generic', titolare, undefined, [], 'type:asc,total:desc');
+
+    expect(pagina(view).apiQuery().sort).toEqual([{ columnId: 'total', direction: 'desc' }]);
+  });
+
+  it('⛔ le colonne che il server non sa ordinare non hanno l’intestazione premibile', async () => {
+    await renderList('generic', titolare, undefined, [DOCUMENTO_DI_PROVA]);
+
+    expect(screen.getByRole('button', { name: /Data/ })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /^Tipo/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Controparte/ })).toBeNull();
   });
 });

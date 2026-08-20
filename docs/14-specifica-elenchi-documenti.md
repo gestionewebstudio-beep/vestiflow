@@ -2248,6 +2248,72 @@ il parametro nelle tre query paginate e la traduzione in `ORDER BY`.
 dichiara `sortable: false` — meglio una colonna che non si ordina di una che ordina venti righe
 su centoventisette senza dirlo.
 
+### ✅ FATTO sull'elenco documenti — 20/08/2026
+
+⭐ **Una grammatica sola, end-to-end.** `DataTableSort[]` — id di colonna più direzione, in
+ordine di priorità — è il descrittore canonico, ed è già quello che il motore tiene in mano. Il
+parametro HTTP è la sua **serializzazione**, non un formato parallelo:
+
+```text
+[{ documentDate, desc }, { total, asc }]  ⇄  "documentDate:desc,total:asc"
+        serializeDataTableSort / parseDataTableSort — in shared, una volta sola
+```
+
+⛔ **Niente `sortBy` + `sortDir`**: quella coppia sa esprimere una chiave sola, e l'ordinamento è
+a più chiavi da quando il motore esiste. Il multi-sort arriva intatto fino all'`ORDER BY`.
+
+| Pezzo                                        | Dove                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------- |
+| descrittore + traduzione nei due versi       | `shared/components/data-table/data-table.model` — **comune**        |
+| whitelist `columnId` → `orderBy`             | `api/src/documents/documents-sort.util` — **per endpoint**          |
+| specchio lato client (quali colonne premere) | `DOCUMENT_LIST_SORTABLE_COLUMNS` in `document-table-columns.config` |
+| stato                                        | nell'**URL**, come gli altri filtri: la pagina si condivide         |
+
+⭐ **La whitelist resta dell'endpoint, e per forza**: quali colonne un database sappia ordinare
+non è informazione che possa vivere in un componente condiviso.
+
+### ⭐ Quattro colonne su sette, e le altre tre hanno un perché
+
+```text
+ordinabili    Data · Numero · Righe · Totale
+fuori         Tipo · Stato · Controparte
+```
+
+| Fuori            | Perché                                                                                                                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Tipo · Stato** | a schermo si leggono in italiano, nel database stanno in inglese. E la decisione è **già presa**: sui Movimenti quelle colonne si ordinano **per etichetta** (§H13) — che lato server non esiste |
+| **Controparte**  | non è un campo: è `customerName` sulle vendite e `supplierName` sugli acquisti                                                                                                                   |
+
+⛔ Riprodurre le etichette italiane in un `CASE` SQL è possibile e sarebbe **la fonte di verità
+sdoppiata**: due elenchi da tenere allineati, e il giorno che divergono l'ordine smette di
+corrispondere ai nomi senza che nessun test se ne accorga. La strada resta aperta e va decisa a
+parte.
+
+### ⚠️ Due dettagli che non si vedono e che rompono in silenzio
+
+- **Il tie-break.** Ogni ordinamento finisce con `id: 'asc'`. Senza, le righe che pareggiano il
+  database può disporle come vuole — **e fra una pagina e l'altra diversamente**: una riga
+  compare due volte, un'altra mai, e nulla lo segnala. È la stessa lezione che
+  `corrispettivi-sort.util` aveva imparato su un elenco in memoria.
+- **«Numero» è `year` + `number`**, non la stringa `reference`: quella comincia col prefisso del
+  tipo, e ordinarla alfabeticamente raggrupperebbe per tipo invece che per progressivo.
+
+### ⚠️ Chi valida cosa, e i due comportamenti sono opposti apposta
+
+| Dove                  | Su una colonna sconosciuta                           |
+| --------------------- | ---------------------------------------------------- |
+| **server**            | `400` con l'elenco delle colonne ordinabili          |
+| **client** (dall'URL) | la scarta in silenzio e apre l'elenco nel suo ordine |
+
+Non è incoerenza: al server la stringa arriva da un programma, e un campo che non esiste è un
+difetto da far vedere subito; al client arriva dall'**URL**, cioè da un link vecchio o troncato,
+e lì una pagina di errore al posto dell'elenco è la risposta sbagliata.
+
+### ⏸ Restano Ordini cliente e Ordini fornitore
+
+Stessa forma, altre due whitelist da scrivere: sono i due elenchi paginati che ancora non
+ordinano. **La grammatica non si tocca** — è già comune — e nemmeno il motore.
+
 ⚠️ Nessuna delle tre pagine paginate manda oggi un parametro di ordinamento all'API: verificato,
 non esiste `sortBy` né equivalente nelle loro query.
 

@@ -71,6 +71,10 @@ import {
   type ListAction,
   type ListActionTarget,
 } from '@shared/models/list-selection.model';
+import {
+  serializeDataTableSort,
+  type DataTableSort,
+} from '@shared/components/data-table/data-table.model';
 import { createListSelection } from '@shared/utils/list-selection';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
@@ -96,6 +100,7 @@ import {
   salesFormRouteSegment,
 } from './models/document-routing.util';
 import {
+  DOCUMENT_LIST_SORTABLE_COLUMNS,
   DOCUMENT_LIST_COLUMN_DEFS,
   DOCUMENT_LIST_COLUMN_PRESETS,
   GOODS_RECEIPT_LIST_COLUMN_DEFS,
@@ -622,8 +627,22 @@ export class DocumentListComponent {
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly query = computed(() => parseDocumentListQuery(this.queryParams()));
 
+  /**
+   * L'ordinamento che si può davvero chiedere al server.
+   *
+   * ⚠️ **Il filtro non è ridondante**: la stringa arriva dall'URL, dove chiunque
+   * può scrivere `sort=type:asc`. Il server risponderebbe `400` — giusto per
+   * un programma, inutile per un operatore che si è portato dietro un link
+   * vecchio. Qui si ripulisce e l'elenco si apre nel suo ordine.
+   */
+  private readonly sortRichiesto = computed<readonly DataTableSort[]>(() =>
+    (this.query().sort ?? []).filter((chiave) =>
+      DOCUMENT_LIST_SORTABLE_COLUMNS.has(chiave.columnId),
+    ),
+  );
+
   protected readonly apiQuery = computed((): DocumentListQuery => {
-    const q = this.query();
+    const q = { ...this.query(), sort: this.sortRichiesto() };
     const sales = this.salesRegister();
     if (sales) {
       // Pagina dedicata: il tipo è fisso dal profilo, mai dai query param.
@@ -1645,6 +1664,18 @@ export class DocumentListComponent {
       queryParamsHandling: 'merge',
       replaceUrl: replace,
     });
+  }
+
+  /**
+   * L'operatore ha premuto un'intestazione: il motore ha già calcolato il
+   * prossimo ordine (ciclo e priorità delle chiavi sono suoi), qui si applica.
+   *
+   * ⛔ **La pagina torna alla prima**, e non è una gentilezza: restare alla
+   * quinta pagina di un ordine appena cambiato mostra righe che con la
+   * posizione precedente non c'entrano nulla.
+   */
+  protected onSortChange(chiavi: readonly DataTableSort[]): void {
+    this.updateParams({ sort: serializeDataTableSort(chiavi) || null, page: null }, true);
   }
 
   private applySearch(value: string): void {

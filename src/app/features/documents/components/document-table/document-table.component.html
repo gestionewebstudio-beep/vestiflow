@@ -13,11 +13,13 @@
 -->
 <app-data-table
   caption="Elenco documenti"
-  [columns]="columns()"
+  [columns]="engineColumns()"
   [sections]="sections()"
   [rowId]="rowId"
   [cellText]="cellText"
   [rowClickable]="true"
+  [sortable]="true"
+  [sort]="sort()"
   [rowLabel]="rowLabelFor"
   [selectionMode]="selectable() ? 'multiple' : 'none'"
   [selectedIds]="selectedIds()"
@@ -25,6 +27,7 @@
   selectAllLabel="Seleziona tutti i documenti"
   [rowActionsLabel]="'Azioni'"
   (rowClick)="rowClick.emit($event)"
+  (sortChange)="sortChange.emit($event)"
   (selectionChange)="onToggleSelect($event.row, $event.selected)"
   (selectAllChange)="selectAllChange.emit($event)"
 >
