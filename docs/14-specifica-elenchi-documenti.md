@@ -2207,3 +2207,62 @@ resta condivisa; ciò che cambia è chi decide cosa fare del numero che riporta.
 ⚠️ **Questo è un lavoro suo**, e non entra nel passaggio che sta adottando la primitiva di
 selezione: mescolare le due cose renderebbe impossibile attribuire un difetto all'una o
 all'altra.
+
+---
+
+# I · MAPPA DELLE PRIMITIVE COMUNI — misurata il 20/08/2026
+
+Scritta per il checkpoint: **che cosa è davvero comune oggi, che cosa è ancora per pagina.**
+Ogni casella è una misura (`app-data-table`, `app-list-actions-bar`,
+`app-table-column-picker`, `selectedIds`, `sortChange` nei template), non un'impressione.
+
+| Elenco               | motore | barra azioni | sel. colonne | selezione | ordinamento | Dettaglio        |
+| -------------------- | ------ | ------------ | ------------ | --------- | ----------- | ---------------- |
+| **Documenti** (8)    | ✅     | ✅           | ✅           | ✅        | ⛔          | ✅ 20/08         |
+| **Ordini cliente**   | ✅     | ✅           | ✅           | ✅        | ⛔          | ⛔ non esiste    |
+| **Ordini fornitore** | ✅     | ✅           | ⛔           | ✅        | ⛔          | ✅ 20/08         |
+| **Movimenti**        | ✅     | ✅           | ✅           | ✅        | ✅ unico    | — non si apre    |
+| **Corrispettivi**    | ⛔     | ⛔ propria   | ✅           | ⛔        | ⛔          | ⛔ manca il dato |
+| Prodotti             | ⛔     | ⛔           | ✅           | ⛔        | ✅ proprio  | ha il suo        |
+| Clienti              | ⛔     | ⛔           | ✅           | ⛔        | ⛔          | ha il suo        |
+| Fornitori            | ⛔     | ⛔           | ✅           | ⛔        | ⛔          | ha il suo        |
+| Giacenze             | ⛔     | ⛔           | ✅           | ⛔        | ⛔          | ⏸ in pausa       |
+| Situazione           | ⛔     | ⛔           | ✅           | ✅        | ⛔          | ⏸ in pausa       |
+| Vendite online       | ⛔     | ⛔           | ⛔           | ⛔        | ⛔          | ha il suo        |
+| Conteggi inventario  | ⛔     | ⛔           | ⛔           | ⛔        | ⛔          | ha il suo        |
+
+⭐ **Le prime quattro righe sono il perimetro dichiarato** (§C0): lì il consolidamento è
+avvenuto. Le altre otto **non sono debito**: nessuno ha deciso che debbano entrare, e
+deciderlo è una scelta di perimetro, non una conseguenza.
+
+⚠️ **Il selettore colonne è la primitiva più diffusa** — otto elenchi su dodici — ed è
+l'unica adottata anche fuori dal motore. Chi non ce l'ha: Ordini fornitore (dichiarato in
+`supplier-order-list`: le colonne le dichiara la pagina), Vendite online, Conteggi.
+
+## I1. Che cosa manca alle primitive, oggi
+
+| Manca                                               | A chi serve                                                | Stato                                       |
+| --------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------- |
+| **righe espandibili** nel motore                    | Corrispettivi (dettaglio sotto la riga), elenchi documenti | ⏸ estensione dichiarata, §H14               |
+| **card mobile INTERNA** alla tabella                | Corrispettivi                                              | ⏸ `appRowCard` esiste, **zero consumatori** |
+| **troncamento** «Mostra le altre N righe»           | Corrispettivi                                              | ⏸ facile: la sezione il motore ce l'ha      |
+| **ordinamento su elenchi paginati**                 | documenti, ordini cliente, ordini fornitore                | ⛔ serve il contratto API, §H15             |
+| **larghezze colonne + `table-layout: fixed`**       | tutti i riepiloghi                                         | ⏸ decisione aperta sulle larghezze, §G4     |
+| **compattazione mobile della barra azioni**         | tutti gli elenchi con più di due comandi                   | ⛔ oggi i pulsanti vanno a capo             |
+| **fascicolo unico di stampa / Excel dei documenti** | elenco documenti                                           | ⏸ blocco Stampa, §E2                        |
+
+⚠️ **`appRowCard` e `rowClickableWhen` non hanno consumatori in produzione**: il primo
+nemmeno nei test, il secondo solo lì. È il debito nominato in §H14, e la sua scadenza resta
+quella — se i Corrispettivi non si riprendono, vanno tolti.
+
+## I2. Che cosa è specifico, e deve restarlo
+
+Non tutto ciò che è duplicato è debito. Questi **appartengono al dominio** e la loro casa è
+la feature:
+
+- l'**accento per tipo** e il fondo della rettifica nei Corrispettivi;
+- la **giornata come raggruppamento**, con il suo piede;
+- la **card mobile progettata** dei Corrispettivi (§6): non è il ripiego `data-label`;
+- le **celle di dominio** — codice, prodotto, stato, disponibilità — che restano nei gusci
+  delle feature invece di gonfiare il motore;
+- il **contenuto** di «Esporta», che si decide pagina per pagina (§5.2).
