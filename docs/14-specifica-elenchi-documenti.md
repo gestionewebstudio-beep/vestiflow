@@ -1341,6 +1341,78 @@ aveva deciso.
 
 ---
 
+## G4. ⭐ Il comportamento della colonna stretta — deciso il 20/08/2026
+
+Vale per **tutti i riepiloghi**.
+
+> - le colonne restano **ridimensionabili per trascinamento**, col meccanismo condiviso già
+>   esistente (`appTableColumnResize`);
+> - quando una colonna viene ristretta, il contenuto **resta su una sola riga**;
+> - il testo **non va a capo e non si spezza**;
+> - il riferimento è **Danea**: restringendo, il contenuto viene **nascosto sul lato destro**;
+> - ⛔ **per ora niente ellissi automatica**: si vuole il clipping del riferimento;
+> - il contenuto **non deve riallargare la colonna** per mostrarsi tutto;
+> - il selettore **Colonne** e le altre capacità comuni del motore restano;
+> - l'ordinamento già definito **non si riapre** in questo passaggio.
+
+### ⛔ `overflow-wrap: anywhere` è RITIRATO
+
+Era la risposta attuale del Registro alla colonna stretta, ed era già registrata come **difetto
+misurato** in `regole-stile-ui` §6 — «forza a spezzare le parole a metà: Rimbors-o,
+Non-determinata». Ora è deciso: non è il comportamento voluto.
+
+⚠️ Nella classificazione della grafica passa quindi da «non-determinato» a
+**legacy-eliminabile**. Non va promosso, e va tolto dal Registro quando si migra.
+
+### ⚠️ La conseguenza tecnica, e la decisione che apre
+
+Il clipping si ottiene con tre cose insieme, e **la terza oggi non c'è**:
+
+|                           |                                           |                             |
+| ------------------------- | ----------------------------------------- | --------------------------- |
+| `white-space: nowrap`     | il testo resta su una riga                | ✅ da aggiungere, banale    |
+| `overflow: hidden`        | ciò che eccede si nasconde a destra       | ✅ da aggiungere, banale    |
+| **`table-layout: fixed`** | il contenuto **non riallarga** la colonna | ⛔ **il motore usa `auto`** |
+
+⛔ **Con `table-layout: auto` le prime due non bastano**: la larghezza «min-content» della cella
+partecipa comunque al calcolo, e la colonna si allarga invece di tagliare. `regole-stile-ui` §6
+prescriveva già `fixed` — è il motore che diverge.
+
+> ⚠️ **Ma `table-layout: fixed` ha bisogno di una FONTE di larghezza, e oggi non esiste.**
+> Misurato: **nessuna delle quattro configurazioni colonne dei riepiloghi** — corrispettivi,
+> documenti, movimenti, ordini cliente — dichiara un solo `defaultWidthPx` o `minWidthPx`.
+
+Senza una fonte, `fixed` divide lo spazio in **parti uguali**: la colonna Data larga quanto
+Prodotto. È un cambiamento grosso su tutte e cinque le schermate.
+
+⛔ **Questa è la decisione che serve, e non va inventata**: da dove vengono le larghezze
+iniziali? Le tre strade, con quello che costano:
+
+| Strada                                                                    | Costo                                                                                   |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **larghezze per colonna** (`defaultWidthPx` o `%`) dichiarate nel modello | va scritta una larghezza per ogni colonna di ogni riepilogo — è disegno, non meccanica  |
+| **una larghezza sola** per tutte, con le sole eccezioni dichiarate        | meno da scrivere, ma la colonna Data resta larga quanto Prodotto finché non si eccettua |
+| **`fixed` solo dopo il primo trascinamento**                              | ⛔ scartabile a vista: la tabella cambierebbe comportamento sotto le mani               |
+
+### ⚠️ E `display: 'truncate'` va rivisto
+
+Il modello colonne ha una vestizione `truncate` che tronca con **ellissi** e mette il testo
+intero nel `title`. Con la decisione di oggi — clipping senza ellissi — le due cose si
+contraddicono: `truncate` va rivisto o ritirato quando il clipping entra.
+
+⚠️ Oggi è dichiarata su `counterparty` nell'elenco documenti. Non è ancora a schermo su nessun
+riepilogo migrato, quindi il conflitto non è ancora visibile.
+
+### ⏸ Il pattern mobile è ereditabile — per ora
+
+> **Per ora gli altri riepiloghi possono ereditare il pattern mobile dei Corrispettivi.**
+> Vale **solo per i riepiloghi**, non per i documenti né per altre schermate.
+
+⚠️ «Per ora» è la parola che conta: non apre la promozione dell'anatomia a componente
+condiviso. Quella soglia resta quella di §F5 — il **secondo** riepilogo che la adotta davvero.
+
+---
+
 # H · IL MOTORE TABELLA COMUNE — contratto, 20/08/2026
 
 Progettato con **cinque consumatori reali** già in mano, non nel vuoto: elenco documenti
