@@ -102,7 +102,7 @@ export const DOCUMENT_FAMILY_LABELS: Readonly<Record<DocumentPermissionFamily, s
   proforma: 'Proforma',
   sales_ddt: 'DDT di vendita',
   invoice: 'Fattura (anche accompagnatoria)',
-  store_sale: 'Vendite e resi negozio',
+  store_sale: 'Vendite e resi al banco',
   online_sale: 'Vendite online e corrispettivi',
   transfer: 'Trasferimento tra sedi',
   adjustment: 'Rettifiche e carichi manuali',

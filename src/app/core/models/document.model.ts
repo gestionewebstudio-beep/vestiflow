@@ -255,7 +255,7 @@ export interface DocumentRecord extends TenantScoped, Timestamped {
   readonly paymentTerms?: string;
   /** Modalità di pagamento (DDT vendita: voce normativa MP01–MP23, snapshot nome). */
   readonly paymentMethod?: string;
-  /** Descrizione libera del metodo «Altro» (Vendita in negozio): es. «Assegno». */
+  /** Descrizione libera del metodo «Altro» (Vendita al banco): es. «Assegno». */
   readonly paymentMethodNote?: string;
   /** Data prevista consegna (Preventivo: campo «Consegna prevista»). */
   readonly expectedDeliveryDate?: IsoDateString;

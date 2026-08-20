@@ -256,7 +256,7 @@ describe('tenant-permissions.util', () => {
 
 // ── Aggiunte 19/08/2026 ────────────────────────────────────────────────────
 // Copertura dei gate che nessuna prova toccava: sezioni, matrice documenti,
-// azioni sensibili e cassa negozio. Sono lo SPECCHIO dei gate API: se qui e là
+// azioni sensibili e vendita al banco. Sono lo SPECCHIO dei gate API: se qui e là
 // divergono, il client apre una rotta che il server nega — schermata vuota e
 // 403 su ogni chiamata, senza che niente arrossisca.
 
@@ -505,7 +505,7 @@ describe('tenant-permissions.util — azioni sensibili', () => {
   });
 });
 
-describe('tenant-permissions.util — cassa negozio', () => {
+describe('tenant-permissions.util — vendita al banco', () => {
   const cassiere = userWithRole(UserRole.Clerk, {
     permissions: [TenantPermission.SectionSales, TenantPermission.RetailRegister],
   });

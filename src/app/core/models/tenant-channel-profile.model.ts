@@ -157,7 +157,7 @@ export function businessAnalyticsPricingHint(profile: TenantChannelProfile | und
 export function businessAnalyticsRevenueHint(profile: TenantChannelProfile | undefined): string {
   return showShopifyIntegration(profile)
     ? 'Shopify + vendite manuali (pagate)'
-    : 'Vendite negozio e online (pagate)';
+    : 'Vendite al banco e online (pagate)';
 }
 
 export function inventoryCountCloseHint(profile: TenantChannelProfile | undefined): string {
