@@ -1511,6 +1511,48 @@ aveva deciso.
 
 ---
 
+## F6. ⭐ LE DIVERGENZE, misurate — 20/08/2026
+
+§F5 dice di classificare in tre famiglie ciò che separa il Registro dal motore. **Questa è la
+misura**, riga per riga: non promuove niente, serve a decidere sapendo che cosa cambia.
+
+⚠️ **Promuovere una regola cambia la resa di quattro schermate in uso** (elenco documenti,
+ordini cliente, ordini fornitore, movimenti). Per questo la tabella dice anche **che cosa si
+vedrebbe**.
+
+| Regola                       | Registro                            | Motore                           | Effetto se si promuove il Registro       |
+| ---------------------------- | ----------------------------------- | -------------------------------- | ---------------------------------------- |
+| **font del corpo**           | `--text-xs` (12px)                  | `--text-sm` (13px)               | testo più minuto su quattro elenchi      |
+| **padding di cella**         | `--space-1 --space-3` (4×12)        | `--space-2 --space-4` (8×16)     | righe più basse: **più righe a schermo** |
+| **altezza intestazione**     | `--table-head-h` (32px), dichiarata | non dichiarata, la fa il padding | intestazione uniforme e prevedibile      |
+| **divisori di colonna**      | assenti                             | su ogni cella                    | tabella più «pulita», meno reticolo      |
+| **sticky dell'intestazione** | sì                                  | sì                               | ✅ già allineati, niente da fare         |
+
+⭐ **Su una il MOTORE ha ragione**, ed è la classificazione «legacy» al contrario: il divisore di
+riga del Registro è `--color-border`, il motore usa `--color-table-row-divider` — il token
+dedicato, che esiste apposta. Quando il Registro entrerà nel motore, quella riga sparisce.
+
+⛔ **Due restano fuori da questa tabella perché sono già decisioni aperte**, e non vanno
+mescolate: l'**intestazione maiuscola** e le **larghezze di colonna** (§G4).
+
+### ⚠️ E una divergenza dentro la FONTE, che va sciolta prima
+
+Misurato leggendo `regole-stile-ui`: le sue due sezioni non dicono la stessa cosa
+sull'intestazione di tabella.
+
+|                | §2 (tabella dei token)                                      | §6 (anatomia della tabella) |
+| -------------- | ----------------------------------------------------------- | --------------------------- |
+| **testo**      | `--color-table-header-fg` — «Testo header tabella»          | «muted»                     |
+| **filo sotto** | `--color-table-header-rule` — «Filo sotto l'header tabella» | `--color-border-strong`     |
+
+E il codice si è diviso di conseguenza: il **Registro segue §2**, il **mixin segue §6**.
+
+⛔ **Non è una divergenza fra Registro e motore: è una divergenza della specifica**, e
+promuovere l'una o l'altra senza scioglierla sposterebbe soltanto il difetto. Va deciso quale
+delle due sezioni ha ragione — e corretta l'altra.
+
+---
+
 ## G4. ⭐ Il comportamento della colonna stretta — deciso il 20/08/2026
 
 Vale per **tutti i riepiloghi**.
