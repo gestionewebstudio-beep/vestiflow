@@ -7,6 +7,20 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
+import {
+  FILTERED_SCOPE_NOT_AVAILABLE,
+  type ListAction,
+  type ListActionTarget,
+} from '@shared/models/list-selection.model';
+import { createListSelection } from '@shared/utils/list-selection';
+import { downloadBlob } from '@shared/utils/download-blob.util';
+import {
+  buildListCsv,
+  buildListPrintHtml,
+  listExportFileName,
+} from '@shared/utils/list-export.util';
+import { SUPPLIER_ORDER_LIST_EXPORT } from './utils/supplier-order-list-export.util';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   catchError,
@@ -35,7 +49,18 @@ import type { SelectMenuOption } from '@shared/components/select-menu/select-men
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
-import { SupplierOrderTableComponent } from './components/supplier-order-table/supplier-order-table.component';
+import { BadgeComponent } from '@shared/components/badge/badge.component';
+import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type { DataTableSelectionEvent } from '@shared/components/data-table/data-table.component';
+import type { DataTableSection } from '@shared/components/data-table/data-table.model';
+import type { ResolvedTableColumn } from '@shared/table-columns/table-column.model';
+import { formatDate } from '@core/utils/date.util';
+import { formatMoney } from '@core/utils/money.util';
+import {
+  supplierOrderStatusLabel,
+  supplierOrderStatusTone,
+} from './models/supplier-order-labels.util';
 import {
   DEFAULT_SUPPLIER_ORDER_PAGE_SIZE,
   SUPPLIER_ORDER_PAGE_SIZE_OPTIONS,
@@ -76,7 +101,10 @@ type OrderListState =
     SelectMenuComponent,
     SlidePanelComponent,
     TableSkeletonComponent,
-    SupplierOrderTableComponent,
+    ListActionsBarComponent,
+    BadgeComponent,
+    DataTableCellDirective,
+    DataTableComponent,
   ],
   templateUrl: './supplier-order-list.component.html',
   styleUrl: './supplier-order-list.component.scss',
@@ -140,6 +168,66 @@ export class SupplierOrderListComponent {
     const current = this.state();
     return current.status === 'success' ? current.orders : [];
   });
+
+  // ── Selezione e azioni contestuali (`14` §5, parte D) ─────────────────────
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedIds = this.selection.ids;
+  protected readonly selectionCount = this.selection.count;
+  protected readonly excelBusy = signal(false);
+
+  /** Errore di un'AZIONE, distinto da quello del caricamento elenco. */
+  protected readonly actionError = signal<AppError | null>(null);
+
+  protected readonly selectedOrders = computed(() =>
+    this.orders().filter((order) => this.selectedIds().has(order.id)),
+  );
+
+  /**
+   * ⛔ Al cambio di filtri o pagina la selezione si restringe alle righe
+   * caricate: senza, la barra conterebbe righe che l'operatore non vede più e
+   * un'azione agirebbe su ordini che credeva di aver lasciato indietro.
+   */
+  private readonly potaturaSelezione = toObservable(this.orders)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe((orders) => this.selection.prune(orders.map((order) => order.id)));
+
+  /**
+   * Le tre azioni, dichiarate dalla pagina (`14` §5.2): **Stampa, Excel ed
+   * Esporta sono indipendenti**, non tre formati della stessa cosa.
+   *
+   * ⚠️ Excel non è un CSV rinominato: passa dall'endpoint che genera un vero
+   * foglio SpreadsheetML lato server, e il file si chiama `.xls` perché è
+   * quello che è.
+   */
+  protected readonly selectionActions = computed<readonly ListAction[]>(() => [
+    {
+      id: 'print',
+      label: 'Stampa',
+      icon: 'pi-print',
+      requires: 'none',
+      disabled: this.selectionCount() === 0,
+      disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
+      ariaLabel: "Stampa l'elenco degli ordini selezionati",
+      run: (bersaglio) => this.printSelection(bersaglio),
+    },
+    {
+      id: 'excel',
+      label: 'Excel',
+      icon: 'pi-file-excel',
+      requires: 'none',
+      busy: this.excelBusy(),
+      run: (bersaglio) => this.downloadExcel(bersaglio),
+    },
+    {
+      id: 'export',
+      label: 'Esporta',
+      icon: 'pi-download',
+      requires: 'none',
+      disabled: this.selectionCount() === 0,
+      disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
+      items: [{ id: 'csv', label: 'CSV (.csv)', icon: 'pi-file', run: (b) => this.exportCsv(b) }],
+    },
+  ]);
 
   protected readonly meta = computed<PageMeta>(() => {
     const current = this.state();
@@ -236,4 +324,144 @@ export class SupplierOrderListComponent {
     }
     return { kind: AppErrorKind.Unknown, message: 'Errore imprevisto. Riprova.' };
   }
+
+  // ── Selezione ─────────────────────────────────────────────────────────────
+
+  protected onToggleSelection(event: DataTableSelectionEvent<SupplierOrder>): void {
+    this.selection.toggle(event.row.id, event.selected);
+  }
+
+  /** La checkbox di testata agisce sulle righe CARICATE (`14` §4.1). */
+  protected onToggleSelectAll(checked: boolean): void {
+    this.selection.setAll(
+      this.orders().map((order) => order.id),
+      checked,
+    );
+  }
+
+  protected clearSelection(): void {
+    this.selection.clear();
+  }
+
+  // ── Le tre azioni ─────────────────────────────────────────────────────────
+
+  /**
+   * ⚠️ **Il caso `filtered` non è ancora servito qui.** La barra emette solo
+   * `'selection'`, quindi oggi non ci si arriva; quando la barra strumenti
+   * della pagina dichiarerà le stesse azioni (`14` §5.3), Stampa ed Esporta
+   * dovranno passare da un export che conosce il filtro — le righe caricate
+   * sono UNA pagina, e servirle sarebbe dare venti risultati su centoventisette
+   * senza dirlo. Excel, qui sotto, lo fa già correttamente: chiede al server.
+   */
+  private ordiniDelBersaglio(bersaglio: ListActionTarget): readonly SupplierOrder[] {
+    return bersaglio.scope === 'selection' ? this.selectedOrders() : this.orders();
+  }
+
+  private printSelection(bersaglio: ListActionTarget): void {
+    const ordini = this.ordiniDelBersaglio(bersaglio);
+    if (ordini.length === 0) {
+      return;
+    }
+    const finestra = window.open('', '_blank');
+    if (!finestra) {
+      return;
+    }
+    finestra.document.write(buildListPrintHtml(ordini, SUPPLIER_ORDER_LIST_EXPORT));
+    finestra.document.close();
+    finestra.focus();
+    finestra.print();
+  }
+
+  private exportCsv(bersaglio: ListActionTarget): void {
+    const ordini = this.ordiniDelBersaglio(bersaglio);
+    if (ordini.length === 0) {
+      return;
+    }
+    downloadBlob(
+      new Blob([buildListCsv(ordini, SUPPLIER_ORDER_LIST_EXPORT)], {
+        type: 'text/csv;charset=utf-8',
+      }),
+      listExportFileName(SUPPLIER_ORDER_LIST_EXPORT, 'csv'),
+    );
+  }
+
+  /**
+   * ⭐ Excel passa dal SERVER, ed è per questo che rispetta la regola
+   * dell'ambito senza sforzo: manda i filtri correnti e, se c'è una selezione,
+   * i suoi id. Il file è SpreadsheetML — estensione `.xls`, perché è quello
+   * che il generatore produce.
+   */
+  private downloadExcel(bersaglio: ListActionTarget): void {
+    if (this.excelBusy()) {
+      return;
+    }
+    this.excelBusy.set(true);
+    const ids = bersaglio.scope === 'selection' ? bersaglio.ids : undefined;
+    this.service
+      .exportSpreadsheet(this.query(), ids)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          const stamp = new Date().toISOString().slice(0, 10);
+          downloadBlob(blob, `ordini-fornitore-${stamp}.xls`);
+          this.excelBusy.set(false);
+        },
+        error: (err: unknown) => {
+          this.excelBusy.set(false);
+          this.actionError.set(this.toAppError(err));
+        },
+      });
+  }
+
+  // ── La tabella, sul motore comune (`14` parte H) ──────────────────────────
+
+  /**
+   * Le colonne dell'elenco ordini fornitore.
+   *
+   * ⚠️ Dichiarate qui e non prese da `TableColumnPreferenceService`: questo elenco
+   * **non ha un selettore colonne**, e dargliene uno sarebbe aggiungere una
+   * funzione mentre se ne assorbe un'altra. Il motore chiede un modello colonne,
+   * non un servizio di preferenze.
+   */
+  protected readonly tableColumns: readonly ResolvedTableColumn[] = [
+    { id: 'reference', label: 'Riferimento', pinned: false },
+    { id: 'supplier', label: 'Fornitore', pinned: false },
+    { id: 'status', label: 'Stato', pinned: false },
+    { id: 'lines', label: 'Righe', pinned: false },
+    { id: 'expected', label: 'Attesa il', pinned: false },
+    { id: 'total', label: 'Totale', numeric: true, pinned: false },
+  ];
+
+  /** Lista piatta: una sezione senza intestazione né piede. */
+  protected readonly tableSections = computed<readonly DataTableSection<SupplierOrder>[]>(() => [
+    { id: 'ordini', rows: this.orders() },
+  ]);
+
+  protected readonly rowId = (order: SupplierOrder): string => order.id;
+
+  protected readonly rowLabel = (order: SupplierOrder): string =>
+    `Apri ordine ${order.reference} di ${order.supplierName}`;
+
+  protected readonly selectionLabel = (order: SupplierOrder): string =>
+    `Seleziona ordine ${order.reference}`;
+
+  protected readonly cellText = (order: SupplierOrder, columnId: string): string => {
+    switch (columnId) {
+      case 'reference':
+        return order.reference;
+      case 'supplier':
+        return order.supplierName;
+      case 'lines':
+        return String(order.lineCount ?? order.lines.length);
+      case 'expected':
+        return order.expectedAt ? formatDate(order.expectedAt) : '—';
+      case 'total':
+        return formatMoney(order.totalAmount);
+      default:
+        return '';
+    }
+  };
+
+  protected readonly statusLabel = supplierOrderStatusLabel;
+  protected readonly statusTone = supplierOrderStatusTone;
 }

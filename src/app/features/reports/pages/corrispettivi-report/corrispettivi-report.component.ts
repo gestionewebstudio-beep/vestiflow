@@ -8,6 +8,8 @@ import {
   signal,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { listActionState } from '@shared/models/list-selection.model';
+import type { ListAction, ListActionState } from '@shared/models/list-selection.model';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
@@ -752,28 +754,91 @@ export class CorrispettiviReportComponent {
    * l'operatore che consulta il registro dal telefono esporta di rado, e un
    * comando raccolto costa un tocco in più solo a chi lo usa davvero.
    */
-  protected readonly exportMenuItems: readonly ActionMenuItem[] = [
-    { id: 'print', label: 'Stampa', icon: 'pi-print' },
-    { id: 'pdf', label: 'PDF', icon: 'pi-file-pdf' },
-    { id: 'spreadsheet', label: 'Excel', icon: 'pi-file-excel' },
-    { id: 'csv', label: 'CSV', icon: 'pi-download' },
-  ];
+  /**
+   * ⭐ **Le quattro azioni, dichiarate una volta sola** sul contratto comune
+   * degli elenchi (`14` parte D).
+   *
+   * ⛔ **Refactor infrastrutturale, zero cambiamenti**: stesse azioni, stesse
+   * etichette, stesse icone, stesse varianti, stessi stati di caricamento e
+   * stessi handler. Cambia solo *dove sono dichiarate* — prima vivevano in tre
+   * posti: i quattro pulsanti del template, l'elenco delle voci del menu
+   * mobile e lo `switch` che le smistava. Tre elenchi da tenere allineati a
+   * mano, e il menu era già una copia dei pulsanti.
+   *
+   * ⚠️ **`requires: 'none'` è la verità, qui**: i tre export passano dal server
+   * con i filtri della pagina, e la stampa porta gli stessi filtri nell'URL.
+   * Sono azioni che lavorano sul risultato filtrato per costruzione — l'unico
+   * riepilogo dove lo erano già prima del contratto.
+   *
+   * ⛔ **La selezione NON entra in questo passaggio.** Le righe del Registro
+   * hanno id compositi (`sale:…`, `refund:…`, `store:…`) perché la vista
+   * unisce più sorgenti: filtrare un export per id scelti è un lavoro
+   * sull'aggregazione, e senza quello una checkbox esporterebbe tutto lo stesso
+   * — in silenzio.
+   */
+  protected readonly listActions = computed<readonly ListAction[]>(() => [
+    {
+      id: 'print',
+      label: 'Stampa',
+      icon: 'pi-print',
+      variant: 'ghost',
+      requires: 'none',
+      run: () => this.printReport(),
+    },
+    {
+      id: 'pdf',
+      label: 'PDF',
+      icon: 'pi-file-pdf',
+      variant: 'secondary',
+      requires: 'none',
+      busy: this.exportingPdf(),
+      run: () => this.exportPdf(),
+    },
+    {
+      id: 'spreadsheet',
+      label: 'Excel',
+      icon: 'pi-file-excel',
+      variant: 'secondary',
+      requires: 'none',
+      busy: this.exportingSpreadsheet(),
+      run: () => this.exportSpreadsheet(),
+    },
+    {
+      id: 'csv',
+      label: 'CSV',
+      icon: 'pi-download',
+      variant: 'secondary',
+      requires: 'none',
+      busy: this.exporting(),
+      run: () => this.exportAccountantCsv(),
+    },
+  ]);
+
+  /**
+   * Le voci del menu compatto: **derivate dalle stesse azioni**, non un secondo
+   * elenco. Prima erano una copia a mano, ed è il genere di copia che diverge
+   * al primo formato aggiunto.
+   */
+  protected readonly exportMenuItems = computed<readonly ActionMenuItem[]>(() =>
+    this.listActions().map((azione) => ({
+      id: azione.id,
+      label: azione.label,
+      icon: azione.icon,
+    })),
+  );
+
+  /** Lo stato di un'azione: dal contratto comune, non da regole locali. */
+  protected actionState(action: ListAction): ListActionState {
+    return listActionState(action, 0);
+  }
 
   protected onExportAction(id: string): void {
-    switch (id) {
-      case 'print':
-        this.printReport();
-        return;
-      case 'pdf':
-        this.exportPdf();
-        return;
-      case 'spreadsheet':
-        this.exportSpreadsheet();
-        return;
-      case 'csv':
-        this.exportAccountantCsv();
-        return;
+    const azione = this.listActions().find((candidate) => candidate.id === id);
+    if (!azione || this.actionState(azione).disabled) {
+      return;
     }
+    // Ambito `filtered`: qui non esiste selezione, e non deve fingere di sì.
+    azione.run?.({ scope: 'filtered' });
   }
 
   protected printReport(): void {

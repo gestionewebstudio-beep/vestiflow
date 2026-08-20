@@ -242,51 +242,21 @@
     </div>
   </div>
 
-  @if (selectedOrders().length > 0) {
-    <div
-      class="sales-list__bulk-bar"
-      role="toolbar"
-      aria-label="Operazioni sugli ordini selezionati"
-    >
-      <span class="sales-list__bulk-count tabular-nums">
-        {{ selectedOrders().length }}
-        {{ selectedOrders().length === 1 ? 'ordine selezionato' : 'ordini selezionati' }}
-        <span class="sales-list__bulk-sep" aria-hidden="true">·</span>
-        Totale <strong>{{ formatMoney(selectionTotal()) }}</strong>
-      </span>
-      <app-button variant="secondary" (click)="printSelectionList()">
-        <i class="pi pi-print" aria-hidden="true"></i>
-        Stampa / PDF elenco
-      </app-button>
-      <app-button variant="secondary" (click)="exportSelectionCsv()">
-        <i class="pi pi-file-excel" aria-hidden="true"></i>
-        Esporta Excel (CSV)
-      </app-button>
-      <app-button
-        variant="secondary"
-        [loading]="bulkPdfBusy()"
-        [disabled]="bulkPdfBusy()"
-        (click)="downloadSelectionPdfs()"
-      >
-        <i class="pi pi-file-pdf" aria-hidden="true"></i>
-        PDF documenti
-      </app-button>
-      @if (deletableSelectedOrders().length > 0) {
-        <app-button variant="danger" [disabled]="deleteBusy()" (click)="requestDeleteSelection()">
-          <i class="pi pi-trash" aria-hidden="true"></i>
-          @if (deletableSelectedOrders().length === selectedOrders().length) {
-            Elimina
-          } @else {
-            <!-- Non più «manuali»: fra gli eliminabili ci sono anche gli ordini
-                 di canale che su Shopify non risultano più. -->
-            Elimina {{ deletableSelectedOrders().length }} di
-            {{ selectedOrders().length }}
-          }
-        </app-button>
-      }
-      <app-button variant="ghost" (click)="clearSelection()">Deseleziona</app-button>
-    </div>
-  }
+  <!--
+    La barra contestuale è il componente COMUNE (`14` parte D): questa pagina
+    dichiara le proprie azioni, non ne disegna i pulsanti. Qui c'erano gli
+    stessi cinque `app-button` dell'elenco documenti, copiati.
+  -->
+  <app-list-actions-bar
+    [count]="selectionCount()"
+    [ids]="[...selectedIds()]"
+    [actions]="selectionActions()"
+    labelSingular="ordine selezionato"
+    labelPlural="ordini selezionati"
+    summaryLabel="Totale"
+    [summaryValue]="formatMoney(selectionTotal())"
+    (cleared)="clearSelection()"
+  />
 
   @if (actionError(); as err) {
     <app-error-state [description]="err.message" />

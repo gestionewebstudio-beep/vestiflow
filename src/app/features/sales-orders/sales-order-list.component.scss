@@ -1,4 +1,3 @@
-@use 'breakpoints' as bp;
 @use 'list-page' as lp;
 
 @include lp.list-page('sales-list');
@@ -7,45 +6,6 @@
 // qui restano solo bulk-bar, ricolorazione on-dark e modale Duplica.
 
 // ── Regole specifiche della pagina (non coperte dal mixin) ─────────────────
-
-// Barra operazioni massive (mockup restyling): banda scura con testo chiaro,
-// conteggio + totale sommato a sinistra, azioni a destra.
-.sales-list__bulk-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  background-color: var(--color-primary);
-  border: var(--border-width) solid var(--color-primary);
-  border-radius: var(--radius-md);
-}
-
-.sales-list__bulk-count {
-  font-weight: var(--font-weight-medium);
-  color: var(--color-primary-fg);
-  margin-inline-end: auto;
-}
-
-// Sotto lg la barra massiva si àncora in basso, sempre a portata di pollice.
-@include bp.media-down('lg') {
-  .sales-list__bulk-bar {
-    position: fixed;
-    inset-inline: var(--space-3);
-    inset-block-end: calc(var(--space-3) + env(safe-area-inset-bottom));
-    z-index: var(--z-sticky);
-    box-shadow: var(--shadow-lg);
-  }
-}
-
-.sales-list__bulk-count strong {
-  font-weight: var(--font-weight-bold);
-}
-
-.sales-list__bulk-sep {
-  margin-inline: var(--space-1);
-  opacity: 0.5;
-}
 
 // Bottoni della barra: traslucidi su fondo scuro, testo chiaro (il danger
 // vira sul rosso). Sovrascrivono la veste chiara dell'app-button solo qui.

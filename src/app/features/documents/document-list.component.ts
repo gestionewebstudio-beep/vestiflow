@@ -59,12 +59,15 @@ import { DateInputComponent } from '@shared/components/date-input/date-input.com
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import type { SelectMenuOption } from '@shared/components/select-menu/select-menu.model';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { TableSkeletonComponent } from '@shared/components/table-skeleton/table-skeleton.component';
 
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { FILTERED_SCOPE_NOT_AVAILABLE, type ListAction } from '@shared/models/list-selection.model';
+import { createListSelection } from '@shared/utils/list-selection';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 
@@ -81,9 +84,10 @@ import {
   documentStatusLabel,
   documentTypeLabel,
 } from '@domain/documents/models/document-labels.util';
+import { canBulkDeleteDocuments } from './models/document-bulk-actions.util';
 import {
   documentDuplicateFormRoute,
-  documentEditPath,
+  documentRowPath,
   salesFormRouteSegment,
 } from './models/document-routing.util';
 import {
@@ -191,6 +195,7 @@ type DeleteResult =
     EmptyStateComponent,
     ErrorStateComponent,
     PaginationComponent,
+    ListActionsBarComponent,
     SelectMenuComponent,
     SlidePanelComponent,
     TableSkeletonComponent,
@@ -278,7 +283,7 @@ export class DocumentListComponent {
 
   protected readonly emptyStateIcon = computed(() => this.salesRegister()?.emptyIcon ?? 'pi-file');
 
-  // ── Elenchi condivisi da più tipi (Fatture, Vendita/Reso negozio) ─────────
+  // ── Elenchi condivisi da più tipi (Fatture, Vendita/Reso al banco) ─────────
   /** Opzioni del filtro «Tipo»; vuoto = elenco a tipo singolo, filtro assente. */
   protected readonly sharedTypeOptions = computed<readonly SelectMenuOption[]>(
     () => this.salesRegister()?.typeFilterOptions ?? [],
@@ -331,7 +336,7 @@ export class DocumentListComponent {
   /** Elenchi a tipo singolo: l'etichetta del bottone, che non ha varianti. */
   protected readonly salesCreateLabel = computed(() => this.salesRegister()?.createLabel);
 
-  /** Pagine di sola consultazione (Vendita/Reso negozio): nessun «Nuovo …». */
+  /** Pagine di sola consultazione (Vendita/Reso al banco): nessun «Nuovo …». */
   protected readonly showCreateAction = computed(
     () => this.salesRegister()?.hideCreateAction !== true,
   );
@@ -663,14 +668,37 @@ export class DocumentListComponent {
   protected readonly deleteConfirmOpen = signal(false);
   protected readonly deleteBusy = signal(false);
 
-  // ── Selezione multipla per operazioni massive (Arrivi merce, Preventivi) ───
-  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
+  // ── Selezione e azioni contestuali (`14` §5, parte D) ──────────────────────
+  //
+  // Lo STATO sta nella primitiva comune, non più qui: era duplicato identico in
+  // questo componente e in `sales-order-list`, e sarebbe stato copiato in altri
+  // cinque elenchi.
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedIds = this.selection.ids;
+  protected readonly selectionCount = this.selection.count;
   protected readonly bulkPdfBusy = signal(false);
   protected readonly formatMoney = formatMoney;
 
-  /** Elenco con selezione + barra bulk: Arrivi merce o profilo che lo abilita. */
-  protected readonly supportsSelection = computed(
-    () => this.isGoodsReceiptList() || this.salesRegister()?.supportsBulkSelection === true,
+  /**
+   * ⛔ **Ogni elenco documentale seleziona** (`14` §4 e §C).
+   *
+   * Qui c'era `isGoodsReceiptList() || salesRegister()?.supportsBulkSelection`,
+   * cioè: Arrivi merce e **un solo** profilo su sette (i Preventivi). Su tutti
+   * gli altri registri non si poteva esportare un sottoinsieme, e l'operatore
+   * esportava tutto per poi tagliarlo fuori dal gestionale.
+   */
+  protected readonly supportsSelection = computed(() => true);
+
+  /**
+   * Se la selezione corrente si può eliminare in blocco (`14` §5.2).
+   *
+   * ⛔ Non basta il permesso: Vendita e Reso al banco **non si eliminano**, e
+   * senza questa guardia allargare la selezione a tutti gli elenchi avrebbe
+   * messo un pulsante «Elimina» davanti a un'API che risponde 409 — il difetto
+   * che `11` C 0 nomina per esteso.
+   */
+  protected readonly canDeleteSelection = computed(
+    () => this.canManageDocuments() && canBulkDeleteDocuments(this.selectedDocs()),
   );
 
   /** Configurazione export massivo attiva (nome file e colonne per tipo). */
@@ -681,6 +709,78 @@ export class DocumentListComponent {
   protected readonly selectedDocs = computed(() =>
     this.documents().filter((doc) => this.selectedIds().has(doc.id)),
   );
+
+  /**
+   * Le azioni della barra contestuale, **dichiarate da questa pagina** (`14`
+   * parte D). La primitiva non sa che cosa siano: le rende e le esegue.
+   *
+   * ⚠️ **Esporta è un menu, non tre pulsanti** (§5.2): i formati sono varianti
+   * della stessa azione, e a barra piena una fila di pulsanti per formato non
+   * ci sta — su mobile non ci stava già.
+   *
+   * ⚠️ **`.xlsx` non compare, e non è una dimenticanza**: oggi «Esporta Excel»
+   * produce un CSV, e i formati disponibili li dichiara la pagina, non la
+   * primitiva. Una voce che promette un foglio Excel vero va aggiunta quando ci
+   * sarà chi lo genera, non prima.
+   */
+  protected readonly selectionActions = computed<readonly ListAction[]>(() => {
+    const azioni: ListAction[] = [
+      {
+        id: 'print',
+        label: 'Stampa',
+        icon: 'pi-print',
+        requires: 'none',
+        disabled: this.selectionCount() === 0,
+        disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
+        ariaLabel: "Stampa l'elenco dei documenti selezionati",
+        run: () => this.printSelectionList(),
+      },
+      {
+        id: 'export',
+        label: 'Esporta',
+        icon: 'pi-download',
+        requires: 'none',
+        busy: this.bulkPdfBusy(),
+        disabled: this.selectionCount() === 0,
+        disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
+        items: [
+          {
+            id: 'csv',
+            label: 'CSV (.csv)',
+            icon: 'pi-file-excel',
+            run: () => this.exportSelectionCsv(),
+          },
+          {
+            id: 'pdf',
+            label: 'PDF (.pdf)',
+            icon: 'pi-file-pdf',
+            run: () => this.downloadSelectionPdfs(),
+          },
+        ],
+      },
+    ];
+    // ⛔ Il PERMESSO decide la presenza, il TIPO decide l'abilitazione.
+    //
+    // Sono i due stati distinti della tassonomia (`14` §5.1): chi non gestisce
+    // i documenti non vedrà mai il comando — mostrarglielo spento sarebbe
+    // rumore; chi lo gestisce lo vede sempre, e se la selezione contiene tipi
+    // che non si eliminano legge perché.
+    if (this.canManageDocuments()) {
+      const nonEliminabili = !canBulkDeleteDocuments(this.selectedDocs());
+      azioni.push({
+        id: 'delete',
+        label: 'Elimina',
+        icon: 'pi-trash',
+        variant: 'danger',
+        requires: 'oneOrMore',
+        disabled: this.selectionCount() > 0 && nonEliminabili,
+        disabledReason:
+          'La selezione contiene documenti che non si eliminano: Vendite e Resi al banco.',
+        run: () => this.requestDeleteSelection(),
+      });
+    }
+    return azioni;
+  });
 
   /** Somma dei totali documento selezionati, mostrata nella barra massiva. */
   protected readonly selectionTotal = computed<Money>(() => {
@@ -874,7 +974,7 @@ export class DocumentListComponent {
       PURCHASE_INVOICE_LIST_COLUMN_DEFS,
       PURCHASE_INVOICE_LIST_COLUMN_PRESETS,
     );
-    // Vendita/Reso negozio: set con «Tipo» e «Metodo pagamento», senza «Stato».
+    // Vendita/Reso al banco: set con «Tipo» e «Metodo pagamento», senza «Stato».
     this.columnPreferences.registerView(
       TableViewId.StoreSaleDocumentsList,
       STORE_SALE_LIST_COLUMN_DEFS,
@@ -908,13 +1008,7 @@ export class DocumentListComponent {
     // le azioni massive operano solo su documenti che l'utente vede.
     this.selectionPruneSubscription = toObservable(this.documents)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((docs) => {
-        const visible = new Set(docs.map((doc) => doc.id));
-        this.selectedIds.update((current) => {
-          const next = new Set([...current].filter((id) => visible.has(id)));
-          return next.size === current.size ? current : next;
-        });
-      });
+      .subscribe((docs) => this.selection.prune(docs.map((doc) => doc.id)));
 
     effect(() => {
       const fromUrl = this.query().search ?? '';
@@ -1083,45 +1177,23 @@ export class DocumentListComponent {
     this.refreshTick.update((tick) => tick + 1);
   }
 
+  /**
+   * ⛔ **Il clic di riga apre la MODIFICA** (`14` §2), e la decisione non sta
+   * più qui: la dà `documentRowPath` per tipo.
+   *
+   * Qui c'erano SEI rami, e due finivano sull'anteprima — quello dei profili
+   * senza `rowOpensForm` e il ramo finale del registro generico. Il risultato
+   * era che lo stesso gesto apriva un preventivo in modifica e una fattura in
+   * sola lettura, e la differenza dipendeva dall'elenco da cui si era passati,
+   * non dal documento.
+   *
+   * ⚠️ Nulla è andato perso nella fusione: il ramo delle registrazioni fattura,
+   * quello della famiglia carico e le eccezioni sugli annullati vivono tutti in
+   * `DOCUMENT_ROW_OPENS` e in `documentRowPath`, dove valgono anche per la
+   * ricerca globale.
+   */
   protected openDocument(doc: DocumentRecord): void {
-    const sales = this.salesRegister();
-    // Registrazioni fattura: la riga apre il form del modulo (il documento è
-    // sempre modificabile), il dettaglio generico resta per le annullate.
-    if (sales?.profile === 'purchase-invoice') {
-      if (doc.status !== DocumentStatus.Cancelled) {
-        void this.router.navigate(['/app/documents/registrazione-fattura', doc.id, 'edit']);
-      } else {
-        void this.router.navigate(['/app/documents', doc.id]);
-      }
-      return;
-    }
-    // Pagina dedicata. Profili «in stile Arrivi merce» (Preventivi): la riga
-    // apre il documento nel form in sola lettura (banner «Sblocca modifica»),
-    // tranne gli annullati che non sono modificabili → anteprima dettaglio.
-    if (sales) {
-      if (sales.rowOpensForm && doc.status !== DocumentStatus.Cancelled) {
-        // ⛔ Dalla FONTE UNICA, non composto a mano: per i profili a un tipo
-        // solo il risultato coincide con `[listPath, id, 'edit']`, ma dove i
-        // tipi sono due — le Vendite al banco — l'indirizzo dipende dal tipo,
-        // e comporlo qui darebbe una rotta che non esiste.
-        void this.router.navigateByUrl(documentEditPath(doc));
-        return;
-      }
-      void this.router.navigate([sales.listPath, doc.id]);
-      return;
-    }
-    // Percorso unico Arrivo merce: anche dal registro generico la famiglia
-    // carico si apre nel form dedicato (mai nel dettaglio generico, che non
-    // può confermarla né modificarla).
-    if (this.isGoodsReceiptList() || isGoodsReceiptDocumentType(doc.type)) {
-      void this.router.navigate(['/app/documents', doc.id, 'edit']);
-      return;
-    }
-    if (doc.type === DocumentType.SupplierInvoice && doc.status !== DocumentStatus.Cancelled) {
-      void this.router.navigate(['/app/documents/registrazione-fattura', doc.id, 'edit']);
-      return;
-    }
-    void this.router.navigate(['/app/documents', doc.id]);
+    void this.router.navigateByUrl(documentRowPath(doc, this.authService.currentUser()));
   }
 
   /** Dispatch delle azioni del menu "···" di riga (§1 audit cliente). */
@@ -1277,7 +1349,7 @@ export class DocumentListComponent {
         this.pendingDeleteDocs.set([]);
         const deletedIds = new Set(results.filter((r) => r.ok).map((r) => r.doc.id));
         if (deletedIds.size > 0) {
-          this.selectedIds.update((cur) => new Set([...cur].filter((id) => !deletedIds.has(id))));
+          this.selection.prune([...this.selectedIds()].filter((id) => !deletedIds.has(id)));
         }
         const failure = results.find((r) => !r.ok);
         const failedCount = results.length - deletedIds.size;
@@ -1300,23 +1372,23 @@ export class DocumentListComponent {
   // ── Operazioni massive sui documenti selezionati ────────────────────────────
 
   protected onToggleDocSelection(event: DocumentTableSelectionEvent): void {
-    this.selectedIds.update((current) => {
-      const next = new Set(current);
-      if (event.selected) {
-        next.add(event.doc.id);
-      } else {
-        next.delete(event.doc.id);
-      }
-      return next;
-    });
+    this.selection.toggle(event.doc.id, event.selected);
   }
 
+  /**
+   * La checkbox di testata agisce sulle righe **caricate**, non su tutto il
+   * database (`14` §4.1): far credere di aver selezionato record che non sono
+   * mai arrivati al client è la «selezione ingannevole» che §15 vieta.
+   */
   protected onToggleSelectAll(checked: boolean): void {
-    this.selectedIds.set(checked ? new Set(this.documents().map((doc) => doc.id)) : new Set());
+    this.selection.setAll(
+      this.documents().map((doc) => doc.id),
+      checked,
+    );
   }
 
   protected clearSelection(): void {
-    this.selectedIds.set(new Set());
+    this.selection.clear();
   }
 
   /** CSV apribile in Excel dei documenti selezionati, con riga totali. */

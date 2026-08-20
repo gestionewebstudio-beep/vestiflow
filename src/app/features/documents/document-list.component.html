@@ -16,15 +16,23 @@
         {{ pageSubtitle() }}
       </p>
     </div>
-    @if (showCreateActions()) {
-      <div class="doc-list__actions">
+    <!--
+      ⭐ Le azioni dell'elenco vivono nella TESTATA, accanto al titolo e ai
+      comandi di creazione: è la grammatica del Registro Corrispettivi, dove
+      «Nuovo» e gli export stanno nella stessa riga.
+
+      ⛔ Il contenitore non è più dentro `@if`: le azioni dell'elenco ci sono
+      anche per chi non può creare nulla, e sono sempre visibili (`14` §5.1).
+    -->
+    <div class="doc-list__actions">
+      @if (showCreateActions()) {
         @if (salesRegister()) {
           <!--
             Elenchi condivisi da più tipi (Fatture): UN SOLO comando «Nuovo»,
             con una voce per tipo, sempre le stesse. Il filtro «Tipo» qui non
             entra: decide cosa si guarda, non cosa si crea.
             Elenchi a tipo singolo: il bottone diretto, che non ha da scegliere.
-            Vendita/Reso negozio: nessun bottone — si registrano dalla cassa.
+            Vendita/Reso al banco: nessun bottone — si registrano dalla cassa.
           -->
           @if (createVariantButtons().length > 0) {
             <!--
@@ -89,8 +97,18 @@
             />
           }
         }
-      </div>
-    }
+      }
+      <app-list-actions-bar
+        [count]="selectionCount()"
+        [ids]="[...selectedIds()]"
+        [actions]="selectionActions()"
+        labelSingular="documento selezionato"
+        labelPlural="documenti selezionati"
+        summaryLabel="Totale"
+        [summaryValue]="formatMoney(selectionTotal())"
+        (cleared)="clearSelection()"
+      />
+    </div>
   </header>
 
   @if (isPendingInvoiceView()) {
@@ -183,8 +201,8 @@
 
       @if (salesRegister(); as sales) {
         <!--
-          Filtro «Tipo» degli elenchi condivisi (Fatture, Vendita/Reso
-          negozio): preimpostato dalla voce hub di provenienza ma sempre
+          Filtro «Tipo» degli elenchi condivisi (Fatture, Vendita/Reso al
+          banco): preimpostato dalla voce hub di provenienza ma sempre
           modificabile, «Tutti» incluso.
         -->
         @if (showSharedTypeFilter()) {
@@ -489,39 +507,11 @@
     @if (actionError(); as err) {
       <app-error-state [description]="err.message" />
     }
-    @if (supportsSelection() && selectedDocs().length > 0) {
-      <div class="doc-list__bulk-bar" role="toolbar" aria-label="Operazioni documenti selezionati">
-        <span class="doc-list__bulk-count tabular-nums">
-          {{ selectedDocs().length }}
-          {{ selectedDocs().length === 1 ? 'documento selezionato' : 'documenti selezionati' }}
-          · Totale {{ formatMoney(selectionTotal()) }}
-        </span>
-        <app-button variant="secondary" (click)="printSelectionList()">
-          <i class="pi pi-print" aria-hidden="true"></i>
-          Stampa / PDF elenco
-        </app-button>
-        <app-button variant="secondary" (click)="exportSelectionCsv()">
-          <i class="pi pi-file-excel" aria-hidden="true"></i>
-          Esporta Excel (CSV)
-        </app-button>
-        <app-button
-          variant="secondary"
-          [loading]="bulkPdfBusy()"
-          [disabled]="bulkPdfBusy()"
-          (click)="downloadSelectionPdfs()"
-        >
-          <i class="pi pi-file-pdf" aria-hidden="true"></i>
-          PDF documenti
-        </app-button>
-        @if (canManageDocuments()) {
-          <app-button variant="danger" (click)="requestDeleteSelection()">
-            <i class="pi pi-trash" aria-hidden="true"></i>
-            Elimina
-          </app-button>
-        }
-        <app-button variant="ghost" (click)="clearSelection()">Deseleziona</app-button>
-      </div>
-    }
+    <!--
+      La barra contestuale è il componente COMUNE (`14` parte D): questa pagina
+      dichiara le proprie azioni, non ne disegna i pulsanti. Qui c'erano cinque
+      `app-button` in fila, gli stessi cinque che stavano in `sales-order-list`.
+    -->
     <app-document-table
       [documents]="documents()"
       [columns]="tableColumns()"

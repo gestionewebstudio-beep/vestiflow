@@ -47,6 +47,7 @@ import { DateInputComponent } from '@shared/components/date-input/date-input.com
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '@shared/components/error-state/error-state.component';
 import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { ListActionsBarComponent } from '@shared/components/list-actions-bar/list-actions-bar.component';
 import { SelectMenuComponent } from '@shared/components/select-menu/select-menu.component';
 import { SlidePanelComponent } from '@shared/components/slide-panel/slide-panel.component';
 import { formatMoney } from '@core/utils/money.util';
@@ -59,6 +60,8 @@ import {
   resolveMovementPeriodRange,
 } from '@domain/inventory/models/movement-period.util';
 import { TableColumnPickerComponent } from '@shared/components/table-column-picker/table-column-picker.component';
+import { FILTERED_SCOPE_NOT_AVAILABLE, type ListAction } from '@shared/models/list-selection.model';
+import { createListSelection } from '@shared/utils/list-selection';
 import { TableColumnPreferenceService } from '@shared/table-columns/table-column-preference.service';
 import { TableViewId } from '@shared/table-columns/table-column.model';
 import { ShopifySyncFeedbackComponent } from '@domain/channels/shopify/components/shopify-sync-feedback/shopify-sync-feedback.component';
@@ -135,6 +138,7 @@ type SalesListState =
     EmptyStateComponent,
     ErrorStateComponent,
     PaginationComponent,
+    ListActionsBarComponent,
     SelectMenuComponent,
     SlidePanelComponent,
     TableSkeletonComponent,
@@ -426,7 +430,11 @@ export class SalesOrderListComponent {
   protected readonly canManage = computed(() =>
     canManageDocFamily(this.authService.currentUser(), 'sales_order'),
   );
-  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
+  // Lo STATO viene dalla primitiva comune (`14` parte D): era duplicato
+  // identico qui e in `document-list`, e sarebbe stato copiato in altri cinque.
+  private readonly selection = createListSelection('multiple');
+  protected readonly selectedIds = this.selection.ids;
+  protected readonly selectionCount = this.selection.count;
   protected readonly selectedOrders = computed(() =>
     this.orders().filter((order) => this.selectedIds().has(order.id)),
   );
@@ -440,6 +448,70 @@ export class SalesOrderListComponent {
       (order) => order.source === SalesOrderSource.Manual || order.channelMissingSince,
     ),
   );
+
+  /**
+   * Le azioni della barra contestuale, **dichiarate da questa pagina** (`14`
+   * parte D) — le stesse due sicure dell'elenco documenti, più l'eliminazione
+   * che qui esisteva già.
+   *
+   * ⭐ È la prova che l'astrazione è davvero trasversale: due elenchi di feature
+   * diverse, con azioni diverse, sulla stessa primitiva. L'etichetta variabile
+   * dell'eliminazione — «Elimina 3 di 5» quando non tutti sono eliminabili — la
+   * calcola la pagina, e la barra non sa nemmeno che esista un caso simile.
+   */
+  protected readonly selectionActions = computed<readonly ListAction[]>(() => {
+    const azioni: ListAction[] = [
+      {
+        id: 'print',
+        label: 'Stampa',
+        icon: 'pi-print',
+        requires: 'none',
+        disabled: this.selectionCount() === 0,
+        disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
+        ariaLabel: "Stampa l'elenco degli ordini selezionati",
+        run: () => this.printSelectionList(),
+      },
+      {
+        id: 'export',
+        label: 'Esporta',
+        icon: 'pi-download',
+        requires: 'none',
+        disabled: this.selectionCount() === 0,
+        disabledReason: FILTERED_SCOPE_NOT_AVAILABLE,
+        busy: this.bulkPdfBusy(),
+        items: [
+          {
+            id: 'csv',
+            label: 'CSV (.csv)',
+            icon: 'pi-file-excel',
+            run: () => this.exportSelectionCsv(),
+          },
+          {
+            id: 'pdf',
+            label: 'PDF (.pdf)',
+            icon: 'pi-file-pdf',
+            run: () => this.downloadSelectionPdfs(),
+          },
+        ],
+      },
+    ];
+    const eliminabili = this.deletableSelectedOrders().length;
+    const selezionati = this.selectedOrders().length;
+    if (eliminabili > 0) {
+      azioni.push({
+        id: 'delete',
+        // Non più «manuali»: fra gli eliminabili ci sono anche gli ordini di
+        // canale che su Shopify non risultano più.
+        label: eliminabili === selezionati ? 'Elimina' : `Elimina ${eliminabili} di ${selezionati}`,
+        icon: 'pi-trash',
+        variant: 'danger',
+        requires: 'oneOrMore',
+        disabled: this.deleteBusy(),
+        run: () => this.requestDeleteSelection(),
+      });
+    }
+    return azioni;
+  });
 
   /** Fra quelli in coda di eliminazione, gli ordini spariti dal canale. */
   private readonly pendingMissingOnChannel = computed(
@@ -543,13 +615,7 @@ export class SalesOrderListComponent {
     // Al cambio pagina/filtri la selezione si restringe alle righe visibili.
     toObservable(this.orders)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((orders) => {
-        const visible = new Set(orders.map((order) => order.id));
-        this.selectedIds.update((current) => {
-          const next = new Set([...current].filter((id) => visible.has(id)));
-          return next.size === current.size ? current : next;
-        });
-      });
+      .subscribe((orders) => this.selection.prune(orders.map((order) => order.id)));
   }
 
   protected onSearchInput(event: Event): void {
@@ -868,23 +934,19 @@ export class SalesOrderListComponent {
   }
 
   protected onToggleSelection(event: SalesOrderTableSelectionEvent): void {
-    this.selectedIds.update((current) => {
-      const next = new Set(current);
-      if (event.selected) {
-        next.add(event.order.id);
-      } else {
-        next.delete(event.order.id);
-      }
-      return next;
-    });
+    this.selection.toggle(event.order.id, event.selected);
   }
 
+  /** La checkbox di testata agisce sulle righe CARICATE (`14` §4.1). */
   protected onToggleSelectAll(checked: boolean): void {
-    this.selectedIds.set(checked ? new Set(this.orders().map((order) => order.id)) : new Set());
+    this.selection.setAll(
+      this.orders().map((order) => order.id),
+      checked,
+    );
   }
 
   protected clearSelection(): void {
-    this.selectedIds.set(new Set());
+    this.selection.clear();
   }
 
   // ── Operazioni massive: elenco (CSV/stampa) e PDF documenti ──────────────
@@ -1020,7 +1082,7 @@ export class SalesOrderListComponent {
         this.pendingDeleteOrders.set([]);
         const deletedIds = new Set(results.filter((r) => r.ok).map((r) => r.order.id));
         if (deletedIds.size > 0) {
-          this.selectedIds.update((cur) => new Set([...cur].filter((id) => !deletedIds.has(id))));
+          this.selection.prune([...this.selectedIds()].filter((id) => !deletedIds.has(id)));
         }
         const failure = results.find((r) => !r.ok);
         const failedCount = results.length - deletedIds.size;

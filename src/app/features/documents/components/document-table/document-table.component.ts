@@ -24,6 +24,10 @@ import { isStoreFlowDocumentType } from '@domain/documents/models/document-opera
 import { isPrintableDocumentType } from '../../models/document-print.util';
 import { isQuoteDocumentType } from '@domain/documents/models/document-sales.util';
 import { isManualUnloadDocumentType } from '../../models/document-stock-operation.util';
+import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type { DataTableSection } from '@shared/components/data-table/data-table.model';
 import { goodsReceiptExternalDocLabel } from '../../utils/document-list-export.util';
 
 /** Azioni disponibili dal menu "···" della riga (audit cliente §1: azioni dalla lista). */
@@ -50,7 +54,14 @@ export interface DocumentTableSelectionEvent {
 @Component({
   selector: 'app-document-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ActionMenuComponent, BadgeComponent, RouterLink],
+  imports: [
+    ActionMenuComponent,
+    BadgeComponent,
+    RouterLink,
+    DataTableComponent,
+    DataTableCellDirective,
+    DataTableRowActionsDirective,
+  ],
   templateUrl: './document-table.component.html',
   styleUrl: './document-table.component.scss',
 })
@@ -75,18 +86,10 @@ export class DocumentTableComponent {
   readonly selectionChange = output<DocumentTableSelectionEvent>();
   readonly selectAllChange = output<boolean>();
 
-  protected readonly allSelected = computed(() => {
-    const docs = this.documents();
-    const selected = this.selectedIds();
-    return docs.length > 0 && docs.every((doc) => selected.has(doc.id));
-  });
-
-  protected readonly someSelected = computed(() => {
-    const docs = this.documents();
-    const selected = this.selectedIds();
-    const count = docs.filter((doc) => selected.has(doc.id)).length;
-    return count > 0 && count < docs.length;
-  });
+  // Le due regole della checkbox di testata vivono nella primitiva comune:
+  // erano identiche qui e in `sales-order-table`, e `supplier-order-table`
+  // stava per essere la terza copia (`14` §4).
+  private readonly visibleIds = computed(() => this.documents().map((doc) => doc.id));
 
   protected readonly typeLabel = documentTypeLabel;
   protected readonly formatMoney = formatMoney;
@@ -199,7 +202,7 @@ export class DocumentTableComponent {
     // documenti che l'API poi rifiuta.
     const canManageRow = this.canManage() && this.manageableTypes().includes(doc.type);
 
-    // Vendite/resi negozio: il dettaglio è di sola lettura, mai una modifica.
+    // Vendite/resi al banco: il dettaglio è di sola lettura, mai una modifica.
     const items: ActionMenuItem[] = isStoreFlowDocumentType(doc.type)
       ? [{ id: 'open', label: 'Apri', icon: 'pi-eye' }]
       : [{ id: 'open', label: 'Apri / Modifica', icon: 'pi-pencil' }];
@@ -248,4 +251,63 @@ export class DocumentTableComponent {
   protected onToggleSelect(doc: DocumentRecord, selected: boolean): void {
     this.selectionChange.emit({ doc, selected });
   }
+
+  // ── Il motore comune (`14` parte H) ───────────────────────────────────────
+
+  /** Lista piatta: una sezione senza intestazione né piede. */
+  protected readonly sections = computed<readonly DataTableSection<DocumentRecord>[]>(() => [
+    { id: 'documenti', rows: this.documents() },
+  ]);
+
+  protected readonly rowId = (doc: DocumentRecord): string => doc.id;
+
+  protected readonly selectionLabel = (doc: DocumentRecord): string =>
+    `Seleziona documento ${this.referenceLabel(doc)}`;
+
+  /**
+   * Il testo delle celle che sono testo — diciotto colonne su ventuno.
+   *
+   * ⚠️ I trattini non sono decorazione: una cella vuota in una tabella densa si
+   * legge come un errore di caricamento, non come «non c'è».
+   */
+  protected readonly cellText = (doc: DocumentRecord, columnId: string): string => {
+    switch (columnId) {
+      case 'documentDate':
+        return this.dateLabel(doc);
+      case 'type':
+        return this.typeLabel(doc.type);
+      case 'reference':
+        return this.referenceLabel(doc);
+      case 'counterparty':
+        return this.counterparty(doc);
+      case 'supplierCode':
+        return this.supplierCodeLabel(doc);
+      case 'billingCause':
+        return this.billingCauseLabel(doc);
+      case 'causal':
+        return this.causalLabel(doc);
+      case 'notes':
+        return this.notesLabel(doc);
+      case 'location':
+        return this.locationLabel(doc);
+      case 'externalDocNumber':
+        return this.externalDocLabel(doc);
+      case 'registrationDate':
+        return this.registrationDateLabel(doc);
+      case 'invoiceNumber':
+        return this.invoiceNumberLabel(doc);
+      case 'paymentMethod':
+        return this.paymentMethodLabel(doc);
+      case 'lineCount':
+        return String(this.lineCount(doc));
+      case 'subtotal':
+        return formatMoney(doc.subtotal);
+      case 'total':
+        return formatMoney(doc.total);
+      case 'outstanding':
+        return this.outstandingLabel(doc) ?? '';
+      default:
+        return '';
+    }
+  };
 }

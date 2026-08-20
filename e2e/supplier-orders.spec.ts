@@ -12,7 +12,7 @@ test.describe('Ordini fornitori', () => {
 
   test('carica lista ordini o empty state', async ({ page }) => {
     const skeleton = page.locator('app-table-skeleton');
-    const table = page.locator('app-supplier-order-table');
+    const table = page.locator('app-data-table');
     const empty = page.getByText('Nessun ordine fornitore', { exact: true });
     const error = page.locator('app-error-state');
 
@@ -45,9 +45,11 @@ test.describe('Ordini fornitori', () => {
       return;
     }
 
-    const firstRow = page.locator('.po-table__row').first();
+    const firstRow = page.locator('.data-table__row').first();
 
-    const reference = ((await firstRow.locator('.po-table__reference').textContent()) ?? '').trim();
+    const reference = (
+      (await firstRow.locator('.po-list__riferimento').textContent()) ?? ''
+    ).trim();
     expect(reference.length).toBeGreaterThan(0);
 
     await firstRow.click();

@@ -86,7 +86,56 @@
       icon="pi-truck"
     />
   } @else {
-    <app-supplier-order-table [orders]="orders()" (rowClick)="openOrder($event)" />
+    @if (actionError(); as err) {
+      <app-error-state [description]="err.message" />
+    }
+
+    <app-list-actions-bar
+      [count]="selectionCount()"
+      [ids]="[...selectedIds()]"
+      [actions]="selectionActions()"
+      labelSingular="ordine selezionato"
+      labelPlural="ordini selezionati"
+      (cleared)="clearSelection()"
+    />
+
+    <app-data-table
+      caption="Ordini fornitore"
+      [columns]="tableColumns"
+      [sections]="tableSections()"
+      [rowId]="rowId"
+      [cellText]="cellText"
+      [rowClickable]="true"
+      [rowLabel]="rowLabel"
+      selectionMode="multiple"
+      [selectedIds]="selectedIds()"
+      [selectionLabel]="selectionLabel"
+      selectAllLabel="Seleziona tutti gli ordini"
+      (rowClick)="openOrder($event)"
+      (selectionChange)="onToggleSelection($event)"
+      (selectAllChange)="onToggleSelectAll($event)"
+    >
+      <!-- L'unica cella che non è testo: lo stato, con la sua pill. -->
+      <ng-template appCell="status" let-order>
+        <app-badge [tone]="statusTone(order.status)">{{ statusLabel(order.status) }}</app-badge>
+      </ng-template>
+
+      <!--
+        Le tre celle vestite di tipografia. Il TESTO resta uno solo (`cellText`):
+        il template aggiunge il vestito, non una seconda verità.
+      -->
+      <ng-template appCell="reference" let-order>
+        <span class="po-list__riferimento">{{ cellText(order, 'reference') }}</span>
+      </ng-template>
+
+      <ng-template appCell="lines" let-order>
+        <span class="po-list__righe">{{ cellText(order, 'lines') }}</span>
+      </ng-template>
+
+      <ng-template appCell="expected" let-order>
+        <span class="po-list__attesa">{{ cellText(order, 'expected') }}</span>
+      </ng-template>
+    </app-data-table>
     <app-pagination
       label="Paginazione ordini fornitori"
       [meta]="meta()"

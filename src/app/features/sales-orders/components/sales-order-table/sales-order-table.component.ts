@@ -1,4 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+
+import { SelectionCheckComponent } from '@shared/components/selection-check/selection-check.component';
+import { DataTableCellDirective } from '@shared/components/data-table/data-table-cell.directive';
+import { DataTableRowActionsDirective } from '@shared/components/data-table/data-table-row-actions.directive';
+import { DataTableComponent } from '@shared/components/data-table/data-table.component';
+import type { DataTableSection } from '@shared/components/data-table/data-table.model';
+import { isAllSelected, isSomeSelected } from '@shared/utils/list-selection';
 import { RouterLink } from '@angular/router';
 
 import {
@@ -47,7 +54,15 @@ export interface SalesOrderTableSelectionEvent {
 @Component({
   selector: 'app-sales-order-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ActionMenuComponent, BadgeComponent, RouterLink],
+  imports: [
+    ActionMenuComponent,
+    BadgeComponent,
+    RouterLink,
+    SelectionCheckComponent,
+    DataTableComponent,
+    DataTableCellDirective,
+    DataTableRowActionsDirective,
+  ],
   templateUrl: './sales-order-table.component.html',
   styleUrl: './sales-order-table.component.scss',
 })
@@ -67,18 +82,16 @@ export class SalesOrderTableComponent {
   readonly selectionChange = output<SalesOrderTableSelectionEvent>();
   readonly selectAllChange = output<boolean>();
 
-  protected readonly allSelected = computed(() => {
-    const orders = this.orders();
-    const selected = this.selectedIds();
-    return orders.length > 0 && orders.every((order) => selected.has(order.id));
-  });
-
-  protected readonly someSelected = computed(() => {
-    const orders = this.orders();
-    const selected = this.selectedIds();
-    const count = orders.filter((order) => selected.has(order.id)).length;
-    return count > 0 && count < orders.length;
-  });
+  // Le due regole della checkbox di testata vivono nella primitiva comune:
+  // erano identiche qui e in `sales-order-table`, e `supplier-order-table`
+  // stava per essere la terza copia (`14` §4).
+  private readonly visibleIds = computed(() => this.orders().map((order) => order.id));
+  protected readonly allSelected = computed(() =>
+    isAllSelected(this.visibleIds(), this.selectedIds()),
+  );
+  protected readonly someSelected = computed(() =>
+    isSomeSelected(this.visibleIds(), this.selectedIds()),
+  );
 
   protected readonly financialLabel = financialStatusLabel;
   protected readonly financialTone = financialStatusTone;
@@ -239,4 +252,45 @@ export class SalesOrderTableComponent {
   protected onToggleSelect(order: SalesOrder, selected: boolean): void {
     this.selectionChange.emit({ order, selected });
   }
+
+  // ── Il motore comune (`14` parte H) ───────────────────────────────────────
+
+  /** Lista piatta: una sezione senza intestazione né piede. */
+  protected readonly sections = computed<readonly DataTableSection<SalesOrder>[]>(() => [
+    { id: 'ordini', rows: this.orders() },
+  ]);
+
+  protected readonly rowId = (order: SalesOrder): string => order.id;
+
+  protected readonly rowLabelFor = (order: SalesOrder): string => this.rowLabel(order);
+
+  protected readonly selectionLabel = (order: SalesOrder): string =>
+    `Seleziona ordine ${order.orderNumber}`;
+
+  /** Il testo delle celle che sono testo. */
+  protected readonly cellText = (order: SalesOrder, columnId: string): string => {
+    switch (columnId) {
+      case 'orderNumber':
+        return order.orderNumber;
+      case 'placedAt':
+        return this.compactDate(order.placedAt);
+      case 'customerCode':
+        return order.customerCode || '—';
+      case 'customerName':
+        return order.customerName;
+      case 'total':
+        return formatMoney(order.total);
+      case 'netTotal':
+        // ⚠️ La colonna «Tot. netto» mostra il SUBTOTALE: era così anche prima.
+        return formatMoney(order.subtotal);
+      case 'location':
+        return order.locationName ?? '—';
+      case 'notes':
+        return order.notes || '—';
+      case 'updatedAt':
+        return formatDate(order.updatedAt);
+      default:
+        return '';
+    }
+  };
 }

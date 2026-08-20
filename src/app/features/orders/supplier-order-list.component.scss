@@ -1,3 +1,26 @@
 @use 'list-page' as lp;
 
 @include lp.list-page('po-list');
+
+/*
+  La tipografia delle celle dell'elenco ordini.
+
+  ⭐ Vestono contenuto PROIETTATO nel motore tabella: gli elementi portano
+  l'incapsulamento di questa pagina, quindi questi selettori li raggiungono.
+  È il canale previsto da `regole-stile-ui` §5 — l'alternativa sarebbe
+  `::ng-deep`, che nell'app non esiste più in nessun punto.
+*/
+.po-list__riferimento {
+  font-variant-numeric: tabular-nums;
+}
+
+.po-list__righe {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.po-list__attesa {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

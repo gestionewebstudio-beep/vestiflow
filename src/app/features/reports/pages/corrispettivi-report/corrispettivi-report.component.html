@@ -76,40 +76,29 @@
           Restano le stesse quattro azioni, con il nome del formato e l'icona
           che dice il resto: quattro formati, quattro parole.
         -->
-        <app-button class="corrispettivi__export-inline" variant="ghost" (click)="printReport()">
-          <i class="pi pi-print" aria-hidden="true"></i>
-          Stampa
-        </app-button>
-        <app-button
-          class="corrispettivi__export-inline"
-          variant="secondary"
-          [loading]="exportingPdf()"
-          [disabled]="exportingPdf()"
-          (click)="exportPdf()"
-        >
-          <i class="pi pi-file-pdf" aria-hidden="true"></i>
-          PDF
-        </app-button>
-        <app-button
-          class="corrispettivi__export-inline"
-          variant="secondary"
-          [loading]="exportingSpreadsheet()"
-          [disabled]="exportingSpreadsheet()"
-          (click)="exportSpreadsheet()"
-        >
-          <i class="pi pi-file-excel" aria-hidden="true"></i>
-          Excel
-        </app-button>
-        <app-button
-          class="corrispettivi__export-inline"
-          variant="secondary"
-          [loading]="exporting()"
-          [disabled]="exporting()"
-          (click)="exportAccountantCsv()"
-        >
-          <i class="pi pi-download" aria-hidden="true"></i>
-          CSV
-        </app-button>
+        <!--
+          ⭐ Le quattro azioni arrivano DICHIARATE dal contratto comune
+          (`14` parte D), non scritte qui a mano.
+
+          ⛔ Il markup che ne esce è identico a quello di prima — stessa
+          classe, stesse varianti, stesse icone, stessi stati: è un refactor
+          infrastrutturale, non un cambio grafico. Prima le stesse quattro
+          azioni vivevano in TRE posti (questi pulsanti, le voci del menu
+          compatto, e lo switch che le smistava), da tenere allineati a mano.
+        -->
+        @for (azione of listActions(); track azione.id) {
+          @let stato = actionState(azione);
+          <app-button
+            class="corrispettivi__export-inline"
+            [variant]="azione.variant ?? 'secondary'"
+            [loading]="azione.busy === true"
+            [disabled]="stato.disabled"
+            (click)="onExportAction(azione.id)"
+          >
+            <i class="pi {{ azione.icon }}" aria-hidden="true"></i>
+            {{ azione.label }}
+          </app-button>
+        }
       }
     </div>
   </header>
@@ -161,7 +150,7 @@
         triggerLabel="Esporta"
         triggerIcon="pi-download"
         ariaLabel="Esporta il registro"
-        [items]="exportMenuItems"
+        [items]="exportMenuItems()"
         (actionSelected)="onExportAction($event)"
       />
     }
