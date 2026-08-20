@@ -106,3 +106,15 @@
 .app-button--loading {
   cursor: wait;
 }
+
+/*
+  Spento «in modo morbido»: stessa resa del `disabled` nativo, ma il pulsante
+  resta focusabile perché deve poter dire PERCHÉ non si può (`14` §11).
+
+  ⚠️ Il fuoco resta visibile: è l'unico modo in cui chi naviga da tastiera si
+  accorge di essere arrivato sul comando e può leggerne la ragione.
+*/
+.app-button--soft-disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}

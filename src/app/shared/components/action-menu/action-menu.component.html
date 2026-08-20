@@ -10,15 +10,26 @@
     [class.action-menu__trigger--labelled]="triggerLabel()"
     [attr.aria-label]="triggerLabel() ? null : ariaLabel()"
     [attr.aria-expanded]="open()"
+    [class.action-menu__trigger--disabled]="disabled() || busy()"
+    [attr.aria-disabled]="disabled() || busy() ? true : null"
+    [attr.aria-describedby]="disabledReason() ? reasonId : null"
     aria-haspopup="menu"
     (click)="toggle($event)"
   >
-    <i class="pi {{ triggerIcon() }}" aria-hidden="true"></i>
+    @if (busy()) {
+      <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+    } @else {
+      <i class="pi {{ triggerIcon() }}" aria-hidden="true"></i>
+    }
     @if (triggerLabel(); as label) {
       <span class="action-menu__trigger-label">{{ label }}</span>
       <i class="pi pi-chevron-down action-menu__trigger-caret" aria-hidden="true"></i>
     }
   </button>
+
+  @if (disabledReason()) {
+    <span class="sr-only" [id]="reasonId">{{ disabledReason() }}</span>
+  }
 
   @if (open()) {
     <ul class="action-menu__panel" role="menu" [attr.aria-label]="ariaLabel()">

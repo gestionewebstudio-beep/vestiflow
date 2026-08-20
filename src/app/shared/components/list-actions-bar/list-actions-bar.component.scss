@@ -1,0 +1,73 @@
+@use 'breakpoints' as bp;
+
+/*
+  La barra azioni di un elenco (`14` §5).
+
+  ⭐ Densità e vocabolario vengono dal Registro Corrispettivi, che è il
+  riferimento grafico corrente: una barra strumenti non ha la taglia di un
+  controllo autonomo — `--control-h-button` (31px) e `--text-xs` (12px).
+
+  ⚠️ **Due proprietà, non una** (`regole-stile-ui` §5): `app-button` legge
+  `--button-font-size`, il trigger di `app-action-menu` legge `--field-*`.
+  Dichiararne una sola lascerebbe metà dei comandi alla taglia vecchia.
+*/
+.list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+
+  --field-height: var(--control-h-button);
+  --button-font-size: var(--text-xs);
+  --field-font-size: var(--text-xs);
+}
+
+/*
+  L'indicatore di selezione riprende l'anatomia del riepilogo Corrispettivi:
+  etichetta minuscola maiuscola, valore un gradino sotto, filo a destra.
+*/
+/*
+  ⚠️ `margin-inline-end: auto` invece di uno spaziatore: in una riga a sé spinge
+  i comandi a destra, dentro la testata — dove il contenitore è largo quanto il
+  contenuto — non ha spazio da espandere e semplicemente non fa niente. Uno
+  `<span>` riempitivo avrebbe funzionato solo nella prima delle due posizioni.
+*/
+.list-actions__selection {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-inline-end: auto;
+  padding-inline-end: var(--space-3);
+  border-inline-end: var(--border-width) solid var(--color-border);
+}
+
+.list-actions__selection-label {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-table-header-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+  white-space: nowrap;
+}
+
+.list-actions__selection-value {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Spinge i comandi a destra senza stirare l'indicatore. */
+.list-actions__spacer {
+  flex: 1 1 auto;
+}
+
+@include bp.media-down('md') {
+  // Su schermo stretto l'indicatore prende la sua riga e i comandi vanno a capo
+  // sotto, invece di comprimersi contro il bordo.
+  .list-actions__selection {
+    flex-basis: 100%;
+    padding-inline-end: 0;
+    border-inline-end: 0;
+  }
+}

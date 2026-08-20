@@ -1,0 +1,69 @@
+<div class="list-actions" role="toolbar" aria-label="Azioni dell'elenco">
+  <!--
+    L'indicatore compare con la selezione; le AZIONI no, quelle ci sono sempre
+    (`14` §5.1). Sta prima dei comandi e non fra loro, così i pulsanti non si
+    spostano di un pixel quando si spunta una casella.
+  -->
+  @if (count() > 0) {
+    <div class="list-actions__selection">
+      <span class="list-actions__selection-label">{{ countLabel() }}</span>
+      <span class="list-actions__selection-value tabular-nums">{{ count() }}</span>
+      @if (summaryValue()) {
+        <span class="list-actions__selection-label">{{ summaryLabel() }}</span>
+        <span class="list-actions__selection-value tabular-nums">{{ summaryValue() }}</span>
+      }
+      <app-button variant="ghost" (click)="cleared.emit()">{{ clearLabel() }}</app-button>
+    </div>
+  }
+
+  @for (action of actions(); track action.id) {
+    @let stato = stateOf(action);
+
+    @if (action.items) {
+      <app-action-menu
+        [items]="menuItems(action)"
+        [triggerLabel]="action.label"
+        [triggerIcon]="action.icon ?? 'pi-download'"
+        [ariaLabel]="action.ariaLabel || action.label"
+        [disabled]="stato.disabled"
+        [busy]="action.busy === true"
+        [disabledReason]="stato.reason ?? ''"
+        (actionSelected)="runItem(action, $event)"
+      />
+    } @else if (stato.disabled && stato.reason) {
+      <!--
+        Spenta CON la ragione: il tooltip reagisce a mouse e a fuoco
+        (`:focus-within`), e il pulsante resta raggiungibile col Tab grazie a
+        `softDisabled` — un `disabled` nativo lo toglierebbe dal giro, e la
+        ragione non sarebbe leggibile da tastiera in nessun modo (`14` §11).
+      -->
+      <app-hover-tooltip [text]="stato.reason" [bubbleId]="reasonId(action)">
+        <app-button
+          [variant]="action.variant ?? 'secondary'"
+          [softDisabled]="true"
+          [ariaLabel]="action.ariaLabel"
+          [ariaDescribedBy]="reasonId(action)"
+          (click)="run(action)"
+        >
+          @if (action.icon) {
+            <i class="pi {{ action.icon }}" aria-hidden="true"></i>
+          }
+          {{ action.label }}
+        </app-button>
+      </app-hover-tooltip>
+    } @else {
+      <app-button
+        [variant]="action.variant ?? 'secondary'"
+        [softDisabled]="stato.disabled"
+        [loading]="action.busy === true"
+        [ariaLabel]="action.ariaLabel"
+        (click)="run(action)"
+      >
+        @if (action.icon) {
+          <i class="pi {{ action.icon }}" aria-hidden="true"></i>
+        }
+        {{ action.label }}
+      </app-button>
+    }
+  }
+</div>

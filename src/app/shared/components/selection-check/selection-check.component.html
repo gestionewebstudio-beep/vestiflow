@@ -1,0 +1,8 @@
+<input
+  type="checkbox"
+  class="selection-check"
+  [attr.aria-label]="ariaLabel()"
+  [checked]="checked()"
+  [indeterminate]="indeterminate()"
+  (change)="changed.emit($any($event.target).checked)"
+/>

@@ -128,3 +128,12 @@
 .action-menu__item-btn--danger i {
   color: var(--status-error-fg);
 }
+
+/*
+  Trigger spento: stessa resa del disabilitato nativo, ma **focusabile**, perché
+  deve poter annunciare la ragione anche a chi non ha un mouse (`14` §11).
+*/
+.action-menu__trigger--disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}

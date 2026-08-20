@@ -33,6 +33,15 @@ export class HoverTooltipComponent {
    */
   readonly inline = input(false);
 
+  /**
+   * Identità della bolla, per chi deve **puntarci** con `aria-describedby`.
+   *
+   * ⛔ Serve a non duplicare il testo: senza, il chiamante che vuole associare
+   * la spiegazione a un comando è costretto a ripeterla in un elemento
+   * nascosto — e lo screen reader la sente due volte.
+   */
+  readonly bubbleId = input<string>('');
+
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /**
