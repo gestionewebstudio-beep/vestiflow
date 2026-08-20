@@ -10,6 +10,75 @@
 
 ---
 
+# ⭐ LE DECISIONI VIGENTI — leggi QUESTA, il resto è il perché
+
+_Aggiunta il 20/08/2026, perché il documento aveva smesso di rispondere in dieci secondi._
+
+⚠️ **Questa specifica è cresciuta per stratificazione** — 2400 righe, nove parti, cinquanta
+sezioni che correggono o ritirano qualcosa di scritto sopra — e la stessa decisione compare in
+otto punti diversi. Chi cerca una risposta la trova solo se sa già dove sta, e chi non lo sa
+**la chiede di nuovo**. Questa tabella è l'unico posto da leggere: una riga per decisione, e il
+puntatore a dove è argomentata.
+
+⛔ **Se una sezione più in basso dice il contrario di questa tabella, vince questa tabella** —
+e la sezione va corretta, non interpretata.
+
+## Interazione con la riga
+
+| Decisione                                                                                                                        | Dove   |
+| -------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| **Clic sulla riga → Modifica.** Per ogni tipo, in ogni elenco. Nessun doppio clic                                                | §2, §3 |
+| **Checkbox → selezione.** Gesto distinto, non alternativo                                                                        | §4     |
+| **Tre funzioni distinte, e i nomi sono questi: Modifica · Dettaglio · Stampa/PDF.** «Anteprima» non esiste                       | §6     |
+| **Il Dettaglio si raggiunge dal suo pulsante**, e in questa fase non si ridisegna                                                | §E4    |
+| **Tre predicati da non confondere: `canEdit` · `canViewDetail` · `canSelect`.** Una riga non modificabile può avere un Dettaglio | §H16   |
+| **Sfondo:** comune a qualsiasi riga. **Mano:** solo dove il clic apre la Modifica                                                | §H16   |
+
+## Azioni dell'elenco
+
+| Decisione                                                                                                                  | Dove |
+| -------------------------------------------------------------------------------------------------------------------------- | ---- |
+| **La barra è permanente**: la selezione ne cambia l'ambito, non la presenza. I comandi non si spostano                     | §5   |
+| **`requires`** (`none` · `oneOrMore` · `one`) decide se un'azione è abilitata; i motivi standard li dà il contratto comune | §5.0 |
+| **La selezione batte i filtri**: 0 selezionati → tutto il filtrato; 1+ → solo quelle                                       | §5.3 |
+| **Stampa · Excel · Esporta sono tre azioni indipendenti**, non tre formati di una                                          | §5.2 |
+| **«Esporta» richiede `reports.export`** in ogni elenco che la offre                                                        | §E5  |
+
+## Riepiloghi: colonne, ordinamento, mobile
+
+| Decisione                                                                                                                    | Dove |
+| ---------------------------------------------------------------------------------------------------------------------------- | ---- |
+| **Colonna stretta**: `table-layout: fixed`, una riga sola, clipping a destra. Niente wrap, niente spezzatura, niente ellissi | §G4  |
+| **Si conserva** il preset e le colonne visibili; **non** la larghezza né l'ordine                                            | §G1  |
+| **Il Registro Corrispettivi è il riferimento grafico di partenza** dei riepiloghi                                            | §F5  |
+| **Pattern mobile dei riepiloghi = la card del Registro.** Non si estende a form e documenti                                  | §G4  |
+| ⚠️ **L'espansione di riga è dei DOCUMENTI su mobile** (`app-document-line-card`), non dei riepiloghi                         | §H14 |
+| **Ordinamento**: è lavoro da completare, e sugli elenchi paginati deve valere sull'intero risultato filtrato                 | §H15 |
+
+## ⏸ APERTE — non decise, non dedurle dal codice
+
+| Questione                                                                                                                             | Dove     |
+| ------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **Larghezze iniziali** delle colonne: da dove vengono, riepilogo per riepilogo                                                        | §G4      |
+| **Intestazioni maiuscole**: il mixin e `regole-stile-ui` §6 divergono                                                                 | §G4, §F5 |
+| **«Non modificabile ⇒ non selezionabile»**: la regola è registrata, l'applicazione toglierebbe funzioni ai Movimenti e agli annullati | §H16     |
+| **Dettaglio dell'Ordine cliente**: è un gap, si affronta col rifacimento dei Detail                                                   | §E6      |
+| **Dettaglio del Corrispettivo manuale**: oggi ha solo una maschera di modifica                                                        | §E6      |
+| **Azioni massive** (selezione eterogenea, esiti parziali, tutto il filtrato)                                                          | §E5      |
+| **Stampa/PDF** come menu per tipo documento                                                                                           | §E2      |
+
+## Che cosa è già stato fatto — 20/08/2026
+
+```text
+motore tabella comune            documenti · ordini cliente · ordini fornitore · movimenti
+barra azioni comune              gli stessi quattro
+clic di riga → Modifica          dichiarato per tipo in DOCUMENT_ROW_OPENS
+pulsante Dettaglio               elenco documenti (8 profili) · ordini fornitore
+mappa di che cosa manca          parte I
+```
+
+---
+
 ## 1. Obiettivo
 
 Uniformare il comportamento degli elenchi documentali di VestiFlow.
